@@ -3129,3 +3129,187 @@ describe("board-model — the converse of the arm the WR-01 fix touched (plan 32
     );
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-38, TASK 3 — THE CONTRACT AND THE CODE PROVED EQUAL, NOT KEPT EQUAL BY EYE.
+//
+// D-04 makes `agent-factory/contracts/board.md` a NORMATIVE authority rather than commentary, which
+// is why review WR-01 counted the contract carrying the same false clause as part of the same
+// defect: a reader adjudicating the disagreement would have read the contract and been told the
+// wrong answer with the authority of a spec. An agreement kept by eye is what failed. This block
+// reads the table AT RUN TIME and asserts SET EQUALITY IN BOTH DIRECTIONS — a one-directional check
+// is how the drift happened.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+const PRESENCE_TABLE_HEADING = "### The presence table";
+const CONTRACT_PATH = join(ROOT, "agent-factory", "contracts", "board.md");
+
+type ContractRow = { readonly measured: string; readonly says: string; readonly template: string };
+
+/**
+ * Read the presence table out of the contract, LOCATED BY ITS HEADING and BOUNDED BY THE NEXT ONE.
+ *
+ * THE BOUND IS THE POINT. A section-anchored reader that searches to end-of-file adopts an
+ * unrelated later block — the bypass shape this repository recorded in Phase 29 — and this document
+ * carries several other tables, one of them (the conflict-kind table) only a few lines above.
+ */
+function readPresenceTable(text: string): readonly ContractRow[] {
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l.trim() === PRESENCE_TABLE_HEADING);
+  if (start < 0) {
+    throw new Error(
+      `agent-factory/contracts/board.md carries no "${PRESENCE_TABLE_HEADING}" heading. The ` +
+        `presence table is located by that heading, never by a line number; if the section was ` +
+        `renamed, rename it here in the same commit.`,
+    );
+  }
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^#{1,6} /.test(lines[i] ?? "")) {
+      end = i;
+      break;
+    }
+  }
+  const span = lines.slice(start + 1, end);
+  const first = span.findIndex((l) => l.trimStart().startsWith("|"));
+  if (first < 0) {
+    throw new Error(
+      `the "${PRESENCE_TABLE_HEADING}" section carries no markdown table between its heading and ` +
+        `the next one.`,
+    );
+  }
+  const rows: ContractRow[] = [];
+  // span[first] is the header row and span[first + 1] the delimiter; the data rows follow.
+  for (let i = first + 2; i < span.length; i += 1) {
+    const line = (span[i] ?? "").trim();
+    if (!line.startsWith("|")) break;
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells.length !== 2) {
+      throw new Error(`a presence-table row has ${cells.length} cells rather than 2: ${line}`);
+    }
+    const [measured = "", says = ""] = cells;
+    rows.push({ measured, says, template: contractTemplate(says) });
+  }
+  return rows;
+}
+
+/** Normalise a table cell into the same template shape `templatesOf` produces from the module. */
+function contractTemplate(says: string): string {
+  if (says.startsWith("Nothing")) return NULL_BRANCH;
+  if (!/^`.*`$/.test(says)) {
+    throw new Error(
+      `a presence-table row states its consequence in a shape this comparison cannot read: ` +
+        `${JSON.stringify(says)}. A sentence row is one backticked span; the no-conflict row ` +
+        `begins with "Nothing".`,
+    );
+  }
+  return says.slice(1, -1).replace(/<[^>]*>/g, HOLE);
+}
+
+/**
+ * The branches a REAL TREE can reach — the derived set minus the branches Task 2's audit proved
+ * unreachable from the reader. Both sides derived; the unreachable partition is itself asserted.
+ */
+function readerProducibleTemplates(): readonly string[] {
+  const sentences = auditedSentences();
+  const unreachable = new Set(
+    PRESENCE_AUDIT.filter((r) => !r.readerProducible).map((r) =>
+      templateOfSentence(sentences.get(r.branch) ?? null, r.values),
+    ),
+  );
+  return derivePresenceBranches().filter((t) => !unreachable.has(t));
+}
+
+describe("board-model — the contract's presence table and the code's sentences (plan 32-38, D-04)", () => {
+  it("locates the table BY HEADING, and reds naming the heading when the section is absent", () => {
+    expect(() => readPresenceTable("# a document with no presence section\n\n| a | b |\n")).toThrow(
+      PRESENCE_TABLE_HEADING,
+    );
+    // And the bound is real: a table AFTER the next heading is not adopted.
+    const bounded = readPresenceTable(
+      `${PRESENCE_TABLE_HEADING}\n\n| m | s |\n|---|---|\n| A document declares it. | Nothing — no conflict. |\n\n` +
+        `### something else\n\n| m | s |\n|---|---|\n| x | \`no ticket file carries that identifier\` |\n`,
+    );
+    expect(
+      bounded.map((r) => r.template),
+      "the reader ran past the next heading and adopted an unrelated later table",
+    ).toEqual([NULL_BRANCH]);
+  });
+
+  it("parses a NON-EMPTY, NON-SHORT table whose row count is DERIVED from the code's branch count", () => {
+    const rows = readPresenceTable(readFileSync(CONTRACT_PATH, "utf8"));
+    expect(
+      rows.length,
+      "PREMISE: the presence table parsed EMPTY, so every comparison below is vacuous",
+    ).toBeGreaterThan(0);
+    // THE FLOOR IS A NUMBER: five reader-reachable answers — no conflict, joined-under-the-other-id,
+    // lost-the-contest, refused, absent. An empty table and a silently SHORT one both red here.
+    expect(rows.length, "the presence table lost or gained a row").toBe(5);
+    // AND THE SAME NUMBER, DERIVED: the module's branch count minus the branches Task 2 proved no
+    // tree can reach. A hand-typed 5 alone would not notice the code growing a reachable branch.
+    expect(
+      rows.length,
+      "the contract states a different number of answers than the code can produce for a real " +
+        "tree. Either a branch landed in presenceActual with no row written for it, or a row was " +
+        "written for a branch the code does not have",
+    ).toBe(readerProducibleTemplates().length);
+    expect(
+      new Set(rows.map((r) => r.template)).size,
+      `two presence-table rows state the SAME consequence, so one of them is describing a ` +
+        `measurement it does not belong to: ${JSON.stringify(rows.map((r) => r.template))}`,
+    ).toBe(rows.length);
+    expect(
+      rows.filter((r) => r.template === NULL_BRANCH).length,
+      "exactly one row states that no conflict is raised at all",
+    ).toBe(1);
+  });
+
+  it("asserts SET EQUALITY IN BOTH DIRECTIONS between the table and the sentences the code produces", () => {
+    const fromContract = readPresenceTable(readFileSync(CONTRACT_PATH, "utf8")).map((r) => r.template);
+    const fromCode = readerProducibleTemplates();
+    // A code sentence with no row REDS and names the sentence; a row no branch produces REDS and
+    // names the row. `toEqual` on the two sorted sets says both at once, with both lists printed.
+    expect(
+      [...fromContract].sort(),
+      "the normative contract and the code disagree about the set of sentences the projector can " +
+        "state. A sentence on the left with no partner on the right is a row describing a " +
+        "consequence the code does not produce — exactly what review WR-01 found. One on the right " +
+        "with no partner on the left is a sentence the projector states that no reader " +
+        "adjudicating a disagreement could look up",
+    ).toEqual([...fromCode].sort());
+  });
+
+  it("every contract row is reached by a NAMED INPUT, not merely by a matching template", () => {
+    const sentences = auditedSentences();
+    const reached = new Set(
+      PRESENCE_AUDIT.filter((r) => r.readerProducible).map((r) =>
+        templateOfSentence(sentences.get(r.branch) ?? null, r.values),
+      ),
+    );
+    for (const row of readPresenceTable(readFileSync(CONTRACT_PATH, "utf8"))) {
+      expect(
+        reached.has(row.template),
+        `the contract row "${row.measured}" states a consequence no named input row in ` +
+          `PRESENCE_AUDIT produced. A template that matches the module's source but that nothing ` +
+          `ever ran is a claim, not a measurement`,
+      ).toBe(true);
+    }
+  });
+
+  it("the prose above the table states the number of facts the table actually distinguishes", () => {
+    // dba9d72a added a row and left this count at "three". A normative document that miscounts its
+    // own table is the same class of defect as a row that states the wrong consequence.
+    const text = readFileSync(CONTRACT_PATH, "utf8");
+    const rows = readPresenceTable(text);
+    const facts = rows.filter((r) => r.template !== NULL_BRANCH).length;
+    const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+    // WHITESPACE-NORMALISED, because the sentence wraps in the source and a raw `includes` would
+    // read a line break as a missing phrase — a false RED that says nothing about the count.
+    const flowed = text.replace(/\s+/g, " ");
+    expect(
+      flowed.includes(`which covers ${WORDS[facts] ?? facts} different facts`),
+      `the contract's prose does not say "which covers ${WORDS[facts] ?? facts} different facts", ` +
+        `but the table it introduces distinguishes ${facts} conflict-raising answers`,
+    ).toBe(true);
+  });
+});

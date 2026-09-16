@@ -1878,10 +1878,19 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
       "the thread compactor's suite: `column-0` and `status` both appear inside test DESCRIPTIONS " +
       "about verified_by findings and writer order; the compactor's subject is a thread note and " +
       "it never reads a ticket's frontmatter",
+    // ── The one plan 32-38 added, READ BEFORE IT WAS EXEMPTED. The file already named `column` (in
+    //    a WIP-count test DESCRIPTION, line 114) and already scanned text; plan 32-38's
+    //    duplicate-identifier fixture supplied the `status` spelling that tipped the conjunction.
+    "board-tracer.test.ts":
+      "the phase tracer's suite: it PLANTS ticket documents as fixture TEXT and asserts what the " +
+      "spawned CLI publishes about them, exactly as board-model.test.ts and board-read.test.ts do; " +
+      "`column` is also an ordinary English word in its WIP-count test descriptions. It parses no " +
+      "ticket key itself — every ticket field it reasons about arrives already parsed, inside the " +
+      "--json document the one grammar produced",
   });
 
   /** The cardinality of the exemption set — a decision, not a constant to bump. */
-  const NOT_A_SECOND_AUTHORITY_COUNT = 8;
+  const NOT_A_SECOND_AUTHORITY_COUNT = 9;
 
   /**
    * THE CENSUS AS A FUNCTION OF ITS INPUT, so the boundary and degenerate cases below are asked the

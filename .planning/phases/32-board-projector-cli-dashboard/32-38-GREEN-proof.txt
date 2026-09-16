@@ -216,3 +216,231 @@ A7. CASE COUNTS, SO A LATER RUN CAN TELL A LOSS FROM A GAIN
 
 ---
 Part B (Task 3) follows.
+
+
+PART B — TASK 3: THE CONTRACT AND THE CODE PROVED EQUAL, IN BOTH DIRECTIONS
+===========================================================================
+
+B1. THE TABLE IS LOCATED BY HEADING AND BOUNDED BY THE NEXT ONE
+----------------------------------------------------------------
+
+`agent-factory/contracts/board.md` gained a dedicated `### The presence table` heading immediately
+above the table. IT HAD NONE: the nearest heading above it was `## Conflicts` (line 242), whose
+section ALSO carries the seven-kind conflict table a few lines earlier. A section-anchored reader
+told to find "the table under `## Conflicts`" would have had two tables to choose between, and one
+that searched to end-of-file would have had several more — the bypass shape this repository recorded
+in Phase 29 (a section-anchored fence reader adopting an unrelated later block).
+
+The suite therefore:
+  - finds the line whose trimmed text is exactly `### The presence table`, and THROWS a message
+    naming that heading when it is absent (asserted against a synthetic document);
+  - bounds the span at the NEXT line matching `^#{1,6} ` (here `### The column set`, line 338);
+  - takes the first markdown table inside that span, and refuses a row that does not have exactly
+    two cells or whose consequence cell is neither one backticked span nor a `Nothing…` prose cell.
+
+  The bound itself is asserted: a synthetic document carrying one row under the heading and a
+  SECOND table after the next heading parses to ONE row, not two.
+
+
+B2. THE AGREEMENT TABLE — one row per contract row
+----------------------------------------------------
+
+Templates are normalised identically on both sides: `${...}` in the module's source and `<id>` /
+`<other>` / `<winner>` / `<code>` in the contract both become `<>`, and a sentence the code PRODUCED
+is holed by replacing the identifiers and refusal code that went into it.
+
+  contract row 1
+    measured : "A document declares it."
+    template : <returns null — not a conflict>
+    branch   : B1 — `case "admitted-under-its-stem": return null;`
+    input    : "a document admitted under its OWN stem" (tree { ABC-001.md declares ABC-001 })
+
+  contract row 2
+    measured : "A file of that stem was admitted under a **different** declared identifier, **and
+                that file is the one joined under it**."
+    template : plans/tickets/<>.md exists and declares the identifier <>, so it is joined under
+               that identifier and not this one
+    branch   : B2 — the `presence.joinedStem === id` arm
+    input    : "the WINNER of a duplicate-identifier contest, stem != declared identifier"
+               (tree { ABC-901.md declares ABC-902, ABC-903.md declares ABC-902 }, ask ABC-901)
+
+  contract row 3
+    measured : "A file of that stem declares a **different** identifier but **lost the
+                duplicate-identifier contest** for it, so it is joined under nothing."
+    template : plans/tickets/<>.md exists and declares the identifier <>, which
+               plans/tickets/<>.md claimed first, so it is joined under no identifier
+    branch   : B4 — the `joinedStem !== undefined` leg of the ternary
+    input    : "the LOSER of a duplicate-identifier contest" (same tree, ask ABC-903)
+
+  contract row 4
+    measured : "A file of that stem exists and the ticket grammar refused it."
+    template : plans/tickets/<>.md exists and the reader could not admit it (<>)
+    branch   : B5 — `case "refused"`
+    input    : "a listed document the grammar could not admit"
+               (tree { ABC-900.md carrying `tools: Bash` })
+
+  contract row 5
+    measured : "The identifier is in none of the three measured sets."
+    template : no ticket file carries that identifier
+    branch   : B6 — `case "absent"`
+    input    : "a board identifier no document declares and no refusal records" (ask ABC-404)
+
+  NOT IN THE TABLE, DELIBERATELY: branch B3 (`joinedStem === undefined`). Part A4 proves no tree the
+  reader can read reaches it, and the table describes what the READER can produce. The row count is
+  pinned against `derived branches − branches proved unreachable` (6 − 1 = 5), and the unreachable
+  partition is itself an assertion, so it cannot be widened by hand to make a count work out.
+
+  SET EQUALITY IS ASSERTED IN BOTH DIRECTIONS over these five templates. A code sentence with no row
+  reds and prints the sentence; a row no branch produces reds and prints the row. A separate
+  assertion requires every contract row to be reached by a NAMED INPUT that actually ran — a
+  template that matches the module's source but that nothing ever executed is a claim, not a
+  measurement.
+
+
+B3. DISCRIMINATION RUN 1 — one row's consequence clause reverted to the pre-`dba9d72a` wording
+------------------------------------------------------------------------------------------------
+
+Row 3's consequence was rewritten back to the clause `dba9d72a` replaced ("so it is joined under
+that identifier and not this one"), which is the exact false clause review WR-01 found.
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+  exit=1
+
+  × parses a NON-EMPTY, NON-SHORT table whose row count is DERIVED from the code's branch count
+    AssertionError: two presence-table rows state the SAME consequence, so one of them is
+    describing a measurement it does not belong to: ["<returns null — not a conflict>",
+    "plans/tickets/<>.md exists and declares the identifier <>, so it is joined under that
+    identifier and not this one","plans/tickets/<>.md exists and declares the identifier <>, so it
+    is joined under that identifier and not this one","plans/tickets/<>.md exists and the reader
+    could not admit it (<>)","no ticket file carries that identifier"]: expected 4 to be 5
+
+  × asserts SET EQUALITY IN BOTH DIRECTIONS between the table and the sentences the code produces
+    AssertionError: the normative contract and the code disagree about the set of sentences the
+    projector can state. A sentence on the left with no partner on the right is a row describing a
+    consequence the code does not produce — exactly what review WR-01 found. […]: expected [ …(5) ]
+    to deeply equal [ …(5) ]
+
+  THE ROW IS NAMED: the duplicate-template message prints both offending templates verbatim, so the
+  reader is told which row lost its own consequence rather than only that a count moved.
+
+
+B4. DISCRIMINATION RUN 2 — one row deleted
+--------------------------------------------
+
+The `absent` row was removed from the table.
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+  exit=1
+
+  × parses a NON-EMPTY, NON-SHORT table whose row count is DERIVED from the code's branch count
+    AssertionError: the presence table lost or gained a row: expected 4 to be 5
+
+  × asserts SET EQUALITY IN BOTH DIRECTIONS between the table and the sentences the code produces
+    AssertionError: […]: expected [ …(4) ] to deeply equal [ …(5) ]
+
+  × the prose above the table states the number of facts the table actually distinguishes
+    AssertionError: the contract's prose does not say "which covers three different facts", but the
+    table it introduces distinguishes 3 conflict-raising answers: expected false to be true
+
+
+B5. DISCRIMINATION RUN 3 — the prose fact-count reverted
+----------------------------------------------------------
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+  exit=1
+  × the prose above the table states the number of facts the table actually distinguishes
+    AssertionError: the contract's prose does not say "which covers four different facts", but the
+    table it introduces distinguishes 4 conflict-raising answers: expected false to be true
+
+
+B6. THE TREE AFTER THE DISCRIMINATION RUNS
+--------------------------------------------
+
+Each probe was reverted from a byte-copy taken before it, and the file compared byte for byte:
+
+  $ cmp <scratch>/board.md.intended agent-factory/contracts/board.md
+  (no output — identical)
+
+  $ git diff --exit-code -- agent-factory/
+  exit=0 relative to this plan's OWN committed contract edit (commit recorded in the SUMMARY).
+  The only difference from HEAD 069dcd9c is this plan's intended edit, described in B7; no probe
+  left a byte behind. Measured a second way, with the edit temporarily reverted to HEAD and
+  restored: `check:diff-disposition` reported 78 findings over 39 elements both with and without
+  it, so the contract edit changes nothing in the LANG-03 watched corpus (board.md is not in it).
+
+
+B7. THE ONE GENUINE DISAGREEMENT THE COMPARISON FOUND, AND WHICH DIRECTION WAS WRONG
+-------------------------------------------------------------------------------------
+
+THE CONTRACT WAS WRONG; the code was right.
+
+The prose that introduces the table said `row-without-file` "covers THREE different facts". Commit
+`dba9d72a` added a FOURTH conflict-raising row to the table directly beneath that sentence and left
+the count untouched. A normative document (D-04) that miscounts its own table is the same class of
+defect as a row stating the wrong consequence — a reader adjudicating a disagreement is told there
+are three answers and finds four.
+
+Corrected to "four", in the same commit as the assertion that found it, and the count is now
+DERIVED: the suite counts the conflict-raising rows in the parsed table and requires the prose to
+name that number in words. Discrimination shown in B5.
+
+The five table ROWS themselves were already in agreement with the code — `dba9d72a`'s row edit was
+correct, and this comparison confirms it mechanically rather than by eye for the first time.
+
+
+B8. THE FULL-SUITE RESULT FOR THIS PLAN
+-----------------------------------------
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'
+  Test Files  75 passed (75)
+       Tests  5151 passed | 2 skipped (5153)
+  exit=0
+
+  Above the 5137 floor `32-REVIEW-FIX.md` recorded at HEAD on 2026-09-16 (+14: 2 in
+  board-tracer.test.ts, 12 in board-model.test.ts). No test file reported as failed.
+
+  `npm test` was NOT run. The live claude-CLI end-to-end lane stays `UNKNOWN - verify`, as in every
+  prior round of this phase.
+
+  OTHER GATES, ALL MEASURED ON THIS TREE:
+    npm run build                                        exit=0
+    npm run typecheck                                    exit=0
+    npm run check:build-parity                           exit=0  ("no tracked build output moved")
+    npm run freshness                                    exit=0  (65/65 committed .js fresh)
+    VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js
+                                                         exit=0  ALL CHECKS PASSED, 0 FAIL lines
+    npm run check:nul-bytes                              exit=0  ALL CHECKS PASSED
+    npm run check:dashboard-readonly                     exit=0  175 passed
+    npm run check:public-docs                            exit=0
+    npm run check:banned-claims                          exit=0
+    npm run check:claim-anchors                          exit=0
+    npm run check:imperative-lexicon                     exit=0
+    npm run check:audit-register                         exit=0
+    npm run check:residual-citations                     exit=0
+    npm run check:diff-disposition                       exit=1  PRE-EXISTING, see below
+
+  TWO VERIFICATION-INSTRUMENT CORRECTIONS, stated rather than smoothed over:
+
+  (1) The plan's verification says `node scripts/validate-agent-factory.js` — which exits 1 on any
+      tree, with `VALIDATE_KIT_ROOT is unset — refusing to default the kit root to '.' (C3)`. That
+      is the validator's own no-false-green guard, and `.github/workflows/ci.yml:517` invokes it as
+      `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js`. The gate is green under its
+      documented invocation; the plan's line omitted the variable.
+
+  (2) The plan's verification says `check:dashboard-readonly` is "exit 0, 171 passed". It is 175.
+      The 171 is `32-VERIFICATION.md`'s round-3 measurement at HEAD `670f1b3c`; the CR-01 fix
+      (`d276f4e3`, after that verification) added a git-derived two-sided parser oracle to
+      `scripts/board-readonly.test.ts`, which is where the four extra cases come from. This plan
+      touched neither that file nor any file in the dashboard import closure, so 175 is the
+      pre-plan count, not a movement.
+
+  AND ONE PRE-EXISTING GATE FAILURE, CARRIED NOT ABSORBED:
+      `npm run check:diff-disposition` exits 1 with 78 findings over 39 elements — every one in
+      `agent-factory/roles/` and `agent-factory/workflows/` files this plan did not touch, carried
+      since before round 1 and already recorded in this phase's `deferred-items.md`. Measured on
+      this tree WITH and WITHOUT this plan's contract edit: 78 both ways. It is not in this plan's
+      `<verification>` list and is not this plan's to close.
+
+
+---
+Written by plan 32-38, Tasks 2 and 3. Companion artifact: `32-38-RED-baseline.txt`.

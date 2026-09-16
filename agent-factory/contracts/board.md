@@ -277,11 +277,18 @@ the listing failed. The other five kinds are unaffected — each is a claim abou
 read, or about the board and the dial alone.
 
 **The projector never asserts absence about a file it read.** `row-without-file` is raised when a
-board row names an identifier the reader could not join a ticket document to — which covers three
+board row names an identifier the reader could not join a ticket document to — which covers four
 different facts, and the conflict's `actual` states which one it is. The presence question is
 answered from exactly three sets the reader measured: the identifiers admitted documents declared,
 the file stems those same documents came from, and the stems of the entries the reader read and
 could not admit.
+
+### The presence table
+
+One row per answer the reader can reach, and the sentence `actual` states for it. This table is the
+authority the projector's presence sentences are compared against, in both directions, by
+`scripts/board-model.test.ts` — it is read at run time and located by this heading, so a row that
+drifts from the code reds rather than being caught by eye.
 
 | What the reader measured about the row's identifier | `actual` says |
 |---|---|
