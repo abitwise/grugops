@@ -1195,7 +1195,7 @@ Plans:
 
 **Wave 2** *(blocked on 32-31)*
 
-- [ ] 32-32-PLAN.md — DASH-06 route (b): a local alias no longer hides a capability path (the binding map), and arm 4's canonical form is asked of a MEMBER read one level down, so the write-detection mechanism reds rather than a census count and the one-edit re-green costs two pinned decisions [DASH-06, DASH-08]
+- [x] 32-32-PLAN.md — DASH-06 route (b): a local alias no longer hides a capability path (the binding map), and arm 4's canonical form is asked of a MEMBER read one level down, so the write-detection mechanism reds rather than a census count and the one-edit re-green costs two pinned decisions [DASH-06, DASH-08]
 
 **Wave 3** *(blocked on 32-32)*
 
@@ -1273,7 +1273,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 24/30 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 25/30 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
