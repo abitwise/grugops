@@ -2,9 +2,9 @@
 schema_version: 1
 open_count: 186
 waived_count: 0
-fixed_count: 8
-total_count: 194
-last_updated: 2026-09-16T12:43:50.219Z
+fixed_count: 13
+total_count: 199
+last_updated: 2026-09-16T13:44:15.545Z
 ---
 
 # Broken Windows Ledger
@@ -201,14 +201,19 @@ last_updated: 2026-09-16T12:43:50.219Z
 | 184 | 32 | deviation | scripts/validate.test.ts |  | 32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today. | open |  | 2026-09-15T12:22:42.261Z |  |
 | 185 | 32 | deviation | scripts/board-watch-live.test.ts |  | 32-22 measured boundary: a watch failure the NEXT poll tick repairs reaches no emitted document, because armAll() precedes refresh() inside one tick and a successful re-arm deletes the record (WR-06). Pinned by an assertion and by mutation M4; updates themselves never stop (997-1003 ms with every watch dead). | open |  | 2026-09-15T13:06:09.658Z |  |
 | 186 | 32 | unrun-verify | scripts/board-watch-live.test.ts |  | 32-22: Windows fs.watch timing stays UNKNOWN - verify (Phase 33 / CAP-02). CI runs this file on windows-latest and three of its five cases depend on the platform delivering directory events; a red there is the CAP-02 measurement arriving early and must not be answered with a platform conditional. | open |  | 2026-09-15T13:06:17.466Z |  |
-| 187 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-04 (32-23): npm run check:dashboard-readonly exits 0, 89/89, over a closure module importing a writer through an ABSOLUTE-path specifier. isBareSpecifier excludes a leading slash so the allow-list never sees it, and js-import-closure follows only dot-relative specifiers so the module is never analysed. Measured with a real write, and the .ts typechecks and tsc emits the specifier verbatim, so a committed pair passes check:build-parity by construction. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:12.868Z |  |
-| 188 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-08 (32-23): a capability-global member reached through a BINDING (const r = process.report; r.writeReport(p)) reds only the two-sided member-path census, not the acquisitions mechanism, because isCallee is false at a binding site. Recording process.report in EXPECTED_GLOBAL_MEMBER_PATHS and bumping the count - the edit the failure message invites - re-greens the gate at 89/89 over a writer in ONE edit. F-02's shape one register over. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:12.950Z |  |
-| 189 | 32 | unmet-truth | scripts/board-model.ts |  | F-06 (32-23): row-without-file still prints 'no ticket file carries that identifier' with an expected path that EXISTS, when the ticket file's declared id differs from its file stem. 32-15 keys the honest sentence on unadmittedTickets (refused entries, by stem) and the admitted map on the declared id, so an admitted-under-another-identity document is in neither map under its stem - and no readErrors entry is raised either. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.030Z |  |
-| 190 | 32 | deviation | scripts/board-dashboard.ts |  | F-05 (32-23): writeDocument sanitizes AFTER JSON.stringify, so the two are complementary - C1 is removed, C0 is already escaped into printable text and cannot be seen. A raw ESC in a board row title reaches the --json document as 0 control code points and is recovered as 6 by one JSON.parse. The boundary is stated in writeDocument's docblock; what is measured here is that the input is an ordinary raw C0, not a planted escape sequence. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.111Z |  |
-| 191 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | open |  | 2026-09-15T13:43:13.193Z |  |
+| 187 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-04 (32-23): npm run check:dashboard-readonly exits 0, 89/89, over a closure module importing a writer through an ABSOLUTE-path specifier. isBareSpecifier excludes a leading slash so the allow-list never sees it, and js-import-closure follows only dot-relative specifiers so the module is never analysed. Measured with a real write, and the .ts typechecks and tsc emits the specifier verbatim, so a committed pair passes check:build-parity by construction. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | fixed |  | 2026-09-15T13:43:12.868Z | 2026-09-16T13:43:56.720Z |
+| 188 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-08 (32-23): a capability-global member reached through a BINDING (const r = process.report; r.writeReport(p)) reds only the two-sided member-path census, not the acquisitions mechanism, because isCallee is false at a binding site. Recording process.report in EXPECTED_GLOBAL_MEMBER_PATHS and bumping the count - the edit the failure message invites - re-greens the gate at 89/89 over a writer in ONE edit. F-02's shape one register over. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | fixed |  | 2026-09-15T13:43:12.950Z | 2026-09-16T13:43:56.820Z |
+| 189 | 32 | unmet-truth | scripts/board-model.ts |  | F-06 (32-23): row-without-file still prints 'no ticket file carries that identifier' with an expected path that EXISTS, when the ticket file's declared id differs from its file stem. 32-15 keys the honest sentence on unadmittedTickets (refused entries, by stem) and the admitted map on the declared id, so an admitted-under-another-identity document is in neither map under its stem - and no readErrors entry is raised either. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | fixed |  | 2026-09-15T13:43:13.030Z | 2026-09-16T13:43:56.905Z |
+| 190 | 32 | deviation | scripts/board-dashboard.ts |  | F-05 (32-23): writeDocument sanitizes AFTER JSON.stringify, so the two are complementary - C1 is removed, C0 is already escaped into printable text and cannot be seen. A raw ESC in a board row title reaches the --json document as 0 control code points and is recovered as 6 by one JSON.parse. The boundary is stated in writeDocument's docblock; what is measured here is that the input is an ordinary raw C0, not a planted escape sequence. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | fixed |  | 2026-09-15T13:43:13.111Z | 2026-09-16T13:43:56.992Z |
+| 191 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | fixed |  | 2026-09-15T13:43:13.193Z | 2026-09-16T13:43:57.075Z |
 | 192 | 32 | deviation | scripts/js-import-closure.ts |  | The closure WALKER does not read a require("…") specifier (SPECIFIER_PATTERNS covers the three emitted import forms only); the read-only GUARD's AST census does refuse one. Measured in 32-31-GREEN-proof.txt § 4 P5. | open |  | 2026-09-16T07:22:43.296Z |  |
 | 193 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | 32-35 (WR-07): the CI-topology half is NOT taken — the three platform-dependent live cases stay in the shared 'Vitest (e2e lane excluded)' step of the test (matrix.os) job, so a Windows red there takes that step with it. Only the timing half was taken (EVENT_DEADLINE_MS derived from POLL_MS minus a named margin, 600 -> 750 ms). Owner: Phase 33 / CAP-02, per WINDOWS.md row 186. | open |  | 2026-09-16T11:24:09.394Z |  |
 | 194 | 32 | deviation | scripts/check-diff-disposition.ts |  | 32-36: the one-authority ticket-frontmatter census's key half now decides by PRESENCE, which names this PRODUCTION module (its own disposition-register 'status' key and a 'safety_surface' column in an operator message) and required a file-scoped exemption. A genuine second ticket reader added to this one file later would be exempted with it. | open |  | 2026-09-16T12:43:50.219Z |  |
+| 195 | 32 | deviation | scripts/board-dashboard.ts |  | F-09 (32-37): sanitizeCell strips U+0009 from a refusal message BEFORE serialization, so the unrecognized-line diagnostic quotes a line reading as a valid `key: value` while asserting beside it that it is neither. The model's own message carries the TAB (measured U+0009); both channels remove it. Created on the --json channel by 32-35's scrub-before-serialize ordering; inherited on stderr from 32-18's warn() chokepoint. | open |  | 2026-09-16T13:44:15.209Z |  |
+| 196 | 32 | deviation | scripts/validate.test.ts |  | F-10 (32-37): the one-authority ticket-frontmatter census requires its key half and its primitive half to meet inside ONE parsed file, so a reader whose keys are exported from file A and scanned in file B is invisible. Measured: two real files under scripts/, census reports 1 and exits 0, and the planted reader returns {status: ready, column: In Development} from ABC-103.md. 32-36's boundary case pins the scope only in the over-detection direction. | open |  | 2026-09-16T13:44:15.297Z |  |
+| 197 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-11 (32-37): GATE_TARGET_RE/SUITE_TARGET_RE admit one spelling each, so a check:* command mixing one recognised target with one unrecognised spelling (leading ./, an intervening node flag, two spaces, or a composed npm run) yields a SHORT non-null row set that never reaches the null arm 32-36 added. F-07's defect one register over. No live instance: 11 scripts carry 11 targets, all recognised. | open |  | 2026-09-16T13:44:15.381Z |  |
+| 198 | 32 | deviation | scripts/board-model.ts |  | F-12 (32-37): presenceActual's admitted-under-another-id sentence asserts the file 'is joined under that identifier', which is false of a duplicate-id LOSER. board-read deliberately keeps the loser in the admitted record list to keep its partition total, so byStem finds it, but ticketById joined the winner. The snapshot then carries a duplicate-id readError saying the file is NOT joined beside a conflict saying it is. Created by 32-33. | open |  | 2026-09-16T13:44:15.463Z |  |
+| 199 | 32 | deviation | scripts/js-import-closure.ts |  | F-13 (32-37): SPECIFIER_PATTERNS is three regexes, so moduleSpecifiers is never ASKED at four positions a specifier enters: require(), createRequire(...)(...), import.meta.resolve(), and new Worker(new URL(...)). All four were planted and all four exit 1 through the guard's sibling AST census (allow-list for node:module, acquisitions PREMISE for the other three), so it is not a live DASH-06 bypass; the cost is a short closure module list. Widens row 192 by three positions. | open |  | 2026-09-16T13:44:15.545Z |  |
 
 ````json
 [
@@ -2461,10 +2466,10 @@ last_updated: 2026-09-16T12:43:50.219Z
     "file": "scripts/board-readonly.test.ts",
     "line": null,
     "description": "F-04 (32-23): npm run check:dashboard-readonly exits 0, 89/89, over a closure module importing a writer through an ABSOLUTE-path specifier. isBareSpecifier excludes a leading slash so the allow-list never sees it, and js-import-closure follows only dot-relative specifiers so the module is never analysed. Measured with a real write, and the .ts typechecks and tsc emits the specifier verbatim, so a committed pair passes check:build-parity by construction. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-15T13:43:12.868Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-16T13:43:56.720Z",
     "milestone": "v2.1"
   },
   {
@@ -2474,10 +2479,10 @@ last_updated: 2026-09-16T12:43:50.219Z
     "file": "scripts/board-readonly.test.ts",
     "line": null,
     "description": "F-08 (32-23): a capability-global member reached through a BINDING (const r = process.report; r.writeReport(p)) reds only the two-sided member-path census, not the acquisitions mechanism, because isCallee is false at a binding site. Recording process.report in EXPECTED_GLOBAL_MEMBER_PATHS and bumping the count - the edit the failure message invites - re-greens the gate at 89/89 over a writer in ONE edit. F-02's shape one register over. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-15T13:43:12.950Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-16T13:43:56.820Z",
     "milestone": "v2.1"
   },
   {
@@ -2487,10 +2492,10 @@ last_updated: 2026-09-16T12:43:50.219Z
     "file": "scripts/board-model.ts",
     "line": null,
     "description": "F-06 (32-23): row-without-file still prints 'no ticket file carries that identifier' with an expected path that EXISTS, when the ticket file's declared id differs from its file stem. 32-15 keys the honest sentence on unadmittedTickets (refused entries, by stem) and the admitted map on the declared id, so an admitted-under-another-identity document is in neither map under its stem - and no readErrors entry is raised either. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-15T13:43:13.030Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-16T13:43:56.905Z",
     "milestone": "v2.1"
   },
   {
@@ -2500,10 +2505,10 @@ last_updated: 2026-09-16T12:43:50.219Z
     "file": "scripts/board-dashboard.ts",
     "line": null,
     "description": "F-05 (32-23): writeDocument sanitizes AFTER JSON.stringify, so the two are complementary - C1 is removed, C0 is already escaped into printable text and cannot be seen. A raw ESC in a board row title reaches the --json document as 0 control code points and is recovered as 6 by one JSON.parse. The boundary is stated in writeDocument's docblock; what is measured here is that the input is an ordinary raw C0, not a planted escape sequence. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-15T13:43:13.111Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-16T13:43:56.992Z",
     "milestone": "v2.1"
   },
   {
@@ -2513,10 +2518,10 @@ last_updated: 2026-09-16T12:43:50.219Z
     "file": "scripts/check-foundation-guards.test.ts",
     "line": null,
     "description": "F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-15T13:43:13.193Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-16T13:43:57.075Z",
     "milestone": "v2.1"
   },
   {
@@ -2555,6 +2560,71 @@ last_updated: 2026-09-16T12:43:50.219Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-16T12:43:50.219Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 195,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/board-dashboard.ts",
+    "line": null,
+    "description": "F-09 (32-37): sanitizeCell strips U+0009 from a refusal message BEFORE serialization, so the unrecognized-line diagnostic quotes a line reading as a valid `key: value` while asserting beside it that it is neither. The model's own message carries the TAB (measured U+0009); both channels remove it. Created on the --json channel by 32-35's scrub-before-serialize ordering; inherited on stderr from 32-18's warn() chokepoint.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T13:44:15.209Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 196,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/validate.test.ts",
+    "line": null,
+    "description": "F-10 (32-37): the one-authority ticket-frontmatter census requires its key half and its primitive half to meet inside ONE parsed file, so a reader whose keys are exported from file A and scanned in file B is invisible. Measured: two real files under scripts/, census reports 1 and exits 0, and the planted reader returns {status: ready, column: In Development} from ABC-103.md. 32-36's boundary case pins the scope only in the over-detection direction.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T13:44:15.297Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 197,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": null,
+    "description": "F-11 (32-37): GATE_TARGET_RE/SUITE_TARGET_RE admit one spelling each, so a check:* command mixing one recognised target with one unrecognised spelling (leading ./, an intervening node flag, two spaces, or a composed npm run) yields a SHORT non-null row set that never reaches the null arm 32-36 added. F-07's defect one register over. No live instance: 11 scripts carry 11 targets, all recognised.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T13:44:15.381Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 198,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/board-model.ts",
+    "line": null,
+    "description": "F-12 (32-37): presenceActual's admitted-under-another-id sentence asserts the file 'is joined under that identifier', which is false of a duplicate-id LOSER. board-read deliberately keeps the loser in the admitted record list to keep its partition total, so byStem finds it, but ticketById joined the winner. The snapshot then carries a duplicate-id readError saying the file is NOT joined beside a conflict saying it is. Created by 32-33.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T13:44:15.463Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 199,
+    "kind": "deviation",
+    "phase": "32",
+    "file": "scripts/js-import-closure.ts",
+    "line": null,
+    "description": "F-13 (32-37): SPECIFIER_PATTERNS is three regexes, so moduleSpecifiers is never ASKED at four positions a specifier enters: require(), createRequire(...)(...), import.meta.resolve(), and new Worker(new URL(...)). All four were planted and all four exit 1 through the guard's sibling AST census (allow-list for node:module, acquisitions PREMISE for the other three), so it is not a live DASH-06 bypass; the cost is a short closure module list. Widens row 192 by three positions.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T13:44:15.545Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

@@ -110,3 +110,31 @@
   carry that weight needs a different instrument.
   **Found during:** gap-closure round 3, plan 32-36, Task 2.
   status: open
+
+## Carried items re-measured during plan 32-37 (gap-closure round 3, adversarial self-review)
+
+- **`npm run check:diff-disposition` remains RED, CARRIED, and the count NEVER MOVED — 32-35's 77
+  was an instrument artifact.** Re-measured 2026-09-16 at `d4174013`: exit **1**,
+  `1 CHECK(S) FAILED`, headline `78 finding(s) over 39 elements`, over **the same five Phase-31
+  workflow documents** — `agent-factory/workflows/05-pr-quality-gate.md` (38),
+  `06-uat-pack.md` (25), `16-context-read-write.md` (**9 `(added)` + 1 `(removed)` = 10**),
+  `18-context-compaction.md` (3), `17-task-claim.md` (2). `38 + 25 + 10 + 3 + 2 = 78`, identical to
+  round 1's and round 2's measurement.
+  **The correction, stated rather than smoothed over:** `32-35-GREEN-proof.txt` § 4 and the
+  `32-35` entry above record **77** and attribute the difference to a movement of one. There was no
+  movement. 32-35 counted `(added)` finding lines only; `16-context-read-write.md` carries one
+  `(removed)` finding line as well, and the gate's own headline says 78 on both trees. The
+  discrepancy is a property of the counting instrument, not of the corpus — the same class as the
+  three harness-premise failures recorded in `32-37-ADVERSARIAL-REVIEW.md` § 0.2.
+  **Overlap with this round: ZERO.** Round 3 changed 19 non-`.planning/` files (derived from
+  `git diff --name-only f407355d^..HEAD`); a grep of the full finding text for every one of them
+  returns **0**. Pre-existing and carried, therefore neither a regression of this round nor quietly
+  absorbed into it. Ledger row 176.
+  status: open
+- **The live claude-CLI end-to-end lane was NOT run in this round, and its state is
+  `UNKNOWN - verify`.** `npm test` triggers `scripts/e2e`, which spends tokens on an authenticated
+  box and can hang; every prior round of this phase carried it the same way. The regression lane
+  actually run is `npx vitest run --exclude '**/scripts/e2e/**'` — **75 files, 5120 passed,
+  2 skipped, exit 0**. Nothing in this round measured the e2e lane, and nothing in this round's
+  reports claims anything about it. Ledger row 183.
+  status: open
