@@ -1,0 +1,189 @@
+32-36 GREEN PROOF — the census asks about presence and capability; every gate target gets a row.
+
+Measured 2026-09-16. Baseline for every "before" number: `32-36-RED-baseline.txt`.
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 1 — THE FOUR PLANTS, AFTER
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+Each plant is placed in the LIVE scanned set and the whole census is run over it — the same
+question the live tree is asked, not a re-implementation of it. Unplanted carrier count: 1.
+
+  plant                                        before        after
+  -------------------------------------------  ------------  -----------------------------------
+  A  alternation pattern + matchAll            carriers 1    carriers 2  DETECTED
+  B  alternation pattern + exec loop           carriers 1    carriers 2  DETECTED
+  C  two key literals + replace                carriers 1    carriers 2  DETECTED
+  D  join-assembled keys + split/indexOf       carriers 1    carriers 2  DETECTED
+  CONTROL  the reader 32-12 deleted, verbatim  carriers 2    carriers 2  DETECTED (unchanged)
+
+  Case: "EVERY planted second reader raises the carrier count above one (32-36 § 2)" — it also
+  asserts the plant appears in the carrier list BY NAME, so a count that rose for some other
+  reason cannot satisfy it.
+
+  Converse, same instrument: "with NO plant, the carrier count is exactly one".
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 2 — THE LIVE TREE STILL REPORTS ONE AUTHORITY, AND THE OVER-DETECTION IS PAID IN DECISIONS
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+  LIVE scanned files                151
+  LIVE carriers                     1 -> [board-model.ts]          verdict: exactly-one-authority
+  LIVE detected (before exemption)  9   (was 4)
+
+Widening the key half from POSITION to PRESENCE names five more files, because `column` and
+`status` are also ordinary English words and this repository writes them in test descriptions and
+error messages. Each was READ before it was exempted; none of them parses a ticket document.
+
+  file                          what names the key                          why it is not an authority
+  ----------------------------  ------------------------------------------  --------------------------
+  audit-model.test.ts           `/column/i` over an AUDIT-REGISTER table     the audit register's suite;
+                                column; "status" in a CLAIM_STATUSES         reads no ticket text at all
+                                test description
+  board-dashboard.test.ts       a WIP-COUNT column in a test description;    the renderer's suite; its
+                                `status` as a dial key                       ticket fields arrive already
+                                                                             parsed, as TicketRecord
+  check-banned-claims.test.ts   `- status: true`, a planted frontmatter      that gate's subject is a
+                                fixture for THAT gate; "column" in a         claim in markdown prose
+                                file:line:column citation message
+  check-diff-disposition.ts     `status`, a key of ITS OWN disposition       reads the audit register and
+                                register; "column" naming a safety_surface   the git diff, never a ticket
+                                table column in an operator message
+  compactor.test.ts             "column-0" and "status" inside test          the compactor's subject is a
+                                DESCRIPTIONS                                 thread note
+
+  NOT_A_SECOND_AUTHORITY_COUNT   3 -> 8, pinned two-sided.
+  The liveness case ("every named exemption is actually detected by the widened derivation") makes
+  each of the eight a standing claim rather than a standing hole: an exemption for a file the
+  derivation stops naming is a red.
+
+  STATED RESIDUAL, recorded rather than discovered: `check-diff-disposition.ts` is the first
+  PRODUCTION module to carry an exemption. A genuine second reader added to that one file would be
+  exempted along with the prose that earned the entry. It is named in the exemption's own reason,
+  in the SUMMARY, and in the phase's deferred items.
+
+  PRIMITIVE HALF, after: `looksLikeTextScan` = the member name belongs to `String.prototype` or
+  `RegExp.prototype` (65 members, derived from the running engine at test time) and is not one of
+  the three in `NOT_A_TEXT_PRIMITIVE`. Every refusal has a written reason and the count is pinned.
+
+  NOT_A_TEXT_PRIMITIVE (3), each an own property of String.prototype only because every prototype
+  re-declares what Object.prototype already provides — so a call to it is made on every kind of
+  value and distinguishes nothing:
+    constructor  — every prototype owns one; `.constructor(…)` says nothing about the receiver
+    toString     — every prototype owns one; admitting it makes the primitive half true of the tree
+    valueOf      — called by coercion on numbers, dates and plain objects far more than on strings
+
+  `TEXT_SCAN_PRIMITIVES` survives as the RECORD of the five spellings this repository uses, and a
+  case asserts the complement admits every one of them — so record and decider cannot drift apart.
+  The same case asserts the complement admits `.matchAll`, `.replace`, `.replaceAll`, `.search`,
+  `.test`, `.startsWith` and `.slice` without anybody having added them, which is the property the
+  enumeration could not have.
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 3 — THE BOUNDARY, ADJACENCY, EMPTY-INPUT AND ORDERING PROBES, NOW CASES
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+  BOUNDARY   `carrierVerdict(n)` is the instrument, and the live tree is judged through it rather
+             than by a bare equality. `CARRIER_BOUNDARY_ROWS` drives three real inputs:
+               0 carriers  (the eight exempt files alone)   -> "vanished-authority"    RED
+               1 carrier   (board-model.ts alone)           -> "exactly-one-authority" the live tree
+               2 carriers  (board-model.ts + the control)   -> "second-authority"      RED
+             and the case asserts explicitly that neither neighbour reads as one authority — zero
+             is a census whose subject vanished, not a satisfied upper bound.
+
+  ADJACENCY  Two readers identical except `^column:` vs `^column[:]` (two spellings `skeleton`
+             normalizes to one) -> 3 carriers, listed by name. A duplicate cannot hide behind a
+             sibling.
+
+  EMPTY      A zero-file scanned set -> 0 carriers, verdict "vanished-authority". A one-file
+             scanned set is asked the same question and answers "exactly-one-authority". The
+             pre-existing non-vacuity premise case (glob non-empty, floored against `git ls-files`)
+             is unchanged.
+
+  ORDERING   BEFORE: the carrier list came out in the order the scanned set arrived in —
+               sorted input   [board-model.ts, dup-1.ts, dup-2.ts]
+               shuffled input [dup-2.ts, board-model.ts, dup-1.ts]      identical: false
+             AFTER: `censusOver` sorts its rows by name before anything else, so the two runs over
+             the same planted tree return the same LIST. The case runs the census forwards and
+             reversed and compares, asserts the list equals its own sort, asserts the list has more
+             than one member (an ordering probe over one element proves nothing), and asserts
+             `SCANNED` is sorted.
+
+  PRECISION  Unchanged and re-stated: every number here is `Array.prototype.length` over an array,
+             compared with `toBe` against a small integer. No arithmetic, no rounding, no tie-break
+             and no floating-point step occurs in either derivation. (Backstop marker.)
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 4 — MUTATION RUNS. Each mutation was applied to the shipped file, the suite run, and the file
+       restored from a byte copy; `git diff --stat` was re-read after every restore.
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+M1 — RESTORE THE POSITION RULE in `namesKey` (`(?:^|\^|\n)key\s*:` plus `text === k`)
+     Tests 2 failed | 125 passed
+       × EVERY planted second reader raises the carrier count above one (32-36 § 2)
+       × every named exemption is actually detected by the widened derivation
+     Plants lost: A and B (their keys sit inside an alternation group, preceded by `(` and `|`).
+     Plants kept: C, D, CONTROL.
+     The second failure is the informative one: four of the eight exemptions stop being detected
+     under the position rule, which is the same finding read from the other end — the entries exist
+     because PRESENCE names them.
+
+M2 — RESTORE THE ENUMERATION in the primitive half (`["match","exec","split","indexOf"]`)
+     Tests 2 failed | 125 passed
+       × EVERY planted second reader raises the carrier count above one (32-36 § 2)
+       × the derived text-member set is non-vacuous and admits every spelling this repo records
+     Plants lost: A (.matchAll) and C (.replace).
+     Plants kept: B (.exec), D (.split/.indexOf), CONTROL (.match) — all four enumerated spellings.
+
+M3 — EMPTY `NOT_A_TEXT_PRIMITIVE`
+     Tests 1 failed | 126 passed
+       × every refused member carries a reason, and the refusal set equals its pinned count
+     Exactly the count assertion moves, and nothing else does: the refusals are a decision register
+     rather than a load-bearing narrowing, which is what a refusal set should be.
+
+M4 — UNSORT the scanned set inside `censusOver`
+     Tests 2 failed | 125 passed
+       × ORDERING: two runs over the same tree print the same carrier LIST, not the same set
+       × ADJACENCY: two readers differing only in key spelling count as TWO, not as one
+     The adjacency case reds too because it asserts the carrier NAMES in order; both depend on the
+     one sort, and the sort now lives in one place.
+
+M5 — REMOVE the `[...].join(sep)` arm from `staticText`  (added beyond the plan's four; see below)
+     Tests 1 failed | 126 passed
+       × EVERY planted second reader raises the carrier count above one (32-36 § 2)
+     Plant lost: D alone.
+
+     WHY M5 EXISTS. The plan attributed plant D to the key half's position rule. Measured, that is
+     not what was stopping it: D's keys are `["c","o","l","u","m","n"].join("")`, and the old
+     `text === k` arm would have matched them the moment they RESOLVED. D was invisible because
+     `staticText` resolved `+` and not `.join` — a third gap, in the RESOLUTION rather than in
+     either half of the pair. Per-plant measurement across all three predicates:
+
+       plant | shipped  | position rule restored | enumeration restored | join arm removed
+       A     | DETECTED | MISSED                 | MISSED               | DETECTED
+       B     | DETECTED | MISSED                 | DETECTED             | DETECTED
+       C     | DETECTED | DETECTED               | MISSED               | DETECTED
+       D     | DETECTED | DETECTED               | DETECTED             | MISSED
+       CTRL  | DETECTED | DETECTED               | DETECTED             | DETECTED
+
+     Each plant is closed by a different mechanism and no mechanism closes all four. Recording the
+     measurement that contradicts the plan, at the site, rather than letting the plan's attribution
+     stand.
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════
+§ 5 — SUITE STATE AFTER THE CENSUS CHANGE
+════════════════════════════════════════════════════════════════════════════════════════════════
+
+  npx tsc --noEmit                                                              exit 0
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+      Tests  127 passed (127)        was 118 — nine cases ADDED, none replaced
+  VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js                    exit 0
+      (the plan's verify line omits VALIDATE_KIT_ROOT; the C3 no-false-green guard makes an unset
+       one a hard error by design, and ci.yml:517 sets it. Departure recorded, not worked around.)
+  npx vitest run --exclude '**/scripts/e2e/**'
+      Test Files  75 passed (75)     Tests  5118 passed | 2 skipped (5120)      was 5109 | 2

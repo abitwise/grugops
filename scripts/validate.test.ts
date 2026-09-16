@@ -1474,15 +1474,27 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
 // and every one of them reported ZERO carriers while the count below still asserted one authority.
 // The derivation caught a BYTE SEQUENCE, not a capability.
 //
-// So the subject of the question is now the capability, and it is a PAIR:
+// Round 2 widened the PRIMITIVE half into a named five-member table and left the KEY half a
+// syntactic-POSITION rule — the key had to be preceded by a start-of-string, a `^` or a newline.
+// Round 3 measured four more ordinary rewrites (`32-36-RED-baseline.txt`) and every one reported
+// ZERO carriers again: an alternation group puts `(` and `|` in front of the key, and `.matchAll`
+// and `.replace` were in no table. A position is not the property being claimed, and an
+// enumeration's complement is whatever nobody thought of. Both halves now ask about the property.
 //
-//   • the file NAMES BOTH ticket key spellings — as a string literal, a no-substitution template
-//     literal, a regular-expression literal, or as `+`-concatenated pieces that JOIN to the
-//     spelling — either exactly (`"column"`) or in a line-anchored frontmatter position
-//     (`^column:`, `^column[:]`, or a `\ncolumn:` inside a planted document); AND
-//   • the file REACHES A TEXT-SCANNING PRIMITIVE, from the set named once in
-//     `TEXT_SCAN_PRIMITIVES` below: the match, the exec, the split, the index lookup, and the
-//     pattern constructor.
+// So the subject of the question is the capability, and it is a PAIR:
+//
+//   • the file NAMES BOTH ticket key spellings — as a WORD anywhere in a resolved static text: a
+//     string literal, a no-substitution template literal, a regular-expression literal,
+//     `+`-concatenated pieces, or an array of resolvable pieces passed through `.join(...)`. The
+//     subject is PRESENCE, not position: `"column"`, `/^column:/`, `/^(column|status):/` and
+//     `["c","o","l","u","m","n"].join("")` all name the key, because each of them contains it; AND
+//   • the file REACHES A TEXT-SCANNING PRIMITIVE, decided by a REFUSED COMPLEMENT rather than by
+//     an enumeration: any member call whose member name belongs to `String.prototype` or
+//     `RegExp.prototype` — the set derived from the LANGUAGE at test time, so a text-scanning call
+//     this pass has never met is admitted automatically — minus the members named in
+//     `NOT_A_TEXT_PRIMITIVE`. `TEXT_SCAN_PRIMITIVES` survives as the written record of the
+//     spellings this repository actually uses, and a case asserts the complement admits every one
+//     of them, so the record and the decider cannot disagree.
 //
 // WHAT BOUNDS THIS CENSUS'S INPUT — stated here because the absence of this paragraph IS the
 // finding. Every boundary below has a case of its own at the foot of this block.
@@ -1490,11 +1502,12 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
 //   FILE SET      every `*.ts` under `scripts/` AT TEST TIME, RECURSIVELY. Never a literal array
 //                 and never depth-one. Floored against `git ls-files`, so a tracked file the glob
 //                 never opened is a red rather than a silently narrower scan.
-//   NODE KINDS    `StringLiteral`, `NoSubstitutionTemplateLiteral`, `RegularExpressionLiteral`, and
-//                 `BinaryExpression` over `+` whose operands resolve — for the key spelling; a
-//                 property-access CALL for the member primitives and a `new` expression for the
-//                 constructor. It runs over the AST, so a comment quoting a deleted pattern (this
-//                 file carries several) names nothing.
+//   NODE KINDS    `StringLiteral`, `NoSubstitutionTemplateLiteral`, `RegularExpressionLiteral`,
+//                 `BinaryExpression` over `+` whose operands resolve, and an `ArrayLiteral.join()`
+//                 whose elements and separator resolve — for the key spelling; a property-access
+//                 CALL for the member primitives and a `new` expression for the constructor. It
+//                 runs over the AST, so a comment quoting a deleted pattern (this file carries
+//                 several) names nothing.
 //   UNRESOLVABLE  a key spelling this pass cannot resolve STATICALLY — assembled from a variable,
 //                 from `String.fromCharCode`, or through a template with substitutions — is NOT
 //                 counted, and the file is NOT reported. That is a real blind spot, not a claim of
@@ -1503,8 +1516,18 @@ describe("validate-agent-factory.js — the ticket grammar's three disagreement 
 //                 place and scans text in another is a carrier even if the two never meet. The
 //                 imprecision runs in the direction of OVER-detection, which is the only direction
 //                 a census like this may be imprecise in, and it is paid for by the named
-//                 exemptions below rather than by narrowing the question again.
-describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, widened 32-21)", () => {
+//                 exemptions below rather than by narrowing the question again. Asking about
+//                 PRESENCE rather than position widened that over-detection considerably: the two
+//                 keys are also ordinary English words, so a test description or an error message
+//                 that happens to say "column" names the key. Five files became detected when
+//                 round 3 landed and each one is an entry in `NOT_A_SECOND_AUTHORITY` with its own
+//                 reason. That is the price, it is paid in decisions somebody wrote down, and it
+//                 is the right way round: over-detection costs an entry, under-detection cost this
+//                 repository two whole rounds.
+//   ORDER         the carrier list is derived from a file set sorted by name, so two runs over one
+//                 tree print the same list and a reader comparing runs compares SETS rather than
+//                 whatever order the directory walk happened to return.
+describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widened 32-21, 32-36)", () => {
   const SCRIPTS_DIR = join(ROOT, "scripts");
 
   /** The two ticket keys the validator's two ticket rules consume. */
@@ -1524,12 +1547,17 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
   });
 
   /**
-   * THE TEXT-SCANNING PRIMITIVES, NAMED IN ONE PLACE.
+   * THE TEXT-SCANNING SPELLINGS THIS REPOSITORY ACTUALLY USES — a RECORD, no longer the decider.
    *
-   * Reading a key out of a document means scanning its text, and there are five ways this codebase
-   * spells that. They live here as one frozen table rather than as five conditions scattered through
-   * the walk, because the failure this block was rewritten to close is a predicate whose input set
-   * was edited in one arm and not the other.
+   * Round 2 made this table the primitive half's whole subject, and round 3 measured what that
+   * costs: `.matchAll` and `.replace` are ordinary ways to scan text, neither was in the table, and
+   * a second reader using either measured at zero carriers. An enumeration decides about its
+   * members and says nothing about its complement, and the complement is where the next author is.
+   *
+   * So the table stays as the written record of the five spellings in use here, and
+   * `looksLikeTextScan` below does the deciding. The case
+   * "every recorded spelling is admitted by the complement" is what stops the two from disagreeing:
+   * the record cannot drift away from the decider without a red.
    */
   const TEXT_SCAN_PRIMITIVES = Object.freeze([
     { spelling: ".match", kind: "member", name: "match" },
@@ -1540,12 +1568,57 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
   ] as const);
 
   /** Derived from the table above, never a second literal list. */
-  const MEMBER_PRIMITIVES: readonly string[] = TEXT_SCAN_PRIMITIVES.filter(
-    (p) => p.kind === "member",
-  ).map((p) => p.name);
   const CONSTRUCTOR_PRIMITIVES: readonly string[] = TEXT_SCAN_PRIMITIVES.filter(
     (p) => p.kind === "constructor",
   ).map((p) => p.name);
+
+  /**
+   * THE COMPLEMENT, DERIVED FROM THE LANGUAGE RATHER THAN FROM AN AUTHOR.
+   *
+   * A member call is evidence that this pass believes the receiver is TEXT when the member being
+   * called is one `String.prototype` or `RegExp.prototype` defines — you do not call `.matchAll` or
+   * `.exec` on anything else and mean something by it. The set is read out of the running engine at
+   * test time, so every string and pattern method that exists is in it, including the ones nobody
+   * here has written yet. That is the whole point: a text-scanning call this pass has never met
+   * makes a planted second reader visible, instead of passing because nobody listed it.
+   *
+   * The imprecision runs toward OVER-detection — `.slice`, `.includes`, `.indexOf` and `.concat`
+   * are also array methods, so an array operation reads as a text one. That is the direction a
+   * census like this may be imprecise in, and the cost is a named exemption below.
+   */
+  const TEXT_CAPABLE_MEMBERS: ReadonlySet<string> = new Set([
+    ...Object.getOwnPropertyNames(String.prototype),
+    ...Object.getOwnPropertyNames(RegExp.prototype),
+  ]);
+
+  /**
+   * THE REFUSAL SET: members the two prototypes own that carry NO information about the receiver.
+   *
+   * Each of these is an own property of `String.prototype` only because every prototype re-declares
+   * what `Object.prototype` already provides. A call to one of them is made on every kind of value
+   * in the language, so admitting it would make "reaches a text-scanning primitive" true of any
+   * file at all — which is a predicate that has stopped discriminating rather than one that has
+   * been widened. A FOURTH entry is somebody judging that a string method is not evidence of
+   * scanning text, and that judgment belongs here with its reason, never as a quiet narrowing.
+   */
+  const NOT_A_TEXT_PRIMITIVE: Readonly<Record<string, string>> = Object.freeze({
+    constructor:
+      "every prototype in the language owns a `constructor`, so `.constructor(…)` is a call made " +
+      "on every kind of value and says nothing whatever about the receiver being text",
+    toString:
+      "every prototype in the language owns a `toString`, and `.toString()` is how any value at " +
+      "all is rendered; admitting it would make the primitive half true of every file in the tree",
+    valueOf:
+      "every prototype in the language owns a `valueOf`, and it is called by coercion on numbers, " +
+      "dates and plain objects far more often than on strings; it distinguishes nothing",
+  });
+
+  /** The cardinality of the refusal set — a decision, not a constant to bump. */
+  const NOT_A_TEXT_PRIMITIVE_COUNT = 3;
+
+  /** Does calling this member mean the pass believes the receiver is text? */
+  const looksLikeTextScan = (member: string): boolean =>
+    TEXT_CAPABLE_MEMBERS.has(member) && NOT_A_TEXT_PRIMITIVE[member] === undefined;
 
   /**
    * A regex-source SKELETON: the spellings that denote a single literal character reduced to that
@@ -1555,11 +1628,22 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
   const skeleton = (t: string): string =>
     t.replace(/\[(\\?.)\]/g, "$1").replace(/\\([^A-Za-z0-9])/g, "$1");
 
-  /** The key in a line-anchored frontmatter position: a pattern anchor, or a real line start. */
-  const keyInText = (k: string): RegExp => new RegExp(String.raw`(?:^|\^|\n)` + k + String.raw`\s*:`);
-
-  /** Does this resolved static text NAME the key — exactly, or in a frontmatter position? */
-  const namesKey = (text: string, k: string): boolean => text === k || keyInText(k).test(skeleton(text));
+  /**
+   * Does this resolved static text NAME the key?
+   *
+   * PRESENCE, NOT POSITION. The rule this replaced asked what came BEFORE the key — a start of
+   * text, a `^`, or a newline — and that is a property of the author's habit rather than of the
+   * text naming the key. Inside `/^(column|status):/` the key is preceded by `(` and by `|`, so
+   * the old rule said the pattern named neither key while it matched both; round 3 measured three
+   * separate second readers walking through on exactly that (`32-36-RED-baseline.txt` § 3).
+   *
+   * A word boundary either side is what keeps this from matching `columns` or `statuses` while
+   * admitting every ordinary way of writing the key down. `skeleton` stays in front of it because
+   * it is what makes `^column[:]` and `^column\:` read alike — that is a NORMALIZATION of two
+   * spellings of one literal character, not a position rule.
+   */
+  const namesKey = (text: string, k: string): boolean =>
+    new RegExp(String.raw`\b` + k + String.raw`\b`).test(skeleton(text));
 
   interface ReaderFinding {
     readonly kind: "key" | "primitive";
@@ -1570,6 +1654,13 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
   /**
    * The static text a node denotes, or `null` when this pass cannot resolve it. `+` recurses, which
    * is what makes `"col" + "umn"` resolve to the spelling it assembles (WR-01 E3).
+   *
+   * `.join(…)` over an array literal recurses for the same reason one register over: `+` and
+   * `[...].join("")` are the two ordinary ways to build a string out of pieces, and a census that
+   * resolved one and not the other would be asking about a spelling again. `.planning/WINDOWS.md`
+   * ledger row 184 named the join form as a stated blind spot; this arm closes the STATIC half of
+   * it. The runtime half — a spelling that does not exist until the program runs — is still
+   * outside a static pass and still has its own case below saying so.
    */
   const staticText = (n: ts.Node): string | null => {
     if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) return n.text;
@@ -1578,6 +1669,19 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
       const l = staticText(n.left);
       const r = staticText(n.right);
       return l !== null && r !== null ? l + r : null;
+    }
+    if (
+      ts.isCallExpression(n) &&
+      ts.isPropertyAccessExpression(n.expression) &&
+      n.expression.name.text === "join" &&
+      ts.isArrayLiteralExpression(n.expression.expression)
+    ) {
+      const parts = n.expression.expression.elements.map(staticText);
+      if (parts.some((p) => p === null)) return null;
+      if (n.arguments.length === 0) return parts.join(",");
+      if (n.arguments.length !== 1) return null;
+      const sep = staticText(n.arguments[0] as ts.Node);
+      return sep === null ? null : parts.join(sep);
     }
     return null;
   };
@@ -1608,7 +1712,7 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
       if (
         ts.isCallExpression(n) &&
         ts.isPropertyAccessExpression(n.expression) &&
-        MEMBER_PRIMITIVES.includes(n.expression.name.text)
+        looksLikeTextScan(n.expression.name.text)
       ) {
         const name = n.expression.name.text;
         if (!primitiveRows.has(name)) {
@@ -1653,13 +1757,16 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
     .map((e) => join(e.parentPath, e.name).slice(SCRIPTS_DIR.length + 1))
     .sort();
 
-  const CENSUS = SCANNED.map(
-    (name) =>
-      [name, findTicketReaders(parse(name, readFileSync(join(SCRIPTS_DIR, name), "utf8")))] as const,
-  );
+  /** One scanned file: a name and the text to parse. Planted rows use the same shape. */
+  interface ScannedFile {
+    readonly name: string;
+    readonly text: string;
+  }
 
-  /** Everything the WIDENED derivation names, BEFORE any exemption is applied. */
-  const DETECTED = CENSUS.filter(([, f]) => f.length > 0);
+  const LIVE_ROWS: readonly ScannedFile[] = SCANNED.map((name) => ({
+    name,
+    text: readFileSync(join(SCRIPTS_DIR, name), "utf8"),
+  }));
 
   /**
    * THE FILES THE WIDENED QUESTION NAMES THAT ARE NOT SECOND AUTHORITIES — each with the one-line
@@ -1682,15 +1789,86 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
     "validate.test.ts":
       "this census: it names both key spellings in order to SCAN for them and reaches the " +
       "primitives in order to build its own patterns and its own planted rows",
+    // ── The five the PRESENCE rule added in round 3 (32-36). Each one names a key because the two
+    //    ticket keys are also ordinary English words, and each one was read before it was exempted.
+    "audit-model.test.ts":
+      "the audit register's suite: `/column/i` is a pattern over an AUDIT-REGISTER table column and " +
+      "`status` appears in a test description about CLAIM_STATUSES; neither has anything to do " +
+      "with a ticket document, and this file reads no ticket text at all",
+    "board-dashboard.test.ts":
+      "the dashboard renderer's suite: `column` names a rendered WIP-COUNT column in a test " +
+      "description and `status` is a dial key it asserts over; the ticket fields it works with " +
+      "arrive already parsed, as TicketRecord values the one grammar produced",
+    "check-banned-claims.test.ts":
+      "the banned-claims gate's suite: `- status: true` is a planted FRONTMATTER fixture for that " +
+      "gate's own subject and `column` appears in a message about a file:line:column citation; " +
+      "the gate reads claims out of markdown prose and parses no ticket frontmatter",
+    "check-diff-disposition.ts":
+      "the diff-disposition gate: `status` is one of the keys of ITS OWN disposition register and " +
+      "`column` names a `safety_surface` table column in an operator message. It reads the audit " +
+      "register and the git diff, never a ticket document — the only production-code entry here, " +
+      "and the standing risk that carries is written into this plan's SUMMARY rather than left " +
+      "for a later reader to notice",
+    "compactor.test.ts":
+      "the thread compactor's suite: `column-0` and `status` both appear inside test DESCRIPTIONS " +
+      "about verified_by findings and writer order; the compactor's subject is a thread note and " +
+      "it never reads a ticket's frontmatter",
   });
 
   /** The cardinality of the exemption set — a decision, not a constant to bump. */
-  const NOT_A_SECOND_AUTHORITY_COUNT = 3;
+  const NOT_A_SECOND_AUTHORITY_COUNT = 8;
 
-  const CARRIERS = DETECTED.filter(([name]) => NOT_A_SECOND_AUTHORITY[name] === undefined);
+  /**
+   * THE CENSUS AS A FUNCTION OF ITS INPUT, so the boundary and degenerate cases below are asked the
+   * SAME question the live tree is asked rather than a re-implementation of it.
+   *
+   * The rows are sorted by name before anything else happens. That is what makes the carrier list
+   * ORDER-STABLE: without it the list comes out in whatever order the directory walk returned, and
+   * two runs over one tree can print the same SET in two different orders — measured in
+   * `32-36-RED-baseline.txt` § 4 against a shuffled input.
+   */
+  const censusOver = (
+    rows: readonly ScannedFile[],
+  ): {
+    readonly detected: readonly (readonly [string, readonly ReaderFinding[]])[];
+    readonly carriers: readonly (readonly [string, readonly ReaderFinding[]])[];
+  } => {
+    const detected = [...rows]
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+      .map((r) => [r.name, findTicketReaders(parse(r.name, r.text))] as const)
+      .filter(([, f]) => f.length > 0);
+    return {
+      detected,
+      carriers: detected.filter(([name]) => NOT_A_SECOND_AUTHORITY[name] === undefined),
+    };
+  };
+
+  const LIVE_CENSUS = censusOver(LIVE_ROWS);
+
+  /** Everything the WIDENED derivation names, BEFORE any exemption is applied. */
+  const DETECTED = LIVE_CENSUS.detected;
+
+  const CARRIERS = LIVE_CENSUS.carriers;
 
   /** TWO-SIDED. A second carrier is a second authority on what a ticket says. */
   const TICKET_FRONTMATTER_READER_COUNT = 1;
+
+  /**
+   * THE VERDICT, AS A FUNCTION OF THE COUNT — so that ZERO is a NAMED failure rather than a number
+   * that happens to trip an equality.
+   *
+   * A census whose subject vanished reports zero, and zero satisfies every "at most one" reading of
+   * "exactly one authority". Writing the verdict down on both sides of one is what makes the claim
+   * a two-sided measurement: zero means the authority is GONE (a deletion, a rename, or a scan that
+   * stopped finding anything), one is the live tree, and two or more is a second authority.
+   */
+  type CarrierVerdict = "vanished-authority" | "exactly-one-authority" | "second-authority";
+  const carrierVerdict = (n: number): CarrierVerdict =>
+    n === 0
+      ? "vanished-authority"
+      : n === TICKET_FRONTMATTER_READER_COUNT
+        ? "exactly-one-authority"
+        : "second-authority";
 
   it("the scan is non-vacuous: the glob found files, and every tracked scripts/*.ts is among them", () => {
     // BOUNDARY 1 — the FILE SET. A census over an empty glob reports one-of-nothing as success, so
@@ -1723,6 +1901,12 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
         "drift DASH-01 exists to close, and the exact defect CR-06 found surviving plan 32-08.\n" +
         `Carriers found:\n${report}`,
     ).toBe(TICKET_FRONTMATTER_READER_COUNT);
+    // The same number, read through the verdict — so the live tree is judged by the instrument the
+    // boundary rows below are judged by, rather than by an equality standing on its own.
+    expect(
+      carrierVerdict(CARRIERS.length),
+      `the live tree's verdict is not "exactly one authority":\n${report}`,
+    ).toBe("exactly-one-authority");
     // The right NUMBER in the wrong FILE is still wrong: the one reader must be the grammar.
     expect(
       CARRIERS.map(([name]) => name),
@@ -1748,13 +1932,69 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
     }
   });
 
-  it("the exemption set has exactly three members", () => {
+  it("the exemption set has exactly the pinned number of members", () => {
     expect(
       Object.keys(NOT_A_SECOND_AUTHORITY).length,
-      "a fourth exemption is a DECISION: it asserts that a file naming both ticket keys beside a " +
+      "a further exemption is a DECISION: it asserts that a file naming both ticket keys beside a " +
         "text scan is not a second authority on what a ticket says. That judgment belongs beside " +
-        "the other three with its reason written out, not in a bumped constant",
+        "the others with its reason written out, not in a bumped constant",
     ).toBe(NOT_A_SECOND_AUTHORITY_COUNT);
+  });
+
+  // ── THE PRIMITIVE HALF IS A COMPLEMENT, AND ITS REFUSALS ARE DECISIONS TOO ─────────────────────
+
+  it("the derived text-member set is non-vacuous and admits every spelling this repo records", () => {
+    // A complement derived from an EMPTY set would refuse everything and the pair would never fire,
+    // which is the vacuity shape this repository has recorded six instances of. The floor is
+    // asserted before anything is claimed about what the complement admits.
+    expect(
+      TEXT_CAPABLE_MEMBERS.size,
+      "String.prototype and RegExp.prototype between them define dozens of members; a set this " +
+        "small means the derivation is reading something other than the language",
+    ).toBeGreaterThan(40);
+    // The RECORD and the DECIDER cannot disagree: every spelling the table writes down must be one
+    // the complement admits. If a later author narrows the complement, this is what reds.
+    for (const p of TEXT_SCAN_PRIMITIVES) {
+      if (p.kind === "member") {
+        expect(
+          looksLikeTextScan(p.name),
+          `\`${p.spelling}\` is in TEXT_SCAN_PRIMITIVES as a spelling this repository uses, and the ` +
+            "complement refuses it — the record and the decider have drifted apart",
+        ).toBe(true);
+      } else {
+        expect(
+          CONSTRUCTOR_PRIMITIVES.includes(p.name),
+          `\`${p.spelling}\` is recorded as a constructor primitive and the constructor arm does ` +
+            "not carry it",
+        ).toBe(true);
+      }
+    }
+    // And the spellings round 3 measured walking through the ENUMERATION are admitted by the
+    // complement without anybody having added them: that is what "refused complement" buys.
+    for (const m of ["matchAll", "replace", "replaceAll", "search", "test", "startsWith", "slice"]) {
+      expect(
+        looksLikeTextScan(m),
+        `\`.${m}\` is an ordinary way to scan text and the complement refuses it`,
+      ).toBe(true);
+    }
+  });
+
+  it("every refused member carries a reason, and the refusal set equals its pinned count", () => {
+    for (const [name, reason] of Object.entries(NOT_A_TEXT_PRIMITIVE)) {
+      expect(
+        TEXT_CAPABLE_MEMBERS.has(name),
+        `\`${name}\` is refused as a text primitive but neither prototype defines it — the ` +
+          "refusal is describing something that is not there",
+      ).toBe(true);
+      expect(reason.length, `${name}'s refusal gives no reason`).toBeGreaterThan(40);
+      expect(looksLikeTextScan(name), `${name} is refused and admitted at once`).toBe(false);
+    }
+    expect(
+      Object.keys(NOT_A_TEXT_PRIMITIVE).length,
+      "an exemption added to silence a red is a number somebody has to look at. A fourth refusal " +
+        "asserts that a string method is not evidence of scanning text, which is the narrowing " +
+        "that produced this finding twice",
+    ).toBe(NOT_A_TEXT_PRIMITIVE_COUNT);
   });
 
   // ── DISCRIMINATION. BOUNDARY 2 — THE NODE KINDS, ONE ROW PER SPELLING ──────────────────────────
@@ -1764,21 +2004,269 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (plan 32-12, 
   // verbatim; the next three are that same reader rewritten the way an ordinary author would write
   // it, taken from the round-1 review, each measured at ZERO carriers before this widening.
 
+  /**
+   * THE FOUR ORDINARY SECOND READERS ROUND 3 MEASURED, PLUS THE CONTROL — held as DATA.
+   *
+   * Every row is a real, semantically complete module that reads both ticket keys out of a
+   * document's text. Every one of them measured at ZERO added carriers before this plan
+   * (`32-36-RED-baseline.txt` § 2), and the `half` column records which side of the pair let it
+   * through — which is what makes these four findings rather than four spellings of one.
+   *
+   * The control is the reader plan 32-12 DELETED, replanted verbatim. Without it a baseline cannot
+   * tell a census that misses these four from a census that misses everything.
+   */
+  const SECOND_READER_PLANTS = Object.freeze([
+    {
+      id: "A",
+      name: "plant-a-alternation-matchall.ts",
+      half: "key and primitive" as const,
+      source: [
+        "const PAIR = /^(column|status):\\s*(.+)$/gm;",
+        "export function ticketFields(text: string): Record<string, string> {",
+        "  const out: Record<string, string> = {};",
+        "  for (const m of text.matchAll(PAIR)) out[m[1] as string] = (m[2] as string).trim();",
+        "  return out;",
+        "}",
+      ].join("\n"),
+    },
+    {
+      id: "B",
+      name: "plant-b-alternation-exec.ts",
+      half: "key" as const,
+      source: [
+        "const PAIR = /^(column|status):\\s*(.+)$/gm;",
+        "export function ticketFields(text: string): Record<string, string> {",
+        "  const out: Record<string, string> = {};",
+        "  let m: RegExpExecArray | null;",
+        "  while ((m = PAIR.exec(text)) !== null) out[m[1] as string] = (m[2] as string).trim();",
+        "  return out;",
+        "}",
+      ].join("\n"),
+    },
+    {
+      id: "C",
+      name: "plant-c-literals-replace.ts",
+      half: "primitive" as const,
+      source: [
+        'const COLUMN_KEY = "column";',
+        'const STATUS_KEY = "status";',
+        "export function ticketFields(text: string): Record<string, string> {",
+        "  const out: Record<string, string> = {};",
+        "  text.replace(/([a-z]+):[ \\t]*(.+)/g, (_all: string, k: string, v: string) => {",
+        "    if (k === COLUMN_KEY || k === STATUS_KEY) out[k] = v.trim();",
+        '    return "";',
+        "  });",
+        "  return out;",
+        "}",
+      ].join("\n"),
+    },
+    {
+      id: "D",
+      name: "plant-d-joined-split.ts",
+      half: "key" as const,
+      source: [
+        'const COLUMN_KEY = ["c", "o", "l", "u", "m", "n"].join("");',
+        'const STATUS_KEY = ["s", "t", "a", "t", "u", "s"].join("");',
+        "export function ticketFields(text: string): Record<string, string> {",
+        "  const out: Record<string, string> = {};",
+        '  for (const line of text.split("\\n")) {',
+        '    const i = line.indexOf(":");',
+        "    if (i < 0) continue;",
+        "    const k = line.slice(0, i).trim();",
+        "    if (k === COLUMN_KEY || k === STATUS_KEY) out[k] = line.slice(i + 1).trim();",
+        "  }",
+        "  return out;",
+        "}",
+      ].join("\n"),
+    },
+    {
+      id: "CONTROL",
+      name: "plant-control-deleted-reader.ts",
+      half: "none — this one was always caught" as const,
+      source: [
+        "interface FrontMatter {",
+        "  column: string | null;",
+        "  status: string | null;",
+        "}",
+        "function frontMatter(text: string): FrontMatter {",
+        "  const col = text.match(/^column:\\s*(.+)$/m);",
+        "  const status = text.match(/^status:\\s*(.+)$/m);",
+        "  return {",
+        "    column: col ? col[1].trim() : null,",
+        "    status: status ? status[1].trim() : null,",
+        "  };",
+        "}",
+      ].join("\n"),
+    },
+  ] as const);
+
+  /** Four measured rewrites plus one control — a row added here is a measurement somebody made. */
+  const SECOND_READER_PLANT_COUNT = 5;
+
+  const plantById = (id: string): (typeof SECOND_READER_PLANTS)[number] => {
+    const row = SECOND_READER_PLANTS.find((p) => p.id === id);
+    expect(row, `no plant row with id ${id}`).toBeDefined();
+    return row as (typeof SECOND_READER_PLANTS)[number];
+  };
+
+  it("the plant table has exactly the pinned number of rows", () => {
+    expect(
+      SECOND_READER_PLANTS.length,
+      "each row is a second reader somebody wrote and MEASURED against this census; the count is " +
+        "pinned so a row cannot be dropped to make a red go away",
+    ).toBe(SECOND_READER_PLANT_COUNT);
+    expect(
+      SECOND_READER_PLANTS.filter((p) => p.id === "CONTROL").length,
+      "without the control this table cannot distinguish a blind census from a blind spot",
+    ).toBe(1);
+  });
+
+  it("EVERY planted second reader raises the carrier count above one (32-36 § 2)", () => {
+    // The census asked the SAME way the live tree is asked: the plant goes into the scanned set and
+    // the whole census runs over it. Four of these five measured at zero added carriers before this
+    // plan, with the block still asserting "exactly ONE ticket-frontmatter reader".
+    for (const p of SECOND_READER_PLANTS) {
+      const { carriers } = censusOver([...LIVE_ROWS, { name: p.name, text: p.source }]);
+      expect(
+        carriers.length,
+        `plant ${p.id} (${p.name}) is a complete second reader of both ticket keys and the census ` +
+          `does not see it. The half it defeats: ${p.half}. Measured at zero added carriers in ` +
+          "32-36-RED-baseline.txt § 2 — if this reds again the predicate has been narrowed back",
+      ).toBeGreaterThan(TICKET_FRONTMATTER_READER_COUNT);
+      expect(
+        carriers.map(([name]) => name),
+        `plant ${p.id} must appear in the carrier list by name`,
+      ).toContain(p.name);
+    }
+  });
+
+  it("with NO plant, the carrier count is exactly one — the converse of the row above", () => {
+    // A derivation that said yes to everything would pass all five rows above and prove nothing.
+    expect(carrierVerdict(censusOver(LIVE_ROWS).carriers.length)).toBe("exactly-one-authority");
+  });
+
+  // ── THE CARRIER BOUNDARY, ONE STEP EITHER SIDE, AS CASES RATHER THAN AS ASSUMPTIONS ────────────
+
+  /**
+   * Zero, one and two carriers, each with the verdict it must produce.
+   *
+   * The count case above is an equality, and an equality tells you a number is wrong without
+   * telling you WHICH WAY. Zero carriers is not a satisfied upper bound on "at most one authority"
+   * — it is a census whose subject has vanished, and it must be as loud as a second authority.
+   */
+  const CARRIER_BOUNDARY_ROWS = Object.freeze([
+    {
+      carriers: 0,
+      verdict: "vanished-authority" as const,
+      why: "the one authority is GONE — deleted, renamed, or the scan stopped finding it. This is " +
+        "NOT a satisfied upper bound and must never read as success",
+    },
+    {
+      carriers: 1,
+      verdict: "exactly-one-authority" as const,
+      why: "the live tree: one grammar answers what a ticket says",
+    },
+    {
+      carriers: 2,
+      verdict: "second-authority" as const,
+      why: "a second reader means the validator and the board projector can report different " +
+        "columns for the same ticket — the drift DASH-01 exists to close",
+    },
+  ]);
+
+  it("the carrier boundary is a case on BOTH sides of one, and zero REDS", () => {
+    const control = plantById("CONTROL");
+    const oneCarrier = LIVE_ROWS.filter((r) => r.name === "board-model.ts");
+    const zeroCarriers = LIVE_ROWS.filter((r) => NOT_A_SECOND_AUTHORITY[r.name] !== undefined);
+    const twoCarriers = [...oneCarrier, { name: control.name, text: control.source }];
+    const measured: Record<number, readonly ScannedFile[]> = {
+      0: zeroCarriers,
+      1: oneCarrier,
+      2: twoCarriers,
+    };
+    for (const row of CARRIER_BOUNDARY_ROWS) {
+      const input = measured[row.carriers] as readonly ScannedFile[];
+      const n = censusOver(input).carriers.length;
+      expect(n, `the ${row.carriers}-carrier input did not produce ${row.carriers} carriers`).toBe(
+        row.carriers,
+      );
+      expect(carrierVerdict(n), `${row.carriers} carriers: ${row.why}`).toBe(row.verdict);
+    }
+    // And the live claim is the MIDDLE row, not an upper bound: both neighbours are failures.
+    expect(carrierVerdict(0), "zero carriers must never read as a satisfied bound").not.toBe(
+      "exactly-one-authority",
+    );
+    expect(carrierVerdict(2), "two carriers must never read as a satisfied bound").not.toBe(
+      "exactly-one-authority",
+    );
+  });
+
+  it("ADJACENCY: two readers differing only in key spelling count as TWO, not as one", () => {
+    // A duplicated reader must not hide behind its sibling. The two sources below are identical
+    // except that one writes `^column:` and the other `^column[:]` — two spellings `skeleton`
+    // normalizes to the same text, which is exactly the pair most likely to be merged by a
+    // derivation that deduplicated on content instead of on file.
+    const control = plantById("CONTROL");
+    const a = control.source;
+    const b = a.replace("^column:", "^column[:]").replace("^status:", "^status[:]");
+    expect(b, "the adjacency fixture did not actually change — the probe would be vacuous").not.toBe(a);
+    const { carriers } = censusOver([
+      ...LIVE_ROWS,
+      { name: "adjacent-1.ts", text: a },
+      { name: "adjacent-2.ts", text: b },
+    ]);
+    expect(
+      carriers.length,
+      "two near-identical readers were counted as one; a census that merges duplicates lets the " +
+        "second copy of an authority ride along for free",
+    ).toBe(TICKET_FRONTMATTER_READER_COUNT + 2);
+    expect(carriers.map(([n]) => n)).toEqual([
+      "adjacent-1.ts",
+      "adjacent-2.ts",
+      "board-model.ts",
+    ]);
+  });
+
+  it("EMPTY INPUT: an empty scanned set reds the premise, and a one-file set is still asked", () => {
+    // The census over nothing reports zero carriers, and zero is not "exactly one authority".
+    expect(censusOver([]).carriers.length).toBe(0);
+    expect(
+      carrierVerdict(censusOver([]).carriers.length),
+      "a census over an empty scanned set must red its non-vacuity premise rather than pass as " +
+        "one-authority-over-nothing",
+    ).toBe("vanished-authority");
+    // A single-element scanned set is not a special case: the same question is asked of it.
+    const one = LIVE_ROWS.filter((r) => r.name === "board-model.ts");
+    expect(one.length, "board-model.ts is not in the scanned set — the probe is vacuous").toBe(1);
+    expect(carrierVerdict(censusOver(one).carriers.length)).toBe("exactly-one-authority");
+  });
+
+  it("ORDERING: two runs over the same tree print the same carrier LIST, not the same set", () => {
+    // Measured before the fix: the carrier list came out in the order the scanned set arrived in,
+    // so a caller handing the census a differently-ordered set got a differently-ordered list of
+    // the same carriers (32-36-RED-baseline.txt § 4). The sort now lives inside `censusOver`.
+    const control = plantById("CONTROL");
+    const planted: readonly ScannedFile[] = [
+      ...LIVE_ROWS,
+      { name: "order-probe-1.ts", text: control.source },
+      { name: "order-probe-2.ts", text: control.source },
+    ];
+    const forwards = censusOver(planted).carriers.map(([n]) => n);
+    const backwards = censusOver([...planted].reverse()).carriers.map(([n]) => n);
+    expect(
+      backwards,
+      "the carrier list depends on the order the files arrived in, so two runs over one tree " +
+        "report the same SET as two different LISTS and a reader comparing them compares traversal " +
+        "order",
+    ).toEqual(forwards);
+    expect(forwards, "and the order is the sorted one").toEqual([...forwards].sort());
+    expect(forwards.length, "the ordering probe must have more than one carrier to order").toBeGreaterThan(1);
+    // The live scanned set is sorted too, so the two derivations agree about order.
+    expect(SCANNED, "the scanned file set is not sorted").toEqual([...SCANNED].sort());
+  });
+
   it("goes RED on the deleted reader: the exact source that was removed is still caught", () => {
-    const deleted = [
-      "interface FrontMatter {",
-      "  column: string | null;",
-      "  status: string | null;",
-      "}",
-      "function frontMatter(text: string): FrontMatter {",
-      "  const col = text.match(/^column:\\s*(.+)$/m);",
-      "  const status = text.match(/^status:\\s*(.+)$/m);",
-      "  return {",
-      "    column: col ? col[1].trim() : null,",
-      "    status: status ? status[1].trim() : null,",
-      "  };",
-      "}",
-    ].join("\n");
+    const deleted = plantById("CONTROL").source;
     const found = findTicketReaders(parse("planted-second-reader.ts", deleted));
     expect(
       found.length,
