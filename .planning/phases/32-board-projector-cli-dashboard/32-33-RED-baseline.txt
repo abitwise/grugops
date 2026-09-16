@@ -1,0 +1,216 @@
+32-33 RED BASELINE — the fabricated presence sentence, reproduced on the COMMITTED .js
+================================================================================================
+
+Measured 2026-09-16 on commit c677eb7a (HEAD before this plan's first commit), after
+`npm run build` and `git diff --exit-code --name-only -- '*.js'` reported no moved build output,
+so every number below was produced by the committed twins rather than by a local rebuild only.
+
+Reproduction root: a DISPOSABLE COPY of `scripts/fixtures/board-snapshot/` in the session
+scratchpad. No tracked file is touched by this task; the closing row of § 7 records that.
+
+
+§ 1 — THE FABRICATED CONFLICT OBJECT, VERBATIM
+------------------------------------------------------------------------------------------------
+
+Planted into the copy:
+
+  plans/board.md          gained  `## Triage (WIP unlimited)` with three rows:
+                                  `- [ABC-300] ...`, `- [ABC-301] ...`, `- [ABC-302] ...`
+  plans/tickets/ABC-300.md  NEW   frontmatter `id: ABC-777` — the stem is ABC-300 and the
+                                  document declares ABC-777
+  plans/tickets/ABC-301.md  NEW   frontmatter carries `bogus_key_the_grammar_refuses`, so the
+                                  ticket grammar refuses it by name
+  (no file at plans/tickets/ABC-302.md — the genuinely absent case)
+
+Command:
+
+  node scripts/board-dashboard.js <copy> --once --json      exit 0
+
+The conflict object produced for ABC-300, whole:
+
+  {"kind":"row-without-file","ticketId":"ABC-300","column":"Triage",
+   "expected":"plans/tickets/ABC-300.md",
+   "actual":"no ticket file carries that identifier","source":"board"}
+
+`expected` names a path. `actual` asserts that no file carries the identifier. Both sentences are
+about the same path, and the second one is false.
+
+
+§ 2 — PROOF THE FILE IS PRESENT, READABLE, PARSED AND ADMITTED
+------------------------------------------------------------------------------------------------
+
+  path                    <copy>/plans/tickets/ABC-300.md
+  byte count              200
+  listed by the walk      yes — the walk's `.md` filter admits it
+  bytes obtained          yes — no read error names this path
+  grammar verdict         ADMITTED
+  record the reader built {"file":"ABC-300.md","id":"ABC-777",
+                           "title":"The file at ABC-300.md declares ABC-777",
+                           "column":"Triage","status":"triage"}
+
+  tickets read-error array for this run, in full:
+
+    [ { "source":"tickets",
+        "path":"<copy>/plans/tickets/ABC-301.md",
+        "code":"unknown-key",
+        "message":"line 4 carries the key `bogus_key_the_grammar_refuses`, which is outside the
+                   closed ticket key set (id, title, status, column, size, priority, epic,
+                   feature). ..." } ]
+
+  ONE entry, and it names ABC-301.md. ZERO entries name ABC-300.md. The projector asserts absence
+  about a path it listed, opened, parsed without error and admitted, and it reports no error at
+  all about that path.
+
+  tickets source state    "ok"
+  overall source          "ok"
+
+  THE SAME RUN WITH ONLY THE MISMATCH PLANTED — nothing else added to the copy, so the tickets
+  read-error array is LITERALLY EMPTY rather than empty-for-that-file:
+
+    tickets readErrors      []                            (the whole array, not a filter)
+    all readErrors          1, and it is `queue:tampered` — the committed fixture's own
+                            deliberately tampered claim record, which no ticket read touched
+    tickets source state    "ok"
+    conflict for ABC-300    {"kind":"row-without-file","ticketId":"ABC-300","column":"Triage",
+                             "expected":"plans/tickets/ABC-300.md",
+                             "actual":"no ticket file carries that identifier","source":"board"}
+
+  Zero read errors from the tickets source, and the projector still asserts that no file carries
+  ABC-300 while holding the record it built from `plans/tickets/ABC-300.md`.
+
+Plain frame, first line and the conflict line, verbatim (NO_COLOR=1, `--once`):
+
+  grugops board  <copy>  mode: lean  read: 2026-09-16T09:06:32.248Z  7 columns  [ok]  13 conflicts
+    ABC-300 Triage  expected: plans/tickets/ABC-300.md  actual: no ticket file …
+
+The badge is `[ok]`. The sentence under it is false. That pairing is the defect: a plain-text ok
+header over a positive claim about a filesystem the reader read correctly.
+
+
+§ 3 — THE FOUR-ROW NEIGHBOUR TABLE (a partition, not an example)
+------------------------------------------------------------------------------------------------
+
+All four rows measured in ONE run of the same copy, so no row's answer depends on a different
+tree. `row-without-file` appears in three of the four; the fourth is the converse kind.
+
+| # | Population                               | Planted                                   | Kind produced      | `actual` measured                                                                      | Verdict                    |
+|---|------------------------------------------|-------------------------------------------|--------------------|-----------------------------------------------------------------------------------------|----------------------------|
+| 1 | MISMATCH — file admitted under another id | row ABC-300 + ABC-300.md declaring ABC-777 | `row-without-file` | `no ticket file carries that identifier`                                                  | **FABRICATED — the defect** |
+| 2 | REFUSED — round 1's closed case           | row ABC-301 + ABC-301.md, unknown-key      | `row-without-file` | `plans/tickets/ABC-301.md exists and the reader could not admit it (unknown-key)`          | correct, must stay correct |
+| 3 | ABSENT — genuinely no file of that stem   | row ABC-302, no file                       | `row-without-file` | `no ticket file carries that identifier`                                                  | correct, must stay correct |
+| 4 | UNPLACED — converse direction             | ABC-300.md declares ABC-777, no row names it | `ticket-unplaced` | `no row names ABC-777`                                                                    | correct, must stay correct |
+
+A fifth row measured in the same run, from the pristine fixture and carried here unchanged
+because a fix that moves it is a regression:
+
+| 5 | ABSENT (pristine fixture)                | row ABC-999, no file (committed fixture)  | `row-without-file` | `no ticket file carries that identifier`                                                  | correct, must stay correct |
+
+Rows 1 and 3 produce BYTE-IDENTICAL `actual` text for two facts that are not the same fact. That
+is what makes the defect invisible on the screen: nothing distinguishes the false sentence from
+the true one.
+
+A human reading rows 1 and 4 together is told two things about one file: that no file carries
+ABC-300, and that no row names ABC-777. Neither sentence mentions the other identifier, so the
+two conflicts do not read as one disagreement about one document.
+
+
+§ 4 — THE DUPLICATE-IDENTIFIER WALK'S COST SHAPE (WR-08)
+------------------------------------------------------------------------------------------------
+
+`scripts/board-read.ts:1303` runs `records.find((r) => r.id === id)` once per admitted entry,
+over the records accumulated so far — a linear scan inside the walk, so n(n-1)/2 comparisons at
+n admitted entries. At the walk bound (MAX_WALK_ENTRIES = 10000, `scripts/kit-model.ts:205`) that
+is ~50,000,000 comparisons on every refresh, and the refresh runs on every watch event and every
+poll tick.
+
+Method: a copy of the fixture whose `plans/tickets/` carries N synthetic admitted documents
+(each `id: TKT-nnnnnn`, unique, so the scan never short-circuits early). One warm-up call, then
+three timed `readSnapshot(root)` calls; the best of three is reported, all three are shown.
+
+| Entries under plans/tickets/ | Admitted | `readSnapshot` best of 3 | all three runs (ms)  | ratio vs previous size |
+|------------------------------|----------|--------------------------|----------------------|------------------------|
+| 2,507                        | 2,500    | **92.3 ms**              | 95.6, 94.6, 92.3     | —                      |
+| 5,007                        | 5,000    | **212.5 ms**             | 212.7, 212.5, 236.7  | 2.30x for 2x the input |
+| 10,007 (bound bites at 10,000)| 10,000  | **510.5 ms**             | 659.1, 510.5, 511.4  | 2.40x for 2x the input |
+
+The measured growth is SUPERLINEAR and the superlinear term is the scan: doubling the input costs
+2.3-2.4x rather than 2x. It is not a clean n^2 curve because per-file I/O and parsing dominate the
+absolute number at these sizes; the scan is the part that grows faster than the input, and it is
+the only part of this loop that does.
+
+THE NUMBER TASK 4 RE-RUNS: **510.5 ms best-of-3 at 10,000 admitted entries**, same machine, same
+three-run method, same copy layout.
+
+The tickets source at 10,007 entries reads `stale` with the bound reported, which is D-14's stated
+behaviour (a bounded listing is a stale badge, never a frozen screen) and is unchanged by this
+plan.
+
+
+§ 5 — THE ENTRY NAMED EXACTLY `.md` (IN-02)
+------------------------------------------------------------------------------------------------
+
+`ticketStem` (`scripts/board-read.ts:1159`) is `name.slice(0, -".md".length)`, so the entry `.md`
+yields the empty identifier. The walk's `endsWith(".md")` test admits the entry.
+
+Measured, on a copy carrying `plans/tickets/.md` beside the seven fixture tickets:
+
+  variant A — `.md` declares no `id`:
+    listed `.md` entries          8
+    admitted records              8      (the `.md` entry IS one of them)
+    the record built for it       {"file":".md","id":"","title":"degenerate, declares no id",
+                                   "column":null,"status":null}
+    tickets readErrors            []     — nothing names it
+    tickets source state          "ok"
+    conflicts naming id ""        []     — no row can name the empty identifier, so none does
+
+  variant B — `.md` declares `id: ""`:
+    the record built for it       {"file":".md","id":"\"\"", ...}   (the quoted form, admitted)
+    tickets readErrors            []
+    admitted records              8
+
+WHICH POPULATION IT LANDS IN: the ADMITTED one, under an identifier of zero characters (variant A)
+or two quote characters (variant B).
+
+DOES THE PARTITION COUNT BALANCE: yes — 8 listed `.md` entries = 8 admitted + 0 unadmitted. The
+count that `scripts/board-read.test.ts` pins is TOTAL and stays total. That is precisely why the
+degenerate member is invisible today: it is inside a population the reader pins by count, holding
+an identifier no board row can ever name, and no channel says so.
+
+
+§ 6 — THE CASE COUNTS THIS BASELINE PINS
+------------------------------------------------------------------------------------------------
+
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts scripts/board-model.test.ts
+    Test Files  2 passed (2)
+    Tests       271 passed (271)
+
+  Task 3's verify requires a count ABOVE 271 for these two files — cases added, never replaced.
+
+  Full suite baseline recorded in 32-VERIFICATION.md: 4974 passed. Measured on this tree at
+  dispatch: 5056 passed | 2 skipped (the orchestrator's stated current baseline).
+
+
+§ 7 — THE TREE WAS NOT TOUCHED
+------------------------------------------------------------------------------------------------
+
+  git diff --exit-code -- scripts/ agent-factory/ docs/      exit 0
+
+Recorded even though this task plants nothing in the tree, because every plan in this round records
+it and a missing row is indistinguishable from a skipped one.
+
+
+§ 8 — WHAT MUST CHANGE, AND WHAT MUST NOT
+------------------------------------------------------------------------------------------------
+
+MUST CHANGE (exactly one cell):
+  row 1's `actual` — from `no ticket file carries that identifier` to a sentence naming the
+  identifier the file at that path declares.
+
+MUST NOT CHANGE:
+  rows 2, 3, 4 and 5 — byte for byte.
+  the conflict KIND set — still seven, still `CONFLICT_KINDS` in declaration order.
+  the pristine fixture's conflict set, and the golden document's conflict array.
+
+MAY CHANGE, AND ONLY BECAUSE TASK 1 RECORDED A HUMAN DECISION TO MOVE IT:
+  `SCHEMA_VERSION`, `TicketRecord`'s field set, and
+  `scripts/fixtures/board-snapshot/expected-snapshot.json`.
