@@ -1203,7 +1203,7 @@ Plans:
 
 **Wave 4** *(blocked on 32-33)*
 
-- [ ] 32-34-PLAN.md — DASH-04/DASH-05 (CR-01 + CR-02) + IN-01: the containment signal narrowed to the directory a handle would open with an ancestor-aware test, the containment early return given both the effects its neighbours have, the escaping-ENTRY converse cases the round-2 test stopped short of, the two-refusals-in-one-read concurrency case, and the context reader's two silent skips named [DASH-04, DASH-05, DASH-03]
+- [x] 32-34-PLAN.md — DASH-04/DASH-05 (CR-01 + CR-02) + IN-01: the containment signal narrowed to the directory a handle would open with an ancestor-aware test, the containment early return given both the effects its neighbours have, the escaping-ENTRY converse cases the round-2 test stopped short of, the two-refusals-in-one-read concurrency case, and the context reader's two silent skips named [DASH-04, DASH-05, DASH-03]
 
 **Wave 5** *(blocked on 32-34)*
 
@@ -1273,7 +1273,7 @@ Plans:
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 26/30 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 27/30 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
