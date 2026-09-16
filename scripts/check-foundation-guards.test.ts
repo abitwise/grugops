@@ -12445,6 +12445,138 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     ).toEqual([]);
   });
 
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+  // REVIEW WR-05 — A SHORT ROW SET SHORT-CIRCUITS, SO THE UNRECOGNISED HALF PROVES NOTHING.
+  //
+  // `if (rows.length > 0) return rows;` means ONE recognised target is enough to return, and a
+  // second module spelled any of the ordinary ways the recognisers' alphabet excludes —
+  // `node ./scripts/b.js`, `node --enable-source-maps scripts/b.js` — contributes no row, moves no
+  // pinned number and gets no reachability proof. That is round-2's WR-05 one register over:
+  // "classified by the first, unless the second is spelled the one way the regex admits".
+  //
+  // THE DENOMINATOR IS TAKEN ON THE OTHER SIDE OF THE RECOGNISERS. Counting the COMMAND STEPS that
+  // invoke a runner is independent of the path alphabet the recognisers accept, so a step the
+  // recognisers cannot read is a DISAGREEMENT rather than a silent pass. This is the repository's
+  // own recorded probe — derive the element count independently of the loop that consumes it —
+  // applied to a set that had only ever been counted by the thing being checked.
+  //
+  // WHAT IT DOES NOT CATCH, STATED RATHER THAN IMPLIED: a second module reached through
+  // `npm run check:x` invokes no runner directly, so it contributes no step here. Such a script is
+  // a `check:*` entry in its own right and is classified on its own row; a module reached through
+  // any OTHER nested runner would be invisible to both sides and is `UNKNOWN - verify`.
+  // ═════════════════════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Command STEPS that invoke a runner, counted without reference to the recognisers' alphabet.
+   *
+   * `node -e` / `node --eval` IS EXCLUDED, and by decision rather than to make the count agree: an
+   * inline-eval step runs no MODULE, so there is no file for a reachability proof to be about.
+   * `check:build-parity`'s `|| node -e "…"` failure message is the live instance. A step that names
+   * a module in any other spelling is still counted, which is the whole point of the denominator.
+   */
+  const NODE_STEP_RE = /(^|&&|\|\||;)\s*node\b(?!\s+(?:-e|--eval)\b)/g;
+  const VITEST_STEP_RE = /vitest run\b/g;
+
+  const runnerSteps = (cmd: string): { readonly node: number; readonly vitest: number } => ({
+    node: (cmd.match(NODE_STEP_RE) ?? []).length,
+    vitest: (cmd.match(VITEST_STEP_RE) ?? []).length,
+  });
+
+  it("every runner STEP in a check command is classified — the count is derived on the other side", () => {
+    const scripts = readPackageScripts();
+    const names = checkScriptNames(scripts);
+    expect(
+      names.length,
+      "PREMISE: no check:* script was found, so the agreement below compared nothing",
+    ).toBeGreaterThan(0);
+
+    const disagreements: string[] = [];
+    let totalSteps = 0;
+    for (const n of names) {
+      const cmd = scripts[n] as string;
+      const steps = runnerSteps(cmd);
+      totalSteps += steps.node + steps.vitest;
+      const rows = classifyCheckScriptTargets(n, cmd) ?? [];
+      const gates = rows.filter((r) => r.cls === "gate-module").length;
+      const suites = rows.filter((r) => r.cls === "suite-test-file").length;
+      if (gates !== steps.node) {
+        disagreements.push(
+          `${n}: ${steps.node} node step(s), ${gates} gate row(s) — ${cmd}`,
+        );
+      }
+      if (suites !== steps.vitest) {
+        disagreements.push(
+          `${n}: ${steps.vitest} vitest step(s), ${suites} suite row(s) — ${cmd}`,
+        );
+      }
+    }
+
+    expect(
+      totalSteps,
+      "PREMISE: no check:* command invokes a runner at all, so every agreement above is vacuous",
+    ).toBeGreaterThan(5);
+    expect(
+      disagreements,
+      "a check command runs a module that produced NO classification row, so nothing proves that " +
+        `module is reachable and no pinned number moved:\n  ${disagreements.join("\n  ")}\n` +
+        "The recognisers' path alphabet is narrower than the ways a module can legitimately be " +
+        "spelled. Widen the recogniser (and move the pinned target count with it) — do not widen " +
+        "this denominator to agree with it",
+    ).toEqual([]);
+  });
+
+  it("DISCRIMINATION: the denominator reds exactly the spellings the recognisers cannot read", () => {
+    // Each of these is a command whose SECOND module is spelled a way `GATE_TARGET_RE` excludes.
+    // Under the short-circuit these returned one row and passed; the denominator makes them red — the
+    // agreement is what turns an unreadable spelling into a finding.
+    const disagrees = (cmd: string): boolean => {
+      const steps = runnerSteps(cmd);
+      const rows = classifyCheckScriptTargets("check:probe", cmd) ?? [];
+      return (
+        rows.filter((r) => r.cls === "gate-module").length !== steps.node ||
+        rows.filter((r) => r.cls === "suite-test-file").length !== steps.vitest
+      );
+    };
+
+    expect(disagrees("node scripts/a.js && node ./scripts/b.js"), "a `./`-spelled module").toBe(
+      true,
+    );
+    expect(
+      disagrees("node scripts/a.js && node --enable-source-maps scripts/b.js"),
+      "a module behind a node FLAG",
+    ).toBe(true);
+
+    // THE CONVERSE, so the rule is not simply "everything disagrees": the shapes the recognisers
+    // DO read must agree, or this assertion would red the live tree for no reason.
+    expect(disagrees("node scripts/a.js && node scripts/b.js"), "two ordinary gate modules").toBe(
+      false,
+    );
+    expect(
+      disagrees("tsc --outDir .tmp-build && node scripts/check-nul-bytes.js"),
+      "the ordinary live shape: a build step and one gate module",
+    ).toBe(false);
+    expect(
+      disagrees("npx vitest run scripts/board-readonly.test.ts"),
+      "the ordinary live suite shape",
+    ).toBe(false);
+    expect(
+      disagrees("npm run build && git diff --exit-code --name-only && echo ok"),
+      "the toolchain shape, which invokes no runner and must not be forced to produce a row",
+    ).toBe(false);
+
+    // THE `node -e` EXCLUSION, PINNED AS A DECISION. An inline-eval step runs no module, so it has
+    // no reachability proof to be about — but the exclusion must be exactly that narrow, or it
+    // becomes a hole a module can be spelled through.
+    expect(
+      disagrees("node scripts/a.js || node -e \"console.error('failed'); process.exit(1)\""),
+      "an inline `node -e` message step is not a module and must not demand a row",
+    ).toBe(false);
+    expect(
+      disagrees("node scripts/a.js && node -e 'x' && node ./scripts/b.js"),
+      "the exclusion must not swallow a REAL module spelled beside an inline-eval step",
+    ).toBe(true);
+  });
+
   it("DISCRIMINATION: five synthetic commands, each with the row set it must produce", () => {
     // The five shapes the first-match rule got wrong or right, driven through the derivation
     // directly. `32-36-RED-baseline.txt` § 5 records what each of these returned before.
