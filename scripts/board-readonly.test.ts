@@ -1732,6 +1732,50 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   // The oracle below is therefore TWO-SIDED and over BOTH classes, so neither direction can rot.
   // ═════════════════════════════════════════════════════════════════════════════════════════════
 
+  it("WR-06: a bare specifier is decided by its INTRODUCER, so a package it says it skips is not refused", () => {
+    // The module's docblock says "A bare specifier is therefore skipped, not refused". The
+    // implementation used to require an ASCII letter or `@`, so it REFUSED members of the class it
+    // says it skips — each one a hard throw out of `jsImportClosure` rather than a skip, which is
+    // the same "a gate that cannot start" shape as CR-01. RED before the fix: all four were
+    // `foreign`.
+    for (const pkg of ["7zip-bin", "1pkg", "_under", "\u30ce\u30fc\u30c9"]) {
+      expect(
+        classifySpecifier(pkg),
+        `${pkg} is a legitimate package identity — npm permits a leading digit, legacy names may ` +
+          "lead with an underscore, and a package name may be non-ASCII. Refusing it makes the " +
+          "module's two statements about the same class disagree",
+      ).toBe("bare");
+    }
+
+    // THE CONVERSE, AND IT IS THE LOAD-BEARING HALF: widening `bare` must move NOTHING out of the
+    // foreign bucket, because foreign is what carries the refusal. Every introducer the bucket
+    // exists for is asserted individually.
+    const mustStayForeign = [
+      "/abs/writer.mjs",
+      "//localhost/abs/writer.mjs",
+      "//host/share/writer.mjs",
+      "file:///tmp/writer.mjs",
+      "C:\\tmp\\writer.mjs",
+      "\\\\unc\\share\\writer.mjs",
+      "data:text/javascript,export const w=1",
+      "#subpath/writer",
+      "%2e%2e/escape.mjs",
+      "",
+    ];
+    for (const spec of mustStayForeign) {
+      expect(
+        classifySpecifier(spec),
+        `${JSON.stringify(spec)} LEFT the foreign bucket when the bare arm widened. Foreign is ` +
+          "the arm that REFUSES, so a spelling leaving it is a refusal that silently stopped",
+      ).toBe("foreign");
+    }
+
+    // AND THE PARTITION IS STILL TOTAL over the union of both lists plus the relative arm.
+    for (const spec of [...mustStayForeign, "7zip-bin", "./a.js", "../b.js", "node:fs", "@s/p"]) {
+      expect(SPECIFIER_CLASSES).toContain(classifySpecifier(spec));
+    }
+  });
+
   it("the specifier scan's INPUT is code: a specifier spelled inside a STRING LITERAL yields no row", () => {
     // THE CONVERSE FOR stripNonCode, third half. RED on the pre-fix scanner: the first source
     // yielded a `relative` row for "./model-tiers.js" and the second a `foreign` row for

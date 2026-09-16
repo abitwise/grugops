@@ -87,12 +87,19 @@ export const SPECIFIER_CLASSES: readonly SpecifierClass[] = Object.freeze([
  * file, and `.` and `..` are deliberately NOT relative — they name a directory, which this walk
  * cannot read as a module, so they are refused rather than followed into an unresolvable edge.
  *
- * `bare`: the first character is an ASCII letter or `@`, AND the specifier contains no backslash,
- * AND it either carries no `:` at all or its scheme — the run before the first `:` — is exactly
- * `node`. `node:` is the one builtin scheme Node's ESM loader admits as a bare identifier, and
- * `normalizeSpecifier` in the read-only guard already treats `node:fs` and `fs` as one identity.
- * The backslash clause is what puts `C:\x\writer.mjs` outside this arm: a drive-letter path begins
- * with a letter and would otherwise read as a package called `C`.
+ * `bare`: the specifier is non-empty and its first character is not a PATH OR URL INTRODUCER
+ * (`.`, `/`, `\`, `#`, `%`), AND the specifier contains no backslash, AND it either carries no `:`
+ * at all or its scheme — the run before the first `:` — is exactly `node`. `node:` is the one
+ * builtin scheme Node's ESM loader admits as a bare identifier, and `normalizeSpecifier` in the
+ * read-only guard already treats `node:fs` and `fs` as one identity. The backslash clause is what
+ * puts `C:\x\writer.mjs` outside this arm: a drive-letter path begins with a letter and would
+ * otherwise read as a package called `C`.
+ *
+ * THE TEST IS ON THE INTRODUCER, NOT ON THE ALPHABET (review WR-06). It used to require an ASCII
+ * letter or `@`, which refused members of the class this module says it SKIPS — `7zip-bin` is a
+ * real npm package name, npm permits a leading digit, legacy names may lead with `_`, and a package
+ * name may be non-ASCII. Those were hard throws out of `jsImportClosure`, so the module's two
+ * statements about the same class disagreed and the narrow one governed.
  *
  * `foreign`: EVERYTHING ELSE, and it exists so that no spelling can fall outside all three. It is
  * the bucket the six spellings `32-24-RED-baseline.txt` measured land in — an absolute POSIX path,
@@ -103,9 +110,18 @@ export const SPECIFIER_CLASSES: readonly SpecifierClass[] = Object.freeze([
  */
 export function classifySpecifier(specifier: string): SpecifierClass {
   if (specifier.startsWith("./") || specifier.startsWith("../")) return "relative";
-  const first = specifier.charCodeAt(0);
-  const startsBare =
-    (first >= 0x41 && first <= 0x5a) || (first >= 0x61 && first <= 0x7a) || specifier.startsWith("@");
+  // `bare` IS A POSITIVE TEST, matching the sentence the docblock above makes (review WR-06). It
+  // used to be an ASCII-letter-or-`@` test, which REFUSED members of the class it says it skips:
+  // `7zip-bin` is a real npm package name, npm permits a leading digit, legacy names may lead with
+  // an underscore, and a non-ASCII name is a package too. Each of those was a hard throw out of
+  // `jsImportClosure` rather than a skip — the same "a gate that cannot start" shape as CR-01.
+  //
+  // WHAT STAYS FOREIGN IS UNCHANGED, because the introducers are what the foreign bucket is FOR: a
+  // path (`/`, `\`), a subpath import (`#`), a percent-escape (`%`). The backslash clause below
+  // still puts `C:\x\writer.mjs` outside this arm, and the scheme clause still puts `file:`,
+  // `data:` and every other non-`node:` scheme outside it.
+  const firstChar = specifier.charAt(0);
+  const startsBare = firstChar !== "" && !"./\\#%".includes(firstChar);
   if (startsBare && !specifier.includes("\\")) {
     const colon = specifier.indexOf(":");
     if (colon === -1 || specifier.slice(0, colon) === "node") return "bare";
@@ -447,19 +463,12 @@ export function moduleSpecifiers(source: string): readonly ClassifiedSpecifier[]
   return out;
 }
 
-/**
- * Every RELATIVE import specifier in one JavaScript source.
- *
- * A VIEW over `moduleSpecifiers`, not a second scan (32-31). It kept its name and its contract so
- * every existing caller is unaffected, but it no longer OWNS a rule: the class it filters on is
- * decided by `classifySpecifier`, the same function the read-only guard's census asks, so the
- * walker's follow-set and the guard's census-set can no longer own different prefixes.
- */
-export function relativeSpecifiers(source: string): readonly string[] {
-  return moduleSpecifiers(source)
-    .filter((entry) => entry.cls === "relative")
-    .map((entry) => entry.specifier);
-}
+// `relativeSpecifiers` WAS DELETED HERE (review WR-07). 32-31 kept it "so every existing caller is
+// unaffected" — a sentence with no referent: a repository-wide search across `.ts`, `.js`, `.mjs`
+// and `.md` found the symbol only at its own two definition sites, and it had no test of its own.
+// `jsImportClosureFacts` walks `moduleSpecifiers` directly. Dead code carrying a false claim about
+// why it is kept is worse than dead code, because the next reader takes the sentence as evidence
+// that the export is load-bearing and preserves it again.
 
 /** Thrown when the walk meets an edge it cannot vouch for. Never swallowed into a short result. */
 export class ImportClosureError extends Error {
