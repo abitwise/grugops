@@ -2760,10 +2760,11 @@ describe("WR-02 — a diagnostic's evidence is spelled where it is BUILT, not tr
     const refusal = parseTicketDocument(
       "---\nid: ABC-1\ntitle:	Something in the backlog\nstatus: ready\ncolumn: Backlog\n---\n",
     );
-    expect(refusal.code, "PREMISE: a tabbed key line is refused as unrecognized-line").toBe(
-      "unrecognized-line",
-    );
-    const asRendered = sanitizeCell(refusal.reason as string);
+    expect(
+      refusal.ok === false ? refusal.code : "",
+      "PREMISE: a tabbed key line is refused as unrecognized-line",
+    ).toBe("unrecognized-line");
+    const asRendered = sanitizeCell(refusal.ok === false ? refusal.reason : "");
     expect(
       asRendered,
       "the refusal quotes a line as its evidence and the renderer deleted the very byte that made " +
@@ -2778,9 +2779,9 @@ describe("WR-02 — a diagnostic's evidence is spelled where it is BUILT, not tr
     // The sibling site, and the one this module's own docblock already records a finding for: a
     // line that renders exactly as `---` while being refused for not being `---`.
     const refusal = parseTicketDocument("\u000B---\nid: ABC-1\n---\n");
-    expect(refusal.code).toBe("no-opening-delimiter");
+    expect(refusal.ok === false ? refusal.code : "").toBe("no-opening-delimiter");
     expect(
-      sanitizeCell(refusal.reason as string),
+      sanitizeCell(refusal.ok === false ? refusal.reason : ""),
       "the quoted opening line rendered as a bare `---`, so the refusal read as a contradiction",
     ).toBe("a ticket document opens with a `---` line and this one opens with `<U+000B>---`");
   });
