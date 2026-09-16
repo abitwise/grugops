@@ -48,6 +48,10 @@ import {
   run,
 } from "./board-dashboard.js";
 import { FIXED_SUBPATHS, OUTSIDE_ROOT, QUEUE_STAGES, SOURCE_NAMES } from "./board-read.js";
+// The PUBLISHED version, read from the module rather than retyped here (plan 32-33). A literal in
+// every file that checks a document is the set-literal drift class: the pin that a version MOVE was
+// a decision lives once, in scripts/board-tracer.test.ts and scripts/board-model.test.ts.
+import { SCHEMA_VERSION } from "./board-model.js";
 import type { DashboardIo, Loop, LoopDeps, Options } from "./board-dashboard.js";
 import type { SnapshotResult } from "./board-read.js";
 
@@ -82,7 +86,7 @@ function stubResult(n: number, root: string = REPO): SnapshotResult {
   return {
     source: "unavailable",
     snapshot: {
-      schemaVersion: 1,
+      schemaVersion: SCHEMA_VERSION,
       repoRoot: root,
       generatedAt: `2026-09-14T09:00:${String(n).padStart(2, "0")}.000Z`,
       board: null,
@@ -918,7 +922,7 @@ describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
     expect(lines.length).toBe(3);
     for (const line of lines) {
       const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
-      expect(parsed.snapshot.schemaVersion).toBe(1);
+      expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
     }
     // Every write ended in exactly one newline, so the line boundary IS the document boundary.
     expect(h.writes().every((w) => w.endsWith("\n") && !w.slice(0, -1).includes("\n"))).toBe(true);
@@ -1019,7 +1023,7 @@ describe("board-dashboard — the process contract under --watch, driven as a ch
       ).toBeGreaterThanOrEqual(3);
       for (const line of lines) {
         const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
-        expect(parsed.snapshot.schemaVersion).toBe(1);
+        expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
       }
       expect(code).toBe(0);
     },

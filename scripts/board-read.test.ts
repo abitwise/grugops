@@ -28,6 +28,7 @@ import {
   appendFileSync,
   chmodSync,
   cpSync,
+  existsSync,
   linkSync,
   mkdirSync,
   mkdtempSync,
@@ -552,6 +553,11 @@ describe("board-read — tickets, through the ONE ticket-document authority (D-0
       expect(tickets.source === "ok" ? tickets.value : []).toEqual([
         {
           file: "ABC-014.md",
+          // The name the DIRECTORY gave the file, beside the identifier the document declares
+          // (plan 32-33). They agree here, which is the ordinary case and why the pair went
+          // unpublished for so long. `toEqual` is exact, so an added field fails this case rather
+          // than slipping past it.
+          stem: "ABC-014",
           id: "ABC-014",
           title: "Asset allocation chart",
           status: "in-development",
@@ -3214,7 +3220,11 @@ describe("board-read — every read target comes from a path authority (plan 32-
   ]);
 
   /** The nameless members — callbacks, predicates, comparators — plus the constructor and module. */
-  const ROUTING_UNIVERSE_ANONYMOUS = 17;
+  // SIXTEEN SINCE PLAN 32-33, down from seventeen: the duplicate check's `(r) => r.id === id`
+  // predicate went away with `records.find(...)`, replaced by a `seenById` map lookup that carries
+  // no callback (WR-08). A callback that LEAVES moves this denominator exactly as a new one does,
+  // which is why it is pinned rather than derived from the census it is checking.
+  const ROUTING_UNIVERSE_ANONYMOUS = 16;
   const ROUTING_UNIVERSE_TOTAL = ROUTING_UNIVERSE_NAMED.length + ROUTING_UNIVERSE_ANONYMOUS + 2;
 
   it("pins the collected function UNIVERSE by name and by count", () => {
@@ -4110,5 +4120,291 @@ describe("board-read — every non-grammar document class has a recorded byte-or
       expect(config.source === "ok" ? config.value.idPrefix : null).toBe("ABC");
       expect(result.readErrors).toEqual([]);
     });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-33 — THE IDENTITY PAIR, THE NAMED EMPTY-STEM REFUSAL, AND THE DUPLICATE CHECK AS A MAP.
+//
+// THE READER'S HALF OF CR-03. A `plans/tickets/*.md` entry always has TWO identities: the name the
+// directory gave it, and the identifier the document declares. They agree for every well-formed
+// ticket, and the reader used to hand the join only the second — so a document admitted under a
+// declared identifier that is not its file stem was, from the join's point of view, a file that did
+// not exist. `TicketRecord.stem` carries the first identity, measured in the pass the reader already
+// makes. `SCHEMA_VERSION` moved to 2 for it, by a recorded human decision (plan 32-33, Task 1).
+//
+// TWO CARRIED FINDINGS CLOSE HERE TOO. The duplicate check was `records.find(...)` inside the walk —
+// n(n-1)/2 comparisons, about fifty million at the walk bound, on every watch event and every poll
+// tick (WR-08). And an entry named exactly `.md` was ADMITTED under an identifier of zero characters,
+// invisible inside a population the reader pins by count (IN-02); it is now refused by name and
+// counted in the other half, which keeps the partition total rather than punching a hole in it.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Stem `ABC-300`, declared identifier `ABC-777` — the third population, on disk. */
+const MISMATCHED_TICKET =
+  "---\nid: ABC-777\ntitle: Declares another identifier\nstatus: in-development\ncolumn: In Development\n---\n\nBody.\n";
+
+describe("board-read — a record carries BOTH identities (plan 32-33, CR-03)", () => {
+  it("admits a document whose declared id differs from its stem, with ZERO read errors", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const path = plantTicket(dir, "ABC-300.md", MISMATCHED_TICKET);
+
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      // PREMISE: the file is on disk with the bytes this case planted, so a missing fixture cannot
+      // make the assertions below pass for the wrong reason.
+      expect(
+        readFileSync(path, "utf8"),
+        "PREMISE: the mismatched document was not planted, so this case measures nothing",
+      ).toBe(MISMATCHED_TICKET);
+
+      expect(
+        settled.errors,
+        "the document parsed cleanly, so nothing about it belongs on the error channel",
+      ).toEqual([]);
+      expect(settled.unadmitted).toEqual([]);
+      expect(settled.state.source).toBe("ok");
+
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      expect(records.length).toBe(1);
+      expect(records[0]?.file).toBe("ABC-300.md");
+      expect(
+        records[0]?.stem,
+        "the record must carry the name the DIRECTORY gave the file, which is the identity the " +
+          "join's presence question is asked with",
+      ).toBe("ABC-300");
+      expect(
+        records[0]?.id,
+        "and the identifier the DOCUMENT declares, which is the identity every other arm uses",
+      ).toBe("ABC-777");
+    });
+  });
+
+  it("derives `stem` from the file name for EVERY admitted record, agreeing or not", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      plantTicket(dir, "ABC-300.md", MISMATCHED_TICKET);
+
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      // DERIVED ON THE OTHER SIDE: the stem is checked against the record's own `file`, so a record
+      // whose published stem disagrees with the name it came from is a failing case rather than a
+      // value nobody compared.
+      for (const r of records) expect(r.stem).toBe(r.file.slice(0, -".md".length));
+      expect(records.length, "PREMISE: no record was produced, so the loop above ran zero times").toBe(
+        2,
+      );
+      // And the two facts genuinely differ for one of them, so this is not vacuously true of a
+      // corpus in which every file agrees with itself.
+      expect(records.filter((r) => r.stem !== r.id).map((r) => r.file)).toEqual(["ABC-300.md"]);
+    });
+  });
+
+  it("falls back to the stem when the document declares no identifier, as it always did", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", "---\ntitle: No id declared\ncolumn: Backlog\n---\n\nBody.\n");
+
+      const records = (() => {
+        const s = readTicketsSource(dir, AT, undefined, {});
+        return s.state.source === "ok" ? s.state.value : [];
+      })();
+      expect(records[0]?.id).toBe("ABC-014");
+      expect(records[0]?.stem).toBe("ABC-014");
+    });
+  });
+});
+
+describe("board-read — an entry named exactly `.md` is REFUSED by name (plan 32-33, IN-02)", () => {
+  it("lands in the unadmitted half under `empty-stem`, leaving the source ok", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      const degenerate = plantTicket(dir, ".md", "---\ntitle: no stem at all\n---\n\nBody.\n");
+
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      // PREMISE: the entry is on disk and the walk's own extension test admits it, so a case that
+      // measured a filtered-out name would pass without the refusal existing.
+      expect(existsSync(degenerate)).toBe(true);
+      expect(".md".endsWith(".md")).toBe(true);
+
+      expect(
+        settled.unadmitted,
+        "the entry must be a member of the refused population under a NAMED code, not a silent skip",
+      ).toEqual([{ id: "", code: "empty-stem" }]);
+      const named = settled.errors.find((e) => e.code === "empty-stem");
+      expect(named?.source).toBe("tickets");
+      expect(named?.path).toBe(degenerate);
+      expect(
+        named?.message,
+        "the message must say what was refused and why an identifier of zero characters cannot " +
+          "be joined — a code with no sentence is a skip with a label",
+      ).toContain("identifier of zero characters");
+
+      // NOT ADMITTED: the whole defect was that it used to be.
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      expect(records.map((r) => r.file)).toEqual(["ABC-014.md"]);
+      // A NAMING REFUSAL IS NOT A FAILURE TO OBTAIN BYTES. The source stays `ok`, exactly as it
+      // does for a grammar refusal; degrading it would blank every other derivation on the board.
+      expect(settled.state.source).toBe("ok");
+    });
+  });
+
+  it("keeps the partition TOTAL, against a denominator derived from the listing", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
+      plantTicket(dir, ".md", "---\ntitle: no stem at all\n---\n\nBody.\n");
+      plantTicket(dir, "REF-001.md", "---\nid: REF-001\ntools: Bash\n---\n");
+
+      // THE DENOMINATOR IS TAKEN FROM THE LISTING, on the other side of the walk — the same
+      // instrument plan 32-15 used, which is what makes a silent fourth exit a failing number.
+      const listing = listDirectoryBounded(join(dir, "plans", "tickets"));
+      const mdEntries =
+        listing.kind === "listed" ? listing.names.filter((n) => n.endsWith(".md")) : [];
+      expect(
+        mdEntries,
+        "PREMISE: the listing did not carry the degenerate entry, so the count below could " +
+          "balance while the entry vanished before the walk ever saw it",
+      ).toContain(".md");
+
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      expect(
+        records.length + settled.unadmitted.length,
+        "an entry left the walk without landing in either half: the partition is not total",
+      ).toBe(mdEntries.length);
+      // Both halves non-empty, and the refused half holds BOTH refusal reasons, so the equality is
+      // not satisfied by one population having swallowed the listing.
+      expect(records.length).toBe(1);
+      expect(settled.unadmitted.map((u) => u.code).sort()).toEqual(["empty-stem", "unknown-key"]);
+    });
+  });
+
+  it("is refused before its bytes are ever requested", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, ".md", "---\ntitle: no stem at all\n---\n\nBody.\n");
+      const { seam, paths } = pathRecorder();
+
+      readTicketsSource(dir, AT, undefined, seam);
+      expect(
+        paths.filter((p) => p.endsWith("/.md")),
+        "a name this reader refuses is a name it never opens: reading first and refusing after " +
+          "spends an open on an entry no identifier can ever reach",
+      ).toEqual([]);
+    });
+  });
+});
+
+describe("board-read — the duplicate check is a MAP lookup, not a scan (plan 32-33, WR-08)", () => {
+  it("still reports both files and joins the first, with the message unchanged", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTicket(dir, "ABC-014-copy.md", "---\nid: ABC-014\ntitle: c\nstatus: done\ncolumn: Backlog\n---\n");
+      const second = plantTicket(dir, "ABC-014.md", "---\nid: ABC-014\ntitle: o\nstatus: done\ncolumn: Backlog\n---\n");
+
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      const named = settled.errors.filter((e) => e.code === "duplicate-id");
+      expect(named.length, "one collision is one finding, not one per surviving record").toBe(1);
+      expect(named[0]?.path).toBe(second);
+      expect(named[0]?.message).toContain("ABC-014-copy.md is the one joined");
+      expect(named[0]?.message).toContain("ABC-014.md");
+
+      // BOTH RECORDS ARE STILL PUSHED, which is what keeps the partition total: the second document
+      // WAS admitted, and which of the two is JOINED is the join's question, answered once there.
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      expect(records.map((r) => r.file)).toEqual(["ABC-014-copy.md", "ABC-014.md"]);
+      expect(records.length + settled.unadmitted.length).toBe(2);
+    });
+  });
+
+  it("reports THREE files claiming one identifier against the FIRST, not against each other", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      for (const n of ["ABC-014-a.md", "ABC-014-b.md", "ABC-014-c.md"]) {
+        plantTicket(dir, n, "---\nid: ABC-014\ntitle: t\nstatus: done\ncolumn: Backlog\n---\n");
+      }
+      const settled = readTicketsSource(dir, AT, undefined, {});
+      const named = settled.errors.filter((e) => e.code === "duplicate-id");
+      expect(named.length, "two later claims on one identifier are two findings").toBe(2);
+      // FIRST-BY-NAME IS STICKY. Both reports name the FIRST file, so the winner does not drift to
+      // whichever document the previous iteration happened to hold — the failure a `seenById` that
+      // overwrote on every hit would produce, and one a two-file case could never see.
+      for (const e of named) expect(e.message).toContain("ABC-014-a.md is the one joined");
+    });
+  });
+
+  it("contains no linear scan over the accumulated records (derived from the file)", () => {
+    // STRUCTURAL, BECAUSE A TIMING ASSERTION IS A FLAKY ONE. The measured before/after at 10,000
+    // entries is recorded in 32-33-RED-baseline.txt § 4 and 32-33-GREEN-proof.txt; what a suite can
+    // assert deterministically is that the SHAPE which produced the quadratic term is gone.
+    //
+    // OVER THE AST, NOT OVER THE BYTES, AND THAT IS LOAD-BEARING. The docblock beside the map
+    // lookup NAMES the call it replaced, so a text scan for that spelling finds the sentence
+    // describing the fix and reports the defect as still present. A comment is not a node, so a
+    // walk over the syntax tree asks the question of CODE without a second comment stripper
+    // needing to exist anywhere.
+    const absPath = join(ROOT, "scripts", "board-read.ts");
+    const text = readFileSync(absPath, "utf8");
+    expect(
+      text,
+      "PREMISE: the docblock naming the replaced call is gone, so this case would pass over raw " +
+        "bytes too and proves nothing about reading the AST instead",
+    ).toContain("records.find(");
+
+    const source = ts.createSourceFile(absPath, text, ts.ScriptTarget.Latest, true);
+    let walk: ts.Node | null = null;
+    source.forEachChild((n) => {
+      if (ts.isFunctionDeclaration(n) && n.name?.text === "readTicketsSource") walk = n;
+    });
+    expect(walk, "PREMISE: `readTicketsSource` was not found, so this case walked nothing").not.toBe(
+      null,
+    );
+
+    // THE SET IS DERIVED FROM WHAT A LINEAR SCAN IS, not from the one spelling that was there. Any
+    // membership or search call over the accumulating array costs a pass per entry.
+    const SCANS = new Set([
+      "find",
+      "findIndex",
+      "findLast",
+      "some",
+      "every",
+      "filter",
+      "includes",
+      "indexOf",
+      "lastIndexOf",
+    ]);
+    const offenders: string[] = [];
+    const calls = new Set<string>();
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+        const target = node.expression.expression;
+        const method = node.expression.name.text;
+        if (ts.isIdentifier(target)) {
+          calls.add(`${target.text}.${method}`);
+          if (target.text === "records" && SCANS.has(method)) offenders.push(`records.${method}`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(walk as unknown as ts.Node);
+
+    expect(
+      offenders,
+      "a per-entry scan over the records accumulated so far costs n(n-1)/2 comparisons inside a " +
+        "walk bounded at 10,000, on every watch event and every poll tick",
+    ).toEqual([]);
+    expect(
+      calls.has("seenById.get") && calls.has("seenById.set"),
+      "PREMISE: the map lookup that replaced the scan is absent, so the emptiness above is " +
+        "vacuously true of a walk that stopped checking for duplicates at all",
+    ).toBe(true);
+    expect(
+      calls.has("records.push"),
+      "PREMISE: the walk pushes no record, so `records` is not the accumulating array this case " +
+        "is about",
+    ).toBe(true);
   });
 });

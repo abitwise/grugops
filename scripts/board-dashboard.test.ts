@@ -49,6 +49,8 @@ import {
 } from "./board-dashboard.js";
 import type { DashboardIo, LoopDeps, Options, WatchHandle } from "./board-dashboard.js";
 import { CONFLICT_KINDS, SOURCE_NAMES, readSnapshot } from "./board-read.js";
+// The PUBLISHED version, read from the module rather than retyped here (plan 32-33).
+import { SCHEMA_VERSION } from "./board-model.js";
 import type { SnapshotResult, SourceName } from "./board-read.js";
 import type {
   BoardColumn,
@@ -143,7 +145,7 @@ function makeResult(partial: {
   const sources = { ...defaults, ...(partial.sources ?? {}) } as FactorySnapshot["sources"];
 
   const snapshot: FactorySnapshot = {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     repoRoot: "/repo",
     generatedAt: READ_AT,
     board,
@@ -513,7 +515,7 @@ describe("board-dashboard — the render modes (D-17, D-18)", () => {
       "a screen clear inside a JSON document is a document a consumer cannot parse",
     ).toBe(false);
     const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
-    expect(parsed.snapshot.schemaVersion).toBe(1);
+    expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("writes one COMPLETE JSON document per line per re-read under --json --watch (D-18)", () => {
@@ -803,7 +805,7 @@ describe("board-dashboard — the spawned process contract: one document, once (
       const lines = r.out.split("\n").filter((l) => l !== "");
       expect(lines.length).toBe(1);
       const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
-      expect(parsed.snapshot.schemaVersion).toBe(1);
+      expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
     });
   });
 
@@ -953,7 +955,7 @@ describe("board-dashboard — NDJSON under --json --watch, measured from outside
             ).toBeGreaterThanOrEqual(2);
             for (const line of lines) {
               const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
-              expect(parsed.snapshot.schemaVersion).toBe(1);
+              expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
             }
             // THE ASSERTION THAT WOULD HAVE CAUGHT WR-06. The header and the `USAGE` block used to
             // promise "exactly one JSON document on stdout and nothing else"; this is that promise,
@@ -1008,7 +1010,7 @@ describe("board-dashboard — two dashboards on one tree share nothing (edge: co
     for (const r of both) {
       expect(r.code).toBe(0);
       const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
-      expect(parsed.snapshot.schemaVersion).toBe(1);
+      expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
     }
     // Independent, not identical: each read its own clock, so the two documents are two readings of
     // one tree rather than one reading served twice from something shared.
@@ -1687,7 +1689,7 @@ describe("board-dashboard — the --json document reaches stdout INERT (CR-02, T
       snapshot: { schemaVersion: number; board: { columns: { rows: { title: string }[] }[] } };
     };
     expect(parsed.snapshot.schemaVersion, "the document still round-trips and keeps its shape").toBe(
-      1,
+      SCHEMA_VERSION,
     );
     expect(
       parsed.snapshot.board.columns[0]?.rows[0]?.title,
@@ -2019,7 +2021,7 @@ describe("board-dashboard — a planted C1 reaches NEITHER channel of the shippe
       const lines = r.out.split("\n").filter((l) => l !== "");
       expect(lines.length, "one complete document per line, one frame for --once").toBe(1);
       const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
-      expect(parsed.snapshot.schemaVersion).toBe(1);
+      expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
 
       expect(
         controlCodePoints(r.out),

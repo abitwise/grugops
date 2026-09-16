@@ -37,10 +37,25 @@
 
 // ── The published schema version (D-19) ──────────────────────────────────────────────────────────
 //
-// `schemaVersion: 1` is the shape a future web renderer consumes unchanged. Adding a field is
-// additive; reinterpreting one breaks the golden fixture and every consumer. Any shape change bumps
-// this number and updates the golden in the same commit.
-export const SCHEMA_VERSION = 1;
+// `schemaVersion` is the shape a future web renderer consumes unchanged.
+//
+// ONE RULE, BECAUSE THE TWO SENTENCES THAT USED TO LIVE HERE DISAGREED (plan 32-33, Task 1). They
+// read "adding a field is additive" and "any shape change bumps this number", and a reader adding a
+// field could take either as governing. The rule is now single: ANY change to the published shape
+// moves this number and regenerates `scripts/fixtures/board-snapshot/expected-snapshot.json` in the
+// same commit — an added field, a removed field, a reinterpreted one, and a changed conflict kind
+// set alike. A consumer therefore decides from the NUMBER alone whether the document it holds is
+// the shape it was written against, which is the only thing a version is for. "Additive" describes
+// what a change costs a TOLERANT consumer; it never described what it costs this constant.
+//
+// VERSION 2 (plan 32-33): `TicketRecord` gained `stem`, the file's name under `plans/tickets/`
+// without its extension, beside the `id` the document declares. The two are different facts and the
+// document used to publish only the second, so a consumer holding the snapshot could not tell which
+// file an identifier came from — and the join, asking the same question internally, answered it
+// wrongly for every document whose declared identifier is not its stem. The human decision to move
+// the version for it is recorded in
+// `.planning/phases/32-board-projector-cli-dashboard/32-33-SUMMARY.md`.
+export const SCHEMA_VERSION = 2;
 
 // ── Bounds (D-20) ────────────────────────────────────────────────────────────────────────────────
 //
@@ -303,6 +318,24 @@ export type FactoryConfigView = {
 export type TicketRecord = {
   /** The file name relative to `plans/tickets/`, which is the only identity the reader can trust. */
   readonly file: string;
+  /**
+   * The file's name without its `.md` extension — `ABC-300` for `ABC-300.md` (plan 32-33, CR-03).
+   *
+   * BESIDE `id`, NEVER INSTEAD OF IT, BECAUSE THEY ARE TWO DIFFERENT FACTS. `id` is what the
+   * document SAYS it is; `stem` is what the directory CALLS it. They agree for every well-formed
+   * ticket and the day they disagree is the day a human needs told. Publishing only the declared
+   * identifier is what let `joinSnapshot` answer "does a file carry this identifier" from a map
+   * keyed on the declared id alone, and so assert that a file it had listed, read, parsed and
+   * admitted was not there.
+   *
+   * IT IS DERIVABLE FROM `file` AND IS CARRIED ANYWAY. One `ticketStem` spelling in
+   * `scripts/board-read.ts` decides where a file name ends, and every consumer reading that decision
+   * off the record rather than re-deriving it is a consumer that cannot disagree with it. A second
+   * hand-written `slice(0, -3)` in the join would be the drift class one register down.
+   *
+   * THIS FIELD IS WHY `SCHEMA_VERSION` IS 2. See that constant.
+   */
+  readonly stem: string;
   /** `id` from the admitted frontmatter when it carries one, else the file's stem. */
   readonly id: string;
   /** `title` from the admitted frontmatter, or "" when the document carries none. */
@@ -1144,6 +1177,145 @@ export const PRESENCE_DEPENDENT_CONFLICT_KINDS = [
   "row-without-file",
 ] as const satisfies readonly ConflictKind[];
 
+// ── The presence question, asked ONCE over a TOTAL identifier population (plan 32-33, CR-03) ─────
+//
+// THE DEFECT THIS CLOSES, IN ONE SENTENCE. The join used to answer "does a file carry this
+// identifier" from two maps keyed on two different notions of identity — the DECLARED id of an
+// admitted document, and the file STEM of a refused one. A document admitted under a declared
+// identifier other than its stem is in neither map, so the stem's presence question was answered as
+// absence: `plans/tickets/ABC-300.md` sat on disk, readable, parsed and admitted, and the projector
+// printed "no ticket file carries that identifier" under an `[ok]` badge.
+//
+// WHY A DISCRIMINATED ANSWER RATHER THAN A THIRD MAP LOOKUP AT THE CALL SITE. Round 1 closed the
+// refused population by adding a second map beside the first, and round 2's own fix created the
+// third population it does not reach. A fourth would create a fifth. The shape that stops that is
+// the one plan 32-15 applied to the partition's SIZE — derive the total on the other side of the
+// loop — asked here of the partition's KEYS: three MEASURED sets, and the fourth arm reachable only
+// as their arithmetic complement. `absent` is not a case anybody has to remember to check; it is
+// what is left when the identifier is in none of the sets the reader actually measured.
+//
+// THE ARM ORDER IS THE PRIORITY ORDER, AND IT IS STATED RATHER THAN INCIDENTAL. A document that
+// declares an identifier answers for that identifier first, because that is the identity every
+// other arm of the join uses. Only then is the identifier asked of the stem population, and only
+// then of the refused one. A stem belongs to exactly one file in one directory listing, so the last
+// two cannot both answer for one identifier through the same file.
+
+export const TICKET_PRESENCE_KINDS = [
+  "admitted-under-its-stem",
+  "admitted-under-another-id",
+  "refused",
+  "absent",
+] as const;
+
+/**
+ * TWO-SIDED, the shape `CONFLICT_KIND_COUNT` already establishes. A fifth arm means the population
+ * was not total after all, which is a finding to record in
+ * `agent-factory/contracts/board.md` first — never a bumped constant.
+ */
+export const TICKET_PRESENCE_KIND_COUNT = 4;
+
+export type TicketPresenceKind = (typeof TICKET_PRESENCE_KINDS)[number];
+
+/**
+ * What the reader measured about one identifier. Every arm but `absent` carries the fact it found.
+ *
+ * `absent` CARRIES NOTHING BECAUSE IT KNOWS NOTHING. It is the complement of three measurements,
+ * and the honest sentence for it is the only one in this module that asserts a negative.
+ */
+export type TicketPresence =
+  | { readonly kind: "admitted-under-its-stem"; readonly record: TicketRecord }
+  | { readonly kind: "admitted-under-another-id"; readonly declaredId: string }
+  | { readonly kind: "refused"; readonly code: string }
+  | { readonly kind: "absent" };
+
+/**
+ * The three sets `presenceOf` decides from, built once per join rather than once per placement.
+ *
+ * ALL THREE ARE MEASUREMENTS OF THE SAME LISTING. `byId` and `byStem` are two indexes of the
+ * ADMITTED half — the identifiers documents declared, and the names the directory gave those same
+ * documents. `refusedById` is the other half, indexed by the only identity a refused document has.
+ */
+export type TicketPopulations = {
+  /** Declared identifier to the admitted record joined under it. First by file name wins. */
+  readonly byId: ReadonlyMap<string, TicketRecord>;
+  /** File stem to the identifier that file's record was joined under. First by file name wins. */
+  readonly byStem: ReadonlyMap<string, string>;
+  /** File stem of a listed entry the reader read and could not admit, to its refusal code. */
+  readonly refusedById: ReadonlyMap<string, UnadmittedTicket>;
+};
+
+/**
+ * Index the reader's whole listing three ways, in one pass per half.
+ *
+ * FIRST WINS IN BOTH ADMITTED INDEXES, AND FIRST MEANS FIRST BY FILE NAME, because `boundNames` in
+ * `scripts/board-read.ts` sorts the listing before the walk bound is applied (plan 32-17, WR-09).
+ * The survivor is therefore stated rather than whichever document a filesystem handed over first.
+ */
+export function ticketPopulations(
+  tickets: readonly TicketRecord[],
+  unadmittedTickets: readonly UnadmittedTicket[],
+): TicketPopulations {
+  const byId = new Map<string, TicketRecord>();
+  const byStem = new Map<string, string>();
+  for (const t of tickets) {
+    if (!byId.has(t.id)) byId.set(t.id, t);
+    if (!byStem.has(t.stem)) byStem.set(t.stem, t.id);
+  }
+  const refusedById = new Map<string, UnadmittedTicket>();
+  for (const u of unadmittedTickets) if (!refusedById.has(u.id)) refusedById.set(u.id, u);
+  return { byId, byStem, refusedById };
+}
+
+/**
+ * What the reader measured about `id` — the ONE derivation every presence answer comes from.
+ *
+ * `absent` IS REACHABLE ONLY BY FALLING OFF THE END of three measured lookups. That is the whole
+ * mechanism: the one sentence in this module that asserts a negative is the one sentence no
+ * measurement can produce directly.
+ */
+export function presenceOf(id: string, populations: TicketPopulations): TicketPresence {
+  const admitted = populations.byId.get(id);
+  if (admitted !== undefined) return { kind: "admitted-under-its-stem", record: admitted };
+  const declaredByThatFile = populations.byStem.get(id);
+  if (declaredByThatFile !== undefined)
+    return { kind: "admitted-under-another-id", declaredId: declaredByThatFile };
+  const refused = populations.refusedById.get(id);
+  if (refused !== undefined) return { kind: "refused", code: refused.code };
+  return { kind: "absent" };
+}
+
+/**
+ * The `actual` cell of a `row-without-file` conflict: one sentence per arm, each naming a fact the
+ * reader measured.
+ *
+ * NO SENTENCE QUOTES A BYTE OF ANY DOCUMENT'S BODY. The path is a function of the identifier the
+ * BOARD wrote; the refusal code is the authority's own spelling; the declared identifier is a value
+ * the snapshot already publishes as `tickets[].id` and the reader already publishes in its
+ * `duplicate-id` read error. An admitted document carries no control character — the ticket grammar
+ * refuses one by name — so the declared identifier cannot carry a byte the containment rule plan
+ * 32-10 set would refuse to print.
+ *
+ * `admitted-under-its-stem` HAS NO SENTENCE, and that is the point: a row whose file was admitted
+ * under the row's own identifier is not a `row-without-file` at all. `joinSnapshot` reads the arm
+ * and raises nothing, so the four-arm answer decides whether a conflict exists as well as what it
+ * says.
+ */
+export function presenceActual(id: string, presence: TicketPresence): string | null {
+  switch (presence.kind) {
+    case "admitted-under-its-stem":
+      return null;
+    case "admitted-under-another-id":
+      return (
+        `plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
+        `so it is joined under that identifier and not this one`
+      );
+    case "refused":
+      return `plans/tickets/${id}.md exists and the reader could not admit it (${presence.code})`;
+    case "absent":
+      return "no ticket file carries that identifier";
+  }
+}
+
 /**
  * A disagreement between two sources, surfaced rather than resolved (D-10).
  *
@@ -1281,22 +1453,23 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   //   board-vs-ticket, arm two (status)  reads `ticketById.values()`.
   //   ticket-unplaced                    reads `ticketById.values()`.
   //   ticket-duplicated                  derived from the BOARD alone; holds no ticket record.
-  //   row-without-file                   reads `ticketById.has(p.id)` and `unadmittedById`.
+  //   row-without-file                   reads `presenceOf(p.id, populations)` and NOTHING ELSE;
+  //                                      the three maps reach it through `populations`, so the arm
+  //                                      cannot be correct for one population and wrong for the
+  //                                      one beside it (plan 32-33, CR-03).
   //
   // Arms two and three used to iterate the raw list, so two files claiming one identifier produced
   // two byte-identical conflicts that both survived the total order — the tiebreak chain ends on
   // `expected`, which is equal for the two — while this map silently discarded one of them. The
   // contract promises the projector reports every conflict and resolves none; that was one
   // disagreement resolved in silence and another reported twice.
-  const ticketById = new Map<string, TicketRecord>();
-  for (const t of tickets) if (!ticketById.has(t.id)) ticketById.set(t.id, t);
-
-  // THE OTHER HALF OF THE READER'S PARTITION (plan 32-15, CR-01). `ticketById` answers "which
-  // identifiers did a document STATE"; this map answers "which identifiers did the reader SEE on
-  // disk and fail to admit". The two together are the reader's whole listing, which is what makes
-  // the presence question below answerable per identifier instead of per source.
-  const unadmittedById = new Map<string, UnadmittedTicket>();
-  for (const u of inputs.unadmittedTickets) if (!unadmittedById.has(u.id)) unadmittedById.set(u.id, u);
+  // THE READER'S WHOLE LISTING, INDEXED THREE WAYS AND BUILT ONCE (plan 32-33, CR-03). `byId`
+  // answers "which identifiers did a document STATE"; `byStem` answers "which NAMES did the
+  // directory give those same documents"; `refusedById` answers "which entries did the reader SEE
+  // and fail to admit". Two of the three are new here only in the sense that the second one used to
+  // be missing — and a population nobody measured is a population the presence answer got wrong.
+  const populations = ticketPopulations(tickets, inputs.unadmittedTickets);
+  const ticketById = populations.byId;
 
   // ── board-vs-ticket, arm one: the ticket file names a different column ─────────────────────────
   for (const p of placements) {
@@ -1381,31 +1554,34 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
   // header. A conflict derived from a listing that failed is an assertion about a filesystem nobody
   // read, which CLAUDE.md's no-fabrication rule refuses before it is a bug.
   //
-  // TWO SENTENCES, ONE DERIVATION (plan 32-15, CR-01). The gate above answers "was the LISTING
-  // obtained", which is a question about the directory. It cannot answer "is there a file for THIS
-  // identifier", and answering that from `ticketById` alone — the set of parse SUCCESSES — is what
-  // made the projector assert that a file which exists, and which it read and refused by name, is
-  // not there. So the arm now asks `unadmittedById` too and picks the sentence that is true: the
-  // refusal and its code when the reader saw the file, the unchanged absence sentence when it did
-  // not. The KIND does not split and `SCHEMA_VERSION` does not move — D-10 makes the kind set part
-  // of the `schemaVersion: 1` shape, and the honesty is reachable inside the existing kind by making
-  // `actual` true. `expected` is the same in both: the file a row of this identifier implies.
+  // FOUR SENTENCES, ONE DERIVATION (plan 32-33, CR-03; plan 32-15, CR-01). The gate above answers
+  // "was the LISTING obtained", which is a question about the directory. It cannot answer "is there
+  // a file for THIS identifier". Answering that from `ticketById` alone — the set of parse
+  // SUCCESSES — made the projector assert that a file which exists, and which it read and refused
+  // by name, is not there; answering it from `ticketById` PLUS a map keyed on refused stems made it
+  // assert the same thing about a file it read and ADMITTED under another identifier. So the arm
+  // asks `presenceOf` once, and `presenceActual` states the sentence that is true for the arm it
+  // returned. The absence sentence is reachable only from `absent`, which is reachable only when
+  // three measurements all came back empty.
+  //
+  // THE KIND DOES NOT SPLIT. D-10 makes the kind set part of the published shape, and the honesty
+  // is reachable inside the existing kind by making `actual` true. `expected` is the same in every
+  // arm: the file a row of this identifier implies.
   const reportedMissing = new Set<string>();
   for (const p of ticketsListingComplete ? placements : []) {
-    if (ticketById.has(p.id) || reportedMissing.has(p.id)) continue;
+    if (reportedMissing.has(p.id)) continue;
+    // THE ARM DECIDES WHETHER THERE IS A CONFLICT AT ALL, not only what it says. A row whose file
+    // was admitted under the row's own identifier is not a `row-without-file`, and that is the same
+    // decision, taken in the same place, as which of the three sentences the other rows get.
+    const actual = presenceActual(p.id, presenceOf(p.id, populations));
+    if (actual === null) continue;
     reportedMissing.add(p.id);
-    const unadmitted = unadmittedById.get(p.id);
     add(p.line, {
       kind: "row-without-file",
       ticketId: p.id,
       column: p.column,
       expected: `plans/tickets/${p.id}.md`,
-      // NEITHER SENTENCE QUOTES A BYTE OF THE DOCUMENT. The path and the code are both already in
-      // `readErrors`; the containment rule plan 32-10 set for `OUTSIDE-ROOT` is kept here.
-      actual:
-        unadmitted === undefined
-          ? "no ticket file carries that identifier"
-          : `plans/tickets/${p.id}.md exists and the reader could not admit it (${unadmitted.code})`,
+      actual,
       source: "board",
     });
   }

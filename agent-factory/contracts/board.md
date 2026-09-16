@@ -276,15 +276,39 @@ failed is an assertion about a filesystem nobody read. The badge reports the one
 the listing failed. The other five kinds are unaffected — each is a claim about a document that was
 read, or about the board and the dial alone.
 
-**A refused document is never reported as an absent one.** `row-without-file` is raised when a board
-row names an identifier for which the reader holds no admitted ticket document — which covers two
-different facts, and the conflict's `actual` states which one it is. When no file on disk carries the
-identifier, `actual` reads `no ticket file carries that identifier`. When a file does carry it and
-the ticket grammar refused it, `actual` names the file and the refusal code instead, and asserts
-nothing about the file's absence. A document the grammar refused also appears in `readErrors` with
-its path and its refusal code, so the refusal survives on the channel a human reading stderr and a
-consumer reading the document each have. The projector may say it could not read something; it may
-not say something is not there when it is.
+**The projector never asserts absence about a file it read.** `row-without-file` is raised when a
+board row names an identifier the reader could not join a ticket document to — which covers three
+different facts, and the conflict's `actual` states which one it is. The presence question is
+answered from exactly three sets the reader measured: the identifiers admitted documents declared,
+the file stems those same documents came from, and the stems of the entries the reader read and
+could not admit.
+
+| What the reader measured about the row's identifier | `actual` says |
+|---|---|
+| A document declares it. | Nothing — this is not a conflict, and no `row-without-file` is raised. |
+| A file of that stem was admitted under a **different** declared identifier. | `plans/tickets/<id>.md exists and declares the identifier <other>, so it is joined under that identifier and not this one` |
+| A file of that stem exists and the ticket grammar refused it. | `plans/tickets/<id>.md exists and the reader could not admit it (<code>)` |
+| The identifier is in none of the three measured sets. | `no ticket file carries that identifier` |
+
+The last sentence is the only one that asserts a negative, and it is reachable only by falling off
+the end of all three lookups — never as the answer a missing measurement happens to produce. A
+document the grammar refused also appears in `readErrors` with its path and its refusal code, and a
+document admitted under another identifier appears in `tickets[]` under that identifier, so every
+fact these sentences state is one a consumer can check for itself. The projector may say it could
+not read something; it may not say something is not there when it is.
+
+A file name and a declared identifier are two different facts, so both are published: every record
+in `tickets[]` carries `stem`, the file's name under `plans/tickets/` without its extension, beside
+the `id` the document declares. They agree for every well-formed ticket. The day they disagree the
+board says so under both identifiers: the row's identifier raises `row-without-file` naming what the
+file declares, and the declared identifier raises `ticket-unplaced` because no row names it.
+
+**A listed entry whose name leaves no stem is refused by name.** A file named exactly `.md` ends in
+the ticket extension and leaves nothing in front of it, so its fallback identity would be an
+identifier of zero characters — one no board row can name and no `id_prefix` can admit. It is
+reported in `readErrors` under the code `empty-stem` and counted in the refused half of the walk's
+partition, rather than admitted under the empty identifier or skipped in silence. Every listed `.md`
+entry lands in exactly one half; there is no third outcome.
 
 **Two ticket files claiming one identifier are reported by name, and the identifier is joined
 once.** Ticket identifiers are unique, so a second file claiming one is a disagreement between two
@@ -470,6 +494,22 @@ shows. Those rows are legal row shapes in themselves; what refuses them is the h
 
 The refusal is loud by design. The alternative is a parser widened once per counter-example until
 it admits everything and discriminates nothing.
+
+## The published snapshot version
+
+The snapshot document carries `schemaVersion`, and it is **2**. `scripts/board-model.ts` states the
+same number once, as `SCHEMA_VERSION`, and the committed golden at
+`scripts/fixtures/board-snapshot/expected-snapshot.json` carries it a third time as a measured value
+rather than a typed one.
+
+One rule governs it: **any change to the published shape moves this number and regenerates the golden
+in the same commit.** An added field, a removed field, a reinterpreted one and a changed conflict
+kind set are alike under it. A consumer therefore decides from the number alone whether the document
+it holds is the shape it was written against, which is the only thing a version is for. "Additive"
+describes what a change costs a tolerant consumer; it has never described what it costs this number.
+
+Version 2 added `stem` to every record in `tickets[]`, so the file a ticket came from and the
+identifier it declares are both published facts. Version 1 published only the second.
 
 ## Provenance
 

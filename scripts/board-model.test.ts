@@ -790,12 +790,39 @@ function joinOf(o: JoinOverrides): { snapshot: FactorySnapshot; conflicts: reado
   });
 }
 
+/**
+ * A ticket record whose file is named after its identifier — the agreeing shape.
+ *
+ * `stem` IS DERIVED FROM `file` RATHER THAN TYPED BESIDE IT, here and in `mismatched` below, so a
+ * case cannot accidentally construct a record whose published stem disagrees with its own file name
+ * unless it MEANS to. The one case that means to is the one that says so in its name.
+ */
 const ticket = (
   id: string,
   column: string | null,
   status: string | null,
   title = "a ticket",
-): TicketRecord => ({ file: `${id}.md`, id, title, column, status });
+): TicketRecord => ({ file: `${id}.md`, stem: id, id, title, column, status });
+
+/**
+ * A record whose FILE STEM and DECLARED IDENTIFIER disagree — the third population (plan 32-33).
+ *
+ * `plans/tickets/<stem>.md` declares `<id>`. This is what the reader hands the join for a document
+ * it listed, opened, parsed and admitted under an identifier that is not its file name.
+ */
+const mismatched = (
+  stem: string,
+  id: string,
+  column: string | null,
+  status: string | null,
+  title = "a ticket",
+): TicketRecord => ({ file: `${stem}.md`, stem, id, title, column, status });
+
+/** Give a hand-written record literal the stem its own file name implies. */
+const withStem = (r: Omit<TicketRecord, "stem">): TicketRecord => ({
+  ...r,
+  stem: r.file.slice(0, -".md".length),
+});
 
 const kindsOf = (conflicts: readonly Conflict[]): readonly ConflictKind[] =>
   conflicts.map((c) => c.kind);
@@ -1019,7 +1046,7 @@ describe("board-model — a REFUSED document is never reported as an ABSENT one 
     expect(raised[0]?.actual).toContain("unknown-key");
     expect(raised[0]?.actual).toContain("plans/tickets/ABC-900.md");
     // The KIND does not split and `expected` does not move: D-10 makes the kind set part of the
-    // `schemaVersion: 1` shape, and the honesty is reachable inside the existing kind.
+    // published shape, and the honesty is reachable inside the existing kind.
     expect(raised[0]?.kind).toBe("row-without-file");
     expect(raised[0]?.expected).toBe("plans/tickets/ABC-900.md");
     expect(raised[0]?.column).toBe("In Development");
@@ -1119,8 +1146,20 @@ describe("board-model — a REFUSED document is never reported as an ABSENT one 
 describe("board-model — one identifier is resolved once and read from one map (plan 32-17, WR-08)", () => {
   /** Two records claiming one identifier, in DIFFERENT files — the on-disk shape WR-08 names. */
   const DUP: readonly TicketRecord[] = [
-    { file: "ABC-014-copy.md", id: "ABC-014", title: "The copy", column: "Backlog", status: "done" },
-    { file: "ABC-014.md", id: "ABC-014", title: "The original", column: "Backlog", status: "done" },
+    withStem({
+      file: "ABC-014-copy.md",
+      id: "ABC-014",
+      title: "The copy",
+      column: "Backlog",
+      status: "done",
+    }),
+    withStem({
+      file: "ABC-014.md",
+      id: "ABC-014",
+      title: "The original",
+      column: "Backlog",
+      status: "done",
+    }),
   ];
 
   it("the status arm fires ONCE, not once per file", () => {
@@ -1149,8 +1188,8 @@ describe("board-model — one identifier is resolved once and read from one map 
     const { conflicts } = joinOf({
       board: "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
       tickets: [
-        { file: "a.md", id: "ABC-014", title: "a", column: "Done", status: "done" },
-        { file: "b.md", id: "ABC-014", title: "b", column: "Done", status: "done" },
+        withStem({ file: "a.md", id: "ABC-014", title: "a", column: "Done", status: "done" }),
+        withStem({ file: "b.md", id: "ABC-014", title: "b", column: "Done", status: "done" }),
       ],
     });
     const arm = only(conflicts, "board-vs-ticket");
@@ -1166,8 +1205,20 @@ describe("board-model — one identifier is resolved once and read from one map 
     const { conflicts } = joinOf({
       board: "## Backlog (WIP unlimited)\n- [ABC-014] Asset allocation chart\n",
       tickets: [
-        { file: "ABC-014-copy.md", id: "ABC-014", title: "c", column: "Backlog", status: "done" },
-        { file: "ABC-014.md", id: "ABC-014", title: "o", column: "Backlog", status: "blocked" },
+        withStem({
+          file: "ABC-014-copy.md",
+          id: "ABC-014",
+          title: "c",
+          column: "Backlog",
+          status: "done",
+        }),
+        withStem({
+          file: "ABC-014.md",
+          id: "ABC-014",
+          title: "o",
+          column: "Backlog",
+          status: "blocked",
+        }),
       ],
     });
     const arm = only(conflicts, "board-vs-ticket");
@@ -1182,30 +1233,55 @@ describe("board-model — one identifier is resolved once and read from one map 
   it("no arm in the join iterates the RAW ticket list (derived from the file)", () => {
     // DERIVED, NOT REMEMBERED. The defect is one `for (const t of tickets)` in a function this long;
     // reading it once and trusting the memory of it is how the second one gets added back.
+    //
+    // THE PREMISE MOVED WITH THE BUILDER, AND WAS REPAIRED RATHER THAN DROPPED (plan 32-33). Until
+    // this round the one legitimate reader of the raw list was a loop INSIDE `joinSnapshot`, so the
+    // case asserted exactly one such loop there. `ticketPopulations` now owns every index of the
+    // ticket population, so the same question is asked of two bodies instead of one: the join reads
+    // the raw list NOWHERE, and the builder reads it in exactly one place. Asserting nothing about
+    // the builder would let the indexes drift into a function this case never looks at.
     const source = readFileSync(join(ROOT, "scripts", "board-model.ts"), "utf8");
-    const start = source.indexOf("export function joinSnapshot");
-    expect(start, "PREMISE: `joinSnapshot` was not found, so this case scanned nothing").toBeGreaterThan(0);
-    const body = source.slice(start, source.indexOf("\n}\n", start));
-    // THE MAP'S OWN BUILDER IS THE ONE LEGITIMATE READER OF THE RAW LIST, and it is identified by
-    // what its line DOES rather than excluded by position — a line-number exemption rots the first
-    // time the function above it grows.
-    const raw = (body.match(/for \(const \w+ of (?:inputs\.)?tickets\b[^\n]*/g) ?? []).filter(
-      (line) => !line.includes("ticketById.set"),
-    );
+    const RAW_LOOP = /for \(const \w+ of (?:inputs\.)?tickets\b[^\n]*/g;
+    const bodyOf = (name: string): string => {
+      const start = source.indexOf(`export function ${name}`);
+      expect(start, `PREMISE: \`${name}\` was not found, so this case scanned nothing`).toBeGreaterThan(
+        0,
+      );
+      return source.slice(start, source.indexOf("\n}\n", start));
+    };
+
+    const body = bodyOf("joinSnapshot");
     expect(
-      raw,
-      "every arm consuming the ticket population reads `ticketById`, so one identifier is resolved " +
-        "once and reported once. An arm added against the raw list is the odd one out.",
+      body.match(RAW_LOOP) ?? [],
+      "every arm consuming the ticket population reads the indexes `ticketPopulations` built, so " +
+        "one identifier is resolved once and reported once. An arm added against the raw list is " +
+        "the odd one out.",
     ).toEqual([]);
     expect(
-      (body.match(/for \(const \w+ of (?:inputs\.)?tickets\b[^\n]*/g) ?? []).length,
-      "PREMISE: the raw list is read NOWHERE, so the filter above removed the builder and the " +
-        "assertion measured an empty set against an empty set",
-    ).toBe(1);
+      body.includes("ticketPopulations("),
+      "PREMISE: the join does not call the builder at all, so the emptiness above is vacuously " +
+        "true of a join that lost the population entirely",
+    ).toBe(true);
     expect(
       body.includes("ticketById.values()"),
       "PREMISE: no arm reads `ticketById.values()` either, so the assertion above is vacuously " +
         "true of a join that lost both arms",
+    ).toBe(true);
+
+    // THE BUILDER IS THE ONE LEGITIMATE READER, and its loop is identified by what it DOES rather
+    // than excluded by position — a line-number exemption rots the first time the code above grows.
+    const builder = bodyOf("ticketPopulations");
+    const loops = builder.match(RAW_LOOP) ?? [];
+    expect(
+      loops.length,
+      "PREMISE: the builder does not read the raw list, so `byId` and `byStem` are being filled " +
+        "from something other than the records the reader handed over",
+    ).toBe(1);
+    expect(loops[0]?.includes("byId.set") || builder.includes("byId.set")).toBe(true);
+    expect(
+      builder.includes("byStem.set"),
+      "PREMISE: the builder no longer indexes the population by FILE STEM, which is the measured " +
+        "set the third presence arm is answered from",
     ).toBe(true);
   });
 
@@ -1605,7 +1681,12 @@ describe("board-model — the configured id prefix is enforced by the parse, not
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-// PLAN 32-05 TASK 3 — THE COMMITTED GOLDEN FREEZES `schemaVersion: 1` (D-19, DASH-08).
+// PLAN 32-05 TASK 3 — THE COMMITTED GOLDEN FREEZES THE PUBLISHED SHAPE (D-19, DASH-08).
+//
+// VERSION 2 SINCE PLAN 32-33, which published `TicketRecord.stem`. The version number below is
+// pinned two-sided against the golden AND against a literal, because a golden regenerated in the
+// same commit as a shape change agrees with the module by construction: only a literal a human had
+// to retype records that the move was a decision rather than a regeneration.
 //
 // WHY A GOLDEN AND NOT MORE ASSERTIONS. The cases above assert PROPERTIES of the join: seven kinds,
 // one order, nothing resolved silently. None of them pins the SHAPE — the field names a future web
@@ -1705,7 +1786,7 @@ const GOLDEN_ABSENT =
   "README.md: npm run build && GRUGOPS_UPDATE_BOARD_GOLDEN=1 npx vitest run " +
   "--exclude '**/scripts/e2e/**' scripts/board-model.test.ts -t \"golden\"";
 
-describe("board-model — the committed golden freezes schemaVersion 1 byte for byte (D-19)", () => {
+describe("board-model — the committed golden freezes schemaVersion 2 byte for byte (D-19)", () => {
   const rendered = serializeFixture();
 
   // THE REGENERATION SEAM. Production callers set nothing; the comparison below is what runs in CI.
@@ -1834,7 +1915,7 @@ describe("board-model — the committed golden freezes schemaVersion 1 byte for 
         "the SAME commit (D-19) — the published shape is what DASH-08 promises a future web " +
         "renderer consumes unchanged",
     ).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION, "the published shape is version 1").toBe(1);
+    expect(SCHEMA_VERSION, "the published shape is version 2").toBe(2);
   });
 
   it("populates every bucket of the partition, so the golden is not a narrow slice", () => {
@@ -2225,5 +2306,413 @@ describe("board-model — the contract and the builder specification stay paired
     // And the corrective shape the contract names is admitted, so the advice is checkable too.
     const corrected = parseTicketDocument(`---\n${asShown}---\n\n# ABC-014\n`);
     expect(corrected.ok, corrected.ok ? "" : corrected.reason).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32-33 — ONE PRESENCE DERIVATION OVER A TOTAL IDENTIFIER POPULATION (DASH-03, CR-03).
+//
+// THE DEFECT, AND WHY IT SURVIVED TWO ROUNDS THAT EACH CLOSED IT. Round 1 (`32-09`) closed "the
+// listing failed" by gating both presence-dependent kinds. Round 2 (`32-15`) closed "the file is
+// there and the grammar refused it" by carrying the refused half into the join. Each fix added ONE
+// MORE MAP beside the one already there, and the third population — a document admitted under a
+// declared identifier that is not its file stem — is in neither, so the stem's presence question was
+// answered as absence. A fourth map would create a fifth population.
+//
+// WHAT REPLACES THE NEXT MAP. `presenceOf` asks three MEASURED sets in a stated order and returns a
+// discriminated answer; `absent` is reachable only by falling off the end of all three. The cases
+// below assert each arm, assert that each arm produces its own sentence, and — the one that matters
+// most — assert the ARITHMETIC: the count of identifiers answered `absent` equals the count of
+// placements in none of the three sets, derived on the other side of the loop that consumes it.
+// That is plan 32-15's instrument, applied to the partition's KEYS rather than its SIZE, and it is
+// what makes a fifth population visible as a failing number rather than as an arm somebody has to
+// think of.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+import { mkdtempSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+
+import {
+  TICKET_PRESENCE_KINDS,
+  TICKET_PRESENCE_KIND_COUNT,
+  presenceActual,
+  presenceOf,
+  ticketPopulations,
+} from "./board-model.js";
+import { readTicketsSource } from "./board-read.js";
+import type { TicketPresenceKind } from "./board-model.js";
+
+/** The sentence the join uses for an identifier NO file carries. It must reach `absent` and only it. */
+const ABSENT_TEXT = "no ticket file carries that identifier";
+
+describe("board-model — the presence kinds are a CLOSED set with a two-sided count (plan 32-33)", () => {
+  it("has the expected MEMBERS, in the order the derivation asks them", () => {
+    expect(
+      [...TICKET_PRESENCE_KINDS],
+      "the ORDER is the priority order: a document answers for the identifier it DECLARES before " +
+        "it answers for the name the directory gave it",
+    ).toEqual(["admitted-under-its-stem", "admitted-under-another-id", "refused", "absent"]);
+  });
+
+  it("has the expected COUNT, pinned from both sides", () => {
+    expect(
+      TICKET_PRESENCE_KINDS.length,
+      "a presence arm landed or left. A fifth arm means the three measured sets were not total " +
+        "after all, which is a finding to record in agent-factory/contracts/board.md — never a " +
+        "bumped constant",
+    ).toBe(TICKET_PRESENCE_KIND_COUNT);
+    expect(TICKET_PRESENCE_KIND_COUNT).toBe(4);
+    expect(new Set(TICKET_PRESENCE_KINDS).size, "an arm is spelled twice").toBe(
+      TICKET_PRESENCE_KINDS.length,
+    );
+  });
+
+  it("the conflict-kind set did NOT grow to reach the honest sentence", () => {
+    // D-10 makes the kind set part of the published shape. The fourth population is reported inside
+    // the EXISTING `row-without-file` kind by making `actual` true, so this pin is the converse of
+    // the presence-kind pin above: one set grew by design, the other must not have moved at all.
+    expect(CONFLICT_KINDS.length).toBe(CONFLICT_KIND_COUNT);
+    expect(CONFLICT_KIND_COUNT).toBe(7);
+    expect([...CONFLICT_KINDS]).toEqual([
+      "board-vs-ticket",
+      "ticket-unplaced",
+      "ticket-duplicated",
+      "row-without-file",
+      "wip-limit",
+      "wip-count",
+      "column-missing",
+    ]);
+  });
+});
+
+describe("board-model — `presenceOf` answers each of the four arms from a measured set", () => {
+  /** One population set carrying all three measured halves at once, so the arms are isolated. */
+  const POPULATIONS = ticketPopulations(
+    [
+      ticket("ABC-001", "In Development", "in-development"),
+      mismatched("ABC-300", "ABC-777", "In Development", "in-development"),
+    ],
+    [{ id: "ABC-900", code: "unknown-key" }],
+  );
+
+  it("(1) an identifier a document DECLARES answers `admitted-under-its-stem`", () => {
+    const p = presenceOf("ABC-001", POPULATIONS);
+    expect(p.kind).toBe("admitted-under-its-stem");
+    expect(p.kind === "admitted-under-its-stem" ? p.record.file : "").toBe("ABC-001.md");
+  });
+
+  it("(2) an identifier that is a FILE STEM answers `admitted-under-another-id`, carrying it", () => {
+    const p = presenceOf("ABC-300", POPULATIONS);
+    expect(p.kind).toBe("admitted-under-another-id");
+    expect(
+      p.kind === "admitted-under-another-id" ? p.declaredId : "",
+      "the arm must carry the identifier the FILE declares, which is the fact the sentence names",
+    ).toBe("ABC-777");
+  });
+
+  it("(3) an identifier the reader REFUSED answers `refused`, carrying the code", () => {
+    const p = presenceOf("ABC-900", POPULATIONS);
+    expect(p.kind).toBe("refused");
+    expect(p.kind === "refused" ? p.code : "").toBe("unknown-key");
+  });
+
+  it("(4) an identifier in NONE of the three sets answers `absent`", () => {
+    expect(presenceOf("ABC-404", POPULATIONS).kind).toBe("absent");
+    // PREMISE: the identifier is genuinely in none of them, checked against the sets themselves so
+    // this case cannot pass because the populations were built empty.
+    expect(POPULATIONS.byId.has("ABC-404")).toBe(false);
+    expect(POPULATIONS.byStem.has("ABC-404")).toBe(false);
+    expect(POPULATIONS.refusedById.has("ABC-404")).toBe(false);
+    expect(POPULATIONS.byId.size + POPULATIONS.byStem.size + POPULATIONS.refusedById.size).toBe(5);
+  });
+
+  it("the DECLARED identifier wins over a same-named file stem, and the order is observable", () => {
+    // `ABC-300` is BOTH the stem of the mismatched file and, here, the identifier a second document
+    // declares. The stated priority says the declaration answers.
+    const both = ticketPopulations(
+      [
+        mismatched("ABC-300", "ABC-777", "In Development", "in-development"),
+        mismatched("ABC-800", "ABC-300", "In Development", "in-development"),
+      ],
+      [],
+    );
+    const p = presenceOf("ABC-300", both);
+    expect(p.kind).toBe("admitted-under-its-stem");
+    expect(p.kind === "admitted-under-its-stem" ? p.record.file : "").toBe("ABC-800.md");
+  });
+
+  it("every arm produces its OWN sentence, and only `absent` asserts a negative", () => {
+    const sentences = new Map<TicketPresenceKind, string | null>([
+      ["admitted-under-its-stem", presenceActual("ABC-001", presenceOf("ABC-001", POPULATIONS))],
+      ["admitted-under-another-id", presenceActual("ABC-300", presenceOf("ABC-300", POPULATIONS))],
+      ["refused", presenceActual("ABC-900", presenceOf("ABC-900", POPULATIONS))],
+      ["absent", presenceActual("ABC-404", presenceOf("ABC-404", POPULATIONS))],
+    ]);
+
+    // TWO-SIDED AGAINST THE CLOSED SET: every declared arm is exercised here, and nothing else is.
+    expect(new Set(sentences.keys()), "an arm has no sentence case").toEqual(
+      new Set(TICKET_PRESENCE_KINDS),
+    );
+
+    expect(sentences.get("admitted-under-its-stem"), "an admitted row is not a conflict").toBe(null);
+    expect(sentences.get("admitted-under-another-id")).toBe(
+      "plans/tickets/ABC-300.md exists and declares the identifier ABC-777, so it is joined " +
+        "under that identifier and not this one",
+    );
+    expect(sentences.get("refused")).toBe(
+      "plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)",
+    );
+    expect(sentences.get("absent"), "the absence sentence is unchanged, byte for byte").toBe(
+      ABSENT_TEXT,
+    );
+
+    // THE SENTENCES ARE DISTINCT. Two arms sharing one sentence is the defect this round closes:
+    // rows 1 and 3 of 32-33-RED-baseline.txt produced byte-identical text for two different facts.
+    const nonNull = [...sentences.values()].filter((s): s is string => s !== null);
+    expect(new Set(nonNull).size, "two presence arms print the same sentence").toBe(nonNull.length);
+    // And exactly one of them asserts a negative.
+    expect(nonNull.filter((s) => s === ABSENT_TEXT).length).toBe(1);
+  });
+
+  it("no sentence quotes a byte of any document's BODY (the plan 32-10 containment rule)", () => {
+    const body = "SECRET-BODY-TEXT";
+    const withBody = ticketPopulations(
+      [mismatched("ABC-300", "ABC-777", body, body, body)],
+      [{ id: "ABC-900", code: "unknown-key" }],
+    );
+    for (const id of ["ABC-300", "ABC-900", "ABC-404"]) {
+      expect(presenceActual(id, presenceOf(id, withBody)) ?? "").not.toContain(body);
+    }
+  });
+});
+
+describe("board-model — the join states what the file declares, never that it is not there", () => {
+  const MISMATCH_BOARD =
+    "## In Development (WIP unlimited)\n" +
+    "- [ABC-300] Its file declares another identifier\n" +
+    "- [ABC-900] Its file was refused\n" +
+    "- [ABC-404] It genuinely has no file\n";
+
+  const MISMATCH_JOIN = () =>
+    joinOf({
+      board: MISMATCH_BOARD,
+      tickets: [mismatched("ABC-300", "ABC-777", "In Development", "in-development")],
+      unadmittedTickets: [{ id: "ABC-900", code: "unknown-key" }],
+    }).conflicts;
+
+  it("raises NO conflict asserting absence for an identifier whose file was admitted", () => {
+    const forMismatch = MISMATCH_JOIN().filter((c) => c.ticketId === "ABC-300");
+    expect(
+      forMismatch.map((c) => c.actual),
+      "the projector asserted that no file carries ABC-300 while holding the record it built " +
+        "from plans/tickets/ABC-300.md — a positive claim about a filesystem it read correctly",
+    ).not.toContain(ABSENT_TEXT);
+
+    const raised = only(MISMATCH_JOIN(), "row-without-file").filter((c) => c.ticketId === "ABC-300");
+    expect(raised.length, "and the row is still reported: silence is a quieter fabrication").toBe(1);
+    expect(raised[0]?.actual).toContain("declares the identifier ABC-777");
+    expect(raised[0]?.actual).toContain("plans/tickets/ABC-300.md");
+    // The kind does not split and `expected` does not move.
+    expect(raised[0]?.kind).toBe("row-without-file");
+    expect(raised[0]?.expected).toBe("plans/tickets/ABC-300.md");
+    expect(raised[0]?.column).toBe("In Development");
+  });
+
+  it("leaves the refused and genuinely-absent rows BYTE-IDENTICAL to what they said before", () => {
+    const conflicts = only(MISMATCH_JOIN(), "row-without-file");
+    expect(conflicts.find((c) => c.ticketId === "ABC-900")?.actual).toBe(
+      "plans/tickets/ABC-900.md exists and the reader could not admit it (unknown-key)",
+    );
+    expect(conflicts.find((c) => c.ticketId === "ABC-404")?.actual).toBe(ABSENT_TEXT);
+    // Exactly three rows, so the fix neither dropped a population nor invented a fourth row.
+    expect(conflicts.map((c) => c.ticketId).sort()).toEqual(["ABC-300", "ABC-404", "ABC-900"]);
+  });
+
+  it("still raises NO `row-without-file` for a row whose file declares the row's identifier", () => {
+    const conflicts = joinOf({
+      board: "## In Development (WIP unlimited)\n- [ABC-001] It agrees with its file\n",
+      tickets: [ticket("ABC-001", "In Development", "in-development")],
+    }).conflicts;
+    expect(only(conflicts, "row-without-file")).toEqual([]);
+  });
+
+  it("the UNPLACED arm still speaks for the DECLARED identifier, so the pair reads as one dispute", () => {
+    // The converse direction: ABC-777 is declared by a file no row names, so it is unplaced. A
+    // human reading both conflicts sees ABC-300 -> "declares ABC-777" and ABC-777 -> "no row names
+    // it", and the first names the second — which is what makes the two one disagreement rather
+    // than two unrelated findings.
+    const unplaced = only(MISMATCH_JOIN(), "ticket-unplaced");
+    expect(unplaced.map((c) => c.ticketId)).toEqual(["ABC-777"]);
+    expect(unplaced[0]?.actual).toBe("no row names ABC-777");
+  });
+
+  it("stays silent on the whole arm when the tickets source is not `ok`", () => {
+    // The gate plan 32-09 closed is not reopened by the new population: with the listing not
+    // obtained, no presence question is asked at all, whatever the three sets hold.
+    const conflicts = joinSnapshot({
+      repoRoot: "/fixture",
+      generatedAt: JOIN_AT,
+      sources: {
+        ...sourcesFor({ board: MISMATCH_BOARD }),
+        tickets: {
+          source: "stale",
+          value: [mismatched("ABC-300", "ABC-777", "In Development", "in-development")],
+          readAt: JOIN_AT,
+          stale: { reason: "bounded", since: JOIN_AT },
+        },
+      },
+      unadmittedTickets: [{ id: "ABC-900", code: "unknown-key" }],
+    }).conflicts;
+    expect(
+      conflicts.filter((c) =>
+        (PRESENCE_DEPENDENT_CONFLICT_KINDS as readonly string[]).includes(c.kind),
+      ),
+    ).toEqual([]);
+  });
+});
+
+// ── THE THIRD POPULATION AS ARITHMETIC, NOT AS AN ARM ────────────────────────────────────────────
+//
+// THIS IS THE CASE THAT WOULD HAVE CAUGHT THE DEFECT, and the two rounds before this one had nothing
+// like it. Every earlier presence case names a population and asserts its sentence, so a population
+// nobody thought of is a case nobody wrote. The two assertions below name no population at all: they
+// take the `.md` stem set from the DIRECTORY LISTING, take the admitted stems and refused
+// identifiers from the reader's own halves, and require the sets to be equal — and then require the
+// number of identifiers answered `absent` to equal a count derived on the other side of the loop
+// that produces it. A fifth population makes one of those two numbers wrong. That is plan 32-15's
+// instrument, asked of the partition's KEYS.
+
+/** Plant a real tree, read it with the real reader, and delete it. The join needs a LISTING here. */
+function withTicketTree(
+  files: Readonly<Record<string, string>>,
+  board: string,
+  run: (dir: string) => void,
+): void {
+  // THE RESOLVED PATH, because `readSnapshot` resolves symlinks and `/var` is `/private/var` on
+  // this platform — an unresolved root makes the reader refuse its own fixture for containment.
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "board-presence-")));
+  try {
+    mkdirSync(join(dir, "plans", "tickets"), { recursive: true });
+    writeFileSync(join(dir, "plans", "board.md"), board, "utf8");
+    for (const [name, text] of Object.entries(files)) {
+      writeFileSync(join(dir, "plans", "tickets", name), text, "utf8");
+    }
+    run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const TREE_AT = "2026-01-01T00:00:00.000Z";
+
+/** Four populations at once, so neither assertion below can be satisfied by a degenerate tree. */
+const TREE_FILES = {
+  // Admitted under its own stem.
+  "ABC-001.md": "---\nid: ABC-001\ncolumn: In Development\nstatus: in-development\n---\n\n# a\n",
+  // Admitted under a DIFFERENT identifier: stem ABC-300, declared ABC-777.
+  "ABC-300.md": "---\nid: ABC-777\ncolumn: In Development\nstatus: in-development\n---\n\n# b\n",
+  // Refused by the ticket grammar: `tools` is outside the closed ticket key set.
+  "ABC-900.md": "---\nid: ABC-900\ntools: Bash\n---\n\n# c\n",
+  // The degenerate listed entry, whose stem is empty.
+  ".md": "---\ntitle: no stem at all\n---\n\n# d\n",
+} as const;
+
+const TREE_BOARD =
+  "## In Development (WIP unlimited)\n" +
+  "- [ABC-001] Agrees with its file\n" +
+  "- [ABC-300] Its file declares another identifier\n" +
+  "- [ABC-900] Its file was refused\n" +
+  "- [ABC-404] It genuinely has no file\n" +
+  "- [ABC-405] It genuinely has no file either\n";
+
+describe("board-model — the presence partition's KEYS balance as arithmetic (plan 32-33)", () => {
+  it("the listing's `.md` stem set EQUALS the admitted stems plus the refused identifiers", () => {
+    withTicketTree(TREE_FILES, TREE_BOARD, (dir) => {
+      // THE LEFT-HAND SIDE IS TAKEN FROM THE DIRECTORY, on the other side of the reader's loop. A
+      // number taken from the record set would be vacuously equal to itself.
+      const listed = readdirSync(join(dir, "plans", "tickets")).filter((n) => n.endsWith(".md"));
+      const fromListing = new Set(listed.map((n) => n.slice(0, -".md".length)));
+      expect(
+        fromListing.size,
+        "PREMISE: the tree produced no `.md` entry, so the equality below is 0 === 0",
+      ).toBe(Object.keys(TREE_FILES).length);
+
+      const settled = readTicketsSource(dir, TREE_AT, undefined, {});
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      const fromReader = new Set([
+        ...records.map((r) => r.stem),
+        ...settled.unadmitted.map((u) => u.id),
+      ]);
+
+      expect(
+        fromReader,
+        "an entry the directory listed is in neither half of the reader's partition, so the " +
+          "presence question can be asked about a stem no measured set carries",
+      ).toEqual(fromListing);
+      // And both halves are non-empty, so the equality is not satisfied by one being the whole set.
+      expect(records.length).toBeGreaterThan(0);
+      expect(settled.unadmitted.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("the count answered `absent` EQUALS the count derived independently of the arm", () => {
+    withTicketTree(TREE_FILES, TREE_BOARD, (dir) => {
+      const settled = readTicketsSource(dir, TREE_AT, undefined, {});
+      const records = settled.state.source === "ok" ? settled.state.value : [];
+      const populations = ticketPopulations(records, settled.unadmitted);
+
+      const placementIds = [
+        ...new Set(parseBoard(TREE_BOARD, {}).columns.flatMap((c) => c.rows.map((r) => r.id))),
+      ];
+      expect(
+        placementIds.length,
+        "PREMISE: the board named no identifier, so both counts below are 0",
+      ).toBe(5);
+
+      // THE CONSUMING SIDE: what the derivation the join actually calls answers.
+      const answeredAbsent = placementIds.filter(
+        (id) => presenceOf(id, populations).kind === "absent",
+      );
+
+      // THE INDEPENDENT SIDE: three sets rebuilt from the reader's RAW arrays rather than from
+      // `populations`, so a bug inside `ticketPopulations` cannot make both sides agree.
+      const declared = new Set(records.map((r) => r.id));
+      const stems = new Set(records.map((r) => r.stem));
+      const refused = new Set(settled.unadmitted.map((u) => u.id));
+      const inNoSet = placementIds.filter(
+        (id) => !declared.has(id) && !stems.has(id) && !refused.has(id),
+      );
+
+      expect(
+        answeredAbsent.sort(),
+        "the arm answered `absent` for an identifier one of the three measured sets carries — " +
+          "which is the exact shape of the fabrication this plan closes",
+      ).toEqual(inNoSet.sort());
+      // NON-VACUOUS FROM BOTH ENDS: some identifiers are absent and some are not, so neither an
+      // all-absent nor a never-absent derivation could satisfy this.
+      expect(inNoSet.length).toBe(2);
+      expect(placementIds.length - inNoSet.length).toBe(3);
+    });
+  });
+
+  it("the projector states what the file declares, end to end, through the real reader", () => {
+    withTicketTree(TREE_FILES, TREE_BOARD, (dir) => {
+      const result = readSnapshot(dir);
+      expect(
+        result.snapshot.sources.tickets.source,
+        "PREMISE: the tickets source is not `ok`, so the presence arm is gated off and this case " +
+          "measures the gate rather than the sentence",
+      ).toBe("ok");
+
+      const rows = result.conflicts.filter((c) => c.kind === "row-without-file");
+      const byId = new Map(rows.map((c) => [c.ticketId ?? "", c.actual]));
+      expect(byId.get("ABC-300")).toContain("declares the identifier ABC-777");
+      expect(byId.get("ABC-900")).toContain("could not admit it (unknown-key)");
+      expect(byId.get("ABC-404")).toBe(ABSENT_TEXT);
+      expect(byId.get("ABC-405")).toBe(ABSENT_TEXT);
+      expect(byId.has("ABC-001"), "a row whose file agrees with it is not a conflict").toBe(false);
+      // And the empty-stem entry is refused by name on the channel a human reads.
+      expect(result.readErrors.find((e) => e.code === "empty-stem")?.source).toBe("tickets");
+    });
   });
 });

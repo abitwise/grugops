@@ -67,6 +67,8 @@ import {
   INTERVAL_HARD_FLOOR_MS,
   WATCH_DIRS,
 } from "./board-dashboard.js";
+// The PUBLISHED version, read from the module rather than retyped here (plan 32-33).
+import { SCHEMA_VERSION } from "./board-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const FIXTURE = join(ROOT, "scripts", "fixtures", "board-snapshot");
@@ -342,7 +344,7 @@ async function premise(live: Live): Promise<Doc> {
       `would be timing a process that is not the one under test. The line was: ` +
       `${first.text.slice(0, 200)}`,
   ).not.toBeNull();
-  expect((first.value as LiveDocument).snapshot.schemaVersion).toBe(1);
+  expect((first.value as LiveDocument).snapshot.schemaVersion).toBe(SCHEMA_VERSION);
   return first;
 }
 

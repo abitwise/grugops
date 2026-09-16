@@ -1217,6 +1217,14 @@ export function readTicketsSource(
   const errors: ReadError[] = [];
   /** The other half of the partition: a listed `.md` entry that produced no record (plan 32-15). */
   const unadmitted: UnadmittedTicket[] = [];
+  /**
+   * Identifier to the file that claimed it FIRST — the duplicate check, as a map (plan 32-33).
+   *
+   * It holds the file NAME rather than the record, because the name is the only thing the duplicate
+   * report needs and keeping the record here would be a second index of a population `joinSnapshot`
+   * already indexes once.
+   */
+  const seenById = new Map<string, string>();
   /** The reason of the FIRST per-file read failure, or null when every file's bytes arrived. */
   let firstReadFailure: StaleReason | null = null;
   // SORTED BY THE LISTING ITSELF (plan 32-17, WR-09), so two runs over one directory agree on the
@@ -1238,13 +1246,40 @@ export function readTicketsSource(
         code: child.code,
         message: child.message,
       });
-      // EXIT ONE OF THREE (plan 32-15). The entry leaves this loop without a record, so it lands in
+      // EXIT ONE OF FOUR (plan 32-15). The entry leaves this loop without a record, so it lands in
       // the other half of the partition. The source is degraded too, exactly as it already was.
       unadmitted.push(unadmittedFrom(name, child.code));
       if (firstReadFailure === null) firstReadFailure = staleReasonForCode(child.code);
       continue;
     }
     const path = child.path;
+
+    // EXIT TWO OF FOUR, AND IT IS A REFUSAL WITH A NAME RATHER THAN A SKIP (plan 32-33, IN-02).
+    // An entry named exactly `.md` satisfies the walk's `endsWith` test and leaves `ticketStem` with
+    // zero characters, so before this refusal it was ADMITTED under the empty identifier — a member
+    // of a population the reader pins by count, holding an identity no board row can ever name and
+    // no channel ever reported. A silent `continue` here would trade that for a hole in the
+    // partition, which is the class this round exists to remove: the entry is pushed into the
+    // unadmitted half under its own code, so the count stays total and a human is told.
+    //
+    // THE SOURCE IS NOT DEGRADED, for the same reason a grammar refusal does not degrade it: the
+    // directory was listed and this entry's name was read correctly. Nothing failed to arrive.
+    const stem = ticketStem(name);
+    if (stem === "") {
+      errors.push({
+        source: "tickets",
+        path,
+        code: "empty-stem",
+        message:
+          `${name} leaves no file stem once the .md extension is removed, so this entry's ` +
+          `fallback identity would be an identifier of zero characters. A board row cannot name ` +
+          `the empty identifier, so the document could never be joined to one, and admitting it ` +
+          `would place an unnameable identity inside the ticket population. The entry is listed, ` +
+          `refused by name and counted; nothing about it is read.`,
+      });
+      unadmitted.push(unadmittedFrom(name, "empty-stem"));
+      continue;
+    }
 
     const read = readVerifyReread(path, READ_RETRY_BOUND, seam);
     if (!read.ok) {
@@ -1253,7 +1288,7 @@ export function readTicketsSource(
       // Recorded rather than only reported, because `joinSnapshot`'s presence gate reads the SOURCE
       // STATE: with the source left `ok`, a row naming this ticket is still reported as having no
       // ticket file — the CR-02 fabrication, surviving one register down from the directory.
-      // EXIT TWO OF THREE (plan 32-15).
+      // EXIT THREE OF FOUR (plan 32-15).
       unadmitted.push(unadmittedFrom(name, read.code));
       if (firstReadFailure === null) firstReadFailure = read.reason;
       continue;
@@ -1261,7 +1296,7 @@ export function readTicketsSource(
     const admission = parseTicketDocument(read.text);
     if (!admission.ok) {
       errors.push({ source: "tickets", path, code: admission.code, message: admission.reason });
-      // EXIT THREE OF THREE, AND THE ONE CR-01 NAMES (plan 32-15). `firstReadFailure` is DELIBERATELY
+      // EXIT FOUR OF FOUR, AND THE ONE CR-01 NAMES (plan 32-15). `firstReadFailure` is DELIBERATELY
       // not set: the bytes arrived and the grammar refused them by name, which is the contract's
       // stated behaviour rather than a fault. Degrading the source here would blank every other
       // derivation on the board because one ticket has a stray tab — the "one refusal blanks the
@@ -1271,8 +1306,10 @@ export function readTicketsSource(
     }
     // THE FILE STEM IS THE FALLBACK IDENTITY, because the file name is the only identity a reader
     // can trust when the document does not state one — the same rule the validator applies, and
-    // the same `ticketStem` spelling the unadmitted arm above uses.
-    const id = admission.value.id ?? ticketStem(name);
+    // the same `ticketStem` spelling the unadmitted arm above uses. `stem` is computed once, above,
+    // and is carried on the record as its own field (plan 32-33): the day a document's declared
+    // identifier differs from its file name, the join needs both and used to be handed only one.
+    const id = admission.value.id ?? stem;
 
     // TWO FILES CLAIMING ONE IDENTIFIER IS REPORTED HERE (plan 32-17, WR-08), BECAUSE THIS IS WHERE
     // BOTH FILES ARE SEEN. The join receives a list and builds a map from it; by then the second
@@ -1300,22 +1337,32 @@ export function readTicketsSource(
     // it. This document WAS admitted — the grammar read it and accepted it. Which of two admitted
     // records with one identifier gets JOINED is a different question, and it is answered once, in
     // `joinSnapshot`'s `ticketById`, by every arm that consumes the population.
-    const duplicate = records.find((r) => r.id === id);
-    if (duplicate !== undefined) {
+    // A MAP LOOKUP, NEVER A SCAN OVER WHAT THIS LOOP HAS ALREADY BUILT (plan 32-33, WR-08). The
+    // rule is UNCHANGED — first by file name is joined, the message names both files — and only the
+    // lookup moved. `records.find(...)` ran once per admitted entry over every record accumulated
+    // so far, which is n(n-1)/2 comparisons: about fifty million at the walk bound of 10,000, on
+    // every watch event and every poll tick. D-14 is explicit that a hung read is a stale badge and
+    // never a frozen screen, so cost inside this walk is correctness-adjacent rather than cosmetic,
+    // and it is reachable by anyone who can add files to `plans/tickets/`.
+    const claimedBy = seenById.get(id);
+    if (claimedBy !== undefined) {
       errors.push({
         source: "tickets",
         path,
         code: "duplicate-id",
         message:
-          `${name} and ${duplicate.file} both claim the identifier ${id}. Ticket identifiers are ` +
-          `unique and the first by file name is joined, so ${duplicate.file} is the one joined ` +
+          `${name} and ${claimedBy} both claim the identifier ${id}. Ticket identifiers are ` +
+          `unique and the first by file name is joined, so ${claimedBy} is the one joined ` +
           `and ${name} is not. Neither document is modified and no conflict is invented for the ` +
           `second.`,
       });
+    } else {
+      seenById.set(id, name);
     }
 
     records.push({
       file: name,
+      stem,
       id,
       title: admission.value.title ?? "",
       column: admission.value.column,

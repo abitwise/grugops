@@ -97,7 +97,11 @@ describe("board-model — the heading grammar (D-05)", () => {
   });
 
   it("exports the published schema version", () => {
-    expect(SCHEMA_VERSION).toBe(1);
+    // VERSION 2 SINCE PLAN 32-33, which published `TicketRecord.stem`. This is the LITERAL pin —
+    // every other assertion in this tree compares an emitted document against the constant, which
+    // agrees with itself by construction. A number a human had to retype is what records that the
+    // move was a decision (D-19).
+    expect(SCHEMA_VERSION).toBe(2);
   });
 
   it("parses the kit board to 13 columns in on-disk order, each with zero rows", () => {
@@ -590,7 +594,7 @@ describe("board-read — the discriminated result on THIS repository (D-11, D-13
   });
 
   it("stamps the published schema version on the snapshot (D-19)", () => {
-    expect(readSnapshot(ROOT).snapshot.schemaVersion).toBe(1);
+    expect(readSnapshot(ROOT).snapshot.schemaVersion).toBe(SCHEMA_VERSION);
   });
 });
 
@@ -830,7 +834,7 @@ describe("board-dashboard — the render branch, through an injected io (D-17, D
     expect(r.code).toBe(0);
     expect(r.err).toBe("");
     const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
-    expect(parsed.snapshot.schemaVersion).toBe(1);
+    expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
     expect(r.out.endsWith("\n")).toBe(true);
   });
 
@@ -862,12 +866,12 @@ describe("board-dashboard — the render branch, through an injected io (D-17, D
 });
 
 describe("board-dashboard — the process contract, driven as a child (D-18, T-32-08)", () => {
-  it("exits 0 and writes one JSON document with schemaVersion 1", () => {
+  it("exits 0 and writes one JSON document carrying the published schemaVersion", () => {
     const r = drive([".", "--once", "--json"]);
     expect(r.code).toBe(0);
     expect(r.err).toBe("");
     const parsed = JSON.parse(r.out) as { snapshot: { schemaVersion: number } };
-    expect(parsed.snapshot.schemaVersion).toBe(1);
+    expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("exits 0 and writes an ANSI-free frame without --json", () => {
