@@ -166,7 +166,20 @@ import * as nodeFs from "node:fs";
 import * as nodeFsPromises from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { copyImportClosure, jsImportClosure } from "./js-import-closure.js";
+// ONE AUTHORITY ON A SPECIFIER'S CLASS (32-31). `classifySpecifier` is imported rather than
+// re-implemented here, because the two hand-written predicates that used to decide this question —
+// this file's `isBareSpecifier` and the walker's three dot-leading patterns — were a COMPLEMENT
+// rather than a partition and disagreed about every specifier beginning with `/`. `32-24-RED-baseline.txt`
+// measured three such spellings at exit 0 with a live writer behind them.
+import {
+  classifySpecifier,
+  copyImportClosure,
+  jsImportClosure,
+  jsImportClosureFacts,
+  moduleSpecifiers,
+  SPECIFIER_CLASSES,
+  type SpecifierClass,
+} from "./js-import-closure.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -191,9 +204,12 @@ function isFsSpecifier(specifier: string): boolean {
   return FS_MODULE_IDENTITIES.includes(normalizeSpecifier(specifier));
 }
 
-function isBareSpecifier(specifier: string): boolean {
-  return !specifier.startsWith(".") && !specifier.startsWith("/");
-}
+// `isBareSpecifier` USED TO LIVE HERE, and it was `!startsWith(".") && !startsWith("/")` — a chain
+// of negations, which admits every spelling nobody thought to subtract. It was deleted in 32-31
+// rather than widened: the class of a specifier is now decided in exactly ONE function in this
+// repository, `classifySpecifier` in scripts/js-import-closure.ts, which both the closure walker
+// and this census ask. A fourth prefix test beside the existing ones is the shape that round exists
+// to stop, so there is no longer a place in this file to add one.
 
 /**
  * THE GLOBALS THAT CARRY CAPABILITIES, and therefore the roots of the member-path census (32-20).
@@ -324,6 +340,19 @@ interface ModuleFacts {
   /** Every bare specifier — the set `jsImportClosure` deliberately skips, and the socket ban's input. */
   readonly bareSpecifiers: ReadonlySet<string>;
   /**
+   * EVERY FOREIGN SPECIFIER — the third bucket of the partition, and the one that exists so no
+   * spelling can fall outside all three (32-31).
+   *
+   * A foreign specifier names a module reached by a route this repository never read: an absolute
+   * or protocol-relative path, a `file:`/`data:` URL, a Windows drive-letter path, a `#`-prefixed
+   * subpath import. The closure walk cannot mirror it and this syntactic pass cannot name a single
+   * symbol inside it, so admitting one would CLAIM that a module nobody here has read is
+   * nevertheless known to hold no writer. It is therefore collected AND pushed into `acquisitions`,
+   * so it reds the write-detection MECHANISM — the `PREMISE:` case over `acquisitions` — rather
+   * than only moving a census count somebody could re-green by extending a list.
+   */
+  readonly foreignSpecifiers: readonly string[];
+  /**
    * Acquisitions of a filesystem module whose symbols this syntactic pass CANNOT name: a dynamic
    * `import("node:fs")`, a `require("node:fs")`, an `export * from "node:fs"`, or a computed member
    * access on an fs namespace. Each one is a route the derivation cannot decide, so each is collected
@@ -379,6 +408,7 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
 
   const fsSymbols = new Set<string>();
   const bareSpecifiers = new Set<string>();
+  const foreignSpecifiers: string[] = [];
   const fsNamespaceBindings = new Set<string>();
   const opaqueFsAcquisitions: string[] = [];
   const opaqueSpecifiers: string[] = [];
@@ -390,8 +420,31 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
   const literalText = (node: ts.Node | undefined): string | null =>
     node !== undefined && ts.isStringLiteralLike(node) ? node.text : null;
 
+  /**
+   * THE CENSUS ASKS THE SAME AUTHORITY THE WALKER ASKS (32-31).
+   *
+   * A switch over the three-way partition, with no fall-through and no "otherwise". Each arm is a
+   * decision written here rather than a consequence of a prefix test:
+   *
+   *   `bare`     — a node builtin or a package identity. Fed to `bareSpecifiers`, which the builtin
+   *                ALLOW-LIST equality then decides.
+   *   `relative` — an edge inside the tree. The closure walk follows it and analyses the target as
+   *                its own module, so recording it a second time here would say nothing new.
+   *   `foreign`  — REFUSED. Collected for attribution AND pushed into `acquisitions`, so the write-
+   *                detection premise reds rather than a count moving.
+   */
   const noteSpecifier = (specifier: string): void => {
-    if (isBareSpecifier(specifier)) bareSpecifiers.add(specifier);
+    switch (classifySpecifier(specifier)) {
+      case "bare":
+        bareSpecifiers.add(specifier);
+        return;
+      case "relative":
+        return;
+      case "foreign":
+        foreignSpecifiers.push(specifier);
+        acquisitions.push(briefly(`FOREIGN SPECIFIER "${specifier}"`));
+        return;
+    }
   };
 
   /** Refusal messages carry source text; a whole call or declaration can be long, so flatten and cap. */
@@ -795,6 +848,7 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
     parseErrors,
     fsSymbols,
     bareSpecifiers,
+    foreignSpecifiers,
     opaqueFsAcquisitions,
     opaqueSpecifiers,
     acquisitions,
@@ -811,6 +865,17 @@ interface ClosureFacts {
   readonly fsSymbols: readonly string[];
   /** The union of every module's bare specifiers, sorted. */
   readonly bareSpecifiers: readonly string[];
+  /**
+   * The union of every module's FOREIGN specifiers, PLUS every foreign edge the WALK itself refused
+   * to follow (32-31).
+   *
+   * Both sources are merged deliberately. A foreign specifier in a module the walk reached is found
+   * by the per-module analysis; a foreign specifier is ALSO the reason the walk did not reach some
+   * target, and that edge would otherwise be censused by nobody — the module holding it is analysed,
+   * so the two sources overlap for a reachable module and only the walk can see the edge from a
+   * module the walk itself declined to enter. Merging is what makes the census two-sided.
+   */
+  readonly foreignSpecifiers: readonly string[];
   readonly opaqueFsAcquisitions: readonly string[];
   readonly opaqueSpecifiers: readonly string[];
   readonly acquisitions: readonly string[];
@@ -827,10 +892,16 @@ interface ClosureFacts {
  * built from the live sources and watch the same predicate fail.
  */
 function analyzeClosure(root: string, entryRel: string): ClosureFacts {
-  const modules = jsImportClosure(root, entryRel);
+  // `jsImportClosureFacts` rather than `jsImportClosure` (32-31). The wrapper THROWS on a foreign
+  // edge, and a throw here would make this census unreachable at exactly the moment it has something
+  // to say — the guard would die before recording the specifier a reader needs named. The walk
+  // reports the edge instead, and this function is the position where it becomes a refusal.
+  const { modules, foreignEdges } = jsImportClosureFacts(root, entryRel);
   const perModule = new Map<string, ModuleFacts>();
   const fsSymbols = new Set<string>();
   const bareSpecifiers = new Set<string>();
+  const foreignSpecifiers = new Set<string>();
+  for (const edge of foreignEdges) foreignSpecifiers.add(`${edge.module}: ${edge.specifier}`);
   const opaqueFsAcquisitions: string[] = [];
   const opaqueSpecifiers: string[] = [];
   const acquisitions: string[] = [];
@@ -842,6 +913,7 @@ function analyzeClosure(root: string, entryRel: string): ClosureFacts {
     perModule.set(rel, facts);
     for (const symbol of facts.fsSymbols) fsSymbols.add(symbol);
     for (const specifier of facts.bareSpecifiers) bareSpecifiers.add(specifier);
+    for (const specifier of facts.foreignSpecifiers) foreignSpecifiers.add(`${rel}: ${specifier}`);
     for (const text of facts.opaqueFsAcquisitions) opaqueFsAcquisitions.push(`${rel}: ${text}`);
     for (const text of facts.opaqueSpecifiers) opaqueSpecifiers.push(`${rel}: ${text}`);
     for (const text of facts.acquisitions) acquisitions.push(`${rel}: ${text}`);
@@ -854,6 +926,7 @@ function analyzeClosure(root: string, entryRel: string): ClosureFacts {
     perModule,
     fsSymbols: [...fsSymbols].sort(),
     bareSpecifiers: [...bareSpecifiers].sort(),
+    foreignSpecifiers: [...foreignSpecifiers].sort(),
     opaqueFsAcquisitions,
     opaqueSpecifiers,
     acquisitions,
@@ -1122,6 +1195,277 @@ describe("32-06 — the read-only guard asserts its own premises first", () => {
       "PREMISE: a closure module imports from a COMPUTED specifier. The module identity behind it " +
         "is undecidable here, so the ban below could not have been asked of it",
     ).toEqual([]);
+    expect(
+      facts.foreignSpecifiers,
+      "PREMISE: a closure module names a module by a specifier that is neither RELATIVE (./…, ../…) " +
+        "nor BARE (a node builtin or a package) — an absolute or protocol-relative path, a file: or " +
+        "data: URL, a drive-letter path, a #-prefixed subpath import. Admitting one CLAIMS that a " +
+        "module reached by a route this repository never read is nevertheless known to hold no " +
+        "writer, and no derivation in this file can make that claim: the walk cannot mirror the " +
+        "target and this syntactic pass cannot name one symbol inside it. The specifier is therefore " +
+        "REFUSED. It is not a list that wants another entry",
+    ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART ONE-A — the PARTITION itself (32-31, gap-closure round 3).
+//
+// Everything above rests on the closure being the dashboard's real module graph, and that rests on
+// every module specifier having a CLASS. Until this plan the class was decided twice, by two
+// hand-written predicates that disagreed: `isBareSpecifier` here was `!startsWith(".") &&
+// !startsWith("/")`, and the walker's three patterns each required a leading `.`, so the `/` prefix
+// was subtracted by one and never added by the other. `32-24-RED-baseline.txt` § 4 records the ten
+// spellings that measurement was taken over.
+//
+// The cases below assert the partition is TOTAL and that its cardinality is a value somebody moved
+// on purpose, not a shape a reader infers from a union type.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * THE SPELLINGS, HELD AS DATA — one row per spelling, each with the class the one authority must
+ * give it (32-31). The posture `MODULE_IDENTITY_SHAPES` established one part down: a spelling is a
+ * ROW, so adding one is adding a row and moving a number somebody looks at.
+ *
+ * THE ROW SET IS NOT A GUESS. It contains every spelling of `32-24-RED-baseline.txt` § 4's
+ * ten-spelling partition table — measured against BOTH shipped predicates, verbatim — plus the four
+ * DEGENERATE members (`#internal`, `.`, `..`, the empty string) that a prefix test answers by
+ * accident and a partition has to answer on purpose.
+ */
+const SPECIFIER_CLASS_ROWS: readonly {
+  readonly name: string;
+  readonly specifier: string;
+  readonly cls: SpecifierClass;
+}[] = Object.freeze([
+  // The three the baseline measured GREEN over a live writer — in NEITHER shipped set.
+  { name: "absolute POSIX path", specifier: "/abs/writer.mjs", cls: "foreign" },
+  { name: "protocol-relative, resolvable host", specifier: "//localhost/abs/writer.mjs", cls: "foreign" },
+  { name: "protocol-relative, UNC host", specifier: "//host/x.js", cls: "foreign" },
+  // The three whose refusing authority MOVES: censused as BARE today, foreign after the cutover.
+  { name: "file:// URL", specifier: "file:///abs/writer.mjs", cls: "foreign" },
+  { name: "Windows drive-letter path", specifier: "C:\\x\\writer.mjs", cls: "foreign" },
+  { name: "data: URL", specifier: "data:text/javascript,export const a=1", cls: "foreign" },
+  // The two the walk follows.
+  { name: "same-directory relative", specifier: "./relative.js", cls: "relative" },
+  { name: "parent-directory relative", specifier: "../up/relative.js", cls: "relative" },
+  // The two the walk legitimately skips.
+  { name: "node builtin, prefixed", specifier: "node:fs", cls: "bare" },
+  { name: "scoped package", specifier: "@scope/pkg", cls: "bare" },
+  // The degenerate members. A prefix test answers these by accident; a partition answers on purpose.
+  { name: "subpath import through the manifest's import map", specifier: "#internal", cls: "foreign" },
+  { name: "the current directory", specifier: ".", cls: "foreign" },
+  { name: "the parent directory", specifier: "..", cls: "foreign" },
+  { name: "the empty specifier", specifier: "", cls: "foreign" },
+]);
+
+/**
+ * The cardinality of the spelling table. A FIFTEENTH spelling is a DECISION: it belongs above as a
+ * row with the class the authority gives it, never as a bumped constant. The number is asserted
+ * two-sided, because a row silently dropped and a row silently added are the same green otherwise.
+ */
+const SPECIFIER_CLASS_ROW_COUNT = 14;
+
+describe("32-31 — a module specifier's class is a TOTAL partition decided in ONE place", () => {
+  it("PREMISE: the partition has exactly three classes and they are the three named ones", () => {
+    expect(
+      SPECIFIER_CLASSES.length,
+      "a FOURTH specifier class is a DECISION recorded in scripts/js-import-closure.ts with the " +
+        "rule that admits it and the consumer that acts on it. Two consumers read this partition — " +
+        "the closure walker and this census — and a class only one of them handles is precisely the " +
+        "disagreement this cutover removed",
+    ).toBe(3);
+    expect([...SPECIFIER_CLASSES].sort()).toEqual(["bare", "foreign", "relative"]);
+  });
+
+  it("the spelling table has exactly the number of rows its decision records", () => {
+    expect(
+      SPECIFIER_CLASS_ROWS.length,
+      "a FIFTEENTH spelling is a DECISION recorded as a row in SPECIFIER_CLASS_ROWS with the class " +
+        "the authority gives it. It is never a bumped constant",
+    ).toBe(SPECIFIER_CLASS_ROW_COUNT);
+    expect(
+      new Set(SPECIFIER_CLASS_ROWS.map((r) => r.specifier)).size,
+      "two rows carry the same specifier, so the table's cardinality overstates what it tests",
+    ).toBe(SPECIFIER_CLASS_ROW_COUNT);
+  });
+
+  it("the classes the spelling table EXERCISES are exactly the classes the partition has", () => {
+    // A class nobody exercised is a class nobody has watched work. Asserting the exercised set
+    // EQUALS SPECIFIER_CLASSES makes a new class visible from the moment it is added: it arrives
+    // unexercised and this case says so.
+    expect(
+      [...new Set(SPECIFIER_CLASS_ROWS.map((r) => r.cls))].sort(),
+      "the spelling table exercises a different set of classes than the partition declares, so " +
+        "either a class has no row or a row names a class the partition does not have",
+    ).toEqual([...SPECIFIER_CLASSES].sort());
+  });
+
+  for (const row of SPECIFIER_CLASS_ROWS) {
+    it(`${row.name} (${JSON.stringify(row.specifier)}) classifies as ${row.cls}`, () => {
+      expect(
+        classifySpecifier(row.specifier),
+        `the one authority gave ${JSON.stringify(row.specifier)} a class other than "${row.cls}". ` +
+          "32-24-RED-baseline.txt § 4 records what the two predecessor predicates each answered for " +
+          "this spelling; a disagreement here is the partition losing its totality",
+      ).toBe(row.cls);
+    });
+  }
+
+  it("this file decides no specifier's class itself — it asks the one authority", () => {
+    // THE STRUCTURAL HALF OF THE CUTOVER. A rule stated once and re-implemented once is two rules,
+    // and the second one is the one that goes stale while every gate over it stays green — this
+    // repository's recorded second systemic failure class ([[grugops-set-literal-drift]]). So the
+    // absence of a second class-deciding predicate in this file is itself asserted, over this
+    // file's own bytes, rather than left to a reviewer to notice.
+    const ownSource = readFileSync(join(ROOT, "scripts", "board-readonly.test.ts"), "utf8");
+    const parsed = ts.createSourceFile(
+      "board-readonly.test.ts",
+      ownSource,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    // A class decision reads as a prefix test on a specifier-shaped value. Any `startsWith` call
+    // whose argument is one of the class-bearing prefixes is one, wherever it is written.
+    const CLASS_PREFIXES = Object.freeze(["./", "../", ".", "/", "node:", "@", "file:", "data:"]);
+    // THE ONE NAMED EXCLUSION, in the `STEM_FALSE_POSITIVES` posture this file already uses.
+    // `normalizeSpecifier` tests `node:` to answer a DIFFERENT question — module IDENTITY, whether
+    // `node:fs` and `fs` are the same module — and that question is neither asked nor answered by
+    // the partition. It is excluded BY NAME with its reason rather than by loosening the prefix set,
+    // because dropping `node:` from the set above would let a real second class test in beside it.
+    const CLASS_PREDICATE_EXCLUSIONS = Object.freeze(["normalizeSpecifier"]);
+    const CLASS_PREDICATE_EXCLUSION_COUNT = 1;
+    expect(
+      CLASS_PREDICATE_EXCLUSIONS.length,
+      "a SECOND function in this file is excused from the one-authority rule. That is a DECISION: " +
+        "name it above with the different question it answers, or move its prefix test into " +
+        "classifySpecifier. It is never a bumped constant",
+    ).toBe(CLASS_PREDICATE_EXCLUSION_COUNT);
+
+    const offenders: string[] = [];
+    const visit = (node: ts.Node, enclosing: string): void => {
+      let scope = enclosing;
+      if (ts.isFunctionDeclaration(node) && node.name) scope = node.name.text;
+      else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) scope = node.name.text;
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "startsWith"
+      ) {
+        const argument = node.arguments[0];
+        if (
+          argument !== undefined &&
+          ts.isStringLiteralLike(argument) &&
+          CLASS_PREFIXES.includes(argument.text) &&
+          !CLASS_PREDICATE_EXCLUSIONS.includes(scope)
+        ) {
+          offenders.push(`${scope}: ${node.getText().replace(/\s+/g, " ").slice(0, 100)}`);
+        }
+      }
+      ts.forEachChild(node, (child) => visit(child, scope));
+    };
+    visit(parsed, "(top level)");
+    // THE EXCLUSION'S OWN PREMISE. A named exclusion for a function that no longer carries the test
+    // is a permanent widening nobody notices — the drift class this repository has already paid for.
+    expect(
+      ownSource,
+      "normalizeSpecifier is excused from the one-authority rule, and it no longer tests the " +
+        '"node:" prefix. Remove the exclusion (and its count) rather than leaving the door open',
+    ).toContain('specifier.startsWith("node:")');
+    expect(
+      offenders,
+      `this file tests a class-bearing specifier prefix itself: ${offenders.join(" | ")}. The class ` +
+        "of a module specifier is decided by classifySpecifier in scripts/js-import-closure.ts and " +
+        "nowhere else, because a second prefix test beside it is how the walker's follow-set and " +
+        "this census-set came to own different prefixes. A FOURTH ARM IS THE SHAPE THIS RULE EXISTS " +
+        "TO STOP: if a spelling is misclassified, fix classifySpecifier",
+    ).toEqual([]);
+  });
+
+  it("every class in the partition is REACHED by a real specifier in the live closure or refused", () => {
+    // The converse of totality: a partition whose third bucket nothing ever lands in is a bucket
+    // nobody has watched work. `bare` and `relative` are exercised by the live tree; `foreign` is
+    // exercised by the planted rows in PART FIVE, and this case asserts the first two here so a
+    // cutover that silently stopped classifying anything would be visible.
+    const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    expect(
+      facts.bareSpecifiers.length,
+      "PREMISE: the live dashboard closure carries NO bare specifier, so the allow-list equality " +
+        "below is a claim about an empty set",
+    ).toBeGreaterThan(0);
+    expect(
+      facts.modules.length,
+      "PREMISE: the live dashboard closure has one module, so no relative specifier was followed " +
+        "and the `relative` arm of the partition was never exercised",
+    ).toBeGreaterThan(1);
+    expect(facts.foreignSpecifiers).toEqual([]);
+  });
+
+  it("CONVERSE: the wrapper every production caller uses does NOT refuse the legitimate tree", () => {
+    // The refusal added here reaches seven production callers through `jsImportClosure`. A rule
+    // that also refuses the legitimate shape is a regression, and this is where it is caught —
+    // `analyzeClosure` deliberately calls the non-throwing `jsImportClosureFacts`, so without this
+    // case the whole file could be green while every freshness gate in the repository was red.
+    expect(() => jsImportClosure(ROOT, DASHBOARD_ENTRY)).not.toThrow();
+    expect(() => jsImportClosure(ROOT, MODEL_ENTRY)).not.toThrow();
+    expect(jsImportClosure(ROOT, DASHBOARD_ENTRY)).toEqual(
+      analyzeClosure(ROOT, DASHBOARD_ENTRY).modules,
+    );
+  });
+
+  it("the specifier scan's INPUT is code: a foreign spelling in a comment yields no row", () => {
+    // THE CONVERSE FOR stripNonCode, first half. The patterns are regexes over file bytes, so prose
+    // can manufacture a specifier no import statement carries — and now that `foreign` is a
+    // REFUSAL rather than one harmless extra file in a mirror, a false positive is a gate that
+    // refuses a tree with nothing wrong with it.
+    const commented =
+      "// a line comment mentioning: import { w } from \"/abs/writer.mjs\";\n" +
+      "/* and a block comment: export { w } from \"//host/writer.mjs\"; */\n" +
+      'import { join } from "node:path";\n' +
+      'import { real } from "./real.js";\n' +
+      "export const use = () => join(real);";
+    const rows = moduleSpecifiers(commented);
+    expect(
+      rows.filter((r) => r.cls === "foreign"),
+      "a specifier written only inside a comment produced a FOREIGN row, so the scan is reading " +
+        "prose as code and the walk would refuse a tree that imports nothing of the kind",
+    ).toEqual([]);
+    expect(rows.map((r) => r.specifier).sort()).toEqual(["./real.js", "node:path"]);
+  });
+
+  it("the specifier scan's INPUT is code: a foreign spelling in a template literal yields no row", () => {
+    // THE CONVERSE FOR stripNonCode, second half. This module's OWN refusal message is a template
+    // literal reading `imports "${spec}"`, and scripts/compactor.js carries `"${rawVal}"` — both
+    // were foreign-classified captures before this function existed.
+    const templated =
+      "const msg = `the module imports \"/abs/writer.mjs\" which is refused`;\n" +
+      "const nested = `outer ${ `inner import \"//host/x.js\"` } tail`;\n" +
+      'import { join } from "node:path";\n' +
+      "export const use = () => join(msg, nested);";
+    const rows = moduleSpecifiers(templated);
+    expect(
+      rows.filter((r) => r.cls === "foreign"),
+      "a specifier written only inside a template literal produced a FOREIGN row — including a " +
+        "NESTED template, which is the shape a single-level scan misses",
+    ).toEqual([]);
+    expect(rows.map((r) => r.specifier)).toEqual(["node:path"]);
+  });
+
+  it("stripNonCode removes no real code: a substitution's code survives, and length is preserved", () => {
+    // The direction that would be silent: blanking a template literal WHOLE would delete the code
+    // inside `${…}`, and a specifier the walk needs would vanish from the closure with no error
+    // anywhere. The prohibition this cutover carries is explicit — never narrow the scan's input by
+    // a rule that could remove a real import statement — so the converse is asserted here, and
+    // CLOSURE_BASELINES asserts it again over every caller's real mirror.
+    const withSubstitution =
+      'const tag = `prefix ${ (await import("./inside.js")).name } suffix`;\n' +
+      "export const use = () => tag;";
+    const rows = moduleSpecifiers(withSubstitution);
+    expect(
+      rows.map((r) => r.specifier),
+      "a relative import written inside a template SUBSTITUTION was blanked away with the " +
+        "surrounding prose. That is real code, and a closure missing it is a mirror missing " +
+        "exactly the file the walk could not see",
+    ).toEqual(["./inside.js"]);
   });
 });
 
