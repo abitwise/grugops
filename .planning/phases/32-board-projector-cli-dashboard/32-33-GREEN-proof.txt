@@ -1,0 +1,240 @@
+32-33 GREEN PROOF — one presence derivation, measured against the REBUILT committed .js
+================================================================================================
+
+Measured 2026-09-16 at commit 92f27444 (`feat(32-33)`), after `npm run build` and with
+`npm run check:build-parity` reporting no moved build output. Every number below was produced by
+`scripts/board-model.js` and `scripts/board-read.js` as committed, not by a local rebuild only.
+
+The baseline these are compared against is
+`.planning/phases/32-board-projector-cli-dashboard/32-33-RED-baseline.txt`.
+
+TASK 1 DECISION IN FORCE: **option A** — `stem` published on `TicketRecord`, `SCHEMA_VERSION` moved
+to 2, golden regenerated in the same commit. Chosen by the human before dispatch. Everything below
+that names `schemaVersion: 2` or a moved golden is that decision's consequence, not a deviation.
+
+
+§ 1 — THE FOUR-ROW NEIGHBOUR TABLE, RE-RUN VERBATIM
+------------------------------------------------------------------------------------------------
+
+Same disposable copy, same command (`node scripts/board-dashboard.js <copy> --once --json`, exit 0),
+the only difference being the rebuilt `.js`.
+
+| # | Population                               | `actual` at RED baseline                                                          | `actual` NOW                                                                                                                          | Moved?           |
+|---|------------------------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|------------------|
+| 1 | MISMATCH — admitted under another id     | `no ticket file carries that identifier`                                          | `plans/tickets/ABC-300.md exists and declares the identifier ABC-777, so it is joined under that identifier and not this one`            | **YES — the fix** |
+| 2 | REFUSED — round 1's closed case          | `plans/tickets/ABC-301.md exists and the reader could not admit it (unknown-key)` | `plans/tickets/ABC-301.md exists and the reader could not admit it (unknown-key)`                                                        | no — identical   |
+| 3 | ABSENT — no file of that stem            | `no ticket file carries that identifier`                                          | `no ticket file carries that identifier`                                                                                                | no — identical   |
+| 4 | UNPLACED — the converse direction        | `no row names ABC-777`                                                            | `no row names ABC-777`                                                                                                                  | no — identical   |
+| 5 | ABSENT (pristine fixture row ABC-999)    | `no ticket file carries that identifier`                                          | `no ticket file carries that identifier`                                                                                                | no — identical   |
+
+Exactly one cell moved. A fix that changed an answer it was not asked about is the regression this
+table exists to catch, and four of the five answers are byte-identical to the baseline.
+
+The whole conflict object for row 1, now:
+
+  {"kind":"row-without-file","ticketId":"ABC-300","column":"Triage",
+   "expected":"plans/tickets/ABC-300.md",
+   "actual":"plans/tickets/ABC-300.md exists and declares the identifier ABC-777, so it is joined
+             under that identifier and not this one","source":"board"}
+
+Unchanged around it: the KIND is still `row-without-file`, `expected` is still the same path, the
+conflict kind set is still the seven `CONFLICT_KINDS` members, and the same run still reaches every
+one of them (`["board-vs-ticket","ticket-unplaced","ticket-duplicated","row-without-file",
+"wip-limit","wip-count","column-missing"]`).
+
+The record the reader now hands the join for that file, carrying BOTH identities:
+
+  {"file":"ABC-300.md","stem":"ABC-300","id":"ABC-777",
+   "title":"The file at ABC-300.md declares ABC-777","column":"Triage","status":"triage"}
+
+`schemaVersion` on that document: **2**.
+
+THE ISOLATED RUN, where the tickets read-error array is literally empty (the baseline's § 2 control,
+re-measured): `tickets readErrors: []`, and the ABC-300 conflict is the honest sentence above. The
+projector now states what it measured while reporting nothing at all about that file on the error
+channel, which is correct: nothing went wrong with it.
+
+
+§ 2 — EVERY ARM THAT CONSUMES THE TICKET POPULATION, PROBED ON THE MISMATCH FIXTURE
+------------------------------------------------------------------------------------------------
+
+The five arms are enumerated in a comment in `scripts/board-model.ts` immediately above the
+population indexes. Each was driven with the id/stem mismatch and its output recorded — because the
+lesson from five consecutive rounds is that a fix is correct in the arm it was written for and wrong
+in the arm next to it.
+
+Fixture P0: board `## Ready` carrying `- [ABC-300]` TWICE; `plans/tickets/ABC-300.md` declares
+ABC-777 with `column: In Development`, `status: in-development`.
+
+| Arm (as the module enumerates it)   | Reads                        | Produced for the mismatch fixture                                                                 | Verdict |
+|-------------------------------------|------------------------------|---------------------------------------------------------------------------------------------------|---------|
+| `board-vs-ticket`, arm one (column) | `ticketById.get(p.id)`       | nothing                                                                                            | correct |
+| `board-vs-ticket`, arm two (status) | `ticketById.values()`        | nothing (this fixture's status IS the kebab of its column, so the arm is legitimately silent)      | correct |
+| `ticket-unplaced`                   | `ticketById.values()`        | `[ticket-unplaced] ABC-777 :: no row names ABC-777`                                                | correct |
+| `ticket-duplicated`                 | the BOARD alone              | `[ticket-duplicated] ABC-300 :: Ready, Ready`                                                      | correct |
+| `row-without-file`                  | `presenceOf(p.id, …)`        | `[row-without-file] ABC-300 :: plans/tickets/ABC-300.md exists and declares the identifier ABC-777, so it is joined under that identifier and not this one` | correct |
+
+WHY THE TWO `board-vs-ticket` ARMS ARE SILENT, AND WHY THAT IS THE HONEST ANSWER. Arm one looks the
+ROW's identifier up and finds no record, because the file was admitted as ABC-777. Arm two iterates
+the admitted records and asks whether ABC-777's status is the kebab of its column, which it is. The
+board's ABC-300 and the file's ABC-777 are not two descriptions of one ticket — they are two
+identifiers — so there is no column or status disagreement to report. The disagreement is the
+IDENTITY, and it is reported twice, once from each side.
+
+P0b PROVES THE TWO ARMS STILL FIRE IN THE MISMATCH CASE when there is something for them to say.
+Same shape, with the file declaring `column: Done`, `status: ready`, and a second row naming the
+DECLARED identifier:
+
+  [board-vs-ticket] ABC-777 :: expected=done   :: actual=ready    (arm two, the status rule)
+  [board-vs-ticket] ABC-777 :: expected=Done   :: actual=Ready    (arm one, the column rule)
+  [row-without-file] ABC-300 :: … declares the identifier ABC-777, so it is joined under that
+                                 identifier and not this one
+
+So the presence fix did not silence the arms beside it; those arms were answering about ABC-777 all
+along, and now the row for ABC-300 says so out loud.
+
+CAN A HUMAN READING BOTH CONFLICTS TELL THEY ARE ONE DISAGREEMENT? Yes, and that is new. The pair
+now reads:
+
+  ABC-300  expected: plans/tickets/ABC-300.md   actual: … declares the identifier ABC-777 …
+  ABC-777  expected: a row on the board          actual: no row names ABC-777
+
+The first names the second. At the RED baseline the pair read "no file carries ABC-300" and "no row
+names ABC-777", and nothing in either sentence pointed at the other — two unrelated-looking findings
+about one document.
+
+
+§ 3 — THE SIX NEIGHBOUR VARIATIONS
+------------------------------------------------------------------------------------------------
+
+| # | Variation                                                                                   | Measured answer                                                                                                                                                                   | Verdict |
+|---|---------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| V1 | Two files, DIFFERENT stems, SAME declared identifier; a row names one stem (`ABC-300.md` and `ABC-301.md` both declare `SHARED-1`; row `- [ABC-300]`) | `readErrors: [duplicate-id on ABC-301.md]`; `[ticket-unplaced] SHARED-1 :: no row names SHARED-1`; `[row-without-file] ABC-300 :: … declares the identifier SHARED-1 …` | correct — the collision is reported once by name, and the row's sentence names the identifier the file it points at declares |
+| V2 | A file whose DECLARED identifier equals ANOTHER file's stem (`ABC-300.md` declares `ABC-301`; `ABC-301.md` also declares `ABC-301`) | `readErrors: [duplicate-id on ABC-301.md]`; `[ticket-unplaced] ABC-301`; `[row-without-file] ABC-300 :: … declares the identifier ABC-301 …` | correct — the stem arm answers for ABC-300 and the declared arm still owns ABC-301; the two do not cross |
+| V3 | A row naming an identifier that is also the stem of a REFUSED file declaring a THIRD identifier (`ABC-300.md` declares `ABC-999` and is refused with `unknown-key`; row `- [ABC-300]`) | `[row-without-file] ABC-300 :: plans/tickets/ABC-300.md exists and the reader could not admit it (unknown-key)` | correct — a refused document made no statement the reader believes, so the `ABC-999` it wrote is never repeated; the refusal arm answers under the STEM, which is the only identity a refused entry has |
+| V4 | An EPIC row (D-02), which is never joined against `plans/tickets/` | the epic row produces no presence question at all; the ordinary row beside it produces the mismatch sentence, and `ticket-unplaced ABC-777` is unaffected | correct — epics are absent from the placement index by construction, so the arm is never asked about one |
+| V5 | A tickets source that is NOT `ok` (the directory chmod'd to 0) | `tickets source: unavailable`, `readErrors: [EACCES on tickets]`, **no conflicts at all** | correct — the plan 32-09 gate is not reopened by the new population; with no listing obtained, no presence question is asked, whatever the three sets hold |
+| V6 | The empty-stem entry together with a board row naming the empty identifier (`plans/tickets/.md` present; rows `- []` and `- [ ]`) | `readErrors: [empty-stem on .md]`; `tickets[]` is empty; **no conflicts**; both rows land in `board.unparsed` as `- [] a row naming nothing` and `- [ ] a row naming one space` | correct, and it is TWO independent refusals meeting: the board's row grammar refuses an empty identifier, so the empty identifier can never reach a presence question from the board side, while the reader refuses the entry from the file side. Neither leans on the other. |
+
+
+§ 4 — THE WALK'S COST, BEFORE AND AFTER, AT THE SAME ENTRY COUNT
+------------------------------------------------------------------------------------------------
+
+Same machine, same copies, same method: one warm-up `readSnapshot`, then three timed calls, best of
+three reported and all three shown.
+
+| Entries | Admitted | BEFORE (`records.find`) | AFTER (`seenById` map) | Change  |
+|---------|----------|-------------------------|------------------------|---------|
+| 2,507   | 2,500    | **92.3 ms**             | **83.2 ms**            | -9.9%   |
+| 5,007   | 5,000    | **212.5 ms**            | **164.7 ms**           | -22.5%  |
+| 10,007  | 10,000   | **510.5 ms**            | **340.5 ms**           | **-33.3%** |
+
+All three AFTER runs at 10,000: 340.5, 353.5, 353.0 ms.
+
+THE SHAPE CHANGED, NOT ONLY THE NUMBER. Doubling the input used to cost 2.30x and then 2.40x; it now
+costs 1.98x and then 2.07x. The superlinear term is gone and what remains is the per-file I/O and
+parsing that is linear in the entry count by construction. The saving grows with the directory,
+which is the point: the number that mattered was never the one at seven files.
+
+D-14's rule is that a hung read is a stale badge and never a frozen screen, and the refresh runs on
+every watch event and every poll tick — so this is a correctness-adjacent cost reachable by anyone
+who can add files to `plans/tickets/`, not a micro-optimization.
+
+A deterministic suite case guards the SHAPE rather than the timing: `scripts/board-read.test.ts`
+walks `readTicketsSource`'s syntax tree and requires no `find`/`some`/`filter`/`includes`/`indexOf`
+call over the accumulating `records` array, with the `seenById` lookup asserted present so the
+emptiness cannot be vacuous. It reads the AST rather than the bytes because the docblock beside the
+fix NAMES the call it replaced, and a text scan would find the sentence describing the fix and
+report the defect as still present.
+
+
+§ 5 — REACHABILITY
+------------------------------------------------------------------------------------------------
+
+THE `empty-stem` REFUSAL. Input: any entry under `plans/tickets/` whose name is exactly `.md` —
+the only name that satisfies the walk's `endsWith(".md")` test and leaves nothing in front of it.
+Call site: `readTicketsSource` in `scripts/board-read.ts`, immediately after the path authority
+returns a contained child path and BEFORE any byte of the file is requested. Command: every command
+that reads a snapshot — `node scripts/board-dashboard.js <root> --once`, `--once --json`, and every
+refresh under `--watch`. Measured above as V6: the entry appears in `readErrors` with the code, is
+absent from `tickets[]`, and is counted in the refused half so the walk's partition stays total. A
+`pathRecorder` seam case asserts the file is never opened, so refusing it costs no read.
+
+THE `admitted-under-another-id` ARM. Input: a board row naming an identifier `X` while
+`plans/tickets/X.md` exists, parses, is admitted, and declares an identifier other than `X`. Call
+site: `joinSnapshot`'s `row-without-file` arm in `scripts/board-model.ts`, which calls
+`presenceOf(p.id, populations)` once per distinct placement identifier and takes both the decision to
+raise a conflict and the text of its `actual` from the arm returned. Command: the same three. The arm
+is gated behind `ticketsListingComplete`, so it is unreachable while the tickets source is anything
+other than `ok` — measured above as V5. Reached in this proof from the plain frame, the `--json`
+document and `readSnapshot` directly, on three independent trees.
+
+THE `absent` ARM IS REACHABLE ONLY AS A COMPLEMENT. There is no input that selects it directly: it
+is what `presenceOf` returns after three lookups all came back empty. That is the mechanism, not a
+description of it — the one sentence in the module that asserts a negative is the one sentence no
+measurement can produce.
+
+
+§ 6 — MUTATION RUNS: EVERY ARM WATCHED TO FAIL
+------------------------------------------------------------------------------------------------
+
+Each mutation makes one arm answer as its neighbour, then `scripts/board-model.test.ts` and
+`scripts/board-read.test.ts` are run against the REBUILT `.js`. A case that passes under a mutation
+is a case that was not deciding anything.
+
+| Mut | What was mutated                                              | Reddened | The case for that arm, named                                                              |
+|-----|----------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------|
+| M1  | `admitted-under-its-stem` never fires (falls to the stem arm)   | 11       | `(1) an identifier a document DECLARES answers admitted-under-its-stem`, and `still raises NO row-without-file for a row whose file declares the row's identifier` |
+| M2  | `admitted-under-another-id` never fires (falls to `absent`)     | 5        | `(2) an identifier that is a FILE STEM answers admitted-under-another-id, carrying it`, and `raises NO conflict asserting absence for an identifier whose file was admitted` |
+| M3  | `refused` answers `absent` instead                              | 10       | `(3) an identifier the reader REFUSED answers refused, carrying the code`, and `leaves the refused and genuinely-absent rows BYTE-IDENTICAL to what they said before` |
+| M4  | `absent` answers `refused` instead                              | 11       | `(4) an identifier in NONE of the three sets answers absent`, and `(b) a row whose identifier is GENUINELY ABSENT carries the UNCHANGED absence sentence` |
+| M5  | the `empty-stem` refusal becomes a silent skip                  | 3        | `lands in the unadmitted half under empty-stem, leaving the source ok`, and `keeps the partition TOTAL, against a denominator derived from the listing` |
+| M6  | `seenById` overwrites on every hit, so LAST by name wins         | 1        | `reports THREE files claiming one identifier against the FIRST, not against each other` |
+
+Every mutation ALSO reddened `every arm produces its OWN sentence, and only absent asserts a
+negative` (M1-M4) — the case that holds all four sentences at once — and three of the four reddened
+`the count answered absent EQUALS the count derived independently of the arm`, which is the
+arithmetic assertion that exists to catch an arm nobody wrote a case for.
+
+M6 IS REDDENED BY EXACTLY ONE CASE, AND THAT CASE WAS WRITTEN BECAUSE OF IT. A two-file duplicate
+corpus cannot see a first-wins rule turn into a last-wins rule: with two files, the surviving report
+names the other one either way. The three-file row isolates it. That is the mutation-derived row
+discovery this phase's earlier plans recorded, appearing again.
+
+A MUTATION THAT DOES NOT COMPILE IS A MUTATION THAT NEVER RAN, AND IT REPORTED GREEN. M3's first
+spelling narrowed its binding to `never` and then read a property off it, which `tsc` refuses;
+`tsconfig.json` sets `"noEmitOnError": true`, so nothing was emitted, the suite ran against the
+UNMUTATED build, and the transcript read `298 passed` — indistinguishable from a clause that decides
+nothing. The re-spelled M3 above type-checks, emits, and reds ten cases. Recorded here because this
+repository has logged a false verification-harness premise repeatedly, and this is one: the harness's
+own premise — that the thing under test is the thing that was built — has to be asserted, not
+assumed. `npm run build` was checked for a non-empty error tail on every subsequent mutation, and the
+mutated line was read back out of the emitted `.js` before the suite was believed.
+
+
+§ 7 — THE GATES, ON THIS COMMIT
+------------------------------------------------------------------------------------------------
+
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts scripts/board-model.test.ts
+    2 files, **298 passed**, exit 0            (RED baseline recorded 271 — 27 cases ADDED, none replaced)
+
+  npm run build && npm run typecheck && npm run check:build-parity && npm run freshness
+    exit 0. "Build parity: no tracked build output moved when tsc ran."
+    "All build outputs fresh: 65 committed .js file(s) match a rebuild of their sources."
+    Neither `scripts/board-model.js` nor `scripts/board-read.js` appears among any non-matching file.
+
+  npm run check:dashboard-readonly
+    exit 0, **171 passed** — the guard from plans 32-31 and 32-32 re-proved against the changed
+    closure on this commit.
+
+  npx vitest run --exclude '**/scripts/e2e/**'
+    75 files, **5083 passed | 2 skipped**, exit 0.
+    Above the 4974 recorded in 32-VERIFICATION.md and above the 5056 measured at dispatch.
+
+  git diff --exit-code -- scripts/fixtures/
+    non-zero BEFORE the commit, by design: Task 1 chose option A, so
+    `scripts/fixtures/board-snapshot/expected-snapshot.json` moved and was regenerated with the
+    one command its README names, in the SAME commit as the type change. The golden's only changes
+    are `schemaVersion: 1 -> 2` and one `"stem"` line per record in `tickets[]`; its `conflicts[]`
+    array is byte-identical, which is the legitimate fixture staying legitimate.
+    Clean at HEAD after that commit.
