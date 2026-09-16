@@ -380,10 +380,28 @@ the same question. A link whose target is inside the root is read normally, and 
 exist is absent rather than refused.
 
 **The projector arms its filesystem watches against the same resolved root it reads against, and it
-opens no watch on a source it refused.** The live view's low-latency path is bounded by the rule its
-reads are bounded by, so a linked directory that leaves the tree is refused once rather than refused
-for reading and watched for changes. A watch yields names rather than content, so nothing crosses the
-boundary either way; the rule covers both verbs because a reader comparing them finds one answer.
+opens no watch on a directory that resolves outside that root.** The live view's low-latency path is
+bounded by the rule its reads are bounded by, so a linked directory that leaves the tree is refused
+once rather than refused for reading and watched for changes. A watch yields names rather than
+content, so nothing crosses the boundary either way; the rule covers both verbs because a reader
+comparing them finds one answer.
+
+**The watch rule is about the directory a handle would be opened on, at directory granularity.** A
+directory is left unwatched when it resolves outside the root, and so is every directory reached
+through it — resolution follows the whole chain, so a link one level up takes its descendants with
+it. A refused ENTRY inside an ordinary directory is a different fact: a single ticket file, claimed
+task or context task that leaves the tree is reported as that source's own refusal and leaves the
+directory holding it watched, along with every other directory. The two facts are separate because
+one escaping entry is not evidence about the directory holding it, and treating it as evidence takes
+the live path away from readable directories nobody planted anything in.
+
+**A directory the projector will not watch carries no watch record.** A watch record states that a
+directory's watch failed and will be re-armed on the next poll tick; a directory refused for
+containment will not be re-armed for as long as the refusal stands, so a record left standing there
+would publish a promise the projector cannot keep on every frame and in every emitted document. A
+failure recorded before a refusal begins is therefore dropped when the refusal begins, and a
+containment condition that clears re-arms the directory on the next tick and leaves nothing behind.
+The refusal itself is already reported once, by the reader, against the source it belongs to.
 
 **A refusal names the entry path and the destination it resolved to, and never quotes the content of
 a file outside the root.** The refusal appears as a read error against the one source it belongs to,
@@ -396,6 +414,13 @@ error.** A task directory with no claim record, a record with no timestamp, a re
 than one timestamp, and an entry whose name the reader will not walk are each reported with their
 own code rather than skipped in silence. None of the four makes the queue stale: the reader obtained
 what was there and refused it by name, which is a finding about a record rather than about a read.
+
+**Every entry the shared context's listing hands the reader becomes either a task row or a named read
+error, and the count reconciles.** An entry whose name the reader will not walk and an entry that is
+not a directory are each reported with their own code rather than skipped, so the number of entries
+listed equals the number of rows plus the number of reported findings. Neither makes the context
+stale, for the reason the queue's rule states. The one deliberate silence is an entry that has gone
+away between the listing and the inspection, which resolves itself on the next read.
 
 There is no empty-board output state distinct from zero rows under real headings. A board whose
 columns are all empty renders its columns with zero counts. A board that could not be read is stale

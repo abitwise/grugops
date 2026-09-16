@@ -2074,6 +2074,105 @@ describe("board-read — an unreadable context directory is stale, not empty (pl
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE CONTEXT READER'S LAST TWO SILENT SKIPS (plan 32-34, IN-01, DASH-03).
+//
+// The QUEUE reader has reported its allow-list rejection by name since plan 32-17, and its walk is
+// asserted total against a denominator taken from its own listing. Its SIBLING performed the same
+// rejection — same predicate, same argument in hand — with a bare `continue`, and skipped a plain
+// file sitting among the task directories the same way. A reader whose claim is "every listed entry
+// leaves this loop as exactly one of a row or a reported finding" was false here, in silence, which
+// is the half no count of findings can catch. `32-34-RED-baseline.txt` records three listed entries
+// producing one row and zero reported skips.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-read — every `.grugops/context/` entry is a row or a NAMED finding (plan 32-34)", () => {
+  /** A minimal, legitimate context task: one directory with an empty rendered index. */
+  function plantTask(dir: string, task: string): void {
+    mkdirSync(join(dir, ".grugops", "context", task), { recursive: true });
+    writeFileSync(join(dir, ".grugops", "context", task, "index.jsonl"), "", "utf8");
+  }
+
+  it("names an entry outside the ported allow-list instead of skipping it", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTask(dir, "abc-014-implement");
+      mkdirSync(join(dir, ".grugops", "context", "bad name!"), { recursive: true });
+
+      const result = readSnapshot(dir);
+      const named = result.readErrors.filter((e) => e.code === "unsafe-task-name");
+      expect(
+        named.map((e) => e.source),
+        "the entry left the walk with no channel naming it — a human told only that the context " +
+          "holds one task cannot tell that from a context whose second entry this reader would " +
+          "not walk",
+      ).toEqual(["context"]);
+      expect(
+        named[0]?.message,
+        "a code with no sentence is a skip with a label",
+      ).toContain("bad name!");
+      expect(
+        named[0]?.path,
+        "the PATH is the context directory, never a composed one: joining the refused segment " +
+          "with its directory here would perform the join the arm exists to prevent",
+      ).toBe(join(dir, ".grugops", "context"));
+      // A NAMING REFUSAL IS NOT A FAILURE TO OBTAIN BYTES, the rule the queue reader's twin states.
+      expect(result.snapshot.sources.context.source).toBe("ok");
+    });
+  });
+
+  it("names a plain FILE sitting among the task directories under its own code", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTask(dir, "abc-014-implement");
+      writeFileSync(join(dir, ".grugops", "context", "notes.md"), "not a task\n", "utf8");
+
+      const result = readSnapshot(dir);
+      const named = result.readErrors.filter((e) => e.code === "not-a-directory");
+      expect(named.map((e) => e.source)).toEqual(["context"]);
+      expect(named[0]?.path).toBe(join(dir, ".grugops", "context", "notes.md"));
+      expect(named[0]?.message).toContain("is not a directory");
+      expect(result.snapshot.sources.context.source).toBe("ok");
+    });
+  });
+
+  it("keeps the walk TOTAL, against a denominator derived from the listing", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      plantTask(dir, "abc-014-implement");
+      plantTask(dir, "abc-015-review");
+      mkdirSync(join(dir, ".grugops", "context", "bad name!"), { recursive: true });
+      writeFileSync(join(dir, ".grugops", "context", "notes.md"), "not a task\n", "utf8");
+
+      // THE DENOMINATOR IS TAKEN FROM THE LISTING, on the other side of the loop that consumed it —
+      // plan 32-15's instrument, which is the only one a silent new arm cannot satisfy. A number
+      // taken from the rows would be vacuously equal to itself.
+      const listing = listDirectoryBounded(join(dir, ".grugops", "context"));
+      const entries = listing.kind === "listed" ? listing.names : [];
+      expect(
+        entries.length,
+        "PREMISE: the listing produced nothing, so the equality below is 0 === 0",
+      ).toBe(4);
+
+      const result = readSnapshot(dir);
+      const context = result.snapshot.sources.context;
+      const rows = context.source === "ok" ? context.value : [];
+      const skips = result.readErrors.filter(
+        (e) => e.source === "context" && e.code !== "PARSE",
+      );
+      expect(
+        rows.length + skips.length,
+        "an entry left the walk without landing in either half: the walk is not total, and the " +
+          "entries that vanished did so with no channel naming them",
+      ).toBe(entries.length);
+      // Both halves non-empty, so the equality is not satisfied by one population having swallowed
+      // the listing — the shape a reader that rowed everything, or refused everything, also has.
+      expect(rows.map((r) => r.task)).toEqual(["abc-014-implement", "abc-015-review"]);
+      expect(skips.map((e) => e.code).sort()).toEqual(["not-a-directory", "unsafe-task-name"]);
+    });
+  });
+});
+
 describe("board-read — the legitimate inputs the fix must not turn into faults (D-13)", () => {
   it("reports NO error and NO stale source for a tree with no `.grugops/` at all", () => {
     withTempTree((dir) => {

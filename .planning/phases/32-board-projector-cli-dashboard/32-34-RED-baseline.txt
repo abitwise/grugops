@@ -225,16 +225,25 @@ Three entries under `.grugops/context/` on the probe tree: the fixture's own `ab
 one named `bad name!` (outside the ported allow-list) and one called `not-a-directory` that is a
 plain file.
 
-    TASK ROWS the context source produced : 0
+    TASK ROWS the context source produced : 1  —  abc-104-implement
     CONTEXT READ ERRORS                   : 0
     NAMES any channel reports             : (none — both skips are silent)
-    RECONCILIATION                        : 3 listed entries vs 0 rows + 0 reported skips = 0.
-                                            DOES NOT BALANCE — 3 entries vanished with no channel
+    RECONCILIATION                        : 3 listed entries vs 1 row + 0 reported skips = 1.
+                                            DOES NOT BALANCE — 2 entries vanished with no channel
                                             naming them.
 
-Note the row count is ZERO rather than one: `boundNames` sorts before it bounds, and on this tree the
-legitimate task sorts last, but the count that matters is the reconciliation — three entries in, zero
-accounted for. Two of the three left through `if (!isSafeTaskName(name)) continue;` and
+THIS ROW WAS RE-MEASURED AND CORRECTED, AND THE CORRECTION IS RECORDED RATHER THAN OVERWRITTEN.
+The first spelling of the probe read `sources.context.present` — a field of the ABSENT arm of
+`SourceState` — instead of the `source === "ok"` discriminant every other reader of that union
+uses, so it reported ZERO task rows and a reconciliation of "3 vs 0 + 0 = 0". The defect it was
+measuring was real and the direction was right, but the number was the probe's, not the reader's.
+Re-run against a mirror of the pre-fix `.js` files extracted from commit `34be317a` with the
+discriminant repaired, the honest RED numbers are the ones above: ONE row, ZERO reported skips, TWO
+entries gone. This is the project's recorded "assert the verification harness's own premise" lesson
+arriving in a new register, and it is why the corrected figure is written into the baseline it
+belongs to instead of being quietly right in the proof.
+
+Two of the three left through `if (!isSafeTaskName(name)) continue;` and
 `if (!isDirectory) continue;` in `readContextSource`, each a silent `continue` with no `readErrors`
 entry. The QUEUE reader performs the same two refusals WITH names (`unsafe-task-name` at
 `scripts/board-read.ts:1479`, `no-claim-record` at `:1518`), with the same predicate and the same

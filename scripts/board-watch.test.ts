@@ -32,9 +32,10 @@ import {
   realpathSync,
   rmSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import {
   DEBOUNCE_MS,
@@ -131,6 +132,15 @@ type Harness = {
    * between two ticks and ask which reason the loop is carrying.
    */
   readonly armFailures: Map<string, string>;
+  /**
+   * Absolute directories the containment seam refuses, mutable between ticks.
+   *
+   * A case adds a directory here to say "the containment authority refuses this path NOW" and asks
+   * what the arm loop does about it — closes the handle, drops the record, leaves the siblings
+   * alone. It is a SET, not a model of the rule; the rule itself is measured end to end over real
+   * symlinks by the `withLinkedTree` cases.
+   */
+  readonly refused: Set<string>;
   /** The root the injected read RESOLVES to, which a case can move between two reads. */
   readonly readRoot: { current: string };
   readonly onRead: (fn: ((loop: Loop, n: number) => void) | null) => void;
@@ -177,6 +187,8 @@ function harness(
 
   const watchers: FakeWatcher[] = [];
   const present = new Set(presentDirs.map((d) => join(REPO, d)));
+  /** Absolute directories the containment seam refuses. Mutable, so a case can move the condition. */
+  const refused = new Set<string>();
   const armFailures = new Map<string, string>();
   const readRoot = { current: REPO };
   let reads = 0;
@@ -201,6 +213,14 @@ function harness(
       };
     },
     exists: (p) => present.has(p),
+    // DELIBERATELY NOT A MODEL OF THE CONTAINMENT RULE (plan 32-34). It is a membership test over a
+    // set a case can mutate between ticks, so a case can say "this directory is refused NOW" and
+    // ask what the loop does about it. The RULE — that an ENTRY leaving the tree does not refuse
+    // its directory, that a directory or any ancestor of it leaving the tree does — lives in
+    // `board-read`'s `insideRoot`, and the `withLinkedTree` cases below spread `defaultDeps()` over
+    // REAL symlinks so the rule is measured rather than re-implemented here. A harness that modelled
+    // the rule would let a case pass against a model while the shipped predicate disagreed.
+    contained: (_root, dir) => !refused.has(dir),
     read: () => {
       depth += 1;
       maxDepth = Math.max(maxDepth, depth);
@@ -226,6 +246,7 @@ function harness(
     reads: () => reads,
     maxDepth: () => maxDepth,
     present,
+    refused,
     armFailures,
     readRoot,
     onRead: (fn) => {
@@ -239,13 +260,23 @@ function harness(
  *
  * REAL READER, REAL CONTAINMENT AUTHORITY, FAKE HANDLES. What is measured is which directories the
  * loop ASKED to watch and what the reader refused, so both halves of the IN-01 question are answered
- * against one run. The tree is removed in a `finally`, including on a failed assertion.
+ * against one run. `deps` spreads `defaultDeps()`, so `contained` is `board-read`'s own `insideRoot`
+ * over real symlinks — the cases below measure the shipped rule rather than a model of it. The tree
+ * is removed in a `finally`, including on a failed assertion.
+ *
+ * ALL THREE QUEUE STAGES ARE CREATED BEFORE `mutate` RUNS (plan 32-34). The committed fixture ships
+ * only `claimed`, so on it `pending` and `done` leave through the absent-directory arm and "one
+ * escaping claimed task un-armed all three stages" is a question the tree cannot answer — the
+ * shortened armed list would be indistinguishable from the fixture's own shape. With the stages
+ * present the healthy armed set is SIX, and a shortened one is a measurement.
  */
 function withLinkedTree(
   mutate: (tree: string, outside: string) => void,
   body: (seen: {
-    readonly refused: readonly { source: string; code: string }[];
+    readonly refused: readonly { source: string; code: string; path: string }[];
     readonly armed: readonly string[];
+    /** The armed directories as repo-relative names, sorted — the `WATCH_DIRS` spelling. */
+    readonly armedRel: readonly string[];
   }) => void,
 ): void {
   const scratch = mkdtempSync(join(realpathSync(tmpdir()), "grugops-watch-symlink-"));
@@ -254,6 +285,9 @@ function withLinkedTree(
     cpSync(FIXTURE, tree, { recursive: true });
     const outside = join(scratch, "outside");
     mkdirSync(outside, { recursive: true });
+    for (const stage of QUEUE_STAGES) {
+      mkdirSync(join(tree, FIXED_SUBPATHS.queue, stage), { recursive: true });
+    }
     mutate(tree, outside);
 
     const armed: string[] = [];
@@ -280,8 +314,18 @@ function withLinkedTree(
     expect(result.kind).toBe("running");
     if (result.kind === "running") result.loop.stop();
 
-    const doc = JSON.parse(out[0] ?? "{}") as { readErrors: { source: string; code: string }[] };
-    body({ refused: doc.readErrors.filter((e) => e.code === OUTSIDE_ROOT), armed });
+    const doc = JSON.parse(out[0] ?? "{}") as {
+      readErrors: { source: string; code: string; path: string }[];
+    };
+    // The REAL root, because `run` puts the argument through `resolveRepoRoot` and `mkdtemp` under
+    // `/var` on darwin is itself a link to `/private/var`. Relativising against the unresolved
+    // string would produce `../../…` names that match nothing.
+    const realTree = realpathSync(tree);
+    body({
+      refused: doc.readErrors.filter((e) => e.code === OUTSIDE_ROOT),
+      armed,
+      armedRel: armed.map((d) => relative(realTree, d)).sort(),
+    });
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
@@ -868,6 +912,305 @@ describe("board-dashboard — a watch is armed against the ROOT EVERY READ RESOL
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE REFUSAL IS ABOUT A DIRECTORY, NOT ABOUT A LABEL SEVERAL DIRECTORIES SHARE (plan 32-34,
+// DASH-04, CR-01).
+//
+// The two cases above prove the loop refuses a source it must and does not refuse a SIBLING SOURCE
+// it must not. They stop one level short of the shape that was actually shipped: the containment
+// authority raises its refusal PER ENTRY — one ticket file, one claimed task directory, one context
+// task — and the loop consumed that refusal's `source` LABEL. `deriveWatchDirs` hands several
+// directories one label, so one planted symlink took `plans/tickets` off the low-latency path, and
+// one inside `claimed` took all three queue stages off it, while `loop.watchErrors()` stayed empty
+// and the header printed its ordinary state. `32-34-RED-baseline.txt` probes A, B and C are those
+// three, measured through this same harness before the fix.
+//
+// THE CONVERSE OF A CONVERSE IS WHERE THIS REPOSITORY'S FINDINGS KEEP REAPPEARING. Every case below
+// runs `defaultDeps()` over a real tree with real symlinks, so the predicate under test is the
+// shipped one — `board-read`'s `insideRoot`, asked about exactly the path a handle would be opened
+// on — and not a model of it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan 32-34, DASH-04)", () => {
+  /** The healthy armed set for a `withLinkedTree` run: every watched directory exists on it. */
+  const ALL_SIX = [
+    ".grugops/context",
+    ".grugops/queue/claimed",
+    ".grugops/queue/done",
+    ".grugops/queue/pending",
+    "plans",
+    "plans/tickets",
+  ];
+
+  it("PREMISE: an unmutated tree arms every one of the six watched directories", () => {
+    // Without this the shortened lists below are indistinguishable from a tree that never had the
+    // directory in the first place — which is exactly what the committed fixture's missing
+    // `pending` and `done` stages would have produced.
+    withLinkedTree(
+      () => undefined,
+      ({ armedRel, refused }) => {
+        expect(armedRel).toEqual(ALL_SIX);
+        expect(armedRel.length).toBe(WATCH_DIR_COUNT);
+        expect(refused, "the unmutated fixture refuses nothing for containment").toEqual([]);
+      },
+    );
+  });
+
+  it("keeps `plans/tickets` armed when ONE ticket FILE inside it links out of the tree", () => {
+    withLinkedTree(
+      (tree, outside) => {
+        writeFileSync(join(outside, "ESCAPE-001.md"), "# outside\n", "utf8");
+        symlinkSync(join(outside, "ESCAPE-001.md"), join(tree, "plans", "tickets", "ESCAPE-001.md"));
+      },
+      ({ armedRel, refused }) => {
+        expect(
+          refused.map((e) => `${e.source}:${e.path.endsWith("ESCAPE-001.md")}`),
+          "PREMISE: the reader did not refuse the escaping ticket FILE, so nothing below is about " +
+            "a refusal — and if it refused the DIRECTORY instead, the armed assertion is vacuous",
+        ).toEqual(["tickets:true"]);
+        expect(
+          armedRel,
+          "one entry that left the tree un-armed the directory holding it. `plans/tickets` is " +
+            "inside the root, readable, and holds seven legitimate tickets; taking it off the " +
+            "low-latency path turns a live view into a ten-second-granular one under a confident " +
+            "header (32-REVIEW.md CR-01)",
+        ).toEqual(ALL_SIX);
+      },
+    );
+  });
+
+  it("keeps ALL THREE queue stages armed when one claimed task DIRECTORY links out", () => {
+    // THE WORST OF THE THREE, because `pending` and `done` are ordinary empty directories that no
+    // symlink was ever planted in: they shared a source LABEL with `claimed` and nothing else.
+    withLinkedTree(
+      (tree, outside) => {
+        mkdirSync(join(outside, "escaping-task"), { recursive: true });
+        writeFileSync(
+          join(outside, "escaping-task", "claim.md"),
+          "by: nobody\nat: 2026-09-16T00:00:00Z\n",
+          "utf8",
+        );
+        symlinkSync(
+          join(outside, "escaping-task"),
+          join(tree, FIXED_SUBPATHS.queue, "claimed", "escaping-task"),
+          "dir",
+        );
+      },
+      ({ armedRel, refused }) => {
+        expect(
+          refused.map((e) => e.source),
+          "PREMISE: the reader did not refuse the escaping claimed task",
+        ).toEqual(["queue"]);
+        expect(armedRel).toEqual(ALL_SIX);
+      },
+    );
+  });
+
+  it("keeps `.grugops/context` armed when one context task DIRECTORY links out", () => {
+    withLinkedTree(
+      (tree, outside) => {
+        mkdirSync(join(outside, "escaping-context"), { recursive: true });
+        writeFileSync(join(outside, "escaping-context", "index.jsonl"), "", "utf8");
+        symlinkSync(
+          join(outside, "escaping-context"),
+          join(tree, FIXED_SUBPATHS.context, "escaping-context"),
+          "dir",
+        );
+      },
+      ({ armedRel, refused }) => {
+        expect(
+          refused.map((e) => e.source),
+          "PREMISE: the reader did not refuse the escaping context task",
+        ).toEqual(["context"]);
+        expect(armedRel).toEqual(ALL_SIX);
+      },
+    );
+  });
+
+  it("still un-arms the tickets DIRECTORY itself when IT is the link — and nothing else", () => {
+    // THE CONTROL, and the case the fix must not regress. The per-source case above this block
+    // asserts the same behaviour against the round-2 mechanism; this one asserts the whole armed
+    // set, so "it did not over-refuse" is a measurement rather than two spot checks.
+    withLinkedTree(
+      (tree, outside) => {
+        cpSync(join(tree, "plans", "tickets"), join(outside, "tickets"), { recursive: true });
+        rmSync(join(tree, "plans", "tickets"), { recursive: true, force: true });
+        symlinkSync(join(outside, "tickets"), join(tree, "plans", "tickets"), "dir");
+      },
+      ({ armedRel, refused }) => {
+        expect(refused.map((e) => e.source)).toEqual(["tickets"]);
+        expect(armedRel).toEqual(ALL_SIX.filter((d) => d !== "plans/tickets"));
+      },
+    );
+  });
+
+  it("un-arms a DESCENDANT of a refused ancestor: `plans` links out, `plans/tickets` goes with it", () => {
+    // THE ARM NEXT TO THE FIX, and the one neither review asked about. `32-34-RED-baseline.txt`
+    // probe E records that this depth was covered BY ACCIDENT before the fix — `plans` carries
+    // three sources, all three labels landed in the refused set, and both directories fell out
+    // together. Narrowing the consumed signal to the refused PATHS would have LOST it: the paths
+    // this read refuses are `plans/board.md`, `plans/tickets` and `plans/traceability.md`, and none
+    // of them is `plans` or an ancestor of it. Asking the authority about the directory keeps it,
+    // because `insideRoot` resolves the whole chain in one pass.
+    withLinkedTree(
+      (tree, outside) => {
+        cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
+        rmSync(join(tree, "plans"), { recursive: true, force: true });
+        symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
+      },
+      ({ armedRel, refused }) => {
+        expect(
+          refused.map((e) => e.source).sort(),
+          "PREMISE: the three sources under `plans/` were not all refused",
+        ).toEqual(["board", "tickets", "traceability"]);
+        expect(
+          refused.some((e) => e.path.endsWith("/plans")),
+          "PREMISE FOR THE PREVIOUS PARAGRAPH: if the authority DID spell `plans` itself, a path " +
+            "set with an ancestor walk would also pass this case, and the comment above would be " +
+            "describing a mechanism this tree never exercises",
+        ).toBe(false);
+        expect(armedRel).toEqual([
+          ".grugops/context",
+          ".grugops/queue/claimed",
+          ".grugops/queue/done",
+          ".grugops/queue/pending",
+        ]);
+      },
+    );
+  });
+
+  it("produces ONE armed set for two refusals in one read, ancestor and descendant together", () => {
+    // DASH-04's concurrency probe, answered as a case. `plans` links out AND the `tickets`
+    // directory behind it links out again, so two refusals — one an ancestor of the other — arrive
+    // in a single read.
+    withLinkedTree(
+      (tree, outside) => {
+        cpSync(join(tree, "plans"), join(outside, "plans"), { recursive: true });
+        rmSync(join(tree, "plans"), { recursive: true, force: true });
+        symlinkSync(join(outside, "plans"), join(tree, "plans"), "dir");
+        cpSync(join(outside, "plans", "tickets"), join(outside, "tickets2"), { recursive: true });
+        rmSync(join(outside, "plans", "tickets"), { recursive: true, force: true });
+        symlinkSync(join(outside, "tickets2"), join(outside, "plans", "tickets"), "dir");
+      },
+      ({ armedRel }) => {
+        expect(armedRel).toEqual([
+          ".grugops/context",
+          ".grugops/queue/claimed",
+          ".grugops/queue/done",
+          ".grugops/queue/pending",
+        ]);
+      },
+    );
+  });
+});
+
+describe("board-dashboard — a refusal is not a failed watch, and leaves no record (plan 32-34, DASH-05)", () => {
+  it("drops a watch record the moment the SAME directory becomes refused", () => {
+    // THE IMMORTAL RECORD, driven end to end through the loop's own state (32-REVIEW.md CR-02,
+    // `32-34-RED-baseline.txt` probe F). A genuine watch failure is recorded first — the record's
+    // own text promises "it will be re-armed on the next poll tick" — and then the directory is
+    // refused for containment, which makes that promise impossible for as long as the refusal
+    // stands. Before the fix the record survived and every stderr frame and every `--json` document
+    // kept publishing it.
+    const h = harness({}, ["plans", "plans/tickets"]);
+    h.armFailures.set(join(REPO, "plans/tickets"), "ENOSPC: no space left on device");
+    h.loop.seed(stubResult(1, REPO));
+    h.loop.armAll();
+    expect(
+      h.loop.watchErrors().map((e) => e.path),
+      "PREMISE: no genuine watch failure was recorded, so 'the record went' is true of a loop " +
+        "that never had one",
+    ).toEqual(["plans/tickets"]);
+    expect(h.loop.watchErrors()[0]?.message).toContain("re-armed on the next poll tick");
+
+    // The throw stops; the containment refusal starts. Only the refusal is now keeping the
+    // directory un-armed.
+    h.armFailures.clear();
+    h.refused.add(join(REPO, "plans/tickets"));
+    h.loop.armAll();
+    expect(
+      h.loop.watchErrors(),
+      "the record outlived its cause: a refused directory is not a failed watch, and a record " +
+        "promising a re-arm this early return makes impossible is a false statement on a channel " +
+        "a human reads (CLAUDE.md, no fabrication)",
+    ).toEqual([]);
+    expect(h.loop.watchedDirs(), "and the refused directory is not armed").toEqual(["plans"]);
+  });
+
+  it("re-arms with NO record left once the containment condition clears", () => {
+    const h = harness({}, ["plans", "plans/tickets"]);
+    h.refused.add(join(REPO, "plans/tickets"));
+    h.loop.seed(stubResult(1, REPO));
+    h.loop.armAll();
+    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    expect(h.loop.watchErrors()).toEqual([]);
+
+    h.refused.clear();
+    h.loop.armAll();
+    expect(
+      h.loop.watchedDirs(),
+      "the condition cleared and the directory did not come back — the poll tick is the re-arm, " +
+        "and a refusal that is over must leave nothing behind it",
+    ).toEqual(["plans", "plans/tickets"]);
+    expect(h.loop.watchErrors()).toEqual([]);
+  });
+
+  it("CLOSES a handle opened before the refusal, rather than leaving it pointing outside", () => {
+    // The refusal check runs BEFORE the already-armed early return for exactly this reason: a tree
+    // can acquire a symlink under a running loop, and the handle opened a tick ago is the one now
+    // pointing out of the tree.
+    const h = harness({}, ["plans", "plans/tickets"]);
+    h.loop.seed(stubResult(1, REPO));
+    h.loop.armAll();
+    const handle = liveWatcher(h, "plans/tickets");
+    expect(handle, "PREMISE: nothing was armed, so there is no handle for the refusal to close")
+      .toBeDefined();
+
+    h.refused.add(join(REPO, "plans/tickets"));
+    h.loop.armAll();
+    expect(handle?.closed, "the handle opened before the refusal was left open").toBe(true);
+    expect(h.loop.watchedDirs()).toEqual(["plans"]);
+    expect(liveWatcher(h, "plans"), "and the sibling's handle was not closed with it").toBeDefined();
+  });
+
+  it("reaches ONE armed set whichever order two refusals arrive in", () => {
+    // The same two refusals applied across two reads, in both orders, plus both in one read. All
+    // three end on the same armed set — and they must, because nothing about a refusal is
+    // accumulated between reads: `arm` asks the authority about each directory every tick.
+    const orders = [
+      ["plans/tickets", ".grugops/context"],
+      [".grugops/context", "plans/tickets"],
+    ] as const;
+    const ends: string[][] = [];
+    for (const order of orders) {
+      const h = harness({}, ["plans", "plans/tickets", ".grugops/context"]);
+      h.loop.seed(stubResult(1, REPO));
+      h.loop.armAll();
+      h.refused.add(join(REPO, order[0]));
+      h.loop.armAll();
+      h.refused.add(join(REPO, order[1]));
+      h.loop.armAll();
+      ends.push([...h.loop.watchedDirs()].sort());
+    }
+    const both = harness({}, ["plans", "plans/tickets", ".grugops/context"]);
+    both.refused.add(join(REPO, "plans/tickets"));
+    both.refused.add(join(REPO, ".grugops/context"));
+    both.loop.seed(stubResult(1, REPO));
+    both.loop.armAll();
+
+    expect(ends[0]).toEqual(["plans"]);
+    expect(
+      ends[1],
+      "the armed set depends on the order two refusals arrived in, which makes the live path a " +
+        "function of filesystem timing (DASH-04)",
+    ).toEqual(ends[0]);
+    expect(
+      [...both.loop.watchedDirs()].sort(),
+      "and two refusals in ONE read produce the same set as either ordering across two",
+    ).toEqual(ends[0]);
+  });
+});
+
 describe("board-dashboard — refresh is single-flight (edge: concurrency)", () => {
   it("does not start a second read inside the first, and produces two COMPLETE snapshots", () => {
     const h = harness({ json: true }, []);
@@ -945,6 +1288,7 @@ describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
     const deps: LoopDeps = {
       watch: () => ({ close: () => undefined, on: () => undefined }),
       exists: () => false,
+      contained: () => true,
       read: () => {
         reads += 1;
         return stubResult(reads);
@@ -977,6 +1321,7 @@ describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
     const deps: LoopDeps = {
       watch: () => ({ close: () => undefined, on: () => undefined }),
       exists: () => false,
+      contained: () => true,
       read: () => {
         reads += 1;
         return stubResult(reads);

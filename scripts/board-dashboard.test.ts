@@ -470,6 +470,7 @@ function stubDeps(result: SnapshotResult, onRead?: () => void): LoopDeps {
   return {
     watch: () => ({ close: () => undefined, on: () => undefined }) as WatchHandle,
     exists: () => false,
+    contained: () => true,
     read: () => {
       onRead?.();
       return result;
@@ -690,6 +691,7 @@ describe("board-dashboard — SIGINT closes the loop rather than the process mid
           on: () => undefined,
         } as WatchHandle;
       },
+      contained: () => true,
       exists: () => true,
       read: () => {
         reads += 1;

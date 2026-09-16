@@ -51,7 +51,7 @@
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
 import { existsSync, watch } from "node:fs";
 import { dirname, join } from "node:path";
-import { CONFLICT_KINDS, FIXED_SUBPATHS, OUTSIDE_ROOT, QUEUE_STAGES, SOURCE_NAMES, readSnapshot, unreadableSources, } from "./board-read.js";
+import { CONFLICT_KINDS, FIXED_SUBPATHS, QUEUE_STAGES, SOURCE_NAMES, insideRoot, readSnapshot, unreadableSources, } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
 // ── The timing constants the loop runs on (D-14) ─────────────────────────────────────────────────
 //
@@ -625,6 +625,10 @@ export function defaultDeps() {
         // NO `recursive` OPTION. See the WATCH_DIRS docblock.
         watch: (dir, listener) => watch(dir, listener),
         exists: existsSync,
+        // ONE AUTHORITY, NOT A SECOND IMPLEMENTATION OF IT HERE (IN-01). `insideRoot` resolves the FULL
+        // target, so every ancestor link is resolved with the leaf and a directory reached through a
+        // refused parent is refused without this module writing an upward walk of its own.
+        contained: (root, dir) => insideRoot(root, dir, "the watched directory").ok,
         read: readSnapshot,
     };
 }
@@ -685,17 +689,18 @@ export function createLoop(options, io, deps) {
      */
     let resolvedRoot = null;
     /**
-     * The sources the last read REFUSED for containment — the same rule, asked once (IN-01).
+     * Take the ONE fact a read publishes that the WATCH arm depends on.
      *
-     * A directory whose source `board-read` refused because it resolves outside the root is a directory
-     * this loop does not watch either. The question is asked with the reader's own `OUTSIDE_ROOT`
-     * constant and answered by the reader's own result, so there is ONE containment authority rather
-     * than a second implementation of it here — which is the state IN-01 found: refused by one module,
-     * watched by its sibling.
-     */
-    let refusedSources = new Set();
-    /**
-     * Take the two facts a read publishes that the WATCH arm depends on.
+     * IT USED TO TAKE TWO, AND THE SECOND ONE WAS THE DEFECT (plan 32-34, CR-01). The other was a
+     * `Set<SourceName>` built from every `OUTSIDE-ROOT` read error's `source` field, and `arm`
+     * consulted it. But the containment authority raises that error PER ENTRY — one ticket file, one
+     * claimed task directory, one context task — while `deriveWatchDirs` gives several directories
+     * ONE source label, so a single planted symlink took `plans/tickets`, or all three queue stages,
+     * off the low-latency path while nothing on any channel said so. Containment is now asked about
+     * the directory a handle would be opened on, at `arm`, through `deps.contained`. Nothing about
+     * it is accumulated here, which is also the answer to the DASH-04 concurrency question: two
+     * refusals arriving in one read cannot interact through a set that does not exist, and the armed
+     * set after them does not depend on the order they arrived in.
      *
      * A ROOT THAT MOVED TAKES THE HANDLES WITH IT. Every open handle was opened against the previous
      * root, so after the root changes they are watching a tree that is no longer the one being
@@ -710,7 +715,6 @@ export function createLoop(options, io, deps) {
             watchErrorsByDir.clear();
         }
         resolvedRoot = root;
-        refusedSources = new Set(result.readErrors.filter((e) => e.code === OUTSIDE_ROOT).map((e) => e.source));
     }
     /**
      * Record the CURRENT failure for one directory, replacing whatever that directory said before.
@@ -753,29 +757,50 @@ export function createLoop(options, io, deps) {
     }
     function arm(entry) {
         const { rel, source } = entry;
-        // THE CONTAINMENT REFUSAL IS CHECKED FIRST, AND IT CLOSES (IN-01). It comes before the
-        // already-armed early return because a tree can acquire a symlink under a running loop: the
-        // source that was readable a tick ago is refused now, and the handle opened then is the one
-        // pointing outside. NOTHING IS RECORDED HERE — the reader already reported the refusal against
-        // the source it belongs to, and a second entry would be the same finding twice in the list a
-        // consumer reads.
-        if (refusedSources.has(source)) {
-            closeWatcher(rel);
-            return;
-        }
-        if (watchers.has(rel))
-            return;
         const root = resolvedRoot;
         if (root === null) {
             // NOTHING IS ARMED AGAINST A ROOT NOBODY RESOLVED, and the skip says so per directory —
-            // the loop cannot even ask whether these exist without a root to join them against. The
-            // record clears on the first arm after a read, like every other watch record.
+            // the loop cannot even ask whether these exist, or whether they are inside the tree, without
+            // a root to join them against. The record clears on the first arm after a read, like every
+            // other watch record.
+            //
+            // THIS ARM MOVED TO THE TOP IN PLAN 32-34, and the move is behaviour-preserving rather than a
+            // reordering of two live rules: the containment question below now takes the root, so it
+            // cannot be asked before one exists, and the set the OLD containment check consulted was
+            // populated by a read — so with no read there was nothing in it and this arm is where a
+            // pre-read directory already landed.
             noteWatchState(rel, source, `the watch on ${rel} was not armed: no read has resolved the repository root yet, so ` +
                 `there is nothing to arm it against. The read that precedes the next poll tick supplies ` +
                 `the root, and the tick arms it.`);
             return;
         }
         const dir = join(root, rel);
+        // THE CONTAINMENT REFUSAL IS CHECKED BEFORE THE ALREADY-ARMED RETURN, AND IT CLOSES (IN-01). A
+        // tree can acquire a symlink under a running loop: the directory that was inside the tree a
+        // tick ago is a link out of it now, and the handle opened then is the one pointing outside.
+        //
+        // THE QUESTION IS ABOUT THIS DIRECTORY, NOT ABOUT A LABEL SEVERAL DIRECTORIES SHARE (plan
+        // 32-34, CR-01). `deps.contained` is the reader's own `insideRoot`, asked about exactly the
+        // path `deps.watch` would be handed, so an ENTRY that left the tree is the reader's finding
+        // about that entry and leaves the directory holding it armed, while the directory itself
+        // leaving the tree — or any ancestor of it, which `insideRoot` resolves in the same pass —
+        // un-arms it.
+        //
+        // NOTHING IS RECORDED HERE, AND THE RECORD THE DIRECTORY WAS CARRYING GOES (plan 32-34, CR-02).
+        // The reader already reported the refusal against the source it belongs to, so a second entry
+        // would be the same finding twice in the list a consumer reads. And a refused directory is not
+        // a failed watch: the record's own text promises "it will be re-armed on the next poll tick",
+        // which this return makes impossible for as long as the refusal stands, so leaving it standing
+        // publishes a false sentence on every stderr frame and in every `--json` document. That is the
+        // reason the absent-directory arm below already states, applied to the arm beside it — the two
+        // of them are the same claim about a directory this loop will not be watching.
+        if (!deps.contained(root, dir)) {
+            closeWatcher(rel);
+            watchErrorsByDir.delete(rel);
+            return;
+        }
+        if (watchers.has(rel))
+            return;
         if (!deps.exists(dir)) {
             // IT MAY APPEAR LATER; A POLL TICK WILL ARM IT THEN — and an absent directory is not a failed
             // watch, so any record this directory was carrying is dropped rather than left standing as a

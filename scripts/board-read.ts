@@ -589,7 +589,7 @@ export function resolveRepoRoot(repoRoot: string): string {
 export const OUTSIDE_ROOT = "OUTSIDE-ROOT";
 
 /** A containment decision: the REAL path to open, or a path-only refusal with its own code. */
-type Containment =
+export type Containment =
   | { readonly ok: true; readonly real: string }
   | { readonly ok: false; readonly code: string; readonly message: string };
 
@@ -650,6 +650,20 @@ function anchorAbsentTarget(
  * the leaf, which is why a symlinked `plans/` directory and a symlinked `plans/tickets/ZZZ-999.md`
  * are not two rules.
  *
+ * EXPORTED SINCE PLAN 32-34, SO IT IS THE ONE PLACE THE REPOSITORY DECIDES AND NOT ONLY THIS MODULE.
+ * The dashboard's watch arm has to answer exactly this question about exactly the directory a
+ * `fs.watch` handle would be opened on, and it used to answer a DIFFERENT one: it filtered this
+ * module's `OUTSIDE-ROOT` read errors down to their `source` LABEL and un-armed every directory
+ * sharing that label, so one symlinked ticket file took `plans/tickets` off the low-latency path and
+ * one symlinked claimed task took all three queue stages off it (32-REVIEW.md CR-01). No set derived
+ * from those errors can do better: a refusal spelled `plans/tickets/ESCAPE.md` under a healthy
+ * `plans/tickets` and one spelled `plans/board.md` under a `plans` that is itself a link out of the
+ * tree have the same shape and opposite answers, and the difference is a property of the DIRECTORY,
+ * which is the question this function takes. `32-34-RED-baseline.txt` probes A and E are that pair,
+ * measured. The ancestor rule comes free with it, for the reason the paragraph above states: the
+ * resolution walks the whole chain, so a directory reached through a refused parent is refused here
+ * without anybody writing a second upward walk.
+ *
  * THREE ARMS, EACH NAMED:
  *
  *   1. The path resolves and the real location is inside the root → admitted, carrying the REAL
@@ -701,7 +715,7 @@ function anchorAbsentTarget(
  * because CLAUDE.md C6 defines what the kit does with no usable dial. A refused dial degrades to
  * lean, visibly; it never silently reads a file outside the tree.
  */
-function insideRoot(root: string, target: string, what: string): Containment {
+export function insideRoot(root: string, target: string, what: string): Containment {
   let real: string;
   try {
     real = realpathSync(target);
@@ -1620,6 +1634,26 @@ type IndexedNote = {
  * A TASK DIRECTORY WITH NO RENDERED INDEX IS NOT A FAULT. `index.jsonl` is a derived artifact whose
  * freshness `npm run freshness:context` owns; a task whose notes have not been re-rendered yet is
  * reported as present with zero notes rather than as a read error on a screen that cannot fix it.
+ *
+ * EVERY LISTED ENTRY LEAVES THIS LOOP AS A ROW OR AS A NAMED FINDING, AND THAT IS NOW TOTAL (plan
+ * 32-34, IN-01). Two of the arms used to be silent `continue`s — the allow-list rejection and the
+ * not-a-directory rejection — while the QUEUE reader's twins have carried names since plan 32-17,
+ * with the same predicate and the same argument in hand. The codes this loop can emit:
+ *
+ *   unsafe-task-name   the entry is outside the ported allowlist, refused before any filesystem
+ *                      access. Its path is the CONTEXT DIRECTORY, never a composed path.
+ *   (childPath codes)  the entry or its `index.jsonl` resolves outside the root (plan 32-10).
+ *   not-a-directory    a plain file sitting among the task directories.
+ *   (stat errnos)      the entry could not be inspected. `ENOENT` is the ONE deliberate silence,
+ *                      named at the arm: the entry went away between the listing and the stat, and
+ *                      the next re-read says so.
+ *   (read codes)       the index's bytes could not be obtained; this one also degrades the source,
+ *                      and it still produces a row with zero notes.
+ *   PARSE              one line of the index is not JSON; the task still gets a row.
+ *
+ * `scripts/board-read.test.ts` asserts the reconciliation — listed entries equal task rows plus
+ * reported skips — against a denominator taken from the listing on the other side of this loop,
+ * which is the instrument plan 32-15 built and the only one a silent new arm cannot satisfy.
  */
 function readContextSource(
   root: string,
@@ -1645,7 +1679,31 @@ function readContextSource(
   let firstReadFailure: StaleReason | null = null;
   // Sorted by `boundNames`, for the reason written at the tickets walk (plan 32-17, WR-09).
   for (const name of listing.names) {
-    if (!isSafeTaskName(name)) continue;
+    if (!isSafeTaskName(name)) {
+      // REPORTED, NOT SKIPPED (plan 32-34, IN-01). The queue reader's twin at the claimed-stage
+      // walk has said this since plan 32-17, with the same predicate and the same argument
+      // available; this arm went on skipping in silence, and a reader whose totality claim is
+      // "every listed entry leaves this loop as exactly one of a row or a reported finding" was
+      // false here — in silence, which is the expensive half. Closing it by documenting the
+      // silence as acceptable was the other option and it was declined: a skip with a comment is
+      // still a skip nobody watching the screen can see.
+      errors.push({
+        source: "context",
+        // NOT a composed path, the `childPath` convention the queue reader also follows: the
+        // segment is exactly what is being refused, so joining it with its directory here would
+        // perform the join this arm exists to prevent.
+        path: dir,
+        code: "unsafe-task-name",
+        message:
+          `board-read: the context entry \`${name}\` under ${dir} is not a plain path segment. ` +
+          `It is refused before any filesystem access, so a name nobody vouched for never reaches ` +
+          `a join, and no task is reported for it.`,
+      });
+      // THE SOURCE IS NOT DEGRADED, for the reason the queue reader's twin states: nothing failed
+      // to arrive. The directory was listed and this entry's name was read correctly; it was
+      // refused by name.
+      continue;
+    }
     const taskChild = childPath(root, dir, name);
     if (!taskChild.ok) {
       errors.push({
@@ -1680,7 +1738,24 @@ function readContextSource(
       }
       continue;
     }
-    if (!isDirectory) continue;
+    if (!isDirectory) {
+      // REPORTED UNDER ITS OWN CODE (plan 32-34, IN-01). `.grugops/context/` holds one directory
+      // per task; a plain file sitting among them is a thing this reader will never render and
+      // never explain, and the previous `continue` made it indistinguishable from an empty
+      // context. It is a REFUSAL BY SHAPE rather than a failure to obtain bytes — the entry was
+      // listed and stat-ed successfully — so the source stays `ok` and `firstReadFailure` is left
+      // alone, exactly as the name refusal above does.
+      errors.push({
+        source: "context",
+        path: taskDir,
+        code: "not-a-directory",
+        message:
+          `${taskDir} is not a directory, so it carries no \`index.jsonl\` and no task can be ` +
+          `reported for it. \`.grugops/context/\` holds one directory per task; this entry is ` +
+          `named here rather than skipped, so the listing's count still reconciles.`,
+      });
+      continue;
+    }
 
     // THE `index.jsonl` LITERAL GOES THROUGH THE SAME AUTHORITY, for the reason recorded at the
     // queue reader's `claim.md` (plan 32-10, CR-04).
