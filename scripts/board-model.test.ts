@@ -2345,13 +2345,66 @@ import type { TicketPresenceKind } from "./board-model.js";
 /** The sentence the join uses for an identifier NO file carries. It must reach `absent` and only it. */
 const ABSENT_TEXT = "no ticket file carries that identifier";
 
+/** The prefix both admitted arms share. Written ONCE so the scan term cannot drift from the arms. */
+const PRESENCE_SPELLING_PREFIX = "admitted-under-";
+
+/**
+ * Every directory the spelling walk refuses to descend into, each with the reason it is refused.
+ *
+ * `.planning/` is an AUDIT RECORD: a plan, a review or a summary states what was true when it was
+ * written, and rewriting one to match a later rename would destroy the trail this project exists to
+ * keep. `.git`, `node_modules`, `.tmp-build` and `dist` are not authored text at all.
+ */
+const SPELLING_WALK_SKIP = new Set([".git", "node_modules", ".planning", ".tmp-build", "dist"]);
+
+/** A file extension the walk reads. Authored text only — a fixture image carries no spelling. */
+const SPELLING_WALK_EXTENSIONS = [".ts", ".js", ".mjs", ".cjs", ".md", ".json", ".txt"];
+
+/**
+ * Every `admitted-under-…` spelling in the tree, with the file and line it sits on.
+ *
+ * THE SITES ARE MEASURED, NOT LISTED. The caller asserts a property of the SET this returns; it
+ * never states where a spelling should be. `filesRead` comes back so the caller can refuse a walk
+ * that read nothing — a silently short read agrees with every set assertion for the wrong reason.
+ */
+function presenceSpellingSites(): {
+  hits: { file: string; line: number; spelling: string }[];
+  filesRead: number;
+} {
+  const pattern = new RegExp(`${PRESENCE_SPELLING_PREFIX}[A-Za-z0-9_-]+`, "g");
+  const hits: { file: string; line: number; spelling: string }[] = [];
+  let filesRead = 0;
+  const walk = (dir: string, rel: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (SPELLING_WALK_SKIP.has(entry.name)) continue;
+      const childRel = rel === "" ? entry.name : `${rel}/${entry.name}`;
+      const childAbs = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(childAbs, childRel);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (!SPELLING_WALK_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) continue;
+      filesRead += 1;
+      const lines = readFileSync(childAbs, "utf8").split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        for (const match of (lines[i] ?? "").matchAll(pattern)) {
+          hits.push({ file: childRel, line: i + 1, spelling: match[0] });
+        }
+      }
+    }
+  };
+  walk(ROOT, "");
+  return { hits, filesRead };
+}
+
 describe("board-model — the presence kinds are a CLOSED set with a two-sided count (plan 32-33)", () => {
   it("has the expected MEMBERS, in the order the derivation asks them", () => {
     expect(
       [...TICKET_PRESENCE_KINDS],
       "the ORDER is the priority order: a document answers for the identifier it DECLARES before " +
         "it answers for the name the directory gave it",
-    ).toEqual(["admitted-under-its-stem", "admitted-under-another-id", "refused", "absent"]);
+    ).toEqual(["admitted-under-this-id", "admitted-under-another-id", "refused", "absent"]);
   });
 
   it("has the expected COUNT, pinned from both sides", () => {
@@ -2364,6 +2417,71 @@ describe("board-model — the presence kinds are a CLOSED set with a two-sided c
     expect(TICKET_PRESENCE_KIND_COUNT).toBe(4);
     expect(new Set(TICKET_PRESENCE_KINDS).size, "an arm is spelled twice").toBe(
       TICKET_PRESENCE_KINDS.length,
+    );
+  });
+
+  // ── THE DISCRIMINANT SPELLING IS ASKED OF A DERIVED SITE SET, NOT A RECALLED ONE (review IN-01)
+  //
+  // The arm reached when `byId` holds the identifier used to be named for the record's STEM, which
+  // is a fact that lookup never measures: a document named `ABC-901.md` declaring `id: ABC-902`
+  // reaches it for `ABC-902` carrying a record whose stem is `ABC-901`. `TICKET_PRESENCE_KINDS` is
+  // exported and pinned two-sided, so the name is contract surface (D-11, D-19) and a rename has to
+  // land at EVERY site in one commit.
+  //
+  // WHICH SITES, DERIVED RATHER THAN LISTED. A hand-maintained site list that rots while the suite
+  // stays green is this repository's SECOND recorded systemic failure class, so this case does not
+  // know where the spellings are. It walks the tree, collects every `admitted-under-…` spelling it
+  // finds anywhere, and requires the set of spellings found to EQUAL the set the exported array
+  // declares — in both directions. A half-finished rename leaves a spelling the array does not
+  // declare and reds here, naming the file and the line; a rename that also left the array behind
+  // reds from the other side.
+  //
+  // `.planning/` IS EXCLUDED BY DECISION, NOT BY OVERSIGHT. Those files are audit records of what
+  // was true when they were written, and this repository's standing rule is that such a record is
+  // annotated, never rewritten. The exclusion set is stated in `SPELLING_WALK_SKIP` below.
+  it("carries NO `admitted-under-…` spelling the exported array does not declare, at any DERIVED site", () => {
+    const sites = presenceSpellingSites();
+
+    // PREMISE: the walk read a real tree. A walk that read nothing would agree with every
+    // assertion below for the one reason that proves nothing.
+    expect(
+      sites.filesRead,
+      "PREMISE: the spelling walk read no files, so every assertion below is vacuous",
+    ).toBeGreaterThan(200);
+
+    // PREMISE (vacuity FLOOR, not the scan set): the three files that must carry the spelling do.
+    // The SCAN SET is derived by the walk; this only stops a silently short read from passing.
+    for (const rel of ["scripts/board-model.ts", "scripts/board-model.js", "scripts/board-model.test.ts"]) {
+      expect(
+        sites.hits.filter((h) => h.file === rel).length,
+        `PREMISE: no presence spelling was found in ${rel}, so the walk did not reach the sites ` +
+          "this case exists to measure",
+      ).toBeGreaterThan(0);
+    }
+
+    const declared = new Set(
+      TICKET_PRESENCE_KINDS.filter((k) => k.startsWith(PRESENCE_SPELLING_PREFIX)),
+    );
+    const found = new Set(sites.hits.map((h) => h.spelling));
+
+    const undeclared = sites.hits.filter((h) => !declared.has(h.spelling as never));
+    expect(
+      undeclared.map((h) => `${h.file}:${h.line} ${h.spelling}`),
+      "a presence spelling survives at a site the exported array does not declare — the rename " +
+        "landed at some sites and not others, which is exactly the half-done rename this case exists " +
+        "to catch",
+    ).toEqual([]);
+
+    // THE CONVERSE: an array member no site spells is a member nothing uses, which is the other
+    // way a rename goes wrong (the array moved, the code did not).
+    expect(
+      [...declared].filter((k) => !found.has(k)),
+      "the exported array declares a presence spelling that occurs nowhere in the tree",
+    ).toEqual([]);
+
+    // AND THE COUNT, asserted rather than eyeballed: two spellings, both sides derived.
+    expect(found.size, "the derived spelling set and the declared one differ in size").toBe(
+      declared.size,
     );
   });
 
@@ -2395,10 +2513,10 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
     [{ id: "ABC-900", code: "unknown-key" }],
   );
 
-  it("(1) an identifier a document DECLARES answers `admitted-under-its-stem`", () => {
+  it("(1) an identifier a document DECLARES answers `admitted-under-this-id`", () => {
     const p = presenceOf("ABC-001", POPULATIONS);
-    expect(p.kind).toBe("admitted-under-its-stem");
-    expect(p.kind === "admitted-under-its-stem" ? p.record.file : "").toBe("ABC-001.md");
+    expect(p.kind).toBe("admitted-under-this-id");
+    expect(p.kind === "admitted-under-this-id" ? p.record.file : "").toBe("ABC-001.md");
   });
 
   it("(2) an identifier that is a FILE STEM answers `admitted-under-another-id`, carrying it", () => {
@@ -2437,8 +2555,8 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
       [],
     );
     const p = presenceOf("ABC-300", both);
-    expect(p.kind).toBe("admitted-under-its-stem");
-    expect(p.kind === "admitted-under-its-stem" ? p.record.file : "").toBe("ABC-800.md");
+    expect(p.kind).toBe("admitted-under-this-id");
+    expect(p.kind === "admitted-under-this-id" ? p.record.file : "").toBe("ABC-800.md");
   });
 
   it("a duplicate-identifier LOSER is not said to be joined — the arm distinguishes the two populations", () => {
@@ -2498,7 +2616,7 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
 
   it("every arm produces its OWN sentence, and only `absent` asserts a negative", () => {
     const sentences = new Map<TicketPresenceKind, string | null>([
-      ["admitted-under-its-stem", presenceActual("ABC-001", presenceOf("ABC-001", POPULATIONS))],
+      ["admitted-under-this-id", presenceActual("ABC-001", presenceOf("ABC-001", POPULATIONS))],
       ["admitted-under-another-id", presenceActual("ABC-300", presenceOf("ABC-300", POPULATIONS))],
       ["refused", presenceActual("ABC-900", presenceOf("ABC-900", POPULATIONS))],
       ["absent", presenceActual("ABC-404", presenceOf("ABC-404", POPULATIONS))],
@@ -2509,7 +2627,7 @@ describe("board-model — `presenceOf` answers each of the four arms from a meas
       new Set(TICKET_PRESENCE_KINDS),
     );
 
-    expect(sentences.get("admitted-under-its-stem"), "an admitted row is not a conflict").toBe(null);
+    expect(sentences.get("admitted-under-this-id"), "an admitted row is not a conflict").toBe(null);
     expect(sentences.get("admitted-under-another-id")).toBe(
       "plans/tickets/ABC-300.md exists and declares the identifier ABC-777, so it is joined " +
         "under that identifier and not this one",
@@ -3115,7 +3233,7 @@ describe("board-model — the converse of the arm the WR-01 fix touched (plan 32
     // The contested identifier itself: a document genuinely IS joined under it, so the stated
     // priority answers from the DECLARED population and no `row-without-file` is raised at all.
     // WHICH document is joined is published regardless, as `tickets[].stem` beside `tickets[].id`.
-    expect(presenceOf("ABC-902", populations).kind).toBe("admitted-under-its-stem");
+    expect(presenceOf("ABC-902", populations).kind).toBe("admitted-under-this-id");
     expect(presenceActual("ABC-902", presenceOf("ABC-902", populations))).toBe(null);
 
     // The loser still names the winner by file name, and the winner still says it is joined.

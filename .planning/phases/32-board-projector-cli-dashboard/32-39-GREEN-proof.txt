@@ -1,0 +1,147 @@
+32-39-GREEN-proof.txt — plan 32-39, what the tree does AFTER each change, measured with the
+same instruments §-for-§ as 32-39-RED-baseline.txt.
+
+
+=================================================================================================
+§1  IN-01 — the discriminant now names what its lookup measured
+=================================================================================================
+
+§1.1  THE NAME, AND WHY THIS ONE
+
+    CHOSEN:            admitted-under-this-id
+    REVIEW SUGGESTED:  admitted  |  declared-by-a-document
+
+    `admitted` alone does not tell the pair apart: `admitted-under-another-id` is also an
+    admitted record, so a reader meeting `admitted` beside it has to open the module to learn
+    which admission is which. `declared-by-a-document` states the right fact but drops the
+    symmetry — the two arms stop reading as a pair, and the pair is how a reader uses them.
+
+    The lookup is `populations.byId.get(id)`, whose subject is THIS identifier: some admitted
+    document declares it. `admitted-under-this-id` states exactly that subject, and reads as the
+    converse of `admitted-under-another-id` — the same sentence with the other object. The
+    contract already described the arm this way ("A document declares it."), so the code now
+    agrees with the document rather than the document having to be bent to the code.
+
+
+§1.2  ZERO REMAINING, AND THE TWO TOTALS ARE EQUAL
+
+    $ git ls-files -z | xargs -0 grep -ac "admitted-under-its-stem" | grep -v ':0$'
+      scripts/board-model.ts          0   (no longer listed)
+      scripts/board-model.js          0   (no longer listed)
+      scripts/board-model.test.ts     0   (no longer listed)
+      agent-factory/                  0
+      -> ZERO occurrences of the old spelling remain in source, compiled output, contract or kit
+         markdown. The only remaining occurrences in the repository are the 13 `.planning/`
+         audit records §1.2 of the baseline listed and excluded by decision, plus this plan's own
+         RED baseline, GREEN proof and SUMMARY, which quote the old spelling in order to record
+         what was changed.
+
+    $ for f in scripts/board-model.ts scripts/board-model.js scripts/board-model.test.ts; do
+        grep -ao "admitted-under-this-id" $f | wc -l; done
+      scripts/board-model.ts          5
+      scripts/board-model.js          4
+      scripts/board-model.test.ts     9  (the 9 renamed sites; the new derived-site case adds no
+                                          literal spelling — it derives its scan term from
+                                          TICKET_PRESENCE_KINDS)
+                                     ---
+      TOTAL                          18
+
+    BASELINE TOTAL IN SCOPE = 18.  NEW TOTAL = 18.  THE TWO TOTALS ARE EQUAL, per file and in
+    sum: 5 = 5, 4 = 4, 9 = 9. No site was lost and none was invented.
+
+
+§1.3  THE SITE SET IS NOW DERIVED BY THE SUITE, NOT BY THIS DOCUMENT
+
+    scripts/board-model.test.ts gains
+      "carries NO `admitted-under-…` spelling the exported array does not declare, at any
+       DERIVED site"
+
+    It walks the tree from the repository root (skipping .git, node_modules, .planning,
+    .tmp-build and dist, each with its reason stated at the declaration), reads every .ts/.js/
+    .mjs/.cjs/.md/.json/.txt file, collects every `admitted-under-…` spelling with its file and
+    line, and asserts SET EQUALITY IN BOTH DIRECTIONS against the members of the exported
+    `TICKET_PRESENCE_KINDS` that carry that prefix — plus the size of the two sets. The scan term
+    itself is derived from the array, so a future rename moves the assertion with it.
+
+    Two vacuity floors, both `PREMISE:`-messaged: the walk must have read more than 200 files,
+    and each of the three board-model files must carry at least one spelling.
+
+    DISCRIMINATION (the half-done rename this case exists to catch):
+      $ sed -i '' '950s/admitted-under-this-id/admitted-under-its-stem/' scripts/board-model.js
+      $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts -t "DERIVED site"
+        exit 1 — Tests 1 failed | 153 skipped (154)
+        AssertionError: a presence spelling survives at a site the exported array does not
+        declare — the rename landed at some sites and not others ...
+        + [ "scripts/board-model.js:950 admitted-under-its-stem" ]
+      The planted site is named by file and line. Tree restored from a byte copy; `npm run build`
+      re-run; scripts/board-model.js sha256
+      d061dae5ab6431abaf6a8eb4d0fb18c81198d08355eafff4640dadc0833540ef.
+
+
+§1.4  THE PUBLISHED SHAPE DID NOT MOVE
+
+    $ node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json
+      exit 0
+      schemaVersion = 2          (BEFORE: 2 — UNCHANGED)
+      conflicts     = 9          (BEFORE: 9 — UNCHANGED)
+      readErrors    = 1          (BEFORE: 1 — UNCHANGED)
+
+      normalizedBytes = 18606    (BEFORE: 18606)
+      sha256 = 5c33782368eab1622c3b41c493955a28059d7a9f1abe4edc2c9de803ef00f6a1
+               (BEFORE: 5c33782368eab1622c3b41c493955a28059d7a9f1abe4edc2c9de803ef00f6a1)
+
+      normalised CLI document === scripts/fixtures/board-snapshot/expected-snapshot.json : TRUE
+      normalised CLI document === the pre-rename image                                   : TRUE
+
+    The golden fixture is BYTE-IDENTICAL before and after, and `git status --short
+    scripts/fixtures/` reports nothing. The presence kinds are an internal derivation, never a
+    field a consumer parses (D-19), and this is the measurement that says so rather than the
+    claim that says so.
+
+
+§1.5  THE CONTRACT NEEDED NO PROSE CORRECTION — READ, NOT ASSUMED
+
+    A tree-wide `grep -ra` measured ZERO literal occurrences of the old spelling in
+    agent-factory/. The plan requires the presence SECTION be read anyway, in case the prose
+    described the arm by the fact the old name asserted. It was read
+    (agent-factory/contracts/board.md:286-301, `### The presence table`).
+
+    The table's first row reads:
+
+      | A document declares it. | Nothing — this is not a conflict, and no `row-without-file` is
+        raised. |
+
+    That is the fact the lookup measures, stated correctly. The prose above it
+    ("The presence question is answered from exactly three sets the reader measured: the
+    identifiers admitted documents declared, ...") is also correct. NO CORRECTION WAS MADE, and
+    none was needed. Plan 32-38's contract-agreement assertions still pass (the file is
+    untouched by this plan).
+
+    What WAS corrected is the docblock in scripts/board-model.ts above `presenceActual`, which
+    carried the old name's claim in prose: "a row whose file was admitted under the row's own
+    identifier". It now reads "a row whose identifier SOME admitted document declares ... the
+    row's file was found, whatever the directory called it", followed by a paragraph naming
+    review IN-01, the `ABC-901.md`/`id: ABC-902` case, and why the arm is not named for a stem.
+
+
+§1.6  GATES, TASK 1
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts scripts/board-tracer.test.ts
+      exit 0 — Test Files 2 passed (2), Tests 238 passed (238)
+      (32-38 recorded 153 + 84 = 237 for this pair; 238 = 237 + the new derived-site case)
+    $ npm run build      exit 0
+    $ npm run typecheck  exit 0
+
+
+=================================================================================================
+§2  IN-02 — a prototype-spelled key reaches the conflict arm and the published document
+=================================================================================================
+
+    (written at Task 2)
+
+
+=================================================================================================
+§3  IN-03 — one prototype-lookup rule, asked the same way at every derived site
+=================================================================================================
+
+    (written at Task 3)

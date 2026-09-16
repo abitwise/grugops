@@ -1,0 +1,153 @@
+32-39-RED-baseline.txt — plan 32-39, round-4 gap closure of the three Info findings
+(IN-01, IN-02, IN-03) that 32-REVIEW-FIX.md recorded as "not fixed — out of scope".
+
+Measured on 2026-09-16 against HEAD 7aea94f0 ("docs(32-38): record plan 32-38 in STATE and
+ROADMAP"), which is the tree plan 32-38 left behind. Every number below is the output of a
+command run on that tree, not a recollection. Every search that reads a source file is run
+with `grep -a`, which forces text mode: 32-REVIEW-FIX.md records that plain matching returned
+a confident ZERO on a file a content classifier called program text, and two live fakes were
+found only by forcing it.
+
+
+=================================================================================================
+§1  IN-01 — the presence discriminant is named for a fact its lookup never measured
+=================================================================================================
+
+§1.1  THE DEFECT, RESTATED AS THE OBSERVABLE IT RESTS ON
+
+`presenceOf` (scripts/board-model.ts:1327-1328) answers:
+
+    const admitted = populations.byId.get(id);
+    if (admitted !== undefined) return { kind: "admitted-under-its-stem", record: admitted };
+
+`byId` is keyed by the identifier a document DECLARES. The lookup therefore decides that some
+admitted record declares THIS identifier, and decides nothing at all about the name the
+directory gave that record. For `ABC-901.md` declaring `id: ABC-902` with a board row naming
+`ABC-902`, the arm returns a kind spelled "under its stem" carrying a record whose stem is
+`ABC-901`. The name asserts a fact the arm never measured.
+
+Observable, run on the pre-change tree:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts -t "converse"
+    scripts/board-model.test.ts:3118
+      expect(presenceOf("ABC-902", populations).kind).toBe("admitted-under-its-stem")  PASSES
+      with populations.byId.get("ABC-902").stem === "ABC-901"   (asserted at :3111 as a PREMISE)
+
+    That is the whole finding in one line: the arm whose name says "its stem" is reached, and
+    the record it carries has a different stem.
+
+
+§1.2  THE SITE SET, DERIVED BEFORE ANY EDIT
+
+    $ git ls-files -z | xargs -0 grep -ac "admitted-under-its-stem" | grep -v ':0$'
+
+    IN SCOPE FOR THE RENAME (source, compiled output, test):
+      scripts/board-model.ts                                          5
+      scripts/board-model.js                                          4
+      scripts/board-model.test.ts                                     9
+                                                                     ---
+      TOTAL IN SCOPE                                                 18
+
+    CONTRACT AND KIT MARKDOWN:
+      $ grep -rac "admitted-under-its-stem" agent-factory/            (no file matched)
+      agent-factory/contracts/board.md                                0
+
+    EXCLUDED BY DECISION — .planning/ audit records, which state what was true when they were
+    written. This repository's standing rule is that such a record is annotated, never
+    rewritten, so these are listed rather than changed:
+      .planning/ROADMAP.md                                            1
+      .planning/phases/32-.../32-23-ADVERSARIAL-REVIEW.md             1
+      .planning/phases/32-.../32-33-GREEN-proof.txt                   1
+      .planning/phases/32-.../32-33-PLAN.md                           3
+      .planning/phases/32-.../32-33-SUMMARY.md                        2
+      .planning/phases/32-.../32-37-ADVERSARIAL-REVIEW.md             2
+      .planning/phases/32-.../32-38-GREEN-proof.txt                   3
+      .planning/phases/32-.../32-38-PLAN.md                           1
+      .planning/phases/32-.../32-38-RED-baseline.txt                  4
+      .planning/phases/32-.../32-38-SUMMARY.md                        1
+      .planning/phases/32-.../32-39-PLAN.md                           2
+      .planning/phases/32-.../32-REVIEW-FIX.md                        1
+      .planning/phases/32-.../32-REVIEW.md                            3
+
+    Per-site line numbers, in scope (grep -an):
+      scripts/board-model.ts       :1241 (array member) :1263 (union member) :1328 (construction)
+                                   :1356 (docblock)     :1363 (switch case)
+      scripts/board-model.js       :865 :908 :936 :943
+      scripts/board-model.test.ts  :2354 (two-sided pin) :2398 :2400 :2401 (arm 1 case)
+                                   :2440 :2441 (priority case) :2501 :2512 (sentence table)
+                                   :3118 (32-38's converse probe)
+
+    The plan's table, written on 2026-09-16, recorded 4 / 4 / 8. The measured counts are
+    5 / 4 / 9: `grep -c` counts LINES and `grep -o | wc -l` counts OCCURRENCES, and the .ts
+    docblock line (:1356) and the test case 32-38 added (:3118) are the two the plan's table
+    did not carry. The derived numbers are used; the plan's recalled numbers are not.
+
+
+§1.3  THE PUBLISHED SHAPE, BEFORE (the image the rename must not move)
+
+    $ node scripts/board-dashboard.js scripts/fixtures/board-snapshot --once --json
+      exit 0
+      schemaVersion = 2
+      conflicts     = 9
+      readErrors    = 1
+
+    Normalised the way scripts/board-model.test.ts's golden case normalises (wall-clock fields
+    to 1970-01-01T00:00:00.000Z, the absolute fixture root to <fixture-root>, keys sorted,
+    two-space indent, one trailing LF):
+
+      normalizedBytes = 18606
+      sha256          = 5c33782368eab1622c3b41c493955a28059d7a9f1abe4edc2c9de803ef00f6a1
+
+    $ shasum -a 256 scripts/fixtures/board-snapshot/expected-snapshot.json
+      5c33782368eab1622c3b41c493955a28059d7a9f1abe4edc2c9de803ef00f6a1
+
+    The normalised CLI document and the committed golden are the SAME BYTES before the rename.
+    That equality — not an eyeballed diff — is what §1 of the GREEN proof re-measures after.
+
+
+§1.4  THE RED RUN — the target assertions fail for the planned reason
+
+    The rename is a naming change, so RED is measured the only honest way: the expectations
+    move first, against unchanged production code.
+
+    $ sed -i '' 's/admitted-under-its-stem/admitted-under-this-id/g' scripts/board-model.test.ts
+      (9 replacements; 0 occurrences of the old spelling remain in the test file)
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+      exit 1
+      Test Files  1 failed (1)
+      Tests       5 failed | 148 passed (153)
+
+      FAIL  the presence kinds are a CLOSED set ... > has the expected MEMBERS, in the order the
+            derivation asks them
+      FAIL  `presenceOf` answers each of the four arms ... > (1) an identifier a document
+            DECLARES answers `admitted-under-this-id`
+      FAIL  `presenceOf` answers each of the four arms ... > the DECLARED identifier wins over a
+            same-named file stem, and the order is observable
+      FAIL  `presenceOf` answers each of the four arms ... > every arm produces its OWN sentence,
+            and only `absent` asserts a negative
+      FAIL  the converse of the arm the WR-01 fix touched (plan 32-38) > a contested identifier
+            that is ITSELF a stem on disk still names the joined document
+
+      Representative failure text:
+        AssertionError: expected 'admitted-under-its-stem' to be 'admitted-under-this-id'
+        AssertionError: an arm has no sentence case: expected
+          Set{ 'admitted-under-this-id', ... } to deeply equal Set{ 'admitted-under-its-stem', ... }
+
+    THIS IS AN INTENTIONAL RED, not a nonzero exit. Five TARGET assertions failed, each on the
+    discriminant spelling the task exists to change; 148 unrelated cases in the same file stayed
+    green; the file collected and ran (153 discovered, not 0); no syntax error, no fixture crash
+    and no unrelated failure appears in the transcript.
+
+
+=================================================================================================
+§2  IN-02 — a prototype-spelled key never lands, so a conflict is resolved by disappearing
+=================================================================================================
+
+    (written at Task 2)
+
+
+=================================================================================================
+§3  IN-03 — the toolchain register is read raw, the way its sibling no longer is
+=================================================================================================
+
+    (written at Task 3)

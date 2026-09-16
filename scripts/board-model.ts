@@ -1238,7 +1238,7 @@ export const PRESENCE_DEPENDENT_CONFLICT_KINDS = [
 // two cannot both answer for one identifier through the same file.
 
 export const TICKET_PRESENCE_KINDS = [
-  "admitted-under-its-stem",
+  "admitted-under-this-id",
   "admitted-under-another-id",
   "refused",
   "absent",
@@ -1260,7 +1260,7 @@ export type TicketPresenceKind = (typeof TICKET_PRESENCE_KINDS)[number];
  * and the honest sentence for it is the only one in this module that asserts a negative.
  */
 export type TicketPresence =
-  | { readonly kind: "admitted-under-its-stem"; readonly record: TicketRecord }
+  | { readonly kind: "admitted-under-this-id"; readonly record: TicketRecord }
   | {
       readonly kind: "admitted-under-another-id";
       readonly declaredId: string;
@@ -1325,7 +1325,7 @@ export function ticketPopulations(
  */
 export function presenceOf(id: string, populations: TicketPopulations): TicketPresence {
   const admitted = populations.byId.get(id);
-  if (admitted !== undefined) return { kind: "admitted-under-its-stem", record: admitted };
+  if (admitted !== undefined) return { kind: "admitted-under-this-id", record: admitted };
   const declaredByThatFile = populations.byStem.get(id);
   if (declaredByThatFile !== undefined) {
     // WHICH document is joined under that identifier is a MEASUREMENT, not an assumption. `byStem`
@@ -1353,14 +1353,21 @@ export function presenceOf(id: string, populations: TicketPopulations): TicketPr
  * refuses one by name — so the declared identifier cannot carry a byte the containment rule plan
  * 32-10 set would refuse to print.
  *
- * `admitted-under-its-stem` HAS NO SENTENCE, and that is the point: a row whose file was admitted
- * under the row's own identifier is not a `row-without-file` at all. `joinSnapshot` reads the arm
- * and raises nothing, so the four-arm answer decides whether a conflict exists as well as what it
- * says.
+ * `admitted-under-this-id` HAS NO SENTENCE, and that is the point: a row whose identifier SOME
+ * admitted document declares is not a `row-without-file` at all — the row's file was found, whatever
+ * the directory called it. `joinSnapshot` reads the arm and raises nothing, so the four-arm answer
+ * decides whether a conflict exists as well as what it says.
+ *
+ * THE ARM NAMES WHAT ITS LOOKUP MEASURED, WHICH IS WHY IT IS NOT NAMED FOR A STEM (review IN-01).
+ * `byId.get(id)` decides that an admitted record declares THIS identifier; it says nothing about
+ * the name the directory gave that record. `ABC-901.md` declaring `id: ABC-902` reaches this arm
+ * for `ABC-902` carrying a record whose stem is `ABC-901`, so a name asserting "under its stem"
+ * asserted a fact no lookup here measured. `admitted-under-another-id` is its converse, and the
+ * pair now reads as one.
  */
 export function presenceActual(id: string, presence: TicketPresence): string | null {
   switch (presence.kind) {
-    case "admitted-under-its-stem":
+    case "admitted-under-this-id":
       return null;
     case "admitted-under-another-id":
       // THE TWO POPULATIONS ARE SAID APART. A document that WON its identifier is joined under it;
