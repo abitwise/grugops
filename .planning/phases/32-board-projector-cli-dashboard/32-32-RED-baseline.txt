@@ -1,0 +1,220 @@
+32-32 RED BASELINE — the one-edit re-green over a capability reached through an intermediate binding
+=====================================================================================================
+
+Plan:       .planning/phases/32-board-projector-cli-dashboard/32-32-PLAN.md (Task 1)
+Finding:    32-REVIEW.md WR-02 / 32-23-ADVERSARIAL-REVIEW.md § 5 F-08, independently reproduced by
+            the phase verifier as gap 3 route (b) of truth 4 (DASH-06).
+Artifact:   the COMMITTED scripts/board-read.js — the .js a host actually runs, not the .ts.
+Date:       2026-09-16
+Node:       v24.12.0     vitest 4.1.8
+HEAD:       e4091888 (32-31 close-out; the specifier-class cutover is already merged)
+
+Every number below is a harness result copied out of a run log, never recalled.
+
+
+§ 0 — THE UNPLANTED CONTROL
+---------------------------
+
+    npm run build                                      -> exit 0
+    git diff --stat -- scripts/                        -> (empty; the rebuild moved no committed .js)
+    npm run check:dashboard-readonly                   -> exit 0, 135 passed (135)
+    harness census line: 311 resolved call sites, 0 unresolved,
+                         10 capability-global member paths, 0 refused acquisitions
+
+DEPARTURE FROM THE PLAN'S STATED CONTROL, RECORDED RATHER THAN SMOOTHED OVER. The plan text was
+written before 32-31 landed and names 89 as the unplanted case count (the number 32-24-RED-baseline
+§ 0 recorded). 32-31's specifier-class cutover added 46 cases, so this round's control is 135. The
+plan's truth is "does not fall below the 89 the baseline recorded" — 135 > 89, so the truth holds and
+135 is the number every step below is compared against.
+
+
+§ 1 — STEP ONE: the writer reached through a MEMBER binding
+------------------------------------------------------------
+
+Appended verbatim to the committed scripts/board-read.js:
+
+    const __r = process.report;
+    export const wB = (p) => __r.writeReport(p);
+
+    npm run check:dashboard-readonly                   -> exit 1
+    Test Files  1 failed (1)
+         Tests  3 failed | 132 passed (135)
+    harness census line: 311 resolved call sites, 0 unresolved,
+                         11 capability-global member paths, 0 REFUSED ACQUISITIONS
+
+THE CASES THAT RED, BY NAME — all three of them:
+
+    1. the capability-global member paths have exactly the expected MEMBERS
+         AssertionError: ... expected [ 'process.report' ] to deeply equal []
+    2. the capability-global member-path census has the expected COUNT
+         (11 received against EXPECTED_GLOBAL_MEMBER_PATH_COUNT = 10)
+    3. POSITIVE CONTROLS: the four capabilities the closure legitimately uses stay admitted
+         AssertionError: ... expected [ 'process.report' ] to deeply equal []
+
+THE MEASUREMENT THAT MATTERS, STATED IN WORDS: the acquisitions PREMISE case —
+
+    "PREMISE: no closure module acquires a module by a route that is not a static literal import"
+
+— DID NOT RED. It is absent from the failure list above, and the harness's own census line reports
+`0 refused acquisitions` with the writer planted. The write-detection MECHANISM never fired. All
+three reds are CENSUS reds: two are the two-sided pin on the member-path list, and the third is the
+positive-control case reading the same pin. Every one of them is re-greened by recording a spelling.
+
+Note the path the census actually saw: `process.report`, NOT `process.report.writeReport`. The
+maximal path ends at the binding site, and the call `__r.writeReport(p)` is rooted at `__r`, which is
+not a capability-bearing global, so `globalMemberPathOf` returns null for it and the call contributes
+nothing at all. That is the whole defect in one sentence: the local name ended the path.
+
+
+§ 2 — THE WRITER IS LIVE, NOT MERELY PRESENT
+----------------------------------------------
+
+The planted export was INVOKED against the same committed module, with the plant still in place:
+
+    node --input-type=module -e "import { wB } from '<repo>/scripts/board-read.js'; \
+                                 wB('/tmp/claude-501/live/pwned.json');"
+
+    stdout: "Writing Node.js report to file: /tmp/claude-501/live/pwned.json"
+            "Node.js report completed"
+
+    created file:  /tmp/claude-501/live/pwned.json
+    byte count:    53389
+
+A file was created at a path the CALLER chose, by a module inside the dashboard's closure, with no
+import of node:fs anywhere in it. "The dashboard CANNOT write" is false while the gate is in the
+state § 3 records.
+
+
+§ 3 — STEP TWO: the edit the failing message asks for
+-------------------------------------------------------
+
+With the § 1 plant still in scripts/board-read.js, the single maintainer-shaped edit the failing
+message invites was applied to scripts/board-readonly.test.ts:
+
+    + "process.report",                     added to EXPECTED_GLOBAL_MEMBER_PATHS
+    - const EXPECTED_GLOBAL_MEMBER_PATH_COUNT = 10;
+    + const EXPECTED_GLOBAL_MEMBER_PATH_COUNT = 11;
+
+    npm run check:dashboard-readonly                   -> exit 0
+    Test Files  1 passed (1)
+         Tests  135 passed (135)
+    harness census line: 311 resolved call sites, 0 unresolved,
+                         11 capability-global member paths, 0 refused acquisitions
+
+THIS IS THE FINDING. Two lines of ordinary-looking maintenance returned the WHOLE guard to a zero
+exit at its full case count, over a closure module that writes a JSON file at any path handed to it —
+the same file measured live in § 2. `process.report` reads like a diagnostic namespace and is exactly
+the kind of member a reasonable maintainer records. Once recorded, nothing in the file asks about
+`.writeReport` reached on the binding, because arm 3 only pushes an acquisition when the maximal path
+is itself a call expression's callee, and a binding site is not a callee.
+
+    restore: scripts/board-readonly.test.ts and scripts/board-read.js from pre-plant backups
+    git diff --exit-code -- scripts/                   -> exit 0 (CLEAN)
+
+
+§ 4 — THE CONTRAST THAT LOCATES THE DEFECT: bind the ROOT instead
+-------------------------------------------------------------------
+
+The sibling plant, appended to the committed scripts/board-read.js in place of § 1's:
+
+    const __g = globalThis;
+    export const wR = (p) => __g.process.report.writeReport(p);
+
+    npm run check:dashboard-readonly                   -> exit 1
+    Test Files  1 failed (1)
+         Tests  2 failed | 133 passed (135)
+    harness census line: 311 resolved call sites, 0 unresolved,
+                         10 capability-global member paths, 1 REFUSED ACQUISITION
+
+THE CASES THAT RED, BY NAME:
+
+    1. PREMISE: no closure module acquires a module by a route that is not a static literal import
+    2. POSITIVE CONTROLS: the four capabilities the closure legitimately uses stay admitted
+
+The PREMISE case — the write-detection mechanism — DID red here, because arm 4 treats any read of a
+capability-bearing ROOT identifier outside a member access as an acquisition, and `const __g =
+globalThis` is such a read.
+
+    | plant                        | PREMISE case | refused acquisitions | census reds |
+    |------------------------------|--------------|----------------------|-------------|
+    | § 1, bind a MEMBER of a root | GREEN        | 0                    | 3           |
+    | § 4, bind the ROOT           | RED          | 1                    | 0 (+1 ctl)  |
+
+The difference between those two rows is the entire finding. It is not a census miss: the census saw
+`process.report` and said so. It is that the POSITION rule stated at the root level (arm 4's
+canonical sentence — the one admitted read of a capability-bearing root is as the object of a member
+access) was never asked one level down, of a MEMBER path. A baseline recording only the failing half
+could not show which arm is missing.
+
+    restore: scripts/board-read.js from backup
+    git diff --exit-code -- scripts/                   -> exit 0 (CLEAN)
+
+
+§ 5 — THE LIVE CLOSURE'S OWN BOUND READS, MEASURED
+----------------------------------------------------
+
+Task 2's admitted set is DECLARED FROM this measurement rather than from memory: a position rule
+declared from recollection is how a safety rule ends up refusing the shipped program and getting
+loosened within a day.
+
+Method: the guard's own root set (`process`, `globalThis`, `global`), its `[computed]` segment
+spelling and its maximality rule (`isInnerOfChain`), run over the closure the guard's own walker
+returns — `jsImportClosure(ROOT, "scripts/board-dashboard.js")`, 5 modules — and every maximal path
+site classified by the syntactic POSITION its parent node puts it in.
+
+    closure modules:                                    5
+    maximal capability-global member-path SITES:       12
+    distinct maximal PATHS:                            10   (= EXPECTED_GLOBAL_MEMBER_PATH_COUNT)
+
+ALL TEN PATHS WITH THE POSITION EACH IS CONSUMED AT:
+
+    path                      | position(s)            | site
+    --------------------------|------------------------|-----------------------------------------
+    process.argv.[computed]   | variable-initializer   | scripts/is-entry.js:39
+    process.argv.slice        | callee                 | scripts/board-dashboard.js:1055
+    process.cwd               | callee                 | scripts/board-dashboard.js:150
+    process.env.[computed]    | binary-operand(??)     | scripts/board-dashboard.js:661
+    process.exit              | callee                 | scripts/board-dashboard.js:1057, :1063, :1073
+    process.on                | callee                 | scripts/board-dashboard.js:1062
+    process.stderr            | object-property-value  | scripts/board-dashboard.js:947
+    process.stdout            | object-property-value  | scripts/board-dashboard.js:946
+    process.stdout.columns    | object-property-value  | scripts/board-dashboard.js:951
+    process.stdout.isTTY      | binary-operand(===)    | scripts/board-dashboard.js:948
+
+THE NON-CALLEE SUBSET — the six paths the live closure reads into a binding, hands to an object
+literal, or compares, rather than calling directly. THIS IS THE INPUT TO `ADMITTED_BOUND_MEMBER_PATHS`
+AND IT HAS EXACTLY SIX MEMBERS:
+
+    1. process.argv.[computed]  | variable-initializer  | scripts/is-entry.js:39
+       `const argv1 = process.argv[1];` — the entrypoint comparison. A string is read out of the
+       argument vector and compared; nothing is written through it.
+
+    2. process.env.[computed]   | binary-operand(??)    | scripts/board-dashboard.js:661
+       `process.env[FORCE_WATCH_ERROR_ENV] ?? ""` — an environment variable read, coalesced and
+       split. A read of a string; the environment is not mutated anywhere in the closure.
+
+    3. process.stdout           | object-property-value | scripts/board-dashboard.js:946
+       `stdout: process.stdout` inside `defaultIo()` — the RENDER channel handed to the io seam.
+       A binding of it can write to the terminal and to nothing else; it is not a filesystem handle.
+
+    4. process.stderr           | object-property-value | scripts/board-dashboard.js:947
+       `stderr: process.stderr` inside `defaultIo()` — the DIAGNOSTIC channel, same reason.
+
+    5. process.stdout.isTTY     | binary-operand(===)   | scripts/board-dashboard.js:948
+       `process.stdout.isTTY === true` — a boolean read selecting the degraded renderer.
+
+    6. process.stdout.columns   | object-property-value | scripts/board-dashboard.js:951
+       `columns: process.stdout.columns` — a number read for the column layout.
+
+The four remaining paths (`process.argv.slice`, `process.cwd`, `process.exit`, `process.on`) appear
+ONLY as callees and therefore need no bound admission. 6 + 4 = 10, which is the census count, so the
+two halves of the position split account for the whole measured set with nothing left over.
+
+
+§ 6 — RESIDUE
+--------------
+
+    git diff --exit-code -- scripts/ agent-factory/ docs/   -> exit 0 (CLEAN)
+
+Both plants and the allow-list edit were restored from byte-identical backups taken before the first
+plant. No source file in this repository carries any part of this reproduction.
