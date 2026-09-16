@@ -1,0 +1,206 @@
+32-35 RED BASELINE — WHAT A CONSUMER RECOVERS, WHAT THE HEADER DERIVES, AND HOW MUCH HEADROOM THE
+TIMING BAND HAS
+
+Taken 2026-09-16 on darwin/arm64, node v24.12.0, at commit 021167cc (plan 32-34's metadata commit),
+against a FRESH `npm run build` — `git diff --exit-code --name-only -- '*.js'` was clean before any
+probe ran, so every number below is a measurement of the artifact that ships.
+
+NO CONTROL BYTE IS WRITTEN INTO THIS FILE. Every code point is named in the `U+XXXX` form and every
+escaped JSON sequence is written out in words or as the six printable characters, because
+`npm run check:nul-bytes` scans every tracked file and this artifact is tracked.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+1. THE PLANT — FOUR SITES, THREE CODE POINTS, EACH BUILT RATHER THAN TYPED
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Everything ran on a copy of `scripts/fixtures/board-snapshot/` in the session scratchpad. The
+committed tree was never written to; § 5 records the proof.
+
+Every code point was built with `String.fromCharCode(...)`, never typed as a literal byte.
+
+| # | Site                                                     | Planted   | Route into the document        |
+|---|----------------------------------------------------------|-----------|--------------------------------|
+| 1 | `plans/board.md` — a BOARD ROW title                     | U+001B    | board grammar → row title      |
+| 2 | `plans/tickets/ABC-101.md` — the TITLE field             | U+009B    | ticket grammar → ticket title  |
+| 3 | `plans/board.md` — a COLUMN HEADING name (`In Review`)   | U+0007    | board grammar → column name    |
+| 4 | `agent-factory/config/factory.config.json` — a WIP KEY   | U+001B    | dial → `config.wipLimits` KEY  |
+
+TWO DEPARTURES FROM THE PLAN'S ASSUMED PLANT, BOTH MEASURED RATHER THAN ASSUMED:
+
+  • THE PLAN PUTS THE BELL IN THE TICKET TITLE. The ticket grammar REFUSES it. Planting U+0007 in
+    `title:` produced exit 0 with the ticket source degraded and this read error instead:
+
+        tickets at <tree>/plans/tickets/ABC-101.md — control-character: line 3 carries a control
+        character, which no terminal renders and no human wrote deliberately
+
+    The ticket control class is C0 plus DEL (`agent-factory/contracts/board.md:107-108`), so no C0
+    reaches the document by that route at all. The code point that DOES reach it through a ticket is
+    one from the upper control range, which that class does not name — so site 2 carries U+009B and
+    site 3 carries the bell instead. The plan's three code points are all still in play.
+
+  • THE PLAN NAMES THREE SITES; THIS BASELINE PLANTS FOUR. Without site 4 the "every object KEY at
+    every depth" half of the walk is vacuously green — a walk that visits keys and finds none to
+    fail on proves nothing about keys. `config.wipLimits` is keyed by COLUMN NAME, which is content,
+    and it is the one content-derived KEY the published document has.
+
+    Site 4 is planted as the SIX-CHARACTER JSON ESCAPE inside the config file, not as a raw byte: a
+    raw control byte in a JSON string is refused by `JSON.parse` itself
+    (`PARSE: Bad control character in string literal in JSON at position 112`), so the dial never
+    reads it. The escape is legal JSON, and `JSON.parse` turns it into a real control code point in
+    the key — which is precisely the asymmetry this finding is about, one register over.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+2. THE `--json` CHANNEL — RAW IS CLEAN, ONE PARSE IS NOT
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Command: `node scripts/board-dashboard.js <planted tree> --once --json`, exit 0.
+
+    control code points in the RAW captured bytes .............. 0
+    control code points recovered after ONE parse .............. 14
+    lines the captured document occupies ....................... 1
+    documents the capture parses as ............................ 1
+
+The raw count is zero because the two existing mechanisms are EXACTLY COMPLEMENTARY:
+`JSON.stringify` escapes every C0 into the six-character printable form, and the post-serialization
+`sanitizeCell` removes what is left raw — which is the C1 range and DEL. Applied in that order, one
+of them hides what the other would have removed.
+
+THE FOURTEEN, LISTED BY CODE-POINT VALUE, WITH KEYS AND VALUES DISTINGUISHED, AT EVERY DEPTH:
+
+    U+001B  value  $.snapshot.board.columns[0].rows[0].title
+    U+0007  value  $.snapshot.board.columns[3].name
+    U+0007  value  $.snapshot.board.columns[3].heading
+    U+001B  key    $.snapshot.config.wipLimits.<key>
+    U+001B  value  $.snapshot.sources.board.value.columns[0].rows[0].title
+    U+0007  value  $.snapshot.sources.board.value.columns[3].name
+    U+0007  value  $.snapshot.sources.board.value.columns[3].heading
+    U+001B  key    $.snapshot.sources.config.value.wipLimits.<key>
+    U+0007  value  $.conflicts[3].column
+    U+0007  value  $.conflicts[3].actual
+    U+0007  value  $.conflicts[5].column
+    U+0007  value  $.conflicts[5].actual
+    U+001B  value  $.conflicts[8].column
+    U+001B  value  $.conflicts[8].expected
+
+    by code point ....... U+001B: 6   U+0007: 8
+    by kind ............. value: 12   key: 2
+
+THE WALK'S OWN SCOPE, STATED SO THE NUMBER CAN BE TRUSTED. `JSON.parse` once, then recurse: every
+string leaf is inspected, every array index is descended, and for every object the KEY is inspected
+before its value is descended. Nothing is decoded a second time. The counting class is
+`[U+0000-U+001F, U+007F-U+009F]` — C0, DEL and C1 — spelled independently of the module's own.
+
+U+009B — site 2, the ticket title — is ABSENT from the fourteen. It is not escaped by
+`JSON.stringify`, so it reached the serialized text raw, and the post-serialization pass removed it.
+That is the other half of the complementarity: the arm that survives one parse is exactly the arm
+`JSON.stringify` escapes.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+3. THE PLAIN FRAME — THE CONTROL ARM, CLEAN ON BOTH SIDES
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Command: `node scripts/board-dashboard.js <planted tree> --once`, exit 0, stdout not a TTY so the
+renderer is handed `PLAIN_STYLE` and emits no escape of its own.
+
+    control code points in the captured frame .................. 0
+    control code points after the same walk over that text ..... 0
+    lines the frame occupies ................................... 35
+
+The plain frame is not a document, so "after parsing" means the same counting pass re-applied to the
+captured text: a terminal receives these bytes and acts on them directly, with no decode step in
+between. Both numbers are zero because every cell goes through `cell`, which sanitizes before it
+truncates. This arm is the one that was already right, and it is measured so a fix to the other arm
+cannot be confused with a regression here.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+4. THE HEADER — THE NUMBER NOBODY HAD COUNTED
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Derived from `scripts/board-dashboard.ts`'s own syntax tree: every element of `renderHeader`'s
+`parts` array literal and every argument of every `parts.push(...)` inside `renderHeader`. A site
+counts as sanitized when it is a call to `sanitizeCell`, or a template every one of whose
+interpolations is a call to `sanitizeCell` or a member access on the `style` parameter.
+
+    total parts sites ......... 9
+    passing the sanitizer ..... 3
+    NOT passing it ............ 6
+
+THE SIX THAT DO NOT:
+
+    line 451  element  "grugops board"
+                       a bare literal — it never reaches the sanitizer
+    line 455  element  `${columns.length} columns`
+                       template with 1 unsanitized interpolation: columns.length
+    line 456  element  `[${result.source}]`
+                       template with 1 unsanitized interpolation: result.source
+    line 477  push     `${style.badge}STALE: ${badged.join(", ")}${style.reset}`
+                       template with 1 unsanitized interpolation: badged.join(", ")
+    line 480  push     `${result.conflicts.length} conflicts`
+                       template with 1 unsanitized interpolation: result.conflicts.length
+    line 485  push     `${style.badge}LARGE BOARD (${humanBytes(...)}, longest line `
+                       + `${humanChars(...)})${style.reset}`
+                       a BinaryExpression — a concatenation of two templates, which is not a
+                       sanitizing call by any reading
+
+THE THREE THAT DO: line 452 `sanitizeCell(snapshot.repoRoot)`, line 453 `mode:` and line 454 `read:`.
+
+THIS IS THE FINDING, AND THE NUMBER IS THE POINT. The stdout write-site census
+(`scripts/board-dashboard.test.ts:1779-1930`) exempts the header from the document chokepoint by
+name, and what replaced the chokepoint there is a sanitizer hand-applied per field. A claim kept by
+convention has a measurable number of exceptions, and until this line was written nobody had counted
+them: six of nine. Two of those six — line 477's stale-badge join and line 456's `result.source` —
+carry values that range over closed sets today, so there is no live bypass; the finding is that
+nothing derives the claim, which is the same asymmetry this round has now found three times.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+5. THE TIMING BAND AS IT STANDS — THREE SAMPLES, NOT ONE
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+`npx vitest run --exclude '**/scripts/e2e/**' --reporter=verbose scripts/board-watch-live.test.ts`,
+the whole file, three consecutive runs. 5 passed each time.
+
+    EVENT_DEADLINE_MS (the wait deadline, typed as a literal at :95) ..... 600 ms
+    POLL_MS (= INTERVAL_HARD_FLOOR_MS) .................................. 1000 ms
+    DEBOUNCE_MS ......................................................... 250 ms
+    the band the case must land in ...................... [250 ms, 600 ms) — 350 ms wide
+
+    run 1   event path  272 ms
+    run 2   event path  279 ms
+    run 3   event path  276 ms
+
+    worst of the three .................................. 279 ms
+    headroom to the deadline ............................ 321 ms
+    the deadline as a multiple of the worst sample ...... 2.15x
+    clearance above the debounce floor .................. 22 ms
+
+For context, from the same three runs: poll path 998 / 997 / 992 ms, watch record published
+276 / 275 / 275 ms after the write and cleared 897 / 892 / 901 ms after it, debounce coalesced five
+writes into one document each time.
+
+WHAT THE 2.15x MEANS. The 350 ms band has to contain a filesystem event, a 250 ms debounce, a
+six-source re-read and a write, on whatever machine the shared CI suite step runs on. The
+measurements above are an idle darwin box; the band is tight even there, and the file refuses to
+skip on any platform by design. A red at this deadline arrives as a TIMEOUT, which prints no
+latency — so it cannot say whether the watch was slow, whether the poll answered instead, or whether
+the box was loaded. That is what Task 3 changes, and the three numbers above are what the widening
+is measured against.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+6. THE CASE COUNTS THIS ROUND MUST NOT FALL BELOW
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+Recorded so Task 2's verification can tell an ADDED case from a REPLACED one.
+
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts ..... 56 passed
+    npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch-live.test.ts .... 5 passed
+    the full-suite floor `32-VERIFICATION.md` records .............................. 4974 passed
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+7. THE PROBES TOUCHED NOTHING
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+    $ git diff --exit-code -- scripts/ agent-factory/ docs/
+    (no output, exit 0)
+
+    $ git diff --exit-code --name-only -- '*.js'
+    (no output, exit 0 — the committed twins are a build of their sources)
