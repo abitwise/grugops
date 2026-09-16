@@ -78,17 +78,18 @@ The DASH-06 guard's own case count moved **89 → 171** across this round.
 **`npm test` was NOT run.** It triggers the live claude-CLI e2e lane, which spends tokens on an
 authenticated box and can hang. Its state is `UNKNOWN - verify` and is carried as ledger row 183.
 
-### 0.2 THE HARNESS'S OWN PREMISE FAILED THREE TIMES, AND EACH FAILURE IS RECORDED RATHER THAN QUIETLY REPAIRED
+### 0.2 THE HARNESS'S OWN PREMISE FAILED FOUR TIMES, AND EVERY FAILURE IS RECORDED RATHER THAN QUIETLY REPAIRED
 
 This section exists because the plan makes "assert the harness's own premise" a standing probe. It is
-not decoration: **three of this pass's own instruments produced a false result before they produced a
-true one**, and every one of the three would have reported a PASS.
+not decoration: **four of this pass's own instruments produced a false result before they produced a
+true one**, and three of the four would have reported a PASS.
 
 | # | Instrument | The false result it produced | How it was caught | The corrected instrument |
 |---|---|---|---|---|
 | H1 | counting control code points in `JSON.stringify(parsedDocument)` to measure "recovered by one `JSON.parse`" | **0 recovered**, on every input | a deliberately planted positive control also reported 0 | `JSON.stringify` re-escapes a control character back into printable text, so a count taken over stringify output is **structurally incapable** of finding one. Replaced with a walk over the parsed document's string VALUES and object KEYS, never re-stringifying (`$T/recover.js`). |
 | H2 | `node recover.js -- <file> <label>` | every row reported the **same** result, including the clean control | the clean control reported a control character | Node does not strip `--` from `process.argv`, so `argv[2]` was the literal `--` and the script read a file named `./--` that an earlier command had created. The `--` was dropped and the stray file removed; `git status --short` confirms nothing tracked was touched. |
 | H3 | the injected `watch` handle `{ close() {} }` in the `createLoop` probe | **`armed dirs: []`** and four watch failures, on a pristine tree | the pristine CONTROL should have armed four directories | `arm()` calls `handle.on("error", …)`; a stub without `on` throws into `arm`'s `catch` and is recorded as a watch failure. The stub now carries both members the production handle carries. |
+| H4 | this plan's own `<verify>`, `node scripts/validate-agent-factory.js` | **exit 1** — read naively, "a gate this round touched is red at the end of the round" | the same command with `VALIDATE_KIT_ROOT` set exits 0 with `ALL CHECKS PASSED` | the validator REFUSES to run without `VALIDATE_KIT_ROOT` (its C3 no-false-green guard). The exit 1 is the guard working, not a gate failing. Recorded at § 5 and as Deviation 1 in the SUMMARY. |
 
 **Every measured self-test is printed, because a harness nobody watched fail is not a harness.**
 
@@ -103,6 +104,9 @@ CONTROL: pristine tree
 armed dirs:         ["plans","plans/tickets",".grugops/queue/claimed",".grugops/context"]
 loop.watchErrors(): []
 ```
+
+H4 arrived last, while running this plan's own Task 2 verification, and it is the reason this
+table is numbered rather than prose: the count was three when § 0 was written.
 
 H1 is the one worth reading twice. It is **the same defect as the finding it was measuring**:
 `32-REVIEW.md`'s WR-04 was "the sanitizer only sees raw bytes, never the escaped textual form the
@@ -498,8 +502,19 @@ Plus the three commands this plan's verification names outside the manifest:
 | Command | Result |
 |---|---|
 | `npx vitest run --exclude '**/scripts/e2e/**'` | **75 files, 5120 passed, 2 skipped**, exit 0 |
-| `node scripts/validate-agent-factory.js` | exit 0, `ALL CHECKS PASSED` |
+| `node scripts/validate-agent-factory.js` — **as this plan's `<verify>` literally spells it** | **exit 1**: `ERROR  VALIDATE_KIT_ROOT is unset - refusing to default the kit root to '.' (C3)` |
+| `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` — **the spelling `ci.yml:517` uses** | exit 0, `ALL CHECKS PASSED` |
+| `VALIDATE_KIT_ROOT=$PWD VALIDATE_ROOT=$PWD node scripts/validate-agent-factory.js` — the spelling round 2's sweep used | exit 0, `ALL CHECKS PASSED` |
 | `node scripts/check-foundation-guards.js` | exit 0, `ALL CHECKS PASSED` |
+
+**THE PLAN'S OWN VERIFY COMMAND WAS UNRUNNABLE AS WRITTEN, AND THAT IS THE FOURTH PREMISE FAILURE OF
+THIS PASS (§ 0.2).** The bare spelling does not FAIL the validator; the validator REFUSES to run,
+because `VALIDATE_KIT_ROOT` unset is a hard error by design (the C3 no-false-green guard, documented
+at `scripts/validate-agent-factory.ts:31-33`: defaulting the kit root to `.` is how a validator
+reports green over a tree it never examined). An executor that read `exit 1` as "a gate this round
+touched is red" would have raised a finding about a guard working exactly as intended; an executor
+that had not run it at all would have copied round 2's `ALL CHECKS PASSED` and been right by
+accident. Recorded here, and as Deviation 1 in `32-37-SUMMARY.md`, rather than smoothed over.
 
 **The zero-dependency invariant, re-measured.** `package.json` has **no `dependencies` key at all**;
 `devDependencies` carries exactly three entries (`@types/node ~22`, `typescript ~6.0.3`,
@@ -710,7 +725,7 @@ were planted and all four exit 1 (§ 4.1). The cost is a short closure module li
 | Prior findings re-measured | **31** — 6 original blockers, 3 verifier gaps, 1 advisory, 8 warnings, 2 info, 5 round-2 findings, 6 baseline spellings |
 | …measured CLOSED | **30** |
 | …measured still open | **1** — the RUNTIME-assembled half of ledger row 184 (§ 4.2 N1) |
-| Own-harness premise failures caught before they produced a false verdict | **3** (§ 0.2) |
+| Own-harness premise failures caught before they produced a false verdict | **4** (§ 0.2) |
 | Production code modified by this plan | **none** (`git diff --exit-code -- scripts/ agent-factory/ docs/ package.json` → exit 0) |
 
 **The ratio moved, for the first time in this phase: 2 of 5, against round 2's 4 of 5 (5 of 8 by the
