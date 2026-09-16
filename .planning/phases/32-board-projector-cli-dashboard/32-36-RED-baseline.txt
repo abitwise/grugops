@@ -1,0 +1,152 @@
+32-36 RED BASELINE — the one-authority census measured against four ordinary second readers,
+and the check-script classification measured against a command carrying two targets.
+
+Measured 2026-09-16 against HEAD a8d29a8 (plan 32-35 complete). Nothing under scripts/ was
+modified: every plant was parsed by a VERBATIM MIRROR of the census predicates as they stand at
+`scripts/validate.test.ts:1531-1700` (skeleton :1555, keyInText :1559, namesKey :1562, staticText
+:1574, TEXT_SCAN_PRIMITIVES :1534, findTicketReaders :1589, the scanned set :1651, the exemption
+set :1675), planted one at a time into the LIVE scanned set of 151 tracked `scripts/**/*.ts`.
+
+  git diff --exit-code -- scripts/ agent-factory/ docs/   ->  exit 0 (clean; see § 5)
+
+
+§ 1 — THE CENSUS'S STARTING POINT, UNPLANTED
+
+  LIVE scanned files                151
+  LIVE detected (before exemption)  board-model.test.ts, board-model.ts, board-read.test.ts, validate.test.ts
+  LIVE carriers                     1 -> [board-model.ts]
+
+  So the census reports exactly one ticket-frontmatter authority on the live tree. Every row below
+  asks what that "exactly one" survives.
+
+
+§ 2 — THE FIVE PLANTS. Each is a real, semantically complete module that reads BOTH ticket
+frontmatter keys out of a document's text, written the way an ordinary author would write it.
+"carriers" is the census's own count with the plant in the scanned set; the unplanted count is 1.
+
+  plant A  alternation pattern + matchAll          carriers 1  (delta 0)  findings 0
+  plant B  alternation pattern + exec loop         carriers 1  (delta 0)  findings 0
+  plant C  two key literals + replace              carriers 1  (delta 0)  findings 0
+  plant D  join-assembled keys + split/indexOf     carriers 1  (delta 0)  findings 0
+  plant CONTROL  the reader 32-12 deleted, verbatim   carriers 2  (delta 1)  findings 3
+
+  The control is what makes this baseline discriminating: a census that missed everything would
+  also report zero for A-D. This census sees the deleted reader and misses four rewrites of it.
+
+
+§ 3 — WHICH HALF OF THE PAIR LET EACH PLANT THROUGH
+
+The pair is "names BOTH keys" AND "reaches a text-scanning primitive". 32-21 widened the primitive
+half to a named five-member table and left the key half a syntactic-position rule. The two gaps are
+different findings, and each plant is recorded against the half it defeats.
+
+  plant  key half                                     primitive half
+  -----  -------------------------------------------  --------------------------------------------
+  A      FAILS  named: []                             FAILS  reached: []          (.matchAll absent)
+  B      FAILS  named: []                             PASSES reached: [exec]
+  C      PASSES named: [column, status]               FAILS  reached: []          (.replace absent)
+  D      FAILS  named: []                             PASSES reached: [split, indexOf]
+  CTRL   PASSES named: [column, status]               PASSES reached: [match]
+
+  KEY-HALF GAP (A, B, D). `keyInText` requires the key to be preceded by a start-of-string, a `^`
+  or a newline. In `/^(column|status):\s*(.+)$/gm` the keys are preceded by `(` and by `|`, so the
+  pattern names NEITHER key. Plant B is the sharp one: it uses `.exec`, a primitive the table
+  already enumerates, so it defeats the half round 2 WIDENED rather than the half it did not.
+  Plant D's keys are assembled by `["c","o","l","u","m","n"].join("")`, which `staticText` cannot
+  resolve at all — the exact spelling `.planning/WINDOWS.md` ledger row 184 records as a stated
+  blind spot.
+
+  PRIMITIVE-HALF GAP (A, C). `TEXT_SCAN_PRIMITIVES` at HEAD enumerates exactly five spellings:
+  .match, .exec, .split, .indexOf, new RegExp. `.matchAll` and `.replace` are not in it, and
+  neither is any other member of String.prototype or RegExp.prototype. The complement of the
+  enumeration was never bounded, so a text-scanning call nobody listed passes by not being listed.
+
+
+§ 4 — THE BOUNDARY AND THE DEGENERATE INPUTS (DASH-01 probes), measured rather than assumed
+
+  BOUNDARY — zero carriers.  A scanned set of zero files yields 0 carriers. The count case
+    (`expect(CARRIERS.length).toBe(1)`) FAILS on 0, and the non-vacuity premise case at :1699 also
+    FAILS because `SCANNED.length` is 0. So zero carriers does red today — but only because two
+    separate cases happen to red, and neither NAMES zero as "the authority vanished". There is no
+    verdict function and no row for it; the two-carrier side is likewise only an equality failing.
+
+  EMPTY INPUT.   zero-file scanned set -> carriers 0, non-vacuity premise FAILS (as above).
+                 one-file scanned set (board-model.ts alone) -> carriers 1; the same question is
+                 asked and answered, so a single-element set is not a special case today.
+
+  ADJACENCY.     Two planted readers whose static texts are identical except for the key spelling
+                 (`/^column:/` vs `/^column[:]/`, which `skeleton` normalizes to the same text)
+                 -> carriers 3 (delta 2). They are counted as two, not merged into one. This is
+                 the current behaviour and it is correct; it has no case pinning it.
+
+  ORDERING.      The carrier list's order follows the ORDER OF THE SCANNED SET, not a sort of the
+                 carriers themselves:
+                   run 1, sorted input:    [board-model.ts, dup-1.ts, dup-2.ts]
+                   run 2, shuffled input:  [dup-2.ts, board-model.ts, dup-1.ts]
+                   identical across runs:  false
+                 On the live tree the order IS deterministic, because `SCANNED` ends in `.sort()`
+                 (verified: SCANNED is sorted -> true). The determinism therefore rests entirely on
+                 that one `.sort()` and nothing asserts it. A reader comparing two runs is
+                 comparing traversal order unless the sort holds.
+
+  PRECISION.     Every number in this census is `Array.prototype.length` over an array of findings
+                 or of [name, findings] pairs, compared with `toBe` against a small integer
+                 literal. No arithmetic, no rounding, no tie-break and no floating-point step
+                 occurs anywhere in the derivation. (Backstop marker, per must_haves.)
+
+
+§ 5 — THE TWO-TARGET CHECK COMMAND, measured against `classifyCheckScript`
+      (`scripts/check-foundation-guards.test.ts:12074`, first-match via `.exec`)
+
+  check:two-gates     "tsc --outDir .tmp-build && node scripts/a.js && node scripts/b.js"
+    first-match  : gate-module -> scripts/a.js
+    per-target   : gate-module -> scripts/a.js | gate-module -> scripts/b.js
+    NEVER NAMED  : gate-module -> scripts/b.js
+      -> the classification names ONE target. `scripts/b.js` appears in no reachability row: the
+         gate-module proof ("ci.yml names the gate module, or CI_EXEMPT names a reason") is never
+         asked of it, and `CHECK_SCRIPT_CLASSES["gate-module"].size` stays 9 while a tenth target
+         goes unproven, because the pinned number counts SCRIPTS and not TARGETS.
+
+  check:mixed         "tsc --outDir .tmp-build && node scripts/a.js && npx vitest run scripts/x.test.ts"
+    first-match  : gate-module -> scripts/a.js
+    per-target   : gate-module -> scripts/a.js | suite-test-file -> scripts/x.test.ts
+    WINNING CLASS: gate-module — the gate arm runs first and returns
+    PROOF LOST   : the suite-test-file proof (the file exists and the workflow's suite exclusion
+                   does not skip it) is never applied to scripts/x.test.ts
+
+  check:two-suites    "npx vitest run scripts/x.test.ts && npx vitest run scripts/y.test.ts"
+    first-match  : suite-test-file -> scripts/x.test.ts        NEVER NAMED: scripts/y.test.ts
+
+  check:subshell-gate "(cd . && node scripts/a.js)"
+    first-match  : gate-module -> scripts/a.js                 NEVER NAMED: (none)
+
+  check:nothing-shaped "bash tools/does-whatever.sh --quietly"
+    first-match  : null   — the honest red. This posture is kept verbatim by the fix.
+
+  THE REAL MANIFEST, measured (not recalled):
+    check:* script count                                         11
+    pinned CHECK_SCRIPT_CLASSES sizes at HEAD (SCRIPT counts)     gate-module 9, suite-test-file 1, toolchain 1
+    measured SCRIPT counts                                        gate-module 9, suite-test-file 1, toolchain 1
+    measured TARGET counts                                        gate-module 9, suite-test-file 1, toolchain 1
+    total targets                                                 11
+  No live instance: every one of the 11 commands carries exactly one target today, which is why the
+  two numbers coincide. The finding is that nothing distinguishes them — a second `node scripts/*.js`
+  appended to an existing command changes the target count and leaves the pinned script count alone.
+
+
+§ 6 — CASE COUNTS BEFORE THE CHANGE (the floor each task's verify must exceed)
+
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+      Test Files  1 passed (1)        Tests  118 passed (118)
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+      Test Files  1 passed (1)        Tests  293 passed (293)
+  both together
+      Test Files  2 passed (2)        Tests  411 passed (411)
+  full regression lane baseline recorded by the orchestrator: 5109 passed | 2 skipped
+  (32-VERIFICATION.md's recorded floor is 4974; the tree has grown past it since.)
+
+
+§ 7 — TREE CLEANLINESS
+
+  git diff --exit-code -- scripts/ agent-factory/ docs/   ->  exit 0
+  Every plant lives only in the measurement mirror; none was written into the tree.
