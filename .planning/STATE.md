@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-35-PLAN.md
-last_updated: "2026-09-16T11:50:37.975Z"
-state_head: 1004f53711b81b1e1aabfba48bfe924a2247c6c3
+stopped_at: Completed 32-36-PLAN.md
+last_updated: "2026-09-16T12:46:57.063Z"
+state_head: aa3339d52f122a6aa79bafc1ad3c38417eebd0a3
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 250
-  completed_plans: 248
-  percent: 99
+  completed_plans: 249
+  percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 6 of 30
+Plan: 7 of 30
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -504,6 +504,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P33 | 56 min | 4 tasks | 14 files |
 | Phase 32 P34 | 90 min | 3 tasks | 10 files |
 | Phase 32 P35 | 105 min | 3 tasks | 9 files |
+| Phase 32 P36 | 55 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -1382,6 +1383,8 @@ Recent decisions affecting current work:
 - [Phase 32]: The --json guarantee is about what ONE PARSE recovers, not about the bytes on the wire: values and keys are scrubbed BEFORE serialization, because JSON escaping of the C0 range and post-serialization removal of what stays raw are exactly complementary and each hides the other's gap — Measured: 14 control code points recovered from a document whose raw byte count was zero, from four planted content-derived sites including an object KEY
 - [Phase 32]: The post-serialization sanitize pass is RETAINED as a backstop with its present redundancy STATED, not claimed away — Removing it alone reds nothing (M2a) because scrub covers every content route and JSON.stringify independently escapes the newline; M2b/M2c measure that it is what keeps three raw-byte cases green under a scrub with one branch missing
 - [Phase 32]: The live event-path wait deadline is DERIVED from POLL_MS minus a named margin (750 ms), with the two attribution comparisons byte-identical to HEAD — A red by timeout prints no latency; a red by comparison prints the number that failed. WR-07's CI-topology half deferred to Phase 33 / CAP-02 in writing
+- [Phase 32]: 32-36: the one-authority census decides by the key's PRESENCE as a word in a resolved static text and by a String.prototype/RegExp.prototype-derived refused complement, not by syntactic position and not by an enumeration — Four ordinary second readers measured at zero added carriers before; each is closed by a DIFFERENT mechanism (position rule, enumeration, and staticText's missing join-resolution arm), proven by five mutation runs. Over-detection is paid in five new named exemptions, one of them on production code (scripts/check-diff-disposition.ts), recorded as an owned residual.
+- [Phase 32]: 32-36: check-script classification returns one row per TARGET, and CHECK_SCRIPT_CLASSES pins TARGET counts with a sum equality over the manifest-derived total — First-match .exec proved the first of two gate modules and let the gate arm beat the suite arm. The first-match mutation initially red only one case because 11 scripts carry 11 targets, so a case perturbing the manifest in memory (target count 11 to 12, script count unchanged) was added.
 
 ### Pending Todos
 
@@ -1505,8 +1508,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-16T11:50:11.010Z
-Stopped at: Completed 32-35-PLAN.md
+Last session: 2026-09-16T12:46:29.693Z
+Stopped at: Completed 32-36-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
