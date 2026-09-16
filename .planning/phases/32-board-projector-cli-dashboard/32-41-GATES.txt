@@ -1,0 +1,388 @@
+Phase 32 — Gap-Closure Round 4, Plan 32-41, Task 1
+THE GATE SWEEP, DERIVED FROM THE MANIFEST
+Run: 2026-09-16, against `main` at HEAD b27040d5, in the main checkout
+(`.planning/config.json` sets `workflow.use_worktrees: false`).
+
+Every control character named in this file is written as escape TEXT (for example
+<U+0009>, <U+0085>, \x1b). The repository's own `check:nul-bytes` gate refuses the raw
+byte, and one raw byte makes plain searching report zero matches for strings that are
+present.
+
+This file measures. It decides no requirement checkbox, no roadmap phase status and no
+verdict. See section 8.
+
+================================================================================
+1. THE ROW SET, DERIVED RATHER THAN RECALLED
+================================================================================
+
+The row set is read out of `package.json`'s `scripts` object at sweep time, by a
+program, not typed from a prior round's document:
+
+    $ node -e 'const p=JSON.parse(require("fs").readFileSync("package.json","utf8"));
+               console.log(Object.keys(p.scripts||{}).length)'
+    33
+
+DERIVED SCRIPT COUNT: 33
+
+A row set taken from memory is the set-literal drift this repository has recorded as its
+second systemic failure class, and a gate sweep is exactly where one hides: the missing
+row looks like a gate that passed. The arithmetic at the end of section 3 is what makes
+that claim checkable rather than asserted.
+
+Round 4's own review (`32-40-ADVERSARIAL-REVIEW.md` section 14) derived 33 as well. This
+sweep re-derived it independently rather than copying the number; the two agree.
+
+================================================================================
+2. THE GATE ROWS — COMMAND, EXIT CODE, AND THE GATE'S OWN HEADLINE LINE
+================================================================================
+
+Twenty-two manifest entries are gates and were run. Each row records the command as
+invoked, its exit code, and the gate's own last output line — the gate's words, not a
+verdict of mine.
+
+  #  GATE                        EXIT  THE GATE'S OWN HEADLINE LINE
+ --  --------------------------  ----  ------------------------------------------------
+  1  npm run build                  0  (tsc emitted no diagnostics; no output line)
+  2  npm run typecheck              0  (tsc --noEmit + two project configs; no output)
+  3  npm run check:build-parity     0  Build parity: no tracked build output moved when
+                                        tsc ran.
+  4  npm run freshness              0  All build outputs fresh: 65 committed .js file(s)
+                                        match a rebuild of their sources.
+  5  npm run check:public-docs      0  ALL CHECKS PASSED
+  6  npm run check:audit-register   0  ALL CHECKS PASSED
+  7  npm run check:residual-        0  ALL CHECKS PASSED
+       citations
+  8  npm run check:claim-anchors    0  ALL CHECKS PASSED
+  9  npm run check:banned-claims    0  ALL CHECKS PASSED
+ 10  npm run check:imperative-      0  ALL CHECKS PASSED
+       lexicon
+ 11  npm run check:diff-            1  1 CHECK(S) FAILED
+       disposition                     PRE-EXISTING AND CARRIED — see section 4
+ 12  npm run check:nul-bytes        0  ALL CHECKS PASSED
+ 13  npm run check:platform-shapes  0  ALL CHECKS PASSED
+ 14  npm run check:dashboard-       0  Tests  175 passed (175)
+       readonly
+ 15  npm run freshness:catalog      0  Catalog fresh: docs/catalog/README.md matches a
+                                        fresh regeneration.
+ 16  npm run freshness:adapters     0  Adapters fresh: 17 adapter(s) compared in
+                                        .claude/agents, 0 byte difference(s), directory
+                                        listings set-equal.
+                                        (final line: `Mirrored generator resolved model
+                                        preset: none`)
+ 17  npm run freshness:skill-twins  0  Skill twins fresh: 7 twin(s) compared in
+                                        .claude/skills, 0 byte difference(s), directory
+                                        listings set-equal.
+ 18  npm run freshness:guarantees   0  Guarantees fresh: docs/GUARANTEES.md matches a
+                                        fresh regeneration.
+ 19  npm run freshness:hook-        0  Hook manifest fresh: 2 decider(s), 26 module
+       manifest                        hash(es) match a fresh derivation.
+ 20  npm run freshness:context      0  Context fresh: no .grugops/context/ tree exists
+                                        yet — nothing committed to drift (vacuous pass).
+ 21  npm run freshness:queue        0  Now-running fresh: no .grugops/queue/claimed/ tree
+                                        exists yet — nothing committed to drift (vacuous
+                                        pass).
+ 22  npm run freshness:traceability 0  Traceability fresh: no .grugops/context/ notes
+                                        tree exists yet — nothing committed to drift
+                                        (vacuous pass).
+
+ROWS RUN: 22.  ROWS EXIT 0: 21.  ROWS EXIT 1: 1 (row 11, carried — section 4).
+
+Three commands the plan's `<verification>` names that are NOT manifest entries, recorded
+beside the rows rather than inside them so the arithmetic in section 3 stays honest:
+
+  GATE                                             EXIT  HEADLINE
+  -----------------------------------------------  ----  ---------------------------
+  VALIDATE_KIT_ROOT=. node scripts/validate-           0  ALL CHECKS PASSED
+    agent-factory.js  (the spelling `ci.yml` uses)
+  node scripts/validate-agent-factory.js               1  ERROR    VALIDATE_KIT_ROOT is
+    (the BARE spelling)                                   unset — refusing to default
+                                                          the kit root to '.' (C3)
+  node scripts/check-foundation-guards.js              0  ALL CHECKS PASSED
+
+The bare-spelling row is the C3 no-false-green guard working as designed: the validator
+REFUSES to run rather than defaulting its kit root. It does not fail a check; it declines
+to produce a green it cannot justify. This reproduces round 3's and round 4's recording of
+the same behaviour verbatim, and is recorded here because an unrecorded refusal reads, to
+a later reader, like a gate that was never asked.
+
+================================================================================
+3. THE GATES DELIBERATELY NOT RUN, EACH WITH ITS REASON — AND THE ARITHMETIC
+================================================================================
+
+  NOT RUN                          REASON
+  -------------------------------  ---------------------------------------------------
+  test                             it is `vitest run` with NO exclusion and launches the
+                                   LIVE CLAUDE-CLI END-TO-END LANE. Not run this round,
+                                   by decision — see section 5.
+  test:e2e                         the same lane, named directly.
+  dashboard                        a developer convenience wrapper (builds to a temp dir
+                                   and runs the dashboard), not a gate; it refuses
+                                   nothing.
+  audit:prepass                    not a gate this round's work could move; it reads
+                                   audit-register sources, none of which this round
+                                   touched.
+  generate:safety-surface          GENERATORS, NOT GATES — they WRITE. A plan forbidden
+  generate:catalog                 to modify source must not run them. Their freshness
+  generate:adapters                counterparts are the gate, and rows 15 through 22
+  generate:skill-twins             above are all exit 0, which is the same proof
+  generate:guarantees              without the write.
+  generate:hook-manifest
+  count:lines                      requires `tokei`, an external binary; a line count is
+                                   not a gate and refuses nothing.
+
+OMISSIONS: 11.
+
+THE ARITHMETIC, STATED OUT LOUD:
+
+    22 rows run  +  11 named omissions  =  33
+    derived script count                =  33
+    THE EQUALITY HOLDS.
+
+No manifest entry is unaccounted for. Every entry is either a row with an exit code or an
+omission with a reason.
+
+================================================================================
+4. THE CARRIED FAILING GATE, RE-MEASURED BY TWO INSTRUMENTS
+================================================================================
+
+    $ npm run check:diff-disposition
+      FAIL  diff disposition — changed watched file(s): 78 finding(s) over 39 elements
+    1 CHECK(S) FAILED
+    exit=1
+
+TWO INSTRUMENTS, BOTH STATED:
+
+    the gate's own headline ......................... 78 finding(s) over 39 elements
+    counting the `clause:` lines in its output ...... 78
+
+    $ grep -c 'clause:' <captured output>
+    78
+
+THEY AGREE. `32-35-GREEN-proof.txt` once recorded 77 and `32-37` corrected it back to 78,
+identifying the 77 as a property of the counting instrument (it counted `(added)` finding
+lines only, and `16-context-read-write.md` carries one `(removed)` line as well) rather
+than a movement of the corpus. On this tree the disagreement does not reproduce: both
+instruments read 78.
+
+THE FIVE DOCUMENTS THE FINDINGS NAME, WITH PER-FILE TALLIES DERIVED FROM THE OUTPUT:
+
+    agent-factory/workflows/05-pr-quality-gate.md ..... 38
+    agent-factory/workflows/06-uat-pack.md ............ 25
+    agent-factory/workflows/16-context-read-write.md .. 10
+    agent-factory/workflows/18-context-compaction.md ..  3
+    agent-factory/workflows/17-task-claim.md ..........  2
+                                                       ---
+                                                        78
+
+A sixth path, `agent-factory/roles/_role-switch-protocol.md`, appears ONCE in the output
+and is NOT a finding: it is named inside the gate's corpus-description line as the single
+uncounted `safety_surface: yes` register row that makes the watched corpus 36 + 3 + 1 = 40.
+It is recorded here because a naive grep for file paths in this output returns six names,
+and a reader who took that as the finding set would be reading one name too many.
+
+THE OVERLAP WITH THIS ROUND'S CHANGED-FILE SET, AS A NUMBER:
+
+    round's changed set, narrow base (32-38's first commit onward):
+      $ git diff --name-only d5486262^..HEAD | sort
+      24 files (13 outside .planning/)
+
+    round's changed set, wide base (the round-3 verification onward):
+      $ git diff --name-only 670f1b3c..HEAD | sort
+      34 files (17 outside .planning/)
+
+    searching the FULL finding text for every file in each set:
+      overlap against the narrow set ... 0
+      overlap against the wide set ..... 0
+
+OVERLAP = 0 ON BOTH BASES. The 78 findings sit entirely in `agent-factory/roles/` and
+`agent-factory/workflows/` files that no commit of this round touched. PRE-EXISTING,
+UNMOVED, AND NOT CAUSED BY THIS ROUND — neither absorbed into this round's account nor
+quietly dropped from it. The number is what proves which.
+
+================================================================================
+5. THE LANE THAT WAS NOT MEASURED
+================================================================================
+
+THE LIVE CLAUDE-CLI END-TO-END LANE IS `UNKNOWN - verify`.
+
+`npm test` was NEVER run in this round. It is `vitest run` with no exclusion, so it
+triggers `scripts/e2e`, which spends tokens on an authenticated box and can hang. Every
+prior round of this phase carried it the same way, and this plan's own `must_haves`
+declares the carry as a backstop rather than a claim.
+
+Nothing in this file claims anything about that lane. It is unmeasured, its state is
+unchanged from round 1, and a reader who needs it closed needs it run, not cited.
+
+================================================================================
+6. THE REGRESSION LANE — THREE NUMBERS, SET BESIDE EVERY PRIOR ROUND
+================================================================================
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+     Test Files  75 passed (75)
+          Tests  5163 passed | 2 skipped (5165)
+       Duration  473.05s
+    exit=0
+
+THIS ROUND'S THREE NUMBERS:  test files 75,  passed 5163,  exit 0.
+
+THE FOUR-ROUND TABLE:
+
+  MEASUREMENT POINT                              FILES  PASSED  SKIPPED  EXIT
+  ---------------------------------------------  -----  ------  -------  ----
+  Round 2 verification (32-23)                      75    4974        2     0
+  Round 3 verification (32-VERIFICATION.md)         75    5120        2     0
+  Post-fix pass (32-REVIEW-FIX.md)                  75    5137        2     0
+  Round 4, plan 32-38                               75    5151        2     0
+  Round 4, plan 32-39                               75    5163        2     0
+  Round 4, plan 32-40 (adversarial review)          75    5163        2     0
+  ROUND 4, PLAN 32-41 (this sweep)                  75    5163        2     0
+
+VERDICT: THE COUNT HELD.
+
+It held at 5163 against the two immediately preceding measurements (32-39 and 32-40), and
+it ROSE against every earlier point: +43 over the round-3 verification's 5120, +26 over
+the post-fix pass's 5137. Plan 32-41 changes no source and adds no test, so a HELD count
+is the expected reading and a moved one would have been the finding. No count FELL at any
+point in this round, and no test file lost cases — see section 7, where the per-file
+counts make that checkable rather than inferred from an aggregate.
+
+The file count held at 75 at every one of the seven measurement points. The skip count
+held at 2.
+
+================================================================================
+7. PER-FILE CASE COUNTS FOR THE NINE TEST FILES THIS PHASE OWNS
+================================================================================
+
+An aggregate can hold while one file collapses and another grows. This repository has
+recorded that shape. These nine counts are derived from the same single regression run
+recorded in section 6, so they cannot disagree with it by construction.
+
+  TEST FILE                                CASES  WHAT IT OWNS
+  ---------------------------------------  -----  ---------------------------------
+  scripts/board-model.test.ts                154  the board model / presence join
+  scripts/board-read.test.ts                 165  the read seam and its grammar
+  scripts/board-dashboard.test.ts             75  the dashboard and its write sites
+  scripts/board-watch.test.ts                  51  the watch arm
+  scripts/board-watch-live.test.ts              6  the live watch (platform-timed)
+  scripts/board-tracer.test.ts                 84  the tracer
+  scripts/board-readonly.test.ts              175  the DASH-06 read-only guard
+  scripts/validate.test.ts                    130  the structure validator's suite
+  scripts/check-foundation-guards.test.ts     300  the foundation guards
+                                           -----
+                                            1140
+
+CROSS-CHECK AGAINST A PRIOR MEASUREMENT: `32-39-SUMMARY.md` records 908 passed across the
+six files board-model, board-read, board-dashboard, board-tracer, check-foundation-guards
+and validate. The same six here: 154 + 165 + 75 + 84 + 300 + 130 = 908. The two
+measurements agree exactly, so no file among those six lost or gained a case since 32-39.
+
+`check:dashboard-readonly` reads 175 here and 175 as gate row 14 — the two invocations of
+the same suite agree. The floor this plan's `<verify>` names is 171; 175 clears it, and
+the four extra cases are the ones the CR-01 fix (`d276f4e3`) added after the round-3
+measurement, already recorded in `32-38-SUMMARY.md`.
+
+================================================================================
+8. THE BUILD-PARITY PROOF, AFTER THE ROUND'S LAST SOURCE CHANGE
+================================================================================
+
+The round's last source change is commit `c5fc977a` (plan 32-39). Plan 32-40 changed zero
+source lines, and plan 32-41 — this plan — modifies no file under `scripts/`,
+`agent-factory/`, `install/`, `hooks/`, `docs/` or `package.json`. The parity and
+freshness measurements in rows 3 and 4 above therefore sit AFTER every source change this
+round made.
+
+THE PARITY GATE'S OWN OUTPUT LINE:
+
+    Build parity: no tracked build output moved when tsc ran.
+    exit=0
+
+THE FRESHNESS GATE'S OWN OUTPUT LINE:
+
+    All build outputs fresh: 65 committed .js file(s) match a rebuild of their sources.
+    Set equality with the filesystem walk: 0 committed at HEAD and absent on disk, 0 on
+    disk and absent from HEAD.
+    exit=0
+
+Every measurement in this file is therefore about the artifact a host actually runs, not
+about a source nobody ships. That is what the D-13 stack constraint requires and what
+these two gates enforce.
+
+THE ZERO-RUNTIME-DEPENDENCY POSTURE, RE-MEASURED:
+
+    `package.json` has NO `dependencies` key at all.
+    `devDependencies` is exactly three entries: @types/node ~22, typescript ~6.0.3,
+      vitest ~4.1.8 — all dev-and-CI-only, none shipped to a host.
+    This plan installed no package and ran no package-manager install.
+
+================================================================================
+9. THE ROUND'S CHANGED-FILE SET, DERIVED FROM GIT
+================================================================================
+
+NARROW BASE — this round's own three executed plans, 32-38 through 32-40:
+
+    $ git diff --name-only d5486262^..HEAD | sort | wc -l
+    24
+
+    of which outside .planning/ ...... 13
+
+    agent-factory/contracts/board.md
+    scripts/board-dashboard.js
+    scripts/board-dashboard.test.ts
+    scripts/board-dashboard.ts
+    scripts/board-model.js
+    scripts/board-model.test.ts
+    scripts/board-model.ts
+    scripts/board-read.js
+    scripts/board-read.test.ts
+    scripts/board-read.ts
+    scripts/board-tracer.test.ts
+    scripts/check-foundation-guards.test.ts
+    scripts/validate.test.ts
+
+    The remaining 11 are all under .planning/ (this round's plans, summaries, proofs and
+    the adversarial review).
+
+WIDE BASE — everything since the round-3 verification at `670f1b3c`, which is the base
+`32-40-ADVERSARIAL-REVIEW.md` section 15 used:
+
+    $ git diff --name-only 670f1b3c..HEAD | sort | wc -l
+    34
+
+    of which outside .planning/ ...... 17
+
+Both counts are stated because the overlap number in section 4 is computed against both,
+and a single base would leave a reader unable to tell whether a zero overlap was an
+artifact of choosing the narrower one. It is not: the overlap is 0 either way.
+
+Round 4's review recorded 32 files on the wide base; this sweep reads 34. The difference
+is exactly the two commits plan 32-40 itself landed after that measurement was taken
+(`ede812e8` and `b27040d5`), both under `.planning/`. The non-`.planning/` count is 17 in
+both readings, unmoved.
+
+================================================================================
+10. WHAT THIS FILE DOES NOT SAY
+================================================================================
+
+IT DECIDES NOTHING. It marks no requirement checkbox, sets no phase status, and reaches no
+verdict on whether Phase 32 is complete. `REQUIREMENTS.md`, `ROADMAP.md` and `STATE.md`
+were read and NOT touched:
+
+    $ git status --porcelain -- .planning/REQUIREMENTS.md .planning/ROADMAP.md \
+        .planning/STATE.md
+    (no output)
+
+IT MODIFIES NO SOURCE. This plan writes four planning documents and nothing else.
+
+THREE THINGS IT DID NOT MEASURE, in this repository's phrasing for anything it did not
+measure:
+
+  1. The live claude-CLI end-to-end lane is `UNKNOWN - verify` (section 5).
+  2. `scripts/board-watch-live.test.ts`'s delivery band on `windows-latest` is not
+     measurable from this host; unchanged from every prior round of this phase.
+  3. The six generator scripts were not run (section 3). Their freshness counterparts are
+     green, which proves the committed outputs match a regeneration; it does not prove the
+     generators themselves would exit 0 under some other condition, and nothing here
+     claims it does.
+
+--------------------------------------------------------------------------------
+Round 4 of 4. Produced by plan 32-41, Task 1. Modifies no source, decides no status.
