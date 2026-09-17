@@ -1,8 +1,8 @@
 ---
 phase: 32-board-projector-cli-dashboard
-reviewed: 2026-09-16T17:25:00Z
+reviewed: 2026-09-17T00:00:00Z
 depth: standard
-files_reviewed: 19
+files_reviewed: 17
 files_reviewed_list:
   - agent-factory/contracts/board.md
   - scripts/board-dashboard.js
@@ -16,539 +16,384 @@ files_reviewed_list:
   - scripts/board-read.ts
   - scripts/board-readonly.test.ts
   - scripts/board-tracer.test.ts
-  - scripts/board-watch-live.test.ts
   - scripts/board-watch.test.ts
   - scripts/check-foundation-guards.test.ts
-  - scripts/fixtures/board-snapshot/expected-snapshot.json
   - scripts/js-import-closure.js
   - scripts/js-import-closure.ts
   - scripts/validate.test.ts
 findings:
-  critical: 1
-  warning: 7
-  info: 3
-  total: 11
+  critical: 0
+  warning: 4
+  info: 6
+  total: 10
 status: issues_found
 ---
 
-# Phase 32: Code Review Report (gap-closure round 3)
+# Phase 32: Code Review Report
 
-**Reviewed:** 2026-09-16T17:25:00Z
-**Depth:** standard
-**Files Reviewed:** 19
+**Reviewed:** 2026-09-17
+**Depth:** standard (incremental — `git diff 670f1b3c..HEAD`)
+**Files Reviewed:** 17
 **Status:** issues_found
-**Diff base:** `b2069733..HEAD` (plans 32-31 … 32-37, commits `2b3ed970..1b8e0eab`)
-
-> This file OVERWRITES the round-2 review. The round-2 text is preserved in git at
-> `git show b2069733:.planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md`.
 
 ## Summary
 
-Round 3 landed six source-owning plans (32-31 … 32-36) across two production modules
-(`board-model.ts`, `board-read.ts`, `board-dashboard.ts`), one shared helper
-(`js-import-closure.ts`), one contract (`agent-factory/contracts/board.md`) and three gate test
-files. Every committed `.js` in scope is a faithful `tsc` build of its `.ts`: `npm run build`
-followed by `git status --porcelain scripts/` produced **no diff**, so there is no `.js`/`.ts`
-disagreement to flag and the `.ts` files were reviewed as the source.
+> **This file REPLACES the round-3 review report in place.** The round-3 content (CR-01,
+> WR-01 … WR-07, IN-01 … IN-03 — the findings `32-REVIEW-FIX.md` and
+> `32-40-ADVERSARIAL-REVIEW.md` cite by this file name) is preserved unchanged in git at
+> `git show 670f1b3c:.planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md`. Nothing was
+> rewritten inside that record; it was superseded at the path the workflow writes to.
 
-**Prior findings independently re-verified, not taken on trust.** The round-2 review's
-`WR-01` (absolute-path specifier) and `WR-02` (capability member path reached through a binding)
-were re-measured by planting live writers into `scripts/board-model.js` in the real tree and
-running the guard, then restoring:
+This is the round-4 fix pass (`d276f4e3..3e2f254a`) plus plans 32-38 and 32-39
+(`d5486262..a305dfa2`). I reviewed only what the diff since `670f1b3c` changed, read
+`32-40-ADVERSARIAL-REVIEW.md` first, and deliberately do not restate F-14 … F-22.
 
-| Plant | Shape | Guard result |
-|---|---|---|
-| A | `import { probeWrite } from "/tmp/.../writer.mjs"` + call | **exit 1**, 99 failed \| 72 |
-| B | `const __r = process.report; export const wB = (p) => __r.writeReport(p)` | **exit 1**, 19 failed \| 152 |
-| C (new probe) | `const { report: __r2 } = process;` then `__r2.writeReport(p)` | **exit 1**, 19 failed \| 152 |
-| D (new probe) | `globalThis["pro" + "cess"].report.writeReport(p)` | **exit 1**, 19 failed \| 152 |
-| — | unplanted control | exit 0, 171 passed |
+Verification notes for this report:
 
-WR-01 and WR-02 are genuinely closed, and two shapes the round did not plant are closed too.
-**No live DASH-06 write-capability bypass was found in this review.** I could not construct one
-through the module-identity rule (`ALLOWED_BUILTIN_SPECIFIERS` = `{fs, path, url}`, equality-pinned),
-the fs-namespace canonical form, the capability member-path position rule, or the callee-resolution
-allow-list. The residuals the guard's own docblock names — `import.meta.*`, a writer value received
-at runtime, a `node_modules` import — remain `UNKNOWN - verify` in the sense that they are
-undecidable by a syntactic pass, not that they were measured open.
+- No source file changed between `a305dfa2` (the adversarial review's HEAD) and the current HEAD —
+  `git diff --stat a305dfa2..HEAD -- scripts/ install/ hooks/ agent-factory/` is empty. The
+  adversarial review's build/freshness premise therefore still covers this tree.
+- Each committed `.js` is a faithful build of its `.ts` for every hunk in this diff; I diffed the
+  four changed pairs hunk by hunk and they agree, so nothing is reported against a `.js` separately.
+- None of the reviewed files carries a raw C0/C1 byte other than TAB and LF.
+- Every finding below was reproduced against the current source (two of them by running the
+  committed `.js`), and every control character in this document is spelled as escape TEXT.
 
-**A parser-oracle cross-check was run and is the source of the one BLOCKER below.** For each of the
-65 tracked `.js`/`.mjs` files I compared `moduleSpecifiers()`'s output against a real TypeScript
-parse of the same bytes. `stripNonCode` preserves length on all 65 and the scanner **missed zero**
-real specifiers — the fail-short direction is clean. But it reports **one specifier no import
-statement carries** (`install/install.js`), and because 32-31 turned a class miss into a hard throw,
-that fabricated edge now makes `jsImportClosure(ROOT, "install/install.js")` refuse. That is CR-01.
-
-**The round's own self-review (`32-37-ADVERSARIAL-REVIEW.md`) names five open findings F-09…F-13.**
-I confirmed F-09, F-10, F-11 and F-12 against the source — F-09 and F-12 by running the stated
-reproductions and observing the stated output. F-13 is accurate as written (the specifier position
-set is short, and the guard's AST census is what makes it non-exploitable); it is folded into CR-01
-rather than restated, because CR-01 is the same predicate's other failure direction and the more
-consequential one. Those confirmed findings appear below as WR-01…WR-05 with my own reproductions.
-
-**The whole scope's suite is green** (`board-readonly` 171/171; the other six phase test files
-920/920). That is stated here only to make the point this repository has recorded eleven times: on a
-safety invariant, green is not proof. CR-01 is live on `main` right now with a 4,000-line guard suite
-passing over it.
-
-## Critical Issues
-
-### CR-01: `moduleSpecifiers` reads ordinary string literals as import statements, so the "one authority" reports an import the file does not have — and now refuses on it
-
-**File:** `scripts/js-import-closure.ts:185-193, 278-293, 355-359, 373-383` (twin: `scripts/js-import-closure.js:169-177, 249-263, 314-318, 331-341`)
-**Also implicated:** `install/install.js:314`
-
-`stripNonCode`'s docblock states the rule and its reason:
-
-> WHAT IT DELIBERATELY DOES NOT BLANK. Ordinary string literals stay intact — blanking them would
-> change what the patterns see inside real code
-
-and `moduleSpecifiers`'s docblock then makes a claim that rule cannot support:
-
-> The scan's INPUT is CODE: `stripNonCode` runs first, so the partition is asked about import
-> statements rather than about prose.
-
-An ordinary string literal **is** prose, and the repository already contains one file that proves
-it. `install/install.js:314` carries a generated-source line inside a single-quoted string:
-
-```js
-'import { resolvedAssignmentsIn } from "./model-tiers.js";',
-```
-
-The `\bfrom\s*["']([^"'\n\r]*)["']/g` pattern reads that as a **relative** specifier. Before 32-31
-that cost an extra file in a mirror. Since 32-31 `jsImportClosure` refuses on an edge it cannot
-resolve, and `install/model-tiers.js` does not exist:
-
-```
-$ node -e 'import("./scripts/js-import-closure.js").then(m=>{try{m.jsImportClosure(process.cwd(),"install/install.js")}catch(e){console.log(e.name+": "+e.message)}})'
-ImportClosureError: js-import-closure: install/install.js imports "./model-tiers.js", which does not
-resolve to a file at /Users/.../install/model-tiers.js. A mirror built from a closure with an
-unresolvable edge would be missing exactly the file the walk could not see, so the walk refuses
-instead.
-```
-
-**Why this is not cosmetic.** The module's own opening paragraph states the failure it exists to
-prevent: *"a gate that cannot start looks, from the outside, exactly like a gate that ran and
-refused."* This function now manufactures exactly that condition out of prose. Both directions are
-live:
-
-1. A caller that takes `install/install.js` (or any future file whose strings carry a generated
-   import line) as a closure entry dies at startup with a message naming an import nobody wrote.
-2. A prose string containing a non-relative, non-bare spelling — `"read from '/etc/passwd'"` — is
-   classified **foreign**, which `jsImportClosure` also throws on, and which
-   `board-readonly.test.ts` feeds into `acquisitions` where it reds the write-detection PREMISE case.
-   Measured:
-
-```
-$ moduleSpecifiers(`const msg = "the dial was read from '/etc/passwd'";\nimport {a} from "./a.js";`)
-[{"specifier":"/etc/passwd","cls":"foreign"},{"specifier":"./a.js","cls":"relative"}]
-```
-
-   A file-scoped prose edit to `scripts/board-read.js` therefore reds the DASH-06 guard for a reason
-   that has nothing to do with a writer — and this file's own sibling docblock says *"a guard that
-   reds for no reason is a guard that gets loosened."*
-
-**The measurement that backs the current design is short by one arm.** `32-31-GREEN-proof.txt` is
-cited for "THIRTEEN foreign-classified matches … With this function … that count is ZERO." That
-number was taken over the **foreign** class only. The **relative** class was never censused, and it
-is where the live false positive is. This is the repository's own recorded probe — *ask which set
-the predicate ENUMERATES* — applied to the measurement rather than to the code.
-
-**Blast radius today.** No current caller passes `install/install.js` as an entry
-(`check-platform-shapes.ts`, `generate-hook-manifest.js`, the three freshness scripts,
-`context-io.test.ts`, `nonblocking-reader-parity.test.ts`, `check-uat-oracles.test.ts`,
-`check-foundation-guards.test.ts` and `board-readonly.test.ts` all name `hooks/*.js` or
-`scripts/*.js` entries). Nothing is broken on `main` this minute. The defect is that the newly
-designated single authority returns a provably wrong answer on a tracked file, and that the claim
-its docblock makes about its own input is false.
-
-**Fix:** decide the input question rather than widening the patterns. The structural form is to make
-the scan's input actually be code — blank ordinary string-literal spans the same way template text
-is blanked — and then re-measure BOTH classes over all 65 files:
-
-```ts
-// in stripNonCode: the string-literal arm currently only SKIPS; make it blank, as the
-// template-text arm already does, so `moduleSpecifiers`'s stated input claim becomes true.
-if (c === '"' || c === "'") {
-  const start = i + 1;
-  let k = i + 1;
-  while (k < n) {
-    const r = source[k] as string;
-    if (r === "\\") { k += 2; continue; }
-    k += 1;
-    if (r === c || r === "\n") break;
-  }
-  blank(start, k - 1);      // <- the change: the TEXT of the literal is prose to these patterns
-  i = k; prev = c; prevWord = "";
-  continue;
-}
-```
-
-Then pin the oracle in `board-readonly.test.ts` (or a `js-import-closure.test.ts`): for every
-tracked `.js`, assert that `moduleSpecifiers`'s specifier set **equals** the set a TypeScript parse
-extracts from `ImportDeclaration` / `ExportDeclaration` / `import()`. That is a derived two-sided
-check over the same corpus, and it is the only thing that stops this class recurring — the eleven
-false positives 32-31 removed and this one it did not were found by the same question asked twice.
+The four fixes themselves hold up under reading: `presenceActual`'s duplicate-identifier
+discrimination is correct for every population `ticketPopulations` can build, the two
+prototype-free accumulators are correct and their consumers already ask own-property questions, and
+the watch arm now opens `decision.real`. What I found is a **normative-contract drift the same
+commit did not carry** (WR-01), **two residuals inside the CR-01 scanner rewrite** — one of them a
+fail-SILENT direction the adversarial review measured only in its fail-LOUD half (WR-02, WR-03) —
+and **a second escape from the new split-reader refusal that its own docblock claims cannot exist**
+(WR-04). No security vulnerability, no data-loss risk, and no live instance of any finding on the
+tracked tree.
 
 ## Warnings
 
-### WR-01: `row-without-file` asserts a join that did not happen for a duplicate-id loser, and the `--json` document contradicts itself (confirms F-12)
+### WR-01: the watch arm now writes a record the normative contract says it never writes
 
-**File:** `scripts/board-model.ts:1305-1320` (`presenceActual`, the `admitted-under-another-id` arm), `scripts/board-model.ts:1259-1271` (`ticketPopulations`), `agent-factory/contracts/board.md:289`
+**File:** `scripts/board-dashboard.ts:1168-1183`, `agent-factory/contracts/board.md:406-412`
 
-`ticketPopulations` fills `byStem` from **every** admitted record, including a record that lost the
-duplicate-identifier contest in `readTicketsSource` (`scripts/board-read.ts:1362-1385` pushes the
-loser into `records` deliberately, to keep the partition total). `presenceOf` then reaches
-`admitted-under-another-id` through `byStem`, and `presenceActual` states a consequence that is true
-of the winner and false of the loser. Reproduced on the committed `.js`:
+**Issue:** `agent-factory/contracts/board.md:406` states, as a normative rule and in bold, **"A
+directory the projector will not watch carries no watch record."** The paragraph closes with "The
+refusal itself is already reported once, by the reader, against the source it belongs to."
+
+The WR-03 fix (`70cbd447`) makes that false for two of the three refusal codes. `deps.contained` is
+now `insideRoot`, which returns `ok: false` with `OUTSIDE-ROOT`, with an errno (`EACCES`, `ELOOP`)
+or with the literal `"unreadable"` (`scripts/board-read.ts:718-770`). Only the `OUTSIDE-ROOT` arm
+deletes the record; every other code now calls `noteWatchState`, so a directory the projector will
+not watch **does** carry a watch record, published on every stderr frame and in every `--json`
+document.
+
+The code comment at `:1161-1167` argues the change correctly and explicitly notes the contract's
+justification "is argued for the CONTAINMENT code and is true only of it" — but the contract itself
+was not moved. Under D-04 the contract is the authority a reader adjudicating a disagreement reads,
+and `agent-factory/contracts/board.md:576` states the rule for this repository: "A newly admitted
+shape is recorded here first and implemented afterwards." The contract diff in this same range of
+commits moved the presence table and nothing else. Nothing detects the drift either: plan 32-38's
+run-time contract-versus-code equality (`scripts/board-model.test.ts`, "the contract's presence
+table and the code's sentences") is scoped to the presence table alone, so the watch paragraph is
+kept in agreement only by eye — which is the failure mode WR-01 was filed for one section over.
+
+**Fix:** move the contract in the same commit as the behaviour. Replace the blanket sentence with
+the rule the code implements, e.g.:
+
+```markdown
+**A directory refused for CONTAINMENT carries no watch record.** A watch record states that a
+directory's watch failed and will be re-armed on the next poll tick; a containment refusal will not
+be re-armed for as long as the refusal stands, and the reader already reports it against the source
+it belongs to, so a record here would be a false promise and a second copy of one finding. A
+directory the containment authority could not RESOLVE — an `EACCES` on an ancestor, an `ELOOP`, an
+unreadable path — is a different fact: nothing else reports it, it can clear, and it carries a
+record naming the code until it does.
+```
+
+### WR-02: the CR-01 scanner can still be made to MISS a real import, not only to fabricate one
+
+**File:** `scripts/js-import-closure.ts:292-320` (the regex arm), `:446-460` (`moduleSpecifiers`)
+
+**Issue:** F-16 records that regular-expression literal interiors are not blanked, and measures the
+consequence as **fabrication** (a `foreign` spelling that hard-refuses, or a `bare` one that is
+silently skipped). The other direction is worse and is not recorded: one regex literal can swallow a
+**real relative import on the same line**, so `jsImportClosure` returns a **short closure with no
+error at all**.
+
+Reproduced against the committed `scripts/js-import-closure.js`:
 
 ```
-$ node scripts/board-dashboard.js "$T/p5" --once --json   # ABC-901.md and ABC-903.md both declare id: ABC-902
-readErrors: "ABC-903.md and ABC-901.md both claim the identifier ABC-902. … ABC-901.md is the one
-             joined and ABC-903.md is not."
-conflicts:  {"kind":"row-without-file","ticketId":"ABC-903", …,
-             "actual":"plans/tickets/ABC-903.md exists and declares the identifier ABC-902,
-                       so it is joined under that identifier and not this one"}
+src     : const re = /from "x/; import y from "./real.js";
+blanked : const re = /from "x/; import y from "         ";
+scanned : [ { specifier: 'x/; import y from ', cls: 'bare' } ]
+ts-parse: [ './real.js' ]
 ```
 
-One document says ABC-903.md **is not** joined and, three fields later, that it **is**. That is the
-disagreement DASH-03 exists to surface between two sources, occurring between two fields of one
-snapshot — and CLAUDE.md's no-fabrication rule is what makes it a finding.
+The un-blanked `"` inside the regex is consumed as the pattern's opening quote, `[^"'\n\r]*` runs
+across the code to the REAL literal's opening quote, and `matchAll` resumes past it — so the real
+specifier is never matched. The fabricated capture classifies as `bare`, which
+`jsImportClosureFacts:543-546` **skips silently**. There is no throw and no diagnostic: the walk
+hands back a closure that is missing a module.
 
-`agent-factory/contracts/board.md:289` carries the same false clause verbatim, so the contract
-cannot be used to adjudicate it.
+That matters because three live consumers use the closure as a completeness set, not just as a copy
+list: `scripts/trace-freshness.ts:114`, `scripts/context-freshness.ts:126` and
+`scripts/guarantees-freshness.ts:134`. A module silently absent from the closure is a source file
+whose edits a freshness gate stops noticing — a guard that goes quiet rather than saying so. The
+module's own docblock calls this the direction that "costs a crash rather than a file"; here it
+costs neither, which is worse.
 
-**Fix:** the sentence has to distinguish the two populations. `presenceOf` already has the winner in
-hand (`byId.get(declaredId)`), so the arm can check whether the stem's own record is the joined one:
+Blast radius on the live tree: zero. The two-sided oracle
+(`scripts/board-readonly.test.ts:1813`) reports fabricated 0 / missed 0 over all tracked `.js` and
+`.mjs`, and `scripts/js-import-closure.ts`'s own `SPECIFIER_PATTERNS` literals happen not to match
+(`\bfrom\s*["']` needs a quote immediately after `from`, and there `\s*` meets a backslash).
+
+**Fix:** blank the regex interior the way the string arm now does. The arm already walks to the
+closing `/` and knows `closed`, so the span is in hand:
 
 ```ts
-case "admitted-under-another-id": {
-  const joined = presence.joinedFile;     // byId.get(presence.declaredId)?.file
-  return joined === `${id}.md`
-    ? `plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
-      `so it is joined under that identifier and not this one`
-    : `plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
-      `which ${joined} claimed first, so it is joined under no identifier`;
-}
+      if (closed) {
+        // Blank the PATTERN TEXT for the same reason a string literal's text is blanked: a
+        // quote inside it is not a quote in code position. The delimiters and flags stay, so
+        // offsets and the regex-vs-division decision are unchanged, and nothing is recorded —
+        // a regex interior can never be a specifier, so there is nothing to recover.
+        blank(i + 1, patternEnd);     // patternEnd = index of the closing `/`
+        while (k < n && /[a-z]/.test(source[k] as string)) k += 1;
+        i = k;
+      }
 ```
 
-Update `agent-factory/contracts/board.md`'s table in the same commit — the contract is the authority
-the code derives from, so it moves first.
+Then extend the oracle case at `scripts/board-readonly.test.ts:1665-1712` with a regex-carrier
+source asserting BOTH directions (no fabricated row, and the real `./real.js` row still present).
 
-### WR-02: the refusal that quotes a TAB as its evidence has the TAB removed before the reader sees it, on both channels (confirms F-09)
+### WR-03: the recovery table stores the literal's SOURCE TEXT, so an escaped specifier is resolved on its raw spelling
 
-**File:** `scripts/board-dashboard.ts:258-262` (`CONTROL_CODE_POINTS`, `sanitizeCell`), `:286-338` (`scrub`, `writeDocument`), `:276-284` (`warn`)
+**File:** `scripts/js-import-closure.ts:343` (`literals.set(textStart, source.slice(...))`),
+`:452-461` (`moduleSpecifiers`)
 
-`CONTROL_CODE_POINTS = /[\x00-\x1f\x7f-\x9f]/g` includes U+0009. The ticket grammar refuses
-a tabbed frontmatter line as `unrecognized-line` and its message quotes the offending line as the
-evidence. Both rendered channels then delete the evidence. Reproduced:
+**Issue:** `scanSource` records `source.slice(textStart, textEnd)` — the bytes between the quotes,
+undecoded — and `moduleSpecifiers` returns that as the specifier. A JavaScript string literal's
+VALUE is not its source text, so any specifier carrying an escape is read wrong. Reproduced against
+the committed `.js`:
 
 ```
-$ node scripts/board-dashboard.js "$T/w4" --once --json | (walk readErrors)
-"line 3 is `title: Something in the backlog`, which is neither `key: value` nor `key:`"
-has TAB: false
+src     : import a from "./mod.js";
+scanned : [ { specifier: './mod\\u002ejs', cls: 'relative' } ]
+ts-parse: [ './mod.js' ]
 ```
 
-The sentence now quotes a line that reads as a perfectly ordinary `key: value` while asserting,
-beside it, that it is neither. `agent-factory/contracts/board.md:105-113` says the refusal exists so
-"a human sees what the projector declined to read" — a reader following this message will re-type
-the line exactly as printed and be refused again.
+`jsImportClosureFacts:547-556` then resolves `./mod.js`, finds no file, and throws
+`ImportClosureError` — the "a gate that cannot start looks exactly like a gate that ran and refused"
+shape CR-01 was filed for. The escaped-quote case (`from "./a\"b.js"`) is newly reachable because of
+this round's change: the un-blanked capture used to stop at the backslash, and now the whole raw
+span including the backslash is recovered. Both spellings are wrong; only the second is new.
 
-This is the sibling arm of the fix that closed round-2's WR-04: that one wanted a control character
-removed before serialization; this message wanted the same character preserved as evidence. One rule
-was applied to both.
+The module's own independent authority disagrees with it here: the oracle at
+`scripts/board-readonly.test.ts:1839-1859` compares against `node.moduleSpecifier.text`, which is
+the DECODED value. So the "two-sided parser oracle proves the fallback unreachable" argument at
+`:446-451` holds for the fallback and not for the recovery, and the divergence is invisible only
+because no tracked file uses an escape in a specifier.
 
-**Fix:** spell control characters as escapes at the point the diagnostic is BUILT, so nothing the
-sanitizer removes was ever load-bearing. In `scripts/board-model.ts`, where the `unrecognized-line`
-message is composed:
+**Fix:** record the literal's VALUE rather than its bytes, or refuse the shape by name rather than
+mis-reading it. The cheapest correct form, given the arm already tracks escapes:
 
 ```ts
-const visible = (line: string): string =>
-  line.replace(/[\x00-\x1f\x7f-\x9f]/g, (c) =>
-    c === "\t" ? "<TAB>" : `<U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}>`);
-// … `line ${n} is \`${visible(raw)}\`, which is neither \`key: value\` nor \`key:\``
+      // RECORD WHAT THE LITERAL MEANS, NOT THE BYTES THAT SPELL IT. A specifier is a string
+      // VALUE; `./mod.js` and `./mod.js` are the same module to Node and to the oracle
+      // this module is asserted equal to.
+      if (terminated) {
+        const raw = source.slice(textStart, textEnd);
+        literals.set(textStart, raw.includes("\\") ? JSON.parse(`"${raw}"`) as string : raw);
+      }
 ```
 
-The same substitution belongs on every other diagnostic that quotes bytes it did not write; grep for
-template literals that interpolate a raw source line into a message.
+(If decoding is judged out of scope, then refuse instead: a terminated literal whose text contains a
+backslash should be recorded as a named refusal, so the walk says what it cannot read rather than
+resolving a spelling nobody wrote.)
 
-### WR-03: the watch arm checks the RESOLVED path and then opens the UNRESOLVED spelling
+### WR-04: the split-reader refusal is escapable in the other import direction, and its docblock states that direction is impossible
 
-**File:** `scripts/board-dashboard.ts:902-941` (`LoopDeps.contained`, `defaultDeps`), `:1120-1155` (`arm`)
+**File:** `scripts/validate.test.ts:2002` (the guard clause), `:1943-1946` and `:2029-2032` (the
+claim), `:1739-1743` (`findTicketReaders`'s conjunction)
 
-`insideRoot`'s own docblock (`scripts/board-read.ts:668-672`) states the rule the rest of the
-repository follows:
-
-> The caller opens THAT, not the spelling it started with: opening a second path that merely spells
-> the same thing is how a check made before a link swap stops being a check.
-
-`repoSubpath` and `childPath` both honour it — they return and use `contained.real`. The watch seam
-does not. Its signature throws the answer away:
+**Issue:** `splitReaderOffenders` opens with
 
 ```ts
-contained: (root, dir) => insideRoot(root, dir, "the watched directory").ok,
+      if (!h.scans || h.namesBothKeys) continue;
 ```
 
-and `arm` then opens the spelling:
+and its banner justifies the scope: *"The only way to assemble the pair across files is for the key
+spellings to reach the scanning file through an import — a file that re-declares both keys beside
+its own scan is already caught by the conjunction."*
+
+That claim is false, and the guard clause is what makes it false. The pair can also be assembled
+with the import running the OTHER way: the key spellings stay in the importing file and the
+text-scanning half is what arrives through the import.
 
 ```ts
-if (!deps.contained(root, dir)) { closeWatcher(rel); watchErrorsByDir.delete(rel); return; }
-if (watchers.has(rel)) return;
-if (!deps.exists(dir)) { … }
-const handle = deps.watch(dir, () => { … });   // <- `dir`, not the real path insideRoot resolved
+// a.ts  — names both keys, calls only a plain identifier, so `scans` is false
+import { valuesFor } from "./b.js";
+export const TICKET_FIELDS = ["column", "status"];
+export const readTicket = (t: string) => valuesFor(t, TICKET_FIELDS);
+
+// b.ts  — scans text, names no key, imports nothing
+export const valuesFor = (t: string, keys: readonly string[]) =>
+  Object.fromEntries(t.split("\n").flatMap((l) => {
+    const [k, v] = l.split(":");
+    return k !== undefined && keys.includes(k) ? [[k, (v ?? "").trim()]] : [];
+  }));
 ```
 
-That is a check-then-open race against the exact swap `insideRoot` documents. `board.md:374-387`
-states the guarantee as *"The projector arms its filesystem watches against the same resolved root
-it reads against, and it opens no watch on a directory that resolves outside that root"* — what the
-code delivers is weaker than what the contract says.
+Traced against the current source, this working second authority is invisible to every check:
 
-The bound on the damage is real and worth stating: `fs.watch` yields names, the listener ignores
-`filename` entirely (`:1154-1157`) and only calls `schedule()`, so no content crosses. The leak is a
-handle held on an out-of-tree directory and out-of-tree activity driving re-reads.
+- `findTicketReaders(a.ts)` returns `[]` — `namesBothKeys` is true but `primitiveRows.size === 0`,
+  because `valuesFor(t, …)` is a plain `CallExpression`, not a `PropertyAccessExpression`
+  (`:1713-1716`), so the conjunction at `:1741` fails.
+- `findTicketReaders(b.ts)` returns `[]` — it names no key.
+- `splitReaderOffenders` skips `a.ts` at `:2002` (`h.namesBothKeys` is true) and finds nothing for
+  `b.ts`, whose `importsFrom` is empty.
 
-A second defect rides in the same branch: `insideRoot` returns `ok: false` for **any** failure —
-`OUTSIDE-ROOT`, `EACCES` on an ancestor, `ELOOP`. All of them collapse into the same silent
-`closeWatcher + watchErrorsByDir.delete + return`, whose written justification ("the reader already
-reported the refusal against the source it belongs to") is argued only for the containment code. An
-`EACCES` that the reader does not independently report leaves the directory silently off the
-low-latency path with no record anywhere — the shape round-2's CR-01 named, one code over.
+This is a different axis from F-15 (which enumerates import SHAPES with the scanner as importer);
+here the enumerated thing is the import DIRECTION, and the skip is explicit rather than an omission.
+Blast radius on the live tree is zero — the census's verdict is still `exactly-one-authority` — so
+this is proof robustness for DASH-01, the same disposition F-15 carries.
 
-**Fix:** widen the seam to carry the answer, and branch on the code:
+**Fix:** ask the join in both directions, and delete the false totality sentence from both copies of
+the banner. Concretely, a file that names both keys and imports a binding from a scanned file whose
+`readerHalves(...).scans` is true is the converse offender:
 
 ```ts
-readonly contained: (root: string, dir: string) => Containment;   // not boolean
-…
-const decision = deps.contained(root, dir);
-if (!decision.ok) {
-  closeWatcher(rel);
-  if (decision.code === OUTSIDE_ROOT) watchErrorsByDir.delete(rel);   // reader reports it
-  else noteWatchState(rel, source, `the watch on ${rel} was not armed (${decision.code}): …`);
-  return;
-}
-…
-const handle = deps.watch(decision.real, () => { … });   // open what was checked
+    for (const [name, h] of halves) {
+      if (Object.hasOwn(NOT_A_SECOND_AUTHORITY, name)) continue;
+      for (const imp of h.importsFrom) {
+        const target = resolveScanned(name, imp.specifier);
+        if (target === null || target === name) continue;
+        // direction 1 (today): the SCANNER imports the key table
+        if (h.scans && !h.namesBothKeys && keyTables.get(target)?.has(binding)) { … }
+        // direction 2 (missing): the KEY-NAMER imports a scanning half
+        if (h.namesBothKeys && !h.scans && halves.get(target)?.scans === true) {
+          offenders.push(`${name} names both keys and takes the scanning half from ${target}`);
+        }
+      }
+    }
 ```
 
-### WR-04: the one-authority ticket-reader census is FILE-SCOPED, so a reader split across two files is invisible (confirms F-10)
-
-**File:** `scripts/validate.test.ts:1693-1745` (`findTicketReaders`), `:1830-1846` (`censusOver`)
-
-`findTicketReaders` returns `[]` unless `namesBothKeys && primitiveRows.size > 0` **within one
-parsed source file**:
-
-```ts
-const namesBothKeys = KEY_SPELLINGS.every((k) => keyRows.has(k));
-if (!namesBothKeys || primitiveRows.size === 0) return [];
-```
-
-A genuine second authority whose key spellings live in `scripts/a.ts` and whose text scan lives in
-`scripts/b.ts`, joined by an ordinary `import`, is therefore never detected — while the census's
-whole claim is "exactly one authority on what a ticket says". 32-36 pinned the scope's
-over-detection direction in a boundary case and left the converse neither pinned nor stated. The
-round's own self-review measured the split-file plant as a **working** authority that reads
-`{"status":"ready","column":"In Development"}` out of the fixture's deliberate-disagreement ticket,
-at exit 0.
-
-**Second, smaller defect in the same derivation.** The exemption lookup is a raw property read on an
-object literal:
-
-```ts
-carriers: detected.filter(([name]) => NOT_A_SECOND_AUTHORITY[name] === undefined)
-```
-
-`Object.freeze({…})` does not remove `Object.prototype`. Measured:
-
-```
-toString        -> exempt? true
-constructor     -> exempt? true
-valueOf         -> exempt? true
-hasOwnProperty  -> exempt? true
-__proto__       -> exempt? true
-```
-
-A file named `scripts/toString.ts` would be exempted with no reason recorded and without moving
-`NOT_A_SECOND_AUTHORITY_COUNT` — an exemption granted by a filename rather than by a decision, which
-is the class this whole census exists to prevent.
-
-**Fix (the lookup, immediately):**
-
-```ts
-carriers: detected.filter(([name]) => !Object.hasOwn(NOT_A_SECOND_AUTHORITY, name))
-```
-
-**Fix (the scope):** widen the subject from a file to the import-joined unit, or — cheaper and in
-this repository's stated posture — state the scope as a refusal: assert that no scanned file
-imports `KEY_SPELLINGS` (or any const that names both) from another file, so the split-across-files
-shape is refused by name instead of being invisible.
-
-### WR-05: a `check:*` command mixing one recognised and one unrecognised target spelling yields a SHORT row set that never reaches the null arm (confirms F-11)
-
-**File:** `scripts/check-foundation-guards.test.ts:12075-12076` (`GATE_TARGET_RE`, `SUITE_TARGET_RE`), `:12098-12113` (`classifyCheckScriptTargets`)
-
-```ts
-const GATE_TARGET_RE = /node (scripts\/[\w.-]+\.js)/g;
-const SUITE_TARGET_RE = /vitest run ([\w./-]+\.test\.ts)/g;
-…
-if (rows.length > 0) return rows;                        // <- the short set short-circuits
-if (TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined) { … }
-return null;                                             // <- never reached for a short set
-```
-
-32-36's fix (`.exec` → `.matchAll`) works for `node scripts/a.js && node scripts/b.js`. It does not
-work for a command whose second module is spelled any of the ordinary ways the regex alphabet
-excludes — `node ./scripts/b.js`, `node --enable-source-maps scripts/b.js`, `npm run check:x`. Each
-of those yields **one** row, `rows.length > 0` short-circuits, and the second module contributes no
-row, moves no pinned number, and gets no reachability proof. That is round-2's WR-05 verbatim, one
-register over: "classified by the first, unless the second is spelled the one way the regex admits".
-
-No live instance — all 11 `check:*` scripts today carry 11 targets, all spelled `node scripts/<x>.js`
-or `npx vitest run scripts/<x>.test.ts`, and the derived total equals the pinned 9 + 1 + 1.
-
-**Fix:** derive the target count independently of the recognisers and assert the two agree, so a
-short set is a red rather than a silent pass:
-
-```ts
-// the denominator, taken on the OTHER side of the recognisers
-const invocations = (cmd.match(/(^|&&|\|\||;)\s*(node|npx|npm)\b/g) ?? []).length;
-expect(rows.length + (TOOLCHAIN_CHECK_SCRIPTS[name] ? 1 : 0), `${name}: ${invocations} invocations,
-  ${rows.length} classified targets — a command step nothing proves`).toBe(invocations);
-```
-
-### WR-06: `classifySpecifier` refuses legitimate bare package specifiers that do not begin with an ASCII letter or `@`
-
-**File:** `scripts/js-import-closure.ts:104-114` (twin `scripts/js-import-closure.js:96-106`)
-
-The module docblock says:
-
-> `bare` — a node builtin or a package. SKIPPED … A bare specifier is therefore skipped, not refused
-
-The implementation says something narrower:
-
-```ts
-const startsBare =
-  (first >= 0x41 && first <= 0x5a) || (first >= 0x61 && first <= 0x7a) || specifier.startsWith("@");
-```
-
-Measured:
-
-```
-"7zip-bin"  -> foreign        (a real npm package name; npm permits a leading digit)
-"1pkg"      -> foreign
-"_under"    -> foreign        (legacy npm names may lead with an underscore)
-"ノード"      -> foreign
-```
-
-Any of those is a **hard throw** out of `jsImportClosure`, not a skip. The two statements in the same
-file disagree, and the one that governs is the narrow one. The module's stated mitigation ("this
-repository ships zero runtime dependencies, so there is nothing else to follow") bounds the live
-impact to zero today, but it is the reason the FOREIGN arm exists at all — so the arm is refusing
-members of the class it says it skips.
-
-**Fix:** either state the narrowing where the class is defined (and say a digit-leading package name
-is refused by decision, with the reason), or make `bare` the positive test the docblock claims:
-
-```ts
-// a bare specifier is one that is not relative and carries no scheme other than `node:`,
-// and whose first character is not a path or URL introducer.
-const firstChar = specifier.charAt(0);
-const startsBare = firstChar !== "" && !"./\\#%".includes(firstChar);
-```
-
-Whichever is chosen, the two sentences must agree, because this function is now the single authority
-two consumers ask.
-
-### WR-07: `relativeSpecifiers` is a dead export whose docblock claims callers it does not have
-
-**File:** `scripts/js-import-closure.ts:386-397` (twin `scripts/js-import-closure.js:362-372`)
-
-The docblock says:
-
-> It kept its name and its contract so every existing caller is unaffected
-
-There are no callers. A repository-wide grep across `.ts`, `.js`, `.mjs` and `.md` (excluding
-`.planning/`) finds the symbol only at its own two definition sites. `jsImportClosureFacts` walks
-`moduleSpecifiers` directly; `board-readonly.test.ts` imports `classifySpecifier`,
-`copyImportClosure`, `jsImportClosure`, `jsImportClosureFacts`, `moduleSpecifiers` and
-`SPECIFIER_CLASSES` — never this one. The function also has no test of its own.
-
-Dead code carrying a false claim about why it is kept is worse than dead code: the next reader takes
-the sentence as evidence that the export is load-bearing and preserves it again.
-
-**Fix:** delete the export, or add the test that makes it a real second view and correct the
-sentence to say what it is for.
+and extend the DISCRIMINATION case at `:2059-2113` with the reversed plant above, so the new
+direction is watched refusing something rather than merely asserted.
 
 ## Info
 
-### IN-01: the `admitted-under-its-stem` discriminant name is false for exactly the population CR-03 was about
+### IN-01: the WR-04 banner comment is duplicated almost verbatim, and the second copy sits over the wrong test
 
-**File:** `scripts/board-model.ts:1197-1204` (`TICKET_PRESENCE_KINDS`), `:1281-1291` (`presenceOf`)
+**File:** `scripts/validate.test.ts:1936-1950` and `:2020-2035`
 
-`presenceOf` returns `admitted-under-its-stem` whenever `byId.has(id)` — which says nothing about the
-record's stem. For `ABC-901.md` declaring `id: ABC-902` and a board row `[ABC-902]`, the arm returns
-`admitted-under-its-stem` carrying a record whose stem is `ABC-901`. Nothing is printed (the arm
-returns `null` from `presenceActual`), so this is a naming defect rather than a behavioural one — but
-`TICKET_PRESENCE_KINDS` is exported and pinned two-sided, which makes the name part of the contract
-surface, and the name asserts a fact the arm never measured.
+**Issue:** The 15-line `REVIEW WR-04 — THE CENSUS'S SUBJECT IS A FILE…` banner appears twice; the
+second copy repeats the first nearly word for word with two sentences appended, and it heads
+`it("the exemption lookup is an OWN-property test…")`, which is about the *other* WR-04 defect (the
+frozen-object read) and not about file scope at all. A reader meets the split-file argument
+immediately above a test that does not test it. There is also a stray double blank line at `:2115`.
 
-**Fix:** rename to `admitted` (or `declared-by-a-document`), which is what the lookup actually
-decides, and update `TICKET_PRESENCE_KINDS` plus `board-model.test.ts` in the same commit.
+**Fix:** keep the first banner over `splitReaderOffenders`, delete the second, and give the
+own-property test a two-line comment of its own naming the defect it actually covers.
 
-### IN-02: a dial column spelled `__proto__` is silently dropped, so `column-missing` is never raised for it
+### IN-02: a conditional whose two branches are identical, inside an assertion message
 
-**File:** `scripts/board-read.ts:1147-1159` (`configView`)
+**File:** `scripts/check-foundation-guards.test.ts:12767`
 
-```ts
-const limits: Record<string, number> = {};
-for (const [k, v] of Object.entries(wip as Record<string, unknown>)) {
-  if (typeof v === "number" && Number.isInteger(v)) limits[k] = v;
-}
-```
-
-`JSON.parse` does create an own `__proto__` property, `Object.entries` yields it, and
-`limits["__proto__"] = 3` is a silent no-op against `Object.prototype`'s setter. The key never lands,
-so `joinSnapshot`'s `column-missing` arm never sees it. `board.md:242-246` promises the projector
-"reports every conflict and resolves none"; this one is resolved by disappearing. Absurd as a column
-name, but the same two-line fix removes the class:
+**Issue:**
 
 ```ts
-const limits = Object.create(null) as Record<string, number>;
-// … and `scrub` in board-dashboard.ts should use Object.create(null) for the same reason
+      `the accessor is called a different number of times than the ${reads.length === 1 ? 3 : 3} ` +
 ```
 
-### IN-03: `TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined` is the same prototype-lookup class as WR-04
+Both arms are `3`, so the ternary computes nothing and reads as an unfinished edit. In a file whose
+whole subject is that pinned numbers must be derived rather than recalled, a dead conditional
+standing in for a derived number is the wrong signal.
 
-**File:** `scripts/check-foundation-guards.test.ts:12061-12066, 12110`
+**Fix:** drop the ternary and state the number plainly (`… than the 3 raw reads the RED baseline
+derived`), or derive it — e.g. from a named constant that the baseline count and this assertion both
+read.
 
-Unreachable today only because every key in the scanned set is `check:`-prefixed, so no script name
-can collide with an `Object.prototype` member. It is listed so the two sites are fixed together —
-`Object.hasOwn(TOOLCHAIN_CHECK_SCRIPTS, name)` — rather than one being fixed and the other left as
-the copy that still disagrees.
+### IN-03: one register in the same file was left with the raw frozen-object read the round converted everywhere else
+
+**File:** `scripts/validate.test.ts:1620-1621`
+
+**Issue:** This round converted `NOT_A_SECOND_AUTHORITY` (`:1916`) and `TOOLCHAIN_CHECK_SCRIPTS`
+(`scripts/check-foundation-guards.test.ts:12092`) to `Object.hasOwn`, and plan 32-39 added a parsed,
+derived-site-set test to keep the second one converted. The third register in the same family kept
+the raw read:
+
+```ts
+  const looksLikeTextScan = (member: string): boolean =>
+    TEXT_CAPABLE_MEMBERS.has(member) && NOT_A_TEXT_PRIMITIVE[member] === undefined;
+```
+
+Reach, stated honestly: it is **unreachable today**, and for a structural reason rather than a
+lucky one — the second operand is only evaluated when `member` is an own property name of
+`String.prototype` or `RegExp.prototype`, and the only three of those that `Object.prototype` also
+owns (`constructor`, `toString`, `valueOf`) are exactly the three the register records. But that is
+a property of the derived SET, not of the lookup, and the round's own argument for converting the
+other two was that such a premise "can be retired silently".
+
+**Fix:** `Object.hasOwn(NOT_A_TEXT_PRIMITIVE, member)` — one token, and it puts the third register
+on the same rule as its two siblings.
+
+### IN-04: `RENDER_STRIPPED` is exported with the `g` flag, so a `.test()` consumer gets alternating answers
+
+**File:** `scripts/board-model.ts:1042`
+
+**Issue:** `export const RENDER_STRIPPED = /[ --]/g;` is safe at its single
+call site (`String.prototype.replace` resets `lastIndex`), and the one test that asks it a boolean
+question already works around the trap by rebuilding it
+(`scripts/board-dashboard.test.ts:2793`: `new RegExp(RENDER_STRIPPED.source).test(…)`). The
+workaround is the evidence: the exported value carries mutable state, and the next consumer that
+writes `RENDER_STRIPPED.test(x)` gets true/false alternating with call order. Its sibling
+`TICKET_CONTROL` (`:1033`) carries no `g`.
+
+**Fix:** export the source and derive the flag at the one place that needs it:
+
+```ts
+export const RENDER_STRIPPED_SOURCE = "[\\u0000-\\u001F\\u007F-\\u009F]";
+const RENDER_STRIPPED_G = new RegExp(RENDER_STRIPPED_SOURCE, "g"); // module-private, replace() only
+```
+
+### IN-05: the presence-spelling walk reads untracked files, so a local note can red the suite
+
+**File:** `scripts/board-model.test.ts` (`presenceSpellingSites`, `SPELLING_WALK_SKIP`,
+`SPELLING_WALK_EXTENSIONS`)
+
+**Issue:** The new derived-site walk uses `readdirSync` over the whole tree, skipping only `.git`,
+`node_modules`, `.planning`, `.tmp-build` and `dist`, and reads `.md`, `.json` and `.txt` among
+others. Untracked working files are therefore in scope — this checkout currently carries `.gsd/` and
+`human-notes.txt` — so a developer pasting an old `admitted-under-its-stem` spelling into a scratch
+note turns the suite red for a reason that is not a property of the repository. The sibling oracle at
+`scripts/board-readonly.test.ts:1822` solved the same problem by deriving its corpus from
+`git ls-files`, and said so.
+
+**Fix:** derive the walk's corpus from `git ls-files` as the oracle does (and keep the `.planning`
+exclusion applied to that list), so the assertion is about the repository rather than about the
+working directory.
+
+### IN-06: `refusedById` / `UnadmittedTicket.id` name an identifier where a file stem is held — the sibling of the rename this round made
+
+**File:** `scripts/board-model.ts:366-371`, `:1294`, `:1314-1315`
+
+**Issue:** Plan 32-39 renamed `admitted-under-its-stem` to `admitted-under-this-id` on the stated
+grounds that "the arm names what its lookup measured", because `byId.get(id)` measures a declared
+identifier and says nothing about a stem. The converse case in the same type is unchanged:
+`UnadmittedTicket.id` is documented at `:367` as "The refused file's stem … Never a value read out
+of the document", and `refusedById` is keyed by it — so a field and a map named for an identifier
+hold a stem, which is the reading `agent-factory/contracts/board.md:330-333` also gives ("A refused
+document's identifier is the file's stem rather than something the document stated").
+
+This is weaker than the arm it mirrors: both docblocks state the truth, so nothing is hidden. It is
+recorded because the rename's rationale applies unchanged, and the two now read inconsistently.
+
+**Fix:** if the rationale holds, rename to `UnadmittedTicket.stem` / `refusedByStem` in one commit
+across the exported type, `ticketPopulations`, `presenceOf` and the contract's prose. If it does not
+hold, add a line to `:366-371` saying why the exception is deliberate, so the next reader does not
+re-file it.
 
 ---
 
-## Verification notes (what this review measured, and what it did not)
-
-- **Build parity:** `npm run build` then `git status --porcelain scripts/` → clean. Every committed
-  `.js` in scope is a faithful build of its `.ts`. **No `.js`/`.ts` disagreement found.**
-- **Suites run:** `npx vitest run scripts/board-readonly.test.ts` → 171/171.
-  `npx vitest run scripts/board-watch.test.ts scripts/board-model.test.ts scripts/board-read.test.ts
-  scripts/board-dashboard.test.ts scripts/board-tracer.test.ts scripts/validate.test.ts
-  scripts/check-foundation-guards.test.ts` → 920/920. Bare `npm test` was **not** run.
-- **Live plants:** four writer shapes planted into `scripts/board-model.js` in the real tree and the
-  guard re-run for each; the file was restored from a byte copy and `git status` verified clean.
-- **Parser oracle:** `moduleSpecifiers()` vs a TypeScript parse over all 65 tracked `.js`/`.mjs`
-  files. Length preserved on all 65; **zero missed** specifiers; one fabricated specifier (CR-01).
-- **`UNKNOWN - verify`:** whether a write capability can reach the dashboard closure through
-  `import.meta.resolve`, through a writer value received at runtime from outside the closure, or
-  through a future `node_modules` dependency. All three are outside what a syntactic pass can decide
-  and all three are already named in `board-readonly.test.ts`'s own "what it does not close" list. I
-  did not find a route through any of them and I did not prove one does not exist.
-- **`UNKNOWN - verify`:** `scripts/board-watch-live.test.ts`'s 350 ms delivery band on
-  `windows-latest` (round-2 WR-07). Not re-measurable from this machine.
-
----
-
-_Reviewed: 2026-09-16T17:25:00Z_
+_Reviewed: 2026-09-17_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
