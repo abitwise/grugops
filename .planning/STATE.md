@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Phase 32.1 context gathered
-last_updated: "2026-09-17T15:54:13.377Z"
-state_head: d7bec9e76701d240f2b85f046b25b2e3c13bfb71
+stopped_at: Completed 32.1-01-PLAN.md
+last_updated: "2026-09-17T19:02:24.311Z"
+state_head: 7b8b598f17528689e3f67bf39a898263780e1a0f
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 265
-  completed_plans: 254
+  completed_plans: 255
   percent: 96
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -26,12 +26,12 @@ last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LA
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 32.1 — Board Dashboard Deferred Residuals (inserted; then Phase 33)
+**Current focus:** Phase 32.1 — Board Dashboard Deferred Residuals (INSERTED)
 
 ## Current Position
 
-Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — READY TO EXECUTE
-Plan: Not started
+Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
+Plan: 2 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -511,6 +511,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P39 | 37 min | 3 tasks | 12 files |
 | Phase 32 P40 | 39 min | 3 tasks | 1 files |
 | Phase 32 P41 | 14h 6m | 3 tasks | 4 files |
+| Phase 32.1 P01 | 41 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1403,6 +1404,9 @@ Recent decisions affecting current work:
 - [Phase 32]: Round 4 tested and FALSIFIED its own principal cross-fix hypothesis by measurement: a specifier recovery miss on a blanked span is unreachable, so the widened bare arm cannot turn one into a silent skip. The reachable half of the fallback is regular-expression interiors, recorded as F-16.
 - [Phase 32]: The created-versus-inherited ratio for gap-closure round 4 is 5 of 8 - a RISE against round 3 (2 of 5) - reported without softening. Four of the five created findings are the same class: a set enumerated over one spelling of the thing it is about.
 - [Phase 32]: Phase 32 closes by Option C (defer-to-next-phase): its 18 open items are carried into a new sub-phase (Phase 32.1, to be inserted before Phase 33), not overridden and not fixed in a fifth round — Chosen by the human at plan 32-41 Task 3, after being shown the eight open findings (F-14..F-21), the round-4 created-versus-inherited ratio of 5 of 8 which ROSE against round 3's 2 of 5, and the five drafted override blocks read as written. Verbatim words: "defer to new sub-phase before next phase." The drafted overrides stay unapplied; 16 of 18 items are re-homed to Phase 32.1 and the two Windows/CAP-02 halves keep their recorded Phase 33 owner.
+- [Phase 32.1]: The D-09 loader oracle runs in a CHILD node process, from a real script file in an OS temp dir — Measured: registerHooks inside a vitest file records ZERO resolve events (Vite rewrites dynamic import() into vitest own module runner, which never reaches Node resolver), and node --input-type=module -e leaves process.argv[1] pointing at the entry we pass, so is-entry runs the dashboard main. A real child script keeps argv[1] on the oracle and the corpus inert.
+- [Phase 32.1]: The scripts/ file set is derived with git ls-files -- scripts/*.ts and floored above 100 — git default pathspec matching has no WM_PATHNAME, so a bare star crosses the separator. The intuitive scripts/**/*.ts spelling returns 26 of 153 and every census over it passes while covering a sixth of its subject. The floor makes the wrong spelling fail at 26 instead of quietly narrowing.
+- [Phase 32.1]: The two new *.test-support.ts modules are COUNTED in the LANG-07 non-test module corpus, not excluded — That corpus is enumerated by file shape and pinned equal to its git ls-files side. Excluding a third spelling of test-file would edit one predicate input in two places (the D-24 drift shape) and narrow every scan reading the set. A wider scan can only find more. Pins moved 83 to 85 and 56 to 58 in the same commit.
 
 ### Pending Todos
 
@@ -1527,9 +1531,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-17T13:36:58.188Z
-Stopped at: Phase 32.1 context gathered
-Resume file: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-CONTEXT.md
+Last session: 2026-09-17T19:01:52.597Z
+Stopped at: Completed 32.1-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
