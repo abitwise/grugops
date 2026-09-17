@@ -340,7 +340,7 @@ on the same rule as its two siblings.
 
 **File:** `scripts/board-model.ts:1042`
 
-**Issue:** `export const RENDER_STRIPPED = /[ --]/g;` is safe at its single
+**Issue:** `export const RENDER_STRIPPED = /[\x00-\x1f\x7f-\u009f]/g;` is safe at its single
 call site (`String.prototype.replace` resets `lastIndex`), and the one test that asks it a boolean
 question already works around the trap by rebuilding it
 (`scripts/board-dashboard.test.ts:2793`: `new RegExp(RENDER_STRIPPED.source).test(…)`). The
