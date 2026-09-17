@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 32
 current_phase_name: Board Projector & CLI Dashboard
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32-40-PLAN.md
-last_updated: "2026-09-16T20:05:38.862Z"
-state_head: ede812e890dfe105decb964b61a6df9c7d8bc7b6
+stopped_at: "Completed 32-41-PLAN.md — Phase 32 close decision recorded (Option C); next: insert Phase 32.1 before Phase 33"
+last_updated: "2026-09-17T10:17:06.579Z"
+state_head: 2cc2a5593fb9649d7cd039f4c6486c51d67bb0b9
 progress:
   total_phases: 9
   completed_phases: 30
   total_plans: 254
-  completed_plans: 253
+  completed_plans: 254
   percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32 (Board Projector & CLI Dashboard) — EXECUTING
-Plan: 4 of 34
+Plan: 5 of 34
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -509,6 +509,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P38 | 40 min | 3 tasks | 8 files |
 | Phase 32 P39 | 37 min | 3 tasks | 12 files |
 | Phase 32 P40 | 39 min | 3 tasks | 1 files |
+| Phase 32 P41 | 14h 6m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -1399,6 +1400,7 @@ Recent decisions affecting current work:
 - [Phase 32]: Plan 32-39 closed IN-02 and IN-03 by asking the question the code means rather than adding filters: `Object.create(null)` at the two accumulators that take content-derived keys (derived set — 15 candidates parsed, exactly 2 qualify), and ONE `Object.hasOwn` accessor over the toolchain register with the parse asserting exactly one read exists. Live answers diffed identical before and after; both sibling arms asserted. — Three guarded copies of one rule is the same drift shape whose two-file version was the entire reason IN-03 was filed. The premise each `unreachable` claim rests on is now a failing assertion over the live set, not a docblock sentence — this repository has recorded six false harness premises across four rounds.
 - [Phase 32]: Round 4 tested and FALSIFIED its own principal cross-fix hypothesis by measurement: a specifier recovery miss on a blanked span is unreachable, so the widened bare arm cannot turn one into a silent skip. The reachable half of the fallback is regular-expression interiors, recorded as F-16.
 - [Phase 32]: The created-versus-inherited ratio for gap-closure round 4 is 5 of 8 - a RISE against round 3 (2 of 5) - reported without softening. Four of the five created findings are the same class: a set enumerated over one spelling of the thing it is about.
+- [Phase 32]: Phase 32 closes by Option C (defer-to-next-phase): its 18 open items are carried into a new sub-phase (Phase 32.1, to be inserted before Phase 33), not overridden and not fixed in a fifth round — Chosen by the human at plan 32-41 Task 3, after being shown the eight open findings (F-14..F-21), the round-4 created-versus-inherited ratio of 5 of 8 which ROSE against round 3's 2 of 5, and the five drafted override blocks read as written. Verbatim words: "defer to new sub-phase before next phase." The drafted overrides stay unapplied; 16 of 18 items are re-homed to Phase 32.1 and the two Windows/CAP-02 halves keep their recorded Phase 33 owner.
 
 ### Pending Todos
 
@@ -1522,8 +1524,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-16T20:05:27.534Z
-Stopped at: Completed 32-40-PLAN.md
+Last session: 2026-09-17T10:17:06.068Z
+Stopped at: Completed 32-41-PLAN.md — Phase 32 close decision recorded (Option C); next: insert Phase 32.1 before Phase 33
 Resume file: None
 
 ## Operator Next Steps
