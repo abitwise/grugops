@@ -22,5 +22,20 @@
   // @playwright/test, which grugops deliberately does not depend on (zero shipped runtime deps), so
   // tsc reports TS2307 on every one of them and would emit a .js twin the freshness gate would then
   // demand be committed. They are input to a checker, never compiled output.
-  "exclude": ["node_modules", ".tmp-build", "**/*.test.ts", "scripts/runnable-ref/fixtures/**"]
+  // **/*.test-support.ts is a TEST HARNESS, not tooling output (Phase 32.1, D-02). A file matching
+  // it reaches for the TypeScript compiler API so that a test can ask which DECLARATION a name
+  // resolves to. CLAUDE.md's stack rule is that host machines run the committed .js with ZERO
+  // runtime dependencies installed, so a committed build output that imports `typescript` would
+  // break the one promise the whole distribution rests on. Excluded from EMIT only: it is still
+  // type-checked, by tsconfig.tests.json, which declares its own exclude array rather than
+  // inheriting this one. Note the spelling is `.test-support.ts` and not `.testkit.ts`: the tree's
+  // existing testkit (scripts/ci-workflow.testkit.ts) IS emitted and its .js twin is tracked, so
+  // excluding that pattern would orphan a committed output and red `npm run freshness`.
+  "exclude": [
+    "node_modules",
+    ".tmp-build",
+    "**/*.test.ts",
+    "**/*.test-support.ts",
+    "scripts/runnable-ref/fixtures/**"
+  ]
 }

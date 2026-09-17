@@ -1,0 +1,163 @@
+32.1-01-RED-baseline.txt — the BEFORE side of plan 32.1-01, per D-19.
+=====================================================================
+
+WHAT THIS FILE IS. D-19 sequences this phase instruments-first and requires every new rule to be
+watched REFUSING something before it is trusted. A rule nobody has seen fail is not yet a control;
+it is a sentence that happens to be green. So each case this plan adds is recorded here against a
+PLANT — a deliberate, generated, reverted mutation — with the exact failure message it produced and
+the exit code of the run.
+
+WHAT IT IS NOT. It is not a list of things that were broken. Every plant below was reverted in the
+same working session, and `git status --porcelain -- scripts/` was confirmed empty of plant residue
+after each one. The GREEN side is `32.1-01-GREEN-proof.txt`.
+
+Checkout: main @ 8de15983 (plan base). Node v24.12.0. vitest 4.1.8. Measured 2026-09-17.
+
+Every transcript below is reproduced verbatim from the run's own stdout/stderr, with no ANSI escape
+sequences and no control bytes (Pitfall 7).
+
+
+=====================================================================
+TASK 1 — the symbol-resolving instrument, its file set, and its floor
+=====================================================================
+
+PLANT 1.1 — an UNTRACKED `.ts` under `scripts/` must be NAMED, never silently skipped
+-------------------------------------------------------------------------------------
+
+The case: `scripts/validate.test.ts` > "CASE 1 — the tracked file set is FLOORED, and a `.ts` the
+walk finds untracked is NAMED".
+
+Why it needs a plant at all: measured on this checkout, the tracked set (151) and the `readdirSync`
+walk (151) are EQUAL and there are zero untracked `.ts` files under `scripts/`. The converse half of
+the case is therefore green from the moment it lands, and a green that has never been red is not
+evidence. D-19's remedy is to GENERATE the counter-example rather than wait for one.
+
+The plant, generated not authored:
+
+    $ printf 'export const zzProbeScratch = 1;\n' > scripts/zz-probe-scratch.ts
+    $ npx vitest run --exclude '**/scripts/e2e/**' -t "CASE 1" scripts/validate.test.ts
+
+Transcript:
+
+     RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+     scripts/validate.test.ts (133 tests | 1 failed | 132 skipped) 19ms
+       CASE 1 - the tracked file set is FLOORED, and a `.ts` the walk finds untracked is NAMED 18ms
+
+    Failed Tests 1
+
+     FAIL  scripts/validate.test.ts > exactly ONE ticket-frontmatter reader exists in scripts/
+     (32-12, widened 32-21, 32-36) > CASE 1 - the tracked file set is FLOORED, and a `.ts` the walk
+     finds untracked is NAMED
+    AssertionError: scripts/zz-probe-scratch.ts - a .ts file is on disk under scripts/ and is NOT
+    tracked. A git-derived census neither scans it nor reports it, so this suite says nothing at all
+    about it. Track it, or delete it if it is a scratch file - do not narrow the question:
+    expected [ 'scripts/zz-probe-scratch.ts' ] to deeply equal []
+
+    - Expected
+    + Received
+
+    - []
+    + [
+    +   "scripts/zz-probe-scratch.ts",
+    + ]
+
+     validate.test.ts:2801
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 132 skipped (133)
+
+    EXIT=1
+
+The offender is NAMED in the message rather than counted, which is the property the case exists for:
+a census that reports "151 != 152" tells a reader nothing about which file it could not see.
+
+Restored:
+
+    $ rm -f scripts/zz-probe-scratch.ts
+    $ git status --porcelain -- scripts/
+    A  scripts/ts-symbols.test-support.ts
+     M scripts/validate.test.ts
+
+— i.e. this plan's own two intended changes and NO plant residue.
+
+A SECOND, UNPLANNED INSTANCE OF THE SAME REFUSAL, recorded because it is stronger evidence than the
+plant. On its very first run, before `scripts/ts-symbols.test-support.ts` had been staged, CASE 1
+reddened naming THAT file:
+
+    AssertionError: scripts/ts-symbols.test-support.ts - a .ts file is on disk under scripts/ and is
+    NOT tracked. [...] expected [ Array(1) ] to deeply equal []
+
+    Test Files  1 failed (1)
+         Tests  1 failed | 132 passed (133)
+    EXIT=1
+
+The case caught the instrument's own module the moment it existed on disk and was not yet tracked.
+That was not arranged.
+
+
+PLANT 1.2 — the `scripts/**/*.ts` pathspec must RED THE FLOOR at 26, not narrow the census quietly
+---------------------------------------------------------------------------------------------------
+
+The case: the same one, at its greater-than-100 PREMISE.
+
+Why this is the highest-risk line in the phase: git's default pathspec matching is `wildmatch`
+WITHOUT `WM_PATHNAME`, so a bare `*` crosses `/`. `scripts/**/*.ts` therefore demands at least one
+INTERVENING directory and returns 26 of the 151 tracked files — the ones under `scripts/e2e/` and
+`scripts/runnable-ref/`. A program built over those 26 makes every census in plans 04..09 pass while
+covering a sixth of its subject. Nothing else on this tree would say so.
+
+The plant — the pathspec swapped to the spelling an author reaches for first:
+
+    $ perl -0pi -e 's/\["ls-files", "--", "scripts\/\*\.ts"\]/["ls-files", "--", "scripts\/**\/*.ts"]/' \
+        scripts/ts-symbols.test-support.ts
+    $ grep -n 'ls-files", "--"' scripts/ts-symbols.test-support.ts
+    162:  const out = execFileSync("git", ["ls-files", "--", "scripts/**/*.ts"], {
+    $ npx vitest run --exclude '**/scripts/e2e/**' -t "CASE 1" scripts/validate.test.ts
+
+Transcript:
+
+     RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+     scripts/validate.test.ts (133 tests | 1 failed | 132 skipped) 12ms
+       CASE 1 - the tracked file set is FLOORED, and a `.ts` the walk finds untracked is NAMED 11ms
+
+    Failed Tests 1
+
+     FAIL  scripts/validate.test.ts > [...] > CASE 1 - the tracked file set is FLOORED, and a `.ts`
+     the walk finds untracked is NAMED
+    AssertionError: PREMISE: the tracked set under scripts/ is SHORT. Its own shortness is what it
+    would hide - a census over a sixth of the sources passes exactly like a census over all of them,
+    and the usual cause is the `scripts/**/*.ts` pathspec, which returns 26 of 151 here:
+    expected 26 to be greater than 100
+
+     validate.test.ts:2789
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 132 skipped (133)
+
+    EXIT=1
+
+"expected 26 to be greater than 100" is the whole point: the wrong spelling does not fail quietly at
+a smaller-but-plausible number, it fails at 26 and the message names the cause.
+
+Restored:
+
+    $ grep -n 'ls-files", "--"' scripts/ts-symbols.test-support.ts
+    162:  const out = execFileSync("git", ["ls-files", "--", "scripts/*.ts"], {
+
+and the file is byte-identical to the pre-plant copy.
+
+
+=====================================================================
+TASK 2 — the loader oracle
+=====================================================================
+
+(recorded below when Task 2 lands)
+
+
+=====================================================================
+TASK 3 — the recursive importer derivation
+=====================================================================
+
+(recorded below when Task 3 lands)

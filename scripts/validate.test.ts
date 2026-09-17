@@ -49,6 +49,18 @@ import { join } from "node:path";
 import ts from "typescript";
 import { TICKET_KEYS } from "./board-model.js";
 import { pathToFileURL } from "node:url";
+// THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
+// re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
+// tree, and a second implementation of it is the defect this phase exists to delete, not a
+// duplication. The module is test-only and un-emitted — see its header for why it may never become
+// a committed build output.
+import {
+  createScriptsProgram,
+  declarationOf,
+  trackedScriptSources,
+  walkedScriptSources,
+  type TsProgramApi,
+} from "./ts-symbols.test-support.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const VALIDATOR_JS = join(ROOT, "scripts", "validate-agent-factory.js");
@@ -2725,5 +2737,167 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
       "STATED BOUNDARY: the pair is file-scoped. A carrier here may be a false positive, and the " +
         "answer to a false positive is a named exemption with a reason",
     ).toBeGreaterThan(0);
+  });
+
+  // ── THE SHARED INSTRUMENT, PROVEN ON ITS FIRST CONSUMER (Phase 32.1, plan 32.1-01) ─────────────
+  //
+  // Three cases, in the order a reader has to believe them: the FILE SET the instrument is built
+  // over, the instrument's own PREMISE, and one end-to-end resolution. Every later plan in this
+  // phase cuts an enumeration-shaped rule over to `declarationOf`, and none of those cutovers means
+  // anything if the program was built over a sixth of its subject or if the checker resolved
+  // nothing. So the floors are asserted here, once, at the instrument rather than at each consumer.
+
+  /**
+   * ONE program for the whole block. Building it is the expensive part (a full `ts.Program` over
+   * every tracked `scripts/*.ts`), and three cases asking three different questions of ONE program
+   * is also the only way case 2's PREMISE floor governs case 3's resolution rather than a second,
+   * separately-built program that might differ.
+   */
+  let sharedProgram: ReturnType<typeof createScriptsProgram> | null = null;
+  const scriptsProgram = (): ReturnType<typeof createScriptsProgram> => {
+    sharedProgram ??= createScriptsProgram(ROOT, ts as unknown as TsProgramApi);
+    return sharedProgram;
+  };
+
+  const VALIDATE_TEST_ABS = join(ROOT, "scripts", "validate.test.ts");
+
+  /** Every identifier node in a parsed file, in source order — the reference sites a checker is asked about. */
+  const identifiersIn = (sf: ts.SourceFile): ts.Identifier[] => {
+    const found: ts.Identifier[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) found.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    return found;
+  };
+
+  it("CASE 1 — the tracked file set is FLOORED, and a `.ts` the walk finds untracked is NAMED", () => {
+    // THE PATHSPEC IS THE HIGHEST-RISK LINE IN THIS PHASE, AND THIS IS WHAT MAKES IT VISIBLE.
+    // `git ls-files 'scripts/**/*.ts'` — the spelling an author reaches for first — returns 26 of
+    // the 151 files on this tree, because git's default pathspec matching has no `WM_PATHNAME` and
+    // a bare `*` crosses `/`, so `**/` demands an extra directory level. A program built over those
+    // 26 makes every census in plans 04..09 pass while covering a sixth of its subject, and nothing
+    // else on this tree would say so. The floor does not merely make the correct spelling correct:
+    // it makes the WRONG spelling fail, at 26, by name.
+    const tracked = trackedScriptSources(ROOT);
+    expect(
+      tracked.length,
+      "PREMISE: the tracked set under scripts/ is SHORT. Its own shortness is what it would hide — " +
+        "a census over a sixth of the sources passes exactly like a census over all of them, and " +
+        "the usual cause is the `scripts/**/*.ts` pathspec, which returns 26 of 151 here",
+    ).toBeGreaterThan(100);
+
+    // THE CONVERSE, over the same walk `SCANNED` above uses: a file ON DISK that git does not track
+    // is neither scanned by a git-derived census nor reported by it. Silence about it is the failure
+    // mode, so it is named rather than skipped.
+    const walked = walkedScriptSources(ROOT);
+    const untracked = walked.filter((rel) => !tracked.includes(rel));
+    expect(
+      untracked,
+      `${untracked.join(", ")} — a .ts file is on disk under scripts/ and is NOT tracked. A ` +
+        "git-derived census neither scans it nor reports it, so this suite says nothing at all " +
+        "about it. Track it, or delete it if it is a scratch file — do not narrow the question",
+    ).toEqual([]);
+    expect(
+      tracked.filter((rel) => !walked.includes(rel)),
+      "a TRACKED .ts under scripts/ is absent from the disk walk. The two derivations disagree, " +
+        "so one of them is measuring something other than 'the scripts sources'",
+    ).toEqual([]);
+  });
+
+  it("CASE 2 — the instrument's own PREMISE: the program builds and the checker resolves something", () => {
+    const built = scriptsProgram();
+    expect(
+      built.ok,
+      `PREMISE: the program could not be built — ${built.ok ? "" : built.cause}. A could-not-run ` +
+        "is a NAMED cause here rather than an empty result, because an empty result is exactly " +
+        "what every census below would read as 'nothing to refuse'",
+    ).toBe(true);
+    if (!built.ok) return;
+
+    const sf = built.context.program.getSourceFile(VALIDATE_TEST_ABS) as ts.SourceFile | undefined;
+    expect(
+      sf,
+      `PREMISE: ${VALIDATE_TEST_ABS} is not in the program. tsconfig.json EXCLUDES **/*.test.ts, so ` +
+        "a program built from the config's file list alone carries ZERO of the 73 test files this " +
+        "phase's censuses are about — the root names must be a UNION, never an intersection",
+    ).toBeDefined();
+    if (sf === undefined) return;
+
+    const resolved = identifiersIn(sf).filter(
+      (node) => declarationOf(ts as unknown as TsProgramApi, built.context.checker, node) !== null,
+    );
+    expect(
+      resolved.length,
+      "PREMISE: the checker resolved ZERO of this file's identifiers to a declaration. A checker " +
+        "that resolves nothing makes every census built on it true over nothing — which is the " +
+        "vacuity this instrument was introduced to remove, arriving by a different door",
+    ).toBeGreaterThan(0);
+  });
+
+  it("CASE 3 — one real key-table reference resolves, through the checker, to its DECLARATION", () => {
+    // THE END-TO-END PROOF, and the reason this task is a tracer rather than a foundation. One
+    // reference, resolved the whole way: `git ls-files` -> the program build -> the type checker ->
+    // a named declaration in a named file. Nothing below is stubbed and no fixture is involved; the
+    // subject is this file's own source, read by the same instrument plans 04..09 will ask.
+    const built = scriptsProgram();
+    expect(built.ok, "PREMISE: the program could not be built, so nothing was resolved").toBe(true);
+    if (!built.ok) return;
+    const sf = built.context.program.getSourceFile(VALIDATE_TEST_ABS) as ts.SourceFile | undefined;
+    expect(sf, "PREMISE: this file is not in the program").toBeDefined();
+    if (sf === undefined) return;
+
+    const api = ts as unknown as TsProgramApi;
+    const idents = identifiersIn(sf);
+
+    // (a) A LOCAL declaration. `KEY_SPELLINGS` is referenced several times in this block and
+    //     declared exactly once, in this file. Its resolution must land on THIS file.
+    const localRefs = idents.filter(
+      (node) => node.text === "KEY_SPELLINGS" && !ts.isVariableDeclaration(node.parent),
+    );
+    expect(
+      localRefs.length,
+      "PREMISE: no non-declaration reference to KEY_SPELLINGS was found in this file, so the " +
+        "resolution below was asked about nothing",
+    ).toBeGreaterThan(0);
+    const localDecl = declarationOf(api, built.context.checker, localRefs[0]!);
+    expect(
+      localDecl,
+      "the checker could not resolve a reference to KEY_SPELLINGS, a constant declared in this very " +
+        "file. The instrument is not resolving, so no census built on it decides anything",
+    ).not.toBeNull();
+    expect(localDecl?.name).toBe("KEY_SPELLINGS");
+    expect(
+      localDecl?.fileName.split("\\").join("/"),
+      "KEY_SPELLINGS resolved to a declaration in some OTHER file than the one that declares it",
+    ).toBe(VALIDATE_TEST_ABS.split("\\").join("/"));
+
+    // (b) THROUGH AN IMPORT ALIAS — the half that answers F-19 / WR-04. `TICKET_KEYS` is IMPORTED
+    //     here from ./board-model.js. Resolved by identifier TEXT it looks like a local; resolved
+    //     by SYMBOL, after `followAlias`, it lands on the single declaration board-model.ts writes.
+    //     This is the property that makes a renamed, namespace or re-exported import land on the
+    //     same declaration as a directly-named one, and it is the whole reason for the instrument.
+    const importRefs = idents.filter(
+      (node) => node.text === "TICKET_KEYS" && !ts.isImportSpecifier(node.parent),
+    );
+    expect(
+      importRefs.length,
+      "PREMISE: no non-import reference to TICKET_KEYS was found, so the alias half was asked about " +
+        "nothing",
+    ).toBeGreaterThan(0);
+    const aliased = declarationOf(api, built.context.checker, importRefs[0]!);
+    expect(
+      aliased,
+      "the checker could not resolve an imported TICKET_KEYS reference to a declaration",
+    ).not.toBeNull();
+    expect(aliased?.name).toBe("TICKET_KEYS");
+    expect(
+      aliased?.fileName.split("\\").join("/"),
+      "TICKET_KEYS resolved to a declaration OUTSIDE scripts/board-model.ts. Either the alias was " +
+        "not followed — in which case the declaration is this file's own import specifier and every " +
+        "census keyed on declarations counts the consumer as its own authority — or the module " +
+        "resolution landed somewhere unexpected",
+    ).toBe(join(ROOT, "scripts", "board-model.ts").split("\\").join("/"));
   });
 });
