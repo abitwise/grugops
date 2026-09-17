@@ -1,0 +1,191 @@
+32.1-05 RED BASELINE — the plants, their commands, their outputs and their exit codes
+======================================================================================
+
+Plan:    .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-05-PLAN.md
+Tree:    /Users/olgeroeselg/Projects/public/grugops, branch main
+Measured 2026-09-17/18.
+
+Every plant below was applied by appending to (or mutating) THE LIVE SOURCE, never as an authored
+fixture, and removed afterwards. `git status --porcelain -- scripts/` and
+`git diff --exit-code -- scripts/context-io-writer-set.test.ts` are recorded after the restorations.
+
+The regression lane in this repository is `npx vitest run --exclude '**/scripts/e2e/**'`.
+`npm test` is never run here: it launches the live claude-CLI e2e lane.
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 1  TASK 1 — F-19: THE ONE-AUTHORITY RULE ENUMERATED READS BY THE REGISTER'S IDENTIFIER TEXT
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+THE PLANT IS THE FINDING'S OWN REPRODUCTION (32-40-ADVERSARIAL-REVIEW.md § 12, F-19): a SECOND,
+UNGUARDED authority over a classification register, reached through a local alias binding. Inserted
+immediately after `toolchainReason`, inside the same describe block:
+
+    const ALIASED_REGISTER = TOOLCHAIN_CHECK_SCRIPTS;
+    const aliasedToolchainReason = (name: string): string | undefined => ALIASED_REGISTER[name];
+
+---------------------------------------------------------------------------------------------------
+§ 1.1  THE PRE-CHANGE RULE, AGAINST THAT PLANT — GREEN. This is the finding.
+---------------------------------------------------------------------------------------------------
+
+The rule as it stood at HEAD (`c5fc977a`, plan 32-39) collected its read sites with
+`node.expression.getText(src) === "TOOLCHAIN_CHECK_SCRIPTS"`, so the aliased read was outside the set
+it enumerated and the `reads.length === 1` pin agreed there was exactly one read.
+
+    $ git show HEAD:scripts/check-foundation-guards.test.ts > <old>   # the pre-change rule
+    $ <old> + the plant above > scripts/check-foundation-guards.test.ts
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+
+     Test Files  1 passed (1)
+          Tests  300 passed (300)
+
+    exit 0
+
+---------------------------------------------------------------------------------------------------
+§ 1.2  THE REWRITTEN RULE, AGAINST THE SAME PLANT — RED, naming the aliased read.
+---------------------------------------------------------------------------------------------------
+
+The identifier-text comparison is DELETED. Every access base is handed to `declarationOf`
+(`scripts/ts-symbols.test-support.ts`), which follows import and export aliases, and a local
+`const A = B` binding is followed one hop at a time through that same authority. The aliased read is
+therefore INSIDE the set the rule enumerates, and it is attributed to the register it resolves to.
+
+    $ <new> + the same plant > scripts/check-foundation-guards.test.ts
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+
+     × F-19 / IN-03: every classification register is read through ONE own-property authority, at a
+       set DERIVED by resolved declaration 946ms
+
+     FAIL  scripts/check-foundation-guards.test.ts > 30-11 round 4 — every check gate is REACHED,
+     and the runner set is derived > F-19 / IN-03: every classification register is read through ONE
+     own-property authority, at a set DERIVED by resolved declaration
+     AssertionError: a computed-key read of a frozen classification register is not own-property
+     guarded. `Object.freeze` leaves `Object.prototype` in place, so a raw read answers "registered"
+     for a name nobody registered — an exemption granted by spelling instead of by a decision
+     (review IN-03, the same class as WR-04):
+       TOOLCHAIN_CHECK_SCRIPTS at :12172  ALIASED_REGISTER[name]: expected [ Array(1) ] to deeply
+       equal []
+
+     - Expected
+     + Received
+
+     - []
+     + [
+     +   "TOOLCHAIN_CHECK_SCRIPTS at :12172  ALIASED_REGISTER[name]",
+     + ]
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 300 passed (301)
+
+    exit 1
+
+Note the attribution: the message names `TOOLCHAIN_CHECK_SCRIPTS`, which is not the text the read was
+spelled with. That is the whole of the change.
+
+An EARLIER measurement of the same plant, taken before the assertion ORDER was changed so that
+findings are reported ahead of moved numbers, red on the pin arm instead:
+
+     AssertionError: TOOLCHAIN_CHECK_SCRIPTS is read with a computed key 2 time(s); the pin says 1.
+     exit 1
+
+Both arms discriminate; the finding is now reported first because a bare count mismatch is the least
+informative way to learn that a second authority arrived.
+
+---------------------------------------------------------------------------------------------------
+§ 1.3  THE SAME REGISTER REACHED THROUGH A RENAMED IMPORT FROM ANOTHER FILE — RED.
+---------------------------------------------------------------------------------------------------
+
+Alias following is not a special case for one syntax. A second plant put a frozen classification
+register in a DIFFERENT file and read it through a renamed import:
+
+    scripts/plant-register-32105.ts (new, untracked, removed afterwards):
+        export const PLANTED_REGISTER: Readonly<Record<string, string>> = Object.freeze({
+          "check:planted": "a planted reason, long enough to look like a recorded decision",
+        });
+
+    scripts/check-foundation-guards.test.ts (appended):
+        import { PLANTED_REGISTER as RenamedPlant } from "./plant-register-32105.js";
+        const plantedReason = (name: string): string | undefined => RenamedPlant[name];
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+
+     FAIL  … > F-19 / IN-03: every classification register is read through ONE own-property
+     authority, at a set DERIVED by resolved declaration
+     AssertionError: the census found a different SET of frozen classification registers than the
+     pins record. A register that arrives is a decision (route its computed reads through one
+     own-property accessor, then add it here); a register that leaves is a decision too, and the two
+     must never cancel into a green count. Found:
+     ["CHECK_SCRIPT_CLASSES","CI_EXEMPT","PLANTED_REGISTER","TOOLCHAIN_CHECK_SCRIPTS"]
+
+       [
+         "CHECK_SCRIPT_CLASSES",
+         "CI_EXEMPT",
+     +   "PLANTED_REGISTER",
+         "TOOLCHAIN_CHECK_SCRIPTS",
+       ]
+
+     Test Files  1 failed (1)
+          Tests  8 failed | 293 passed (301)
+
+    exit 1
+
+The census resolved the RENAMED import to the declaration the other file writes — the register is
+named `PLANTED_REGISTER` in the message, not `RenamedPlant`.
+
+SEVEN OF THOSE EIGHT FAILURES ARE NOT THIS RULE, and saying so is the honest reading: the plant added
+a MODULE to `scripts/`, so the module-corpus pins moved as well (`expected 86 to be 85`, and the
+`scripts/`-scoped reader's `expected 59 to be 58`). Those are the plan-32.1-01 corpus pins doing
+their own job. The eighth is the one quoted above.
+
+---------------------------------------------------------------------------------------------------
+§ 1.4  THE VACUITY PLANT — an EMPTIED derived register set reds rather than passing.
+---------------------------------------------------------------------------------------------------
+
+The rule's subject is now DERIVED, and a derived set that silently came back empty would make every
+assertion in it true over nothing. Task 2 of this plan removes a check-script class and, with it, a
+register — so the floor is the control that makes that removal a decision somebody has to look at.
+
+Plant: every `= Object.freeze({` register declaration in the file loses its canonical form
+(`= ({`), so the census finds nothing.
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+
+     FAIL  … > F-19 / IN-03: every classification register is read through ONE own-property
+     authority, at a set DERIVED by resolved declaration
+     AssertionError: the frozen-classification-register census came back with 0 member(s). A rule
+     whose subject is a single deletable register does not go RED when that register is deleted — it
+     silently stops asking, and every assertion below becomes true over nothing. If a class was just
+     removed, the honest answer is to keep a second register or to retire this rule deliberately,
+     never to let it assert over one member or none: expected 0 to be greater than 1
+
+     FAIL  … > F-19: an ALIASED read of a register resolves to the SAME declaration as a direct one
+     AssertionError: the checker resolved NO reference to a register declared in this very file. The
+     instrument is not resolving, so the census built on it decides nothing: expected 0 to be
+     greater than 0
+
+     Test Files  1 failed (1)
+          Tests  2 failed | 299 passed (301)
+
+    exit 1
+
+The floor is a control, not a comment: it is the assertion that fires, and it fires FIRST.
+
+---------------------------------------------------------------------------------------------------
+§ 1.5  THE GREEN SIDE, AND THE RESTORATIONS.
+---------------------------------------------------------------------------------------------------
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+     Test Files  1 passed (1)
+          Tests  301 passed (301)
+    exit 0
+
+    $ npx tsc -p tsconfig.tests.json
+    exit 0   (no output)
+
+After every plant was removed:
+
+    $ git status --porcelain -- scripts/
+     M scripts/check-foundation-guards.test.ts        # this plan's own change, nothing else
+
+    $ git diff --exit-code -- scripts/context-io-writer-set.test.ts
+    exit 0   # residual R-31-21-04: that file is byte-unchanged and the instrument never reaches it

@@ -110,6 +110,18 @@ import {
   tieredCorpusRefusals,
 } from "./model-tiers.js";
 
+// (Phase 32.1, plan 32.1-05, D-01) THE SHARED SYMBOL-RESOLVING INSTRUMENT, imported rather than
+// re-implemented. "Which DECLARATION does this name resolve to" has exactly ONE authority on this
+// tree, and a second implementation of it is the defect this phase exists to delete rather than a
+// duplication. The classification-register rule below asks it about every access base, which is
+// what makes an ALIASED read of a register a member of the set that rule enumerates (round-4
+// finding F-19) instead of a spelling outside it.
+import {
+  createScriptsProgram,
+  declarationOf,
+  type TsProgramApi,
+} from "./ts-symbols.test-support.js";
+
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-foundation-guards.js");
 
@@ -12012,7 +12024,7 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
    * Gates that deliberately do not run in the CI gate block, each with the reason that makes it a
    * decision rather than an oversight. Kept deliberately short; a growing list here is the smell.
    */
-  const CI_EXEMPT: Readonly<Record<string, string>> = {
+  const CI_EXEMPT: Readonly<Record<string, string>> = Object.freeze({
     "scripts/check-kit-refs.js":
       "runs in its own earlier CI step rather than the gate block; asserted present in ci.yml below",
     "scripts/check-uat-oracles.js":
@@ -12020,7 +12032,31 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       "scripts/check-uat-oracles.test.ts against mirrored inputs in a temp dir. Its reachability is " +
       "the test suite, which CI does run. Surfaced by this very case in round 4 — the derived runner " +
       "set found a SECOND gate nothing invoked, which is the finding the derivation exists to make.",
-  };
+  });
+
+  /**
+   * THE ONE READ OF THE CI-EXEMPTION REGISTER (plan 32.1-05, the IN-03 remedy applied a second
+   * time).
+   *
+   * `Object.freeze({…})` does not remove `Object.prototype`, so the raw read
+   * `CI_EXEMPT[path] !== undefined` answered TRUE for `toString`, `valueOf`, `constructor` and
+   * `__proto__`: a gate module spelled like any of those would have been granted the "deliberately
+   * outside the CI gate block, for the reason recorded here" exemption BY ITS SPELLING rather than
+   * by the decision this register exists to record. That is exactly the defect review IN-03 named
+   * one register over, and this register was carrying it live and unguarded at three read sites.
+   *
+   * REACH, STATED HONESTLY. Every path looked up today is a `scripts/check-*.js` module path, so no
+   * live gate name can collide with a prototype member and the defect was unreachable on this tree.
+   * That is a property of the SCANNED SET, not of the lookup, and a future change to the set can
+   * retire it silently — which is the reason the guard is at the lookup and not in a comment.
+   *
+   * ONE ACCESSOR RATHER THAN THREE GUARDED READS, for the reason `toolchainReason` states below:
+   * three `Object.hasOwn` spellings inside one file is the drift shape WR-04 was filed about, so
+   * the reads go through here and the census case asserts by RESOLVED DECLARATION that nothing
+   * else reads the register at all.
+   */
+  const ciExemptReason = (path: string): string | undefined =>
+    Object.hasOwn(CI_EXEMPT, path) ? CI_EXEMPT[path] : undefined;
 
   it("every scripts/check-*.js appears in ci.yml, or declares why not", () => {
     const ci = readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
@@ -12033,10 +12069,11 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     const missing: string[] = [];
     for (const g of gates) {
       if (ci.includes(`node ${g}`)) continue;
-      if (CI_EXEMPT[g] !== undefined) {
+      const exemption = ciExemptReason(g);
+      if (exemption !== undefined) {
         // An exemption must name a reason AND still be reachable by something the CI run executes —
         // either ci.yml names it, or a test spawns it. "Exempt" may not mean "unreached".
-        expect(CI_EXEMPT[g]!.length, `${g}'s exemption gives no reason`).toBeGreaterThan(40);
+        expect(exemption.length, `${g}'s exemption gives no reason`).toBeGreaterThan(40);
         const spawnedByATest = readdirSync(join(ROOT, "scripts")).some(
           (f) =>
             f.endsWith(".test.ts") &&
@@ -12370,7 +12407,7 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     // One row per TARGET, not per script: a command running two gate modules is asked this
     // question twice, once about each.
     for (const r of rows) {
-      if (!ci.includes(r.target) && CI_EXEMPT[r.target] === undefined) {
+      if (!ci.includes(r.target) && ciExemptReason(r.target) === undefined) {
         missing.push(`${r.name} -> ${r.target}`);
       }
     }
@@ -12703,108 +12740,433 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════════════════════
-  // REVIEW IN-03 — THE TOOLCHAIN REGISTER IS ASKED OWN-PROPERTY MEMBERSHIP, AT A DERIVED SITE SET.
+  // REVIEW IN-03, REWRITTEN FOR ROUND-4 FINDING F-19 (plan 32.1-05, D-01) — EVERY CLASSIFICATION
+  // REGISTER IS READ THROUGH ONE OWN-PROPERTY AUTHORITY, AND A READ IS RECOGNISED BY THE
+  // DECLARATION IT RESOLVES TO RATHER THAN BY THE TEXT IT IS SPELLED WITH.
   //
-  // `Object.freeze({…})` does not remove `Object.prototype`, so the raw read
-  // `TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined` answers TRUE for `toString`, `valueOf`,
-  // `constructor` and `__proto__` — a check script would have been classified `toolchain`, and
-  // granted the "runs no gate module for a recorded reason" exemption, BY ITS SPELLING rather than
-  // by anyone's decision. That is the same class as review WR-04, which commit `7a3ae592` fixed in
-  // `scripts/validate.test.ts` with `Object.hasOwn`. `32-REVIEW-FIX.md` records that the two copies
-  // of the rule were left DISAGREEING and recommends folding this one in; this is that fold.
+  // WHAT `Object.freeze` DOES NOT DO, WHICH IS WHY A RULE IS NEEDED AT ALL. It does not remove
+  // `Object.prototype`, so the raw read `REGISTER[name]` answers TRUE for `toString`, `valueOf`,
+  // `constructor` and `__proto__`: a name nobody registered is granted the register's exemption BY
+  // ITS SPELLING rather than by anybody's decision, which is the precise thing these registers
+  // exist to make impossible. That is review WR-04's class, and commit `7a3ae592` fixed one copy of
+  // it in `scripts/validate.test.ts`.
   //
-  // THE SITE SET IS DERIVED, NOT RECALLED. A hand-typed three is the set-literal class this
-  // repository has recorded as its second systemic failure mode. The case below parses this file
-  // and finds every read of the register for itself, so a fourth read added later cannot stay raw.
+  // WHY THE RULE IS REWRITTEN RATHER THAN WIDENED (F-19). The rule that stood here collected its
+  // read sites by comparing an access expression's SOURCE TEXT against the register's name. So this,
+  // planted beside the accessor, left the suite at exit 0 with the read count still pinned at one:
   //
-  // ONE AUTHORITY RATHER THAN THREE GUARDED COPIES. Three sites each spelling `Object.hasOwn` is
-  // exactly the shape that let WR-04's site and this one drift apart in the first place, so the
-  // three reads are routed through ONE accessor and the parse asserts that only the accessor reads
-  // the register at all.
+  //     const ALIASED_REGISTER = TOOLCHAIN_CHECK_SCRIPTS;
+  //     const aliasedToolchainReason = (name) => ALIASED_REGISTER[name];
+  //
+  // A second, unguarded authority over the register — outside the set the rule enumerated, because
+  // the set was enumerated over one spelling of the thing it was about. The remedy this repository
+  // has recorded for that class is a canonical form plus a RESOLVING instrument, never a second arm
+  // beside the text comparison. So the text comparison is DELETED: every access base is handed to
+  // `declarationOf` (`scripts/ts-symbols.test-support.ts`, the one authority over "which
+  // declaration does this name resolve to"), which follows import and export aliases, and a local
+  // `const A = B` binding is followed one hop at a time through that same authority.
+  //
+  // AND THE SUBJECT SET IS DERIVED, BECAUSE THE RULE USED TO NAME ONE REGISTER. Plan 32.1-05's own
+  // second task removes a check-script class and, with it, the register this rule was first written
+  // about. A rule whose subject is a single deletable register does not go red when that register is
+  // deleted — it silently stops asking, which is the same defect one register up from the one being
+  // fixed. So the subject is a CENSUS of the frozen classification registers this file declares or
+  // reads, and the census is FLOORED above one. The floor is what makes a later removal a decision
+  // somebody has to look at instead of a vacuity nothing reports.
+  //
+  // WHAT IT STILL DOES NOT DECIDE, NAMED RATHER THAN IMPLIED:
+  //   • A register is identified by its declaring FILE and its declared NAME. Two frozen registers
+  //     sharing a name in two scopes of one file would be one subject here.
+  //   • Only ELEMENT accesses are censused. A dotted read carries a literal key by construction and
+  //     cannot reach a prototype member the author did not spell out.
+  //   • The alias walk follows `const A = B` chains. An alias produced by a CALL — `pick(REGISTER)`
+  //     — resolves to that call's own declaration and is outside this census.
   // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-  it("IN-03: every read of the toolchain register is own-property guarded, at a DERIVED site set", () => {
-    const file = join(ROOT, "scripts", "check-foundation-guards.test.ts");
-    const text = readFileSync(file, "utf8");
-    const src = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);
-    const REGISTER = "TOOLCHAIN_CHECK_SCRIPTS";
-    const ACCESSOR = "toolchainReason";
+  /**
+   * THE TWO NUMBERS PER REGISTER, PINNED — and they are pins on a DERIVED set, not a set literal.
+   *
+   * `dynamicReads` is how many computed-key reads of the register exist anywhere in this file;
+   * `accessorCalls` is how many times its one authority is called. Both moved in plan 32.1-05 for
+   * the same reason: the SUBJECT SET moved. `CI_EXEMPT` joined the census when it was frozen and
+   * its three raw reads were routed through `ciExemptReason` — two of those three were one lookup
+   * read twice, so three raw reads became two calls — and `CHECK_SCRIPT_CLASSES` is in the
+   * census with zero computed reads — a register read only with literal keys is still a register,
+   * and recording its zero here is what makes a future computed read of it a number somebody must
+   * move.
+   *
+   * The MEMBERS and the CARDINALITY are asserted separately below, so a register that leaves and a
+   * register that arrives cannot cancel out into a green count.
+   */
+  const REGISTER_READ_PINS: ReadonlyMap<
+    string,
+    { readonly dynamicReads: number; readonly accessor: string | null; readonly accessorCalls: number }
+  > = new Map([
+    ["CI_EXEMPT", { dynamicReads: 1, accessor: "ciExemptReason", accessorCalls: 2 }],
+    ["TOOLCHAIN_CHECK_SCRIPTS", { dynamicReads: 1, accessor: "toolchainReason", accessorCalls: 3 }],
+    ["CHECK_SCRIPT_CLASSES", { dynamicReads: 0, accessor: null, accessorCalls: 0 }],
+  ]);
 
-    /** Every subscript or dotted read of the register, with the line it sits on. */
-    const reads: { line: number; text: string }[] = [];
-    /** Every identifier reference to the accessor, declaration included. */
-    const accessorRefs: number[] = [];
+  const GUARDS_TEST_ABS = join(ROOT, "scripts", "check-foundation-guards.test.ts");
+  const posixPath = (p: string): string => p.split("\\").join("/");
+  const registerKey = (fileName: string, name: string): string => `${posixPath(fileName)}#${name}`;
+
+  /**
+   * ONE program for this rule, built once. It is the same instrument every other cutover in this
+   * phase asks, so "which declaration is this" has one answer across all of them.
+   */
+  let registerCensusProgram: ReturnType<typeof createScriptsProgram> | null = null;
+  const censusProgram = (): ReturnType<typeof createScriptsProgram> => {
+    registerCensusProgram ??= createScriptsProgram(ROOT, ts as unknown as TsProgramApi);
+    return registerCensusProgram;
+  };
+
+  /**
+   * Is this declaration a FROZEN CLASSIFICATION REGISTER — `const X = Object.freeze({ … })`?
+   *
+   * The declared form is the canonical one, singular on purpose. A register spelled some other way
+   * is not admitted by a second arm here; it is a register this rule does not govern, and saying so
+   * is cheaper than a matcher that grows until it matches everything.
+   */
+  const frozenRegisterName = (node: ts.Node): string | null => {
+    if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name)) return null;
+    let init: ts.Node | undefined = node.initializer;
+    if (init !== undefined && ts.isAsExpression(init)) init = init.expression;
+    if (init === undefined || !ts.isCallExpression(init)) return null;
+    const callee = init.expression;
+    if (!ts.isPropertyAccessExpression(callee)) return null;
+    if (!ts.isIdentifier(callee.expression) || callee.expression.text !== "Object") return null;
+    if (callee.name.text !== "freeze") return null;
+    let arg: ts.Node | undefined = init.arguments[0];
+    if (arg !== undefined && ts.isAsExpression(arg)) arg = arg.expression;
+    if (arg === undefined || !ts.isObjectLiteralExpression(arg)) return null;
+    return node.name.text;
+  };
+
+  interface RegisterFileIndex {
+    /** Names declared in this file as frozen classification registers. */
+    readonly frozen: ReadonlySet<string>;
+    /** Every variable declaration in the file, by name — the alias walk's one hop. */
+    readonly vars: ReadonlyMap<string, ts.VariableDeclaration>;
+  }
+
+  /** Cached per file: the census walks every resolved declaration's file, and files repeat. */
+  const registerFileIndexCache = new Map<string, RegisterFileIndex>();
+  const registerFileIndex = (sf: ts.SourceFile): RegisterFileIndex => {
+    const cached = registerFileIndexCache.get(sf.fileName);
+    if (cached !== undefined) return cached;
+    const frozen = new Set<string>();
+    const vars = new Map<string, ts.VariableDeclaration>();
     const visit = (node: ts.Node): void => {
-      const isRead =
-        (ts.isElementAccessExpression(node) || ts.isPropertyAccessExpression(node)) &&
-        node.expression.getText(src) === REGISTER;
-      if (isRead) {
-        reads.push({
-          line: src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1,
-          text: node.getText(src),
-        });
-      }
-      if (ts.isIdentifier(node) && node.getText(src) === ACCESSOR) {
-        accessorRefs.push(src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1);
+      const frozenName = frozenRegisterName(node);
+      if (frozenName !== null) frozen.add(frozenName);
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && !vars.has(node.name.text)) {
+        vars.set(node.name.text, node);
       }
       ts.forEachChild(node, visit);
     };
-    visit(src);
+    visit(sf);
+    const built: RegisterFileIndex = { frozen, vars };
+    registerFileIndexCache.set(sf.fileName, built);
+    return built;
+  };
 
-    // PREMISE: the parse found the register at all. A walk that found nothing would agree with
-    // every assertion below for the one reason that proves nothing.
+  /** How far a `const A = B` chain is followed before the walk reports that it stopped. */
+  const REGISTER_ALIAS_HOPS = 8;
+
+  /**
+   * Resolve one access BASE to the frozen register it ultimately names, or `null`.
+   *
+   * Each hop goes through `declarationOf`, so a renamed import, a namespace member and a two-hop
+   * re-export all land on the single declaration the exporting module writes. The extra step this
+   * rule adds is the LOCAL one the finding used: a declaration whose initializer is a bare
+   * identifier is an alias, and the walk asks the same authority about that identifier.
+   */
+  const resolveFrozenRegister = (
+    program: { getSourceFile(fileName: string): unknown },
+    checker: Parameters<typeof declarationOf>[1],
+    base: ts.Node,
+  ): { readonly key: string; readonly name: string } | null => {
+    const api = ts as unknown as TsProgramApi;
+    let current: ts.Node = base;
+    for (let hop = 0; hop < REGISTER_ALIAS_HOPS; hop += 1) {
+      const decl = declarationOf(api, checker, current);
+      if (decl === null) return null;
+      const sf = program.getSourceFile(decl.fileName) as ts.SourceFile | undefined;
+      if (sf === undefined) return null;
+      const index = registerFileIndex(sf);
+      if (index.frozen.has(decl.name)) {
+        return { key: registerKey(decl.fileName, decl.name), name: decl.name };
+      }
+      const declared = index.vars.get(decl.name);
+      const init = declared?.initializer;
+      if (init === undefined || !ts.isIdentifier(init)) return null;
+      current = init;
+    }
+    return null;
+  };
+
+  /** The nearest function-like ancestor, or the source file when the node sits at top level. */
+  const enclosingFunctionOf = (node: ts.Node): ts.Node => {
+    let parent: ts.Node | undefined = node.parent;
+    while (parent !== undefined && !ts.isFunctionLike(parent)) parent = parent.parent;
+    return parent ?? node.getSourceFile();
+  };
+
+  it("F-19 / IN-03: every classification register is read through ONE own-property authority, at a set DERIVED by resolved declaration", () => {
+    const built = censusProgram();
     expect(
-      text.includes(`const ${REGISTER}`),
-      `PREMISE: ${REGISTER} is not declared in this file, so this case is measuring the wrong file`,
+      built.ok,
+      `PREMISE: the symbol-resolving program could not be built — ${built.ok ? "" : built.cause}. ` +
+        "A could-not-run is a NAMED cause here rather than an empty result, because an empty " +
+        "result is exactly what every assertion below would read as 'no unguarded read exists'",
     ).toBe(true);
-    expect(
-      reads.length,
-      `PREMISE: the parse found NO read of ${REGISTER}. An empty set satisfies the ` +
-        "every-read-is-guarded assertion below without a single read being guarded",
-    ).toBeGreaterThan(0);
+    if (!built.ok) return;
+    const { program, checker } = built.context;
 
-    /** The nearest enclosing function-like ancestor's source text, or the whole file. */
-    const enclosingText = (line: number): string => {
-      let found = text;
-      const walk = (node: ts.Node): void => {
-        const start = src.getLineAndCharacterOfPosition(node.getStart(src)).line + 1;
-        const end = src.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
-        if (start > line || end < line) return;
-        if (ts.isFunctionLike(node)) found = node.getText(src);
-        ts.forEachChild(node, walk);
-      };
-      walk(src);
-      return found;
+    const source = program.getSourceFile(GUARDS_TEST_ABS) as ts.SourceFile | undefined;
+    expect(
+      source,
+      `PREMISE: ${GUARDS_TEST_ABS} is not in the program. tsconfig.json excludes **/*.test.ts, so a ` +
+        "program built from the config's file list alone carries none of the files this census is " +
+        "about and the census would be true over nothing",
+    ).toBeDefined();
+    if (source === undefined) return;
+
+    // ── THE CENSUS ────────────────────────────────────────────────────────────────────────────────
+    //
+    // Two contributions, unioned: the registers this file DECLARES, and the registers this file
+    // READS. The second half is what makes an imported register a subject, and it is derived from
+    // the same resolution the guard rule uses rather than from an import list.
+    const registers = new Map<string, string>();
+    for (const name of registerFileIndex(source).frozen) {
+      registers.set(registerKey(GUARDS_TEST_ABS, name), name);
+    }
+
+    interface RegisterRead {
+      readonly key: string;
+      readonly name: string;
+      readonly line: number;
+      readonly text: string;
+      readonly computed: boolean;
+      readonly fn: ts.Node;
+    }
+    const reads: RegisterRead[] = [];
+    const ownPropertyChecks: { readonly key: string; readonly fn: ts.Node }[] = [];
+    const identifierCounts = new Map<string, number>();
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) {
+        identifierCounts.set(node.text, (identifierCounts.get(node.text) ?? 0) + 1);
+      }
+      if (ts.isElementAccessExpression(node)) {
+        const resolved = resolveFrozenRegister(program, checker, node.expression);
+        if (resolved !== null) {
+          registers.set(resolved.key, resolved.name);
+          const arg = node.argumentExpression;
+          reads.push({
+            key: resolved.key,
+            name: resolved.name,
+            line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+            text: node.getText(source),
+            computed: !(ts.isStringLiteralLike(arg) || ts.isNumericLiteral(arg)),
+            fn: enclosingFunctionOf(node),
+          });
+        }
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression) &&
+        node.expression.expression.text === "Object" &&
+        node.expression.name.text === "hasOwn"
+      ) {
+        const target = node.arguments[0];
+        if (target !== undefined) {
+          const resolved = resolveFrozenRegister(program, checker, target);
+          if (resolved !== null) {
+            registers.set(resolved.key, resolved.name);
+            ownPropertyChecks.push({ key: resolved.key, fn: enclosingFunctionOf(node) });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
     };
+    visit(source);
 
-    const unguarded = reads.filter(
-      (r) => !enclosingText(r.line).includes(`Object.hasOwn(${REGISTER}`),
-    );
+    // ── THE VACUITY FLOOR ON THE SUBJECT SET ──────────────────────────────────────────────────────
+    //
+    // This is the assertion plan 32.1-05 task 2 has to clear before it may delete a class. A rule
+    // asserting over ONE register that a later decision can remove is a rule that stops asking
+    // without anything going red — the same defect this case is about, one register up. Its own
+    // shortness is what it would hide, so the shortness is the failure.
     expect(
-      unguarded.map((r) => `:${r.line}  ${r.text}`),
-      `a read of ${REGISTER} is not guarded by an own-property test. \`Object.freeze\` leaves ` +
-        "`Object.prototype` in place, so a raw read answers \"registered\" for a name nobody " +
-        "registered — an exemption granted by spelling instead of by a decision (review IN-03, " +
-        "the same class as WR-04)",
+      registers.size,
+      `the frozen-classification-register census came back with ${registers.size} member(s). A ` +
+        "rule whose subject is a single deletable register does not go RED when that register is " +
+        "deleted — it silently stops asking, and every assertion below becomes true over nothing. " +
+        "If a class was just removed, the honest answer is to keep a second register or to retire " +
+        "this rule deliberately, never to let it assert over one member or none",
+    ).toBeGreaterThan(1);
+
+    // ── MEMBERS AND CARDINALITY, SEPARATELY ───────────────────────────────────────────────────────
+    const found = [...registers.values()].sort();
+    expect(
+      found,
+      "the census found a different SET of frozen classification registers than the pins record. A " +
+        "register that arrives is a decision (route its computed reads through one own-property " +
+        "accessor, then add it here); a register that leaves is a decision too, and the two must " +
+        `never cancel into a green count. Found: ${JSON.stringify(found)}`,
+    ).toEqual([...REGISTER_READ_PINS.keys()].sort());
+    expect(
+      registers.size,
+      "the census's CARDINALITY is pinned separately from its membership, so a swap of one member " +
+        "for another cannot pass both",
+    ).toBe(REGISTER_READ_PINS.size);
+
+    // ── THE RULE, ASKED OF EVERY MEMBER ───────────────────────────────────────────────────────────
+    const unguarded: string[] = [];
+    const scattered: string[] = [];
+    const movedNumbers: string[] = [];
+    for (const [key, name] of registers) {
+      const computedReads = reads.filter((r) => r.key === key && r.computed);
+      const guards = ownPropertyChecks.filter((c) => c.key === key);
+      for (const read of computedReads) {
+        if (!guards.some((g) => g.fn === read.fn)) {
+          unguarded.push(`${name} at :${read.line}  ${read.text}`);
+        }
+      }
+      const authorities = new Set(computedReads.map((r) => r.fn));
+      if (authorities.size > 1) {
+        scattered.push(
+          `${name} is read with a computed key inside ${authorities.size} different functions ` +
+            `(lines ${computedReads.map((r) => r.line).join(", ")})`,
+        );
+      }
+      const pin = REGISTER_READ_PINS.get(name);
+      if (pin === undefined) {
+        movedNumbers.push(`${name} is in the census with no pinned numbers at all`);
+        continue;
+      }
+      if (computedReads.length !== pin.dynamicReads) {
+        movedNumbers.push(
+          `${name} is read with a computed key ${computedReads.length} time(s); the pin says ` +
+            `${pin.dynamicReads}`,
+        );
+      }
+      if (pin.accessor !== null) {
+        const calls = (identifierCounts.get(pin.accessor) ?? 0) - 1;
+        if (calls !== pin.accessorCalls) {
+          movedNumbers.push(
+            `${name}'s authority \`${pin.accessor}\` is called ${calls} time(s); the pin says ` +
+              `${pin.accessorCalls}`,
+          );
+        }
+      }
+    }
+
+    expect(
+      unguarded,
+      "a computed-key read of a frozen classification register is not own-property guarded. " +
+        "`Object.freeze` leaves `Object.prototype` in place, so a raw read answers \"registered\" " +
+        "for a name nobody registered — an exemption granted by spelling instead of by a decision " +
+        `(review IN-03, the same class as WR-04):\n  ${unguarded.join("\n  ")}`,
     ).toEqual([]);
 
     expect(
-      reads.map((r) => `:${r.line}`),
-      `${REGISTER} is read at more than one place. Three sites each spelling the rule is how the ` +
-        "WR-04 site and this one came to disagree in the first place; the reads go through " +
-        `\`${ACCESSOR}\` so there is one authority to fix`,
+      scattered,
+      "a frozen classification register is read with a computed key from more than one function, " +
+        "so there is more than one authority to fix when the rule changes. Three sites each " +
+        "spelling `Object.hasOwn` is how the WR-04 site and this one came to disagree in the first " +
+        `place:\n  ${scattered.join("\n  ")}`,
+    ).toEqual([]);
+
+    // THE TWO PINNED NUMBERS PER REGISTER, ASSERTED AFTER THE FINDINGS. A number that moved is
+    // reported once the file has been told WHAT moved, because a bare count mismatch is the least
+    // informative way to learn that a second authority arrived.
+    expect(
+      movedNumbers,
+      "a pinned read number for a frozen classification register no longer matches the derivation. " +
+        "Each of these is a DECISION that moves when the read set moves — route the new read " +
+        "through the register's one own-property accessor, then move the number in the same " +
+        `commit:\n  ${movedNumbers.join("\n  ")}`,
+    ).toEqual([]);
+
+    // ── THE PREMISE THE WHOLE CASE RESTS ON ───────────────────────────────────────────────────────
+    //
+    // A resolution that resolved nothing would agree with every assertion above for the one reason
+    // that proves nothing, so the read set itself is floored. This is the instrument's own
+    // `ok: false` arm arriving by a different door: a checker that silently resolves no access base
+    // reports a clean register set about a file it never read.
+    expect(
+      reads.length,
+      "PREMISE: the resolution found NO read of any frozen classification register in this file. " +
+        "An empty read set satisfies the every-read-is-guarded assertion without a single read " +
+        "being guarded",
+    ).toBeGreaterThan(0);
+    expect(
+      ownPropertyChecks.length,
+      "PREMISE: no `Object.hasOwn` call in this file resolved to a frozen classification register, " +
+        "so the guarded/unguarded distinction above was never actually drawn",
+    ).toBeGreaterThan(0);
+  });
+
+  it("F-19: an ALIASED read of a register resolves to the SAME declaration as a direct one", () => {
+    // THE FINDING'S OWN MECHANISM, asserted directly rather than only through the census above.
+    // `declarationOf` plus the local `const A = B` hop is what puts the planted alias inside the set
+    // the rule enumerates; this case proves the two routes land on one declaration, so a reader does
+    // not have to take the census's silence as evidence.
+    const built = censusProgram();
+    expect(built.ok, "PREMISE: the program could not be built, so nothing was resolved").toBe(true);
+    if (!built.ok) return;
+    const { program, checker } = built.context;
+    const source = program.getSourceFile(GUARDS_TEST_ABS) as ts.SourceFile | undefined;
+    expect(source, "PREMISE: this file is not in the program").toBeDefined();
+    if (source === undefined) return;
+
+    // The DIRECT route: the register's own name, read where its accessor reads it.
+    const directRefs: ts.Identifier[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node.text === "TOOLCHAIN_CHECK_SCRIPTS") directRefs.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(
+      directRefs.length,
+      "PREMISE: no reference to TOOLCHAIN_CHECK_SCRIPTS was found, so the comparison below is " +
+        "about nothing",
+    ).toBeGreaterThan(1);
+
+    const resolvedDirect = directRefs
+      .map((ref) => resolveFrozenRegister(program, checker, ref))
+      .filter((r): r is { key: string; name: string } => r !== null);
+    expect(
+      resolvedDirect.length,
+      "the checker resolved NO reference to a register declared in this very file. The instrument " +
+        "is not resolving, so the census built on it decides nothing",
+    ).toBeGreaterThan(0);
+    expect(
+      [...new Set(resolvedDirect.map((r) => r.key))],
+      "every reference to one register must resolve to exactly one declaration key, or the census " +
+        "would count one register as several",
     ).toHaveLength(1);
 
-    // THE COUNT THE BASELINE RECORDED, PINNED. 32-39-RED-baseline.txt §3 derived THREE reads of the
-    // register at :12110, :12348 and :12621. Those three are now three calls of the accessor, so
-    // the number of own-property lookups equals the number of raw reads there were — a new call
-    // site is a number somebody has to look at, and a new RAW read reds the assertion above.
+    // THE CONVERSE, so the resolution is shown to DISCRIMINATE rather than to say yes to everything:
+    // a name that is not a frozen register resolves to nothing at all.
+    const notARegister = directRefs[0] as ts.Identifier;
+    expect(notARegister, "PREMISE: no identifier to contrast against").toBeDefined();
+    const contrast: ts.Identifier[] = [];
+    const visitContrast = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node.text === "ROOT") contrast.push(node);
+      ts.forEachChild(node, visitContrast);
+    };
+    visitContrast(source);
+    expect(contrast.length, "PREMISE: no reference to ROOT was found to contrast against").toBeGreaterThan(0);
     expect(
-      accessorRefs.length - 1,
-      `the accessor is called a different number of times than the ${reads.length === 1 ? 3 : 3} ` +
-        "raw reads the RED baseline derived. A fourth read of the register is a decision, not an " +
-        "accident: route it through the accessor and move this number",
-    ).toBe(3);
+      resolveFrozenRegister(program, checker, contrast[0] as ts.Identifier),
+      "ROOT is a path string, not a frozen classification register. A resolution that admits it " +
+        "admits everything, and the census would then be a census of this file's identifiers",
+    ).toBeNull();
   });
 
   it("IN-03: a bare prototype-member name is NOT registered, and a recorded one still is", () => {
