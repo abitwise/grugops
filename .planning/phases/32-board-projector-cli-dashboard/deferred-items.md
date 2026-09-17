@@ -384,3 +384,107 @@ Rows appended by this round, with what each carries:
 
 F-22 is NOT among them: `32-40-ADVERSARIAL-REVIEW.md` records it CLOSED, and it is a harness finding
 rather than a tree defect. An item that is closed does not get a row that says it is open.
+
+## Ownership assigned by plan 32-41's Task 3 decision — Option C, `defer-to-next-phase`
+
+**Decided:** 2026-09-17, by the human, at plan `32-41`'s Task 3 checkpoint, after being shown the
+eight open findings with their severities and created-versus-inherited verdicts, the round-4 ratio
+set beside rounds 1 through 3, and the five drafted override blocks read as written.
+
+**Chosen option id, verbatim:** `defer-to-next-phase`
+
+**The human's own words, verbatim:**
+
+> defer to new sub-phase before next phase.
+
+**THE NAMED OWNER:** **Phase 32.1 (new sub-phase, to be inserted before Phase 33 — not yet in
+ROADMAP).**
+
+**The reading, stated as a reading rather than as the human's words.** The owner named above is the
+orchestrator's interpretation of the sentence quoted above: a NEW sub-phase of Phase 32, inserted
+before Phase 33, which does not exist in `ROADMAP.md` yet. That distinction is written out because a
+later reader must be able to tell which part is the decision and which part is somebody's reading of
+it. **This plan does not create that phase.** Inserting a phase is a separate roadmap operation, and
+this plan changes no roadmap line of any kind.
+
+**What this decision is NOT.** Option A was not chosen: the five blocks in `32-41-OVERRIDE-DRAFT.md`
+remain a DRAFT and are applied nowhere — no override was accepted, and no `accepted_by` or
+`accepted_at` placeholder was filled. Option B was not chosen: no fifth-round fix is authorised and
+no finding was named for one. Option D was not available — the register records eight open findings,
+so "nothing is open" was not on the table.
+
+### The 18 open items and the owner each now carries
+
+Item numbering and the homes column are taken from `32-41-OVERRIDE-DRAFT.md` § 3, which enumerated
+the same 18 items against their homes. The owner column is what this decision adds.
+
+| # | Open item | WINDOWS.md row | Owner after this decision |
+|---|---|---|---|
+| 1 | F-14 a quoted identifier's C1 byte is deleted before the reader sees it | 200 | Phase 32.1 |
+| 2 | F-15 the split-reader refusal enumerates ONE import shape | 201 | Phase 32.1 |
+| 3 | F-16 regular-expression literals are not blanked | 202 | Phase 32.1 |
+| 4 | F-17 a template-literal dynamic import is invisible to scanner AND oracle | 203 | Phase 32.1 |
+| 5 | F-18 the bare arm's refusal relocated onto a single predicate | 204 | Phase 32.1 |
+| 6 | F-19 the one-authority rule enumerates reads by identifier TEXT | 205 | Phase 32.1 |
+| 7 | F-20 one consumer still uses the unresolved spelling | 206 | Phase 32.1 |
+| 8 | F-21 the step counter's separator alphabet excludes five shell shapes | 207 | Phase 32.1 |
+| 9 | carried: `npm run check:diff-disposition` RED, 78 findings over 5 Phase-31 documents | 176 | Phase 32.1 |
+| 10 | carried: the live claude-CLI e2e lane, `UNKNOWN - verify`, never run this phase | 183 | Phase 32.1 |
+| 11 | carried: WR-07's CI-topology half | 186, 193 | **Phase 33 (unchanged)** |
+| 12 | carried: the PRODUCTION-file census exemption on `check-diff-disposition.ts` | 194 | Phase 32.1 |
+| 13 | carried: a key spelling assembled at RUNTIME | 184 | Phase 32.1 |
+| 14 | carried: `board-tracer.test.ts` as the ninth `NOT_A_SECOND_AUTHORITY` exemption | 210 | Phase 32.1 |
+| 15 | undecidable: a runtime writer value or a future `node_modules` dependency | 208 | Phase 32.1 |
+| 16 | undecidable: the `windows-latest` delivery band | 186, 193 | **Phase 33 (unchanged)** |
+| 17 | undecidable: a module reached through a NESTED RUNNER | 207 (= F-21) | Phase 32.1 |
+| 18 | NEW: `32-40` attributes the WR-04 fix to `7aea94f0`; it is `7a3ae592` | 209 | Phase 32.1 |
+
+```
+items enumerated ....................................................  18
+items re-homed to Phase 32.1 ........................................  16
+items KEEPING an owner recorded before this decision ................   2   (items 11 and 16)
+items left with no owner ............................................   0
+```
+
+**WHY TWO ITEMS DO NOT MOVE, stated rather than left to inference.** Items 11 and 16 are the two
+halves of the Windows measurement, and Phase 33 was recorded as their owner before this decision, by
+`.planning/WINDOWS.md` ledger rows 186 and 193 and by `32-22-SUMMARY.md`. Option C's own stated
+condition is that the owning phase must genuinely touch the same surface; Phase 32.1 is a sub-phase
+of the board/dashboard work and does not own the `windows-latest` leg or CAP-02. Re-homing those two
+would move a Windows measurement onto a phase that cannot take it, and would overwrite an owner a
+prior decision already recorded. They stay with Phase 33.
+
+**THREE ITEMS CHANGE FROM A CONDITIONAL OWNER TO A NAMED ONE, and the prior wording is preserved
+rather than replaced.** Item 12 previously read "the next phase that touches
+`scripts/check-diff-disposition.ts`"; item 18 previously read "the verifier's next pass, or whoever
+cites F-15's provenance next"; items 13, 15 and 17 previously read "unassigned". Those remedies are
+unchanged by this decision — item 12's honest fix is still to stop writing the two ticket key words
+into that module's prose rather than to narrow the predicate, item 13's is still a different
+instrument rather than one more resolution arm, and item 17's is still a canonical form rather than a
+wider alphabet. What changed is only that a phase now carries them.
+
+### What this section did NOT touch, asserted rather than claimed
+
+`.planning/WINDOWS.md` is **byte-unchanged by Task 3**. Its row schema is
+`id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at` in both
+representations and carries **no owner field**; inventing one would have meant editing 16 rows twice
+over, in a register whose two representations this plan spent Task 2 reconciling. Ownership is
+recorded here instead and joined to that register BY ROW IDENTIFIER, which is the same key Task 2's
+reconciliation asserts on. The reconciliation was re-run after this section was written, against the
+same identifier comparison rather than a row-count comparison:
+
+```
+representation A (markdown table) row count ......  210
+representation B (JSON array)     row count ......  210
+|symmetric difference of identifier sets| ........  0
+  only in A: []   only in B: []
+duplicate ids in A: 0   duplicate ids in B: 0
+derived  open=197  waived=0  fixed=13  total=210
+```
+
+No requirement checkbox, no roadmap phase status and no `STATE.md` line was changed by this task:
+
+```
+$ git status --porcelain -- .planning/REQUIREMENTS.md .planning/ROADMAP.md .planning/STATE.md
+(no output)
+```
