@@ -1841,55 +1841,94 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
    * Widening the subject from a syntax shape to a capability necessarily names files that plant a
    * ticket document as fixture text and also scan text somewhere — and that is the right trade:
    * over-detection costs a named entry here, under-detection cost this repository a whole round.
-   * A FOURTH entry is somebody judging that a file naming both ticket keys beside a text scan is
+   * A FURTHER entry is somebody judging that a file naming both ticket keys beside a text scan is
    * not an authority, and that judgment belongs here with its reason, never in a bumped constant.
+   *
+   * EVERY REASON IS STATED IN TERMS THE CENSUS ACTUALLY READS (plan 32.1-04, D-04). The whole set
+   * was RE-DERIVED under the checker cutover and each entry re-measured before a word of it moved;
+   * the per-entry measurement is recorded in `32.1-04-RED-baseline.txt`. The correction that forced
+   * the rewrite: the census's key half resolves STRING LITERALS — string and no-substitution
+   * template literals, regex literals, `+` concatenations and `[…].join(sep)` — and it does NOT see
+   * comments, which are trivia rather than nodes. A reason arguing about what a file INTENDS says
+   * nothing a later reader can re-check; a reason naming the literal the census resolved can be
+   * re-measured in one command. So each reason below names the literals, and the entry stands or
+   * falls on whether those literals are still there.
+   *
+   * AND THE CHECKER CUTOVER DOES NOT RETIRE THESE. D-01's instrument moved the split-reader JOIN —
+   * which file's binding resolves to which file's declaration. `namesBothKeys` is a whole-file
+   * literal census, and no amount of symbol resolution changes which literals a file contains. Eight
+   * of the nine entries survive for exactly that reason, measured rather than assumed.
    */
   const NOT_A_SECOND_AUTHORITY: Readonly<Record<string, string>> = Object.freeze({
     "board-model.test.ts":
-      "the grammar's own behavioural suite: it plants ticket documents as fixture TEXT and asserts " +
-      "what the one authority returns from them; it parses no key itself",
+      "the grammar's own behavioural suite. The census resolves both key spellings out of PLANTED " +
+      "TICKET DOCUMENTS held as fixture text (`status:` and `column:` lines inside the documents it " +
+      "hands to parseTicketDocument) and out of its own test descriptions; the scanning half is its " +
+      "fixture assembly. No literal it carries is a key table this file reads a document WITH — " +
+      "every parse it asserts over is the one authority's",
     "board-read.test.ts":
-      "the read seam's suite: it plants ticket documents as fixture TEXT and asserts what " +
-      "readSnapshot reports about them; the parsing it asserts over is the grammar's",
+      "the read seam's suite. The census resolves `column` out of a test description about a " +
+      "two-column board and `status` out of a planted ticket document handed to readSnapshot; the " +
+      "scanning half is fixture assembly and path arithmetic. The parsing it asserts over is the " +
+      "grammar's, so neither literal is a key table this file reads documents with",
     "validate.test.ts":
-      "this census: it names both key spellings in order to SCAN for them and reaches the " +
-      "primitives in order to build its own patterns and its own planted rows",
+      "this census itself. It must name both key spellings as literals in order to SCAN for them " +
+      "(KEY_SPELLINGS, the fixture names, the `/status/i` pattern) and must reach the text " +
+      "primitives in order to build its own patterns and its own planted rows. A census that " +
+      "exempted itself silently would be the hole; this entry is what makes the self-reference a " +
+      "recorded decision",
     // ── The five the PRESENCE rule added in round 3 (32-36). Each one names a key because the two
     //    ticket keys are also ordinary English words, and each one was read before it was exempted.
     "audit-model.test.ts":
-      "the audit register's suite: `/column/i` is a pattern over an AUDIT-REGISTER table column and " +
-      "`status` appears in a test description about CLAIM_STATUSES; neither has anything to do " +
-      "with a ticket document, and this file reads no ticket text at all",
+      "the audit register's suite. The census resolves `column` out of the regex literal `/column/i` " +
+      "— a pattern over an AUDIT-REGISTER table heading — and `status` out of a test description " +
+      "about CLAIM_STATUSES. Neither literal is about a ticket document, and this file hands no " +
+      "document text to a ticket parser at all",
     "board-dashboard.test.ts":
-      "the dashboard renderer's suite: `column` names a rendered WIP-COUNT column in a test " +
-      "description and `status` is a dial key it asserts over; the ticket fields it works with " +
-      "arrive already parsed, as TicketRecord values the one grammar produced",
+      "the dashboard renderer's suite. The census resolves `column` out of a test description about " +
+      "a rendered WIP-COUNT heading and `status` out of a bare `\"status\"` dial-key literal it " +
+      "asserts over. The ticket fields it works with arrive ALREADY PARSED, as TicketRecord values " +
+      "the one grammar produced, so no literal here is a key table it reads documents with",
     "check-banned-claims.test.ts":
-      "the banned-claims gate's suite: `- status: true` is a planted FRONTMATTER fixture for that " +
-      "gate's own subject and `column` appears in a message about a file:line:column citation; " +
-      "the gate reads claims out of markdown prose and parses no ticket frontmatter",
+      "the banned-claims gate's suite. The census resolves `status` out of the planted frontmatter " +
+      "fixture literal `- status: true` — a fixture for THAT gate's own subject — and `column` out " +
+      "of a test description about a file:line:column citation. The gate reads claims out of " +
+      "markdown prose; neither literal is a ticket key it parses a document with",
     "check-diff-disposition.ts":
-      "the diff-disposition gate: `status` is one of the keys of ITS OWN disposition register and " +
-      "`column` names a `safety_surface` table column in an operator message. It reads the audit " +
-      "register and the git diff, never a ticket document — the only production-code entry here, " +
-      "and the standing risk that carries is written into this plan's SUMMARY rather than left " +
-      "for a later reader to notice",
+      "the diff-disposition gate, and the ONLY production-code entry in this register — ledger row " +
+      "194. MEASURED under the re-derived census: the file supplies each key spelling through " +
+      "exactly ONE literal. `status` is the git subcommand argument in " +
+      "`git([\"status\", \"--porcelain\"])`, which cannot move without changing behaviour; `column` " +
+      "is a word inside one operator message about the register's own `safety_surface` heading. It " +
+      "reads the audit register and the git diff, never a ticket document. Because the conjunction " +
+      "requires EVERY key spelling, this entry retires the moment either literal goes — and the " +
+      "standing risk it carries meanwhile (a real second reader added to this one file would be " +
+      "exempted with it) is why row 194 stayed open",
     "compactor.test.ts":
-      "the thread compactor's suite: `column-0` and `status` both appear inside test DESCRIPTIONS " +
-      "about verified_by findings and writer order; the compactor's subject is a thread note and " +
-      "it never reads a ticket's frontmatter",
+      "the thread compactor's suite. The census resolves `column` out of a test description naming " +
+      "a `column-0` empty verified_by finding and `status` out of a test description about " +
+      "composeThreadNote's writer order. Both literals are DESCRIPTIONS; the compactor's subject " +
+      "is a thread note and no literal here is a ticket key it parses a document with",
     // ── The one plan 32-38 added, READ BEFORE IT WAS EXEMPTED. The file already named `column` (in
-    //    a WIP-count test DESCRIPTION, line 114) and already scanned text; plan 32-38's
-    //    duplicate-identifier fixture supplied the `status` spelling that tipped the conjunction.
+    //    a WIP-count test DESCRIPTION) and already scanned text; plan 32-38's duplicate-identifier
+    //    fixture supplied the `status` spelling that tipped the conjunction.
     "board-tracer.test.ts":
-      "the phase tracer's suite: it PLANTS ticket documents as fixture TEXT and asserts what the " +
-      "spawned CLI publishes about them, exactly as board-model.test.ts and board-read.test.ts do; " +
-      "`column` is also an ordinary English word in its WIP-count test descriptions. It parses no " +
-      "ticket key itself — every ticket field it reasons about arrives already parsed, inside the " +
-      "--json document the one grammar produced",
+      "the phase tracer's suite — ledger row 210, RE-HOMED WITH THIS FILE AS ITS NAMED OWNER rather " +
+      "than closed (plan 32.1-04, D-21). MEASURED under the re-derived census: it names `column` in " +
+      "TWELVE distinct string literals — eleven test descriptions about board columns, plus the " +
+      "planted ticket fixture `\"status: ready\\ncolumn: Backlog\\n---\\n\"`, which is also the ONE " +
+      "literal supplying `status`. A declaration-resolving join moves which FILE a scanning half is " +
+      "attributed to; it does not move a whole-file literal census, so this entry survives the " +
+      "checker cutover by measurement, not by oversight. It PLANTS ticket documents as fixture TEXT " +
+      "and asserts what the spawned CLI publishes about them, exactly as board-model.test.ts and " +
+      "board-read.test.ts do — every ticket field it reasons about arrives already parsed, inside " +
+      "the --json document the one grammar produced",
   });
 
-  /** The cardinality of the exemption set — a decision, not a constant to bump. */
+  /**
+   * The cardinality of the exemption set — a DECISION that moved because the derived set moved,
+   * never a constant somebody bumped to make a red test green.
+   */
   const NOT_A_SECOND_AUTHORITY_COUNT = 9;
 
   /**
@@ -2502,12 +2541,42 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
     }
   });
 
+  // TWO CASES, NEVER ONE (plan 32.1-04, D-04). The MEMBERS and the CARDINALITY are separate
+  // questions asked separately, in the shape `scripts/context-io-writer-set.test.ts` established
+  // for its own derivation: one case can fail while the other passes, and which one failed says
+  // which mistake was made. A single case doing both reports "not equal" for two different defects.
+
+  it("the exemption set has exactly the DERIVED members: everything the census names but the one authority", () => {
+    // THE SET IS DERIVED, NOT TYPED. `DETECTED` is what the census names on this tree; exactly one
+    // of those is the authority, and every other one is an exemption somebody decided. Asserting
+    // the registry equal to that difference pins BOTH directions at once: an entry describing a
+    // file the census no longer names, and a file the census names with no entry, are each a
+    // failure of this equality rather than something a reader has to notice.
+    const derived = DETECTED.map(([name]) => name)
+      .filter((name) => name !== "board-model.ts")
+      .sort();
+    expect(
+      derived.length,
+      "PREMISE: the census named nothing besides the one authority, so the equality below would " +
+        "hold against an EMPTY derivation and say nothing about the registry",
+    ).toBeGreaterThan(0);
+    expect(
+      Object.keys(NOT_A_SECOND_AUTHORITY).sort(),
+      "the exemption registry and the census's own derivation have drifted apart. An entry the " +
+        "derivation does not name is a standing hole with no live subject; a file the derivation " +
+        "names with no entry is a carrier that walked through. Re-measure, then either delete the " +
+        "entry with a note saying what retired it or write the new entry's reason out",
+    ).toEqual(derived);
+  });
+
   it("the exemption set has exactly the pinned number of members", () => {
     expect(
       Object.keys(NOT_A_SECOND_AUTHORITY).length,
       "a further exemption is a DECISION: it asserts that a file naming both ticket keys beside a " +
         "text scan is not a second authority on what a ticket says. That judgment belongs beside " +
-        "the others with its reason written out, not in a bumped constant",
+        "the others with its reason written out, not in a bumped constant. And this number is a " +
+        "DECISION in the same sense: it moves when the DERIVED set above moves and a human has " +
+        "written down why, never on its own to make a red case green",
     ).toBe(NOT_A_SECOND_AUTHORITY_COUNT);
   });
 

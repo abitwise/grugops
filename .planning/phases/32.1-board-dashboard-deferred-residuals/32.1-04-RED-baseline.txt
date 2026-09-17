@@ -86,3 +86,70 @@ authored fixture, so a plant cannot drift away from the thing it copies.
   Working tree after every plant was removed:
     $ git status --porcelain -- scripts/
     (empty)
+
+
+TASK 2 — THE EXEMPTION REGISTRY, RE-DERIVED UNDER THE CHECKER (D-04, D-21)
+==========================================================================
+
+The per-entry measurement, taken BEFORE a word of the registry moved. The census's key half was
+re-run over the tracked `scripts/*.ts` set (153 files, `git ls-files -- 'scripts/*.ts'`) and each
+registry entry was asked whether the re-derived census still trips it. Reproduced by re-running
+`staticText` + `namesKey` + the text-primitive complement verbatim over each tracked source.
+
+  #  entry                        still trips?  the literals the census actually resolves
+  -- ---------------------------- ------------  ------------------------------------------------
+  1  board-model.test.ts          YES           column :101 (a test description), status :1165
+                                                (a test description); 18 distinct primitives
+  2  board-read.test.ts           YES           column :354 (a two-column test description),
+                                                status :542 (a planted ticket document);
+                                                10 distinct primitives
+  3  validate.test.ts             YES           status :251 (`/status/i`), column :252
+                                                (`bad-ticket-bad-column`); 11 distinct primitives
+  4  audit-model.test.ts          YES           column :455 (`/column/i`), status :967 (a
+                                                CLAIM_STATUSES test description);
+                                                13 distinct primitives
+  5  board-dashboard.test.ts      YES           column :272 (a WIP-count test description),
+                                                status :793 (a bare `"status"` dial key);
+                                                15 distinct primitives
+  6  check-banned-claims.test.ts  YES           status :583 (`- status: true`), column :2777 (a
+                                                file:line:column test description);
+                                                17 distinct primitives
+  7  check-diff-disposition.ts    YES           status :1058 (the git subcommand argument),
+                                                column :1630 (one operator message);
+                                                9 distinct primitives  <-- ledger row 194
+  8  compactor.test.ts            YES           column :1485 (a `column-0` test description),
+                                                status :2340 (a writer-order test description);
+                                                11 distinct primitives
+  9  board-tracer.test.ts         YES           column in TWELVE distinct literals
+                                                (:114 :122 :134 :142 :147 :152 :181 :285 :303
+                                                :453 :804 :969) and status in ONE (:969, the
+                                                planted ticket fixture, which supplies BOTH);
+                                                11 distinct primitives  <-- ledger row 210
+
+  NINE of nine still trip. NOTHING was deleted in task 2; the checker cutover moved the split-reader
+  JOIN, not the whole-file literal census, so no entry falls out of it. Row 210 is therefore
+  RE-HOMED WITH A NAMED OWNER (D-21) and its measurement is written into entry 9's own reason.
+  Row 194 is closable, but by rewording one literal — task 3, not this one.
+
+  THE DERIVED SET, measured the same run:
+    DETECTED (10) = the nine entries above + board-model.ts, the one authority
+    DERIVED (9)   = DETECTED minus board-model.ts
+    registry keys == DERIVED  ->  true
+
+  MUTATION PROOF that the new derived-members case DISCRIMINATES (it is not a restatement of the
+  liveness case). Both mutations were made to the post-task-2 file, run alone, then reverted from a
+  byte copy taken beforehand.
+
+    MUT A — the `compactor.test.ts` entry DELETED, the count constant left at 9:
+      $ npx vitest run … scripts/validate.test.ts -t "exemption set has exactly the DERIVED members"
+      exit 1   AssertionError: … expected [ 'audit-model.test.ts', …(7) ] to deeply equal
+               [ 'audit-model.test.ts', …(8) ]
+      A file the census names with no entry is a carrier that walked through — caught.
+
+    MUT B — a seeded `zzz-seeded-impostor.ts` entry ADDED for a file the census never names:
+      exit 1   AssertionError: … expected [ 'audit-model.test.ts', …(9) ] to deeply equal
+               [ 'audit-model.test.ts', …(8) ]
+      An entry with no live subject is a standing hole — caught.
+
+  After both mutations were reverted: `git status --porcelain -- scripts/` showed only the task-2
+  edit to `scripts/validate.test.ts`.
