@@ -1894,16 +1894,27 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
       "fixture literal `- status: true` — a fixture for THAT gate's own subject — and `column` out " +
       "of a test description about a file:line:column citation. The gate reads claims out of " +
       "markdown prose; neither literal is a ticket key it parses a document with",
-    "check-diff-disposition.ts":
-      "the diff-disposition gate, and the ONLY production-code entry in this register — ledger row " +
-      "194. MEASURED under the re-derived census: the file supplies each key spelling through " +
-      "exactly ONE literal. `status` is the git subcommand argument in " +
-      "`git([\"status\", \"--porcelain\"])`, which cannot move without changing behaviour; `column` " +
-      "is a word inside one operator message about the register's own `safety_surface` heading. It " +
-      "reads the audit register and the git diff, never a ticket document. Because the conjunction " +
-      "requires EVERY key spelling, this entry retires the moment either literal goes — and the " +
-      "standing risk it carries meanwhile (a real second reader added to this one file would be " +
-      "exempted with it) is why row 194 stayed open",
+    // THE `check-diff-disposition.ts` ENTRY WAS DELETED HERE — ledger row 194, closed (plan
+    // 32.1-04). It was the ONLY production-code entry in this register, and its reason read: "the
+    // diff-disposition gate: `status` is one of the keys of ITS OWN disposition register and
+    // `column` names a `safety_surface` table heading in an operator message. It reads the audit
+    // register and the git diff, never a ticket document". Row 194's standing risk was that a
+    // genuine second ticket reader added to that one PRODUCTION file later would be exempted along
+    // with it.
+    //
+    // THE MEASUREMENT THAT RETIRED IT. Row 194 and CONTEXT.md D-15 both describe the remedy as
+    // removing the two ticket key words from that module's PROSE. That framing is wrong about the
+    // mechanism, and a reader who follows it literally goes after a git subcommand. What this
+    // census resolves is STRING LITERALS — comments are trivia and invisible to it — and the module
+    // supplied each spelling through exactly ONE literal: `status` as the subcommand argument
+    // inside the working-tree dirty check, which cannot move without changing behaviour, and
+    // `column` as one word inside one operator message. Because `namesBothKeys` is an EVERY-key
+    // conjunction, rewording that one word to `field` drops the module's findings to a single
+    // spelling and the conjunction fails. The module is no longer detected, so the exemption has no
+    // subject and standing would make it a hole. The reword and this deletion are ONE commit: the
+    // liveness case reds on a reword whose entry still stands, and the derived-members and count
+    // cases red on a deletion whose reword never happened — both measured, in
+    // `32.1-04-RED-baseline.txt`.
     "compactor.test.ts":
       "the thread compactor's suite. The census resolves `column` out of a test description naming " +
       "a `column-0` empty verified_by finding and `status` out of a test description about " +
@@ -1928,8 +1939,12 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
   /**
    * The cardinality of the exemption set — a DECISION that moved because the derived set moved,
    * never a constant somebody bumped to make a red test green.
+   *
+   * 9 → 8 (plan 32.1-04, ledger row 194): `check-diff-disposition.ts` stopped supplying both key
+   * spellings, so the census stopped naming it and its entry was deleted in the same commit as the
+   * reword that retired it. See the deletion note above for the measurement.
    */
-  const NOT_A_SECOND_AUTHORITY_COUNT = 9;
+  const NOT_A_SECOND_AUTHORITY_COUNT = 8;
 
   /**
    * THE CENSUS AS A FUNCTION OF ITS INPUT, so the boundary and degenerate cases below are asked the
@@ -2567,6 +2582,70 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
         "names with no entry is a carrier that walked through. Re-measure, then either delete the " +
         "entry with a note saying what retired it or write the new entry's reason out",
     ).toEqual(derived);
+  });
+
+  it("ROW 194 — the gate module names ONE key spelling, and putting the other back makes it a carrier again", () => {
+    // WHAT THIS PINS, AND WHY IT IS NOT A RESTATEMENT OF THE DELETION NOTE. The entry for this
+    // PRODUCTION module was deleted because one word in one operator message was reworded. Prose
+    // saying so can rot; this case re-measures it. It also watches the retirement REFUSE something:
+    // put the word back and the module is a carrier again, which is what makes the deletion a
+    // measurement rather than an assertion nobody has seen fail.
+    const MODULE = "check-diff-disposition.ts";
+    const live = readFileSync(join(SCRIPTS_DIR, MODULE), "utf8");
+
+    expect(
+      DETECTED.map(([name]) => name),
+      `${MODULE} is named by the census again. Its exemption was DELETED on the measurement that ` +
+        "it supplies only one key spelling, so a second spelling arriving in this production " +
+        "module now needs a decision — either reword it out again, or record a new entry with its " +
+        "reason (ledger row 194)",
+    ).not.toContain(MODULE);
+    expect(
+      Object.hasOwn(NOT_A_SECOND_AUTHORITY, MODULE),
+      `PREMISE: ${MODULE} is exempt again, so the silence above is a registry lookup rather than ` +
+        "the literal's doing and this case measures nothing",
+    ).toBe(false);
+
+    // The module still supplies ONE spelling — the git subcommand argument in the working-tree
+    // dirty check — and still scans text. It is the EVERY-key conjunction that fails, not the
+    // primitive half, and that is the whole mechanism row 194 closes by.
+    const halves = readerHalves(parse(MODULE, live));
+    expect(
+      halves.scans,
+      `PREMISE: ${MODULE} no longer reaches a text primitive at all, so the conjunction fails for ` +
+        "a reason that has nothing to do with the reword and this case has stopped measuring it",
+    ).toBe(true);
+    expect(
+      halves.namesBothKeys,
+      `${MODULE} names BOTH key spellings again — the conjunction is back`,
+    ).toBe(false);
+
+    // THE PLANT, generated from the LIVE module by putting the reworded word back — never an
+    // authored fixture, so it cannot drift away from the file it copies.
+    // The backticks are ESCAPED in the module's source — the sentence lives inside a template
+    // literal — so the search text carries them escaped too. A search that dropped the escapes
+    // would match nothing and the PREMISE below is what says so out loud.
+    const planted = live.replace(
+      "\\`safety_surface\\` field before moving",
+      "\\`safety_surface\\` column before moving",
+    );
+    expect(
+      planted,
+      "PREMISE: the reworded sentence was not found in the live module, so the plant below planted " +
+        "nothing and its silence would mean nothing",
+    ).not.toBe(live);
+
+    const replanted = censusOver([{ name: MODULE, text: planted }]);
+    expect(
+      replanted.detected.map(([name]) => name),
+      "putting the reworded spelling back did NOT make the census name the module, so the " +
+        "retirement of its exemption rests on something other than that literal",
+    ).toEqual([MODULE]);
+    expect(
+      replanted.carriers.map(([name]) => name),
+      "the module is named by the census and still not a carrier, which would mean an exemption " +
+        "for it survived the deletion somewhere",
+    ).toEqual([MODULE]);
   });
 
   it("the exemption set has exactly the pinned number of members", () => {

@@ -153,3 +153,77 @@ registry entry was asked whether the re-derived census still trips it. Reproduce
 
   After both mutations were reverted: `git status --porcelain -- scripts/` showed only the task-2
   edit to `scripts/validate.test.ts`.
+
+
+TASK 3 — LEDGER ROW 194: ONE LITERAL REWORDED, ONE EXEMPTION DELETED, ONE COMMIT
+================================================================================
+
+WHAT THE CENSUS ACTUALLY SEES IN `scripts/check-diff-disposition.ts`, measured before anything moved
+(the same probe as task 2, restricted to this file and reported per distinct literal site):
+
+    column: 1 distinct literal site   :1630  "its `safety_surface` column before moving any number
+                                              here; lowering the expectation or "
+    status: 1 distinct literal site   :1058  "status"   <-- the git subcommand argument inside
+                                              `git(["status", "--porcelain"])`
+
+  Line 1058 is a GIT SUBCOMMAND, not prose and not a message: removing it changes behaviour. Row
+  194 and CONTEXT.md D-15 both describe the remedy as removing two key words from this module's
+  PROSE, and that framing is wrong about the mechanism — what trips the census is a STRING LITERAL,
+  and a `//` comment is invisible to it. Because `namesBothKeys` is an EVERY-key conjunction,
+  dropping `column` alone is sufficient: the findings fall to `{status}`, the conjunction fails, and
+  the module stops being detected. The reword is `column` -> `field` at :1630, and nothing else moves.
+
+TWO DISCRIMINATION PLANTS, EACH RUN ALONE AND EACH REVERTED FROM A BYTE COPY TAKEN BEFOREHAND.
+Both were measured against the post-task-2 tree.
+
+  PLANT (i) — the registry entry DELETED, the reword NOT made:
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+    exit 1   Test Files  1 failed (1)
+    The cases that red:
+      × TICKET_FRONTMATTER_READER_COUNT is 1, and the carrier is scripts/board-model.ts
+      × the exemption set has exactly the DERIVED members: everything the census names but the one
+        authority
+      × the exemption set has exactly the pinned number of members
+      × with NO plant, the carrier count is exactly one — the converse of the row above
+      × ADJACENCY: two readers differing only in key spelling count as TWO, not as one
+    A deletion without the reword turns the module into a SECOND CARRIER. Caught, five ways.
+
+  PLANT (ii) — the reword MADE, the registry entry LEFT STANDING:
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts
+    exit 1   Test Files  1 failed (1)
+    The cases that red:
+      × every named exemption is actually detected by the widened derivation
+      × the exemption set has exactly the DERIVED members: …
+    verbatim: "the exemption for "check-diff-disposition.ts" matches nothing the census names. It is
+    a standing hole with no live reason: … expected [ 'audit-model.test.ts', …(8) ] to include
+    'check-diff-disposition.ts'"
+    A reword without the deletion leaves an exemption with no subject. Caught by the liveness case.
+
+  HONEST CORRECTION TO THE PLAN'S WORDING. The plan says "delete the registry entry WITHOUT the
+  reword and confirm the LIVENESS assertion reds". Measured, that is the wrong direction for that
+  particular case: the liveness iteration reds when an ENTRY STANDS and its file stops being
+  detected — plant (ii) — while plant (i) reds the carrier, derived-members and count cases instead.
+  BOTH directions were captured rather than only the one the plan named, and both confirm the same
+  conclusion the plan draws: the reword and the deletion must land in ONE commit, because either one
+  alone is red.
+
+THE COMMITTED RETIREMENT CASE. `ROW 194 — the gate module names ONE key spelling, and putting the
+other back makes it a carrier again` re-measures all of the above at test time: the live module is
+not named by the census, it is not exempt either, it still scans, its every-key conjunction is
+false, and a plant generated from the LIVE module by putting `column` back makes it a detected
+carrier again. The deletion is therefore a measurement that has been watched refusing something,
+not an assertion.
+
+AFTER THE CUTOVER (reword + deletion + count 9 -> 8 + the retirement case, all in one commit):
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts     exit 0, 139 passed
+  $ npm run typecheck                                                        exit 0
+  $ npm run check:diff-disposition                                           exit 0, ALL CHECKS PASSED
+      (the gate's own verdict is unchanged by the reword — 0 findings over 39/39 elements)
+  $ git diff -- scripts/check-diff-disposition.ts
+      one hunk at the operator-message line; NO change at the working-tree dirty-check line
+  $ npm run generate:hook-manifest                                           regenerated
+      `hooks/hook-entry.ts` records a CONTENT HASH for every module in each hook decider's closure,
+      and `scripts/check-diff-disposition.js` is one of them. The reword moved that hash, so the
+      manifest is a companion edit that MUST land in the same commit — `floor-invariance.test.ts`
+      asserts both that no manifest hash is stale and that `hooks/hook-entry.ts` carries no
+      uncommitted modification. Measured: 50 tests across 6 files red until the manifest moved.

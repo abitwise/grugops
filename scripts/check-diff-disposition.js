@@ -1326,7 +1326,7 @@ function main() {
             `about to report a verdict over LESS than the kit it exists to watch. A \`safety_surface\` ` +
             `flag flipped to \`no\` in ${REGISTER_PATH} removes a file from this gate ` +
             `ENTIRELY and owes no disposition row, because that register is not itself watched. Walk ` +
-            `its \`safety_surface\` column before moving any number here; lowering the expectation or ` +
+            `its \`safety_surface\` field before moving any number here; lowering the expectation or ` +
             `narrowing the corpus are the two ways to clear this finding by deleting its evidence, and ` +
             `neither is the remedy`);
     }
