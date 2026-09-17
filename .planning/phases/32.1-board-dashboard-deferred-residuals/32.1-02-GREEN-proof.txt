@@ -1,0 +1,243 @@
+32.1-02-GREEN-proof.txt — the AFTER side of plan 32.1-02, per D-19.
+===================================================================
+
+WHAT THIS FILE PROVES, AND WHAT IT DOES NOT. It proves one arithmetic statement, measured from the
+gate's own output on both sides: the `guard_diff_disposition` headline finding count fell from 78 to
+40, which is exactly this plan's file share (38), and the gate now names
+`agent-factory/workflows/05-pr-quality-gate.md` ZERO times.
+
+IT DOES NOT PROVE THE GATE IS GREEN, AND THE GATE IS NOT GREEN. The run below still exits 1. That is
+expected and is not a failure of this plan: the remaining 40 findings are over the other four watched
+documents, and plan 32.1-03 owns them. A reader who sees `EXIT=1` at the bottom of this transcript and
+concludes this plan failed has read the exit code and not the count. The count is the assertion.
+
+The BEFORE side is `32.1-02-RED-baseline.txt`, whose capture is what the numbers below are compared
+against. Both captures are from the same checkout and the same working tree, differing only by the
+one file this plan added.
+
+Checkout: main @ 45332c3c (after Task 1). Node v24.12.0. Measured 2026-09-17.
+No ANSI escape sequences and no control bytes; `LC_ALL=C` census over this file returned 0.
+
+
+===================================================================
+THE ARITHMETIC
+===================================================================
+
+  BEFORE (32.1-02-RED-baseline.txt, capture line 11)
+    FAIL  diff disposition — changed watched file(s): 78 finding(s) over 39 elements
+
+  THIS PLAN'S SHARE (32.1-02-RED-baseline.txt, DERIVATION 2)
+    38 findings naming agent-factory/workflows/05-pr-quality-gate.md
+
+  EXPECTED AFTER
+    78 - 38 = 40
+
+  MEASURED AFTER (the capture below)
+    FAIL  diff disposition — changed watched file(s): 40 finding(s) over 39 elements
+
+  40 == 40. The count fell by EXACTLY this file's share: no more (which would mean a row bound to a
+  finding it does not describe, or a corpus that quietly narrowed) and no less (which would mean a
+  row that names the file and binds to nothing).
+
+  The `over 39 elements` half is UNCHANGED at 39 on both sides, which is the second half of the same
+  assertion: the number of changed watched elements did not move, so the fall in the finding count
+  came from rows being written and not from the comparison seeing less than it saw before.
+
+===================================================================
+THE FILE IS NAMED ZERO TIMES
+===================================================================
+
+  $ npm run check:diff-disposition 2>&1 | grep -c '05-pr-quality-gate.md:[0-9]* ('
+  0
+
+  The per-file tally over the AFTER capture, derived exactly as it was over the BEFORE capture:
+
+    25  agent-factory/workflows/06-uat-pack.md
+    10  agent-factory/workflows/16-context-read-write.md
+     2  agent-factory/workflows/17-task-claim.md
+     3  agent-factory/workflows/18-context-compaction.md
+    --
+    40  which is the headline count, and which contains no row for this plan's file.
+
+  Four names where there were five. The name that left is this plan's, and it left because 38 rows
+  were written — not because it stopped being watched. The watched-corpus line at the head of the
+  capture still reads `40 markdown file(s)` on both sides, identical byte for byte.
+
+===================================================================
+THE EVIDENCE WAS NOT DELETED TO REACH THIS
+===================================================================
+
+  $ git diff --exit-code -- docs/audit/29-style-dispositions/00-base.md agent-factory/
+  (exit 0 — no watched document and no base document was edited)
+
+  $ npm run check:nul-bytes
+  ALL CHECKS PASSED  (exit 0; 2310 tracked files scanned as raw bytes)
+
+  The base commit in force on both sides is 4d2b8f079cc43d7d6184729966492789fb4dc05e, reported by the
+  gate itself as `base 4d2b8f0` in the summary line of both captures. No override tier was added, the
+  clause comparison was not touched, and the only file added to the repository's prose is
+  `docs/audit/29-style-dispositions/32.1-02.md`.
+
+===================================================================
+THE CAPTURE — `npm run check:diff-disposition`, unedited
+===================================================================
+
+
+> check:diff-disposition
+> tsc --outDir .tmp-build && node scripts/check-diff-disposition.js
+
+
+[guard_diff_disposition] every clause changed in the LANG-03 watched corpus is dispositioned, and a frozen intersection carries its same-commit companion edit (LANG-03, D-01..D-05)
+        watched corpus: 40 markdown file(s) of the 41-entry LANG-03 safety-surface union, covering all 36/36 derived kit file(s) (17 roles + 19 workflows), which is why the kit is a MINIMUM here and an equality at check-audit-register; the union's remaining 4 markdown entr(ies) are its RESIDUE, asserted rather than described — 3 from the registry arm's `kind: safety` claims (expected 3) and 1 uncounted `safety_surface: yes` register row (agent-factory/roles/_role-switch-protocol.md), so 36 + 3 + 1 = 40; 1 non-markdown entr(ies) named and not watched (.claude-plugin/plugin.json — a clause is a unit of prose, and this gate reports no verdict over a file that carries none)
+        frozen set: registry verbatim anchors 47/47, roles `## Hard limits` 17/17, workflows `## Stop conditions` 19/19, workflows `## Commit` 19/19, positive guard literals 9/9; 475 frozen clause(s), 55 frozen region(s); base 4d2b8f0
+        carriers: 1187 change set(s) between 4d2b8f0 and the working tree, of which 41 touched a watched file and had their clauses derived; the uncommitted working tree IS a carrier
+        39 watched file(s) changed since 4d2b8f0; 2273 changed clause(s) derived; 1977 disposition row(s) across 34 file(s)
+  FAIL  diff disposition — changed watched file(s): 40 finding(s) over 39 elements
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "explore running application through pinned browser mcp server documented in agent factory checklists browser uat recipe md"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "mcp transcript is authoring aid and never evidence gate re running committed spec is evidence"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "no assertion is written inside conditional inside caught region or behind skip or soft modifier"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "no new role is introduced here"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "open application walk scenario and record assertions observed"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "spec meets spec integrity ban set"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "uat planner still owns scenarios and qe e2e still owns coverage"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:26 (added) — no disposition row
+        clause: "write each validated scenario as committed ticket id uat spec ts under uat subfolder of repository s end to end directory qe e2e"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "closed disposition vocabulary is block notify and off and no fourth value exists"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "dial changes who signs never what evidence is"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "green machine backed evidence does not by itself carry ticket past acceptance"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "lean path straight to done is unchanged"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "no new checkpoint id is added for evidence backed advance"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "only value repository actually wrote can lower it absence reads as documented default"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "repository that trusts its machine backed evidence may lower sign off acceptance under grugops factory config json checkpoints"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "sign off acceptance is not safety floor so no floor is weakened and no second key is involved"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "uat planner presents pack as machine backed either way"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "with shipped configuration in uat ready to release move still stops for named human at sign off acceptance checkpoint"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:33 (added) — no disposition row
+        clause: "zero config posture stops there and this workflow does not change it"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:37 (added) — no disposition row
+        clause: "lane cannot produce gate stamp so attended narration is never presented in pack as machine verified evidence"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:37 (added) — no disposition row
+        clause: "lane produces finding stamped with named human and artifact ref describing what was witnessed and nothing else"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:37 (added) — no disposition row
+        clause: "optional attended browser lane exists for human who wants to watch session"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:37 (added) — no disposition row
+        clause: "read agent factory checklists browser uat recipe md for setup and for host availability"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:37 (added) — no disposition row
+        clause: "recipe is referenced here never restated"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/06-uat-pack.md:37 (added) — no disposition row
+        clause: "witnessing human s name arrives only through existing admission grant that separate process reads agent can never author it"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:22 (added) — no disposition row
+        clause: "human admission dial from target repository s factory configuration on every host"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:22 (added) — no disposition row
+        clause: "which repository that is comes from resolution order context io ts publishes and step 3 below states it is not claude code only read"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:22 (removed) — no disposition row
+        clause: "human admission dial from grugops factory config json when host is claude code"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:32 (added) — no disposition row
+        clause: "first step is claude project dir when it names something"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:32 (added) — no disposition row
+        clause: "grugops project dir is documented non claude code answer and installer sets it not agent"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:32 (added) — no disposition row
+        clause: "last is shared kit"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:32 (added) — no disposition row
+        clause: "lean default is correct answer for repository that configured nothing"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:32 (added) — no disposition row
+        clause: "second is installer set grugops project dir"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:32 (added) — no disposition row
+        clause: "that refusal is decided against target repository s dial under resolution order context io ts states in one place"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/16-context-read-write.md:32 (added) — no disposition row
+        clause: "where no step names configured repository dial read is shared kit s shipped lean default"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/17-task-claim.md:40 (added) — no disposition row
+        clause: "evidence pointing at committed uat spec goes in as artifact ref"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/17-task-claim.md:40 (added) — no disposition row
+        clause: "it carries sha gate run and content hash"
+        Remedy: add a row to your plan's file under docs/audit/29-style-dispositions/ naming the file, the line, the clause before and after, the profile rule id or decision that drove it, and the disposition. A row matches when it names this file and either its `before` or its `after` normalizes to this clause
+        agent-factory/workflows/18-context-compaction.md:75 (added) — FROZEN by structuralSections: a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`
+        clause: "inside repository that carries governance configuration it is three filesystem operations"
+        region: `## Stop conditions`, lines 70-79
+        Owed companion edit: a disposition row under docs/audit/29-style-dispositions/ whose `companion` cell names the section and the reason — at least 8 normalized words, which is the canonical filled form. A cell too short to name both the section and the reason is not a companion edit whatever glyph it carries, and there is no placeholder spelling that satisfies this.
+        There is no override tier and no blanket exemption (D-04). Make the companion edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded base commit forward — both clear the finding by deleting its evidence
+        agent-factory/workflows/18-context-compaction.md:75 (added) — FROZEN by structuralSections: a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`
+        clause: "inside repository that carries version control marker and no configuration it is two"
+        region: `## Stop conditions`, lines 70-79
+        Owed companion edit: a disposition row under docs/audit/29-style-dispositions/ whose `companion` cell names the section and the reason — at least 8 normalized words, which is the canonical filled form. A cell too short to name both the section and the reason is not a companion edit whatever glyph it carries, and there is no placeholder spelling that satisfies this.
+        There is no override tier and no blanket exemption (D-04). Make the companion edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded base commit forward — both clear the finding by deleting its evidence
+        agent-factory/workflows/18-context-compaction.md:75 (added) — FROZEN by structuralSections: a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`
+        clause: "outside every repository it is two"
+        region: `## Stop conditions`, lines 70-79
+        Owed companion edit: a disposition row under docs/audit/29-style-dispositions/ whose `companion` cell names the section and the reason — at least 8 normalized words, which is the canonical filled form. A cell too short to name both the section and the reason is not a companion edit whatever glyph it carries, and there is no placeholder spelling that satisfies this.
+        There is no override tier and no blanket exemption (D-04). Make the companion edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded base commit forward — both clear the finding by deleting its evidence
+
+== Result ==
+1 CHECK(S) FAILED
+EXIT=1
+
+
+===================================================================
+THE REGRESSION LANE — plan-level verification step 4
+===================================================================
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'
+   Test Files  75 passed (75)
+        Tests  5170 passed | 2 skipped (5172)
+  EXIT=0
+
+  Identical to the count `32.1-01-GREEN-proof.txt` recorded (75 files, 5170 passed, 2 skipped), which
+  is the expected result: this plan adds one markdown document under `docs/audit/` and two transcripts
+  under `.planning/`, and touches no source file, no test and no export. A lane that MOVED here would
+  be the finding, not the reassurance.
+
+  The live claude-CLI e2e lane was NOT run (D-13 gates it behind a named human checkpoint in a later
+  plan). `npm test` was not run at any point in this plan.
