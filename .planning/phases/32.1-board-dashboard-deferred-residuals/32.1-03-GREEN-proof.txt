@@ -1,0 +1,185 @@
+32.1-03-GREEN-proof.txt — the AFTER side of plan 32.1-03, per D-19.
+=====================================================================
+
+WHAT THIS FILE IS. The measurement that makes WINDOWS.md row 176's closure a REPRODUCTION rather
+than a claim. `guard_diff_disposition` exits 0 on this tree for the first time since 2026-09-14, and
+the arithmetic that got it there is filed below as four counts, IN ORDER, each attributed to the gate
+capture it was read from. None is recalled and none is estimated.
+
+WHAT IT IS NOT. It is not a claim that any of the 78 dispositions written across plans 32.1-02 and
+32.1-03 is CORRECT. This directory's README states the limit outright: a row records that a change
+was considered, not that the consideration was right. That is a named human reading the rows against
+the diff they describe, which is what LANG-03's manual verification is and what no gate reaches.
+
+It is also not the row's status transition. Ledger row 176's EVIDENCE is complete here; the row's
+own status is written by plan 32.1-11, which owns every ledger mutation in this phase. Hand-editing
+`.planning/WINDOWS.md` throws a malformed-ledger error, because the frontmatter counters are
+cross-checked against the entries.
+
+Checkout: main, plan base d082b3ed. Node v24.12.0. Measured 2026-09-17.
+
+
+=====================================================================
+THE FOUR COUNTS, IN ORDER, EACH ATTRIBUTED TO ITS CAPTURE
+=====================================================================
+
+  #   when                        findings   capture the number was read from
+  --  --------------------------  ---------  --------------------------------------------------
+  1   before plan 32.1-02             78     32.1-02-RED-baseline.txt:36
+  2   after plan 32.1-02              40     32.1-02-GREEN-proof.txt:95
+                                             CONFIRMED independently at 32.1-03-RED-baseline.txt:38
+  3   after Task 1 of plan 32.1-03     3     the Task-1 re-run, reproduced verbatim below
+  4   now                              0     this file's own capture, reproduced verbatim below
+
+The headline lines those four numbers are read out of, quoted verbatim:
+
+  1   FAIL  diff disposition — changed watched file(s): 78 finding(s) over 39 elements
+  2   FAIL  diff disposition — changed watched file(s): 40 finding(s) over 39 elements
+  3   FAIL  diff disposition — changed watched file(s): 3 finding(s) over 39 elements
+  4   PASS  diff disposition — changed watched file(s): 0 findings over 39/39 elements
+
+THE ARITHMETIC.
+
+  78 - 38 = 40   plan 32.1-02 wrote 38 rows for agent-factory/workflows/05-pr-quality-gate.md
+  40 - 37 =  3   this plan's Task 1 wrote 37 rows for the three NON-frozen documents
+   3 -  3 =  0   this plan's Task 2 wrote the 3 FROZEN rows, each with a real companion cell
+
+  38 + 37 + 3 = 78, which is count 1. Every finding the gate reported at the start of plan 32.1-02
+  is accounted for by a row that was WRITTEN, and none by a comparison that was narrowed.
+
+WHY `over 39 elements` MATTERS AS MUCH AS THE HEADLINE. A falling finding count is consistent BOTH
+with rows being written AND with the comparison seeing less than it saw before. The element count is
+what tells those two apart, and it is 39 in every one of the four captures. At count 4 the gate
+prints it as `39/39`, which is its PASS spelling of the same number: 39 changed watched files, all 39
+fully dispositioned. Nothing left the comparison between count 1 and count 4.
+
+THE SECOND INDEPENDENT READING OF COUNT 2. Plan 32.1-02 measured 40 at the end of its own run, and
+this plan re-measured 40 at the start of its own, on a later tree, in a separate process. Those are
+two captures taken hours apart that agree, which is what makes count 2 a measurement rather than a
+hand-off.
+
+WHY THE THREE FROZEN FINDINGS SURVIVED TASK 1 BY DESIGN. A frozen finding is not satisfied by a row
+existing; it is satisfied by a row whose `companion` cell reaches the canonical filled form, which
+`isCompanionFilled` measures at `2 * CLAUSE_MIN_WORDS` = 8 normalized words through the same
+`normalizeSentence` the gate uses everywhere else. The three cells written in Task 2 measure 121, 118
+and 118 normalized words, so they clear the mechanical floor by an order of magnitude and clear the
+live register's own smallest honest cell (12 words) by ten times that. The floor is the REFUSAL
+threshold, never the target.
+
+A FINDING WORTH RECORDING, because it explains why these three were still open at all.
+`docs/audit/29-style-dispositions/31-29.md` ALREADY carries a row for these three clauses — written
+by the plan that authored them. It binds none of them, because that row packs all three sentences
+into ONE `after` cell, and the gate matches a row to a finding by normalizing a SINGLE cell and
+comparing it to a SINGLE clause. A cell holding three sentences normalizes to a string equal to no
+clause at all. The remedy taken was to write three rows carrying one clause each. Nothing in
+`31-29.md` was edited: a register records what a plan recorded, and correcting an earlier plan's row
+destroys the trail it exists to keep.
+
+
+=====================================================================
+NOTHING WAS DELETED TO REACH THIS — the four refused weakenings, checked
+=====================================================================
+
+  $ git diff --exit-code -- docs/audit/29-style-dispositions/00-base.md agent-factory/ .planning/WINDOWS.md
+  EXIT=0
+
+  the recorded base commit   4d2b8f079cc43d7d6184729966492789fb4dc05e, unmoved — 00-base.md untouched
+  the watched corpus         40 markdown files at count 1 and 40 at count 4 — not narrowed
+  the override tiers         none added; the gate reports no exemption and none was written
+  the clause comparison      2273 changed clauses derived at count 1 and 2273 at count 4 — unchanged
+  the ledger                 .planning/WINDOWS.md byte-unchanged; row 176's transition belongs to 32.1-11
+
+The disposition row total moved 1939 across 33 files (count 1) to 2017 across 35 files (count 4). The
+difference is 78 rows over 2 files, which is exactly the two files plans 32.1-02 and 32.1-03 added
+and exactly the 78 findings they closed. A row count that moved by more than the findings closed
+would mean rows were written that bind nothing; one that moved by less would mean something other
+than rows cleared a finding.
+
+  $ npm run check:nul-bytes
+  EXIT=0
+  PASS  2315 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte
+  No path under docs/audit/ is named in the output.
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'
+  EXIT=0
+  Test Files  75 passed (75)
+       Tests  5170 passed | 2 skipped (5172)
+  Identical to the lane recorded in 32.1-02-GREEN-proof.txt, which is the expected result: this plan
+  adds one markdown document to docs/audit/ and changes no source file, no test and no export.
+
+
+=====================================================================
+COUNT 3 — the Task-1 re-run, unedited
+=====================================================================
+
+
+> check:diff-disposition
+> tsc --outDir .tmp-build && node scripts/check-diff-disposition.js
+
+
+[guard_diff_disposition] every clause changed in the LANG-03 watched corpus is dispositioned, and a frozen intersection carries its same-commit companion edit (LANG-03, D-01..D-05)
+        watched corpus: 40 markdown file(s) of the 41-entry LANG-03 safety-surface union, covering all 36/36 derived kit file(s) (17 roles + 19 workflows), which is why the kit is a MINIMUM here and an equality at check-audit-register; the union's remaining 4 markdown entr(ies) are its RESIDUE, asserted rather than described — 3 from the registry arm's `kind: safety` claims (expected 3) and 1 uncounted `safety_surface: yes` register row (agent-factory/roles/_role-switch-protocol.md), so 36 + 3 + 1 = 40; 1 non-markdown entr(ies) named and not watched (.claude-plugin/plugin.json — a clause is a unit of prose, and this gate reports no verdict over a file that carries none)
+        frozen set: registry verbatim anchors 47/47, roles `## Hard limits` 17/17, workflows `## Stop conditions` 19/19, workflows `## Commit` 19/19, positive guard literals 9/9; 475 frozen clause(s), 55 frozen region(s); base 4d2b8f0
+        carriers: 1190 change set(s) between 4d2b8f0 and the working tree, of which 41 touched a watched file and had their clauses derived; the uncommitted working tree IS a carrier
+        39 watched file(s) changed since 4d2b8f0; 2273 changed clause(s) derived; 2014 disposition row(s) across 35 file(s)
+  FAIL  diff disposition — changed watched file(s): 3 finding(s) over 39 elements
+        agent-factory/workflows/18-context-compaction.md:75 (added) — FROZEN by structuralSections: a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`
+        clause: "inside repository that carries governance configuration it is three filesystem operations"
+        region: `## Stop conditions`, lines 70-79
+        Owed companion edit: a disposition row under docs/audit/29-style-dispositions/ whose `companion` cell names the section and the reason — at least 8 normalized words, which is the canonical filled form. A cell too short to name both the section and the reason is not a companion edit whatever glyph it carries, and there is no placeholder spelling that satisfies this.
+        There is no override tier and no blanket exemption (D-04). Make the companion edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded base commit forward — both clear the finding by deleting its evidence
+        agent-factory/workflows/18-context-compaction.md:75 (added) — FROZEN by structuralSections: a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`
+        clause: "inside repository that carries version control marker and no configuration it is two"
+        region: `## Stop conditions`, lines 70-79
+        Owed companion edit: a disposition row under docs/audit/29-style-dispositions/ whose `companion` cell names the section and the reason — at least 8 normalized words, which is the canonical filled form. A cell too short to name both the section and the reason is not a companion edit whatever glyph it carries, and there is no placeholder spelling that satisfies this.
+        There is no override tier and no blanket exemption (D-04). Make the companion edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded base commit forward — both clear the finding by deleting its evidence
+        agent-factory/workflows/18-context-compaction.md:75 (added) — FROZEN by structuralSections: a structural section located by heading — role `## Hard limits`, workflow `## Stop conditions`, workflow `## Commit`
+        clause: "outside every repository it is two"
+        region: `## Stop conditions`, lines 70-79
+        Owed companion edit: a disposition row under docs/audit/29-style-dispositions/ whose `companion` cell names the section and the reason — at least 8 normalized words, which is the canonical filled form. A cell too short to name both the section and the reason is not a companion edit whatever glyph it carries, and there is no placeholder spelling that satisfies this.
+        There is no override tier and no blanket exemption (D-04). Make the companion edit in the same commit; do NOT narrow the watched corpus and do NOT move the recorded base commit forward — both clear the finding by deleting its evidence
+
+== Result ==
+1 CHECK(S) FAILED
+
+EXIT=1
+
+Exit 1 here is the gate working, not this plan failing. Task 1 deliberately left the three frozen
+findings open: a frozen row whose companion cell is an em dash does not bind, and a half-written one
+is worse than none.
+
+
+=====================================================================
+COUNT 4 — the final capture, unedited
+=====================================================================
+
+
+> check:diff-disposition
+> tsc --outDir .tmp-build && node scripts/check-diff-disposition.js
+
+
+[guard_diff_disposition] every clause changed in the LANG-03 watched corpus is dispositioned, and a frozen intersection carries its same-commit companion edit (LANG-03, D-01..D-05)
+        watched corpus: 40 markdown file(s) of the 41-entry LANG-03 safety-surface union, covering all 36/36 derived kit file(s) (17 roles + 19 workflows), which is why the kit is a MINIMUM here and an equality at check-audit-register; the union's remaining 4 markdown entr(ies) are its RESIDUE, asserted rather than described — 3 from the registry arm's `kind: safety` claims (expected 3) and 1 uncounted `safety_surface: yes` register row (agent-factory/roles/_role-switch-protocol.md), so 36 + 3 + 1 = 40; 1 non-markdown entr(ies) named and not watched (.claude-plugin/plugin.json — a clause is a unit of prose, and this gate reports no verdict over a file that carries none)
+        frozen set: registry verbatim anchors 47/47, roles `## Hard limits` 17/17, workflows `## Stop conditions` 19/19, workflows `## Commit` 19/19, positive guard literals 9/9; 475 frozen clause(s), 55 frozen region(s); base 4d2b8f0
+        carriers: 1191 change set(s) between 4d2b8f0 and the working tree, of which 41 touched a watched file and had their clauses derived; the uncommitted working tree IS a carrier
+        39 watched file(s) changed since 4d2b8f0; 2273 changed clause(s) derived; 2017 disposition row(s) across 35 file(s)
+  PASS  diff disposition — changed watched file(s): 0 findings over 39/39 elements
+
+== Result ==
+ALL CHECKS PASSED
+
+EXIT=0
+
+=====================================================================
+WHAT THIS LEAVES FOR PLAN 32.1-11
+=====================================================================
+
+Ledger row 176's evidence is complete: the gate that named it exits 0, the four counts above show the
+fall came from 78 rows written across two plans, and the untouched-evidence checks show none of the
+four weakenings was taken. The row's TERMINAL DISPOSITION is therefore closed-with-reproduction, and
+a later reader can re-derive every number in this file from the four captures it names.
+
+The row's status transition itself is NOT written here. Plan 32.1-11 owns every mutation of
+`.planning/WINDOWS.md` in this phase, and that is a mechanical constraint rather than a convention:
+the ledger's frontmatter counters are cross-checked against its entries, so a hand edit throws a
+malformed-ledger error.
