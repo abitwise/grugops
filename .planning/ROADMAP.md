@@ -98,7 +98,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 29.2: Model Assignment Delivery Path** *(INSERTED — split out of 29.1 by D-17)* — how a per-repo `models` block actually reaches an installed target's adapters; until it lands, the block is **inert for an installed repo** and 29.1 says so (completed 2026-09-07)
 - [x] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping (completed 2026-09-07)
 - [x] **Phase 31: Autonomous Manual Testing** *(CLOSED 2026-09-13 by user override D-44; round-9 verification stands at `gaps_found` 4/6, CR-28…CR-31 + WR-43…WR-47 ACCEPTED OPEN, UATX-01/UATX-06 unchecked)* — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
-- [ ] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard
+- [x] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard (completed 2026-09-17)
 - [ ] **Phase 33: Live Capture & Windows Portability** — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
 
 **Standing obligations from v2.0, and where each lands:**
@@ -1282,7 +1282,7 @@ Round-3 verification on 2026-09-16 returned `gaps_found` (4/5, up from 2/5) with
 | 29.2. Model Assignment Delivery Path | v2.1 | 6/6 | Complete    | 2026-09-07 |
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
-| 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | In Progress|  |
+| 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
