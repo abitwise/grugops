@@ -1241,17 +1241,48 @@ Round-3 verification on 2026-09-16 returned `gaps_found` (4/5, up from 2/5) with
 **Execution is strictly sequential — one plan per wave (waves 1–11).** Every plan in this phase either rebuilds the whole committed `.js` surface with `npm run build` or runs a `check:*` entry whose first step compiles into the shared `.tmp-build` scratch directory, so two plans running concurrently in one working tree would see each other's uncommitted build output and red `check:build-parity`. This is the same reason Phase 32's gap-closure plans ran strictly sequentially. Plan 01 is the tracer (D-19's instrument-first order); plans 04–09 each cut one rule over to those instruments; plans 02–03 are the audit-row content job; plans 10–11 close the phase.
 
 Plans:
+**Wave 1**
 
 - [ ] 32.1-01-PLAN.md — **tracer:** the shared symbol-resolving checker helper with its emit exclusion and tracked-file-set floor, Node's own loader oracle, and a recursive importer derivation [DASH-01, DASH-02, DASH-06]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 32.1-02-PLAN.md — row 176 part one: the disposition rows for the pull-request quality-gate workflow, measured from the gate's own output [DASH-02]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 32.1-03-PLAN.md — row 176 part two: the remaining four watched documents including the three frozen findings with their companion edits; `check:diff-disposition` reaches exit 0 [DASH-02]
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 32.1-04-PLAN.md — F-15 + WR-04 + rows 194/210: the split-reader join resolves declarations and is asked in both directions, the exemption registry is re-derived, one operator message reworded [DASH-01, DASH-02]
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 32.1-05-PLAN.md — F-19 + F-21 + row 207: the one-authority rule resolves symbols over a derived register set, the build-parity check becomes a gate module, and two declared command shapes with zero exemptions replace the separator alphabet [DASH-02]
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 32.1-06-PLAN.md — F-16, F-17, WR-02, WR-03 + rows 202/203: the regex scanner is retired for a real tokenizer with a lazily acquired parser; carries a blocking one-way decision checkpoint [DASH-06]
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 32.1-07-PLAN.md — F-14 + row 200: one refusal-sentence builder escaping by construction across all three board modules, with a derived ownership census [DASH-03, DASH-07]
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 32.1-08-PLAN.md — F-18 + D-11 + row 204: two independent write-detection predicates each proven to red alone, one register for the dynamic-import question, and the runtime probe's measured boundary [DASH-06, DASH-08]
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
 - [ ] 32.1-09-PLAN.md — WR-01 + F-20 + row 206: the contract adopts the code's watch rule with a prose-shaped equality that detects the next drift, and the liveness gate moves to the resolved path [DASH-04, DASH-05]
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
 - [ ] 32.1-10-PLAN.md — row 183: the derived gate sweep, then one live end-to-end run behind a blocking human checkpoint naming the token spend [DASH-03, DASH-05, DASH-08]
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
 - [ ] 32.1-11-PLAN.md — D-16/D-22 completion: the nineteen-item ledger with a derived count equality, the two waived rows written by the ledger's own verb, and the erratum beside a byte-unchanged original [DASH-01..DASH-08]
 
 ### Phase 33: Live Capture & Windows Portability
