@@ -230,3 +230,35 @@ None — no external service configuration required.
 ---
 *Phase: 32-board-projector-cli-dashboard*
 *Completed: 2026-09-17*
+
+## Self-Check: PASSED
+
+Run 2026-09-17, after the tracking commit.
+
+```
+FOUND: .planning/phases/32-board-projector-cli-dashboard/32-41-GATES.txt
+FOUND: .planning/phases/32-board-projector-cli-dashboard/32-41-OVERRIDE-DRAFT.md
+FOUND: .planning/phases/32-board-projector-cli-dashboard/32-41-SUMMARY.md
+FOUND: .planning/phases/32-board-projector-cli-dashboard/deferred-items.md
+FOUND: .planning/WINDOWS.md
+FOUND commit: b6f6bd45  (Task 1)
+FOUND commit: aff1ad83  (Task 2)
+FOUND commit: 637edbce  (Task 3 — the decision)
+FOUND commit: 2cc2a559  (this SUMMARY)
+FOUND commit: 868f36e3  (STATE + ROADMAP tracking)
+```
+
+**The three assertions this plan exists to make, re-run at close rather than recalled:**
+
+```
+$ git diff --stat aff1ad83..HEAD -- .planning/WINDOWS.md
+(no output — the residual register is byte-unchanged by Task 3)
+
+$ git status --porcelain -- .planning/REQUIREMENTS.md .planning/ROADMAP.md .planning/STATE.md
+(no output — every tracking write is committed, none is a status flip)
+
+$ npm run check:nul-bytes
+ALL CHECKS PASSED — 2285 tracked files scanned, exit 0
+```
+
+**The one roadmap write, stated so it is not mistaken for a status flip.** `roadmap.update-plan-progress 32` moved the Phase 32 progress row from `33/34` to `34/34` and ticked `32-41-PLAN.md` from `[ ]` to `[x]`. It returned `"status": "In Progress", "complete": false` — the verb did NOT mark the phase complete, so nothing had to be reverted. The Phase 32 checkbox in the phase list is still `- [ ]`, and `STATE.md`'s `status:` line is unchanged.
