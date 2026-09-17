@@ -153,7 +153,115 @@ and the file is byte-identical to the pre-plant copy.
 TASK 2 — the loader oracle
 =====================================================================
 
-(recorded below when Task 2 lands)
+PLANT 2.1 — a body-replacing `load` hook must RED THE EVENT FLOOR, not quietly record one edge
+-----------------------------------------------------------------------------------------------
+
+The case: `scripts/board-readonly.test.ts` > "32.1-01 - Node's OWN loader is the independent third
+side of the closure oracle (D-09)" > "PREMISE: the loader recorded something at all".
+
+Why this plant is the important one: CONTEXT.md D-09 offers "a loader hook that records and refuses
+to evaluate" as a way to keep the corpus inert. 32.1-RESEARCH.md probe 2 measured what that shaping
+actually does — replacing a module's body DELETES its import statements, so nothing past the entry is
+ever resolved and the oracle records exactly ONE edge. An oracle in that shape AGREES WITH ANY
+CLOSURE OF SIZE ONE. It passes. It proves nothing. This plant reproduces that exact failure against
+the floor that exists to catch it.
+
+The plant — a `load` arm injected into `ORACLE_SCRIPT` in `scripts/loader-oracle.test-support.ts`,
+verbatim as it ran:
+
+    "  load(url, context, nextLoad) {",
+    "    if (url.endsWith(\"oracle.mjs\")) return nextLoad(url, context);",
+    "    return { format: \"module\", shortCircuit: true, source: \"export {};\" };",
+    "  },",
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' \
+        -t "PREMISE: the loader recorded something at all" scripts/board-readonly.test.ts
+
+Transcript:
+
+     RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+     scripts/board-readonly.test.ts (179 tests | 1 failed | 178 skipped) 124ms
+       PREMISE: the loader recorded something at all 53ms
+
+    Failed Tests 1
+
+     FAIL  scripts/board-readonly.test.ts > 32.1-01 - Node's OWN loader is the independent third
+     side of the closure oracle (D-09) > PREMISE: the loader recorded something at all
+    AssertionError: PREMISE: Node's resolver recorded 1 event(s) for scripts/board-dashboard.js, so
+    every equality below compared nothing. The two known causes are a `load` hook that short-circuits
+    with an inert body (which deletes the module's imports, so the walk stops at the entry) and a
+    hook that never reaches Node's own loader at all: expected 1 to be greater than 5
+
+     board-readonly.test.ts:1955
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 178 skipped (179)
+
+    EXIT=1
+
+"recorded 1 event(s) ... expected 1 to be greater than 5" is the probe-2 truncation arriving as a
+named failure instead of as a green run.
+
+Restored: the file was copied back from its pre-plant copy and is BYTE-IDENTICAL to the staged blob
+(`diff <(git show :scripts/loader-oracle.test-support.ts) scripts/loader-oracle.test-support.ts`
+produced no output).
+
+
+PLANT 2.2 — a module missing from the STATIC closure must be NAMED by the runtime equality
+-------------------------------------------------------------------------------------------
+
+The case: the same describe > "the RUNTIME module set equals the STATIC closure - both directions,
+each side named".
+
+The plant — one module dropped from the static side, which is what a hole in the static walk looks
+like from the inside:
+
+    -    const staticClosure = [...jsImportClosure(ROOT, DASHBOARD_ENTRY)].sort();
+    +    const staticClosure = [...jsImportClosure(ROOT, DASHBOARD_ENTRY)].sort()
+    +      .filter((m) => m !== "scripts/kit-model.js");
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' \
+        -t "the RUNTIME module set equals the STATIC closure" scripts/board-readonly.test.ts
+
+Transcript:
+
+     RUN  v4.1.8 /Users/olgeroeselg/Projects/public/grugops
+
+     scripts/board-readonly.test.ts (179 tests | 1 failed | 178 skipped) 146ms
+       the RUNTIME module set equals the STATIC closure - both directions, each side named 74ms
+
+    Failed Tests 1
+
+     FAIL  scripts/board-readonly.test.ts > 32.1-01 - Node's OWN loader is the independent third
+     side of the closure oracle (D-09) > the RUNTIME module set equals the STATIC closure - both
+     directions, each side named
+    AssertionError: Node's loader resolved a module the STATIC closure does not contain. The static
+    walk has a hole exactly this wide, and every guard decided over that closure - the fs-symbol
+    intersection, the builtin allow-list, the acquisitions PREMISE - has been deciding over a smaller
+    set than the process actually acquires: expected [ 'scripts/kit-model.js' ] to deeply equal []
+
+    - Expected
+    + Received
+
+    - []
+    + [
+    +   "scripts/kit-model.js",
+    + ]
+
+     board-readonly.test.ts:1982
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 178 skipped (179)
+
+    EXIT=1
+
+The dropped module is NAMED, and it reds the `staticMissed` direction specifically — the direction
+that means "the static walk has a hole" rather than "the static walk invented an edge". A single
+`toEqual` over the two sets would have called this "not equal" and named neither direction.
+
+Restored: `staticClosure` is back to `[...jsImportClosure(ROOT, DASHBOARD_ENTRY)].sort()` and
+`git status --porcelain -- scripts/` carries only this plan's own intended changes.
 
 
 =====================================================================

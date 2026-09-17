@@ -182,6 +182,15 @@ import {
   type SpecifierClass,
 } from "./js-import-closure.js";
 
+// THE THIRD SIDE OF THE CLOSURE ORACLE (Phase 32.1, D-09). Node's own ESM resolver, recorded while
+// the dashboard closure loads for real. Imported rather than inlined for the same reason every other
+// shared authority on this tree is: the two shapings that make a loader oracle VACUOUS are subtle,
+// measured, and written down once in that module's header — not rediscovered per consumer.
+import {
+  recordRuntimeAcquisitions,
+  type RuntimeAcquisitions,
+} from "./loader-oracle.test-support.js";
+
 const ROOT = join(import.meta.dirname, "..");
 
 /** The compiled entry the guard walks — the artifact a host runs, never the `.ts`. */
@@ -1886,6 +1895,135 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
         "exactly the file the walk could not see and the gate that spawns it dies with " +
         "ERR_MODULE_NOT_FOUND. This is the direction that costs a crash rather than a file",
     ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART ONE-C — THE THIRD SIDE: NODE'S OWN LOADER (Phase 32.1, plan 32.1-01, D-09).
+//
+// The oracle immediately above is two-sided and both of its sides are PARSERS. That is exactly
+// finding F-17: the shared regex scanner and the TypeScript parse read the same bytes with the same
+// idea of what an import looks like, so a shape neither recognises is invisible to both and the
+// equality stays green over a hole. An independent third side cannot be a third parser. It has to be
+// the runtime — what Node's own ESM resolver was actually ASKED FOR while the closure loaded.
+//
+// WHAT IT BUYS, BEYOND A THIRD OPINION. The builtins Node was asked to resolve are a RUNTIME
+// authority over `ALLOWED_BUILTIN_SPECIFIERS`, which until now was pinned only by reading source
+// (D-10 asks for two independent predicates; this is the second, obtained for free), and the
+// before/after working-tree snapshot is the DASH-04 / DASH-08 concurrency edge asserted rather than
+// argued: an interrupted or concurrent corpus load mutates nothing, and what says so is a measured
+// equality, not a claim about the corpus's shape.
+//
+// THE RECORDING IS NOT DONE HERE. `scripts/loader-oracle.test-support.ts` owns it, and its header
+// records the two measurements that rule out the shapings an author reaches for first — a `load`
+// hook that short-circuits records exactly ONE edge, and a hook registered inside a vitest file
+// records ZERO because Vite's transform never reaches Node's resolver. Both of those produce an
+// oracle that PASSES while proving nothing, which is why they are written down rather than avoided
+// by habit.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("32.1-01 — Node's OWN loader is the independent third side of the closure oracle (D-09)", () => {
+  /**
+   * ONE recording for the whole block. The load is a child process; running it once and asking it
+   * four questions is both cheaper and stricter than four recordings, because all four assertions
+   * are then decided over the SAME run rather than over four runs that might differ.
+   */
+  let recorded: RuntimeAcquisitions | null = null;
+  const acquisitions = (): RuntimeAcquisitions => {
+    recorded ??= recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY);
+    return recorded;
+  };
+
+  it("PREMISE: the loader recorded something at all", () => {
+    // THE VACUITY FLOOR, and it is not decoration. Both of the failure modes this oracle is exposed
+    // to present as an EMPTY or near-empty recording that agrees with everything: a `load` hook that
+    // replaces module bodies records one edge, and a hook that never sees Node's loader records
+    // none. Either one makes all three equalities below true over nothing.
+    //
+    // The comparison value is derived from THIS recording rather than from a typed expectation of
+    // which modules should appear — the floor is deliberately well under the 13 events measured on
+    // this tree, because its job is to catch a truncated recording, not to pin a closure. The
+    // closure is pinned by the equality in the next case, against an independent authority.
+    const { events } = acquisitions();
+    expect(
+      events.length,
+      "PREMISE: Node's resolver recorded " +
+        `${events.length} event(s) for ${DASHBOARD_ENTRY}, so every equality below compared ` +
+        "nothing. The two known causes are a `load` hook that short-circuits with an inert body " +
+        "(which deletes the module's imports, so the walk stops at the entry) and a hook that never " +
+        "reaches Node's own loader at all",
+    ).toBeGreaterThan(5);
+  });
+
+  it("the RUNTIME module set equals the STATIC closure — both directions, each side named", () => {
+    const { modules } = acquisitions();
+    const staticClosure = [...jsImportClosure(ROOT, DASHBOARD_ENTRY)].sort();
+
+    expect(
+      staticClosure.length,
+      "PREMISE: the static closure is empty, so the equality below has nothing on its other side",
+    ).toBeGreaterThan(1);
+
+    // BOTH DIRECTIONS, AS TWO NAMED LISTS, because the two failures cost different things. A module
+    // the runtime loaded that the static walk did not report is a HOLE in the walk: every guard
+    // built on that closure is deciding over a smaller set than the process actually acquires. A
+    // module the static walk reports that the runtime never resolved is a FABRICATED edge: prose or
+    // a stripped construct manufactured it, and a mirror built from it names a file that is never
+    // loaded. A single `toEqual` would call both of those "not equal" and name neither.
+    const staticMissed = modules.filter((rel) => !staticClosure.includes(rel));
+    const staticFabricated = staticClosure.filter((rel) => !modules.includes(rel));
+
+    expect(
+      staticMissed,
+      "Node's loader resolved a module the STATIC closure does not contain. The static walk has a " +
+        "hole exactly this wide, and every guard decided over that closure — the fs-symbol " +
+        "intersection, the builtin allow-list, the acquisitions PREMISE — has been deciding over a " +
+        "smaller set than the process actually acquires",
+    ).toEqual([]);
+    expect(
+      staticFabricated,
+      "the STATIC closure contains a module Node's loader was never asked to resolve. The edge was " +
+        "manufactured — by prose the scan did not strip, or by a construct read as an import — and " +
+        "a mirror built from this closure names a file nothing loads",
+    ).toEqual([]);
+  });
+
+  it("the RUNTIME builtin set equals ALLOWED_BUILTIN_SPECIFIERS — the second, independent predicate", () => {
+    // D-10 asks for two independent predicates over this allow-list. The static one reads source and
+    // reduces bare specifiers to identity; this one is what the RUNTIME was asked for. They share no
+    // code and no parser, so a fourth builtin reaching the closure has to get past both.
+    const { builtins } = acquisitions();
+    expect(
+      builtins.length,
+      "PREMISE: the recording contains no builtin resolution at all, so the equality below is " +
+        "vacuous — the dashboard closure demonstrably reaches fs, path and url",
+    ).toBeGreaterThan(0);
+    expect(
+      builtins,
+      "the builtins Node's loader was asked to resolve for the dashboard closure are not the ones " +
+        "ALLOWED_BUILTIN_SPECIFIERS admits. A builtin present at runtime and absent from the list " +
+        "is a capability the projector reaches and nobody admitted; one present in the list and " +
+        "absent at runtime means the list is pinning something this closure no longer reaches",
+    ).toEqual([...ALLOWED_BUILTIN_SPECIFIERS].sort());
+    expect(builtins.length).toBe(ALLOWED_BUILTIN_SPECIFIER_COUNT);
+  });
+
+  it("the corpus load mutated NOTHING — the inertness argument, asserted rather than rested on", () => {
+    // The argument is that `scripts/board-dashboard.js` is `is-entry`-guarded, so importing it as a
+    // non-entry runs no main, and that no module in its closure writes at module scope. That
+    // argument is a sentence, and a sentence is true until the next commit. This is the evidence:
+    // the working tree immediately before the load, byte-for-byte against immediately after.
+    //
+    // It is also the DASH-04 / DASH-08 concurrency edge. An interrupted or parallel oracle run
+    // mutates nothing, and what says so is this equality rather than a claim about the corpus.
+    const { treeBefore, treeAfter } = acquisitions();
+    expect(
+      treeAfter,
+      "the working tree CHANGED across the corpus load, so a writer executed while the oracle ran. " +
+        "Either a closure module gained a top-level write or the entry's is-entry guard stopped " +
+        "recognising that it was imported rather than run. Do not relax this assertion: it is the " +
+        "only thing standing between a runtime oracle and a test that edits the repository",
+    ).toBe(treeBefore);
   });
 });
 
