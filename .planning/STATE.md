@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Phase 32 complete; Phase 32.1 inserted, ready to plan
-last_updated: "2026-09-17T11:10:28.350Z"
-state_head: b8ccf58aef87c9a18bf4a8539e0585b034729939
+stopped_at: Phase 32.1 context gathered
+last_updated: "2026-09-17T13:36:58.925Z"
+state_head: 413458cdc9d36eeaf47e5eece86c99e02e771fab
 progress:
   total_phases: 10
   completed_phases: 31
@@ -1527,9 +1527,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-17T10:17:06.068Z
-Stopped at: Phase 32 complete; Phase 32.1 inserted, ready to plan
-Resume file: None
+Last session: 2026-09-17T13:36:58.188Z
+Stopped at: Phase 32.1 context gathered
+Resume file: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-CONTEXT.md
 
 ## Operator Next Steps
 
