@@ -4435,11 +4435,20 @@ describe("32-06 — the guard adds no runtime dependency", () => {
       `PREMISE: ${workflowPath} is absent, so the claim that CI runs the parity check could not be ` +
         "measured. Record `UNKNOWN - verify` rather than asserting a green that was not measured",
     ).toBe(true);
+    // THE SPELLING THIS READS FOR MOVED, AND THE REASON IS RECORDED RATHER THAN LEFT TO A READER
+    // (plan 32.1-05, D-06). It used to read for `npm run check:build-parity`. The parity check was
+    // an inline `npm run build && git diff … || node -e "…"` compound in package.json — the one
+    // `check:*` entry that named no module — so the only thing CI could name was the npm script.
+    // It is now `scripts/check-build-parity.js`, an ordinary gate module, and the workflow names
+    // the MODULE. That is the stronger binding: the derivation in check-foundation-guards.test.ts
+    // that proves every check module is reached reads module paths out of this same file, so one
+    // spelling now carries both proofs. The npm-script invocation was REPLACED, not supplemented,
+    // so there is exactly one way the check is reached.
     expect(
       readFileSync(workflowPath, "utf8"),
-      "the CI workflow no longer invokes `npm run check:build-parity`. The freshness precondition " +
-        "this guard depends on would then hold only on a developer's machine",
-    ).toContain("npm run check:build-parity");
+      "the CI workflow no longer invokes `scripts/check-build-parity.js`. The freshness " +
+        "precondition this guard depends on would then hold only on a developer's machine",
+    ).toContain("node scripts/check-build-parity.js");
   });
 
   it("the check:dashboard-readonly entry runs exactly this file", () => {

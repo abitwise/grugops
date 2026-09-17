@@ -2055,8 +2055,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   unmoved.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 85 with both modules tracked.
+ *
+ * 85 -> 86 (plan 32.1-05, task 2, D-06), ONE GATE MODULE:
+ *   - `scripts/check-build-parity.ts` — the working-tree parity assertion, moved out of an inline
+ *     `npm run build && git diff … || node -e "…"` compound in `package.json` and into an ordinary
+ *     gate module with a committed `.js` twin and a ci.yml step naming it.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *   function named for the frontmatter parser, it locates no section in a document it was given,
+ *   and it builds no section bound with `new RegExp` — it carries no regex literal at all. So
+ *   `SECTION_EXTENT_OWNERS` stays at the one authority and the frontmatter-parser owner set is
+ *   unmoved.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 86 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 85;
+const NON_TEST_MODULE_COUNT = 86;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2589,7 +2601,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `loader-oracle.test-support.ts` only `node:child_process`, `node:fs`, `node:os`, `node:path`
     // and `node:url` — so each contributes three empty comparisons and neither can make the
     // agreement above vacuous on its own.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(58);
+    // 58 → 59 (plan 32.1-05, task 2): `scripts/check-build-parity.ts`, the gate module the parity
+    // check became. It imports `node:child_process`, `node:path`, `./is-entry.js` and `./vacuity.js`
+    // and none of the three specs compared below, so it contributes three empty comparisons and
+    // cannot make the agreement above vacuous on its own.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(59);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2613,7 +2629,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 55 → 56 (plan 32-04, task 1): `board-corpus.ts`, three specs per module as ever.
     // 56 → 58 (plan 32.1-01, tasks 1 and 2): `ts-symbols.test-support.ts` and
     // `loader-oracle.test-support.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(58 * 3);
+    // 58 → 59 (plan 32.1-05, task 2): `check-build-parity.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(59 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2811,7 +2828,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 56 → 58 (plan 32.1-01, tasks 1 and 2): `ts-symbols.test-support.ts` and
       // `loader-oracle.test-support.ts`, the same two modules the flat reader gained. Both pins move
       // in the same commit, which is what the pair exists to require.
-    ).toBe(58);
+      // 58 → 59 (plan 32.1-05, task 2): `check-build-parity.ts`, the same module the flat reader
+      // gained, and both pins move in this plan's task-2 commit for the same reason.
+    ).toBe(59);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -12050,10 +12069,10 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
    * That is a property of the SCANNED SET, not of the lookup, and a future change to the set can
    * retire it silently — which is the reason the guard is at the lookup and not in a comment.
    *
-   * ONE ACCESSOR RATHER THAN THREE GUARDED READS, for the reason `toolchainReason` states below:
-   * three `Object.hasOwn` spellings inside one file is the drift shape WR-04 was filed about, so
-   * the reads go through here and the census case asserts by RESOLVED DECLARATION that nothing
-   * else reads the register at all.
+   * ONE ACCESSOR RATHER THAN THREE GUARDED READS: three `Object.hasOwn` spellings inside one file
+   * is the drift shape WR-04 was filed about — one site fixed and another left answering the same
+   * question differently — so the reads go through here, and the census case below asserts by
+   * RESOLVED DECLARATION that nothing else reads the register at all.
    */
   const ciExemptReason = (path: string): string | undefined =>
     Object.hasOwn(CI_EXEMPT, path) ? CI_EXEMPT[path] : undefined;
@@ -12113,7 +12132,9 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
   // So there is no `continue` here any more. Every TARGET a `check:*` script carries lands in a
   // NAMED class, each class has its own reachability proof asked once PER TARGET, the per-class
   // TARGET counts are pinned and must sum to the targets the manifest carries, and a script that
-  // carries no target and no recorded toolchain reason is a FAILURE that names it.
+  // carries no target at all is a FAILURE that names it. (Plan 32.1-05, D-06: the third class,
+  // `toolchain`, and its recorded-reason escape were DELETED once `check:build-parity` became an
+  // ordinary gate module — see the deletion note below.)
   //
   // Round 3 (32-36) moved this from "one script, one class" to "one target, one row". The rule it
   // replaced took the FIRST match, so `node scripts/a.js && node scripts/b.js` proved `a.js` and
@@ -12123,48 +12144,32 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
   // command left every number alone.
   // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-  type CheckClass = "gate-module" | "suite-test-file" | "toolchain";
+  type CheckClass = "gate-module" | "suite-test-file";
 
-  /**
-   * The TOOLCHAIN class, named with the reason each member runs no gate module of its own. This is
-   * the one class that cannot be recognised from the shape of its command, because "runs tsc and
-   * git" has no distinguishing token — so membership is a DECISION recorded here, and the class's
-   * reachability proof (ci.yml invokes the npm script under its own spelling) is asserted below.
-   * A second member is somebody judging that a check script legitimately runs no gate; that
-   * judgment belongs here with its reason, never as a pattern that happens not to match.
-   */
-  const TOOLCHAIN_CHECK_SCRIPTS: Readonly<Record<string, string>> = Object.freeze({
-    "check:build-parity":
-      "runs `npm run build` then `git diff` rather than a gate module: its subject is whether tsc " +
-      "moved a tracked build output, which is a property of the toolchain and of the index and not " +
-      "of any file a gate module could read. Reached by ci.yml running the npm script by name.",
-  });
-
-  /**
-   * THE ONE READ OF THE REGISTER — own-property membership first, exactly as the sibling site in
-   * `scripts/validate.test.ts` now asks it (review WR-04, commit `7a3ae592`).
-   *
-   * WHY THE QUESTION HAD TO CHANGE. `Object.freeze({…})` does not remove `Object.prototype`, so
-   * `TOOLCHAIN_CHECK_SCRIPTS[name] !== undefined` answered TRUE for `toString`, `valueOf`,
-   * `constructor` and `__proto__`. A check script spelled like any of those would have been
-   * classified `toolchain` — granted the "runs no gate module, for a reason recorded here"
-   * exemption BY ITS SPELLING rather than by the decision this register exists to record, which is
-   * the very thing the class was created to make impossible.
-   *
-   * WHY ONE ACCESSOR RATHER THAN THREE GUARDED READS. The review's whole reason for filing this
-   * finding is that fixing one copy of a rule and leaving another produces two sites that answer
-   * the same question differently — which is what `32-REVIEW-FIX.md` recorded had happened between
-   * this file and `scripts/validate.test.ts`. Three `Object.hasOwn` spellings inside one file is
-   * the same shape one register down, so the three reads go through here and the suite asserts by
-   * PARSE that nothing else reads the register at all.
-   *
-   * REACH, STATED HONESTLY AND NARROWER THAN THE REVIEW: every name looked up today is
-   * `check:`-prefixed, so no live script name can collide with a prototype member and the defect
-   * was unreachable on the live set. That is a property of the SCANNED SET, not of the lookup, and
-   * a future change to the set can retire it silently — so the prefix is asserted below as well.
-   */
-  const toolchainReason = (name: string): string | undefined =>
-    Object.hasOwn(TOOLCHAIN_CHECK_SCRIPTS, name) ? TOOLCHAIN_CHECK_SCRIPTS[name] : undefined;
+  // `TOOLCHAIN_CHECK_SCRIPTS` AND ITS ACCESSOR `toolchainReason` WERE DELETED HERE, WITH THE
+  // CLASS THEY RECORDED (plan 32.1-05, D-06).
+  //
+  // WHAT THE CLASS WAS FOR. It named the check scripts that run no gate module of their own, and
+  // it was the one class that could not be recognised from the shape of its command, so
+  // membership was a DECISION recorded in the register rather than a pattern. The register
+  // carried exactly one entry, and its reason read: `check:build-parity` "runs `npm run build`
+  // then `git diff` rather than a gate module: its subject is whether tsc moved a tracked build
+  // output, which is a property of the toolchain and of the index and not of any file a gate
+  // module could read. Reached by ci.yml running the npm script by name."
+  //
+  // THE MEASUREMENT THAT EMPTIED IT. That reason was true of the command, not of the question.
+  // Plan 32.1-05 moved the same predicate into `scripts/check-build-parity.ts` — a gate module
+  // that runs the build and asks git the same question — so the entry left this class for the
+  // gate-module class and the register had ZERO members. Derived over the live manifest after
+  // that move: eleven `check:*` entries, ten gate-module targets, one suite-test-file target,
+  // zero toolchain targets. A class with no members proves nothing, and a classifier arm no
+  // check script can reach is dead code carrying a false implication — that somebody may still
+  // be granted the "runs no gate" exemption — so the arm went with the class.
+  //
+  // THE FLOOR THIS DELETION HAD TO CLEAR FIRST. The one-authority rule below asserts over a
+  // DERIVED census of this file’s frozen classification registers, floored above one. Removing
+  // this register takes that census from three members to two, which clears the floor — and the
+  // floor is the reason that was a decision somebody checked rather than a vacuity nobody saw.
 
   interface CheckScriptClassification {
     readonly name: string;
@@ -12194,8 +12199,11 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
    *
    * RETURNING `null` RATHER THAN SKIPPING IS KEPT VERBATIM: an unclassifiable script is a script
    * whose reachability nobody has thought about, and the honest response to that is a red test
-   * naming it, not a `continue`. The toolchain class is asked LAST and only when no target was
-   * found, because its membership is a recorded DECISION and not a shape.
+   * naming it, not a `continue`. THE TOOLCHAIN ARM WAS DELETED WITH ITS CLASS (plan 32.1-05, D-06):
+   * it was asked last and only when no target was found, and after `check:build-parity` became an
+   * ordinary gate module no check script could reach it. An arm nothing can reach still carries the
+   * implication that somebody may be granted the "runs no gate module" exemption, which is exactly
+   * the judgment the class was created to make visible — so the arm is gone rather than idle.
    */
   const classifyCheckScriptTargets = (
     name: string,
@@ -12208,9 +12216,6 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       ...suites.map((target) => ({ name, cls: "suite-test-file" as const, target })),
     ];
     if (rows.length > 0) return rows;
-    if (toolchainReason(name) !== undefined) {
-      return [{ name, cls: "toolchain", target: name }];
-    }
     return null;
   };
 
@@ -12229,17 +12234,21 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
    */
   const CHECK_SCRIPT_CLASSES = Object.freeze({
     "gate-module": {
-      targets: 9,
+      // 9 -> 10 (plan 32.1-05, D-06). `check:build-parity` LEFT the toolchain class and joined this
+      // one: its inline `npm run build && git diff … || node -e "…"` compound became
+      // `scripts/check-build-parity.js`, a gate module named directly by a ci.yml step. The number
+      // moved because the SET moved, in the same commit as the move.
+      targets: 10,
       proof: "ci.yml names the gate module, or CI_EXEMPT names a reason AND something still runs it",
     },
     "suite-test-file": {
       targets: 1,
       proof: "the named test file exists and the workflow's suite invocation does not exclude it",
     },
-    toolchain: {
-      targets: 1,
-      proof: "TOOLCHAIN_CHECK_SCRIPTS gives the reason and ci.yml runs the npm script by name",
-    },
+    // THE `toolchain` CLASS WAS DELETED HERE, at 1 target and then 0 (plan 32.1-05, D-06). Its
+    // register, its accessor, its classifier arm and its reachability case went with it; the
+    // deletion note above `CheckClass` records what the class was for, the reason its one entry
+    // carried, and the measurement that emptied it.
   } as const);
 
   const readPackageScripts = (): Record<string, string> =>
@@ -12330,7 +12339,6 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     const counts: Record<CheckClass, number> = {
       "gate-module": 0,
       "suite-test-file": 0,
-      toolchain: 0,
     };
     for (const r of rows) counts[r.cls] += 1;
     for (const [cls, spec] of Object.entries(CHECK_SCRIPT_CLASSES)) {
@@ -12442,22 +12450,12 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     );
   });
 
-  it("toolchain class: each member carries a reason and ci.yml runs it under its own spelling", () => {
-    const ci = readCi();
-    const rows = liveTargetRows().filter((r) => r.cls === "toolchain");
-    for (const r of rows) {
-      const reason = toolchainReason(r.name) as string;
-      expect(reason.length, `${r.name} is toolchain-class with no reason written down`).toBeGreaterThan(40);
-      expect(
-        ci.includes(`npm run ${r.name}`),
-        `${r.name} runs no gate module, so its ONLY reachability proof is ci.yml invoking the npm ` +
-          "script by name — and ci.yml does not",
-      ).toBe(true);
-    }
-    expect(rows.length, "the toolchain class is empty — this case would prove nothing").toBe(
-      CHECK_SCRIPT_CLASSES.toolchain.targets,
-    );
-  });
+  // THE TOOLCHAIN CLASS'S REACHABILITY CASE WAS DELETED HERE (plan 32.1-05, D-06). It asserted
+  // that every toolchain member carried a written reason and that ci.yml invoked its npm script by
+  // name. With the class empty its `rows` loop ran zero times and its count assertion compared 0
+  // to 0 — a case that passes by having nothing to ask, which is the shape this file exists to
+  // refuse. The predicate it held did not disappear: `check:build-parity` is now proved reachable
+  // by the gate-module case above, which reads `scripts/check-build-parity.js` out of ci.yml.
 
   it("the DASH-06 control's reachability is mechanical, not assumed", () => {
     // The finding, closed by name. `check:dashboard-readonly` is the read-only guard over the board
@@ -12530,13 +12528,17 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
           unrepresented.push(`${n} matches ${shape} and has no ${shape} row`);
         }
       }
-      // A shape-free command is either a recorded toolchain decision or a named failure; it is
-      // never silently one class.
-      if (shapes.length === 0 && rows.length > 0) {
+      // A shape-free command is a NAMED FAILURE and nothing else (plan 32.1-05, D-06). While the
+      // toolchain class existed it was also allowed to be a recorded decision; that class is gone,
+      // so a command matching no declared shape must produce no rows at all and be reported by the
+      // totality case above rather than classified.
+      if (shapes.length === 0) {
         expect(
           rows.map((r) => r.cls),
-          `${n} matches no command shape, so its only legitimate class is the recorded toolchain one`,
-        ).toEqual(["toolchain"]);
+          `${n} matches no command shape yet was classified anyway. With the toolchain class ` +
+            "deleted there is no class a shape-free command may belong to, and the honest answer " +
+            "to one is a red test naming it",
+        ).toEqual([]);
       }
     }
     expect(
@@ -12662,7 +12664,8 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     ).toBe(false);
     expect(
       disagrees("npm run build && git diff --exit-code --name-only && echo ok"),
-      "the toolchain shape, which invokes no runner and must not be forced to produce a row",
+      "the shape the retired toolchain class carried, which invokes no runner and must not be " +
+        "forced to produce a row",
     ).toBe(false);
 
     // THE `node -e` EXCLUSION, PINNED AS A DECISION. An inline-eval step runs no module, so it has
@@ -12708,18 +12711,22 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
 
     expect(
       classifyCheckScriptTargets("check:nothing-shaped", "bash tools/does-whatever.sh --quietly"),
-      "a command with no target and no toolchain reason must return null so the caller can NAME " +
-        "it — the posture the per-target rewrite keeps verbatim",
+      "a command with no target must return null so the caller can NAME it — the posture the " +
+        "per-target rewrite keeps verbatim, and the only posture left now that the toolchain " +
+        "class is deleted",
     ).toBeNull();
   });
 
   it("PREMISE: the classifier REPORTS a script that matches no class", () => {
     // A classifier that never returns `null` is the `continue` in another shape: it would call
     // everything classified and the totality case above would be green over nothing.
+    // (Plan 32.1-05, D-06) The `check:build-parity` row was REMOVED from this construction with the
+    // toolchain class it demonstrated. `check:build-parity` is still here — as the gate-shaped row
+    // it now genuinely is, in the live manifest above — and what this case is about is the
+    // `null` arm, which the shape-free row still exercises.
     const constructed: Record<string, string> = {
       "check:gate-shaped": "tsc --outDir .tmp-build && node scripts/check-nul-bytes.js",
       "check:suite-shaped": "npx vitest run scripts/board-readonly.test.ts",
-      "check:build-parity": toolchainReason("check:build-parity") as string,
       "check:nothing-shaped": "bash tools/does-whatever.sh --quietly",
     };
     const classified = Object.entries(constructed).map(
@@ -12734,9 +12741,9 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       classified
         .filter(([, c]) => c !== null)
         .flatMap(([, c]) => (c as readonly CheckScriptClassification[]).map((r) => r.cls)),
-      "one of each class, in order — so the three arms are shown to DISCRIMINATE rather than one " +
-        "arm answering for all of them",
-    ).toEqual(["gate-module", "suite-test-file", "toolchain"]);
+      "one of each class, in order — so the two arms are shown to DISCRIMINATE rather than one " +
+        "arm answering for both of them",
+    ).toEqual(["gate-module", "suite-test-file"]);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -12802,8 +12809,10 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     string,
     { readonly dynamicReads: number; readonly accessor: string | null; readonly accessorCalls: number }
   > = new Map([
-    ["CI_EXEMPT", { dynamicReads: 1, accessor: "ciExemptReason", accessorCalls: 2 }],
-    ["TOOLCHAIN_CHECK_SCRIPTS", { dynamicReads: 1, accessor: "toolchainReason", accessorCalls: 3 }],
+    // 2 -> 4 (plan 32.1-05, task 2): the IN-03 prototype-member case was RE-HOMED onto this
+    // register when `TOOLCHAIN_CHECK_SCRIPTS` was deleted with its class, and it asks the accessor
+    // twice more. The number moved because the call set moved, in the same commit as the move.
+    ["CI_EXEMPT", { dynamicReads: 1, accessor: "ciExemptReason", accessorCalls: 4 }],
     ["CHECK_SCRIPT_CLASSES", { dynamicReads: 0, accessor: null, accessorCalls: 0 }],
   ]);
 
@@ -13127,14 +13136,13 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     // The DIRECT route: the register's own name, read where its accessor reads it.
     const directRefs: ts.Identifier[] = [];
     const visit = (node: ts.Node): void => {
-      if (ts.isIdentifier(node) && node.text === "TOOLCHAIN_CHECK_SCRIPTS") directRefs.push(node);
+      if (ts.isIdentifier(node) && node.text === "CI_EXEMPT") directRefs.push(node);
       ts.forEachChild(node, visit);
     };
     visit(source);
     expect(
       directRefs.length,
-      "PREMISE: no reference to TOOLCHAIN_CHECK_SCRIPTS was found, so the comparison below is " +
-        "about nothing",
+      "PREMISE: no reference to CI_EXEMPT was found, so the comparison below is about nothing",
     ).toBeGreaterThan(1);
 
     const resolvedDirect = directRefs
@@ -13169,32 +13177,34 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
     ).toBeNull();
   });
 
-  it("IN-03: a bare prototype-member name is NOT registered, and a recorded one still is", () => {
-    const NO_TARGET = "bash tools/does-whatever.sh --quietly";
-
+  it("IN-03: a bare prototype-member name is NOT exempt, and a recorded one still is", () => {
+    // RE-HOMED FROM THE TOOLCHAIN REGISTER (plan 32.1-05, D-06). This case used to ask the question
+    // of `TOOLCHAIN_CHECK_SCRIPTS`, which was deleted with its class. The PROPERTY did not go with
+    // it: `CI_EXEMPT` is the other register whose membership is a recorded decision, it was carrying
+    // the identical unguarded lookup until this plan, and the assertion belongs wherever the
+    // register is — not wherever it was first written.
     for (const inherited of ["__proto__", "toString", "valueOf", "constructor"]) {
       expect(
-        Object.hasOwn(TOOLCHAIN_CHECK_SCRIPTS, inherited),
-        `PREMISE: ${inherited} is a RECORDED toolchain member, so this case is about a decision ` +
-          "rather than an inherited property",
+        Object.hasOwn(CI_EXEMPT, inherited),
+        `PREMISE: ${inherited} is a RECORDED CI exemption, so this case is about a decision rather ` +
+          "than an inherited property",
       ).toBe(false);
       expect(
-        classifyCheckScriptTargets(inherited, NO_TARGET),
-        `a check script named ${inherited} was classified TOOLCHAIN — granted the "runs no gate ` +
-          'module for a recorded reason" exemption by its SPELLING. No line of ' +
-          "TOOLCHAIN_CHECK_SCRIPTS says so, and the classifier must return null so the caller " +
-          "NAMES it (review IN-03)",
-      ).toBeNull();
+        ciExemptReason(inherited),
+        `a gate named ${inherited} was answered a REASON — granted the "deliberately outside the ` +
+          'CI gate block" exemption by its SPELLING. No line of CI_EXEMPT says so, and the lookup ' +
+          "must answer undefined so the caller NAMES it (review IN-03)",
+      ).toBeUndefined();
     }
 
-    // THE CONVERSE: a genuinely recorded member is still classified, so the fix refuses the
-    // prototype without also refusing the decision the register exists to record.
-    const recorded = Object.keys(TOOLCHAIN_CHECK_SCRIPTS)[0] as string;
+    // THE CONVERSE: a genuinely recorded member is still answered, so the fix refuses the prototype
+    // without also refusing the decision the register exists to record.
+    const recorded = Object.keys(CI_EXEMPT)[0] as string;
     expect(
-      classifyCheckScriptTargets(recorded, NO_TARGET)?.map((r) => r.cls),
-      "a recorded toolchain member stopped being classified, so the own-property test now refuses " +
-        "the decisions it exists to honour",
-    ).toEqual(["toolchain"]);
+      ciExemptReason(recorded),
+      "a recorded CI exemption stopped being answered, so the own-property test now refuses the " +
+        "decisions it exists to honour",
+    ).toBeDefined();
   });
 
   it("IN-03: the premise the unreachability rests on is an ASSERTION, not a sentence", () => {
@@ -13220,10 +13230,13 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
         "register and a wrong answer — but a violation means the scan set moved, which is a " +
         "finding either way",
     ).toEqual([]);
+    // THE SAME PREMISE FOR THE OTHER RECORDED REGISTER, re-homed with it (plan 32.1-05, D-06).
+    // `CI_EXEMPT` is asked about gate MODULE PATHS rather than about npm script names, so its
+    // alphabet is the one the `scripts/check-*.js` walk produces.
     expect(
-      Object.keys(TOOLCHAIN_CHECK_SCRIPTS).filter((k) => !k.startsWith("check:")),
-      "a RECORDED toolchain member is not `check:`-prefixed, so the register and the set of names " +
-        "it is asked about no longer share an alphabet",
+      Object.keys(CI_EXEMPT).filter((k) => !/^scripts\/check-[\w.-]+\.js$/.test(k)),
+      "a RECORDED CI exemption is not spelled the way the gate walk spells a gate module, so the " +
+        "register and the set of names it is asked about no longer share an alphabet",
     ).toEqual([]);
   });
 

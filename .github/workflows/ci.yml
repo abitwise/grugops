@@ -81,25 +81,32 @@ jobs:
       #
       #   the freshness gate   holds that the .js committed AT HEAD is a build of the .ts committed
       #                        beside it. Its subject is HEAD; no step here can repair it.
-      #   the parity script    holds that the WORKING TREE does not move when tsc runs. Its subject
-      #                        is this checkout. `npm run check:build-parity` in package.json is the
-      #                        ONE authority for that assertion; this workflow CALLS it and never
-      #                        restates it, because a copy of an assertion in a workflow is a second
-      #                        authority over one predicate.
+      #   the parity gate      holds that the WORKING TREE does not move when the build runs. Its
+      #                        subject is this checkout. `scripts/check-build-parity.js` is the ONE
+      #                        authority for that assertion; this workflow NAMES that module and
+      #                        never restates what it decides, because a copy of an assertion in a
+      #                        workflow is a second authority over one predicate.
       #   the build            compiles. That is all it does. This step used to be named for the
       #                        parity claim, which is why the claim went unheld for nine phases.
       #
       # THE OS-SCOPING DECISION, STATED RATHER THAN LEFT TO DEFAULT. The parity assertion runs on
-      # ubuntu ONLY. Two reasons, both about the oracle rather than about the code: a raw diff over
-      # emitted files on a Windows checkout is an unreliable oracle for line-ending reasons (the
-      # same family the later freshness block is scoped for), and the script's pathspec is a
-      # POSIX-shell construct that cmd.exe would pass through unquoted, which would make the
-      # assertion silently match nothing. A vacuous green is worse than an absent check, so the
-      # Windows leg compiles and says so, and this comment is where a reader learns which legs
-      # assert parity and why.
+      # ubuntu ONLY, for a reason about the ORACLE rather than about the code: a raw diff over
+      # emitted files on a Windows checkout is an unreliable oracle for line-ending reasons, the
+      # same family the later freshness block is scoped for. A vacuous green is worse than an absent
+      # check, so the Windows leg compiles and says so, and this comment is where a reader learns
+      # which legs assert parity and why.
+      #
+      # (Plan 32.1-05, D-06) THE STEP NAMES THE GATE MODULE, and that is what this step is FOR. The
+      # derivation in scripts/check-foundation-guards.test.ts that proves every check module is
+      # reached looks for the module path in this file; before this plan the parity check named no
+      # module at all — it was an inline `npm run build && git diff … || node -e "…"` compound in
+      # package.json, carried as the single member of a recorded TOOLCHAIN exemption. The module
+      # runs the build itself, so this step still compiles the tree as well as asserting parity.
+      # The npm-script invocation this step used to carry was REPLACED rather than kept beside the
+      # module, so there is one way the check is reached.
       - name: Build and working-tree parity assertion (ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: npm run check:build-parity
+        run: node scripts/check-build-parity.js
 
       - name: Build (every other leg — a compile; parity is asserted on ubuntu, see above)
         if: matrix.os != 'ubuntu-latest'

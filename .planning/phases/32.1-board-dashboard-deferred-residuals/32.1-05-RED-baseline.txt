@@ -189,3 +189,105 @@ After every plant was removed:
 
     $ git diff --exit-code -- scripts/context-io-writer-set.test.ts
     exit 0   # residual R-31-21-04: that file is byte-unchanged and the instrument never reaches it
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 2  TASK 2 — D-06: THE BUILD-PARITY CHECK BECOMES AN ORDINARY GATE MODULE
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+WHAT IT WAS. `package.json` carried, as the value of `check:build-parity`:
+
+    npm run build && git diff --exit-code --name-only -- '*.js'
+      && echo 'Build parity: no tracked build output moved when tsc ran.'
+      || node -e "console.error('BUILD PARITY FAILED: …'); process.exit(1)"
+
+— a nested `npm run`, a `git` invocation, a shell `echo`, an `||` arm, and a `node -e` carrying the
+operator remedy as a JavaScript string inside a JSON string inside a shell command. It was the one
+`check:*` entry that named no module, which is why it had to be carried as the single member of a
+recorded TOOLCHAIN exemption.
+
+WHAT IT IS. `scripts/check-build-parity.ts` with its committed `scripts/check-build-parity.js` twin,
+`package.json`'s entry collapsed to `tsc --outDir .tmp-build && node scripts/check-build-parity.js`,
+and a ci.yml step naming the module directly.
+
+---------------------------------------------------------------------------------------------------
+§ 2.1  THE MOVED-OUTPUT PLANT — the new gate refuses, naming the output.
+---------------------------------------------------------------------------------------------------
+
+Plant: a comment line appended to `scripts/is-entry.ts` with its `.js` left uncommitted, so the build
+MOVES a tracked build output. This is the defect the gate is about, reproduced rather than described.
+
+    $ node scripts/check-build-parity.js
+
+      FAIL  Build parity: tracked build outputs that moved when the build ran: 1 finding(s) over 66
+            elements
+        scripts/is-entry.js moved when the build ran — the committed build output is not a build of
+        the source committed beside it
+            Remedy: run `npm run build` and commit the result, so the committed .js is a build of
+            its .ts.
+
+      == Result ==
+      1 CHECK(S) FAILED
+
+    exit 1
+
+THE CONVERSE, on the real tree after `git checkout -- scripts/is-entry.ts && npm run build`:
+
+    $ node scripts/check-build-parity.js
+      PASS  Build parity: tracked build outputs that moved when the build ran: 0 findings over 66/66
+            elements
+
+      == Result ==
+      ALL CHECKS PASSED
+
+    exit 0
+
+The PASS line is a MEASUREMENT — 66 outputs examined, 0 moved — and not the bare sentence the inline
+`echo` printed.
+
+---------------------------------------------------------------------------------------------------
+§ 2.2  THE REMOVED-CI-STEP PLANT — the gate-module reachability proof reds, naming the module.
+---------------------------------------------------------------------------------------------------
+
+Plant: in a mirrored `.github/workflows/ci.yml`, the step `run: node scripts/check-build-parity.js`
+is replaced with `run: npm run build`, so the module is named by nothing in the workflow.
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+
+     × every scripts/check-*.js appears in ci.yml, or declares why not
+     AssertionError: these check gates are invoked by NOTHING in ci.yml:
+       scripts/check-build-parity.js
+     A gate that is never reached passes by not running — round 3 shipped one for a whole round.:
+     expected [ 'scripts/check-build-parity.js' ] to deeply equal []
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 299 passed (300)
+
+    exit 1
+
+That is the proof the exemption bought nothing and the module gained everything: while the check was
+an inline compound, no CI step could name a module, and this case could say nothing about it at all.
+
+---------------------------------------------------------------------------------------------------
+§ 2.3  THE CLASS MOVE, MEASURED.
+---------------------------------------------------------------------------------------------------
+
+The entry left the toolchain class and joined the gate-module class, so both target counts moved:
+
+    gate-module      9 -> 10
+    suite-test-file  1 (unmoved)
+    toolchain        1 -> 0, and the class, its register, its accessor, its classifier arm and its
+                     reachability case were DELETED with a deletion note
+
+THE FLOOR TASK 1 INSTALLED WAS CHECKED BEFORE THE DELETION, NOT AFTER. The one-authority rule asserts
+over a derived census of this file's frozen classification registers, floored above one. Deleting
+`TOOLCHAIN_CHECK_SCRIPTS` takes that census from THREE members (`CI_EXEMPT`,
+`TOOLCHAIN_CHECK_SCRIPTS`, `CHECK_SCRIPT_CLASSES`) to TWO, which clears the floor — so the deletion
+proceeded, and the plan's alternative branch (keep the class with a stated reason) was not taken.
+
+Two pins moved with sets they measure, in this task's commit:
+
+    NON_TEST_MODULE_COUNT                85 -> 86   (`scripts/check-build-parity.ts`)
+    the `scripts/`-scoped module corpus  58 -> 59   (the same module, both pins in one commit)
+    the entry-guard source set           14 -> 15   (scripts/check-claim-anchors.test.ts)
+    CI_EXEMPT's accessor call count       2 -> 4    (the IN-03 case re-homed onto this register)

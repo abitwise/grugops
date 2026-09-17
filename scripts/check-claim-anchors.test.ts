@@ -826,6 +826,9 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // check-diff-disposition · 10 → 11 (30-07) generate-guarantees · 11 → 12 (30-11 round 3)
     // check-residual-citations · 12 → 14 (30-11 round 4) generate-hook-manifest and
     // hook-manifest-freshness, the derived decider-closure manifest and its drift gate.
+    // 14 → 15 (32.1-05 task 2) check-build-parity, the working-tree parity assertion moved out of
+    // an inline package.json compound and into a gate module. It joins this assertion by EXISTING,
+    // which is what the two-sided pin is for.
     //
     // THE PROPERTY THIS CASE ASSERTS CHANGED IN ROUND 4, AND THE REASON IS THE FINDING. It used to
     // require each guard to spell `import.meta.url === pathToFileURL(process.argv[1]).href`. That
@@ -835,9 +838,9 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // it, including the gate round 3 had just created. A predicate with fourteen spellings is not
     // fixed by fixing one of them, so there is now one authority (`scripts/is-entry.ts`) and this
     // case asserts DELEGATION to it rather than uniformity of a spelling that was itself wrong.
-    expect(sources.length).toBe(14);
-    expect(sources.length).not.toBe(13);
-    expect(sources.length).not.toBe(15);
+    expect(sources.length).toBe(15);
+    expect(sources.length).not.toBe(14);
+    expect(sources.length).not.toBe(16);
     const offenders = sources
       .filter((s) => !/isEntrypoint\(import\.meta\.url\)/.test(s.src))
       .map((s) => `scripts/${s.name}`);
