@@ -1,0 +1,219 @@
+32.1-01-GREEN-proof.txt — the AFTER side of plan 32.1-01, per D-19.
+===================================================================
+
+Pairs with `32.1-01-RED-baseline.txt`. Every plant recorded there was reverted before any number
+below was taken, and `git status --porcelain -- scripts/` was confirmed free of plant residue after
+each one.
+
+Checkout: main, plan base 8de15983, four commits added (listed at the foot). Node v24.12.0.
+vitest 4.1.8. Measured 2026-09-17. No ANSI escapes and no control bytes (Pitfall 7).
+
+
+=====================================================================
+1. THE PHASE'S "BEFORE" AND "AFTER" REGRESSION NUMBERS
+=====================================================================
+
+The plan's recorded "before" number for this phase, taken after D-23 restored
+`.planning/milestone.lock` with `git checkout`:
+
+    75 files / 5163 passed / 2 skipped
+
+Re-taken on this checkout with all three tasks landed:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+
+     Test Files  75 passed (75)
+          Tests  5170 passed | 2 skipped (5172)
+       Duration  466.50s
+
+    FULL EXIT=0
+
+DELTA: +7 passing cases, +0 files, +0 skipped. That is EXACTLY the set this plan added and nothing
+else — three cases in `scripts/validate.test.ts` (the tracked-set floor, the instrument's PREMISE,
+the end-to-end resolution) and four in `scripts/board-readonly.test.ts` (the event floor, the
+module-set equality, the builtin-identity equality, the no-writer assertion). The plan's
+verification asks that the after number "differ only by the cases this plan added"; 5163 + 7 = 5170.
+
+NOTE — the lane was RED on its first full run of this plan, at 8 failures, and the cause was this
+plan's own change rather than a pre-existing fault. It is recorded as a deviation in
+`32.1-01-SUMMARY.md` and closed in commit fdd2b9b2. In short: two test-support modules are
+`*.test-support.ts`, so the LANG-07 corpus (enumerated by file shape as `git ls-files '*.ts'` minus
+`.test.ts` and `.d.ts`) legitimately gained two members and its three pins had to move 83 -> 85 and
+56 -> 58; and `(r-class-authority)` refuses any NON-TEST file that so much as NAMES the CI-workflow
+testkit's stem, where "non-test" is spelled `!endsWith(".test.ts")` — which a test-only
+`*.test-support.ts` file does not satisfy. The prose gave way rather than the guard.
+
+
+=====================================================================
+2. THE PLAN'S VERIFICATION LIST, IN ORDER
+=====================================================================
+
+    1. $ npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts scripts/board-readonly.test.ts
+        Test Files  2 passed (2)
+             Tests  312 passed (312)
+       exit 0
+
+    2. $ npm run typecheck
+       (tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json)
+       exit 0 — all three targets. Both new modules are type-checked by the second target, which
+       declares its own `exclude` array and therefore does not inherit the emit target's new
+       `**/*.test-support.ts` entry.
+
+    3. $ npm run build && npm run check:build-parity
+       exit 0
+       Build parity: no tracked build output moved when tsc ran.
+
+    4. $ git ls-files -- 'scripts/*.test-support.js'
+       (empty)
+
+    5. $ git diff --exit-code -- scripts/context-io-writer-set.test.ts
+       exit 0 — residual R-31-21-04 is a TEXT match over that file whose expected value is
+       `by-identifier=true type-checker=false`. It is byte-unchanged by this plan, and neither
+       `createProgram(` nor `getTypeChecker(` appears in it.
+
+    6. $ npx vitest run --exclude '**/scripts/e2e/**'
+       exit 0, 75 / 5170 / 2 — recorded in section 1 above.
+
+
+=====================================================================
+3. THE MEASURED FACTS EACH TASK CLAIMS
+=====================================================================
+
+TASK 1 — the symbol-resolving instrument (D-01, D-02, D-03)
+
+    $ git ls-files -- scripts/ts-symbols.test-support.ts
+    scripts/ts-symbols.test-support.ts
+
+    $ git ls-files -- scripts/ts-symbols.test-support.js
+    (empty)
+
+    $ ls scripts/ts-symbols.test-support.js
+    ls: scripts/ts-symbols.test-support.js: No such file or directory
+
+    tsconfig.json "exclude" array, 5 entries:
+      ["node_modules", ".tmp-build", "**/*.test.ts", "**/*.test-support.ts",
+       "scripts/runnable-ref/fixtures/**"]
+
+    The tracked file set and the disk walk, compared directly:
+      tracked 152 / walked 152 / symmetric difference 0   (measured at the end of task 1)
+      tracked 153                                          (measured at the end of the plan)
+
+    THE 151 IN THE PLAN'S ACCEPTANCE CRITERION IS THE PRE-TASK NUMBER, and the movement is
+    arithmetic rather than drift: task 1 adds ONE tracked `.ts` under `scripts/`
+    (`ts-symbols.test-support.ts`) and task 2 adds a second (`loader-oracle.test-support.ts`), so
+    151 -> 152 -> 153. The properties the criterion is about are unchanged and both hold: the set is
+    floored well above 100, and it is EQUAL to the `readdirSync` walk with a symmetric difference of
+    zero. What the floor exists to catch is measured in the RED baseline: the `scripts/**/*.ts`
+    pathspec reds it at 26.
+
+    The three cases pass as part of the 133 in `scripts/validate.test.ts`. The end-to-end
+    resolution asserts both halves: `KEY_SPELLINGS` resolves to its declaration in
+    `scripts/validate.test.ts` itself, and an imported `TICKET_KEYS` reference resolves THROUGH the
+    import alias to its declaration in `scripts/board-model.ts` — which is the property that makes a
+    renamed, namespace or re-exported import land on the same declaration as a directly-named one.
+
+
+TASK 2 — Node's own loader as the third side (D-09)
+
+    $ node <a script importing scripts/loader-oracle.test-support.ts and calling
+            recordRuntimeAcquisitions(ROOT, "scripts/board-dashboard.js")>
+    events: 13
+    modules: 5 ["scripts/board-dashboard.js","scripts/board-model.js","scripts/board-read.js",
+                "scripts/is-entry.js","scripts/kit-model.js"]
+    builtins: 3 ["fs","path","url"]
+    tree unchanged: true
+
+    - 13 resolve events, against a PREMISE floor of "greater than 5". The floor is deliberately well
+      under the measurement: its job is to catch a truncated recording, not to pin a closure. The
+      closure is pinned by the equality, against an independent authority.
+    - The runtime module set has exactly 5 members and equals `jsImportClosure(ROOT,
+      DASHBOARD_ENTRY)` as sorted lists, asserted in BOTH directions with two separately named lists
+      so a missed edge and a fabricated edge are distinguishable.
+    - The runtime builtin set equals the three members of `ALLOWED_BUILTIN_SPECIFIERS` and its
+      pinned count of 3 — a second, INDEPENDENT authority over the same allow-list the static census
+      pins, sharing no code and no parser with it. This is the runtime probe row 208 asks for.
+    - `git status --porcelain` is BYTE-IDENTICAL before and after the corpus load. The inertness
+      argument (an `is-entry`-guarded entry, no top-level writes) is a sentence; this equality is the
+      evidence, and it is also the DASH-04 / DASH-08 concurrency edge asserted rather than argued.
+
+    $ git ls-files -- scripts/loader-oracle.test-support.js
+    (empty)
+
+    $ npm run check:dashboard-readonly
+     Test Files  1 passed (1)
+          Tests  179 passed (179)
+    exit 0 — the DASH-06 guard's own npm entry agrees with the direct vitest run.
+
+
+TASK 3 — the recursive importer derivation (D-03)
+
+    The importer set is now derived over `trackedScriptSources(ROOT)` plus
+    `trackedSourcesUnder(ROOT, "hooks")` — recursive by construction — instead of a depth-one
+    `readdirSync` over exactly ["scripts", "hooks"]. The derived set, 12 members:
+
+      hooks/guard.test.ts
+      scripts/board-readonly.test.ts
+      scripts/check-foundation-guards.test.ts
+      scripts/check-platform-shapes.ts
+      scripts/check-uat-oracles.test.ts
+      scripts/context-freshness.ts
+      scripts/context-io.test.ts
+      scripts/generate-hook-manifest.ts
+      scripts/guarantees-freshness.ts
+      scripts/nonblocking-reader-parity.test.ts
+      scripts/now-running-freshness.ts
+      scripts/trace-freshness.ts
+
+    `WALKER_IMPORTER_COUNT` therefore stays at 12: the recursive derivation finds NO importer hiding
+    under a subdirectory today. The pin did not move because the set did not move — which is a
+    measurement, not an absence of one, and the RED plant proves the derivation would have moved it.
+
+    THE SIX-VERSUS-SEVEN QUESTION IS SETTLED AT SIX. The non-test members of that set are:
+
+      scripts/check-platform-shapes.ts
+      scripts/context-freshness.ts
+      scripts/generate-hook-manifest.ts
+      scripts/guarantees-freshness.ts
+      scripts/now-running-freshness.ts
+      scripts/trace-freshness.ts
+
+    Six. This file's own prose said "seven production callers" in two places
+    (`scripts/board-readonly.test.ts:1653` and `:1910`); both now say SIX and both cite the new pin
+    `WALKER_PRODUCTION_IMPORTER_COUNT = 6`, which is derived from the same set and asserted. A
+    corrected sentence with nothing deciding over it is the same defect with a better number in it,
+    so the number was pinned rather than only rewritten.
+
+    RESIDUAL IN-05 IS RECORDED AS CARRIED, NOT CLOSED, in the case's own docblock. CONTEXT.md D-03
+    says the tracked-set floor stops a local scratch file; IN-05 names a DIFFERENT walk —
+    `presenceSpellingSites` / `SPELLING_WALK_SKIP` / `SPELLING_WALK_EXTENSIONS` at
+    `scripts/board-model.test.ts:2358-2390` — which walks the whole repository root over seven
+    extensions including `.md`, `.json` and `.txt`, so untracked paths such as `.gsd/` and
+    `human-notes.txt` are inside its scope and nothing added here says anything about them. The
+    remedy is the one IN-05 itself proposes and the one already in use one file over: derive that
+    walk's corpus from `git ls-files`.
+
+
+=====================================================================
+4. RESIDUE
+=====================================================================
+
+    $ git status --short
+     M .planning/STATE.md
+     M .planning/milestone.lock
+     M human-notes.txt
+    ?? .gsd/
+    ?? .planning/state.json
+
+Those five paths are the pre-existing working-tree state this plan inherited and did not touch;
+`32-VERIFICATION.md` already recorded them as unrelated. Nothing under `scripts/`, `hooks/`,
+`install/` or `tsconfig.json` is left modified or untracked, and no plant survives.
+
+
+=====================================================================
+5. COMMITS
+=====================================================================
+
+    d72593ba  feat(32.1-01): one symbol-resolving instrument over the whole tracked set
+    6cf26ec8  feat(32.1-01): Node's own loader as the third side of the closure oracle
+    c6a1d2cf  fix(32.1-01): derive the walker's importer set recursively, over the tracked set
+    fdd2b9b2  fix(32.1-01): move the module-corpus pins with the set, and unname the testkit
