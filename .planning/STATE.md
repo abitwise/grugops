@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-02-PLAN.md
-last_updated: "2026-09-17T19:34:58.472Z"
-state_head: 20ee9e6fadb2d915f22ca0523d9fa420100f09ef
+stopped_at: Completed 32.1-03-PLAN.md
+last_updated: "2026-09-17T20:12:20.902Z"
+state_head: efddd2faeb67cc77abc000dec8b4e5efd78f0a9d
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 265
-  completed_plans: 256
+  completed_plans: 257
   percent: 97
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 3 of 11
+Plan: 4 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -513,6 +513,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32 P41 | 14h 6m | 3 tasks | 4 files |
 | Phase 32.1 P01 | 41 min | 3 tasks | 8 files |
 | Phase 32.1 P02 | 19 min | 2 tasks | 3 files |
+| Phase 32.1 P03 | 25 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1410,6 +1411,8 @@ Recent decisions affecting current work:
 - [Phase 32.1]: The two new *.test-support.ts modules are COUNTED in the LANG-07 non-test module corpus, not excluded — That corpus is enumerated by file shape and pinned equal to its git ls-files side. Excluding a third spelling of test-file would edit one predicate input in two places (the D-24 drift shape) and narrow every scan reading the set. A wider scan can only find more. Pins moved 83 to 85 and 56 to 58 in the same commit.
 - [Phase 32.1]: Four disposition rows carry a real before value rather than an em dash, because the register README defines that column as the clause as it read before the change and a genuine predecessor existed; binding is unaffected since the gate matches on either side. — An audit register whose rows only a machine can read defeats the purpose of the register, and an em dash where predecessor text exists records a falsehood about the change.
 - [Phase 32.1]: The after cell holds the verbatim source sentence, pre-flighted through normalizeSentence for all 38 rows, not the gate normalized print of it. — The normalized form binds trivially and tells a human reader nothing; the pre-flight is what makes the verbatim form safe.
+- [Phase 32.1]: check:diff-disposition exits 0 for the first time since 2026-09-14: all 78 clauses WINDOWS.md row 176 named now carry binding disposition rows (38 from plan 32.1-02, 40 from 32.1-03), with the base commit, watched corpus, override tiers, clause comparison and ledger all untouched. — The fall is measured in four attributed counts (78 -> 40 -> 3 -> 0), with "over 39 elements" and "2273 changed clause(s) derived" identical in the first and last captures, so the fall is provably from rows written rather than from evidence removed.
+- [Phase 32.1]: A FROZEN disposition finding binds only through a row carrying ONE clause: 31-29.md already held a row for the three context-compaction clauses and bound none of them, because all three sentences sat in one after cell and the gate normalizes a single cell against a single clause. — That row read correctly to a human and was invisible to the machine, which is how those three findings outlived the plan that authored them. Later plans adding rows must write one row per clause; the earlier row was explained, not edited.
 
 ### Pending Todos
 
@@ -1534,8 +1537,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-17T19:34:45.505Z
-Stopped at: Completed 32.1-02-PLAN.md
+Last session: 2026-09-17T20:12:20.382Z
+Stopped at: Completed 32.1-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
