@@ -291,3 +291,84 @@ Two pins moved with sets they measure, in this task's commit:
     the `scripts/`-scoped module corpus  58 -> 59   (the same module, both pins in one commit)
     the entry-guard source set           14 -> 15   (scripts/check-claim-anchors.test.ts)
     CI_EXEMPT's accessor call count       2 -> 4    (the IN-03 case re-homed onto this register)
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 3  TASK 3 — D-05 / F-21: THE SEPARATOR ALPHABET REPLACED BY A DECLARED COMMAND SHAPE
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+WHAT STOOD HERE. `NODE_STEP_RE = /(^|&&|\|\||;)\s*node\b(?!\s+(?:-e|--eval)\b)/g` and
+`VITEST_STEP_RE = /vitest run\b/g`, counting the command STEPS that invoke a runner and comparing
+that count with the classification rows. Its separator alphabet was exactly: start-of-string, `&&`,
+`||`, `;`.
+
+WHAT REPLACES IT. Two DECLARED command shapes, matched anchored at both ends, with the step counts
+derived from WHICH shape an entry matched. An entry outside the declared shapes is a REFUSAL NAMING
+THE ENTRY. Zero exemptions: task 2 removed the only entry that needed one.
+
+---------------------------------------------------------------------------------------------------
+§ 3.1  THE SIX SHAPES F-21 NAMED — the old counter and the new rule, side by side.
+---------------------------------------------------------------------------------------------------
+
+Measured by evaluating the retired regexes (taken verbatim from `HEAD:scripts/check-foundation-
+guards.test.ts:12181-12182` and `:12580-12581`) and the new declared shapes against each command.
+The real manifest was never written to.
+
+| Probe entry | Shape | Real runner invocations | OLD: node steps / gate rows | OLD verdict | NEW verdict |
+|---|---|---|---|---|---|
+| `check:probe-pipe`       | a single pipe                        | 1 | 0 / 1 | DISAGREEMENT (red) | REFUSED, naming the entry |
+| `check:probe-newline`    | a newline separator                  | 2 | 1 / 2 | DISAGREEMENT (red) | REFUSED, naming the entry |
+| `check:probe-paren`      | a leading parenthesis                | 2 | 1 / 2 | DISAGREEMENT (red) | REFUSED, naming the entry |
+| `check:probe-wrapper`    | a wrapper command before the runner  | 1 | 0 / 1 | DISAGREEMENT (red) | REFUSED, naming the entry |
+| `check:probe-background` | a background separator               | 2 | 1 / 2 | DISAGREEMENT (red) | REFUSED, naming the entry |
+| `check:probe-quoted`     | a runner name in a quoted message    | 1 | 1 node + 1 vitest step / 1 gate + 0 suite rows | DISAGREEMENT (red) | REFUSED, naming the entry |
+
+THE MEASUREMENT CORRECTED THE EXPECTATION THIS PLAN WAS WRITTEN WITH, and the correction is recorded
+rather than smoothed over. The plan expected "five that the old counter miscounted silently, one it
+overcounted". Each of the six IS miscounted exactly as round 4's § 10 table says — but a miscount
+alone makes the counter DISAGREE with the target recognisers, and a disagreement is a red. The old
+rule caught all six. What it gave was a bare count mismatch that named no shape and no cause; what
+the declared shape gives is a refusal naming the entry, with the remedy and the refused weakening.
+
+---------------------------------------------------------------------------------------------------
+§ 3.2  THE SHAPES THAT REALLY DID PASS SILENTLY — both readers blind at once.
+---------------------------------------------------------------------------------------------------
+
+The silent pass needs a separator outside the counter's alphabet AND a module spelled a way
+`GATE_TARGET_RE` cannot read, so a step nobody counted agrees with a row nobody produced. Measured:
+
+| Combination | Real runner invocations | OLD: node steps / gate rows | OLD verdict | NEW verdict |
+|---|---|---|---|---|
+| a single pipe and a `./`-spelled module                  | 1 | 0 / 0 | AGREEMENT — SILENT PASS | REFUSED by name |
+| a wrapper command and a module behind a node flag        | 1 | 0 / 0 | AGREEMENT — SILENT PASS | REFUSED by name |
+| a background separator and a `./`-spelled second module  | 2 | 1 / 1 | AGREEMENT — SILENT PASS | REFUSED by name |
+| a command substitution and a `./`-spelled module         | 1 | 0 / 0 | AGREEMENT — SILENT PASS | REFUSED by name |
+
+All four are permanent cases in the discrimination block, beside the six above.
+
+---------------------------------------------------------------------------------------------------
+§ 3.3  THE DECLARED SET, AND WHAT IT REFUSES ON PURPOSE.
+---------------------------------------------------------------------------------------------------
+
+Two shapes, both occupied by live entries (the occupancy is asserted, so an unoccupied shape — an
+exemption written in advance — is a red):
+
+    build-then-gate-module   ^tsc --outDir \.tmp-build && node scripts/[\w.-]+\.js$   (10 entries)
+    suite-runner             ^npx vitest run [\w./-]+\.test\.ts$                       (1 entry)
+
+And the retired compound is refused BY THE SAME RULE, which is what makes the set exemption-free:
+
+    "npm run build && git diff --exit-code --name-only -- '*.js' && echo 'ok' || node -e \"…\""
+      => matches no declared shape
+
+Two floors, both derived from the manifest: an EMPTY `check:*` entry set reds, and a silently SHORT
+one reds because the entry count is taken a second time from the manifest's RAW TEXT, independently
+of the parse and of the prefix filter. The denominator of the match assertion is the ENTRY count,
+never the match count.
+
+---------------------------------------------------------------------------------------------------
+§ 3.4  THE MANIFEST WAS NOT WRITTEN TO.
+---------------------------------------------------------------------------------------------------
+
+    $ git diff --exit-code -- package.json
+    exit 0

@@ -1,0 +1,148 @@
+32.1-05 GREEN PROOF — the plan's own verification block, run against the finished tree
+=======================================================================================
+
+Plan:    .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-05-PLAN.md
+Tree:    /Users/olgeroeselg/Projects/public/grugops, branch main
+Measured 2026-09-18, after the three task commits.
+
+The RED side — every plant, its command, its output and its exit code — is in
+`32.1-05-RED-baseline.txt` beside this file. Nothing here is a claim about a command that was not
+run; each block below is the command and what it printed.
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+1.  THE REWRITTEN GUARD FILE
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/check-foundation-guards.test.ts
+
+     Test Files  1 passed (1)
+          Tests  300 passed (300)
+
+    exit 0
+
+300 rather than the 301 the file carried after task 1: the toolchain class's reachability case was
+deleted with its class (it would have looped zero times and compared 0 to 0), and the F-19 alias
+case was added. Both movements are recorded in the commits that made them.
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+2.  THE THREE TYPECHECK TARGETS
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    $ npm run typecheck
+      tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json
+
+    exit 0   (no diagnostics on any of the three targets)
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+3.  THE NEW GATE, THROUGH ITS MANIFEST ENTRY
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    $ npm run build && npm run check:build-parity
+      tsc --outDir .tmp-build && node scripts/check-build-parity.js
+
+      PASS  Build parity: tracked build outputs that moved when the build ran: 0 findings over 66/66
+            elements
+
+      == Result ==
+      ALL CHECKS PASSED
+
+    exit 0
+
+The PASS line carries the measurement — 66 tracked build outputs examined, 0 moved — rather than the
+bare sentence the retired inline `echo` printed.
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+4.  THE NEW GATE, INVOKED DIRECTLY AS CI INVOKES IT
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    $ node scripts/check-build-parity.js
+
+      PASS  Build parity: tracked build outputs that moved when the build ran: 0 findings over 66/66
+            elements
+
+      == Result ==
+      ALL CHECKS PASSED
+
+    exit 0
+
+It PRINTED. An entrypoint guard that did not match would run zero checks and exit 0 in silence — a
+fabricated green — which is why the output is recorded and not just the code. The guard is
+`isEntrypoint(import.meta.url)` from `scripts/is-entry.ts`, the one authority over that predicate.
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+5.  THE TWO FILES THAT MUST NOT HAVE MOVED
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    $ git diff --exit-code -- package.json scripts/context-io-writer-set.test.ts
+    exit 0
+
+`package.json` carries this plan's committed change and nothing a probe wrote; every shape probe ran
+against a mirrored copy. `scripts/context-io-writer-set.test.ts` is byte-unchanged across all three
+commits, which is what residual R-31-21-04 requires — that file is observed by
+`scripts/context-io.test.ts` with `by-identifier=true type-checker=false`, and the observation is a
+TEXT match, so the symbol-resolving instrument must never reach it.
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+6.  THE FULL REGRESSION LANE
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+
+     Test Files  75 passed (75)
+          Tests  5176 passed | 2 skipped (5178)
+
+    exit 0
+
+The live claude-CLI e2e lane (`npm test`) was NOT run: it is row 183's subject and belongs to the
+plan that carries its human checkpoint.
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+7.  THE GATE SWEEP — every `check:*` gate, run and recorded
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    check:build-parity         exit=0  ALL CHECKS PASSED
+    check:public-docs          exit=0  ALL CHECKS PASSED
+    check:audit-register       exit=0  ALL CHECKS PASSED
+    check:residual-citations   exit=0  ALL CHECKS PASSED
+    check:claim-anchors        exit=0  ALL CHECKS PASSED
+    check:banned-claims        exit=0  ALL CHECKS PASSED
+    check:imperative-lexicon   exit=0  ALL CHECKS PASSED
+    check:diff-disposition     exit=0  ALL CHECKS PASSED
+    check:nul-bytes            exit=0  ALL CHECKS PASSED
+    check:platform-shapes      exit=0  ALL CHECKS PASSED
+
+`check:dashboard-readonly` is the eleventh entry; it is `npx vitest run scripts/board-readonly.test.ts`
+and ran inside the full lane at § 6.
+
+`check:build-parity` appears here in its NEW form — the first row of this sweep is the gate module
+this plan created, reached through the collapsed manifest entry.
+
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+8.  THE PLAN'S SUCCESS CRITERIA, EACH AGAINST THE EVIDENCE ABOVE
+───────────────────────────────────────────────────────────────────────────────────────────────────
+
+  • F-19 closed with its own reproduction recorded green-then-red, and the rule's subject derived
+    and floored — RED baseline § 1.1 (exit 0 on the old rule) and § 1.2 (exit 1 on the new one);
+    § 1.4 records the emptied census redding on the floor.
+
+  • The build-parity check is an ordinary gate module reached by name from CI, with a committed
+    twin — §§ 3 and 4 here; `git ls-files -- scripts/check-build-parity.ts scripts/check-build-parity.js`
+    lists both; `.github/workflows/ci.yml` names the module and carries ZERO non-comment
+    `npm run check:` invocations.
+
+  • Two declared command shapes, zero exemptions, and six F-21 probes refused by name — RED
+    baseline § 3.1, with § 3.2 recording the four combinations that really did pass the retired
+    rule silently and § 3.3 recording the retired compound being refused by the same rule.
+
+  • The class counts moved with their sets, in the same commits, as decisions — gate-module 9 → 10
+    and the toolchain class 1 → 0 and deleted, in the task-2 commit; NON_TEST_MODULE_COUNT 85 → 86,
+    the `scripts/`-scoped corpus 58 → 59, the entry-guard source set 14 → 15, and CI_EXEMPT's
+    accessor call count 2 → 4, all in the same commit as the change that moved them.

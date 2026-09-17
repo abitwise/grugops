@@ -12549,136 +12549,311 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
   });
 
   // ═════════════════════════════════════════════════════════════════════════════════════════════
-  // REVIEW WR-05 — A SHORT ROW SET SHORT-CIRCUITS, SO THE UNRECOGNISED HALF PROVES NOTHING.
+  // D-05 / ROUND-4 FINDING F-21 (plan 32.1-05, .planning/WINDOWS.md row 207) — A DECLARED COMMAND
+  // SHAPE WITH ZERO EXEMPTIONS, IN PLACE OF A COUNTER THAT ENUMERATED SEPARATORS.
   //
-  // `if (rows.length > 0) return rows;` means ONE recognised target is enough to return, and a
-  // second module spelled any of the ordinary ways the recognisers' alphabet excludes —
-  // `node ./scripts/b.js`, `node --enable-source-maps scripts/b.js` — contributes no row, moves no
-  // pinned number and gets no reachability proof. That is round-2's WR-05 one register over:
-  // "classified by the first, unless the second is spelled the one way the regex admits".
+  // WHAT STOOD HERE. `NODE_STEP_RE = /(^|&&|\|\||;)\s*node\b(?!\s+(?:-e|--eval)\b)/g` counted the
+  // command STEPS that invoke a runner and compared that count with the classification rows, so a
+  // module the recognisers could not read was a DISAGREEMENT rather than a silent pass. The
+  // denominator was a real improvement over counting with the thing being checked. Its alphabet was
+  // still an enumeration: start-of-string, `&&`, `||`, `;` — and round 4 measured six ordinary shell
+  // shapes outside it. A single pipe, a wrapper command and a command substitution counted ZERO
+  // steps for one real module; a newline, a leading parenthesis and a background separator counted
+  // ONE step for two; and `vitest run` inside a quoted message counted one step for none.
   //
-  // THE DENOMINATOR IS TAKEN ON THE OTHER SIDE OF THE RECOGNISERS. Counting the COMMAND STEPS that
-  // invoke a runner is independent of the path alphabet the recognisers accept, so a step the
-  // recognisers cannot read is a DISAGREEMENT rather than a silent pass. This is the repository's
-  // own recorded probe — derive the element count independently of the loop that consumes it —
-  // applied to a set that had only ever been counted by the thing being checked.
+  // WHAT THOSE MISCOUNTS COST, MEASURED RATHER THAN ASSUMED (32.1-05-RED-baseline.txt § 3). On each
+  // of the six shapes ALONE the counter and the recognisers disagreed, so the rule went red — with
+  // a bare count mismatch for a message, naming no shape, but red. The SILENT pass needed both
+  // readers blind at once: a separator outside the counter's alphabet AND a module spelled a way
+  // `GATE_TARGET_RE` cannot read, at which point a step nobody counted agrees with a row nobody
+  // produced and a module is reachable from the manifest with nothing proving it is ever reached.
+  // Four such combinations were measured passing the retired rule with nothing going red.
   //
-  // WHAT IT DOES NOT CATCH, STATED RATHER THAN IMPLIED: a second module reached through
-  // `npm run check:x` invokes no runner directly, so it contributes no step here. Such a script is
-  // a `check:*` entry in its own right and is classified on its own row; a module reached through
-  // any OTHER nested runner would be invisible to both sides and is `UNKNOWN - verify`.
+  // WHY THE REMEDY IS NOT A SIXTH ARM. The question "which separators may a command contain" has no
+  // closed answer — shell grammar is not a set this file can enumerate, and round 4's own table is a
+  // list of the shapes one reader thought of. The remedy this repository has recorded for that class
+  // is a CANONICAL FORM: declare the small set of shapes a `check:*` command may take, derive the
+  // step counts from WHICH shape an entry matched, and REFUSE anything else BY NAME. A refusal
+  // naming the entry is a decision somebody must make; an undercount is a number nobody sees.
+  //
+  // AND THE DECLARED SET HAS ZERO EXEMPTIONS, WHICH IS WHAT TASK 2 OF THIS PLAN BOUGHT. The one
+  // entry that could not fit any declared shape was `check:build-parity`, whose value was an inline
+  // `npm run build && git diff … || node -e "…"` compound. The banner that stood here said in its
+  // own words that a module reached through any other nested runner "would be invisible to both
+  // sides and is `UNKNOWN - verify`" — and that compound was the live instance of exactly that
+  // shape. It is now `scripts/check-build-parity.js`, an ordinary gate module, so the declared set
+  // needs no named exception at all and the `node -e` exclusion that carried it is gone with it.
+  //
+  // WHAT THIS RULE STILL DOES NOT DECIDE, STATED RATHER THAN IMPLIED. The allow-list governs HOW a
+  // check is INVOKED, not what the invoked module then does. A gate module that spawns a second
+  // module, reads a file it should not, or exits 0 having run nothing is outside this rule entirely;
+  // `scripts/vacuity.ts`'s element floor and each gate's own test are what decide those. What is now
+  // true, and was not before, is that an entry outside the declared shapes is NAMED and REFUSED
+  // rather than counted wrongly and passed.
   // ═════════════════════════════════════════════════════════════════════════════════════════════
 
+  interface DeclaredCommandShape {
+    /** Stable id, used by the occupancy assertion and by refusal messages. */
+    readonly id: string;
+    /** The shape in the words a reader needs to fix an entry that does not match. */
+    readonly description: string;
+    /** Anchored at both ends on purpose: a shape that matches a PREFIX admits everything after it. */
+    readonly pattern: RegExp;
+    /** The step counts this shape CARRIES — derived from the match, never counted in the text. */
+    readonly steps: { readonly node: number; readonly vitest: number };
+  }
+
   /**
-   * Command STEPS that invoke a runner, counted without reference to the recognisers' alphabet.
-   *
-   * `node -e` / `node --eval` IS EXCLUDED, and by decision rather than to make the count agree: an
-   * inline-eval step runs no MODULE, so there is no file for a reachability proof to be about.
-   * `check:build-parity`'s `|| node -e "…"` failure message is the live instance. A step that names
-   * a module in any other spelling is still counted, which is the whole point of the denominator.
+   * THE DECLARED SHAPES. Two, and the cardinality is asserted against the live manifest below so a
+   * third cannot be added for an entry that does not exist.
    */
-  const NODE_STEP_RE = /(^|&&|\|\||;)\s*node\b(?!\s+(?:-e|--eval)\b)/g;
-  const VITEST_STEP_RE = /vitest run\b/g;
+  const DECLARED_CHECK_COMMAND_SHAPES: readonly DeclaredCommandShape[] = [
+    {
+      id: "build-then-gate-module",
+      description: "`tsc --outDir .tmp-build && node scripts/<module>.js` — ten entries use it",
+      pattern: /^tsc --outDir \.tmp-build && node scripts\/[\w.-]+\.js$/,
+      steps: { node: 1, vitest: 0 },
+    },
+    {
+      id: "suite-runner",
+      description: "`npx vitest run <file>.test.ts` — the DASH-06 read-only control uses it",
+      pattern: /^npx vitest run [\w./-]+\.test\.ts$/,
+      steps: { node: 0, vitest: 1 },
+    },
+  ];
 
-  const runnerSteps = (cmd: string): { readonly node: number; readonly vitest: number } => ({
-    node: (cmd.match(NODE_STEP_RE) ?? []).length,
-    vitest: (cmd.match(VITEST_STEP_RE) ?? []).length,
-  });
+  /** Which declared shape an entry's command matches, or `null` — which is a refusal, not a skip. */
+  const matchDeclaredShape = (cmd: string): DeclaredCommandShape | null =>
+    DECLARED_CHECK_COMMAND_SHAPES.find((shape) => shape.pattern.test(cmd)) ?? null;
 
-  it("every runner STEP in a check command is classified — the count is derived on the other side", () => {
+  /** The manifest's `check:*` entry count, read from the RAW TEXT rather than from the parsed object. */
+  const rawCheckEntryCount = (): number =>
+    (readFileSync(join(ROOT, "package.json"), "utf8").match(/^\s*"check:[\w:-]+":/gm) ?? []).length;
+
+  it("every `check:*` entry matches a DECLARED shape, and its step counts come from the match (D-05)", () => {
     const scripts = readPackageScripts();
     const names = checkScriptNames(scripts);
+
+    // FLOOR 1 — THE EMPTY ENTRY SET. Every assertion below iterates the entries, so a scan that
+    // found none would agree with all of them for the one reason that proves nothing.
     expect(
       names.length,
-      "PREMISE: no check:* script was found, so the agreement below compared nothing",
-    ).toBeGreaterThan(0);
+      "PREMISE: no check:* entry was found in package.json, so the shape rule below decided nothing",
+    ).toBeGreaterThan(5);
 
+    // FLOOR 2 — THE SILENTLY SHORT ENTRY SET, which a floor over an EMPTY set has never caught. The
+    // second count is taken from the manifest's RAW TEXT, independently of the parse and of the
+    // prefix filter that produced `names`, so the two derivations can disagree.
+    const rawCount = rawCheckEntryCount();
+    expect(
+      names.length,
+      `the parsed manifest yields ${names.length} check:* entr(ies) and its raw text yields ` +
+        `${rawCount}. The two derivations disagree, so one of them is reading a narrower manifest ` +
+        "than the other and the shape rule below covers less than it claims",
+    ).toBe(rawCount);
+
+    const refusals: string[] = [];
     const disagreements: string[] = [];
-    let totalSteps = 0;
+    const occupied = new Set<string>();
+    let matched = 0;
+
     for (const n of names) {
       const cmd = scripts[n] as string;
-      const steps = runnerSteps(cmd);
-      totalSteps += steps.node + steps.vitest;
+      const shape = matchDeclaredShape(cmd);
+      if (shape === null) {
+        refusals.push(`${n} => ${cmd}`);
+        continue;
+      }
+      matched += 1;
+      occupied.add(shape.id);
+
+      // THE STEP COUNTS COME FROM THE MATCH. The classification rows are derived by a different
+      // reader (`GATE_TARGET_RE` / `SUITE_TARGET_RE` scanning the command), so the two must agree —
+      // and a disagreement now means the RECOGNISER is short, since the shape is exact.
       const rows = classifyCheckScriptTargets(n, cmd) ?? [];
       const gates = rows.filter((r) => r.cls === "gate-module").length;
       const suites = rows.filter((r) => r.cls === "suite-test-file").length;
-      if (gates !== steps.node) {
+      if (gates !== shape.steps.node || suites !== shape.steps.vitest) {
         disagreements.push(
-          `${n}: ${steps.node} node step(s), ${gates} gate row(s) — ${cmd}`,
-        );
-      }
-      if (suites !== steps.vitest) {
-        disagreements.push(
-          `${n}: ${steps.vitest} vitest step(s), ${suites} suite row(s) — ${cmd}`,
+          `${n}: shape ${shape.id} carries ${shape.steps.node} node / ${shape.steps.vitest} vitest ` +
+            `step(s), the classification produced ${gates} gate / ${suites} suite row(s) — ${cmd}`,
         );
       }
     }
 
+    // THE REFUSAL, IN THIS FILE'S OWN FORM: what was found with the item NAMED, what it costs
+    // downstream, the remedy, and the cheap weakening refused by name.
     expect(
-      totalSteps,
-      "PREMISE: no check:* command invokes a runner at all, so every agreement above is vacuous",
-    ).toBeGreaterThan(5);
+      refusals,
+      "these `check:*` entries match NONE of the declared command shapes:\n  " +
+        `${refusals.join("\n  ")}\n` +
+        "A command outside the declared shapes is read by nothing: no reachability proof is asked " +
+        "of the module it runs, and no pinned number moves when it changes. The declared shapes " +
+        "are:\n  " +
+        `${DECLARED_CHECK_COMMAND_SHAPES.map((s) => `${s.id}: ${s.description}`).join("\n  ")}\n` +
+        "Remedy: rewrite the entry into one of them, splitting it into two `check:*` entries if it " +
+        "runs two things. DO NOT ADD A THIRD SHAPE TO MAKE ONE ENTRY FIT — that is the widening " +
+        "this rule replaced, and the previous author of that widening wrote a separator alphabet " +
+        "that five ordinary shell shapes walked straight through.",
+    ).toEqual([]);
+
+    // THE DENOMINATOR IS THE ENTRY COUNT, NOT THE MATCH COUNT. Comparing matches to matches is the
+    // derivation agreeing with itself; comparing matches to ENTRIES is what makes a refused entry
+    // visible in the count as well as in the message above.
+    expect(
+      matched,
+      `${matched} of ${names.length} check:* entries matched a declared shape. The denominator is ` +
+        "the number of ENTRIES the manifest carries, because a rule counted over its own matches " +
+        "is green over whatever it happened to recognise",
+    ).toBe(names.length);
+
     expect(
       disagreements,
-      "a check command runs a module that produced NO classification row, so nothing proves that " +
-        `module is reachable and no pinned number moved:\n  ${disagreements.join("\n  ")}\n` +
-        "The recognisers' path alphabet is narrower than the ways a module can legitimately be " +
-        "spelled. Widen the recogniser (and move the pinned target count with it) — do not widen " +
-        "this denominator to agree with it",
+      "a declared shape and the target recognisers disagree about what an entry runs. The shape is " +
+        `exact, so this means the recogniser is short:\n  ${disagreements.join("\n  ")}`,
     ).toEqual([]);
+
+    // THE DECLARED SET'S CARDINALITY, DERIVED FROM THE MANIFEST. Every declared shape must be
+    // OCCUPIED by a live entry: a shape nobody uses is a shape somebody added for an entry that
+    // does not exist, which is how an allow-list quietly becomes a description of everything.
+    expect(
+      [...occupied].sort(),
+      "a declared command shape is occupied by NO live `check:*` entry. An unoccupied shape is an " +
+        "exemption written in advance — delete it, or name the entry it is for",
+    ).toEqual(DECLARED_CHECK_COMMAND_SHAPES.map((s) => s.id).sort());
+    expect(
+      DECLARED_CHECK_COMMAND_SHAPES.length,
+      "the declared shape set is pinned at two members with ZERO named exemptions. Plan 32.1-05 " +
+        "removed the only entry that needed one by turning it into an ordinary gate module; a " +
+        "third member is a decision a human has to make and record, never a fix for a red",
+    ).toBe(2);
   });
 
-  it("DISCRIMINATION: the denominator reds exactly the spellings the recognisers cannot read", () => {
-    // Each of these is a command whose SECOND module is spelled a way `GATE_TARGET_RE` excludes.
-    // Under the short-circuit these returned one row and passed; the denominator makes them red — the
-    // agreement is what turns an unreadable spelling into a finding.
-    const disagrees = (cmd: string): boolean => {
-      const steps = runnerSteps(cmd);
-      const rows = classifyCheckScriptTargets("check:probe", cmd) ?? [];
-      return (
-        rows.filter((r) => r.cls === "gate-module").length !== steps.node ||
-        rows.filter((r) => r.cls === "suite-test-file").length !== steps.vitest
-      );
-    };
+  it("DISCRIMINATION: the six shapes F-21 named are each refused BY NAME, against a MIRRORED manifest", () => {
+    // ONE PROBE PER SHAPE round 4's § 10 table enumerated, driven against a COPY of the manifest.
+    // The real `package.json` is never written to; the plan's verify set asserts that with
+    // `git diff --exit-code -- package.json`.
+    //
+    // THE OLD COUNTER'S BEHAVIOUR IS RECORDED BESIDE THE NEW RULE'S, in
+    // `32.1-05-RED-baseline.txt` § 3 — and the measurement corrected the expectation this plan was
+    // written with. Each of these six MISCOUNTED under the old counter (five undercounts and one
+    // overcount, exactly as round 4's § 10 table says), and each one therefore DISAGREED with the
+    // target recognisers and went red. What is new here is not that they are caught but HOW: one
+    // rule, one message, the probe entry NAMED, with no arm per shape. The shapes that passed the
+    // old rule silently are measured separately below.
+    const probes: readonly { readonly name: string; readonly cmd: string; readonly shape: string }[] = [
+      { name: "check:probe-pipe", cmd: "cat x | node scripts/b.js", shape: "a single pipe" },
+      {
+        name: "check:probe-newline",
+        cmd: "node scripts/a.js\nnode scripts/b.js",
+        shape: "a newline separator",
+      },
+      {
+        name: "check:probe-paren",
+        cmd: "(node scripts/a.js && node scripts/b.js)",
+        shape: "a leading parenthesis",
+      },
+      {
+        name: "check:probe-wrapper",
+        cmd: "env FOO=1 node scripts/b.js",
+        shape: "a wrapper command before the runner",
+      },
+      {
+        name: "check:probe-background",
+        cmd: "node scripts/a.js & node scripts/b.js",
+        shape: "a background separator",
+      },
+      {
+        name: "check:probe-quoted",
+        cmd: "node scripts/a.js || echo 'run vitest run again'",
+        shape: "a runner name inside a quoted message",
+      },
+    ];
 
-    expect(disagrees("node scripts/a.js && node ./scripts/b.js"), "a `./`-spelled module").toBe(
-      true,
+    const mirrored: Record<string, string> = { ...readPackageScripts() };
+    for (const probe of probes) mirrored[probe.name] = probe.cmd;
+
+    // Each probe is refused, and the refusal NAMES THE PROBE ENTRY — one message per entry, so six
+    // probes produce six names rather than one count.
+    const refused = Object.keys(mirrored)
+      .filter((n) => n.startsWith("check:"))
+      .filter((n) => matchDeclaredShape(mirrored[n] as string) === null);
+    expect(
+      refused.sort(),
+      "every probe shape must be refused, and ONLY the probes: a refusal set that also names a live " +
+        `entry means the declared shapes no longer cover the manifest. Refused: ${JSON.stringify(refused)}`,
+    ).toEqual(probes.map((p) => p.name).sort());
+
+    // …and the REFUSAL IS PER SHAPE, asked one at a time, so no probe rides on another's result.
+    for (const probe of probes) {
+      expect(
+        matchDeclaredShape(probe.cmd),
+        `${probe.shape} (${probe.name}) matched a declared shape. Round 4 measured this shape ` +
+          "walking through the separator counter that stood here; a declared form that admits it " +
+          "has inherited the same hole",
+      ).toBeNull();
+    }
+
+    // THE SHAPES THAT ACTUALLY PASSED SILENTLY, MEASURED RATHER THAN INHERITED FROM THE FINDING.
+    //
+    // Plan 32.1-05 set out to record "five shapes the old counter miscounted silently". Measured
+    // (`32.1-05-RED-baseline.txt` § 3), that is NOT what the old rule did with the six probes above:
+    // on each of them the counter and the target recognisers DISAGREED, so the old rule went red —
+    // with a bare count mismatch for a message, naming no shape, but red. The silent pass needed
+    // BOTH readers blind at once: a separator the counter's alphabet excluded AND a module spelled
+    // a way `GATE_TARGET_RE` cannot read. These four are that condition, and each of them passed
+    // the old rule with nothing going red at all.
+    const bothBlind: readonly { readonly label: string; readonly cmd: string }[] = [
+      { label: "a single pipe and a `./`-spelled module", cmd: "cat x | node ./scripts/b.js" },
+      {
+        label: "a wrapper command and a module behind a node flag",
+        cmd: "env FOO=1 node --enable-source-maps scripts/b.js",
+      },
+      {
+        label: "a background separator and a `./`-spelled second module",
+        cmd: "node scripts/a.js & node ./scripts/b.js",
+      },
+      { label: "a command substitution and a `./`-spelled module", cmd: "echo $(node ./scripts/b.js)" },
+    ];
+    for (const probe of bothBlind) {
+      expect(
+        matchDeclaredShape(probe.cmd),
+        `${probe.label} matched a declared shape. This is the combination that passed the retired ` +
+          "counter with NOTHING going red — the separator was outside its alphabet and the module " +
+          "was outside the recogniser's, so a module nobody counted agreed with a row nobody " +
+          "produced. A declared form that admits it has inherited the whole defect",
+      ).toBeNull();
+    }
+
+    // THE CONVERSE, so the rule is not simply "everything is refused": the two live shapes match,
+    // and they match the shape that carries their own step counts.
+    const buildThenGate = matchDeclaredShape("tsc --outDir .tmp-build && node scripts/check-nul-bytes.js");
+    expect(buildThenGate?.id, "the ordinary gate entry shape must match its declared form").toBe(
+      "build-then-gate-module",
     );
-    expect(
-      disagrees("node scripts/a.js && node --enable-source-maps scripts/b.js"),
-      "a module behind a node FLAG",
-    ).toBe(true);
+    expect(buildThenGate?.steps, "and carry one node step").toEqual({ node: 1, vitest: 0 });
+    const suite = matchDeclaredShape("npx vitest run scripts/board-readonly.test.ts");
+    expect(suite?.id, "the DASH-06 control's shape must match its declared form").toBe("suite-runner");
+    expect(suite?.steps, "and carry one vitest step").toEqual({ node: 0, vitest: 1 });
 
-    // THE CONVERSE, so the rule is not simply "everything disagrees": the shapes the recognisers
-    // DO read must agree, or this assertion would red the live tree for no reason.
-    expect(disagrees("node scripts/a.js && node scripts/b.js"), "two ordinary gate modules").toBe(
-      false,
-    );
+    // AND THE RETIRED COMPOUND, the one entry that used to need an exemption, is refused too — which
+    // is why the declared set can have none.
     expect(
-      disagrees("tsc --outDir .tmp-build && node scripts/check-nul-bytes.js"),
-      "the ordinary live shape: a build step and one gate module",
-    ).toBe(false);
-    expect(
-      disagrees("npx vitest run scripts/board-readonly.test.ts"),
-      "the ordinary live suite shape",
-    ).toBe(false);
-    expect(
-      disagrees("npm run build && git diff --exit-code --name-only && echo ok"),
-      "the shape the retired toolchain class carried, which invokes no runner and must not be " +
-        "forced to produce a row",
-    ).toBe(false);
+      matchDeclaredShape(
+        "npm run build && git diff --exit-code --name-only -- '*.js' && echo 'ok' " +
+          "|| node -e \"process.exit(1)\"",
+      ),
+      "`check:build-parity`'s retired inline compound must be REFUSED by the declared shapes. If it " +
+        "matched, the shape set would have admitted the very entry plan 32.1-05 removed in order to " +
+        "make the set exemption-free",
+    ).toBeNull();
 
-    // THE `node -e` EXCLUSION, PINNED AS A DECISION. An inline-eval step runs no module, so it has
-    // no reachability proof to be about — but the exclusion must be exactly that narrow, or it
-    // becomes a hole a module can be spelled through.
-    expect(
-      disagrees("node scripts/a.js || node -e \"console.error('failed'); process.exit(1)\""),
-      "an inline `node -e` message step is not a module and must not demand a row",
-    ).toBe(false);
-    expect(
-      disagrees("node scripts/a.js && node -e 'x' && node ./scripts/b.js"),
-      "the exclusion must not swallow a REAL module spelled beside an inline-eval step",
-    ).toBe(true);
+    // The real manifest was not written to: the mirrored object is a copy, and the live entries in
+    // it are byte-identical to the ones the parse returned.
+    const live = readPackageScripts();
+    for (const n of Object.keys(live)) {
+      expect(mirrored[n], `the mirror altered the live entry ${n}`).toBe(live[n]);
+    }
   });
 
   it("DISCRIMINATION: five synthetic commands, each with the row set it must produce", () => {
