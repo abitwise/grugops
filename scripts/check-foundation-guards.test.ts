@@ -2020,8 +2020,31 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   is not a second owner of the LANG-07 predicate.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 83 with this module tracked.
+ *
+ * 83 -> 85 (plan 32.1-01, tasks 1 and 2), TWO TEST-SUPPORT MODULES:
+ *   - `scripts/ts-symbols.test-support.ts` — the ONE authority over "which declaration does this
+ *     name resolve to inside the `scripts/` sources" (D-01), plus the tracked-file-set derivation
+ *     and its floor (D-03). Test-only and un-emitted.
+ *   - `scripts/loader-oracle.test-support.ts` — the runtime side of the closure oracle (D-09): it
+ *     records what Node's own ESM resolver was asked for while the dashboard closure loads, with
+ *     the working tree snapshotted on both sides. Test-only and un-emitted.
+ *   THEY ARE TEST-ONLY AND THEY ARE COUNTED HERE ANYWAY, DELIBERATELY. This corpus is enumerated BY
+ *   FILE SHAPE — `git ls-files '*.ts'` minus `.test.ts` and `.d.ts` — and it is pinned equal to that
+ *   git side a few cases below. Excluding a third spelling of "test file" here would mean editing
+ *   the same predicate's input in two places, which is the drift shape D-24 exists to prevent, and
+ *   it would NARROW the scans that read this set. A wider scan can only find more, never fewer: the
+ *   fail-safe direction, and the same standing the `runnable-ref/fixtures` corpus files already have
+ *   in this list.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. Neither module
+ *   declares a function named for the frontmatter parser; neither locates a section in a document it
+ *   was given, and neither builds a section bound with `new RegExp` — `ts-symbols` carries one regex
+ *   literal, a pathspec-argument validator, and `loader-oracle` carries none. So
+ *   `SECTION_EXTENT_OWNERS` stays at the one authority and the frontmatter-parser owner set is
+ *   unmoved.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 85 with both modules tracked.
  */
-const NON_TEST_MODULE_COUNT = 83;
+const NON_TEST_MODULE_COUNT = 85;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2545,7 +2568,16 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // imports only `node:fs` and `node:path` — deliberately NOT `./board-model.js`, since a corpus
     // that imported the module it measures could not be evidence about it — so it contributes three
     // empty comparisons here and cannot make the agreement above vacuous on its own.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(56);
+    // 56 → 58 (plan 32.1-01, tasks 1 and 2): `scripts/ts-symbols.test-support.ts` and
+    // `scripts/loader-oracle.test-support.ts`. Both are TEST-ONLY modules and both are counted here
+    // anyway, for the reason `NON_TEST_MODULE_COUNT`'s docblock records at 83 → 85: this corpus is
+    // enumerated by file shape, and excluding a third spelling of "test file" would edit one
+    // predicate's input in two places. Neither imports any of the three specs compared below —
+    // `ts-symbols.test-support.ts` imports only `node:child_process`, `node:fs` and `node:path`, and
+    // `loader-oracle.test-support.ts` only `node:child_process`, `node:fs`, `node:os`, `node:path`
+    // and `node:url` — so each contributes three empty comparisons and neither can make the
+    // agreement above vacuous on its own.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(58);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2567,7 +2599,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 52 → 53 (plan 32-01, task 1): `board-model.ts`. 53 → 54 (plan 32-01, task 2): `board-read.ts`.
     // 54 → 55 (plan 32-01, task 3): `board-dashboard.ts`.
     // 55 → 56 (plan 32-04, task 1): `board-corpus.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(56 * 3);
+    // 56 → 58 (plan 32.1-01, tasks 1 and 2): `ts-symbols.test-support.ts` and
+    // `loader-oracle.test-support.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(58 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2762,7 +2796,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 54 → 55 (plan 32-01, task 3): `board-dashboard.ts`, the same module the flat reader gained.
       // 55 → 56 (plan 32-04, task 1): `board-corpus.ts`, the same module entering this
       // `scripts/`-scoped enumeration as it entered the one above.
-    ).toBe(56);
+      // 56 → 58 (plan 32.1-01, tasks 1 and 2): `ts-symbols.test-support.ts` and
+      // `loader-oracle.test-support.ts`, the same two modules the flat reader gained. Both pins move
+      // in the same commit, which is what the pair exists to require.
+    ).toBe(58);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against

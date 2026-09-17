@@ -12,20 +12,30 @@
 // once, of the TypeScript type checker, which answers about declarations rather than about text.
 //
 // THIS IS THE ONLY IMPLEMENTATION OF THAT QUESTION, AND A SECOND ONE IS A DEFECT RATHER THAN A
-// DUPLICATION. The doctrine is `scripts/ci-workflow.testkit.ts:1-28`'s, restated for this subject:
-// a file that resolves a name to its declaration with code of its own is not sharing a helper
-// differently, it is a second grammar over one fact, and two grammars over one fact is the failure
-// class this phase exists to delete.
+// DUPLICATION. The doctrine is the one the tree's existing `*.testkit.ts` module under `scripts/`
+// states in its own header, restated for this subject: a file that resolves a name to its
+// declaration with code of its own is not sharing a helper differently, it is a second grammar over
+// one fact, and two grammars over one fact is the failure class this phase exists to delete.
 //
 // WHY THE NAME IS `*.test-support.ts` AND NOT `*.testkit.ts`, WHICH IS THE TREE'S OWN ANALOG.
-// `scripts/ci-workflow.testkit.ts` is the existing test-only module under `scripts/`, and copying its
+// That `*.testkit.ts` module is the existing test-only module under `scripts/`, and copying its
 // spelling would be the obvious move. It is the WRONG move here, for a measured reason: that file IS
-// emitted, and `scripts/ci-workflow.testkit.js` is TRACKED. Adding `**/*.testkit.ts` to
-// `tsconfig.json`'s `exclude` array to keep THIS module out of emit would also stop emitting that
-// one, turning its committed twin into an ORPHANED COMMITTED OUTPUT — a named failure class of
-// `scripts/freshness.ts` — and `npm run freshness` would go red for a file nobody touched. So this
-// module takes CONTEXT.md D-02's own `*.test-support.ts` spelling, and the pattern added to
-// `tsconfig.json`'s `exclude` is `**/*.test-support.ts`, which matches nothing else that exists.
+// emitted, and its `.js` twin is TRACKED. Adding `**/*.testkit.ts` to `tsconfig.json`'s `exclude`
+// array to keep THIS module out of emit would also stop emitting that one, turning its committed
+// twin into an ORPHANED COMMITTED OUTPUT — a named failure class of `scripts/freshness.ts` — and
+// `npm run freshness` would go red for a file nobody touched. So this module takes CONTEXT.md
+// D-02's own `*.test-support.ts` spelling, and the pattern added to `tsconfig.json`'s `exclude` is
+// `**/*.test-support.ts`, which matches nothing else that exists.
+//
+// AND WHY THAT MODULE IS REFERRED TO BY SHAPE RATHER THAN BY NAME. `(r-class-authority)` in
+// `scripts/check-foundation-guards.test.ts` asserts that no NON-TEST file under `scripts/`,
+// `install/` or `hooks/` so much as NAMES that module's stem — its whole claim is that the testkit
+// is consumed by tests only. Its predicate for "non-test" is `!endsWith(".test.ts")`, which this
+// file does not satisfy despite being test-only, so spelling the stem here would red that guard.
+// Widening the guard's predicate to admit a second spelling of "test file" is exactly the move this
+// phase exists to refuse, so the prose gives way instead. The mismatch is a NAMED RESIDUAL of plan
+// 32.1-01: a future `*.test-support.ts` that legitimately CONSUMES that testkit cannot be expressed
+// without either reworking that guard's classification or renaming this family.
 //
 // AND WHY IT MUST NOT BE EMITTED AT ALL. It imports the TypeScript compiler API. CLAUDE.md's stack
 // rule is that host machines run the committed `.js` with ZERO runtime dependencies installed, so a
