@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Phase 32 complete, ready to plan Phase 33
-last_updated: "2026-09-17T11:07:43.670Z"
-state_head: e10888edb7a8d18c457acc6a44209b2133595452
+stopped_at: Phase 32 complete; Phase 32.1 inserted, ready to plan
+last_updated: "2026-09-17T11:10:28.350Z"
+state_head: b8ccf58aef87c9a18bf4a8539e0585b034729939
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 31
   total_plans: 254
   completed_plans: 254
-  percent: 89
+  percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -26,7 +26,7 @@ last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LA
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 32 — Board Projector & CLI Dashboard
+**Current focus:** Phase 32.1 — Board Dashboard Deferred Residuals (inserted; then Phase 33)
 
 ## Current Position
 
@@ -529,6 +529,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 - **v2.0 research flags** (carry into planning): Phase 26 needs `/gsd-plan-phase --research-phase 26` (first true parallel dogfood; equivalence-oracle + cost-measurement design are novel; `isolation: worktree` ↔ shared-context-path interaction UNKNOWN until exercised). Phase 24 needs a complete pre-deletion grep enumeration of every handoff reference before planning (largest blast radius). Phase 23 WR-05 inversion is a coordinated multi-file flip; the worktree/shared-context interaction is UNKNOWN. Phase 20 must include Windows + NFS-like behavior tests or mark the cross-platform claim `UNKNOWN - verify`. Two human decisions surfaced in research were RESOLVED at kickoff: JSONL = committed derived (freshness:context gate added); CC floor = v2.1.172 nested.
 - Phase 19 added (2026-06-16): Factory Auto-UAT Harness — Tier 1 deterministic oracles + Tier 2 `claude --print` headless E2E to honestly automate the deferred live-runtime human UATs (A1 plugin-cache pointer resolution / D-31, A2 live hook firing / SAFE-02, A3 sub-agent dual-path parity / DOG-02) + B3 WR-05 wording cross-check. Tier 3 (B1/B2 persona/prose judgment, Phase 11) is explicitly OUT of scope — stays human sign-off. Reopened v1.2 (was milestone_complete but never archived). Rationale captured in quick task [260616-faw](./quick/260616-faw-automate-remaining-human-uats-feasibilit/260616-faw-PLAN.md).
 - Phase 29.1 inserted after Phase 29: Per-Role Model Assignment — config-dial model tiers per role (opt-in preset, aliases only, zero-config unchanged)
+- Phase 32.1 inserted after Phase 32: Board Dashboard Deferred Residuals — the 16 open items Phase 32's Option C close deferred (F-14..F-21 + carried ledger rows; see 32-41-SUMMARY.md and deferred-items.md) (URGENT)
 
 ### Decisions
 
@@ -1465,6 +1466,7 @@ None yet.
 - OPEN RESIDUAL (32-10): a hard link inside the repository to an inode named outside it is read by the board projector. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Logged in .planning/WINDOWS.md; needs human risk acceptance before ship.
 - Phase 32: the DASH-06 guard is green over a writer acquired through a runtime-assembled module identity (finding F-03, 32-14-ADVERSARIAL-REVIEW.md section 6) — open, a human risk acceptance before Phase 32 can close.
 - DASH-06 guard is green (exit 0, 89/89) over a writer imported through an absolute-path specifier (F-04) and over process.report.writeReport reached through a binding after one recorded member path (F-08); both open with reproductions in 32-23-ADVERSARIAL-REVIEW.md
+- [Phase 32] 16 open items deferred to Phase 32.1 by Option C (2026-09-17): F-14 (C1 byte in a ticket id quoted then deleted, no correcting field), F-15 (split-reader census sees named imports only; a namespace import or two-hop re-export is a working second reader), F-16..F-21, plus check:diff-disposition RED (pre-existing, 78 findings), live e2e lane UNKNOWN - verify, the production-file census exemption, the runtime-assembled key spelling, board-tracer.test.ts as 9th registry exemption, and the wrong F-15 commit hash in 32-40-ADVERSARIAL-REVIEW.md (7aea94f0; real one 7a3ae592). Round-4 code review WR-01..WR-04 (32-REVIEW.md, e385498d) are NOT in that ledger yet; triage them into Phase 32.1 at planning.
 
 ### Quick Tasks Completed
 
@@ -1526,7 +1528,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-09-17T10:17:06.068Z
-Stopped at: Phase 32 complete, ready to plan Phase 33
+Stopped at: Phase 32 complete; Phase 32.1 inserted, ready to plan
 Resume file: None
 
 ## Operator Next Steps

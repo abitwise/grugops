@@ -99,6 +99,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping (completed 2026-09-07)
 - [x] **Phase 31: Autonomous Manual Testing** *(CLOSED 2026-09-13 by user override D-44; round-9 verification stands at `gaps_found` 4/6, CR-28…CR-31 + WR-43…WR-47 ACCEPTED OPEN, UATX-01/UATX-06 unchecked)* — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
 - [x] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard (completed 2026-09-17)
+- [ ] **Phase 32.1: Board Dashboard Deferred Residuals** (INSERTED) — the 16 residuals Phase 32 deferred at its four-round cap (F-14..F-21 + carried ledger rows) closed by canonical form, plus triage of round-4 review WR-01..WR-04
 - [ ] **Phase 33: Live Capture & Windows Portability** — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
 
 **Standing obligations from v2.0, and where each lands:**
@@ -1230,6 +1231,17 @@ Round-3 verification on 2026-09-16 returned `gaps_found` (4/5, up from 2/5) with
 
 **Windows caveat (honest, not a defect):** the `fs.watch` behavior this phase depends on is only *proven* on Windows once Phase 33 turns the `windows-latest` leg green. Until then this phase's Windows claim stays `UNKNOWN - verify` rather than asserted. This is a terminal renderer only — no web or frontend surface; the web renderer is explicitly deferred.
 
+### Phase 32.1: Board Dashboard Deferred Residuals (INSERTED)
+
+**Goal:** Close, by canonical form rather than wider enumeration, the residuals Phase 32 deferred at its four-round cap (human decision Option C, plan 32-41, 2026-09-17): the eight round-4 red-team findings F-14..F-21 in `32-40-ADVERSARIAL-REVIEW.md` and the carried ledger rows that `32-41-SUMMARY.md` / `deferred-items.md` re-homed here (16 items, WINDOWS.md rows 176, 183, 184, 194, 200–210), plus triage of the round-4 code review findings WR-01..WR-04 in `32-REVIEW.md`. Four of the five created findings are one class — a set enumerated over one spelling of the thing it is about — so the remedy is a canonical form, not another arm.
+**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08 (residuals against already-complete requirements; no new IDs)
+**Depends on:** Phase 32
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 32.1 to break down)
+
 ### Phase 33: Live Capture & Windows Portability
 
 **Goal**: The milestone's headline claims are proven by capture rather than by a green suite — one live run shows role agents executing in their own sessions, which is also the evidence the project's oldest open item has waited for since v1.0.
@@ -1283,6 +1295,7 @@ Round-3 verification on 2026-09-16 returned `gaps_found` (4/5, up from 2/5) with
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
+| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 0/TBD | Not started | - |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
