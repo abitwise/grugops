@@ -268,4 +268,104 @@ Restored: `staticClosure` is back to `[...jsImportClosure(ROOT, DASHBOARD_ENTRY)
 TASK 3 — the recursive importer derivation
 =====================================================================
 
-(recorded below when Task 3 lands)
+PLANT 3.1 — an importer under `scripts/runnable-ref/` must MOVE THE COUNT, which a depth-one walk
+cannot see
+-----------------------------------------------------------------------------------------------
+
+The case: `scripts/board-readonly.test.ts` > "32-31 - every existing caller of the shared walker
+still builds the same mirror" > "the set of modules that import the shared walker is DERIVED, and
+its size is pinned".
+
+What was wrong before this task: the derivation was a DEPTH-ONE `readdirSync` over exactly
+`["scripts", "hooks"]`. It is a latent instance of the class this phase exists to close, and it was
+sitting INSIDE the case meant to close it — a consumer under `scripts/runnable-ref/` imports the
+walker, builds a mirror no row of `CLOSURE_BASELINES` pins, and never moves the count.
+
+The plant, and it is tracked (`git add -N`) because the new derivation is git-derived and an
+untracked file is correctly outside it — `scripts/validate.test.ts` > "CASE 1" is what names an
+untracked one:
+
+    $ cat scripts/runnable-ref/zz-probe-importer.ts
+    import { closureTargets } from "../js-import-closure.js";
+
+    export function zzProbeTargets(root: string, entry: string): readonly string[] {
+      return [...closureTargets(root, entry)];
+    }
+    $ git add -N scripts/runnable-ref/zz-probe-importer.ts
+
+THE OLD DERIVATION, RUN AGAINST THE SAME PLANTED TREE — this is the half that makes the plant a
+measurement rather than an anecdote:
+
+    $ node -e "<the depth-one readdirSync over ['scripts','hooks'] with the old
+                (?:\.\.\/scripts|\.)\/js-import-closure\.js pattern>"
+    depth-one count: 12
+    contains the plant? false
+
+Twelve. Unchanged. The old rule looked straight at a new caller of the shared walker and reported
+nothing.
+
+THE NEW DERIVATION, same tree, same instant:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' \
+        -t "the set of modules that import the shared walker is DERIVED" scripts/board-readonly.test.ts
+
+     FAIL  scripts/board-readonly.test.ts > 32-31 - every existing caller of the shared walker still
+     builds the same mirror > the set of modules that import the shared walker is DERIVED, and its
+     size is pinned
+    AssertionError: hooks/guard.test.ts, scripts/board-readonly.test.ts,
+    scripts/check-foundation-guards.test.ts, scripts/check-platform-shapes.ts,
+    scripts/check-uat-oracles.test.ts, scripts/context-freshness.ts, scripts/context-io.test.ts,
+    scripts/generate-hook-manifest.ts, scripts/guarantees-freshness.ts,
+    scripts/nonblocking-reader-parity.test.ts, scripts/now-running-freshness.ts,
+    scripts/runnable-ref/zz-probe-importer.ts, scripts/trace-freshness.ts import
+    scripts/js-import-closure.js. That count moved, so a caller of the shared walker was added or
+    removed [...]: expected 13 to be 12
+
+    - Expected
+    + Received
+
+    - 12
+    + 13
+
+     board-readonly.test.ts:2447
+
+     Test Files  1 failed (1)
+          Tests  1 failed | 178 skipped (179)
+
+    EXIT=1
+
+Thirteen — moved by EXACTLY one, and the message NAMES `scripts/runnable-ref/zz-probe-importer.ts`
+in the list.
+
+Restored:
+
+    $ git restore --staged scripts/runnable-ref/zz-probe-importer.ts
+    $ rm -f scripts/runnable-ref/zz-probe-importer.ts
+    $ git status --porcelain -- scripts/
+     M scripts/board-readonly.test.ts
+     M scripts/ts-symbols.test-support.ts
+    $ git ls-files -- 'scripts/*.ts' | grep -c zz-probe
+    0
+
+
+A SECOND, UNPLANNED RED, recorded because it is the same finding one register over
+----------------------------------------------------------------------------------
+
+The first run of the rewritten derivation reported ELEVEN, not twelve:
+
+    AssertionError: scripts/board-readonly.test.ts, scripts/check-foundation-guards.test.ts, [...]
+    import scripts/js-import-closure.js. [...]: expected 11 to be 12
+
+    - Expected
+    + Received
+
+    - 12
+    + 11
+
+The missing member was `hooks/guard.test.ts`, which imports `../scripts/js-import-closure.js`. The
+SET had been widened to the tracked files and the MATCHER had not: the replacement pattern still
+enumerated the relative prefixes a top-level file can write. Widening the set while leaving the
+matcher enumerated moves a blind spot rather than closing one, which is precisely the defect class
+this task addresses — so it is recorded here rather than quietly fixed. The matcher now accepts any
+relative depth (`from "\.[^"]*\/js-import-closure\.js"`), and the derivation returns 12 with
+`hooks/guard.test.ts` in it.

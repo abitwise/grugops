@@ -159,7 +159,30 @@ function normalize(lines: readonly string[]): readonly string[] {
  * under `.tmp-build/`, so the set does not depend on whether a build had just run.
  */
 export function trackedScriptSources(root: string): readonly string[] {
-  const out = execFileSync("git", ["ls-files", "--", "scripts/*.ts"], {
+  return trackedSourcesUnder(root, "scripts");
+}
+
+/**
+ * The same derivation over any top-level directory — `hooks/` is the other one this repository's
+ * guards care about.
+ *
+ * IT IS A PARAMETER RATHER THAN A SECOND FUNCTION because the pathspec spelling above is the part
+ * that is easy to get wrong and expensive to get wrong quietly, and a consumer that needs `hooks/`
+ * must not be pushed into typing its own `git ls-files` call. One authority over the spelling; the
+ * directory is the only thing that varies.
+ *
+ * `dir` is interpolated into a pathspec, so it is deliberately restricted to a plain directory name:
+ * anything carrying a separator, a wildcard or a `..` is refused by name rather than passed to git,
+ * where it would silently select some other set.
+ */
+export function trackedSourcesUnder(root: string, dir: string): readonly string[] {
+  if (!/^[A-Za-z0-9._-]+$/.test(dir) || dir === "." || dir === "..") {
+    throw new Error(
+      `trackedSourcesUnder was asked for "${dir}", which is not a plain top-level directory name. ` +
+        "A pathspec assembled from anything else selects a set nobody chose",
+    );
+  }
+  const out = execFileSync("git", ["ls-files", "--", `${dir}/*.ts`], {
     cwd: root,
     encoding: "utf8",
   });

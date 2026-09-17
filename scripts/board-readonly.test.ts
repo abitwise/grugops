@@ -191,6 +191,14 @@ import {
   type RuntimeAcquisitions,
 } from "./loader-oracle.test-support.js";
 
+// THE TRACKED FILE SET (Phase 32.1, D-03). One authority over the `git ls-files` pathspec spelling,
+// because the intuitive `scripts/**/*.ts` returns 26 of 151 files and every set derived from it is
+// quietly a sixth of its subject. The importer derivation below asks it instead of walking.
+import {
+  trackedScriptSources,
+  trackedSourcesUnder,
+} from "./ts-symbols.test-support.js";
+
 const ROOT = join(import.meta.dirname, "..");
 
 /** The compiled entry the guard walks — the artifact a host runs, never the `.ts`. */
@@ -1659,7 +1667,10 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   });
 
   it("CONVERSE: the wrapper every production caller uses does NOT refuse the legitimate tree", () => {
-    // The refusal added here reaches seven production callers through `jsImportClosure`. A rule
+    // The refusal added here reaches SIX production callers through `jsImportClosure`. That number
+    // used to read "seven"; it was corrected in Phase 32.1 plan 32.1-01 against a measurement over
+    // the tracked set, and it is now pinned by `WALKER_PRODUCTION_IMPORTER_COUNT` rather than left
+    // as a sentence nothing decides over. A rule
     // that also refuses the legitimate shape is a regression, and this is where it is caught —
     // `analyzeClosure` deliberately calls the non-throwing `jsImportClosureFacts`, so without this
     // case the whole file could be green while every freshness gate in the repository was red.
@@ -2045,7 +2056,9 @@ describe("32.1-01 — Node's OWN loader is the independent third side of the clo
 // reading the diff.
 //
 // AND THE SHARED WALKER'S OTHER CALLERS ARE RE-RUN WITH LEGITIMATE INPUT. A refusal added to
-// `jsImportClosure` reaches seven production gates, and narrowing the scan's input with
+// `jsImportClosure` reaches SIX production gates — corrected from "seven" in Phase 32.1 plan
+// 32.1-01, where the number was measured over the tracked set and pinned by
+// `WALKER_PRODUCTION_IMPORTER_COUNT` — and narrowing the scan's input with
 // `stripNonCode` is a regression risk for every edge a comment used to contribute.
 // `CLOSURE_BASELINES` pins what each of them built BEFORE the cutover.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -2228,6 +2241,21 @@ const CLOSURE_BASELINE_COUNT = 9;
 /** The number of `.ts` modules that import the shared walker, MEASURED at the time of the cutover. */
 const WALKER_IMPORTER_COUNT = 12;
 
+/**
+ * How many of those importers are PRODUCTION modules — i.e. not `*.test.ts` (Phase 32.1, plan
+ * 32.1-01, D-03).
+ *
+ * WHY IT IS A PIN AND NOT A SENTENCE. This file's own prose claimed, in two places, that a refusal
+ * added to `jsImportClosure` "reaches seven production callers". Measured over the tracked set, it
+ * reaches SIX. Nobody wrote seven dishonestly; the number was typed once and then survived every
+ * change to the set it was about, because no assertion was ever decided over it — which is this
+ * repository's recorded second systemic failure class in its purest form. Correcting the prose
+ * without pinning the number would leave the same defect with a different value in it, so the
+ * measured number is now DERIVED from the same set as `WALKER_IMPORTER_COUNT`, asserted, and the
+ * prose quotes the pin rather than a memory.
+ */
+const WALKER_PRODUCTION_IMPORTER_COUNT = 6;
+
 describe("32-31 — the refusals that MOVED are measured at the mechanism, not assumed", () => {
   it("the relocation table has exactly the number of rows its decision records", () => {
     expect(
@@ -2370,23 +2398,65 @@ describe("32-31 — every existing caller of the shared walker still builds the 
     // every gate over it stays green ([[grugops-set-literal-drift]]). A NEW caller of the walker is
     // a new mirror this table does not pin, so the importer set is derived from the tree and its
     // cardinality is a number somebody has to move on purpose.
+    //
+    // ── WHY THE DERIVATION MOVED FROM A WALK TO THE TRACKED SET (Phase 32.1, plan 32.1-01, D-03) ──
+    //
+    // This derivation used to be a DEPTH-ONE `readdirSync` over exactly `["scripts", "hooks"]`. That
+    // is a latent instance of the very class this case exists to catch, sitting inside the case: a
+    // consumer placed under `scripts/runnable-ref/` imports the walker, builds a mirror no row of
+    // `CLOSURE_BASELINES` pins, and sits OUTSIDE a depth-one listing — so the count does not move and
+    // nothing goes red. The set is now `git ls-files`-derived and therefore recursive by
+    // construction, through the one authority over that pathspec spelling
+    // (`trackedSourcesUnder`, whose header records why `scripts/**/*.ts` returns 26 of 151).
+    //
+    // TRACKED RATHER THAN WALKED, for the reason the corpus one file over already records: a walk
+    // would make this set depend on whether a build had just run, and it would count a local scratch
+    // file as a caller. The converse — a `.ts` on disk that git does not track — is not silently
+    // dropped either: `scripts/validate.test.ts` > "CASE 1" NAMES any such file.
+    //
+    // ── WHAT THIS DOES NOT CLOSE: RESIDUAL IN-05, NAMED RATHER THAN IMPLIED ──────────────────────
+    //
+    // The tracked-set floor added in plan 32.1-01 covers THIS derivation and the `SCANNED` walk in
+    // `scripts/validate.test.ts`. It does NOT cover the walk review item IN-05 actually names:
+    // `presenceSpellingSites` / `SPELLING_WALK_SKIP` / `SPELLING_WALK_EXTENSIONS` at
+    // `scripts/board-model.test.ts:2358-2390`, which walks the WHOLE REPOSITORY ROOT over seven
+    // extensions including `.md`, `.json` and `.txt` — so untracked paths such as `.gsd/` and
+    // `human-notes.txt` are inside its scope and no floor here says anything about them. That is a
+    // carried residual for this phase's ledger, not a closed item. The remedy is the one IN-05
+    // proposes and the one already in use in this file: derive that walk's corpus from
+    // `git ls-files` rather than from the filesystem.
     const importers: string[] = [];
-    for (const dir of ["scripts", "hooks"]) {
-      for (const name of readdirSync(join(ROOT, dir))) {
-        if (!name.endsWith(".ts")) continue;
-        const source = readFileSync(join(ROOT, dir, name), "utf8");
-        if (/from "(?:\.\.\/scripts|\.)\/js-import-closure\.js"/.test(source)) {
-          importers.push(`${dir}/${name}`);
-        }
-      }
+    for (const rel of [...trackedScriptSources(ROOT), ...trackedSourcesUnder(ROOT, "hooks")]) {
+      const source = readFileSync(join(ROOT, rel), "utf8");
+      // ANY RELATIVE DEPTH, not just the two spellings a top-level file can produce. The pattern
+      // this replaced was `(?:\.\.\/scripts|\.)\/js-import-closure\.js`, which enumerates exactly
+      // the two prefixes a file sitting directly in `scripts/` or `hooks/` can write. A consumer
+      // under `scripts/runnable-ref/` spells the same import `../js-import-closure.js` and one two
+      // levels down spells it `../../js-import-closure.js`; both read as "not a caller" under the
+      // old pattern. Widening the SET without widening the MATCHER would have moved the blind spot
+      // rather than closed it.
+      if (/from "\.[^"]*\/js-import-closure\.js"/.test(source)) importers.push(rel);
     }
+    importers.sort();
     expect(
       importers.length,
-      `${importers.sort().join(", ")} import scripts/js-import-closure.js. That count moved, so a ` +
+      `${importers.join(", ")} import scripts/js-import-closure.js. That count moved, so a ` +
         "caller of the shared walker was added or removed — and a NEW caller builds a mirror no row " +
         "of CLOSURE_BASELINES pins. Add its entry artifact above with the closure measured before " +
         "the next change to the walker, and move this number with it",
     ).toBe(WALKER_IMPORTER_COUNT);
+
+    // THE PRODUCTION SUBSET, pinned so the prose cannot drift away from it again. Two sentences in
+    // this file said "seven production callers"; the measurement says six. A corrected sentence with
+    // no assertion behind it is the same defect with a better number in it.
+    const production = importers.filter((rel) => !rel.endsWith(".test.ts"));
+    expect(
+      production.length,
+      `${production.join(", ")} are the NON-TEST modules importing scripts/js-import-closure.js. ` +
+        "A refusal added to the shared walker reaches exactly these, and the two prose paragraphs " +
+        "in this file that state that number quote this pin. Move them together or they disagree " +
+        "again — which is how 'seven' survived here with nothing deciding over it",
+    ).toBe(WALKER_PRODUCTION_IMPORTER_COUNT);
   });
 
   for (const row of CLOSURE_BASELINES) {
