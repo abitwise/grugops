@@ -1,0 +1,88 @@
+32.1-04 RED BASELINE — the split-reader join, the exemption registry, and row 194
+=================================================================================
+
+D-19's order: every cutover records the OLD rule's verdict on the plant BEFORE the switch, then the
+NEW rule's verdict after, with the plant restored and `git status --porcelain -- scripts/` clean.
+
+The recorded exit code is the exit code of the CENSUS'S OWN REFUSAL ASSERTION applied to the plant —
+`expect(splitReaderOffenders(<plant>)).toEqual([])`, the same assertion the live tree is judged by.
+So exit 0 means THE PLANT WALKED THROUGH (the rule saw nothing) and exit 1 means THE PLANT WAS
+REFUSED. A cutover that works reads exit 0 before and exit 1 after.
+
+Repository state: branch `main`, HEAD `6e4fbede` at capture time.
+Command: `npx vitest run --exclude '**/scripts/e2e/**' scripts/validate.test.ts -t "<case>"`.
+
+
+TASK 1 — THE SPLIT-READER JOIN (F-15, WR-04)
+============================================
+
+How the OLD verdicts were taken: a temporary block was inserted into the PRE-CHANGE
+`scripts/validate.test.ts` at line 2178, holding the four plants as `ScannedFile` rows and applying
+the live refusal assertion to each through the then-current `splitReaderOffenders(rows)`. The block
+was removed and `git checkout -- scripts/validate.test.ts` confirmed clean before any edit landed.
+
+How the NEW verdicts were taken: after the cutover, the four committed discrimination cases had
+their expected offender lists temporarily replaced by `[]` — i.e. the same live refusal assertion,
+applied to the same four plants through the new `splitReaderOffenders(census)` — and each was run
+alone. The file was restored from a byte copy taken before the replacement.
+
+Every plant's key-table half is the LIVE `scripts/board-model.ts` read off disk, and plant 4's
+key-naming half is the LIVE `scripts/board-corpus.ts` with two seeded lines appended. Neither is an
+authored fixture, so a plant cannot drift away from the thing it copies.
+
+  PLANT 1 — namespace import (F-15 reproduction 1)
+    files: board-model.ts (live) + plant-namespace-reader.ts
+           `import * as model from "./board-model.js"` then a text scan driven by `model.TICKET_KEYS`
+    OLD RULE: exit 0   Test Files  1 passed (1) — 0 offender(s); the plant walked through.
+              Cause: the old join collected `NamedImports` element names only, so a namespace
+              import contributed ZERO binding names and the file was never a candidate.
+    NEW RULE: exit 1   AssertionError: expected [ Array(1) ] to deeply equal []
+              offender: "plant-namespace-reader.ts SCANS text and takes the KEY half from
+                         board-model.ts as `TICKET_KEYS`"
+
+  PLANT 2 — two-hop re-export through a barrel (F-15 reproduction 2)
+    files: board-model.ts (live) + plant-barrel.ts (`export { TICKET_KEYS } from "./board-model.js"`)
+           + plant-reexport-reader.ts importing from the barrel and scanning
+    OLD RULE: exit 0   Test Files  1 passed (1) — 0 offender(s); the plant walked through.
+              Cause: the old join asked whether the IMMEDIATE module declared a key table. A barrel
+              declares nothing, so the pair reassembled one hop away with nothing going red.
+    NEW RULE: exit 1   AssertionError: expected [ Array(1) ] to deeply equal []
+              offender: "plant-reexport-reader.ts SCANS text and takes the KEY half from
+                         board-model.ts as `TICKET_KEYS`"
+              `followAlias` walks the whole chain, so the offender is named against the ORIGINAL
+              declaration rather than against the barrel.
+
+  PLANT 3 — renamed named import (THE CONTROL)
+    files: board-model.ts (live) + plant-renamed-reader.ts
+           `import { TICKET_KEYS as K } from "./board-model.js"` then a text scan driven by `K`
+    OLD RULE: exit 1   Test Files  1 failed (1)
+              offender: "plant-renamed-reader.ts takes the key half from board-model.ts as
+                         `TICKET_KEYS`"
+              This is the ONE shape the pre-cutover rule caught — it read `el.propertyName`.
+    NEW RULE: exit 1   AssertionError: expected [ Array(1) ] to deeply equal []
+              offender: "plant-renamed-reader.ts SCANS text and takes the KEY half from
+                         board-model.ts as `TICKET_KEYS`"
+              The control keeps redding: the cutover closed three shapes without dropping the fourth.
+
+  PLANT 4 — the converse direction (WR-04)
+    files: plant-scanner.ts (a generic `valuesFor(t, keys)` that scans and names no key)
+           + board-corpus.ts (LIVE content + a seeded import of `valuesFor` and one seeded call)
+    OLD RULE: exit 0   Test Files  1 passed (1) — 0 offender(s); the plant walked through.
+              Cause: the guard clause `if (!h.scans || h.namesBothKeys) continue;` skipped exactly
+              the file the converse offender is. The banner's claim that this direction was
+              impossible was what the skip made look true.
+    NEW RULE: exit 1   AssertionError: expected [ Array(1) ] to deeply equal []
+              offender: "board-corpus.ts NAMES both key spellings and takes the SCANNING half from
+                         plant-scanner.ts as `valuesFor`"
+              The message names both files and states which way the import runs.
+
+  SUMMARY, TASK 1:  OLD 0/0/1/0   NEW 1/1/1/1.
+
+  Residual R-31-21-04 (`scripts/context-io-writer-set.test.ts` must stay byte-unchanged and free of
+  any checker text):
+    $ git diff --exit-code -- scripts/context-io-writer-set.test.ts
+    exit 0
+
+  Working tree after every plant was removed:
+    $ git status --porcelain -- scripts/
+    (empty)

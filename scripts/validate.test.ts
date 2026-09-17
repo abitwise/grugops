@@ -59,7 +59,9 @@ import {
   declarationOf,
   trackedScriptSources,
   walkedScriptSources,
+  type TsProgram,
   type TsProgramApi,
+  type TsTypeChecker,
 } from "./ts-symbols.test-support.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -1757,7 +1759,7 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
   }
 
   /**
-   * THE TWO HALVES, UNCONJOINED — the input the SCOPE refusal below needs (review WR-04).
+   * THE TWO HALVES, UNCONJOINED — the input the split-reader join below needs (review WR-04).
    *
    * `findTicketReaders` answers about ONE parsed file, so a genuine second authority whose key
    * spellings live in `scripts/a.ts` and whose text scan lives in `scripts/b.ts`, joined by an
@@ -1765,15 +1767,20 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
    * on what a ticket says". 32-36 pinned the over-detection direction and left the converse neither
    * pinned nor stated; the round's own self-review measured the split-file plant as a WORKING
    * authority at exit 0.
+   *
+   * IT NO LONGER COLLECTS IMPORT SPECIFIERS (plan 32.1-04, D-01). It used to return the module
+   * specifier text and the named-binding spellings of every import, and the join compared those
+   * spellings to a table of identifier TEXT. That is the enumeration F-15 walked through: the
+   * collection saw `import { TICKET_KEYS }` and `import { TICKET_KEYS as K }`, and saw NOTHING at
+   * all for `import * as m` or for a two-hop re-export. The join now asks the type checker which
+   * DECLARATION a binding resolves to, so the shape of the import stopped being a question.
    */
   function readerHalves(sf: ts.SourceFile): {
     readonly namesBothKeys: boolean;
     readonly scans: boolean;
-    readonly importsFrom: readonly { readonly specifier: string; readonly names: readonly string[] }[];
   } {
     const findings = new Set<string>();
     const scanNames = new Set<string>();
-    const importsFrom: { specifier: string; names: string[] }[] = [];
     const walk = (n: ts.Node): void => {
       const text = staticText(n);
       if (text !== null) {
@@ -1793,31 +1800,12 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
       ) {
         scanNames.add(n.expression.text);
       }
-      if (
-        (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
-        n.moduleSpecifier !== undefined &&
-        ts.isStringLiteral(n.moduleSpecifier)
-      ) {
-        // THE BINDINGS, NOT ONLY THE MODULE. Importing FROM the one authority is the CORRECT shape
-        // — `validate-agent-factory.ts` deleted its private column parser to do exactly that — so
-        // the module name alone cannot be the question. What matters is whether the imported
-        // BINDING is itself a key-spelling table.
-        const names: string[] = [];
-        const clause = ts.isImportDeclaration(n) ? n.importClause : n.exportClause;
-        const bindings =
-          clause !== undefined && ts.isImportClause(clause) ? clause.namedBindings : clause;
-        if (bindings !== undefined && bindings !== null && ts.isNamedImports(bindings)) {
-          for (const el of bindings.elements) names.push(el.propertyName?.text ?? el.name.text);
-        }
-        importsFrom.push({ specifier: n.moduleSpecifier.text, names });
-      }
       ts.forEachChild(n, walk);
     };
     walk(sf);
     return {
       namesBothKeys: KEY_SPELLINGS.every((k) => findings.has(k)),
       scans: scanNames.size > 0,
-      importsFrom,
     };
   }
 
@@ -1954,78 +1942,200 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
   //
   // THE SCOPE IS STATED AS A REFUSAL rather than widened to the import-joined unit, which is this
   // repository's posture for a question a syntactic pass cannot decide in general: the split shape
-  // is refused BY NAME instead of being invisible. The only way to assemble the pair across files
-  // is for the key spellings to reach the scanning file through an import — a file that re-declares
-  // both keys beside its own scan is already caught by the conjunction. So the join is what gets
-  // asked about.
+  // is refused BY NAME instead of being invisible.
+  //
+  // WHAT THE JOIN DECIDES, AND WHAT IT DOES NOT (plan 32.1-04, D-01 — replacing a totality claim).
+  // Until this plan these lines said "the only way to assemble the pair across files is for the key
+  // spellings to reach the scanning file through an import". That sentence was FALSE, and review
+  // WR-04 disproved it with a working two-file plant running the import the other way: the key
+  // spellings stay in the importing file and the SCANNING half is what arrives. So the claim is
+  // deleted rather than qualified, and what stands in its place is a boundary.
+  //
+  //   DECIDED: whether a file's cross-file BINDING resolves, through the type checker, to a
+  //   DECLARATION that is a key table (the scanner took the key half) or to a DECLARATION that
+  //   reaches a text-scanning primitive in a file that itself scans (the key-namer took the
+  //   scanning half). Both directions are asked, of one loop, by DECLARATION — so a named import,
+  //   a renamed named import, a namespace member access and a two-hop re-export are ONE offender
+  //   rather than one caught and three invisible (finding F-15).
+  //
+  //   NOT DECIDED: whether the keys actually FLOW into that scanner at run time. That is a
+  //   data-flow question a syntactic pass cannot answer in general, so a file that names both keys
+  //   and imports any scanning declaration is NAMED, and the answer to a false positive is a
+  //   recorded exemption with its reason — the same posture NOT_A_SECOND_AUTHORITY already takes.
   // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+  /** The census unit for the split-reader join: one program, its checker, and the files it decides over. */
+  interface SplitCensusInput {
+    readonly program: TsProgram;
+    readonly checker: TsTypeChecker;
+    /** Absolute file names, in the compiler's own spelling. */
+    readonly files: readonly string[];
+    /** Prefix stripped from a file name before it is reported or looked up in the exemption registry. */
+    readonly reportRoot: string;
+  }
+
+  /** The compiler's own path spelling, normalized so a Windows separator compares equal. */
+  const posix = (p: string): string => p.split("\\").join("/");
+
   /**
-   * Every place a SCANNING file takes the ticket key half from another file's exported table.
+   * Every place the ticket-reading pair is assembled ACROSS two files — asked in BOTH directions.
    *
-   * Written over arbitrary rows rather than over `LIVE_ROWS` directly, so the planted case below
-   * can prove the rule DISCRIMINATES. A rule only ever measured against a clean tree is a rule
-   * nobody has watched refuse anything.
+   * Written over a supplied program rather than over the live one directly, so the planted cases
+   * below can prove the rule DISCRIMINATES. A rule only ever measured against a clean tree is a
+   * rule nobody has watched refuse anything.
    */
-  const splitReaderOffenders = (rows: readonly ScannedFile[]): readonly string[] => {
-    const halves = new Map(rows.map((r) => [r.name, readerHalves(parse(r.name, r.text))]));
+  const splitReaderOffenders = (input: SplitCensusInput): readonly string[] => {
+    const api = ts as unknown as TsProgramApi;
+    const files = input.files.map(posix);
+    const inCensus = new Set(files);
+    const shortName = (abs: string): string =>
+      abs.startsWith(input.reportRoot) ? abs.slice(input.reportRoot.length) : abs;
+
+    /** Does any node in this subtree reach a text-scanning primitive? */
+    const reachesTextScan = (node: ts.Node): boolean => {
+      let found = false;
+      const visit = (n: ts.Node): void => {
+        if (found) return;
+        if (
+          ts.isCallExpression(n) &&
+          ts.isPropertyAccessExpression(n.expression) &&
+          looksLikeTextScan(n.expression.name.text)
+        ) {
+          found = true;
+          return;
+        }
+        if (
+          ts.isNewExpression(n) &&
+          ts.isIdentifier(n.expression) &&
+          CONSTRUCTOR_PRIMITIVES.includes(n.expression.text)
+        ) {
+          found = true;
+          return;
+        }
+        ts.forEachChild(n, visit);
+      };
+      visit(node);
+      return found;
+    };
 
     /**
-     * The EXPORTED BINDINGS that are themselves key-spelling tables — the only thing an import can
-     * carry that completes the pair. A module that merely CONTAINS both spellings is not a
-     * supplier: `validate-agent-factory.ts` imports `parseBoard` and `parseTicketDocument` from the
-     * one grammar precisely SO THAT it is not a second authority, and redding that would invert
-     * the rule this census exists to enforce.
+     * THE TWO SUPPLIER SETS, KEYED BY DECLARATION rather than by identifier text.
+     *
+     * A key table is the only thing an import can carry that completes the pair in direction one;
+     * a text-scanning declaration is the only thing that completes it in direction two. A module
+     * that merely CONTAINS a key table is not a supplier of one: `validate-agent-factory.ts`
+     * imports `parseBoard` and `parseTicketDocument` from the one grammar precisely SO THAT it is
+     * not a second authority, and redding that would invert the rule this census enforces.
      */
-    const keyTables = new Map<string, Set<string>>();
-    for (const row of rows) {
-      const sf = parse(row.name, row.text);
-      const named = new Set<string>();
+    const keyTableDecls = new Set<string>();
+    const scanningDecls = new Set<string>();
+    const halves = new Map<string, { namesBothKeys: boolean; scans: boolean }>();
+    const declKey = (fileName: string, name: string): string => `${posix(fileName)}#${name}`;
+
+    for (const abs of files) {
+      const sf = input.program.getSourceFile(abs) as ts.SourceFile | undefined;
+      if (sf === undefined) continue;
+      halves.set(abs, { ...readerHalves(sf) });
       const visit = (n: ts.Node): void => {
         if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer !== undefined) {
           const text = n.initializer.getText(sf);
-          if (KEY_SPELLINGS.every((k) => namesKey(text, k))) named.add(n.name.text);
+          if (KEY_SPELLINGS.every((k) => namesKey(text, k))) {
+            keyTableDecls.add(declKey(abs, n.name.text));
+          }
+          if (reachesTextScan(n.initializer)) scanningDecls.add(declKey(abs, n.name.text));
+        }
+        if (ts.isFunctionDeclaration(n) && n.name !== undefined && reachesTextScan(n)) {
+          scanningDecls.add(declKey(abs, n.name.text));
         }
         ts.forEachChild(n, visit);
       };
       visit(sf);
-      if (named.size > 0) keyTables.set(row.name, named);
     }
 
-    /** Resolve a relative specifier to the scanned-set name it points at, or null. */
-    const resolveScanned = (from: string, specifier: string): string | null => {
-      if (!specifier.startsWith(".")) return null;
-      const fromDir = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "";
-      const parts = (fromDir === "" ? specifier : `${fromDir}/${specifier}`).split("/");
-      const out: string[] = [];
-      for (const part of parts) {
-        if (part === "." || part === "") continue;
-        if (part === "..") out.pop();
-        else out.push(part);
+    /**
+     * The REFERENCE SITES a cross-file binding can enter this file through — collected as nodes and
+     * handed to the checker, never matched as text.
+     *
+     * Named and default import bindings, and `export { X } from …` re-export specifiers, are asked
+     * at their own name node: `followAlias` walks the whole re-export chain, so a two-hop barrel
+     * lands on the declaration the ORIGINAL module writes. A namespace import declares a LOCAL
+     * name, so its local spelling is read off this file's own syntax (exact, not a cross-file text
+     * match) and every `local.member` access under it is asked of the checker.
+     */
+    const referenceSites = (sf: ts.SourceFile): ts.Node[] => {
+      const sites: ts.Node[] = [];
+      const namespaceLocals = new Set<string>();
+      const collect = (n: ts.Node): void => {
+        if (ts.isImportDeclaration(n) && n.importClause !== undefined) {
+          const clause = n.importClause;
+          if (clause.name !== undefined) sites.push(clause.name);
+          const bindings = clause.namedBindings;
+          if (bindings !== undefined) {
+            if (ts.isNamespaceImport(bindings)) namespaceLocals.add(bindings.name.text);
+            else for (const el of bindings.elements) sites.push(el.name);
+          }
+        }
+        if (
+          ts.isExportDeclaration(n) &&
+          n.moduleSpecifier !== undefined &&
+          n.exportClause !== undefined &&
+          ts.isNamedExports(n.exportClause)
+        ) {
+          for (const el of n.exportClause.elements) sites.push(el.name);
+        }
+        ts.forEachChild(n, collect);
+      };
+      collect(sf);
+      if (namespaceLocals.size > 0) {
+        const visit = (n: ts.Node): void => {
+          if (
+            ts.isPropertyAccessExpression(n) &&
+            ts.isIdentifier(n.expression) &&
+            namespaceLocals.has(n.expression.text)
+          ) {
+            sites.push(n.name);
+          }
+          ts.forEachChild(n, visit);
+        };
+        visit(sf);
       }
-      // The repository imports its own modules by their BUILT `.js` name; the scanned set is `.ts`.
-      const joined = out.join("/").replace(/\.js$/, ".ts");
-      return halves.has(joined) ? joined : null;
+      return sites;
     };
 
     const offenders: string[] = [];
-    for (const [name, h] of halves) {
-      // A file that names both keys itself is already the conjunction's subject; only a file that
-      // SCANS without naming them can be completing the pair through an import.
-      if (!h.scans || h.namesBothKeys) continue;
-      if (Object.hasOwn(NOT_A_SECOND_AUTHORITY, name)) continue;
-      for (const imp of h.importsFrom) {
-        const target = resolveScanned(name, imp.specifier);
-        if (target === null || target === name) continue;
-        const tables = keyTables.get(target);
-        if (tables === undefined) continue;
-        for (const binding of imp.names) {
-          if (tables.has(binding)) {
-            offenders.push(`${name} takes the key half from ${target} as \`${binding}\``);
-          }
+    for (const abs of files) {
+      const sf = input.program.getSourceFile(abs) as ts.SourceFile | undefined;
+      const h = halves.get(abs);
+      if (sf === undefined || h === undefined) continue;
+      if (Object.hasOwn(NOT_A_SECOND_AUTHORITY, shortName(abs))) continue;
+      // ONE loop, BOTH directions. A second loop for the converse is a second place for the two
+      // directions to drift apart, which is the shape of the defect being closed here.
+      for (const site of referenceSites(sf)) {
+        const decl = declarationOf(api, input.checker, site);
+        if (decl === null) continue;
+        const target = posix(decl.fileName);
+        if (target === abs || !inCensus.has(target)) continue;
+        const key = declKey(target, decl.name);
+        if (h.scans && !h.namesBothKeys && keyTableDecls.has(key)) {
+          offenders.push(
+            `${shortName(abs)} SCANS text and takes the KEY half from ${shortName(target)} as ` +
+              `\`${decl.name}\``,
+          );
+        }
+        if (
+          h.namesBothKeys &&
+          !h.scans &&
+          scanningDecls.has(key) &&
+          halves.get(target)?.scans === true
+        ) {
+          offenders.push(
+            `${shortName(abs)} NAMES both key spellings and takes the SCANNING half from ` +
+              `${shortName(target)} as \`${decl.name}\``,
+          );
         }
       }
     }
-    return offenders;
+    return [...offenders].sort();
   };
 
   // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -2040,10 +2150,12 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
   //
   // THE SCOPE IS STATED AS A REFUSAL rather than widened to the import-joined unit, which is this
   // repository's posture for a question a syntactic pass cannot decide in general: the split shape
-  // is refused BY NAME instead of being invisible. The only way to assemble the pair across files
-  // is for the key spellings to reach the scanning file through an import — a file that re-declares
-  // both keys beside its own scan is already caught by the conjunction. So the join is what gets
-  // asked about, and the BINDING is what is asked about, not the module.
+  // is refused BY NAME instead of being invisible. What the join DECIDES is whether a cross-file
+  // BINDING resolves, through the type checker, to a key-table declaration or to a text-scanning
+  // declaration — in either import direction. What it does NOT decide is whether the keys reach
+  // that scanner at run time; that is data flow, and it is left to a recorded exemption. The
+  // sentence that used to stand here claiming the converse direction was impossible is DELETED:
+  // review WR-04 disproved it with a working two-file plant (plan 32.1-04, D-01).
   // ═══════════════════════════════════════════════════════════════════════════════════════════
   it("the exemption lookup is an OWN-property test, not a raw read of a frozen object", () => {
     // REVIEW WR-04, second defect — RECORDED WITH ITS REAL REACH, which is narrower than the review
@@ -2098,80 +2210,215 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
     ).toEqual([]);
   });
 
-  it("no scanning file reaches the key spellings through an IMPORT from another scanned file", () => {
-    expect(
-      LIVE_ROWS.length,
-      "PREMISE: nothing was scanned, so the refusal below refused nothing",
-    ).toBeGreaterThan(10);
+  /** The live census's input: the shared program, its checker, and every tracked `scripts/` source. */
+  const liveSplitCensus = (): SplitCensusInput | null => {
+    const built = scriptsProgram();
+    if (!built.ok) return null;
+    return {
+      program: built.context.program,
+      checker: built.context.checker,
+      files: trackedScriptSources(ROOT)
+        .filter((rel) => !rel.startsWith("scripts/runnable-ref/fixtures/"))
+        .map((rel) => posix(join(ROOT, rel))),
+      reportRoot: `${posix(SCRIPTS_DIR)}/`,
+    };
+  };
 
-    const offenders = splitReaderOffenders(LIVE_ROWS);
+  it("no scanning file reaches the key spellings through an IMPORT from another scanned file", () => {
+    const census = liveSplitCensus();
+    expect(
+      census,
+      "PREMISE: the shared program could not be built, so the join below decided nothing at all",
+    ).not.toBeNull();
+    if (census === null) return;
+    expect(
+      census.files.length,
+      "PREMISE: nothing was scanned, so the refusal below refused nothing",
+    ).toBeGreaterThan(100);
+
+    const offenders = splitReaderOffenders(census);
     expect(
       offenders,
-      `a file that SCANS text reaches the ticket key spellings through an import: ` +
-        `${offenders.join(" | ")}. The one-authority census asks its question of a single parsed ` +
-        "file, so a reader assembled across two files satisfies every check it makes while being " +
-        "a second authority on what a ticket says. Either fold the reader back into the one " +
-        "authority, or record the join here as a named decision the way NOT_A_SECOND_AUTHORITY " +
-        "records a file",
+      `the ticket-reading pair is assembled ACROSS two files: ${offenders.join(" | ")}. The ` +
+        "one-authority census asks its question of a single parsed file, so a reader assembled " +
+        "across two files satisfies every check it makes while being a second authority on what a " +
+        "ticket says. Either fold the reader back into the one authority, or record the join here " +
+        "as a named decision the way NOT_A_SECOND_AUTHORITY records a file",
     ).toEqual([]);
   });
 
-  it("the split-across-files refusal DISCRIMINATES: the planted pair is caught, the legitimate one is not", () => {
-    // THE PLANT THE ROUND'S OWN SELF-REVIEW MEASURED AT EXIT 0. The key spellings live in one file
-    // and the text scan in another, joined by an ordinary import — a working second authority that
-    // `findTicketReaders` cannot see, because its subject is one parsed file.
-    const planted: readonly ScannedFile[] = [
-      {
-        name: "plant-keys.ts",
-        text: 'export const TICKET_FIELDS = ["column", "status"] as const;\n',
-      },
-      {
-        name: "plant-scan.ts",
-        text:
-          'import { TICKET_FIELDS } from "./plant-keys.js";\n' +
-          "export function readTicket(text: string): Record<string, string> {\n" +
-          "  const out: Record<string, string> = {};\n" +
-          "  for (const line of text.split('\\n')) {\n" +
-          "    for (const f of TICKET_FIELDS) {\n" +
-          "      if (line.startsWith(`${f}:`)) out[f] = line.slice(f.length + 1).trim();\n" +
-          "    }\n" +
-          "  }\n" +
-          "  return out;\n" +
-          "}\n",
-      },
-    ];
+  // ── THE JOIN DISCRIMINATES, ON FOUR SHAPES AND IN BOTH DIRECTIONS (plan 32.1-04) ───────────────
+  //
+  // Every plant is GENERATED into a temp mirror whose key-table half is the LIVE
+  // `scripts/board-model.ts` and whose converse half is the LIVE `scripts/board-corpus.ts`, read off
+  // disk at test time — never an authored fixture, so a plant cannot drift away from the thing it
+  // copies. The seeded lines are the mutation, in the shape
+  // `scripts/context-io-writer-set.test.ts` established for its own derivation.
+  //
+  // Measured against the PRE-CUTOVER rule and recorded in `32.1-04-RED-baseline.txt`: the namespace
+  // import, the two-hop re-export and the converse direction all walked through at exit 0, and only
+  // the renamed named import — the control — was refused. All four are refused here.
 
-    expect(
-      findTicketReaders(parse("plant-scan.ts", planted[1]?.text ?? "")),
-      "PREMISE: the file-scoped census must be BLIND to this plant, or the refusal below is not " +
-        "closing the gap it claims to close",
-    ).toEqual([]);
+  /** The compiler options a plant mirror is read under: NodeNext, so `./x.js` resolves to `x.ts`. */
+  const PLANT_OPTIONS: ts.CompilerOptions = {
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    target: ts.ScriptTarget.ES2022,
+    noEmit: true,
+    skipLibCheck: true,
+  };
 
-    expect(
-      splitReaderOffenders(planted),
-      "the planted split reader was NOT refused, so the scope statement is decorative",
-    ).toEqual(["plant-scan.ts takes the key half from plant-keys.ts as `TICKET_FIELDS`"]);
+  const PLANT_MIRRORS: string[] = [];
+  afterAll(() => {
+    for (const dir of PLANT_MIRRORS) rmSync(dir, { recursive: true, force: true });
+  });
 
-    // THE CONVERSE, and the reason the BINDING is the subject rather than the module: importing the
-    // one grammar's own functions is the CORRECT shape, and must not red.
-    const legitimate: readonly ScannedFile[] = [
-      {
-        name: "plant-keys.ts",
-        text:
-          'export const TICKET_FIELDS = ["column", "status"] as const;\n' +
-          "export const parseIt = (t: string): string => t.trim();\n",
-      },
-      {
-        name: "plant-user.ts",
-        text:
-          'import { parseIt } from "./plant-keys.js";\n' +
-          "export const use = (t: string): string => parseIt(t).split(':')[0] ?? '';\n",
-      },
-    ];
+  /**
+   * Write a plant mirror and build a census input over exactly its files.
+   *
+   * The program is built HERE rather than through `createScriptsProgram` because that function is
+   * pinned, by design, to this repository's own tracked `scripts/` set — and a plant is by
+   * construction not tracked. What is NOT rebuilt here is the RESOLUTION: `splitReaderOffenders`
+   * asks `declarationOf` either way, so the one authority over "which declaration is this name"
+   * still answers for the plants.
+   */
+  const plantCensus = (files: Readonly<Record<string, string>>): SplitCensusInput => {
+    const dir = mkdtempSync(join(tmpdir(), "split-reader-plant-"));
+    PLANT_MIRRORS.push(dir);
+    writeFileSync(join(dir, "package.json"), '{"type":"module"}\n');
+    const abs: string[] = [];
+    for (const [name, text] of Object.entries(files)) {
+      writeFileSync(join(dir, name), text);
+      abs.push(posix(join(dir, name)));
+    }
+    const host = ts.createCompilerHost(PLANT_OPTIONS, true);
+    const program = ts.createProgram({ rootNames: abs, options: PLANT_OPTIONS, host });
+    return {
+      program: program as unknown as TsProgram,
+      checker: program.getTypeChecker() as unknown as TsTypeChecker,
+      files: abs,
+      reportRoot: `${posix(dir)}/`,
+    };
+  };
+
+  /** A reader that scans ticket text with whatever key table the expression names. */
+  const scanningReader = (keyExpression: string): string =>
+    "export function readTicket(text: string): Record<string, string> {\n" +
+    "  const out: Record<string, string> = {};\n" +
+    '  for (const line of text.split("\\n")) {\n' +
+    `    for (const f of ${keyExpression}) {\n` +
+    "      if (line.startsWith(`${f}:`)) out[f] = line.slice(f.length + 1).trim();\n" +
+    "    }\n" +
+    "  }\n" +
+    "  return out;\n" +
+    "}\n";
+
+  const liveBoardModel = (): string => readFileSync(join(SCRIPTS_DIR, "board-model.ts"), "utf8");
+
+  it("PLANT 1 — a NAMESPACE import of the live key table is refused, and NAMES the offender (F-15)", () => {
+    // F-15's first reproduction. The old join collected NamedImports only, so `import * as model`
+    // carried no binding names at all and this working reader was invisible — measured at exit 0.
+    const census = plantCensus({
+      "board-model.ts": liveBoardModel(),
+      "plant-namespace-reader.ts":
+        'import * as model from "./board-model.js";\n' + scanningReader("model.TICKET_KEYS"),
+    });
     expect(
-      splitReaderOffenders(legitimate),
-      "importing a NON-key binding from a module that happens to also declare a key table was " +
-        "refused. That inverts the rule: using the one authority is the shape this census wants",
+      splitReaderOffenders(census),
+      "a namespace-imported key table walked through the join, so the shape enumeration is still " +
+        "there under a new name",
+    ).toEqual([
+      "plant-namespace-reader.ts SCANS text and takes the KEY half from board-model.ts as " +
+        "`TICKET_KEYS`",
+    ]);
+  });
+
+  it("PLANT 2 — a TWO-HOP re-export of the live key table is refused, and NAMES the offender (F-15)", () => {
+    // F-15's second reproduction. The old join asked whether the IMMEDIATE module declared a key
+    // table; a barrel declares nothing, so the pair reassembled one hop away — measured at exit 0.
+    // `followAlias` walks the whole chain, so the offender is named against the ORIGINAL declaration.
+    const census = plantCensus({
+      "board-model.ts": liveBoardModel(),
+      "plant-barrel.ts": 'export { TICKET_KEYS } from "./board-model.js";\n',
+      "plant-reexport-reader.ts":
+        'import { TICKET_KEYS } from "./plant-barrel.js";\n' + scanningReader("TICKET_KEYS"),
+    });
+    expect(
+      splitReaderOffenders(census),
+      "a key table re-exported through a barrel walked through the join, so the alias chain is not " +
+        "being followed to the declaration",
+    ).toEqual([
+      "plant-reexport-reader.ts SCANS text and takes the KEY half from board-model.ts as " +
+        "`TICKET_KEYS`",
+    ]);
+  });
+
+  it("PLANT 3 — the RENAMED named import stays refused: the control keeps redding", () => {
+    // THE CONTROL. This is the one shape the pre-cutover rule caught (measured at exit 1), and it
+    // must keep redding — a cutover that closes three shapes and drops the fourth has moved the
+    // blind spot rather than closed it.
+    const census = plantCensus({
+      "board-model.ts": liveBoardModel(),
+      "plant-renamed-reader.ts":
+        'import { TICKET_KEYS as K } from "./board-model.js";\n' + scanningReader("K"),
+    });
+    expect(
+      splitReaderOffenders(census),
+      "the renamed named import — the one shape the OLD rule caught — is no longer refused",
+    ).toEqual([
+      "plant-renamed-reader.ts SCANS text and takes the KEY half from board-model.ts as " +
+        "`TICKET_KEYS`",
+    ]);
+  });
+
+  it("PLANT 4 — the CONVERSE direction is refused, and the message states which way the import runs (WR-04)", () => {
+    // WR-04's working two-file plant, seeded onto the live `board-corpus.ts` — which already names
+    // both key spellings and does not scan, so the seed adds only the import and the call. The old
+    // guard clause `if (!h.scans || h.namesBothKeys) continue;` skipped exactly this file, which is
+    // why its banner could claim the direction was impossible. Measured at exit 0 before the cutover.
+    const census = plantCensus({
+      "plant-scanner.ts":
+        "export const valuesFor = (t: string, keys: readonly string[]): Record<string, string> =>\n" +
+        "  Object.fromEntries(\n" +
+        '    t.split("\\n").flatMap((l) => {\n' +
+        '      const [k, v] = l.split(":");\n' +
+        "      return k !== undefined && keys.includes(k) ? [[k, (v ?? \"\").trim()]] : [];\n" +
+        "    }),\n" +
+        "  );\n",
+      "board-corpus.ts":
+        readFileSync(join(SCRIPTS_DIR, "board-corpus.ts"), "utf8") +
+        '\nimport { valuesFor } from "./plant-scanner.js";\n' +
+        "export const seededReadTicket = (t: string): Record<string, string> =>\n" +
+        '  valuesFor(t, ["column", "status"]);\n',
+    });
+    expect(
+      splitReaderOffenders(census),
+      "the converse assembly — the key spellings stay put and the SCANNING half arrives through " +
+        "the import — walked through the join, so only one direction is being asked",
+    ).toEqual([
+      "board-corpus.ts NAMES both key spellings and takes the SCANNING half from plant-scanner.ts " +
+        "as `valuesFor`",
+    ]);
+  });
+
+  it("the legitimate shape is NOT refused: importing a non-key binding from the one authority", () => {
+    // THE CONVERSE OF THE RULE, and the reason the BINDING is the subject rather than the module:
+    // importing the one grammar's own functions is the CORRECT shape — `validate-agent-factory.ts`
+    // deleted its private parser to do exactly that — and redding it would invert this census.
+    //
+    // The importer SCANS (`t.trim()`) and names no key, so it is squarely inside direction one's
+    // subject: the only thing keeping it out of the offender list is that `parseTicketDocument` is
+    // not a key-table DECLARATION. A rule that asked about the module instead would red here.
+    const census = plantCensus({
+      "board-model.ts": liveBoardModel(),
+      "plant-user.ts":
+        'import { parseTicketDocument } from "./board-model.js";\n' +
+        "export const use = (t: string): unknown => parseTicketDocument(t.trim());\n",
+    });
+    expect(
+      splitReaderOffenders(census),
+      "importing a NON-key binding from the module that declares the one key table was refused. " +
+        "That inverts the rule: using the one authority is the shape this census wants",
     ).toEqual([]);
   });
 
