@@ -1411,14 +1411,21 @@ describe("WR-03 — the watch is opened on the path that was CHECKED", () => {
   /** A loop whose containment seam resolves every directory to a DIFFERENT real path. */
   const loopOverSeam = (
     contained: LoopDeps["contained"],
-  ): { loop: Loop; opened: string[] } => {
+  ): { loop: Loop; opened: string[]; probed: string[] } => {
     const opened: string[] = [];
+    // EVERY PATH THE LIVENESS GATE WAS ASKED ABOUT, recorded rather than described. The two
+    // consumers of one containment decision are measured from the arm's own calls, so a future
+    // edit that re-introduces a second spelling reds against what the arm did (F-20).
+    const probed: string[] = [];
     const deps: LoopDeps = {
       watch: (dir) => {
         opened.push(dir);
         return { close: () => undefined, on: () => undefined } as WatchHandle;
       },
-      exists: () => true,
+      exists: (p) => {
+        probed.push(p);
+        return true;
+      },
       contained,
       read: () => stubResult(1),
     };
@@ -1428,7 +1435,7 @@ describe("WR-03 — the watch is opened on the path that was CHECKED", () => {
       deps,
     );
     loop.seed(stubResult(0));
-    return { loop, opened };
+    return { loop, opened, probed };
   };
 
   it("opens `contained.real`, not the spelling the check started with", () => {
@@ -1452,6 +1459,45 @@ describe("WR-03 — the watch is opened on the path that was CHECKED", () => {
       "a handle was opened on the UNRESOLVED spelling after the RESOLVED path was the thing " +
         "vouched for. That is the check-then-open race insideRoot's docblock exists to forbid",
     ).toEqual([]);
+  });
+
+  it("asks the LIVENESS GATE about the path the handle is opened on (F-20, ledger row 206)", () => {
+    // ONE CONTAINMENT DECISION, ONE SPELLING. `insideRoot` resolves the whole target and vouches
+    // for `decision.real`; the arm opened that and then asked whether the UNRESOLVED `dir` existed,
+    // so one decision had two consumers with a window between them.
+    //
+    // THE FINDING'S OWN BOUND, MEASURED RATHER THAN OVERSTATED (32-40 § 12). `existsSync` follows
+    // links, so for every input except a swap landing between the two calls the two spellings
+    // answer identically; the HANDLE — the thing that can hold a path open — was already on the
+    // resolved spelling; and the watch callback ignores the `filename` argument, so no content
+    // crosses the seam in either case. What this closes is a window, not a live hole.
+    //
+    // BOTH LISTS ARE RECORDED FROM THE ARM, not asserted in prose: the seam vouches for a path
+    // that differs from the one it was handed, which is what `insideRoot` does whenever any
+    // component of the path is a symlink, and the two consumers are then compared against each
+    // other rather than against a spelling written here.
+    const { loop, opened, probed } = loopOverSeam((_root, dir) => ({
+      ok: true as const,
+      real: `${dir}__RESOLVED`,
+    }));
+    loop.armAll();
+
+    expect(
+      probed.length,
+      "PREMISE: the liveness gate was never asked about any path, so 'it asks about the resolved " +
+        "one' is true of an arm that asked nothing",
+    ).toBeGreaterThan(0);
+    expect(
+      opened.length,
+      "PREMISE: no handle was opened, so the comparison below is between two empty lists",
+    ).toBeGreaterThan(0);
+    expect(
+      [...new Set(probed)].sort(),
+      "the liveness gate and the handle consume two DIFFERENT spellings of one containment " +
+        "decision. The gate on the left is the path the arm asked about; the handle on the right " +
+        "is the path it then opened. A decision taken once and consumed twice is a window between " +
+        "the two calls, which is the shape insideRoot's docblock exists to forbid",
+    ).toEqual([...new Set(opened)].sort());
   });
 
   it("a NON-containment refusal is recorded, rather than silently dropping the directory", () => {

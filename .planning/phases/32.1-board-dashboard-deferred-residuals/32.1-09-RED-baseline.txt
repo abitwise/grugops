@@ -143,7 +143,52 @@ from a byte copy; `git status --porcelain -- scripts/` named only
 `scripts/board-model.test.ts`, which is this plan's own work.
 
 
-SECTION 4 — PLANT 4: the liveness gate reverted to the unresolved spelling (F-20)
----------------------------------------------------------------------------------
+SECTION 4 — PLANT 4: the liveness gate on the unresolved spelling (F-20, ledger row 206)
+-----------------------------------------------------------------------------------------
 
-This section is written by Task 3. See below.
+The reverted state here is the LIVE PRE-FIX SOURCE rather than a synthetic mirror: the
+case was written and run BEFORE `scripts/board-dashboard.ts` moved its liveness gate, so
+the arm under measurement is the one the finding names, byte for byte. The seam vouches
+for a path that differs from the one it was handed — which is what `insideRoot` does
+whenever any component of the path is a symlink — and the two consumers are then compared
+against each other.
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch.test.ts -t "LIVENESS GATE"
+
+   FAIL  scripts/board-watch.test.ts > WR-03 — the watch is opened on the path that was
+         CHECKED > asks the LIVENESS GATE about the path the handle is opened on (F-20,
+         ledger row 206)
+  AssertionError: the liveness gate and the handle consume two DIFFERENT spellings of one
+  containment decision. The gate on the left is the path the arm asked about; the handle
+  on the right is the path it then opened. A decision taken once and consumed twice is a
+  window between the two calls, which is the shape insideRoot's docblock exists to forbid:
+  expected [ '/repo/.grugops/context', …(5) ] to deeply equal [ …(6) ]
+
+  - Expected
+  + Received
+
+    [
+  -   "/repo/.grugops/context__RESOLVED",
+  -   "/repo/.grugops/queue/claimed__RESOLVED",
+  -   "/repo/.grugops/queue/done__RESOLVED",
+  -   "/repo/.grugops/queue/pending__RESOLVED",
+  -   "/repo/plans/tickets__RESOLVED",
+  -   "/repo/plans__RESOLVED",
+  +   "/repo/.grugops/context",
+  +   "/repo/.grugops/queue/claimed",
+  +   "/repo/.grugops/queue/done",
+  +   "/repo/.grugops/queue/pending",
+  +   "/repo/plans",
+  +   "/repo/plans/tickets",
+    ]
+
+   Test Files  1 failed (1)
+        Tests  1 failed | 51 skipped (52)
+
+Both consumers are named, and the six directories are listed on both sides, so the red
+says WHICH spellings disagreed rather than only THAT they did.
+
+A second observation worth recording, because it is a trap the next reader will meet: the
+suite imports the COMPILED `scripts/board-dashboard.js`. Editing the `.ts` alone left this
+case red with an unchanged message. `npm run build` is what turned it green, which is the
+same fact `check:build-parity` exists to hold.

@@ -1,0 +1,140 @@
+32.1-09 GREEN PROOF — WR-01 closed, F-20 closed, and the gates that hold them
+==============================================================================
+
+Plan: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-09-PLAN.md
+Tree: main, 2026-09-18.
+Paired RED transcript: 32.1-09-RED-baseline.txt (four plants, every message verbatim).
+
+`npm test` was NOT run at any point: it launches the live claude-CLI lane.
+
+
+1. THE TARGETED SUITES
+-----------------------
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+   Test Files  1 passed (1)
+        Tests  175 passed (175)
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-watch.test.ts \
+        scripts/board-dashboard.test.ts
+   Test Files  2 passed (2)
+        Tests  130 passed (130)
+
+The seven cases this plan added are among them: four in the new
+"board-model — the contract's watch paragraph and the watch arm's disposition
+(plan 32.1-09, D-18)" block, three in "32.1-09 — the watch-paragraph equality is a
+control, not a coincidence", and one in board-watch's WR-03 block.
+
+
+2. THE FULL REGRESSION LANE
+----------------------------
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'
+   Test Files  75 passed (75)
+        Tests  5224 passed | 2 skipped (5226)
+   Duration  470.44s
+
+The lane stood at 75 files / 5216 passed before this plan (recorded in
+32.1-05-SUMMARY.md). 5216 + 8 = 5224, and this plan added exactly eight cases: seven
+in board-model.test.ts and one in board-watch.test.ts. The arithmetic is stated rather
+than the file count alone, because a count that only went UP says nothing about whether
+something else went down.
+
+The lane prints several lines beginning `FAIL` while passing. Those are the refusal
+MESSAGES that discrimination cases assert on, printed by the guards under test; the
+Test Files line is the verdict.
+
+
+3. THE PROSE AND DISPOSITION GATES (Task 1)
+--------------------------------------------
+
+  $ npm run check:imperative-lexicon      ALL CHECKS PASSED
+        corpus: 49 file(s) in 4 part(s) — workflows 19, checklists 14,
+        seedTemplates 13, contracts 3
+        3793 sentence(s) — 528 procedural, 3265 descriptive; by finding kind: none
+  $ npm run check:banned-claims           ALL CHECKS PASSED
+        0 findings over 120/120 elements
+  $ npm run check:public-docs             ALL CHECKS PASSED
+        11 public document(s) carry zero retired vocabulary
+  $ npm run check:claim-anchors           ALL CHECKS PASSED
+        47 registry row(s), 47 verbatim comparison(s), all byte-identical
+  $ npm run check:nul-bytes               ALL CHECKS PASSED
+        2333 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte
+
+No output line of any of the five named `agent-factory/contracts/board.md`.
+
+  $ npm run check:diff-disposition        ALL CHECKS PASSED
+        watched corpus: 40 markdown file(s) of the 41-entry LANG-03 safety-surface union
+        39 watched file(s) changed since 4d2b8f0; 2273 changed clause(s) derived
+        PASS diff disposition — 0 findings over 39/39 elements
+
+CORPUS MEMBERSHIP, MEASURED RATHER THAN ASSUMED. The plan requires this answered by
+measurement, so it was:
+
+  $ grep -c "contracts/board.md" docs/audit/28-safety-surface-exclusions.md
+  0
+
+`docs/audit/28-safety-surface-exclusions.md` IS the LANG-03 safety-surface union the
+disposition gate watches, and the contract appears in it zero times. The gate's own
+corpus accounting agrees and is exhaustive: 36 derived kit files (17 roles + 19
+workflows) + 3 registry-arm `kind: safety` claims + 1 uncounted `safety_surface: yes`
+register row = 40 watched markdown files, with 1 non-markdown entry named and unwatched.
+No contract document is among them. This edit therefore needed no disposition row, and
+that is a measurement, not an expectation.
+
+
+4. TYPECHECK, BUILD AND PARITY (Task 3)
+----------------------------------------
+
+  $ npm run typecheck                     (exit 0, no output)
+  $ npm run build                         (exit 0)
+  $ npm run check:build-parity            ALL CHECKS PASSED
+        Build parity: 0 finding(s) over 66 elements
+
+RECORDED HONESTLY: on the first attempt this gate reported one finding —
+`scripts/board-dashboard.js moved when the build ran` — because the rebuilt output had
+not yet been committed beside its source. It passes once the pair is committed together,
+which is the invariant the gate exists to hold.
+
+  $ npm run freshness:hook-manifest
+  Hook manifest fresh: 2 decider(s), 26 module hash(es) match a fresh derivation.
+
+`scripts/board-dashboard.js` is not among the hashed deciders, so no manifest
+regeneration was owed.
+
+
+5. THE DOCUMENT-MODE SMOKE
+---------------------------
+
+The plan's smoke asserts `schemaVersion !== 1`. That literal is STALE on this tree: the
+board moved to schema version 2 at plan 32-33, and plan 32.1-07 already recorded the same
+correction. Run against the plan's literal, the smoke fails on a true document:
+
+  Error: schemaVersion=2
+
+Re-run deriving the version from the module, which is the form 32.1-07 settled on:
+
+  $ node scripts/board-dashboard.js . --once --json | node --input-type=module -e "
+      import { SCHEMA_VERSION } from './scripts/board-model.js'; …"
+  one parseable json document, schemaVersion 2 — derived from SCHEMA_VERSION, not from a literal
+
+Exactly one document, it parses, and its schema version equals the constant the module
+declares. The output is unchanged by this plan.
+
+
+6. WHAT THE TWO FINDINGS NOW REST ON
+-------------------------------------
+
+WR-01. `agent-factory/contracts/board.md` states the partition the containment authority
+produces, and the statement is no longer kept true by eye: a bounded, derived, floored
+equality compares the paragraph against the arm in both directions on every run, and
+three committed plants prove it discriminates (the arm's dispositions swapped, the
+paragraph alone dropping a code, the derived set emptied). The contract change and that
+detector are in one commit — `git show --stat 8e3e3009` names both
+`agent-factory/contracts/board.md` and `scripts/board-model.test.ts`.
+
+F-20. The watch arm's liveness gate and its handle now consume one value from one
+containment decision. A case records both consumers from the arm's own calls and compares
+them, so the unresolved spelling cannot return unnoticed. The finding's measured bound is
+written into the code beside the change and is not overstated: this removes a window
+between two calls; it does not close a live hole.

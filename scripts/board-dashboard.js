@@ -930,7 +930,18 @@ export function createLoop(options, io, deps) {
         }
         if (watchers.has(rel))
             return;
-        if (!deps.exists(dir)) {
+        // ASK THE LIVENESS GATE ABOUT THE PATH THE HANDLE WILL BE OPENED ON (F-20, ledger row 206).
+        // `decision.real` is what `insideRoot` resolved and vouched for, and `deps.watch` below opens
+        // exactly that. Asking this gate about `dir` made one containment decision into two consumers
+        // with a window between them — the same two-spellings shape WR-03 closed at the handle.
+        //
+        // THE BOUND IS RECORDED RATHER THAN OVERSTATED, because an honest ledger is the point.
+        // `existsSync` follows links, so for every input except a swap landing between these two calls
+        // the two spellings answer identically; the HANDLE — the thing that can hold a path open — was
+        // already on the resolved spelling before this change; and the listener ignores its
+        // `filename` argument, so no content crosses the seam in either case. This removes a window.
+        // It does not close a live hole, and saying so is what keeps the finding's disposition honest.
+        if (!deps.exists(decision.real)) {
             // IT MAY APPEAR LATER; A POLL TICK WILL ARM IT THEN — and an absent directory is not a failed
             // watch, so any record this directory was carrying is dropped rather than left standing as a
             // current finding about a path that is not there.
