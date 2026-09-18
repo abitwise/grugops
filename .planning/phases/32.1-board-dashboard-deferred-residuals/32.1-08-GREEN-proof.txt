@@ -1,0 +1,244 @@
+32.1-08 GREEN PROOF
+===================
+
+Phase 32.1, plan 08, task 3. What the runtime probe SAW against the
+post-rewrite dashboard closure, and what a runtime probe over this corpus
+STRUCTURALLY CANNOT see -- each with the reason and the authority that does or
+does not cover it.
+
+The second half is the part ledger rows 184 and 208 rest on. Plan 11 passes
+those sentences verbatim to `gsd-tools windows waive`, which is ONE-SHOT and
+OVERWRITES the reason cell, so a sentence still being drafted when the verb
+runs is a sentence nobody can correct afterwards. They are written here,
+finished, before the verb is called.
+
+THIS PLAN DID NOT TOUCH THE LEDGER. `git diff --exit-code -- .planning/WINDOWS.md`
+exits 0 (measured below). Both of the ledger's representations are rendered by
+the tool from one set of entries and its frontmatter counters are cross-checked
+against them, so a hand edit throws `WINDOWS_LEDGER_MALFORMED` rather than
+landing. Plan 11 owns every ledger mutation in this phase.
+
+Machine: darwin 25.5.0, node 24.12.0, vitest 4.1.8.
+
+
+-------------------------------------------------------------------------------
+Section 1 -- what Node's own loader observed, measured after the rewrite
+-------------------------------------------------------------------------------
+
+The loader oracle (`scripts/loader-oracle.test-support.ts`, D-09, landed by plan
+32.1-01) registers a synchronous `resolve` hook in a CHILD node process and
+imports `scripts/board-dashboard.js` once. A child is required: Vite intercepts
+an in-test dynamic import, so a hook registered inside a vitest file records
+ZERO events and every equality built on it is vacuously true.
+
+This measurement is taken against the parser plan 32.1-06 installed and the
+registers plan 32.1-08 reconciled -- not against the one round 4 of Phase 32
+found blind.
+
+  resolve events                14
+                                  1 of them is the harness resolving the entry
+                                  (parent = the temporary oracle.mjs); the other
+                                  13 are edges inside the corpus, which is the
+                                  number plan 32.1-01 recorded.
+
+  module set (5, sorted)        scripts/board-dashboard.js
+                                scripts/board-model.js
+                                scripts/board-read.js
+                                scripts/is-entry.js
+                                scripts/kit-model.js
+
+  static closure (5, sorted)    identical, element for element
+                                (jsImportClosure(ROOT, "scripts/board-dashboard.js"))
+
+  builtin identity set (3)      fs, path, url
+  static bare identities (3)    fs, path, url        -- identical
+
+  working-tree equality         treeBefore === treeAfter: TRUE
+                                `git status --porcelain` immediately before the
+                                load is byte-identical to immediately after.
+                                The corpus load mutated nothing.
+
+The resolve events in order, parent -> specifier:
+
+   1  oracle.mjs                  -> scripts/board-dashboard.js   (harness entry)
+   2  scripts/board-dashboard.js  -> node:fs
+   3  scripts/board-dashboard.js  -> node:path
+   4  scripts/board-dashboard.js  -> ./board-read.js
+   5  scripts/board-read.js       -> node:fs
+   6  scripts/board-read.js       -> node:path
+   7  scripts/board-read.js       -> ./board-model.js
+   8  scripts/board-read.js       -> ./kit-model.js
+   9  scripts/kit-model.js        -> node:fs
+  10  scripts/kit-model.js        -> node:path
+  11  scripts/board-dashboard.js  -> ./is-entry.js
+  12  scripts/is-entry.js         -> node:fs
+  13  scripts/is-entry.js         -> node:url
+  14  scripts/board-dashboard.js  -> ./board-model.js
+
+Two authorities obtained from different libraries agree on this closure: a
+TypeScript parse of the committed bytes, and Node's own ESM resolver asked at
+run time. That is the half of ledger row 208 a runtime probe CLOSES.
+
+
+-------------------------------------------------------------------------------
+Section 2 -- the three classes a runtime probe over this corpus cannot observe
+-------------------------------------------------------------------------------
+
+Each class is stated with the REASON it is unobservable and the AUTHORITY that
+does or does not cover it. A reason is structural, never a schedule: "nobody
+has got to it" is not a reason a waive may rest on.
+
+CLASS 1 -- A WRITER VALUE PASSED AT RUN TIME.  (ledger row 208)
+
+  What it is: a function that writes is handed to a closure module as an
+  argument, a property, or a captured binding, rather than imported by it.
+
+  Why the probe cannot see it: the module identity never enters the resolver.
+  A `resolve` hook observes module RESOLUTION -- a specifier being turned into
+  a URL -- and a value passed between two already-resolved modules produces no
+  resolution at all. There is no event to record, so no recording, however
+  complete, contains one.
+
+  The authority that DOES cover it: the static acquisitions census in
+  `scripts/board-readonly.test.ts`. It refuses every route by which a module
+  identity could be obtained other than a static import declaration with a
+  string-literal specifier, and task 1 of this plan restored its second
+  predicate -- a bare specifier the runtime does not resolve as a builtin is
+  now an acquisition, so the write-detection mechanism reds for it rather than
+  a census count moving. The residual the census does not cover is a writer
+  value that arrives through a parameter of an exported function, which is a
+  property of the CALLER rather than of this closure.
+
+CLASS 2 -- A DEPENDENCY THAT DOES NOT EXIST YET.  (ledger row 208)
+
+  What it is: a `node_modules` package a future commit adds and a closure
+  module then imports.
+
+  Why the probe cannot see it: a recording is a measurement of what THIS corpus
+  loads on THIS tree at THIS commit. It is a statement in the past tense about
+  five files. A specifier a future change introduces is not absent from the
+  recording because the probe looked and found nothing; it is absent because
+  there was nothing to look at. No probe can enumerate a set that does not
+  exist.
+
+  The authority that DOES cover it: the standing control in
+  `scripts/board-readonly.test.ts` -- `package.json` still has no
+  `dependencies` key, asserted as a failing case, so the day a runtime
+  dependency appears the guard reds at that commit rather than silently
+  reporting a closure short by everything under `node_modules`. Task 1's
+  restored predicate is the second half: a bare specifier that is a PACKAGE
+  identity rather than a builtin is refused by the acquisitions premise even if
+  the manifest gained a key.
+
+CLASS 3 -- A KEY SPELLING ASSEMBLED AT RUN TIME.  (ledger row 184)
+
+  What it is: a ticket-frontmatter key built by `String.fromCharCode`, through
+  a template with substitutions, or read from a variable, in a file that also
+  scans text -- a second ticket-frontmatter reader the split-reader census
+  cannot name.
+
+  Why NEITHER authority covers it: the static census sees EXPRESSIONS and the
+  question is about VALUES -- the spelling does not exist until the program
+  runs, so a static pass has nothing to resolve. And the runtime probe observes
+  MODULE RESOLUTION, not string construction: a key assembled inside a module
+  that Node has already resolved produces no resolve event, so the recording is
+  silent about it for the same reason it is silent about class 1. Two
+  authorities, one gap, and it is the same gap seen from two sides.
+
+  What IS measured: zero carriers on this tree. The census's own case,
+  `it("does NOT see a reader whose key spellings are assembled at RUNTIME -- the
+  stated blind spot")` at `scripts/validate.test.ts:3088`, plants a
+  `String.fromCharCode` shape and asserts the census reports nothing -- so the
+  boundary is pinned by a passing case rather than left to be discovered. Plan
+  32-36's `[...].join(sep)` arm closed the STATIC half (a key assembled by
+  joining literal characters now resolves and is counted). The rest is not
+  closable by one more resolution arm.
+
+
+-------------------------------------------------------------------------------
+Section 3 -- FINAL WAIVE SENTENCES for plan 11
+-------------------------------------------------------------------------------
+
+Pass these verbatim to `gsd-tools windows waive <id> "<reason>"`. Do not edit
+them at call time: the verb is one-shot and overwrites the reason cell.
+
+ROW 208 -- pass THIS one sentence. It is the composition of classes 1 and 2,
+because the row covers both halves and the row has ONE reason cell:
+
+  A writer VALUE received at run time and a dependency that does not exist yet
+  are both outside what any instrument on this corpus can observe: a value
+  passed between two already-resolved modules produces no resolve event, so
+  Node's loader oracle has nothing to record, and a specifier a future commit
+  introduces cannot be enumerated by a probe of what this tree loads today. The
+  runtime oracle landed in plan 32.1-01 closed the half that IS observable --
+  it recorded 14 resolve events over the dashboard closure and its module set
+  and builtin identity set are equal, element for element, to the static
+  closure's, with the working tree byte-identical before and after the load --
+  and what remains is covered instead by the static acquisitions census, whose
+  second write-detection predicate plan 32.1-08 restored, and by the standing
+  failing case that reds the moment package.json gains a dependencies key.
+
+ROW 184 -- pass THIS one sentence:
+
+  A ticket-frontmatter key spelling assembled at run time -- by
+  String.fromCharCode, through a template with substitutions, or read from a
+  variable -- is covered by neither of this repository's two authorities, and
+  for structural reasons rather than for want of another arm: the static census
+  reads expressions and the spelling is a value that does not exist until the
+  program runs, while the runtime loader oracle observes module resolution and
+  not string construction, so a key assembled inside an already-resolved module
+  produces no event for it to record. Plan 32-36 closed the static half by
+  resolving a key joined from literal characters; the remainder is measured at
+  zero carriers on this tree and pinned by the census's own passing case at
+  scripts/validate.test.ts:3088, which plants a String.fromCharCode shape and
+  asserts the census reports nothing.
+
+THE THREE CLASS SENTENCES, if plan 11 needs them separately for its ledger
+prose (row 208's reason cell takes the composed sentence above, not these two
+halves):
+
+  208a  A writer value received at run time produces no module resolution, so
+        a resolve hook has no event to record; the static acquisitions census
+        is the authority for that class, and plan 32.1-08 restored its second
+        predicate.
+
+  208b  A dependency that does not exist yet cannot be enumerated by a probe of
+        what this corpus loads today; the absent dependencies key and the case
+        that reds if one appears are the standing control.
+
+  184   A key spelling assembled at run time is a value, and the static census
+        reads expressions while the runtime probe reads module resolution --
+        neither authority covers it, and it is measured at zero carriers and
+        pinned by a passing case.
+
+
+-------------------------------------------------------------------------------
+Section 4 -- the zero-runtime-dependency property, re-asserted
+-------------------------------------------------------------------------------
+
+    $ node -e "const p=require('./package.json'); if(Object.prototype.hasOwnProperty.call(p,'dependencies')) throw new Error('a dependencies key appeared'); console.log('no dependencies key')"
+    no dependencies key
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-readonly.test.ts scripts/validate.test.ts
+    Test Files  2 passed (2)
+    Tests  341 passed (341)
+
+The case that reds if a dependencies key appears is
+`it("package.json still has no `dependencies` key")` in
+`scripts/board-readonly.test.ts` PART SIX, and it is inside that green run.
+
+    $ git diff --exit-code -- .planning/WINDOWS.md
+    (exit 0 -- the ledger is untouched by this plan)
+
+    $ npm run check:dashboard-readonly
+    Test Files  1 passed (1)
+    Tests  202 passed (202)
+
+    $ npm run typecheck && npm run build && npm run check:build-parity
+    PASS  Build parity: tracked build outputs that moved when the build ran:
+          0 findings over 66/66 elements
+    ALL CHECKS PASSED
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+    Test Files  75 passed (75)
+    Tests  5216 passed | 2 skipped (5218)
