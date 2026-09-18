@@ -1236,9 +1236,9 @@ Round-3 verification on 2026-09-16 returned `gaps_found` (4/5, up from 2/5) with
 **Goal:** Close, by canonical form rather than wider enumeration, the residuals Phase 32 deferred at its four-round cap (human decision Option C, plan 32-41, 2026-09-17): the eight round-4 red-team findings F-14..F-21 in `32-40-ADVERSARIAL-REVIEW.md` and the carried ledger rows that `32-41-SUMMARY.md` / `deferred-items.md` re-homed here (16 items, WINDOWS.md rows 176, 183, 184, 194, 200–210), plus triage of the round-4 code review findings WR-01..WR-04 in `32-REVIEW.md`. Four of the five created findings are one class — a set enumerated over one spelling of the thing it is about — so the remedy is a canonical form, not another arm.
 **Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08 (residuals against already-complete requirements; no new IDs)
 **Depends on:** Phase 32
-**Plans:** 11/11 plans executed
+**Plans:** 11/11 original plans executed (planned 2026-09-17) + 4 gap-closure plans (`32.1-12`..`32.1-15`, planned 2026-09-18, **round 2 of the standing 4-round cap**). Verification on 2026-09-18 returned `gaps_found` (17/19 ledger items; one FAILED must-have — the refusal-sentence builder does not own every content-derived interpolation, because a composed path carrying a listing entry's name reaches ten `board-read.ts` message sentences unescaped and the renderer deletes the byte). The gap-closure plans close that by canonical form — every published substitution is built through the builder and both classification tables are deleted — plus this phase's own review warnings WR-02/WR-03 and all seven information items, plus a static diagnosis of the three live-lane failures behind one blocking human checkpoint.
 
-**Execution is strictly sequential — one plan per wave (waves 1–11).** Every plan in this phase either rebuilds the whole committed `.js` surface with `npm run build` or runs a `check:*` entry whose first step compiles into the shared `.tmp-build` scratch directory, so two plans running concurrently in one working tree would see each other's uncommitted build output and red `check:build-parity`. This is the same reason Phase 32's gap-closure plans ran strictly sequentially. Plan 01 is the tracer (D-19's instrument-first order); plans 04–09 each cut one rule over to those instruments; plans 02–03 are the audit-row content job; plans 10–11 close the phase.
+**Execution is strictly sequential — one plan per wave (waves 1–15).** Every plan in this phase either rebuilds the whole committed `.js` surface with `npm run build` or runs a `check:*` entry whose first step compiles into the shared `.tmp-build` scratch directory, so two plans running concurrently in one working tree would see each other's uncommitted build output and red `check:build-parity`. This is the same reason Phase 32's gap-closure plans ran strictly sequentially. Plan 01 is the tracer (D-19's instrument-first order); plans 04–09 each cut one rule over to those instruments; plans 02–03 are the audit-row content job; plans 10–11 close the phase.
 
 Plans:
 **Wave 1**
@@ -1284,6 +1284,24 @@ Plans:
 **Wave 11** *(blocked on Wave 10 completion)*
 
 - [x] 32.1-11-PLAN.md — D-16/D-22 completion: the nineteen-item ledger with a derived count equality, the two waived rows written by the ledger's own verb, and the erratum beside a byte-unchanged original [DASH-01..DASH-08]
+
+**Gap closure — round 2 of 4 (planned 2026-09-18)**
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
+- [ ] 32.1-12-PLAN.md — **tracer:** the failed must-have reproduced end to end at HEAD with three planted code points and measured at three channels, the claim-record sentences built through the builder, the derived unowned-published census filed as the expansion's work list, and the gap recorded OPEN in the register with a named owner [DASH-03, DASH-07]
+
+**Wave 13** *(blocked on Wave 12 completion)*
+
+- [ ] 32.1-13-PLAN.md — the canonical form: every published substitution in all three board modules built through the builder, both declaration-classification tables and both carve-out paragraphs deleted, one two-sided published-equals-owned equality with one pin, and a seeded tag removal per module proving it reds [DASH-03, DASH-07, DASH-08]
+
+**Wave 14** *(blocked on Wave 13 completion)*
+
+- [ ] 32.1-14-PLAN.md — WR-02 + WR-03 + IN-01..IN-07: a recovered parse becomes a named refusal carrying its diagnostic count, a declined declaration specifier is recorded into the unreadable seam, the loader oracle's child is bounded so its premise fails red rather than hanging, and every information item reaches a disposition [DASH-06, DASH-08]
+
+**Wave 15** *(blocked on Wave 14 completion)*
+
+- [ ] 32.1-15-PLAN.md — the three live-lane failures diagnosed statically at zero token spend, one blocking human checkpoint naming the spend before at most one gated re-run, and the completion equality extended to a fourth named source with the register reconciled by identifier [DASH-03, DASH-05, DASH-06, DASH-07, DASH-08]
 
 ### Phase 33: Live Capture & Windows Portability
 
@@ -1338,7 +1356,7 @@ Plans:
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
-| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 11/11 | In Progress|  |
+| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 11/15 | In Progress (gap-closure round 2 of 4 planned) |  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
