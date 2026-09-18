@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 194
+open_count: 195
 waived_count: 2
 fixed_count: 24
-total_count: 220
-last_updated: 2026-09-18T12:37:01.717Z
+total_count: 221
+last_updated: 2026-09-18T13:34:26.209Z
 ---
 
 # Broken Windows Ledger
@@ -235,6 +235,7 @@ last_updated: 2026-09-18T12:37:01.717Z
 | 218 | 32.1 | deviation | scripts/board-model.ts |  | Plan 32.1-07 residual 1: the conflicts[].ticketId FIELD still publishes the byte DELETED. It reads ABC-902X while the sentence beside it reads ABC-902<U+0085>X. Deliberate - that field is a join key scrubbed on the way out by scrub()/sanitizeCell, not a sentence a human reads, and escaping it would make a consumer's join disagree with the model. It belongs to the data channel (D-18), not to the D-07 sentence builder. Recorded in 32.1-07-RED-baseline.txt section 1 and named rather than closed silently. | open |  | 2026-09-18T10:43:04.357Z |  |
 | 219 | 32.1 | deviation | scripts/board-model.test.ts |  | Plan 32.1-07 residual 2: the published-sentence census keys a declaration as <file>#<declared name>, so two declarations sharing a name in ONE file share a class. No such pair disagrees on this tree today, and a NEW name reds the two-sided pin - the hole is name REUSE, not name arrival. Named in the census's own docblock. | open |  | 2026-09-18T10:43:04.443Z |  |
 | 220 | 32.1 | deviation | scripts/board-read.ts | 1591 | Plan 32.1-12 gap (this phase's single FAILED must-have, 32.1-VERIFICATION.md gap #1), REPRODUCED end to end at 46d860a2 and closed on ONE path. childPath (scripts/board-read.ts:1038-1058) refuses only an empty segment, a dot, a double dot and a segment carrying a separator, so a directory entry name carrying a code point the renderer DELETES passes it, is joined into a composed path, and is quoted into published claim-record sentences that are NOT built through the spelled builder; sanitizeCell then deletes the byte and the published JSON document names a path that does not exist on the tree. Measured at three channels in one run against three planted points, <U+0085>, <U+009F> and <U+0001>; the model's own sentence and the JSON document both carried the defect, the stderr frame did not (board-dashboard.ts emit() applies the builder a second time there). Reproduction transcript: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-12-RED-baseline.txt, section 1; the derived work list is section 2. The verifier's ten hand-named line numbers are CONTAINED in the derived set and SHORT by nine lines. CLOSED HERE: the tampered and no-at sentences, 2 of the 18 path-class unowned published substitutions the census derives. STILL OPEN: the other 16, over absPath (2), dir (1), indexPath (1), path (1), real (1), root (4), target (4) and taskDir (2), all in scripts/board-read.ts; plan 32.1-13 deletes the PATH-DERIVED class and plan 32.1-15 transitions this row. OWNER: the published-substitution census in scripts/board-model.test.ts, which now classes board-read.ts#claimMd as a subject declaration and is the authority that will refuse the next unbuilt sentence quoting a composed path; its discrimination is proved by a seeded tag removal in scripts/board-read.ts rather than argued. Bears on DASH-03 and DASH-07. | open |  | 2026-09-18T12:37:01.717Z |  |
+| 221 | 32.1 | deviation | .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-13-PLAN.md |  | Plan 32.1-13 Task 3's JSON verify command pins snapshot.schemaVersion 1; scripts/board-model.ts declares SCHEMA_VERSION = 2 since phase 32-33 (92f27444), so the command as written fails on correct code. Re-run with the version DERIVED from the module; recorded in 32.1-13-GREEN-proof.txt section 3.3. | open |  | 2026-09-18T13:34:26.209Z |  |
 
 ````json
 [
@@ -2919,6 +2920,19 @@ last_updated: 2026-09-18T12:37:01.717Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-18T12:37:01.717Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 221,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": ".planning/phases/32.1-board-dashboard-deferred-residuals/32.1-13-PLAN.md",
+    "line": null,
+    "description": "Plan 32.1-13 Task 3's JSON verify command pins snapshot.schemaVersion 1; scripts/board-model.ts declares SCHEMA_VERSION = 2 since phase 32-33 (92f27444), so the command as written fails on correct code. Re-run with the version DERIVED from the module; recorded in 32.1-13-GREEN-proof.txt section 3.3.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T13:34:26.209Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
