@@ -99,7 +99,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 30: Per-Checkpoint Autonomy Matrix** — every human stop enumerated and dialable, the four safety floors lowerable only behind two keys, with mechanical claim-dropping (completed 2026-09-07)
 - [x] **Phase 31: Autonomous Manual Testing** *(CLOSED 2026-09-13 by user override D-44; round-9 verification stands at `gaps_found` 4/6, CR-28…CR-31 + WR-43…WR-47 ACCEPTED OPEN, UATX-01/UATX-06 unchecked)* — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
 - [x] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard (completed 2026-09-17)
-- [ ] **Phase 32.1: Board Dashboard Deferred Residuals** (INSERTED) — the 16 residuals Phase 32 deferred at its four-round cap (F-14..F-21 + carried ledger rows) closed by canonical form, plus triage of round-4 review WR-01..WR-04
+- [x] **Phase 32.1: Board Dashboard Deferred Residuals** (INSERTED) — the 16 residuals Phase 32 deferred at its four-round cap (F-14..F-21 + carried ledger rows) closed by canonical form, plus triage of round-4 review WR-01..WR-04 *(completed 2026-09-18 by human override: verification 16/17 with the row-212 prod-deploy safety item routed to human; UAT 1 pass / 3 skipped, the WINDOWS-anchored tests deferred by the human; rows 211-213 and 222-224 ACCEPTED OPEN)*
 - [ ] **Phase 33: Live Capture & Windows Portability** — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
 
 **Standing obligations from v2.0, and where each lands:**
@@ -1236,7 +1236,7 @@ Round-3 verification on 2026-09-16 returned `gaps_found` (4/5, up from 2/5) with
 **Goal:** Close, by canonical form rather than wider enumeration, the residuals Phase 32 deferred at its four-round cap (human decision Option C, plan 32-41, 2026-09-17): the eight round-4 red-team findings F-14..F-21 in `32-40-ADVERSARIAL-REVIEW.md` and the carried ledger rows that `32-41-SUMMARY.md` / `deferred-items.md` re-homed here (16 items, WINDOWS.md rows 176, 183, 184, 194, 200–210), plus triage of the round-4 code review findings WR-01..WR-04 in `32-REVIEW.md`. Four of the five created findings are one class — a set enumerated over one spelling of the thing it is about — so the remedy is a canonical form, not another arm.
 **Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08 (residuals against already-complete requirements; no new IDs)
 **Depends on:** Phase 32
-**Plans:** 11/11 original plans executed (planned 2026-09-17) + 4 gap-closure plans (`32.1-12`..`32.1-15`, planned 2026-09-18, **round 2 of the standing 4-round cap**). Verification on 2026-09-18 returned `gaps_found` (17/19 ledger items; one FAILED must-have — the refusal-sentence builder does not own every content-derived interpolation, because a composed path carrying a listing entry's name reaches ten `board-read.ts` message sentences unescaped and the renderer deletes the byte). The gap-closure plans close that by canonical form — every published substitution is built through the builder and both classification tables are deleted — plus this phase's own review warnings WR-02/WR-03 and all seven information items, plus a static diagnosis of the three live-lane failures behind one blocking human checkpoint.
+**Plans:** 15/15 plans complete
 
 **Execution is strictly sequential — one plan per wave (waves 1–15).** Every plan in this phase either rebuilds the whole committed `.js` surface with `npm run build` or runs a `check:*` entry whose first step compiles into the shared `.tmp-build` scratch directory, so two plans running concurrently in one working tree would see each other's uncommitted build output and red `check:build-parity`. This is the same reason Phase 32's gap-closure plans ran strictly sequentially. Plan 01 is the tracer (D-19's instrument-first order); plans 04–09 each cut one rule over to those instruments; plans 02–03 are the audit-row content job; plans 10–11 close the phase.
 
@@ -1356,7 +1356,7 @@ Plans:
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
-| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | In Progress (gap-closure round 2 of 4 executed; verification pending) |  |
+| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).

@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: "32.1"
-current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
-status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-15-PLAN.md
-last_updated: "2026-09-18T15:23:26.811Z"
-state_head: 688e110f56da5fea3b8e9f46ce7cb022f1909cf9
+current_phase: 33
+current_phase_name: Live Capture & Windows Portability
+status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
+stopped_at: Phase 32.1 complete, ready to plan Phase 33
+last_updated: "2026-09-18T19:55:37.147Z"
+state_head: cea48dee5662b84b52c95580e327ee579ccc1663
 progress:
   total_phases: 10
-  completed_phases: 31
+  completed_phases: 32
   total_plans: 269
   completed_plans: 269
-  percent: 100
+  percent: 89
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -26,12 +26,12 @@ last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LA
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 32.1 — Board Dashboard Deferred Residuals (INSERTED)
+**Current focus:** Phase 33 — Live Capture & Windows Portability (not yet planned)
 
 ## Current Position
 
-Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 15 of 15
+Phase: 33 — Live Capture & Windows Portability
+Plan: Not started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -100,7 +100,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 294
+- Total plans completed: 309
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -137,6 +137,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 30 | 11 | - | - |
 | 29.2 | 6 | - | - |
 | 32 | 34 | - | - |
+| 32.1 | 15 | - | - |
 
 **Recent Trend:**
 
@@ -547,6 +548,8 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 - Phase 32.1 inserted after Phase 32: Board Dashboard Deferred Residuals — the 16 open items Phase 32's Option C close deferred (F-14..F-21 + carried ledger rows; see 32-41-SUMMARY.md and deferred-items.md) (URGENT)
 
 ### Decisions
+
+- [Phase 32.1]: Phase 32.1 closed 2026-09-18 by human override ("mark uat as done to progress"). Verification stood at 16/17 with the prod-deploy safety item (WINDOWS row 212) routed to human; the human deferred all three WINDOWS-anchored UAT tests (1, 2, 4) and accepted rows 211-213 and 222-224 as open with named owners. VERIFICATION.md status set to passed with a `human_override` frontmatter field; the override is recorded in 32.1-UAT.md. Nothing in this override closes a WINDOWS row. Phase 33 (Live Capture & Windows Portability) is the natural home for the deferred human checks.
 
 - **[Phase 29.2, 2026-09-07]** Closed via UAT (54/54: 43 automated from SUMMARY coverage blocks, 11 human). Tests 9-11 (Windows mirror spawn, doctor mirror, destination-hazard guard) were passed by USER OVERRIDE, not observation — `WINDOWS.md` rows 105-107 and 115 stay `UNKNOWN - verify`; the user will re-test on a real project and on Windows later.
 - **[Phase 29.2, 2026-09-04]** D-01/D-06: install mirror-spawns the committed generator against `TARGET/.grugops/factory.config.json` and nothing else; D-07: `--update` stays kit-home-only and never writes an adapter into a repo; D-13: installed `.claude/agents/grugops-*.md` are kit-owned derived artifacts, rewritten and named on re-run.
@@ -1576,7 +1579,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-09-18T15:22:38.596Z
-Stopped at: Completed 32.1-15-PLAN.md
+Stopped at: Phase 32.1 complete, ready to plan Phase 33
 Resume file: None
 
 ## Operator Next Steps
