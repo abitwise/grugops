@@ -339,3 +339,210 @@ Section 4 -- the erratum, and the original left byte-unchanged
   path -- the erratum, which task 2 of this same plan had not yet written. It
   was the only forward reference in the file, it was labelled as such in row
   209's own evidence cell, and it resolves now.
+
+
+-------------------------------------------------------------------------------
+Section 5 -- the completion equality: command and complete output
+-------------------------------------------------------------------------------
+
+  $ node .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-ledger-check.mjs
+
+  PASS  32.1 completion equality: 19 of 19 item(s) carry exactly one terminal disposition, over a denominator of 19 derived from 3 named source(s) [ledger row 7, round-4 finding 8, round-4 review warning 4]. Dispositions: closed-with-reproduction 15, waived-with-reason 2, re-homed-with-named-owner 2.
+        The same denominator derived AGAIN from the three source documents, without this document's participation: 19 -- findings 8 (OPEN `### F-NN` headings) + ledger rows 7 (176, 183, 184, 194, 208, 209, 210; 1 id(s) dropped as already counted among the findings at rows 200-207: 207) + review warnings 4.
+
+  EXIT=0
+
+WHAT THE PASS LINE CARRIES, and why it is not just the word PASS. The shape is
+borrowed from `scripts/vacuity.ts`'s `reportMeasured` (:46-97): a green run says
+WHAT IT MEASURED. Here that is the item count, the terminal count, the three
+source sizes by name, the per-disposition tally, and a second, independent
+derivation of the same denominator. A reader who disagrees with any of those
+numbers has something to check rather than a verdict to accept.
+
+THE RECONCILIATION IS DERIVED, NOT READ. The second derivation performs the
+nineteen-versus-twenty subtraction itself: it parses the phase boundary's
+carried-rows bullet, finds EIGHT bolded row ids, drops the one that falls inside
+the finding rows' own id range (207, which that same bullet identifies as F-21),
+and arrives at seven. That is D-16's rule applied to D-16 -- the number that
+reconciles the two counts is a measurement rather than a sentence in
+`32.1-LEDGER.md` section 1.1 that a reader has to take on trust.
+
+
+-------------------------------------------------------------------------------
+Section 6 -- the three plants, each run against a COPY
+-------------------------------------------------------------------------------
+
+Each plant is a temp MIRROR of the phase layout -- the check, the ledger, the
+CONTEXT document and the two review documents copied into a scratch tree outside
+the repository. The real ledger was never the subject of a plant; section 6.5
+asserts that rather than promising it.
+
+6.0  THE UNPLANTED CONTROL, first, so a plant's RED is attributable
+
+  $ node <mirror>/.../32.1-ledger-check.mjs
+  PASS  32.1 completion equality: 19 of 19 item(s) ... (identical to section 5)
+  CONTROL EXIT=0
+
+  A plant whose control was never run proves that the check reds, not that the
+  plant is why.
+
+6.1  PLANT 1 -- one item's disposition removed
+
+  PLANTED: F-17's disposition cell emptied
+    (asserted to have planted something: the replacement was checked against the
+     pre-image and a no-op exits 9 rather than producing a silent green)
+
+  FAIL  completion equality: 18 of 19 item(s) carry a terminal disposition. The 1 that do not are named below -- a bare count tells a reader nothing about which item to go and write:
+          32.1-LEDGER.md:95  item `F-17` carries `(empty)`, which is not one of closed-with-reproduction / waived-with-reason / re-homed-with-named-owner
+
+  1 failure(s). Phase 32.1's completion property does NOT hold.
+  PLANT 1 EXIT=1
+
+  The message NAMES the item and its line. "Nineteen versus eighteen" would have
+  told a reader nothing about which row to go and write.
+
+6.2  PLANT 2 -- one item ROW removed entirely
+
+  PLANTED: the `row 194` item row deleted
+
+  FAIL  second denominator: the three SOURCE DOCUMENTS yield 19 item(s) but the table holds 18. findings 8 (OPEN `### F-NN` headings) + ledger rows 7 (176, 183, 184, 194, 208, 209, 210; 1 id(s) dropped as already counted among the findings at rows 200-207: 207) + review warnings 4. The two derivations are independent on purpose -- the table's own source column falls with the table, so a deleted item row would keep step (3) green at 18 = 18 while an item vanished.
+
+  1 failure(s). Phase 32.1's completion property does NOT hold.
+  PLANT 2 EXIT=1
+
+  THE PLAN'S STATED EXPECTATION FOR THIS PLANT WAS WRONG, AND THE CORRECTION IS
+  MEASURED RATHER THAN ARGUED. `32.1-11-PLAN.md` task 3 says to "remove one item
+  row entirely and confirm the SOURCE-SUM assertion reds". As the plan specifies
+  step 3 -- derive the three source sizes from the ledger's own source column and
+  assert their sum equals the item count -- that cannot happen, because both
+  sides of that equality are two readings of the same rows and fall together.
+  Measured over this very mirror:
+
+    item rows: 18   column-derived source sum: 18   sources: {"round-4 finding":8,"ledger row":6,"round-4 review warning":4}
+    step (3) verdict without (3b): GREEN -- the deleted item is invisible
+
+  A completion check that stays green after an item is silently deleted is not a
+  completion check. Step (3b) was added for that reason (recorded as a deviation
+  in `32.1-11-SUMMARY.md`): the denominator is derived a SECOND time from the
+  three documents D-22 names -- the OPEN `### F-NN` headings of
+  `32-40-ADVERSARIAL-REVIEW.md`, the `### WR-NN:` headings of `32-REVIEW.md`, and
+  the bolded row ids of `32.1-CONTEXT.md`'s phase boundary -- none of which is
+  the document being checked. Writing the plan's sentence down without this
+  would have been a fabricated measurement.
+
+  This is the class this repository has recorded before: a vacuity floor catches
+  an EMPTY denominator and never a SILENTLY SHORT one, and the remedy is to
+  derive the element count independently of the loop that consumes it.
+
+6.3  PLANT 3 -- the table emptied
+
+  PLANTED: every item row deleted, header and delimiter left in place
+
+  FAIL  premise: the item table parsed ZERO rows. A completion check over an empty parse is TRUE over nothing: it would report that every one of no items carries a disposition. The equality below has not been asked, because there was nothing to ask it of.
+  PLANT 3 EXIT=1
+
+  The PREMISE floor fired, and it fired FIRST -- the equality was never reached.
+  That ordering is the point: a zero-element run reported as "no findings" is how
+  a check that did not run prints green, and this repository has recorded a FALSE
+  verification-harness premise six times across four rounds.
+
+6.4  EVERY PLANT WAS ASSERTED TO HAVE PLANTED SOMETHING
+
+  Each plant compares its output against its own pre-image and exits 9 if the
+  search string matched nothing. A plant that plants nothing produces a green run
+  that looks like a proof -- the failure mode plan 32.1-04 caught with its own
+  PREMISE assertion when a template literal's escaped backticks made its search
+  string match nothing.
+
+6.5  THE REAL LEDGER IS UNTOUCHED BY THE PLANTS
+
+  $ git diff --exit-code -- .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-LEDGER.md
+  (no output)
+  EXIT=0
+
+  And it still passes: the check re-run against the real ledger after all three
+  plants exits 0 with the section 5 output.
+
+
+-------------------------------------------------------------------------------
+Section 7 -- the phase closes green, beside the numbers it started from
+-------------------------------------------------------------------------------
+
+7.1  THE REGRESSION LANE
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'
+
+   Test Files  75 passed (75)
+        Tests  5224 passed | 2 skipped (5226)
+     Duration  471.10s
+  EXIT=0
+
+  BESIDE THE NUMBER THE PHASE STARTED FROM:
+
+    phase start (32-41-SUMMARY.md, confirmed at 32.1-01)   75 files / 5163 passed / 2 skipped
+    phase close (this run)                                 75 files / 5224 passed / 2 skipped
+                                                                       ------
+    movement                                                             +61
+
+  The +61 is attributed case by case, twice, by two independent decompositions
+  that agree, in `32.1-10-GREEN-proof.txt`. This plan adds no test -- it writes
+  documents and moves ledger rows -- so the closing number is identical to plan
+  10's, which is the expected result and is stated rather than left to look like
+  a coincidence. THE SAME TWO SKIPS the lane carried at phase start are the two
+  it carries now; no test was skipped to reach green.
+
+7.2  THE GATE SWEEP, with its denominator DERIVED from the manifest
+
+  $ node -e 'Object.keys(require("./package.json").scripts).length'
+  33
+
+  Eleven of those 33 keys are `check:*`; nine are `freshness*`; the remaining
+  thirteen are build, typecheck, the two runners, the dashboard, and the
+  generators. Every declared gate was run at this HEAD:
+
+    build && check:build-parity      exit=0   PASS  0 findings over 66/66 elements
+    check:diff-disposition           exit=0   PASS  0 findings over 39/39 elements
+    check:nul-bytes                  exit=0   PASS  2344 tracked file(s) scanned, ZERO forbidden control bytes
+    check:public-docs                exit=0   ALL CHECKS PASSED
+    check:audit-register             exit=0   ALL CHECKS PASSED
+    check:residual-citations         exit=0   ALL CHECKS PASSED
+    check:claim-anchors              exit=0   ALL CHECKS PASSED
+    check:banned-claims              exit=0   ALL CHECKS PASSED
+    check:imperative-lexicon         exit=0   ALL CHECKS PASSED
+    check:platform-shapes            exit=0   ALL CHECKS PASSED
+    check:dashboard-readonly         exit=0   202 passed (202)
+    freshness (aggregate, 8 legs)    exit=0
+    typecheck                        exit=0
+
+  Eleven of eleven `check:*` entries at exit 0, the freshness aggregate at exit 0,
+  typecheck at exit 0. `check:diff-disposition` is the gate ledger row 176 named:
+  it exited 1 on 78 findings when this phase opened and it exits 0 here, which is
+  that row's closure measured at the close rather than recalled from plan 03.
+
+  THE LANE NOT RUN, NAMED RATHER THAN OMITTED. `npm test` -- the live
+  claude-CLI end-to-end lane -- was run ONCE in this phase, by plan 32.1-10,
+  behind a named human go, and it went RED. It is NOT re-run here: the go covered
+  one occasion and explicitly not a re-run, and re-running a red to see whether
+  it passes this time is how a flaky result becomes a claimed one. Its outcome is
+  ledger row 183's evidence and its three failures are register rows 211, 212 and
+  213.
+
+7.3  WHAT THIS PHASE CLOSES WITH
+
+    items enumerated                         19   (measured, section 5)
+    items with a terminal disposition        19   (measured, section 5)
+      closed-with-reproduction               15
+      waived-with-reason                      2
+      re-homed-with-named-owner               2
+    register rows transitioned               13   (11 fixed, 2 waived)
+    register rows appended                    9
+    register open_count                197 -> 193
+    regression lane                5163 -> 5224 passed, 75 files, 2 skipped, exit 0
+    declared gates at exit 0            11 of 11 `check:*`, plus freshness and typecheck
+    adversarial rounds run inside this phase  0   (D-17)
+
+  The last line is the one most worth reading twice. This phase did not prove
+  itself by another red-team round; it proved itself by making completion a count
+  a reader can re-derive, and by leaving the two items it could not close as
+  named owners rather than as closures nobody can reproduce.
+
