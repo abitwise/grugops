@@ -46,9 +46,42 @@
 // created a file. `classifySpecifier` below is now the ONE authority both consumers ask, and its
 // third bucket exists so no spelling can fall outside all three.
 //
-// Node stdlib only; no dependency, in keeping with every other module under scripts/.
+// WHAT DECIDES "THIS IS A MODULE SPECIFIER" IS A REAL TOKENIZER (32.1-06, D-08). Until this plan it
+// was a hand-written scanner: a blanking pass that tried to erase everything that was not code, three
+// regular expressions over the blanked bytes, and a side table that recovered each literal's text by
+// offset. That is a SECOND GRAMMAR for JavaScript, maintained here, disagreeing with the real one —
+// and round 4 of Phase 32's review measured three separate disagreements, each a counter-example
+// rather than a rough edge (F-16/WR-02, WR-03, F-17; all three are reproduced in
+// `32.1-06-RED-baseline.txt` § 2 against the committed build output). This repository's recorded
+// answer to a fourth counter-example is to define the canonical form and DELETE the second grammar,
+// not to add a fourth arm, so the scanner is gone and `moduleSpecifiers` walks a parse.
+//
+// THE NODE SET IS STATED, AND EVERYTHING OUTSIDE IT IS REFUSED RATHER THAN GUESSED AT:
+//
+//   import declaration  → `moduleSpecifier`            export declaration → `moduleSpecifier`
+//   `import(x)`         → first argument               `require(x)`       → first argument
+//
+// A specifier's VALUE is read through the parser's string-literal-LIKE predicate, so a
+// no-substitution template resolves to what it means rather than to how it is spelled, and an escape
+// sequence resolves to the character it denotes. Any other argument shape is recorded, by NODE KIND,
+// in `ModuleSpecifierFacts.unreadable` — the seam a named refusal attaches to (D-11) — and is never
+// silently treated as "no edge here".
+//
+// THE PARSER IS ACQUIRED LAZILY, AND THAT IS A CONSTRAINT RATHER THAN A STYLE (D-20). CLAUDE.md's
+// stack rule is that host machines run the committed `.js` with ZERO runtime dependencies installed.
+// A top-level `import ts from "typescript"` here would put a bare, non-builtin specifier into the
+// STATIC import graph of a committed, production build output — and this repository has already
+// ruled on exactly that question once, at `scripts/runnable-ref/uat-spec-integrity.ts:1046-1051`.
+// So: the STATIC import graph of `js-import-closure.js` is node builtins and relative specifiers
+// only, and the parser arrives at RUN TIME through `createRequire`, memoized, inside a try/catch
+// whose failure is a NAMED refusal rather than a crash. Do not read "builtins only" as "this module
+// touches nothing else" — it reaches for `typescript` the moment anyone calls `moduleSpecifiers`.
+// What it never does is oblige a host to have it: the six consumers are development and
+// continuous-integration gates, run from a checkout where `node_modules` is present, and no closure
+// this repository mirrors contains this module (measured in `32.1-06-RED-baseline.txt` § 5).
 
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /**
@@ -129,301 +162,200 @@ export function classifySpecifier(specifier: string): SpecifierClass {
   return "foreign";
 }
 
-/** The characters after which a `/` opens a REGULAR EXPRESSION rather than a division. */
-const REGEX_PRECEDING_PUNCTUATION: ReadonlySet<string> = new Set([
-  "",
-  "(",
-  ",",
-  "=",
-  ":",
-  "[",
-  "!",
-  "&",
-  "|",
-  "?",
-  "{",
-  "}",
-  ";",
-  "+",
-  "-",
-  "*",
-  "%",
-  "^",
-  "~",
-  "<",
-  ">",
-]);
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// THE PARSER: A STRUCTURAL VIEW, A MEMOIZED LAZY ACQUISITION, AND A NAMED REFUSAL (32.1-06, D-20).
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-/** The keywords after which a `/` opens a regular expression (`return /re/.test(x)`). */
-const REGEX_PRECEDING_WORDS: ReadonlySet<string> = new Set([
-  "return",
-  "typeof",
-  "instanceof",
-  "in",
-  "of",
-  "new",
-  "delete",
-  "void",
-  "throw",
-  "case",
-  "do",
-  "else",
-  "yield",
-  "await",
-]);
+/** A parse tree node, reduced to the one member this walk reads off every node. */
+interface TsNode {
+  readonly kind: number;
+}
 
-const IDENTIFIER_START = /[A-Za-z_$]/;
-const IDENTIFIER_PART = /[A-Za-z0-9_$]/;
+/** A string literal or a no-substitution template literal — the two shapes that carry a VALUE. */
+interface TsStringLiteralLike extends TsNode {
+  readonly text: string;
+}
 
-/**
- * The blanked source and every ordinary string literal that was blanked out of it.
- *
- * `moduleSpecifiers` reads a specifier back out of this table rather than out of the blanked code,
- * which is what lets the blanking rule be TOTAL without destroying the very text the patterns
- * exist to capture.
- */
-interface ScannedSource {
-  readonly code: string;
-  /** Keyed by the offset of the literal's first TEXT character — the patterns' capture offset. */
-  readonly literals: ReadonlyMap<number, string>;
+/** An identifier, read at ONE site: to tell a `require(…)` call from every other call. */
+interface TsIdentifier extends TsNode {
+  readonly text: string;
+}
+
+/** An import or export declaration. `export { x }` carries no specifier, hence the optional. */
+interface TsModuleSpecifierHolder extends TsNode {
+  readonly moduleSpecifier?: TsNode;
+}
+
+/** A call expression: `import(x)` and `require(x)` are both read through this shape. */
+interface TsCallExpression extends TsNode {
+  readonly expression: TsNode;
+  readonly arguments: readonly TsNode[];
 }
 
 /**
- * Replace every comment, every template-literal TEXT span, and every ordinary string literal's
- * TEXT with whitespace of equal length — and record what each string literal said.
+ * EXACTLY THE MEMBERS THIS MODULE CALLS, declared structurally so the module's own TYPES do not
+ * depend on the parser's package.
  *
- * WHY THIS IS REQUIRED RATHER THAN COSMETIC. The specifier patterns below are regexes over file
- * bytes, so PROSE can manufacture a specifier that no import statement carries — and once `foreign`
- * is a REFUSAL rather than a harmless extra file in a mirror, a false positive stops being cheap.
- * Measured over the 65 tracked `.js` files at the time of this change: widening the three patterns
- * from a dot-leading capture to an any-character capture produced THIRTEEN foreign-classified
- * matches, none of them an import — two template literals (`scripts/compactor.js`'s `"${rawVal}"`
- * and this module's own `imports "${spec}"` refusal message) and eleven multi-line spans captured
- * out of `//` comment blocks. With this function and the newline-excluding capture, that count is
- * ZERO. Both numbers are recorded in `32-31-GREEN-proof.txt`.
+ * The form is `scripts/runnable-ref/uat-spec-integrity.ts:868-1000`'s, and the reason is the same one
+ * that file gives: the parser is loaded at run time, so a top-level `import type … from "typescript"`
+ * would tie this module — a committed, production build output — to a package the host was promised
+ * it does not need. Declaring the surface here also makes the node set AUDITABLE: what this walk can
+ * ask of a parse is the list below and nothing else.
  *
- * WHY STRING LITERALS ARE NOW BLANKED TOO (32-38, review CR-01). Leaving their text intact was the
- * one remaining way for prose to manufacture an import. `install/install.js` carries a generated
- * source line inside an ordinary single-quoted string — `'import { x } from "./model-tiers.js";'` —
- * and the `from` pattern read it as a RELATIVE specifier, so `jsImportClosure(ROOT,
- * "install/install.js")` refused on an edge nobody wrote. That is precisely the failure this
- * module's opening paragraph exists to prevent: a gate that cannot start looks, from the outside,
- * exactly like a gate that ran and refused. The census that backed the old rule counted the FOREIGN
- * class only; the live false positive was in the RELATIVE class, which was never censused.
- *
- * The blanking rule is TOTAL — it knows nothing about import grammar, so it cannot disagree with
- * `SPECIFIER_PATTERNS` about what a specifier position is. A real specifier is not lost to it:
- * the literal's text is recorded here and recovered by offset in `moduleSpecifiers`, so exactly
- * ONE function owns the import grammar and exactly one owns "what is prose".
- *
- * WHAT IT STILL DELIBERATELY DOES NOT BLANK. The CODE inside a template literal's `${…}`
- * substitutions. Blanking a substitution would REMOVE REAL CODE, and this module's contract is
- * that a missed specifier costs a crash while an extra one costs a file; the conservative direction
- * is to narrow only the prose. Regular-expression literals are recognised so that a pattern such as
- * `/https?:\/\//` cannot be mistaken for the start of a line comment.
- *
- * Length is preserved exactly (newlines kept, everything else replaced with a space), so an offset
- * into the result is an offset into the source and a line number still means what it says.
+ * EXPORTED so a caller can INJECT a parser instead of taking the lazily acquired one. A test does,
+ * to assert the injected route and the acquired route read one corpus identically — which is what
+ * keeps the seam from becoming a second implementation nobody compares. No production call site
+ * passes one.
  */
-function scanSource(source: string): ScannedSource {
-  const out = source.split("");
-  const n = source.length;
-  const literals = new Map<number, string>();
-  const blank = (from: number, to: number): void => {
-    for (let k = Math.max(0, from); k < to && k < n; k += 1) {
-      const ch = out[k];
-      if (ch !== "\n" && ch !== "\r") out[k] = " ";
-    }
-  };
-
-  interface Frame {
-    mode: "code" | "template";
-    braceDepth: number;
-    textStart: number;
-  }
-  const stack: Frame[] = [{ mode: "code", braceDepth: 0, textStart: 0 }];
-  let prev = "";
-  let prevWord = "";
-  let i = 0;
-
-  while (i < n) {
-    const top = stack[stack.length - 1] as Frame;
-    const c = source[i] as string;
-
-    if (top.mode === "template") {
-      if (c === "\\") {
-        i += 2;
-        continue;
-      }
-      if (c === "`") {
-        blank(top.textStart, i);
-        stack.pop();
-        i += 1;
-        prev = "`";
-        prevWord = "";
-        continue;
-      }
-      if (c === "$" && source[i + 1] === "{") {
-        blank(top.textStart, i);
-        stack.push({ mode: "code", braceDepth: 0, textStart: 0 });
-        i += 2;
-        prev = "{";
-        prevWord = "";
-        continue;
-      }
-      i += 1;
-      continue;
-    }
-
-    if (c === "/" && source[i + 1] === "/") {
-      let end = source.indexOf("\n", i);
-      if (end === -1) end = n;
-      blank(i, end);
-      i = end;
-      continue;
-    }
-    if (c === "/" && source[i + 1] === "*") {
-      const close = source.indexOf("*/", i + 2);
-      const end = close === -1 ? n : close + 2;
-      blank(i, end);
-      i = end;
-      continue;
-    }
-    if (c === "/" && (REGEX_PRECEDING_PUNCTUATION.has(prev) || REGEX_PRECEDING_WORDS.has(prevWord))) {
-      let k = i + 1;
-      let inClass = false;
-      let closed = false;
-      while (k < n) {
-        const r = source[k] as string;
-        if (r === "\\") {
-          k += 2;
-          continue;
-        }
-        if (r === "\n") break;
-        if (r === "[") inClass = true;
-        else if (r === "]") inClass = false;
-        else if (r === "/" && !inClass) {
-          k += 1;
-          closed = true;
-          break;
-        }
-        k += 1;
-      }
-      if (closed) {
-        while (k < n && /[a-z]/.test(source[k] as string)) k += 1;
-        i = k;
-      } else {
-        i += 1;
-      }
-      prev = "/";
-      prevWord = "";
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      const textStart = i + 1;
-      let k = textStart;
-      let terminated = false;
-      while (k < n) {
-        const r = source[k] as string;
-        if (r === "\\") {
-          k += 2;
-          continue;
-        }
-        k += 1;
-        if (r === c) {
-          terminated = true;
-          break;
-        }
-        if (r === "\n") break;
-      }
-      // The TEXT runs up to the closing quote. An UNTERMINATED literal has no closing quote, so it
-      // is prose to the end of its line and contributes no recoverable specifier — recording it
-      // would invent a specifier out of a syntax error.
-      const textEnd = terminated ? k - 1 : k;
-      if (terminated) literals.set(textStart, source.slice(textStart, textEnd));
-      blank(textStart, textEnd);
-      i = k;
-      prev = c;
-      prevWord = "";
-      continue;
-    }
-    if (c === "`") {
-      stack.push({ mode: "template", braceDepth: 0, textStart: i + 1 });
-      i += 1;
-      continue;
-    }
-    if (c === "{") {
-      top.braceDepth += 1;
-      i += 1;
-      prev = "{";
-      prevWord = "";
-      continue;
-    }
-    if (c === "}") {
-      if (top.braceDepth === 0 && stack.length > 1) {
-        stack.pop();
-        const back = stack[stack.length - 1] as Frame;
-        if (back.mode === "template") back.textStart = i + 1;
-      } else {
-        top.braceDepth -= 1;
-      }
-      i += 1;
-      prev = "}";
-      prevWord = "";
-      continue;
-    }
-    if (IDENTIFIER_START.test(c)) {
-      let k = i;
-      while (k < n && IDENTIFIER_PART.test(source[k] as string)) k += 1;
-      prevWord = source.slice(i, k);
-      prev = source[k - 1] as string;
-      i = k;
-      continue;
-    }
-    if (c === " " || c === "\t" || c === "\n" || c === "\r") {
-      i += 1;
-      continue;
-    }
-    prev = c;
-    prevWord = "";
-    i += 1;
-  }
-
-  // An unterminated template literal is prose to the end of the file, and it is blanked as such
-  // rather than left as a span the patterns can read.
-  while (stack.length > 1) {
-    const frame = stack.pop() as Frame;
-    if (frame.mode === "template") blank(frame.textStart, n);
-  }
-  return { code: out.join(""), literals };
+export interface SpecifierParserApi {
+  createSourceFile(
+    fileName: string,
+    text: string,
+    languageVersion: number,
+    setParentNodes: boolean,
+    scriptKind: number,
+  ): TsNode;
+  forEachChild(node: TsNode, cb: (child: TsNode) => void): unknown;
+  isImportDeclaration(node: TsNode): node is TsModuleSpecifierHolder;
+  isExportDeclaration(node: TsNode): node is TsModuleSpecifierHolder;
+  isCallExpression(node: TsNode): node is TsCallExpression;
+  isIdentifier(node: TsNode): node is TsIdentifier;
+  isStringLiteralLike(node: TsNode): node is TsStringLiteralLike;
+  readonly ScriptTarget: { readonly Latest: number };
+  /** `JS`, not `TS`: the corpus is COMPILED BUILD OUTPUT, never the `.ts` a reader sees. */
+  readonly ScriptKind: { readonly JS: number };
+  readonly SyntaxKind: { readonly ImportKeyword: number };
 }
 
-/**
- * The same source with every comment, template TEXT span and string-literal TEXT blanked.
- *
- * A VIEW over `scanSource`, kept exported under its own name because it is the thing the tests
- * assert length-preservation and prose-removal against. It deliberately drops the literal table:
- * recovering a specifier's text is `moduleSpecifiers`'s job, not a caller's.
- */
-export function stripNonCode(source: string): string {
-  return scanSource(source).code;
-}
+/** The module the extractor asks for, named once so the refusal below and the reader agree. */
+const PARSER_MODULE = "typescript";
 
 /**
- * The three emitted forms a module specifier appears in, and NOTHING else:
- *   `import … from "x"` / `export … from "x"`  — static ESM and re-export
- *   `import "x"`                                — bare side-effect import
- *   `import("x")`                               — dynamic
+ * The members validated at acquisition, in ONE place.
  *
- * THE CAPTURE EXCLUDES LINE BREAKS, which is not cosmetic either: a real module specifier is on one
- * line, and eleven of the thirteen false positives measured above were multi-line spans a
- * newline-crossing capture stitched together out of comment text.
+ * A module that resolves but cannot answer one of these is as unusable as an absent one, and both
+ * are the same named refusal — never a `TypeError` thrown from the middle of a walk, which would
+ * reach a gate's caller as a crash rather than as a reason.
  */
-const SPECIFIER_PATTERNS: readonly RegExp[] = Object.freeze([
-  /\bfrom\s*["']([^"'\n\r]*)["']/gd,
-  /\bimport\s*["']([^"'\n\r]*)["']/gd,
-  /\bimport\s*\(\s*["']([^"'\n\r]*)["']\s*\)/gd,
+const REQUIRED_PARSER_FUNCTIONS: readonly string[] = Object.freeze([
+  "createSourceFile",
+  "forEachChild",
+  "isImportDeclaration",
+  "isExportDeclaration",
+  "isCallExpression",
+  "isIdentifier",
+  "isStringLiteralLike",
 ]);
+
+/**
+ * The memo. `undefined` means "not yet attempted"; `null` means "attempted and unavailable", which
+ * is remembered so a repository-wide walk does not re-attempt a failing resolution per file.
+ */
+let parserMemo: SpecifierParserApi | null | undefined;
+
+/** The lazy acquisition itself. Node builtin in, parser or `null` out, never a throw. */
+function acquireParser(): SpecifierParserApi | null {
+  if (parserMemo !== undefined) return parserMemo;
+  parserMemo = null;
+  try {
+    // RESOLVED FROM THIS MODULE'S OWN LOCATION, not from the caller's working directory: the six
+    // consumers are run from a checkout, and a gate invoked from elsewhere must still find the
+    // checkout's own parser rather than whatever sits above the directory a shell happened to be in.
+    const requireFromHere = createRequire(import.meta.url);
+    const candidate = requireFromHere(PARSER_MODULE) as Partial<SpecifierParserApi>;
+    const record = candidate as unknown as Record<string, unknown>;
+    for (const member of REQUIRED_PARSER_FUNCTIONS) {
+      if (typeof record[member] !== "function") return parserMemo;
+    }
+    if (
+      candidate.ScriptTarget === undefined ||
+      candidate.ScriptKind === undefined ||
+      candidate.SyntaxKind === undefined ||
+      typeof candidate.ScriptTarget.Latest !== "number" ||
+      typeof candidate.ScriptKind.JS !== "number" ||
+      typeof candidate.SyntaxKind.ImportKeyword !== "number"
+    ) {
+      return parserMemo;
+    }
+    parserMemo = candidate as SpecifierParserApi;
+  } catch {
+    parserMemo = null; // fail-closed → a NAMED refusal at the call site, never a pass
+  }
+  return parserMemo;
+}
+
+/**
+ * THE NAMED REFUSAL, in the posture this module already takes for an unresolvable edge and for one
+ * that escapes the root. It says which module could not be acquired, which function needed it, and
+ * what kind of program this is — because the reader who meets it is most likely running a gate from
+ * a checkout whose dependencies were never installed, and "cannot find module" alone does not tell
+ * them that installing them is the whole fix.
+ */
+function requireParser(): SpecifierParserApi {
+  const api = acquireParser();
+  if (api === null) {
+    throw new ImportClosureError(
+      `js-import-closure: the module specifier extractor could not acquire "${PARSER_MODULE}", so ` +
+        `moduleSpecifiers cannot read a source and the closure walk cannot start. This module is a ` +
+        `DEVELOPMENT and CONTINUOUS-INTEGRATION tool — it is run from a checkout by the freshness ` +
+        `gates, the hook-manifest generator and the platform-shape check, never by a host running ` +
+        `the installed kit — so the fix is to install this repository's dev dependencies. It ` +
+        `refuses rather than falling back to a pattern match: a second grammar for JavaScript is ` +
+        `exactly what 32.1-06 deleted, and a fallback that reads SOME imports hands back a closure ` +
+        `missing precisely the file the walk could not see.`,
+    );
+  }
+  return api;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// FOUR DELETIONS, EACH WITH THE MEASUREMENT THAT DISPROVED THE CLAIM THAT KEPT IT (32.1-06, D-08).
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// 1. THE REGULAR-EXPRESSION ARM of `scanSource` WAS DELETED HERE (review WR-02, finding F-16). It
+//    walked to a regex literal's closing `/`, consumed the flags and skipped — deliberately WITHOUT
+//    blanking the pattern interior. The claim that kept it was this module's own sentence: *"a `from
+//    "…"` written inside prose has had its `from` keyword blanked along with everything else and
+//    matches nothing. Only a specifier in a real POSITION survives to be matched."* DISPROVED by
+//    F-16's reproduction, re-run against the committed build output and recorded in
+//    `32.1-06-RED-baseline.txt` § 2: `const re = /from "x/; import y from "./real.js";` scanned to
+//    `["x/; import y from " : bare]` while a real parse read `["./real.js"]` — the scanner
+//    FABRICATED a specifier out of a pattern interior AND SWALLOWED the real import on the same
+//    line, and because the fabrication classified `bare` the walk skipped it in silence. A regex
+//    literal is a token, and only a tokenizer knows where one ends.
+//
+// 2. `SPECIFIER_PATTERNS` WAS DELETED HERE (finding F-17). Three regular expressions —
+//    `\bfrom\s*["']…`, `\bimport\s*["']…`, `\bimport\s*\(\s*["']…` — whose accepted quote alphabet
+//    was exactly `["']`. The claim that kept it was that those are *"the three emitted forms a module
+//    specifier appears in, and NOTHING else"*. DISPROVED by F-17's reproduction
+//    (`32.1-06-RED-baseline.txt` § 2): `export const load = async () => (await import(`./tpl.js`)).name;`
+//    scanned to `[]` while a real parse read `["./tpl.js"]` — and F-17's own listing records Node
+//    resolving and RUNNING that module. A backtick is not in the alphabet, so the edge was invisible,
+//    and a mirror built from that closure is short by exactly the file it could not see.
+//
+// 3. THE LITERAL RECOVERY TABLE WAS DELETED HERE (review WR-03). `scanSource` recorded
+//    `literals.set(textStart, source.slice(textStart, textEnd))` and `moduleSpecifiers` read the
+//    specifier back out of it. The claim that kept it was that blanking could then be TOTAL without
+//    destroying the text the patterns exist to capture — *"the literal's text is recorded here and
+//    recovered by offset"*. DISPROVED by WR-03's reproduction (`32.1-06-RED-baseline.txt` § 2):
+//    `import a from "./mod.js";` recovered `./mod.js` where the parse read `./mod.js`, so
+//    the walk resolved a path nobody wrote and threw over a module that exists. A string literal's
+//    TEXT is not its VALUE; the table stored bytes and the question was about meaning.
+//
+// 4. `scanSource` AND ITS EXPORTED VIEW `stripNonCode` WERE DELETED HERE, and this one is a DECISION
+//    rather than a consequence, because deleting a scanner does not by itself oblige deleting a
+//    separately exported view over it. The claim to test was RESEARCH assumption A4, flagged there as
+//    an assumption: *"`stripNonCode` has no caller outside `board-readonly.test.ts` and can be deleted
+//    with `scanSource`."* MEASURED rather than taken, repository-wide across `.ts`, `.js`, `.mjs` and
+//    `.md` (`32.1-06-RED-baseline.txt` § 1): `stripNonCode` had TWO code referents, both its own
+//    definition and its build twin, and SIX referents in `board-readonly.test.ts` — one test NAME,
+//    four comments and one failure message. It is in no import list in the repository; the cases the
+//    research calls "its own tests" call `moduleSpecifiers`. `scanSource` was module-private with two
+//    callers, both in this file, one of them the extractor now deleted. So the view was an export
+//    nobody read, and the blanking pass it viewed has no consumer once a tokenizer decides for itself
+//    what is prose. The three behavioural cases whose prose named it — a specifier written only in a
+//    comment, only in a template literal, and one written inside a template SUBSTITUTION that must
+//    still be SEEN — are KEPT and re-homed onto the parse, because each still decides a real property.
 
 /** One module specifier as this pass read it, with the class the one authority gave it. */
 export interface ClassifiedSpecifier {
@@ -432,35 +364,127 @@ export interface ClassifiedSpecifier {
 }
 
 /**
+ * A position where this walk found a module-specifier SLOT whose contents it cannot reduce to a
+ * value — `import(someVariable)`, `require(a + b)`, `import(cond ? x : y)`.
+ *
+ * IT IS RECORDED RATHER THAN IGNORED, and that is the whole difference between this and the scanner.
+ * The scanner had no notion of a slot: a shape it did not match was indistinguishable from a line of
+ * prose. A parse knows the difference, so "there is an edge here and I cannot read it" is a fact with
+ * a position and a node kind — the seam D-11's named refusal attaches to. Nothing in this module
+ * refuses on it yet; recording it is what makes refusing on it possible without widening a matcher.
+ */
+export interface UnreadableSpecifierSite {
+  readonly form: "dynamic-import" | "require";
+  readonly nodeKind: number;
+  readonly nodeKindName: string;
+}
+
+/** What one parse of one source found: the specifiers it read, and the slots it could not read. */
+export interface ModuleSpecifierFacts {
+  readonly specifiers: readonly ClassifiedSpecifier[];
+  readonly unreadable: readonly UnreadableSpecifierSite[];
+}
+
+/**
+ * The parser's own name for a node kind, looked up defensively.
+ *
+ * The kind table is a reverse-mapped enum, which is an implementation detail of how the parser emits
+ * its enums rather than a documented member — so a number that is not in it yields the number itself,
+ * and a refusal built on this can never be a `TypeError` about an absent lookup.
+ */
+function nodeKindName(api: SpecifierParserApi, kind: number): string {
+  const table = api.SyntaxKind as unknown as Record<number, string | undefined>;
+  return table[kind] ?? `kind ${kind}`;
+}
+
+/**
+ * Every module specifier one JavaScript source carries, each with its class, PLUS every specifier
+ * slot whose contents could not be reduced to a value.
+ *
+ * ONE TOKENIZER, ONE STATED NODE SET. There is no blanking pass, no pattern list and no recovery
+ * table, because a parse answers all three questions the three of them together were trying to
+ * answer: a comment is a comment, a regular-expression literal is one token, and a string literal's
+ * value is a value. The `parser` argument is an OPTIONAL trailing seam for tests; every production
+ * call site omits it and gets the lazily acquired, memoized parser.
+ *
+ * `ScriptKind.JS` is not optional and not cosmetic: the corpus is compiled build output. Asking for
+ * a TypeScript parse of a `.js` file would admit syntax the corpus can never contain and read some
+ * of what it does contain differently.
+ */
+export function moduleSpecifierFacts(
+  source: string,
+  parser?: SpecifierParserApi,
+): ModuleSpecifierFacts {
+  const api = parser ?? requireParser();
+  const sourceFile = api.createSourceFile(
+    "js-import-closure-scan.js",
+    source,
+    api.ScriptTarget.Latest,
+    true,
+    api.ScriptKind.JS,
+  );
+
+  const specifiers: ClassifiedSpecifier[] = [];
+  const unreadable: UnreadableSpecifierSite[] = [];
+
+  const readValue = (node: TsNode): void => {
+    if (api.isStringLiteralLike(node)) {
+      // THE VALUE, NOT THE SPELLING. `isStringLiteralLike` is what admits a no-substitution template
+      // (F-17's shape) and `.text` is what decodes an escape (WR-03's shape). The two findings have
+      // one answer because they were one mistake: asking about bytes where the question was meaning.
+      specifiers.push({ specifier: node.text, cls: classifySpecifier(node.text) });
+    }
+  };
+
+  const readCallArgument = (node: TsCallExpression, form: UnreadableSpecifierSite["form"]): void => {
+    const argument = node.arguments[0];
+    // A call with no argument is a syntax error rather than an edge, and inventing an unreadable slot
+    // for it would put a position into the D-11 seam that no program can reach.
+    if (argument === undefined) return;
+    if (api.isStringLiteralLike(argument)) {
+      readValue(argument);
+      return;
+    }
+    // REFUSED BY NODE KIND, NOT WIDENED BY ANOTHER ARM. This is the canonical form: one admitted
+    // shape, and everything else named by what it actually is.
+    unreadable.push({
+      form,
+      nodeKind: argument.kind,
+      nodeKindName: nodeKindName(api, argument.kind),
+    });
+  };
+
+  const visit = (node: TsNode): void => {
+    if (api.isImportDeclaration(node) || api.isExportDeclaration(node)) {
+      // `export { x }` and `export default x` carry no module specifier at all. That is an absent
+      // slot rather than an unreadable one, so it contributes nothing in either direction.
+      const specifier = node.moduleSpecifier;
+      if (specifier !== undefined) readValue(specifier);
+    } else if (api.isCallExpression(node)) {
+      if (node.expression.kind === api.SyntaxKind.ImportKeyword) {
+        readCallArgument(node, "dynamic-import");
+      } else if (api.isIdentifier(node.expression) && node.expression.text === "require") {
+        readCallArgument(node, "require");
+      }
+    }
+    api.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return { specifiers, unreadable };
+}
+
+/**
  * Every module specifier one JavaScript source carries, each with its class.
  *
- * THE SCAN'S INPUT IS CODE, and since 32-38 that sentence is TRUE rather than aspirational:
- * `scanSource` blanks comments, template text AND ordinary string-literal text, so a `from "…"`
- * written inside prose has had its `from` keyword blanked along with everything else and matches
- * nothing. Only a specifier in a real POSITION survives to be matched.
- *
- * Blanking the literal also blanks the specifier's own text, so the match tells us WHERE the
- * specifier is and the literal table recorded by `scanSource` tells us WHAT it said. The `d` flag
- * gives the capture's exact offset, which is the literal's text start. Both quote styles are read.
- *
- * WHY THE FALLBACK IS THE RAW CAPTURE. If a capture offset is absent from the table the span was
- * never blanked, so its bytes are still its own text and reading them is correct. Every quote-
- * delimited span these patterns can reach in code position IS recorded, so this is unreachable in
- * practice; the two-sided parser oracle over the whole tracked corpus is what proves that, rather
- * than this comment.
+ * The shape every existing caller uses, kept exactly: `moduleSpecifierFacts` is the fuller answer and
+ * this is the projection of it that the walk and the read-only guard's census both want.
  */
-export function moduleSpecifiers(source: string): readonly ClassifiedSpecifier[] {
-  const { code, literals } = scanSource(source);
-  const out: ClassifiedSpecifier[] = [];
-  for (const re of SPECIFIER_PATTERNS) {
-    for (const m of code.matchAll(re)) {
-      const at = m.indices?.[1]?.[0];
-      const recovered = at === undefined ? undefined : literals.get(at);
-      const specifier = recovered ?? (m[1] as string);
-      out.push({ specifier, cls: classifySpecifier(specifier) });
-    }
-  }
-  return out;
+export function moduleSpecifiers(
+  source: string,
+  parser?: SpecifierParserApi,
+): readonly ClassifiedSpecifier[] {
+  return moduleSpecifierFacts(source, parser).specifiers;
 }
 
 // `relativeSpecifiers` WAS DELETED HERE (review WR-07). 32-31 kept it "so every existing caller is

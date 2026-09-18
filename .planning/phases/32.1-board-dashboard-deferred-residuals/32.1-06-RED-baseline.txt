@@ -1,0 +1,181 @@
+32.1-06-RED-baseline.txt — the second grammar, measured before it was deleted (D-08)
+=====================================================================================
+
+Recorded 2026-09-18 against HEAD 06cd9d5a, before any file in plan 32.1-06 was edited. Every
+listing below is a command run on this tree and its real output. Nothing here is reconstructed.
+
+
+§ 1 — THE REFERENT SEARCH THAT DECIDES `scanSource` AND `stripNonCode`'s FATE
+-----------------------------------------------------------------------------
+
+The plan forbids deleting an export without first measuring its callers, and RESEARCH assumption A4
+("`stripNonCode` has no caller outside `board-readonly.test.ts` and can be deleted with
+`scanSource`") is explicitly flagged as an ASSUMPTION to re-measure rather than a fact to act on.
+So it was re-measured, repository-wide, across source, build output and markdown.
+
+  $ grep -rn "stripNonCode" --include="*.ts" --include="*.js" --include="*.mjs" --include="*.md" . \
+      | grep -v node_modules | grep -v "^./.tmp-build"
+
+  CODE REFERENTS (2):
+    scripts/js-import-closure.ts:408:export function stripNonCode(source: string): string {
+    scripts/js-import-closure.js:381:export function stripNonCode(source) {
+
+  TEST-FILE REFERENTS (6) — all PROSE, none a call:
+    scripts/board-readonly.test.ts:1685   // THE CONVERSE FOR stripNonCode, first half. …   (comment)
+    scripts/board-readonly.test.ts:1705   // THE CONVERSE FOR stripNonCode, second half. … (comment)
+    scripts/board-readonly.test.ts:1722   it("stripNonCode removes no real code: …")       (test NAME)
+    scripts/board-readonly.test.ts:1800   // THE CONVERSE FOR stripNonCode, third half. …  (comment)
+    scripts/board-readonly.test.ts:1900   "… Fix the scan's input in stripNonCode …"       (failure message)
+    scripts/board-readonly.test.ts:2062   // `stripNonCode` is a regression risk …         (comment)
+
+  The remaining 30-odd referents are `.planning/**` markdown: plan text, summaries, review findings
+  and this phase's own research. None of them is code.
+
+  THE DECISIVE MEASUREMENT — the symbol is not IMPORTED anywhere:
+
+  $ grep -n "stripNonCode" scripts/board-readonly.test.ts | head -1
+  1685:    // THE CONVERSE FOR stripNonCode, first half. …
+
+  $ sed -n '178,190p' scripts/board-readonly.test.ts
+  import {
+    classifySpecifier,
+    copyImportClosure,
+    jsImportClosure,
+    jsImportClosureFacts,
+    moduleSpecifiers,
+    SPECIFIER_CLASSES,
+    type SpecifierClass,
+  } from "./js-import-closure.js";
+
+  `stripNonCode` is NOT in that import list, and it is in no other import list in the repository.
+  The six test-file referents are a test NAME, four comments and one failure message. The function
+  has ZERO call sites outside its own definition — it is not even called by the file whose cases the
+  research describes as "its own tests". Those cases call `moduleSpecifiers`.
+
+  $ grep -rn "scanSource" --include="*.ts" --include="*.js" . | grep -v node_modules | grep -v .tmp-build
+    scripts/js-import-closure.ts:228  (definition)
+    scripts/js-import-closure.ts:409  (called by stripNonCode)
+    scripts/js-import-closure.ts:453  (called by moduleSpecifiers)
+    scripts/js-import-closure.js:199, :382, :418   (the same three, in the build output)
+
+  `scanSource` is module-private and has exactly two callers, both inside its own file, and one of
+  them is the extractor this plan replaces.
+
+  DECISION, WITH ITS MEASUREMENT. Both are deleted. `scanSource` exists only to feed the
+  regular-expression extractor: once the extractor is a real tokenizer the blanking pass has no
+  consumer, because a tokenizer decides for itself what is prose. `stripNonCode` is a view over it
+  with ZERO call sites — the measurement above, not the assumption A4 warns about — so deleting it
+  removes an export nobody reads rather than a contract somebody depends on. The three
+  behavioural cases whose prose names it (a specifier written only in a comment, only in a template
+  literal, and one written inside a template SUBSTITUTION that must survive) assert properties of
+  `moduleSpecifiers`, not of `stripNonCode`; they are KEPT and re-homed onto the tokenizer, because
+  the property each one decides is still a property worth deciding. Deleting them would trade a
+  false claim for a real hole.
+
+
+§ 2 — THE THREE FINDINGS, REPRODUCED AGAINST THE PRE-TASK-1 COMMITTED BUILD OUTPUT
+-----------------------------------------------------------------------------------
+
+Each case below imports `moduleSpecifiers` from the COMMITTED `scripts/js-import-closure.js` at
+06cd9d5a — the artifact the six production consumers actually load — and compares it with a real
+`ts.createSourceFile(…, ts.ScriptKind.JS)` parse using `ts.isStringLiteralLike` for the value.
+
+  $ node <the harness described above>
+
+── F-16 / WR-02 — a regex literal carrying an import-shaped string, beside one real import
+src      : "const re = /from \"x/; import y from \"./real.js\";\nexport const use = () => re.test(y);"
+scanned  : ["x/; import y from :bare"]
+ts-parse : ["./real.js"]
+
+  BOTH DIRECTIONS FAIL AT ONCE. The scanner FABRICATES `x/; import y from ` (classified `bare`, so
+  `jsImportClosureFacts` skips it silently) and SWALLOWS the real `./real.js`. That is WR-02's
+  finding exactly: the walk hands back a closure missing a module, with no throw and no diagnostic.
+
+── F-16 (path-shaped variant) — a regex literal whose interior spells a relative specifier
+src      : "const re = /from \"\\.\\/evil\\.js\"/;\nimport y from \"./real.js\";\nexport const use = () => re.test(y);"
+scanned  : ["\\.\\/evil\\.js:foreign","./real.js:relative"]
+ts-parse : ["./real.js"]
+
+  F-16's own listing: a FOREIGN row manufactured out of a regular-expression interior. `foreign` is
+  a hard refusal in `jsImportClosure`, so this shape makes a gate that cannot start — CR-01's exact
+  shape, one literal kind over.
+
+── WR-03 — an import specifier carrying an escape sequence
+src      : "import a from \"./mod\\u002ejs\";\nexport const use = () => a;"
+scanned  : ["./mod\\u002ejs:relative"]
+ts-parse : ["./mod.js"]
+
+  The recovery table stored the RAW BYTES between the quotes. `jsImportClosureFacts` then resolves
+  `./mod.js` as a path, finds no file, and throws `ImportClosureError` over a module that
+  exists.
+
+── F-17 — a dynamic import whose argument is a no-substitution template literal
+src      : "export const load = async () => (await import(`./tpl.js`)).name;"
+scanned  : []
+ts-parse : ["./tpl.js"]
+
+  The specifier pattern list accepts only `["']`, so the edge is invisible. Node resolves and runs
+  it (F-17's own listing records `TEMPLATE-DYNAMIC-IMPORT-OK function`). A mirror built from this
+  closure is short by exactly `./tpl.js`.
+
+  All four reproductions are RED before Task 1 — three of them in the SILENT direction (a fabricated
+  `bare` row is skipped, a swallowed real import is never reported, a missed template edge is never
+  reported). § 3 of `32.1-06-GREEN-proof.txt` records the same four cases after the cutover.
+
+
+§ 3 — THE SHIPPED-SURFACE RULE'S DISCRIMINATION, BOTH DIRECTIONS
+-----------------------------------------------------------------
+
+Recorded in `32.1-06-GREEN-proof.txt` § 4, because the rule does not exist until Task 2 writes it
+and a plant against an absent rule measures nothing. Both plants are run against a MIRROR of the
+tree, never against the tree itself:
+
+  (a) the scanner import planted into a NON-TEST file under the hook tree  → the rule must RED,
+      naming the file;
+  (b) the same import planted into a TEST file under the same tree         → the rule must NOT RED,
+      because `hooks/guard.test.ts:42` already imports `closureTargets` legitimately at six call
+      sites and an unscoped rule is red the moment it lands.
+
+  The pre-existing legitimate import, measured here so (b) is not a hypothetical:
+
+  $ grep -rn "js-import-closure" hooks/*.ts
+  hooks/guard.test.ts:42:import { closureTargets } from "../scripts/js-import-closure.js";
+  hooks/hook-entry.ts:239: * `import` statements — the same derivation `scripts/js-import-closure.ts` already publishes — and
+
+  `hooks/hook-entry.ts:239` is a COMMENT, which CONTEXT.md states and which this measurement
+  confirms. It is the one mention under the shipped surface today and it is not an import.
+
+
+§ 4 — THE SIX PRODUCTION CONSUMERS, RE-MEASURED BEFORE THE SIGNATURE WAS TOUCHED
+---------------------------------------------------------------------------------
+
+  $ grep -rln 'from "\(\.\./scripts\|\.\)/js-import-closure\.js"' scripts/*.ts hooks/*.ts | grep -v '\.test\.ts$'
+  scripts/check-platform-shapes.ts
+  scripts/context-freshness.ts
+  scripts/guarantees-freshness.ts
+  scripts/generate-hook-manifest.ts
+  scripts/now-running-freshness.ts
+  scripts/trace-freshness.ts
+
+  Six, matching RESEARCH § D-08. `scripts/check-platform-shapes.ts:76` imports `closureTargets` and
+  runs on every CI leg including the Windows one. `jsImportClosure(root, entryRel)` therefore keeps
+  its signature exactly; the parser seam is an OPTIONAL trailing parameter on the extractor, which no
+  production call site passes.
+
+
+§ 5 — WHERE THE PARSER IS NOT
+------------------------------
+
+  $ sed -n '251,282p' hooks/hook-entry.ts   (the DECIDER_MANIFEST, both entries)
+  hooks/admission-guard.js → 13 hashed modules; hooks/guard.js → 13 hashed modules.
+  `scripts/js-import-closure.js` is in NEITHER list.
+
+  $ grep -n 'entry:' scripts/board-readonly.test.ts   (CLOSURE_BASELINES, 9 rows)
+  hooks/admission-guard.js, hooks/guard.js, hooks/hook-entry.js, scripts/board-dashboard.js,
+  scripts/board-model.js, scripts/claim.js, scripts/context-io.js, scripts/generate-guarantees.js,
+  scripts/trace-render.js
+
+  No baseline closure contains `scripts/js-import-closure.js`, so the scanner is never COPIED into a
+  temp mirror by any gate. That is what makes `createRequire(import.meta.url)` the right acquisition
+  site: the module only ever runs from its own checkout, where `node_modules` is present, and a
+  rebuild of it does not oblige `npm run generate:hook-manifest`.
