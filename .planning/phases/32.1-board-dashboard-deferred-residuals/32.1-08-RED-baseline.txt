@@ -1,0 +1,249 @@
+32.1-08 RED BASELINE
+====================
+
+Phase 32.1, plan 08. Two subjects: F-18 (D-10, two independent write-detection
+predicates) and D-11 (one register for the dynamic-import question, with a
+refusal that carries the node kind).
+
+Every transcript below was produced on this box, on this tree, by running the
+guard for real. Nothing here is quoted from another phase's document without
+being re-measured: a finding quoted rather than re-run is a recollection.
+
+Machine: darwin 25.5.0, node 24.12.0, vitest 4.1.8.
+Tree at the start of this plan: 2f791a81 ("docs(32.1-07): complete the
+sentence-builder plan").
+
+Command under measurement (§§ 1-4):
+    npx vitest run scripts/board-readonly.test.ts
+which is byte-for-byte what `npm run check:dashboard-readonly` runs.
+
+The plant is appended to the committed build output `scripts/board-read.js` --
+a module inside the dashboard closure -- exactly as Phase 32's round-4 red team
+planted S7 and S9. Every run restores both `scripts/board-read.js` and
+`scripts/board-readonly.test.ts` from a byte copy taken before the run, and
+every transcript carries its own `git status --porcelain -- scripts/` line so
+the restoration is evidence rather than an intention.
+
+"MECHANISM red" means the case
+
+    PREMISE: no closure module acquires a module by a route that is not a
+    static literal import
+
+appears as a `FAIL` line in the reporter -- matched against the FAIL lines
+only, never against the run's whole output. That distinction is load-bearing:
+the string also occurs inside the failure MESSAGE of the new F-18 cases, so a
+whole-output grep answers YES for a run in which the premise case passed. The
+first pass of this measurement did exactly that and had to be re-taken.
+
+"CENSUS red" means the two allow-list cases
+
+    the closure's normalized builtin identities have exactly the allowed MEMBERS
+    the closure's normalized builtin identity set has the expected COUNT
+
+appear as FAIL lines, under the same rule.
+
+
+-------------------------------------------------------------------------------
+Section 0 -- the control
+-------------------------------------------------------------------------------
+
+### CONTROL -- unmutated, unplanted tree
+  exit code: 0
+  Test Files  1 passed (1)
+  Tests  194 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): NO
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  NO
+  CENSUS red (allow-list COUNT among the FAILs):             NO
+  git status --porcelain -- scripts/ : []
+
+(Pre-change the same command was `189 passed (189)`; this plan's five new cases
+are the difference.)
+
+
+-------------------------------------------------------------------------------
+Section 1 -- the two F-18 plants
+-------------------------------------------------------------------------------
+
+S7 (appended to scripts/board-read.js):
+
+    import { probeWrite } from "7zip-bin";
+    export const f18PlantPackage = (p, b) => probeWrite(p, b);
+
+S9 (appended to scripts/board-read.js):
+
+    import { probeWrite } from " /private/tmp/grugops-probe/writer.mjs";
+    export const f18PlantWhitespace = (p, b) => probeWrite(p, b);
+
+Both are BARE by `classifySpecifier` -- S7 because npm permits a leading digit,
+S9 because Node's own resolver reads a leading space as part of a package name
+and throws ERR_MODULE_NOT_FOUND rather than resolving a path. Neither resolves
+in this repository, which ships no `dependencies` key; what is being measured is
+which predicate REFUSES them, not whether they deliver.
+
+
+-------------------------------------------------------------------------------
+Section 2 -- F-18 reproduced, then closed
+-------------------------------------------------------------------------------
+
+The pre-change runs put the guard back to `2f791a81:scripts/board-readonly.test.ts`
+(the committed pre-D-10 source) and plant into the live closure.
+
+### PRE-CHANGE (guard at 2f791a81) + plant S7 -- 7zip-bin
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  16 failed | 173 passed (189)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): NO
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  YES
+  CENSUS red (allow-list COUNT among the FAILs):             YES
+  git status --porcelain -- scripts/ : []
+
+### PRE-CHANGE (guard at 2f791a81) + plant S9 -- leading-whitespace absolute path
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  16 failed | 173 passed (189)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): NO
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  YES
+  CENSUS red (allow-list COUNT among the FAILs):             YES
+  git status --porcelain -- scripts/ : []
+
+Both reproduce 32-40-ADVERSARIAL-REVIEW.md section 12, F-18, to the number:
+`exit 1, 16 failed | 173 passed (189)`, premise ABSENT. The refusal was carried
+solely by the census.
+
+### POST-CHANGE + plant S7 -- 7zip-bin
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  34 failed | 160 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): YES
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  YES
+  CENSUS red (allow-list COUNT among the FAILs):             YES
+  git status --porcelain -- scripts/ : []
+
+### POST-CHANGE + plant S9 -- leading-whitespace absolute path
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  34 failed | 160 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): YES
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  YES
+  CENSUS red (allow-list COUNT among the FAILs):             YES
+  git status --porcelain -- scripts/ : []
+
+
+-------------------------------------------------------------------------------
+Section 3 -- isolation A: the census disabled, the mechanism alone
+-------------------------------------------------------------------------------
+
+MUTANT A is a one-line edit to the live source, applied to a byte copy and
+reverted after every run:
+
+    normalizedBuiltinIdentities()
+      returns ... .sort()
+      becomes  ... .sort().filter((i) => ALLOWED_BUILTIN_SPECIFIERS.includes(i))
+
+which makes the allow-list equality and its count green over ANY bare
+specifier -- the census stops seeing anything it does not already admit. The
+mechanism arm is untouched.
+
+### MUTANT A (census disabled) -- CONTROL, no plant
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  8 failed | 186 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): NO
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  NO
+  CENSUS red (allow-list COUNT among the FAILs):             NO
+  git status --porcelain -- scripts/ : []
+  failing case names:
+    - 32.1-08 -- F-18 ... > BOTH predicates refuse a package-shaped bare specifier with a leading digit (round-4 plant S7)
+    - 32.1-08 -- F-18 ... > BOTH predicates refuse an absolute path behind LEADING WHITESPACE, which Node itself resolves as a package (plant S9)
+    - 32-06 -- the guard discriminates ... > a planted node:net import makes the module-ban case FAIL
+    - 32-06 -- the guard discriminates ... > the UN-PREFIXED spelling of a banned module is caught too
+    - 32-06 -- the guard discriminates ... > module identity is REFUSED: the heap-snapshot writer imported from node:v8 (zero obfuscation; verifier gap 2)
+    - 32-06 -- the guard discriminates ... > module identity is REFUSED: the embedded database imported from node:sqlite, which creates and writes its file
+    - 32-06 -- the guard discriminates ... > module identity is REFUSED: the virtual machine imported from node:vm, which executes source
+    - 32-06 -- the guard discriminates ... > module identity is REFUSED: the UN-PREFIXED spelling of the heap-snapshot builtin (`v8`, not `node:v8`)
+
+### MUTANT A (census disabled) + plant S7
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  31 failed | 163 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): YES
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  NO
+  CENSUS red (allow-list COUNT among the FAILs):             NO
+  git status --porcelain -- scripts/ : []
+
+### MUTANT A (census disabled) + plant S9
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  31 failed | 163 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): YES
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  NO
+  CENSUS red (allow-list COUNT among the FAILs):             NO
+  git status --porcelain -- scripts/ : []
+
+Measured: with the census refusing nothing, the mechanism still reds both
+plants.
+
+
+-------------------------------------------------------------------------------
+Section 4 -- isolation B: the mechanism removed, the census alone
+-------------------------------------------------------------------------------
+
+MUTANT B deletes the D-10 arm from `noteSpecifier`'s bare case, restoring the
+pre-change behaviour of that one function and nothing else:
+
+        if (!isNodeBuiltinIdentity(specifier)) {
+          acquisitions.push(briefly(`PACKAGE SPECIFIER "${specifier}"`));
+        }
+    becomes
+        // MUTANT: the D-10 arm removed
+
+### MUTANT B (D-10 arm removed) -- CONTROL, no plant
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  2 failed | 192 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): NO
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  NO
+  CENSUS red (allow-list COUNT among the FAILs):             NO
+  git status --porcelain -- scripts/ : []
+  failing case names:
+    - 32.1-08 -- F-18 ... > BOTH predicates refuse a package-shaped bare specifier with a leading digit (round-4 plant S7)
+    - 32.1-08 -- F-18 ... > BOTH predicates refuse an absolute path behind LEADING WHITESPACE, which Node itself resolves as a package (plant S9)
+
+### MUTANT B (D-10 arm removed) + plant S7
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  19 failed | 175 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): NO
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  YES
+  CENSUS red (allow-list COUNT among the FAILs):             YES
+  git status --porcelain -- scripts/ : []
+
+### MUTANT B (D-10 arm removed) + plant S9
+  exit code: 1
+  Test Files  1 failed (1)
+  Tests  19 failed | 175 passed (194)
+  MECHANISM red (acquisitions PREMISE case among the FAILs): NO
+  CENSUS red (allow-list MEMBERS equality among the FAILs):  YES
+  CENSUS red (allow-list COUNT among the FAILs):             YES
+  git status --porcelain -- scripts/ : []
+
+Measured: with the mechanism removed, the census still reds both plants.
+
+Sections 3 and 4 together are what makes "two predicates" a measurement. Each
+one is watched refusing both plants with the other disabled, in both
+directions, and neither mutant's unplanted control is silent -- the new F-18
+cases red under BOTH mutations, so the pair cannot be quietly halved again
+without a named case failing.
+
+THE PINNED COUNT DID NOT MOVE. `ALLOWED_BUILTIN_SPECIFIER_COUNT` is 3 before
+and after this plan (scripts/board-readonly.test.ts:3280). The plants are
+writers arriving from outside, not new admitted builtins; a plan that moved
+that number would have changed what the closure is ALLOWED to acquire rather
+than what the guard detects.
+
+
+-------------------------------------------------------------------------------
+Section 5 -- D-11: the dynamic-import register, before and after
+-------------------------------------------------------------------------------
+
+(filled in by task 2)
