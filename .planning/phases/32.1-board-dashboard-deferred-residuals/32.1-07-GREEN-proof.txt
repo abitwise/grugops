@@ -1,0 +1,104 @@
+32.1-07 — GREEN PROOF
+Plan: 32.1-07 (D-07 / F-14 / ledger row 200 — one refusal-sentence builder that escapes by construction)
+Tree: /Users/olgeroeselg/Projects/public/grugops, main @ 35caad25 (task commits c6e7376a, 69c5b85b, 35caad25)
+Date: 2026-09-18
+
+Every control byte below is SPELLED. Nothing in this transcript is retyped from memory; each block is
+the output of the command above it.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 1 — THE PLAN'S VERIFICATION BLOCK, IN ORDER
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+1. $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts \
+       scripts/board-read.test.ts scripts/board-dashboard.test.ts scripts/board-watch.test.ts
+
+   Test Files  4 passed (4)
+        Tests  462 passed (462)
+   exit 0
+
+2. $ npm run check:dashboard-readonly
+   exit 0     (189 tests; "board-readonly: 329 resolved call sites … 0 unresolved, 0 refused
+               acquisitions", "mutating fs symbols 57")
+
+3. $ npm run typecheck && npm run build && npm run check:build-parity
+   exit 0     PASS Build parity: tracked build outputs that moved when the build ran:
+                   0 findings over 66/66 elements
+
+4. The document-mode smoke, with the schema version DERIVED from the module rather than typed:
+
+   $ node scripts/board-dashboard.js . --once --json | <assert exactly one line, schemaVersion ===
+                                                        SCHEMA_VERSION exported by board-model.js>
+   one json document, schemaVersion 2 (derived from the module)
+
+   DEVIATION, RECORDED: the plan's own command pins `schemaVersion !== 1`. This tree publishes
+   SCHEMA VERSION 2 — `scripts/board-model.ts:58`, bumped by plan 32-33 (`92f27444`), before this
+   plan was written. The property the step exists to prove is "exactly one parseable document at the
+   version the module publishes", so the command was changed to DERIVE the number from
+   `SCHEMA_VERSION` rather than to carry a second copy of it. Pinning a literal 1 here would have
+   asserted a number this tree moved past, which is the set-literal drift class in a verification
+   step. Nothing about the emitted document changed in this plan.
+
+5. $ npx vitest run --exclude '**/scripts/e2e/**'          (the full regression lane)
+
+   Test Files  75 passed (75)
+        Tests  5203 passed | 2 skipped (5205)
+   exit 0
+
+   The lane was 75 files / 5186 passed before this plan; the 17 new tests are 4 F-14 cases in
+   `scripts/board-model.test.ts`, 3 end-to-end cases in `scripts/board-dashboard.test.ts`, and the
+   10 census cases with their mutation mirror.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 2 — F-14 CLOSED, MEASURED AT THREE POINTS IN ONE RUN
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+One planted tree: `plans/tickets/ABC-901.md` and `plans/tickets/ABC-903.md` both declaring
+`id: ABC-902<U+0085>X`, one board row `- [ABC-901] …`. Three sentences, one per module:
+
+[A board-model]     "plans/tickets/ABC-901.md exists and declares the identifier ABC-902<U+0085>X,
+                     so it is joined under that identifier and not this one"
+[B board-read]      "ABC-903.md and ABC-901.md both claim the identifier ABC-902<U+0085>X. Ticket
+                     identifiers are unique and the first by file name is joined, so ABC-901.md is
+                     the one joined and ABC-903.md is not. …"
+[C board-dashboard] "board-dashboard: tickets at <tree>/plans/tickets/ABC-903.md — duplicate-id:
+                     ABC-903.md and ABC-901.md both claim the identifier ABC-902<U+0085>X. …"
+
+Each sentence now names the identifier the file actually declares. Before this plan each printed
+`ABC-902X`, an identifier nowhere on the tree (`32.1-07-RED-baseline.txt` § 1 and § 3).
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 3 — THE OWNERSHIP CENSUS, GREEN AND NON-VACUOUS
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+    template substitutions in the three board modules                         171
+    …written to a position a human reads as a finding                          86
+    …quoting a CONTENT-derived declaration                                     23
+    substitutions built through `spelled`                                      41
+    content-derived substitutions NOT built through `spelled`                   0
+
+    distinct receiver positions, pinned two-sided                              27
+    distinct declarations reaching a published position, pinned two-sided      41
+    unresolved substitutions (would be classified by nothing)                   0
+
+The mutation mirror — the whole pipeline re-run over a `board-model.ts` mutated at the compiler
+host — moves the owned count by exactly one, reds the census naming
+`board-model.ts:1688 \`t.id\` (board-model.ts#id)`, and leaves the denominator at 86.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 4 — THE PROHIBITIONS, ASSERTED RATHER THAN PROMISED
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+  • `TICKET_CONTROL` is unchanged. `git diff 87e68e0f..HEAD -- scripts/board-model.ts` names it on
+    exactly two ADDED lines, both inside the new builder's docblock (one stating the defect, one
+    stating what the builder does not close); its declaration appears on no changed line. Two
+    permanent cases also assert
+    `TICKET_CONTROL.test(U+0085) === false` with the reason (widening it reaches DASH-01's grammar).
+  • The `visible()`/`sanitizeCell` two-authority pin survives, passes, and keeps its vacuity floor.
+    CONTEXT.md D-07's "the site-list derivation is retired" names no artefact on this tree; the
+    measurement is recorded in `32.1-07-RED-baseline.txt` § 4 and in the census's own docblock.
+  • No double-escape: `visible` is idempotent on its own output and the escape text is inert under
+    `sanitizeCell`, asserted for the reproduction's exact sentence and for the class as a whole.
+  • `git diff --exit-code -- scripts/context-io-writer-set.test.ts` exits 0 (residual R-31-21-04).
+  • No package was installed. `npm test` was never run; the lane command is
+    `npx vitest run --exclude '**/scripts/e2e/**'`.
