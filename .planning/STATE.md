@@ -6,17 +6,17 @@ current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
 stopped_at: Phase 32.1 complete, ready to plan Phase 33
-last_updated: "2026-09-18T19:55:37.147Z"
-state_head: cea48dee5662b84b52c95580e327ee579ccc1663
+last_updated: "2026-09-18T21:11:53.109Z"
+state_head: 52377a7a34d7d850f78c61b84e336fc6b272de6a
 progress:
   total_phases: 10
   completed_phases: 32
   total_plans: 269
   completed_plans: 269
   percent: 89
-last_activity: 2026-09-13
+last_activity: 2026-09-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
+last_activity_desc: "Completed quick task 260919-007: README Quickstart gains example Claude Code commands for each grugops skill (52377a7a); next quick task 260919-07m names the real marketplace owner in the installer notes."
 ---
 
 # Project State
@@ -1529,6 +1529,7 @@ None yet.
 | 260616-faw | Feasibility plan — automate the activities in the remaining human UATs (analysis only; 3-tier verdict) | 2026-06-16 | 5dcc5ef | [260616-faw-automate-remaining-human-uats-feasibilit](./quick/260616-faw-automate-remaining-human-uats-feasibilit/) |
 | 260721-hjm | Audit user-facing docs for freshness + concision (agent-factory/README.md brought to v2.0 reality) | 2026-07-21 | 56d46ed | [260721-hjm-go-over-user-facing-documentation-audit-](./quick/260721-hjm-go-over-user-facing-documentation-audit-/) |
 | 260721-iyt | Add root CHANGELOG.md (Keep a Changelog 1.1.0, from real tags + milestone docs) and link it from README.md | 2026-07-21 | 1c30907 | [260721-iyt-add-missing-changelog-md-populated-from-](./quick/260721-iyt-add-missing-changelog-md-populated-from-/) |
+| 260919-007 | Add example Claude Code commands for each grugops skill to README.md Quickstart | 2026-09-18 | 52377a7a | [260919-007-add-example-claude-code-commands-for-eac](./quick/260919-007-add-example-claude-code-commands-for-eac/) |
 
 ## Deferred Items
 
