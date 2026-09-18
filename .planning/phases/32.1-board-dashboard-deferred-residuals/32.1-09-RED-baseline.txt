@@ -1,0 +1,149 @@
+32.1-09 RED BASELINE — the watch paragraph, the watch arm, and the liveness gate
+================================================================================
+
+Plan: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-09-PLAN.md
+Tree: main, taken 2026-09-18.
+Lane: npx vitest run --exclude '**/scripts/e2e/**'   (npm test is never run — it is the live lane)
+
+Every transcript below is copied from the run that produced it. Nothing here is
+reconstructed from memory.
+
+
+SECTION 0 — THE DRIFT ITSELF, MEASURED BEFORE IT WAS REPAIRED (Task 2 before Task 1)
+------------------------------------------------------------------------------------
+
+The new prose-shaped equality was written FIRST and run against the contract as it
+stood. Review WR-01's finding is the RED: the paragraph the contract carried made a
+blanket claim, so the reader that locates the rule by its lead sentence could not find
+the rule the code implements at all.
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts -t "watch"
+
+   FAIL  scripts/board-model.test.ts > board-model — the contract's watch paragraph and
+         the watch arm's disposition (plan 32.1-09, D-18) > asserts SET EQUALITY IN BOTH
+         DIRECTIONS between the paragraph and the arm's disposition
+  Error: agent-factory/contracts/board.md carries no paragraph opening "**A directory
+  refused for CONTAINMENT carries no watch record.**". The watch rule is located by that
+  sentence, never by a line number; if it was reworded, reword it here in the same commit
+   ❯ readWatchParagraph scripts/board-model.test.ts:4371:11
+   ❯ watchParagraphSets scripts/board-model.test.ts:4412:29
+
+   Test Files  1 failed (1)
+        Tests  5 failed | 2 passed | 168 skipped (175)
+
+AFTER the contract adopted the rule the code implements (Task 1), the same command:
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+   Test Files  1 passed (1)
+        Tests  175 passed (175)
+
+
+SECTION 1 — PLANT 1: the arm's two dispositions swapped, in a mirror of the live source
+---------------------------------------------------------------------------------------
+
+Mutation. `scripts/board-dashboard.ts` is parsed, the ONE `if (decision.code === …)`
+statement is located, and its then/else bodies are exchanged verbatim. The mirror is
+built from the live source, so it cannot drift away from the thing it copies.
+
+  PLANT 1 applied: the refusal branch bodies are swapped
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts \
+      -t "SET EQUALITY IN BOTH DIRECTIONS between the paragraph"
+
+   FAIL  scripts/board-model.test.ts > board-model — the contract's watch paragraph and
+         the watch arm's disposition (plan 32.1-09, D-18) > asserts SET EQUALITY IN BOTH
+         DIRECTIONS between the paragraph and the arm's disposition
+  AssertionError: the normative contract and the watch arm disagree about which refusal
+  codes carry a watch record. An entry on the left with no partner on the right is a
+  contract row describing a consequence the code does not produce — exactly what review
+  WR-01 found. One on the right with no partner on the left is a behaviour the projector
+  has that no reader adjudicating a disagreement could look up: expected
+  [ 'no-record:OUTSIDE-ROOT', …(2) ] to deeply equal [ 'no-record:<errno>', …(2) ]
+
+  - Expected
+  + Received
+
+    [
+  -   "no-record:<errno>",
+  -   "no-record:unreadable",
+  -   "record:OUTSIDE-ROOT",
+  +   "no-record:OUTSIDE-ROOT",
+  +   "record:<errno>",
+  +   "record:unreadable",
+    ]
+
+   Test Files  1 failed (1)
+        Tests  1 failed | 174 skipped (175)
+
+Restored from a byte copy taken before the plant; `git status --porcelain --
+scripts/board-dashboard.ts` printed nothing.
+
+
+SECTION 2 — PLANT 2: the paragraph alone stops naming a code the authority returns
+----------------------------------------------------------------------------------
+
+Mutation. In `agent-factory/contracts/board.md`, `an `unreadable` path` loses its
+backticks and nothing else changes. The code is untouched.
+
+  PLANT 2 applied: the paragraph stops backticking the unreadable code
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts \
+      -t "SET EQUALITY IN BOTH DIRECTIONS between the paragraph"
+
+   FAIL  scripts/board-model.test.ts > board-model — the contract's watch paragraph and
+         the watch arm's disposition (plan 32.1-09, D-18) > asserts SET EQUALITY IN BOTH
+         DIRECTIONS between the paragraph and the arm's disposition
+  AssertionError: the normative contract and the watch arm disagree about which refusal
+  codes carry a watch record. … expected [ 'no-record:OUTSIDE-ROOT', …(1) ] to deeply
+  equal [ 'no-record:OUTSIDE-ROOT', …(2) ]
+
+  - Expected
+  + Received
+
+    [
+      "no-record:OUTSIDE-ROOT",
+      "record:<errno>",
+  -   "record:unreadable",
+    ]
+
+   Test Files  1 failed (1)
+        Tests  1 failed | 174 skipped (175)
+
+The named direction is the one the plant made: a code the PROJECTOR produces that the
+paragraph no longer describes. Restored from a byte copy; the restored file's SHA-1
+matched the copy exactly (2db97558bf7f59db1e53aa9b5428f4aee7de1c8f both sides).
+
+
+SECTION 3 — PLANT 3: the derived code set emptied, against the vacuity floor
+-----------------------------------------------------------------------------
+
+Mutation. In `scripts/board-read.ts`, the two containment functions' bodies have every
+`code:` property renamed to `codeX:`. The functions still exist and still return
+refusals; what goes away is the property the derivation reads, so the derived set is
+empty for the reason a real derivation break would empty it.
+
+  PLANT 3 applied: the containment authority names no refusal code property
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts \
+      -t "NON-EMPTY containment code set"
+
+   FAIL  scripts/board-model.test.ts > board-model — the contract's watch paragraph and
+         the watch arm's disposition (plan 32.1-09, D-18) > derives a NON-EMPTY
+         containment code set, with its SITE count floored two ways
+  AssertionError: PREMISE: the containment authority parsed with ZERO refusal sites, so
+  the derived code set is empty and every comparison against it holds vacuously:
+  expected 0 to be greater than 0
+   ❯ scripts/board-model.test.ts:4551:7
+
+   Test Files  1 failed (1)
+        Tests  1 failed | 174 skipped (175)
+
+The ELEMENT count — refusal SITES walked — is what spoke, not the member set. Restored
+from a byte copy; `git status --porcelain -- scripts/` named only
+`scripts/board-model.test.ts`, which is this plan's own work.
+
+
+SECTION 4 — PLANT 4: the liveness gate reverted to the unresolved spelling (F-20)
+---------------------------------------------------------------------------------
+
+This section is written by Task 3. See below.

@@ -4094,3 +4094,541 @@ describe("32.1-07 — the ownership census is a control, not a coincidence", () 
     ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32.1-09, TASKS 1 AND 2 — THE WATCH PARAGRAPH AND THE WATCH ARM PROVED EQUAL (D-18, WR-01).
+//
+// WHY A SECOND INSTRUMENT RATHER THAN A PARAMETER ON THE ONE ABOVE. The presence-table equality
+// reads a two-column markdown TABLE and normalises each consequence cell into one backticked span.
+// The watch rule is a PROSE PARAGRAPH, so none of that machinery applies to it: there is no row, no
+// second cell, and no single span to normalise. Review WR-01 found the drift this comparison now
+// detects — the contract said in bold that a directory the projector will not watch carries no
+// watch record, while the arm had already begun recording two of the three refusal codes — and it
+// found it BY EYE, because nothing in the suite was asking.
+//
+// THE BOUND IS THE POINT, AGAIN. The paragraph is located by its bold lead sentence and bounded at
+// the first blank line or the next heading, whichever comes first — never at end of file. An
+// anchored reader that searches to EOF adopts an unrelated later block, which is the bypass shape
+// this repository recorded in Phase 29, and this section carries eight further paragraphs below the
+// one being read.
+//
+// BOTH SIDES ARE DERIVED. The code side is taken from the watch arm's own refusal-code branch and
+// from the containment authority's refusal sites, never from a set literal: a branch added to the
+// code with no sentence written for it reds here, and a code named in the contract that the
+// authority cannot return reds here too.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+const DASHBOARD_TS = join(ROOT, "scripts", "board-dashboard.ts");
+const READ_TS = join(ROOT, "scripts", "board-read.ts");
+
+/**
+ * The class every dynamic errno collapses to.
+ *
+ * `insideRoot` returns `err.code` straight off a caught `ErrnoException`, so the set of errno
+ * spellings it can return is open — `EACCES` and `ELOOP` are examples of it, not an enumeration of
+ * it. Collapsing them to one class is what lets the comparison be an EQUALITY rather than a
+ * containment: the contract names at least one example, and the example stands for the class.
+ */
+const ERRNO_CLASS = "<errno>";
+
+/** The bold lead sentence the watch paragraph is LOCATED by — never a line number. */
+const WATCH_PARAGRAPH_LEAD = "**A directory refused for CONTAINMENT carries no watch record.**";
+
+/**
+ * The phrase the paragraph's two halves are SPLIT at.
+ *
+ * The paragraph states two facts about one decision, and the comparison has to know which codes
+ * belong to which. The pivot is the clause that opens the second fact; it is required to occur
+ * exactly once, so a paragraph that grew a second copy of it reds rather than splitting somewhere
+ * a reader would not expect.
+ */
+const WATCH_PARAGRAPH_PIVOT = "could not RESOLVE";
+
+/** The containment authority's functions, which between them produce every refusal code. */
+const CONTAINMENT_FUNCTIONS = ["insideRoot", "anchorAbsentTarget"] as const;
+
+/** A parsed source file, from TEXT — so a mirror can be fed to every derivation below. */
+function parseSource(name: string, text: string): ts.SourceFile {
+  return ts.createSourceFile(name, text, ts.ScriptTarget.ES2022, true);
+}
+
+/** Top-level `const NAME = "literal"` declarations, so an identifier code resolves to its value. */
+function stringConstantsOf(src: ts.SourceFile): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  src.forEachChild((n) => {
+    if (!ts.isVariableStatement(n)) return;
+    for (const d of n.declarationList.declarations) {
+      if (ts.isIdentifier(d.name) && d.initializer !== undefined && ts.isStringLiteral(d.initializer)) {
+        out.set(d.name.text, d.initializer.text);
+      }
+    }
+  });
+  return out;
+}
+
+/** The named top-level function declarations of a source file. */
+function functionsOf(src: ts.SourceFile): ReadonlyMap<string, ts.FunctionDeclaration> {
+  const out = new Map<string, ts.FunctionDeclaration>();
+  src.forEachChild((n) => {
+    if (ts.isFunctionDeclaration(n) && n.name !== undefined) out.set(n.name.text, n);
+  });
+  return out;
+}
+
+/** The watch arm's refusal-code branch: which code is silent, and what each side of it does. */
+type WatchArm = {
+  readonly silentCode: string;
+  readonly onSilent: string;
+  readonly onOther: string;
+};
+
+/** `decision.code === SOMETHING` — the one comparison the watch arm branches its disposition on. */
+function isRefusalCodeComparison(e: ts.Expression): e is ts.BinaryExpression {
+  return (
+    ts.isBinaryExpression(e) &&
+    e.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+    ts.isPropertyAccessExpression(e.left) &&
+    e.left.name.text === "code"
+  );
+}
+
+/**
+ * What one side of the branch DOES with the directory's record, by refusal rather than by guess.
+ *
+ * A side that both records and deletes, or that does neither, is a shape this derivation does not
+ * know — and a disposition nobody can name is exactly the drift the comparison exists to catch, so
+ * it throws instead of picking one.
+ */
+function dispositionOf(side: ts.Node, which: string): string {
+  let notes = false;
+  let deletes = false;
+  const walk = (n: ts.Node): void => {
+    if (ts.isCallExpression(n)) {
+      const callee = n.expression;
+      if (ts.isIdentifier(callee) && callee.text === "noteWatchState") notes = true;
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "delete") deletes = true;
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(side);
+  if (notes && !deletes) return "record";
+  if (deletes && !notes) return "no-record";
+  throw new Error(
+    `the watch arm's ${which} branch neither writes exactly one watch record nor drops exactly ` +
+      `one: it ${notes ? "calls noteWatchState" : "never calls noteWatchState"} and it ` +
+      `${deletes ? "deletes the record" : "never deletes the record"}. A disposition this ` +
+      `derivation cannot name is a behaviour the contract cannot state either`,
+  );
+}
+
+/** Derive the watch arm's disposition map from `scripts/board-dashboard.ts`, never from a literal. */
+function deriveWatchArm(dashboardText: string, readText: string): WatchArm {
+  const src = parseSource("board-dashboard.ts", dashboardText);
+  const found: ts.IfStatement[] = [];
+  const walk = (n: ts.Node): void => {
+    if (ts.isIfStatement(n) && isRefusalCodeComparison(n.expression)) found.push(n);
+    ts.forEachChild(n, walk);
+  };
+  walk(src);
+  if (found.length !== 1) {
+    throw new Error(
+      `scripts/board-dashboard.ts branches on a refusal code ${found.length} times, not once. A ` +
+        `second such branch is a second disposition rule, and the watch paragraph states one`,
+    );
+  }
+  const stmt = found[0] as ts.IfStatement;
+  const cond = stmt.expression as ts.BinaryExpression;
+  if (!ts.isIdentifier(cond.right)) {
+    throw new Error(
+      `the watch arm compares the refusal code against ${cond.right.getText()} rather than ` +
+        `against the constant scripts/board-read.ts exports. A hand-typed spelling here is the ` +
+        `set-literal drift class this repository has already paid for`,
+    );
+  }
+  const silentCode = stringConstantsOf(parseSource("board-read.ts", readText)).get(cond.right.text);
+  if (silentCode === undefined) {
+    throw new Error(
+      `the watch arm branches on \`${cond.right.text}\`, which scripts/board-read.ts does not ` +
+        `declare as a string constant, so this comparison cannot say WHICH code is silent`,
+    );
+  }
+  if (stmt.elseStatement === undefined) {
+    throw new Error(
+      `the watch arm's refusal-code branch has no else, so every code other than ` +
+        `\`${silentCode}\` falls through to whatever follows the branch rather than to a stated ` +
+        `disposition`,
+    );
+  }
+  return {
+    silentCode,
+    onSilent: dispositionOf(stmt.thenStatement, "silent"),
+    onOther: dispositionOf(stmt.elseStatement, "other"),
+  };
+}
+
+/** Every refusal-code class the containment authority can return, with the site count it came from. */
+type ContainmentCodes = {
+  readonly classes: ReadonlySet<string>;
+  /** The refusal SITES walked — the element count, which a member set cannot floor on its own. */
+  readonly sites: number;
+};
+
+/** Derive the containment authority's refusal-code classes from `scripts/board-read.ts`. */
+function deriveContainmentCodes(readText: string): ContainmentCodes {
+  const src = parseSource("board-read.ts", readText);
+  const constants = stringConstantsOf(src);
+  const fns = functionsOf(src);
+  const classes = new Set<string>();
+  let sites = 0;
+
+  const classesOfReceiver = (name: string, within: ts.FunctionDeclaration, seen: readonly string[]): readonly string[] => {
+    let decl: ts.VariableDeclaration | undefined;
+    const find = (n: ts.Node): void => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === name) decl = n;
+      ts.forEachChild(n, find);
+    };
+    find(within);
+    const init = decl?.initializer;
+    if (init !== undefined && ts.isAsExpression(init) && init.type.getText().includes("Errno")) {
+      return [ERRNO_CLASS];
+    }
+    if (init !== undefined && ts.isCallExpression(init) && ts.isIdentifier(init.expression)) {
+      return fromFunction(init.expression.text, seen);
+    }
+    throw new Error(
+      `scripts/board-read.ts takes a refusal code off \`${name}.code\`, and this derivation ` +
+        `cannot tell what \`${name}\` is: it is neither a caught errno nor the result of a ` +
+        `containment function this walk knows. A propagation it cannot follow is a code class ` +
+        `that would silently leave the derived set`,
+    );
+  };
+
+  const classesOfCodeExpr = (expr: ts.Expression, within: ts.FunctionDeclaration, seen: readonly string[]): readonly string[] => {
+    if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr)) return [expr.text];
+    if (ts.isIdentifier(expr)) {
+      const value = constants.get(expr.text);
+      if (value === undefined) {
+        throw new Error(
+          `scripts/board-read.ts refuses with the code \`${expr.text}\`, which is not a string ` +
+            `constant declared in that module, so its VALUE cannot be compared with the contract`,
+        );
+      }
+      return [value];
+    }
+    if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+      return [...classesOfCodeExpr(expr.left, within, seen), ...classesOfCodeExpr(expr.right, within, seen)];
+    }
+    if (ts.isPropertyAccessExpression(expr) && expr.name.text === "code" && ts.isIdentifier(expr.expression)) {
+      return classesOfReceiver(expr.expression.text, within, seen);
+    }
+    throw new Error(
+      `scripts/board-read.ts builds a refusal code from an expression shape this derivation does ` +
+        `not know: ${ts.SyntaxKind[expr.kind]}. Teach it here — a shape it cannot read is a code ` +
+        `class that would silently leave the derived set`,
+    );
+  };
+
+  // WALKED ONCE PER FUNCTION, whichever route reaches it. `insideRoot` PROPAGATES
+  // `anchorAbsentTarget`'s codes, and that function is also named in CONTAINMENT_FUNCTIONS, so a
+  // walk that re-entered it would count its refusal SITES twice — an element count inflated by the
+  // derivation's own route is not a second measurement of anything.
+  const walked = new Map<string, readonly string[]>();
+  const fromFunction = (name: string, seen: readonly string[]): readonly string[] => {
+    if (seen.includes(name)) return [];
+    const already = walked.get(name);
+    if (already !== undefined) return already;
+    const fn = fns.get(name);
+    if (fn === undefined) return [];
+    const out: string[] = [];
+    const walk = (n: ts.Node): void => {
+      if (ts.isPropertyAssignment(n) && ts.isIdentifier(n.name) && n.name.text === "code") {
+        sites += 1;
+        out.push(...classesOfCodeExpr(n.initializer, fn, [...seen, name]));
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(fn);
+    walked.set(name, out);
+    return out;
+  };
+
+  for (const name of CONTAINMENT_FUNCTIONS) for (const c of fromFunction(name, [])) classes.add(c);
+  return { classes, sites };
+}
+
+/** The refusal-code sites counted a SECOND way — over the function bodies' own text. */
+function containmentCodeSitesByText(readText: string): number {
+  const fns = functionsOf(parseSource("board-read.ts", readText));
+  let n = 0;
+  for (const name of CONTAINMENT_FUNCTIONS) {
+    const body = fns.get(name)?.body;
+    if (body === undefined) continue;
+    n += (body.getText().match(/\bcode:/g) ?? []).length;
+  }
+  return n;
+}
+
+/**
+ * The watch paragraph, LOCATED by its bold lead sentence and BOUNDED by the first blank line or the
+ * next heading — whichever comes first, and never end of file.
+ */
+function readWatchParagraph(text: string): { readonly lines: readonly string[]; readonly flowed: string } {
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l.startsWith(WATCH_PARAGRAPH_LEAD));
+  if (start < 0) {
+    throw new Error(
+      `agent-factory/contracts/board.md carries no paragraph opening "${WATCH_PARAGRAPH_LEAD}". ` +
+        `The watch rule is located by that sentence, never by a line number; if it was reworded, ` +
+        `reword it here in the same commit`,
+    );
+  }
+  if (lines.slice(start + 1).some((l) => l.startsWith(WATCH_PARAGRAPH_LEAD))) {
+    throw new Error(
+      `agent-factory/contracts/board.md opens TWO paragraphs with "${WATCH_PARAGRAPH_LEAD}", so ` +
+        `the one this comparison reads is whichever came first rather than the one a reader means`,
+    );
+  }
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const line = lines[i] ?? "";
+    if (line.trim() === "" || /^#{1,6} /.test(line)) {
+      end = i;
+      break;
+    }
+  }
+  const span = lines.slice(start, end);
+  return { lines: span, flowed: span.join(" ").replace(/\s+/g, " ").trim() };
+}
+
+/** A backticked span of the paragraph, read as one refusal code — total by refusal. */
+function classOfContractSpan(span: string): string {
+  if (/^E[A-Z]{2,}$/.test(span)) return ERRNO_CLASS;
+  if (/^[A-Z][A-Z-]+$/.test(span) || span === "unreadable") return span;
+  throw new Error(
+    `the watch paragraph backticks \`${span}\`, which is not a refusal code this comparison can ` +
+      `read. The paragraph's backticked spans ARE its code list, so a backticked span that is ` +
+      `something else makes the list unreadable rather than merely longer`,
+  );
+}
+
+/** The paragraph's two halves, as disposition-tagged code classes, plus the elements they came from. */
+function watchParagraphSets(contractText: string): {
+  readonly tagged: ReadonlySet<string>;
+  readonly mentions: readonly string[];
+  readonly rawSpans: number;
+} {
+  const { lines, flowed } = readWatchParagraph(contractText);
+  const pivot = flowed.indexOf(WATCH_PARAGRAPH_PIVOT);
+  if (pivot < 0) {
+    throw new Error(
+      `the watch paragraph carries no "${WATCH_PARAGRAPH_PIVOT}" clause, so this comparison ` +
+        `cannot tell which codes the paragraph puts on the silent side and which on the recorded one`,
+    );
+  }
+  if (flowed.indexOf(WATCH_PARAGRAPH_PIVOT, pivot + 1) >= 0) {
+    throw new Error(
+      `the watch paragraph carries "${WATCH_PARAGRAPH_PIVOT}" more than once, so the split ` +
+        `between its two facts is ambiguous`,
+    );
+  }
+  const halves: readonly [string, string][] = [
+    ["no-record", flowed.slice(0, pivot)],
+    ["record", flowed.slice(pivot)],
+  ];
+  const tagged = new Set<string>();
+  const mentions: string[] = [];
+  for (const [disposition, half] of halves) {
+    for (const m of half.matchAll(/`([^`]+)`/g)) {
+      const span = m[1] ?? "";
+      mentions.push(span);
+      tagged.add(`${disposition}:${classOfContractSpan(span)}`);
+    }
+  }
+  const rawSpans = lines.reduce((n, l) => n + ((l.match(/`/g) ?? []).length), 0) / 2;
+  return { tagged, mentions, rawSpans };
+}
+
+/** The disposition map the CODE implements, tagged the same way the paragraph's halves are. */
+function watchArmSets(dashboardText: string, readText: string): ReadonlySet<string> {
+  const arm = deriveWatchArm(dashboardText, readText);
+  const { classes } = deriveContainmentCodes(readText);
+  const out = new Set<string>([`${arm.onSilent}:${arm.silentCode}`]);
+  for (const c of classes) if (c !== arm.silentCode) out.add(`${arm.onOther}:${c}`);
+  return out;
+}
+
+const liveContract = (): string => readFileSync(CONTRACT_PATH, "utf8");
+const liveDashboard = (): string => readFileSync(DASHBOARD_TS, "utf8");
+const liveRead = (): string => readFileSync(READ_TS, "utf8");
+
+/** A dashboard mirror with the refusal branch's two bodies SWAPPED — built from the live source. */
+function mirrorWithSwappedBranches(text: string): string {
+  const src = parseSource("board-dashboard.ts", text);
+  let stmt: ts.IfStatement | undefined;
+  const walk = (n: ts.Node): void => {
+    if (ts.isIfStatement(n) && isRefusalCodeComparison(n.expression)) stmt = n;
+    ts.forEachChild(n, walk);
+  };
+  walk(src);
+  if (stmt === undefined || stmt.elseStatement === undefined) {
+    throw new Error("PREMISE: the mirror found no refusal branch to swap, so the plant is a no-op");
+  }
+  const thenNode = stmt.thenStatement;
+  const elseNode = stmt.elseStatement;
+  return (
+    text.slice(0, thenNode.getStart()) +
+    elseNode.getText() +
+    text.slice(thenNode.getEnd(), elseNode.getStart()) +
+    thenNode.getText() +
+    text.slice(elseNode.getEnd())
+  );
+}
+
+/** A board-read mirror whose containment functions name their refusal code something else. */
+function mirrorWithNoCodeProperty(text: string): string {
+  const fns = functionsOf(parseSource("board-read.ts", text));
+  const spans = CONTAINMENT_FUNCTIONS.map((n) => fns.get(n)?.body).filter(
+    (b): b is ts.Block => b !== undefined,
+  );
+  if (spans.length !== CONTAINMENT_FUNCTIONS.length) {
+    throw new Error("PREMISE: the mirror found fewer containment functions than it mutates");
+  }
+  let out = text;
+  // Latest span first, so an earlier replacement cannot move a later span's offsets.
+  for (const body of [...spans].sort((a, b) => b.getStart() - a.getStart())) {
+    out =
+      out.slice(0, body.getStart()) +
+      body.getText().replace(/\bcode:/g, "codeX:") +
+      out.slice(body.getEnd());
+  }
+  return out;
+}
+
+describe("board-model — the contract's watch paragraph and the watch arm's disposition (plan 32.1-09, D-18)", () => {
+  it("locates the paragraph BY ITS LEAD SENTENCE, and bounds it before the next block", () => {
+    expect(() => readWatchParagraph("# a contract with no watch rule\n\nsome prose\n")).toThrow(
+      "carries no paragraph opening",
+    );
+    const bounded = readWatchParagraph(
+      `${WATCH_PARAGRAPH_LEAD} it names \`OUTSIDE-ROOT\`.\n\nA later paragraph names \`ELOOP\`.\n`,
+    );
+    expect(
+      bounded.flowed,
+      "the reader ran past the blank line and adopted an unrelated later paragraph",
+    ).toBe(`${WATCH_PARAGRAPH_LEAD} it names \`OUTSIDE-ROOT\`.`);
+    const atHeading = readWatchParagraph(`${WATCH_PARAGRAPH_LEAD} one line.\n## Next section\n`);
+    expect(
+      atHeading.lines.length,
+      "the reader ran past the next heading and adopted a later section",
+    ).toBe(1);
+  });
+
+  it("parses a NON-EMPTY paragraph whose element count is derived a second way", () => {
+    const { mentions, rawSpans, tagged } = watchParagraphSets(liveContract());
+    expect(
+      mentions.length,
+      "PREMISE: the watch paragraph parsed with ZERO backticked refusal codes, so the equality " +
+        "below would compare an empty contract side against the code and say nothing at all",
+    ).toBeGreaterThan(0);
+    expect(
+      mentions.length,
+      "the paragraph's backticked spans were counted two ways and disagreed, so the split reader " +
+        "silently dropped one — a SHORT parse passes a floor that only asks for non-empty",
+    ).toBe(rawSpans);
+    expect(
+      tagged.size,
+      "PREMISE: every backticked code collapsed into one tagged class, so the paragraph states " +
+        "one fact rather than the two it is required to partition",
+    ).toBeGreaterThan(1);
+  });
+
+  it("derives a NON-EMPTY containment code set, with its SITE count floored two ways", () => {
+    const { classes, sites } = deriveContainmentCodes(liveRead());
+    expect(
+      sites,
+      "PREMISE: the containment authority parsed with ZERO refusal sites, so the derived code " +
+        "set is empty and every comparison against it holds vacuously",
+    ).toBeGreaterThan(0);
+    expect(
+      sites,
+      "the containment authority's refusal sites were counted two ways and disagreed, so the AST " +
+        "walk skipped one — the class it would have contributed leaves the set silently",
+    ).toBe(containmentCodeSitesByText(liveRead()));
+    expect(
+      classes.size,
+      "PREMISE: the refusal sites parsed but produced NO code classes, so the equality below has " +
+        "nothing on its code side",
+    ).toBeGreaterThan(0);
+  });
+
+  it("asserts SET EQUALITY IN BOTH DIRECTIONS between the paragraph and the arm's disposition", () => {
+    const fromContract = [...watchParagraphSets(liveContract()).tagged].sort();
+    const fromCode = [...watchArmSets(liveDashboard(), liveRead())].sort();
+    expect(
+      fromContract,
+      "the normative contract and the watch arm disagree about which refusal codes carry a watch " +
+        "record. An entry on the left with no partner on the right is a contract row describing a " +
+        "consequence the code does not produce — exactly what review WR-01 found. One on the " +
+        "right with no partner on the left is a behaviour the projector has that no reader " +
+        "adjudicating a disagreement could look up",
+    ).toEqual(fromCode);
+  });
+});
+
+describe("32.1-09 — the watch-paragraph equality is a control, not a coincidence", () => {
+  it("REDS when the arm's two dispositions are swapped", () => {
+    const swapped = mirrorWithSwappedBranches(liveDashboard());
+    expect(
+      swapped,
+      "PREMISE: the mirror is byte-identical to the live source, so the plant changed nothing",
+    ).not.toBe(liveDashboard());
+    const fromCode = [...watchArmSets(swapped, liveRead())].sort();
+    const fromContract = [...watchParagraphSets(liveContract()).tagged].sort();
+    expect(
+      fromCode,
+      "swapping the silent and recording branches left the derived disposition map unchanged, so " +
+        "the code side of the equality is not a function of the arm",
+    ).not.toEqual(fromContract);
+    expect(
+      fromCode.filter((e) => e.startsWith("record:")),
+      "the swapped arm still records the CONTAINMENT code on the recorded side only",
+    ).toEqual([`record:${deriveWatchArm(liveDashboard(), liveRead()).silentCode}`]);
+  });
+
+  it("REDS when the paragraph alone stops naming a code the authority returns", () => {
+    const live = liveContract();
+    const mutated = live.replace("an `unreadable`", "an unreadable");
+    expect(
+      mutated,
+      "PREMISE: the contract mirror is byte-identical to the live file, so the plant changed nothing",
+    ).not.toBe(live);
+    const fromContract = [...watchParagraphSets(mutated).tagged].sort();
+    const fromCode = [...watchArmSets(liveDashboard(), liveRead())].sort();
+    expect(
+      fromContract,
+      "un-backticking a refusal code left the contract side of the equality unchanged, so the " +
+        "comparison is not reading the paragraph it claims to read",
+    ).not.toEqual(fromCode);
+    expect(
+      fromCode.filter((e) => !fromContract.includes(e)),
+      "the plant removed something other than the `unreadable` code, so this case is not " +
+        "measuring the direction it names",
+    ).toEqual(["record:unreadable"]);
+  });
+
+  it("REDS at the VACUITY FLOOR when the derived code set is emptied", () => {
+    const emptied = mirrorWithNoCodeProperty(liveRead());
+    const { classes, sites } = deriveContainmentCodes(emptied);
+    expect(
+      sites,
+      "the emptied mirror still produced refusal sites, so the floor below was never reached",
+    ).toBe(0);
+    expect(classes.size).toBe(0);
+    // AND THE FLOOR IS WHAT SPEAKS: the element count, not only the member set.
+    expect(containmentCodeSitesByText(emptied)).toBe(0);
+    expect(
+      deriveContainmentCodes(liveRead()).sites,
+      "PREMISE: the LIVE source also parses as zero sites, so the plant above proves nothing",
+    ).toBeGreaterThan(0);
+  });
+});

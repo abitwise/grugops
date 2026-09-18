@@ -403,13 +403,16 @@ directory holding it watched, along with every other directory. The two facts ar
 one escaping entry is not evidence about the directory holding it, and treating it as evidence takes
 the live path away from readable directories nobody planted anything in.
 
-**A directory the projector will not watch carries no watch record.** A watch record states that a
-directory's watch failed and will be re-armed on the next poll tick; a directory refused for
-containment will not be re-armed for as long as the refusal stands, so a record left standing there
-would publish a promise the projector cannot keep on every frame and in every emitted document. A
-failure recorded before a refusal begins is therefore dropped when the refusal begins, and a
-containment condition that clears re-arms the directory on the next tick and leaves nothing behind.
-The refusal itself is already reported once, by the reader, against the source it belongs to.
+**A directory refused for CONTAINMENT carries no watch record.** A watch record states that a
+directory's watch failed and will be re-armed on the next poll tick. A directory refused under
+`OUTSIDE-ROOT` will not be re-armed for as long as the refusal stands, and the reader already reports
+that refusal against the source it belongs to, so a record here would publish a promise the projector
+cannot keep on every frame and in every emitted document, and would put one finding twice into the
+list a consumer reads. A failure recorded before such a refusal begins is therefore dropped when the
+refusal begins, and a containment condition that clears re-arms the directory on the next tick and
+leaves nothing behind. A directory the containment authority could not RESOLVE — an `EACCES` on an
+ancestor, an `ELOOP`, an `unreadable` path — is a different fact: nothing else reports it, it can
+clear, and it carries a watch record naming its code until it does.
 
 **A refusal names the entry path and the destination it resolved to, and never quotes the content of
 a file outside the root.** The refusal appears as a read error against the one source it belongs to,
