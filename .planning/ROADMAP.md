@@ -1289,7 +1289,7 @@ Plans:
 
 **Wave 12** *(blocked on Wave 11 completion)*
 
-- [ ] 32.1-12-PLAN.md — **tracer:** the failed must-have reproduced end to end at HEAD with three planted code points and measured at three channels, the claim-record sentences built through the builder, the derived unowned-published census filed as the expansion's work list, and the gap recorded OPEN in the register with a named owner [DASH-03, DASH-07]
+- [x] 32.1-12-PLAN.md — **tracer:** the failed must-have reproduced end to end at HEAD with three planted code points and measured at three channels, the claim-record sentences built through the builder, the derived unowned-published census filed as the expansion's work list, and the gap recorded OPEN in the register with a named owner [DASH-03, DASH-07]
 
 **Wave 13** *(blocked on Wave 12 completion)*
 
@@ -1356,7 +1356,7 @@ Plans:
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
-| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 11/15 | In Progress (gap-closure round 2 of 4 planned) |  |
+| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 12/15 | In Progress (gap-closure round 2 of 4 planned) |  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
