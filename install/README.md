@@ -5,10 +5,10 @@ plain: there is a floor that needs no scripts at all, and a paved path of idempo
 reversible installers on top. everything below is additive — grugops never overwrites or
 deletes a file you own.
 
-**Version: `0.1.0`.** This is the canonical value in `agent-factory/VERSION`; the Claude Code
-plugin mirrors it in `.claude-plugin/plugin.json`. The two bump together, once per release.
-grugops is pre-1.0 (SemVer `0.y.z`) on purpose — it is young, and `0.y.z` reserves the right
-to change things while it settles.
+**Version: `2.1.0`.** This is the canonical value in `agent-factory/VERSION`; the Claude Code
+plugin mirrors it in `.claude-plugin/plugin.json` and the tooling `package.json` carries the same
+string. The three bump together, once per release, and the release tag is `v<MAJOR>.<MINOR>`
+(`v2.1` for this version). From 2.1.0 on, grugops follows SemVer: a breaking change bumps MAJOR.
 
 Once grugops is installed, **how you start the session decides what the Orchestrator can
 actually do.** The three entry tiers, and what each one really enforces, are §6.

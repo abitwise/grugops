@@ -148,7 +148,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | SemVer 2.0.0 / Keep a Changelog 1.1.0 | Stable, no compat concerns | Both are mature, stable specs. |
 ## Open Questions / Flags for Roadmap
 - **`UNKNOWN - verify` (LOW):** Exact behavior of the standalone-`/grug` command when grugops is *also* installed as the `grug` plugin in the same session (potential `/grug` vs `/grug:...` confusion). Resolve during dogfood (spec acceptance §20).
-- **Decision needed (human):** Ship as `2.0.0` (spec continuity, SemVer break-contract from day one) vs `0.x` (dogfooding latitude). Default to spec's `2.0.0` unless the human prefers `0.x`.
+- **Decided (human, 2026-09-18):** the artifact version is `2.1.0`, aligned with the `v2.1` milestone tag, and the SemVer break-contract applies from this release. `0.1.0` was the pre-release seed (D-28); it is retired.
 - **Verify during dogfood:** Whether plugin-cache copying breaks the wrappers' `agent-factory/roles/*.md` references (they should resolve against the user's repo, not the plugin cache — confirm).
 ## Sources
 - code.claude.com/docs/en/plugins — plugin creation, commands-merged-into-skills, structure rules (HIGH)

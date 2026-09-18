@@ -23,7 +23,7 @@ node install/install.js
 ## Quickstart
 
 <!-- claim: C-28-004 -->
-grugops version `0.1.0`.
+grugops version `2.1.0`.
 
 <!-- claim: C-28-005 -->
 1. **Install** — run the idempotent, additive, reversible installer (Node 22+) from the repo root:

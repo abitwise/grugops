@@ -5,18 +5,77 @@ All notable changes to grugops are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-> **A note on versions.** grugops is pre-1.0: the artifact version in `agent-factory/VERSION`
-> is `0.1.0` and no public release has been cut. The `v1.0`, `v1.1`, and `v1.2` entries below are
-> the project's internal milestone tags (they match `git tag`), not published SemVer releases. The
-> v2.0 decentralized-factory architecture pivot is in progress, so it lives under **[Unreleased]**;
-> the artifact version deliberately stays `0.1.0` across that pivot.
+> **A note on versions.** `2.1.0` (tag `v2.1`, 2026-09-18) is the first published SemVer release;
+> the artifact version in `agent-factory/VERSION`, `.claude-plugin/plugin.json` and `package.json`
+> agree on it, and the break-contract applies from here. Before it, the artifact version was the
+> pre-release seed `0.1.0`, and the `v1.0`, `v1.1`, `v1.2` and `v2.0` entries below are the
+> project's internal milestone tags (they match `git tag`), not published SemVer releases.
 
 ## [Unreleased]
 
+_Nothing yet. Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands
+in the next release._
+
+## [2.1.0] - 2026-09-18
+
+**Autonomous Factory — Real Spawning, Controlled Language & Live Board** (phases 27–32.1, tag
+`v2.1`). The first published SemVer release. The milestone made spawning real and derived,
+gave every safety claim an id and a mechanical drop, put every human stop on a dial, and added a
+read-only live board.
+
+### Added
+
+- Per-role model assignment: a `models` block on the config dial names a stronger model where
+  judgment lives and a cheaper one for execution, emitted into every generated adapter; zero-config
+  stays byte-identical to the previous behaviour. A second phase delivers the block to an installed
+  repository's adapters, so it is no longer inert once installed.
+- A per-checkpoint autonomy matrix: every human stop is enumerated and dialable, and the four safety
+  floors can be lowered only behind two keys a single agent cannot both hold. Lowering a floor drops
+  the public claim that depended on it, by id.
+- A claim registry (`docs/audit/28-claim-registry.md`) that maps every public safety claim to the
+  floor whose lowering would falsify it, with a gate that keeps each claim byte-identical to its
+  anchor.
+- A controlled-language writing profile for procedural and agent-written surfaces, a de-duplicated
+  role skeleton, and a voice guard that measures voice rather than sentence shape.
+- Browser-driven autonomous UAT where the committed Playwright spec is the evidence and the agent's
+  narration never is.
+- A board projector: one board-grammar authority emits a typed snapshot, rendered live by a
+  read-only terminal dashboard (`npm run dashboard`, `--once --json` for scripts) that is proven
+  unable to write.
+- A `package.json` `version` field, kept in lockstep with `agent-factory/VERSION` and the plugin
+  manifest.
+
+### Changed
+
+- Every guard and validator scan set is derived from the filesystem instead of a hand-maintained
+  list, and all 17 role adapters are generated from that derived set; the coordinator's spawn
+  allowlist is wired only where the runtime honors it.
+- `CLAUDE.md` reconciled with the v2.0 architecture (it still described handoff packets and a
+  routing Orchestrator).
+- Claude Code floor raised to v2.1.219+ (clean nested spawning at depth 3).
+- The artifact version moved from the pre-release seed `0.1.0` to `2.1.0`.
+
+### Fixed
+
+- The spawn defect that motivated the milestone: seven role names were granted on the coordinator's
+  allowlist while zero matching adapter files existed, because the list was hand-typed. The set is
+  now derived and its count asserted.
+- Published dashboard text: every content-derived substitution now goes through one refusal-sentence
+  builder, and both hand-drawn classification tables were deleted for a single two-sided
+  published-equals-owned equality.
+
+### Known open at this release
+
+- Phase 33 (the captured live spawning run that discharges GAP-D1, and a green `windows-latest` CI
+  leg) is not in this release.
+- Phases 29.1, 31 and 32.1 were closed by named human override with items accepted open; each is
+  recorded in `.planning/ROADMAP.md` and the WINDOWS register with a named owner.
+
+## [2.0] - 2026-07-28
+
 The **v2.0 Decentralized Factory — Shared Verified Context** milestone (phases 20–26). This is a
 major architecture pivot: it replaces the centralized Orchestrator plus static handoff packets with
-a shared, verified, auditable context substrate that parallel agents read and write directly. Work
-is in progress and not yet tagged.
+a shared, verified, auditable context substrate that parallel agents read and write directly.
 
 ### Added
 
@@ -69,8 +128,8 @@ is in progress and not yet tagged.
   leaves the file byte-identical. Editing a user's declared intent without asking is the opposite
   of this project's posture, so the edit stays with the human.
 
-_In progress: the phase 26 dogfood dual-path oracle is not yet complete. The A3/DOG-02 live
-dual-path parity retirement is deferred pending a captured live run._
+_Deferred at this tag: the A3/DOG-02 live dual-path parity retirement waits on a captured live
+run (GAP-D1)._
 
 ## [1.2] - 2026-06-16
 

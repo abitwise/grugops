@@ -549,6 +549,8 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 ### Decisions
 
+- [v2.1 release]: 2026-09-18 — D-28 (artifact SemVer stays 0.1.0) REVERSED by the human at the v2.1 release: `agent-factory/VERSION`, `.claude-plugin/plugin.json` and the new `package.json` `version` field all read `2.1.0`, aligned with the `v2.1` tag. The SemVer break-contract applies from here. `factory.config.json` `version` (config-schema version) and `admission-server.ts` `SERVER_VERSION` (MCP server protocol version) are separate strings and were left at `0.1.0` on purpose. Phase 33 was still open when v2.1 was tagged; it rolls into the next milestone.
+
 - [Phase 32.1]: Phase 32.1 closed 2026-09-18 by human override ("mark uat as done to progress"). Verification stood at 16/17 with the prod-deploy safety item (WINDOWS row 212) routed to human; the human deferred all three WINDOWS-anchored UAT tests (1, 2, 4) and accepted rows 211-213 and 222-224 as open with named owners. VERIFICATION.md status set to passed with a `human_override` frontmatter field; the override is recorded in 32.1-UAT.md. Nothing in this override closes a WINDOWS row. Phase 33 (Live Capture & Windows Portability) is the natural home for the deferred human checks.
 
 - **[Phase 29.2, 2026-09-07]** Closed via UAT (54/54: 43 automated from SUMMARY coverage blocks, 11 human). Tests 9-11 (Windows mirror spawn, doctor mirror, destination-hazard guard) were passed by USER OVERRIDE, not observation — `WINDOWS.md` rows 105-107 and 115 stay `UNKNOWN - verify`; the user will re-test on a real project and on Windows later.
