@@ -71,7 +71,7 @@
 // stack rule is that host machines run the committed `.js` with ZERO runtime dependencies installed.
 // A top-level `import ts from "typescript"` here would put a bare, non-builtin specifier into the
 // STATIC import graph of a committed, production build output — and this repository has already
-// ruled on exactly that question once, at `scripts/runnable-ref/uat-spec-integrity.ts:1046-1051`.
+// ruled on exactly that question once, at `scripts/runnable-ref/uat-spec-integrity.ts:729-734`.
 // So: the STATIC import graph of `js-import-closure.js` is node builtins and relative specifiers
 // only, and the parser arrives at RUN TIME through `createRequire`, memoized, inside a try/catch
 // whose failure is a NAMED refusal rather than a crash. Do not read "builtins only" as "this module
