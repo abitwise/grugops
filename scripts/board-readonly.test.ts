@@ -164,7 +164,8 @@ import {
 } from "node:fs";
 import * as nodeFs from "node:fs";
 import * as nodeFsPromises from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 
 // ONE AUTHORITY ON A SPECIFIER'S CLASS (32-31). `classifySpecifier` is imported rather than
@@ -177,9 +178,11 @@ import {
   copyImportClosure,
   jsImportClosure,
   jsImportClosureFacts,
+  moduleSpecifierFacts,
   moduleSpecifiers,
   SPECIFIER_CLASSES,
   type SpecifierClass,
+  type SpecifierParserApi,
 } from "./js-import-closure.js";
 
 // THE THIRD SIDE OF THE CLOSURE ORACLE (Phase 32.1, D-09). Node's own ESM resolver, recorded while
@@ -1531,6 +1534,49 @@ const SPECIFIER_CLASS_ROWS: readonly {
  */
 const SPECIFIER_CLASS_ROW_COUNT = 15;
 
+/**
+ * THE INDEPENDENT AUTHORITY ON WHAT A SOURCE'S MODULE SPECIFIERS ARE — a second implementation of
+ * the node set `scripts/js-import-closure.ts` states in its header, written here rather than
+ * imported from there.
+ *
+ * IT ASKS THE SAME QUESTION ON PURPOSE, and that is the part worth stating. An oracle that walks a
+ * SMALLER node set than its subject reports every extra edge as a fabrication; one that walks a
+ * larger set reports every missing edge as a miss. Either way the equality measures the gap between
+ * two node sets rather than the correctness of one extractor. So the two sets are the same four
+ * shapes, and what makes this an oracle is that the traversal, the predicates and the value
+ * extraction are written out independently — plus the THIRD authority beside it, Node's own
+ * resolver, which shares neither this code nor this parser and is the answer to F-17's observation
+ * that two parsers asking one question cannot see a shape neither of them knows.
+ *
+ * `ScriptKind.JS` because the corpus is compiled build output, and `isStringLiteralLike` because the
+ * question is what a specifier MEANS — a no-substitution template and an escape sequence both have
+ * values, and 32.1-06 exists because the deleted scanner answered on spelling instead.
+ */
+function parsedSpecifiers(source: string, label: string): string[] {
+  const sourceFile = ts.createSourceFile(label, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      found.push(node.moduleSpecifier.text);
+    }
+    if (ts.isCallExpression(node)) {
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === "require";
+      const argument = node.arguments[0];
+      if ((isDynamicImport || isRequire) && argument !== undefined && ts.isStringLiteralLike(argument)) {
+        found.push(argument.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
 describe("32-31 — a module specifier's class is a TOTAL partition decided in ONE place", () => {
   it("PREMISE: the partition has exactly three classes and they are the three named ones", () => {
     expect(
@@ -1682,10 +1728,12 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   });
 
   it("the specifier scan's INPUT is code: a foreign spelling in a comment yields no row", () => {
-    // THE CONVERSE FOR stripNonCode, first half. The patterns are regexes over file bytes, so prose
-    // can manufacture a specifier no import statement carries — and now that `foreign` is a
-    // REFUSAL rather than one harmless extra file in a mirror, a false positive is a gate that
-    // refuses a tree with nothing wrong with it.
+    // THE PROSE CONVERSE, first half. It was written against the blanking pass `stripNonCode`
+    // viewed, and it OUTLIVED that pass on purpose (32.1-06): the property it decides is a property
+    // of `moduleSpecifiers`, which now reads a parse, and a comment must still contribute no row —
+    // now because a tokenizer knows a comment is a comment rather than because a pass erased it.
+    // Now that `foreign` is a REFUSAL rather than one harmless extra file in a mirror, a false
+    // positive here is a gate that refuses a tree with nothing wrong with it.
     const commented =
       "// a line comment mentioning: import { w } from \"/abs/writer.mjs\";\n" +
       "/* and a block comment: export { w } from \"//host/writer.mjs\"; */\n" +
@@ -1702,9 +1750,10 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   });
 
   it("the specifier scan's INPUT is code: a foreign spelling in a template literal yields no row", () => {
-    // THE CONVERSE FOR stripNonCode, second half. This module's OWN refusal message is a template
-    // literal reading `imports "${spec}"`, and scripts/compactor.js carries `"${rawVal}"` — both
-    // were foreign-classified captures before this function existed.
+    // THE PROSE CONVERSE, second half, kept for the reason the first half records. The walker's OWN
+    // refusal message is a template literal reading `imports "${spec}"`, and scripts/compactor.js
+    // carries `"${rawVal}"` — both were foreign-classified captures before 32-31, and both are
+    // template TEXT to a tokenizer, which is why the property survives the scanner that motivated it.
     const templated =
       "const msg = `the module imports \"/abs/writer.mjs\" which is refused`;\n" +
       "const nested = `outer ${ `inner import \"//host/x.js\"` } tail`;\n" +
@@ -1719,21 +1768,23 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
     expect(rows.map((r) => r.specifier)).toEqual(["node:path"]);
   });
 
-  it("stripNonCode removes no real code: a substitution's code survives, and length is preserved", () => {
-    // The direction that would be silent: blanking a template literal WHOLE would delete the code
-    // inside `${…}`, and a specifier the walk needs would vanish from the closure with no error
-    // anywhere. The prohibition this cutover carries is explicit — never narrow the scan's input by
-    // a rule that could remove a real import statement — so the converse is asserted here, and
-    // CLOSURE_BASELINES asserts it again over every caller's real mirror.
+  it("the extractor removes no real code: an import inside a template SUBSTITUTION is SEEN", () => {
+    // The direction that would be silent. Under the deleted scanner this case guarded a choice
+    // `stripNonCode` had to make by hand — blanking a template literal WHOLE would have deleted the
+    // code inside `${…}` and a specifier the walk needs would have vanished with no error anywhere.
+    // A tokenizer does not make that choice: a substitution is code because the grammar says so. The
+    // case is KEPT (32.1-06) because the PROPERTY is what mattered, not the mechanism that delivered
+    // it — a rewrite that stopped seeing this edge would be the same silent hole with a new cause.
+    // `CLOSURE_BASELINES` asserts the same property again over every caller's real mirror.
     const withSubstitution =
       'const tag = `prefix ${ (await import("./inside.js")).name } suffix`;\n' +
       "export const use = () => tag;";
     const rows = moduleSpecifiers(withSubstitution);
     expect(
       rows.map((r) => r.specifier),
-      "a relative import written inside a template SUBSTITUTION was blanked away with the " +
-        "surrounding prose. That is real code, and a closure missing it is a mirror missing " +
-        "exactly the file the walk could not see",
+      "a relative import written inside a template SUBSTITUTION was read as prose rather than as " +
+        "code. That is real code, and a closure missing it is a mirror missing exactly the file " +
+        "the walk could not see",
     ).toEqual(["./inside.js"]);
   });
 
@@ -1797,7 +1848,8 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   });
 
   it("the specifier scan's INPUT is code: a specifier spelled inside a STRING LITERAL yields no row", () => {
-    // THE CONVERSE FOR stripNonCode, third half. RED on the pre-fix scanner: the first source
+    // THE PROSE CONVERSE, third half, kept for the reason the first half records. RED on the
+    // pre-32-38 scanner, and still a real property under the tokenizer: the first source
     // yielded a `relative` row for "./model-tiers.js" and the second a `foreign` row for
     // "/etc/passwd", and `jsImportClosure` throws on either.
     const stringed =
@@ -1853,31 +1905,13 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
         "oracle is the shape that passes while proving nothing",
     ).toBeGreaterThan(40);
 
-    /** The independent authority: every specifier a real parse attributes to an import/export. */
-    const parsed = (source: string, label: string): string[] => {
-      const sf = ts.createSourceFile(label, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-      const found: string[] = [];
-      const visit = (node: ts.Node): void => {
-        if (
-          (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-          node.moduleSpecifier !== undefined &&
-          ts.isStringLiteral(node.moduleSpecifier)
-        ) {
-          found.push(node.moduleSpecifier.text);
-        }
-        if (
-          ts.isCallExpression(node) &&
-          node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-          node.arguments[0] !== undefined &&
-          ts.isStringLiteral(node.arguments[0])
-        ) {
-          found.push(node.arguments[0].text);
-        }
-        ts.forEachChild(node, visit);
-      };
-      visit(sf);
-      return found;
-    };
+    // THE INDEPENDENT AUTHORITY is `parsedSpecifiers`, hoisted to file scope in 32.1-06 so the
+    // per-file equality here and the per-ENTRY three-authority equality below ask ONE question of
+    // ONE oracle. It also gained the two shapes this corpus does not yet contain — a
+    // no-substitution template and a `require(…)` call — because an oracle whose node set is
+    // narrower than its subject's reports the subject's extra edges as fabrications, which is a
+    // disagreement about node sets wearing the costume of a defect.
+    const parsed = parsedSpecifiers;
 
     const fabricated: string[] = [];
     const missed: string[] = [];
@@ -1897,8 +1931,8 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
       fabricated,
       "moduleSpecifiers reported a specifier NO import statement carries. Prose manufactured it, " +
         "and since the walk REFUSES an edge it cannot resolve, a fabricated specifier is a gate " +
-        "that cannot start. Fix the scan's input in stripNonCode — do NOT widen the patterns and " +
-        "do NOT exempt the file",
+        "that cannot start. Fix the NODE SET the extractor walks — do NOT add a second grammar " +
+        "beside the parser, and do NOT exempt the file",
     ).toEqual([]);
     expect(
       missed,
@@ -2039,6 +2073,425 @@ describe("32.1-01 — Node's OWN loader is the independent third side of the clo
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART ONE-D — THE SECOND GRAMMAR IS GONE, AND THE SHIPPED SURFACE DOES NOT IMPORT WHAT REPLACED IT
+// (Phase 32.1, plan 32.1-06, D-08 / D-20).
+//
+// WHAT THE THREE CASES BELOW ARE. Not regression guards for bugs somebody fixed — REPRODUCTIONS.
+// Each one is a source that the deleted scanner read WRONG, measured against the committed build
+// output before the cutover and recorded in `32.1-06-RED-baseline.txt` § 2 with its output. They
+// are permanent because the failure class they belong to is permanent: "the extractor and the
+// language disagree" has three recorded instances on this tree and the first two were found by
+// review rather than by a case.
+//
+// WHY A SHIPPED-SURFACE RULE IS PART OF THIS PLAN AT ALL. The extractor now reaches for a parser at
+// RUN time. That is fine for a development and continuous-integration tool and it is NOT fine for
+// anything a host runs, because CLAUDE.md promises a host zero installed runtime dependencies. The
+// rule below is what keeps that promise from depending on nobody ever writing the import — and it is
+// SCOPED, because `hooks/guard.test.ts` legitimately imports the walker at six call sites and an
+// unscoped rule would be red the moment it landed rather than the moment somebody shipped the import.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Scratch root for this block's mirrors. Under `.temp/`, which is gitignored and vitest-excluded. */
+const SCANNER_SCRATCH = join(ROOT, ".temp", "js-import-closure-cutover");
+
+/**
+ * THE SHIPPED SURFACE, DERIVED. Every TRACKED, NON-TEST `.ts` under the installer and hook trees —
+ * the two trees whose contents a host actually receives.
+ *
+ * THE `.test.ts` EXCLUSION IS A DERIVATION, NOT AN EXEMPTION, and the difference is the whole point
+ * of T-32.1-06-04. An exemption is a named file somebody added to a list after the rule went red;
+ * this is a property of the set — a test file is not shipped, so it was never in the surface to
+ * begin with. Nobody can quiet this rule by adding a name to it, because there is no list of names.
+ */
+function shippedSurfaceSources(root: string): readonly string[] {
+  return [...trackedSourcesUnder(root, "install"), ...trackedSourcesUnder(root, "hooks")]
+    .filter((rel) => !rel.endsWith(".test.ts"))
+    .sort();
+}
+
+/**
+ * Which of `files` STATICALLY IMPORT the scanner, read from `root`.
+ *
+ * ANY RELATIVE DEPTH, the same matcher `WALKER_IMPORTER_COUNT`'s derivation uses and for the same
+ * recorded reason: enumerating the two prefixes a top-level file can write moves a blind spot rather
+ * than closing it. `root` is a parameter so the discrimination below can run the identical predicate
+ * over a MIRROR carrying a planted import, instead of over a second copy of the predicate.
+ */
+function scannerImporters(root: string, files: readonly string[]): readonly string[] {
+  return files.filter((rel) =>
+    /from "\.[^"]*\/js-import-closure\.js"/.test(readFileSync(join(root, rel), "utf8")),
+  );
+}
+
+/** Copy `files` from the real tree into a fresh mirror, run `use`, and always remove the mirror. */
+function withSourceMirror(
+  files: readonly string[],
+  use: (mirrorRoot: string) => void,
+): void {
+  mkdirSync(SCANNER_SCRATCH, { recursive: true });
+  const mirrorRoot = mkdtempSync(join(SCANNER_SCRATCH, "shipped-surface-"));
+  try {
+    for (const rel of files) {
+      const to = join(mirrorRoot, rel);
+      mkdirSync(dirname(to), { recursive: true });
+      copyFileSync(join(ROOT, rel), to);
+    }
+    use(mirrorRoot);
+  } finally {
+    rmSync(mirrorRoot, { recursive: true, force: true });
+    rmSync(SCANNER_SCRATCH, { recursive: true, force: true });
+  }
+}
+
+describe("32.1-06 — a tokenizer decides what a module specifier is, and the second grammar is gone (D-08)", () => {
+  it("F-16 / WR-02: a regular-expression literal neither FABRICATES a specifier nor SWALLOWS a real one", () => {
+    // BOTH SHAPES, because F-16 and WR-02 are the two directions of one defect and only one of them
+    // was recorded when F-16 was filed. The deleted scanner walked a regex literal to its closing
+    // `/` and skipped WITHOUT blanking the interior, so a quote inside a pattern was a quote in code
+    // position. `32.1-06-RED-baseline.txt` § 2 has both outputs against the committed build output.
+    const shapes = [
+      {
+        label: "WR-02, the SWALLOWING shape — the un-blanked quote ran the capture across real code",
+        source:
+          'const re = /from "x/; import y from "./real.js";\n' +
+          "export const use = () => re.test(y);",
+      },
+      {
+        label: "F-16, the FABRICATING shape — a relative specifier spelled inside a pattern",
+        source:
+          'const re = /from "\\.\\/evil\\.js"/;\n' +
+          'import y from "./real.js";\n' +
+          "export const use = () => re.test(y);",
+      },
+    ] as const;
+
+    for (const { label, source } of shapes) {
+      const read = moduleSpecifiers(source).map((r) => r.specifier);
+      const truth = parsedSpecifiers(source, "f16-wr02.js");
+
+      // TWO NAMED LISTS, in the form this file already uses, because the two failures cost
+      // different things and a bare `toEqual` would call both "not equal" and name neither.
+      expect(
+        read.filter((spec) => !truth.includes(spec)),
+        `${label}: the extractor FABRICATED a specifier out of a regular-expression literal's ` +
+          "interior. A fabricated `foreign` spelling is a hard refusal and a fabricated `bare` one " +
+          "is skipped in silence — the first is a gate that cannot start, the second is a gate " +
+          "deciding over a set nobody wrote",
+      ).toEqual([]);
+      expect(
+        truth.filter((spec) => !read.includes(spec)),
+        `${label}: the extractor MISSED a real import that a parse sees. This is WR-02's direction ` +
+          "and it is the worse one: the walk hands back a closure short by a module with no throw " +
+          "and no diagnostic, so three freshness gates quietly stop noticing that module's edits",
+      ).toEqual([]);
+      expect(read).toEqual(["./real.js"]);
+    }
+  });
+
+  it("WR-03: an escaped specifier resolves to its VALUE, not to the bytes that spell it", () => {
+    // The deleted recovery table stored `source.slice(textStart, textEnd)` — the raw bytes between
+    // the quotes. `./mod.js` and `./mod.js` are the same module to Node and to every oracle
+    // this extractor is compared against; they were two different strings to the table, and the walk
+    // then threw `ImportClosureError` over a module that exists.
+    const escaped = 'import a from "./mod\\u002ejs";\nexport const use = () => a;';
+    expect(
+      moduleSpecifiers(escaped).map((r) => r.specifier),
+      "the extractor returned a specifier's SPELLING rather than its VALUE. A string literal's text " +
+        "is not its source bytes, and resolving the bytes as a path names a file nobody wrote",
+    ).toEqual(["./mod.js"]);
+    expect(moduleSpecifiers(escaped).map((r) => r.cls)).toEqual(["relative"]);
+
+    // The second spelling WR-03 names, which that review records as newly reachable rather than
+    // inherited: an escaped QUOTE inside the specifier. The value carries a real `"` character.
+    const escapedQuote = 'import b from "./a\\"b.js";\nexport const use = () => b;';
+    expect(
+      moduleSpecifiers(escapedQuote).map((r) => r.specifier),
+      "an escaped quote inside a specifier was read as bytes. The old capture stopped at the " +
+        "backslash and the old recovery returned the whole raw span including it; both are spellings",
+    ).toEqual(['./a"b.js']);
+    expect(parsedSpecifiers(escapedQuote, "wr03.js")).toEqual(['./a"b.js']);
+  });
+
+  it("F-17: a dynamic import whose argument is a no-substitution template literal is SEEN", () => {
+    // The shape that was invisible to BOTH sides of the old two-sided oracle, because the oracle
+    // asked `isStringLiteral` — the same question the scanner's `["']` alphabet asked. F-17's own
+    // listing records Node resolving and RUNNING such a module, so the edge is real at run time and
+    // a mirror built without it is short by exactly that file.
+    const templated = "export const load = async () => (await import(`./tpl.js`)).name;";
+    expect(
+      moduleSpecifiers(templated).map((r) => r.specifier),
+      "a dynamic import spelled with a no-substitution template literal produced no row. Node " +
+        "resolves that specifier, so the closure is short by a module the process really loads — " +
+        "and the failure is silent, because a missing row is indistinguishable from no import",
+    ).toEqual(["./tpl.js"]);
+    expect(parsedSpecifiers(templated, "f17.js")).toEqual(["./tpl.js"]);
+
+    // The same shape in a STATIC position, for completeness: a template literal cannot appear as a
+    // static module specifier in valid JavaScript, so this asserts the dynamic position is the only
+    // one the shape reaches rather than leaving a reader to infer it.
+    expect(moduleSpecifiers("export const x = `./not-an-import.js`;")).toEqual([]);
+  });
+
+  it("D-11 SEAM: a specifier slot the extractor cannot read is RECORDED by node kind, never dropped", () => {
+    // THE DIFFERENCE BETWEEN A PARSER AND A PATTERN LIST, stated as an assertion. To the deleted
+    // scanner, a shape it did not match was indistinguishable from a line of prose — there was no
+    // such thing as "an import whose specifier I cannot read". A parse knows the slot is there. That
+    // fact, with the node kind that fills it, is what D-11's named refusal will attach to; recording
+    // it now is what lets that refusal be written without widening a matcher.
+    const opaque =
+      "export const load = async (name) => (await import(name)).default;\n" +
+      "export const legacy = (name) => require(name);\n" +
+      'export const joined = async (p) => (await import("./" + p)).default;';
+    const facts = moduleSpecifierFacts(opaque);
+    expect(
+      facts.specifiers,
+      "an unreadable specifier slot produced a SPECIFIER, so the extractor guessed at a value it " +
+        "cannot know. A guessed edge is a fabricated edge",
+    ).toEqual([]);
+    expect(
+      facts.unreadable.map((site) => `${site.form}:${site.nodeKindName}`),
+      "an unreadable specifier slot was DROPPED rather than recorded. Dropping it makes 'there is " +
+        "an edge here I cannot read' indistinguishable from 'there is no edge here', which is " +
+        "exactly the blindness the deleted pattern list had and D-11 exists to refuse by name",
+    ).toEqual(["dynamic-import:Identifier", "require:Identifier", "dynamic-import:BinaryExpression"]);
+    for (const site of facts.unreadable) {
+      expect(site.nodeKind, "a recorded site carries no node kind, so a refusal cannot name it")
+        .toBeGreaterThan(0);
+    }
+  });
+
+  it("the INJECTED parser and the lazily acquired one read the whole tracked corpus identically", () => {
+    // THE SEAM HAS A CONSUMER. An optional trailing parameter nobody passes is a second code path
+    // nobody compares, which is how a seam becomes a second implementation. This passes THIS file's
+    // own `typescript` — a different module instance from the one `createRequire` resolves inside
+    // the extractor — and asserts the two read one corpus the same way.
+    const injected = ts as unknown as SpecifierParserApi;
+    const corpus = execFileSync("git", ["ls-files", "*.js", "*.mjs"], { cwd: ROOT, encoding: "utf8" })
+      .split("\n")
+      .filter((line) => line !== "");
+    expect(
+      corpus.length,
+      "PREMISE: the derived corpus is EMPTY, so the equality below compared nothing",
+    ).toBeGreaterThan(40);
+
+    const disagreements: string[] = [];
+    for (const rel of corpus) {
+      const source = readFileSync(join(ROOT, rel), "utf8");
+      const acquired = moduleSpecifiers(source).map((r) => `${r.specifier}:${r.cls}`);
+      const viaSeam = moduleSpecifiers(source, injected).map((r) => `${r.specifier}:${r.cls}`);
+      if (acquired.join("|") !== viaSeam.join("|")) {
+        disagreements.push(`${rel}: acquired [${acquired.join(", ")}] vs injected [${viaSeam.join(", ")}]`);
+      }
+    }
+    expect(
+      disagreements,
+      "the injected-parser route and the lazily-acquired route disagree. They are one extractor " +
+        "reading one corpus; a difference means the seam is not a seam but a second behaviour",
+    ).toEqual([]);
+  });
+
+  it("an ABSENT parser is a NAMED refusal that says what could not be acquired and why, not a crash", () => {
+    // MEASURED, NOT SIMULATED. The refusal route cannot be reached by injection — injecting a parser
+    // is precisely what bypasses the acquisition — so this mirrors the committed build output into a
+    // directory with no `node_modules` anywhere above it and spawns Node there. `createRequire`
+    // resolves from the MODULE'S own location, so the mirror really has no parser to find.
+    const mirrorRoot = mkdtempSync(join(tmpdir(), "js-import-closure-no-parser-"));
+    try {
+      mkdirSync(join(mirrorRoot, "scripts"), { recursive: true });
+      copyFileSync(join(ROOT, "scripts/js-import-closure.js"), join(mirrorRoot, "scripts/js-import-closure.js"));
+      // The committed output is ESM; without this the nearest package.json decides otherwise.
+      writeFileSync(join(mirrorRoot, "package.json"), '{ "type": "module" }\n');
+      writeFileSync(
+        join(mirrorRoot, "probe.mjs"),
+        'import { moduleSpecifiers } from "./scripts/js-import-closure.js";\n' +
+          "try {\n" +
+          '  moduleSpecifiers(\'import x from "./a.js";\');\n' +
+          '  console.log("NO-REFUSAL");\n' +
+          "} catch (error) {\n" +
+          "  console.log(`${error.name}: ${error.message}`);\n" +
+          "}\n",
+      );
+      const printed = execFileSync(process.execPath, [join(mirrorRoot, "probe.mjs")], {
+        encoding: "utf8",
+        cwd: mirrorRoot,
+      }).trim();
+
+      expect(
+        printed.startsWith("ImportClosureError: "),
+        `the extractor did not refuse by name when its parser was absent — it printed: ${printed}. ` +
+          "An unhandled TypeError reaches a gate's caller as a crash rather than as a reason, and a " +
+          "silent empty result would hand back a closure containing only the entry",
+      ).toBe(true);
+      for (const required of [
+        '"typescript"', // WHICH module could not be acquired
+        "moduleSpecifiers", // WHICH function needed it
+        "DEVELOPMENT and CONTINUOUS-INTEGRATION tool", // WHAT kind of program this is
+        "dev dependencies", // and therefore what the reader should do
+      ]) {
+        expect(
+          printed.includes(required),
+          `the absent-parser refusal does not contain ${required}. It printed: ${printed}. A ` +
+            "refusal that does not name the module, the function and the kind of program it is " +
+            "leaves the reader with 'cannot find module', which does not say that installing this " +
+            "repository's dev dependencies is the whole fix",
+        ).toBe(true);
+      }
+    } finally {
+      rmSync(mirrorRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("THREE AUTHORITIES agree on the dashboard closure: the walk, an independent parse, and Node's resolver", () => {
+    // ONE PLACE, THREE AUTHORITIES. The static walk is the subject. `parsedSpecifiers` is a second
+    // implementation over the same parser. `recordRuntimeAcquisitions` is Node's own resolver, which
+    // shares neither this code nor this parser — and it is the one F-17 proves is load-bearing,
+    // because two parsers asking one question are blind to the same shape.
+    //
+    // The per-FILE equality one block up and the per-ENTRY equality here are different claims: a
+    // file-level agreement says every specifier was read correctly, and this says the transitive
+    // WALK built from them reaches the same module set. A closure can be wrong while every file's
+    // specifier list is right, if the resolution step disagrees.
+    const walked = [...jsImportClosure(ROOT, DASHBOARD_ENTRY)];
+
+    /** The independent closure: the same walk, rebuilt over `parsedSpecifiers`. */
+    const parsedClosure = (entryRel: string): string[] => {
+      const seen = new Set<string>();
+      const queue = [resolve(ROOT, entryRel)];
+      while (queue.length > 0) {
+        const abs = queue.pop() as string;
+        if (seen.has(abs)) continue;
+        seen.add(abs);
+        for (const spec of parsedSpecifiers(readFileSync(abs, "utf8"), abs)) {
+          // THE ONE AUTHORITY, ASKED RATHER THAN RE-IMPLEMENTED. This oracle is independent in its
+          // traversal and its value extraction, and it is deliberately NOT independent about a
+          // specifier's CLASS: a second prefix test beside `classifySpecifier` is the exact defect
+          // 32-31 removed, and the rule one case up reds on it. What is being cross-checked here is
+          // the closure, not the partition.
+          if (classifySpecifier(spec) !== "relative") continue;
+          const target = resolve(dirname(abs), spec);
+          if (!seen.has(target)) queue.push(target);
+        }
+      }
+      return [...seen].map((abs) => relative(ROOT, abs).split(sep).join("/")).sort();
+    };
+    const parsedSide = parsedClosure(DASHBOARD_ENTRY);
+    const runtimeSide = [...recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY).modules].sort();
+
+    expect(
+      walked.length,
+      "PREMISE: the static closure has at most one module, so the two equalities below compare a " +
+        "singleton against itself and would hold over a walk that followed nothing",
+    ).toBeGreaterThan(1);
+    expect(
+      runtimeSide.length,
+      "PREMISE: Node's resolver recorded no module for this entry, so the third authority is empty " +
+        "and agreeing with it is free",
+    ).toBeGreaterThan(1);
+
+    expect(
+      parsedSide,
+      "the independent parse-built closure differs from the walk's. Both read the same bytes with " +
+        "the same parser, so a difference is in the WALK — the resolution or the class partition — " +
+        "rather than in what a specifier is",
+    ).toEqual(walked);
+    expect(
+      runtimeSide,
+      "Node's own resolver acquired a different module set than the static walk reports. This is " +
+        "the authority that shares no parser with the other two, so it is the one that can see a " +
+        "shape both parses are blind to — F-17 is exactly that failure, found once already",
+    ).toEqual(walked);
+  });
+
+  it("PREMISE: the shipped surface is non-empty from BOTH trees, and a TEST file under one of them does import the scanner", () => {
+    // Two premises, because the rule below has two ways to be vacuously true. If the derived set is
+    // empty (a pathspec that selected nothing) the rule passes over nothing. And if no test file
+    // imported the scanner, the `.test.ts` derivation would be untested scoping — a filter that
+    // never removes anything is a filter nobody has watched work.
+    const shipped = shippedSurfaceSources(ROOT);
+    expect(
+      shipped.length,
+      "PREMISE: the derived shipped surface is EMPTY, so the import rule below scanned nothing. " +
+        "The usual cause is a pathspec spelling that selects a different set than it reads like",
+    ).toBeGreaterThan(0);
+    expect(
+      shipped.filter((rel) => rel.startsWith("install/")).length,
+      "PREMISE: the installer tree contributed no shipped source, so half the surface is unscanned",
+    ).toBeGreaterThan(0);
+    expect(
+      shipped.filter((rel) => rel.startsWith("hooks/")).length,
+      "PREMISE: the hook tree contributed no shipped source, so half the surface is unscanned",
+    ).toBeGreaterThan(0);
+
+    const tests = [...trackedSourcesUnder(ROOT, "install"), ...trackedSourcesUnder(ROOT, "hooks")]
+      .filter((rel) => rel.endsWith(".test.ts"));
+    expect(
+      scannerImporters(ROOT, tests),
+      "PREMISE: no TEST file under the installer or hook trees imports the scanner, so the " +
+        "non-test derivation is removing nothing and its scoping is untested. hooks/guard.test.ts " +
+        "imports closureTargets at six call sites; if that stopped being true, this rule's scoping " +
+        "needs a new witness rather than a quieter premise",
+    ).not.toEqual([]);
+  });
+
+  it("nothing that SHIPS imports the scanner — the rule is scoped to non-test files by derivation", () => {
+    const offenders = scannerImporters(ROOT, shippedSurfaceSources(ROOT));
+    expect(
+      offenders,
+      `${offenders.join(", ")} — a file under the installer or hook trees that a host RECEIVES ` +
+        "imports scripts/js-import-closure.js. That scanner reaches for `typescript` at run time, " +
+        "so a host running the committed output would be asked for a package CLAUDE.md promised it " +
+        "does not need — and the failure arrives as a module-resolution crash on someone else's " +
+        "machine. Move the call behind a development-only entry point. Do NOT exempt the file: the " +
+        "exclusion here is a derivation over what ships, and a named exemption is how a rule that " +
+        "went red once stops deciding anything",
+    ).toEqual([]);
+  });
+
+  it("DISCRIMINATION: the plant reds in a SHIPPED file and does not red in a TEST file", () => {
+    // RED-FIRST, BOTH DIRECTIONS, over a MIRROR — the tree is never written to. The first direction
+    // proves the rule decides something; the second proves the SCOPING decides something, which is
+    // the half T-32.1-06-04 is about. A rule that reds on both plants would be red on landing and
+    // would then be quieted by an exemption, which is the outcome this case exists to prevent.
+    const shipped = shippedSurfaceSources(ROOT);
+    const target = "hooks/hook-entry.ts";
+    expect(
+      shipped,
+      `PREMISE: ${target} is not in the derived shipped surface, so planting into it measures nothing`,
+    ).toContain(target);
+
+    const plant = '\nimport { closureTargets } from "../scripts/js-import-closure.js";\n';
+    withSourceMirror(shipped, (mirrorRoot) => {
+      writeFileSync(
+        join(mirrorRoot, target),
+        readFileSync(join(mirrorRoot, target), "utf8") + plant,
+      );
+      expect(
+        scannerImporters(mirrorRoot, shipped),
+        `the scanner import planted into ${target} — a NON-TEST file under the hook tree — did not ` +
+          "red the rule. The rule passes over the live tree for the same reason it would pass over " +
+          "this one: because it decides nothing",
+      ).toEqual([target]);
+    });
+
+    // THE CONVERSE, and it is not a mirror plant because the plant is LIVE: hooks/guard.test.ts
+    // already carries the import, at six call sites, on the real tree. A rule that reddened here
+    // would have been red the moment it landed — which is the recorded reason D-08's assertion
+    // needed scoping in the first place.
+    const witness = "hooks/guard.test.ts";
+    expect(
+      scannerImporters(ROOT, [witness]),
+      `PREMISE: ${witness} does not import the scanner, so the converse below is vacuous`,
+    ).toEqual([witness]);
+    expect(
+      shippedSurfaceSources(ROOT),
+      `${witness} is inside the derived shipped surface, so the rule refuses a legitimate test-only ` +
+        "import. A test file is not shipped; excluding it is a property of the set rather than a " +
+        "favour done to one filename",
+    ).not.toContain(witness);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // PART ONE-B — the REFUSALS THAT MOVED, and the callers that must not have (32-31).
 //
 // A cutover that gives three spellings a refusal they did not have is only half a measurement. THREE
@@ -2058,9 +2511,11 @@ describe("32.1-01 — Node's OWN loader is the independent third side of the clo
 // AND THE SHARED WALKER'S OTHER CALLERS ARE RE-RUN WITH LEGITIMATE INPUT. A refusal added to
 // `jsImportClosure` reaches SIX production gates — corrected from "seven" in Phase 32.1 plan
 // 32.1-01, where the number was measured over the tracked set and pinned by
-// `WALKER_PRODUCTION_IMPORTER_COUNT` — and narrowing the scan's input with
-// `stripNonCode` is a regression risk for every edge a comment used to contribute.
-// `CLOSURE_BASELINES` pins what each of them built BEFORE the cutover.
+// `WALKER_PRODUCTION_IMPORTER_COUNT` — and any change to WHAT COUNTS AS A SPECIFIER is a regression
+// risk for every edge those six mirrors depend on. That was true of the deleted blanking pass and it
+// is true of the tokenizer that replaced it (32.1-06): a node set that stopped reading one shape
+// would shorten six mirrors at once. `CLOSURE_BASELINES` pins what each of them built BEFORE the
+// cutover, and it is unchanged by the rewrite.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /**

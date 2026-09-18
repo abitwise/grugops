@@ -126,15 +126,35 @@ ts-parse : ["./tpl.js"]
 § 3 — THE SHIPPED-SURFACE RULE'S DISCRIMINATION, BOTH DIRECTIONS
 -----------------------------------------------------------------
 
-Recorded in `32.1-06-GREEN-proof.txt` § 4, because the rule does not exist until Task 2 writes it
-and a plant against an absent rule measures nothing. Both plants are run against a MIRROR of the
-tree, never against the tree itself:
+The rule does not exist until Task 2 writes it, so the plants below were run once the predicate
+existed, against a MIRROR of the tree and never against the tree itself. Both directions are here
+because the rule has two ways to be wrong: it can decide nothing, and it can decide too much.
 
-  (a) the scanner import planted into a NON-TEST file under the hook tree  → the rule must RED,
-      naming the file;
-  (b) the same import planted into a TEST file under the same tree         → the rule must NOT RED,
-      because `hooks/guard.test.ts:42` already imports `closureTargets` legitimately at six call
-      sites and an unscoped rule is red the moment it lands.
+  $ node <the plant harness: derive the set, mirror it, plant, run the same predicate>
+
+  derived tracked set under install/ + hooks/ (9): hooks/admission-guard.test.ts,
+    hooks/admission-guard.ts, hooks/guard.test.ts, hooks/guard.ts, hooks/hook-entry.ts,
+    install/install.test.ts, install/install.ts, install/kit-source.ts, install/uninstall.ts
+  derived SHIPPED subset (6): hooks/admission-guard.ts, hooks/guard.ts, hooks/hook-entry.ts,
+    install/install.ts, install/kit-source.ts, install/uninstall.ts
+  derived TEST subset (3): hooks/admission-guard.test.ts, hooks/guard.test.ts,
+    install/install.test.ts
+
+  UNPLANTED, live tree    : offenders = []                        -> rule GREEN
+  TEST-file witness, live : importers among tests = [hooks/guard.test.ts]
+                            -> not in the shipped set             -> rule GREEN
+
+  PLANT (a) into hooks/hook-entry.ts (NON-TEST, shipped):
+      offenders = [hooks/hook-entry.ts]                           -> rule RED, naming the file
+  PLANT (b) into hooks/admission-guard.test.ts (TEST file, same tree):
+      offenders = []                                              -> rule GREEN, the scoping holds
+      control: the plant IS present — importers among tests =
+               [hooks/admission-guard.test.ts, hooks/guard.test.ts]
+
+  (b)'s control line is what makes it a measurement rather than an absence: the planted import is
+  demonstrably in the mirror and the rule still passes, because the file it sits in is not in the
+  shipped set by DERIVATION. The exclusion is a property of the set, not a named exemption — nobody
+  can quiet this rule by adding a filename to it, because there is no list of filenames.
 
   The pre-existing legitimate import, measured here so (b) is not a hypothetical:
 

@@ -1,0 +1,185 @@
+32.1-06-GREEN-proof.txt — the tokenizer, after the cutover (D-08 / D-20)
+=========================================================================
+
+Every listing below is a command run on this tree after the rewrite landed, and its real output.
+`32.1-06-RED-baseline.txt` is the before side; the two files are meant to be read in that order.
+
+
+§ 1 — THE FOUR REPRODUCTIONS, RE-RUN AGAINST THE REBUILT BUILD OUTPUT
+----------------------------------------------------------------------
+
+Same harness, same four sources as `32.1-06-RED-baseline.txt` § 2, importing `moduleSpecifiers` from
+the committed `scripts/js-import-closure.js`:
+
+── F-16 / WR-02 — a regex literal carrying an import-shaped string, beside one real import
+src      : "const re = /from \"x/; import y from \"./real.js\";\nexport const use = () => re.test(y);"
+scanned  : ["./real.js:relative"]                 (BEFORE: ["x/; import y from :bare"])
+ts-parse : ["./real.js"]
+
+── F-16 (path-shaped variant) — a regex literal whose interior spells a relative specifier
+src      : "const re = /from \"\\.\\/evil\\.js\"/;\nimport y from \"./real.js\";\nexport const use = () => re.test(y);"
+scanned  : ["./real.js:relative"]                 (BEFORE: ["\\.\\/evil\\.js:foreign","./real.js:relative"])
+ts-parse : ["./real.js"]
+
+── WR-03 — an import specifier carrying an escape sequence
+src      : "import a from \"./mod\\u002ejs\";\nexport const use = () => a;"
+scanned  : ["./mod.js:relative"]                  (BEFORE: ["./mod\\u002ejs:relative"])
+ts-parse : ["./mod.js"]
+
+── F-17 — a dynamic import whose argument is a no-substitution template literal
+src      : "export const load = async () => (await import(`./tpl.js`)).name;"
+scanned  : ["./tpl.js:relative"]                  (BEFORE: [])
+ts-parse : ["./tpl.js"]
+
+All four now agree with the parse, in both directions, and each is a PERMANENT case in
+`scripts/board-readonly.test.ts` rather than a one-off measurement recorded in a file.
+
+
+§ 2 — THE CASES THAT CARRY THEM, AND WHAT EACH ONE DECIDES
+-----------------------------------------------------------
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-readonly.test.ts
+  Test Files  1 passed (1)
+        Tests  189 passed (189)
+
+  179 before this plan, 189 after — ten new cases, in a new `describe` block
+  "32.1-06 — a tokenizer decides what a module specifier is, and the second grammar is gone (D-08)":
+
+  1. F-16 / WR-02, BOTH SHAPES, each asserted as two named lists (fabricated / missed) so a
+     manufactured specifier and a swallowed one are distinguishable in the failure message.
+  2. WR-03, both spellings the review names: the `.` escape AND the escaped quote, the second
+     of which that review records as newly reachable rather than inherited.
+  3. F-17, plus the converse that a template literal in a NON-import position yields nothing, so the
+     new admission is bounded rather than open.
+  4. The D-11 seam: three unreadable specifier slots — `import(name)`, `require(name)` and
+     `import("./" + p)` — recorded as `dynamic-import:Identifier`, `require:Identifier`,
+     `dynamic-import:BinaryExpression`, with zero specifiers produced. The point being asserted is
+     that "there is an edge here I cannot read" is now distinguishable from "there is no edge here",
+     which is the distinction the deleted pattern list could not make and D-11 needs.
+  5. The injected-parser route and the lazily-acquired route read the whole 66-file tracked corpus
+     identically, so the optional seam is not a second behaviour nobody compares.
+  6. The absent-parser refusal, measured in a mirror with no `node_modules` (§ 3).
+  7. Three authorities agree on the dashboard closure per entry (§ 5).
+  8-10. The shipped-surface rule, its two premises, and its two-directional discrimination (§ 4).
+
+  Three older cases were RE-HOMED rather than deleted: the ones whose prose named `stripNonCode`
+  (a specifier written only in a comment, only in a template literal, and one written inside a
+  template SUBSTITUTION that must still be SEEN). Each asserts a property of `moduleSpecifiers`, not
+  of the deleted view, and each still decides something under a tokenizer. Deleting them would have
+  traded a false claim for a real hole; the prose was corrected instead, and the substitution case
+  was renamed because its old name asserted the existence of a function that no longer exists.
+
+
+§ 3 — THE ABSENT-PARSER REFUSAL, MEASURED RATHER THAN SIMULATED
+----------------------------------------------------------------
+
+The refusal route cannot be reached by injection — injecting a parser is what bypasses acquisition.
+So the committed build output is mirrored into a directory with no `node_modules` anywhere above it
+and Node is spawned there. `createRequire` resolves from the MODULE'S own location, so the mirror
+genuinely has no parser to find.
+
+  $ M=$(mktemp -d) && mkdir -p "$M/scripts" && cp scripts/js-import-closure.js "$M/scripts/" \
+      && printf '{ "type": "module" }\n' > "$M/package.json" \
+      && cat > "$M/probe.mjs" <<'PROBE'
+  import { moduleSpecifiers } from "./scripts/js-import-closure.js";
+  try { moduleSpecifiers('import x from "./a.js";'); console.log("NO-REFUSAL"); }
+  catch (error) { console.log(`${error.name}: ${error.message}`); }
+  PROBE
+  $ node "$M/probe.mjs"
+
+  ImportClosureError: js-import-closure: the module specifier extractor could not acquire
+  "typescript", so moduleSpecifiers cannot read a source and the closure walk cannot start. This
+  module is a DEVELOPMENT and CONTINUOUS-INTEGRATION tool — it is run from a checkout by the
+  freshness gates, the hook-manifest generator and the platform-shape check, never by a host running
+  the installed kit — so the fix is to install this repository's dev dependencies. It refuses rather
+  than falling back to a pattern match: a second grammar for JavaScript is exactly what 32.1-06
+  deleted, and a fallback that reads SOME imports hands back a closure missing precisely the file the
+  walk could not see.
+
+  It is a NAMED refusal, not a crash and not an empty result: it says which module could not be
+  acquired, which function needed it, what kind of program this is, and therefore what to do. The
+  case asserts all four of those substrings, so a message that degrades into "cannot find module"
+  reds rather than passes. T-32.1-06-03 is mitigated by this, measured.
+
+
+§ 4 — THE SHIPPED-SURFACE RULE
+-------------------------------
+
+Derived, floored, and scoped. The full plant transcript is in `32.1-06-RED-baseline.txt` § 3; the
+summary:
+
+  derived SHIPPED subset (6): hooks/admission-guard.ts, hooks/guard.ts, hooks/hook-entry.ts,
+                              install/install.ts, install/kit-source.ts, install/uninstall.ts
+  derived TEST subset (3)   : hooks/admission-guard.test.ts, hooks/guard.test.ts,
+                              install/install.test.ts
+
+  live tree, unplanted          : offenders = []                      → GREEN
+  plant into hooks/hook-entry.ts: offenders = [hooks/hook-entry.ts]   → RED, naming the file
+  plant into a TEST file        : offenders = []                      → GREEN (control: the plant is
+                                                                        demonstrably present)
+
+  THE FLOOR IS THREE-PART, not one: the shipped set is non-empty, the installer tree contributes to
+  it, and the hook tree contributes to it. A pathspec that silently selected one tree would pass a
+  bare non-empty floor while scanning half the surface — which is the `scripts/**/*.ts`-returns-26-of-151
+  defect one register over, and this repository has already paid for that one.
+
+  A FOURTH PREMISE makes the SCOPING non-vacuous: a test file under those trees must actually import
+  the scanner, or the `.test.ts` derivation is a filter nobody has watched work.
+  `hooks/guard.test.ts` imports `closureTargets` at six call sites today, and the case reds if that
+  stops being true rather than quietly becoming a rule about nothing.
+
+
+§ 5 — THREE AUTHORITIES, ONE QUESTION
+--------------------------------------
+
+Asserted in one case, per entry, over `scripts/board-dashboard.js`:
+
+  1. the STATIC WALK          — `jsImportClosure(ROOT, DASHBOARD_ENTRY)`, the subject;
+  2. an INDEPENDENT PARSE     — the closure rebuilt over `parsedSpecifiers`, a second implementation
+                                of the stated node set written out in the test file;
+  3. NODE'S OWN RESOLVER      — `recordRuntimeAcquisitions`, which shares neither this code nor this
+                                parser.
+
+  The third is the one F-17 proves is load-bearing: two parsers asking one question are blind to the
+  same shape, which is exactly how the old two-sided oracle stayed green over a hole. Both premises
+  are floored (the static closure has more than one module; the runtime recorded more than one), so
+  neither equality can hold over an empty set.
+
+  `parsedSpecifiers` deliberately does NOT re-implement `classifySpecifier`. The suite's own rule
+  "this file decides no specifier's class itself — it asks the one authority" caught the first draft,
+  which tested `startsWith("./")` inline — the exact fourth-arm shape 32-31 removed. The oracle is
+  independent in traversal and value extraction and asks the one authority about class, because what
+  is being cross-checked here is the CLOSURE, not the partition.
+
+
+§ 6 — THE SIX CONSUMERS AND THE GATES
+--------------------------------------
+
+  $ git diff --exit-code -- scripts/check-platform-shapes.ts scripts/context-freshness.ts \
+      scripts/guarantees-freshness.ts scripts/generate-hook-manifest.ts \
+      scripts/now-running-freshness.ts scripts/trace-freshness.ts
+  (exit 0 — not one call site changed; `jsImportClosure(root, entryRel)` kept its signature and the
+   parser seam is an OPTIONAL trailing parameter on the extractor that no production caller passes)
+
+  $ npm run freshness:context        → Context fresh (vacuous pass: no .grugops/context/ tree yet)
+  $ npm run freshness:queue          → Now-running fresh (vacuous pass: no claimed/ tree yet)
+  $ npm run freshness:traceability   → Traceability fresh (vacuous pass: no notes tree yet)
+  $ npm run freshness:guarantees     → Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration
+  $ npm run freshness:hook-manifest  → Hook manifest fresh: 2 decider(s), 26 module hash(es) match
+  $ npm run check:platform-shapes    → ALL CHECKS PASSED (the Windows-leg consumer)
+  $ npm run check:dashboard-readonly → 189 passed (189)
+  $ npm run typecheck                → exit 0 (all three projects)
+  $ npm run build && npm run check:build-parity
+        → PASS  Build parity: tracked build outputs that moved when the build ran:
+                0 findings over 66/66 elements
+
+  $ grep -vE '^\s*(//|\*|/\*)' scripts/js-import-closure.js | grep -cE 'from ["'"'"']typescript["'"'"']'
+  0
+
+  The committed build output's STATIC import graph is `node:fs`, `node:module`, `node:path` and
+  nothing else. The parser arrives through `createRequire` at run time; the header says so in as many
+  words, so a reader does not conclude the module is builtins-only in every sense.
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'
+  Test Files  75 passed (75)
+        Tests  5186 passed | 2 skipped (5188)
