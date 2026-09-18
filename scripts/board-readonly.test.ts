@@ -2605,6 +2605,206 @@ describe("32.1-06 — a tokenizer decides what a module specifier is, and the se
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 32.1-14 — THE HEADER'S TWO CLAIMS, IMPLEMENTED RATHER THAN STATED (review WR-02).
+//
+// `js-import-closure.ts`'s header says two things about itself. That it "REFUSES RATHER THAN RETURNS
+// SHORT". And that a slot it cannot read is "never silently treated as 'no edge here'". Both were
+// true of the shapes the cutover was written against and false of two shapes nobody had probed, and
+// a header that outruns its code is worse than no header: the next reader takes the sentence as the
+// evidence and stops measuring.
+//
+// `ts.createSourceFile` NEVER THROWS ON A SYNTAX ERROR. It recovers and hands back a partial tree,
+// and the walk read that tree without asking whether the parse was clean. Measured against the
+// committed `scripts/js-import-closure.js` exactly as it stood (`32.1-14-RED-baseline.txt` § 1): a
+// source whose first import is followed by an unterminated block comment answered `["./a.js"]` with
+// an EMPTY unreadable list — short by `./b.js`, at exit 0, with nothing recorded. That is the
+// precise outcome the header calls the failure it exists to prevent, one level up from the F-16
+// fabrication the tokenizer was brought in to end.
+//
+// AND THE DECLARATION ARM WAS THE ONE ARM WHERE THE D-11 RULE WAS UNIMPLEMENTED. `readValue` pushes
+// only when the specifier is string-literal-LIKE, so a declaration whose specifier is anything else
+// contributed to NEITHER list. The review filed that as "a syntax error rather than a live shape",
+// and THAT IS MEASURABLY NOT TRUE OF THIS PARSER IN THIS MODE: `import a from foo;` parsed as
+// `ScriptKind.JS` yields ZERO parse diagnostics and an `ImportDeclaration` carrying an `Identifier`
+// specifier (`32.1-14-RED-baseline.txt` § 1.3). The clean-parse arm and the diagnostics arm are
+// therefore genuinely independent, and each is proved below to red while the other is absent.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The two malformed shapes WR-02 probed, each hiding a real import behind the unterminated token. */
+const RECOVERED_PARSE_SHAPES: readonly { readonly label: string; readonly source: string }[] = [
+  {
+    label: "an unterminated block comment",
+    source: 'import a from "./a.js";\n/* never closed\nimport b from "./b.js";\n',
+  },
+  {
+    label: "an unterminated template literal",
+    source: 'import a from "./a.js";\nconst t = `never closed\nimport b from "./b.js";\n',
+  },
+];
+
+/** The two declaration positions whose specifier slot a non-literal can occupy on a CLEAN parse. */
+const NON_LITERAL_DECLARATION_SHAPES: readonly { readonly label: string; readonly source: string }[] = [
+  { label: "an import declaration", source: "import a from foo;\nexport const use = () => a;\n" },
+  { label: "an export declaration", source: "export * from bar;\n" },
+];
+
+describe("32.1-14 — a recovered parse is a named refusal, and a declined declaration specifier is recorded (WR-02)", () => {
+  for (const { label, source } of RECOVERED_PARSE_SHAPES) {
+    it(`WR-02: a source carrying ${label} is REFUSED by name rather than answered short`, () => {
+      // THE MEASURED PRE-CHANGE ANSWER IS THE POINT OF COMPARISON, not an abstract "should throw".
+      // Before this plan both shapes returned `["./a.js"]` with an empty unreadable list. A caller
+      // could not tell that answer from the truth, because a missing row is indistinguishable from
+      // no import — which is the sentence this module's own header uses about the deleted scanner.
+      let thrown: unknown;
+      try {
+        moduleSpecifierFacts(source);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(
+        thrown,
+        `a source carrying ${label} did not refuse. The parser RECOVERS from a syntax error and ` +
+          "hands back a partial tree, so the walk answers with the imports before the unterminated " +
+          "token and nothing says the rest were never seen. Every mirror built from that closure is " +
+          "short by exactly the files the walk could not reach",
+      ).toBeDefined();
+      expect((thrown as Error).name).toBe("ImportClosureError");
+
+      const message = (thrown as Error).message;
+      for (const required of [
+        "did not parse cleanly", // WHAT went wrong
+        "syntax diagnostic", // measured, not asserted
+        "short by an unknown amount", // WHY an answer cannot be given
+      ]) {
+        expect(
+          message.includes(required),
+          `the recovered-parse refusal does not contain ${JSON.stringify(required)}. It said: ` +
+            `${message}. A refusal that does not say the parse recovered leaves the reader ` +
+            "believing the source is unreadable rather than that it is MALFORMED",
+        ).toBe(true);
+      }
+      expect(
+        /\b1 syntax diagnostic/.test(message),
+        `the refusal does not name the DIAGNOSTIC COUNT it measured. It said: ${message}. Both ` +
+          "shapes produce exactly one diagnostic on this parser, and a count read out of the parse " +
+          "is what makes the refusal a measurement rather than a category",
+      ).toBe(true);
+    });
+  }
+
+  for (const { label, source } of NON_LITERAL_DECLARATION_SHAPES) {
+    it(`D-11: ${label} whose specifier is not a string literal is RECORDED, never dropped`, () => {
+      // THE ARM WHERE THE RULE WAS NOT IMPLEMENTED. The dynamic-import and `require` arms have
+      // recorded an unreadable slot by node kind since plan 32.1-06; the declaration arm called
+      // `readValue`, which pushes only on a string-literal-like node and is silent otherwise. So
+      // "there is an edge here and I cannot read it" was indistinguishable from "there is no edge
+      // here" — in the one position a static import actually lives.
+      const facts = moduleSpecifierFacts(source);
+      expect(
+        facts.specifiers,
+        "a non-literal declaration specifier produced a SPECIFIER, so the walk guessed at a value " +
+          "it cannot know. A guessed edge is a fabricated edge",
+      ).toEqual([]);
+      expect(
+        facts.unreadable.map((site) => `${site.form}:${site.nodeKindName}`),
+        `${label} with a non-literal specifier recorded NOTHING. Before this plan it produced ` +
+          "neither a specifier nor an unreadable site, which is the exact blindness D-11 exists to " +
+          "refuse by name",
+      ).toEqual(["declaration:Identifier"]);
+      const site = facts.unreadable[0] as UnreadableSpecifierSite;
+      expect(site.nodeKind, "a recorded site carries no node kind, so a refusal cannot name it")
+        .toBeGreaterThan(0);
+      expect(
+        unreadableSpecifierRefusal(site),
+        "the ONE sentence both D-11 positions publish does not render the new form. A form the " +
+          "builder cannot render is a site the refusal cannot name",
+      ).toBe(
+        `declaration with a non-literal specifier: the slot holds a node of kind Identifier, and ` +
+          `the canonical form is a plain string literal`,
+      );
+
+      // THROUGH THE INJECTION SEAM TOO, for the reason that seam exists: an optional parameter
+      // nobody exercises is a second code path nobody compares. This file's own `typescript` is a
+      // different module instance from the one `createRequire` resolves inside the extractor.
+      expect(
+        moduleSpecifierFacts(source, ts as unknown as SpecifierParserApi).unreadable,
+        "the injected-parser route dropped the declined declaration specifier that the acquired " +
+          "route records. One extractor, one rule — a difference means the seam is a second behaviour",
+      ).toEqual(facts.unreadable);
+    });
+  }
+
+  it("PREMISE: the non-literal declaration shapes parse CLEANLY, so the two refusals are independent", () => {
+    // WITHOUT THIS, THE CASE ABOVE PROVES NOTHING ABOUT THE DECLARATION ARM. If `import a from foo;`
+    // produced a parse diagnostic, the diagnostics refusal would fire first and the declaration arm
+    // would be unreachable — the recording case would then be passing for the other change's
+    // reason. The review assumed exactly that ("a syntax error rather than a live shape"); measured
+    // on this parser in `ScriptKind.JS` it is false, and that measurement is what makes each of the
+    // two changes provable alone.
+    for (const { label, source } of NON_LITERAL_DECLARATION_SHAPES) {
+      const parsed = ts.createSourceFile(
+        "premise.js",
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.JS,
+      ) as ts.SourceFile & { readonly parseDiagnostics?: readonly unknown[] };
+      expect(
+        parsed.parseDiagnostics?.length ?? 0,
+        `PREMISE: ${label} with a non-literal specifier produced a parse diagnostic, so the ` +
+          "diagnostics refusal fires first and the declaration-arm case above is green for the " +
+          "wrong reason",
+      ).toBe(0);
+    }
+  });
+
+  it("CONTROL: a well-formed source is unaffected — same specifiers, same order, empty unreadable list", () => {
+    // A REFUSAL THAT REFUSES EVERYTHING IS NOT A REFUSAL. This is the discrimination half: the same
+    // three specifier positions the module's node set names, in one clean source, answered exactly
+    // as before the change and with nothing recorded in the D-11 seam.
+    const wellFormed =
+      'import a from "./a.js";\n' +
+      'export { b } from "../lib/b.js";\n' +
+      'export const load = async () => (await import("./c.js")).default;\n' +
+      'export const legacy = () => require("node:fs");\n' +
+      "export const use = () => [a, load, legacy];\n";
+    const facts = moduleSpecifierFacts(wellFormed);
+    expect(
+      facts.specifiers.map((row) => `${row.specifier}:${row.cls}`),
+      "a well-formed source read differently after the refusal landed. The diagnostics check runs " +
+        "once, before the walk, and reads a count off the parse — it must change no answer",
+    ).toEqual(["./a.js:relative", "../lib/b.js:relative", "./c.js:relative", "node:fs:bare"]);
+    expect(facts.unreadable, "a well-formed source recorded an unreadable slot").toEqual([]);
+  });
+
+  it("CONVERSE: every tracked build output still parses cleanly, so the refusal costs the six gates nothing", () => {
+    // The refusal reaches every consumer of the shared walk. Measured over the whole tracked corpus
+    // before it was added (`32.1-14-RED-baseline.txt` § 1.4): ZERO files with a parse diagnostic. A
+    // red here is a genuinely malformed committed `.js`, which is a build output nobody should ship.
+    const corpus = execFileSync("git", ["ls-files", "*.js", "*.mjs"], { cwd: ROOT, encoding: "utf8" })
+      .split("\n")
+      .filter((line) => line !== "");
+    expect(
+      corpus.length,
+      "PREMISE: the derived corpus is EMPTY, so the sweep below refused nothing and proved nothing",
+    ).toBeGreaterThan(40);
+    const refused: string[] = [];
+    for (const rel of corpus) {
+      try {
+        moduleSpecifierFacts(readFileSync(join(ROOT, rel), "utf8"));
+      } catch (error) {
+        refused.push(`${rel}: ${(error as Error).message.slice(0, 120)}`);
+      }
+    }
+    expect(
+      refused,
+      "a tracked build output no longer parses cleanly. The refusal is correct and the FILE is the " +
+        "defect: a committed `.js` that a parser recovers from is not a faithful build of its `.ts`",
+    ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // PART ONE-B — the REFUSALS THAT MOVED, and the callers that must not have (32-31).
 //
 // A cutover that gives three spellings a refusal they did not have is only half a measurement. THREE

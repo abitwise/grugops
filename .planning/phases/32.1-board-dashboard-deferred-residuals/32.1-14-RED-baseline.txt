@@ -1,0 +1,127 @@
+32.1-14 RED BASELINE — measured against the tree as it stands, before any change in this plan.
+Base commit: 152bec0c (docs(32.1-13): record the plan verify-command defect in the residual register)
+Measured: 2026-09-18
+Rule: D-19. Every refusal this plan adds is reproduced FIRST, against the committed artifact exactly
+as it stands, with the command, the fixture text and the observed answer. Nothing below is argued.
+
+=================================================================================================
+SECTION 1 — WR-02: the parse walk never consults parse diagnostics (scripts/js-import-closure.js)
+=================================================================================================
+
+Command (run against the COMMITTED build output, not the .ts):
+
+    node -e 'import("./scripts/js-import-closure.js").then(m => …)'
+  driven as a scratch ESM probe importing { moduleSpecifierFacts } from
+  /Users/olgeroeselg/Projects/public/grugops/scripts/js-import-closure.js
+
+-------------------------------------------------------------------------------------------------
+1.1  SHAPE A — an unterminated block comment after the first import
+-------------------------------------------------------------------------------------------------
+
+fixture (JSON-escaped, exactly as fed):
+  "import a from \"./a.js\";\n/* never closed\nimport b from \"./b.js\";\n"
+
+observed answer:
+  {"threw":false,"specifiers":["./a.js:relative"],"specifierCount":1,"unreadable":[],"unreadableCount":0}
+
+  specifier list LENGTH  : 1   (the truth is 2 — ./a.js and ./b.js)
+  unreadable list LENGTH : 0
+  threw                  : no
+  exit                   : 0
+
+The walk returned an ANSWER. It is short by ./b.js, and nothing in the answer says so: an absent row
+is indistinguishable from an absent import. That is the outcome the module's own header calls the
+failure it exists to prevent ("IT REFUSES RATHER THAN RETURNS SHORT ... A closure that silently
+omitted an unresolvable edge would hand back a mirror that is missing exactly the file the walk
+could not see").
+
+-------------------------------------------------------------------------------------------------
+1.2  SHAPE B — an unterminated template literal in the same position
+-------------------------------------------------------------------------------------------------
+
+fixture:
+  "import a from \"./a.js\";\nconst t = `never closed\nimport b from \"./b.js\";\n"
+
+observed answer:
+  {"threw":false,"specifiers":["./a.js:relative"],"specifierCount":1,"unreadable":[],"unreadableCount":0}
+
+  specifier list LENGTH  : 1
+  unreadable list LENGTH : 0
+  threw                  : no
+  exit                   : 0
+
+Identical shape, second token class. `ts.createSourceFile` does not throw on a syntax error; it
+RECOVERS and returns a partial tree. The walk reads that tree and never asks whether the parse was
+clean.
+
+Diagnostic counts read off the same parses (typescript resolved from the repository checkout,
+ScriptTarget.Latest, setParentNodes true, ScriptKind.JS):
+
+  SHAPE A : 1 diagnostic — "'*/' expected."
+  SHAPE B : 1 diagnostic — "Unterminated template literal."
+
+Both parses were DIAGNOSED and the walk did not look.
+
+-------------------------------------------------------------------------------------------------
+1.3  A DECLARATION SPECIFIER THAT IS NOT A PLAIN STRING LITERAL — recorded on NEITHER side
+-------------------------------------------------------------------------------------------------
+
+fixture:
+  "import a from foo;\nexport const use = () => a;\n"
+
+observed answer:
+  {"threw":false,"specifiers":[],"specifierCount":0,"unreadable":[],"unreadableCount":0}
+
+  specifier list LENGTH  : 0
+  unreadable list LENGTH : 0   <-- the D-11 seam is EMPTY on both sides
+
+The declaration arm calls `readValue`, which pushes only when the node is string-literal-LIKE and is
+SILENT otherwise. So in the one position a static import actually lives, "there is an edge here and
+I cannot read it" is indistinguishable from "there is no edge here" — the exact blindness D-11
+exists to refuse by name, and the one arm where the recorded-never-dropped rule was unimplemented.
+
+A REVIEW PREMISE DISPROVED BY MEASUREMENT, and it is load-bearing for this plan's structure.
+32.1-REVIEW WR-02 files this shape as "a syntax error rather than a live shape in tsc output". On
+THIS parser in THIS mode it produces ZERO parse diagnostics:
+
+  source                                   diagnostics   declaration kind      specifier node
+  ---------------------------------------  -----------   -------------------   -------------------------
+  import a from foo;                        0            ImportDeclaration     Identifier (kind=80)
+  export * from bar;                        0            ExportDeclaration     Identifier (kind=80)
+
+  isStringLiteralLike(specifier) = false in both cases; specifier.text = "foo" / "bar".
+
+Consequence: the diagnostics refusal does NOT subsume the declaration recording. The two changes are
+genuinely independent and each can be — and below is — proved to red alone. Had the review's premise
+held, the recording case would have been green for the other change's reason.
+
+-------------------------------------------------------------------------------------------------
+1.4  THE BLAST RADIUS, MEASURED BEFORE THE REFUSAL WAS ADDED
+-------------------------------------------------------------------------------------------------
+
+Every tracked build output parsed with the same settings, counting parse diagnostics:
+
+  corpus (git ls-files '*.js' '*.mjs') : 67 files
+  files with >= 1 parse diagnostic     : 0
+
+So the refusal costs the six production consumers of the shared walk nothing on this tree. This is
+the number the CONVERSE case asserts, and a red there is a genuinely malformed committed `.js`.
+
+-------------------------------------------------------------------------------------------------
+1.5  THE RED RUN
+-------------------------------------------------------------------------------------------------
+
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-readonly.test.ts -t "32.1-14"
+
+  Tests  4 failed | 3 passed | 202 skipped (209)
+
+  x  WR-02: a source carrying an unterminated block comment is REFUSED by name rather than answered short
+  x  WR-02: a source carrying an unterminated template literal is REFUSED by name rather than answered short
+  x  D-11: an import declaration whose specifier is not a string literal is RECORDED, never dropped
+  x  D-11: an export declaration whose specifier is not a string literal is RECORDED, never dropped
+  ok PREMISE: the non-literal declaration shapes parse CLEANLY, so the two refusals are independent
+  ok CONTROL: a well-formed source is unaffected — same specifiers, same order, empty unreadable list
+  ok CONVERSE: every tracked build output still parses cleanly, so the refusal costs the six gates nothing
+
+  Zero premise failures. The two controls pass BEFORE the change, which is what makes them controls:
+  they are not measuring the change, they are bounding it.
