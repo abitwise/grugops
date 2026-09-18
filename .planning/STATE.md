@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-14-PLAN.md
-last_updated: "2026-09-18T14:17:45.234Z"
-state_head: 291d01ca1972b4bf0270f4e3518e1e7b3dab8d93
+stopped_at: Completed 32.1-15-PLAN.md
+last_updated: "2026-09-18T15:23:26.811Z"
+state_head: 688e110f56da5fea3b8e9f46ce7cb022f1909cf9
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 269
-  completed_plans: 268
+  completed_plans: 269
   percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 14 of 15
+Plan: 15 of 15
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -525,6 +525,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32.1 P12 | 35 min | 3 tasks | 7 files |
 | Phase 32.1 P13 | 30 min | 3 tasks | 8 files |
 | Phase 32.1 P14 | 25 min | 3 tasks | 9 files |
+| Phase 32.1 P15 | 79 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1446,6 +1447,9 @@ Recent decisions affecting current work:
 - [Phase 32.1]: 32.1-13: the two per-class carve-outs in the sentence builder are DELETED, not narrowed — every substitution at a published position in the three board modules is built through the builder (42 cutovers), enforced as a two-sided published-equals-owned equality with one pinned count. — Both classes were measured wrong: path by plan 32.1-12's end-to-end reproduction, and internal by a probe run in 32.1-13 showing a platform ENOENT text republished at board-dashboard.ts naming a path twice with the code point deleted. A hand-maintained class table is the rotting-set failure this repository has paid for twice; narrowing one class and keeping the other is the shape its ledger records failing round after round.
 - [Phase 32.1]: 32.1-14: a recovered parse is a NAMED refusal carrying its diagnostic count, and the review premise that a non-literal declaration specifier is 'a syntax error rather than a live shape' is DISPROVED by measurement — On this parser in ScriptKind.JS both 'import a from foo;' and 'export * from bar;' produce ZERO parse diagnostics and an Identifier specifier. That is load-bearing rather than trivia: had the premise held, the diagnostics refusal would fire first, the declaration arm would be unreachable, and its case would be green for the other change's reason. The two refusals are therefore genuinely independent and each was proved to red alone.
 - [Phase 32.1]: 32.1-14: IN-04 is closed by a named refusal at the fact, NOT by raising engines.node to >=22.15 — The review offered both. A named refusal costs a contributor on a supported runtime nothing; raising the declared floor costs one on an older 22.x their whole checkout. The child also reads registerHooks off a NAMESPACE import, because a named import of an absent export is a link-time SyntaxError and could never be the thing that checks whether the export is there.
+- [Phase 32.1]: Plan 32.1-15: the human answered NO-GO at the blocking-human live-lane checkpoint (2026-09-18). Task 3 skipped entirely, zero tokens spent, no transcript written, scripts/e2e/uat-live.test.ts byte-unchanged. — A no-go is a legitimate terminal outcome of that checkpoint. Task 1's diagnosis attributed two of the three live failures to suite expectations a re-run cannot change, and the third to a per-call budget a re-run would have to change first to be informative.
+- [Phase 32.1]: Plan 32.1-15: the completion equality now names FOUR sources and twenty-nine items; this phase's own code review is the fourth, derived in the tool from its headings. — An equality blind to the review of the code it measures is an equality over the wrong set. The widening moves the denominator only in the harder direction, which is what distinguishes a scope change from a moved goalpost.
+- [Phase 32.1]: Plan 32.1-15: the A2-live prod-deploy deny assertion is UNSATISFIABLE on the channel it reads (measured); the MECHANISM is intact (the real guard executed, deny envelope returned). Rows 211-213 stay open - a diagnosis is not a closure. — A matcher over agent-authored output can observe only that an envelope appeared; the guard's refusal is established by the offline point-of-effect oracle. Keeping the two claims separate stops a safety red being over-read or explained away. The deny case was not weakened, skipped or narrowed.
 
 ### Pending Todos
 
@@ -1571,8 +1575,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-18T14:16:49.561Z
-Stopped at: Completed 32.1-14-PLAN.md
+Last session: 2026-09-18T15:22:38.596Z
+Stopped at: Completed 32.1-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

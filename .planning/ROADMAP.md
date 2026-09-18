@@ -1301,7 +1301,7 @@ Plans:
 
 **Wave 15** *(blocked on Wave 14 completion)*
 
-- [ ] 32.1-15-PLAN.md — the three live-lane failures diagnosed statically at zero token spend, one blocking human checkpoint naming the spend before at most one gated re-run, and the completion equality extended to a fourth named source with the register reconciled by identifier [DASH-03, DASH-05, DASH-06, DASH-07, DASH-08]
+- [x] 32.1-15-PLAN.md — the three live-lane failures diagnosed statically at zero token spend, one blocking human checkpoint naming the spend before at most one gated re-run, and the completion equality extended to a fourth named source with the register reconciled by identifier [DASH-03, DASH-05, DASH-06, DASH-07, DASH-08]
 
 ### Phase 33: Live Capture & Windows Portability
 
@@ -1356,7 +1356,7 @@ Plans:
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
-| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 14/15 | In Progress (gap-closure round 2 of 4 planned) |  |
+| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | In Progress (gap-closure round 2 of 4 executed; verification pending) |  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
