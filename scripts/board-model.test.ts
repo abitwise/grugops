@@ -3817,6 +3817,10 @@ const CONTENT_DECLARATIONS: Readonly<Record<string, string>> = {
   "board-model.ts#line": "a frontmatter line, quoted back as a refusal's evidence",
   "board-model.ts#lines": "the document's first line, quoted by the no-opening-delimiter refusal",
   "board-model.ts#name": "a column name configured in the dial, which is a document too",
+  "board-read.ts#claimMd":
+    "a path this process JOINED from a directory listing's entry name, so an author reaches it by " +
+    "creating a filesystem entry and the sentence quoting it carries no separately escaped copy of " +
+    "that name (plan 32.1-12)",
   "board-read.ts#claimedBy": "the file name that claimed an identifier first",
   "board-read.ts#id": "the identifier a ticket document declares",
   "board-read.ts#name": "a directory entry's name, exactly as the listing reported it",
@@ -3844,7 +3848,6 @@ const NOT_CONTENT_DECLARATIONS: Readonly<Record<string, "path" | "internal" | "a
   "board-model.ts#limit": "internal",
   "board-read.ts#absPath": "path",
   "board-read.ts#atLineCount": "internal",
-  "board-read.ts#claimMd": "path",
   "board-read.ts#claimedDir": "path",
   "board-read.ts#code": "internal",
   "board-read.ts#dir": "path",
@@ -3866,8 +3869,8 @@ const NOT_CONTENT_DECLARATIONS: Readonly<Record<string, "path" | "internal" | "a
 // THE COUNTS ARE DECISIONS, NOT CONSTANTS SOMEBODY BUMPED. Each moves when a sentence lands or
 // leaves the three modules, and each is asserted in a case of its own beside the MEMBERS it counts.
 const PUBLISHED_SUBSTITUTION_COUNT = 86;
-const CONTENT_SUBSTITUTION_COUNT = 23;
-const OWNED_SUBSTITUTION_COUNT = 41;
+const CONTENT_SUBSTITUTION_COUNT = 26;
+const OWNED_SUBSTITUTION_COUNT = 44;
 
 /** ONE program for the whole block: a full `ts.Program` over every tracked `scripts/*.ts`. */
 let censusProgram: ReturnType<typeof createScriptsProgram> | null = null;
@@ -4012,13 +4015,25 @@ describe("32.1-07 — the builder's ownership is derived from the three modules 
 // started reporting some other number.
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 
+/** The seeded site in `board-model.ts`: F-14's own `ticket-unplaced` sentence. */
 const SEEDED_TAG_REMOVAL = "spelled`no row names ${t.id}`";
 const SEEDED_TAG_REPLACEMENT = "`no row names ${t.id}`";
 
-/** The same API, with `scripts/board-model.ts` served from mutated text. */
-function mirroringApi(mutate: (text: string) => string): TsProgramApi {
+/**
+ * The seeded site in `board-read.ts` (plan 32.1-12): the `no-at` claim-record sentence, which
+ * this plan built through the builder and which carries EXACTLY ONE substitution — so the owned
+ * count moves by exactly one and the difference is caused by the seeded change rather than by a
+ * derivation that broke. A SECOND module is seeded because the mirror had only ever been watched
+ * fail on `board-model.ts`: a control that has only been exercised in one module says nothing
+ * about whether the resolution works in the module where the next unbuilt sentence will land.
+ */
+const SEEDED_READ_TAG_REMOVAL = "spelled`${claimMd} carries no ";
+const SEEDED_READ_TAG_REPLACEMENT = "`${claimMd} carries no ";
+
+/** The same API, with ONE named module served from mutated text. */
+function mirroringApi(module: string, mutate: (text: string) => string): TsProgramApi {
   const api = ts as unknown as TsProgramApi;
-  const target = join(ROOT, "scripts", "board-model.ts");
+  const target = join(ROOT, "scripts", module);
   return {
     ...api,
     createCompilerHost: (options, setParentNodes) => {
@@ -4041,25 +4056,35 @@ function mirroringApi(mutate: (text: string) => string): TsProgramApi {
   };
 }
 
-function mirrorCensus(): readonly CensusRow[] {
-  const api = mirroringApi((text) => {
-    if (!text.includes(SEEDED_TAG_REMOVAL)) {
+function mirrorCensus(module: string, seed: string, replacement: string): readonly CensusRow[] {
+  const api = mirroringApi(module, (text) => {
+    // THE SEED MUST BE UNIQUE, NOT MERELY PRESENT. `String.replace` with a string pattern
+    // rewrites the FIRST occurrence, so a seed that matched twice would un-own a site chosen by
+    // source order — and the count assertions below would then be about a different sentence.
+    const hits = text.split(seed).length - 1;
+    if (hits !== 1) {
       throw new Error(
-        `the mirror could not find ${SEEDED_TAG_REMOVAL} in scripts/board-model.ts. The seeded ` +
-          `site was renamed or rewritten; seed another single-substitution builder call rather ` +
-          `than deleting this mirror — a census nobody has watched fail is not a control`,
+        `the mirror found ${hits} occurrence(s) of ${seed} in scripts/${module} and needs exactly ` +
+          `one. The seeded site was renamed, rewritten or duplicated; seed another ` +
+          `single-substitution builder call rather than deleting this mirror — a census nobody ` +
+          `has watched fail is not a control`,
       );
     }
-    return text.replace(SEEDED_TAG_REMOVAL, SEEDED_TAG_REPLACEMENT);
+    return text.replace(seed, replacement);
   });
   const built = createScriptsProgram(ROOT, api);
   if (!built.ok) throw new Error(built.cause);
   return censusOf(built.context, api);
 }
 
+const mirrorModelCensus = (): readonly CensusRow[] =>
+  mirrorCensus("board-model.ts", SEEDED_TAG_REMOVAL, SEEDED_TAG_REPLACEMENT);
+const mirrorReadCensus = (): readonly CensusRow[] =>
+  mirrorCensus("board-read.ts", SEEDED_READ_TAG_REMOVAL, SEEDED_READ_TAG_REPLACEMENT);
+
 describe("32.1-07 — the ownership census is a control, not a coincidence", () => {
   it("removing ONE builder call moves the owned count by exactly one", () => {
-    const owned = mirrorCensus().filter((r) => r.owned).length;
+    const owned = mirrorModelCensus().filter((r) => r.owned).length;
     expect(owned).not.toBe(OWNED_SUBSTITUTION_COUNT);
     expect(
       owned,
@@ -4069,7 +4094,7 @@ describe("32.1-07 — the ownership census is a control, not a coincidence", () 
   });
 
   it("the census REDS, naming the site the seeded removal un-owned", () => {
-    const rows = mirrorCensus();
+    const rows = mirrorModelCensus();
     const offenders = rows
       .filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver))
       .filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration) && !r.owned);
@@ -4091,6 +4116,46 @@ describe("32.1-07 — the ownership census is a control, not a coincidence", () 
       rows.filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver)).length,
       "the denominator moved under a mutation that only removed a TAG, so the walk is measuring " +
         "something other than the substitutions",
+    ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
+  });
+
+  // ── plan 32.1-12: the SAME control, seeded in the module this plan changed ──────────────────
+
+  it("removing the newly built `no-at` claim-record tag moves the owned count by exactly one", () => {
+    const owned = mirrorReadCensus().filter((r) => r.owned).length;
+    expect(owned).not.toBe(OWNED_SUBSTITUTION_COUNT);
+    expect(
+      owned,
+      "the seeded removal in scripts/board-read.ts moved the owned count by something other than " +
+        "one, so the number this census reports is not a function of the seeded change alone",
+    ).toBe(OWNED_SUBSTITUTION_COUNT - 1);
+  });
+
+  it("the census REDS on board-read.ts, naming the module, the expression and the declaration", () => {
+    const rows = mirrorReadCensus();
+    const offenders = rows
+      .filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver))
+      .filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration) && !r.owned);
+    expect(
+      offenders.length,
+      "the seeded removal produced other than exactly one unowned content-derived site, so the " +
+        "refusal below is not about the seeded change",
+    ).toBe(1);
+    const named = offenders.map(nameRow)[0] ?? "";
+    expect(named, "the refusal does not name the module the site is in").toContain("board-read.ts");
+    expect(named, "the refusal does not name the expression the site interpolates").toContain(
+      "claimMd",
+    );
+    expect(
+      named,
+      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot tell " +
+        "which class the site belongs to",
+    ).toContain("board-read.ts#claimMd");
+    // AND THE REST OF THE CENSUS IS UNMOVED under a mutation that only removed a TAG.
+    expect(
+      rows.filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver)).length,
+      "the denominator moved under a mutation that only removed a TAG in scripts/board-read.ts, " +
+        "so the walk is measuring something other than the substitutions",
     ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
   });
 });

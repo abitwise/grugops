@@ -1225,7 +1225,7 @@ function readQueueSource(root, readAt, previous, seam) {
                 source: "queue",
                 path: claimMd,
                 code: "tampered",
-                message: `${claimMd} carries ${atLineCount} \`at:\` lines and a claim record is written with ` +
+                message: spelled `${claimMd} carries ${atLineCount} \`at:\` lines and a claim record is written with ` +
                     `exactly one. The record is skipped rather than trusted on either line: a forged second ` +
                     `\`at:\` is a queue-lock denial of service (scripts/claim.ts:270-306).`,
             });
@@ -1242,7 +1242,7 @@ function readQueueSource(root, readAt, previous, seam) {
                 source: "queue",
                 path: claimMd,
                 code: "no-at",
-                message: `${claimMd} carries no \`at:\` line and a claim record is written with exactly one. ` +
+                message: spelled `${claimMd} carries no \`at:\` line and a claim record is written with exactly one. ` +
                     `The record is skipped rather than placed at an invented instant: the row order is ` +
                     `\`at\` then task, so a record with no timestamp has no position on the timeline.`,
             });
