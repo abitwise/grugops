@@ -26,14 +26,17 @@ node install/install.js
 grugops version `2.1.0`.
 
 <!-- claim: C-28-005 -->
-1. **Install** — run the idempotent, additive, reversible installer (Node 22+) from the repo root:
+1. **Install** — clone grugops once, then run its idempotent, additive, reversible installer (Node 22+) against the project you want it in:
 
    ```bash
-   node install/install.js
+   git clone https://github.com/abitwise/grugops.git ~/grugops
+   node ~/grugops/install/install.js --target /path/to/your-project
    ```
 
+   From inside the project you can drop `--target`; the installer then asks you to confirm the current directory. It refuses to install into the grugops checkout itself. The shared kit lands in `~/.grugops` and only per-repo state is written into your project. Every flag, including `--check` and `--update`, is in [`install/README.md`](install/README.md).
+
 <!-- claim: C-28-006 -->
-   The installer never overwrites or deletes your content; re-running it is safe, and `node install/uninstall.js` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
+   The installer never overwrites or deletes your content; re-running it is safe, and `node ~/grugops/install/uninstall.js --target /path/to/your-project` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
 
 2. **Drive it** — in your coding agent, invoke the dash-standalone command:
 

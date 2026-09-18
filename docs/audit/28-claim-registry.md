@@ -138,26 +138,26 @@ grugops version `2.1.0`.
 - mechanism: `install/install.ts` and `install/uninstall.ts` both ship with committed `.js`; `DRY_RUN` is read at 37 sites; `install/install.test.ts` carries the idempotence and non-overwrite cases. `Node 22+` matches the documented hard prerequisite in `CLAUDE.md` and `install/README.md`.
 
 ```
-1. **Install** — run the idempotent, additive, reversible installer (Node 22+) from the repo root:
+1. **Install** — clone grugops once, then run its idempotent, additive, reversible installer (Node 22+) against the project you want it in:
 ```
 
 ### C-28-006
 
 - file: README.md
-- line: 36
+- line: 39
 - kind: install
 - depends_on: —
 - status: true
 - mechanism: Two absolutes measured against `install/install.test.ts`, which carries the re-run-is-safe and does-not-overwrite cases, and against `install/uninstall.ts`, which removes only paths the installer recorded as added. `DRY_RUN=1` is honoured at 37 sites in `install/install.ts`.
 
 ```
-   The installer never overwrites or deletes your content; re-running it is safe, and `node install/uninstall.js` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
+   The installer never overwrites or deletes your content; re-running it is safe, and `node ~/grugops/install/uninstall.js --target /path/to/your-project` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
 ```
 
 ### C-28-007
 
 - file: README.md
-- line: 45
+- line: 48
 - kind: architecture
 - depends_on: —
 - status: true
@@ -170,7 +170,7 @@ grugops version `2.1.0`.
 ### C-28-008
 
 - file: README.md
-- line: 48
+- line: 51
 - kind: architecture
 - depends_on: —
 - status: true
@@ -183,7 +183,7 @@ grugops version `2.1.0`.
 ### C-28-009
 
 - file: README.md
-- line: 53
+- line: 56
 - kind: architecture
 - depends_on: —
 - status: true
