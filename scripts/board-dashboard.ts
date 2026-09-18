@@ -198,14 +198,14 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       i += 1;
       if (!INTEGER.test(raw)) {
         return refuse(
-          `\`--interval ${raw}\` is not a base-10 integer. The value is refused rather than ` +
+          spelled`\`--interval ${raw}\` is not a base-10 integer. The value is refused rather than ` +
             `coerced: a silently rounded interval is a screen that looks live and is frozen.`,
         );
       }
       const ms = Number.parseInt(raw, 10);
       if (ms < INTERVAL_HARD_FLOOR_MS) {
         return refuse(
-          `\`--interval ${raw}\` is below the hard floor of ${INTERVAL_HARD_FLOOR_MS} ms. The ` +
+          spelled`\`--interval ${raw}\` is below the hard floor of ${INTERVAL_HARD_FLOOR_MS} ms. The ` +
             `value is refused rather than clamped, so the interval a caller reads back is the ` +
             `interval it asked for.`,
         );
@@ -214,11 +214,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       continue;
     }
     if (arg.startsWith("-")) {
-      return refuse(`\`${arg}\` is not a known flag.`);
+      return refuse(spelled`\`${arg}\` is not a known flag.`);
     }
     if (repoRoot !== null) {
       return refuse(
-        `\`${arg}\` is a second positional argument. The dashboard projects exactly one ` +
+        spelled`\`${arg}\` is a second positional argument. The dashboard projects exactly one ` +
           `repository per invocation.`,
       );
     }
@@ -238,7 +238,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 }
 
 function refuse(message: string): ParsedArgs {
-  return { kind: "usage", message: `board-dashboard: ${message}` };
+  return { kind: "usage", message: spelled`board-dashboard: ${message}` };
 }
 
 // ── The cell sanitizer (T-32-06) ─────────────────────────────────────────────────────────────────
@@ -1311,7 +1311,7 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
         } catch (e) {
           // The root went away under a running loop. A named line on stderr, the previous frame left
           // standing, and the loop keeps polling — the tree may come back.
-          warn(io, `board-dashboard: ${(e as Error).message}`);
+          warn(io, spelled`board-dashboard: ${(e as Error).message}`);
           return;
         }
         previous = result;
@@ -1428,7 +1428,7 @@ export function run(
     // THE ARGV-SOURCED PATH (CR-05). This line echoes `repoRoot` before anything has validated it,
     // and the errno text quotes it a second time. Both quotations pass through the chokepoint,
     // which is why the fix is at the WRITE site rather than at the message.
-    warn(io, `board-dashboard: ${(e as Error).message}`);
+    warn(io, spelled`board-dashboard: ${(e as Error).message}`);
     return { kind: "exit", code: EXIT_USAGE };
   }
 
@@ -1468,7 +1468,7 @@ export function main(argv: readonly string[], io: DashboardIo = defaultIo()): nu
     // the ones it is most likely to log, paste into an issue, or match on. A raw Node stack there
     // leaks absolute paths and module layout and tells the caller nothing it can act on, so the
     // message is flattened to a single line and the exit code carries the rest.
-    warn(io, `board-dashboard: ${oneLine(e)}`);
+    warn(io, spelled`board-dashboard: ${oneLine(e)}`);
     return EXIT_USAGE;
   }
 }
@@ -1519,7 +1519,7 @@ if (isEntrypoint(import.meta.url)) {
     // one write that used to reach `process.stderr` directly rather than through the injected io.
     // It goes through the same chokepoint as every other diagnostic; `defaultIo()` is how the tail
     // gets the channel, since it is outside any function that was handed one.
-    warn(defaultIo(), `board-dashboard: ${(e as Error).message}`);
+    warn(defaultIo(), spelled`board-dashboard: ${(e as Error).message}`);
     process.exit(EXIT_USAGE);
   }
 }

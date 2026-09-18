@@ -1777,8 +1777,8 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
       add(column.line, {
         kind: "wip-count",
         column: column.name,
-        expected: `claimed ${column.claimedLive}, limit ${column.limit ?? "none"}`,
-        actual: `counted ${column.rows.length}`,
+        expected: spelled`claimed ${column.claimedLive}, limit ${column.limit ?? "none"}`,
+        actual: spelled`counted ${column.rows.length}`,
         source: "board",
       });
     }

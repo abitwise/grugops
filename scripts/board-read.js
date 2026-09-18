@@ -113,8 +113,8 @@ export function readVerifyReread(absPath, retries = READ_RETRY_BOUND, seam = {})
         ok: false,
         reason: "torn",
         code: "TORN",
-        message: `board-read: ${absPath} changed under every one of ${retries} read attempts, so no read of ` +
-            `it is trustworthy. The previous good value is kept and the source is marked stale.`,
+        message: spelled `board-read: ${absPath} changed under every one of ${retries} read attempts, so no ` +
+            `read of it is trustworthy. The previous good value is kept and the source is marked stale.`,
     };
     for (let attempt = 1; attempt <= retries; attempt += 1) {
         try {
@@ -163,7 +163,7 @@ export function readVerifyReread(absPath, retries = READ_RETRY_BOUND, seam = {})
                     ok: false,
                     reason: "unreadable",
                     code: "ENCODING",
-                    message: `board-read: ${absPath} could not be decoded as UTF-8 (${decodeError.message}). ` +
+                    message: spelled `board-read: ${absPath} could not be decoded as UTF-8 (${decodeError.message}). ` +
                         `The file is not being modified — it is bytes this module cannot use — so it is reported ` +
                         `as unreadable rather than as a torn read, and it is not re-read.`,
                 };
@@ -243,7 +243,7 @@ export function settleSource(source, path, outcome, previous, readAt, fallback) 
     const error = outcome.kind === "absent"
         ? carried === null
             ? null
-            : { source, path, code: "ENOENT", message: `${path} is gone since the previous read` }
+            : { source, path, code: "ENOENT", message: spelled `${path} is gone since the previous read` }
         : { source, path, code: outcome.code, message: outcome.message };
     if (carried !== null) {
         return {
@@ -513,9 +513,9 @@ export function insideRoot(root, target, what) {
             return {
                 ok: false,
                 code: err.code ?? "unreadable",
-                message: `board-read: ${what} ${target} could not be resolved to a real location ` +
-                    `(${err.code ?? "unreadable"}). Refusing to read a path this module cannot place inside ` +
-                    `the repository root ${root}.`,
+                message: spelled `board-read: ${what} ${target} could not be resolved to a real location ` +
+                    spelled `(${err.code ?? "unreadable"}). Refusing to read a path this module cannot place ` +
+                    spelled `inside the repository root ${root}.`,
             };
         }
         const anchored = anchorAbsentTarget(root, target);
@@ -524,12 +524,12 @@ export function insideRoot(root, target, what) {
                 ok: false,
                 code: anchored.code,
                 message: anchored.code === OUTSIDE_ROOT
-                    ? `board-read: ${what} ${target} does not exist and its nearest existing parent is ` +
-                        `outside the repository root ${root}. Refusing to read through a path that leaves ` +
-                        `the tree, including one whose target has not been created yet.`
-                    : `board-read: ${what} ${target} does not exist and a parent of it could not be ` +
-                        `inspected (${anchored.code}), so this module cannot place it inside the repository ` +
-                        `root ${root}.`,
+                    ? spelled `board-read: ${what} ${target} does not exist and its nearest existing parent ` +
+                        spelled `is outside the repository root ${root}. Refusing to read through a path that ` +
+                        `leaves the tree, including one whose target has not been created yet.`
+                    : spelled `board-read: ${what} ${target} does not exist and a parent of it could not be ` +
+                        spelled `inspected (${anchored.code}), so this module cannot place it inside the ` +
+                        spelled `repository root ${root}.`,
             };
         }
         real = anchored.real;
@@ -538,9 +538,9 @@ export function insideRoot(root, target, what) {
         return {
             ok: false,
             code: OUTSIDE_ROOT,
-            message: `board-read: ${what} ${target} resolves to ${real}, which is outside the repository root ` +
-                `${root}. Reading through a link that leaves the tree is refused. No byte of that file's ` +
-                `content is quoted here, because its content reaching this message is the finding.`,
+            message: spelled `board-read: ${what} ${target} resolves to ${real}, which is outside the repository ` +
+                spelled `root ${root}. Reading through a link that leaves the tree is refused. No byte of ` +
+                `that file's content is quoted here, because its content reaching this message is the finding.`,
         };
     }
     return { ok: true, real };
@@ -670,7 +670,7 @@ function listingFailure(dir, listing) {
         kind: "failed",
         reason: listing.reason,
         code: listing.code,
-        message: `${dir} could not be listed (${listing.code}): ${listing.message}`,
+        message: spelled `${dir} could not be listed (${listing.code}): ${listing.message}`,
     };
 }
 // ── The read ─────────────────────────────────────────────────────────────────────────────────────
@@ -1366,7 +1366,7 @@ function readContextSource(root, readAt, previous, seam) {
                     source: "context",
                     path: taskDir,
                     code: err.code ?? "unreadable",
-                    message: `${taskDir} could not be inspected (${err.code ?? "unreadable"}): ${err.message}`,
+                    message: spelled `${taskDir} could not be inspected (${err.code ?? "unreadable"}): ${err.message}`,
                 });
                 if (firstReadFailure === null)
                     firstReadFailure = staleReasonForCode(err.code);
@@ -1384,8 +1384,8 @@ function readContextSource(root, readAt, previous, seam) {
                 source: "context",
                 path: taskDir,
                 code: "not-a-directory",
-                message: `${taskDir} is not a directory, so it carries no \`index.jsonl\` and no task can be ` +
-                    `reported for it. \`.grugops/context/\` holds one directory per task; this entry is ` +
+                message: spelled `${taskDir} is not a directory, so it carries no \`index.jsonl\` and no task can ` +
+                    `be reported for it. \`.grugops/context/\` holds one directory per task; this entry is ` +
                     `named here rather than skipped, so the listing's count still reconciles.`,
             });
             continue;
@@ -1441,7 +1441,7 @@ function readContextSource(root, readAt, previous, seam) {
                     source: "context",
                     path: indexPath,
                     code: "PARSE",
-                    message: `${indexPath} carries a line the event index cannot read: ${e.message}`,
+                    message: spelled `${indexPath} carries a line the event index cannot read: ${e.message}`,
                 });
             }
         }
