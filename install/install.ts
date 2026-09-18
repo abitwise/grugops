@@ -2839,7 +2839,7 @@ writeMarker();
 
 console.log("\n-- notes --");
 console.log("  Claude Code plugin form (colon commands /grugops:plan) installs separately:");
-console.log("    /plugin marketplace add <owner>/grugops   (UNKNOWN - verify against current tool docs)");
+console.log("    /plugin marketplace add abitwise/grugops  (UNKNOWN - verify against current tool docs)");
 console.log("    /plugin install grugops@grugops           (UNKNOWN - verify against current tool docs)");
 console.log("  Safety: the mechanical prod-deploy guard is Claude-Code-only (plugin hooks/hooks.json).");
 console.log("          The other four tools read the checkpoints matrix procedurally. See install/README.md.");

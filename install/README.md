@@ -353,7 +353,7 @@ commands (`/grugops:plan`, `/grugops:ticket`, …) and ships the mechanical depl
 Claude Code:
 
 ```
-/plugin marketplace add <owner>/grugops    # UNKNOWN - verify against current tool docs
+/plugin marketplace add abitwise/grugops   # UNKNOWN - verify against current tool docs
 /plugin install grugops@grugops            # UNKNOWN - verify against current tool docs
 ```
 
