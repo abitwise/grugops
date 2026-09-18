@@ -1,0 +1,258 @@
+32.1-12 — RED BASELINE
+Plan: 32.1-12 (D-07 / D-19 — the composed claim-record path, one register over from F-14)
+Tree: /Users/olgeroeselg/Projects/public/grugops, main @ 46d860a2 before any source change
+Date: 2026-09-18
+
+Every code point this transcript quotes is SPELLED in the `<U+NNNN>` prose form and never written as
+a byte. A raw C1 byte in this file would be the defect the plan closes, one document over; the
+repository's own control-byte gate (`npm run check:nul-bytes`) scans every tracked path and would
+red on it.
+
+The gap under reproduction is 32.1-VERIFICATION.md's single FAILED must-have: `childPath()` in
+`scripts/board-read.ts` refuses only an empty segment, a dot, a double dot and a segment carrying a
+separator, so a directory entry name carrying a code point the renderer DELETES passes it, is joined
+into a composed path, and is quoted into published claim-record sentences that are not built through
+`spelled`.
+
+===================================================================================================
+SECTION 1 — THE DEFECT REPRODUCED END TO END, AT THREE POINTS IN ONE RUN
+===================================================================================================
+
+--- 1.0  WHERE THE CODE POINT IS PLANTED, AND WHY IT IS NOT WHERE THE PLAN SAID -------------------
+
+The plan's action text said to create "a claimed-queue directory whose NAME carries a C1 code
+point". Measurement refuses that plant, and the refusal is recorded here rather than worked around
+silently:
+
+  $ (scope premise, driven by the same reproduction harness)
+  planted `.grugops/queue/claimed/task<U+0085>x/claim.md`
+  queue readError codes: ["unsafe-task-name"]
+  message: board-read: the claimed-stage entry `task<U+0085>x` under /private/var/.../claimed is
+           not a plain path segment. [...]
+
+`isSafeTaskName` (scripts/board-read.ts:795-799) admits only `[A-Za-z0-9._-]`, so a claimed-stage
+entry carrying a C1 point never reaches `childPath` at all — it leaves by the `unsafe-task-name`
+arm, which is ALREADY built through the builder and already spells the byte. The plan's literal
+plant therefore reproduces nothing.
+
+The composed path `{root}/.grugops/queue/claimed/{task}/claim.md` has exactly two variable segments:
+the repository root and the task name. The task name is allowlisted. So the REPOSITORY ROOT'S OWN
+DIRECTORY ENTRY NAME is the one position from which a deleted code point reaches the `no-at` and
+`tampered` sentences. It is a directory entry name joined into a composed path, which is precisely
+the class D-07 names. Every case below plants there, and the fourth case in the new `describe` block
+asserts the `isSafeTaskName` refusal above rather than assuming it — if that allowlist is ever
+widened, the case reds and the plant has to be revisited.
+
+--- 1.1  THE MEASUREMENT (pre-change tree, committed build, `npm run freshness` reporting 66/66 fresh)
+
+  $ node <harness>            # readSnapshot() in-process  → point 1
+  $ node scripts/board-dashboard.js <root> --once --json    → points 2 and 3
+
+--- plant <U+0085> / arm `no-at` -------------------------------------------
+  fixture entry read back from the parent listing : ["repo<U+0085>x"]
+  reader reached the arm                          : 1 entry, code `no-at`
+  spawned dashboard exit code                     : 0
+  1. model message      names: repo<U+0085>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0085>x`? false   carries a RAW deleted code point? true
+  2. stderr frame       names: repo<U+0085>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0085>x`? true
+  3. published document names: repox/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0085>x`? false   names the non-existent `repox`? true
+
+--- plant <U+009F> / arm `tampered` -------------------------------------------
+  fixture entry read back from the parent listing : ["repo<U+009F>x"]
+  reader reached the arm                          : 1 entry, code `tampered`
+  spawned dashboard exit code                     : 0
+  1. model message      names: repo<U+009F>x/.grugops/queue/claimed/task-tampered/claim.md
+     spells `repo<U+009F>x`? false   carries a RAW deleted code point? true
+  2. stderr frame       names: repo<U+009F>x/.grugops/queue/claimed/task-tampered/claim.md
+     spells `repo<U+009F>x`? true
+  3. published document names: repox/.grugops/queue/claimed/task-tampered/claim.md
+     spells `repo<U+009F>x`? false   names the non-existent `repox`? true
+
+--- plant <U+0001> / arm `no-at` -------------------------------------------
+  fixture entry read back from the parent listing : ["repo<U+0001>x"]
+  reader reached the arm                          : 1 entry, code `no-at`
+  spawned dashboard exit code                     : 0
+  1. model message      names: repo<U+0001>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0001>x`? false   carries a RAW deleted code point? true
+  2. stderr frame       names: repo<U+0001>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0001>x`? true
+  3. published document names: repox/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0001>x`? false   names the non-existent `repox`? true
+
+NOTE ON THE "model message" ROW. The value printed after `names:` is this transcript's own rendering
+of the sentence; the sentence itself carries the byte RAW, which is what the `carries a RAW deleted
+code point? true` column reports. The two columns are measuring different things on purpose: one
+shows a human what the sentence is about, the other states what the sentence actually contains.
+
+--- 1.2  WHAT THE THREE POINTS SAY, AND ONE PLAN PREMISE DISPROVED BY MEASUREMENT -----------------
+
+The plan predicted "at the pre-change tree point 1 carries the byte raw and points 2 and 3 carry it
+deleted". Measured, that is right about points 1 and 3 and WRONG about point 2.
+
+  point 1  the model's own sentence   FAILS   carries the code point RAW — built outside the builder
+  point 2  the rendered stderr frame  PASSES  already spelled, and not by the sentence's own doing
+  point 3  the published document     FAILS   the code point is DELETED; the sentence names `repox`,
+                                              a directory entry that does not exist on the tree
+
+Point 2 passes because `scripts/board-dashboard.ts`'s `emit()` applies `spelled` a SECOND time at
+the stderr chokepoint — `spelled\`${readError.message}\`` — so the raw byte the model handed up is
+escaped on the way to that one channel. That is a property of the dashboard's frame, not of the
+sentence: the model's own value and the JSON document both carry the defect, and a consumer that
+parses the document (DASH-07's whole point) sees a path that does not exist. Recording this here
+rather than restating the plan's prediction is the difference between a measurement and a citation.
+
+The observable damage is therefore exactly F-14's, one register over: a published sentence states
+`.../repox/.grugops/queue/claimed/task-no-at/claim.md` about a tree on which that path does not
+exist. A reader who searches for what the document prints finds nothing; a reader who re-types it
+reaches a different path.
+
+--- 1.3  THE CASE, RUN AGAINST THE UNCHANGED SOURCES ----------------------------------------------
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts -t "32.1-12"
+
+   ❯ scripts/board-read.test.ts (169 tests | 3 failed | 165 skipped) 109ms
+        x the `no-at` sentence spells U+0085 at the model, the stderr frame and the document
+        x the `tampered` sentence spells U+009F at the model, the stderr frame and the document
+        x a C0 point behaves identically — the class is what the renderer deletes, not one code point
+
+   AssertionError: THE MODEL'S OWN SENTENCE quotes the composed claim-record path with the code
+   point raw. It is built outside the builder, so nothing spelled it — and every renderer downstream
+   deletes it: expected '/private/var/folders/y3/c2txpd5d6tv9w...' to contain 'repo<U+0085>x'
+
+   Test Files  1 failed (1)
+        Tests  3 failed | 1 passed | 165 skipped (169)
+
+EVERY FAILURE IS THE SENTENCE PROPERTY, NOT A PREMISE. No `PREMISE:` message appears in the output:
+the planted entry was read back from the parent listing under the name it was planted with, the
+reader reached the arm under test exactly once in each case, the spawned dashboard exited 0, its
+stdout parsed as exactly one JSON document, and that document carried exactly one queue read error
+of the expected code. The one passing case is the scope premise of § 1.0.
+
+Note that the vitest reporter itself printed the "Received" value as `.../repox/...` — the reporter
+is one more renderer that deletes the byte, which is the same defect arriving through a third door.
+
+--- 1.4  NOTHING WAS FIXED IN THIS TASK ----------------------------------------------------------
+
+  $ git diff --exit-code -- scripts/board-read.ts scripts/board-model.ts scripts/board-dashboard.ts
+  (exit 0, no output)
+
+  $ npm run check:nul-bytes
+  PASS  2351 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte [...]
+  == Result ==
+  ALL CHECKS PASSED
+
+The only tracked file this task changed is `scripts/board-read.test.ts`, plus this transcript.
+
+===================================================================================================
+SECTION 2 — THE DERIVED WORK LIST: EVERY PUBLISHED SUBSTITUTION NOT BUILT THROUGH THE BUILDER
+===================================================================================================
+
+DERIVED, NOT TYPED. The rows below come from the published-substitution census in
+`scripts/board-model.test.ts` — the instrument built on the shared symbol-resolving `ts.Program`
+over the tracked `scripts/*.ts` sources (D-01, D-02). It was run at the pre-change tree by inserting
+one temporary dump case, printing its rows, and restoring the file; no permanent case was added,
+because the permanent pins are re-derived in Task 2 and in plan 32.1-13. `git status` after the run
+reports `scripts/board-model.test.ts` unmodified.
+
+TOTALS (derived, this run):
+  template substitutions in the three modules ......... 171
+  substitutions in a PUBLISHED position (denominator) . 86
+  of those, built through the builder ................. 41
+  of those, NOT built through the builder ............. 45
+  substitutions built through the builder, anywhere ... 41
+
+MODULE board-dashboard.ts — 10 unowned published substitution(s)
+  board-dashboard.ts#INTERVAL_HARD_FLOOR_MS   1  class=internal
+      lines 208                       exprs INTERVAL_HARD_FLOOR_MS
+  board-dashboard.ts#arg                      2  class=internal
+      lines 217, 221                  exprs arg
+  board-dashboard.ts#message                  1  class=assembled
+      lines 241                       exprs message
+  board-dashboard.ts#oneLine                  1  class=internal
+      lines 1471                      exprs oneLine(e)
+  board-dashboard.ts#raw                      2  class=internal
+      lines 201, 208                  exprs raw
+  lib.es5.d.ts#message                        3  class=internal
+      lines 1314, 1431, 1522          exprs (e as Error).message
+
+MODULE board-model.ts — 3 unowned published substitution(s)
+  board-model.ts#claimedLive                  1  class=internal
+      lines 1780                      exprs column.claimedLive
+  board-model.ts#limit                        1  class=internal
+      lines 1780                      exprs column.limit ?? "none"
+  lib.es5.d.ts#length                         1  class=internal
+      lines 1781                      exprs column.rows.length
+
+MODULE board-read.ts — 32 unowned published substitution(s)
+  board-read.ts#absPath                       2  class=path
+      lines 240, 292                  exprs absPath
+  board-read.ts#atLineCount                   1  class=internal
+      lines 1591                      exprs atLineCount
+  board-read.ts#claimMd                       2  class=path
+      lines 1591, 1609                exprs claimMd
+  board-read.ts#code                          2  class=internal
+      lines 746, 900                  exprs anchored.code | listing.code
+  board-read.ts#dir                           1  class=path
+      lines 900                       exprs dir
+  board-read.ts#indexPath                     1  class=path
+      lines 1826                      exprs indexPath
+  board-read.ts#message                       1  class=assembled
+      lines 900                       exprs listing.message
+  board-read.ts#path                          1  class=path
+      lines 381                       exprs path
+  board-read.ts#real                          1  class=path
+      lines 757                       exprs real
+  board-read.ts#retries                       1  class=internal
+      lines 240                       exprs retries
+  board-read.ts#root                          4  class=path
+      lines 732, 743, 747, 758        exprs root
+  board-read.ts#target                        4  class=path
+      lines 730, 742, 745, 757        exprs target
+  board-read.ts#taskDir                       2  class=path
+      lines 1753, 1771                exprs taskDir
+  board-read.ts#what                          4  class=internal
+      lines 730, 742, 745, 757        exprs what
+  globals.d.ts#code                           2  class=internal
+      lines 731, 1753                 exprs err.code ?? "unreadable"
+  lib.es5.d.ts#message                        3  class=internal
+      lines 292, 1753, 1826           exprs (decodeError as Error).message
+                                            | (e as Error).message | err.message
+
+BY CLASS, ACROSS THE THREE MODULES (the census's own classification, not a re-reading):
+  path        18   every one of them in board-read.ts
+  internal    25
+  assembled    2
+  total       45
+
+THE EXPANSION'S WORK LIST IS THE `path` CLASS — 18 substitutions, all in `scripts/board-read.ts`,
+over nine declarations: `absPath` (2), `claimMd` (2), `dir` (1), `indexPath` (1), `path` (1),
+`real` (1), `root` (4), `target` (4), `taskDir` (2). This plan closes `claimMd` (2 of the 18) and
+proves the instrument reds on the next one; plan 32.1-13 deletes the `path` class itself, which is
+what makes the remaining 16 move. The `internal` and `assembled` classes are left standing with the
+reasons the census already records for them.
+
+--- 2.1  WHAT THE DERIVED SET SAYS ABOUT THE TEN HAND-NAMED LINE NUMBERS --------------------------
+
+`32.1-VERIFICATION.md` line 179 names ten `scripts/board-read.ts` line numbers by hand:
+
+  1591, 1609, 1753, 1771, 240, 292, 381, 730, 742, 757
+
+The derived set of unowned published LINES in `scripts/board-read.ts` is nineteen:
+
+  240, 292, 381, 730, 731, 732, 742, 743, 745, 746, 747, 757, 758, 900, 1591, 1609, 1753, 1771, 1826
+
+CONTAINMENT: the derived set contains ALL TEN hand-named lines. The hand count is not wrong; it is
+SHORT. Nine lines it does not list are in the derived set:
+
+  731, 732, 743, 745, 746, 747, 758, 900, 1826
+
+and the derived set is keyed on SUBSTITUTIONS rather than on lines — 32 of them over those 19 lines
+— because a single line can carry several, and `730`, `742`, `745` and `757` each carry two
+(`target` and `what`). A line-level tally therefore understates the work twice over: once by the
+lines it missed and once by the substitutions a line number cannot express.
+
+THE DERIVED SET IS THE AUTHORITY FROM HERE ON. A hand-typed list of sites is the shape this phase
+exists to retire — it was already short at the moment it was written, and nothing would have told a
+later reader so. Every subsequent plan in this closure reads its work list from the census.

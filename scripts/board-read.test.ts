@@ -4631,3 +4631,216 @@ describe("board-read — a prototype-spelled dial column is a conflict, not a di
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32.1-12 — THE COMPOSED CLAIM-RECORD PATH, ONE REGISTER OVER FROM F-14 (D-07, D-19).
+//
+// WHAT IS BEING REPRODUCED. `childPath` refuses only an empty segment, a dot, a double dot and a
+// segment carrying a separator, so a directory entry name carrying a code point the renderer DELETES
+// passes it, is joined into a composed path, and is quoted into the claimed-queue reader's `no-at`
+// and `tampered` sentences — which are NOT built through `spelled`. The published document then
+// names a file that does not exist on the tree: a reader who searches for what the sentence prints
+// finds nothing. That is F-14 exactly, one register over from the identifier it was measured on.
+//
+// WHY THE PLANT IS THE REPOSITORY ROOT'S OWN DIRECTORY ENTRY, AND NOT THE CLAIMED TASK'S. The plan
+// named the claimed-stage entry, and measurement refused it: `isSafeTaskName` allows only
+// `[A-Za-z0-9._-]`, so a claimed-stage entry carrying a C1 point never reaches `childPath` at all —
+// it leaves through the `unsafe-task-name` arm, which is ALREADY built through the builder. The last
+// case in this block asserts that rather than asserting it away. The two variable segments of
+// `{root}/.grugops/queue/claimed/{task}/claim.md` are the root and the task; the task is
+// allowlisted, so the root's own entry name is the one position from which a deleted code point
+// reaches these two sentences. It is a directory entry name joined into a composed path, which is
+// the class D-07 names.
+//
+// EVERY PLANTED CODE POINT IS A BACKSLASH-U ESCAPE IN THIS SOURCE, never a raw byte:
+// `scripts/check-nul-bytes.ts` scans tracked files and a raw byte here would red it — and writing
+// one would be this plan's own defect, one document over.
+//
+// THE SAME VALUE IS MEASURED AT THREE POINTS IN ONE RUN: the model's own sentence, the rendered
+// stderr frame, and the published JSON document. A fix proved at one channel and unmeasured at the
+// other two is the shape that produced F-14.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Every code point `sanitizeCell` DELETES on the way to a reader, spelled with escapes so this
+ * source file carries none of them. The mirror of `board-model.ts`'s `RENDER_STRIPPED`.
+ */
+const RENDER_DELETED_32112 = /[\u0000-\u001F\u007F-\u009F]/;
+
+/** The uniform notation `visible` produces for one deleted code point. */
+function spelling32112(point: string): string {
+  return `<U+${(point.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, "0")}>`;
+}
+
+/** The same claim-record sentence as each of the three channels rendered it, from ONE run. */
+type ClaimSentence32112 = {
+  readonly plantedEntry: string;
+  readonly parentListing: readonly string[];
+  readonly modelMessage: string;
+  readonly stderrFrame: string;
+  readonly documentMessage: string;
+};
+
+type PublishedDoc32112 = { readonly readErrors: readonly { source: string; code: string; message: string }[] };
+
+/**
+ * Plant a repository root whose OWN directory entry name carries `point`, reach one claim-record
+ * arm, and measure the sentence at all three channels in one run.
+ *
+ * EVERY PREMISE IS A FAILING ASSERTION. The planted entry must be on disk under the name it was
+ * planted with, the reader must have reached the arm under test, the spawned dashboard must exit 0,
+ * and its stdout must parse as exactly one document. A fixture that never reached its state
+ * produces a finding about nothing — this repository has recorded that false premise six times.
+ */
+function measureClaimSentence32112(
+  point: string,
+  kind: "no-at" | "tampered",
+  run: (measured: ClaimSentence32112) => void,
+): void {
+  const parent = mkdtempSync(join(realpathSync(tmpdir()), "grugops-board-read-32112-"));
+  try {
+    const plantedEntry = `repo${point}x`;
+    const root = join(parent, plantedEntry);
+    mkdirSync(join(root, "plans"), { recursive: true });
+    writeFileSync(join(root, "plans", "board.md"), ONE_COLUMN, "utf8");
+
+    const task = kind === "no-at" ? "task-no-at" : "task-tampered";
+    const taskDir = join(root, ".grugops", "queue", "claimed", task);
+    mkdirSync(taskDir, { recursive: true });
+    writeFileSync(
+      join(taskDir, "claim.md"),
+      kind === "no-at"
+        ? "by: someone\n"
+        : "by: someone\nat: 2026-01-01T00:00:00Z\nat: 2026-01-02T00:00:00Z\n",
+      "utf8",
+    );
+
+    const parentListing = readdirSync(parent);
+    expect(
+      parentListing,
+      "PREMISE: the planted repository-root entry is not on disk under the name it was planted " +
+        "with, so nothing below measures a directory entry name reaching a composed path",
+    ).toEqual([plantedEntry]);
+
+    const modelErrors = readSnapshot(root).readErrors.filter(
+      (e) => e.source === "queue" && e.code === kind,
+    );
+    expect(
+      modelErrors.length,
+      `PREMISE: the queue reader did not reach the \`${kind}\` arm exactly once. The fixture never ` +
+        `entered the state this case is about, so the sentence property below would be asserted ` +
+        `about a sentence nobody produced`,
+    ).toBe(1);
+
+    const r = spawnSync(process.execPath, [DASHBOARD_JS, root, "--once", "--json"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 20_000,
+    });
+    expect(
+      r.status,
+      `PREMISE: the spawned dashboard must exit 0 over the planted tree; stderr was ${JSON.stringify(r.stderr)}`,
+    ).toBe(0);
+    let parsed: PublishedDoc32112 | null = null;
+    expect(() => {
+      parsed = JSON.parse(r.stdout ?? "") as PublishedDoc32112;
+    }, "PREMISE: stdout in its entirety must parse as EXACTLY ONE JSON document").not.toThrow();
+    const doc = parsed as unknown as PublishedDoc32112 | null;
+    expect(doc, "PREMISE: stdout in its entirety must parse as EXACTLY ONE JSON document").not.toBeNull();
+    const published = (doc?.readErrors ?? []).filter((e) => e.source === "queue" && e.code === kind);
+    expect(
+      published.length,
+      `PREMISE: the published document carries no single \`${kind}\` queue read error, so the ` +
+        `document channel measured below is not carrying the sentence under test`,
+    ).toBe(1);
+
+    run({
+      plantedEntry,
+      parentListing,
+      modelMessage: modelErrors[0]?.message ?? "",
+      stderrFrame: r.stderr ?? "",
+      documentMessage: published[0]?.message ?? "",
+    });
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+}
+
+/** The one property, asserted identically at all three channels. */
+function assertSpelledAtThreePoints32112(m: ClaimSentence32112, point: string): void {
+  const spelled32112 = `repo${spelling32112(point)}x`;
+  const deleted = "repox";
+
+  expect(
+    m.modelMessage,
+    "THE MODEL'S OWN SENTENCE quotes the composed claim-record path with the code point raw. It is " +
+      "built outside the builder, so nothing spelled it — and every renderer downstream deletes it",
+  ).toContain(spelled32112);
+  expect(
+    RENDER_DELETED_32112.test(m.modelMessage),
+    "the model's sentence still carries a code point a renderer DELETES, so the value that reaches " +
+      "a published channel is not the value the sentence states",
+  ).toBe(false);
+
+  expect(
+    m.stderrFrame,
+    "THE RENDERED STDERR FRAME does not name the planted entry in the escape spelling `visible` " +
+      "produces, so a reader who re-types what is printed reaches a different path",
+  ).toContain(spelled32112);
+
+  expect(
+    m.documentMessage,
+    "THE PUBLISHED JSON DOCUMENT does not name the planted entry in the escape spelling. The " +
+      "sanitizer deleted the code point on the way out, so the document states a path that does " +
+      "not exist on the tree — F-14 exactly, one register over",
+  ).toContain(spelled32112);
+  expect(
+    m.documentMessage.includes(deleted),
+    "the published sentence names `repox`, a directory entry that does not exist: the code point " +
+      "was deleted where the sentence was written rather than spelled where it was built",
+  ).toBe(false);
+}
+
+describe("32.1-12 — a composed claim-record path SPELLS a directory entry's deleted code point (D-07, D-19)", () => {
+  it("the `no-at` sentence spells U+0085 at the model, the stderr frame and the document", () => {
+    measureClaimSentence32112("\u0085", "no-at", (m) => {
+      assertSpelledAtThreePoints32112(m, "\u0085");
+    });
+  });
+
+  it("the `tampered` sentence spells U+009F at the model, the stderr frame and the document", () => {
+    measureClaimSentence32112("\u009F", "tampered", (m) => {
+      assertSpelledAtThreePoints32112(m, "\u009F");
+    });
+  });
+
+  it("a C0 point behaves identically — the class is what the renderer deletes, not one code point", () => {
+    measureClaimSentence32112("\u0001", "no-at", (m) => {
+      assertSpelledAtThreePoints32112(m, "\u0001");
+    });
+  });
+
+  it("PREMISE FOR THE PLANT: a C1 point in the claimed-stage ENTRY name leaves by the already-built arm", () => {
+    withTempTree((dir) => {
+      plantBoard(dir, ONE_COLUMN);
+      const taskDir = join(dir, ".grugops", "queue", "claimed", "task\u0085x");
+      mkdirSync(taskDir, { recursive: true });
+      writeFileSync(join(taskDir, "claim.md"), "by: someone\n", "utf8");
+
+      const queueErrors = readSnapshot(dir).readErrors.filter((e) => e.source === "queue");
+      expect(
+        queueErrors.map((e) => e.code),
+        "the claimed-stage allowlist (`isSafeTaskName`, `[A-Za-z0-9._-]`) no longer refuses an " +
+          "entry carrying a C1 point. If it now reaches `childPath`, the plan's literal plant " +
+          "becomes reachable and this block's root-entry plant is no longer the only position",
+      ).toEqual(["unsafe-task-name"]);
+      expect(
+        queueErrors[0]?.message ?? "",
+        "the refusal that DOES fire is built through the builder already, which is why the " +
+          "reproduction above plants the code point in the repository root's own entry name " +
+          "instead: that is the one variable segment of the composed claim-record path that is " +
+          "not allowlisted",
+      ).toContain(`task${spelling32112("\u0085")}x`);
+    });
+  });
+});
