@@ -1,0 +1,447 @@
+32.1-15 GREEN PROOF - the completion equality absorbs this phase's own review, and the register is
+reconciled.
+Base commit for the plan: 3602d7b7. Measured: 2026-09-18.
+Companions: 32.1-15-DIAGNOSIS.md (Task 1, zero token spend); 32.1-11-GREEN-proof.txt, whose section 6
+carries the same three plants over the PRE-WIDENING nineteen and is what this file is read against.
+
+Task 3 (the live lane) was SKIPPED: the human answered no-go at the Task 2 checkpoint on 2026-09-18.
+That is a legitimate terminal outcome of that checkpoint and is recorded as one. No live lane was
+run, no unexcluded runner invocation was made, 32.1-15-LIVE-TRANSCRIPT.txt was not created, and
+scripts/e2e/uat-live.test.ts is byte-unchanged since the plan's base commit (verified:
+`git diff --exit-code 3602d7b7 -- scripts/e2e/uat-live.test.ts` exits 0).
+
+=================================================================================================
+SECTION 1 - THE FOURTH SOURCE, AND THE RED IT PRODUCED BEFORE THE LEDGER WAS TOUCHED
+=================================================================================================
+
+1.1  WHY A FOURTH SOURCE (D-16, D-22)
+
+  The completion equality's denominator was nineteen items over three sources, ALL of them phase
+  32's: its eight round-4 findings, its four round-4 review warnings, and the seven ledger rows it
+  carried. This phase's own code review, 32.1-REVIEW.md, was not one of them. That is exactly how
+  its ten findings sat outside a count that read as complete: an equality that cannot see its own
+  review is an equality over the wrong set.
+
+  The fourth source is this phase's review, contributing BOTH its warnings and its information
+  items. An information item is work the phase did; leaving it outside the enumeration is the same
+  blindness one register lower.
+
+1.2  THE RED, TAKEN BEFORE THE LEDGER DOCUMENT WAS EDITED
+
+  The tool was extended FIRST and run against the UNCHANGED nineteen-item ledger. It refused, twice,
+  and each refusal names what is wrong rather than printing two numbers:
+
+  $ node .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-ledger-check.mjs
+
+  FAIL  denominator: the source column yields 3 distinct source(s), not the 4 D-22 names as widened
+        by plan 32.1-15. Derived: ledger row 7, round-4 finding 8, round-4 review warning 4
+  FAIL  second denominator: the four SOURCE DOCUMENTS yield 29 item(s) but the table holds 19.
+        findings 8 (OPEN `### F-NN` headings) + ledger rows 7 (176, 183, 184, 194, 208, 209, 210;
+        1 id(s) dropped as already counted among the findings at rows 200-207: 207) + review
+        warnings 4 + 32.1 review items 10 (3 `### WR-NN:` + 7 `### IN-NN:` headings of
+        32.1-REVIEW.md, agreeing with that file's own counters). [...]
+
+  2 failure(s). Phase 32.1's completion property does NOT hold.
+  EXIT=1
+
+  This is the RED that makes the GREEN in section 2 attributable. A widening applied to the document
+  and the tool in one step would prove only that the two agree, not that the tool would have noticed
+  the disagreement.
+
+1.3  THE FOURTH DERIVATION ARM IS A DERIVATION, NOT A NUMBER
+
+  The arm reads 32.1-REVIEW.md's own headings - `^### WR-\d+:` and `^### IN-\d+:` - and CROSS-CHECKS
+  them against the `findings:` counters the same document publishes about itself in frontmatter:
+
+    headings          : 3 warning(s) + 7 information item(s) = 10
+    frontmatter       : warning: 3, info: 7
+    arms agree        : yes; a disagreement returns ok:false and reds by name, so a mistyped heading
+                        is a red rather than a silently short source
+
+  The assertion that pinned the number of distinct sources at three now reads:
+
+    const SOURCE_COUNT = 4;    // D-22 named three; plan 32.1-15 widened it to four
+    if (bySource.size !== SOURCE_COUNT) { fail(...) }
+
+  The pin MOVES WITH THE DECISION and never drifts silently: a fifth source, or a source whose rows
+  all vanished, reds here by name. What is NOT pinned is any source's SIZE - all four sizes are
+  derived, on both sides.
+
+1.4  THE DENOMINATOR IS STILL DERIVED TWICE, AND THE TWO CATCH DIFFERENT FAILURES
+
+  derivation (3)   from the LEDGER TABLE'S OWN source column
+                   32.1 review item 10, ledger row 7, round-4 finding 8, round-4 review warning 4
+                   -> sum 29, compared against the item-row count 29
+
+  derivation (3b)  from the FOUR SOURCE DOCUMENTS, none of which is 32.1-LEDGER.md
+                   32-40-ADVERSARIAL-REVIEW.md OPEN `### F-NN` headings          8
+                   32-REVIEW.md `### WR-NN:` headings                            4
+                   32.1-CONTEXT.md phase-boundary bolded row ids, minus the ids
+                     falling inside the finding rows' own range (207 dropped)    7
+                   32.1-REVIEW.md `### WR-NN:` + `### IN-NN:` headings          10
+                                                                               ---
+                                                                                29
+
+  The second exists because BOTH sides of the first fall together when an item row is deleted: the
+  source column is read off the same rows the count counts. A vacuity floor catches an EMPTY
+  denominator and never a SILENTLY SHORT one. Plant 2 (section 3.2) measures exactly that.
+
+=================================================================================================
+SECTION 2 - THE CHECK, GREEN, WITH THE MEASUREMENT IN THE PASS LINE
+=================================================================================================
+
+  $ node .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-ledger-check.mjs
+
+  PASS  32.1 completion equality: 29 of 29 item(s) carry exactly one terminal disposition, over a
+        denominator of 29 derived from 4 named source(s) [32.1 review item 10, ledger row 7,
+        round-4 finding 8, round-4 review warning 4]. Dispositions: closed-with-reproduction 22,
+        waived-with-reason 3, re-homed-with-named-owner 4.
+        The same denominator derived AGAIN from the four source documents, without this document's
+        participation: 29 - findings 8 (OPEN `### F-NN` headings) + ledger rows 7 (176, 183, 184,
+        194, 208, 209, 210; 1 id(s) dropped as already counted among the findings at rows 200-207:
+        207) + review warnings 4 + 32.1 review items 10 (3 `### WR-NN:` + 7 `### IN-NN:` headings of
+        32.1-REVIEW.md, agreeing with that file's own counters).
+  EXIT=0
+
+  The PASS line carries the item count (29), the terminal count (29), and all FOUR derived source
+  sizes - on both derivations. It asserts no verdict a reader has to take on trust.
+
+2.1  THE TEN NEW ITEMS AND THEIR DISPOSITIONS
+
+  item          disposition                 closed/limited by
+  ------------  --------------------------  --------------------------------------------------
+  32.1-WR-01    closed-with-reproduction    plans 32.1-12 (reproduction) + 32.1-13 (all 42 sites)
+  32.1-WR-02    closed-with-reproduction    plan 32.1-14 S 1.1-1.4, each change red ALONE
+  32.1-WR-03    closed-with-reproduction    plan 32.1-14 S 2.1, 2.4
+  32.1-IN-01    closed-with-reproduction    plan 32.1-14 S 3.1, commit bb22e1c4
+  32.1-IN-02    re-homed-with-named-owner   owner scripts/check-build-parity.ts; register row 222
+  32.1-IN-03    waived-with-reason          structural limit: the zero-exemption declared-shape rule
+  32.1-IN-04    closed-with-reproduction    plan 32.1-14 S 2.2, commit 3f67c203
+  32.1-IN-05    closed-with-reproduction    plan 32.1-14 S 4, commit bb22e1c4
+  32.1-IN-06    re-homed-with-named-owner   owner the F-19/IN-03 census rule; register row 223
+  32.1-IN-07    closed-with-reproduction    plan 32.1-14 S 2.3, commit 3f67c203
+
+  Movement: closed-with-reproduction 15 -> 22, waived-with-reason 2 -> 3,
+  re-homed-with-named-owner 2 -> 4. Total 19 -> 29.
+
+  The ids carry a `32.1-` prefix because phase 32's review ALSO numbered its warnings WR-01 upward.
+  Two unprefixed WR-01 rows in one table are a collision, not an enumeration.
+
+2.2  ONE DEFECT OBSERVED TWICE IS ONE ITEM
+
+  32.1-VERIFICATION.md's single FAILED must-have truth (D-07: the `spelled` builder owns every
+  content-derived interpolation across all three board modules) and 32.1-REVIEW.md's FIRST WARNING
+  (WR-01: a composed path carrying a listing entry's name reaches a published sentence unescaped)
+  are THE SAME DEFECT, found by two instruments looking from two directions - the verifier by asking
+  whether the phase's own must-have held, the reviewer by tracing childPath through board-read.ts to
+  eleven message sites. Both name the same unbuilt substitutions in the same module.
+
+  It is therefore enumerated ONCE, as 32.1-WR-01, and the verifier's failed truth is NOT a separate
+  item. Recording it twice would have inflated the denominator by one and then satisfied both copies
+  with a single closure - the exact double-count shape 32.1-LEDGER.md S 1.1 exists to catch,
+  arriving from a new direction. This identity is recorded in 32.1-LEDGER.md S 1.3.
+
+2.3  THE OLD-VERSUS-NEW DENOMINATOR RECONCILIATION
+
+  nineteen counted  the work this phase INHERITED: phase 32's 8 findings, 4 review warnings and 7
+                    carried ledger rows. Complete and correct about that set.
+  twenty-nine counts the same nineteen PLUS the 10 items this phase's own review raised against the
+                    code this phase wrote.
+
+  WHY THIS IS A CHANGE OF SCOPE AND NOT A MOVED GOALPOST - the DIRECTION is the test. A moved
+  goalpost makes a target easier to reach; this widening makes it strictly HARDER, adding ten items
+  the equality must now hold over. Before it, 32.1-REVIEW.md could have carried a critical finding
+  nobody addressed and this ledger would still have printed a clean equality over nineteen.
+
+=================================================================================================
+SECTION 3 - THE THREE PLANTS, EACH RUN AGAINST A COPY
+=================================================================================================
+
+Each plant runs over a temp MIRROR of the phase layout outside the repository: the check, the
+ledger, 32.1-CONTEXT.md, 32.1-REVIEW.md and the two phase-32 review documents copied into a scratch
+tree. The real ledger was never the subject of a plant; section 3.4 measures that.
+
+Every plant ASSERTS IT PLANTED SOMETHING: the planting step compares its output against its own
+pre-image and exits 9 if the search matched nothing. A plant that plants nothing produces a green
+run that proves the opposite of what it claims.
+
+3.0  THE UNPLANTED CONTROL, first, so a plant's RED is attributable
+
+  $ node <mirror>/32.1-board-dashboard-deferred-residuals/32.1-ledger-check.mjs
+  PASS  ... 29 of 29 ... denominator of 29 derived from 4 named source(s) ...
+  CONTROL EXIT=0
+
+  The mirror reproduces the real check's answer exactly. A plant whose control was never run proves
+  that the check reds, not that the plant is why.
+
+3.1  PLANT 1 - one NEW item's disposition removed
+
+  PLANTED: 32.1-IN-04's disposition cell emptied (38791 -> 38767 bytes)
+
+  FAIL  completion equality: 28 of 29 item(s) carry a terminal disposition. The 1 that do not are
+        named below - a bare count tells a reader nothing about which item to go and write:
+          32.1-LEDGER.md:168  item `32.1-IN-04` carries `(empty)`, which is not one of
+          closed-with-reproduction / waived-with-reason / re-homed-with-named-owner
+
+  1 failure(s). Phase 32.1's completion property does NOT hold.
+  PLANT 1 EXIT=1
+
+  The message NAMES THE ITEM and the line, which is the property the check's reporting shape exists
+  for. The plant is deliberately on a NEW item: the round-4 items were already covered by
+  32.1-11-GREEN-proof.txt S 6.1, and a plant on an old item would not show that the new rows are
+  inside the equality's reach.
+
+3.2  PLANT 2 - one NEW item ROW removed entirely
+
+  PLANTED: the `32.1-IN-05` item row deleted (38791 -> 38546 bytes)
+
+  FAIL  second denominator: the four SOURCE DOCUMENTS yield 29 item(s) but the table holds 28.
+        findings 8 (OPEN `### F-NN` headings) + ledger rows 7 (176, 183, 184, 194, 208, 209, 210;
+        1 id(s) dropped as already counted among the findings at rows 200-207: 207) + review
+        warnings 4 + 32.1 review items 10 (3 `### WR-NN:` + 7 `### IN-NN:` headings of
+        32.1-REVIEW.md, agreeing with that file's own counters). The two derivations are independent
+        on purpose - the table's own source column falls with the table, so a deleted item row would
+        keep step (3) green at 28 = 28 while an item vanished.
+
+  1 failure(s). Phase 32.1's completion property does NOT hold.
+  PLANT 2 EXIT=1
+
+  It is the SECOND derivation that reds, and the failure message says so in its own words. Step (3)
+  alone would have been green at 28 = 28. This is the same measurement 32.1-11-GREEN-proof.txt S 6.2
+  recorded for the pre-widening ledger, re-taken here over a row from the NEW source, which is the
+  point: the fourth source is inside the independent derivation, not merely inside the table.
+
+3.3  PLANT 3 - the table emptied
+
+  PLANTED: every item row deleted, header and delimiter left in place (38791 -> 31660 bytes)
+
+  FAIL  premise: the item table parsed ZERO rows. A completion check over an empty parse is TRUE
+        over nothing: it would report that every one of no items carries a disposition. The equality
+        below has not been asked, because there was nothing to ask it of.
+
+  PLANT 3 EXIT=1
+
+  The VACUITY FLOOR fires and the equality is never reached. The output says the check was NOT
+  PERFORMED rather than that it found nothing - the distinction this repository has paid for six
+  times across four rounds of false verification-harness premises.
+
+3.4  THE REAL LEDGER IS UNTOUCHED BY THE PLANTS
+
+  A pristine copy of the real ledger was taken BEFORE the first plant and compared byte for byte
+  afterwards:
+
+  $ cmp -s <mirror>/PRISTINE-LEDGER.md .planning/.../32.1-LEDGER.md
+  REAL LEDGER BYTE-IDENTICAL to the pre-plant pristine copy (cmp exit 0)
+
+  $ node .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-ledger-check.mjs
+  exit=0   (the section 2 PASS, unchanged)
+
+  The plan's verify `git diff --exit-code -- .../32.1-LEDGER.md` is asked AFTER this plan's own
+  commit, where it means what it is for: no plant residue survives in the committed file. Before the
+  commit it necessarily reports this plan's own intended widening.
+
+=================================================================================================
+SECTION 4 - THE REGISTER: EVERY TRANSITION THROUGH THE TOOL'S OWN VERB
+=================================================================================================
+
+4.1  THE FIVE TRANSITIONS
+
+  verb                                  row  what it records
+  ------------------------------------  ---  -----------------------------------------------------
+  gsd-tools windows fixed 220           220  plan 32.1-12's gap - this phase's single FAILED
+                                             must-have - closed by plan 32.1-13
+  gsd-tools windows waive 221 "<reason>" 221 the plan document's typed schemaVersion; the subject is
+                                             a committed plan document this repository does not
+                                             rewrite (row 209's precedent), so the correction is
+                                             available only as a MEASUREMENT, and it is filed
+  gsd-tools windows append ...          222  32.1-14-GREEN-proof.txt S 3.2 row A, owner
+                                             scripts/check-build-parity.ts
+  gsd-tools windows append ...          223  32.1-14-GREEN-proof.txt S 3.2 row B, owner
+                                             scripts/check-foundation-guards.test.ts
+  gsd-tools windows append ...          224  32.1-14-GREEN-proof.txt S 3.2 row C, owner
+                                             package.json / the declared-command-shape rule
+
+  NO FILE EDIT WAS MADE TO .planning/WINDOWS.md. The three appended descriptions use S 3.2's final
+  text, with a one-clause provenance prefix naming the proof section, the review item and the
+  ledger's own section for that item.
+
+4.2  ROW 220's DESCRIPTION UNDERSTATES ITS OWN CLOSURE, AND IS LEFT AS WRITTEN
+
+  The row names 16 remaining `path`-class sites. Plan 32.1-13 moved ALL 42 unowned published
+  substitutions - 16 `path`, 24 `internal`, 2 `assembled` - by DELETING the classification question
+  rather than redrawing it a third time. The row's text is a historical record of what was known
+  when it was written, and the ledger tool offers no description edit; the correction is recorded in
+  32.1-LEDGER.md S 4.5 and in 32.1-13-SUMMARY.md, which is the treatment row 209 received for the
+  same class of stale text. Closing evidence: 32.1-13-GREEN-proof.txt S 1.1 - published 86, owned
+  86, unowned 0, substitution total unmoved at 171, equality asserted two-sided.
+
+4.3  NO ROW WAS APPENDED FOR AN UN-NARROWABLE SITE, AND THAT IS A MEASUREMENT
+
+  The plan anticipated one. Plan 32.1-13 recorded that NO site required a semantic decision: every
+  one of the 42 substitutions already satisfied the builder's `string | number` signature, including
+  the three that already spelled their own fallback. The set is empty, so a row would have had no
+  subject. Writing one anyway would have been a fabricated register entry.
+
+4.4  ROWS 211, 212, 213 AND 214 WERE DELIBERATELY NOT TRANSITIONED
+
+  211/212/213 are the three live cases. Their ledger disposition is `re-homed-with-named-owner`, for
+  which the register's status vocabulary has none - exactly as 32.1-LEDGER.md S 3 states for the
+  other re-homed items. Marking them `fixed` because a diagnosis now exists would be a fabrication:
+  A DIAGNOSIS IS NOT A CLOSURE. They stay `open`; the ledger carries the owner; S 3.1 now carries
+  the cause class, the evidence and the distinguishing observation for each, where before it carried
+  "cause undiagnosed by that run".
+
+  214 (the stale docblock in scripts/e2e/uat-live.test.ts) stays `open` and unchanged: this round
+  modified no source file, and the diagnosis declined all three candidate suite corrections because
+  none is provable offline.
+
+  THE SAFETY CLAIM IS KEPT SEPARATE FROM THE LIVE ONE. Row 212 is a red on whether a deny ENVELOPE
+  APPEARS in agent-authored output. Whether the guard REFUSES is established by the offline
+  point-of-effect oracle, which executes the real guard and matches its own output - measured today
+  at this commit and green (32.1-15-DIAGNOSIS.md S 2.1; scripts/prod-deploy-deny-match.test.ts 10
+  passed, scripts/check-uat-oracles.test.ts 21 passed including oracleHooksWiring). A red on the
+  appearance claim is NOT evidence against the mechanism claim.
+
+4.5  THE RECONCILIATION, BY ROW IDENTIFIER
+
+  $ node reconcile.mjs
+
+  === reconciliation of .planning/WINDOWS.md's two representations, BY ROW IDENTIFIER
+  table  representation: 224 distinct identifier(s)
+  array  representation: 224 distinct identifier(s)
+  only in table : []
+  only in array : []
+  SYMMETRIC DIFFERENCE = 0
+
+  per-identifier STATUS agreement: every identifier carries the same status in both representations
+
+  frontmatter counters : {"open":196,"waived":3,"fixed":25,"total":224}
+  derived from entries : {"open":196,"waived":3,"fixed":25,"total":224}
+  counters agree       : true
+  counter arithmetic   : 196 + 3 + 25 = 224 vs total 224  -> SELF-CONSISTENT
+
+  === why the comparison is BY IDENTIFIER and not by column position or by row count
+  naive positional tally of status==open (split on EVERY '|') : 194
+  tally over UNESCAPED separators, keyed by identifier        : 196
+  the array's own open count                                  : 196
+  rows whose description carries an escaped separator          : 4 (of 224)
+
+  RECONCILED: symmetric difference 0, statuses agree per identifier, counters re-derive.
+  EXIT=0
+
+  A NAIVE positional tally says 194 where the array says 196, because four descriptions carry an
+  escaped separator that shifts every column index to its right. A reader reconciling that way would
+  go looking for two missing rows that do not exist. A ROW-COUNT comparison is refused for the
+  weaker reason: two representations can carry the same number of rows and disagree about which.
+
+  The plan's own counter verify, run verbatim:
+
+  $ node -e "...open_count + fixed_count + waived_count vs total_count..."
+  counters consistent: open 196 fixed 25 waived 3 total 224
+  EXIT=0
+
+4.6  THE TOOL WROTE IT, MEASURED ON THE UNCOMMITTED TREE
+
+  $ git diff --stat -- .planning/WINDOWS.md
+  1 file changed, 52 insertions(+), 10 deletions(-)
+
+  The FIRST hunk is the frontmatter counter block moving as a unit:
+
+    -open_count: 195          +open_count: 196
+    -waived_count: 2          +waived_count: 3
+    -fixed_count: 24          +fixed_count: 25
+    -total_count: 221         +total_count: 224
+    -last_updated: 2026-09-18T13:34:26.209Z
+                              +last_updated: 2026-09-18T15:04:52.357Z
+
+  Both representations moved together with them:
+
+    markdown table : 5 changed `| 22N |` rows (220 and 221 re-rendered, 222/223/224 new)
+    fenced array   : 3 new `"id": 22N` entries, plus 220's `"status": "fixed"` + `resolved_at`,
+                     221's `"status": "waived"` + `"reason"` + `resolved_at`, and three
+                     `"status": "open"` / `"reason": ""` / `"resolved_at": null` entries
+
+  That simultaneity is what the tool does and what a hand edit cannot do without throwing on the
+  counter cross-check.
+
+4.7  THE OPEN-COUNT MOVEMENT, WITH ITS GOVERNANCE EFFECT NAMED
+
+              before  after  delta
+  open_count     195    196     +1
+  waived_count     2      3     +1
+  fixed_count     24     25     +1
+  total_count    221    224     +3
+
+  One fix and one waive LOWERED the open count by two; three appends RAISED it by three; net +1.
+
+  `open_count` gates /gsd-ship when `workflow.windows_enforce` is on. On this tree that flag is
+  false today, so the gate is not currently blocking either way - which is precisely why the
+  movement is recorded here rather than left for somebody to discover when a gate changes behaviour.
+
+  The register got LONGER as the result of a gap-closure round. That is the correct direction when
+  the round's honest output is three named limits and a diagnosis rather than three silent closures.
+
+=================================================================================================
+SECTION 5 - THE ROUND'S CLOSING SWEEP, BESIDE PLAN 32.1-12's STARTING NUMBERS
+=================================================================================================
+
+5.1  THE GATE SWEEP
+
+  gate                          result
+  ----------------------------  ----------------------------------------------------------------
+  npm run build                 exit 0
+  npm run freshness             exit 0 - 66 committed .js match a rebuild; set equality with the
+                                filesystem walk 0/0
+  npm run check:build-parity    exit 0 - ALL CHECKS PASSED
+  npm run check:dashboard-readonly exit 0 - 215 passed
+  npm run check:platform-shapes exit 0 - ALL CHECKS PASSED
+  npm run check:nul-bytes       exit 0 - ALL CHECKS PASSED; 2361 tracked files scanned as raw
+                                bytes, ZERO carrying a forbidden control byte
+  npm run check:diff-disposition exit 0 - ALL CHECKS PASSED; 0 findings over 39/39 elements
+  node 32.1-ledger-check.mjs    exit 0 - PASS, 29 of 29 over 4 derived sources
+  node reconcile.mjs            exit 0 - symmetric difference 0, counters re-derive
+
+5.2  THE FULL REGRESSION LANE
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'
+    Test Files  75 passed (75)
+         Tests  5248 passed | 2 skipped (5250)
+      Duration  475.84s
+    EXIT=0
+
+  Beside the round's earlier counts, for the phase's own record:
+
+    32.1-12  75 files, 5230 passed | 2 skipped
+    32.1-13  75 files, 5235 passed | 2 skipped
+    32.1-14  75 files, 5248 passed | 2 skipped   (+13: 7 closure cases, 6 oracle cases)
+    32.1-15  75 files, 5248 passed | 2 skipped   (+0: this plan ships no test; it moves documents,
+                                                  the ledger tool and the register)
+
+  The mid-stream FAIL-prefixed lines from check-banned-claims.test.ts and check-audit-register.test.ts
+  are those tests' own expected-failure fixtures, which plant a malformed input and assert the
+  REFUSAL MESSAGE text. The final tally confirms 0 failed. 32.1-VERIFICATION.md records the same
+  observation from an independent run.
+
+5.3  THE LIVE LANE WAS NOT RUN
+
+  `npm test` and any unexcluded runner invocation were NOT run at any point in this plan. The live
+  claude-CLI lane spends tokens on an ambient authenticated session and has hung before. The Task 2
+  checkpoint asked for a named go with the cost stated as a floor (4.33 USD), the true wall clock
+  (25 minutes, not the 8 originally estimated) and the hang risk; Task 1's recommendation was NO-GO
+  and the human answered no-go. Total live spend for this plan: ZERO.
+
+=================================================================================================
+SECTION 6 - WHAT THIS FILE DOES NOT CLAIM
+=================================================================================================
+
+  - It does not claim the three live cases are resolved. They carry a diagnosis with a cause class
+    and evidence, produced at zero spend, and the rows stay `open`. A diagnosis is not a closure.
+  - It does not claim the A2-live red has been cleared. It claims the MECHANISM is intact, measured
+    today by executing the real guard, and that the APPEARANCE assertion is unsatisfiable on the
+    channel it reads - two separate claims, kept separate on purpose.
+  - It does not claim the denominator is final. It claims the denominator is DERIVED, twice, so a
+    fifth source is added by adding a derivation rather than by editing a number.
+  - It does not claim the four re-homed items or the three waived rows are fixed. Each names an
+    owner or a structural limit and each stays `open` in the register.
+
+*Plan 32.1-15, Task 4. Written 2026-09-18.*

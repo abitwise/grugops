@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 195
-waived_count: 2
-fixed_count: 24
-total_count: 221
-last_updated: 2026-09-18T13:34:26.209Z
+open_count: 196
+waived_count: 3
+fixed_count: 25
+total_count: 224
+last_updated: 2026-09-18T15:04:52.357Z
 ---
 
 # Broken Windows Ledger
@@ -234,8 +234,11 @@ last_updated: 2026-09-18T13:34:26.209Z
 | 217 | 32.1 | deviation | scripts/board-readonly.test.ts |  | R-32.1-01-C (plan 32.1-01): the walker-importer derivation is still a TEXT match, not a checker resolution. The set is git-derived and recursive and the matcher accepts any relative depth, but a comment quoting the specifier would still count as an importer. The symbol-resolving instrument landed in plan 32.1-01 is what could decide it by declaration; cutting this particular case over was not in that plan's scope and no later plan in 32.1 took it. | open |  | 2026-09-18T10:43:04.274Z |  |
 | 218 | 32.1 | deviation | scripts/board-model.ts |  | Plan 32.1-07 residual 1: the conflicts[].ticketId FIELD still publishes the byte DELETED. It reads ABC-902X while the sentence beside it reads ABC-902<U+0085>X. Deliberate - that field is a join key scrubbed on the way out by scrub()/sanitizeCell, not a sentence a human reads, and escaping it would make a consumer's join disagree with the model. It belongs to the data channel (D-18), not to the D-07 sentence builder. Recorded in 32.1-07-RED-baseline.txt section 1 and named rather than closed silently. | open |  | 2026-09-18T10:43:04.357Z |  |
 | 219 | 32.1 | deviation | scripts/board-model.test.ts |  | Plan 32.1-07 residual 2: the published-sentence census keys a declaration as <file>#<declared name>, so two declarations sharing a name in ONE file share a class. No such pair disagrees on this tree today, and a NEW name reds the two-sided pin - the hole is name REUSE, not name arrival. Named in the census's own docblock. | open |  | 2026-09-18T10:43:04.443Z |  |
-| 220 | 32.1 | deviation | scripts/board-read.ts | 1591 | Plan 32.1-12 gap (this phase's single FAILED must-have, 32.1-VERIFICATION.md gap #1), REPRODUCED end to end at 46d860a2 and closed on ONE path. childPath (scripts/board-read.ts:1038-1058) refuses only an empty segment, a dot, a double dot and a segment carrying a separator, so a directory entry name carrying a code point the renderer DELETES passes it, is joined into a composed path, and is quoted into published claim-record sentences that are NOT built through the spelled builder; sanitizeCell then deletes the byte and the published JSON document names a path that does not exist on the tree. Measured at three channels in one run against three planted points, <U+0085>, <U+009F> and <U+0001>; the model's own sentence and the JSON document both carried the defect, the stderr frame did not (board-dashboard.ts emit() applies the builder a second time there). Reproduction transcript: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-12-RED-baseline.txt, section 1; the derived work list is section 2. The verifier's ten hand-named line numbers are CONTAINED in the derived set and SHORT by nine lines. CLOSED HERE: the tampered and no-at sentences, 2 of the 18 path-class unowned published substitutions the census derives. STILL OPEN: the other 16, over absPath (2), dir (1), indexPath (1), path (1), real (1), root (4), target (4) and taskDir (2), all in scripts/board-read.ts; plan 32.1-13 deletes the PATH-DERIVED class and plan 32.1-15 transitions this row. OWNER: the published-substitution census in scripts/board-model.test.ts, which now classes board-read.ts#claimMd as a subject declaration and is the authority that will refuse the next unbuilt sentence quoting a composed path; its discrimination is proved by a seeded tag removal in scripts/board-read.ts rather than argued. Bears on DASH-03 and DASH-07. | open |  | 2026-09-18T12:37:01.717Z |  |
-| 221 | 32.1 | deviation | .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-13-PLAN.md |  | Plan 32.1-13 Task 3's JSON verify command pins snapshot.schemaVersion 1; scripts/board-model.ts declares SCHEMA_VERSION = 2 since phase 32-33 (92f27444), so the command as written fails on correct code. Re-run with the version DERIVED from the module; recorded in 32.1-13-GREEN-proof.txt section 3.3. | open |  | 2026-09-18T13:34:26.209Z |  |
+| 220 | 32.1 | deviation | scripts/board-read.ts | 1591 | Plan 32.1-12 gap (this phase's single FAILED must-have, 32.1-VERIFICATION.md gap #1), REPRODUCED end to end at 46d860a2 and closed on ONE path. childPath (scripts/board-read.ts:1038-1058) refuses only an empty segment, a dot, a double dot and a segment carrying a separator, so a directory entry name carrying a code point the renderer DELETES passes it, is joined into a composed path, and is quoted into published claim-record sentences that are NOT built through the spelled builder; sanitizeCell then deletes the byte and the published JSON document names a path that does not exist on the tree. Measured at three channels in one run against three planted points, <U+0085>, <U+009F> and <U+0001>; the model's own sentence and the JSON document both carried the defect, the stderr frame did not (board-dashboard.ts emit() applies the builder a second time there). Reproduction transcript: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-12-RED-baseline.txt, section 1; the derived work list is section 2. The verifier's ten hand-named line numbers are CONTAINED in the derived set and SHORT by nine lines. CLOSED HERE: the tampered and no-at sentences, 2 of the 18 path-class unowned published substitutions the census derives. STILL OPEN: the other 16, over absPath (2), dir (1), indexPath (1), path (1), real (1), root (4), target (4) and taskDir (2), all in scripts/board-read.ts; plan 32.1-13 deletes the PATH-DERIVED class and plan 32.1-15 transitions this row. OWNER: the published-substitution census in scripts/board-model.test.ts, which now classes board-read.ts#claimMd as a subject declaration and is the authority that will refuse the next unbuilt sentence quoting a composed path; its discrimination is proved by a seeded tag removal in scripts/board-read.ts rather than argued. Bears on DASH-03 and DASH-07. | fixed |  | 2026-09-18T12:37:01.717Z | 2026-09-18T15:04:39.195Z |
+| 221 | 32.1 | deviation | .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-13-PLAN.md |  | Plan 32.1-13 Task 3's JSON verify command pins snapshot.schemaVersion 1; scripts/board-model.ts declares SCHEMA_VERSION = 2 since phase 32-33 (92f27444), so the command as written fails on correct code. Re-run with the version DERIVED from the module; recorded in 32.1-13-GREEN-proof.txt section 3.3. | waived | A committed PLAN document is an evidence artefact this repository does not rewrite - the precedent is ledger row 209, where a wrong commit hash in another round's review was RECORDED rather than corrected in place, because editing it destroys the record that the premise was disproved. The correction is therefore not available as an edit: what is available is the measurement, and it is filed. 32.1-13-GREEN-proof.txt section 3.3 re-runs the check with SCHEMA_VERSION derived from scripts/board-model.ts rather than typed, on both the repository tree and a planted tree, and 32.1-13-SUMMARY.md records the disproved premise and the derive-do-not-type pattern it established. The row's own subject - the typed 1 inside 32.1-13-PLAN.md - stays as written and stays wrong, which is what a historical plan document is for. | 2026-09-18T13:34:26.209Z | 2026-09-18T15:04:39.286Z |
+| 222 | 32.1 | deviation | scripts/check-build-parity.ts |  | Plan 32.1-14 GREEN-proof section 3.2 row A (review IN-02; 32.1-LEDGER.md section 3.4, re-homed-with-named-owner). The build-parity gate derives its moved-outputs set from `git diff --name-only -- '*.js'`, which cannot see a `.js` the build produced for a `.ts` with no committed twin. The gate's result is correct on this tree only because a later workflow step's working-tree arm sees the file; the ordering dependency is recorded in the module header by plan 32.1-14. Deriving the set from `git status --porcelain -- '*.js'` instead would make the gate hold its own subject, and is a decision about what the gate's subject set contains rather than a defect fix. | open |  | 2026-09-18T15:04:52.182Z |  |
+| 223 | 32.1 | deviation | scripts/check-foundation-guards.test.ts |  | Plan 32.1-14 GREEN-proof section 3.2 row B (review IN-06; 32.1-LEDGER.md section 3.5, re-homed-with-named-owner). The computed-key census decides guardedness per ENCLOSING FUNCTION rather than per read, so a guarded call and an unguarded read of the same register in one function both pass. Bounded by the `scattered` assertion (one function per register) and no worse than the text rule it replaced. Remedy if tightened: require the `Object.hasOwn` call to be an ancestor condition of the read. | open |  | 2026-09-18T15:04:52.271Z |  |
+| 224 | 32.1 | deviation | package.json |  | Plan 32.1-14 GREEN-proof section 3.2 row C (review IN-03; 32.1-LEDGER.md item 32.1-IN-03, waived-with-reason). `check:build-parity` compiles the tree twice per invocation - once through the declared shape's `tsc --outDir .tmp-build` prefix and once inside the module. ACCEPTED: the honest alternative is a third declared command shape, which `scripts/check-foundation-guards.test.ts` deliberately refuses, and a declared shape with a named exception is a declared shape that has started widening. | open |  | 2026-09-18T15:04:52.357Z |  |
 
 ````json
 [
@@ -2917,10 +2920,10 @@ last_updated: 2026-09-18T13:34:26.209Z
     "file": "scripts/board-read.ts",
     "line": 1591,
     "description": "Plan 32.1-12 gap (this phase's single FAILED must-have, 32.1-VERIFICATION.md gap #1), REPRODUCED end to end at 46d860a2 and closed on ONE path. childPath (scripts/board-read.ts:1038-1058) refuses only an empty segment, a dot, a double dot and a segment carrying a separator, so a directory entry name carrying a code point the renderer DELETES passes it, is joined into a composed path, and is quoted into published claim-record sentences that are NOT built through the spelled builder; sanitizeCell then deletes the byte and the published JSON document names a path that does not exist on the tree. Measured at three channels in one run against three planted points, <U+0085>, <U+009F> and <U+0001>; the model's own sentence and the JSON document both carried the defect, the stderr frame did not (board-dashboard.ts emit() applies the builder a second time there). Reproduction transcript: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-12-RED-baseline.txt, section 1; the derived work list is section 2. The verifier's ten hand-named line numbers are CONTAINED in the derived set and SHORT by nine lines. CLOSED HERE: the tampered and no-at sentences, 2 of the 18 path-class unowned published substitutions the census derives. STILL OPEN: the other 16, over absPath (2), dir (1), indexPath (1), path (1), real (1), root (4), target (4) and taskDir (2), all in scripts/board-read.ts; plan 32.1-13 deletes the PATH-DERIVED class and plan 32.1-15 transitions this row. OWNER: the published-substitution census in scripts/board-model.test.ts, which now classes board-read.ts#claimMd as a subject declaration and is the authority that will refuse the next unbuilt sentence quoting a composed path; its discrimination is proved by a seeded tag removal in scripts/board-read.ts rather than argued. Bears on DASH-03 and DASH-07.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-18T12:37:01.717Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T15:04:39.195Z",
     "milestone": "v2.1"
   },
   {
@@ -2930,9 +2933,48 @@ last_updated: 2026-09-18T13:34:26.209Z
     "file": ".planning/phases/32.1-board-dashboard-deferred-residuals/32.1-13-PLAN.md",
     "line": null,
     "description": "Plan 32.1-13 Task 3's JSON verify command pins snapshot.schemaVersion 1; scripts/board-model.ts declares SCHEMA_VERSION = 2 since phase 32-33 (92f27444), so the command as written fails on correct code. Re-run with the version DERIVED from the module; recorded in 32.1-13-GREEN-proof.txt section 3.3.",
+    "status": "waived",
+    "reason": "A committed PLAN document is an evidence artefact this repository does not rewrite - the precedent is ledger row 209, where a wrong commit hash in another round's review was RECORDED rather than corrected in place, because editing it destroys the record that the premise was disproved. The correction is therefore not available as an edit: what is available is the measurement, and it is filed. 32.1-13-GREEN-proof.txt section 3.3 re-runs the check with SCHEMA_VERSION derived from scripts/board-model.ts rather than typed, on both the repository tree and a planted tree, and 32.1-13-SUMMARY.md records the disproved premise and the derive-do-not-type pattern it established. The row's own subject - the typed 1 inside 32.1-13-PLAN.md - stays as written and stays wrong, which is what a historical plan document is for.",
+    "recorded_at": "2026-09-18T13:34:26.209Z",
+    "resolved_at": "2026-09-18T15:04:39.286Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 222,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/check-build-parity.ts",
+    "line": null,
+    "description": "Plan 32.1-14 GREEN-proof section 3.2 row A (review IN-02; 32.1-LEDGER.md section 3.4, re-homed-with-named-owner). The build-parity gate derives its moved-outputs set from `git diff --name-only -- '*.js'`, which cannot see a `.js` the build produced for a `.ts` with no committed twin. The gate's result is correct on this tree only because a later workflow step's working-tree arm sees the file; the ordering dependency is recorded in the module header by plan 32.1-14. Deriving the set from `git status --porcelain -- '*.js'` instead would make the gate hold its own subject, and is a decision about what the gate's subject set contains rather than a defect fix.",
     "status": "open",
     "reason": "",
-    "recorded_at": "2026-09-18T13:34:26.209Z",
+    "recorded_at": "2026-09-18T15:04:52.182Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 223,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": null,
+    "description": "Plan 32.1-14 GREEN-proof section 3.2 row B (review IN-06; 32.1-LEDGER.md section 3.5, re-homed-with-named-owner). The computed-key census decides guardedness per ENCLOSING FUNCTION rather than per read, so a guarded call and an unguarded read of the same register in one function both pass. Bounded by the `scattered` assertion (one function per register) and no worse than the text rule it replaced. Remedy if tightened: require the `Object.hasOwn` call to be an ancestor condition of the read.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T15:04:52.271Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 224,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "package.json",
+    "line": null,
+    "description": "Plan 32.1-14 GREEN-proof section 3.2 row C (review IN-03; 32.1-LEDGER.md item 32.1-IN-03, waived-with-reason). `check:build-parity` compiles the tree twice per invocation - once through the declared shape's `tsc --outDir .tmp-build` prefix and once inside the module. ACCEPTED: the honest alternative is a third declared command shape, which `scripts/check-foundation-guards.test.ts` deliberately refuses, and a declared shape with a named exception is a declared shape that has started widening.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T15:04:52.357Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

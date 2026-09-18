@@ -4,8 +4,16 @@
 //
 // WHAT THIS DECIDES. Phase 32.1 is complete when every item it enumerated carries exactly one
 // terminal disposition. That is a COUNT EQUALITY between two sets derived from the same table, plus
-// a second equality between the item count and the sum of the three source sizes (D-22). Neither is
-// a number this script or that document asserts about itself.
+// a second equality between the item count and the sum of the FOUR source sizes (D-22, widened by
+// plan 32.1-15 to absorb this phase's OWN code review). Neither is a number this script or that
+// document asserts about itself.
+//
+// WHY A FOURTH SOURCE (plan 32.1-15, D-16 and D-22). The first three sources are all phase 32's:
+// its round-4 findings, its review warnings, and the ledger rows it carried. Phase 32.1's own code
+// review was outside the enumeration, which is exactly how its ten findings sat outside a count
+// that read as complete. A completion equality that cannot see its own review is an equality over
+// the wrong set. The fourth source is added as a DERIVATION, not as a number: the arm below reads
+// 32.1-REVIEW.md's own headings.
 //
 // WHY IT LIVES HERE AND NOT IN THE SUITE. A permanent vitest case that reads a phase document under
 // .planning/ turns the suite RED on the commit that writes that document — this repository has
@@ -35,12 +43,13 @@ import { dirname, join } from "node:path";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LEDGER = join(HERE, "32.1-LEDGER.md");
 
-// The three SOURCE DOCUMENTS, read so the denominator can be derived a second time WITHOUT this
+// The FOUR SOURCE DOCUMENTS, read so the denominator can be derived a second time WITHOUT this
 // document's participation. See step (3b) for why that second derivation exists.
 const PHASE32 = join(HERE, "..", "32-board-projector-cli-dashboard");
 const REVIEW_FINDINGS = join(PHASE32, "32-40-ADVERSARIAL-REVIEW.md");
 const REVIEW_WARNINGS = join(PHASE32, "32-REVIEW.md");
 const CONTEXT = join(HERE, "32.1-CONTEXT.md");
+const REVIEW_32_1 = join(HERE, "32.1-REVIEW.md");
 
 // The three spellings 32.1-LEDGER.md's disposition column may carry. This is a CLOSED set: a cell
 // outside it is not a fourth disposition, it is a row missing one, and step 2 names it as such.
@@ -119,12 +128,13 @@ if (terminalCount !== itemCount) {
   );
 }
 
-// --- (3) D-22's HALF — the denominator is the SUM of three derived source sizes ----------------
+// --- (3) D-22's HALF — the denominator is the SUM of the derived source sizes ------------------
 //
-// The three sizes are DERIVED from the table's own source column. They are not three numbers this
-// script knows: if a fourth source appeared, or one source lost a row, the sum moves and this
-// assertion reds. That is what makes the denominator a measurement rather than a claim the
-// document makes about itself.
+// The sizes are DERIVED from the table's own source column. They are not numbers this script knows:
+// when a fourth source appeared (plan 32.1-15), the sum moved and this assertion carried it without
+// a line changing here. That is what makes the denominator a measurement rather than a claim the
+// document makes about itself. The only number this step pins is HOW MANY distinct sources D-22
+// names, and that pin is below.
 
 const bySource = new Map();
 for (const r of rows) bySource.set(r.source, (bySource.get(r.source) || 0) + 1);
@@ -136,17 +146,21 @@ const sourceSummary = [...bySource.entries()]
 
 if (sourceSum !== itemCount) {
   fail(
-    "denominator: the three source sizes sum to " + sourceSum + " but the table holds " +
+    "denominator: the " + bySource.size + " source sizes sum to " + sourceSum + " but the table holds " +
       itemCount + " item row(s). Derived sizes: " + sourceSummary + ". D-22 requires the " +
       "denominator to be a measurement over named sources, so a row whose source cell is blank " +
       "or unrecognised breaks the sum rather than being quietly absorbed.",
   );
 }
 
-if (bySource.size !== 3) {
+// D-22 named three sources; plan 32.1-15 widened it to FOUR by adding this phase's own code review.
+// The pin moves with the decision and never drifts silently: a fifth source, or a source whose rows
+// all vanished, reds here by name.
+const SOURCE_COUNT = 4;
+if (bySource.size !== SOURCE_COUNT) {
   fail(
     "denominator: the source column yields " + bySource.size + " distinct source(s), not the " +
-      "three D-22 names. Derived: " + sourceSummary,
+      SOURCE_COUNT + " D-22 names as widened by plan 32.1-15. Derived: " + sourceSummary,
   );
 }
 
@@ -158,13 +172,18 @@ if (bySource.size !== 3) {
 // catches an EMPTY denominator; it never catches a SILENTLY SHORT one. The fix this repository has
 // recorded for that is to derive the ELEMENT count independently of the loop that consumes it.
 //
-// So the denominator is derived AGAIN, from the three documents D-22 names, none of which is
-// 32.1-LEDGER.md:
+// So the denominator is derived AGAIN, from the four documents D-22 names as widened by plan
+// 32.1-15, none of which is 32.1-LEDGER.md:
 //   * the round-4 findings  — the OPEN `### F-NN` headings of 32-40-ADVERSARIAL-REVIEW.md § 12
 //     (F-22 is CLOSED (harness) and recorded outside the ratio, so it is outside this count too);
 //   * the review warnings   — the `### WR-NN:` headings of 32-REVIEW.md § Warnings;
 //   * the ledger rows       — the bolded row ids in 32.1-CONTEXT.md's phase-boundary bullet, MINUS
-//     any that fall inside the finding rows' own id range, which that bullet also names.
+//     any that fall inside the finding rows' own id range, which that bullet also names;
+//   * THIS PHASE'S OWN REVIEW — the `### WR-NN:` and `### IN-NN:` headings of 32.1-REVIEW.md. Both
+//     kinds count: a review's information items are work the phase did, and leaving them outside
+//     the enumeration is the same blindness at one register lower. That document ALSO carries its
+//     own `findings:` counters in frontmatter, and this arm asserts the headings and the counters
+//     agree — a heading somebody mistyped is then a red here rather than a silently short source.
 //
 // That last subtraction is the nineteen-versus-twenty reconciliation, DERIVED rather than read out
 // of a paragraph: the phase boundary says "the eight carried ... ledger rows" and then lists eight
@@ -175,6 +194,32 @@ if (bySource.size !== 3) {
 function derivedDenominator() {
   const findings = (readFileSync(REVIEW_FINDINGS, "utf8").match(/^### F-\d+ — OPEN/gm) || []).length;
   const warnings = (readFileSync(REVIEW_WARNINGS, "utf8").match(/^### WR-\d+:/gm) || []).length;
+
+  // The fourth source: this phase's own review, counted from its headings and cross-checked
+  // against the counters the same document publishes about itself.
+  const r = readFileSync(REVIEW_32_1, "utf8");
+  const ownWarnings = (r.match(/^### WR-\d+:/gm) || []).length;
+  const ownInfo = (r.match(/^### IN-\d+:/gm) || []).length;
+  const own = ownWarnings + ownInfo;
+  const fm = /^---\n([\s\S]*?)\n---/.exec(r);
+  const counted = (key) => {
+    const m = fm && new RegExp("^\\s*" + key + ":\\s*(\\d+)\\s*$", "m").exec(fm[1]);
+    return m ? Number(m[1]) : null;
+  };
+  const fmWarning = counted("warning");
+  const fmInfo = counted("info");
+  if (fmWarning === null || fmInfo === null) {
+    return { ok: false, why: "32.1-REVIEW.md's own `findings:` counters did not parse" };
+  }
+  if (fmWarning !== ownWarnings || fmInfo !== ownInfo) {
+    return {
+      ok: false,
+      why:
+        "32.1-REVIEW.md disagrees with itself: its headings yield " + ownWarnings + " warning(s) " +
+        "and " + ownInfo + " information item(s), while its frontmatter counters say " + fmWarning +
+        " and " + fmInfo + ". The fourth source's size is therefore not established",
+    };
+  }
 
   const ctx = readFileSync(CONTEXT, "utf8");
   // The finding rows' id range, as the phase boundary itself states it (an en dash or a hyphen).
@@ -194,12 +239,15 @@ function derivedDenominator() {
     findings,
     warnings,
     carried: carried.length,
-    total: findings + warnings + carried.length,
+    own,
+    total: findings + warnings + carried.length + own,
     detail:
       "findings " + findings + " (OPEN `### F-NN` headings) + ledger rows " + carried.length +
       " (" + carried.sort((a, b) => a - b).join(", ") + "; " + doubleCounted.length +
       " id(s) dropped as already counted among the findings at rows " + lo + "-" + hi +
-      ": " + (doubleCounted.join(", ") || "none") + ") + review warnings " + warnings,
+      ": " + (doubleCounted.join(", ") || "none") + ") + review warnings " + warnings +
+      " + 32.1 review items " + own + " (" + ownWarnings + " `### WR-NN:` + " + ownInfo +
+      " `### IN-NN:` headings of 32.1-REVIEW.md, agreeing with that file's own counters)",
   };
 }
 
@@ -211,7 +259,7 @@ if (!second.ok) {
   );
 } else if (second.total !== itemCount) {
   fail(
-    "second denominator: the three SOURCE DOCUMENTS yield " + second.total + " item(s) but the " +
+    "second denominator: the four SOURCE DOCUMENTS yield " + second.total + " item(s) but the " +
       "table holds " + itemCount + ". " + second.detail + ". The two derivations are independent " +
       "on purpose — the table's own source column falls with the table, so a deleted item row " +
       "would keep step (3) green at " + itemCount + " = " + itemCount + " while an item vanished.",
@@ -234,6 +282,6 @@ console.log(
       .map((d) => d + " " + rows.filter((r) => r.disposition === d).length)
       .join(", ") +
     ".\n" +
-    "      The same denominator derived AGAIN from the three source documents, without this " +
+    "      The same denominator derived AGAIN from the four source documents, without this " +
     "document's participation: " + second.total + " — " + second.detail + ".",
 );
