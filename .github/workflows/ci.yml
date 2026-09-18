@@ -210,6 +210,23 @@ jobs:
           # committed page differs from a fresh regeneration — run `npm run generate:guarantees`
           # and commit the result. Do NOT hand-edit the page to reach green.
           npm run freshness:guarantees
+          # DASH-06 (plan 32.1-14, review IN-05) — WIRED AT BOTH ENDS, for the fourth time in this
+          # block and for the same recorded reason. `scripts/hook-manifest-freshness.js` held the
+          # committed hook manifest equal to `deriveManifest(ROOT)` ONLY inside the vitest step
+          # above, through `scripts/floor-invariance.test.ts` — the "borrowed, one --exclude pattern
+          # away" reachability shape this block already names for freshness:adapters, check-kit-refs
+          # and the public-docs gate. A gate that runs only because some other step happens to run
+          # it is not wired; it is borrowed.
+          #
+          # PRE-EXISTING, AND A WIRING GAP RATHER THAN A BYPASS. The manifest is fail-closed at RUN
+          # time — a hash mismatch is a deny, not a warning — so nothing was ever admitted by its
+          # absence here. What was missing is the drift signal: Phase 32.1 moved two manifest hashes,
+          # and a hand edit to the committed manifest, or a hook source moving underneath it, would
+          # have reached a reader only as a failing deny at the moment a hook ran.
+          #
+          # A red here means the committed manifest differs from a fresh derivation. Regenerate it;
+          # do NOT hand-edit the manifest to reach green.
+          npm run freshness:hook-manifest
           # MODEL-03 / MODEL-05 (plan 29.1-09, WR-07) — THE REFUSALS THIS PHASE BUILT WERE UNREACHABLE
           # FROM THE BUILD, and the three lines below are the half of the fix no source edit can hold.
           #

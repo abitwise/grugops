@@ -81,7 +81,24 @@ function lines(out) {
 export function trackedBuildOutputs(root = ROOT) {
     return lines(git(root, ["ls-files", "--", "*.js"]));
 }
-/** Every tracked build output the working tree currently disagrees with the index about. */
+/**
+ * Every tracked build output the working tree currently disagrees with the index about.
+ *
+ * THE ORDERING DEPENDENCY, RECORDED RATHER THAN IMPLIED (32.1-14, review IN-02). `git diff` cannot
+ * see an UNTRACKED file, so a `.js` the build produces for a new `.ts` that has no committed twin is
+ * invisible to this derivation — the subject set is "tracked build outputs that MOVED", and a build
+ * output that never existed in the index did not move, it appeared. `.github/workflows/ci.yml`
+ * records this exact class letting an untracked adapter through once, which is why that workflow
+ * replaced a `git diff --exit-code` with a `git status --porcelain` pair at the point it names.
+ *
+ * ON THIS TREE THE CASE IS STILL CAUGHT, BUT NOT BY THIS GATE: the second freshness block runs after
+ * the build and its working-tree arm sees the file on disk. So this gate's PASS line is CORRECT and
+ * ORDERING-DEPENDENT, and a later reader who reorders the workflow, or who runs this check alone on
+ * a developer machine, is the one who needs to know that. Changing the derivation to
+ * `git status --porcelain` would widen what this gate's subject set CONTAINS, which is a decision
+ * about the gate rather than a defect in it; it is carried as a register row with the gate as its
+ * owner rather than made here.
+ */
 export function movedBuildOutputs(root = ROOT) {
     return lines(git(root, ["diff", "--name-only", "--", "*.js"]));
 }
@@ -97,7 +114,17 @@ export function buildParity(root = ROOT) {
     const tracked = trackedBuildOutputs(root);
     const build = spawnSync("npx", ["tsc"], { cwd: root, encoding: "utf8" });
     if (build.status !== 0) {
-        const detail = `${build.stdout ?? ""}${build.stderr ?? ""}`.trim();
+        // THE SPAWN'S OWN ERROR IS PART OF THE DETAIL (32.1-14, review IN-01). `spawnSync` reports two
+        // different failures through two different fields, and only one of them was being read. A
+        // compiler that RAN and refused fills `stdout`/`stderr`; a compiler that never started — `npx`
+        // resolving as `npx.cmd` on Windows is the recorded case — fills neither and sets `error`
+        // instead, leaving `status` null. The `!== 0` test correctly failed closed on that, and then
+        // told the operator "the build did not complete" and nothing else. Appended rather than
+        // substituted, because a failure can legitimately carry both.
+        const detail = [`${build.stdout ?? ""}${build.stderr ?? ""}`.trim(), build.error?.message ?? ""]
+            .filter((part) => part !== "")
+            .join("\n")
+            .trim();
         return {
             buildFailure: "the build did not complete, so this check states nothing about the build outputs" +
                 (detail === "" ? "" : `:\n${detail}`),
