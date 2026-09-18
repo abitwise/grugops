@@ -1,0 +1,314 @@
+Phase 32.1 - Board Dashboard Deferred Residuals, Plan 32.1-10, Task 1
+THE GATE SWEEP, DERIVED FROM THE MANIFEST
+Run: 2026-09-18, against `main` at HEAD a9484820, in the main checkout
+(`.planning/config.json` sets `workflow.use_worktrees: false`).
+Node v24.12.0. vitest 4.1.8. Platform darwin-arm64.
+
+Every control character named in this file is written as escape TEXT (for example
+<U+0009>, \x1b). The repository's own `check:nul-bytes` gate refuses the raw byte, and one
+raw byte makes plain searching report zero matches for strings that are present.
+
+This file measures. It decides no requirement checkbox, no roadmap phase status and no
+verdict. See section 6.
+
+The LIVE claude-CLI end-to-end lane is NOT measured here. It is this plan's Task 3, behind
+a blocking human checkpoint, and section 5 says exactly what this sweep does and does not
+claim about it.
+
+================================================================================
+1. THE ROW SET, DERIVED RATHER THAN RECALLED
+================================================================================
+
+The row set is read out of `package.json`'s `scripts` object at sweep time, by a program,
+not typed from a prior plan's document:
+
+    $ node -e 'const p=JSON.parse(require("fs").readFileSync("package.json","utf8"));
+               const k=Object.keys(p.scripts||{});
+               console.log("TOTAL", k.length);
+               console.log("CHECK", k.filter(x=>x.startsWith("check:")).length);
+               console.log("FRESHNESS", k.filter(x=>x==="freshness"||x.startsWith("freshness:")).length);
+               console.log("COMPILE", k.filter(x=>x==="build"||x==="typecheck").length);'
+    TOTAL 33
+    CHECK 11
+    FRESHNESS 9
+    COMPILE 2
+
+DERIVED SCRIPT COUNT: 33.
+
+THE THREE SETS THIS SWEEP RUNS, AND WHERE EACH CAME FROM. The plan asks for the check
+entries, plus the build-output gate and the generated-artifact freshness gates, and asks
+that the file state which set each gate came from. Each set is a PREDICATE over the
+manifest's own key names, evaluated at sweep time, so a reader can re-derive the
+denominator with the command above:
+
+  SET  PREDICATE OVER THE MANIFEST KEY        MEMBERS  WHY IT IS A GATE SET
+  ---  -------------------------------------  -------  -----------------------------------
+  A    key starts with `check:`                    11  the declared check-command set,
+                                                       which plan 32.1-05 made
+                                                       exemption-free: every entry matches
+                                                       one of exactly two declared shapes
+                                                       and no entry is written in advance
+                                                       as an exception (D-05, ledger row
+                                                       207).
+  B    key is `freshness` or starts with            9  `freshness` is the build-output
+       `freshness:`                                    gate; the eight `freshness:*` are
+                                                       the generated-artifact freshness
+                                                       gates.
+  C    key is `build` or `typecheck`                 2  the compile gates the plan's own
+                                                       `<verify>` names; recorded here so
+                                                       the arithmetic in section 3 has no
+                                                       unaccounted entry.
+
+  ROWS RUN = 11 + 9 + 2 = 22.
+
+A row set taken from memory is the set-literal drift this repository has recorded as its
+second systemic failure class, and a gate sweep is exactly where one hides: the missing row
+looks like a gate that passed. The arithmetic at the end of section 3 is what makes that
+claim checkable rather than asserted.
+
+================================================================================
+2. THE GATE ROWS - COMMAND, EXIT CODE, AND THE GATE'S OWN HEADLINE LINE
+================================================================================
+
+Each row records the command as invoked, its exit code, its wall-clock seconds, and the
+gate's own output line - the gate's words, not a verdict of mine. The `SET` column is the
+set from section 1 that put the row here.
+
+  #  SET  GATE (command as invoked)      EXIT  SEC  THE GATE'S OWN HEADLINE LINE
+ --  ---  -----------------------------  ----  ---  -------------------------------------
+  1   C   npm run build                     0    2  (tsc emitted no diagnostics; no
+                                                     output line)
+  2   C   npm run typecheck                 0    4  (three tsc invocations - --noEmit,
+                                                     tsconfig.tests.json,
+                                                     tsconfig.fixtures.json - none emitted
+                                                     a diagnostic; no output line)
+  3   A   npm run check:build-parity        0    2  PASS  Build parity: tracked build
+                                                     outputs that moved when the build
+                                                     ran: 0 findings over 66/66 elements
+                                                     (final line: ALL CHECKS PASSED)
+  4   A   npm run check:public-docs         0    1  PASS  AUDIT-02: 11 public document(s)
+                                                     carry zero retired vocabulary - root
+                                                     4, examples 5, kitReadme 1,
+                                                     guarantees 1; 1 exempted by name
+                                                     (CHANGELOG.md)
+                                                     (final line: ALL CHECKS PASSED)
+  5   A   npm run check:audit-register      0    2  PASS  AUDIT-01 completeness: equality
+                                                     one holds - 36 counted register
+                                                     row(s) set-equal in both directions
+                                                     to 36 derived file(s) (17 roles + 19
+                                                     workflows); equalities two, three and
+                                                     four also hold. [The gate's PASS line
+                                                     is one paragraph; the clause above is
+                                                     its opening and the rest is in the
+                                                     captured output, not paraphrased
+                                                     here.]
+                                                     (final line: ALL CHECKS PASSED)
+  6   A   npm run check:residual-citations  0    1  PASS  residual citations: 5 path
+                                                     claim(s) across 2 published row(s),
+                                                     every one a tracked file (30-11 RA4-3
+                                                     - tracked, not merely present on this
+                                                     disk).
+                                                     (final line: ALL CHECKS PASSED)
+  7   A   npm run check:claim-anchors       0    1  PASS  47 registry row(s) parsed from
+                                                     47 claim-heading-shaped line(s), 0 of
+                                                     them EXCLUDED as fenced
+                                                     documentation; 47 verbatim
+                                                     comparison(s) performed, all
+                                                     byte-identical; all 4 safety floor(s)
+                                                     mapped
+                                                     (final line: ALL CHECKS PASSED)
+  8   A   npm run check:banned-claims       0    1  PASS  LANG-04: 120 document(s) carry
+                                                     zero banned claim literal outside the
+                                                     one named exemption region; 22 pinned
+                                                     literal(s) across 3 group(s); the
+                                                     region suppresses 14 occurrence(s),
+                                                     pinned at 14, and reaches 75 line(s),
+                                                     pinned at 75
+                                                     (final line: ALL CHECKS PASSED)
+  9   A   npm run check:imperative-lexicon  0    2  PASS  LANG-02: 49 governed document(s)
+                                                     in 4 derived part(s) - workflows 19,
+                                                     checklists 14, seedTemplates 13,
+                                                     contracts 3; 49 of 49 opened
+                                                     PASS  LANG-01: 76 Technical Name(s)
+                                                     DERIVED from the kit, never listed
+                                                     (final line: ALL CHECKS PASSED)
+ 10   A   npm run check:diff-disposition    0   10  PASS  diff disposition - changed
+                                                     watched file(s): 0 findings over
+                                                     39/39 elements
+                                                     (final line: ALL CHECKS PASSED)
+ 11   A   npm run check:nul-bytes           0    3  PASS  2336 tracked file(s) scanned as
+                                                     raw bytes, ZERO carrying a forbidden
+                                                     control byte; git's own --eol
+                                                     classifier independently agrees on
+                                                     the NUL sub-class, reporting 0 -text
+                                                     file(s)
+                                                     (final line: ALL CHECKS PASSED)
+ 12   A   npm run check:platform-shapes     0    3  SKIPPED SHAPES (0): (none) - this
+                                                     platform constructed every shape in
+                                                     the corpus
+                                                     (final line: ALL CHECKS PASSED)
+ 13   A   npm run check:dashboard-readonly  0    7  Tests  202 passed (202)
+                                                     (this gate is a vitest invocation, so
+                                                     its headline is the runner's summary
+                                                     line rather than a Result block)
+ 14   B   npm run freshness                 0    3  All build outputs fresh: 66 committed
+                                                     .js file(s) match a rebuild of their
+                                                     sources. Set equality with the
+                                                     filesystem walk: 0 committed at HEAD
+                                                     and absent on disk, 0 on disk and
+                                                     absent from HEAD.
+ 15   B   npm run freshness:catalog         0    1  Catalog fresh: docs/catalog/README.md
+                                                     matches a fresh regeneration.
+ 16   B   npm run freshness:adapters        0    1  Adapters fresh: 17 adapter(s) compared
+                                                     in .claude/agents, 0 byte
+                                                     difference(s), directory listings
+                                                     set-equal.
+                                                     (final line: Mirrored generator
+                                                     resolved model preset: none)
+ 17   B   npm run freshness:skill-twins     0    1  Skill twins fresh: 7 twin(s) compared
+                                                     in .claude/skills, 0 byte
+                                                     difference(s), directory listings
+                                                     set-equal.
+ 18   B   npm run freshness:guarantees      0    2  Guarantees fresh: docs/GUARANTEES.md
+                                                     matches a fresh regeneration.
+ 19   B   npm run freshness:hook-manifest   0    1  Hook manifest fresh: 2 decider(s), 26
+                                                     module hash(es) match a fresh
+                                                     derivation.
+ 20   B   npm run freshness:context         0    1  Context fresh: no .grugops/context/
+                                                     tree exists yet - nothing committed
+                                                     to drift (vacuous pass).
+ 21   B   npm run freshness:queue           0    1  Now-running fresh: no
+                                                     .grugops/queue/claimed/ tree exists
+                                                     yet - nothing committed to drift
+                                                     (vacuous pass).
+ 22   B   npm run freshness:traceability    0    1  Traceability fresh: no
+                                                     .grugops/context/ notes tree exists
+                                                     yet - nothing committed to drift
+                                                     (vacuous pass).
+
+ROWS RUN: 22.  ROWS EXIT 0: 22.  ROWS EXIT NON-ZERO: 0.
+
+Ten of the eleven set-A rows end their output with the literal `ALL CHECKS PASSED`, counted
+by program over the captured output rather than by eye:
+
+    $ grep -c "ALL CHECKS PASSED" <each captured check:* stdout>
+    10 of 11 files report 1; the eleventh is check:dashboard-readonly, which is a vitest
+    invocation and has no Result block.
+
+ONE ROW MOVED FROM RED TO GREEN SINCE PHASE 32. `check:diff-disposition` is row 11 of
+`32-41-GATES.txt`, where it exited 1 with `78 finding(s) over 39 elements` and was carried
+as pre-existing. It exits 0 here with `0 findings over 39/39 elements`. The element
+denominator is unmoved at 39 in both readings - the corpus did not narrow - and the
+findings were discharged by this phase's plans 32.1-02 and 32.1-03 writing the disposition
+rows the gate asks for (D-12). A gate that goes green by a shrinking denominator is the
+failure this pairing is stated to rule out; the denominator held.
+
+================================================================================
+3. THE MANIFEST ENTRIES DELIBERATELY NOT RUN, EACH WITH ITS REASON - AND THE ARITHMETIC
+================================================================================
+
+  NOT RUN                          REASON
+  -------------------------------  ---------------------------------------------------
+  test                             it is `vitest run` with NO exclusion and launches the
+                                   LIVE claude-CLI end-to-end lane. It is this plan's
+                                   Task 3 and runs only after a named human go - see
+                                   section 5.
+  test:e2e                         the same lane, named directly. The plan sanctions ONE
+                                   live invocation, and Task 3 spends it on the manifest's
+                                   unexcluded runner entry, not on this one.
+  dashboard                        a developer convenience wrapper (builds to a temp dir
+                                   and runs the dashboard), not a gate; it refuses
+                                   nothing.
+  audit:prepass                    not a gate this plan's work could move; it reads
+                                   audit-register sources, none of which this plan
+                                   touches.
+  generate:safety-surface          GENERATORS, NOT GATES - they WRITE. This plan modifies
+  generate:catalog                 no source and must not run them. Their freshness
+  generate:adapters                counterparts are the gate, and rows 14 through 22 above
+  generate:skill-twins             are all exit 0, which is the same proof without the
+  generate:guarantees              write.
+  generate:hook-manifest
+  count:lines                      requires `tokei`, an external binary; a line count is
+                                   not a gate and refuses nothing.
+
+OMISSIONS: 11.
+
+THE ARITHMETIC, STATED OUT LOUD:
+
+    22 rows run  +  11 named omissions  =  33
+    derived script count                =  33
+    THE EQUALITY HOLDS.
+
+No manifest entry is unaccounted for. Every entry is either a row with an exit code or an
+omission with a reason. A gate that exists and was not run is therefore visible here as a
+named line, not as a silence (D-19).
+
+================================================================================
+4. THE REGRESSION LANE, AS A GATE ROW
+================================================================================
+
+The regression lane is the repository's configured test command
+(`workflow.test_command`), not a manifest entry, so it is recorded beside the rows rather
+than inside them - keeping section 3's arithmetic honest.
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+     Test Files  75 passed (75)
+          Tests  5224 passed | 2 skipped (5226)
+       Duration  470.07s
+    exit=0
+
+Its movement across this phase, attributed case by case, is in
+`32.1-10-GREEN-proof.txt`. That file and this one report the SAME single run: the counts
+above and the per-file counts there are derived from one JSON report of one invocation, so
+they cannot disagree by construction.
+
+================================================================================
+5. THE LANE THIS SWEEP DID NOT MEASURE
+================================================================================
+
+THE LIVE claude-CLI END-TO-END LANE IS NOT MEASURED BY THIS FILE.
+
+`npm test` was not run by this sweep. It is `vitest run` with no exclusion, so it triggers
+`scripts/e2e`, which spends tokens on the ambient authenticated session on this machine and
+can hang. It is row 183 of `.planning/WINDOWS.md` and it is this plan's Task 3, behind a
+blocking human checkpoint that names the spend.
+
+Nothing in this file claims anything about that lane. Whatever this sweep proves, it does
+not prove the live lane green, and a reader who needs it closed needs Task 3's transcript
+(`32.1-10-LIVE-TRANSCRIPT.txt`), not a citation of this file.
+
+Two further things this sweep did not measure, in this repository's phrasing for anything
+it did not measure:
+
+  1. `scripts/board-watch-live.test.ts`'s delivery band on `windows-latest` is not
+     measurable from this host; unchanged from every prior plan of this phase.
+  2. The six generator scripts were not run (section 3). Their freshness counterparts are
+     green, which proves the committed outputs match a regeneration; it does not prove the
+     generators themselves would exit 0 under some other condition, and nothing here claims
+     it does.
+
+================================================================================
+6. WHAT THIS FILE DOES NOT SAY
+================================================================================
+
+IT DECIDES NOTHING. It marks no requirement checkbox, sets no phase status, and reaches no
+verdict on whether Phase 32.1 is complete. `.planning/WINDOWS.md` is byte-unchanged by this
+plan - plan 32.1-11 owns every ledger mutation, including row 183's terminal disposition.
+
+IT MODIFIES NO SOURCE. This task writes two planning documents and nothing else.
+
+THE WORKING TREE AT SWEEP TIME:
+
+    $ git status --porcelain
+     M .planning/milestone.lock
+     M human-notes.txt
+    ?? .gsd/
+    ?? .planning/state.json
+
+Those four entries predate this plan and belong to the orchestrator and the human, not to
+this sweep. No gate row above wrote to the tree: the four `tsc --outDir .tmp-build`
+prefixes build into an untracked temp directory, which is why row 3's build-parity gate
+reads 0 moved outputs over 66 elements.
+
+--------------------------------------------------------------------------------
+Plan 32.1-10, Task 1. Modifies no source, decides no status, runs no live lane.

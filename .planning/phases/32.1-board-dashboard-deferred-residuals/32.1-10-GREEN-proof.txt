@@ -1,0 +1,253 @@
+32.1-10-GREEN-proof.txt - the phase's FINAL regression-lane number, beside its starting one.
+============================================================================================
+
+Plan: .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-10-PLAN.md, Task 1.
+Measured 2026-09-18 on `main` at HEAD a9484820, in the main checkout. Node v24.12.0,
+vitest 4.1.8, darwin-arm64. No ANSI escapes and no control bytes in this file.
+
+The live claude-CLI end-to-end lane is NOT in any number below. It is this plan's Task 3,
+behind a blocking human checkpoint, and its result - whichever way it goes - is filed in
+`32.1-10-LIVE-TRANSCRIPT.txt`, not here.
+
+
+=====================================================================
+1. THE TWO NUMBERS
+=====================================================================
+
+THE PHASE'S STARTING NUMBER, as recorded in `32.1-01-GREEN-proof.txt` (which took it after
+D-23 restored `.planning/milestone.lock` with `git checkout`), and independently recorded
+by `32-41-GATES.txt` section 6 at the close of Phase 32:
+
+    75 files / 5163 passed / 2 skipped
+
+THE PHASE'S FINAL NUMBER, taken on this checkout with all nine executed plans landed:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**'
+
+     Test Files  75 passed (75)
+          Tests  5224 passed | 2 skipped (5226)
+       Duration  470.07s (transform 2.45s, import 8.17s, tests 457.03s)
+
+    EXIT=0.  Wall clock 471s.
+
+THE DIFFERENCE:
+
+    5224 - 5163 = +61 passing cases.
+    Test files:  75 -> 75.  UNMOVED.
+    Skipped:      2 ->  2.  UNMOVED.
+
+The whole of section 2 and section 3 is the attribution of that +61. The plan asks that
+the difference be attributed "case by case: cases this phase added, cases it removed, and
+nothing else", and that an unattributed movement be treated as a finding rather than a
+footnote. Two independent decompositions are given below - one by PLAN, one by FILE - and
+they are derived from different evidence, so their agreement is a check rather than a
+restatement.
+
+THE INSTRUMENT. Both the totals above and every per-file count in section 3 come from ONE
+invocation of the lane, captured with vitest's JSON reporter and aggregated by program:
+
+    $ npx vitest run --exclude '**/scripts/e2e/**' --reporter=default \
+          --reporter=json --outputFile=<scratch>/regression.json
+    $ node -e '<aggregate assertionResults by file and status>'
+      FILES 75  PASS 5224  SKIP 2  FAIL 0  TOTAL 5226
+      numTotalTests 5226  numPassedTests 5224  numPendingTests 2  numFailedTests 0
+      success true
+
+The runner's own summary block and the program's aggregation of the same report agree on
+all four numbers. A per-file table taken from a DIFFERENT run than the total it is supposed
+to explain can disagree with it for reasons that have nothing to do with the phase; this
+one cannot, by construction.
+
+
+=====================================================================
+2. DECOMPOSITION ONE - BY PLAN, FROM EACH PLAN'S OWN FILED MEASUREMENT
+=====================================================================
+
+Every executed plan of this phase ran the full regression lane and filed the number in its
+own SUMMARY and, where it wrote one, its GREEN-proof. Those are measurements taken at the
+time, by nine separate runs; they are not re-derived here.
+
+  MEASUREMENT POINT            FILES  PASSED  SKIPPED  DELTA  WHAT THE PLAN CHANGED IN THE
+                                                              TEST CORPUS
+  ---------------------------  -----  ------  -------  -----  ---------------------------
+  Phase start (32-41, 32.1-01)    75    5163        2      -  -
+  32.1-01                         75    5170        2     +7  validate.test.ts,
+                                                              board-readonly.test.ts,
+                                                              check-foundation-guards.test.ts
+  32.1-02                         75    5170        2      0  no test file changed
+                                                              (disposition rows only)
+  32.1-03                         75    5170        2      0  no test file changed
+                                                              (disposition rows only)
+  32.1-04                         75    5176        2     +6  validate.test.ts
+  32.1-05                         75    5176        2      0  board-readonly.test.ts,
+                                                              check-foundation-guards.test.ts,
+                                                              check-claim-anchors.test.ts
+  32.1-06                         75    5186        2    +10  board-readonly.test.ts
+  32.1-07                         75    5203        2    +17  board-model.test.ts,
+                                                              board-dashboard.test.ts
+  32.1-08                         75    5216        2    +13  board-readonly.test.ts
+  32.1-09                         75    5224        2     +8  board-model.test.ts,
+                                                              board-watch.test.ts
+  32.1-10 (this measurement)      75    5224        2      0  this plan changes no test file
+                                                       -----
+                                                         +61
+
+    7 + 0 + 0 + 6 + 0 + 10 + 17 + 13 + 8  =  61.
+    5163 + 61 = 5224.  THE CHAIN CLOSES.
+
+The "what the plan changed" column is DERIVED, not recalled:
+
+    $ git log --format='%h %s' 8de15983..HEAD -- <each *.test.ts>
+
+over the seven test files `git diff --name-only 8de15983..HEAD` reports as changed. Every
+commit that touched a test file in this phase carries a `(32.1-NN)` scope, and each one
+lands in the row of the plan that made it. No plan's row has a non-zero delta with an empty
+change column, and no plan changed a test file without a row here.
+
+THE PHASE'S CHANGED TEST FILES, DERIVED:
+
+    $ git diff --name-only 8de15983..HEAD | grep -E '\.test\.ts$'
+    scripts/board-dashboard.test.ts
+    scripts/board-model.test.ts
+    scripts/board-readonly.test.ts
+    scripts/board-watch.test.ts
+    scripts/check-claim-anchors.test.ts
+    scripts/check-foundation-guards.test.ts
+    scripts/validate.test.ts
+
+SEVEN files, out of 75. The base `8de15983` is the commit `32.1-01-GREEN-proof.txt` names
+as this phase's plan base ("docs(32.1): record planning completion and annotate roadmap
+waves"), which is the same point the 5163 was taken at.
+
+TWO PLANS WITH A ZERO DELTA AND A NON-EMPTY CHANGE COLUMN, NAMED RATHER THAN SMOOTHED:
+
+  - 32.1-02 and 32.1-03 changed NO test file at all, so their zero is the expected reading.
+    Both wrote disposition rows for `guard_diff_disposition`; the gate they moved is row 10
+    of `32.1-10-GATES.txt`, from 78 findings to 0 over an unmoved 39-element denominator.
+  - 32.1-05 changed THREE test files and still landed at zero. That is the "cases it
+    removed" half of this plan's question, and it is section 3's subject.
+
+
+=====================================================================
+3. DECOMPOSITION TWO - BY FILE, AGAINST A FILED PER-FILE BASELINE
+=====================================================================
+
+`32-41-GATES.txt` section 7 filed per-file case counts for the nine test files Phase 32
+owns, measured at the 75 / 5163 / 2 point - which IS this phase's starting number. That
+makes it a per-file baseline for exactly this comparison. The "NOW" column is this run.
+
+  TEST FILE                                BASE   NOW  DELTA  ATTRIBUTED TO
+  ---------------------------------------  ----  ----  -----  ----------------------------
+  scripts/board-model.test.ts               154   175    +21  32.1-07 +14, 32.1-09 +7
+  scripts/board-read.test.ts                165   165      0  untouched by this phase
+  scripts/board-dashboard.test.ts            75    78     +3  32.1-07
+  scripts/board-watch.test.ts                51    52     +1  32.1-09
+  scripts/board-watch-live.test.ts            6     6      0  untouched by this phase
+  scripts/board-tracer.test.ts               84    84      0  untouched by this phase
+  scripts/board-readonly.test.ts            175   202    +27  32.1-01 +4, 32.1-06 +10,
+                                                              32.1-08 +13, 32.1-05 +0
+  scripts/validate.test.ts                  130   139     +9  32.1-01 +3, 32.1-04 +6
+  scripts/check-foundation-guards.test.ts   300   300      0  32.1-01 +0, 32.1-05 +0 net
+                                           ----  ----  -----
+                                           1140  1201    +61
+
+    THE SUM OF THE PER-FILE MOVEMENTS IS +61.
+    THE TOTAL MOVEMENT IS +61.
+    THE TWO DECOMPOSITIONS AGREE.
+
+HOW EACH PER-PLAN SPLIT IN THE LAST COLUMN IS OBTAINED, so a reader can check it rather
+than take it: each plan's delta from section 2 is distributed over the test files that
+plan's own commits touched, and in every case the distribution is FORCED - there is exactly
+one assignment consistent with both tables:
+
+  - `board-dashboard.test.ts` was touched by 32.1-07 alone, so its +3 is 32.1-07's.
+    32.1-07's plan delta is +17 and it touched only board-dashboard and board-model, so
+    board-model gets 17 - 3 = +14 from 32.1-07.
+  - `board-watch.test.ts` was touched by 32.1-09 alone, so its +1 is 32.1-09's. 32.1-09's
+    plan delta is +8 and it touched only board-watch and board-model, so board-model gets
+    8 - 1 = +7 from 32.1-09.
+  - board-model's two contributions sum to 14 + 7 = +21, which is exactly its measured
+    movement. The two arithmetics meet in the middle on a file neither of them was solved
+    for.
+  - `validate.test.ts` was touched by 32.1-01 and 32.1-04 only. 32.1-04 touched no other
+    test file, so its whole +6 is validate's; 32.1-01's own GREEN-proof states its three
+    validate cases by name (the tracked-set floor, the instrument's PREMISE, the end-to-end
+    resolution). 3 + 6 = +9, validate's measured movement.
+  - `board-readonly.test.ts` was touched by 32.1-01, -05, -06 and -08. 32.1-06 and 32.1-08
+    touched no other test file, so their whole plan deltas (+10 and +13) are board-
+    readonly's; 32.1-01's own GREEN-proof names its four board-readonly cases (the event
+    floor, the module-set equality, the builtin-identity equality, the no-writer
+    assertion). 4 + 10 + 13 = +27, board-readonly's measured movement, which leaves +0 for
+    32.1-05.
+
+THE 65 FILES NOT IN THE TABLE, STATED AS AN EQUALITY RATHER THAN AN ASSUMPTION:
+
+    at the base:  5163 - 1140 (the nine files) = 4023 across the other 66 files
+    now:          5224 - 1201 (the nine files) = 4023 across the other 66 files
+    THE REMAINDER IS EQUAL AT BOTH POINTS.
+
+So the non-Phase-32 files - 65 of them untouched by this phase, plus
+`check-claim-anchors.test.ts`, the one changed test file with no filed per-file baseline -
+sum to the SAME 4023 at both measurement points. What that proves is an equality over the
+sum, not over each member: if two of those files had moved by +N and -N they would cancel
+here. It is stated at the strength it has. Every file this phase is known to have touched
+is in the table above except `check-claim-anchors.test.ts`, whose 45 cases now are recorded
+for the next comparison to use as ITS baseline.
+
+THE ONE HELD COUNT WITH CHANGED CONTENT, NAMED RATHER THAN LEFT AS A ZERO.
+`check-foundation-guards.test.ts` reads 300 at both points and was changed four times in
+this phase (once by 32.1-01, three times by 32.1-05). A held count over changed content
+means cases were added and removed in equal number inside one file, which a per-file total
+cannot separate. The record of what was removed is 32.1-05's own: it DELETED the toolchain
+check-script class - "its register, accessor, classifier arm and reachability case are
+deleted with a deletion note naming what the class was for", after measuring the register
+census drop from three members to two - and ADDED the F-21 discrimination cases plus the
+four silent-pass combinations it measured. That is carried from plan 32.1-05's SUMMARY,
+which is where it was measured; this run re-measures the total, not the split. 32.1-01's
+own change to that file was `fdd2b9b2`, "move the module-corpus pins with the set", a pin
+correction rather than a case.
+
+  ADDED across the phase:   at least 61, in five files, all named above.
+  REMOVED across the phase:  the toolchain-class cases in
+                             check-foundation-guards.test.ts (32.1-05), offset one-for-one
+                             by that plan's additions, which is why its plan delta and its
+                             per-file delta are both zero.
+  NOTHING ELSE MOVED on net: the 4023 equality above.
+
+
+=====================================================================
+4. THE FILE COUNT AND THE SKIP COUNT
+=====================================================================
+
+    Test files:  75 at the phase start, 75 at every one of the eleven measurement points in
+                 section 2, 75 now. This phase added no test FILE and removed none; all
+                 seven files it changed already existed.
+    Skipped:      2 at every point. The two skips are long-standing and this phase neither
+                 added a skip nor un-skipped one.
+
+The two skips are recorded by the run itself rather than described from memory:
+
+    scripts/generate-role-adapters.test.ts (48 tests | 1 skipped)
+    scripts/frontmatter.test.ts - the D-52 no-loader skip path, which PRINTS its reason:
+      "D-52 SKIP BRANCH EXERCISED (deliberately, with an absent interpreter): <temp
+       path>/ruby with the yaml (Psych/libyaml) library is not runnable on this machine"
+
+A skip that announces why it skipped is not the same object as a silently absent case, and
+the second one is deliberately exercised.
+
+
+=====================================================================
+5. WHAT THIS FILE DOES NOT SAY
+=====================================================================
+
+It reaches no verdict on the phase. It marks no requirement checkbox and sets no roadmap
+status. `.planning/WINDOWS.md` is byte-unchanged by this plan; plan 32.1-11 owns every
+ledger mutation.
+
+It says nothing about the LIVE claude-CLI end-to-end lane. Every number here is from the
+EXCLUDED lane - `npx vitest run --exclude '**/scripts/e2e/**'` - which is this
+repository's configured regression command and stays so. The live lane is measured once, in
+Task 3, and only after a named human go.
+
+--------------------------------------------------------------------------------
+Plan 32.1-10, Task 1. One lane run, one JSON report, two decompositions that agree.
