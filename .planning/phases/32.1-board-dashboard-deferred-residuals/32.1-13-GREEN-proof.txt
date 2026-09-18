@@ -1,0 +1,225 @@
+PLAN 32.1-13 — GREEN PROOF
+Recorded 2026-09-18, node v24.12.0. Base HEAD a2c5bd60; code commits ded6a799 (RED), e32886e8
+(Task 1 GREEN), 6c74ee8b (Task 2), and this commit (Task 3).
+
+Every number below is READ OUT OF AN INSTRUMENT. Control bytes are spelled in the <U+NNNN> form;
+this file carries none.
+
+===================================================================================================
+SECTION 1 — THE EQUALITY, PASSING, WITH ONE PIN
+===================================================================================================
+
+--- 1.1  THE TWO-SIDED PROPERTY --------------------------------------------------------------------
+
+Measured by the census at the post-cutover tree:
+
+  template substitutions in the three modules ......... 171   (unmoved from RED)
+  substitutions in a PUBLISHED position (denominator) . 86    (unmoved from RED)
+  of those, built through the builder ................. 86    (RED: 44)
+  of those, NOT built through the builder ............. 0     (RED: 42)
+  substitutions built through the builder, anywhere ... 86
+
+  DIRECTION ONE — offender list is empty ......... PASSES (0 rows)
+  DIRECTION TWO — owned count == published count . PASSES (86 == 86)
+
+Owned-anywhere equals the published denominator exactly, so the surviving
+`every owned site is in a published position` case has nothing to report: no value is escaped at a
+position where the render path already owns the bytes.
+
+--- 1.2  THE SURVIVING PIN: BEFORE, AFTER, AND WHAT MOVED IT ---------------------------------------
+
+  PUBLISHED_SUBSTITUTION_COUNT   before 86   after 86   UNMOVED
+
+WHAT MOVED IT: nothing, and that is the measurement rather than an expectation. This plan added no
+sentence and removed none; it added a TAG to 42 existing templates, and a tag is not a sentence. The
+denominator counts substitutions written into a position a human reads as a finding, so it can only
+move when such a position lands or leaves. If this number HAD moved, the cutover would have changed
+what is published rather than how it is built, and that is the failure the pin exists to catch.
+
+THE TWO PINS THAT WERE DELETED RATHER THAN RE-DERIVED:
+
+  CONTENT_SUBSTITUTION_COUNT   was 26   DELETED — it counted the members of a classification table
+                                        that no longer exists. Re-deriving it would have preserved
+                                        the enumeration under a new name.
+  OWNED_SUBSTITUTION_COUNT     was 44   DELETED — it is now a DERIVED side of the equality
+                                        (`published.length`), so pinning it would be a second number
+                                        to bump beside the one that derives it. The mutation
+                                        controls measure their movement against a live derived count
+                                        instead.
+
+--- 1.3  WHAT WAS TAGGED, BY MODULE ----------------------------------------------------------------
+
+  board-model.ts ......  3 substitutions  (the WIP-count conflict's measured and stated halves)
+  board-read.ts ........ 29 substitutions (torn read, decode refusal, gone-since, the three
+                         containment refusals, the listing failure, the two context-entry refusals,
+                         the event-index parse refusal)
+  board-dashboard.ts ... 10 substitutions (both `--interval` refusals, both argv refusals, the
+                         `refuse` frame, the three `(e as Error).message` stderr lines, the
+                         top-level one-line refusal)
+  TOTAL ................ 42, which is exactly the RED baseline's denominator of unowned rows.
+
+NO SITE REQUIRED A SEMANTIC DECISION, so no site was carried into plan 32.1-15 as a named residual.
+Every one of the 42 substitutions already had a type the builder's `string | number` signature
+admits — including the three arms that already spelled their own fallback (`err.code ?? "unreadable"`
+twice and `column.limit ?? "none"`). `npm run typecheck` exits 0 with no widening of the builder and
+no blanket `String(...)` conversion added anywhere.
+
+NO PROSE CHANGED. Four sentences had a line break moved so the tag could open the first template
+fragment; in every case the CONCATENATED text is byte-identical. The proof is not the inspection: the
+existing cases that quote these sentences verbatim are green (board-read.test.ts 172 passed,
+board-dashboard.test.ts 78 passed, board-model.test.ts 179 passed, full lane 5235 passed).
+
+===================================================================================================
+SECTION 2 — THE MUTATION PROOF: ONE SEEDED REMOVAL PER MODULE
+===================================================================================================
+
+The mirror re-runs the WHOLE pipeline — program, type checker, declaration resolution — over a
+source served from mutated text at the compiler host's `getSourceFile`. Nothing on disk is touched.
+Each seed is asserted UNIQUE in its module (the mirror refuses on any count other than one, because
+`String.replace` with a string pattern rewrites only the first match).
+
+  LIVE (unmutated): published=86 owned=86 unowned=0
+
+  SEED board-model.ts     published=86  owned=85  offenders=1
+    refusal: board-model.ts:1694 `t.id` (board-model.ts#id)
+  SEED board-read.ts      published=86  owned=85  offenders=1
+    refusal: board-read.ts:1609 `claimMd` (board-read.ts#claimMd)
+  SEED board-dashboard.ts published=86  owned=85  offenders=1
+    refusal: board-dashboard.ts:1471 `oneLine(e)` (board-dashboard.ts#oneLine)
+
+FOR EACH OF THE THREE, ALL FOUR ASSERTIONS HOLD:
+  • the owned count moves by EXACTLY ONE (86 → 85), so the number is a function of the seeded change
+    rather than of a derivation that broke and started reporting something else;
+  • DIRECTION ONE of the equality reds — exactly one offender;
+  • DIRECTION TWO of the equality reds — owned (85) no longer equals published (86);
+  • the refusal names the MODULE, the EXPRESSION and the resolved DECLARATION, so a reader can open
+    the file and see the site without re-deriving anything;
+  • the published DENOMINATOR is UNMOVED at 86 under a mutation that only removed a tag.
+
+A PREMISE CASE ASSERTS THE SEED SET ITSELF: the three seeded modules are derived-equal to the three
+modules the census walks. A control exercised in a subset of the modules says nothing about the ones
+it skipped, and this plan's cutover landed in all three — 10 of the 42 sites are in the module that
+had never been seeded before this plan.
+
+===================================================================================================
+SECTION 3 — EVERY ARM THE CUTOVER COULD HAVE BROKEN, WITH ITS RESULT
+===================================================================================================
+
+--- 3.1  THE RENDER PATH — the two-authority pin ---------------------------------------------------
+
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-dashboard.test.ts \
+    -t "escapes exactly the code points"
+  RESULT: 1 passed | 77 skipped (78).
+
+The builder escapes EXACTLY the class the renderer deletes, derived in both directions, and the
+escape text survives the sanitizer unchanged. The cutover moved deletion at render time to escaping
+at build time across 42 further sites, and this is the pin that says the two classes are the same
+class — so which bytes survive is unchanged.
+
+--- 3.2  IDEMPOTENCE AT THE NESTED SITE ------------------------------------------------------------
+
+`board-dashboard.ts`'s `emit()` applies the builder to a `readError.message` that a board module
+already built through the builder, and after this cutover that nesting is the common case rather
+than the exception. Two new cases in `scripts/board-model.test.ts` prove the property instead of
+arguing it:
+
+  • a sentence already carrying an escape spelling passes a SECOND application of the builder
+    unchanged — asserted as byte equality, not as a containment;
+  • the escape notation itself carries no byte the builder would escape again: `visible("<one C1
+    point>")` is `<U+0085>`, and `visible("<U+0085>")` is `<U+0085>`.
+
+  RESULT: both pass. A doubled escape would have been its own F-14 — a sentence stating
+  `<U+003C>U+0085<U+003E>` about a path whose name carries one code point.
+
+--- 3.3  THE JSON DOCUMENT -------------------------------------------------------------------------
+
+A PLAN PREMISE WAS DISPROVED BY MEASUREMENT AND IS RECORDED RATHER THAN WORKED AROUND. The plan's
+verify command pins `schemaVersion !== 1`. The module declares `SCHEMA_VERSION = 2`
+(`scripts/board-model.ts:58`, since phase 32-33, commit 92f27444) — so the command as written fails
+on correct code, and it fails for a reason that has nothing to do with this plan. The check is run
+with the declared version DERIVED from the module rather than typed, which is this phase's own rule.
+
+  ARM 1 — the repository's own tree:
+    exactly one JSON document on stdout ........... true
+    declared schemaVersion (derived from module) .. 2
+    document schemaVersion ....................... 2
+    RESULT: PASS — one json document at the declared schema version.
+
+  ARM 2 — a planted tree whose repository ROOT entry name carries U+0085:
+    exactly one JSON document on stdout ........... true
+    document schemaVersion ....................... 2
+    queue readErrors ............................. 1
+    the document names the entry SPELLED .......... true  (`repo<U+0085>x`)
+    the document names it with the point DELETED .. false (no `repox`)
+    stderr names the entry SPELLED ................ true
+    the whole document carries no raw byte in the render-stripped class .... true
+
+--- 3.4  THE DATA CHANNEL — the conflict identifier join key ---------------------------------------
+
+`.planning/WINDOWS.md` row 218 records a DELIBERATE decision: `conflicts[].ticketId` publishes the
+byte deleted, because it is a join key a consumer matches on rather than a sentence a human reads,
+and escaping it would make a downstream join disagree with the model.
+
+CONFIRMED BY AN ASSERTION, NOT BY INSPECTION. `scripts/board-model.test.ts`'s case "the
+`ticket-unplaced` sentence spells the same identifier, so the pair reads as one dispute" asserts
+`unplaced.map((c) => c.ticketId)` equals the DECLARED identifier — the raw one — beside a sibling
+assertion that the SENTENCE spells it. Both pass at this tree, so the cutover did not reach the data
+channel. The row stays `open` and unchanged; this plan neither closes it nor silently reverses it.
+
+--- 3.5  THE READ-ONLY POSTURE AND THE PLATFORM SHAPES ---------------------------------------------
+
+  npm run check:dashboard-readonly ... 202 passed. 57 mutating fs symbols, 329 resolved call sites,
+                                       0 unresolved, 0 refused acquisitions. The dashboard acquires
+                                       no writer and moves no byte.
+  npm run check:platform-shapes ...... ALL CHECKS PASSED; 0 skipped shapes — this platform
+                                       constructed every shape in the corpus.
+
+===================================================================================================
+SECTION 4 — THE LANE AND THE GATES
+===================================================================================================
+
+  npm run typecheck ................... exit 0
+  npm run build && npm run freshness .. all 66 committed .js match a rebuild of their sources
+  npm run check:build-parity .......... PASS, 0 findings over 66/66 elements
+  npm run check:nul-bytes ............. ALL CHECKS PASSED
+  npm run check:diff-disposition ...... PASS, 0 findings over 39/39 elements
+  npm run check:dashboard-readonly .... 202 passed
+  npm run check:platform-shapes ....... ALL CHECKS PASSED
+
+  npx vitest run --exclude '**/scripts/e2e/**'
+    THIS PLAN:    75 files, 5235 passed / 2 skipped
+    PLAN 32.1-12: 75 files, 5230 passed / 2 skipped
+
+  THE +5 RECONCILES EXACTLY, PER FILE, AGAINST THE RUNNER'S OWN NUMBERS:
+
+    scripts/board-read.test.ts   169 -> 172   delta +3
+      +3  the three new end-to-end arms (context/not-a-directory, context/PARSE, tickets/ENCODING)
+
+    scripts/board-model.test.ts  177 -> 179   delta +2
+      -4  the four cases that consulted the deleted classification tables
+      +1  the old owned-count case SPLIT: `every owned site is in a published position` survives on
+          its own and the two-sided equality is a new case beside it (1 case out, 2 in)
+      +3  the mutation controls: 4 cases (2 modules x 2) become 6 (3 modules x 2), plus 1 case
+          asserting the seed set equals the census's module set
+      +2  the two idempotence cases
+      -4 +1 +3 +2 = +2
+
+    +3 +2 = +5, and 5230 + 5 = 5235, which is the number the runner printed.
+
+  The live `npm test` e2e lane was NOT run: it starts the live claude-CLI lane, spends tokens and can
+  hang. This plan's prohibitions forbid it.
+
+===================================================================================================
+SECTION 5 — WHAT THIS PLAN DOES NOT CLOSE
+===================================================================================================
+
+  • `.planning/WINDOWS.md` row 220 stays `open`. This plan moved the remaining 16 path-class sites
+    and the 24 internal and 2 assembled ones, so the row's description is now stale in the direction
+    of understating what was closed. Plan 32.1-15 owns the transition; transitioning it here would
+    put a ledger edit in a plan whose own verification has not run.
+  • `.planning/WINDOWS.md` row 218 stays `open` and unchanged, asserted unchanged (section 3.4).
+  • No adversarial red-team round ran inside this phase (D-17). What this plan cannot close is a
+    register row with a named owner rather than a sentence in a summary.
+  • The plan's verify command for the JSON document pins the wrong schema version (section 3.3). The
+    command is wrong in the PLAN, not in the tree; it is recorded here and in the SUMMARY's
+    deviations rather than silently substituted.

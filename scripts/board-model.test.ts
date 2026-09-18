@@ -2903,7 +2903,7 @@ describe("board-model — the presence partition's KEYS balance as arithmetic (p
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 import ts from "typescript";
-import { visible } from "./board-model.js";
+import { spelled, visible } from "./board-model.js";
 import type { TicketPopulations } from "./board-model.js";
 
 /** The `null` arm, carried through the derivation as a value so it cannot be silently dropped. */
@@ -3998,6 +3998,16 @@ function mirrorCensus(module: string, seed: string, replacement: string): readon
 }
 
 /**
+ * The seeded site in `board-dashboard.ts` (plan 32.1-13): the top-level catch's one-line stderr
+ * refusal, which carries EXACTLY ONE substitution. The THIRD module is seeded because the mirror
+ * had only ever been watched fail in two of the three, and a control exercised in two modules says
+ * nothing about whether the resolution works in the third — which is where ten of this plan's own
+ * forty-two cutovers landed.
+ */
+const SEEDED_DASH_TAG_REMOVAL = "spelled`board-dashboard: ${oneLine(e)}`";
+const SEEDED_DASH_TAG_REPLACEMENT = "`board-dashboard: ${oneLine(e)}`";
+
+/**
  * The live owned count, DERIVED on every call rather than pinned.
  *
  * The pinned owned count this replaces was deleted with the classification tables (plan 32.1-13):
@@ -4008,88 +4018,146 @@ function mirrorCensus(module: string, seed: string, replacement: string): readon
  */
 const liveOwnedCount = (): number => boardCensus().filter((r) => r.owned).length;
 
-const mirrorModelCensus = (): readonly CensusRow[] =>
-  mirrorCensus("board-model.ts", SEEDED_TAG_REMOVAL, SEEDED_TAG_REPLACEMENT);
-const mirrorReadCensus = (): readonly CensusRow[] =>
-  mirrorCensus("board-read.ts", SEEDED_READ_TAG_REMOVAL, SEEDED_READ_TAG_REPLACEMENT);
+/**
+ * ONE SEEDED REMOVAL, DESCRIBED BY THE THREE THINGS ITS REFUSAL MUST NAME.
+ *
+ * The three arms are the SAME control with the module varied, so they are stated once and driven
+ * three times: a control that exists in one module and is reasoned about in the others is the shape
+ * this repository's ledger records failing round after round.
+ */
+type SeededRemoval = {
+  readonly module: string;
+  readonly seed: string;
+  readonly replacement: string;
+  /** The expression the un-owned site interpolates, as the refusal must print it. */
+  readonly expr: string;
+  /** The declaration that expression resolves to, as the refusal must print it. */
+  readonly declaration: string;
+};
 
-describe("32.1-07 — the ownership census is a control, not a coincidence", () => {
-  it("removing ONE builder call moves the owned count by exactly one", () => {
-    const owned = mirrorModelCensus().filter((r) => r.owned).length;
-    const live = liveOwnedCount();
-    expect(owned).not.toBe(live);
+const SEEDED_REMOVALS: readonly SeededRemoval[] = [
+  {
+    module: "board-model.ts",
+    seed: SEEDED_TAG_REMOVAL,
+    replacement: SEEDED_TAG_REPLACEMENT,
+    expr: "t.id",
+    declaration: "board-model.ts#id",
+  },
+  {
+    module: "board-read.ts",
+    seed: SEEDED_READ_TAG_REMOVAL,
+    replacement: SEEDED_READ_TAG_REPLACEMENT,
+    expr: "claimMd",
+    declaration: "board-read.ts#claimMd",
+  },
+  {
+    module: "board-dashboard.ts",
+    seed: SEEDED_DASH_TAG_REMOVAL,
+    replacement: SEEDED_DASH_TAG_REPLACEMENT,
+    expr: "oneLine(e)",
+    declaration: "board-dashboard.ts#oneLine",
+  },
+];
+
+describe("32.1-13 — the ownership equality is a control, not a coincidence, in ALL THREE modules", () => {
+  for (const seeded of SEEDED_REMOVALS) {
+    it(`a seeded tag removal in ${seeded.module} moves the owned count by exactly one`, () => {
+      const owned = mirrorCensus(seeded.module, seeded.seed, seeded.replacement).filter(
+        (r) => r.owned,
+      ).length;
+      const live = liveOwnedCount();
+      expect(owned).not.toBe(live);
+      expect(
+        owned,
+        `the seeded removal in scripts/${seeded.module} moved the owned count by something other ` +
+          `than one, so the number this census reports is not a function of the seeded change alone`,
+      ).toBe(live - 1);
+    });
+
+    it(`the equality REDS on ${seeded.module}, naming the module, the expression and the declaration`, () => {
+      const rows = mirrorCensus(seeded.module, seeded.seed, seeded.replacement);
+      const published = rows.filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver));
+      const offenders = published.filter((r) => !r.owned);
+
+      // DIRECTION ONE OF THE EQUALITY REDS, and it reds about the seeded change specifically.
+      expect(
+        offenders.length,
+        "the seeded removal produced other than exactly one unowned published site, so the " +
+          "refusal below is not about the seeded change",
+      ).toBe(1);
+      const named = offenders.map(nameRow)[0] ?? "";
+      expect(named, "the refusal does not name the module the site is in").toContain(seeded.module);
+      expect(named, "the refusal does not name the expression the site interpolates").toContain(
+        seeded.expr,
+      );
+      expect(
+        named,
+        "the refusal does not name the DECLARATION the value resolves to, so a reader cannot open " +
+          "the binding the sentence quotes without re-deriving it",
+      ).toContain(seeded.declaration);
+
+      // DIRECTION TWO OF THE EQUALITY REDS TOO: the two counts stop agreeing.
+      expect(
+        rows.filter((r) => r.owned).length,
+        "the owned count still equals the published count under a seeded tag removal, so the " +
+          "second direction of the equality is not reading the mutated tree",
+      ).not.toBe(published.length);
+
+      // AND THE DENOMINATOR IS UNMOVED: a TAG is not a sentence, so removing one changes which
+      // substitutions are OWNED and never how many are PUBLISHED.
+      expect(
+        published.length,
+        `the denominator moved under a mutation that only removed a TAG in ` +
+          `scripts/${seeded.module}, so the walk is measuring something other than the substitutions`,
+      ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
+    });
+  }
+
+  it("PREMISE: the three seeded modules are the three modules the census walks", () => {
     expect(
-      owned,
-      "the seeded removal moved the owned count by something other than one, so the number this " +
-        "census reports is not a function of the seeded change alone",
-    ).toBe(live - 1);
+      SEEDED_REMOVALS.map((r) => r.module)
+        .slice()
+        .sort(),
+      "a module the census walks carries no seeded removal, or a seed names a module the census " +
+        "never sees. A control exercised in a subset of the modules says nothing about the ones " +
+        "it skipped, and this plan's cutover landed in all three",
+    ).toEqual([...BOARD_MODULES].sort());
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32.1-13 — IDEMPOTENCE AT THE NESTED SITE, PROVED RATHER THAN ARGUED.
+//
+// `board-dashboard.ts`'s `emit()` applies the builder to a `readError.message` that a board module
+// ALREADY built through the builder, and after this plan's cutover that nesting is the common case
+// rather than the exception. The property that makes it safe is that the builder's own output is
+// PRINTABLE: `visible` replaces each deleted code point with `<U+NNNN>`, and none of those bytes is
+// in the class `visible` replaces — so a second application is the identity.
+//
+// A DOUBLED ESCAPE WOULD BE ITS OWN F-14: the sentence would state `<U+003C>U+0085<U+003E>` about a
+// path whose name carries one code point, and a reader re-typing it would reach a third thing.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("32.1-13 — the builder is idempotent, so the nested application changes no bytes", () => {
+  it("a sentence already carrying an escape spelling passes a second application unchanged", () => {
+    const once = spelled`board-read: ${"repo\u0085x"} could not be listed`;
+    expect(once, "the first application did not spell the code point").toContain("repo<U+0085>x");
+    const twice = spelled`${once}`;
+    expect(
+      twice,
+      "a second application of the builder changed the bytes of a sentence the first one built, so " +
+        "the nested application at the stderr frame would double-escape every value it republishes",
+    ).toBe(once);
   });
 
-  it("the census REDS, naming the site the seeded removal un-owned", () => {
-    const rows = mirrorModelCensus();
-    const offenders = rows
-      .filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver))
-      .filter((r) => !r.owned);
+  it("the escape notation carries no byte the builder would escape again", () => {
+    const spelling = visible("\u0085");
+    expect(spelling, "the notation is not the uniform `<U+NNNN>` form").toBe("<U+0085>");
     expect(
-      offenders.length,
-      "the seeded removal produced other than exactly one unowned published site, so the refusal " +
-        "below is not about the seeded change",
-    ).toBe(1);
-    const named = offenders.map(nameRow)[0] ?? "";
-    expect(named, "the refusal does not name the module the site is in").toContain("board-model.ts");
-    expect(named, "the refusal does not name the expression the site interpolates").toContain("t.id");
-    expect(
-      named,
-      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot open " +
-        "the binding the sentence quotes without re-deriving it",
-    ).toContain("board-model.ts#id");
-    // AND THE REST OF THE CENSUS IS UNMOVED: the seeded change un-owns one site and nothing else.
-    expect(
-      rows.filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver)).length,
-      "the denominator moved under a mutation that only removed a TAG, so the walk is measuring " +
-        "something other than the substitutions",
-    ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
-  });
-
-  // ── plan 32.1-12: the SAME control, seeded in the module this plan changed ──────────────────
-
-  it("removing the newly built `no-at` claim-record tag moves the owned count by exactly one", () => {
-    const owned = mirrorReadCensus().filter((r) => r.owned).length;
-    const live = liveOwnedCount();
-    expect(owned).not.toBe(live);
-    expect(
-      owned,
-      "the seeded removal in scripts/board-read.ts moved the owned count by something other than " +
-        "one, so the number this census reports is not a function of the seeded change alone",
-    ).toBe(live - 1);
-  });
-
-  it("the census REDS on board-read.ts, naming the module, the expression and the declaration", () => {
-    const rows = mirrorReadCensus();
-    const offenders = rows
-      .filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver))
-      .filter((r) => !r.owned);
-    expect(
-      offenders.length,
-      "the seeded removal produced other than exactly one unowned published site, so the refusal " +
-        "below is not about the seeded change",
-    ).toBe(1);
-    const named = offenders.map(nameRow)[0] ?? "";
-    expect(named, "the refusal does not name the module the site is in").toContain("board-read.ts");
-    expect(named, "the refusal does not name the expression the site interpolates").toContain(
-      "claimMd",
-    );
-    expect(
-      named,
-      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot open " +
-        "the binding the sentence quotes without re-deriving it",
-    ).toContain("board-read.ts#claimMd");
-    // AND THE REST OF THE CENSUS IS UNMOVED under a mutation that only removed a TAG.
-    expect(
-      rows.filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver)).length,
-      "the denominator moved under a mutation that only removed a TAG in scripts/board-read.ts, " +
-        "so the walk is measuring something other than the substitutions",
-    ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
+      visible(spelling),
+      "the escape notation itself carries a byte in the render-stripped class, so the builder is " +
+        "not idempotent by construction and the nesting above is safe only by accident",
+    ).toBe(spelling);
   });
 });
 
