@@ -159,7 +159,10 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import * as nodeFs from "node:fs";
@@ -2182,6 +2185,76 @@ describe("32.1-01 — Node's OWN loader is the independent third side of the clo
         "recognising that it was imported rather than run. Do not relax this assertion: it is the " +
         "only thing standing between a runtime oracle and a test that edits the repository",
     ).toBe(treeBefore);
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 32.1-14 — THE ORACLE'S CHILD IS BOUNDED, NAMED ON ABSENCE, AND RELATIVISED AGAINST A REAL ROOT
+// (review WR-03, IN-04, IN-07).
+//
+// THE ORACLE IS THE THIRD AUTHORITY, AND ALL THREE OF ITS DEFECTS ARE FAILURE-MODE DEFECTS rather
+// than answer defects: on the tree as it stands the oracle gives the right answer, and when it stops
+// being able to it does not say so. A child with no bound HANGS; a runtime without the loader-hook
+// registration function throws an opaque import error out of a child process; and a checkout under a
+// symbolic link reds the three-authority equality for a reason that has nothing to do with the
+// closure. The first is the one this repository's ledger names over and over — a hung gate is not a
+// red gate — and it is reproduced, under a bound of the harness's own, in
+// `32.1-14-RED-baseline.txt` § 2.2.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("32.1-14 — the loader oracle fails RED with a cause, never silently (WR-03, IN-04, IN-07)", () => {
+  it("IN-07: a checkout reached through a symbolic link records the SAME module set as a direct one", () => {
+    // Node's ESM resolver reports REAL paths; the recorded set was relativised against the CALLER'S
+    // spelling of the root. A checkout living under a symlink — macOS `/tmp` and `/var` are both
+    // one, so this is the ordinary case on a developer machine rather than an exotic one — therefore
+    // produced leading-parent entries and reddened the three-authority equality for a reason
+    // unrelated to the closure. The module's own comment treats a `../` spelling as a deliberate
+    // loud outcome, which is right for an ESCAPE and wrong for a symlinked checkout.
+    const scratch = mkdtempSync(join(tmpdir(), "loader-oracle-symlink-"));
+    const linkedRoot = join(scratch, "checkout");
+    try {
+      symlinkSync(ROOT, linkedRoot, "dir");
+      // PREMISE: the link really is a second spelling of the same tree, and really is a DIFFERENT
+      // spelling. Without both halves this case could pass over a link that resolved elsewhere, or
+      // over a `tmpdir()` that happened to sit inside the repository.
+      expect(
+        realpathSync(linkedRoot),
+        "PREMISE: the symlink does not resolve to the repository root, so the comparison below is " +
+          "between two different trees rather than between two spellings of one",
+      ).toBe(realpathSync(ROOT));
+      expect(
+        linkedRoot,
+        "PREMISE: the link path and the root path are the same string, so nothing is being varied",
+      ).not.toBe(ROOT);
+
+      const direct = [...recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY).modules].sort();
+      const throughLink = [...recordRuntimeAcquisitions(linkedRoot, DASHBOARD_ENTRY).modules].sort();
+
+      expect(
+        direct.length,
+        "PREMISE: the direct recording is empty or a singleton, so the equality below holds over " +
+          "nothing",
+      ).toBeGreaterThan(1);
+      expect(
+        throughLink.filter((rel) => rel.startsWith("..")),
+        "the recording taken through a symlinked checkout carries leading-parent entries. Those " +
+          "are the spelling the module reserves for a path that genuinely ESCAPED the root, so a " +
+          "symlinked checkout impersonates an escape and reds the three-authority equality for a " +
+          "reason that has nothing to do with the closure",
+      ).toEqual([]);
+      expect(
+        throughLink,
+        "the same tree recorded through two spellings of its root produced two different module " +
+          "sets. The recorded set is a property of the TREE; the caller's spelling of the root is " +
+          "not part of it",
+      ).toEqual(direct);
+    } finally {
+      // The symlink is unlinked BY NAME before the scratch directory is removed. `rm -r` over a
+      // directory containing a link to the repository root is not a risk worth reasoning about.
+      unlinkSync(linkedRoot);
+      rmSync(scratch, { recursive: true, force: true });
+    }
   });
 });
 

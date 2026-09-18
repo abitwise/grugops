@@ -125,3 +125,107 @@ the number the CONVERSE case asserts, and a red there is a genuinely malformed c
 
   Zero premise failures. The two controls pass BEFORE the change, which is what makes them controls:
   they are not measuring the change, they are bounding it.
+
+=================================================================================================
+SECTION 2 — WR-03 / IN-04 / IN-07: the loader oracle (scripts/loader-oracle.test-support.ts)
+=================================================================================================
+
+-------------------------------------------------------------------------------------------------
+2.1  THE SOURCE-LEVEL FACT THE REPRODUCTION RESTS ON
+-------------------------------------------------------------------------------------------------
+
+scripts/loader-oracle.test-support.ts:151-155 at 152bec0c, quoted exactly:
+
+    execFileSync(process.execPath, [scriptPath, join(root, entryRel), resultPath], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+  timeout    : ABSENT
+  killSignal : ABSENT
+
+`execFileSync` with no `timeout` waits forever. The only assertion protecting the premise this
+oracle rests on — `treeBefore === treeAfter` in scripts/board-readonly.test.ts — is reachable only
+AFTER that call returns. So the failure mode of the guard is a HUNG worker, and a run that reports a
+timeout naming nothing. A guard whose failure mode is silence is the shape this repository's ledger
+records repeatedly; a hung gate is not a red gate.
+
+-------------------------------------------------------------------------------------------------
+2.2  THE BOUNDED REPRODUCTION OF THE UNBOUNDED WAIT
+-------------------------------------------------------------------------------------------------
+
+The pre-change child shape is reproduced verbatim in a throwaway script and pointed at a script that
+does not return (`setInterval(() => {}, 1000)` — what "the entry's main ran" looks like from the
+outside: a live watch loop with nothing to return to). The reproduction itself is run under an
+EXTERNAL bound of the harness's own, because an unbounded wait cannot be measured by waiting for it.
+
+  bound applied by the harness : 5000 ms
+  observed                     : {"boundMs":5000,"elapsedMs":5010,"returned":false,
+                                  "code":"ETIMEDOUT","signal":"SIGKILL","status":null}
+
+The pre-change shape DID NOT RETURN within the bound. It had to be killed from outside; nothing in
+the shape itself would ever have stopped.
+
+A SECOND MEASURED FACT, recorded because it is not obvious: killing the intermediate process left
+the non-returning grandchild ORPHANED and running (pid observed, then reaped by hand). An unbounded
+`execFileSync` does not merely hang the worker — when something upstream finally kills the worker,
+the load it started keeps running. This is why the bound belongs on the invocation rather than on
+whatever runs the suite.
+
+  post-reproduction sweep: `pgrep -f never-returns.mjs` -> no stray children remain.
+
+`code === "ETIMEDOUT"` and `signal === "SIGKILL"` are the two fields the consumer's arm reads, and
+this run is where their spelling is measured rather than assumed.
+
+-------------------------------------------------------------------------------------------------
+2.3  IN-07 — the recorded module set is relativised against an UNRESOLVED root
+-------------------------------------------------------------------------------------------------
+
+scripts/loader-oracle.test-support.ts:167-173 relativises every `file://` resolution against the
+CALLER'S SPELLING of `root`. Node's ESM resolver reports REAL paths. A checkout reached through a
+symbolic link therefore produces leading-parent spellings and reds the three-authority equality for
+a reason that has nothing to do with the closure.
+
+Reproduced by pointing a symlink at the repository root and recording through it (case:
+"IN-07: a checkout reached through a symbolic link records the SAME module set as a direct one").
+
+  direct   : ["scripts/board-dashboard.js","scripts/board-model.js","scripts/board-read.js",
+              "scripts/is-entry.js","scripts/kit-model.js"]   -- 5 entries, no leading parent
+
+  symlinked: ["../../../../../../../Users/olgeroeselg/Projects/public/grugops/scripts/board-dashboard.js",
+              "../../../../../../../Users/olgeroeselg/Projects/public/grugops/scripts/board-model.js",
+              "../../../../../../../Users/olgeroeselg/Projects/public/grugops/scripts/board-read.js",
+              "../../../../../../../Users/olgeroeselg/Projects/public/grugops/scripts/is-entry.js",
+              "../../../../../../../Users/olgeroeselg/Projects/public/grugops/scripts/kit-model.js"]
+              -- 5 of 5 entries carry a leading-parent spelling
+
+ALL FIVE entries impersonate an escape. The module reserves that spelling for a path that genuinely
+LEFT the root, so the loud outcome fires on the ordinary case and the reader who meets it is told
+something false about what happened.
+
+  RED run: npx vitest run --exclude '**/scripts/e2e/**' scripts/board-readonly.test.ts -t "IN-07"
+           Tests  1 failed | 209 skipped (210)
+           "expected [ ...(5) ] to deeply equal []"
+           Both premises PASS: the link resolves to the repository root, and it is a different
+           spelling of it. The case is failing on its subject, not on its setup.
+
+-------------------------------------------------------------------------------------------------
+2.4  WHAT IS RED-FIRST HERE, AND WHAT IS PROVED BY MUTATION INSTEAD — stated rather than glossed
+-------------------------------------------------------------------------------------------------
+
+Of the three changes this task makes, exactly ONE can be expressed as a failing case against the
+pre-change surface: IN-07's symlink equality, which calls only `recordRuntimeAcquisitions(root,
+entryRel)`. It is landed RED, alone, in the commit that precedes the implementation.
+
+The other two cannot be, and the reason is structural rather than convenient: each names an export
+the change INTRODUCES — the bounded-out predicate the consumer's arm asks, and the registration
+guard's text. A case referring to a symbol that does not exist does not fail, it fails to compile,
+and a red typecheck is not a red test. Writing them against a hand-copied duplicate of the sentence
+would make them pass against a second authority, which is the defect class this phase's ledger is
+full of.
+
+So for those two the RED evidence is § 2.1 and § 2.2 above — the source-level absence and the
+measured non-return — and the discrimination evidence is a MUTATION: with the change removed from
+the module and the tree rebuilt, its case fails and every other case in the block passes. Both
+mutation runs are recorded in 32.1-14-GREEN-proof.txt § 2.
