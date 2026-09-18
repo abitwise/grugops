@@ -47,6 +47,20 @@ grugops version `2.1.0`.
 <!-- claim: C-28-007 -->
    In the versioned Claude Code plugin form the same operations are namespaced with a colon — `/grugops:<op>` (for example `/grugops:plan`, `/grugops:ticket`, `/grugops:release`). Both forms coexist; only the dispatch differs, never the content.
 
+   Example commands (Claude Code), one per grugops skill:
+
+   ```text
+   /grugops "add password reset by email"                      # dispatcher: the Orchestrator routes it
+   /grugops-map "survey this repo and seed the factory board"  # greenfield scaffold or brownfield survey
+   /grugops-plan "turn the checkout epic into ready tickets"   # idea to epics, or epic to tickets
+   /grugops-ticket "T-042"                                     # ready ticket to branch, gate, PR; stops at the PR
+   /grugops-gate "run the PR gate on the current branch"       # install, lint, typecheck, unit, build, e2e; recommendation only
+   /grugops-uat "build the UAT pack for the checkout epic"     # acceptance scenarios a human runs
+   /grugops-release "cut v1.3.0"                               # a named human must approve any production deploy
+   ```
+
+   The plugin-form equivalents are the same words after the colon — `/grugops:map`, `/grugops:ticket`, `/grugops:release`, and so on. Each one starts at the Orchestrator and ends at a pull request or a human approval; merge and deploy stay with you.
+
 <!-- claim: C-28-008 -->
 3. **Go deep** — the internal start-here guide explains how to point any of the five host tools at the Orchestrator and walk a ticket from idea to PR. See **[`agent-factory/README.md`](agent-factory/README.md)**.
 
