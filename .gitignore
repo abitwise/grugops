@@ -17,3 +17,7 @@ node_modules/
 # already in vitest's default exclude list, so a clone surviving a crashed run cannot have its own
 # .test.ts files collected by the next run.
 .temp/
+
+# GSD runtime artifacts (derived/run-scoped, never source of truth)
+.gsd/
+.planning/state.json
