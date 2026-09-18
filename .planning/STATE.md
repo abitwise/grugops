@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-09-PLAN.md
-last_updated: "2026-09-18T09:06:29.426Z"
-state_head: a57a3fccdb8cbcb52aead27ea2a27fad218e7ba3
+stopped_at: Completed 32.1-10-PLAN.md
+last_updated: "2026-09-18T10:23:31.114Z"
+state_head: dd2046080dd9657c0e92510ed10a8cf1fae6ac23
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 265
-  completed_plans: 263
-  percent: 99
+  completed_plans: 264
+  percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 10 of 11
+Plan: 11 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -520,6 +520,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32.1 P07 | 44 min | 3 tasks | 8 files |
 | Phase 32.1 P08 | 54 min | 3 tasks | 5 files |
 | Phase 32.1 P09 | 22 min | 3 tasks | 7 files |
+| Phase 32.1 P10 | 1h 14m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1433,6 +1434,8 @@ Recent decisions affecting current work:
 - [Phase 32.1]: The prose-shaped contract-versus-code equality compares DISPOSITION-TAGGED code classes, so one toEqual names both failure directions at once
 - [Phase 32.1]: The open errno set collapses to one class token, so an open code set can still be compared as an equality rather than as a containment
 - [Phase 32.1]: The watch arm's liveness gate and its handle consume one value from one containment decision (F-20), with the finding's measured bound recorded in the code rather than overstated
+- [Phase 32.1]: The human answered GO to the blocking-human checkpoint: exactly one run of the live claude-CLI end-to-end lane on the ambient authenticated session. — D-13 is a locked user decision specifying a blocking checkpoint with a named go; a workflow dial does not override a locked decision. The go covered one run and its transcript, and nothing else.
+- [Phase 32.1]: The live lane went RED and was NOT re-run; the exit code is recorded as derived from the runner summary rather than measured by wait(). — A second run to see whether it passes this time is how a flaky result becomes a claimed one. The wait() capture was lost when the watchdog shell was reaped after being suspended to stop it killing a healthy buffered run; the limit is named in 32.1-10-LIVE-TRANSCRIPT.txt section 4.
 
 ### Pending Todos
 
@@ -1497,6 +1500,7 @@ None yet.
 - Phase 32: the DASH-06 guard is green over a writer acquired through a runtime-assembled module identity (finding F-03, 32-14-ADVERSARIAL-REVIEW.md section 6) — open, a human risk acceptance before Phase 32 can close.
 - DASH-06 guard is green (exit 0, 89/89) over a writer imported through an absolute-path specifier (F-04) and over process.report.writeReport reached through a binding after one recorded member path (F-08); both open with reproductions in 32-23-ADVERSARIAL-REVIEW.md
 - [Phase 32] 16 open items deferred to Phase 32.1 by Option C (2026-09-17): F-14 (C1 byte in a ticket id quoted then deleted, no correcting field), F-15 (split-reader census sees named imports only; a namespace import or two-hop re-export is a working second reader), F-16..F-21, plus check:diff-disposition RED (pre-existing, 78 findings), live e2e lane UNKNOWN - verify, the production-file census exemption, the runtime-assembled key spelling, board-tracer.test.ts as 9th registry exemption, and the wrong F-15 commit hash in 32-40-ADVERSARIAL-REVIEW.md (7aea94f0; real one 7a3ae592). Round-4 code review WR-01..WR-04 (32-REVIEW.md, e385498d) are NOT in that ledger yet; triage them into Phase 32.1 at planning.
+- Phase 32.1 plan 10: the live claude-CLI end-to-end lane ran once and FAILED — A1 (D-31) empty capture, A2-live (SAFE-02/V14, a safety case) deny marker absent, A3-live (DOG-02/D-05) no verdict convergence. Evidence in 32.1-10-LIVE-TRANSCRIPT.txt; disposition is plan 32.1-11 to decide. Also: uat-live.test.ts docblock falsely claims npm test excludes the live lane.
 
 ### Quick Tasks Completed
 
@@ -1557,8 +1561,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-18T09:06:13.167Z
-Stopped at: Completed 32.1-09-PLAN.md
+Last session: 2026-09-18T10:22:58.805Z
+Stopped at: Completed 32.1-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
