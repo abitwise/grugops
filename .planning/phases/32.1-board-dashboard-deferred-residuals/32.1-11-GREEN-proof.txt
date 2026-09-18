@@ -1,0 +1,341 @@
+32.1-11 GREEN PROOF
+===================
+
+Phase 32.1, plan 11 -- the closing plan. What this file carries, in order:
+
+  Section 1  the ledger transitions, and the scope of the mutation
+  Section 2  the reconciliation of WINDOWS.md's two representations, BY ROW IDENTIFIER
+  Section 3  the open-count movement and the governance effect it has
+  Section 4  the erratum's evidence, and the assertion that the original is byte-unchanged
+  Section 5  the completion equality: the check's command and its complete output
+  Section 6  the three plants that prove the check discriminates
+  Section 7  the phase's closing numbers, beside the numbers it started from
+
+Sections 1-4 are task 2. Sections 5-7 are task 3.
+
+Machine: darwin 25.5.0, node 24.12.0 (v24 for the check; the repository's stated host
+prerequisite is Node 22+), vitest 4.1.8. Date: 2026-09-18.
+
+EVERY NUMBER BELOW IS A MEASUREMENT. Where a number is derived rather than captured,
+the derivation is named beside it. Nothing here is a count somebody typed.
+
+
+-------------------------------------------------------------------------------
+Section 1 -- the ledger transitions, and the scope of the mutation
+-------------------------------------------------------------------------------
+
+Every status change ran through `gsd-tools windows`. Not one byte of
+`.planning/WINDOWS.md` was hand-edited. That is not a style preference: the file
+carries the register in TWO representations rendered by the tool from ONE set of
+entries, and its frontmatter counters are cross-checked against those entries
+(`broken-windows.cjs:532-540`), so a hand edit throws WINDOWS_LEDGER_MALFORMED
+rather than landing.
+
+1.1  ROWS SET TO `fixed` -- eleven calls, one per row
+
+  node gsd-tools.cjs windows fixed <id>          for id in
+  176 194 200 201 202 203 204 205 206 207 209
+
+  All eleven returned ok. 200 through 207 are the register rows plan 32-41
+  appended for findings F-14 through F-21, in F-number order.
+
+1.2  ROWS SET TO `waived` -- two calls, with the sentences plan 08 measured
+
+  node gsd-tools.cjs windows waive 184 "<reason>"
+  node gsd-tools.cjs windows waive 208 "<reason>"
+
+  Both reasons were passed VERBATIM from `32.1-08-GREEN-proof.txt` section 3,
+  unwrapped from their source line breaks and otherwise untouched. The verb is
+  one-shot and overwrites the reason cell, which is why they were finalised a
+  plan earlier rather than drafted at call time.
+
+  Row 208 received the ONE COMPOSED sentence covering both of its structural
+  halves -- a writer value received at run time, and a dependency that does not
+  exist yet -- because the row has one reason cell. It was NOT passed as two
+  halves. `32.1-08-SUMMARY.md` states that requirement explicitly.
+
+  VERBATIM ROUND-TRIP, asserted rather than assumed. The reason stored in the
+  ledger was read back and compared byte for byte against the source file:
+
+    row 184: status=waived  reason-verbatim=true  len=857  resolved_at=2026-09-18T10:42:19.179Z
+    row 208: status=waived  reason-verbatim=true  len=903  resolved_at=2026-09-18T10:42:19.268Z
+
+  Each reason states a STRUCTURAL limit -- what an instrument over this corpus
+  cannot observe, and why -- and neither states a schedule. "Nobody has got to
+  it" is not a reason a waive may rest on, and neither of these rests on one.
+
+1.3  ROWS DELIBERATELY NOT TRANSITIONED
+
+  Rows 183 and 210 carry the disposition `re-homed-with-named-owner` in
+  `32.1-LEDGER.md`. THE LEDGER TOOL HAS NO STATUS FOR RE-HOMING: its vocabulary
+  is exactly `open`, `waived`, `fixed` (`broken-windows.cjs:466`). Using a
+  transition verb on either row would record something the tooling does not
+  mean -- `fixed` would claim a closure nobody can reproduce, and `waived`
+  would claim a structural limit that does not exist.
+
+  Both rows therefore stay `open`, ON PURPOSE, and `32.1-LEDGER.md` sections 3.1
+  and 3.2 carry the owner and the measurement. A later reader must not read
+  those two `open` statuses as an oversight.
+
+1.4  ROWS APPENDED -- nine, ids 211 through 219
+
+  Defects this phase's own plans named and no plan closed. They are appended so
+  each is OPEN in the register rather than ABSENT from it. `32.1-10-SUMMARY.md`
+  explicitly deferred the first four to this plan.
+
+    211  unmet-truth  scripts/e2e/uat-live.test.ts            live lane A1 (D-31) failed, empty capture
+    212  unmet-truth  scripts/e2e/uat-live.test.ts            live lane A2-live (SAFE-02/V14) failed -- SAFETY CASE
+    213  unmet-truth  scripts/e2e/uat-live.test.ts            live lane A3-live (DOG-02/D-05) failed
+    214  deviation    scripts/e2e/uat-live.test.ts            stale docblock: claims the lane is out of `npm test`
+    215  deviation    scripts/board-model.test.ts:2358         R-32.1-01-A / IN-05, the spelling walk reads untracked files
+    216  deviation    scripts/check-foundation-guards.test.ts  R-32.1-01-B, a *.test-support.ts file classifies as SHIPPED
+    217  deviation    scripts/board-readonly.test.ts           R-32.1-01-C, the walker-importer derivation is a TEXT match
+    218  deviation    scripts/board-model.ts                   plan 07 residual 1, conflicts[].ticketId publishes the byte deleted
+    219  deviation    scripts/board-model.test.ts              plan 07 residual 2, the census key is <file>#<name>
+
+  Rows 211 through 214 are row 183's named owners (`32.1-LEDGER.md` 3.1).
+  Row 215 is the item `32.1-11-PLAN.md` expected to be a nineteenth-item
+  re-home; it is an `IN-` item and therefore outside D-22's three sources, so it
+  is recorded here instead of moved into the denominator (`32.1-LEDGER.md` 3.3).
+
+1.5  THE SCOPE OF THE MUTATION, MEASURED rather than promised
+
+  The pre-change and post-change JSON arrays were parsed and joined by id:
+
+    pre-existing rows whose DESCRIPTION changed  : []
+    pre-existing rows whose KIND changed         : []
+    pre-existing rows whose FILE changed         : []
+    pre-existing rows whose RECORDED_AT changed  : []
+    pre-existing rows whose STATUS changed       : [176, 184, 194, 200, 201, 202,
+                                                    203, 204, 205, 206, 207, 208, 209]
+    pre-existing rows whose REASON changed       : [184, 208]
+    rows added                                   : [211, 212, 213, 214, 215,
+                                                    216, 217, 218, 219]
+    rows removed                                 : []
+
+  Thirteen status changes (eleven fixed, two waived), two reason changes (the
+  two waives), nine additions, ZERO removals, and not one pre-existing
+  description, kind, file or recorded_at touched. That is the shape a tool
+  writes. A hand edit does not produce it.
+
+  The diff's own shape agrees: `git diff --stat -- .planning/WINDOWS.md` reports
+  172 insertions and 46 deletions across 33 hunks, and the first hunk is the
+  frontmatter counter block moving as a unit:
+
+    -open_count: 197          +open_count: 193
+    -waived_count: 0          +waived_count: 2
+    -fixed_count: 13          +fixed_count: 24
+    -total_count: 210         +total_count: 219
+    -last_updated: 2026-09-16T20:28:42.842Z
+                              +last_updated: 2026-09-18T10:43:04.443Z
+
+  Both representations and the counters moved together, which is what the tool
+  does and what a hand edit cannot do without throwing.
+
+
+-------------------------------------------------------------------------------
+Section 2 -- the reconciliation, BY ROW IDENTIFIER
+-------------------------------------------------------------------------------
+
+The comparison is between the identifier SET of the markdown table and the
+identifier SET of the fenced JSON array. It is NOT a row count and it is NOT a
+column-position tally. Both of those refusals are measured below rather than
+asserted.
+
+  $ node reconcile.mjs
+
+  === reconciliation of .planning/WINDOWS.md's two representations, BY ROW IDENTIFIER
+  table  representation: 219 distinct identifier(s)
+  array  representation: 219 distinct identifier(s)
+  only in table : []
+  only in array : []
+  SYMMETRIC DIFFERENCE = 0
+
+  per-identifier STATUS agreement: every identifier carries the same status in both representations
+
+  frontmatter counters : {"open":193,"waived":2,"fixed":24,"total":219}
+  derived from entries : {"open":193,"waived":2,"fixed":24,"total":219}
+  counters agree       : true
+
+  === why the comparison is BY IDENTIFIER and not by column position or by row count
+  naive positional tally of status==open (split on EVERY '|') : 191
+  tally over UNESCAPED separators, keyed by identifier        : 193
+  the array's own open count                                  : 193
+  the two disagree by 2, because descriptions carry an escaped separator that shifts a positional index.
+  rows whose description carries an escaped separator: 4
+
+  RECONCILED: symmetric difference 0, statuses agree per identifier, counters re-derive.
+
+WHAT THE LAST BLOCK IS FOR. A naive `split("|")` over the table returns 191 open
+rows where the array says 193, because four descriptions carry an escaped
+separator that shifts every column index to its right. A reader who reconciled
+that way would find a two-row disagreement and go looking for two missing rows
+that do not exist. `32.1-RESEARCH.md` section D-14 measured the same hazard
+before this phase began and reported it at THREE on the pre-transition ledger;
+it measures TWO here because the open SET is different after eleven fixes, two
+waives and nine appends. The hazard is the same, the number is a function of
+which rows are open, and that is exactly why the comparison is not a tally.
+
+A ROW-COUNT comparison is refused for the weaker reason: two representations
+can carry the same number of rows and disagree about which rows. The identifier
+sets are the comparison; the count falls out of them.
+
+The per-identifier STATUS agreement is a second assertion on top of membership.
+Equal identifier sets would still permit a row that reads `fixed` in the table
+and `open` in the array. It does not happen, and what says so is a join over all
+219 identifiers rather than a reading.
+
+
+-------------------------------------------------------------------------------
+Section 3 -- the open-count movement, and its governance effect
+-------------------------------------------------------------------------------
+
+BEFORE (HEAD at plan base ae001aef, frontmatter and entries agreeing):
+
+    open 197    waived 0    fixed 13    total 210
+
+AFTER:
+
+    open 193    waived 2    fixed 24    total 219
+
+THE MOVEMENT, attributed rather than left to subtraction:
+
+    open  197  - 11 fixed  - 2 waived  + 9 appended  =  193      (net  -4)
+    fixed  13  + 11                                  =   24      (net +11)
+    waived  0  +  2                                  =    2      (net  +2)
+    total 210  +  9 appended                         =  219      (net  +9)
+
+THE GOVERNANCE EFFECT, NAMED HERE SO IT IS NOT DISCOVERED LATER.
+`open_count > 0` blocks `/gsd-ship` when `workflow.windows_enforce` is on.
+Fixing a row and waiving a row both LOWER that number; appending a row raises
+it. This plan lowered it by thirteen and raised it by nine, for a net fall of
+four -- from 197 to 193.
+
+Two things a reader should take from that, and neither is comfortable:
+
+  1. The gate is NOT currently blocking either way. Measured on this tree:
+
+       $ gsd-tools query config-get workflow.windows_enforce --raw
+       false
+
+     So nothing about this movement changed what ships today. That is a reason
+     to record the movement HERE rather than to rely on a gate to surface it --
+     a number that no gate is reading is a number nobody will notice moving.
+
+  2. 193 is still a long way above zero. This phase closed thirteen rows and
+     opened nine; it did not drain the register and does not claim to. What it
+     claims is that the rows it touched moved for a recorded reason, and that
+     the nine it opened are defects that were already true of the tree and were
+     sitting in prose rather than in the register.
+
+
+-------------------------------------------------------------------------------
+Section 4 -- the erratum, and the original left byte-unchanged
+-------------------------------------------------------------------------------
+
+4.1  THE ORIGINAL IS BYTE-UNCHANGED
+
+  $ git diff --exit-code -- .planning/phases/32-board-projector-cli-dashboard/32-40-ADVERSARIAL-REVIEW.md
+  (no output)
+  EXIT=0
+
+  An evidence document is the record of what was measured and when. Correcting
+  it in place would replace that record with a later reader's version of it.
+
+4.2  THE WRONG ATTRIBUTION, LOCATED
+
+  $ grep -n '7aea94f0' .planning/phases/32-board-projector-cli-dashboard/32-40-ADVERSARIAL-REVIEW.md
+  289:  | **WR-04** `7aea94f0` -- the split reader is refused by name | ...      (section 5, the fix table)
+  653:  **Created by a round-3 or fix-pass change?** **YES** -- `7aea94f0` ...   (section 12 / F-15)
+  864:  | **...created by a round-3 or fix-pass change** | **5** -- F-15 (`7aea94f0`), ...  (section 13 ratio table)
+  1018: | 2 | **Advisory 1** ... | `7aea94f0` | ...                             (section 16, row 2)
+  1028: | 12 | **Fix claim WR-04** ... | `7aea94f0` | ...                       (section 16, row 12)
+  1035: | 19 | **Plan `32-38`** ... | `d5486262`..`7aea94f0` | ...              (section 16, row 19 -- CORRECT)
+
+  Six hits. FIVE are the misattribution. The SIXTH, at 1035, uses the hash as
+  the END of a commit range for plan 32-38, which is what it is, and is not part
+  of this erratum. Ledger row 209's own description already says so; the erratum
+  repeats it in a table so a reader grepping the document can tell the five from
+  the one.
+
+4.3  THE COMMIT THE REVIEW NAMES TOUCHES NO SOURCE FILE
+
+  $ git log -1 --format='%H%n%s%n%ad' 7aea94f0
+  7aea94f0b2e2634a855a2625dd69ea9700f2d00b
+  docs(32-38): record plan 32-38 in STATE and ROADMAP (31/34 plans)
+  Wed Sep 16 21:29:01 2026 +0300
+
+  $ git show --stat --format='' 7aea94f0
+   .planning/ROADMAP.md                               |  4 ++--
+   .planning/STATE.md                                 | 22 +++++++++++++---------
+   .../32-38-SUMMARY.md                               |  9 ++++++---
+   3 files changed, 21 insertions(+), 14 deletions(-)
+
+  Three files, all under `.planning/`. Nothing under `scripts/`.
+
+4.4  THE COMMIT THAT DID CREATE THE RULE
+
+  $ git log -1 --format='%H%n%s%n%ad' 7a3ae592
+  7a3ae5923697f2bc826916530c6d5d51c78dc68d
+  fix(32): WR-04 refuse the split-across-files ticket reader, and own-property the exemption lookup
+  Wed Sep 16 19:02:58 2026 +0300
+
+  $ git show --stat --format='' 7a3ae592
+   scripts/validate.test.ts | 306 ++++++++++++++++++++++++++++++++++++++++++++++-
+   1 file changed, 304 insertions(+), 2 deletions(-)
+
+  And the identifier's own history, which decides the question rather than the
+  commit subjects:
+
+  $ git log -S 'splitReaderOffenders' --oneline --reverse -- scripts/validate.test.ts
+  7a3ae592 fix(32): WR-04 refuse the split-across-files ticket reader, and own-property the exemption lookup
+  4aa28f00 test(32.1-04): the split-reader join resolves declarations and is asked both ways
+
+  The FIRST commit to add the identifier is 7a3ae592. The second is phase 32.1's
+  own cutover (plan 04). 7aea94f0 appears in neither.
+
+  Corroborating, and cheap: 7a3ae592 landed at 19:02 and 7aea94f0 at 21:29 the
+  same day. The fix precedes the documentation commit that records the plan --
+  the ordinary order, and the opposite of what the original's attribution needs.
+
+4.5  THE VERDICT DOES NOT MOVE
+
+  7a3ae592 is inside the same fix-pass window as every other commit the ratio
+  counts, so F-15 stays created-by-a-fix-pass-change and section 13's ratio
+  stays 5 of 8. Only the hash is wrong. The erratum states this in its own
+  section 4 so a reader cannot take a corrected citation for a corrected finding.
+
+4.6  THE ERRATUM IS A NEW CONVENTION ON THIS TREE
+
+  $ git ls-files | grep -i erratum
+  (no output)
+
+  No `*-ERRATUM*` file is tracked anywhere. The convention actually in use is a
+  note in the OWNING document -- `deferred-items.md` section "New residual
+  PRODUCED by this round (plan 32-41, Task 2)", the row-209 block, where this
+  same correction has lived since 2026-09-16. `32.1-CONTEXT.md` D-15 describes
+  the erratum-beside-the-original shape as though it were established practice;
+  `32.1-RESEARCH.md` section Contradictions row 9 measured that it is not and
+  graded it LOW with the instruction to record it as new. The erratum's own
+  section 5 does that, and says why: a document about a misattributed citation
+  that borrows authority it does not have is a poor start.
+
+4.7  EVERY EVIDENCE PATH IN THE LEDGER RESOLVES
+
+  The thirteen file paths named in `32.1-LEDGER.md`'s evidence CELLS were each
+  checked against disk after the erratum landed:
+
+    FOUND: 32-40-ADVERSARIAL-REVIEW-ERRATUM.md   (this plan's task 2)
+    FOUND: 32.1-03-GREEN-proof.txt               FOUND: 32.1-07-GREEN-proof.txt
+    FOUND: 32.1-04-RED-baseline.txt              FOUND: 32.1-07-RED-baseline.txt
+    FOUND: 32.1-05-GREEN-proof.txt               FOUND: 32.1-08-GREEN-proof.txt
+    FOUND: 32.1-05-RED-baseline.txt              FOUND: 32.1-08-RED-baseline.txt
+    FOUND: 32.1-06-GREEN-proof.txt               FOUND: 32.1-09-RED-baseline.txt
+    FOUND: 32.1-06-RED-baseline.txt              FOUND: 32.1-10-LIVE-TRANSCRIPT.txt
+
+    MISSING: 0
+
+  Recorded honestly: at task 1's acceptance gate this check reported ONE pending
+  path -- the erratum, which task 2 of this same plan had not yet written. It
+  was the only forward reference in the file, it was labelled as such in row
+  209's own evidence cell, and it resolves now.

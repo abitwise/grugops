@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 197
-waived_count: 0
-fixed_count: 13
-total_count: 210
-last_updated: 2026-09-16T20:28:42.842Z
+open_count: 193
+waived_count: 2
+fixed_count: 24
+total_count: 219
+last_updated: 2026-09-18T10:43:04.443Z
 ---
 
 # Broken Windows Ledger
@@ -190,7 +190,7 @@ last_updated: 2026-09-16T20:28:42.842Z
 | 173 | 32 | stub | scripts/board-dashboard.ts |  | The watch flag is accepted, reported on stderr and not honoured; the watch loop, the debounce and the poll land in plan 32-03 (plan-declared functionality gap) | open |  | 2026-09-14T08:16:38.060Z |  |
 | 174 | 32 | deviation | scripts/board-read.ts |  | STALE_REASONS is five, not the plan-stated four: unreadable (a partial parse) shipped in 32-01 and dropping it would regress the malformed-dial path | open |  | 2026-09-14T09:54:08.226Z |  |
 | 175 | 32 | deviation | agent-factory/contracts/board.md |  | The contract's identifier rule requires a ticket prefix equal to factory.config.json#id_prefix, but scripts/board-model.ts is pure and reads no config, so it enforces only the identifier SHAPE. Recorded as scripts/board-corpus.ts row ctl-id-disagreeing-prefix; the prefix comparison belongs to the join layer that holds the dial. | open |  | 2026-09-14T10:54:07.185Z |  |
-| 176 | 32 | lint-warning | docs/audit/29-style-dispositions/00-base.md |  | check:diff-disposition exits 1 on five Phase-31 workflow documents; pre-existing, verified identical at 6d59ed1e | open |  | 2026-09-14T13:45:35.380Z |  |
+| 176 | 32 | lint-warning | docs/audit/29-style-dispositions/00-base.md |  | check:diff-disposition exits 1 on five Phase-31 workflow documents; pre-existing, verified identical at 6d59ed1e | fixed |  | 2026-09-14T13:45:35.380Z | 2026-09-18T10:41:54.975Z |
 | 177 | 32 | lint-warning | .planning/phases/32-board-projector-cli-dashboard/32-REVIEW.md | 404 | check:nul-bytes RED — literal ESC (0x1b) in the review document; pre-existing from commit 730ff88f, deferred by plan 32-09 as out of scope | open |  | 2026-09-14T20:33:15.766Z |  |
 | 178 | 32 | deviation | scripts/board-read.ts |  | Hard-link residual (plan 32-10, CR-04): a hard link inside the repository to an inode whose other name is outside it is READ, because its path resolves inside the root. No path-based rule can refuse it; nlink>1 was declined as a heuristic. Measured, pinned by a mechanism test, and recorded in insideRoot's docblock, the board contract and 32-10-GREEN-proof.txt. | open |  | 2026-09-14T21:20:37.534Z |  |
 | 179 | 32 | deviation | scripts/board-readonly.test.ts |  | Open residual (named, not closed): a module identity ASSEMBLED at runtime and handed to a non-module-system call - process.getBuiltinModule("node:" + "fs") - is not a string literal, so the 32-11 argument arm does not see it. import(expr)/require(expr) with a non-literal ARE refused. | fixed |  | 2026-09-14T23:14:26.242Z | 2026-09-15T13:42:41.144Z |
@@ -198,7 +198,7 @@ last_updated: 2026-09-16T20:28:42.842Z
 | 181 | 32 | unrun-verify | scripts/check-foundation-guards.test.ts | 12009 | F-01 (32-14): the 'every check:* npm script names a gate that CI runs' derivation skips check:dashboard-readonly (its command is not 'node scripts/*.js'), so the DASH-06 gate's CI reachability is unproven by that gate | fixed |  | 2026-09-14T23:59:53.350Z | 2026-09-15T13:42:49.809Z |
 | 182 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | the check:nul-bytes deferred entry still reads status: open but the gate is GREEN (fixed by user commit 888a1302); the entry is stale | fixed |  | 2026-09-14T23:59:53.431Z | 2026-09-15T13:42:49.892Z |
 | 183 | 32 | unrun-verify | scripts/e2e |  | The live claude-CLI e2e lane was not run for plan 32-17 (spends tokens on an authenticated box and can hang); its state is UNKNOWN - verify | open |  | 2026-09-15T09:36:31.879Z |  |
-| 184 | 32 | deviation | scripts/validate.test.ts |  | 32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today. | open |  | 2026-09-15T12:22:42.261Z |  |
+| 184 | 32 | deviation | scripts/validate.test.ts |  | 32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today. | waived | A ticket-frontmatter key spelling assembled at run time -- by String.fromCharCode, through a template with substitutions, or read from a variable -- is covered by neither of this repository's two authorities, and for structural reasons rather than for want of another arm: the static census reads expressions and the spelling is a value that does not exist until the program runs, while the runtime loader oracle observes module resolution and not string construction, so a key assembled inside an already-resolved module produces no event for it to record. Plan 32-36 closed the static half by resolving a key joined from literal characters; the remainder is measured at zero carriers on this tree and pinned by the census's own passing case at scripts/validate.test.ts:3088, which plants a String.fromCharCode shape and asserts the census reports nothing. | 2026-09-15T12:22:42.261Z | 2026-09-18T10:42:19.179Z |
 | 185 | 32 | deviation | scripts/board-watch-live.test.ts |  | 32-22 measured boundary: a watch failure the NEXT poll tick repairs reaches no emitted document, because armAll() precedes refresh() inside one tick and a successful re-arm deletes the record (WR-06). Pinned by an assertion and by mutation M4; updates themselves never stop (997-1003 ms with every watch dead). | open |  | 2026-09-15T13:06:09.658Z |  |
 | 186 | 32 | unrun-verify | scripts/board-watch-live.test.ts |  | 32-22: Windows fs.watch timing stays UNKNOWN - verify (Phase 33 / CAP-02). CI runs this file on windows-latest and three of its five cases depend on the platform delivering directory events; a red there is the CAP-02 measurement arriving early and must not be answered with a platform conditional. | open |  | 2026-09-15T13:06:17.466Z |  |
 | 187 | 32 | unmet-truth | scripts/board-readonly.test.ts |  | F-04 (32-23): npm run check:dashboard-readonly exits 0, 89/89, over a closure module importing a writer through an ABSOLUTE-path specifier. isBareSpecifier excludes a leading slash so the allow-list never sees it, and js-import-closure follows only dot-relative specifiers so the module is never analysed. Measured with a real write, and the .ts typechecks and tsc emits the specifier verbatim, so a committed pair passes check:build-parity by construction. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | fixed |  | 2026-09-15T13:43:12.868Z | 2026-09-16T13:43:56.720Z |
@@ -208,23 +208,32 @@ last_updated: 2026-09-16T20:28:42.842Z
 | 191 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-07 (32-23): classifyCheckScript uses .exec, so a check:* command running two gate modules is classified by the FIRST and the second gets no reachability proof; CHECK_SCRIPT_CLASSES pins scripts per class, never targets per script. No live instance - all 11 check:* scripts carry at most one gate module, derived at measurement time. Reproduction in 32-23-ADVERSARIAL-REVIEW.md section 5. | fixed |  | 2026-09-15T13:43:13.193Z | 2026-09-16T13:43:57.075Z |
 | 192 | 32 | deviation | scripts/js-import-closure.ts |  | The closure WALKER does not read a require("…") specifier (SPECIFIER_PATTERNS covers the three emitted import forms only); the read-only GUARD's AST census does refuse one. Measured in 32-31-GREEN-proof.txt § 4 P5. | open |  | 2026-09-16T07:22:43.296Z |  |
 | 193 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/deferred-items.md |  | 32-35 (WR-07): the CI-topology half is NOT taken — the three platform-dependent live cases stay in the shared 'Vitest (e2e lane excluded)' step of the test (matrix.os) job, so a Windows red there takes that step with it. Only the timing half was taken (EVENT_DEADLINE_MS derived from POLL_MS minus a named margin, 600 -> 750 ms). Owner: Phase 33 / CAP-02, per WINDOWS.md row 186. | open |  | 2026-09-16T11:24:09.394Z |  |
-| 194 | 32 | deviation | scripts/check-diff-disposition.ts |  | 32-36: the one-authority ticket-frontmatter census's key half now decides by PRESENCE, which names this PRODUCTION module (its own disposition-register 'status' key and a 'safety_surface' column in an operator message) and required a file-scoped exemption. A genuine second ticket reader added to this one file later would be exempted with it. | open |  | 2026-09-16T12:43:50.219Z |  |
+| 194 | 32 | deviation | scripts/check-diff-disposition.ts |  | 32-36: the one-authority ticket-frontmatter census's key half now decides by PRESENCE, which names this PRODUCTION module (its own disposition-register 'status' key and a 'safety_surface' column in an operator message) and required a file-scoped exemption. A genuine second ticket reader added to this one file later would be exempted with it. | fixed |  | 2026-09-16T12:43:50.219Z | 2026-09-18T10:41:55.060Z |
 | 195 | 32 | deviation | scripts/board-dashboard.ts |  | F-09 (32-37): sanitizeCell strips U+0009 from a refusal message BEFORE serialization, so the unrecognized-line diagnostic quotes a line reading as a valid `key: value` while asserting beside it that it is neither. The model's own message carries the TAB (measured U+0009); both channels remove it. Created on the --json channel by 32-35's scrub-before-serialize ordering; inherited on stderr from 32-18's warn() chokepoint. | open |  | 2026-09-16T13:44:15.209Z |  |
 | 196 | 32 | deviation | scripts/validate.test.ts |  | F-10 (32-37): the one-authority ticket-frontmatter census requires its key half and its primitive half to meet inside ONE parsed file, so a reader whose keys are exported from file A and scanned in file B is invisible. Measured: two real files under scripts/, census reports 1 and exits 0, and the planted reader returns {status: ready, column: In Development} from ABC-103.md. 32-36's boundary case pins the scope only in the over-detection direction. | open |  | 2026-09-16T13:44:15.297Z |  |
 | 197 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-11 (32-37): GATE_TARGET_RE/SUITE_TARGET_RE admit one spelling each, so a check:* command mixing one recognised target with one unrecognised spelling (leading ./, an intervening node flag, two spaces, or a composed npm run) yields a SHORT non-null row set that never reaches the null arm 32-36 added. F-07's defect one register over. No live instance: 11 scripts carry 11 targets, all recognised. | open |  | 2026-09-16T13:44:15.381Z |  |
 | 198 | 32 | deviation | scripts/board-model.ts |  | F-12 (32-37): presenceActual's admitted-under-another-id sentence asserts the file 'is joined under that identifier', which is false of a duplicate-id LOSER. board-read deliberately keeps the loser in the admitted record list to keep its partition total, so byStem finds it, but ticketById joined the winner. The snapshot then carries a duplicate-id readError saying the file is NOT joined beside a conflict saying it is. Created by 32-33. | open |  | 2026-09-16T13:44:15.463Z |  |
 | 199 | 32 | deviation | scripts/js-import-closure.ts |  | F-13 (32-37): SPECIFIER_PATTERNS is three regexes, so moduleSpecifiers is never ASKED at four positions a specifier enters: require(), createRequire(...)(...), import.meta.resolve(), and new Worker(new URL(...)). All four were planted and all four exit 1 through the guard's sibling AST census (allow-list for node:module, acquisitions PREMISE for the other three), so it is not a live DASH-06 bypass; the cost is a short closure module list. Widens row 192 by three positions. | open |  | 2026-09-16T13:44:15.545Z |  |
-| 200 | 32 | deviation | scripts/board-model.ts |  | F-14 (32-40, OPEN medium): a quoted ticket identifier's control byte is DELETED before the reader sees it, in an arm the WR-02 fix's site set does not reach. TICKET_CONTROL is /[\\x00-\\x08\\x0b-\\x1f\\x7f]/ and does not cover C1, so a ticket id carrying U+0085 is ADMITTED; RENDER_STRIPPED is /[\\u0000-\\u001F\\u007F-\\u009F]/g and deletes it. presenceActual (:1380,:1385) and ticket-unplaced (:1606) then state twice that the file declares an identifier it does not declare. Difference set measured at 34 code points, 32 of them the admissible C1 block. INHERITED (predates the fix pass); what is new is the fix's claim of site-set totality, derived over the binding name line/lines and never asked about content-derived identifiers. No byte leaves the tree; no write capability. Bears on DASH-03 and DASH-07. | open |  | 2026-09-16T20:23:41.999Z |  |
-| 201 | 32 | deviation | scripts/validate.test.ts |  | F-15 (32-40, OPEN medium, live working reader demonstrated): the split-reader refusal enumerates ONE import shape. splitReaderOffenders/readerHalves catch a RENAMED named import but not a namespace import and not a two-hop re-export; both were built as real working readers that returned {status:in-review,column:In Review} at census exit 0, 130/130. CREATED BY 7aea94f0 (this round). Zero live instances: the census verdict is exactly-one-authority and NOT_A_SECOND_AUTHORITY_COUNT is pinned at 9 and did not move. Detection robustness in the PROOF of DASH-01/DASH-02, not a live second authority. | open |  | 2026-09-16T20:23:42.089Z |  |
-| 202 | 32 | deviation | scripts/js-import-closure.ts | 296 | F-16 (32-40, OPEN low, no live instance): CR-01's fix blanks STRING literals and not REGULAR-EXPRESSION literals. scanSource's regex arm skips without blanking, so a tracked .js carrying /from "./evil.js"/ in a regex interior fabricates a relative specifier and jsImportClosure refuses on an edge nobody wrote — CR-01's exact shape, one literal kind over. The package-shaped variant fabricates a bare specifier that is silently skipped. INHERITED. Blast radius measured zero: the two-sided oracle over all 65 tracked .js/.mjs reports fabricated 0, missed 0. Failure direction is over-refusal. Bears on DASH-06. | open |  | 2026-09-16T20:23:42.173Z |  |
-| 203 | 32 | deviation | scripts/board-readonly.test.ts |  | F-17 (32-40, OPEN low, no live instance): a TEMPLATE-LITERAL dynamic import is invisible to the scanner AND to the oracle's supposedly independent authority. SPECIFIER_PATTERNS only ever accepted ["'], so await import(`./tpl.js`) is scanned as []; the two-sided parser oracle's parsed() helper asks ts.isStringLiteral(node.arguments[0]) — THE SAME QUESTION — so the instrument built to prove the scanner cannot detect this class of miss. Scanner half INHERITED; the ORACLE half CREATED BY d276f4e3 (this round). Zero live instances (0 non-StringLiteral dynamic-import arguments across 65 files) and the WRITE ROUTE IS STILL REFUSED: plant S8 exits 1 at 19 failed/156 passed with the acquisitions PREMISE case red. Bears on DASH-06. | open |  | 2026-09-16T20:23:58.558Z |  |
-| 204 | 32 | deviation | scripts/js-import-closure.ts |  | F-18 (32-40, OPEN informational): the WR-06 widening RELOCATES the refusal for the members it moved. classifySpecifier's bare arm now sends several spellings (a package-shaped name, a leading-whitespace absolute path) down a path where the acquisitions PREMISE case no longer fires, so a bare-specifier writer is refused by ONE predicate (the ALLOWED_BUILTIN_SPECIFIERS equality) where a foreign one is refused by TWO. CREATED BY 3e2f254a (this round) and measured NOT to weaken any recorded spelling: all 13 of round 3's baseline spellings unmoved, plants S7 and S9 both exit 1 at 11 failed/164 passed. Whether one predicate is enough for that class is a DECISION, surfaced to 32-41's checkpoint. Bears on DASH-06. | open |  | 2026-09-16T20:23:58.645Z |  |
-| 205 | 32 | deviation | scripts/check-foundation-guards.test.ts | 12693 | F-19 (32-40, OPEN informational, no live instance): the IN-03 one-authority rule enumerates reads by the register's identifier TEXT. The reads set matches only accesses whose expression.getText() equals "TOOLCHAIN_CHECK_SCRIPTS", so a second UNGUARDED read reached through an alias (const ALIASED_REGISTER = TOOLCHAIN_CHECK_SCRIPTS) is outside the set, and both the reads.length===1 pin and the every-read-is-guarded assertion pass over it (planted, 300/300, exit 0). CREATED BY c5fc977a (this round, plan 32-39). Zero live instances: no alias exists and every lookup name is a check:-prefixed script name. Bears on DASH-02 proof robustness. | open |  | 2026-09-16T20:23:58.732Z |  |
-| 206 | 32 | deviation | scripts/board-dashboard.ts | 1184 | F-20 (32-40, OPEN informational): one consumer of the containment decision still uses the UNRESOLVED spelling. 70cbd447 moved the watch HANDLE to decision.real (:1189) but the liveness gate at :1184 is still if (!deps.exists(dir)). INHERITED — the gate was not part of the finding and was not moved. Blast radius bounded and measured: existsSync follows symlinks so it answers the same as decision.real except across a swap landing between the two calls; the handle is decision.real; and the watch callback ignores the filename argument entirely, so no content crosses the seam. Bears on DASH-04 and DASH-05. | open |  | 2026-09-16T20:24:14.464Z |  |
-| 207 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-21 (32-40, OPEN informational, no live instance): the WR-05 step counter's separator alphabet excludes five ordinary shell shapes. NODE_STEP_RE/VITEST_STEP_RE are correct for &&, ; and \|\| but undercount a single pipe, a newline, a leading parenthesis, a wrapper command, a background separator and a command substitution, and overcount a quoted 'vitest run' inside a message. CREATED BY c5163183 (this round). Zero live instances, measured per entry over all 11 check:* scripts: no single pipe, no single &, no newline, no wrapper. The one live exclusion (check:build-parity's inline node -e) is excluded by decision and stated in the docblock. Bears on DASH-02 proof robustness. | open |  | 2026-09-16T20:24:14.557Z |  |
-| 208 | 32 | unrun-verify | scripts/board-readonly.test.ts |  | 32-41 carried UNKNOWN - verify (from 32-REVIEW-FIX.md): whether a write capability can reach the dashboard closure through import.meta.resolve, through a WRITER VALUE RECEIVED AT RUNTIME, or through a future node_modules dependency. The import.meta.resolve position is separately recorded as row 199 (F-13) and was measured refused by the sibling AST census; the runtime-value and future-dependency halves are OUTSIDE WHAT A SYNTACTIC PASS CAN DECIDE and are unchanged by this round. Owner: unassigned — closing it needs a different instrument (a runtime capability probe), not another resolution arm. Bears on DASH-06. | open |  | 2026-09-16T20:24:14.647Z |  |
-| 209 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/32-40-ADVERSARIAL-REVIEW.md |  | 32-41 NEW RESIDUAL: the round-4 review attributes the WR-04 fix to commit 7aea94f0 at five places (sections 5, 12/F-15, 13 ratio table, 16 rows 2 and 12). 7aea94f0 is a DOCS commit touching only .planning/ROADMAP.md, .planning/STATE.md and 32-38-SUMMARY.md; it cannot have created splitReaderOffenders. The commit that did is 7a3ae592 (fix(32): WR-04 refuse the split-across-files ticket reader), measured with git log -S splitReaderOffenders. The review's sixth use of 7aea94f0, as the END of the range d5486262..7aea94f0 for plan 32-38, is CORRECT and is not part of this row. THE VERDICT DOES NOT MOVE: 7a3ae592 is a fix-pass commit in the same window, so F-15 stays created-by-a-fix-pass-change and the created-versus-inherited ratio stays 5 of 8. Only the hash is wrong. Recorded rather than corrected in place, because 32-41 does not edit another round's evidence document. | open |  | 2026-09-16T20:26:20.870Z |  |
+| 200 | 32 | deviation | scripts/board-model.ts |  | F-14 (32-40, OPEN medium): a quoted ticket identifier's control byte is DELETED before the reader sees it, in an arm the WR-02 fix's site set does not reach. TICKET_CONTROL is /[\\x00-\\x08\\x0b-\\x1f\\x7f]/ and does not cover C1, so a ticket id carrying U+0085 is ADMITTED; RENDER_STRIPPED is /[\\u0000-\\u001F\\u007F-\\u009F]/g and deletes it. presenceActual (:1380,:1385) and ticket-unplaced (:1606) then state twice that the file declares an identifier it does not declare. Difference set measured at 34 code points, 32 of them the admissible C1 block. INHERITED (predates the fix pass); what is new is the fix's claim of site-set totality, derived over the binding name line/lines and never asked about content-derived identifiers. No byte leaves the tree; no write capability. Bears on DASH-03 and DASH-07. | fixed |  | 2026-09-16T20:23:41.999Z | 2026-09-18T10:41:55.145Z |
+| 201 | 32 | deviation | scripts/validate.test.ts |  | F-15 (32-40, OPEN medium, live working reader demonstrated): the split-reader refusal enumerates ONE import shape. splitReaderOffenders/readerHalves catch a RENAMED named import but not a namespace import and not a two-hop re-export; both were built as real working readers that returned {status:in-review,column:In Review} at census exit 0, 130/130. CREATED BY 7aea94f0 (this round). Zero live instances: the census verdict is exactly-one-authority and NOT_A_SECOND_AUTHORITY_COUNT is pinned at 9 and did not move. Detection robustness in the PROOF of DASH-01/DASH-02, not a live second authority. | fixed |  | 2026-09-16T20:23:42.089Z | 2026-09-18T10:41:55.230Z |
+| 202 | 32 | deviation | scripts/js-import-closure.ts | 296 | F-16 (32-40, OPEN low, no live instance): CR-01's fix blanks STRING literals and not REGULAR-EXPRESSION literals. scanSource's regex arm skips without blanking, so a tracked .js carrying /from "./evil.js"/ in a regex interior fabricates a relative specifier and jsImportClosure refuses on an edge nobody wrote — CR-01's exact shape, one literal kind over. The package-shaped variant fabricates a bare specifier that is silently skipped. INHERITED. Blast radius measured zero: the two-sided oracle over all 65 tracked .js/.mjs reports fabricated 0, missed 0. Failure direction is over-refusal. Bears on DASH-06. | fixed |  | 2026-09-16T20:23:42.173Z | 2026-09-18T10:41:55.315Z |
+| 203 | 32 | deviation | scripts/board-readonly.test.ts |  | F-17 (32-40, OPEN low, no live instance): a TEMPLATE-LITERAL dynamic import is invisible to the scanner AND to the oracle's supposedly independent authority. SPECIFIER_PATTERNS only ever accepted ["'], so await import(`./tpl.js`) is scanned as []; the two-sided parser oracle's parsed() helper asks ts.isStringLiteral(node.arguments[0]) — THE SAME QUESTION — so the instrument built to prove the scanner cannot detect this class of miss. Scanner half INHERITED; the ORACLE half CREATED BY d276f4e3 (this round). Zero live instances (0 non-StringLiteral dynamic-import arguments across 65 files) and the WRITE ROUTE IS STILL REFUSED: plant S8 exits 1 at 19 failed/156 passed with the acquisitions PREMISE case red. Bears on DASH-06. | fixed |  | 2026-09-16T20:23:58.558Z | 2026-09-18T10:41:55.399Z |
+| 204 | 32 | deviation | scripts/js-import-closure.ts |  | F-18 (32-40, OPEN informational): the WR-06 widening RELOCATES the refusal for the members it moved. classifySpecifier's bare arm now sends several spellings (a package-shaped name, a leading-whitespace absolute path) down a path where the acquisitions PREMISE case no longer fires, so a bare-specifier writer is refused by ONE predicate (the ALLOWED_BUILTIN_SPECIFIERS equality) where a foreign one is refused by TWO. CREATED BY 3e2f254a (this round) and measured NOT to weaken any recorded spelling: all 13 of round 3's baseline spellings unmoved, plants S7 and S9 both exit 1 at 11 failed/164 passed. Whether one predicate is enough for that class is a DECISION, surfaced to 32-41's checkpoint. Bears on DASH-06. | fixed |  | 2026-09-16T20:23:58.645Z | 2026-09-18T10:41:55.485Z |
+| 205 | 32 | deviation | scripts/check-foundation-guards.test.ts | 12693 | F-19 (32-40, OPEN informational, no live instance): the IN-03 one-authority rule enumerates reads by the register's identifier TEXT. The reads set matches only accesses whose expression.getText() equals "TOOLCHAIN_CHECK_SCRIPTS", so a second UNGUARDED read reached through an alias (const ALIASED_REGISTER = TOOLCHAIN_CHECK_SCRIPTS) is outside the set, and both the reads.length===1 pin and the every-read-is-guarded assertion pass over it (planted, 300/300, exit 0). CREATED BY c5fc977a (this round, plan 32-39). Zero live instances: no alias exists and every lookup name is a check:-prefixed script name. Bears on DASH-02 proof robustness. | fixed |  | 2026-09-16T20:23:58.732Z | 2026-09-18T10:41:55.570Z |
+| 206 | 32 | deviation | scripts/board-dashboard.ts | 1184 | F-20 (32-40, OPEN informational): one consumer of the containment decision still uses the UNRESOLVED spelling. 70cbd447 moved the watch HANDLE to decision.real (:1189) but the liveness gate at :1184 is still if (!deps.exists(dir)). INHERITED — the gate was not part of the finding and was not moved. Blast radius bounded and measured: existsSync follows symlinks so it answers the same as decision.real except across a swap landing between the two calls; the handle is decision.real; and the watch callback ignores the filename argument entirely, so no content crosses the seam. Bears on DASH-04 and DASH-05. | fixed |  | 2026-09-16T20:24:14.464Z | 2026-09-18T10:41:55.656Z |
+| 207 | 32 | deviation | scripts/check-foundation-guards.test.ts |  | F-21 (32-40, OPEN informational, no live instance): the WR-05 step counter's separator alphabet excludes five ordinary shell shapes. NODE_STEP_RE/VITEST_STEP_RE are correct for &&, ; and \|\| but undercount a single pipe, a newline, a leading parenthesis, a wrapper command, a background separator and a command substitution, and overcount a quoted 'vitest run' inside a message. CREATED BY c5163183 (this round). Zero live instances, measured per entry over all 11 check:* scripts: no single pipe, no single &, no newline, no wrapper. The one live exclusion (check:build-parity's inline node -e) is excluded by decision and stated in the docblock. Bears on DASH-02 proof robustness. | fixed |  | 2026-09-16T20:24:14.557Z | 2026-09-18T10:41:55.745Z |
+| 208 | 32 | unrun-verify | scripts/board-readonly.test.ts |  | 32-41 carried UNKNOWN - verify (from 32-REVIEW-FIX.md): whether a write capability can reach the dashboard closure through import.meta.resolve, through a WRITER VALUE RECEIVED AT RUNTIME, or through a future node_modules dependency. The import.meta.resolve position is separately recorded as row 199 (F-13) and was measured refused by the sibling AST census; the runtime-value and future-dependency halves are OUTSIDE WHAT A SYNTACTIC PASS CAN DECIDE and are unchanged by this round. Owner: unassigned — closing it needs a different instrument (a runtime capability probe), not another resolution arm. Bears on DASH-06. | waived | A writer VALUE received at run time and a dependency that does not exist yet are both outside what any instrument on this corpus can observe: a value passed between two already-resolved modules produces no resolve event, so Node's loader oracle has nothing to record, and a specifier a future commit introduces cannot be enumerated by a probe of what this tree loads today. The runtime oracle landed in plan 32.1-01 closed the half that IS observable -- it recorded 14 resolve events over the dashboard closure and its module set and builtin identity set are equal, element for element, to the static closure's, with the working tree byte-identical before and after the load -- and what remains is covered instead by the static acquisitions census, whose second write-detection predicate plan 32.1-08 restored, and by the standing failing case that reds the moment package.json gains a dependencies key. | 2026-09-16T20:24:14.647Z | 2026-09-18T10:42:19.268Z |
+| 209 | 32 | deviation | .planning/phases/32-board-projector-cli-dashboard/32-40-ADVERSARIAL-REVIEW.md |  | 32-41 NEW RESIDUAL: the round-4 review attributes the WR-04 fix to commit 7aea94f0 at five places (sections 5, 12/F-15, 13 ratio table, 16 rows 2 and 12). 7aea94f0 is a DOCS commit touching only .planning/ROADMAP.md, .planning/STATE.md and 32-38-SUMMARY.md; it cannot have created splitReaderOffenders. The commit that did is 7a3ae592 (fix(32): WR-04 refuse the split-across-files ticket reader), measured with git log -S splitReaderOffenders. The review's sixth use of 7aea94f0, as the END of the range d5486262..7aea94f0 for plan 32-38, is CORRECT and is not part of this row. THE VERDICT DOES NOT MOVE: 7a3ae592 is a fix-pass commit in the same window, so F-15 stays created-by-a-fix-pass-change and the created-versus-inherited ratio stays 5 of 8. Only the hash is wrong. Recorded rather than corrected in place, because 32-41 does not edit another round's evidence document. | fixed |  | 2026-09-16T20:26:20.870Z | 2026-09-18T10:41:55.832Z |
 | 210 | 32 | deviation | scripts/board-tracer.test.ts |  | 32-38 (recorded as a ledger row by 32-41): scripts/board-tracer.test.ts became the NINTH entry in scripts/validate.test.ts's NOT_A_SECOND_AUTHORITY registry (count 8 -> 9). Plan 32-38's duplicate-identifier fixture supplied the 'status' key spelling that tipped a file already naming 'column' in a WIP-count test description and already scanning text into the census's namesBothKeys && scans conjunction. Re-measured 2026-09-16 at b6f6bd45: NOT_A_SECOND_AUTHORITY_COUNT = 9 at validate.test.ts:1893, two-sided pinned at :2252, unmoved. THE RISK: a genuine second ticket-frontmatter reader placed inside this file would be invisible to the census, exactly as one placed in any other exempt file would be. Carried in deferred-items.md since 32-38 and given a ledger row here so it is OPEN rather than ABSENT from the register. Bears on DASH-01, DASH-02. | open |  | 2026-09-16T20:28:42.842Z |  |
+| 211 | 32.1 | unmet-truth | scripts/e2e/uat-live.test.ts |  | Live lane A1 (D-31, plugin-cache pointer resolution) FAILED on the one authorized run of 2026-09-18 after 606161 ms with an EMPTY capture: neither /grugops:plan nor --plugin-dir ./ produced planning markers without a cache path error. 606 s across two calls whose per-call budget is 300 s is consistent with both exhausting that budget and returning nothing. Cause undiagnosed by that run - kit, suite expectation, CLI version 2.1.275 or host configuration are all open. Evidence: 32.1-10-LIVE-TRANSCRIPT.txt. Owner for WINDOWS.md row 183 (re-homed-with-named-owner, 32.1-LEDGER.md section 3.1). The human go covered ONE run and explicitly not a re-run. | open |  | 2026-09-18T10:42:44.036Z |  |
+| 212 | 32.1 | unmet-truth | scripts/e2e/uat-live.test.ts |  | SAFETY CASE. Live lane A2-live (SAFE-02 / V14, the prod-deploy deny) FAILED on the one authorized run of 2026-09-18 after 11663 ms: the call COMPLETED (stop_reason end_turn, total_cost_usd 0.398524) and the guard's structured prod-deploy deny envelope never appeared. This is the mechanical enforcement CLAUDE.md requires of the never-deploy-to-production-without-named-human-confirmation rule, and a live run did not observe it. Cause undiagnosed by that run. Evidence: 32.1-10-LIVE-TRANSCRIPT.txt. Owner for WINDOWS.md row 183 (32.1-LEDGER.md section 3.1). | open |  | 2026-09-18T10:42:44.128Z |  |
+| 213 | 32.1 | unmet-truth | scripts/e2e/uat-live.test.ts |  | Live lane A3-live (DOG-02, D-05 dual-path convergence) FAILED on the one authorized run of 2026-09-18 after 370297 ms: the frozen gate verdict READY_FOR_HUMAN_REVIEW must converge on BOTH dispatch paths and both paths completed (costs 2.15167525 and 1.78309750) with neither producing the verdict (seq=false, sub=false). A3-live-N and both loud-skip tests-of-the-test passed, so the lane was not skipped. Cause undiagnosed by that run. Evidence: 32.1-10-LIVE-TRANSCRIPT.txt. Owner for WINDOWS.md row 183 (32.1-LEDGER.md section 3.1). | open |  | 2026-09-18T10:42:44.214Z |  |
+| 214 | 32.1 | deviation | scripts/e2e/uat-live.test.ts |  | Stale claim in a safety-relevant docblock: the file states the live lane is kept OUT of the default npm test green path via the test:e2e script. False on this tree - npm test is bare vitest run, vitest.config.ts excludes only scripts/runnable-ref/fixtures and .temp, and the 2026-09-18 run proves collection happened. Anyone trusting the docblock would spend tokens on an authenticated box believing they were running the regression lane. Found by plan 32.1-10 by reading it; not patched there (that plan modified no source) and not patched by 32.1-11 (whose task list owns no source file). | open |  | 2026-09-18T10:42:44.299Z |  |
+| 215 | 32.1 | deviation | scripts/board-model.test.ts | 2358 | R-32.1-01-A (review IN-05, carried by plan 32.1-01): the presence-spelling walk at presenceSpellingSites / SPELLING_WALK_SKIP / SPELLING_WALK_EXTENSIONS (:2358-2390) walks the whole repository root over seven extensions including .md, .json and .txt, so UNTRACKED paths such as .gsd/ and human-notes.txt are inside its scope and a local note can red the suite. CONTEXT.md D-03 claimed the plan-01 tracked-set floor closes this; RESEARCH section Contradictions row 3 measured that IN-05 names a DIFFERENT walk and the floor does not reach it. Remedy IN-05 itself proposes: derive that walk's corpus from git ls-files. Recorded in the case docblock in scripts/board-readonly.test.ts. Outside 32.1-LEDGER.md's nineteen items (an IN- item is not one of D-22's three sources); given a row here so it is OPEN rather than ABSENT - see 32.1-LEDGER.md section 3.3. | open |  | 2026-09-18T10:43:04.099Z |  |
+| 216 | 32.1 | deviation | scripts/check-foundation-guards.test.ts |  | R-32.1-01-B (plan 32.1-01): the (r-class-authority) guard classifies a *.test-support.ts file as SHIPPED, because its non-test predicate is !endsWith('.test.ts'). A future *.test-support.ts module that legitimately consumes the CI-workflow testkit cannot be expressed today: it would be reported as a shipped consumer and would also break the case's consumers === members equality. Closing it means either teaching that guard a canonical definition of test file or renaming the *.test-support.ts family - both decisions, not edits. Recorded in scripts/ts-symbols.test-support.ts's header, where the prose gave way rather than the guard's classification being widened. | open |  | 2026-09-18T10:43:04.189Z |  |
+| 217 | 32.1 | deviation | scripts/board-readonly.test.ts |  | R-32.1-01-C (plan 32.1-01): the walker-importer derivation is still a TEXT match, not a checker resolution. The set is git-derived and recursive and the matcher accepts any relative depth, but a comment quoting the specifier would still count as an importer. The symbol-resolving instrument landed in plan 32.1-01 is what could decide it by declaration; cutting this particular case over was not in that plan's scope and no later plan in 32.1 took it. | open |  | 2026-09-18T10:43:04.274Z |  |
+| 218 | 32.1 | deviation | scripts/board-model.ts |  | Plan 32.1-07 residual 1: the conflicts[].ticketId FIELD still publishes the byte DELETED. It reads ABC-902X while the sentence beside it reads ABC-902<U+0085>X. Deliberate - that field is a join key scrubbed on the way out by scrub()/sanitizeCell, not a sentence a human reads, and escaping it would make a consumer's join disagree with the model. It belongs to the data channel (D-18), not to the D-07 sentence builder. Recorded in 32.1-07-RED-baseline.txt section 1 and named rather than closed silently. | open |  | 2026-09-18T10:43:04.357Z |  |
+| 219 | 32.1 | deviation | scripts/board-model.test.ts |  | Plan 32.1-07 residual 2: the published-sentence census keys a declaration as <file>#<declared name>, so two declarations sharing a name in ONE file share a class. No such pair disagrees on this tree today, and a NEW name reds the two-sided pin - the hole is name REUSE, not name arrival. Named in the census's own docblock. | open |  | 2026-09-18T10:43:04.443Z |  |
 
 ````json
 [
@@ -2335,10 +2344,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "docs/audit/29-style-dispositions/00-base.md",
     "line": null,
     "description": "check:diff-disposition exits 1 on five Phase-31 workflow documents; pre-existing, verified identical at 6d59ed1e",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-14T13:45:35.380Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-18T10:41:54.975Z"
   },
   {
     "id": 177,
@@ -2438,10 +2447,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/validate.test.ts",
     "line": null,
     "description": "32-21 stated blind spot: the ticket-frontmatter census cannot resolve a key spelling assembled at RUNTIME (String.fromCharCode, a template with substitutions, a name read from a variable). Measured at zero and pinned by a case; no such shape exists in scripts/ today.",
-    "status": "open",
-    "reason": "",
+    "status": "waived",
+    "reason": "A ticket-frontmatter key spelling assembled at run time -- by String.fromCharCode, through a template with substitutions, or read from a variable -- is covered by neither of this repository's two authorities, and for structural reasons rather than for want of another arm: the static census reads expressions and the spelling is a value that does not exist until the program runs, while the runtime loader oracle observes module resolution and not string construction, so a key assembled inside an already-resolved module produces no event for it to record. Plan 32-36 closed the static half by resolving a key joined from literal characters; the remainder is measured at zero carriers on this tree and pinned by the census's own passing case at scripts/validate.test.ts:3088, which plants a String.fromCharCode shape and asserts the census reports nothing.",
     "recorded_at": "2026-09-15T12:22:42.261Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:42:19.179Z",
     "milestone": "v2.1"
   },
   {
@@ -2568,10 +2577,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/check-diff-disposition.ts",
     "line": null,
     "description": "32-36: the one-authority ticket-frontmatter census's key half now decides by PRESENCE, which names this PRODUCTION module (its own disposition-register 'status' key and a 'safety_surface' column in an operator message) and required a file-scoped exemption. A genuine second ticket reader added to this one file later would be exempted with it.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T12:43:50.219Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.060Z",
     "milestone": "v2.1"
   },
   {
@@ -2646,10 +2655,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/board-model.ts",
     "line": null,
     "description": "F-14 (32-40, OPEN medium): a quoted ticket identifier's control byte is DELETED before the reader sees it, in an arm the WR-02 fix's site set does not reach. TICKET_CONTROL is /[\\x00-\\x08\\x0b-\\x1f\\x7f]/ and does not cover C1, so a ticket id carrying U+0085 is ADMITTED; RENDER_STRIPPED is /[\\u0000-\\u001F\\u007F-\\u009F]/g and deletes it. presenceActual (:1380,:1385) and ticket-unplaced (:1606) then state twice that the file declares an identifier it does not declare. Difference set measured at 34 code points, 32 of them the admissible C1 block. INHERITED (predates the fix pass); what is new is the fix's claim of site-set totality, derived over the binding name line/lines and never asked about content-derived identifiers. No byte leaves the tree; no write capability. Bears on DASH-03 and DASH-07.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:23:41.999Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.145Z",
     "milestone": "v2.1"
   },
   {
@@ -2659,10 +2668,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/validate.test.ts",
     "line": null,
     "description": "F-15 (32-40, OPEN medium, live working reader demonstrated): the split-reader refusal enumerates ONE import shape. splitReaderOffenders/readerHalves catch a RENAMED named import but not a namespace import and not a two-hop re-export; both were built as real working readers that returned {status:in-review,column:In Review} at census exit 0, 130/130. CREATED BY 7aea94f0 (this round). Zero live instances: the census verdict is exactly-one-authority and NOT_A_SECOND_AUTHORITY_COUNT is pinned at 9 and did not move. Detection robustness in the PROOF of DASH-01/DASH-02, not a live second authority.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:23:42.089Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.230Z",
     "milestone": "v2.1"
   },
   {
@@ -2672,10 +2681,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/js-import-closure.ts",
     "line": 296,
     "description": "F-16 (32-40, OPEN low, no live instance): CR-01's fix blanks STRING literals and not REGULAR-EXPRESSION literals. scanSource's regex arm skips without blanking, so a tracked .js carrying /from \"./evil.js\"/ in a regex interior fabricates a relative specifier and jsImportClosure refuses on an edge nobody wrote — CR-01's exact shape, one literal kind over. The package-shaped variant fabricates a bare specifier that is silently skipped. INHERITED. Blast radius measured zero: the two-sided oracle over all 65 tracked .js/.mjs reports fabricated 0, missed 0. Failure direction is over-refusal. Bears on DASH-06.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:23:42.173Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.315Z",
     "milestone": "v2.1"
   },
   {
@@ -2685,10 +2694,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/board-readonly.test.ts",
     "line": null,
     "description": "F-17 (32-40, OPEN low, no live instance): a TEMPLATE-LITERAL dynamic import is invisible to the scanner AND to the oracle's supposedly independent authority. SPECIFIER_PATTERNS only ever accepted [\"'], so await import(`./tpl.js`) is scanned as []; the two-sided parser oracle's parsed() helper asks ts.isStringLiteral(node.arguments[0]) — THE SAME QUESTION — so the instrument built to prove the scanner cannot detect this class of miss. Scanner half INHERITED; the ORACLE half CREATED BY d276f4e3 (this round). Zero live instances (0 non-StringLiteral dynamic-import arguments across 65 files) and the WRITE ROUTE IS STILL REFUSED: plant S8 exits 1 at 19 failed/156 passed with the acquisitions PREMISE case red. Bears on DASH-06.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:23:58.558Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.399Z",
     "milestone": "v2.1"
   },
   {
@@ -2698,10 +2707,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/js-import-closure.ts",
     "line": null,
     "description": "F-18 (32-40, OPEN informational): the WR-06 widening RELOCATES the refusal for the members it moved. classifySpecifier's bare arm now sends several spellings (a package-shaped name, a leading-whitespace absolute path) down a path where the acquisitions PREMISE case no longer fires, so a bare-specifier writer is refused by ONE predicate (the ALLOWED_BUILTIN_SPECIFIERS equality) where a foreign one is refused by TWO. CREATED BY 3e2f254a (this round) and measured NOT to weaken any recorded spelling: all 13 of round 3's baseline spellings unmoved, plants S7 and S9 both exit 1 at 11 failed/164 passed. Whether one predicate is enough for that class is a DECISION, surfaced to 32-41's checkpoint. Bears on DASH-06.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:23:58.645Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.485Z",
     "milestone": "v2.1"
   },
   {
@@ -2711,10 +2720,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/check-foundation-guards.test.ts",
     "line": 12693,
     "description": "F-19 (32-40, OPEN informational, no live instance): the IN-03 one-authority rule enumerates reads by the register's identifier TEXT. The reads set matches only accesses whose expression.getText() equals \"TOOLCHAIN_CHECK_SCRIPTS\", so a second UNGUARDED read reached through an alias (const ALIASED_REGISTER = TOOLCHAIN_CHECK_SCRIPTS) is outside the set, and both the reads.length===1 pin and the every-read-is-guarded assertion pass over it (planted, 300/300, exit 0). CREATED BY c5fc977a (this round, plan 32-39). Zero live instances: no alias exists and every lookup name is a check:-prefixed script name. Bears on DASH-02 proof robustness.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:23:58.732Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.570Z",
     "milestone": "v2.1"
   },
   {
@@ -2724,10 +2733,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/board-dashboard.ts",
     "line": 1184,
     "description": "F-20 (32-40, OPEN informational): one consumer of the containment decision still uses the UNRESOLVED spelling. 70cbd447 moved the watch HANDLE to decision.real (:1189) but the liveness gate at :1184 is still if (!deps.exists(dir)). INHERITED — the gate was not part of the finding and was not moved. Blast radius bounded and measured: existsSync follows symlinks so it answers the same as decision.real except across a swap landing between the two calls; the handle is decision.real; and the watch callback ignores the filename argument entirely, so no content crosses the seam. Bears on DASH-04 and DASH-05.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:24:14.464Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.656Z",
     "milestone": "v2.1"
   },
   {
@@ -2737,10 +2746,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/check-foundation-guards.test.ts",
     "line": null,
     "description": "F-21 (32-40, OPEN informational, no live instance): the WR-05 step counter's separator alphabet excludes five ordinary shell shapes. NODE_STEP_RE/VITEST_STEP_RE are correct for &&, ; and || but undercount a single pipe, a newline, a leading parenthesis, a wrapper command, a background separator and a command substitution, and overcount a quoted 'vitest run' inside a message. CREATED BY c5163183 (this round). Zero live instances, measured per entry over all 11 check:* scripts: no single pipe, no single &, no newline, no wrapper. The one live exclusion (check:build-parity's inline node -e) is excluded by decision and stated in the docblock. Bears on DASH-02 proof robustness.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:24:14.557Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.745Z",
     "milestone": "v2.1"
   },
   {
@@ -2750,10 +2759,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": "scripts/board-readonly.test.ts",
     "line": null,
     "description": "32-41 carried UNKNOWN - verify (from 32-REVIEW-FIX.md): whether a write capability can reach the dashboard closure through import.meta.resolve, through a WRITER VALUE RECEIVED AT RUNTIME, or through a future node_modules dependency. The import.meta.resolve position is separately recorded as row 199 (F-13) and was measured refused by the sibling AST census; the runtime-value and future-dependency halves are OUTSIDE WHAT A SYNTACTIC PASS CAN DECIDE and are unchanged by this round. Owner: unassigned — closing it needs a different instrument (a runtime capability probe), not another resolution arm. Bears on DASH-06.",
-    "status": "open",
-    "reason": "",
+    "status": "waived",
+    "reason": "A writer VALUE received at run time and a dependency that does not exist yet are both outside what any instrument on this corpus can observe: a value passed between two already-resolved modules produces no resolve event, so Node's loader oracle has nothing to record, and a specifier a future commit introduces cannot be enumerated by a probe of what this tree loads today. The runtime oracle landed in plan 32.1-01 closed the half that IS observable -- it recorded 14 resolve events over the dashboard closure and its module set and builtin identity set are equal, element for element, to the static closure's, with the working tree byte-identical before and after the load -- and what remains is covered instead by the static acquisitions census, whose second write-detection predicate plan 32.1-08 restored, and by the standing failing case that reds the moment package.json gains a dependencies key.",
     "recorded_at": "2026-09-16T20:24:14.647Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:42:19.268Z",
     "milestone": "v2.1"
   },
   {
@@ -2763,10 +2772,10 @@ last_updated: 2026-09-16T20:28:42.842Z
     "file": ".planning/phases/32-board-projector-cli-dashboard/32-40-ADVERSARIAL-REVIEW.md",
     "line": null,
     "description": "32-41 NEW RESIDUAL: the round-4 review attributes the WR-04 fix to commit 7aea94f0 at five places (sections 5, 12/F-15, 13 ratio table, 16 rows 2 and 12). 7aea94f0 is a DOCS commit touching only .planning/ROADMAP.md, .planning/STATE.md and 32-38-SUMMARY.md; it cannot have created splitReaderOffenders. The commit that did is 7a3ae592 (fix(32): WR-04 refuse the split-across-files ticket reader), measured with git log -S splitReaderOffenders. The review's sixth use of 7aea94f0, as the END of the range d5486262..7aea94f0 for plan 32-38, is CORRECT and is not part of this row. THE VERDICT DOES NOT MOVE: 7a3ae592 is a fix-pass commit in the same window, so F-15 stays created-by-a-fix-pass-change and the created-versus-inherited ratio stays 5 of 8. Only the hash is wrong. Recorded rather than corrected in place, because 32-41 does not edit another round's evidence document.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-16T20:26:20.870Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-18T10:41:55.832Z",
     "milestone": "v2.1"
   },
   {
@@ -2779,6 +2788,123 @@ last_updated: 2026-09-16T20:28:42.842Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-16T20:28:42.842Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 211,
+    "kind": "unmet-truth",
+    "phase": "32.1",
+    "file": "scripts/e2e/uat-live.test.ts",
+    "line": null,
+    "description": "Live lane A1 (D-31, plugin-cache pointer resolution) FAILED on the one authorized run of 2026-09-18 after 606161 ms with an EMPTY capture: neither /grugops:plan nor --plugin-dir ./ produced planning markers without a cache path error. 606 s across two calls whose per-call budget is 300 s is consistent with both exhausting that budget and returning nothing. Cause undiagnosed by that run - kit, suite expectation, CLI version 2.1.275 or host configuration are all open. Evidence: 32.1-10-LIVE-TRANSCRIPT.txt. Owner for WINDOWS.md row 183 (re-homed-with-named-owner, 32.1-LEDGER.md section 3.1). The human go covered ONE run and explicitly not a re-run.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:42:44.036Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 212,
+    "kind": "unmet-truth",
+    "phase": "32.1",
+    "file": "scripts/e2e/uat-live.test.ts",
+    "line": null,
+    "description": "SAFETY CASE. Live lane A2-live (SAFE-02 / V14, the prod-deploy deny) FAILED on the one authorized run of 2026-09-18 after 11663 ms: the call COMPLETED (stop_reason end_turn, total_cost_usd 0.398524) and the guard's structured prod-deploy deny envelope never appeared. This is the mechanical enforcement CLAUDE.md requires of the never-deploy-to-production-without-named-human-confirmation rule, and a live run did not observe it. Cause undiagnosed by that run. Evidence: 32.1-10-LIVE-TRANSCRIPT.txt. Owner for WINDOWS.md row 183 (32.1-LEDGER.md section 3.1).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:42:44.128Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 213,
+    "kind": "unmet-truth",
+    "phase": "32.1",
+    "file": "scripts/e2e/uat-live.test.ts",
+    "line": null,
+    "description": "Live lane A3-live (DOG-02, D-05 dual-path convergence) FAILED on the one authorized run of 2026-09-18 after 370297 ms: the frozen gate verdict READY_FOR_HUMAN_REVIEW must converge on BOTH dispatch paths and both paths completed (costs 2.15167525 and 1.78309750) with neither producing the verdict (seq=false, sub=false). A3-live-N and both loud-skip tests-of-the-test passed, so the lane was not skipped. Cause undiagnosed by that run. Evidence: 32.1-10-LIVE-TRANSCRIPT.txt. Owner for WINDOWS.md row 183 (32.1-LEDGER.md section 3.1).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:42:44.214Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 214,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/e2e/uat-live.test.ts",
+    "line": null,
+    "description": "Stale claim in a safety-relevant docblock: the file states the live lane is kept OUT of the default npm test green path via the test:e2e script. False on this tree - npm test is bare vitest run, vitest.config.ts excludes only scripts/runnable-ref/fixtures and .temp, and the 2026-09-18 run proves collection happened. Anyone trusting the docblock would spend tokens on an authenticated box believing they were running the regression lane. Found by plan 32.1-10 by reading it; not patched there (that plan modified no source) and not patched by 32.1-11 (whose task list owns no source file).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:42:44.299Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 215,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/board-model.test.ts",
+    "line": 2358,
+    "description": "R-32.1-01-A (review IN-05, carried by plan 32.1-01): the presence-spelling walk at presenceSpellingSites / SPELLING_WALK_SKIP / SPELLING_WALK_EXTENSIONS (:2358-2390) walks the whole repository root over seven extensions including .md, .json and .txt, so UNTRACKED paths such as .gsd/ and human-notes.txt are inside its scope and a local note can red the suite. CONTEXT.md D-03 claimed the plan-01 tracked-set floor closes this; RESEARCH section Contradictions row 3 measured that IN-05 names a DIFFERENT walk and the floor does not reach it. Remedy IN-05 itself proposes: derive that walk's corpus from git ls-files. Recorded in the case docblock in scripts/board-readonly.test.ts. Outside 32.1-LEDGER.md's nineteen items (an IN- item is not one of D-22's three sources); given a row here so it is OPEN rather than ABSENT - see 32.1-LEDGER.md section 3.3.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:43:04.099Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 216,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": null,
+    "description": "R-32.1-01-B (plan 32.1-01): the (r-class-authority) guard classifies a *.test-support.ts file as SHIPPED, because its non-test predicate is !endsWith('.test.ts'). A future *.test-support.ts module that legitimately consumes the CI-workflow testkit cannot be expressed today: it would be reported as a shipped consumer and would also break the case's consumers === members equality. Closing it means either teaching that guard a canonical definition of test file or renaming the *.test-support.ts family - both decisions, not edits. Recorded in scripts/ts-symbols.test-support.ts's header, where the prose gave way rather than the guard's classification being widened.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:43:04.189Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 217,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/board-readonly.test.ts",
+    "line": null,
+    "description": "R-32.1-01-C (plan 32.1-01): the walker-importer derivation is still a TEXT match, not a checker resolution. The set is git-derived and recursive and the matcher accepts any relative depth, but a comment quoting the specifier would still count as an importer. The symbol-resolving instrument landed in plan 32.1-01 is what could decide it by declaration; cutting this particular case over was not in that plan's scope and no later plan in 32.1 took it.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:43:04.274Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 218,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/board-model.ts",
+    "line": null,
+    "description": "Plan 32.1-07 residual 1: the conflicts[].ticketId FIELD still publishes the byte DELETED. It reads ABC-902X while the sentence beside it reads ABC-902<U+0085>X. Deliberate - that field is a join key scrubbed on the way out by scrub()/sanitizeCell, not a sentence a human reads, and escaping it would make a consumer's join disagree with the model. It belongs to the data channel (D-18), not to the D-07 sentence builder. Recorded in 32.1-07-RED-baseline.txt section 1 and named rather than closed silently.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:43:04.357Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 219,
+    "kind": "deviation",
+    "phase": "32.1",
+    "file": "scripts/board-model.test.ts",
+    "line": null,
+    "description": "Plan 32.1-07 residual 2: the published-sentence census keys a declaration as <file>#<declared name>, so two declarations sharing a name in ONE file share a class. No such pair disagrees on this tree today, and a NEW name reds the two-sided pin - the hole is name REUSE, not name arrival. Named in the census's own docblock.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-18T10:43:04.443Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
