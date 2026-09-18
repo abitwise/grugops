@@ -177,3 +177,97 @@ SECTION 4 — GATE RESULTS
 
 The live e2e lane (`npm test`) was NOT run: it starts the live claude-CLI lane, spends tokens and can
 hang, and this plan's prohibitions name it explicitly.
+
+===================================================================================================
+SECTION 5 — THE GAP RECORDED IN THE RESIDUAL REGISTER, OPEN, WITH A NAMED OWNER
+===================================================================================================
+
+  $ gsd-tools windows append --kind deviation --phase 32.1 \
+      --file scripts/board-read.ts --line 1591 --description "<the row text>"
+
+ASSIGNED ROW IDENTIFIER: 220   status `open`   phase `32.1`   file `scripts/board-read.ts`   line 1591
+
+Appended through the ledger tool's own verb, never a file edit: the tool renders both
+representations from one set of entries and cross-checks its four frontmatter counters against
+those entries, so a hand-shaped edit throws `WINDOWS_LEDGER_MALFORMED` rather than landing.
+
+THE ROW IS OPEN ON PURPOSE. It is recorded at the moment the gap is REPRODUCED, not at the moment it
+is closed, so the register shows the trajectory rather than appearing already fixed. Plan 32.1-15
+transitions it once the expansion has landed. The row states what this plan closed (2 of the 18
+path-class sites) and what it did not (the other 16, named by declaration), so the register does not
+have to be read alongside a plan summary to know where the work stands.
+
+THE NAMED OWNER is the published-substitution census in `scripts/board-model.test.ts`. It now
+classes `board-read.ts#claimMd` as a subject declaration, and it is the authority that refuses the
+next unbuilt sentence quoting a composed path — proved, not asserted, by the seeded tag removal in
+§ 3 Mirror B.
+
+--- 5.1  RECONCILIATION, BY ROW IDENTIFIER --------------------------------------------------------
+
+RECONCILIATION BY ROW IDENTIFIER (never by column position, never by row count)
+  identifiers in the fenced array representation : 220
+  identifiers in the table representation        : 220
+  in the array and not the table                 : []
+  in the table and not the array                 : []
+  symmetric difference                           : 0
+
+The comparison is BY IDENTIFIER, and deliberately so. At least three descriptions in this register
+carry an escaped separator, so an `awk -F'|'`-shaped positional tally counts the escaping rather
+than the rows — 32.1-PATTERNS.md records that exact miscount (194 against 197). A row-count
+comparison is no better: two representations can agree on how many rows they hold while disagreeing
+about which. Only the identifier set answers the question being asked.
+
+--- 5.2  THE FOUR FRONTMATTER COUNTERS, CROSS-CHECKED AGAINST THE ENTRIES -------------------------
+
+FRONTMATTER COUNTERS, CROSS-CHECKED AGAINST THE ENTRIES
+  open 194 + fixed 24 + waived 2 = 220; total 220
+  self-consistent? true
+  statuses derived from the entries: {"open":194,"fixed":24,"waived":2}
+  derived agrees with the counters? true
+
+ROW 220: status=open phase=32.1 file=scripts/board-read.ts line=1591
+  description carries a RAW control/C1 code point? false
+  names the reproduction transcript? true
+  names the owner?                   true
+
+--- 5.3  THE GOVERNANCE MOVEMENT, ATTRIBUTED RATHER THAN LEFT TO BE DISCOVERED --------------------
+
+  open count BEFORE this plan : 193
+  open count AFTER  this plan : 194        (+1, this row)
+  total count                 : 219 -> 220
+
+WHAT THAT COSTS. With `workflow.windows_enforce` enabled, `/gsd-ship` blocks while `open_count > 0`.
+The count was already 193, so this row does not change whether shipping is gated; what it changes is
+that a gap a verifier found is now VISIBLE where a later reader looks, instead of living only in a
+verification report and a plan summary. That was the whole complaint the row answers: the
+32.1-VERIFICATION.md gaps summary recorded the defect as unrecorded in WINDOWS.md.
+
+--- 5.4  THE DIFF IS THE TOOL'S OWN RENDERING ----------------------------------------------------
+
+  $ git diff --stat -- .planning/WINDOWS.md
+    .planning/WINDOWS.md | 20 +++++++++++++++++---
+    1 file changed, 17 insertions(+), 3 deletions(-)
+
+  $ git diff -U0 -- .planning/WINDOWS.md   (hunk heads only)
+    @@ -3 +3 @@        open_count
+    @@ -6,2 +6,2 @@    total_count and last_updated
+    @@ -236,0 +237 @@ one new TABLE row
+    @@ -2909,0 +2911,13 @@ the same entry in the FENCED ARRAY representation
+
+Both representations and the frontmatter counters moved in one write. No line outside those four
+hunks changed, which is what a tool-shaped edit looks like and what a hand-shaped one does not.
+
+--- 5.5  TASK 3 GATE RESULTS ---------------------------------------------------------------------
+
+  $ npm run check:nul-bytes
+      PASS  2351 tracked file(s) scanned ... ZERO carrying a forbidden control byte
+      == Result ==  ALL CHECKS PASSED
+      (the register is inside the scanned set: it is a tracked path, and the scan derives its set
+       from `git ls-files` with no exemption list)
+
+  $ node -e "<the frontmatter counter cross-check from the plan's verify block>"
+      counters consistent: open 194 fixed 24 waived 2 total 220
+
+  $ npm run check:diff-disposition
+      PASS  diff disposition — changed watched file(s): 0 findings
+      == Result ==  ALL CHECKS PASSED
