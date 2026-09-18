@@ -201,9 +201,36 @@ import {
 // shared authority on this tree is: the two shapings that make a loader oracle VACUOUS are subtle,
 // measured, and written down once in that module's header — not rediscovered per consumer.
 import {
+  loadDidNotReturn,
+  ORACLE_CHILD_OPTIONS,
+  ORACLE_LOAD_DID_NOT_RETURN,
+  ORACLE_REGISTRATION_FUNCTION,
+  ORACLE_REGISTRATION_GUARD,
+  ORACLE_REGISTRATION_MINIMUM,
+  ORACLE_SCRIPT,
   recordRuntimeAcquisitions,
   type RuntimeAcquisitions,
 } from "./loader-oracle.test-support.js";
+
+/**
+ * THE CONSUMER'S ARM OVER A BOUNDED-OUT CHILD (32.1-14, review WR-03).
+ *
+ * The oracle's child is bounded in the module; turning the bounded-out outcome into a sentence is
+ * the CONSUMER's job, because the consumer is what owns the premise that was violated. Every call
+ * that records acquisitions goes through here, so there is one arm rather than one per call site,
+ * and a case below drives it with a REAL bounded-out error produced by a REAL non-returning child.
+ *
+ * Anything that is not a bounded-out child is rethrown UNTOUCHED. A wrapper that relabelled every
+ * failure would be a second way to lose the cause, which is the defect it exists to close.
+ */
+function withLoadPremise<T>(load: () => T): T {
+  try {
+    return load();
+  } catch (error) {
+    if (loadDidNotReturn(error)) throw new Error(`PREMISE: ${ORACLE_LOAD_DID_NOT_RETURN}`);
+    throw error;
+  }
+}
 
 // THE TRACKED FILE SET (Phase 32.1, D-03). One authority over the `git ls-files` pathspec spelling,
 // because the intuitive `scripts/**/*.ts` returns 26 of 151 files and every set derived from it is
@@ -2091,7 +2118,7 @@ describe("32.1-01 — Node's OWN loader is the independent third side of the clo
    */
   let recorded: RuntimeAcquisitions | null = null;
   const acquisitions = (): RuntimeAcquisitions => {
-    recorded ??= recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY);
+    recorded ??= withLoadPremise(() => recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY));
     return recorded;
   };
 
@@ -2228,8 +2255,12 @@ describe("32.1-14 — the loader oracle fails RED with a cause, never silently (
         "PREMISE: the link path and the root path are the same string, so nothing is being varied",
       ).not.toBe(ROOT);
 
-      const direct = [...recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY).modules].sort();
-      const throughLink = [...recordRuntimeAcquisitions(linkedRoot, DASHBOARD_ENTRY).modules].sort();
+      const direct = [
+        ...withLoadPremise(() => recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY)).modules,
+      ].sort();
+      const throughLink = [
+        ...withLoadPremise(() => recordRuntimeAcquisitions(linkedRoot, DASHBOARD_ENTRY)).modules,
+      ].sort();
 
       expect(
         direct.length,
@@ -2255,6 +2286,220 @@ describe("32.1-14 — the loader oracle fails RED with a cause, never silently (
       unlinkSync(linkedRoot);
       rmSync(scratch, { recursive: true, force: true });
     }
+  });
+
+  it("WR-03: a child that does not return is bounded, killed, and surfaces as a NAMED premise failure", () => {
+    // A REAL BOUNDED-OUT ERROR FROM A REAL NON-RETURNING CHILD, at a bound short enough to assert.
+    // The two fields the predicate reads are platform behaviour, not documentation, so they are
+    // MEASURED here rather than constructed — a hand-built `{ code: "ETIMEDOUT" }` would prove the
+    // predicate matches a literal somebody typed, which is not the question.
+    const scratch = mkdtempSync(join(tmpdir(), "loader-oracle-bound-"));
+    let boundedOut: unknown;
+    try {
+      // What "the entry's main ran" looks like from the outside: a live loop with nothing to
+      // return to. This is the shape `board-dashboard.js` without `--once` really has.
+      writeFileSync(join(scratch, "never-returns.mjs"), "setInterval(() => {}, 1000);\n");
+      try {
+        execFileSync(process.execPath, [join(scratch, "never-returns.mjs")], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+          timeout: 1500,
+          killSignal: ORACLE_CHILD_OPTIONS.killSignal,
+        });
+      } catch (error) {
+        boundedOut = error;
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+
+    expect(
+      boundedOut,
+      "PREMISE: the non-returning child RETURNED, so there is no bounded-out error to read and the " +
+        "assertions below are about nothing",
+    ).toBeDefined();
+    expect(
+      (boundedOut as { readonly code?: unknown }).code,
+      "PREMISE: the platform did not report a bounded-out child as ETIMEDOUT, so the predicate's " +
+        "measured field spelling has moved underneath it",
+    ).toBe("ETIMEDOUT");
+    expect(
+      loadDidNotReturn(boundedOut),
+      "the one predicate the consumer asks does not recognise a REAL bounded-out child. Every " +
+        "bounded-out load would then be reported as an ordinary failure, which loses the only " +
+        "cause worth naming",
+    ).toBe(true);
+
+    // THE CONSUMER'S ARM, driven with that same real error. This is the function every recording in
+    // this file goes through, so what is exercised here is the shipped path rather than a copy.
+    let thrown: unknown;
+    try {
+      withLoadPremise(() => {
+        throw boundedOut;
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    const message = (thrown as Error).message;
+    for (const required of [
+      "PREMISE:", // it is a premise failure, not a result
+      "did not return", // WHAT happened
+      `${ORACLE_CHILD_OPTIONS.timeout} ms`, // the bound it was measured against
+      "main most likely RAN", // the CAUSE, which is the whole point
+      "is-entry premise", // and which premise that is
+    ]) {
+      expect(
+        message.includes(required),
+        `the bounded-out premise failure does not contain ${JSON.stringify(required)}. It said: ` +
+          `${message}. Before the bound there was no sentence at all: the worker hung and the run ` +
+          `reported a timeout naming nothing`,
+      ).toBe(true);
+    }
+
+    // DISCRIMINATION, BOTH WAYS. A predicate that said yes to everything would relabel every child
+    // failure as a premise failure, which loses exactly the causes this arm exists to preserve.
+    expect(
+      loadDidNotReturn(new Error("the child exited 1")),
+      "the predicate treats an ordinary child failure as a bounded-out one",
+    ).toBe(false);
+    const ordinary = new Error("the child exited 1");
+    expect(
+      () =>
+        withLoadPremise(() => {
+          throw ordinary;
+        }),
+      "the consumer's arm swallowed or relabelled an ordinary failure instead of rethrowing it",
+    ).toThrow(ordinary);
+  });
+
+  it("WR-03: the bound is on the invocation itself, from the one authority the assertion above read", () => {
+    // THE WIRING HALF, and it is structural on purpose: the bound's effect on the REAL load cannot
+    // be observed without a load that hangs, and this suite must not contain one. So the bound is
+    // held in a frozen object that the invocation SPREADS, and this asserts both ends of that — the
+    // object's contents, and that the single corpus-loading call really spreads it. A bound typed
+    // into the call would make the case above an assertion about a second copy.
+    expect(ORACLE_CHILD_OPTIONS.timeout, "the bound is not a positive finite number of milliseconds")
+      .toBeGreaterThan(0);
+    expect(Number.isFinite(ORACLE_CHILD_OPTIONS.timeout)).toBe(true);
+    expect(
+      ORACLE_CHILD_OPTIONS.killSignal,
+      "the bound carries no kill signal, so a child that ignores the default termination request " +
+        "survives its own bound",
+    ).toBe("SIGKILL");
+    expect(Object.isFrozen(ORACLE_CHILD_OPTIONS)).toBe(true);
+
+    const source = readFileSync(join(ROOT, "scripts/loader-oracle.test-support.ts"), "utf8");
+    expect(
+      source.split("...ORACLE_CHILD_OPTIONS,").length - 1,
+      "the corpus-loading invocation does not spread the one options authority exactly once. " +
+        "Zero means the bound is declared and not applied — the defect WR-03 names, with a " +
+        "constant added; more than one means a second call acquired it and this case no longer " +
+        "says which one is bounded",
+    ).toBe(1);
+  });
+
+  it("IN-04: a runtime without the loader-hook registration function is refused BY NAME", () => {
+    // THE ABSENCE CANNOT BE CREATED ON A RUNTIME THAT HAS THE FUNCTION, so the only honest proof is
+    // to run the guard's OWN BYTES against a stub namespace. `ORACLE_REGISTRATION_GUARD` is the
+    // string the shipped child is built from — asserted in the next case — so this executes the
+    // shipped text rather than a description of it.
+    const scratch = mkdtempSync(join(tmpdir(), "loader-oracle-registration-"));
+    try {
+      const run = (namespaceLine: string): string => {
+        const probe = join(scratch, "probe.mjs");
+        writeFileSync(
+          probe,
+          `${namespaceLine}\n${ORACLE_REGISTRATION_GUARD}\nconsole.log("NO-REFUSAL");\n`,
+        );
+        try {
+          return execFileSync(process.execPath, [probe], {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+        } catch (error) {
+          return String((error as { readonly stderr?: unknown }).stderr ?? "");
+        }
+      };
+
+      const absent = run("const nodeModule = {};");
+      expect(
+        absent.includes("NO-REFUSAL"),
+        "the guard let a runtime WITHOUT the registration function through. The child would then " +
+          "die at the registration call with an opaque error naming nothing a contributor can act on",
+      ).toBe(false);
+      for (const required of [
+        ORACLE_REGISTRATION_FUNCTION, // WHICH function is missing
+        ORACLE_REGISTRATION_MINIMUM, // and from WHERE it is available
+        "refuses rather than loading the corpus", // and WHY it stopped
+      ]) {
+        expect(
+          absent.includes(required),
+          `the absent-registration refusal does not contain ${JSON.stringify(required)}. It said: ` +
+            `${absent}. A refusal that names neither the function nor the release leaves the reader ` +
+            "with a SyntaxError about a missing export, which does not say that their Node is old",
+        ).toBe(true);
+      }
+
+      // DISCRIMINATION: a namespace that DOES carry the function is not refused. Without this the
+      // guard could be a `throw` with no condition and every assertion above would still pass.
+      expect(
+        run("const nodeModule = { registerHooks() { return { deregister() {} }; } };").trim(),
+        "the guard refused a runtime that DOES provide the registration function, so it refuses " +
+          "everything and refuses nothing in particular",
+      ).toBe("NO-REFUSAL");
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("IN-04: the shipped child IS the guarded one, and it does not use a named import to find it", () => {
+    expect(
+      ORACLE_SCRIPT.includes(ORACLE_REGISTRATION_GUARD),
+      "the shipped child does not contain the guard whose bytes the case above executed. The proof " +
+        "would then be about a string nothing runs",
+    ).toBe(true);
+    expect(
+      ORACLE_SCRIPT.includes('import { registerHooks } from "node:module"'),
+      "the child finds the registration function through a NAMED import. A named import of an " +
+        "absent export is a LINK-time SyntaxError, so it fails before the guard can run and the " +
+        "guard becomes unreachable on precisely the runtimes it exists for",
+    ).toBe(false);
+    expect(
+      ORACLE_SCRIPT.includes('import * as nodeModule from "node:module"'),
+      "the child does not import the module namespace the guard reads from",
+    ).toBe(true);
+  });
+
+  it("CONTROL: the well-formed corpus load is unaffected — same recorded set, same tree on both sides", () => {
+    // THREE CHANGES LANDED IN THIS MODULE AND NONE OF THEM MAY MOVE THE ANSWER. This is the bound on
+    // all three: a real load of the real corpus, asserted on what it records and on the property the
+    // whole oracle exists to establish.
+    const recorded = withLoadPremise(() => recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY));
+    expect(
+      recorded.events.length,
+      "PREMISE: the control load recorded nothing, so every assertion below holds over an empty " +
+        "recording",
+    ).toBeGreaterThan(5);
+    expect(
+      recorded.modules.filter((rel) => rel.startsWith("..")),
+      "a direct, unlinked checkout produced leading-parent entries. The realpath resolution moved " +
+        "the ordinary case as well as the symlinked one",
+    ).toEqual([]);
+    expect(
+      recorded.modules,
+      "the recorded module set moved. The bound, the guard and the realpath resolution are all " +
+        "failure-mode changes; none of them may change what a successful load answers — and the " +
+        "comparison side is the STATIC closure, an authority that shares neither this module's code " +
+        "nor its process, so a change that moved BOTH sides together would still red here",
+    ).toEqual([...jsImportClosure(ROOT, DASHBOARD_ENTRY)].sort());
+    expect(
+      recorded.treeAfter,
+      "the working tree CHANGED across the control load, so a writer executed while the oracle ran",
+    ).toBe(recorded.treeBefore);
+    expect(
+      recorded.builtins.length,
+      "PREMISE: the control load resolved no builtin, so the D-10 second predicate is vacuous here",
+    ).toBeGreaterThan(0);
   });
 });
 
@@ -2561,7 +2806,9 @@ describe("32.1-06 — a tokenizer decides what a module specifier is, and the se
       return [...seen].map((abs) => relative(ROOT, abs).split(sep).join("/")).sort();
     };
     const parsedSide = parsedClosure(DASHBOARD_ENTRY);
-    const runtimeSide = [...recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY).modules].sort();
+    const runtimeSide = [
+      ...withLoadPremise(() => recordRuntimeAcquisitions(ROOT, DASHBOARD_ENTRY)).modules,
+    ].sort();
 
     expect(
       walked.length,
