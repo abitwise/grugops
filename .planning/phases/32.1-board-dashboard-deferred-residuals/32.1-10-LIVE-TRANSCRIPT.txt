@@ -1,0 +1,343 @@
+32.1-10 LIVE TRANSCRIPT - the live claude-CLI end-to-end lane, run once, on a named go
+================================================================================
+
+DATE                2026-09-18
+COMMAND             npm test          (package.json "test": "vitest run" - the manifest's
+                                       UNEXCLUDED runner entry, read out of the manifest at
+                                       run time, not copied from the plan's prose)
+OUTCOME: fail
+RUNS                one. The lane was invoked exactly once and was not re-run.
+
+This file answers `.planning/WINDOWS.md` row 183, which reads: "The live claude-CLI e2e
+lane was not run for plan 32-17 (spends tokens on an authenticated box and can hang); its
+state is UNKNOWN - verify". It is no longer an unknown. It was run, it completed, and it
+FAILED with three live cases red. Row 183's terminal disposition is plan 32.1-11's to
+write; this file is the evidence it rests on.
+
+Every character in this file is printable ASCII plus ordinary punctuation. No ANSI escape
+and no control byte is written here, and the captured lane output this file quotes was
+itself measured clean: zero 0x1b bytes and zero control bytes outside TAB and LF, counted
+over the whole capture with `LC_ALL=C tr -d` before anything was quoted.
+
+
+=====================================================================
+1. THE HUMAN GO
+=====================================================================
+
+The plan gates this run behind a blocking human checkpoint (D-13, gate="blocking-human").
+The checkpoint was presented and the human answered GO on 2026-09-18.
+
+What the go covered, in the human's own terms: exactly ONE run of the live lane on the
+ambient authenticated session on this machine, the token spend that implies, the roughly
+eight minute duration described in the checkpoint, the local-scope plugin marketplace add
+and install the suite performs, and the suite's own afterAll cleanup. The go explicitly did
+NOT authorize a second run on a red or on a hang: one run, one recorded outcome.
+
+The lane went red. It was NOT re-run. A second run to see whether it passes this time is
+exactly how a flaky result becomes a claimed one, and the plan forbids it.
+
+The duration the checkpoint named turned out to be an underestimate, and that is recorded
+here rather than smoothed: the run took 25 minutes, not 8. See section 3.
+
+
+=====================================================================
+2. WHAT WAS RUN, AND HOW THE COMMAND WAS ESTABLISHED
+=====================================================================
+
+The plan requires the command be confirmed by READING the manifest, since a plan that names
+a stale command runs the wrong thing. It was:
+
+    $ node -e 'const p=JSON.parse(require("fs").readFileSync("package.json","utf8"));
+               console.log(JSON.stringify({test:p.scripts.test,e2e:p.scripts["test:e2e"]}))'
+    {"test":"vitest run","e2e":"vitest run scripts/e2e"}
+
+`test` is `vitest run` with NO exclusion. A SECOND thing was checked, because the manifest
+alone would not settle it: `vitest.config.ts` could have excluded the end-to-end directory
+at the config layer, which would have made `npm test` a regression lane wearing a live
+lane's name. It does not. Its `exclude` array spreads `configDefaults.exclude` and adds
+exactly two entries, `**/scripts/runnable-ref/fixtures/**` and `**/.temp/**`. Neither
+matches `scripts/e2e`. So `npm test` DOES collect `scripts/e2e/uat-live.test.ts`, and the
+run below proves it did - the file appears in the results.
+
+  A STALE CLAIM, RECORDED BECAUSE IT WAS READ AND FOUND WRONG. The docblock at the top of
+  `scripts/e2e/uat-live.test.ts` says the lane "is kept OUT of the default `npm test` green
+  path via the `test:e2e` script". That is not true of this tree as it stands: `npm test`
+  has no exclusion and collects the file. This is a documentation defect in a safety-
+  relevant docblock, not a defect this plan may fix, and it is handed to plan 32.1-11 as a
+  finding rather than patched here.
+
+WHAT THE LANE EXERCISES. `scripts/e2e/uat-live.test.ts` drives the REAL `claude` CLI
+headlessly (`claude --print`) through four live cases plus two tests-of-the-test:
+
+  A1        (D-31)   plugin-cache pointer resolution: install the grugops plugin into a
+                     throwaway temp repo and confirm `/grugops:plan ...` resolves the
+                     repo-relative pointers rather than failing on a plugin-cache path.
+  A2-live   (SAFE-02 / V14) live PreToolUse deny: drive a HARMLESS matched deploy probe
+                     with the approval variable absent and assert the deny fires.
+  A3-live   (DOG-02, D-05) dual-path dispatch parity: drive the same ticket through the
+                     sequential and the sub-agent dispatch paths and assert both converge on
+                     the same frozen on-disk gate verdict.
+  A3-live-N (DOGF-02, D-09) N-agent confirmation: N = queue.wip_limit real dispatches
+                     against one shared queue and context root.
+  plus two `loud-skip` tests that PROVE the honesty gate rather than assume it.
+
+
+=====================================================================
+3. THE MEASUREMENT
+=====================================================================
+
+    Lane start        2026-09-18T09:41:34Z
+    Lane end          2026-09-18T10:06:37Z
+    Wall clock        1503 s  (25 min 03 s)
+    Runner duration   1493.54 s  (transform 2.44s, setup 0ms, import 8.59s,
+                                  tests 1480.15s, environment 3ms)
+    Platform          darwin/arm64, Node v24.12.0, vitest 4.1.8
+    Repository HEAD   8dd4c7013c86a8f34ccfa521f116c5eec02de952
+    Credential        THE AMBIENT AUTHENTICATED SESSION ON THIS MACHINE. The credential is
+                      not managed by this repository. The spend landed on whoever is signed
+                      in here, which is what the checkpoint asked the human to accept.
+
+The start time is the KERNEL's, not a number this transcript composed: `ps -o lstart` for
+the lane's own pid reported `Fri Sep 18 12:41:34 2026` in local time, and local time on this
+host is UTC+3 (`date -u` read 09:54:44Z at local 12:54:44). The end time was taken by `date
+-u` at the instant the pid disappeared.
+
+THE RUNNER'S OWN SUMMARY BLOCK, quoted verbatim:
+
+     Test Files  1 failed | 75 passed (76)
+          Tests  3 failed | 5227 passed | 2 skipped (5232)
+       Start at  12:41:34
+       Duration  1493.54s (transform 2.44s, setup 0ms, import 8.59s, tests 1480.15s, environment 3ms)
+
+THE FAILING FILE AND ITS PER-CASE TIMES, quoted verbatim:
+
+     scripts/e2e/uat-live.test.ts (6 tests | 3 failed) 1028047ms
+       A1 (D-31): /grugops:plan resolves repo-relative pointers and produces planning output, not a cache path error   606161ms   FAILED
+       A2-live (SAFE-02 / V14): a harmless matched deploy probe is DENIED because the approval var is absent            11663ms   FAILED
+       A3-live (DOG-02, D-05): the same ticket through sequential and sub-agent dispatch converges on the same frozen
+         on-disk gate verdict (on-disk note-set + verdict, not deleted handoff filenames)                              370297ms   FAILED
+
+The three cases vitest does not list are the ones that passed: `A3-live-N` and the two
+`loud-skip` tests-of-the-test. Vitest prints only failures in that block.
+
+
+=====================================================================
+4. THE EXIT CODE, AND THE LIMIT ON HOW IT WAS OBTAINED
+=====================================================================
+
+THE EXIT CODE WAS NOT CAPTURED BY `wait()`, AND THIS FILE WILL NOT PRETEND IT WAS.
+
+What happened, stated plainly because a reader is entitled to know how strong this number
+is. The lane was launched under a small watchdog shell of my own so that a genuine hang
+could be bounded and killed. Mid-run the watchdog had to be disabled - section 6 says
+exactly why - and disabling it cost the `wait()` that would have returned the lane's exit
+status. The lane itself was never signalled, never interrupted, and ran to its own natural
+completion; only my exit-status capture was lost.
+
+WHAT IS MEASURED INSTEAD, from the lane's own captured output:
+
+  a. The runner reports `1 failed` test file and `3 failed` tests. A vitest run with a
+     failed file exits non-zero by definition; that is the runner's documented contract, not
+     an inference about this particular run.
+  b. `npm error` appears ZERO times in the capture, searched case-insensitively for both the
+     modern `npm error` and the legacy `npm ERR!` spellings. On npm 11.7.0 a failing
+     lifecycle script normally prints such a block. Its absence is NOT explained here and is
+     NOT explained away: it is recorded as an observation that does not fit, and it is the
+     reason this section is written as a limit rather than as a number.
+
+  EXIT CODE, AS RECORDED: non-zero, DERIVED from (a). Not measured by wait(). A reader who
+  needs the literal integer does not have it from this run and must not take one from this
+  file.
+
+This weakens the evidence for one clause of the plan's acceptance criteria - "records ...
+the exit code" - and the weakening is named rather than hidden. It does not weaken the
+OUTCOME: three live cases produced real, quoted assertion failures against the real CLI, and
+no reading of an exit integer would change that.
+
+
+=====================================================================
+5. THE OUTCOME, AND WHY IT IS THAT WORD AND NOT ANOTHER
+=====================================================================
+
+The outcome is recorded once, in the header, as one of the four words the plan admits:
+pass, fail, hang, no-go. It is the third-from-first of those - the lane RAN, it COMPLETED
+under its own power, and it reported failures.
+
+  NOT pass.   Three cases are red with quoted assertion text.
+  NOT hang.   The lane completed on its own. No watchdog killed it, no signal was sent to
+              it, and it printed its own terminating summary block. A1 spent 606 s and
+              A3-live 370 s inside per-call budgets the suite sets at 300 s each, which is
+              slow, but slow-and-finished is not hung.
+  NOT no-go.  The human answered go.
+
+THE THREE FAILURES, with the assertion text as the runner wrote it:
+
+  A1 (D-31) - `D-31: neither /grugops:plan nor --plugin-dir ./ produced planning markers
+  without a cache path error. Captured: ` - and the captured output is EMPTY. Both the
+  primary path and the `--plugin-dir ./` fallback produced nothing at all within the case's
+  budget. 606 s across two calls whose per-call budget is 300 s is consistent with both
+  calls exhausting that budget and returning empty rather than returning an error. What this
+  does NOT establish is WHY; this file does not guess.
+
+  A2-live (SAFE-02 / V14) - `SAFE-02: expected the guard's structured prod-deploy deny
+  envelope to appear.` The captured envelope is a normal completed call, `"stop_reason":
+  "end_turn"`, `"duration_api_ms":7822`, `"total_cost_usd":0.39852400000000004`. So the CLI
+  answered; what did not appear is the guard's machine-readable deny marker. The case is
+  about a SAFETY guard, which is why it is named first among the things plan 32.1-11 must
+  carry rather than last.
+
+  A3-live (DOG-02, D-05) - `DOG-02 (D-05): frozen gate verdict "READY_FOR_HUMAN_REVIEW" must
+  converge on BOTH dispatch paths (seq=false, sub=false).` Both paths completed as calls -
+  seq `"duration_api_ms":181176`, `"total_cost_usd":2.1516752500000003`; sub
+  `"duration_api_ms":159388`, `"total_cost_usd":1.7830974999999998` - and neither produced
+  the frozen verdict string. They agree with each other in producing nothing, which is not
+  the convergence the case asserts.
+
+NOTHING IN THIS FILE SAYS THE PRODUCT IS BROKEN. Three live cases are red against the real
+CLI on this host on this date. Whether the cause is the kit, the suite's expectations, the
+CLI's current version (2.1.275 on this box), or this host's configuration is NOT determined
+by this run, and determining it is not this plan's work. The finding is handed to plan
+32.1-11 in exactly the shape it was measured.
+
+THE TOKEN SPEND, AS QUOTED BY THE CAPTURE. The `total_cost_usd` values visible in the three
+failure envelopes are 0.398524, 2.15167525 and 1.78309750, summing to 4.33 USD. That is a
+FLOOR, not a total: A1's capture is empty and A3-live-N passed, so neither reports a cost
+here, and both made real calls. The true spend is higher by an amount this file did not
+measure.
+
+THE LOUD-SKIP MARKER IS PRESENT AND MUST NOT BE MISREAD. The capture contains exactly one
+occurrence of the suite's sentinel:
+
+    SKIPPED: claude CLI absent or unauthed - UAT A1/A2/A3 NOT exercised; status stays pending
+
+It would be a serious misreading to conclude from it that the live half was skipped. It was
+not. The marker is emitted by the suite's OWN test-of-the-test at line 126, which forces the
+probe false on purpose and asserts the exact sentinel, precisely so that a real loud-skip is
+distinguishable from a silent one. Three independent facts show the live half really ran:
+the sibling test at line 144 - "a present+authed probe returns true and emits NO skip
+marker" - PASSED; the four live cases have real wall-clock times (606161 ms, 11663 ms,
+370297 ms, and A3-live-N's own); and the failure envelopes carry real `session_id`s and real
+`total_cost_usd` values. A skipped case spends nothing and takes no time.
+
+
+=====================================================================
+6. THE WORKING TREE, AND EVERY OTHER THING THE RUN TOUCHED
+=====================================================================
+
+`git status --porcelain`, captured immediately BEFORE the lane started and again immediately
+AFTER it ended:
+
+    BEFORE                          AFTER
+     M .planning/milestone.lock      M .planning/milestone.lock
+     M human-notes.txt               M human-notes.txt
+    ?? .gsd/                        ?? .gsd/
+    ?? .planning/state.json         ?? .planning/state.json
+
+    `diff` of the two captures: IDENTICAL. The live run changed nothing in the working tree.
+
+Those four entries predate this plan and belong to the orchestrator and the human. The live
+run neither created nor removed a tracked or untracked path.
+
+LOCAL CLAUDE PLUGIN STATE - NAMED, NOT CLEANED UP SILENTLY. The plan asks that residue be
+named rather than tidied away, so both the fingerprint and its movement are recorded:
+
+  ~/.claude/plugins/installed_plugins.json   sha256 UNCHANGED
+                                             (c6e52cbf...392c before and after)
+  ~/.claude/plugins/known_marketplaces.json  sha256 CHANGED
+                                             (3134b525...8179 -> e079525f...6b6e)
+  ~/.claude/plugins/marketplaces/            listing UNCHANGED: claude-plugins-official,
+                                             grugops - the same two, both pre-existing
+
+The change in `known_marketplaces.json` is confined to two `lastUpdated` timestamps. No
+marketplace was added and none was removed; the SET is byte-identical in its membership. The
+two timestamps now read `2026-09-18T09:41:45.433Z` for the `grugops` entry - eleven seconds
+after the lane started, inside A1 - and `2026-09-18T09:55:12.580Z` for
+`claude-plugins-official`. The `grugops` entry is the human's own pre-existing install of
+`abitwise/grugops` and is NOT a throwaway the suite created; the lane refreshed a registry
+row the human already had. Nothing was uninstalled from it and nothing is left behind that
+was not there before, so there is nothing here to clean up - but it is recorded because a
+run that touches a user-level registry should say so.
+
+NO SECOND INVOCATION OF ANY KIND. `npm test` was invoked once. `npm run test:e2e` was never
+invoked. Section 7 records the one thing that happened before the run that a careless reader
+could mistake for a first attempt, and says why it is not one.
+
+
+=====================================================================
+7. TWO SCAFFOLDING FAULTS, RECORDED BECAUSE THEY BEAR ON THE EVIDENCE
+=====================================================================
+
+Neither of these is a property of the lane. Both are faults in the harness this executor
+wrapped around the lane, and both are written down because one of them cost a measurement
+and the other could be misread as a first run.
+
+FAULT ONE - AN ABORTED LAUNCH THAT NEVER REACHED THE LANE. The first launcher used `setsid`
+to put the lane in its own process group. macOS has no `setsid`. The launcher died at that
+line with `setsid: command not found` and exit 127, after 1 second, having produced a
+163-byte log containing only that error. `npm test` WAS NEVER INVOKED by it. No vitest
+process started, no CLI call was made, and nothing was spent. This is not a first run of the
+lane and must not be counted as one; the single-run property in section 1 is intact. The
+launcher was repaired to use `perl -e 'setpgrp(0,0); exec("npm","test")'`, and the repaired
+exec path was PROVEN to reach npm with a harmless probe - `perl -e 'setpgrp(0,0);
+exec("npm","--version")'` printed `11.7.0` and exited 0 - BEFORE the one authorized run was
+spent on it.
+
+FAULT TWO - A WATCHDOG WHOSE HANG HEURISTIC WAS WRONG FOR THIS RUNNER. The watchdog treated
+"no new output for 900 s" as a hang. Vitest buffers its per-file output when stdout is not a
+terminal: at 11 minutes into a healthy run the capture still held only its 172-byte header,
+and the watchdog was roughly three minutes from killing a run that was working correctly -
+which would have destroyed the one authorized run and recorded it as a hang that never
+happened. The watchdog was suspended so it could not signal the lane. The harness then
+treated that suspension as its child terminating and reaped the watchdog shell, which left
+the lane orphaned to init - still running, still healthy, and never signalled - but removed
+the `wait()` that would have returned its exit status. That is the whole of section 4's
+limitation. The lane's own completion is unaffected: it printed its own summary block and
+its pid disappeared on its own.
+
+WHAT A LATER PLAN SHOULD TAKE FROM FAULT TWO, if it ever needs to bound this lane again: a
+no-output interval is not a liveness signal for a buffered runner. Bound it on total
+wall-clock only, or make the runner emit progress, and capture the exit status in a process
+that is not the same one making the kill decision.
+
+
+=====================================================================
+8. WHAT THIS FILE DOES NOT SAY
+=====================================================================
+
+IT DECIDES NOTHING. It marks no requirement checkbox, sets no roadmap phase status, and
+reaches no verdict on whether Phase 32.1 is complete. `.planning/WINDOWS.md` is byte-
+unchanged by this plan; plan 32.1-11 owns every ledger mutation, including row 183's
+terminal disposition. This file is the evidence that disposition rests on, and on this
+evidence the row is NOT closeable as a clean reproduction: the lane ran and it went red.
+
+IT MAKES THE LIVE LANE NO ONE'S ROUTINE VERIFY. The repository's regression lane is and
+remains `npx vitest run --exclude '**/scripts/e2e/**'`. This run is the phase's single
+sanctioned use of the unexcluded command, authorized for this one occasion by a named human.
+No later plan may cite this file as a precedent for running it again without its own go.
+
+IT DIAGNOSES NOTHING. Section 5 records three red cases and their quoted assertion text. It
+does not say what is wrong, and a reader must not take the absence of a diagnosis as the
+absence of a problem.
+
+IT SAYS NOTHING ABOUT ANY OTHER HOST. Every number here is from darwin/arm64, Node v24.12.0,
+claude CLI 2.1.275, on one machine, on one date, against one ambient session. The
+`windows-latest` behaviour of this lane is UNKNOWN - verify, unchanged by this run.
+
+THE ARITHMETIC THAT TIES THIS RUN TO THE REGRESSION LANE, so the two are not two
+unconnected readings. The regression lane on this same checkout measured 75 files / 5224
+passed / 2 skipped / 5226 total (`32.1-10-GREEN-proof.txt`). The live lane measured 76 files
+/ 5227 passed / 3 failed / 2 skipped / 5232 total. The differences are exactly the one
+end-to-end file and exactly its six cases:
+
+    files   75 + 1 = 76        the single added file is scripts/e2e/uat-live.test.ts
+    total   5226 + 6 = 5232    the six cases that file declares
+    passed  5224 + 3 = 5227    three of the six passed
+    failed     0 + 3 = 3       three of the six failed
+    skipped    2 + 0 = 2       unmoved
+
+So NO regression case changed status between the two lanes. Everything that moved is the
+end-to-end file, and it is accounted for case by case.
+
+--------------------------------------------------------------------------------
+Plan 32.1-10, Task 3. One go, one run, one outcome, and the limits of the measurement
+stated where they fall.
