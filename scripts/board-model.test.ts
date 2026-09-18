@@ -3804,73 +3804,24 @@ const NOT_PUBLISHED_RECEIVERS: readonly string[] = [
   "return:wipCell",
 ];
 
-/**
- * THE SUBJECT SET, KEYED ON THE DECLARATION. A value that came out of a DOCUMENT or a DIRECTORY
- * LISTING rather than out of this process's own configuration. Every one of these must be built
- * through `spelled`, at every site, in all three modules.
- */
-const CONTENT_DECLARATIONS: Readonly<Record<string, string>> = {
-  "board-model.ts#declaredId": "the identifier a ticket document declares — F-14's own value",
-  "board-model.ts#id": "a ticket identifier, from a board row or a file stem",
-  "board-model.ts#joinedStem": "the file name that claimed an identifier first, from the listing",
-  "board-model.ts#key": "a frontmatter key, read out of the document's region",
-  "board-model.ts#line": "a frontmatter line, quoted back as a refusal's evidence",
-  "board-model.ts#lines": "the document's first line, quoted by the no-opening-delimiter refusal",
-  "board-model.ts#name": "a column name configured in the dial, which is a document too",
-  "board-read.ts#claimMd":
-    "a path this process JOINED from a directory listing's entry name, so an author reaches it by " +
-    "creating a filesystem entry and the sentence quoting it carries no separately escaped copy of " +
-    "that name (plan 32.1-12)",
-  "board-read.ts#claimedBy": "the file name that claimed an identifier first",
-  "board-read.ts#id": "the identifier a ticket document declares",
-  "board-read.ts#name": "a directory entry's name, exactly as the listing reported it",
-  "board-read.ts#task": "a claimed task's stem, from the queue's directory listing",
-};
-
-/**
- * Everything else that reaches a published position, with the class that keeps it out of the subject
- * set. `path` — composed by this process from a resolved root and a constant subpath. `internal` — a
- * count, a bound, a refusal code, a module constant, an argv token, or the text of an error the
- * platform handed up. `assembled` — a sentence some OTHER position built, whose own substitutions
- * this same census classifies at the site where they were interpolated.
- */
-const NOT_CONTENT_DECLARATIONS: Readonly<Record<string, "path" | "internal" | "assembled">> = {
-  "board-dashboard.ts#INTERVAL_HARD_FLOOR_MS": "internal",
-  "board-dashboard.ts#arg": "internal",
-  "board-dashboard.ts#message": "assembled",
-  "board-dashboard.ts#oneLine": "internal",
-  "board-dashboard.ts#raw": "internal",
-  "board-dashboard.ts#rel": "path",
-  "board-model.ts#TICKET_KEYS": "internal",
-  "board-model.ts#claimedLive": "internal",
-  "board-model.ts#code": "internal",
-  "board-model.ts#i": "internal",
-  "board-model.ts#limit": "internal",
-  "board-read.ts#absPath": "path",
-  "board-read.ts#atLineCount": "internal",
-  "board-read.ts#claimedDir": "path",
-  "board-read.ts#code": "internal",
-  "board-read.ts#dir": "path",
-  "board-read.ts#indexPath": "path",
-  "board-read.ts#message": "assembled",
-  "board-read.ts#path": "path",
-  "board-read.ts#real": "path",
-  "board-read.ts#retries": "internal",
-  "board-read.ts#root": "path",
-  "board-read.ts#source": "internal",
-  "board-read.ts#target": "path",
-  "board-read.ts#taskDir": "path",
-  "board-read.ts#what": "internal",
-  "globals.d.ts#code": "internal",
-  "lib.es5.d.ts#length": "internal",
-  "lib.es5.d.ts#message": "internal",
-};
-
-// THE COUNTS ARE DECISIONS, NOT CONSTANTS SOMEBODY BUMPED. Each moves when a sentence lands or
-// leaves the three modules, and each is asserted in a case of its own beside the MEMBERS it counts.
+// THE ONE PINNED COUNT, AND IT IS A DECISION RATHER THAN A CONSTANT SOMEBODY BUMPED. It moves when
+// a sentence lands in or leaves a position a human reads as a finding, and it is now the ONLY number
+// this census pins: the ownership property below is an EQUALITY between two sets the walk derives,
+// so there is nothing else left to type.
+//
+// WHAT WAS DELETED HERE, AND WHY IT IS NOT COMING BACK (plan 32.1-13). Two per-declaration
+// classification tables used to stand in this position — a SUBJECT set of content-derived
+// declarations and an excluded set naming two classes, `path` and `internal` — together with three
+// pinned counts and four cases that consulted them. Both classes were measured wrong: the `path`
+// class claimed that escaping a directory entry's NAME covered the composed path built from it
+// (disproved end to end by plan 32.1-12, `.planning/WINDOWS.md` row 220), and the `internal` class
+// claimed that a platform error text names a path rather than a document's bytes (disproved by
+// measurement at `board-dashboard.ts`'s `(e as Error).message`, recorded in
+// `32.1-13-RED-baseline.txt` section 2.2). A hand-maintained set that rots while its tests stay
+// green is the failure class this repository has already paid for twice, so the set is deleted
+// rather than redrawn a third time: EVERY substitution at a published position is built through the
+// builder, and the census asserts that as a two-sided equality.
 const PUBLISHED_SUBSTITUTION_COUNT = 86;
-const CONTENT_SUBSTITUTION_COUNT = 26;
-const OWNED_SUBSTITUTION_COUNT = 44;
 
 /** ONE program for the whole block: a full `ts.Program` over every tracked `scripts/*.ts`. */
 let censusProgram: ReturnType<typeof createScriptsProgram> | null = null;
@@ -3921,84 +3872,53 @@ describe("32.1-07 — the builder's ownership is derived from the three modules 
     ).toEqual(classified);
   });
 
-  it("every DECLARATION reaching a published position is classified, in both directions", () => {
-    const observed = [...new Set(publishedRows(boardCensus()).map((r) => r.declaration))].sort();
-    const classified = [
-      ...Object.keys(CONTENT_DECLARATIONS),
-      ...Object.keys(NOT_CONTENT_DECLARATIONS),
-    ].sort();
-    expect(
-      observed,
-      "a value reaching a published sentence resolves to a declaration nobody classified. It is " +
-        "content-derived (it came out of a document or a directory listing — then it goes through " +
-        "`spelled`), or it is path-derived or internal (then it is recorded as such WITH ITS " +
-        "REASON). An unclassified declaration is not a third option",
-    ).toEqual(classified);
-  });
-
   it("the published DENOMINATOR is the number of substitutions this census decides", () => {
     expect(
       publishedRows(boardCensus()).length,
       "the number of substitutions written into a position a human reads as a finding moved. That " +
-        "is a decision — a sentence landed or left — never a constant to bump: every one of them " +
-        "is classified by the two tables above and every content-derived one must be built through " +
-        "the builder",
+        "is a decision — a sentence landed or left — never a constant to bump. It is the ONE number " +
+        "this census pins, and it is the denominator of the equality below: every substitution " +
+        "counted here must be built through the builder, with no class exempt",
     ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
   });
 
-  it("the SUBJECT set has the expected MEMBERS", () => {
-    const observed = [
-      ...new Set(
-        publishedRows(boardCensus())
-          .filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration))
-          .map((r) => r.declaration),
-      ),
-    ].sort();
+  it("every owned site is in a published position", () => {
     expect(
-      observed,
-      "the set of content-derived declarations quoted into published sentences moved. A member " +
-        "that disappeared is a sentence that stopped quoting a document; a member that arrived is " +
-        "a new value an author controls, reaching a document a human and a machine both read",
-    ).toEqual(Object.keys(CONTENT_DECLARATIONS).sort());
-  });
-
-  it("the SUBJECT set has the expected COUNT of sites", () => {
-    expect(
-      publishedRows(boardCensus()).filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration))
-        .length,
-      "the number of SITES quoting a content-derived value into a published sentence moved. The " +
-        "number is a decision that moves when a site lands or leaves, never a bumped constant: a " +
-        "new site is a new sentence that must be built through `spelled`",
-    ).toBe(CONTENT_SUBSTITUTION_COUNT);
-  });
-
-  it("the OWNED set has the expected COUNT, and every owned site is in a published position", () => {
-    const rows = boardCensus();
-    expect(
-      rows.filter((r) => r.owned).length,
-      "the number of substitutions built through `spelled` moved. Removing one is how F-14 comes " +
-        "back; adding one is a decision worth seeing in a diff",
-    ).toBe(OWNED_SUBSTITUTION_COUNT);
-    expect(
-      rows.filter((r) => r.owned && !PUBLISHED_RECEIVERS.includes(r.receiver)).map(nameRow),
+      boardCensus()
+        .filter((r) => r.owned && !PUBLISHED_RECEIVERS.includes(r.receiver))
+        .map(nameRow),
       "a value is escaped at a position that publishes no sentence. The builder is for sentences a " +
         "human reads; escaping a frame cell or a composed path here would change bytes the render " +
         "path already owns",
     ).toEqual([]);
   });
 
-  it("EVERY content-derived substitution is built through the builder — the census itself", () => {
-    const offenders = publishedRows(boardCensus()).filter(
-      (r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration) && !r.owned,
-    );
+  it("THE PUBLISHED SET AND THE OWNED SET ARE THE SAME SET — both directions", () => {
+    const rows = boardCensus();
+    const published = publishedRows(rows);
+    const owned = rows.filter((r) => r.owned);
+
+    // DIRECTION ONE: nothing published is unbuilt.
     expect(
-      offenders.map(nameRow),
-      "a content-derived value is interpolated into a published sentence WITHOUT the builder. What " +
-        "it costs is F-14 exactly: an admitted control byte is deleted by the renderer, so the " +
-        "sentence quotes an identifier no file declares and a reader who searches for it finds " +
-        "nothing. Build it with `spelled`. Adding the site to an exemption list is the forbidden " +
-        "alternative — an exemption list is the rotting set this census replaced",
+      published.filter((r) => !r.owned).map(nameRow),
+      "a value is interpolated into a published sentence WITHOUT the builder. What it costs is " +
+        "F-14 exactly: an admitted control byte is deleted by the renderer, so the sentence quotes " +
+        "a path or an identifier that does not exist and a reader who searches for it finds " +
+        "nothing. Build it with `spelled`. Adding the site to an exemption list — or reviving a " +
+        "per-class carve-out for it — is the forbidden alternative: an exemption list is the " +
+        "rotting set this equality replaced, and BOTH classes it used to draw were measured wrong " +
+        "(32.1-13-RED-baseline.txt section 2)",
     ).toEqual([]);
+
+    // DIRECTION TWO: the walk did not stop early. An empty offender list ALONE would also hold
+    // over a census that saw three substitutions, which is the shortness this instrument exists to
+    // refuse — so the two counts are compared to each other as well.
+    expect(
+      owned.length,
+      "the number of substitutions built through the builder is not the number written into a " +
+        "published position. An empty offender list above with a short count here means the walk " +
+        "stopped before it reached them, and a census that never saw a site says nothing about it",
+    ).toBe(published.length);
   });
 });
 
@@ -4077,6 +3997,17 @@ function mirrorCensus(module: string, seed: string, replacement: string): readon
   return censusOf(built.context, api);
 }
 
+/**
+ * The live owned count, DERIVED on every call rather than pinned.
+ *
+ * The pinned owned count this replaces was deleted with the classification tables (plan 32.1-13):
+ * pinning it would have reintroduced a second number to bump beside the equality that now derives
+ * it. The mirror's movement is measured against the LIVE tree's own count, so the assertion below
+ * says what it means — the seeded removal moved this census by exactly one — without depending on
+ * anybody having re-typed a constant.
+ */
+const liveOwnedCount = (): number => boardCensus().filter((r) => r.owned).length;
+
 const mirrorModelCensus = (): readonly CensusRow[] =>
   mirrorCensus("board-model.ts", SEEDED_TAG_REMOVAL, SEEDED_TAG_REPLACEMENT);
 const mirrorReadCensus = (): readonly CensusRow[] =>
@@ -4085,31 +4016,32 @@ const mirrorReadCensus = (): readonly CensusRow[] =>
 describe("32.1-07 — the ownership census is a control, not a coincidence", () => {
   it("removing ONE builder call moves the owned count by exactly one", () => {
     const owned = mirrorModelCensus().filter((r) => r.owned).length;
-    expect(owned).not.toBe(OWNED_SUBSTITUTION_COUNT);
+    const live = liveOwnedCount();
+    expect(owned).not.toBe(live);
     expect(
       owned,
       "the seeded removal moved the owned count by something other than one, so the number this " +
         "census reports is not a function of the seeded change alone",
-    ).toBe(OWNED_SUBSTITUTION_COUNT - 1);
+    ).toBe(live - 1);
   });
 
   it("the census REDS, naming the site the seeded removal un-owned", () => {
     const rows = mirrorModelCensus();
     const offenders = rows
       .filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver))
-      .filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration) && !r.owned);
+      .filter((r) => !r.owned);
     expect(
       offenders.length,
-      "the seeded removal produced other than exactly one unowned content-derived site, so the " +
-        "refusal below is not about the seeded change",
+      "the seeded removal produced other than exactly one unowned published site, so the refusal " +
+        "below is not about the seeded change",
     ).toBe(1);
     const named = offenders.map(nameRow)[0] ?? "";
     expect(named, "the refusal does not name the module the site is in").toContain("board-model.ts");
     expect(named, "the refusal does not name the expression the site interpolates").toContain("t.id");
     expect(
       named,
-      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot tell " +
-        "which class the site belongs to",
+      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot open " +
+        "the binding the sentence quotes without re-deriving it",
     ).toContain("board-model.ts#id");
     // AND THE REST OF THE CENSUS IS UNMOVED: the seeded change un-owns one site and nothing else.
     expect(
@@ -4123,23 +4055,24 @@ describe("32.1-07 — the ownership census is a control, not a coincidence", () 
 
   it("removing the newly built `no-at` claim-record tag moves the owned count by exactly one", () => {
     const owned = mirrorReadCensus().filter((r) => r.owned).length;
-    expect(owned).not.toBe(OWNED_SUBSTITUTION_COUNT);
+    const live = liveOwnedCount();
+    expect(owned).not.toBe(live);
     expect(
       owned,
       "the seeded removal in scripts/board-read.ts moved the owned count by something other than " +
         "one, so the number this census reports is not a function of the seeded change alone",
-    ).toBe(OWNED_SUBSTITUTION_COUNT - 1);
+    ).toBe(live - 1);
   });
 
   it("the census REDS on board-read.ts, naming the module, the expression and the declaration", () => {
     const rows = mirrorReadCensus();
     const offenders = rows
       .filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver))
-      .filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration) && !r.owned);
+      .filter((r) => !r.owned);
     expect(
       offenders.length,
-      "the seeded removal produced other than exactly one unowned content-derived site, so the " +
-        "refusal below is not about the seeded change",
+      "the seeded removal produced other than exactly one unowned published site, so the refusal " +
+        "below is not about the seeded change",
     ).toBe(1);
     const named = offenders.map(nameRow)[0] ?? "";
     expect(named, "the refusal does not name the module the site is in").toContain("board-read.ts");
@@ -4148,8 +4081,8 @@ describe("32.1-07 — the ownership census is a control, not a coincidence", () 
     );
     expect(
       named,
-      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot tell " +
-        "which class the site belongs to",
+      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot open " +
+        "the binding the sentence quotes without re-deriving it",
     ).toContain("board-read.ts#claimMd");
     // AND THE REST OF THE CENSUS IS UNMOVED under a mutation that only removed a TAG.
     expect(

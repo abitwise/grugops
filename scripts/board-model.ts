@@ -1105,34 +1105,40 @@ export function visible(text: string): string {
  * publishing the word "undefined" inside a sentence a human acts on is a different defect this
  * builder would otherwise make easy to write.
  *
- * WHICH VALUES GO THROUGH IT, AND THE TWO CLASSES THAT DELIBERATELY DO NOT (plan 32.1-07, Task 2).
- * The class this builder owns is CONTENT-DERIVED: a value that came out of a document or a directory
- * listing rather than out of this process's own configuration — a ticket's declared identifier, a
- * directory entry's name, a claimed task's stem, the file name that claimed an identifier first, the
- * line a parse error quotes, a configured column name read from the dial, and a `readErrors` message
- * assembled from any of them. Those are the values an author controls and the ones F-14 was measured
- * on. Two other classes interpolate into the same sentences and are OUT OF SCOPE here, with reasons
- * rather than by omission:
- *   • PATH-DERIVED — `root`, `dir`, `target`, `real`, `absPath`, a composed child path. A path in
- *     these sentences is one this process JOINED from a resolved repository root and a constant
- *     subpath, so an author reaches it only by creating a filesystem entry, and the entry NAME that
- *     lets them is itself content-derived and escaped above. Routing the composed path as well is a
- *     larger cutover across three modules and a decision about the containment seam's own
- *     vocabulary, not about F-14, so it is named here rather than taken silently.
- *   • INTERNAL — a count, a retry number, a bound, a refusal code, a module constant, and the text
- *     of an error the platform handed up. The process generated these itself; none can carry a code
- *     point a renderer deletes unless the platform's own error text does, and that text names a path
- *     rather than a document's bytes.
- * The classification is enforced by the derived census in `scripts/board-model.test.ts`, which keys
- * on the DECLARATION a substitution resolves to rather than on how the reference is spelled — so a
- * new sentence quoting an already-classified value is covered the day it is written, and a new
- * DECLARATION landing in a published sentence moves a pinned set and has to be classified.
+ * WHICH VALUES GO THROUGH IT: EVERY ONE, WITH NO CLASS EXEMPT (plan 32.1-13).
+ * Every value interpolated into a sentence published at one of the receiver positions
+ * `scripts/board-model.test.ts` enumerates — the watch record's message, the argv refusal, the
+ * ticket grammar's reason, the stderr frame, a conflict's measured and stated halves, every read
+ * error and containment message, and the presence sentence set — is built through this tag. There is
+ * no class of value that opts out, so the property is true by CONSTRUCTION rather than by an
+ * enumeration somebody maintains.
+ *
+ * IT USED TO BE A CLASS QUESTION, AND THE CLASS WAS MEASURED WRONG TWICE. Two carve-outs stood here
+ * — PATH-DERIVED and INTERNAL — and both are DELETED rather than narrowed, each with the register
+ * that disproved it, because a class-based bound is a hand-maintained set and this repository has
+ * already paid twice for a hand-maintained set that rotted while its tests stayed green:
+ *   • PATH-DERIVED claimed that a composed path is safe because "the entry NAME that lets an author
+ *     reach it is itself content-derived and escaped above". False: `childPath(root, dir, name)`
+ *     produces a DIFFERENT binding from `name`, and the sentence quoting the composition carries no
+ *     separately escaped copy of the name. Register: `.planning/WINDOWS.md` row 220 and
+ *     `.planning/phases/32.1-board-dashboard-deferred-residuals/32.1-12-RED-baseline.txt` § 1 — a
+ *     repository root named with a C1 point, and a published JSON document naming a claim record
+ *     under a directory that does not exist.
+ *   • INTERNAL claimed that a platform error's text "names a path rather than a document's bytes",
+ *     and then excused it. A path is exactly the thing composed from a directory listing's entry
+ *     name, so the exception the carve-out named was the defect. Register:
+ *     `32.1-13-RED-baseline.txt` § 2.2 — `board-dashboard.ts`'s `(e as Error).message` republishing
+ *     an `ENOENT` text that names the root path twice, with the code point deleted both times.
+ * The property is enforced by the derived census in `scripts/board-model.test.ts` as a TWO-SIDED set
+ * equality — no published substitution is unbuilt, AND the owned count equals the published count —
+ * keyed on the DECLARATION a substitution resolves to rather than on how the reference is spelled.
  *
  * WHAT IT DOES NOT CLOSE, NAMED RATHER THAN IMPLIED:
- *   • It escapes the values it is GIVEN. It does not decide which values are content-derived — that
- *     question is answered by the derived census in `scripts/board-model.test.ts`, which resolves
- *     every substitution in these three modules to its DECLARATION and refuses a content-derived one
- *     built outside this tag.
+ *   • It escapes the values it is GIVEN. It does not decide which POSITIONS publish a sentence — that
+ *     question is answered by the receiver classification in `scripts/board-model.test.ts`, which
+ *     resolves every substitution in these three modules to the named position it is written to and
+ *     refuses a published one built outside this tag. That classification stays enumerated on
+ *     purpose: whether a position is a sentence a human adjudicates has no derivation.
  *   • It does not change what the ticket grammar ADMITS. `TICKET_CONTROL` is untouched here on
  *     purpose: widening it to the C1 block would change which ticket documents are readable at all,
  *     which is a grammar decision (DASH-01) and not this one. The remedy for an admitted byte is
