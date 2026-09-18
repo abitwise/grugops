@@ -1,0 +1,179 @@
+32.1-12 — GREEN PROOF
+Plan: 32.1-12 (D-07 / D-19 — the composed claim-record path, one register over from F-14)
+Tree: /Users/olgeroeselg/Projects/public/grugops, main
+  RED reproduction commit  67d68dd9  test(32.1-12): reproduce the composed claim-record path defect RED
+  closure commit           c83fb4b3  feat(32.1-12): build the claim-record sentences through the builder
+Date: 2026-09-18
+
+Every code point this transcript quotes is SPELLED in the `<U+NNNN>` prose form and never written as
+a byte.
+
+===================================================================================================
+SECTION 1 — THE SAME THREE POINTS, MEASURED AGAIN AFTER THE CLOSURE
+===================================================================================================
+
+Same harness, same plants, same three channels as 32.1-12-RED-baseline.txt § 1.1.
+
+--- plant <U+0085> / arm `no-at` -------------------------------------------
+  fixture entry read back from the parent listing : ["repo<U+0085>x"]
+  reader reached the arm                          : 1 entry, code `no-at`
+  spawned dashboard exit code                     : 0
+  1. model message      names: repo<U+0085>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0085>x`? true   carries a RAW deleted code point? false
+  2. stderr frame       names: repo<U+0085>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0085>x`? true
+  3. published document names: repo<U+0085>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0085>x`? true   names the non-existent `repox`? false
+
+--- plant <U+009F> / arm `tampered` -------------------------------------------
+  fixture entry read back from the parent listing : ["repo<U+009F>x"]
+  reader reached the arm                          : 1 entry, code `tampered`
+  spawned dashboard exit code                     : 0
+  1. model message      names: repo<U+009F>x/.grugops/queue/claimed/task-tampered/claim.md
+     spells `repo<U+009F>x`? true   carries a RAW deleted code point? false
+  2. stderr frame       names: repo<U+009F>x/.grugops/queue/claimed/task-tampered/claim.md
+     spells `repo<U+009F>x`? true
+  3. published document names: repo<U+009F>x/.grugops/queue/claimed/task-tampered/claim.md
+     spells `repo<U+009F>x`? true   names the non-existent `repox`? false
+
+--- plant <U+0001> / arm `no-at` -------------------------------------------
+  fixture entry read back from the parent listing : ["repo<U+0001>x"]
+  reader reached the arm                          : 1 entry, code `no-at`
+  spawned dashboard exit code                     : 0
+  1. model message      names: repo<U+0001>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0001>x`? true   carries a RAW deleted code point? false
+  2. stderr frame       names: repo<U+0001>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0001>x`? true
+  3. published document names: repo<U+0001>x/.grugops/queue/claimed/task-no-at/claim.md
+     spells `repo<U+0001>x`? true   names the non-existent `repox`? false
+
+BEFORE AND AFTER, PER POINT:
+
+  point 1  model's own sentence   RAW code point  ->  spelled, and carrying no raw deleted point
+  point 2  rendered stderr frame  already spelled ->  unchanged (see the note below)
+  point 3  published document     names `repox`   ->  names `repo<U+NNNN>x`, the entry that exists
+
+POINT 2 IS UNCHANGED AND THAT IS THE HONEST RESULT, not a closure. The dashboard's `emit()` applies
+`spelled` a second time at the stderr chokepoint, so that one channel was already escaping the raw
+byte the model handed it. What moved is the model's own value and the published JSON document — the
+two channels a consumer of DASH-07 actually parses. The plan predicted all three would move; the
+measurement says two did, and the plan's prediction is corrected in the RED baseline rather than
+restated here.
+
+THE FIXED CASES, RUN AGAINST THE CLOSED TREE:
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts -t "32.1-12"
+   Test Files  1 passed (1)
+        Tests  4 passed | 165 skipped (169)
+
+No assertion was weakened and no plant removed: `git diff 67d68dd9..c83fb4b3 -- scripts/board-read.test.ts`
+is empty. The only edit that file received after the RED commit was none.
+
+===================================================================================================
+SECTION 2 — THE THREE PINNED COUNTS, RE-DERIVED RATHER THAN BUMPED
+===================================================================================================
+
+Each value below was read out of the census's own output — first as the number the failing assertion
+REPORTED as `Received`, then confirmed by a direct dump of the live census (§ 3). None was reached by
+arithmetic on the previous value.
+
+  pin                            before   after   what moved it
+  ---------------------------------------------------------------------------------------------
+  PUBLISHED_SUBSTITUTION_COUNT     86       86    nothing. This task adds no sentence, so the
+                                                  denominator must not move; a movement here would
+                                                  have meant the walk is measuring something other
+                                                  than the substitutions, which is a finding rather
+                                                  than a number to accept.
+  CONTENT_SUBSTITUTION_COUNT       23       26    `board-read.ts#claimMd` moving from the excluded
+                                                  `path` table into the SUBJECT table. It has THREE
+                                                  published sites, not the two the RED census listed
+                                                  as unowned: the `no-claim-record` sentence at
+                                                  board-read.ts:1561 already quoted `claimMd`
+                                                  through the builder, so it was owned and therefore
+                                                  absent from the unowned rows. The subject count
+                                                  counts SITES, owned or not.
+  OWNED_SUBSTITUTION_COUNT         41       44    the two claim-record sentences: `claimMd` at
+                                                  board-read.ts:1591 (`tampered`) and 1609
+                                                  (`no-at`), plus `atLineCount` at 1591, which the
+                                                  same tagged literal carries.
+
+THE +3 ON THE CONTENT COUNT IS THE ONE WORTH READING TWICE. Predicting +2 from the RED census's
+"board-read.ts#claimMd unowned published sites: 2" would have been wrong, and would have been wrong
+in the direction that hides work: the unowned rows are a SUBSET of the declaration's sites, and a
+pin derived from a subset is a pin that disagrees with its own instrument. Reading the number out of
+the census is what caught it.
+
+===================================================================================================
+SECTION 3 — THE MUTATION MIRROR: THE CENSUS DISCRIMINATES IN THE MODULE THIS PLAN CHANGED
+===================================================================================================
+
+The mirror re-runs the whole pipeline — program, type checker, declaration resolution — over one
+module served from mutated text at the compiler host's `getSourceFile`. Nothing on disk is touched.
+It was generalised over the MODULE it seeds, because it had only ever been watched fail on
+`board-model.ts`: a control exercised in one module says nothing about the module where the next
+unbuilt sentence will land. The new seed is the `no-at` claim-record sentence, which carries exactly
+ONE substitution, so the owned count moves by exactly one.
+
+The seed's UNIQUENESS is now asserted rather than its mere presence. `String.replace` with a string
+pattern rewrites the FIRST occurrence, so a seed matching twice would un-own a site chosen by source
+order and the count assertions would silently be about a different sentence.
+
+LIVE TREE (after the closure):
+  published denominator ......... 86
+  content-derived published ..... 26
+  owned, anywhere ............... 44
+  content-derived and UNOWNED ... (none)
+
+MIRROR A — one tag removed in scripts/board-model.ts (the pre-existing seed)
+  published denominator ......... 86  (unmoved? true)
+  owned, anywhere ............... 43  (expected 43)
+  the census REFUSES, naming .... board-model.ts:1688 `t.id` (board-model.ts#id)
+
+MIRROR B — the `no-at` claim-record tag removed in scripts/board-read.ts (plan 32.1-12)
+  published denominator ......... 86  (unmoved? true)
+  owned, anywhere ............... 43  (expected 43)
+  the census REFUSES, naming .... board-read.ts:1609 `claimMd` (board-read.ts#claimMd)
+
+Mirror B names the MODULE (`board-read.ts`), the INTERPOLATED EXPRESSION (`claimMd`) and the
+RESOLVED DECLARATION (`board-read.ts#claimMd`), and the published denominator is unmoved under a
+mutation that only removed a tag. That is D-19's discrimination requirement met by a mutation run
+rather than by an argument.
+
+===================================================================================================
+SECTION 4 — GATE RESULTS
+===================================================================================================
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts -t "32.1-12"
+      Test Files  1 passed (1)   Tests  4 passed | 165 skipped (169)
+
+  $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+      Test Files  1 passed (1)   Tests  177 passed (177)
+
+  $ npm run typecheck
+      tsc --noEmit && tsc -p tsconfig.tests.json && tsc -p tsconfig.fixtures.json — no output, exit 0
+
+  $ npm run build && npm run freshness
+      All build outputs fresh: 66 committed .js file(s) match a rebuild of their sources.
+      (run at HEAD c83fb4b3, after the commit that carries scripts/board-read.js)
+
+  $ npm run check:build-parity
+      PASS  Build parity: tracked build outputs that moved when the build ran: 0 findings over 66/66
+      == Result ==  ALL CHECKS PASSED
+
+  $ npm run check:nul-bytes
+      PASS  2351 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte
+      == Result ==  ALL CHECKS PASSED
+
+  $ npm run check:dashboard-readonly
+      Tests  202 passed (202)
+
+  $ npm run check:diff-disposition
+      PASS  diff disposition — changed watched file(s): 0 findings over 39/39 elements
+      == Result ==  ALL CHECKS PASSED
+
+  $ npx vitest run --exclude '**/scripts/e2e/**'          (the full regression lane)
+      Test Files  75 passed (75)
+           Tests  5230 passed | 2 skipped (5232)
+
+The live e2e lane (`npm test`) was NOT run: it starts the live claude-CLI lane, spends tokens and can
+hang, and this plan's prohibitions name it explicitly.
