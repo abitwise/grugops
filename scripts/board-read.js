@@ -45,7 +45,7 @@
 // Voice: CLEAR PROFESSIONAL VOICE throughout (CLAUDE.md hard rule — this is a trace surface).
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync, } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { joinSnapshot, normalizeDocument, parseBoard, parseTicketDocument, sourceValue, stripHtmlComments, } from "./board-model.js";
+import { joinSnapshot, normalizeDocument, parseBoard, parseTicketDocument, sourceValue, spelled, stripHtmlComments, } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
 // ── The conflict set (D-10) ──────────────────────────────────────────────────────────────────────
 //
@@ -734,9 +734,9 @@ export function childPath(root, dir, name) {
             // NOT a composed path: the segment is exactly what is being refused, so composing it with its
             // directory here would perform the `join` this arm exists to prevent.
             target: dir,
-            message: `board-read: the directory entry \`${name}\` under ${dir} is not a plain path segment. ` +
-                `It is refused before any filesystem access, so a name nobody vouched for never reaches a ` +
-                `join.`,
+            message: spelled `board-read: the directory entry \`${name}\` under ${dir} is not a plain path ` +
+                `segment. It is refused before any filesystem access, so a name nobody vouched for never ` +
+                `reaches a join.`,
         };
     }
     const target = resolve(join(dir, name));
@@ -958,7 +958,7 @@ export function readTicketsSource(root, readAt, previous, seam) {
                 source: "tickets",
                 path,
                 code: "empty-stem",
-                message: `${name} leaves no file stem once the .md extension is removed, so this entry's ` +
+                message: spelled `${name} leaves no file stem once the .md extension is removed, so this entry's ` +
                     `fallback identity would be an identifier of zero characters. A board row cannot name ` +
                     `the empty identifier, so the document could never be joined to one, and admitting it ` +
                     `would place an unnameable identity inside the ticket population. The entry is listed, ` +
@@ -1036,10 +1036,10 @@ export function readTicketsSource(root, readAt, previous, seam) {
                 source: "tickets",
                 path,
                 code: "duplicate-id",
-                message: `${name} and ${claimedBy} both claim the identifier ${id}. Ticket identifiers are ` +
-                    `unique and the first by file name is joined, so ${claimedBy} is the one joined ` +
-                    `and ${name} is not. Neither document is modified and no conflict is invented for the ` +
-                    `second.`,
+                message: spelled `${name} and ${claimedBy} both claim the identifier ${id}. Ticket identifiers ` +
+                    spelled `are unique and the first by file name is joined, so ${claimedBy} is the one ` +
+                    spelled `joined and ${name} is not. Neither document is modified and no conflict is ` +
+                    `invented for the second.`,
             });
         }
         else {
@@ -1153,9 +1153,9 @@ function readQueueSource(root, readAt, previous, seam) {
                 // refused, so joining it with its directory here performs the join this arm prevents.
                 path: claimedDir,
                 code: "unsafe-task-name",
-                message: `board-read: the claimed-stage entry \`${task}\` under ${claimedDir} is not a plain ` +
-                    `path segment. It is refused before any filesystem access, so a name nobody vouched ` +
-                    `for never reaches a join, and no row is rendered for it.`,
+                message: spelled `board-read: the claimed-stage entry \`${task}\` under ${claimedDir} is not a ` +
+                    `plain path segment. It is refused before any filesystem access, so a name nobody ` +
+                    `vouched for never reaches a join, and no row is rendered for it.`,
             });
             continue;
         }
@@ -1197,8 +1197,8 @@ function readQueueSource(root, readAt, previous, seam) {
                 source: "queue",
                 path: claimMd,
                 code: "no-claim-record",
-                message: `${claimMd} does not exist, so the claimed task \`${task}\` carries no claim record. ` +
-                    `The reader can place no row for it: nothing states who claimed it or when.`,
+                message: spelled `${claimMd} does not exist, so the claimed task \`${task}\` carries no claim ` +
+                    `record. The reader can place no row for it: nothing states who claimed it or when.`,
             });
             continue;
         }
@@ -1327,9 +1327,9 @@ function readContextSource(root, readAt, previous, seam) {
                 // perform the join this arm exists to prevent.
                 path: dir,
                 code: "unsafe-task-name",
-                message: `board-read: the context entry \`${name}\` under ${dir} is not a plain path segment. ` +
-                    `It is refused before any filesystem access, so a name nobody vouched for never reaches ` +
-                    `a join, and no task is reported for it.`,
+                message: spelled `board-read: the context entry \`${name}\` under ${dir} is not a plain path ` +
+                    `segment. It is refused before any filesystem access, so a name nobody vouched for ` +
+                    `never reaches a join, and no task is reported for it.`,
             });
             // THE SOURCE IS NOT DEGRADED, for the reason the queue reader's twin states: nothing failed
             // to arrive. The directory was listed and this entry's name was read correctly; it was

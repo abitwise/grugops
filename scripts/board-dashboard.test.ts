@@ -2980,3 +2980,146 @@ describe("board-dashboard — a prototype-spelled key survives to the published 
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32.1-07 (D-07, F-14, ledger row 200) — THE PUBLISHED DOCUMENT QUOTES WHAT THE FILE DECLARES.
+//
+// THE CASE IS HERE, AT THE END OF THE PIPE, ON PURPOSE. `scripts/board-model.test.ts` asserts the
+// sentence the builder produces; this one drives a real tree through the real reader, the real join
+// and the real emitter and reads the bytes a consumer actually receives. F-14 was invisible to every
+// unit case in the tree precisely because each half was correct about its own question: the grammar
+// admitted the byte (correctly — widening it is DASH-01's decision), the renderer deleted it
+// (correctly — that is what a terminal-safe channel does), and nothing asked what the SENTENCE
+// between them ended up claiming.
+//
+// IT IS ALSO WHERE THE TWO-AUTHORITY PIN LIVES. The `visible()`/`sanitizeCell` agreement case above
+// is what makes the builder's output inert under the sanitizer, so the escape survives the very
+// scrub that deleted the raw byte. That case is NOT a site list and does not retire with the
+// F-14 cutover — see the derived census's docblock in `scripts/board-model.test.ts` for the two
+// CONTEXT.md corrections this plan carries.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("32.1-07 — F-14 end to end: an admitted C1 byte is SPELLED in the published document", () => {
+  /** U+0085 NEL, from its code point: this source file carries no control byte of its own. */
+  const NEL = String.fromCodePoint(0x85);
+  const DECLARED = `ABC-902${NEL}X`;
+  const SPELLED = "ABC-902<U+0085>X";
+  /** What the document published BEFORE this plan — an identifier no file on the tree declares. */
+  const DELETED = "ABC-902X";
+
+  it("the conflict sentences name the declared identifier, byte spelled, on stdout", () => {
+    withFixtureCopy((dir) => {
+      writeFileSync(
+        join(dir, "plans", "tickets", "ABC-901.md"),
+        `---\nid: ${DECLARED}\ntitle: the F-14 reproduction\nstatus: backlog\ncolumn: Backlog\n---\n\n# x\n`,
+        "utf8",
+      );
+      const board = readFileSync(join(dir, "plans", "board.md"), "utf8");
+      const anchor = "- [ABC-101] Something in the backlog  (owner: BA/PM, since: 2026-09-01)";
+      expect(
+        board.includes(anchor),
+        "PREMISE: the fixture's Backlog row moved, so the reproduction's row was never added and " +
+          "the conflicts below are about a tree that does not exist",
+      ).toBe(true);
+      writeFileSync(
+        join(dir, "plans", "board.md"),
+        board.replace(anchor, `${anchor}\n- [ABC-901] the F-14 reproduction`),
+        "utf8",
+      );
+
+      const seen = runMain([dir, "--once", "--json"], false);
+      expect(seen.code, "the one-shot run did not exit 0").toBe(0);
+      const lines = seen.out.split("\n").filter((l) => l !== "");
+      expect(lines.length, "document mode emitted other than exactly one line").toBe(1);
+      const doc = JSON.parse(lines[0] as string) as {
+        conflicts: readonly { kind: string; actual: string }[];
+      };
+
+      // The committed fixture already raises a `row-without-file` of its own, so the reproduction's
+      // row is selected by the file it is about rather than by being the only one of its kind.
+      const rowWithoutFile = doc.conflicts.filter(
+        (c) => c.kind === "row-without-file" && c.actual.includes("ABC-901.md"),
+      );
+      expect(
+        rowWithoutFile.map((c) => c.actual),
+        "the published conflict quotes an identifier whose C1 byte the renderer deleted, so the " +
+          "document states that a file declares an identifier it does not declare. A reader who " +
+          "searches the tree for what it prints finds nothing",
+      ).toEqual([
+        `plans/tickets/ABC-901.md exists and declares the identifier ${SPELLED}, ` +
+          "so it is joined under that identifier and not this one",
+      ]);
+
+      const unplaced = doc.conflicts.filter(
+        (c) => c.kind === "ticket-unplaced" && c.actual.includes("ABC-902"),
+      );
+      expect(
+        unplaced.map((c) => c.actual),
+        "the unplaced arm speaks about the same declared identifier and must spell the same byte",
+      ).toEqual([`no row names ${SPELLED}`]);
+
+      expect(
+        lines[0]?.includes(`identifier ${DELETED},`),
+        `the document still publishes \`${DELETED}\`, which is the identifier it printed with the ` +
+          `byte deleted — the whole of F-14`,
+      ).toBe(false);
+    });
+  });
+
+  it("the stderr frame spells the byte too, and nothing raw reaches either channel", () => {
+    withFixtureCopy((dir) => {
+      // TWO documents declaring ONE identifier: the read seam's `duplicate-id` message quotes the
+      // identifier AND both file names, and the dashboard quotes that whole message into its stderr
+      // frame. Two modules' sentences, one byte, one line a human reads.
+      const doc = (stem: string): void =>
+        writeFileSync(
+          join(dir, "plans", "tickets", `${stem}.md`),
+          `---\nid: ${DECLARED}\ntitle: t\nstatus: backlog\ncolumn: Backlog\n---\n\n# x\n`,
+          "utf8",
+        );
+      doc("ABC-901");
+      doc("ABC-903");
+
+      const seen = runMain([dir, "--once", "--json"], false);
+      const frame = seen.err.split("\n").find((l) => l.includes("duplicate-id"));
+      expect(frame, "PREMISE: no duplicate-id line reached stderr, so nothing was measured").toBeDefined();
+      expect(
+        frame?.includes(`both claim the identifier ${SPELLED}`),
+        "the stderr frame prints an identifier the file does not declare. The dashboard escapes " +
+          "what it quotes at the point IT builds the line, so a message some other module built " +
+          "without escaping is still spelled here rather than silently shortened",
+      ).toBe(true);
+
+      // AND THE CHANNELS ARE STILL INERT. The escape is TEXT; the sanitizer that deleted the raw
+      // byte leaves it alone. A double-escape or a route around the sanitizer shows up here.
+      expect(
+        controlCodePointsStrict(seen.out.replace(/\n/g, "")),
+        "a raw control code point reached stdout",
+      ).toEqual([]);
+      expect(
+        controlCodePointsStrict(seen.err.replace(/\n/g, "")),
+        "a raw control code point reached stderr",
+      ).toEqual([]);
+    });
+  });
+
+  it("the grammar's admitted class is UNCHANGED, which is why the sentence has to spell the byte", () => {
+    // The prohibition, asserted rather than promised: if `TICKET_CONTROL` had been widened to the
+    // C1 block the document above would be REFUSED instead of quoted, which is a different remedy
+    // with a different blast radius (DASH-01 — it changes which tickets are readable at all).
+    expect(
+      TICKET_CONTROL.test(NEL),
+      "TICKET_CONTROL now refuses U+0085. That is a grammar change this plan's prohibitions " +
+        "forbid: the remedy for an admitted byte is that the sentence spells it",
+    ).toBe(false);
+    expect(
+      visible(NEL),
+      "the escaper no longer spells U+0085, so the builder cannot close F-14 at all",
+    ).toBe("<U+0085>");
+    expect(
+      sanitizeCell(visible(NEL)),
+      "the escape text does not survive the renderer, so spelling the byte at build time would be " +
+        "undone at write time",
+    ).toBe("<U+0085>");
+  });
+});

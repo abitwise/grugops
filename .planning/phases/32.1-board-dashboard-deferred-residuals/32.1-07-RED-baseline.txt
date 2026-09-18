@@ -91,3 +91,74 @@ $ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
 The arm added for it is NOT a blanket "a tag is transparent": it admits the identifier `spelled` and
 refuses every other tag by name, because any other tag is a function that could rewrite the template
 TEXT, and reading that as the identity would let a sentence the contract never saw pass as one it did.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 3 — THE ROUTING DISCRIMINATES: THREE MIRROR PLANTS, ONE PER MODULE
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+A structural change nobody has watched fail is not yet a control. Each plant removes ONE builder
+call from the live source, rebuilds, drives a planted tree end to end through the published document,
+and is then RESTORED. All three were restored and the tree rebuilt; `git diff` afterwards carries
+only this plan's intended changes.
+
+The tree, for all three plants:
+
+    plans/board.md                one row `- [ABC-901] the F-14 reproduction`
+    plans/tickets/ABC-901.md      `id: ABC-902<U+0085>X`
+    plans/tickets/ABC-903.md      `id: ABC-902<U+0085>X`   (the same identifier, so the read seam
+                                                            raises `duplicate-id` naming both files)
+
+Three observation points, one per module:
+    [A] `conflicts[row-without-file].actual`   — built in `scripts/board-model.ts`
+    [B] `readErrors[duplicate-id].message`     — built in `scripts/board-read.ts`
+    [C] the stderr frame line                  — built in `scripts/board-dashboard.ts`
+
+--- GREEN (no plant) -----------------------------------------------------------------------------
+[A] "plans/tickets/ABC-901.md exists and declares the identifier ABC-902<U+0085>X, so it is joined
+     under that identifier and not this one"
+[B] "ABC-903.md and ABC-901.md both claim the identifier ABC-902<U+0085>X. Ticket identifiers are
+     unique and the first by file name is joined, so ABC-901.md is the one joined and ABC-903.md is
+     not. Neither document is modified and no conflict is invented for the second."
+[C] "board-dashboard: tickets at <tree>/plans/tickets/ABC-903.md — duplicate-id: ABC-903.md and
+     ABC-901.md both claim the identifier ABC-902<U+0085>X. …"
+
+--- PLANT A — `scripts/board-model.ts`, the presence sentence's tag removed -----------------------
+[A] "… declares the identifier ABC-902X, …"        <-- THE BYTE IS SILENTLY GONE AGAIN
+[B] unchanged (spelled)
+[C] unchanged (spelled)
+
+--- PLANT B — `scripts/board-read.ts`, the duplicate-id message's first tag removed ---------------
+[A] unchanged (spelled)
+[B] "ABC-903.md and ABC-901.md both claim the identifier ABC-902X. …"   <-- SILENTLY GONE AGAIN
+[C] STILL SPELLED — and this is the measurement worth keeping. The dashboard escapes what it quotes
+    at the point IT builds its line, so a message another module built WITHOUT the builder is still
+    spelled on the channel a human watches. The two routings are independent, not one applied twice:
+    the JSON document lost the byte in the same run in which the stderr frame kept it.
+
+--- PLANT C — plant B, plus `scripts/board-dashboard.ts`'s emit-frame tag removed -----------------
+[A] unchanged (spelled)
+[B] "… both claim the identifier ABC-902X. …"      <-- gone (plant B)
+[C] "board-dashboard: tickets at <tree>/plans/tickets/ABC-903.md — duplicate-id: ABC-903.md and
+     ABC-901.md both claim the identifier ABC-902X. …"                  <-- SILENTLY GONE AGAIN
+
+Each plant moves exactly the observation point its module owns, and no other. The difference is
+therefore caused by the removed call rather than by a rebuild that changed something else.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 4 — THE TWO-AUTHORITY PIN SURVIVES, AND CONTEXT.md's RETIREMENT SENTENCE NAMES NOTHING
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT.md D-07 ends "The site-list derivation is retired." MEASURED ON THIS TREE: there is no
+site-list derivation in `scripts/`. The "both sites" claim it refers to is PROSE, at
+`.planning/phases/32-board-projector-cli-dashboard/32-REVIEW-FIX.md:115-118`. The only
+derivation-shaped artefact near `visible()` is a DIFFERENT thing:
+
+    scripts/board-dashboard.test.ts
+      it("visible() escapes exactly the code points sanitizeCell deletes — derived, both directions")
+
+which walks every code point from U+0000 through U+00A5, asserts the two functions' sets EQUAL in
+both directions, floors the denominator against vacuity, and asserts the escape TEXT survives the
+sanitizer. It is a TWO-AUTHORITY PIN, not a site list, and it is the reason this plan's builder can
+escape upstream of a scrub without double-escaping. It SURVIVES. It ran green on every run recorded
+in this transcript. A reader following the retirement sentence must not delete it; nothing on this
+tree answers to that sentence at all.

@@ -65,6 +65,7 @@ import { existsSync, watch } from "node:fs";
 import { dirname, join } from "node:path";
 import { CONFLICT_KINDS, FIXED_SUBPATHS, QUEUE_STAGES, OUTSIDE_ROOT, SOURCE_NAMES, insideRoot, readSnapshot, unreadableSources, } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
+import { spelled } from "./board-model.js";
 // ── The timing constants the loop runs on (D-14) ─────────────────────────────────────────────────
 //
 // Declared in the module that OWNS the loop, so there is one set of numbers rather than a second set
@@ -843,8 +844,8 @@ export function createLoop(options, io, deps) {
         watchErrorsByDir.set(rel, { source, path: rel, code: "watch", message });
     }
     function noteWatchError(rel, source, e) {
-        noteWatchState(rel, source, `the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on the next ` +
-            `poll tick; the mandatory poll keeps the screen current in the meantime.`);
+        noteWatchState(rel, source, spelled `the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on ` +
+            `the next poll tick; the mandatory poll keeps the screen current in the meantime.`);
     }
     /**
      * The current watch failures, in RELATIVE-NAME order rather than in the order they happened.
@@ -882,9 +883,9 @@ export function createLoop(options, io, deps) {
             // cannot be asked before one exists, and the set the OLD containment check consulted was
             // populated by a read — so with no read there was nothing in it and this arm is where a
             // pre-read directory already landed.
-            noteWatchState(rel, source, `the watch on ${rel} was not armed: no read has resolved the repository root yet, so ` +
-                `there is nothing to arm it against. The read that precedes the next poll tick supplies ` +
-                `the root, and the tick arms it.`);
+            noteWatchState(rel, source, spelled `the watch on ${rel} was not armed: no read has resolved the repository root ` +
+                `yet, so there is nothing to arm it against. The read that precedes the next poll tick ` +
+                `supplies the root, and the tick arms it.`);
             return;
         }
         const dir = join(root, rel);
@@ -921,8 +922,8 @@ export function createLoop(options, io, deps) {
                 watchErrorsByDir.delete(rel);
             }
             else {
-                noteWatchState(rel, source, `the watch on ${rel} was not armed (${decision.code}). The directory could not be ` +
-                    `resolved, so no handle is open on it; the mandatory poll keeps the screen current ` +
+                noteWatchState(rel, source, spelled `the watch on ${rel} was not armed (${decision.code}). The directory could not ` +
+                    `be resolved, so no handle is open on it; the mandatory poll keeps the screen current ` +
                     `and a later tick will arm it if it becomes resolvable.`);
             }
             return;
@@ -994,8 +995,8 @@ export function createLoop(options, io, deps) {
             // THE CONTENT-SOURCED PATH (CR-05). `readError.message` carries bytes read out of a board or
             // ticket file — including a ticket's own first line, quoted back by the grammar's
             // `no-opening-delimiter` refusal before anything has looked at it.
-            warn(io, `board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
-                `${readError.message}`);
+            warn(io, spelled `board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
+                spelled `${readError.message}`);
         }
         if (options.json) {
             // ONE COMPLETE DOCUMENT PER LINE (D-18), one line per frame, and exactly one frame unless

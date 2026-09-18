@@ -77,6 +77,7 @@ import {
 } from "./board-read.js";
 import { isEntrypoint } from "./is-entry.js";
 import type { Containment, ReadError, SnapshotResult, SourceName } from "./board-read.js";
+import { spelled } from "./board-model.js";
 import type { BoardColumn, SourceState } from "./board-model.js";
 
 // ── The timing constants the loop runs on (D-14) ─────────────────────────────────────────────────
@@ -1088,8 +1089,8 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
     noteWatchState(
       rel,
       source,
-      `the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on the next ` +
-        `poll tick; the mandatory poll keeps the screen current in the meantime.`,
+      spelled`the watch on ${rel} failed (${e.message}). It is closed and will be re-armed on ` +
+        `the next poll tick; the mandatory poll keeps the screen current in the meantime.`,
     );
   }
 
@@ -1132,9 +1133,9 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
       noteWatchState(
         rel,
         source,
-        `the watch on ${rel} was not armed: no read has resolved the repository root yet, so ` +
-          `there is nothing to arm it against. The read that precedes the next poll tick supplies ` +
-          `the root, and the tick arms it.`,
+        spelled`the watch on ${rel} was not armed: no read has resolved the repository root ` +
+          `yet, so there is nothing to arm it against. The read that precedes the next poll tick ` +
+          `supplies the root, and the tick arms it.`,
       );
       return;
     }
@@ -1174,8 +1175,8 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
         noteWatchState(
           rel,
           source,
-          `the watch on ${rel} was not armed (${decision.code}). The directory could not be ` +
-            `resolved, so no handle is open on it; the mandatory poll keeps the screen current ` +
+          spelled`the watch on ${rel} was not armed (${decision.code}). The directory could not ` +
+            `be resolved, so no handle is open on it; the mandatory poll keeps the screen current ` +
             `and a later tick will arm it if it becomes resolvable.`,
         );
       }
@@ -1251,8 +1252,8 @@ export function createLoop(options: Options, io: DashboardIo, deps: LoopDeps): L
       // `no-opening-delimiter` refusal before anything has looked at it.
       warn(
         io,
-        `board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
-          `${readError.message}`,
+        spelled`board-dashboard: ${readError.source} at ${readError.path} — ${readError.code}: ` +
+          spelled`${readError.message}`,
       );
     }
     if (options.json) {

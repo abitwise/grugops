@@ -1105,6 +1105,29 @@ export function visible(text: string): string {
  * publishing the word "undefined" inside a sentence a human acts on is a different defect this
  * builder would otherwise make easy to write.
  *
+ * WHICH VALUES GO THROUGH IT, AND THE TWO CLASSES THAT DELIBERATELY DO NOT (plan 32.1-07, Task 2).
+ * The class this builder owns is CONTENT-DERIVED: a value that came out of a document or a directory
+ * listing rather than out of this process's own configuration — a ticket's declared identifier, a
+ * directory entry's name, a claimed task's stem, the file name that claimed an identifier first, the
+ * line a parse error quotes, a configured column name read from the dial, and a `readErrors` message
+ * assembled from any of them. Those are the values an author controls and the ones F-14 was measured
+ * on. Two other classes interpolate into the same sentences and are OUT OF SCOPE here, with reasons
+ * rather than by omission:
+ *   • PATH-DERIVED — `root`, `dir`, `target`, `real`, `absPath`, a composed child path. A path in
+ *     these sentences is one this process JOINED from a resolved repository root and a constant
+ *     subpath, so an author reaches it only by creating a filesystem entry, and the entry NAME that
+ *     lets them is itself content-derived and escaped above. Routing the composed path as well is a
+ *     larger cutover across three modules and a decision about the containment seam's own
+ *     vocabulary, not about F-14, so it is named here rather than taken silently.
+ *   • INTERNAL — a count, a retry number, a bound, a refusal code, a module constant, and the text
+ *     of an error the platform handed up. The process generated these itself; none can carry a code
+ *     point a renderer deletes unless the platform's own error text does, and that text names a path
+ *     rather than a document's bytes.
+ * The classification is enforced by the derived census in `scripts/board-model.test.ts`, which keys
+ * on the DECLARATION a substitution resolves to rather than on how the reference is spelled — so a
+ * new sentence quoting an already-classified value is covered the day it is written, and a new
+ * DECLARATION landing in a published sentence moves a pinned set and has to be classified.
+ *
  * WHAT IT DOES NOT CLOSE, NAMED RATHER THAN IMPLIED:
  *   • It escapes the values it is GIVEN. It does not decide which values are content-derived — that
  *     question is answered by the derived census in `scripts/board-model.test.ts`, which resolves
