@@ -3561,3 +3561,536 @@ describe("32.1-07 — F-14: a quoted ticket identifier's C1 byte is SPELLED, nev
     ).toBe(actual);
   });
 });
+
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32.1-07, TASK 3 (D-07, F-14) — THE BUILDER'S OWNERSHIP IS DERIVED, NOT LISTED.
+//
+// WHY A CENSUS AND NOT A REVIEW HABIT. F-14 is not "somebody forgot to escape a value". It is a
+// DERIVATION whose SUBJECT was short: the fix that introduced `visible()` derived its site set over
+// the binding `line`, proved that set complete, and shipped green — while the sites that quote a
+// value a DOCUMENT declared sat one layer up, outside the question. This repository's second
+// recorded systemic failure class is a hand-maintained set that rots while the suite stays green,
+// and a site list of "the places we escape" would be exactly that set, so the ownership is computed
+// from the modules themselves and pinned two-sided.
+//
+// WHAT IS DERIVED, AND FROM WHICH AUTHORITY.
+//   • The SUBSTITUTIONS — every `${...}` of every template expression in the three board modules,
+//     walked from the parsed source. This is the DENOMINATOR, and it is floored: a census over an
+//     empty or silently short element set is true over nothing.
+//   • The RECEIVER of each template — the named position its value is written to (`prop:message`,
+//     `arg:ticketRefusal#1`, `return:presenceActual`, …), so "a published sentence" is a position
+//     this walk MEASURED rather than a judgement a reader made. The receiver set is pinned two-sided
+//     and split into the positions a human reads as a finding and the positions that render a frame,
+//     compose a path or construct an Error.
+//   • The DECLARATION each substituted expression resolves to, through `declarationOf`
+//     (`scripts/ts-symbols.test-support.ts`) — the ONE authority over "which declaration is this
+//     name". The class is keyed on the DECLARATION, never on how a reference is SPELLED, which is
+//     the same move plans 32.1-04 and 32.1-05 made and the reason a renamed import, a namespace
+//     member access or a two-hop re-export classifies identically to the plain reference.
+//   • OWNERSHIP — a substitution is owned when its template is tagged and the TAG resolves, through
+//     the same authority, to `spelled`'s declaration in `scripts/board-model.ts`. A local named
+//     `spelled` that is not that function does not count.
+//
+// TWO CONTEXT.md CORRECTIONS THIS PLAN CARRIES, RECORDED WHERE THE NEXT READER MEETS THEM.
+//   1. CONTEXT.md D-07 ends "The site-list derivation is retired." MEASURED ON THIS TREE: no
+//      site-list derivation exists in `scripts/`. The "both sites" claim it refers to is PROSE, at
+//      `.planning/phases/32-board-projector-cli-dashboard/32-REVIEW-FIX.md:115-118`. The sentence
+//      names no artefact here, so nothing answers to it and nothing should be deleted for it.
+//   2. The nearest derivation-shaped artefact to `visible()` is a DIFFERENT thing and SURVIVES:
+//      `scripts/board-dashboard.test.ts`'s "visible() escapes exactly the code points sanitizeCell
+//      deletes — derived, both directions". It is a TWO-AUTHORITY PIN, not a site list, and it is
+//      what makes this builder's output inert under the sanitizer that runs downstream of it.
+//      Retiring it would remove the proof that escaping upstream does not double-escape.
+//
+// WHAT THIS CENSUS DOES NOT CLOSE, NAMED RATHER THAN IMPLIED:
+//   • The declaration key is `<file>#<declared name>`. Two declarations with the same name in one
+//     file therefore share one class. Today no such pair disagrees (the three `name` bindings in
+//     `board-read.ts` are all directory entry names; the `code` bindings are all refusal codes), but
+//     a future declaration REUSING a classified name with a different provenance would inherit the
+//     wrong class silently. A NEW name lands as a new key and reds the two-sided pin, which is what
+//     bounds this: the hole is name REUSE, not name arrival.
+//   • The receiver walk climbs through `+`, `?:`, parentheses and the builder's own tag. A sentence
+//     assembled through some other construct — an array `join`, a helper that takes a template and
+//     returns it — lands in the receiver set as a new key and reds the pin rather than vanishing.
+//   • It decides nothing about values the builder is not given: the PATH-derived and INTERNAL
+//     classes are this plan's stated out-of-scope decision, with reasons, in `spelled`'s own header.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+import { createScriptsProgram, declarationOf } from "./ts-symbols.test-support.js";
+import type { ScriptsProgram, TsProgramApi } from "./ts-symbols.test-support.js";
+import { basename } from "node:path";
+
+/** The three modules that form one closure and publish every sentence this census is about. */
+const BOARD_MODULES = ["board-model.ts", "board-read.ts", "board-dashboard.ts"] as const;
+
+/** One `${...}` of one template expression, with everything the classification needs. */
+type CensusRow = {
+  readonly file: string;
+  readonly line: number;
+  /** Source order within the file. Stable when a TAG is removed, which is what the mirror does. */
+  readonly ordinal: number;
+  readonly expr: string;
+  readonly receiver: string;
+  readonly owned: boolean;
+  readonly declaration: string;
+};
+
+/** A row in the message a refusal prints: enough for a reader to open the file and see it. */
+const nameRow = (r: CensusRow): string => `${r.file}:${r.line} \`${r.expr}\` (${r.declaration})`;
+
+/** The constructs a value passes through on its way to the position it is WRITTEN to. */
+const climbs = (n: ts.Node): boolean =>
+  ts.isParenthesizedExpression(n) ||
+  (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.PlusToken) ||
+  ts.isConditionalExpression(n) ||
+  ts.isTaggedTemplateExpression(n);
+
+/**
+ * The NAMED POSITION a template's value is written to.
+ *
+ * TOTAL BY CONSTRUCTION: an unrecognised parent yields `other:<SyntaxKind>` rather than nothing, so
+ * a new construct joins the receiver set and reds the two-sided pin instead of silently removing its
+ * substitutions from the denominator — the failure mode this whole census exists to prevent.
+ */
+function receiverOf(node: ts.Node): string {
+  let cur: ts.Node = node;
+  while (cur.parent !== undefined && climbs(cur.parent)) cur = cur.parent;
+  const p = cur.parent;
+  if (p === undefined) return "<none>";
+  if (ts.isPropertyAssignment(p)) return `prop:${p.name.getText()}`;
+  if (ts.isCallExpression(p)) {
+    const callee = ts.isPropertyAccessExpression(p.expression)
+      ? p.expression.name.getText()
+      : p.expression.getText();
+    return `arg:${callee}#${p.arguments.indexOf(cur as ts.Expression)}`;
+  }
+  if (ts.isVariableDeclaration(p)) return `var:${p.name.getText()}`;
+  if (ts.isReturnStatement(p)) {
+    let fn: ts.Node | undefined = p;
+    while (
+      fn !== undefined &&
+      !ts.isFunctionDeclaration(fn) &&
+      !ts.isArrowFunction(fn) &&
+      !ts.isFunctionExpression(fn) &&
+      !ts.isMethodDeclaration(fn)
+    ) {
+      fn = fn.parent;
+    }
+    const named =
+      fn !== undefined && (ts.isFunctionDeclaration(fn) || ts.isMethodDeclaration(fn))
+        ? (fn.name?.getText() ?? "<anon>")
+        : "<anon>";
+    return `return:${named}`;
+  }
+  return `other:${ts.SyntaxKind[p.kind]}`;
+}
+
+/**
+ * The node whose DECLARATION decides a substituted expression's provenance.
+ *
+ * A METHOD CALL RESOLVES TO ITS RECEIVER, NOT TO THE METHOD. `line.slice(0, 60)` asked about `slice`
+ * answers `lib.es5.d.ts`, which would class a quoted source line as library text — the fail-OPEN
+ * direction, and the exact shape of mistake F-14 already is. Asked about `line` it answers the
+ * binding that holds the document's bytes.
+ */
+function provenanceNode(expr: ts.Expression): ts.Node | null {
+  let e: ts.Expression = expr;
+  while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e)) {
+    e = e.expression;
+  }
+  if (ts.isIdentifier(e)) return e;
+  if (ts.isPropertyAccessExpression(e)) return e.name;
+  if (ts.isCallExpression(e)) {
+    return ts.isPropertyAccessExpression(e.expression)
+      ? provenanceNode(e.expression.expression)
+      : provenanceNode(e.expression);
+  }
+  if (ts.isElementAccessExpression(e)) return provenanceNode(e.expression);
+  if (ts.isBinaryExpression(e)) return provenanceNode(e.left) ?? provenanceNode(e.right);
+  // EITHER BRANCH MAY BE A BARE LITERAL, which carries no provenance at all. Asking only the first
+  // one returns "unresolved" for `x === "" ? "-" : x`, and an unresolved value is classified by
+  // nothing — so the other branch is asked rather than the row being dropped.
+  if (ts.isConditionalExpression(e)) {
+    return provenanceNode(e.whenTrue) ?? provenanceNode(e.whenFalse);
+  }
+  return null;
+}
+
+const UNRESOLVED = "<unresolved>";
+const BUILDER = "board-model.ts#spelled";
+
+/** Walk the three modules of one built program and return every substitution, classified. */
+function censusOf(context: ScriptsProgram, api: TsProgramApi): readonly CensusRow[] {
+  const out: CensusRow[] = [];
+  const key = (d: { fileName: string; name: string } | null): string =>
+    d === null ? UNRESOLVED : `${basename(d.fileName)}#${d.name}`;
+  for (const rel of BOARD_MODULES) {
+    const abs = join(ROOT, "scripts", rel);
+    const sf = context.program.getSourceFile(abs) as unknown as ts.SourceFile | undefined;
+    if (sf === undefined) return out;
+    let ordinal = 0;
+    const visit = (node: ts.Node): void => {
+      if (ts.isTemplateExpression(node)) {
+        const receiver = receiverOf(node);
+        const tag =
+          node.parent !== undefined && ts.isTaggedTemplateExpression(node.parent)
+            ? node.parent.tag
+            : null;
+        const owned =
+          tag !== null && key(declarationOf(api, context.checker, tag as never)) === BUILDER;
+        for (const span of node.templateSpans) {
+          const pn = provenanceNode(span.expression);
+          out.push({
+            file: rel,
+            line: sf.getLineAndCharacterOfPosition(span.expression.getStart(sf)).line + 1,
+            ordinal,
+            expr: span.expression.getText(sf).replace(/\s+/g, " ").slice(0, 48),
+            receiver,
+            owned,
+            declaration: pn === null ? UNRESOLVED : key(declarationOf(api, context.checker, pn)),
+          });
+          ordinal += 1;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return out;
+}
+
+/**
+ * The positions a HUMAN READS AS A FINDING — a conflict's cells, a read error's message, a ticket
+ * refusal's reason, a watch record, an argv refusal, and the one line the stderr frame writes.
+ * Every one of them is published: into the `--json` document, onto stderr, or both.
+ */
+const PUBLISHED_RECEIVERS: readonly string[] = [
+  "arg:noteWatchState#2", // the watch record's message, which rides in `readErrors`
+  "arg:refuse#0", // the argv refusal, written to stderr through the `warn` chokepoint
+  "arg:ticketRefusal#1", // the ticket grammar's `reason`
+  "arg:warn#1", // the stderr frame
+  "prop:actual", // a conflict's measured half
+  "prop:expected", // a conflict's stated half
+  "prop:message", // every `ReadError`/`Containment` message
+  "return:presenceActual", // the presence sentence set, one per arm
+];
+
+/**
+ * Every OTHER position, and one shared reason rather than a repeated sentence: these render a frame
+ * cell, compose a path, build an array of usage lines, or construct an `Error` whose text some
+ * published position above quotes LATER — and that quotation is itself in the denominator, at the
+ * position where the sentence is published. None of them is a sentence a reader adjudicates.
+ */
+const NOT_PUBLISHED_RECEIVERS: readonly string[] = [
+  "arg:add#0",
+  "arg:cell#0",
+  "arg:insideRoot#2",
+  "arg:part#0",
+  "arg:push#0",
+  "arg:repoSubpath#1",
+  "arg:startsWith#0",
+  "arg:write#0",
+  "other:ArrayLiteralExpression",
+  "other:ArrowFunction",
+  "other:NewExpression",
+  "return:<anon>",
+  "return:humanAge",
+  "return:humanBytes",
+  "return:humanChars",
+  "return:plural",
+  "return:renderFrame",
+  "return:truncateCell",
+  "return:wipCell",
+];
+
+/**
+ * THE SUBJECT SET, KEYED ON THE DECLARATION. A value that came out of a DOCUMENT or a DIRECTORY
+ * LISTING rather than out of this process's own configuration. Every one of these must be built
+ * through `spelled`, at every site, in all three modules.
+ */
+const CONTENT_DECLARATIONS: Readonly<Record<string, string>> = {
+  "board-model.ts#declaredId": "the identifier a ticket document declares — F-14's own value",
+  "board-model.ts#id": "a ticket identifier, from a board row or a file stem",
+  "board-model.ts#joinedStem": "the file name that claimed an identifier first, from the listing",
+  "board-model.ts#key": "a frontmatter key, read out of the document's region",
+  "board-model.ts#line": "a frontmatter line, quoted back as a refusal's evidence",
+  "board-model.ts#lines": "the document's first line, quoted by the no-opening-delimiter refusal",
+  "board-model.ts#name": "a column name configured in the dial, which is a document too",
+  "board-read.ts#claimedBy": "the file name that claimed an identifier first",
+  "board-read.ts#id": "the identifier a ticket document declares",
+  "board-read.ts#name": "a directory entry's name, exactly as the listing reported it",
+  "board-read.ts#task": "a claimed task's stem, from the queue's directory listing",
+};
+
+/**
+ * Everything else that reaches a published position, with the class that keeps it out of the subject
+ * set. `path` — composed by this process from a resolved root and a constant subpath. `internal` — a
+ * count, a bound, a refusal code, a module constant, an argv token, or the text of an error the
+ * platform handed up. `assembled` — a sentence some OTHER position built, whose own substitutions
+ * this same census classifies at the site where they were interpolated.
+ */
+const NOT_CONTENT_DECLARATIONS: Readonly<Record<string, "path" | "internal" | "assembled">> = {
+  "board-dashboard.ts#INTERVAL_HARD_FLOOR_MS": "internal",
+  "board-dashboard.ts#arg": "internal",
+  "board-dashboard.ts#message": "assembled",
+  "board-dashboard.ts#oneLine": "internal",
+  "board-dashboard.ts#raw": "internal",
+  "board-dashboard.ts#rel": "path",
+  "board-model.ts#TICKET_KEYS": "internal",
+  "board-model.ts#claimedLive": "internal",
+  "board-model.ts#code": "internal",
+  "board-model.ts#i": "internal",
+  "board-model.ts#limit": "internal",
+  "board-read.ts#absPath": "path",
+  "board-read.ts#atLineCount": "internal",
+  "board-read.ts#claimMd": "path",
+  "board-read.ts#claimedDir": "path",
+  "board-read.ts#code": "internal",
+  "board-read.ts#dir": "path",
+  "board-read.ts#indexPath": "path",
+  "board-read.ts#message": "assembled",
+  "board-read.ts#path": "path",
+  "board-read.ts#real": "path",
+  "board-read.ts#retries": "internal",
+  "board-read.ts#root": "path",
+  "board-read.ts#source": "internal",
+  "board-read.ts#target": "path",
+  "board-read.ts#taskDir": "path",
+  "board-read.ts#what": "internal",
+  "globals.d.ts#code": "internal",
+  "lib.es5.d.ts#length": "internal",
+  "lib.es5.d.ts#message": "internal",
+};
+
+// THE COUNTS ARE DECISIONS, NOT CONSTANTS SOMEBODY BUMPED. Each moves when a sentence lands or
+// leaves the three modules, and each is asserted in a case of its own beside the MEMBERS it counts.
+const PUBLISHED_SUBSTITUTION_COUNT = 86;
+const CONTENT_SUBSTITUTION_COUNT = 23;
+const OWNED_SUBSTITUTION_COUNT = 41;
+
+/** ONE program for the whole block: a full `ts.Program` over every tracked `scripts/*.ts`. */
+let censusProgram: ReturnType<typeof createScriptsProgram> | null = null;
+const boardCensus = (): readonly CensusRow[] => {
+  const api = ts as unknown as TsProgramApi;
+  censusProgram ??= createScriptsProgram(ROOT, api);
+  if (!censusProgram.ok) throw new Error(censusProgram.cause);
+  return censusOf(censusProgram.context, api);
+};
+
+const publishedRows = (rows: readonly CensusRow[]): readonly CensusRow[] =>
+  rows.filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver));
+
+describe("32.1-07 — the builder's ownership is derived from the three modules (D-07)", () => {
+  it("PREMISE: the program builds, the modules are IN it, and the element set is not short", () => {
+    const rows = boardCensus();
+    for (const rel of BOARD_MODULES) {
+      expect(
+        rows.some((r) => r.file === rel),
+        `PREMISE: ${rel} contributed ZERO template substitutions. Either it is not in the program ` +
+          `— tsconfig.json EXCLUDES **/*.test.ts, so the root names must be a UNION — or the walk ` +
+          `stopped before reaching it, and every assertion below is silent about a whole module`,
+      ).toBe(true);
+    }
+    expect(
+      rows.length,
+      "PREMISE: the walk examined a SHORT set of template substitutions across the three board " +
+        "modules. Its own shortness is what it would hide: a census over ten substitutions passes " +
+        "exactly like a census over all of them, and says nothing about the ones it never saw",
+    ).toBeGreaterThan(150);
+    expect(
+      rows.filter((r) => r.declaration === UNRESOLVED).length,
+      "the checker could not resolve some substituted expressions to a declaration. An unresolved " +
+        "value is classified by NOTHING, so it would leave the subject set without being decided — " +
+        "the vacuity this instrument exists to remove, arriving by a different door",
+    ).toBe(0);
+  });
+
+  it("every RECEIVER the walk found is classified, in both directions", () => {
+    const observed = [...new Set(boardCensus().map((r) => r.receiver))].sort();
+    const classified = [...PUBLISHED_RECEIVERS, ...NOT_PUBLISHED_RECEIVERS].sort();
+    expect(
+      observed,
+      "a template is written to a position nobody classified, or a classified position no longer " +
+        "exists. A position on the left with no partner on the right takes its substitutions out " +
+        "of the denominator SILENTLY, which is precisely how F-14's own derivation came to be " +
+        "short. Decide whether it publishes a sentence a human adjudicates, and say which",
+    ).toEqual(classified);
+  });
+
+  it("every DECLARATION reaching a published position is classified, in both directions", () => {
+    const observed = [...new Set(publishedRows(boardCensus()).map((r) => r.declaration))].sort();
+    const classified = [
+      ...Object.keys(CONTENT_DECLARATIONS),
+      ...Object.keys(NOT_CONTENT_DECLARATIONS),
+    ].sort();
+    expect(
+      observed,
+      "a value reaching a published sentence resolves to a declaration nobody classified. It is " +
+        "content-derived (it came out of a document or a directory listing — then it goes through " +
+        "`spelled`), or it is path-derived or internal (then it is recorded as such WITH ITS " +
+        "REASON). An unclassified declaration is not a third option",
+    ).toEqual(classified);
+  });
+
+  it("the published DENOMINATOR is the number of substitutions this census decides", () => {
+    expect(
+      publishedRows(boardCensus()).length,
+      "the number of substitutions written into a position a human reads as a finding moved. That " +
+        "is a decision — a sentence landed or left — never a constant to bump: every one of them " +
+        "is classified by the two tables above and every content-derived one must be built through " +
+        "the builder",
+    ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
+  });
+
+  it("the SUBJECT set has the expected MEMBERS", () => {
+    const observed = [
+      ...new Set(
+        publishedRows(boardCensus())
+          .filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration))
+          .map((r) => r.declaration),
+      ),
+    ].sort();
+    expect(
+      observed,
+      "the set of content-derived declarations quoted into published sentences moved. A member " +
+        "that disappeared is a sentence that stopped quoting a document; a member that arrived is " +
+        "a new value an author controls, reaching a document a human and a machine both read",
+    ).toEqual(Object.keys(CONTENT_DECLARATIONS).sort());
+  });
+
+  it("the SUBJECT set has the expected COUNT of sites", () => {
+    expect(
+      publishedRows(boardCensus()).filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration))
+        .length,
+      "the number of SITES quoting a content-derived value into a published sentence moved. The " +
+        "number is a decision that moves when a site lands or leaves, never a bumped constant: a " +
+        "new site is a new sentence that must be built through `spelled`",
+    ).toBe(CONTENT_SUBSTITUTION_COUNT);
+  });
+
+  it("the OWNED set has the expected COUNT, and every owned site is in a published position", () => {
+    const rows = boardCensus();
+    expect(
+      rows.filter((r) => r.owned).length,
+      "the number of substitutions built through `spelled` moved. Removing one is how F-14 comes " +
+        "back; adding one is a decision worth seeing in a diff",
+    ).toBe(OWNED_SUBSTITUTION_COUNT);
+    expect(
+      rows.filter((r) => r.owned && !PUBLISHED_RECEIVERS.includes(r.receiver)).map(nameRow),
+      "a value is escaped at a position that publishes no sentence. The builder is for sentences a " +
+        "human reads; escaping a frame cell or a composed path here would change bytes the render " +
+        "path already owns",
+    ).toEqual([]);
+  });
+
+  it("EVERY content-derived substitution is built through the builder — the census itself", () => {
+    const offenders = publishedRows(boardCensus()).filter(
+      (r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration) && !r.owned,
+    );
+    expect(
+      offenders.map(nameRow),
+      "a content-derived value is interpolated into a published sentence WITHOUT the builder. What " +
+        "it costs is F-14 exactly: an admitted control byte is deleted by the renderer, so the " +
+        "sentence quotes an identifier no file declares and a reader who searches for it finds " +
+        "nothing. Build it with `spelled`. Adding the site to an exemption list is the forbidden " +
+        "alternative — an exemption list is the rotting set this census replaced",
+    ).toEqual([]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// THE CENSUS DISCRIMINATES — a mutation mirror BUILT FROM THE LIVE SOURCE.
+//
+// A structural assertion nobody has watched fail is not yet a control. The mirror re-runs the WHOLE
+// pipeline — program, type checker, declaration resolution — over a `board-model.ts` whose text has
+// exactly ONE builder tag removed, by substituting the mutated text at the compiler host's
+// `getSourceFile`. Nothing on disk is touched and no fixture can drift away from the source.
+//
+// THE SEEDED SITE HAS EXACTLY ONE SUBSTITUTION ON PURPOSE, so the owned count moves by exactly one
+// and the difference is caused by the seeded change rather than by a derivation that broke and
+// started reporting some other number.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+const SEEDED_TAG_REMOVAL = "spelled`no row names ${t.id}`";
+const SEEDED_TAG_REPLACEMENT = "`no row names ${t.id}`";
+
+/** The same API, with `scripts/board-model.ts` served from mutated text. */
+function mirroringApi(mutate: (text: string) => string): TsProgramApi {
+  const api = ts as unknown as TsProgramApi;
+  const target = join(ROOT, "scripts", "board-model.ts");
+  return {
+    ...api,
+    createCompilerHost: (options, setParentNodes) => {
+      const host = api.createCompilerHost(options, setParentNodes);
+      const inner = host.getSourceFile.bind(host);
+      host.getSourceFile = (fileName, languageVersion, onError, shouldCreate) => {
+        if (fileName === target) {
+          const text = mutate(readFileSync(target, "utf8"));
+          return ts.createSourceFile(
+            fileName,
+            text,
+            ts.ScriptTarget.ES2022,
+            true,
+          ) as unknown as ReturnType<typeof inner>;
+        }
+        return inner(fileName, languageVersion, onError, shouldCreate);
+      };
+      return host;
+    },
+  };
+}
+
+function mirrorCensus(): readonly CensusRow[] {
+  const api = mirroringApi((text) => {
+    if (!text.includes(SEEDED_TAG_REMOVAL)) {
+      throw new Error(
+        `the mirror could not find ${SEEDED_TAG_REMOVAL} in scripts/board-model.ts. The seeded ` +
+          `site was renamed or rewritten; seed another single-substitution builder call rather ` +
+          `than deleting this mirror — a census nobody has watched fail is not a control`,
+      );
+    }
+    return text.replace(SEEDED_TAG_REMOVAL, SEEDED_TAG_REPLACEMENT);
+  });
+  const built = createScriptsProgram(ROOT, api);
+  if (!built.ok) throw new Error(built.cause);
+  return censusOf(built.context, api);
+}
+
+describe("32.1-07 — the ownership census is a control, not a coincidence", () => {
+  it("removing ONE builder call moves the owned count by exactly one", () => {
+    const owned = mirrorCensus().filter((r) => r.owned).length;
+    expect(owned).not.toBe(OWNED_SUBSTITUTION_COUNT);
+    expect(
+      owned,
+      "the seeded removal moved the owned count by something other than one, so the number this " +
+        "census reports is not a function of the seeded change alone",
+    ).toBe(OWNED_SUBSTITUTION_COUNT - 1);
+  });
+
+  it("the census REDS, naming the site the seeded removal un-owned", () => {
+    const rows = mirrorCensus();
+    const offenders = rows
+      .filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver))
+      .filter((r) => Object.hasOwn(CONTENT_DECLARATIONS, r.declaration) && !r.owned);
+    expect(
+      offenders.length,
+      "the seeded removal produced other than exactly one unowned content-derived site, so the " +
+        "refusal below is not about the seeded change",
+    ).toBe(1);
+    const named = offenders.map(nameRow)[0] ?? "";
+    expect(named, "the refusal does not name the module the site is in").toContain("board-model.ts");
+    expect(named, "the refusal does not name the expression the site interpolates").toContain("t.id");
+    expect(
+      named,
+      "the refusal does not name the DECLARATION the value resolves to, so a reader cannot tell " +
+        "which class the site belongs to",
+    ).toContain("board-model.ts#id");
+    // AND THE REST OF THE CENSUS IS UNMOVED: the seeded change un-owns one site and nothing else.
+    expect(
+      rows.filter((r) => PUBLISHED_RECEIVERS.includes(r.receiver)).length,
+      "the denominator moved under a mutation that only removed a TAG, so the walk is measuring " +
+        "something other than the substitutions",
+    ).toBe(PUBLISHED_SUBSTITUTION_COUNT);
+  });
+});

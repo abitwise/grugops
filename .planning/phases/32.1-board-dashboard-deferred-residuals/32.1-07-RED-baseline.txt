@@ -162,3 +162,55 @@ sanitizer. It is a TWO-AUTHORITY PIN, not a site list, and it is the reason this
 escape upstream of a scrub without double-escaping. It SURVIVES. It ran green on every run recorded
 in this transcript. A reader following the retirement sentence must not delete it; nothing on this
 tree answers to that sentence at all.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 5 — THE OWNERSHIP CENSUS DISCRIMINATES, MUTATION-PROVEN FROM THE LIVE SOURCE
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+The census in `scripts/board-model.test.ts` derives, over one `ts.Program` built by
+`createScriptsProgram`:
+
+    template substitutions in the three board modules                         171   (the element set)
+    …of those, written to a position a human reads as a finding                86   (the denominator)
+    …of those, quoting a CONTENT-derived declaration                           23   (the subject set)
+    substitutions built through `spelled`                                      41   (the owned set)
+    content-derived substitutions NOT built through `spelled`                   0   (the census)
+
+The class is keyed on the DECLARATION each expression resolves to through `declarationOf`, never on
+how the reference is spelled. The receiver set (27 keys) and the declaration set (41 keys) are each
+pinned two-sided, so a new sentence position or a new value reaching one reds rather than silently
+leaving the denominator.
+
+--- SEEDED: the ticket-unplaced builder call removed from the LIVE source ------------------------
+$ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+
+  × EVERY content-derived substitution is built through the builder — the census itself
+
+  AssertionError: a content-derived value is interpolated into a published sentence WITHOUT the
+  builder. What it costs is F-14 exactly: an admitted control byte is deleted by the renderer, so
+  the sentence quotes an identifier no file declares and a reader who searches for it finds nothing.
+  Build it with `spelled`. Adding the site to an exemption list is the forbidden alternative — an
+  exemption list is the rotting set this census replaced
+
+  - Expected   []
+  + Received   [ "board-model.ts:1688 `t.id` (board-model.ts#id)" ]
+
+  × the OWNED set has the expected COUNT, and every owned site is in a published position
+
+  AssertionError: the number of substitutions built through `spelled` moved. Removing one is how
+  F-14 comes back; adding one is a decision worth seeing in a diff: expected 40 to be 41
+
+The refusal NAMES the site — module, line, the expression it interpolates and the declaration that
+expression resolves to — and the owned member count moved by EXACTLY ONE. The seeded site was chosen
+because it carries exactly one substitution, so a move of one is caused by the seeded change rather
+than by a derivation that broke and started reporting some other number. The denominator did NOT
+move under it (86 before and after), which is the converse check: the mutation removed a TAG, not a
+substitution.
+
+The same mutation is now a PERMANENT case pair. It re-runs the whole pipeline — program, type
+checker, declaration resolution — over a `board-model.ts` whose text is mutated at the compiler
+host's `getSourceFile`, so nothing on disk is touched and the mirror cannot drift away from the
+source it copies.
+
+The live source was restored and the build re-run; `npx vitest run scripts/board-model.test.ts`
+reports 168 passed.
