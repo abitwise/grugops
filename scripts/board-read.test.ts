@@ -4844,3 +4844,145 @@ describe("32.1-12 — a composed claim-record path SPELLS a directory entry's de
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32.1-13 — THE SAME PROPERTY, AT THE OTHER ARMS A COMPOSED PATH REACHES (D-07, D-19).
+//
+// WHY MORE ARMS RATHER THAN A BETTER ARGUMENT. Plan 32.1-12 proved the defect at ONE path — the
+// claimed queue's claim-record sentences — and closed it there. Proving one arm and reasoning about
+// the rest is the move this repository's ledger records failing round after round: the fix lands in
+// one arm and the next round finds the same defect one register over. So the tracer's single path is
+// widened here to the arms a composed path actually reaches from a DIFFERENT reader each time — the
+// context reader's shape refusal, the context reader's event-index parse refusal, and the ticket
+// reader's decode refusal — each measured at the same three channels in the same one run.
+//
+// THE PLANT IS THE SAME AND FOR THE SAME REASON: the repository ROOT's own directory entry name is
+// the one variable segment of every composed path below that no allowlist covers. `isSafeTaskName`
+// and the context reader's own name refusal cover the entry names underneath it; the root's name is
+// what a caller hands in.
+//
+// EVERY PLANTED CODE POINT IS A BACKSLASH-U ESCAPE IN THIS SOURCE, never a raw byte.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Plant a repository root whose OWN entry name carries `point`, let `plant` put the tree into the
+ * state ONE arm is about, and measure that arm's sentence at all three channels in one run.
+ *
+ * EVERY PREMISE IS A FAILING ASSERTION, for the reason recorded above the 32.1-12 helper: a fixture
+ * that never reached its state produces a finding about nothing.
+ */
+function measureComposedSentence32113(
+  point: string,
+  arm: string,
+  plant: (root: string) => void,
+  select: (e: { source: string; code: string; message: string }) => boolean,
+  run: (measured: ClaimSentence32112) => void,
+): void {
+  const parent = mkdtempSync(join(realpathSync(tmpdir()), "grugops-board-read-32113-"));
+  try {
+    const plantedEntry = `repo${point}x`;
+    const root = join(parent, plantedEntry);
+    mkdirSync(join(root, "plans"), { recursive: true });
+    writeFileSync(join(root, "plans", "board.md"), ONE_COLUMN, "utf8");
+    plant(root);
+
+    const parentListing = readdirSync(parent);
+    expect(
+      parentListing,
+      "PREMISE: the planted repository-root entry is not on disk under the name it was planted " +
+        "with, so nothing below measures a directory entry name reaching a composed path",
+    ).toEqual([plantedEntry]);
+
+    const modelErrors = readSnapshot(root).readErrors.filter(select);
+    expect(
+      modelErrors.length,
+      `PREMISE: the reader did not reach the \`${arm}\` arm exactly once. The fixture never ` +
+        `entered the state this case is about, so the sentence property below would be asserted ` +
+        `about a sentence nobody produced`,
+    ).toBe(1);
+
+    const r = spawnSync(process.execPath, [DASHBOARD_JS, root, "--once", "--json"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 20_000,
+    });
+    expect(
+      r.status,
+      `PREMISE: the spawned dashboard must exit 0 over the planted tree; stderr was ${JSON.stringify(r.stderr)}`,
+    ).toBe(0);
+    let parsed: PublishedDoc32112 | null = null;
+    expect(() => {
+      parsed = JSON.parse(r.stdout ?? "") as PublishedDoc32112;
+    }, "PREMISE: stdout in its entirety must parse as EXACTLY ONE JSON document").not.toThrow();
+    const doc = parsed as unknown as PublishedDoc32112 | null;
+    expect(doc, "PREMISE: stdout in its entirety must parse as EXACTLY ONE JSON document").not.toBeNull();
+    const published = (doc?.readErrors ?? []).filter(select);
+    expect(
+      published.length,
+      `PREMISE: the published document carries no single \`${arm}\` read error, so the document ` +
+        `channel measured below is not carrying the sentence under test`,
+    ).toBe(1);
+
+    run({
+      plantedEntry,
+      parentListing,
+      modelMessage: modelErrors[0]?.message ?? "",
+      stderrFrame: r.stderr ?? "",
+      documentMessage: published[0]?.message ?? "",
+    });
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+}
+
+describe("32.1-13 — every composed path a published sentence quotes SPELLS a deleted code point", () => {
+  it("the context reader's shape refusal spells U+0085 at the model, the frame and the document", () => {
+    measureComposedSentence32113(
+      "\u0085",
+      "context/not-a-directory",
+      (root) => {
+        mkdirSync(join(root, ".grugops", "context"), { recursive: true });
+        writeFileSync(join(root, ".grugops", "context", "ctxtask"), "not a directory\n", "utf8");
+      },
+      (e) => e.source === "context" && e.code === "not-a-directory",
+      (m) => {
+        assertSpelledAtThreePoints32112(m, "\u0085");
+      },
+    );
+  });
+
+  it("the context reader's event-index parse refusal spells U+009F at all three channels", () => {
+    measureComposedSentence32113(
+      "\u009F",
+      "context/PARSE",
+      (root) => {
+        const taskDir = join(root, ".grugops", "context", "ctxtask");
+        mkdirSync(taskDir, { recursive: true });
+        writeFileSync(join(taskDir, "index.jsonl"), "{ this is not json\n", "utf8");
+      },
+      (e) => e.source === "context" && e.code === "PARSE",
+      (m) => {
+        assertSpelledAtThreePoints32112(m, "\u009F");
+      },
+    );
+  });
+
+  it("the ticket reader's decode refusal spells U+0001 at all three channels", () => {
+    measureComposedSentence32113(
+      "\u0001",
+      "tickets/ENCODING",
+      (root) => {
+        const ticketsDir = join(root, "plans", "tickets");
+        mkdirSync(ticketsDir, { recursive: true });
+        // AN INVALID UTF-8 SEQUENCE, WRITTEN AS BYTES. `0xC3` opens a two-byte sequence and `0x28`
+        // cannot continue it, so `TextDecoder(..., { fatal: true })` throws and the read leaves by
+        // the `ENCODING` arm, which quotes the composed ticket path.
+        writeFileSync(join(ticketsDir, "ABC-014.md"), Buffer.from([0xc3, 0x28, 0x0a]));
+      },
+      (e) => e.source === "tickets" && e.code === "ENCODING",
+      (m) => {
+        assertSpelledAtThreePoints32112(m, "\u0001");
+      },
+    );
+  });
+});

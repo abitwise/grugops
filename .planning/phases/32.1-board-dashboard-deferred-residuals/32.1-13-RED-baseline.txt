@@ -1,0 +1,275 @@
+PLAN 32.1-13 — RED BASELINE
+Recorded at HEAD a2c5bd60 (plan 32.1-12 complete), node v24.12.0, 2026-09-18.
+
+Every number below is READ OUT OF THE INSTRUMENT, never typed. The census is the published-
+substitution census in `scripts/board-model.test.ts`, built on the shared symbol-resolving
+`ts.Program` over the tracked `scripts/*.ts` sources (D-01, D-02). It was run at the pre-change tree
+by inserting one temporary dump case, writing its rows to a scratch file, and restoring the file;
+no permanent case was added, because the permanent pin is re-derived in Task 2. `git status` after
+the run reports `scripts/board-model.test.ts` unmodified.
+
+Control bytes are spelled in the <U+NNNN> form throughout. This file carries none.
+
+===================================================================================================
+SECTION 1 — THE PRE-CHANGE DENOMINATOR, AND THE EQUALITY SHOWN FAILING
+===================================================================================================
+
+--- 1.0  TOTALS (derived, this run) ---------------------------------------------------------------
+
+  template substitutions in the three modules ......... 171
+  substitutions in a PUBLISHED position (denominator) . 86
+  of those, built through the builder ................. 44
+  of those, NOT built through the builder ............. 42
+  substitutions built through the builder, anywhere ... 44
+
+THE TWO-SIDED EQUALITY THIS PLAN INSTALLS, EVALUATED AT THIS TREE — BOTH SIDES FAIL:
+
+  offender list is empty ......... FAILS: 42 published substitutions are not built through the
+                                   builder (the rows in section 1.2 below).
+  owned count == published count . FAILS: 44 != 86.
+
+That is the RED the plan's D-19 requires of the equality itself, measured before any cutover.
+
+--- 1.1  HOW THIS DENOMINATOR RELATES TO PLAN 32.1-12's, RECONCILED BY RE-RUNNING ------------------
+
+Plan 32.1-12's RED baseline reported 45 unowned published substitutions. This run reports 42. The
+difference is 3, and it is NOT the 2 that arithmetic over "plan 12 closed `claimMd`'s two unowned
+sites" would predict. Re-running the census rather than subtracting is what makes the third visible:
+
+  -2  `board-read.ts#claimMd` at lines 1591 and 1609 — the two sites plan 32.1-12 tagged.
+  -1  `board-read.ts#atLineCount` at line 1591 — a DIFFERENT declaration, carried into the owned
+      set as a passenger. Ownership is a property of the TEMPLATE, not of the substitution: tagging
+      the `tampered` sentence owned every substitution in it, and that sentence carries two.
+
+This is the same correction plan 32.1-12 recorded one register over ("the content-count pin moved by
+3, not the 2 arithmetic would have predicted"). The rule it establishes is re-applied here rather
+than restated: never reconcile a moved count by arithmetic instead of by re-running the census.
+
+--- 1.2  THE ROWS, GROUPED BY MODULE AND BY RESOLVED DECLARATION -----------------------------------
+
+MODULE board-model.ts — 3 unowned published substitution(s)
+  board-model.ts#claimedLive                   1  class=internal
+      lines 1780
+      exprs column.claimedLive
+      recvs prop:expected
+  board-model.ts#limit                         1  class=internal
+      lines 1780
+      exprs column.limit ?? "none"
+      recvs prop:expected
+  lib.es5.d.ts#length                          1  class=internal
+      lines 1781
+      exprs column.rows.length
+      recvs prop:actual
+
+MODULE board-read.ts — 29 unowned published substitution(s)
+  board-read.ts#absPath                        2  class=path
+      lines 240, 292
+      exprs absPath
+      recvs prop:message
+  board-read.ts#code                           2  class=internal
+      lines 746, 900
+      exprs anchored.code | listing.code
+      recvs prop:message
+  board-read.ts#dir                            1  class=path
+      lines 900
+      exprs dir
+      recvs prop:message
+  board-read.ts#indexPath                      1  class=path
+      lines 1826
+      exprs indexPath
+      recvs prop:message
+  board-read.ts#message                        1  class=assembled
+      lines 900
+      exprs listing.message
+      recvs prop:message
+  board-read.ts#path                           1  class=path
+      lines 381
+      exprs path
+      recvs prop:message
+  board-read.ts#real                           1  class=path
+      lines 757
+      exprs real
+      recvs prop:message
+  board-read.ts#retries                        1  class=internal
+      lines 240
+      exprs retries
+      recvs prop:message
+  board-read.ts#root                           4  class=path
+      lines 732, 743, 747, 758
+      exprs root
+      recvs prop:message
+  board-read.ts#target                         4  class=path
+      lines 730, 742, 745, 757
+      exprs target
+      recvs prop:message
+  board-read.ts#taskDir                        2  class=path
+      lines 1753, 1771
+      exprs taskDir
+      recvs prop:message
+  board-read.ts#what                           4  class=internal
+      lines 730, 742, 745, 757
+      exprs what
+      recvs prop:message
+  globals.d.ts#code                            2  class=internal
+      lines 731, 1753
+      exprs err.code ?? "unreadable"
+      recvs prop:message
+  lib.es5.d.ts#message                         3  class=internal
+      lines 292, 1753, 1826
+      exprs (decodeError as Error).message | err.message | (e as Error).message
+      recvs prop:message
+
+MODULE board-dashboard.ts — 10 unowned published substitution(s)
+  board-dashboard.ts#INTERVAL_HARD_FLOOR_MS    1  class=internal
+      lines 208
+      exprs INTERVAL_HARD_FLOOR_MS
+      recvs arg:refuse#0
+  board-dashboard.ts#arg                       2  class=internal
+      lines 217, 221
+      exprs arg
+      recvs arg:refuse#0
+  board-dashboard.ts#message                   1  class=assembled
+      lines 241
+      exprs message
+      recvs prop:message
+  board-dashboard.ts#oneLine                   1  class=internal
+      lines 1471
+      exprs oneLine(e)
+      recvs arg:warn#1
+  board-dashboard.ts#raw                       2  class=internal
+      lines 201, 208
+      exprs raw
+      recvs arg:refuse#0
+  lib.es5.d.ts#message                         3  class=internal
+      lines 1314, 1431, 1522
+      exprs (e as Error).message
+      recvs arg:warn#1
+
+BY CLASS, ACROSS THE THREE MODULES (the census's own classification, not a re-reading):
+  assembled    2
+  internal    24
+  path        16
+  total       42
+
+THIS IS THE WORK LIST. Not the `path` subset — all 42. The plan's move is to delete the class
+question, so the denominator IS the work list and there is no subset to argue about.
+
+--- 1.3  THE RED TEST RUN, BEFORE ANY SOURCE CHANGE ------------------------------------------------
+
+Command:
+  npx vitest run --exclude '**/scripts/e2e/**' scripts/board-read.test.ts -t "32.1-13"
+
+Result: Test Files 1 failed (1) | Tests 3 failed | 169 skipped (172)
+
+INTENTIONAL RED, ON THE PLANNED ASSERTION, WITH EVERY PREMISE PASSING. The three new cases each
+plant a repository root whose OWN directory entry name carries a code point the renderer deletes,
+drive a DIFFERENT reader arm, and measure the sentence at three channels in one run. In all three,
+every premise assertion passed — the planted entry was on disk under the name it was planted with,
+the reader reached the arm exactly once, the spawned dashboard exited 0, its stdout parsed as
+exactly one JSON document, and that document carried exactly one matching read error. Each case then
+failed on the sentence property, which is the behaviour this plan adds:
+
+  1. context/not-a-directory — expected the model's sentence to contain `repo<U+0085>x`; it read
+     `.../repo<U+0085>x/.grugops/context/ctxtask is not a directory, ...` with the code point RAW,
+     so every renderer downstream deletes it. (`board-read.ts:1771`, declaration
+     `board-read.ts#taskDir`, class `path`.)
+  2. context/PARSE — expected `repo<U+009F>x`; the sentence carried the point raw at
+     `board-read.ts:1826`, declaration `board-read.ts#indexPath`, class `path`.
+  3. tickets/ENCODING — expected `repo<U+0001>x`; the sentence carried the point raw at
+     `board-read.ts:292`, declaration `board-read.ts#absPath`, class `path`.
+
+No syntax error, no zero-test discovery, no fixture crash, no unrelated assertion. `npm run
+typecheck` exits 0 at this tree, so the RED is a behaviour failure and not a compile failure.
+
+===================================================================================================
+SECTION 2 — ONE NAMED REGISTER PER DELETED CLASS
+===================================================================================================
+
+Both classes are deleted on EVIDENCE, not on preference. Each gets a register naming the arm and the
+route by which a renderer-deleted code point reaches it.
+
+--- 2.1  THE `path` CLASS — DISPROVED BY PLAN 32.1-12's REPRODUCTION --------------------------------
+
+REGISTER: `.planning/WINDOWS.md` row 220 (`open`), with the transcript at
+`.planning/phases/32.1-board-dashboard-deferred-residuals/32.1-12-RED-baseline.txt` section 1.
+
+THE CLAIM THE CLASS MADE, quoted from the builder's docblock as it stands at this tree: "A path in
+these sentences is one this process JOINED from a resolved repository root and a constant subpath,
+so an author reaches it only by creating a filesystem entry, and the entry NAME that lets them is
+itself content-derived and escaped above."
+
+THE ROUTE THAT DISPROVES IT. The second clause is false. `childPath(root, dir, name)` composes a
+path from the root, a directory and an entry name, and the COMPOSED value is a different binding
+from `name`. The sentence quoting the composed path carries no separately escaped copy of the entry
+name, so escaping `name` at the sites that quote `name` does nothing for the sites that quote the
+composition. Plan 32.1-12 measured it end to end: a repository root named `repo<U+0085>x`, a
+claimed-queue task with no `at:` line, and the published JSON document stating
+`.../repox/.grugops/queue/claimed/task-no-at/claim.md` about a tree that carries no such directory.
+A reader who searches for what the document prints finds nothing.
+
+AND IT IS NOT ONE ARM. Section 1.3 above reproduces the same route at three FURTHER arms, in two
+further readers, at three further declarations (`taskDir`, `indexPath`, `absPath`). The class was
+not narrow; it was unmeasured.
+
+--- 2.2  THE `internal` CLASS — DISPROVED BY MEASUREMENT AT HEAD, RECORDED HERE ---------------------
+
+REGISTER: this section. Probe script and transcript below; reproduced at HEAD a2c5bd60 before any
+source change in this plan.
+
+THE CLAIM THE CLASS MADE, quoted from the builder's docblock as it stands at this tree: "INTERNAL —
+a count, a retry number, a bound, a refusal code, a module constant, and the text of an error the
+platform handed up. The process generated these itself; none can carry a code point a renderer
+deletes unless the platform's own error text does, and that text names a path rather than a
+document's bytes."
+
+The carve-out NAMES its own exception in its second half and then excuses it. A path is exactly what
+a platform error text names, and that path is composed from a directory listing's entry name — the
+value section 2.1 just showed is not covered by escaping `name`.
+
+THE ARM: `scripts/board-dashboard.ts:1431`, the substitution `(e as Error).message`, resolving to
+declaration `lib.es5.d.ts#message`, class `internal`, receiver `arg:warn#1` — a PUBLISHED position.
+
+THE ROUTE, STEP BY STEP:
+  1. `resolveRepoRoot` (`scripts/board-read.ts:549`) calls `realpathSync(absolute)` on the caller's
+     repository root.
+  2. The platform throws `ENOENT: no such file or directory, lstat '<absolute>'`. The platform
+     composed that sentence and it NAMES THE PATH, including whatever code point the directory
+     entry name carries.
+  3. `scripts/board-read.ts:557` quotes it into a `BoardReadError`. That site is NOT in the
+     denominator, and the census's own comment says why: it "constructs an `Error` whose text some
+     published position above quotes LATER — and that quotation is itself in the denominator, at the
+     position where the sentence is published".
+  4. The quotation IS in the denominator, at `board-dashboard.ts:1431` — and the `internal` class
+     excuses it there. So one table takes the site out of scope by pointing at the other, and the
+     other takes it out of scope by class. Both ends excuse it and nothing owns it.
+  5. `warn` applies `sanitizeCell`, which DELETES the code point on the way to stderr.
+
+THE MEASUREMENT (probe: spawn the committed `scripts/board-dashboard.js` against a non-existent root
+whose own entry name carries U+0085):
+
+  exit= 2
+  stderr= "board-dashboard: board-read: the repository root
+           /private/var/folders/.../grugops-internal-class-eJt5cn/repox does not resolve
+           (ENOENT: no such file or directory, lstat
+           '/private/var/folders/.../grugops-internal-class-eJt5cn/repox').
+           Refusing to report a snapshot for a tree that was never read."
+  stderr names `repox` (the point DELETED): true
+  stderr names the SPELLED entry:           false
+
+The refusal names `repox` TWICE and `repox` does not exist. That is F-14's defect — a sentence
+misquoting the thing it names — reached through the `internal` class rather than through the `path`
+class. The class-based bound is measured wrong in both of the two classes it draws, which is why
+this plan deletes the question rather than redrawing the line a third time.
+
+===================================================================================================
+SECTION 3 — WHAT THIS BASELINE COMMITS THE PLAN TO
+===================================================================================================
+
+  • All 42 rows in section 1.2 are the work list; no subset survives as an exemption.
+  • The equality in section 1.0 must pass in both directions after the cutover: an empty offender
+    list AND owned == published == 86 (the denominator must not move, because a TAG is not a
+    sentence).
+  • Both class tables and the four cases that consult them are deleted, and both disproofs above are
+    recorded in the builder's docblock rather than removed silently.
+  • A seeded tag removal in EACH of the three modules must red the equality and name the module, the
+    expression and the declaration.
