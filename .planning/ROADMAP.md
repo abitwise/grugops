@@ -1297,7 +1297,7 @@ Plans:
 
 **Wave 14** *(blocked on Wave 13 completion)*
 
-- [ ] 32.1-14-PLAN.md — WR-02 + WR-03 + IN-01..IN-07: a recovered parse becomes a named refusal carrying its diagnostic count, a declined declaration specifier is recorded into the unreadable seam, the loader oracle's child is bounded so its premise fails red rather than hanging, and every information item reaches a disposition [DASH-06, DASH-08]
+- [x] 32.1-14-PLAN.md — WR-02 + WR-03 + IN-01..IN-07: a recovered parse becomes a named refusal carrying its diagnostic count, a declined declaration specifier is recorded into the unreadable seam, the loader oracle's child is bounded so its premise fails red rather than hanging, and every information item reaches a disposition [DASH-06, DASH-08]
 
 **Wave 15** *(blocked on Wave 14 completion)*
 
@@ -1356,7 +1356,7 @@ Plans:
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
-| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 13/15 | In Progress (gap-closure round 2 of 4 planned) |  |
+| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 14/15 | In Progress (gap-closure round 2 of 4 planned) |  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).

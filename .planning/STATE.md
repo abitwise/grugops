@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-13-PLAN.md
-last_updated: "2026-09-18T13:34:11.398Z"
-state_head: 1082b53a3865d6354b82bb2ffa2c2e22fbae4081
+stopped_at: Completed 32.1-14-PLAN.md
+last_updated: "2026-09-18T14:17:45.234Z"
+state_head: 291d01ca1972b4bf0270f4e3518e1e7b3dab8d93
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 269
-  completed_plans: 267
-  percent: 99
+  completed_plans: 268
+  percent: 100
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 13 of 15
+Plan: 14 of 15
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -524,6 +524,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32.1 P11 | 24 min | 3 tasks | 5 files |
 | Phase 32.1 P12 | 35 min | 3 tasks | 7 files |
 | Phase 32.1 P13 | 30 min | 3 tasks | 8 files |
+| Phase 32.1 P14 | 25 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -1443,6 +1444,8 @@ Recent decisions affecting current work:
 - [Phase 32.1]: Plan 32.1-12: the three pinned census counts are the instrument's own observed values (published 86 unmoved, content 23 to 26, owned 41 to 44). Arithmetic would have predicted content plus two and been wrong: the declaration has THREE published sites and the unowned rows are a subset.
 - [Phase 32.1]: Plan 32.1-12: the stderr channel was ALREADY spelled before the change (the dashboard applies the builder a second time at its warn chokepoint), so two channels carried the defect, not the three the plan predicted. Recorded as a disproved premise rather than restated.
 - [Phase 32.1]: 32.1-13: the two per-class carve-outs in the sentence builder are DELETED, not narrowed — every substitution at a published position in the three board modules is built through the builder (42 cutovers), enforced as a two-sided published-equals-owned equality with one pinned count. — Both classes were measured wrong: path by plan 32.1-12's end-to-end reproduction, and internal by a probe run in 32.1-13 showing a platform ENOENT text republished at board-dashboard.ts naming a path twice with the code point deleted. A hand-maintained class table is the rotting-set failure this repository has paid for twice; narrowing one class and keeping the other is the shape its ledger records failing round after round.
+- [Phase 32.1]: 32.1-14: a recovered parse is a NAMED refusal carrying its diagnostic count, and the review premise that a non-literal declaration specifier is 'a syntax error rather than a live shape' is DISPROVED by measurement — On this parser in ScriptKind.JS both 'import a from foo;' and 'export * from bar;' produce ZERO parse diagnostics and an Identifier specifier. That is load-bearing rather than trivia: had the premise held, the diagnostics refusal would fire first, the declaration arm would be unreachable, and its case would be green for the other change's reason. The two refusals are therefore genuinely independent and each was proved to red alone.
+- [Phase 32.1]: 32.1-14: IN-04 is closed by a named refusal at the fact, NOT by raising engines.node to >=22.15 — The review offered both. A named refusal costs a contributor on a supported runtime nothing; raising the declared floor costs one on an older 22.x their whole checkout. The child also reads registerHooks off a NAMESPACE import, because a named import of an absent export is a link-time SyntaxError and could never be the thing that checks whether the export is there.
 
 ### Pending Todos
 
@@ -1568,8 +1571,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-18T13:34:01.512Z
-Stopped at: Completed 32.1-13-PLAN.md
+Last session: 2026-09-18T14:16:49.561Z
+Stopped at: Completed 32.1-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
