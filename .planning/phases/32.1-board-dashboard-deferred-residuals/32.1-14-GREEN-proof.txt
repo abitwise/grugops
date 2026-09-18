@@ -1,0 +1,239 @@
+32.1-14 GREEN PROOF — the measurements after both refusals land, and every information item's
+disposition.
+Base commit for the plan: 152bec0c. Measured: 2026-09-18.
+Companion: 32.1-14-RED-baseline.txt, which records the pre-change answers this file is read against.
+
+=================================================================================================
+SECTION 1 — WR-02: the parse refuses rather than returns short, and the declined specifier is
+             recorded (scripts/js-import-closure.ts)
+=================================================================================================
+
+1.1  THE SAME THREE MEASUREMENTS, AFTER
+
+  fixture                                     RED (S 1.1-1.3)                    GREEN
+  ------------------------------------------  ---------------------------------  ----------------------------
+  unterminated block comment                  specifiers 1 / unreadable 0 / no    ImportClosureError, 1
+                                              throw / exit 0                      diagnostic named
+  unterminated template literal               specifiers 1 / unreadable 0 / no    ImportClosureError, 1
+                                              throw / exit 0                      diagnostic named
+  import a from foo;                          specifiers 0 / unreadable 0         specifiers 0 / unreadable 1
+                                                                                  declaration:Identifier
+
+1.2  THE REFUSAL SENTENCE, VERBATIM
+
+  ImportClosureError: js-import-closure: the source did not parse cleanly (1 syntax
+  diagnostic(s)), so the walk cannot vouch that every import was seen. The parser RECOVERS from a
+  syntax error rather than throwing, and a closure read off a recovered parse is short by an
+  unknown amount - every mirror built from it would be missing exactly the files the walk could
+  not reach. The walk refuses instead of answering.
+
+  It states three things a reader needs and none it does not: WHAT went wrong (the parse recovered),
+  HOW MUCH was measured (the diagnostic count, read off the parse rather than asserted), and WHY no
+  answer is available (the shortfall is of unknown size, so there is no partial result worth having).
+
+1.3  THE RECORDED DECLARATION SITE, AND THE ONE SENTENCE BOTH D-11 POSITIONS PUBLISH
+
+  site     : {"form":"declaration","nodeKind":80,"nodeKindName":"Identifier"}
+  rendered : declaration with a non-literal specifier: the slot holds a node of kind Identifier,
+             and the canonical form is a plain string literal
+
+  The form union gained "declaration" and the existing refusal builder renders it unchanged, so the
+  new form reaches the walk's throw and the read-only guard's acquisitions register through the same
+  sentence the two call forms already use. There is no second grammar for the third form.
+
+1.4  EACH CHANGE PROVED TO RED ALONE - BOTH DIRECTIONS, MEASURED
+
+  The module was mutated on disk, the tree rebuilt, the block re-run, and the module restored.
+
+  mutation                                    result
+  ------------------------------------------  ------------------------------------------------------
+  diagnostics refusal REMOVED,                2 failed | 5 passed
+  declaration recording KEPT                  the two recovered-parse cases fail; both declaration
+                                              cases pass
+  declaration recording REMOVED,              2 failed | 5 passed
+  diagnostics refusal KEPT                    the two declaration cases fail; both recovered-parse
+                                              cases pass
+
+  Neither change is carrying the other. This is only decidable because the review's premise that the
+  declaration shape is "a syntax error" is false on this parser (RED S 1.3): had it held, the
+  diagnostics refusal would fire first and the declaration arm would be unreachable.
+
+1.5  DISCRIMINATION AND COST
+
+  CONTROL  a well-formed source carrying all four specifier positions reads
+           ["./a.js:relative","../lib/b.js:relative","./c.js:relative","node:fs:bare"] with an EMPTY
+           unreadable list - same specifiers, same order, nothing recorded. A refusal that refused
+           everything would pass every assertion in S 1.1 and this is what forbids it.
+  CONVERSE all 67 tracked `.js`/`.mjs` files still parse cleanly and none is refused. The refusal
+           reaches six production consumers of the shared walk and costs them nothing on this tree.
+
+1.6  THE CONSTRAINTS THIS CHANGE WAS NOT ALLOWED TO BREAK
+
+  grep -c '^import' scripts/js-import-closure.ts  -> 3, all node builtins
+                                                     (node:fs, node:module, node:path)
+  D-20 lazy acquisition                            -> untouched; parseDiagnostics is declared as an
+                                                     optional readonly array on a TsSourceFile
+                                                     interface the module owns, with `unknown`
+                                                     elements, so no parser type is imported and the
+                                                     walk counts diagnostics rather than rendering one
+  public call signature                            -> unchanged; moduleSpecifierFacts(source, parser?)
+  the six freshness gates + freshness:hook-manifest -> all exit 0 (S 4)
+  npm run build                                    -> scripts/js-import-closure.js matches a fresh
+                                                     compile; check:build-parity PASS 66/66
+
+=================================================================================================
+SECTION 2 — WR-03 / IN-04 / IN-07: the oracle's child (scripts/loader-oracle.test-support.ts)
+=================================================================================================
+
+2.1  THE BOUND, AND THE SENTENCE A BOUNDED-OUT CHILD BECOMES
+
+  ORACLE_CHILD_OPTIONS = {"timeout":60000,"killSignal":"SIGKILL"}   (frozen, spread by the call)
+
+  the corpus load did not return within 60000 ms and was killed with SIGKILL. The entry's main most
+  likely RAN - which is the is-entry premise this oracle rests on - so the recording proves nothing.
+  Reported here, by name, rather than as a worker that hangs and a run that times out naming nothing.
+
+  The bound is held in ONE frozen object that the invocation spreads, so the case asserting it
+  asserts the value really passed. The consumer's arm is ONE function, `withLoadPremise`, and every
+  recording in scripts/board-readonly.test.ts goes through it - four call sites, no exceptions.
+
+  The predicate is driven with a REAL bounded-out error from a REAL non-returning child at a 1500 ms
+  bound, because the two fields it reads are platform behaviour: code === "ETIMEDOUT" and
+  signal === "SIGKILL", both measured in RED S 2.2 and re-measured by the case each run. A
+  hand-built error object would prove the predicate matches a literal somebody typed.
+
+2.2  THE ABSENT-REGISTRATION REFUSAL
+
+  loader-oracle: this runtime (<process.version>) does not provide module.registerHooks, so the
+  runtime-acquisition oracle cannot observe Node's own ESM resolver and refuses rather than loading
+  the corpus with nothing watching. It is available from Node 22.15 onward. The declared engines
+  floor is deliberately NOT raised to match: a named refusal at the fact is the cheaper and more
+  honest of the two fixes, because it costs a contributor on a supported runtime nothing.
+
+  The absence cannot be created on a runtime that HAS the function, so the guard's own bytes are
+  executed against a stub namespace - the exported ORACLE_REGISTRATION_GUARD is the string the
+  shipped child is built from, asserted by its own case, so the proof is about the text that runs.
+  Discrimination: the same bytes against a namespace that DOES carry the function print NO-REFUSAL.
+
+  The import is a NAMESPACE import. A named import of an absent export is a LINK-time SyntaxError,
+  so a named import can never be the thing that checks whether the export is there - the guard would
+  be unreachable on exactly the runtimes it exists for. Asserted in both directions.
+
+  package.json is byte-unchanged: `git diff --exit-code -- package.json` exits 0.
+
+2.3  THE REALPATH-RESOLVED ROOT
+
+  RED   symlinked checkout: 5 of 5 modules spelled ../../../../../../../Users/.../scripts/<x>.js
+  GREEN symlinked checkout: identical to the direct recording, 0 leading-parent entries
+
+  The loud outcome is NOT removed, only the false one. A path outside the REAL root still
+  relativises to `../...` and still reds the consumer's equality by name; what stopped happening is
+  an ordinary symlinked checkout impersonating an escape.
+
+2.4  EACH CHANGE PROVED TO RED ALONE - FOUR MUTATIONS, ONE CASE RED EACH
+
+  mutation                                     case that failed
+  -------------------------------------------  --------------------------------------------------
+  `...ORACLE_CHILD_OPTIONS` removed from the   WR-03: the bound is on the invocation itself
+  corpus-loading invocation
+  guard condition replaced by `if (false)`     IN-04: a runtime without the loader-hook
+                                               registration function is refused BY NAME
+  guard unwired from the child, named import   IN-04: the shipped child IS the guarded one, and it
+  restored                                     does not use a named import to find it
+  realpathSync removed                         IN-07: a checkout reached through a symbolic link
+                                               records the SAME module set as a direct one
+
+  Every other case in the block passed on every mutation run: 1 failed | 12 passed, four times.
+
+2.5  THE CONTROL, AND WHAT IT IS MEASURED AGAINST
+
+  A real load of the real corpus: events > 5, no leading-parent entry, builtins non-empty, and
+  treeBefore === treeAfter - the inertness property the whole oracle exists to establish. The
+  recorded module set is compared against the STATIC closure (`jsImportClosure`), an authority that
+  shares neither this module's code nor its process, so a change that moved BOTH sides together
+  would still red.
+
+2.6  THE MODULE STAYS OUT OF EMIT
+
+  `test ! -e scripts/loader-oracle.test-support.js` exits 0. It acquired no committed build twin.
+
+=================================================================================================
+SECTION 3 — EVERY INFORMATION ITEM REACHES A DISPOSITION
+=================================================================================================
+
+Seven items. Four fixed, three dispositioned as register rows with a stated limit and a named owner.
+None dropped: a review item with no disposition is the failure mode this phase's ledger exists to
+prevent, and 32.1-LEDGER S 4.3 is the precedent this table follows.
+
+3.1  THE TABLE
+
+| Item  | Disposition | Evidence or reason | Owner |
+|-------|-------------|--------------------|-------|
+| IN-01 | FIXED (this plan) | `scripts/check-build-parity.ts` appends `build.error?.message` to the detail when present, appended rather than substituted because a failure can carry both. A compiler that never started fills neither stdout nor stderr and sets `error`; the operator previously read "the build did not complete" with no cause. Commit `bb22e1c4`. | - |
+| IN-02 | PART FIXED (this plan) + REGISTER ROW | The ordering dependency is now recorded in `movedBuildOutputs`'s docblock: `git diff` cannot see an untracked `.js` built for a new `.ts` with no committed twin, so on this tree the case is caught by the later freshness block's working-tree arm and this gate's PASS line is correct and ORDERING-DEPENDENT. The derivation change is NOT made here, because changing what the gate's subject set CONTAINS is a decision about the gate rather than a defect in it. Commit `bb22e1c4`. | `scripts/check-build-parity.ts` (the gate) |
+| IN-03 | ACCEPTED, no change | The declared `check:*` command shape is `tsc --outDir .tmp-build && node scripts/<x>.js`, and the module then runs `npx tsc` into `./` itself, so the tree compiles twice per invocation. The only honest alternative is a THIRD declared shape, and the zero-exemption rule in `scripts/check-foundation-guards.test.ts` deliberately refuses one - that refusal is the property, not an oversight. The cost is a second compile of a small tree in one gate; the price of removing it is a shape exemption this repository has twice paid for. | - |
+| IN-04 | FIXED (this plan, Task 2) | The child reads `registerHooks` off a namespace import and refuses by name when it is absent, naming the function and `Node 22.15`. Case: "IN-04: a runtime without the loader-hook registration function is refused BY NAME", with the guard's own bytes executed against both an absent and a present stub namespace. Wiring case: "IN-04: the shipped child IS the guarded one, and it does not use a named import to find it". `engines` unchanged. Commit `3f67c203`. | - |
+| IN-05 | FIXED (this plan) | `npm run freshness:hook-manifest` added to the ubuntu gate block in `.github/workflows/ci.yml` beside the other freshness lines; `grep -c` returns 1 and the gate exits 0 reporting 2 deciders and 26 module hashes. It was fail-closed at run time already, so this closed a wiring gap rather than a bypass. Commit `bb22e1c4`. | - |
+| IN-06 | REGISTER ROW, not fixed | "Guarded" is decided per ENCLOSING FUNCTION rather than per read, so `Object.hasOwn(R, a) ? R[b] : undefined` passes. The limit that makes this acceptable is measured, not assumed: the `scattered` assertion holds one function per register, which bounds the blast radius to a single function, and the text-based rule this replaced had the SAME granularity - so it is not a regression, and closing it is a tightening rather than a repair. The remedy is the review's own sketch: require the `hasOwn` call to be an ANCESTOR CONDITION of the read (walk `read.parent` for a `ConditionalExpression`/`IfStatement` whose test contains the guard). | `scripts/check-foundation-guards.test.ts` (the F-19 census rule) |
+| IN-07 | FIXED (this plan, Task 2) | The recorded module set is relativised against a realpath-resolved root. Case: "IN-07: a checkout reached through a symbolic link records the SAME module set as a direct one" - 5 of 5 leading-parent entries before, 0 after, with both premises asserting the link resolves to the root and is a different spelling of it. Commit `3f67c203`. | - |
+
+3.2  THE THREE ROWS PLAN 32.1-15 APPENDS, IN FINAL TEXT
+
+Row A - owner `scripts/check-build-parity.ts`:
+  The build-parity gate derives its moved-outputs set from `git diff --name-only -- '*.js'`, which
+  cannot see a `.js` the build produced for a `.ts` with no committed twin. The gate's result is
+  correct on this tree only because a later workflow step's working-tree arm sees the file; the
+  ordering dependency is recorded in the module header by plan 32.1-14. Deriving the set from
+  `git status --porcelain -- '*.js'` instead would make the gate hold its own subject, and is a
+  decision about what the gate's subject set contains rather than a defect fix.
+
+Row B - owner `scripts/check-foundation-guards.test.ts` (the F-19 / IN-03 census rule):
+  The computed-key census decides guardedness per ENCLOSING FUNCTION rather than per read, so a
+  guarded call and an unguarded read of the same register in one function both pass. Bounded by the
+  `scattered` assertion (one function per register) and no worse than the text rule it replaced.
+  Remedy if tightened: require the `Object.hasOwn` call to be an ancestor condition of the read.
+
+Row C - owner `package.json` `check:build-parity` / the declared command-shape rule:
+  `check:build-parity` compiles the tree twice per invocation - once through the declared shape's
+  `tsc --outDir .tmp-build` prefix and once inside the module. ACCEPTED: the honest alternative is a
+  third declared command shape, which `scripts/check-foundation-guards.test.ts` deliberately
+  refuses, and a declared shape with a named exception is a declared shape that has started widening.
+
+  Each row states a LIMIT or a DECISION and none states a schedule. A row whose reason is "later"
+  is a row nobody will ever close.
+
+=================================================================================================
+SECTION 4 — THE GATE SWEEP
+=================================================================================================
+
+  gate                          result
+  ----------------------------  ----------------------------------------------------------------
+  freshness                     exit 0 - 66 committed .js match a rebuild
+  freshness:catalog             exit 0
+  freshness:adapters            exit 0 - 17 adapters, 0 byte differences
+  freshness:skill-twins         exit 0 - 7 twins, 0 byte differences
+  freshness:guarantees          exit 0
+  freshness:context             exit 0
+  freshness:queue               exit 0
+  freshness:traceability        exit 0
+  freshness:hook-manifest       exit 0 - 2 deciders, 26 module hashes (newly wired into CI)
+  check:build-parity            exit 0 - PASS, 0 findings over 66/66
+  check:nul-bytes               exit 0 - ALL CHECKS PASSED
+  check:platform-shapes         exit 0 - ALL CHECKS PASSED
+  check:diff-disposition        exit 0 - ALL CHECKS PASSED
+  check:dashboard-readonly      exit 0 - 215 passed
+  npm run typecheck             exit 0 - three projects, no `error TS` line
+  git diff -- package.json      exit 0 - byte-unchanged
+
+  FULL REGRESSION LANE
+  npx vitest run --exclude '**/scripts/e2e/**'
+    75 files, 5248 passed | 2 skipped (5250)
+
+  Beside plan 32.1-13's counts, for the phase's own record:
+    32.1-12  75 files, 5230 passed | 2 skipped
+    32.1-13  75 files, 5235 passed | 2 skipped
+    32.1-14  75 files, 5248 passed | 2 skipped     (+13: 7 closure cases, 6 oracle cases)
+
+  The live `npm test` e2e lane was deliberately NOT run: it starts the live claude-CLI lane, spends
+  tokens and can hang on an authed box. This repository's own guidance and this plan's prohibitions
+  both name it.
