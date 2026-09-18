@@ -167,6 +167,11 @@ import * as nodeFsPromises from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
+// THE RUNTIME'S OWN BUILTIN CENSUS (Phase 32.1, D-10). `isBuiltin` is the authority `noteSpecifier`
+// asks to tell a node builtin from a package identity, and it is deliberately NOT a list written
+// here: a list would be a second notion of what a builtin is, drifting against the runtime that
+// actually resolves the import, which is the set-literal class this phase exists to close.
+import { isBuiltin } from "node:module";
 
 // ONE AUTHORITY ON A SPECIFIER'S CLASS (32-31). `classifySpecifier` is imported rather than
 // re-implemented here, because the two hand-written predicates that used to decide this question —
@@ -223,6 +228,27 @@ function normalizeSpecifier(specifier: string): string {
 
 function isFsSpecifier(specifier: string): boolean {
   return FS_MODULE_IDENTITIES.includes(normalizeSpecifier(specifier));
+}
+
+/**
+ * IS THIS BARE SPECIFIER A NODE BUILTIN, OR A PACKAGE IDENTITY? (Phase 32.1, D-10, closing F-18.)
+ *
+ * The `bare` class is TWO module kinds under one name, and its own docblock says so: "a node builtin
+ * or a package identity". The two are not equally decidable here. A builtin's surface is enumerable
+ * — the runtime lists its exports, `ALLOWED_BUILTIN_SPECIFIERS` records which of them this closure
+ * may reach, and the fs-symbol intersection decides the one that matters. A PACKAGE identity resolves
+ * under `node_modules`, which the walk never enters and this syntactic pass never reads: not one
+ * symbol inside it can be named here. That is word for word the argument the `foreign` arm makes,
+ * so a package identity earns the same answer — it is an ACQUISITION.
+ *
+ * THE AUTHORITY IS THE RUNTIME, asked in both spellings of one identity. `node:sqlite` is a builtin
+ * only when it is written with the prefix, so asking about the written spelling alone would call the
+ * un-prefixed one a package; `normalizeSpecifier` is what makes the two spellings one question, the
+ * same helper the allow-list equality already reduces through. Either spelling answering yes settles
+ * it, and nothing here is a list somebody has to keep in step with Node.
+ */
+function isNodeBuiltinIdentity(specifier: string): boolean {
+  return isBuiltin(specifier) || isBuiltin(`node:${normalizeSpecifier(specifier)}`);
 }
 
 // `isBareSpecifier` USED TO LIVE HERE, and it was `!startsWith(".") && !startsWith("/")` — a chain
@@ -518,16 +544,37 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
    * decision written here rather than a consequence of a prefix test:
    *
    *   `bare`     — a node builtin or a package identity. Fed to `bareSpecifiers`, which the builtin
-   *                ALLOW-LIST equality then decides.
+   *                ALLOW-LIST equality then decides — AND, when it is a package identity rather than
+   *                a builtin, pushed into `acquisitions` as well (D-10, below).
    *   `relative` — an edge inside the tree. The closure walk follows it and analyses the target as
    *                its own module, so recording it a second time here would say nothing new.
    *   `foreign`  — REFUSED. Collected for attribution AND pushed into `acquisitions`, so the write-
    *                detection premise reds rather than a count moving.
+   *
+   * THE SECOND PREDICATE, RESTORED (Phase 32.1, D-10, closing F-18). Round 4 of Phase 32 planted a
+   * package-shaped bare specifier (`7zip-bin`) and a leading-whitespace absolute path
+   * (` /abs/writer.mjs`) with a live writer behind each, and measured `exit 1, 16 failed | 173` with
+   * the acquisitions PREMISE case NOT among the failures — the refusal was carried SOLELY by the
+   * `ALLOWED_BUILTIN_SPECIFIERS` equality. That equality is a CENSUS: it answers "which builtin
+   * identities does this closure name", and it happened to catch these two because a package name is
+   * not one of the three it admits. The WRITE-DETECTION MECHANISM — the acquisitions register — had
+   * stopped being asked at all, so one widening of the census away, nothing would have refused them.
+   *
+   * So the bare arm asks the second question too, and it is genuinely a second question rather than
+   * the same one twice: `isNodeBuiltinIdentity` asks the RUNTIME whether Node would resolve this
+   * identity as a builtin, and the equality asks the REPOSITORY'S RECORD whether the identity was
+   * admitted. They disagree in both directions, which is what makes them independent — `node:v8` is
+   * a builtin the record refuses (equality only), and `7zip-bin` is a package the record never had to
+   * consider (both). Each is measured redding while the other is disabled in
+   * `32.1-08-RED-baseline.txt` §§ 3-4.
    */
   const noteSpecifier = (specifier: string): void => {
     switch (classifySpecifier(specifier)) {
       case "bare":
         bareSpecifiers.add(specifier);
+        if (!isNodeBuiltinIdentity(specifier)) {
+          acquisitions.push(briefly(`PACKAGE SPECIFIER "${specifier}"`));
+        }
         return;
       case "relative":
         return;
@@ -1430,11 +1477,13 @@ describe("32-06 — the read-only guard asserts its own premises first", () => {
     expect(
       facts.acquisitions,
       "PREMISE: a closure module obtains a module identity by a shape that is not a STATIC IMPORT " +
-        "DECLARATION WITH A STRING-LITERAL SPECIFIER — a dynamic import, a call or construction " +
-        "through an identifier no enclosing scope declares, a call reached through an unadmitted " +
-        "member path on process/globalThis/global, or a read of one of those globals that is not " +
-        "the object of a member access. An unprovable identity is not a safe identity, so the " +
-        "acquisition is REFUSED rather than folded, guessed, or ignored",
+        "DECLARATION WITH A STRING-LITERAL SPECIFIER NAMING A NODE BUILTIN OR A MODULE INSIDE THIS " +
+        "TREE — a dynamic import, a PACKAGE specifier (which resolves under node_modules, a " +
+        "directory this walk never enters and this pass cannot name one symbol inside), a call or " +
+        "construction through an identifier no enclosing scope declares, a call reached through an " +
+        "unadmitted member path on process/globalThis/global, or a read of one of those globals " +
+        "that is not the object of a member access. An unprovable identity is not a safe identity, " +
+        "so the acquisition is REFUSED rather than folded, guessed, or ignored",
     ).toEqual([]);
     expect(
       facts.unresolvedCallees,
@@ -2835,6 +2884,150 @@ describe("32-31 — the refusals that MOVED are measured at the mechanism, not a
     expect(
       ALL_BANNED_MODULES.filter((banned) => ALLOWED_BUILTIN_SPECIFIERS.includes(banned)),
     ).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART ONE-C — F-18: the two predicates that must both refuse a bare PACKAGE specifier (D-10).
+//
+// The relocation table one part up measures a refusal CHANGING HANDS. This part measures a refusal
+// that had quietly become SINGLE-HANDED. Phase 32's round-4 red team planted a package-shaped bare
+// specifier and a leading-whitespace absolute path with a live writer behind each, and recorded:
+//
+//     S7  import { probeWrite } from "7zip-bin"
+//         exit 1, 16 failed | 173 passed (189), acquisitions PREMISE among the failures: NO
+//     S9  import { probeWrite } from " /private/tmp/grugops-probe/writer.mjs"
+//         exit 1, 16 failed | 173 passed (189), acquisitions PREMISE among the failures: NO
+//
+// Both transcripts are re-measured against THIS tree in `32.1-08-RED-baseline.txt` § 2, because a
+// finding quoted from another phase's document is a recollection until somebody runs it again.
+//
+// TWO PREDICATES, AND WHY THEY ARE NOT ONE PREDICATE TWICE. The census (`ALLOWED_BUILTIN_SPECIFIERS`
+// equality) asks what the REPOSITORY RECORDED as admitted; the mechanism (the acquisitions premise,
+// via `isNodeBuiltinIdentity`) asks what the RUNTIME resolves as a builtin. They share no code, no
+// list and no parser, and they disagree in both directions: `node:v8` is refused by the census alone,
+// and a package identity is refused by both. Each row below asserts BOTH sides on the SAME plant, so
+// the claim "two predicates" is decided here rather than described — and §§ 3-4 of the baseline
+// record each one still redding with the other disabled in the live source.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * One row per spelling F-18 names, with the round-4 transcript it is re-measured against.
+ *
+ * Held as data for the reason every other table in this file is: a hand-maintained list of `it(…)`
+ * blocks is the set-literal drift class this repository has already paid for.
+ */
+const F18_PACKAGE_SPECIFIER_ROWS: readonly {
+  readonly name: string;
+  readonly specifier: string;
+  readonly roundFourTranscript: string;
+}[] = Object.freeze([
+  {
+    name: "a package-shaped bare specifier with a leading digit (round-4 plant S7)",
+    specifier: "7zip-bin",
+    roundFourTranscript:
+      "exit 1, 16 failed | 173 passed (189), acquisitions PREMISE among the failures: NO",
+  },
+  {
+    name: "an absolute path behind LEADING WHITESPACE, which Node itself resolves as a package (plant S9)",
+    specifier: " /private/tmp/grugops-probe/writer.mjs",
+    roundFourTranscript:
+      "exit 1, 16 failed | 173 passed (189), acquisitions PREMISE among the failures: NO",
+  },
+]);
+
+/** Two spellings. A THIRD is a decision recorded above with the transcript it was measured in. */
+const F18_PACKAGE_SPECIFIER_ROW_COUNT = 2;
+
+describe("32.1-08 — F-18: a bare PACKAGE specifier is refused by TWO independent predicates (D-10)", () => {
+  it("the F-18 table has exactly the number of rows its decision records", () => {
+    expect(
+      F18_PACKAGE_SPECIFIER_ROWS.length,
+      "a THIRD F-18 spelling is a DECISION: record it above with the specifier and the transcript " +
+        "the round-4 red team measured it at, so the enumeration and the count move together",
+    ).toBe(F18_PACKAGE_SPECIFIER_ROW_COUNT);
+    for (const row of F18_PACKAGE_SPECIFIER_ROWS) {
+      expect(row.roundFourTranscript).toContain("acquisitions PREMISE among the failures: NO");
+      expect(classifySpecifier(row.specifier)).toBe("bare");
+    }
+  });
+
+  it("PREMISE: the two predicates DISAGREE somewhere, so they are not one predicate under two names", () => {
+    // Without this the pair could be extensionally identical — every member of one refused by the
+    // other — and "two independent predicates" would be a description of one. `node:v8` is the
+    // witness: the RUNTIME calls it a builtin (so the mechanism is silent) and the RECORD does not
+    // admit it (so the census refuses). A package identity is the converse witness: both refuse it.
+    expect(
+      isNodeBuiltinIdentity("node:v8"),
+      "node:v8 is no longer a builtin according to the runtime, so the disagreement this pair " +
+        "rests on has evaporated and the two predicates may now be one",
+    ).toBe(true);
+    expect(ALLOWED_BUILTIN_SPECIFIERS).not.toContain("v8");
+    for (const row of F18_PACKAGE_SPECIFIER_ROWS) {
+      expect(
+        isNodeBuiltinIdentity(row.specifier),
+        `the runtime now resolves "${row.specifier}" as a BUILTIN, so the mechanism arm below is ` +
+          "silent on it and only the census would refuse it — which is F-18 exactly",
+      ).toBe(false);
+    }
+  });
+
+  for (const row of F18_PACKAGE_SPECIFIER_ROWS) {
+    it(`BOTH predicates refuse ${row.name}`, () => {
+      withLiveMirror(
+        {
+          module: "scripts/board-read.js",
+          appendSource:
+            `import { probeWrite } from "${row.specifier}";\n` +
+            "export const f18Plant = (p, b) => probeWrite(p, b);",
+        },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          // PREDICATE ONE — the MECHANISM. This is the column round 4 measured as ABSENT
+          // (`${row.roundFourTranscript}`), and restoring it is the whole of D-10.
+          expect(
+            facts.acquisitions.join("\n"),
+            `"${row.specifier}" reaches the dashboard closure and the WRITE-DETECTION MECHANISM — ` +
+              `the case "${ACQUISITIONS_PREMISE_CASE}" — is silent about it. That is F-18: the ` +
+              "refusal is carried solely by the builtin-allow-list CENSUS, which is one widening " +
+              "of a census away from refusing nothing. Collected: " +
+              `[${facts.acquisitions.join(" | ")}]`,
+          ).toContain(`PACKAGE SPECIFIER "${row.specifier}"`);
+          expect(facts.acquisitions.join("\n")).toContain("scripts/board-read.js");
+          // PREDICATE TWO — the CENSUS, asserted on the SAME plant so the pair is measured
+          // together rather than in two runs that might not have seen the same tree.
+          expect(
+            normalizedBuiltinIdentities(facts),
+            `"${row.specifier}" is no longer censused as a bare identity at all, so the allow-list ` +
+              "equality has stopped seeing it and the second predicate is gone",
+          ).toContain(normalizeSpecifier(row.specifier));
+          expect(
+            normalizedBuiltinIdentities(facts).length,
+            "the builtin identity census did not move when the plant landed, so the equality is " +
+              "green over a module identity nobody admitted",
+          ).toBe(ALLOWED_BUILTIN_SPECIFIER_COUNT + 1);
+        },
+      );
+    });
+  }
+
+  it("POSITIVE CONTROL: the live closure's bare specifiers are ALL builtins, so the mechanism costs it nothing", () => {
+    // A mechanism that refused every bare specifier would pass both rows above and red the tree. The
+    // live closure's three admitted identities are the control, and they are ASKED of the runtime
+    // here rather than assumed from the allow-list, which is the whole point of the second authority.
+    const facts = analyzeClosure(ROOT, DASHBOARD_ENTRY);
+    expect(
+      facts.bareSpecifiers.length,
+      "PREMISE: the live closure carries no bare specifier, so this control controls nothing",
+    ).toBeGreaterThan(0);
+    const packageIdentities = facts.bareSpecifiers.filter((s) => !isNodeBuiltinIdentity(s));
+    expect(
+      packageIdentities,
+      `the dashboard closure names the package identit(ies) ${packageIdentities.join(", ")}. This ` +
+        "repository ships no `dependencies` key, so a package specifier here names a module the " +
+        "walk cannot enter and the guard cannot vouch for",
+    ).toEqual([]);
+    expect(facts.acquisitions).toEqual([]);
   });
 });
 
