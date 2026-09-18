@@ -6,8 +6,8 @@ current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
 stopped_at: Phase 32.1 complete, ready to plan Phase 33
-last_updated: "2026-09-18T21:11:53.109Z"
-state_head: 52377a7a34d7d850f78c61b84e336fc6b272de6a
+last_updated: "2026-09-18T21:17:19.766Z"
+state_head: 26c3d8ccc5a8ca1ebff2a2d01f44d0019a06e318
 progress:
   total_phases: 10
   completed_phases: 32
@@ -16,7 +16,7 @@ progress:
   percent: 89
 last_activity: 2026-09-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-last_activity_desc: "Completed quick task 260919-007: README Quickstart gains example Claude Code commands for each grugops skill (52377a7a); next quick task 260919-07m names the real marketplace owner in the installer notes."
+last_activity_desc: "Completed quick tasks 260919-007 (README Quickstart example Claude Code commands, 52377a7a) and 260919-07m (installer notes name the real marketplace owner abitwise/grugops, 26c3d8cc)."
 ---
 
 # Project State
@@ -1530,6 +1530,7 @@ None yet.
 | 260721-hjm | Audit user-facing docs for freshness + concision (agent-factory/README.md brought to v2.0 reality) | 2026-07-21 | 56d46ed | [260721-hjm-go-over-user-facing-documentation-audit-](./quick/260721-hjm-go-over-user-facing-documentation-audit-/) |
 | 260721-iyt | Add root CHANGELOG.md (Keep a Changelog 1.1.0, from real tags + milestone docs) and link it from README.md | 2026-07-21 | 1c30907 | [260721-iyt-add-missing-changelog-md-populated-from-](./quick/260721-iyt-add-missing-changelog-md-populated-from-/) |
 | 260919-007 | Add example Claude Code commands for each grugops skill to README.md Quickstart | 2026-09-18 | 52377a7a | [260919-007-add-example-claude-code-commands-for-eac](./quick/260919-007-add-example-claude-code-commands-for-eac/) |
+| 260919-07m | Replace the <owner> placeholder in the installer plugin-install notes with abitwise | 2026-09-18 | 26c3d8cc | [260919-07m-replace-the-owner-placeholder-in-the-ins](./quick/260919-07m-replace-the-owner-placeholder-in-the-ins/) |
 
 ## Deferred Items
 
