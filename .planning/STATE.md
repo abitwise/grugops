@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-12-PLAN.md
-last_updated: "2026-09-18T12:49:40.337Z"
-state_head: db7d08541ce2a945e80cc0dfc8e5da08b15408c9
+stopped_at: Completed 32.1-13-PLAN.md
+last_updated: "2026-09-18T13:34:11.398Z"
+state_head: 1082b53a3865d6354b82bb2ffa2c2e22fbae4081
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 269
-  completed_plans: 266
+  completed_plans: 267
   percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 12 of 15
+Plan: 13 of 15
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -523,6 +523,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32.1 P10 | 1h 14m | 3 tasks | 3 files |
 | Phase 32.1 P11 | 24 min | 3 tasks | 5 files |
 | Phase 32.1 P12 | 35 min | 3 tasks | 7 files |
+| Phase 32.1 P13 | 30 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1441,6 +1442,7 @@ Recent decisions affecting current work:
 - [Phase 32.1]: Plan 32.1-12: the code point is planted in the repository ROOT's own directory entry name, not the claimed-stage entry the plan named — isSafeTaskName admits only a narrow allowlist, so the plan's plant leaves by the already-built unsafe-task-name arm and reproduces nothing.
 - [Phase 32.1]: Plan 32.1-12: the three pinned census counts are the instrument's own observed values (published 86 unmoved, content 23 to 26, owned 41 to 44). Arithmetic would have predicted content plus two and been wrong: the declaration has THREE published sites and the unowned rows are a subset.
 - [Phase 32.1]: Plan 32.1-12: the stderr channel was ALREADY spelled before the change (the dashboard applies the builder a second time at its warn chokepoint), so two channels carried the defect, not the three the plan predicted. Recorded as a disproved premise rather than restated.
+- [Phase 32.1]: 32.1-13: the two per-class carve-outs in the sentence builder are DELETED, not narrowed — every substitution at a published position in the three board modules is built through the builder (42 cutovers), enforced as a two-sided published-equals-owned equality with one pinned count. — Both classes were measured wrong: path by plan 32.1-12's end-to-end reproduction, and internal by a probe run in 32.1-13 showing a platform ENOENT text republished at board-dashboard.ts naming a path twice with the code point deleted. A hand-maintained class table is the rotting-set failure this repository has paid for twice; narrowing one class and keeping the other is the shape its ledger records failing round after round.
 
 ### Pending Todos
 
@@ -1566,8 +1568,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-18T12:49:39.898Z
-Stopped at: Completed 32.1-12-PLAN.md
+Last session: 2026-09-18T13:34:01.512Z
+Stopped at: Completed 32.1-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
