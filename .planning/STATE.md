@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-05-PLAN.md
-last_updated: "2026-09-17T22:41:56.483Z"
-state_head: 2c8ea43032ced3efbc9c5f3c042a9af7f8cf9558
+stopped_at: Completed 32.1-06-PLAN.md
+last_updated: "2026-09-18T06:37:38.924Z"
+state_head: 973974d5cf9d32e67c818fedb51e0be44bf78a5a
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 265
-  completed_plans: 259
+  completed_plans: 260
   percent: 98
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 6 of 11
+Plan: 7 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -516,6 +516,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32.1 P03 | 25 min | 2 tasks | 3 files |
 | Phase 32.1 P04 | 59 min | 3 tasks | 6 files |
 | Phase 32.1 P05 | 63 min | 3 tasks | 9 files |
+| Phase 32.1 P06 | 45 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1419,6 +1420,8 @@ Recent decisions affecting current work:
 - [Phase 32.1]: The toolchain check-script class DELETED rather than kept: the derived register census drops 3 to 2, clearing task 1's floor, so the plan's keep-the-class fallback was not taken
 - [Phase 32.1]: The declared check-command shape set's cardinality is derived from the manifest — every shape must be OCCUPIED by a live entry, so an exemption written in advance reds
 - [Phase 32.1]: Measurement disproved the plan's claim that five F-21 shapes passed the old counter silently: all six went red as count mismatches; the silent pass needs both readers blind at once (four such combinations measured and pinned)
+- [Phase 32.1]: The D-08 cutover proceeded on a human decision: the extractor is a tokenizer, the second grammar and its blanking pass are deleted, and the parser is acquired lazily through createRequire so the committed build output stays builtins-only — An async dynamic import would have made jsImportClosure async and changed all six production call sites including the Windows-leg one; createRequire keeps the signature and is the in-repo precedent (uat-spec-integrity.ts:729-734)
+- [Phase 32.1]: scanSource and its exported view stripNonCode were deleted on a measurement (zero call sites repository-wide), not on RESEARCH assumption A4 — The plan forbids deleting an export without measuring its callers; the referent search is recorded in 32.1-06-RED-baseline.txt section 1
 
 ### Pending Todos
 
@@ -1543,8 +1546,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-17T22:41:04.113Z
-Stopped at: Completed 32.1-05-PLAN.md
+Last session: 2026-09-18T06:37:19.055Z
+Stopped at: Completed 32.1-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

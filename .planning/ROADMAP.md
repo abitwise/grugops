@@ -1236,7 +1236,7 @@ Round-3 verification on 2026-09-16 returned `gaps_found` (4/5, up from 2/5) with
 **Goal:** Close, by canonical form rather than wider enumeration, the residuals Phase 32 deferred at its four-round cap (human decision Option C, plan 32-41, 2026-09-17): the eight round-4 red-team findings F-14..F-21 in `32-40-ADVERSARIAL-REVIEW.md` and the carried ledger rows that `32-41-SUMMARY.md` / `deferred-items.md` re-homed here (16 items, WINDOWS.md rows 176, 183, 184, 194, 200–210), plus triage of the round-4 code review findings WR-01..WR-04 in `32-REVIEW.md`. Four of the five created findings are one class — a set enumerated over one spelling of the thing it is about — so the remedy is a canonical form, not another arm.
 **Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08 (residuals against already-complete requirements; no new IDs)
 **Depends on:** Phase 32
-**Plans:** 5/11 plans executed
+**Plans:** 6/11 plans executed
 
 **Execution is strictly sequential — one plan per wave (waves 1–11).** Every plan in this phase either rebuilds the whole committed `.js` surface with `npm run build` or runs a `check:*` entry whose first step compiles into the shared `.tmp-build` scratch directory, so two plans running concurrently in one working tree would see each other's uncommitted build output and red `check:build-parity`. This is the same reason Phase 32's gap-closure plans ran strictly sequentially. Plan 01 is the tracer (D-19's instrument-first order); plans 04–09 each cut one rule over to those instruments; plans 02–03 are the audit-row content job; plans 10–11 close the phase.
 
@@ -1263,7 +1263,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 32.1-06-PLAN.md — F-16, F-17, WR-02, WR-03 + rows 202/203: the regex scanner is retired for a real tokenizer with a lazily acquired parser; carries a blocking one-way decision checkpoint [DASH-06]
+- [x] 32.1-06-PLAN.md — F-16, F-17, WR-02, WR-03 + rows 202/203: the regex scanner is retired for a real tokenizer with a lazily acquired parser; carries a blocking one-way decision checkpoint [DASH-06]
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
@@ -1338,7 +1338,7 @@ Plans:
 | 30. Per-Checkpoint Autonomy Matrix | v2.1 | 11/11 | Complete    | 2026-09-07 |
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
-| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 5/11 | In Progress|  |
+| 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 6/11 | In Progress|  |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
