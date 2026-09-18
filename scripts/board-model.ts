@@ -1067,6 +1067,65 @@ export function visible(text: string): string {
   );
 }
 
+/**
+ * Build a published sentence, applying `visible` to every value it interpolates — BY CONSTRUCTION.
+ *
+ * WHY IT EXISTS, MEASURED RATHER THAN ARGUED (review F-14, ledger row 200). `visible` was already
+ * here and was applied at the two sites that quote a source LINE. The sites one layer up — the ones
+ * that quote a value a document DECLARED — were never asked about, and a ticket whose `id` value
+ * carries `U+0085` is ADMITTED: the grammar's control class (`TICKET_CONTROL`) does not cover the
+ * C1 block, the key line's value capture admits it, and `RENDER_STRIPPED` deletes it. So a published
+ * snapshot stated, twice, that `plans/tickets/ABC-901.md` declares the identifier `ABC-902X` — a
+ * file that declares something else. A reader who searches the tree for what the sentence prints
+ * finds nothing, and a reader who re-types it produces a different identifier. That is `visible`'s
+ * own docblock, one field over: "a reader following that message re-types the line exactly as
+ * printed and is refused again". The measured surface is 32 code points (the whole C1 block), not
+ * one; the before-and-after transcript is
+ * `.planning/phases/32.1-board-dashboard-deferred-residuals/32.1-07-RED-baseline.txt` § 1.
+ *
+ * WHY A TAG RATHER THAN A SECOND HELPER. A helper a caller MAY wrap a value in is a discipline
+ * somebody has to remember at every new sentence, and F-14 is precisely a site nobody remembered —
+ * the fix that introduced `visible` derived its own site set over the binding `line`, so the sites
+ * it did not name were invisible to the derivation as well as to the author. A tagged template puts
+ * the escaping in the CONSTRUCTOR: the template text is the author's, every substitution is
+ * escaped on the way in, and a sentence built this way cannot carry an unspelled byte. There is no
+ * arm in which a caller opts out, so there is nothing to forget and nothing to exempt.
+ *
+ * IT DOES NOT DOUBLE-ESCAPE, AND THE PROOF IS A CASE RATHER THAN AN ARGUMENT. Every rendered
+ * channel scrubs downstream of here — `sanitizeCell` on each stderr line, on every string value and
+ * every object key at every depth of the `--json` document — and
+ * `scripts/board-dashboard.test.ts`'s two-authority pin asserts that `visible` escapes EXACTLY what
+ * `sanitizeCell` deletes and that the escape TEXT survives that sanitizer unchanged. So the
+ * observable change is that an admitted byte is now SPELLED where the sentence is built instead of
+ * silently dropped where it is written; nothing is escaped twice and nothing is left raw.
+ *
+ * VALUES ARE `string | number` DELIBERATELY. A number cannot carry a code point a renderer deletes,
+ * so admitting one costs nothing and keeps a line count out of a caller's `String(...)` noise.
+ * Anything else — an object, `undefined`, a null — does not compile, because `String(undefined)`
+ * publishing the word "undefined" inside a sentence a human acts on is a different defect this
+ * builder would otherwise make easy to write.
+ *
+ * WHAT IT DOES NOT CLOSE, NAMED RATHER THAN IMPLIED:
+ *   • It escapes the values it is GIVEN. It does not decide which values are content-derived — that
+ *     question is answered by the derived census in `scripts/board-model.test.ts`, which resolves
+ *     every substitution in these three modules to its DECLARATION and refuses a content-derived one
+ *     built outside this tag.
+ *   • It does not change what the ticket grammar ADMITS. `TICKET_CONTROL` is untouched here on
+ *     purpose: widening it to the C1 block would change which ticket documents are readable at all,
+ *     which is a grammar decision (DASH-01) and not this one. The remedy for an admitted byte is
+ *     that the sentence SPELLS it, never that fewer bytes are admitted.
+ */
+export function spelled(
+  parts: TemplateStringsArray,
+  ...values: readonly (string | number)[]
+): string {
+  let out = parts[0] ?? "";
+  for (let i = 0; i < values.length; i += 1) {
+    out += visible(String(values[i])) + (parts[i + 1] ?? "");
+  }
+  return out;
+}
+
 const ticketRefusal = (code: TicketRefusalCode, reason: string): TicketAdmission => ({
   ok: false,
   code,
@@ -1093,7 +1152,7 @@ export function parseTicketDocument(text: string): TicketAdmission {
     return ticketRefusal(
       "no-opening-delimiter",
       "a ticket document opens with a `---` line and this one opens with " +
-        `\`${visible((lines[0] ?? "").slice(0, 40))}\``,
+        spelled`\`${(lines[0] ?? "").slice(0, 40)}\``,
     );
   }
 
@@ -1119,31 +1178,31 @@ export function parseTicketDocument(text: string): TicketAdmission {
     if (TICKET_CONTROL.test(line)) {
       return ticketRefusal(
         "control-character",
-        `line ${i + 1} carries a control character, which no terminal renders and no human wrote ` +
-          "deliberately",
+        spelled`line ${i + 1} carries a control character, which no terminal renders and no human ` +
+          "wrote deliberately",
       );
     }
     const m = TICKET_KEY_LINE.exec(line);
     if (m === null) {
       return ticketRefusal(
         "unrecognized-line",
-        `line ${i + 1} is \`${visible(line.slice(0, 60))}\`, which is neither \`key: value\` nor \`key:\``,
+        spelled`line ${i + 1} is \`${line.slice(0, 60)}\`, which is neither \`key: value\` nor \`key:\``,
       );
     }
     const key = m[1] as string;
     if (!(TICKET_KEYS as readonly string[]).includes(key)) {
       return ticketRefusal(
         "unknown-key",
-        `line ${i + 1} carries the key \`${key}\`, which is outside the closed ticket key set ` +
-          `(${TICKET_KEYS.join(", ")}). A new key is recorded in agent-factory/contracts/board.md ` +
-          "first; an unknown key is refused rather than ignored, because ignoring one is how a " +
-          "document grows a second place to hide a value",
+        spelled`line ${i + 1} carries the key \`${key}\`, which is outside the closed ticket key ` +
+          spelled`set (${TICKET_KEYS.join(", ")}). A new key is recorded in ` +
+          "agent-factory/contracts/board.md first; an unknown key is refused rather than ignored, " +
+          "because ignoring one is how a document grows a second place to hide a value",
       );
     }
     if (Object.prototype.hasOwnProperty.call(values, key)) {
       return ticketRefusal(
         "duplicate-key",
-        `\`${key}\` is written twice, so the document expresses two values for one key`,
+        spelled`\`${key}\` is written twice, so the document expresses two values for one key`,
       );
     }
     const raw = m[2];
@@ -1377,19 +1436,19 @@ export function presenceActual(id: string, presence: TicketPresence): string | n
       // DASH-03 exists to surface between two sources.
       if (presence.joinedStem === id) {
         return (
-          `plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
+          spelled`plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
           `so it is joined under that identifier and not this one`
         );
       }
       return (
-        `plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
+        spelled`plans/tickets/${id}.md exists and declares the identifier ${presence.declaredId}, ` +
         (presence.joinedStem === undefined
           ? `which no admitted document is joined under, so it is joined under no identifier`
-          : `which plans/tickets/${presence.joinedStem}.md claimed first, ` +
+          : spelled`which plans/tickets/${presence.joinedStem}.md claimed first, ` +
             `so it is joined under no identifier`)
       );
     case "refused":
-      return `plans/tickets/${id}.md exists and the reader could not admit it (${presence.code})`;
+      return spelled`plans/tickets/${id}.md exists and the reader could not admit it (${presence.code})`;
     case "absent":
       return "no ticket file carries that identifier";
   }
@@ -1603,7 +1662,7 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
       kind: "ticket-unplaced",
       ticketId: t.id,
       expected: "a row on the board",
-      actual: `no row names ${t.id}`,
+      actual: spelled`no row names ${t.id}`,
       source: "tickets",
     });
   }
@@ -1659,7 +1718,7 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
       kind: "row-without-file",
       ticketId: p.id,
       column: p.column,
-      expected: `plans/tickets/${p.id}.md`,
+      expected: spelled`plans/tickets/${p.id}.md`,
       actual,
       source: "board",
     });
@@ -1709,7 +1768,7 @@ export function joinSnapshot(inputs: JoinInputs): JoinResult {
     add(0, {
       kind: "column-missing",
       column: name,
-      expected: `a heading for the configured column ${name}`,
+      expected: spelled`a heading for the configured column ${name}`,
       actual: "no heading on the board opens that column",
       source: "config",
     });

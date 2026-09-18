@@ -2903,6 +2903,7 @@ describe("board-model — the presence partition's KEYS balance as arithmetic (p
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 import ts from "typescript";
+import { visible } from "./board-model.js";
 import type { TicketPopulations } from "./board-model.js";
 
 /** The `null` arm, carried through the derivation as a value so it cannot be silently dropped. */
@@ -2917,6 +2918,22 @@ const HOLE = "<>";
  */
 function templatesOf(node: ts.Node): readonly string[] {
   if (ts.isParenthesizedExpression(node)) return templatesOf(node.expression);
+  // THE BUILDER TAG IS TRANSPARENT TO THE TEMPLATE, AND ONLY THIS TAG IS (plan 32.1-07, D-07).
+  // `spelled` escapes each interpolated VALUE and leaves the template TEXT exactly as written, so
+  // the branch shape this derivation is about is unchanged by it — which is why the contract
+  // comparison below still holds after the F-14 cutover. Any OTHER tag would be a function that
+  // could rewrite the text, and reading it as the identity here would let a sentence the contract
+  // never saw pass as one it did; so a different tag falls through to the refusal below by name.
+  if (ts.isTaggedTemplateExpression(node)) {
+    if (!ts.isIdentifier(node.tag) || node.tag.text !== "spelled") {
+      throw new Error(
+        `presenceActual builds a sentence with the tag \`${node.tag.getText()}\`, which this ` +
+          `derivation does not know. Only \`spelled\` is transparent to the template text; a tag ` +
+          `that may rewrite it has to be taught here rather than assumed to be the identity.`,
+      );
+    }
+    return templatesOf(node.template);
+  }
   if (node.kind === ts.SyntaxKind.NullKeyword) return [NULL_BRANCH];
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
   if (ts.isTemplateExpression(node)) {
@@ -3429,5 +3446,118 @@ describe("board-model — the contract's presence table and the code's sentences
       `the contract's prose does not say "which covers ${WORDS[facts] ?? facts} different facts", ` +
         `but the table it introduces distinguishes ${facts} conflict-raising answers`,
     ).toBe(true);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 32.1-07, TASK 1 (D-07, F-14, ledger row 200) — A SENTENCE THAT MISQUOTES ITS OWN EVIDENCE.
+//
+// THE DEFECT, MEASURED. `TICKET_CONTROL` refuses the C0 block and DEL; it says nothing about the C1
+// block. `TICKET_KEY_LINE`'s value capture admits every one of them. `RENDER_STRIPPED` — the class
+// every channel's sanitizer deletes — covers BOTH. So a ticket whose `id` value carries U+0085 is
+// ADMITTED, is joined under the identifier it declares, and is then quoted into a published conflict
+// sentence with the byte silently gone: the snapshot states that a file declares an identifier that
+// file does not declare. A reader who searches the tree for what the sentence prints finds nothing.
+//
+// THIS IS `visible()`'s OWN SENTENCE, ONE FIELD OVER. Its docblock says "a reader following that
+// message re-types the line exactly as printed and is refused again" — written about a refusal that
+// quotes a source LINE. The fix that wrote it derived its site set over the binding `line`, so the
+// sites that quote a DECLARED VALUE were outside the question it asked (review F-14 § 7.2).
+//
+// THE REMEDY IS `spelled`, NOT A WIDER GRAMMAR. `TICKET_CONTROL` is deliberately unchanged: widening
+// it to C1 would change which ticket documents are readable at all, which is DASH-01's grammar and a
+// different decision. What changes is that an admitted byte is SPELLED where the sentence is built.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** U+0085 NEL, built from its code point so this source file carries no control byte of its own. */
+const F14_C1 = String.fromCodePoint(0x85);
+const F14_DECLARED = `ABC-902${F14_C1}X`;
+/** What the published sentence must print: the identifier with the byte spelled, not deleted. */
+const F14_SPELLED = "ABC-902<U+0085>X";
+/** What it printed BEFORE this plan — an identifier no file on the tree declares. */
+const F14_BEFORE = "ABC-902X";
+
+describe("32.1-07 — F-14: a quoted ticket identifier's C1 byte is SPELLED, never deleted", () => {
+  it("PREMISE: the grammar ADMITS the document, so the sentence is reached at all", () => {
+    // Without this the case below could pass for the wrong reason — a refused document produces no
+    // presence sentence, and a green assertion about a sentence nobody built proves nothing.
+    const admission = parseTicketDocument(
+      `---\nid: ${F14_DECLARED}\ncolumn: In Development\nstatus: in-development\n---\n\n# x\n`,
+    );
+    expect(
+      admission.ok,
+      "PREMISE: the ticket grammar refused the reproduction document, so F-14's surface is not " +
+        "reachable through it and this case measures nothing",
+    ).toBe(true);
+    expect(
+      admission.ok ? admission.value.id : "",
+      "PREMISE: the document was admitted but the C1 byte did not survive into the model, so the " +
+        "value the sentence quotes is not the one the file declares",
+    ).toBe(F14_DECLARED);
+    expect(
+      TICKET_CONTROL.test(F14_C1),
+      "PREMISE: TICKET_CONTROL now refuses U+0085. That is a GRAMMAR change (DASH-01) and this " +
+        "plan's prohibition forbids it — the remedy for an admitted byte is that the sentence " +
+        "spells it, never that fewer documents are admitted",
+    ).toBe(false);
+  });
+
+  it("the `row-without-file` sentence names the identifier the file ACTUALLY declares", () => {
+    // RED before this plan: `…declares the identifier ABC-902X…` — an identifier that is nowhere on
+    // the tree, stated by the document that read the tree.
+    const populations = populationsFromTree(Object.fromEntries([auditDoc("ABC-901", F14_DECLARED)]));
+    const actual = presenceActual("ABC-901", presenceOf("ABC-901", populations));
+    expect(actual, "PREMISE: no sentence was produced for the reproduction's row").not.toBeNull();
+    expect(
+      actual,
+      "the conflict's `actual` quotes an identifier whose C1 byte the renderer had already " +
+        "deleted, so the snapshot misquotes its own evidence: a reader who searches the tree for " +
+        "what it prints finds nothing, and a reader who re-types it produces a different identifier",
+    ).toBe(
+      `plans/tickets/ABC-901.md exists and declares the identifier ${F14_SPELLED}, ` +
+        "so it is joined under that identifier and not this one",
+    );
+    expect(
+      (actual ?? "").includes(F14_BEFORE),
+      `the sentence still prints \`${F14_BEFORE}\`, which is what it printed with the byte ` +
+        `deleted. The whole finding is that the printed identifier must be the declared one`,
+    ).toBe(false);
+  });
+
+  it("the `ticket-unplaced` sentence spells the same identifier, so the pair reads as one dispute", () => {
+    const conflicts = joinOf({
+      board: "## In Development (WIP unlimited)\n- [ABC-901] the F-14 reproduction\n",
+      tickets: [mismatched("ABC-901", F14_DECLARED, "In Development", "in-development")],
+    }).conflicts;
+    const unplaced = only(conflicts, "ticket-unplaced");
+    expect(
+      unplaced.map((c) => c.actual),
+      "the unplaced arm quotes the declared identifier too, and it must spell the byte the " +
+        "row-without-file arm spells — two sentences about one disagreement that print two " +
+        "different identifiers are worse than either one alone",
+    ).toEqual([`no row names ${F14_SPELLED}`]);
+    expect(
+      unplaced.map((c) => c.ticketId),
+      "the ticketId FIELD is the model's own value and is deliberately NOT escaped: it is data a " +
+        "consumer joins on, not a sentence a human reads, and the render path scrubs it. Escaping " +
+        "it here would make the document disagree with itself in the other direction",
+    ).toEqual([F14_DECLARED]);
+  });
+
+  it("the escape text is inert under the renderer, so nothing is escaped twice", () => {
+    // The two-authority pin in `scripts/board-dashboard.test.ts` is what proves this in general;
+    // this asserts it for the exact sentence the reproduction produces, because a builder whose
+    // output the downstream sanitizer mangled would have re-created the defect it closed.
+    const populations = populationsFromTree(Object.fromEntries([auditDoc("ABC-901", F14_DECLARED)]));
+    const actual = presenceActual("ABC-901", presenceOf("ABC-901", populations)) ?? "";
+    // `visible` is asked rather than `RENDER_STRIPPED` on purpose: the class carries the `g` flag,
+    // so `.test()` on it is stateful and a second call over the same subject answers about the
+    // wrong offset. The escaper is the module's own authority over the same set and is pure.
+    expect(
+      visible(actual),
+      "a code point the renderer deletes survives in the built sentence, so the published text " +
+        "would differ from the built text and the escape was not inert — which is the defect this " +
+        "builder closed, re-created one layer down",
+    ).toBe(actual);
   });
 });

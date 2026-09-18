@@ -1,0 +1,93 @@
+32.1-07 — RED BASELINE
+Plan: 32.1-07 (D-07 / F-14 / ledger row 200 — one refusal-sentence builder that escapes by construction)
+Tree: /Users/olgeroeselg/Projects/public/grugops, main @ 87e68e0f before Task 1
+Date: 2026-09-18
+
+Every control byte below is SPELLED (`<U+0085>`), never written raw, and so is every character class
+this transcript quotes. A raw C1 byte in this file would be the very defect the plan closes, one
+document over; a regex written with backslash-u escapes is quoted in `U+XXXX` prose for the same
+reason — the tooling that reads this file must not have to guess.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 1 — F-14 REPRODUCED END TO END, THROUGH THE PUBLISHED DOCUMENT
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+The tree: `scripts/fixtures/board-snapshot` copied to a temp root, plus
+
+    plans/tickets/ABC-901.md   frontmatter `id: ABC-902<U+0085>X`   (U+0085 NEL, a C1 control)
+    plans/board.md             one added row `- [ABC-901] the F-14 reproduction`
+
+`TICKET_CONTROL` (scripts/board-model.ts) refuses U+0000..U+0008, U+000B..U+001F and U+007F and says
+nothing about the C1 block; `TICKET_KEY_LINE`'s value capture admits every code point but TAB; so the
+document is ADMITTED. `RENDER_STRIPPED` covers U+0000..U+001F, U+007F..U+009F and DELETES it.
+
+--- BEFORE (HEAD 87e68e0f, committed build) ------------------------------------------------------
+$ node scripts/board-dashboard.js <tree> --once --json
+
+conflict: {"kind":"ticket-unplaced","ticketId":"ABC-902X","expected":"a row on the board",
+           "actual":"no row names ABC-902X","source":"tickets"}
+conflict: {"kind":"row-without-file","ticketId":"ABC-901","column":"Backlog",
+           "expected":"plans/tickets/ABC-901.md",
+           "actual":"plans/tickets/ABC-901.md exists and declares the identifier ABC-902X, so it is
+                     joined under that identifier and not this one","source":"board"}
+readErrors naming ABC-90*: []
+raw control code points surviving on stdout: [10]
+control code points recoverable from the PARSED document: []
+
+The published document states, TWICE, that `plans/tickets/ABC-901.md` declares `ABC-902X`. It
+declares `ABC-902<U+0085>X`. A reader who searches the tree for `ABC-902X` finds nothing; a reader
+who re-types it produces a different identifier. That is `visible()`'s own docblock sentence — "a
+reader following that message re-types the line exactly as printed and is refused again" — one field
+over. No byte leaves the tree: the failure is a snapshot that misquotes its own evidence.
+
+--- AFTER (Task 1: `spelled` owns the three sentences) -------------------------------------------
+$ npm run build && node scripts/board-dashboard.js <tree> --once --json
+
+conflict: {"kind":"ticket-unplaced","ticketId":"ABC-902X","expected":"a row on the board",
+           "actual":"no row names ABC-902<U+0085>X","source":"tickets"}
+conflict: {"kind":"row-without-file","ticketId":"ABC-901","column":"Backlog",
+           "expected":"plans/tickets/ABC-901.md",
+           "actual":"plans/tickets/ABC-901.md exists and declares the identifier ABC-902<U+0085>X,
+                     so it is joined under that identifier and not this one","source":"board"}
+readErrors naming ABC-90*: []
+raw control code points surviving on stdout: [10]
+control code points recoverable from the PARSED document: []
+
+The identifier the sentence prints is now the identifier the file declares, spelled in the uniform
+`<U+XXXX>` notation `visible()` already used for a refusal's quoted line. Nothing raw reaches a
+channel — that was already true and is unchanged; what changed is that the byte is SPELLED where the
+sentence is BUILT instead of silently dropped where it is written.
+
+NAMED RESIDUAL, MEASURED RATHER THAN IMPLIED. The `ticketId` FIELD still reads `ABC-902X` in both
+conflicts. That field is the model's own VALUE — data a consumer joins on, scrubbed on the way out
+by `scrub()`/`sanitizeCell` — not a sentence a human reads, and CONTEXT.md D-07 scopes this builder
+to "every interpolation into a published sentence". Escaping a join key would make the document
+disagree with itself in the other direction. The residual is stated here and in the SUMMARY rather
+than closed silently; it belongs to the data channel (D-18), not to the sentence builder.
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+§ 2 — THE EXISTING SENTENCE DERIVATION REFUSED THE NEW SHAPE BY NAME (total by refusal)
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+`scripts/board-model.test.ts`'s plan-32-38 derivation parses `presenceActual`'s return sites and
+turns them into templates. Its docblock says a construct it does not recognise THROWS, "so a branch
+expressed a new way reds here rather than vanishing from the derived set and taking its coverage with
+it". The cutover to a tagged template is exactly such a new shape, and the derivation behaved as
+documented BEFORE it was taught about the tag:
+
+$ npx vitest run --exclude '**/scripts/e2e/**' scripts/board-model.test.ts
+
+  × derives the branch count by parsing `presenceActual`, and pins it against the audited rows
+  × every derived branch is reached by a named input, and every named input reaches a derived branch
+  × parses a NON-EMPTY, NON-SHORT table whose row count is DERIVED from the code's branch count
+  × asserts SET EQUALITY IN BOTH DIRECTIONS between the table and the sentences the code produces
+
+  Error: presenceActual returns an expression shape this derivation does not know:
+  TaggedTemplateExpression. Teach templatesOf about it — a shape it cannot read is a branch that
+  would silently leave the derived set.
+
+  Test Files  1 failed (1)    Tests  4 failed | 150 passed (154)
+
+The arm added for it is NOT a blanket "a tag is transparent": it admits the identifier `spelled` and
+refuses every other tag by name, because any other tag is a function that could rewrite the template
+TEXT, and reading that as the identity would let a sentence the contract never saw pass as one it did.
