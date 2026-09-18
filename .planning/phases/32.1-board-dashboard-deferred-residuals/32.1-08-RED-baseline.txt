@@ -246,4 +246,110 @@ than what the guard detects.
 Section 5 -- D-11: the dynamic-import register, before and after
 -------------------------------------------------------------------------------
 
-(filled in by task 2)
+Three plants, one per non-literal dynamic-import argument shape, each appended
+to scripts/board-read.js inside a live mirror. Measured through a temporary
+probe case appended to scripts/board-readonly.test.ts, which reports the two
+registers directly; the probe was removed after each run and
+`git status --porcelain -- scripts/` re-checked.
+
+    identifier
+        const d11spec = "node:v8";
+        const d11a = await import(d11spec);
+    template literal with a substitution
+        const d11b = await import(`node:${"v8"}`);
+    concatenation
+        const d11c = await import("node:" + "v8");
+
+
+5.1 -- BEFORE: two registers, one question, and no node kind
+------------------------------------------------------------
+
+    D11PROBE[identifier]
+      opaqueSpecifiers=["scripts/board-read.js: import(d11spec)"]
+      acquisitions    =["scripts/board-read.js: import(d11spec)"]
+      extractor.unreadable=[{"form":"dynamic-import","nodeKind":80,"nodeKindName":"Identifier"}]
+
+    D11PROBE[template literal with a substitution]
+      opaqueSpecifiers=["scripts/board-read.js: import(`node:${\"v8\"}`)"]
+      acquisitions    =["scripts/board-read.js: import(`node:${\"v8\"}`)"]
+      extractor.unreadable=[{"form":"dynamic-import","nodeKind":229,"nodeKindName":"TemplateExpression"}]
+
+    D11PROBE[concatenation]
+      opaqueSpecifiers=["scripts/board-read.js: import(\"node:\" + \"v8\")"]
+      acquisitions    =["scripts/board-read.js: import(\"node:\" + \"v8\")"]
+      extractor.unreadable=[{"form":"dynamic-import","nodeKind":227,"nodeKindName":"BinaryExpression"}]
+
+Three facts in that transcript, and all three are the subject of this task:
+
+  1. EVERY shape landed in BOTH registers. One question, two answers, two
+     messages that say different things about the same node.
+  2. Neither message names the node kind; both print the source TEXT. A reader
+     learns what somebody wrote, not which shape was refused.
+  3. The EXTRACTOR already knew the kind -- plan 06 recorded it in
+     `ModuleSpecifierFacts.unreadable`, and nothing anywhere refused on it.
+
+
+5.2 -- AFTER: one register, the kind named, both sides agreeing
+---------------------------------------------------------------
+
+    D11PROBE[identifier]
+      opaqueSpecifiers=[]
+      acquisitions    =["scripts/board-read.js: dynamic-import with a non-literal specifier: the slot holds a node of kind Identifier, and the canonical form is a plain string literal - import(d11spec)"]
+      extractor.unreadable=[{"form":"dynamic-import","nodeKind":80,"nodeKindName":"Identifier"}]
+      walk.unreadableEdges=[{"form":"dynamic-import","nodeKind":80,"nodeKindName":"Identifier","module":"scripts/board-read.js"}]
+      jsImportClosure threw: js-import-closure: scripts/board-read.js carries a
+        dynamic-import with a non-literal specifier: the slot holds a node of
+        kind Identifier, and the canonical form is a plain string literal. [...]
+
+    D11PROBE[template literal with a substitution]
+      opaqueSpecifiers=[]
+      acquisitions    =["scripts/board-read.js: dynamic-import with a non-literal specifier: the slot holds a node of kind TemplateExpression, and the canonical form is a plain string literal - import(`node:${\"v8\"}`)"]
+      walk.unreadableEdges=[{"form":"dynamic-import","nodeKind":229,"nodeKindName":"TemplateExpression","module":"scripts/board-read.js"}]
+      jsImportClosure threw: ... the slot holds a node of kind TemplateExpression ...
+
+    D11PROBE[concatenation]
+      opaqueSpecifiers=[]
+      acquisitions    =["scripts/board-read.js: dynamic-import with a non-literal specifier: the slot holds a node of kind BinaryExpression, and the canonical form is a plain string literal - import(\"node:\" + \"v8\")"]
+      walk.unreadableEdges=[{"form":"dynamic-import","nodeKind":227,"nodeKindName":"BinaryExpression","module":"scripts/board-read.js"}]
+      jsImportClosure threw: ... the slot holds a node of kind BinaryExpression ...
+
+  git status --porcelain -- scripts/ after the probe was removed: [] (the three
+  files this plan edits are staged; nothing else moved)
+
+Each shape now lands in EXACTLY ONE register; the refusal names its own node
+kind; the three sentences differ; and the walk publishes the same sentence at
+its own position, because both build it with `unreadableSpecifierRefusal` from
+`scripts/js-import-closure.ts` and resolve the kind with `specifierNodeKindName`
+from the same module.
+
+
+5.3 -- the truncation the first wording shipped
+------------------------------------------------
+
+The refusal was first assembled as `briefly(`${refusal} - ${text}`)`, and
+`briefly` caps at 140 characters. Measured: the two longer kind names truncated
+the sentence's TAIL, so the two cases asserting the canonical-form clause failed
+(`2 failed | 200 passed (202)`) while the shortest kind passed. A refusal that
+says LESS the more unusual the shape it refuses is the wrong way round, so
+`briefly` is now applied to the SOURCE TEXT only -- which is what its own
+docblock says it exists for. The three transcripts in 5.2 are from after that
+correction.
+
+
+5.4 -- the blast radius of the new walker refusal, measured before adding it
+-----------------------------------------------------------------------------
+
+`jsImportClosure` reaches six production gates. Before the refusal was added,
+every tracked `.js` in the repository was parsed with `moduleSpecifierFacts` and
+its `unreadable` bucket counted:
+
+    total tracked .js files: 66   unreadable slots: 0
+
+Re-measured after the change, against the rebuilt committed `.js`: identical.
+So the refusal changes the answer for no file on this tree, and the case
+`CONVERSE: the live tree carries no unreadable slot ...` is what keeps that
+true rather than a sentence recording that it once was.
+
+    npx vitest run --exclude '**/scripts/e2e/**'
+    Test Files  75 passed (75)
+    Tests  5216 passed | 2 skipped (5218)

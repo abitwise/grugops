@@ -186,8 +186,11 @@ import {
   moduleSpecifierFacts,
   moduleSpecifiers,
   SPECIFIER_CLASSES,
+  specifierNodeKindName,
+  unreadableSpecifierRefusal,
   type SpecifierClass,
   type SpecifierParserApi,
+  type UnreadableSpecifierSite,
 } from "./js-import-closure.js";
 
 // THE THIRD SIDE OF THE CLOSURE ORACLE (Phase 32.1, D-09). Node's own ESM resolver, recorded while
@@ -464,7 +467,20 @@ interface ModuleFacts {
    * and asserted absent rather than silently producing a short symbol set.
    */
   readonly opaqueFsAcquisitions: readonly string[];
-  /** Module specifiers that are not string literals — a computed `import(expr)`. Same fail-closed rule. */
+  /**
+   * THE QUESTION THIS REGISTER ANSWERS, written rather than inferred (Phase 32.1, D-11): "did this
+   * module name a module through a specifier slot this pass cannot reduce to a VALUE, by a route
+   * that is not a dynamic import?" Today that is exactly `require(expr)`, plus the import/export
+   * DECLARATION positions, whose specifier is a string literal in every program a parser will
+   * accept — so the declaration arms are fail-closed belt-and-braces rather than a live route.
+   *
+   * IT USED TO ANSWER THE DYNAMIC-IMPORT QUESTION AS WELL, and that was the defect. `import(expr)`
+   * landed here from `collectSpecifiers` AND in `acquisitions` from `collectAcquisitions` — one
+   * question decided in two registers, which is the shape this phase exists to collapse: a reader
+   * who fixes one leaves the other, and a measurement taken from one is not a measurement of the
+   * question. `acquisitions` owns it now, because it already refused EVERY dynamic import whatever
+   * the argument, and because it is the register whose failure is the write-detection MECHANISM.
+   */
   readonly opaqueSpecifiers: readonly string[];
   /**
    * EVERY MODULE ACQUISITION THAT IS NOT THE ONE ADMITTED SHAPE (32-20).
@@ -483,6 +499,13 @@ interface ModuleFacts {
    * IDENTITY. A guard that cannot decide must refuse, exactly as `open`/`openSync` stay in the
    * mutating set because a name cannot read their flag literal. The next reader's instinct will be
    * to make the pass cleverer instead; this paragraph is here to be read before that edit.
+   *
+   * THE QUESTION THIS REGISTER ANSWERS, written rather than inferred (Phase 32.1, D-11): "by what
+   * ROUTE did this module obtain a module identity?" It is the sole owner of the dynamic-import
+   * answer. A dynamic import is refused whatever its argument, and when that argument is not a plain
+   * string literal the refusal NAMES THE NODE KIND — `Identifier`, `TemplateExpression`,
+   * `BinaryExpression` — through the same lookup and the same sentence builder the closure walk
+   * uses, so the two positions cannot drift into two grammars for one question.
    */
   readonly acquisitions: readonly string[];
   /**
@@ -667,7 +690,24 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
       if (isDynamicImport || isRequire) {
         const specifier = literalText(node.arguments[0]);
         if (specifier === null) {
-          opaqueSpecifiers.push(node.getText());
+          // THE RETIRED ROUTE (Phase 32.1, D-11).
+          //
+          // `if (specifier === null) opaqueSpecifiers.push(node.getText())` USED TO RUN FOR A
+          // DYNAMIC IMPORT TOO. What it held was every `import(expr)` whose argument is not a string
+          // literal — an identifier, a substituted template, a concatenation, a conditional — printed
+          // as its own source TEXT. Every one of those was ALREADY in `acquisitions`, put there by
+          // `collectAcquisitions`, which refuses a dynamic import whatever its argument. So the same
+          // question had two answers in two registers, and the two failure messages said different
+          // things about the same node: one called it a computed specifier, the other printed the
+          // call. Deleting the route here rather than the one there is deliberate — `acquisitions`
+          // is the register whose emptiness is the write-detection MECHANISM, and it was already
+          // total for this question.
+          //
+          // It is NOT re-added as a good idea. A reader who wants the dynamic-import answer reads
+          // `acquisitions`, where the refusal now names the argument's node KIND rather than its
+          // text. `require(expr)` still lands here, because `collectAcquisitions` decides `require`
+          // through its unresolved-callee arm and not as a module-specifier slot.
+          if (!isDynamicImport) opaqueSpecifiers.push(node.getText());
         } else {
           noteSpecifier(specifier);
           if (isFsSpecifier(specifier)) opaqueFsAcquisitions.push(node.getText());
@@ -1097,10 +1137,31 @@ function analyzeModule(absPath: string, label: string): ModuleFacts {
   };
 
   const collectAcquisitions = (node: ts.Node): void => {
-    // 1 — a dynamic import, WHATEVER its argument. A literal one is decidable and still not the
-    //     admitted shape; a computed one is not decidable at all. Both are collected.
+    // 1 — a dynamic import, WHATEVER its argument, and THE ONLY REGISTER THAT ANSWERS FOR IT
+    //     (Phase 32.1, D-11). A literal argument is decidable and still not the admitted shape; a
+    //     non-literal one is not decidable at all, and it is named BY ITS NODE KIND rather than by
+    //     its source text — printing the text tells a reader what somebody wrote, naming the kind
+    //     tells them which shape was refused and therefore which shape is admitted. The kind lookup
+    //     and the sentence both come from `js-import-closure.ts`, which is where the closure walk
+    //     builds the same refusal, so the two positions cannot drift into two grammars.
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      acquisitions.push(briefly(node.getText()));
+      const argument = node.arguments[0];
+      // `briefly` is applied to the SOURCE TEXT ONLY, never to the refusal sentence. Capping the
+      // whole string truncated the sentence's tail for the longer node-kind names, which is a
+      // refusal that says less the more unusual the shape it refuses — the wrong way round.
+      if (argument === undefined || ts.isStringLiteralLike(argument)) {
+        acquisitions.push(`DYNAMIC IMPORT: ${briefly(node.getText())}`);
+      } else {
+        const refusal = unreadableSpecifierRefusal({
+          form: "dynamic-import",
+          nodeKind: argument.kind,
+          nodeKindName: specifierNodeKindName(
+            ts.SyntaxKind as unknown as Record<number, string | undefined>,
+            argument.kind,
+          ),
+        });
+        acquisitions.push(`${refusal} — ${briefly(node.getText())}`);
+      }
     }
     // 2 — a call or construction through an identifier, resolved against the ENCLOSING scopes.
     if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && ts.isIdentifier(node.expression)) {
@@ -1503,8 +1564,11 @@ describe("32-06 — the read-only guard asserts its own premises first", () => {
     ).toEqual([]);
     expect(
       facts.opaqueSpecifiers,
-      "PREMISE: a closure module imports from a COMPUTED specifier. The module identity behind it " +
-        "is undecidable here, so the ban below could not have been asked of it",
+      "PREMISE: a closure module names a module through a specifier SLOT this pass cannot reduce " +
+        "to a value, by a route that is not a dynamic import — in practice a `require(expr)`. The " +
+        "module identity behind it is undecidable here, so the ban below could not have been asked " +
+        "of it. The DYNAMIC-IMPORT half of this question is not decided here: `acquisitions` owns " +
+        "it, and names the argument's node kind (D-11)",
     ).toEqual([]);
     expect(
       facts.foreignSpecifiers,
@@ -3028,6 +3092,241 @@ describe("32.1-08 — F-18: a bare PACKAGE specifier is refused by TWO independe
         "walk cannot enter and the guard cannot vouch for",
     ).toEqual([]);
     expect(facts.acquisitions).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PART ONE-D — D-11: ONE register for the dynamic-import question, and a refusal that names the KIND.
+//
+// MEASURED BEFORE THE RECONCILIATION (`32.1-08-RED-baseline.txt` § 5): each of the three argument
+// shapes below landed in BOTH registers at once —
+//
+//     import(d11spec)            opaqueSpecifiers=["scripts/board-read.js: import(d11spec)"]
+//                                acquisitions    =["scripts/board-read.js: import(d11spec)"]
+//     import(`node:${"v8"}`)     both, same text
+//     import("node:" + "v8")     both, same text
+//
+// — and neither message named the node kind. Two registers answering one question is the shape this
+// phase exists to collapse: a later reader who fixes one leaves the other, and a measurement taken
+// from one is not a measurement of the question. `acquisitions` owns it now; the route in
+// `collectSpecifiers` carries a deletion note saying what it used to hold.
+//
+// AND THE SAME QUESTION IS ASKED AT THE OTHER POSITION. `scripts/js-import-closure.ts` recorded the
+// unreadable slot with its node kind from plan 06 and refused on nothing; `jsImportClosure` now
+// throws on that bucket, in the same posture it takes for a foreign edge, using the SAME sentence
+// builder and the SAME kind lookup this census uses. Two positions, one grammar.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * One row per NON-LITERAL dynamic-import argument shape, with the node kind the parse gives it.
+ *
+ * The kind is written in the row because it is what the refusal must NAME. A row whose kind the
+ * refusal does not carry is a row refused for some other reason — the "refused without naming the
+ * refusing predicate" shape this file's other tables already refuse to accept.
+ */
+const D11_ARGUMENT_SHAPES: readonly {
+  readonly name: string;
+  readonly appendSource: string;
+  readonly nodeKindName: string;
+}[] = Object.freeze([
+  {
+    name: "an IDENTIFIER",
+    appendSource:
+      'const d11Spec = "node:v8";\n' +
+      "const d11Ident = await import(d11Spec);\n" +
+      "export const d11UseIdent = (p) => d11Ident.writeHeapSnapshot(p);",
+    nodeKindName: "Identifier",
+  },
+  {
+    name: "a TEMPLATE LITERAL with a substitution",
+    appendSource:
+      'const d11Tpl = await import(`node:${"v8"}`);\n' +
+      "export const d11UseTpl = (p) => d11Tpl.writeHeapSnapshot(p);",
+    nodeKindName: "TemplateExpression",
+  },
+  {
+    name: "a CONCATENATION",
+    appendSource:
+      'const d11Cat = await import("node:" + "v8");\n' +
+      "export const d11UseCat = (p) => d11Cat.writeHeapSnapshot(p);",
+    nodeKindName: "BinaryExpression",
+  },
+]);
+
+/** Three shapes. A FOURTH is a decision recorded above with the node kind its refusal must name. */
+const D11_ARGUMENT_SHAPE_COUNT = 3;
+
+describe("32.1-08 — one register owns the dynamic-import answer, and it names the node KIND (D-11)", () => {
+  it("the argument-shape table has exactly the number of rows its decision records, with DISTINCT kinds", () => {
+    expect(
+      D11_ARGUMENT_SHAPES.length,
+      "a FOURTH non-literal dynamic-import argument shape is a DECISION: record it above with the " +
+        "source that spells it and the node kind its refusal must carry",
+    ).toBe(D11_ARGUMENT_SHAPE_COUNT);
+    // DERIVED, NOT TYPED. If two rows shared a kind the "three messages differ" case below would be
+    // asserting something weaker than it reads, and nothing would say so.
+    const kinds = D11_ARGUMENT_SHAPES.map((row) => row.nodeKindName);
+    expect(
+      new Set(kinds).size,
+      `two rows share a node kind (${kinds.join(", ")}), so the refusal cannot tell them apart and ` +
+        "the discrimination below is measuring one shape twice",
+    ).toBe(kinds.length);
+  });
+
+  for (const row of D11_ARGUMENT_SHAPES) {
+    it(`a dynamic import whose argument is ${row.name} is refused BY ITS KIND, in ONE register`, () => {
+      withLiveMirror(
+        { module: "scripts/board-read.js", appendSource: row.appendSource },
+        (mirrorRoot) => {
+          const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+          // ONE REGISTER. The retired route held exactly this shape before the reconciliation.
+          expect(
+            facts.opaqueSpecifiers,
+            `a dynamic import with ${row.name} landed in opaqueSpecifiers as well as in ` +
+              "acquisitions. That is the two-register state D-11 collapses: one question, two " +
+              "answers, two failure messages that say different things about the same node",
+          ).toEqual([]);
+          // …AND IT IS THE RIGHT ONE, carrying the kind.
+          const named = facts.acquisitions.filter((entry) => entry.includes(row.nodeKindName));
+          expect(
+            named,
+            `the refusal of a dynamic import with ${row.name} does not name the node kind ` +
+              `"${row.nodeKindName}". A refusal that prints the source text says what somebody ` +
+              "wrote; one that names the KIND says which shape was refused, and therefore which " +
+              `shape is admitted. Collected: [${facts.acquisitions.join(" | ")}]`,
+          ).not.toEqual([]);
+          expect(named.join("\n")).toContain("scripts/board-read.js");
+          expect(named.join("\n")).toContain("the canonical form is a plain string literal");
+
+          // THE OTHER POSITION, ASKED OF THE SAME MIRROR. The walk records the slot with its kind…
+          const walk = jsImportClosureFacts(mirrorRoot, DASHBOARD_ENTRY);
+          const sites = walk.unreadableEdges.filter((e) => e.module === "scripts/board-read.js");
+          expect(
+            sites.map((e) => e.nodeKindName),
+            "the closure walk did not record an unreadable specifier slot for this shape, so the " +
+              "census and the walk disagree about what a dynamic import with a non-literal " +
+              "argument is",
+          ).toEqual([row.nodeKindName]);
+          // …ONE GRAMMAR: the sentence the walk would publish is the sentence the census published.
+          const site: UnreadableSpecifierSite = sites[0] as UnreadableSpecifierSite;
+          expect(
+            named.join("\n"),
+            "the census and the walk build DIFFERENT sentences for the same slot. Two positions " +
+              "are fine; two grammars are the drift this reconciliation exists to prevent",
+          ).toContain(unreadableSpecifierRefusal(site));
+          // …and the wrapper every production caller uses REFUSES, naming module and kind.
+          let thrown: unknown = null;
+          try {
+            jsImportClosure(mirrorRoot, DASHBOARD_ENTRY);
+          } catch (error) {
+            thrown = error;
+          }
+          expect(
+            thrown,
+            "jsImportClosure returned a closure for a tree carrying an edge it cannot read. The " +
+              "slot bucket was recorded by plan 06 and refused by nobody; a fact nothing decides " +
+              "over is the shape this repository has already paid for twice",
+          ).not.toBeNull();
+          expect((thrown as Error).name).toBe("ImportClosureError");
+          expect(String((thrown as Error).message)).toContain("scripts/board-read.js");
+          expect(String((thrown as Error).message)).toContain(row.nodeKindName);
+        },
+      );
+    });
+  }
+
+  it("the three refusals are three DIFFERENT sentences, derived from the mirrors rather than described", () => {
+    // A rule that named one kind for every shape would pass each row above (each asserts its own
+    // kind is PRESENT) and still be a single refusal wearing three labels. The discrimination is
+    // that the three sentences differ, and it is decided over the sentences themselves.
+    const messages = D11_ARGUMENT_SHAPES.map((row) => {
+      let collected = "";
+      withLiveMirror(
+        { module: "scripts/board-read.js", appendSource: row.appendSource },
+        (mirrorRoot) => {
+          collected = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY)
+            .acquisitions.filter((entry) => entry.includes("non-literal specifier"))
+            .join("\n");
+        },
+      );
+      return collected;
+    });
+    for (const message of messages) {
+      expect(
+        message.trim().length,
+        "one of the three shapes produced NO non-literal refusal at all, so the distinctness below " +
+          "would be comparing empty strings",
+      ).toBeGreaterThan(0);
+    }
+    expect(
+      new Set(messages).size,
+      `the three argument shapes produced ${new Set(messages).size} distinct refusal(s): ` +
+        `[${messages.join(" ||| ")}]. A refusal that reads the same for an identifier, a ` +
+        "substituted template and a concatenation is not naming the kind — it is printing a label",
+    ).toBe(D11_ARGUMENT_SHAPE_COUNT);
+  });
+
+  it("CONTROL: a dynamic import with a PLAIN STRING LITERAL argument is still refused, and still by acquisitions alone", () => {
+    // D-11 states the canonical form; it does not loosen the rule. This closure admits ONE way to
+    // establish a module identity and a dynamic import is not it, whatever the argument. Without
+    // this control the reconciliation could have quietly turned the literal case into an admission.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'const d11Literal = await import("node:v8");\n' +
+          "export const d11UseLiteral = (p) => d11Literal.writeHeapSnapshot(p);",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(facts.opaqueSpecifiers).toEqual([]);
+        expect(facts.acquisitions.join("\n")).toContain("DYNAMIC IMPORT:");
+        expect(facts.acquisitions.join("\n")).toContain("scripts/board-read.js");
+        // A literal argument IS readable, so the walk has no slot to record — the two sides agree
+        // about that too, and this is where a reconciliation that over-refused would show up.
+        expect(jsImportClosureFacts(mirrorRoot, DASHBOARD_ENTRY).unreadableEdges).toEqual([]);
+      },
+    );
+  });
+
+  it("CONTROL: `require(expr)` still lands in the surviving register, which is the question it answers", () => {
+    // The retired route was deleted for DYNAMIC IMPORTS only. `collectAcquisitions` decides
+    // `require` through its unresolved-callee arm rather than as a specifier slot, so deleting the
+    // whole route would have left `require(expr)` decided by a message about a callee name and by
+    // nothing about the specifier. The boundary is written in the register's docblock; this is the
+    // case that holds the docblock to it.
+    withLiveMirror(
+      {
+        module: "scripts/board-read.js",
+        appendSource:
+          'const d11ReqSpec = "node:v8";\n' +
+          "export const d11UseReq = (p) => require(d11ReqSpec).writeHeapSnapshot(p);",
+      },
+      (mirrorRoot) => {
+        const facts = analyzeClosure(mirrorRoot, DASHBOARD_ENTRY);
+        expect(
+          facts.opaqueSpecifiers.join("\n"),
+          "a `require` with a non-literal argument is no longer recorded as an unreadable " +
+            "specifier slot. The D-11 deletion was scoped to dynamic imports; this shape has no " +
+            "other register that names the SPECIFIER",
+        ).toContain("scripts/board-read.js");
+      },
+    );
+  });
+
+  it("CONVERSE: the live tree carries no unreadable slot, so the new refusal costs six production gates nothing", () => {
+    // The refusal added to `jsImportClosure` reaches every caller of the shared walker. Measured
+    // over all 66 tracked `.js` files before it was added: ZERO unreadable slots (recorded in
+    // `32.1-08-RED-baseline.txt` § 5). This is the assertion that keeps it true — and it is the
+    // same converse the foreign-edge cutover needed, for the same reason.
+    for (const entry of [DASHBOARD_ENTRY, MODEL_ENTRY]) {
+      expect(
+        jsImportClosureFacts(ROOT, entry).unreadableEdges,
+        `the live closure of ${entry} carries a specifier slot the walk cannot read, so every ` +
+          "freshness gate built on this walker is now red for a tree with nothing wrong with it",
+      ).toEqual([]);
+      expect(() => jsImportClosure(ROOT, entry)).not.toThrow();
+    }
   });
 });
 

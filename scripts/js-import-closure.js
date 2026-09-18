@@ -230,10 +230,35 @@ function requireParser() {
  * The kind table is a reverse-mapped enum, which is an implementation detail of how the parser emits
  * its enums rather than a documented member — so a number that is not in it yields the number itself,
  * and a refusal built on this can never be a `TypeError` about an absent lookup.
+ *
+ * EXPORTED so the read-only guard's own census resolves a kind through THIS lookup rather than a
+ * second one of its own (D-11). Two sides answering one question in two spellings is the shape this
+ * phase exists to collapse; the guard holds a `ts` namespace rather than a `SpecifierParserApi`, so
+ * the table is the parameter and the api-shaped overload below is the projection of it this module
+ * uses internally.
  */
+export function specifierNodeKindName(kindTable, kind) {
+    return kindTable[kind] ?? `kind ${kind}`;
+}
 function nodeKindName(api, kind) {
-    const table = api.SyntaxKind;
-    return table[kind] ?? `kind ${kind}`;
+    return specifierNodeKindName(api.SyntaxKind, kind);
+}
+/**
+ * THE ONE SENTENCE BOTH SIDES OF THE D-11 QUESTION PUBLISH.
+ *
+ * The walk refuses an unreadable slot in a throw; the read-only guard refuses one in its acquisitions
+ * register. Those are two POSITIONS, and they must not become two GRAMMARS — a reader who fixes the
+ * shape one of them names would leave the other, and a measurement taken from one would not be a
+ * measurement of the question. So the sentence is built here, once, and both positions interpolate it.
+ *
+ * WHAT IT NAMES IS THE KIND, NOT THE TEXT. A refusal that prints the source text tells a reader what
+ * somebody wrote; a refusal that names the node KIND tells them which SHAPE was refused, and
+ * therefore which shape is admitted. The canonical form is a plain string literal argument and there
+ * is no admitted alternative spelling, so every other kind is named by what it actually is.
+ */
+export function unreadableSpecifierRefusal(site) {
+    return (`${site.form} with a non-literal specifier: the slot holds a node of kind ` +
+        `${site.nodeKindName}, and the canonical form is a plain string literal`);
 }
 /**
  * Every module specifier one JavaScript source carries, each with its class, PLUS every specifier
@@ -347,6 +372,12 @@ function assertInsideRoot(root, abs, why) {
  *                empty in this repository).
  *   `foreign`  — recorded into `foreignEdges` and NOT followed. Never skipped.
  *
+ * AND ONE BUCKET THAT IS NOT A CLASS AT ALL: a specifier SLOT whose contents are not a string
+ * literal has no specifier to classify, so it is recorded into `unreadableEdges` with the node kind
+ * the parse gave it. `jsImportClosure` refuses on that bucket too (D-11), by the same split: the
+ * walk reports, the wrapper refuses, so the read-only guard's own census can still see the slot at
+ * the position it decides from rather than dying before it is asked.
+ *
  * `modules` is sorted so two callers comparing closures compare sets and not traversal order, and so
  * a caller that prints the closure prints a stable list.
  */
@@ -361,6 +392,7 @@ export function jsImportClosureFacts(root, entryRel) {
     const relPosix = (abs) => relative(rootAbs, abs).split(sep).join("/");
     const seen = new Set();
     const foreignEdges = [];
+    const unreadableEdges = [];
     const queue = [entryAbs];
     while (queue.length > 0) {
         const abs = queue.pop();
@@ -368,7 +400,11 @@ export function jsImportClosureFacts(root, entryRel) {
             continue;
         seen.add(abs);
         const source = readFileSync(abs, "utf8");
-        for (const { specifier, cls } of moduleSpecifiers(source)) {
+        const facts = moduleSpecifierFacts(source);
+        for (const site of facts.unreadable) {
+            unreadableEdges.push({ ...site, module: relPosix(abs) });
+        }
+        for (const { specifier, cls } of facts.specifiers) {
             if (cls === "bare")
                 continue;
             if (cls === "foreign") {
@@ -386,7 +422,7 @@ export function jsImportClosureFacts(root, entryRel) {
                 queue.push(target);
         }
     }
-    return { modules: [...seen].map(relPosix).sort(), foreignEdges };
+    return { modules: [...seen].map(relPosix).sort(), foreignEdges, unreadableEdges };
 }
 /**
  * The transitive closure of `entry`'s relative imports, INCLUDING `entry` itself, as repo-relative
@@ -399,7 +435,22 @@ export function jsImportClosureFacts(root, entryRel) {
  * one and re-runs should not discover the next one a build later.
  */
 export function jsImportClosure(root, entryRel) {
-    const { modules, foreignEdges } = jsImportClosureFacts(root, entryRel);
+    const { modules, foreignEdges, unreadableEdges } = jsImportClosureFacts(root, entryRel);
+    // THE D-11 REFUSAL, AT THE POSITION EVERY CALLER REACHES (Phase 32.1, plan 08). The slot bucket
+    // was recorded by plan 06 and refused by nobody; a fact nothing decides over is the shape this
+    // repository has paid for twice. It is refused FIRST because it is the stronger statement: a
+    // foreign specifier is a module the walk declines to follow, while an unreadable slot is an edge
+    // the walk cannot even name, so a closure carrying one is short by an unknown amount.
+    if (unreadableEdges.length > 0) {
+        const named = unreadableEdges
+            .map((e) => `${e.module} carries a ${unreadableSpecifierRefusal(e)}`)
+            .join("; ");
+        throw new ImportClosureError(`js-import-closure: ${named}. The module identity behind such a slot is a VALUE, and this ` +
+            `walk reads expressions — it cannot follow the edge, cannot mirror the target and cannot ` +
+            `report a closure it knows to be complete. Skipping it would hand back a closure missing ` +
+            `exactly the module the walk could not see, so the walk refuses instead. There is one ` +
+            `admitted spelling and it is a plain string literal; no alternative is admitted.`);
+    }
     if (foreignEdges.length > 0) {
         const named = foreignEdges.map((e) => `${e.module} imports "${e.specifier}"`).join("; ");
         throw new ImportClosureError(`js-import-closure: ${named}. A specifier that is neither RELATIVE (./…, ../…) nor BARE (a ` +
