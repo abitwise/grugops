@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "32.1"
 current_phase_name: Board Dashboard Deferred Residuals (INSERTED)
 status: "Phase 31 CLOSED 2026-09-13 by user override D-44 (round-9 verification gaps_found 4/6 left standing; CR-28..CR-31 + WR-43..WR-47 accepted open). Next: Phase 32 — Board Projector & CLI Dashboard, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 32.1-07-PLAN.md
-last_updated: "2026-09-18T07:33:56.732Z"
-state_head: 35caad255020732e99eb46be920a02b57b081f01
+stopped_at: Completed 32.1-08-PLAN.md
+last_updated: "2026-09-18T08:30:49.307Z"
+state_head: 17ed4ab9ee3e566bc08fc4723e74c28218f118ea
 progress:
   total_phases: 10
   completed_phases: 31
   total_plans: 265
-  completed_plans: 261
-  percent: 98
+  completed_plans: 262
+  percent: 99
 last_activity: 2026-09-13
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 29 CLOSED by user decision (D-59, reversing D-29): LANG-04's conformance prohibition is held as CONTENT — the claim registry and the honesty floor — with guard_banned_claims a disclosed drift backstop, not the mechanism that makes a totality true. Eight verification rounds established that a totality over an open set of phrasings is not a decidable predicate; D-55 had already ended at a per-line predicate, so the totality was already content-held on the tree while LANG-04's text still said a mechanism held it. Round-8 review CR-02 (the narrowed sentence printed above the findings contradicting it) FIXED at 4c6a76a, watched failing against the pre-fix build and asserted in both directions; two existing cases whose premise the change invalidated were repaired, not weakened. CR-01 (freshness.ts working-tree arm fail-opens, reproduced) carried as V-29-59-03 — a build-parity defect plan 29-59 itself recorded as named by no LANG requirement. CR-03/04/05 carried with owners in docs/audit/29-round8-residuals.md section 10. The round-8 verifier's gaps_found verdict is left standing and annotated rather than rewritten: it verified LANG-04's previous text. All 8 LANG requirements Complete. 15 repo gates green, 52 files / 2140 passed / 2 skipped. Next: Phase 29.1 (per-role model assignment)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 32.1 (Board Dashboard Deferred Residuals (INSERTED)) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -518,6 +518,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 32.1 P05 | 63 min | 3 tasks | 9 files |
 | Phase 32.1 P06 | 45 min | 2 tasks | 5 files |
 | Phase 32.1 P07 | 44 min | 3 tasks | 8 files |
+| Phase 32.1 P08 | 54 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1426,6 +1427,8 @@ Recent decisions affecting current work:
 - [Phase 32.1]: The builder is a TAGGED TEMPLATE, not a helper a caller may wrap a value in: a helper is a discipline to remember at every new sentence, and F-14 is exactly a site nobody remembered — The escaping is a property of the constructor, so there is no arm in which a caller opts out and nothing to exempt
 - [Phase 32.1]: TICKET_CONTROL is untouched: the remedy for an admitted control byte is that the SENTENCE spells it, never that fewer documents are admitted — Widening the grammar reaches DASH-01 and changes which tickets are readable at all; asserted unchanged by two permanent cases rather than promised
 - [Phase 32.1]: CONTEXT.md D-07's retired site-list derivation names no artefact on this tree; the nearest derivation-shaped artefact is the visible()/sanitizeCell two-authority pin, which SURVIVES — Recorded in the census docblock and in 32.1-07-RED-baseline.txt section 4 so nobody deletes the pin looking for the retirement sentence subject
+- [Phase 32.1]: F-18 second predicate is the RUNTIME builtin census (node:module isBuiltin), not a second list - it disagrees with the recorded allow-list in both directions — The pair is measured, not described: each predicate is run with the other disabled, in both directions, and both mutants red the new F-18 cases
+- [Phase 32.1]: acquisitions owns the dynamic-import answer; the opaqueSpecifiers route for it is deleted with a note, and the refusal names the argument node kind through one exported sentence builder shared with the closure walk — Two registers answering one question is the class this phase closes; two positions must not become two grammars
 
 ### Pending Todos
 
@@ -1550,8 +1553,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-18T07:33:34.914Z
-Stopped at: Completed 32.1-07-PLAN.md
+Last session: 2026-09-18T08:30:40.772Z
+Stopped at: Completed 32.1-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
