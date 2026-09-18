@@ -63,9 +63,29 @@
 //
 // A specifier's VALUE is read through the parser's string-literal-LIKE predicate, so a
 // no-substitution template resolves to what it means rather than to how it is spelled, and an escape
-// sequence resolves to the character it denotes. Any other argument shape is recorded, by NODE KIND,
-// in `ModuleSpecifierFacts.unreadable` — the seam a named refusal attaches to (D-11) — and is never
-// silently treated as "no edge here".
+// sequence resolves to the character it denotes. Any other shape — in a CALL argument or in a
+// DECLARATION slot — is recorded, by NODE KIND, in `ModuleSpecifierFacts.unreadable`, the seam a
+// named refusal attaches to (D-11), and is never silently treated as "no edge here".
+//
+// THE DECLARATION ARM WAS THE ONE ARM WHERE THAT RULE WAS NOT IMPLEMENTED (32.1-14, review WR-02).
+// It called the value reader, which pushes only on a string-literal-like node and is silent
+// otherwise, so a declaration whose specifier is anything else contributed to NEITHER list. That is
+// not a hypothetical shape: measured on this parser in `ScriptKind.JS`, `import a from foo;` and
+// `export * from bar;` each produce ZERO parse diagnostics and an `ImportDeclaration` /
+// `ExportDeclaration` carrying an `Identifier` specifier (`32.1-14-RED-baseline.txt` § 1.3, which
+// records the review's contrary premise as disproved). A clean parse could therefore hide a static
+// import in the one position a static import actually lives.
+//
+// AND A PARSE THAT RECOVERED IS A REFUSAL, NOT AN ANSWER (32.1-14, review WR-02). `createSourceFile`
+// NEVER THROWS on a syntax error — it recovers and hands back a PARTIAL tree — and until this plan
+// the walk read that tree without asking whether the parse was clean. Measured against the committed
+// build output exactly as it stood (`32.1-14-RED-baseline.txt` § 1.1-1.2): a source whose first
+// import is followed by an unterminated block comment answered `["./a.js"]` with an EMPTY unreadable
+// list, at exit 0, short by every import after the unterminated token; the same for an unterminated
+// template literal. The header two paragraphs up called that outcome the failure this module exists
+// to prevent, and the module did it. So the diagnostic count is now read off the parse and a
+// non-zero count is a NAMED refusal carrying it. This costs the live tree nothing: 0 of 67 tracked
+// build outputs carry a parse diagnostic (§ 1.4), which is the number the converse case asserts.
 //
 // THE PARSER IS ACQUIRED LAZILY, AND THAT IS A CONSTRAINT RATHER THAN A STYLE (D-20). CLAUDE.md's
 // stack rule is that host machines run the committed `.js` with ZERO runtime dependencies installed.
@@ -193,6 +213,21 @@ interface TsCallExpression extends TsNode {
 }
 
 /**
+ * A parsed source, plus the ONE member that says whether the parse is an ANSWER or a RECOVERY.
+ *
+ * `parseDiagnostics` is OPTIONAL and its elements are `unknown` on purpose. Optional, because a
+ * parser reached through the injection seam is not obliged to carry it and an absent field must read
+ * as "nothing to report" rather than as a crash. `unknown`, because this walk never inspects a
+ * diagnostic — it counts them. Declaring the element shape would tie this module's types to the
+ * parser package's diagnostic type, which is the one thing the structural view below exists to
+ * avoid, and it would invite a later reader to render a message whose formatting rules live in a
+ * package the host was promised it does not need.
+ */
+interface TsSourceFile extends TsNode {
+  readonly parseDiagnostics?: readonly unknown[];
+}
+
+/**
  * EXACTLY THE MEMBERS THIS MODULE CALLS, declared structurally so the module's own TYPES do not
  * depend on the parser's package.
  *
@@ -214,7 +249,7 @@ export interface SpecifierParserApi {
     languageVersion: number,
     setParentNodes: boolean,
     scriptKind: number,
-  ): TsNode;
+  ): TsSourceFile;
   forEachChild(node: TsNode, cb: (child: TsNode) => void): unknown;
   isImportDeclaration(node: TsNode): node is TsModuleSpecifierHolder;
   isExportDeclaration(node: TsNode): node is TsModuleSpecifierHolder;
@@ -372,9 +407,16 @@ export interface ClassifiedSpecifier {
  * prose. A parse knows the difference, so "there is an edge here and I cannot read it" is a fact with
  * a position and a node kind — the seam D-11's named refusal attaches to. Phase 32.1 plan 08 attached
  * it: `jsImportClosure` now REFUSES on this bucket, in the same posture it takes for a foreign edge.
+ *
+ * `"declaration"` IS THE THIRD FORM, AND IT CLOSES THE LAST ARM THAT DROPPED (32.1-14, WR-02). The
+ * two call forms have recorded by node kind since plan 06; the declaration arm read its specifier
+ * through the value reader, which is silent on anything that is not string-literal-like. The shape
+ * reaches a CLEAN parse — `import a from foo;` and `export * from bar;` each yield zero parse
+ * diagnostics and an `Identifier` specifier on this parser in `ScriptKind.JS` — so it was a real
+ * hole rather than a theoretical one, and it lived in the position a static import occupies.
  */
 export interface UnreadableSpecifierSite {
-  readonly form: "dynamic-import" | "require";
+  readonly form: "dynamic-import" | "require" | "declaration";
   readonly nodeKind: number;
   readonly nodeKindName: string;
 }
@@ -456,6 +498,26 @@ export function moduleSpecifierFacts(
     api.ScriptKind.JS,
   );
 
+  // A RECOVERED PARSE IS REFUSED BEFORE THE WALK STARTS (32.1-14, review WR-02).
+  //
+  // This is the FIRST question asked of the parse, and it is asked once rather than per node,
+  // because the property is about the whole source: a recovered tree is not "mostly right", it is a
+  // tree whose relationship to the bytes is unknown after the unterminated token. There is no per-
+  // node repair for that and no partial answer worth handing back — the caller wants a closure, and
+  // a closure short by an unknown number of edges is the exact artefact this module exists to stop
+  // being produced. An absent field counts as zero, so a parser reached through the injection seam
+  // that does not report diagnostics is treated as reporting none rather than as unusable.
+  const faults = sourceFile.parseDiagnostics ?? [];
+  if (faults.length > 0) {
+    throw new ImportClosureError(
+      `js-import-closure: the source did not parse cleanly (${faults.length} syntax ` +
+        `diagnostic(s)), so the walk cannot vouch that every import was seen. The parser RECOVERS ` +
+        `from a syntax error rather than throwing, and a closure read off a recovered parse is ` +
+        `short by an unknown amount — every mirror built from it would be missing exactly the ` +
+        `files the walk could not reach. The walk refuses instead of answering.`,
+    );
+  }
+
   const specifiers: ClassifiedSpecifier[] = [];
   const unreadable: UnreadableSpecifierSite[] = [];
 
@@ -491,7 +553,21 @@ export function moduleSpecifierFacts(
       // `export { x }` and `export default x` carry no module specifier at all. That is an absent
       // slot rather than an unreadable one, so it contributes nothing in either direction.
       const specifier = node.moduleSpecifier;
-      if (specifier !== undefined) readValue(specifier);
+      if (specifier !== undefined) {
+        if (api.isStringLiteralLike(specifier)) {
+          readValue(specifier);
+        } else {
+          // THE SAME POSTURE THE CALL ARMS TAKE, in the arm that did not take it (32.1-14, WR-02).
+          // A PRESENT slot whose contents are not the canonical form is a fact with a node kind, not
+          // an absence. Written as an explicit else rather than left to the value reader's silence,
+          // because the silence is what made the two cases indistinguishable.
+          unreadable.push({
+            form: "declaration",
+            nodeKind: specifier.kind,
+            nodeKindName: nodeKindName(api, specifier.kind),
+          });
+        }
+      }
     } else if (api.isCallExpression(node)) {
       if (node.expression.kind === api.SyntaxKind.ImportKeyword) {
         readCallArgument(node, "dynamic-import");
