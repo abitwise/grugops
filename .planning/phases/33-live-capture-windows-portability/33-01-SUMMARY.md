@@ -224,7 +224,7 @@ _Tracer feedback gate: interactive run, `human_verify_mode: end-of-phase`, autom
 
 **3. [Rule 1 - Bug] A literal NUL byte in the `frameKinds` map key**
 - **Found during:** Task 3 (a plain `grep` over the runner returned nothing — the memory's BSD-grep trap)
-- **Issue:** the file writer turned the ` ` joiner escape into a real 0x00 byte; `check:nul-bytes` refused both twins and `file` classified the source as data.
+- **Issue:** the file writer turned the `\x00` joiner escape into a real 0x00 byte; `check:nul-bytes` refused both twins and `file` classified the source as data.
 - **Fix:** the census key is now `JSON.stringify([type, subtype])`, unambiguous and control-byte free.
 - **Files modified:** scripts/capture-live.ts, scripts/capture-live.js
 - **Verification:** `npm run check:nul-bytes` ALL CHECKS PASSED; a byte scan reports 0 control bytes in all three new files.
