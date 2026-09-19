@@ -23,6 +23,7 @@
     "check:diff-disposition": "tsc --outDir .tmp-build && node scripts/check-diff-disposition.js",
     "check:nul-bytes": "tsc --outDir .tmp-build && node scripts/check-nul-bytes.js",
     "check:platform-shapes": "tsc --outDir .tmp-build && node scripts/check-platform-shapes.js",
+    "check:flip-manifest": "tsc --outDir .tmp-build && node scripts/check-flip-manifest.js",
     "check:dashboard-readonly": "npx vitest run scripts/board-readonly.test.ts",
     "audit:prepass": "tsc --outDir .tmp-build && node scripts/audit-prepass.js",
     "generate:safety-surface": "tsc --outDir .tmp-build && node scripts/generate-safety-surface.js",

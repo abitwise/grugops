@@ -908,11 +908,19 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // fences are and which unfenced lines match a caller-supplied predicate, and takes the section
     // extent itself from `check-diff-disposition.ts`'s `locateSection`. It is a DEMOTION-shaped
     // addition, not a promotion: a new consumer of the authority, carrying no private grammar.
+    //
+    // (Plan 33-07, D-17) AND FROM ELEVEN TO TWELVE, SAME DIRECTION. `check-flip-manifest.ts` imports
+    // `fencedLineFlags` (to read the manifest's tables outside fences) and `unfencedHeadingIndices`
+    // (to ask whether the capture summary carries the heading a flipped cell cites) — both
+    // DECLARATIVE index lists, no verdict-bearing symbol, no private fence state and no heading
+    // grammar of its own. Re-derived rather than incremented: `git ls-files -z '*.ts' | xargs -0
+    // grep -l 'from "./frontmatter.js"'` minus test files reports twelve with this module tracked.
     expect(consumers).toEqual([
       "audit-model.ts",
       "canonical-frontmatter.ts",
       "check-banned-claims.ts",
       "check-diff-disposition.ts",
+      "check-flip-manifest.ts",
       "check-foundation-guards.ts",
       "check-imperative-lexicon.ts",
       "checkpoints.ts",
@@ -2098,8 +2106,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   grant and renders no spawn verdict; it is a pure string function over one `node:path` import.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 88 with this module tracked.
+ *
+ * 88 -> 89 (plan 33-07, task 2, D-17), ONE GATE MODULE:
+ *   - `scripts/check-flip-manifest.ts` — the GAP-D1 flip gate. It parses the flip manifest's tables
+ *     (the DECLARED side) and derives the changed-file set and the live-surface parts from git and
+ *     the working tree (the ACTUAL side); no file list lives in its source. It takes the fence
+ *     projection and the heading-occurrence question from the authority, declares no frontmatter
+ *     grammar (the manifest's status is a bold label line, not frontmatter), reads no grant and
+ *     renders no spawn verdict. Its committed `.js` twin lands in the same commit.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 89 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 88;
+const NON_TEST_MODULE_COUNT = 89;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2642,7 +2660,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 60 → 61 (plan 33-03, task 1): `scripts/posix-path.ts`, the published-path normalizer. It
     // imports `node:path` only and none of the three specs compared below, so it contributes three
     // empty comparisons and cannot make the agreement above vacuous on its own.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(61);
+    // 61 → 62 (plan 33-07, task 2): `scripts/check-flip-manifest.ts`, the GAP-D1 flip gate. It
+    // imports `./frontmatter.js` (two declarative symbols), so it contributes one real comparison
+    // the two readers must agree on. Re-derived: the scoped walk over `scripts/` minus tests
+    // reports 62 with the module tracked.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(62);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2669,7 +2691,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 58 → 59 (plan 32.1-05, task 2): `check-build-parity.ts`, three specs per module as ever.
     // 59 → 60 (plan 33-01, task 1): `capture-live.ts`, three specs per module as ever.
     // 60 → 61 (plan 33-03, task 1): `posix-path.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(61 * 3);
+    // 61 → 62 (plan 33-07, task 2): `check-flip-manifest.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(62 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2873,7 +2896,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // and both pins move in this plan's task-1 commit for the same reason.
       // 60 → 61 (plan 33-03, task 1): `posix-path.ts`, the same module the flat reader gained,
       // and both pins move in this plan's task-1 commit for the same reason.
-    ).toBe(61);
+      // 61 → 62 (plan 33-07, task 2): `check-flip-manifest.ts`, the same module the flat reader
+      // gained, and both pins move in this plan's task-2 commit for the same reason.
+    ).toBe(62);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -12302,7 +12327,12 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       // one: its inline `npm run build && git diff … || node -e "…"` compound became
       // `scripts/check-build-parity.js`, a gate module named directly by a ci.yml step. The number
       // moved because the SET moved, in the same commit as the move.
-      targets: 10,
+      // 10 -> 11 (plan 33-07, task 2, D-17). `check:flip-manifest` joined: the GAP-D1 flip gate,
+      // `scripts/check-flip-manifest.js`, named directly by a ci.yml step in the gate block. In the
+      // pre-capture state it asserts the manifest still describes the tree; once the manifest is
+      // discharged it enforces the commit-set, residual and citation rules over the derived flip
+      // commit. The number moved because the SET moved, in the same commit as the module.
+      targets: 11,
       proof: "ci.yml names the gate module, or CI_EXEMPT names a reason AND something still runs it",
     },
     "suite-test-file": {

@@ -538,4 +538,31 @@ jobs:
           # hook. It passed for a whole round by never running. The runner set is derived now, so the
           # next gate cannot be added without being reachable.
           node scripts/check-residual-citations.js
+
+          # ── The GAP-D1 flip gate (Phase 33, plan 33-07; D-17, D-18) ─────────────────────────────
+          # WIRED HERE **AND** spawned against planted repositories by scripts/check-flip-manifest.test.ts
+          # AND in package.json (`check:flip-manifest`), for the same reason as the gate above: a gate
+          # reached by nothing passes by never running.
+          #
+          # WHAT IT HOLDS. The flip manifest under .planning/phases/33-*/ declares every file and cell
+          # the GAP-D1 capture flips, the live-surface set the residual rule runs over (an allow-list of
+          # DERIVED parts, each floored, the total pinned in the manifest), a correction class for
+          # sentences that are false regardless of the capture, and the D-18 citation form. The gate
+          # parses that DECLARED side and derives the ACTUAL side from git and the working tree.
+          #
+          # TWO STATES, BOTH CHECKED. While the manifest reads `pre-capture`, every declared anchor
+          # must still RESOLVE against the tree — the manifest is checked against what it describes
+          # before any capture exists — and the residual and commit-set rules are not in force. Once
+          # plan 33-11 sets it to `discharged` in the flip commit, the gate derives that commit from
+          # history (`git log -S` over the manifest; this step needs the job's `fetch-depth: 0`),
+          # requires it to have changed exactly the declared set, requires no `pending human` cell or
+          # GAP-D1 deferral sentence to survive in the live-surface set, and requires every flipped
+          # parity cell to cite a section the capture summary actually carries.
+          #
+          # WHAT A RED MEANS, AND WHICH FIX IS NOT ALLOWED. A red names the part, file, line, row or
+          # cell. Do NOT rewrite a document that truthfully describes a past state to clear it; amend
+          # the manifest's scope rule or declared set WITH THE REASON RECORDED, then re-run. Do NOT
+          # move the pinned total before walking every part's derivation. A derivation the gate could
+          # not perform reports NO verdict and exits 1; that is not a pass to be worked around.
+          node scripts/check-flip-manifest.js
           VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js

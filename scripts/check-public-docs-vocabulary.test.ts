@@ -563,6 +563,17 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
         "reports it. A smaller set therefore produces MORE findings, so the exemption's narrowing " +
         "fails CLOSED here. Measured, not assumed: the finding fires on absence from the set.",
     },
+    {
+      // (Plan 33-07, D-17) The GAP-D1 flip gate's `publicDocs` live-surface part.
+      module: "scripts/check-flip-manifest.ts",
+      accessor: "publicDocsCorpus",
+      why:
+        "it asks WHICH DOCUMENTS ARE PUBLIC, as the first part of the live-surface set its residual " +
+        "rule runs over: a surviving `pending human` cell or GAP-D1 deferral sentence is just as wrong " +
+        "in a changelog as in a README, so the vocabulary gate's exemption has no bearing on it. The " +
+        "set is a DENOMINATOR the residual rule scans, so a smaller set produces FEWER findings and " +
+        "the narrowing would fail OPEN — which is why the corpus, not the scan, is taken.",
+    },
   ];
 
   it("the tree's consumers of each accessor are EXACTLY the declared ones, both directions", () => {

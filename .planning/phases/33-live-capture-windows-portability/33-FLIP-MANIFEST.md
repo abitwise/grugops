@@ -232,9 +232,9 @@ file that was omitted. Neither side is written down against the other.
 | F8 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 5 "Gate verdict"` | right cell `pending human` (runbook step 3) | both cells in the citation form |
 | F9 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 6 "Live PreToolUse deploy guard (SAFE-02)"` | right cell `pending human` (runbook step 2) | both cells in the citation form; the observed deny is the hook event of D-04 |
 | F10 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 7 "Validator on resulting tree (DOG-01)"` | right cell `pending human` (runbook step 4) | both cells in the citation form |
-| F11 | `docs/dogfood-human-runbook.md` | `anchor` | `` `column currently reads `pending human`` `` | L175 | the runbook describes the human fallback; the column is filled and cited |
-| F12 | `docs/dogfood-human-runbook.md` | `anchor` | `` `replace each `pending human` cell` `` | L178 | past tense or removed; the step is the fallback procedure |
-| F13 | `docs/dogfood-human-runbook.md` | `anchor` | `` `cells stay `pending human`` `` | L203, the deferred outcome | removed or reworded without the literal |
+| F11 | `docs/dogfood-human-runbook.md` | `anchor` | `` column currently reads `pending human` `` | L175 | the runbook describes the human fallback; the column is filled and cited |
+| F12 | `docs/dogfood-human-runbook.md` | `anchor` | `` replace each `pending human` cell `` | L178 | past tense or removed; the step is the fallback procedure |
+| F13 | `docs/dogfood-human-runbook.md` | `anchor` | `` cells stay `pending human` `` | L203, the deferred outcome | removed or reworded without the literal |
 | F14 | `docs/audit/28-disposition-register.md` | `marker` | `Discharged by plan 33-11` | absent | a dated note under the `examples/03-ticket-to-pr.md` entry beginning with that literal, citing the flip commit |
 | F15 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-HUMAN-UAT.md` | `anchor` | `status: partial` | frontmatter | `status: passed` |
 | F16 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-HUMAN-UAT.md` | `anchor` | `result: [pending]` | Test 3 (A3) | `result: [passed]` plus a note in the citation form |
@@ -248,7 +248,7 @@ file that was omitted. Neither side is written down against the other.
 | F24 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `**Score:** 6/7 truths verified (1 pending human by design)` | L34 | `**Score:** 7/7 truths verified` with the capture date |
 | F25 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `REAL capture with gate verdict + pending human parity cells` | L60 | the parity cells are captured and cited |
 | F26 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `GRUGOPS_PROD_DEPLOY_APPROVED, pending human \|` | L63, the runbook content-check row | the checklist's last item names the fallback, not a pending cell |
-| F27 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `` `side-by-side parity table with `pending human` cells` `` | L71 | the table is filled and cited |
+| F27 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `` side-by-side parity table with `pending human` cells `` | L71 | the table is filled and cited |
 | F28 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `\| PARTIALLY SATISFIED \|` | L105, DOG-02 | `\| SATISFIED \|` with the citation |
 | F29 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `The one human_needed item (DOG-02 CC-native path)` | L143, the gaps paragraph | states the item was captured on the capture date and cites the summary |
 | F30 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | `anchor` | `status: human_needed` | frontmatter L4 | `status: passed` |
@@ -258,7 +258,7 @@ file that was omitted. Neither side is written down against the other.
 | F34 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | `anchor` | `\| PARTIAL \| B3 resolved: 11-HUMAN-UAT.md` | L46, SC4 | `\| VERIFIED \|` with the citation |
 | F35 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | `anchor` | `**Score:** 4/5 SC verified (SC4 is partial` | L49 | `**Score:** 5/5 SC verified` |
 | F36 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | `anchor` | `\| PARTIAL \| B3 resolved (oracle exit 0)` | L102, UAT-AUTO-04 | `\| VERIFIED \|` with the citation |
-| F37 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | `anchor` | `` `A1 and A3 remain `[pending]`` `` | L142 | resolved, with the citation |
+| F37 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | `anchor` | `` A1 and A3 remain `[pending]` `` | L142 | resolved, with the citation |
 | F38 | `.planning/milestones/v2.0-phases/20-shared-context-substrate-concurrency-foundation/20-HUMAN-UAT.md` | `anchor` | `status: partial` | frontmatter | `status: passed` — evidence is the CI run id in `33-CI-MEASUREMENT.md` (CAP-02), NOT the capture summary; the two citations are never mixed |
 | F39 | `.planning/milestones/v2.0-phases/20-shared-context-substrate-concurrency-foundation/20-HUMAN-UAT.md` | `anchor` | `[deferred to v2.0 milestone end — human will run the Windows CI proof then]` | L11 | the run id and its date |
 | F40 | `.planning/milestones/v2.0-phases/20-shared-context-substrate-concurrency-foundation/20-HUMAN-UAT.md` | `anchor` | `result: [pending]` | Test 1 | `result: [passed]` citing the run id |
@@ -325,15 +325,15 @@ carry no residual token (section 1.4), because every file below is in the live-s
 
 | # | File | Line | Stale fragment | Measured true count | Corrected wording |
 |---|---|---|---|---|---|
-| C1 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-HUMAN-UAT.md` | 32 | `` `Fill the 9 `pending human` cells` `` | 7 | "Fill the seven CC-native cells" |
+| C1 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-HUMAN-UAT.md` | 32 | `` Fill the 9 `pending human` cells `` | 7 | "Fill the seven CC-native cells" |
 | C2 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | 10 | `has 9 CC-native cells still marked 'pending human'` | 7 | "has seven CC-native cells, filled by the capture" |
-| C3 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | 32 | `` `has 9 cells marked `pending human`` `` | 7 | "has seven CC-native cells, filled by the capture" |
-| C4 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | 133 | `` `(9 cells currently `pending human`)` `` | 7 | "(seven CC-native cells, filled by the capture)" |
+| C3 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | 32 | `` has 9 cells marked `pending human` `` | 7 | "has seven CC-native cells, filled by the capture" |
+| C4 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | 133 | `` (9 cells currently `pending human`) `` | 7 | "(seven CC-native cells, filled by the capture)" |
 | C5 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | 10 | `including 9 parity cells` | 7 | "including the seven parity cells" |
-| C6 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | 17 | `` `All 9 CC-native parity cells still read `pending human`` `` | 7 | "All seven CC-native parity cells are filled by the capture" |
+| C6 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | 17 | `` All 9 CC-native parity cells still read `pending human` `` | 7 | "All seven CC-native parity cells are filled by the capture" |
 | C7 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | 20 | `fill the 9 parity cells` | 7 | "fill the seven parity cells" |
 | C8 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | 26 | `Fill 9 pending cells` | 7 | "Fill the seven CC-native cells" |
-| C9 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | 127 | `` `Fill the 9 `pending human` cells` `` | 7 | "Fill the seven CC-native cells" |
+| C9 | `.planning/milestones/v1.2-phases/19-factory-auto-uat-harness-tier-1-deterministic-oracles-tier-2/19-VERIFICATION.md` | 127 | `` Fill the 9 `pending human` cells `` | 7 | "Fill the seven CC-native cells" |
 | C10 | `.planning/phases/27-spawn-correctness-kit-set-authority/27-SPAWN-03-RUNTIME-EVIDENCE.md` | 66 | `## Slots — all empty, all UNVERIFIED` | the slots were filled by the human observation of 2026-07-29 | "## Slots — filled by the observation of 2026-07-29 (corroboration, D-01); the headless capture block follows" |
 
 ---

@@ -833,6 +833,10 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // delegates to `isEntrypoint(import.meta.url)` so the offline suite can import its derivations
     // without the import running a capture inside the vitest worker. Re-derived rather than
     // incremented: `grep -l 'const isEntry =' scripts/*.ts` minus test files reports 16.
+    // 16 → 17 (33-07 task 2) check-flip-manifest, the GAP-D1 flip gate. Its entry guard delegates
+    // to `isEntrypoint(import.meta.url)` so the planted-tree suite can import its parsers without
+    // the import running the gate inside the vitest worker. Re-derived rather than incremented:
+    // `grep -l 'const isEntry =' scripts/*.ts` minus test files reports 17.
     //
     // THE PROPERTY THIS CASE ASSERTS CHANGED IN ROUND 4, AND THE REASON IS THE FINDING. It used to
     // require each guard to spell `import.meta.url === pathToFileURL(process.argv[1]).href`. That
@@ -842,9 +846,9 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // it, including the gate round 3 had just created. A predicate with fourteen spellings is not
     // fixed by fixing one of them, so there is now one authority (`scripts/is-entry.ts`) and this
     // case asserts DELEGATION to it rather than uniformity of a spelling that was itself wrong.
-    expect(sources.length).toBe(16);
-    expect(sources.length).not.toBe(15);
-    expect(sources.length).not.toBe(17);
+    expect(sources.length).toBe(17);
+    expect(sources.length).not.toBe(16);
+    expect(sources.length).not.toBe(18);
     const offenders = sources
       .filter((s) => !/isEntrypoint\(import\.meta\.url\)/.test(s.src))
       .map((s) => `scripts/${s.name}`);
