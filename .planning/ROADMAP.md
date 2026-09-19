@@ -1316,9 +1316,24 @@ Plans:
 
 **Plans**: TBD
 
+### Phase 34: Model Effort Dial & Pi Support
+
+**Goal**: Users can set reasoning effort per role through the same `models` dial that already sets the model, and Pi (pi.dev) joins the five supported host coding-agent CLIs through the existing thin-pointer, single-source adapter pattern — with the same idempotent, dry-run, reversible install contract.
+**Depends on**: Phase 33 (adapter generation + installer are stable; Windows leg green before a sixth adapter lands)
+**Requirements**: TBD (to be enumerated at plan time — effort dial + Pi host support)
+**Success Criteria** (what must be TRUE):
+
+  1. Before any design is written, it is verified (with a cited source, or marked `UNKNOWN - verify`) whether Claude Code sub-agent frontmatter honours an `effort` key; if it does not, the dial is scoped to whatever mechanism does exist and the limitation is documented rather than a field written and silently ignored.
+  2. The `models` dial accepts an effort setting — a preset plus a sparse per-role override, closed allowed set, exact-string membership, refused-by-name on any unknown key or value, same two-location precedence as the model alias — resolved in `scripts/model-tiers.ts` and emitted by the adapter generator; documented in `agent-factory/config/factory.config.md` and `agent-factory/packaging/subagent.frontmatter.md` (single authority, not restated).
+  3. An absent effort setting resolves every role to the session-inheriting value, so a zero-config repository is unchanged (adapters byte-identical to today).
+  4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
+  5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
+
+**Plans**: TBD
+
 ## Progress
 
-**Execution order:** 27 → 28 → 29 → 30 → 31 → 32 → 33
+**Execution order:** 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -1358,6 +1373,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 0/TBD | Not started | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
