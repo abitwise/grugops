@@ -1191,7 +1191,12 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // no spawn verdict, and takes nothing from the demoted parser. Re-derived rather than edited
     // blind: the filter reports exactly these two on this tree, and the removal lands in the same
     // commit as the run that first observed it.
+    // ARRIVAL (plan 33-01, task 1): `capture-live.ts` is the fifth verdict site the comment above
+    // anticipated. It derives the installed coordinator's grant through `admittedGrantedNames` and
+    // cross-derives it against the adapter census, and it imports nothing from `./frontmatter.js`.
+    // Re-derived rather than edited blind: the filter reports exactly these three on this tree.
     expect(cutover).toEqual([
+      "capture-live.ts",
       "check-foundation-guards.ts",
       "coordinator-resolution-precheck.ts",
     ]);
@@ -2067,8 +2072,23 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   unmoved.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 86 with this module tracked.
+ *
+ * 86 -> 87 (plan 33-01, task 1, D-08), ONE RUNNER MODULE:
+ *   - `scripts/capture-live.ts` — the Phase 33 live-capture runner: preconditions, a scratch
+ *     install onto the committed fixture project, frame ingest, the D-02 / D-04 / D-05 / D-07
+ *     derivations, redaction and the one outcome line, all reachable from `--dry-run` at zero
+ *     tokens. Its committed `.js` twin lands in the same commit.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *   function named for the frontmatter parser and builds no section bound with `new RegExp`. Its
+ *   `--verify-artifacts` re-check reads its own report by TABLE HEADER ROW — a first draft keyed on
+ *   `## ` headings and was reported by the LANG-07 cases below as a second section-extent owner, so
+ *   the draft was rewritten rather than the owner set widened. It is a FIFTH spawn-verdict site:
+ *   it reads the installed coordinator's grant through `./canonical-frontmatter.js` and takes no
+ *   symbol from the demoted parser, so the cutover case below lists it deliberately.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 87 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 86;
+const NON_TEST_MODULE_COUNT = 87;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2605,7 +2625,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // check became. It imports `node:child_process`, `node:path`, `./is-entry.js` and `./vacuity.js`
     // and none of the three specs compared below, so it contributes three empty comparisons and
     // cannot make the agreement above vacuous on its own.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(59);
+    // 59 → 60 (plan 33-01, task 1): `scripts/capture-live.ts`, the live-capture runner. It imports
+    // `./canonical-frontmatter.js` (one of the three specs compared below), so both readers must
+    // agree on a non-empty answer for it — a contribution to the non-vacuity floor, not to noise.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(60);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2630,7 +2653,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 56 → 58 (plan 32.1-01, tasks 1 and 2): `ts-symbols.test-support.ts` and
     // `loader-oracle.test-support.ts`, three specs per module as ever.
     // 58 → 59 (plan 32.1-05, task 2): `check-build-parity.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(59 * 3);
+    // 59 → 60 (plan 33-01, task 1): `capture-live.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(60 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2830,7 +2854,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // in the same commit, which is what the pair exists to require.
       // 58 → 59 (plan 32.1-05, task 2): `check-build-parity.ts`, the same module the flat reader
       // gained, and both pins move in this plan's task-2 commit for the same reason.
-    ).toBe(59);
+      // 59 → 60 (plan 33-01, task 1): `capture-live.ts`, the same module the flat reader gained,
+      // and both pins move in this plan's task-1 commit for the same reason.
+    ).toBe(60);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against

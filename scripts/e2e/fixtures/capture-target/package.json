@@ -1,0 +1,13 @@
+{
+  "name": "grugops-capture-target",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The runnable fixture project the Phase 33 live capture installs grugops onto (D-03). Every gate command the section-14 workflow names exists here and exits 0, so emit-verdict is reachable in the target. Deliberately no TypeScript: tsconfig.json compiles scripts/**/*.ts and a fixture .ts would demand a committed .js twin. The source file is .mjs rather than .js because scripts/freshness.ts treats every committed .js under scripts/ as a build output.",
+  "type": "module",
+  "scripts": {
+    "lint": "node --check src/index.mjs",
+    "typecheck": "node --check src/index.mjs",
+    "test": "node src/index.mjs --self-test",
+    "build": "node src/index.mjs --build"
+  }
+}
