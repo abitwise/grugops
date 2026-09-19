@@ -63,6 +63,12 @@
 //      operator's home directory (and their JSON-escaped forms) are replaced before any artifact is
 //      written; if either survives, nothing is written and the run exits 1 naming the reason.
 //
+// PRECONDITIONS ARE THREE-STATE (D-10). `evaluatePreconditions` is the ONE readiness derivation in
+// this file: a pure function over an observation record, returning rows that are MET, UNMET or
+// `UNKNOWN - verify`. An observation that could not be read is UNKNOWN and never UNMET — nothing was
+// measured, so nothing failed — and readiness is `ready` only when every row is MET. The runner's
+// phase 1 is observation plus one call to that function; no other line decides readiness.
+//
 // EXIT CONTRACT. Exit 0 means the run COMPLETED every phase and printed `DRY RUN COMPLETE — no model
 // call was made` (dry run) or `CAPTURE COMPLETE — the outcome line is the verdict` (live). It NEVER
 // means "ready" and never means "pass". Readiness is the separate report line `GO-READINESS: ready`
@@ -443,7 +449,9 @@ export function frameKinds(frames) {
     for (let i = 0; i < frames.length; i++) {
         const f = frames[i];
         const subtype = typeof f.subtype === "string" ? f.subtype : null;
-        const key = `${f.type} ${subtype ?? ""}`;
+        // A JSON-encoded pair is the key: unambiguous for any type or subtype spelling, and it carries
+        // no control byte (a NUL joiner would trip check-nul-bytes and blind BSD grep over this file).
+        const key = JSON.stringify([f.type, subtype]);
         const cur = seen.get(key);
         if (cur === undefined)
             seen.set(key, { type: f.type, subtype, count: 1, firstIndex: i });
@@ -737,21 +745,25 @@ export function evaluatePreconditions(obs) {
     rows.push(obs.pluginListing === null
         ? { name: "plugin listing readable", state: unknown, detail: "the plugin listing could not be read; pending verification" }
         : { name: "plugin listing readable", state: "MET", detail: obs.pluginListing.includes(obs.pluginName) ? `the listing names ${obs.pluginName}` : `the listing does not name ${obs.pluginName} (installed per target at local scope by the live run)` });
+    // The remote side is the LOCAL remote-tracking ref as last fetched; this runner uses no network.
+    // A stale ref can only make this row MORE conservative (a push that happened after the last
+    // fetch reads as not yet pushed), never less, which is the safe direction for a spend gate.
+    const asFetched = "read from the remote-tracking ref as last fetched; no network was used";
     if (obs.localHead === null || obs.remoteHead === null || obs.aheadCount === null) {
         rows.push({
             name: "pushed sha (local HEAD equals the remote default branch head)",
             state: unknown,
-            detail: `local HEAD ${obs.localHead ?? "unreadable"}, remote ${obs.remoteRef ?? "(unresolved)"} ${obs.remoteHead ?? "unreadable"}; the comparison could not be derived`,
+            detail: `local HEAD ${obs.localHead ?? "unreadable"}, remote ${obs.remoteRef ?? "(unresolved)"} ${obs.remoteHead ?? "unreadable"}; the comparison could not be derived (${asFetched})`,
         });
     }
     else if (obs.localHead === obs.remoteHead) {
-        rows.push({ name: "pushed sha (local HEAD equals the remote default branch head)", state: "MET", detail: `${obs.localHead} equals ${obs.remoteRef ?? "the remote head"} (ahead count 0)` });
+        rows.push({ name: "pushed sha (local HEAD equals the remote default branch head)", state: "MET", detail: `${obs.localHead} equals ${obs.remoteRef ?? "the remote head"} (ahead count 0; ${asFetched})` });
     }
     else {
         rows.push({
             name: "pushed sha (local HEAD equals the remote default branch head)",
             state: "UNMET",
-            detail: `HEAD ${obs.localHead.slice(0, 12)} is ${obs.aheadCount} commit(s) ahead of ${obs.remoteRef ?? "the remote head"} ${obs.remoteHead.slice(0, 12)} — the unpushed head cannot be the sha a marketplace install resolves`,
+            detail: `HEAD ${obs.localHead.slice(0, 12)} is ${obs.aheadCount} commit(s) ahead of ${obs.remoteRef ?? "the remote head"} ${obs.remoteHead.slice(0, 12)} — the unpushed head cannot be the sha a marketplace install resolves (${asFetched})`,
         });
     }
     rows.push(obs.approvalKeyPresent

@@ -452,6 +452,28 @@ describe("precondition evaluation is a derived verdict distinct from the exit co
     expect(t.rows.filter((r) => r.state === "UNKNOWN - verify").length).toBe(1 + REQUIRED_FLAGS.length);
   });
 
+  it("precondition: the runner has exactly ONE readiness derivation, exported, and phase 1 calls it", () => {
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    const code = src.split("\n").filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"));
+    // The derivation: exactly one line assigns the `readiness` field, and it sits inside the
+    // exported evaluator. Every other mention of readiness is a READ of that field.
+    const assignments = code.filter((l) => /\breadiness:\s*(?!"ready" \| "not-ready")/.test(l) && !/^\s*readiness: "ready" \| "not-ready";$/.test(l));
+    expect(assignments, "one readiness derivation, no second spelling").toHaveLength(1);
+    expect(assignments[0]).toContain('reasons.length === 0 ? "ready" : "not-ready"');
+    expect(code.some((l) => l.startsWith("export function evaluatePreconditions("))).toBe(true);
+    // The runner CALLS the evaluator at least once outside its own declaration.
+    const calls = code.filter((l) => l.includes("evaluatePreconditions(") && !l.startsWith("export function evaluatePreconditions("));
+    expect(calls.length, "phase 1 is observation plus a call to the evaluator").toBeGreaterThanOrEqual(1);
+    // And the readiness line is derived from the table's field, never recomputed from the rows.
+    expect(code.filter((l) => l.includes(`\${READINESS_PREFIX}`) || l.includes("READINESS_PREFIX}")).every((l) => l.includes("table.readiness") || l.includes("READINESS_PREFIX}ready") || l.includes("READINESS_PREFIX}not-ready"))).toBe(true);
+  });
+
+  it("precondition: the pushed-sha row states that the remote side is the remote-tracking ref as last fetched", () => {
+    for (const t of [evaluatePreconditions(observation()), evaluatePreconditions(observation({ remoteHead: "b".repeat(40), aheadCount: 2 }))]) {
+      expect(t.rows.find((r) => r.name.startsWith("pushed sha"))?.detail).toContain("as last fetched; no network was used");
+    }
+  });
+
   it("precondition: a present approval key is UNMET and names the key; a failed precheck is UNMET with its last line", () => {
     const t = evaluatePreconditions(observation({ approvalKeyPresent: true, precheckExit: 1, precheckLastLine: "PRECONDITION FAILED: x" }));
     expect(t.readiness).toBe("not-ready");
