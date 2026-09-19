@@ -25,6 +25,7 @@ import {
   copyFileSync,
   readFileSync,
   readdirSync,
+  rmdirSync,
   rmSync,
   writeFileSync,
   symlinkSync,
@@ -6854,43 +6855,39 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
 
   it("GREEN 4: a directory tree as deep as this platform permits is derived without a throw", async () => {
     const { deriveSpecPaths } = await loadChecker();
-    const root = mkTmp();
-    let rel = "uat";
-    mkdirSync(join(root, rel));
-    let fsDepth = 1;
-    for (; fsDepth < 4096; fsDepth++) {
-      const next = `${rel}/d`;
-      try {
-        mkdirSync(join(root, next));
-      } catch {
-        break;
-      }
-      rel = next;
-    }
-    // The FILE's own path must also fit inside the platform's limit, and it is longer than the
-    // directory's. Step back one level at a time until the spec can actually be written — measured:
-    // planting at the deepest MKDIR-able level throws ENAMETOOLONG in the harness, which would have
-    // read as a checker defect rather than a harness one.
-    while (fsDepth > 1) {
-      try {
-        plant(root, `${rel}/deep.uat.spec.ts`, CLEAN_SPEC);
-        break;
-      } catch {
-        rel = rel.slice(0, rel.lastIndexOf("/"));
-        fsDepth--;
-      }
-    }
-    expect(fsDepth, "no directory level accepted the spec, so the case below would be vacuous").toBeGreaterThan(1);
 
-    const derived = deriveSpecPaths(root);
-    expect(derived.refusals).toEqual([]);
-    expect(derived.relPaths).toEqual([`${rel}/deep.uat.spec.ts`]);
-
-    // THE RESIDUAL, MEASURED RATHER THAN ASSUMED. The de-recursion covers the CLASS; whether the
-    // OLD recursive walk was reachable to exhaustion is a separate, platform-dependent question and
-    // it is answered here by measurement rather than by silence. A like-for-like self-recursive
-    // frame (an entries array plus the loop the walk carries) is driven to its own overflow, and the
-    // deepest directory this platform's path limit permits is compared against it.
+    // 33-02: WHERE THE WINDOWS STACK EXHAUSTION CAME FROM, and why this case is now bounded by two
+    // numbers the host itself supplies rather than by the literal `4096` it used to carry.
+    //
+    // MEASURED (CI run 35394268365, windows-latest, node 22.23.2): this case reported
+    // `RangeError: Maximum call stack size exceeded` with NO frame in any project file. The walk
+    // cannot be the origin — it left the interpreter's stack at D-21 and is driven by an explicit
+    // LIFO array — and the construction below is a flat loop. The origin is the fixture's TEARDOWN:
+    // node 22's `rmSync({ recursive: true })` is `lib/internal/fs/rimraf.js`, whose
+    // `rimrafSync -> _rmdirSync -> forEach(child => rimrafSync(child))` recurses three JS frames per
+    // directory level (node 24 moved it to C++, so this host's own runtime cannot reproduce the
+    // exact failure). REPRODUCED OFFLINE with a like-for-like of that shape: it overflows at 1940
+    // levels on this host's default stack, and the Windows leg — where node honours long paths, so
+    // the create never refused — had built 4095 levels, the literal cap, before `afterEach` handed
+    // the tree to `rmSync`. The path-LENGTH origin also reproduces here: this platform refuses at
+    // 477 levels (ENAMETOOLONG, path length 1015), and the walk derives that tree without a throw.
+    //
+    // So: (1) the tree is torn down by THIS case, level by level from the deepest directory up,
+    // one `rmdirSync` per level and no recursion anywhere, before `afterEach` ever sees the root;
+    // (2) the depth is DERIVED, never a literal, and bounded by whichever of two measured limits
+    // the host reaches first — the platform's own create refusal (its path limit) or the
+    // interpreter's recursion budget, measured below by driving a like-for-like recursive frame to
+    // its own overflow. A tree one level deeper than that budget is exactly the tree the OLD
+    // recursive walk provably could not derive, so it is the complete proof of the class; levels
+    // beyond it prove nothing further about the stack and only cost wall clock on a host whose path
+    // limit is measured in tens of thousands of characters. Both numbers and the bound that answered
+    // are PRINTED, so a reader of the run can see which number this host gave without re-deriving.
+    //
+    // THE RESIDUAL, MEASURED RATHER THAN ASSUMED. Whether the OLD recursive walk was reachable to
+    // exhaustion is a platform-dependent question: on a host whose path limit refuses first it was
+    // not; on a host that permits more levels than the interpreter has frames it WAS. The former
+    // case used to be ASSERTED here — an assertion that was only ever true on the platform it was
+    // written on, and that the literal cap kept true elsewhere. It is now a printed measurement.
     let recursionDepth = 0;
     const likeForLikeWalk = (k: number): number => {
       const entries = [{ name: "d" }, { name: "x.uat.spec.ts" }];
@@ -6904,11 +6901,71 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
     } catch {
       /* RangeError — the measurement is `recursionDepth` */
     }
+    expect(recursionDepth, "PREMISE: the like-for-like recursive frame never overflowed").toBeGreaterThan(0);
+    const depthBudget = recursionDepth + 1;
+
+    const root = mkTmp();
+    let rel = "uat";
+    mkdirSync(join(root, rel));
+    let fsDepth = 1;
+    let refusal: string | null = null;
+    for (; fsDepth < depthBudget; fsDepth++) {
+      const next = `${rel}/d`;
+      try {
+        mkdirSync(join(root, next));
+      } catch (error) {
+        refusal = String((error as NodeJS.ErrnoException).code ?? error);
+        break;
+      }
+      rel = next;
+    }
+    const deepestRel = rel;
+    const boundedBy = refusal === null ? "the interpreter's recursion budget" : `the platform's create refusal (${refusal})`;
+
+    // The FILE's own path must also fit inside the platform's limit, and it is longer than the
+    // directory's. Step back one level at a time until the spec can actually be written — measured:
+    // planting at the deepest MKDIR-able level throws ENAMETOOLONG in the harness, which would have
+    // read as a checker defect rather than a harness one.
+    let specDepth = fsDepth;
+    while (specDepth > 1) {
+      try {
+        plant(root, `${rel}/deep.uat.spec.ts`, CLEAN_SPEC);
+        break;
+      } catch {
+        rel = rel.slice(0, rel.lastIndexOf("/"));
+        specDepth--;
+      }
+    }
+    expect(specDepth, "no directory level accepted the spec, so the case below would be vacuous").toBeGreaterThan(1);
+
+    // PRINTED: the derived numbers this host gave, and the bound that answered.
+    console.log(
+      `GREEN 4 derived depth: ${fsDepth} directory levels built, bounded by ${boundedBy}; ` +
+        `the spec was planted at level ${specDepth}; a like-for-like recursive walk overflows at ` +
+        `${recursionDepth}. The old recursive walk was ` +
+        (fsDepth > recursionDepth
+          ? "REACHABLE to exhaustion on this platform (it permits more levels than the interpreter has frames)"
+          : "NOT reachable to exhaustion on this platform (its path limit refuses first)") +
+        ".",
+    );
+
+    let derived: ReturnType<typeof deriveSpecPaths>;
+    try {
+      derived = deriveSpecPaths(root);
+    } finally {
+      // Level-by-level teardown, deepest first, no recursion: the deep tree never reaches a
+      // recursive remover. `afterEach` then removes a root that holds nothing deep.
+      rmSync(join(root, rel, "deep.uat.spec.ts"), { force: true });
+      for (let cur = deepestRel; cur !== ""; cur = cur.includes("/") ? cur.slice(0, cur.lastIndexOf("/")) : "") {
+        rmdirSync(join(root, cur));
+      }
+    }
+    expect(derived.refusals).toEqual([]);
+    expect(derived.relPaths).toEqual([`${rel}/deep.uat.spec.ts`]);
     expect(
-      recursionDepth,
-      `a like-for-like recursive walk overflows at ${recursionDepth}; this platform permits ` +
-        `${fsDepth} directory levels`,
-    ).toBeGreaterThan(fsDepth);
+      readdirSync(root),
+      "the level-by-level teardown left something behind for a recursive remover to find",
+    ).toEqual([]);
   });
 
   // ── CONTROL 1: WR-19's own closure is re-measured intact ─────────────────────────────────────
@@ -7894,6 +7951,54 @@ function driveSpec(
 
 const TAIL = '  await expect(page.getByTestId("invoice-total")).toHaveText("$42.00");';
 
+// ── 33-02: "the language refuses this construct", asked in the COMPILER's own representation ──
+//
+// Two curiosity cases below compile a planted spec with the host TypeScript and assert that the
+// compiler refuses it. MEASURED on the windows leg of CI run 35394268365: both reported
+// `expected [] to include 2440` / `... 2448` — the compiler had refused the file, and the harness
+// threw every diagnostic away, because the filter was `d.file?.fileName === specPath`: the compiler
+// publishes `fileName` with forward slashes on every host, while `specPath` came from `node:path`
+// and carried the host's separator. A comparison across two spellings of one file is a false
+// "no refusal" on exactly the host where the two differ. The fix compares in ONE representation —
+// the compiler's own: the spec's `SourceFile` is looked up through the Program that was built from
+// that very path, and diagnostics are filtered by object identity. A Program that does not contain
+// the spec at all is a PREMISE failure with its own sentence, never an empty set read as "compiled".
+//
+// The expected code is DERIVED from the compiler's own diagnostics table by message name rather
+// than hand-typed, and the failure message names every code actually seen, so a host that reports
+// something different for the same refusal shows what it reported. The assertion is deliberately
+// NOT "every code seen belongs to a declared set for the construct": MEASURED on this host the
+// compiler reports incidental diagnostics beside the refusal (`7031` implicit-any on the fixture's
+// `page`, `2550` on `Symbol.dispose` under the ES2022 lib, `2454`/`2339`/`18046`), so that
+// containment is not a fact on any host. What IS a fact everywhere is that the set is non-empty
+// and carries the compiler's own code for the construct.
+function compilerRefusalCodes(
+  host: typeof import("typescript"),
+  specPath: string,
+  program: import("typescript").Program,
+): readonly number[] {
+  const spec = program.getSourceFile(specPath);
+  expect(spec, `PREMISE: the Program built from ${specPath} does not contain that file`).toBeDefined();
+  const codes = host
+    .getPreEmitDiagnostics(program)
+    .filter((d) => d.file === spec)
+    .map((d) => d.code);
+  expect(codes, `PREMISE: the compiler reported nothing at all for ${specPath}`).not.toEqual([]);
+  return codes;
+}
+
+function compilerDeclaredCode(host: typeof import("typescript"), messageName: string): number {
+  // `Diagnostics` is the compiler's own message table; it is not in the public declaration file,
+  // so it is read structurally and its presence is a premise, not an assumption.
+  const table = (host as unknown as { Diagnostics?: Record<string, { code?: unknown }> }).Diagnostics;
+  const entry = table?.[messageName];
+  expect(
+    typeof entry?.code,
+    `PREMISE: the host compiler's diagnostics table has no entry named ${messageName}`,
+  ).toBe("number");
+  return entry!.code as number;
+}
+
 // ── MOVEMENT 1: the corpus's own denominator ─────────────────────────────────────────────────
 //
 // D-33 (1), 2026-09-11 — WHAT USED TO BE HERE, AND WHY IT IS GONE. This section carried a second
@@ -8162,11 +8267,14 @@ ${TAIL}
       moduleResolution: host.ModuleResolutionKind.Bundler,
       skipLibCheck: true,
     });
-    const codes = host
-      .getPreEmitDiagnostics(program)
-      .filter((d) => d.file?.fileName === specPath)
-      .map((d) => d.code);
-    expect(codes, "the ambient spelling was expected NOT to type-check (TS2440)").toContain(2440);
+    const codes = compilerRefusalCodes(host, specPath, program);
+    const conflict = compilerDeclaredCode(host, "Import_declaration_conflicts_with_local_declaration_of_0");
+    expect(
+      codes,
+      `the ambient spelling was expected NOT to type-check: the compiler's own code for an import ` +
+        `conflicting with a local declaration is TS${conflict}, and the codes actually seen were ` +
+        `[${codes.join(", ")}]`,
+    ).toContain(conflict);
   });
 });
 
@@ -8311,11 +8419,13 @@ void wrapper();
         moduleResolution: host.ModuleResolutionKind.Bundler,
         skipLibCheck: true,
       });
-      const codes = host
-        .getPreEmitDiagnostics(program)
-        .filter((d) => d.file?.fileName === specPath)
-        .map((d) => d.code);
-      expect(codes, `${keyword}: expected TS2448 (used before its declaration)`).toContain(2448);
+      const codes = compilerRefusalCodes(host, specPath, program);
+      const tdz = compilerDeclaredCode(host, "Block_scoped_variable_0_used_before_its_declaration");
+      expect(
+        codes,
+        `${keyword}: the compiler's own code for a block-scoped variable used before its ` +
+          `declaration is TS${tdz}, and the codes actually seen were [${codes.join(", ")}]`,
+      ).toContain(tdz);
     }
   });
 });
