@@ -829,6 +829,10 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // 14 → 15 (32.1-05 task 2) check-build-parity, the working-tree parity assertion moved out of
     // an inline package.json compound and into a gate module. It joins this assertion by EXISTING,
     // which is what the two-sided pin is for.
+    // 15 → 16 (33-01 task 1) capture-live, the Phase 33 live-capture runner. Its entry guard
+    // delegates to `isEntrypoint(import.meta.url)` so the offline suite can import its derivations
+    // without the import running a capture inside the vitest worker. Re-derived rather than
+    // incremented: `grep -l 'const isEntry =' scripts/*.ts` minus test files reports 16.
     //
     // THE PROPERTY THIS CASE ASSERTS CHANGED IN ROUND 4, AND THE REASON IS THE FINDING. It used to
     // require each guard to spell `import.meta.url === pathToFileURL(process.argv[1]).href`. That
@@ -838,9 +842,9 @@ describe("the standalone-gate idioms are uniform across scripts/", () => {
     // it, including the gate round 3 had just created. A predicate with fourteen spellings is not
     // fixed by fixing one of them, so there is now one authority (`scripts/is-entry.ts`) and this
     // case asserts DELEGATION to it rather than uniformity of a spelling that was itself wrong.
-    expect(sources.length).toBe(15);
-    expect(sources.length).not.toBe(14);
-    expect(sources.length).not.toBe(16);
+    expect(sources.length).toBe(16);
+    expect(sources.length).not.toBe(15);
+    expect(sources.length).not.toBe(17);
     const offenders = sources
       .filter((s) => !/isEntrypoint\(import\.meta\.url\)/.test(s.src))
       .map((s) => `scripts/${s.name}`);

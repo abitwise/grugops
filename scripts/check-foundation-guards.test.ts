@@ -9490,7 +9490,20 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 69 on this tree,
 // agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
 // suite first observed the module.
-const TRIPWIRE_MODULES = 69;
+//
+// 69 -> 70 (plan 33-01, task 2): ONE test module, `scripts/capture-live.test.ts` — the offline,
+// token-free predicate suite for the Phase 33 live-capture runner. It proves the D-04 decode pair
+// in both directions, the D-02 two-sided CAP-03 predicate under in-memory fixture mutations, the
+// twice-derived grant relationship, redaction over both home spellings, and the precondition
+// evaluator; its integration half drives the committed `scripts/capture-live.js --dry-run` as a
+// child and re-checks its own artifacts. It is a genuine test module rather than a corpus file, so
+// a pin that surfaced it arriving is the correct thing to have fired — and it fired on the plan's
+// own full-suite run, in which this module's other cases had already read the new file and reported
+// zero findings; the pin moved because a module landed, not to make a red go away.
+// Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 70 on this tree,
+// agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
+// suite first observed the module.
+const TRIPWIRE_MODULES = 70;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
