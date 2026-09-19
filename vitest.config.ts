@@ -37,5 +37,33 @@ export default defineConfig({
     // The suite is small; serialize file execution so the shared-tree gate tests stay
     // isolated from one another.
     fileParallelism: false,
+    // Three bounds, each MEASURED from CI run 35394268365 (2026-09-18, both matrix legs), landed
+    // by plan 33-02 for D-14 ("add warning, don't prevent test run").
+    //
+    // Before this block the `test` object set no bound at all, so every test inherited vitest's
+    // 5000 ms default and 12 tests on the windows leg / 8 on the ubuntu leg died at it. The
+    // slowest COMPLETED test on any leg measured 85568 ms (windows leg, `every gate-plantable
+    // corpus row moves the gate from exit 0 to exit 1, with the refusal TEXT read from the gate's
+    // own output`), and it passes today only because it carries an explicit per-test timeout
+    // argument. So 85568 ms is a measured FLOOR: a global bound below it would be a bound that
+    // fires on a slower runner against a test that is known to complete. The failing set's true
+    // durations are UNMEASURED — vitest reports elapsed time on a cut test, not the bound (the
+    // deepest-directory probe reported 33354 ms while being cut at 5000 ms) — so 180000 ms is a
+    // CHOICE ABOVE THE MEASURED FLOOR, not a derivation from it. A genuine hang still dies here.
+    // The next pushed CI run reports the new slowest test; plan 33-09 re-measures against it.
+    testTimeout: 180_000,
+    // A separate bound for hooks, because `testTimeout` does not govern them: one measured breach
+    // is a `beforeAll` in `scripts/check-foundation-guards.test.ts` dying at the inherited
+    // `Error: Hook timed out in 10000ms`, which D-14's wording (`testTimeout` only) would have
+    // left red.
+    hookTimeout: 120_000,
+    // Every test that used to die at the old 5000 ms default is now PRINTED as slow by the
+    // reporter and still runs to completion. The rule is warn, never prevent: a slow test is a
+    // measurement to read, not a failure to hide.
+    slowTestThreshold: 5_000,
+    // No bound in this file may become conditional on the host operating system. A bound that
+    // reads the platform converts an unmeasured outcome on one leg into a green on the other:
+    // the slow test is no longer observed, only excused. A red on a platform is the measurement
+    // arriving (CONTEXT D-14, D-16).
   },
 });
