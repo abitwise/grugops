@@ -48,9 +48,11 @@ import {
   publicDocsCorpus,
   publicDocsDerivationRefusals,
 } from "./check-public-docs-vocabulary.js";
-// The fence PROJECTION, asked of the one authority. This module declares no fence state of its own:
-// the manifest's tables are read outside fences by the authority's projection.
-import { fencedLineFlags } from "./frontmatter.js";
+// The fence PROJECTION and the heading OCCURRENCE question, both asked of the one authority. This
+// module declares no fence state, no heading equality and no section bound of its own: the manifest's
+// tables are read outside fences by the authority's projection, and "does the capture summary carry
+// this heading" is the occurrence question `unfencedHeadingIndices` exists to answer.
+import { fencedLineFlags, unfencedHeadingIndices } from "./frontmatter.js";
 import { isEntrypoint } from "./is-entry.js";
 
 // CHECK_ROOT override is load-bearing: the Vitest harness builds a planted repository under the OS
@@ -602,6 +604,135 @@ export function changedFiles(range: string): string[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+// The citation form (D-18) — one grammar, applied to every flipped parity cell.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+export interface Citation {
+  value: string;
+  date: string;
+  summary: string;
+  section: string;
+}
+
+/** `` `<value>` (captured YYYY-MM-DD, `<summary>` § <section>) `` — the whole cell, nothing else. */
+const CITATION_FORM = /^`([^`]+)` \(captured (\d{4}-\d{2}-\d{2}), `([^`]+)` § (.+)\)$/;
+
+/**
+ * Parse one flipped cell. Returns the citation, or the reason it is refused — the reason names the
+ * missing piece so the remedy is the piece and not a guess.
+ */
+export function parseCitation(cell: string): { citation: Citation } | { refused: string } {
+  const c = cell.trim();
+  const m = CITATION_FORM.exec(c);
+  if (m !== null) {
+    return { citation: { value: m[1], date: m[2], summary: m[3], section: m[4].trim() } };
+  }
+  if (!/\(/.test(c)) return { refused: "the cell carries no parenthetical, so no capture date and no citation" };
+  if (!/\(captured \d{4}-\d{2}-\d{2}/.test(c)) return { refused: "the parenthetical does not open with `captured` and an ISO date" };
+  if (!/§/.test(c)) return { refused: "the parenthetical names no summary section (no `§`)" };
+  return { refused: "the cell does not match the citation form exactly (the observed value in code quotes, then the parenthetical, and nothing else)" };
+}
+
+/** Does `summaryText` carry `section` as an unfenced ATX heading at any level? */
+function summaryHasSection(summaryText: string, section: string): boolean {
+  for (let level = 1; level <= 6; level += 1) {
+    if (unfencedHeadingIndices(summaryText, `${"#".repeat(level)} ${section}`).length > 0) return true;
+  }
+  return false;
+}
+
+function checkCitations(m: Manifest, manifestRel: string, parity: MarkdownTable, parityRows: FlipRow[]): void {
+  const summaryName = m.settings.get("capture summary") as string;
+  const manifestDir = manifestRel.includes("/") ? manifestRel.slice(0, manifestRel.lastIndexOf("/")) : "";
+  const summaryRel = manifestDir === "" ? summaryName : `${manifestDir}/${summaryName}`;
+  if (!existsSync(abs(summaryRel))) {
+    throw new Error(
+      `the manifest is discharged but the capture summary ${summaryRel} does not exist — every flipped ` +
+        `cell must cite a section of it, and that check cannot be derived, so NO verdict is reported`,
+    );
+  }
+  const summaryText = readText(summaryRel);
+  let refusals = 0;
+  let cells = 0;
+  for (const row of parityRows) {
+    const mm = PARITY_ROW_LOCATOR.exec(row.locator);
+    if (mm === null) continue;
+    const idx = Number(mm[1]) - 1;
+    const data = parity.rows[idx];
+    if (data === undefined) continue;
+    for (let col = 1; col < data.length; col += 1) {
+      cells += 1;
+      const where = `parity row ${idx + 1} (${JSON.stringify(unwrapCell(data[0]))}), column ${col + 1}, cell ${JSON.stringify(data[col])}`;
+      const parsed = parseCitation(data[col]);
+      if ("refused" in parsed) {
+        refusals += 1;
+        fail(`flip row ${row.id}: ${where} — ${parsed.refused}. A cell without a citation is a fabrication (D-18)`);
+        continue;
+      }
+      if (parsed.citation.summary !== summaryName) {
+        refusals += 1;
+        fail(`flip row ${row.id}: ${where} cites ${JSON.stringify(parsed.citation.summary)}; the manifest names the capture summary ${JSON.stringify(summaryName)}`);
+        continue;
+      }
+      if (!summaryHasSection(summaryText, parsed.citation.section)) {
+        refusals += 1;
+        fail(
+          `flip row ${row.id}: ${where} cites section ${JSON.stringify(parsed.citation.section)}, which ` +
+            `does not exist as a heading in ${summaryRel} — a citation to a section the summary does not carry is a fabricated trace`,
+        );
+      }
+    }
+  }
+  if (cells === 0) {
+    fail(`the citation rule found ZERO parity cells to judge — refusing to report a clean result over nothing`);
+    return;
+  }
+  if (refusals === 0) {
+    pass(`citation rule: every one of ${cells} flipped parity cell(s) carries a date and cites a section that exists in ${summaryRel}`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The residual rule (D-17) — over the derived live-surface set, in the discharged state only.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+function checkResidual(m: Manifest, union: readonly string[]): void {
+  const token = (m.settings.get("residual token") as string).toLowerCase();
+  const markers = m.markers.map((x) => x.toLowerCase());
+  let findings = 0;
+  let scanned = 0;
+  for (const rel of union) {
+    const lines = readText(rel).split("\n");
+    const exempt = m.exemptions.filter((e) => e.file === rel).map((e) => e.anchor);
+    for (let i = 0; i < lines.length; i += 1) {
+      scanned += 1;
+      const line = lines[i];
+      const lower = line.toLowerCase();
+      const t1 = lower.includes(token);
+      const t2 = lower.includes("gap-d1") && markers.some((mk) => lower.includes(mk));
+      if (!t1 && !t2) continue;
+      if (exempt.some((a) => line.includes(a))) continue;
+      findings += 1;
+      fail(
+        `residual: ${rel}:${i + 1} still carries ${t1 ? `the cell token \`${token}\`` : "a GAP-D1 deferral sentence"} ` +
+          `after the flip — ${JSON.stringify(line.trim().slice(0, 160))}. A document that truthfully ` +
+          `describes a past state is moved out of scope by a recorded manifest amendment, never rewritten`,
+      );
+    }
+  }
+  if (scanned === 0) {
+    fail("the residual rule scanned ZERO lines — refusing to report a clean result over nothing");
+    return;
+  }
+  if (findings === 0) {
+    pass(
+      `residual rule: no cell token or GAP-D1 deferral sentence survives in ${union.length} live-surface ` +
+        `document(s) (${scanned} line(s) scanned; ${m.exemptions.length} anchored history line(s) exempt)`,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
 // The checks.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -839,6 +970,8 @@ function checkLocators(m: Manifest, manifestRel: string): void {
         `${m.corrections.length} correction row(s), ${m.exemptions.length} exemption anchor(s)`,
     );
   }
+
+  if (discharged && parity !== null) checkCitations(m, manifestRel, parity, parityRows);
 }
 
 function checkCommitSet(m: Manifest, manifestRel: string, range: string | null): void {
@@ -882,9 +1015,10 @@ function main(): void {
   const m = parseManifest(readText(manifestRel));
   note(`manifest ${manifestRel} status: ${m.status}${m.status === "discharged" ? " (residual rule and commit-set rule in force)" : " (residual rule and commit-set rule not in force)"}`);
 
-  checkParts(m);
+  const union = checkParts(m);
   checkLocators(m, manifestRel);
   checkCommitSet(m, manifestRel, cli.range);
+  if (m.status === "discharged") checkResidual(m, union);
   verdict();
 }
 
