@@ -457,7 +457,7 @@ export function deriveFlipCommit(m, manifestRel) {
 export function changedFiles(range) {
     const args = range.includes("..")
         ? ["diff", "--name-only", "-z", range]
-        : ["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", range];
+        : ["diff-tree", "--no-commit-id", "--name-only", "-r", "--root", "-z", range];
     return git(args)
         .split("\0")
         .filter((p) => p !== "")
