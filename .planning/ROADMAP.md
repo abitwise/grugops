@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 3/11 plans executed (6 waves)
+**Plans**: 4/11 plans executed (6 waves)
 
 Plans:
 **Wave 1**
@@ -1325,7 +1325,7 @@ Plans:
 
 - [x] 33-02-PLAN.md — vitest bounds (test + hook + slow threshold) and the absent scratch root, both legs
 - [x] 33-03-PLAN.md — published-path normalization at the emitting module, and the banned-claim dedupe key
-- [ ] 33-07-PLAN.md — the flip manifest and its gate: two derived sides, bounded residual denominator, citation rule
+- [x] 33-07-PLAN.md — the flip manifest and its gate: two derived sides, bounded residual denominator, citation rule
 - [ ] 33-08-PLAN.md — the live lane becomes a thin wrapper; the deny matcher's third input class recorded
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -1402,7 +1402,7 @@ Plans:
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
-| 33. Live Capture & Windows Portability | v2.1 | 3/11 | In Progress|  |
+| 33. Live Capture & Windows Portability | v2.1 | 4/11 | In Progress|  |
 | 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
