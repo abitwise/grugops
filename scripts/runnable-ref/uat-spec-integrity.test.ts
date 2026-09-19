@@ -8936,10 +8936,27 @@ ${TAIL}
       "e2e/uat/real.uat.spec.ts",
     ]);
     // …and the BRACES: the real listing, on this repository, right now.
-    expect(
-      readdirSync(join(REPO_ROOT, ".temp"), { withFileTypes: true }).length,
-      "`.temp` is not empty — a probe root was left behind",
-    ).toBe(0);
+    //
+    // 33-02 (D-13): an ABSENT `.temp` and an EMPTY `.temp` are the SAME FACT for this premise —
+    // nothing was left behind. `.temp/` is gitignored (`.gitignore:19`), so on a fresh checkout and
+    // on every CI runner it exists nowhere, and the unguarded listing threw ENOENT before the
+    // assertion was ever asked (measured on BOTH matrix legs, run 35394268365). The directory is
+    // already a classified member of the skipped set with a `could-hide-evidence` disclosure class
+    // (`SKIPPED_DIRECTORIES`, `SKIPPED_DIRECTORY_DISCLOSURE_CLASS`), so a directory the scanner has
+    // already decided to skip must not need to EXIST for the scan — or this premise about it — to
+    // complete. The tolerance is for ABSENCE ONLY: any other read error (a permissions refusal, a
+    // file where the directory should be) is re-thrown and stays a finding, and a stray entry under
+    // an existing `.temp` still reds this line. Creating the directory in CI was rejected as the
+    // wrong boundary — it would make the leg green while leaving the premise brittle for every
+    // other absent root, and it would diverge CI from a fresh developer clone.
+    let residue: number;
+    try {
+      residue = readdirSync(join(REPO_ROOT, ".temp"), { withFileTypes: true }).length;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      residue = 0;
+    }
+    expect(residue, "`.temp` is not empty — a probe root was left behind").toBe(0);
   });
 });
 
