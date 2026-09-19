@@ -20,8 +20,10 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // WHY THE SEPARATOR IS A PARAMETER.
 //
-// The repository's established one-liner — `p.split(sep).join("/")`, present in seven freshness
-// modules — is correct and stays where it is. But it splits on the HOST separator, so on a POSIX
+// The repository's established one-liner — `p.split(sep).join("/")`, measured at ten sites (six
+// freshness modules, `capture-live.ts`, `js-import-closure.ts`, `validate-agent-factory.ts` and the
+// `GOVERNANCE_CONFIG_RELPATHS` derivation in `context-io.ts`) — is correct and stays where it is
+// in every module this plan does not otherwise change. But it splits on the HOST separator, so on a POSIX
 // developer box it is the identity and no assertion over it can discriminate the normalizer from
 // a function that does nothing. `toPosixWith` takes the separator explicitly; a test hands it
 // `path.win32.sep` and the Windows spelling is exercised — and mutation-provable — on any host.
