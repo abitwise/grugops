@@ -28,6 +28,7 @@ import {
   unwrapCell,
   parseTables,
   parseManifest,
+  parseCitation,
   declaredSet,
 } from "./check-flip-manifest.js";
 
@@ -56,14 +57,27 @@ const GIT_ENV: NodeJS.ProcessEnv = {
   GIT_CONFIG_SYSTEM: "/dev/null",
 };
 
+// MEASURED HARNESS HAZARD, NAMED RATHER THAN LEFT AS A FLAKE. On this host (darwin, git 2.55.0)
+// two of the first four full runs saw `git add -A` in a FRESH temp repository die with `error: <path>: failed
+// to insert into database / fatal: updating files failed` — a transient loose-object write failure
+// that never reproduced in a 60-repository stress loop and that no gate under test can cause,
+// because the gate is spawned only after the commit lands. The harness retries THAT ONE message a
+// bounded number of times and still throws on anything else, so a real harness defect stays loud.
+const TRANSIENT_OBJECT_WRITE = "failed to insert into database";
+const GIT_RETRIES = 3;
+
 function gitIn(cwd: string, args: string[]): string {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8", env: GIT_ENV });
-  if (r.status !== 0) {
-    throw new Error(
-      `harness: \`git ${args.join(" ")}\` failed in ${cwd} (status ${r.status})\n${r.stdout ?? ""}${r.stderr ?? ""}`,
-    );
+  let last: ReturnType<typeof spawnSync> | null = null;
+  for (let attempt = 0; attempt < GIT_RETRIES; attempt += 1) {
+    const r = spawnSync("git", args, { cwd, encoding: "utf8", env: GIT_ENV });
+    if (r.status === 0) return (r.stdout as string | null) ?? "";
+    last = r;
+    if (!String(r.stderr ?? "").includes(TRANSIENT_OBJECT_WRITE)) break;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50 * (attempt + 1));
   }
-  return r.stdout ?? "";
+  throw new Error(
+    `harness: \`git ${args.join(" ")}\` failed in ${cwd} (status ${last?.status})\n${last?.stdout ?? ""}${last?.stderr ?? ""}`,
+  );
 }
 
 function write(root: string, rel: string, content: string): void {
@@ -267,11 +281,27 @@ function writeCorpus(root: string): void {
   write(root, MANIFEST_REL, renderManifest({ status: "pre-capture" }));
 }
 
+interface PlantOptions {
+  /** Corpus files removed before the base commit (to empty a part, or to lose the manifest). */
+  remove?: string[];
+  /** The manifest rendered into the base commit; defaults to the pre-capture manifest. */
+  manifest?: ManifestSpec;
+  /** Skip `git init`, so every git invocation fails. */
+  noGit?: boolean;
+}
+
 /** A planted repository in the pre-capture state, committed once. */
-function plantPreCapture(prefix: string, extra: Record<string, string> = {}): string {
+function plantPreCapture(
+  prefix: string,
+  extra: Record<string, string> = {},
+  opts: PlantOptions = {},
+): string {
   const root = freshTmp(prefix);
   writeCorpus(root);
   for (const [rel, content] of Object.entries(extra)) write(root, rel, content);
+  if (opts.manifest !== undefined) write(root, MANIFEST_REL, renderManifest(opts.manifest));
+  for (const rel of opts.remove ?? []) rmSync(join(root, rel), { force: true });
+  if (opts.noGit) return root;
   gitIn(root, ["init", "-q"]);
   gitIn(root, ["add", "-A"]);
   gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "base"]);
@@ -397,6 +427,314 @@ describe("check-flip-manifest — the citation rule (D-18)", () => {
     const r = runGate(root);
     expect(r.stdout).toContain("ALL CHECKS PASSED");
     expect(r.status).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The rest of the citation rule: a missing date, a missing section reference, a section the
+// summary does not carry — each named, each with the well-formed converse above.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-flip-manifest — the citation rule, piece by piece", () => {
+  const flipWithRightCells = (cells: readonly [string, string]): Record<string, string> => ({
+    ...correctFlipFiles(),
+    [PARITY_REL]: PARITY_DOC(PARITY_TABLE_POST(cells), INTRO_POST),
+  });
+
+  it("a parenthetical without an ISO date is refused by name", () => {
+    const root = plantDischarged("flip-nodate-", {
+      files: flipWithRightCells([CITED("ABC-001"), `\`READY_FOR_HUMAN_REVIEW\` (captured, \`${SUMMARY_NAME}\` § ${SECTION})`]),
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain("does not open with `captured` and an ISO date");
+    expect(r.stdout).toContain("row 2");
+    expect(r.status).toBe(1);
+  });
+
+  it("a parenthetical that names no summary section is refused by name", () => {
+    const root = plantDischarged("flip-nosection-", {
+      files: flipWithRightCells([CITED("ABC-001"), `\`READY_FOR_HUMAN_REVIEW\` (captured ${CAPTURE_DATE})`]),
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain("names no summary section");
+    expect(r.status).toBe(1);
+  });
+
+  it("a citation naming a section the capture summary does not carry is refused, naming the section", () => {
+    const root = plantDischarged("flip-missing-section-", {
+      files: flipWithRightCells([CITED("ABC-001"), CITED("READY_FOR_HUMAN_REVIEW", "Verdict that is not there")]),
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain('cites section "Verdict that is not there", which does not exist as a heading');
+    expect(r.status).toBe(1);
+  });
+
+  it("a heading quoted inside a fenced block of the summary does not count as a section", () => {
+    const fencedSummary = ["# Capture summary", "", "```", "## Fenced heading", "```", "", `## ${SECTION}`, ""].join("\n");
+    const root = plantDischarged("flip-fenced-section-", {
+      before: { [SUMMARY_REL]: fencedSummary },
+      files: flipWithRightCells([CITED("ABC-001"), CITED("READY_FOR_HUMAN_REVIEW", "Fenced heading")]),
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain('cites section "Fenced heading", which does not exist');
+    expect(r.status).toBe(1);
+  });
+
+  it("the discharged state with NO capture summary on disk reports no verdict rather than a clean one", () => {
+    const root = plantDischarged("flip-nosummary-");
+    rmSync(join(root, SUMMARY_REL));
+    const r = runGate(root);
+    expect(r.stdout).toContain("the capture summary");
+    expect(r.stdout).toContain("NO verdict is reported");
+    expect(r.status).toBe(1);
+  });
+
+  it("parseCitation reads the form exactly and names what a malformed cell lacks", () => {
+    expect(parseCitation(CITED("x", "S"))).toEqual({
+      citation: { value: "x", date: CAPTURE_DATE, summary: SUMMARY_NAME, section: "S" },
+    });
+    expect(parseCitation("`x`")).toEqual({ refused: expect.stringContaining("no parenthetical") });
+    expect(parseCitation("`x` (captured 2026-09-30)")).toEqual({ refused: expect.stringContaining("no summary section") });
+    expect(parseCitation(`\`x\` (captured 2026-09-30, \`${SUMMARY_NAME}\` § S) trailing`)).toEqual({
+      refused: expect.stringContaining("does not match the citation form exactly"),
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The deferral-sentence half of the residual rule (T2), and the anchored history exemption.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-flip-manifest — GAP-D1 deferral sentences and the history exemption", () => {
+  it("a GAP-D1 line carrying a declared deferral marker survives the flip: refused by file and line", () => {
+    const stateStillDeferring = STATE_PRE.replace(
+      "**GAP-D1 — standing deferral:** the flip waits on one captured run.",
+      "GAP-D1 remains a standing deferral after all.",
+    );
+    const root = plantDischarged("flip-t2-", { files: { ...correctFlipFiles(), [STATE_REL]: stateStillDeferring } });
+    const r = runGate(root);
+    expect(r.stdout).toContain(`${STATE_REL}:9 still carries a GAP-D1 deferral sentence`);
+    expect(r.status).toBe(1);
+  });
+
+  it("CONVERSE: a GAP-D1 line WITHOUT a deferral marker (the discharge note) passes, and so does the exempt history line", () => {
+    const root = plantDischarged("flip-t2-converse-");
+    const state = readFileSync(join(root, STATE_REL), "utf8");
+    expect(state).toContain("GAP-D1 discharged");
+    expect(state).toContain(HISTORY_LINE);
+    const r = runGate(root);
+    expect(r.stdout).toContain("1 anchored history line(s) exempt");
+    expect(r.stdout).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("a history exemption whose anchor no longer resolves is a derivation defect, not a pass", () => {
+    const root = plantDischarged("flip-stale-exemption-", {
+      files: { ...correctFlipFiles(), [STATE_REL]: STATE_POST.replace(HISTORY_LINE, "- [Phase 06]: rewritten") },
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain("exemption anchored at");
+    expect(r.stdout).toContain("a stale exemption is a derivation defect");
+    expect(r.status).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The commit-set rule: nothing undeclared rides along, nothing declared is omitted.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-flip-manifest — the commit-set rule (D-17)", () => {
+  it("a flip commit that changes a file the manifest does not declare is refused, naming the file", () => {
+    const root = plantDischarged("flip-undeclared-", {
+      files: { ...correctFlipFiles(), "README.md": "# Planted\n\nRode along.\n" },
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain("changed 1 file(s) the manifest does not declare: README.md");
+    expect(r.status).toBe(1);
+  });
+
+  it("a flip commit that omits a declared file is refused, naming the file", () => {
+    const files = correctFlipFiles();
+    delete files[LEDGER_REL];
+    const root = plantDischarged("flip-omitted-", { files });
+    const r = runGate(root);
+    expect(r.stdout).toContain(`omitted 1 declared file(s): ${LEDGER_REL}`);
+    // The ledger row is also still open, which is the other half of the same omission.
+    expect(r.stdout).toContain('ledger row 1 is still "open" after the flip');
+    expect(r.status).toBe(1);
+  });
+
+  it("the flip commit is DERIVED from history — a later commit on top does not move the comparison", () => {
+    const root = plantDischarged("flip-later-commit-");
+    write(root, RUNBOOK_REL, "# Runbook\n\nEdited after the flip, with no token.\n");
+    gitIn(root, ["add", "-A"]);
+    gitIn(root, ["commit", "-q", "--no-gpg-sign", "-m", "later"]);
+    const r = runGate(root);
+    expect(r.stdout).toContain("flip commit derived from git");
+    expect(r.stdout).toContain("changed exactly the declared set (6 files)");
+    expect(r.status).toBe(0);
+  });
+
+  it("an explicit --range is judged even in the pre-capture state — the operator asked", () => {
+    const root = plantPreCapture("flip-range-");
+    const r = runGate(root, ["--range", "HEAD"]);
+    expect(r.stdout).toContain("the manifest does not declare");
+    expect(r.status).toBe(1);
+  });
+
+  it("CONVERSE: an explicit --range over exactly the declared set passes in the discharged state", () => {
+    const root = plantDischarged("flip-range-ok-");
+    const r = runGate(root, ["--range", "HEAD"]);
+    expect(r.stdout).toContain("changed exactly the declared set");
+    expect(r.status).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The live-surface set: the per-part vacuity floor and the pinned total.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-flip-manifest — the floored, pinned live-surface set", () => {
+  it("a part deriving ZERO members refuses a verdict and names the part with every part's count", () => {
+    const root = plantPreCapture("flip-vacuous-", {}, {
+      remove: [EVIDENCE_REL],
+      manifest: {
+        status: "pre-capture",
+        members: { runtimeEvidence: [] },
+        pin: DEFAULT_PIN - 1,
+        omitFlipRowIds: ["F6"],
+      },
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain('the "runtimeEvidence" part of the live-surface set derived ZERO members');
+    expect(r.stdout).toContain("publicDocs 4, docsTree 2, planningLedgers 2, archivedRecords 1, runtimeEvidence 0");
+    expect(r.stdout).not.toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(1);
+  });
+
+  it("a derived total one below the pin refuses, naming every part's count and the remedy's order", () => {
+    const root = plantPreCapture("flip-pin-", {}, { manifest: { status: "pre-capture", pin: DEFAULT_PIN + 1 } });
+    const r = runGate(root);
+    expect(r.stdout).toContain(`derived ${DEFAULT_PIN} document(s), expected exactly ${DEFAULT_PIN + 1}`);
+    expect(r.stdout).toContain("publicDocs 4, docsTree 2, planningLedgers 2, archivedRecords 1, runtimeEvidence 1, overlap 1");
+    expect(r.stdout).toContain("moving the pin is how you acknowledge that the set changed, not how you make the failure go away");
+    expect(r.status).toBe(1);
+  });
+
+  it("a listing that disagrees with the derivation is refused in both directions", () => {
+    const root = plantPreCapture("flip-listing-", {}, {
+      manifest: { status: "pre-capture", members: { docsTree: ["docs/GUARANTEES.md", "docs/not-there.md"] } },
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain(`derived but not listed: [${RUNBOOK_REL}]; listed but not derived: [docs/not-there.md]`);
+    expect(r.status).toBe(1);
+  });
+
+  it("every part the gate derives must be declared: the gate and the manifest name the same parts", () => {
+    expect([...LIVE_SURFACE_PART_NAMES].sort()).toEqual(
+      ["archivedRecords", "docsTree", "planningLedgers", "publicDocs", "runtimeEvidence"],
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Inputs the gate cannot derive: no verdict, said so, never a clean result.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-flip-manifest — an underived input is NO verdict", () => {
+  it("a missing manifest exits 1 and says no verdict is reported", () => {
+    const root = plantPreCapture("flip-nomanifest-");
+    rmSync(join(root, MANIFEST_REL));
+    const r = runGate(root);
+    expect(r.stdout).toContain("the flip manifest does not exist");
+    expect(r.stdout).toContain("NO verdict is reported");
+    expect(r.stdout).not.toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(1);
+  });
+
+  it("a failed git invocation (no repository) exits 1 and says the actual side cannot be derived", () => {
+    const root = plantPreCapture("flip-nogit-", {}, { noGit: true });
+    const r = runGate(root);
+    expect(r.stdout).toContain("`git ls-files");
+    expect(r.stdout).toContain("NO verdict is reported");
+    expect(r.stdout).not.toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(1);
+  });
+
+  it("a manifest in an undeclared state exits 1 naming the two declared values", () => {
+    const root = plantPreCapture("flip-badstatus-");
+    write(root, MANIFEST_REL, renderManifest({ status: "pre-capture" }).replace("`pre-capture`", "`flipped`"));
+    const r = runGate(root);
+    expect(r.stdout).toContain("the only declared values are `pre-capture` and `discharged`");
+    expect(r.status).toBe(1);
+  });
+
+  it("a manifest missing one of its tables exits 1 naming the table", () => {
+    const root = plantPreCapture("flip-notable-");
+    write(root, MANIFEST_REL, renderManifest({ status: "pre-capture" }).replace("| Deferral marker | Measured lines |", "| Markers | Lines |"));
+    const r = runGate(root);
+    expect(r.stdout).toContain('carries 0 "deferral markers" table(s)');
+    expect(r.status).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The manifest is checked against the tree it describes — in the pre-capture state too.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("check-flip-manifest — locators must resolve in the declared state", () => {
+  it("pre-capture: an anchor that does not occur in its file is refused", () => {
+    const root = plantPreCapture("flip-stale-anchor-", {
+      [RECORD_REL]: RECORD_PRE.replace("status: human_needed", "status: open"),
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain('flip row F5: the pre-flip anchor "status: human_needed" does not occur');
+    expect(r.status).toBe(1);
+  });
+
+  it("pre-capture: a marker already present before any capture is refused", () => {
+    const root = plantPreCapture("flip-early-marker-", { [EVIDENCE_REL]: EVIDENCE_POST });
+    const r = runGate(root);
+    expect(r.stdout).toContain("flip row F6: the post-flip marker");
+    expect(r.stdout).toContain("before any capture exists");
+    expect(r.status).toBe(1);
+  });
+
+  it("pre-capture: a parity row whose label differs from the manifest's is refused", () => {
+    const root = plantPreCapture("flip-label-", {
+      [PARITY_REL]: PARITY_DOC(PARITY_TABLE_PRE.replace("| Gate verdict |", "| Verdict |"), INTRO_PRE),
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain('parity data row 2 is labelled "Verdict", the manifest says "Gate verdict"');
+    expect(r.status).toBe(1);
+  });
+
+  it("the parity table's data-row count must agree with the settings and the enumerated rows", () => {
+    const root = plantPreCapture("flip-rowcount-", {
+      [PARITY_REL]: PARITY_DOC(`${PARITY_TABLE_PRE}\n| Extra | x | y |`, INTRO_PRE),
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain("has 3 data row(s); the manifest declares 2 and enumerates 2");
+    expect(r.status).toBe(1);
+  });
+
+  it("discharged: a correction fragment that survives is refused, naming the row", () => {
+    const root = plantDischarged("flip-uncorrected-", {
+      files: { ...correctFlipFiles(), [RECORD_REL]: RECORD_POST.replace("has seven cells", "has 9 cells") },
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain('correction row C1: the stale fragment "has 9 cells" still occurs');
+    expect(r.status).toBe(1);
+  });
+
+  it("discharged: a marker that was never written is refused", () => {
+    const root = plantDischarged("flip-nomarker-", {
+      files: { ...correctFlipFiles(), [EVIDENCE_REL]: `${EVIDENCE_PRE}\nEdited without the block.\n` },
+    });
+    const r = runGate(root);
+    expect(r.stdout).toContain("flip row F6: the post-flip marker");
+    expect(r.stdout).toContain("the record was not written");
+    expect(r.status).toBe(1);
   });
 });
 

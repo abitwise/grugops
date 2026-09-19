@@ -9553,7 +9553,14 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // is platform-independent. The pin moved because a module landed, not to make a red go away.
 // Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 71 on this tree,
 // agreeing with the live census, and the bump lands in the SAME commit as the module.
-const TRIPWIRE_MODULES = 71;
+//
+// 71 -> 72 (plan 33-07, task 3): ONE test module, `scripts/check-flip-manifest.test.ts` — every
+// refusal the GAP-D1 flip gate can issue, reproduced on a planted git repository under the OS temp
+// dir with its passing converse, the two mandatory reproductions (a cell surviving inside the
+// live-surface set; an uncited flipped cell) written RED before the rules existed. Every case is
+// platform-independent. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
+// 72 on this tree, agreeing with the live census, and the bump lands in the SAME commit as the module.
+const TRIPWIRE_MODULES = 72;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
