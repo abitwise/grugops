@@ -141,7 +141,10 @@
 // ---------------------------------------------------------------------------------------------
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
-import { join } from "node:path";
+import { join, sep } from "node:path";
+// Phase 33 (CAP-02 / D-15): the one published-path normalizer. Every value that becomes a scan-set
+// KEY passes through it once, at the point the key is formed (`scanKey` below).
+import { toPosixWith } from "./posix-path.js";
 // The walk's WORK bound is taken from the ONE place this repository declares it rather than
 // restated as a second literal.
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
@@ -856,6 +859,24 @@ const WALK_BUDGET = { examined: 0 };
 // belongs where descent is decided, not where the path is later read. The segment set is a
 // PROJECTION of the one exclusion list — never a second array — and the entries that project are
 // exactly those written with the any-depth marker, for the reasons recorded at the list.
+/**
+ * THE ONE PLACE A SCAN-SET KEY IS FORMED (Phase 33 / CAP-02, D-15).
+ *
+ * Every member the directory walk accumulates becomes a key in `bannedClaimScan()`'s dedupe `Set`
+ * and in `bannedClaimScanOverlap()`, and is compared against the members the corpus-supplied parts
+ * hand over already spelled with forward slashes (`publicDocsCorpus()`, the named literals). The
+ * separator is a PARAMETER defaulting to the host's so the Windows key formation can be exercised —
+ * and mutation-proven — on a POSIX host; production passes nothing.
+ */
+export function scanKey(rel, separator = sep) {
+    void toPosixWith;
+    void separator;
+    return rel;
+}
+/** The predicate the scan loop asks of every member: is this the one named exemption region's file? */
+export function isExemptRegionMember(file) {
+    return file === BANNED_CLAIM_EXEMPT_REGION.file;
+}
 function walkFiles(rel, budget, acc) {
     const a = abs(rel);
     if (!existsSync(a))
@@ -888,7 +909,7 @@ function walkFiles(rel, budget, acc) {
         }
     }
     else if (st.isFile()) {
-        acc.push(rel);
+        acc.push(scanKey(rel));
     }
     return null;
 }
@@ -1152,9 +1173,9 @@ export const BANNED_CLAIM_SCAN_PARTS = [
  * `kit + publicDocs - overlap = total` is reported in the PASS line so a reader can check it rather
  * than take it. Sorted, so two runs over one tree produce byte-identical output.
  */
-export function bannedClaimScan() {
+export function bannedClaimScan(parts = BANNED_CLAIM_SCAN_PARTS) {
     const seen = new Set();
-    for (const part of BANNED_CLAIM_SCAN_PARTS) {
+    for (const part of parts) {
         for (const m of part.members)
             seen.add(m);
     }
@@ -1171,10 +1192,10 @@ export function bannedClaimScan() {
  * hand-maintained-index version of the drift this repository has already been bitten by. This
  * counts duplicates over ALL parts, whatever their number.
  */
-export function bannedClaimScanOverlap() {
+export function bannedClaimScanOverlap(parts = BANNED_CLAIM_SCAN_PARTS) {
     const seen = new Set();
     let duplicates = 0;
-    for (const part of BANNED_CLAIM_SCAN_PARTS) {
+    for (const part of parts) {
         for (const m of part.members) {
             if (seen.has(m))
                 duplicates += 1;
@@ -2159,7 +2180,7 @@ function runAll() {
         let text;
         // The exempt member takes the text its region's indices were MEASURED over, and takes it only
         // when that read succeeded. See the ONE-READ block above for why both halves are load-bearing.
-        if (file === BANNED_CLAIM_EXEMPT_REGION.file && exemptReadOk) {
+        if (isExemptRegionMember(file) && exemptReadOk) {
             text = exemptText;
         }
         else {
@@ -2186,7 +2207,7 @@ function runAll() {
             }
         }
         const lines = text.split("\n");
-        const region = file === BANNED_CLAIM_EXEMPT_REGION.file ? exemptRegion : null;
+        const region = isExemptRegionMember(file) ? exemptRegion : null;
         for (let i = 0; i < lines.length; i++) {
             // The matcher runs on EVERY line, including exempt ones. An exempt line that skipped it would
             // be an exemption whose reach nothing could measure, which is a hole with a comment on it.

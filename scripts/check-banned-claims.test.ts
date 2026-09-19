@@ -53,7 +53,7 @@ import {
   existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep, win32, posix } from "node:path";
 // The ONE fence toggle. The WR-06 premise case below asks the live exemption document the same
 // question the gate now asks it, through the same authority — never a second recogniser typed here.
 import {
@@ -87,6 +87,11 @@ import {
   bannedClaimExcludedExactPaths,
   bannedClaimScan,
   bannedClaimScanOverlap,
+  // (Plan 33-03, D-15) The one place a scan-set KEY is formed, with its separator as a parameter,
+  // and the predicate the scan loop asks of every member. Both exercised in the Windows spelling on
+  // this host — see the separator-independence cases near the live-tree describe.
+  scanKey,
+  isExemptRegionMember,
   locateExemptRegion,
   // (Plan 29-23, WR-02) The exemption's REACH: the counter that measures it and the constant that
   // pins it. In the RED commit these two were read through a NAMESPACE binding instead, because a
@@ -3526,6 +3531,130 @@ describe("check-banned-claims — the derived pin against the live tree", () => 
     expect(r.stdout).toContain(
       `0 findings over ${BANNED_CLAIM_SCAN_COUNT}/${BANNED_CLAIM_SCAN_COUNT} elements`,
     );
+  });
+});
+
+// ── Separator independence of the scan set (Phase 33 / CAP-02, D-15) ──────────────────────────
+//
+// THE MEASURED DEFECT. On windows-latest (CI run 35393299432) every mirror case in this file and
+// the in-process pin reported `derived 121 document(s), expected exactly 120 … overlap 1`: the
+// walked parts spelled their members with the host separator (`agent-factory\README.md`) while the
+// corpus-supplied part spelled the same document `agent-factory/README.md`, so the two keys never
+// collided in the dedupe `Set`, one of the two named overlaps vanished, and the total rose by one.
+// The same non-collision takes the exemption region's own file out of the exemption: the scan loop
+// asks `isExemptRegionMember` of a host-spelled key and is told no, so the disclaimer document is
+// scanned WHOLE. Sixty-four cases red for one cause.
+//
+// WHY THESE CASES CAN SEE IT ON A POSIX HOST. `scanKey` takes its separator as a parameter; handing
+// it `win32.sep` forms the key exactly as the Windows walk forms it. The parts below are synthetic
+// and in-memory, so the assertion is about the KEY FORMATION and the dedupe, not about any tree —
+// and deleting the normalization inside `scanKey` (an identity body) turns every one of them red
+// here, which is the mutation proof the RED transcript in the plan summary records.
+describe("check-banned-claims — the scan set derives one cardinality whichever separator spelled it (D-15)", () => {
+  /** Four documents; two of them are the real named overlaps. */
+  const DOCS = [
+    "agent-factory/README.md",
+    "agent-factory/writing-profile.md",
+    "agent-factory/roles/orchestrator.md",
+    "docs/GUARANTEES.md",
+  ];
+  /** The same documents as a Windows walk would accumulate them BEFORE key formation. */
+  const WINDOWS_WALKED = DOCS.map((d) => d.split("/").join(win32.sep));
+
+  /** Two parts describing the SAME documents in the two spellings, each keyed by `scanKey`. */
+  function mixedParts(): { name: string; members: string[] }[] {
+    return [
+      { name: "walkedOnWindows", members: WINDOWS_WALKED.map((m) => scanKey(m, win32.sep)) },
+      { name: "corpusSupplied", members: DOCS.map((m) => scanKey(m, posix.sep)) },
+    ];
+  }
+
+  it("PREMISE: the Windows-walked spelling really differs from the corpus spelling before key formation", () => {
+    // The negative control that gives the cases below their meaning: without it, a `scanKey` that
+    // did nothing would satisfy them on a tree whose spellings already agreed.
+    for (let i = 0; i < DOCS.length; i++) {
+      expect(WINDOWS_WALKED[i]).not.toBe(DOCS[i]);
+      expect(WINDOWS_WALKED[i]).toContain(win32.sep);
+    }
+  });
+
+  it("the key formed from a backslash-walked member equals the key formed from the corpus spelling", () => {
+    // THE ONE ASSERTION THAT DISCRIMINATES ON THIS HOST: with the normalization deleted the
+    // backslash key is the backslash string, and this reads `agent-factory\README.md` vs
+    // `agent-factory/README.md`.
+    for (let i = 0; i < DOCS.length; i++) {
+      expect(scanKey(WINDOWS_WALKED[i], win32.sep)).toBe(scanKey(DOCS[i], posix.sep));
+      expect(scanKey(WINDOWS_WALKED[i], win32.sep)).toBe(DOCS[i]);
+    }
+    // The host-bound default is the two-argument form under this host's separator, on every host.
+    for (const d of DOCS) expect(scanKey(d)).toBe(scanKey(d, sep));
+  });
+
+  it("two parts in the two spellings dedupe to the DISTINCT document count, not the sum", () => {
+    const parts = mixedParts();
+    const summed = parts.reduce((n, p) => n + p.members.length, 0);
+    expect(summed, "PREMISE: the sum is twice the document count").toBe(DOCS.length * 2);
+    expect(bannedClaimScan(parts).length).toBe(DOCS.length);
+    expect(bannedClaimScan(parts)).toEqual([...DOCS].sort());
+  });
+
+  it("the overlap derivation over the same mixed input reports the TRUE overlap, not zero", () => {
+    const parts = mixedParts();
+    expect(bannedClaimScanOverlap(parts)).toBe(DOCS.length);
+    // …and the PASS-line arithmetic the gate publishes holds over the mixed input.
+    const summed = parts.reduce((n, p) => n + p.members.length, 0);
+    expect(summed - bannedClaimScanOverlap(parts)).toBe(bannedClaimScan(parts).length);
+  });
+
+  it("the exemption-region locator finds its region EXACTLY ONCE for a backslash-walked member", () => {
+    // The one named exemption region's file is among DOCS, so a correct scan carries it once. The
+    // two failure directions the Windows run could produce are both asserted away: ZERO (the
+    // backslash key never equals the declared file) and TWICE (both spellings survive the dedupe).
+    const parts = mixedParts();
+    expect(DOCS, "PREMISE: the region's file is one of the documents").toContain(
+      BANNED_CLAIM_EXEMPT_REGION.file,
+    );
+    const located = bannedClaimScan(parts).filter(isExemptRegionMember);
+    expect(located.length).toBe(1);
+    expect(located[0]).toBe(BANNED_CLAIM_EXEMPT_REGION.file);
+    // The single backslash-walked member alone, keyed, is still recognised — the direction the
+    // Windows run failed in (`scanned WHOLE` because the key never matched).
+    const walkedOnly = [{ name: "walkedOnWindows", members: WINDOWS_WALKED.map((m) => scanKey(m, win32.sep)) }];
+    expect(bannedClaimScan(walkedOnly).filter(isExemptRegionMember).length).toBe(1);
+  });
+
+  it("NEGATIVE CONTROL: the same two parts WITHOUT key formation are the Windows shape — the sum, zero overlap, and the region twice", () => {
+    // The pre-Phase-33 walk pushed the raw relative path. Reproduced here in-memory: the dedupe
+    // cannot collide two spellings of one document, so the cardinality is the sum, the overlap is
+    // zero, and the exemption region's file is present twice — the measured `overlap 1` on
+    // windows-latest is this shape with the one forward-slash-only overlap still colliding.
+    const raw = [
+      { name: "walkedOnWindows", members: WINDOWS_WALKED },
+      { name: "corpusSupplied", members: DOCS },
+    ];
+    expect(bannedClaimScan(raw).length).toBe(DOCS.length * 2);
+    expect(bannedClaimScanOverlap(raw)).toBe(0);
+    expect(bannedClaimScan(raw).filter(isExemptRegionMember).length).toBe(1);
+    expect(
+      bannedClaimScan(raw).filter((m) => m.split(win32.sep).join("/") === BANNED_CLAIM_EXEMPT_REGION.file).length,
+      "both spellings of the region's file survive an un-keyed dedupe",
+    ).toBe(2);
+  });
+
+  it("the live tree's walked parts carry no host separator in any member, on every host", () => {
+    // The production consequence of the key formation, asserted where a Windows run would show it:
+    // every walked member is a forward-slash spelling. On a POSIX host this is a no-op check; on
+    // windows-latest it is the measurement.
+    const walked = BANNED_CLAIM_SCAN_PARTS.filter((p) =>
+      (WALK_DERIVED_PART_NAMES as readonly string[]).includes(p.name),
+    ).flatMap((p) => [...p.members]);
+    expect(walked.length).toBeGreaterThan(0);
+    for (const m of walked) {
+      expect(m, m).not.toContain("\\");
+      expect(m, m).toBe(scanKey(m, win32.sep));
+    }
+    // …and the gate's own two named overlaps both collide, which is the number the pin counts.
+    expect(bannedClaimScanOverlap()).toBe(2);
   });
 });
 
