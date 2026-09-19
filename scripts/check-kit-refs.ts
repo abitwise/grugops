@@ -35,7 +35,11 @@
 // Exit 0 = all checks PASS; exit 1 = at least one FAIL.
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join } from "node:path";
+// Phase 33 (CAP-02 / D-15): every repo-relative path this gate PUBLISHES — a hit line, an adapter
+// name in a verdict, the exempting file — is spelled with forward slashes by the one normalizer
+// the repository keeps for that purpose, applied once at the spelling authority below.
+import { toPosix } from "./posix-path.js";
 // Phase 27 (SPAWN-05 / D-24): the retired-vocabulary literals are single-source. This gate takes the
 // PATH form; guard_adapter_body in check-foundation-guards.ts takes the PROSE forms. Two different
 // predicates over two different inputs, one list.
@@ -291,22 +295,30 @@ const fail = (m: string): void => {
 
 const abs = (rel: string): string => join(ROOT, rel);
 
-// THE ONE PATH-SPELLING AUTHORITY (Phase 29.1 round 4 / WR-01). A repo-relative path, spelled by
-// the platform's own separator, so two sets built by two routes can be compared for equality.
+// THE ONE PATH-SPELLING AUTHORITY (Phase 29.1 round 4 / WR-01; Phase 33 / D-15). A repo-relative
+// path in ONE spelling — `join()` folds `.`, `..` and doubled separators, and the normalizer then
+// spells the result with forward slashes — so two sets built by two routes can be compared for
+// equality AND the spelling the gate publishes is the same on every host.
 //
-// The reasoning is NOT new — it is the one already written above `derive()` below: `join()` (not a
-// `/` template) keeps a path byte-identical to what `walk()` produces on Windows as well as Unix,
-// and Assertion 3 compares two such sets directly, so a separator mismatch would break it. That
-// reasoning was right and its APPLICATION was incomplete: two paths entered a compared set without
-// passing through it — the packaging template, added to the legal set as a raw forward-slash
-// literal, and a single-FILE scan entry, pushed by the walk exactly as written. On a platform whose
-// separator is not the forward slash, Assertion 3 would then fail RED on a correct tree and print
-// "its self-heal is gone — this adapter cannot find the kit" about a file that is fine.
+// WHY THE SPELLING IS NOW POSIX RATHER THAN THE HOST'S (Phase 33, CAP-02, D-15). WR-01's reasoning
+// — every path entering a compared set must pass through one authority — was right and is kept.
+// But the authority spelled with the HOST separator, and the gate PUBLISHES these paths: every hit
+// line, every adapter named in an Assertion-3 or SC2 finding, and the exempting file named in the
+// Assertion-1 verdict. On windows-latest (CI run 35393299432) those lines read `.claude\agents\…`
+// and `agent-factory\config\factory.config.md` while every consumer — the suite, a human reading a
+// verdict, a document diffed against a run from another host — spells them `.claude/agents/…`.
+// Normalizing in the suite alone was rejected (D-15): it would leave host-specific bytes published.
+// So the one authority normalizes once, here, and every derived prefix below is built from it.
 //
 // It is deliberately the WHOLE authority rather than a second normalisation beside `derive()`:
-// `derive()` already composes with `join`, so it is left alone. Every path that enters a set this
-// gate compares passes through here, or through a `join` that is already this same call.
-const relKey = (rel: string): string => join(rel);
+// `derive()` composes with `join` and then passes through here. Every path that enters a set this
+// gate compares, or a line this gate prints, passes through this one call. `abs()` above is the
+// other direction — a spelling handed back to the filesystem — and `join` accepts the POSIX form on
+// every platform, so no path is normalized twice and none is de-normalized.
+const relKey = (rel: string): string => toPosix(join(rel));
+// The published separator, and the ONLY one any derived prefix below is built with. It is the
+// forward slash by construction of `relKey`, not by the host's choice.
+const REL_SEP = "/";
 
 // Recursively enumerate every file under a SCAN entry (a dir → walk; a file → itself). Missing
 // entries are silently skipped (mirrors `grep -rn` on an absent path printing nothing). Returns
@@ -345,11 +357,15 @@ function walk(rel: string, acc: string[]): string[] {
 // nested inside a subdirectory contributes its subdirectory to nothing.
 // ---------------------------------------------------------------------------
 function configSiblingFiles(): string[] {
-  const dirPrefix = join(CONFIG_SELF_REF_DIR) + sep;
+  // The prefix is spelled by the SAME authority the walk spells its members with, so the two can
+  // never disagree about a separator (Phase 33 / D-15): on windows-latest the host-spelled prefix
+  // and the host-spelled walk agreed with each other and disagreed with everything the gate
+  // published, which is the disagreement this derivation used to carry.
+  const dirPrefix = relKey(CONFIG_SELF_REF_DIR) + REL_SEP;
   return walk(CONFIG_SELF_REF_DIR, [])
     .filter((rel) => rel.startsWith(dirPrefix))
     .map((rel) => rel.slice(dirPrefix.length))
-    .filter((base) => !base.includes(sep))
+    .filter((base) => !base.includes(REL_SEP))
     .sort();
 }
 
@@ -444,7 +460,7 @@ function exemptConfigSelfRefs(
   files: string[];
   unitMismatches: string[];
 } {
-  const dirPrefix = join(CONFIG_SELF_REF_DIR) + sep;
+  const dirPrefix = relKey(CONFIG_SELF_REF_DIR) + REL_SEP;
   const exempt: string[] = [];
   const strays: string[] = [];
   const files = new Set<string>();
@@ -523,9 +539,9 @@ function exemptConfigSelfRefs(
 // ---------------------------------------------------------------------------
 // The authority returns paths relative to each adapter directory; this gate's marker-site set and
 // every message it prints are repo-relative, so the fixed subpath is prefixed back on HERE rather
-// than the authority's pinned return shape being changed for one consumer. join() (not a `/`
-// template) keeps these byte-identical to the paths walk() produces on Windows as well as Unix —
-// Assertion 3 compares the two sets directly, so a separator mismatch would break it silently.
+// than the authority's pinned return shape being changed for one consumer. The composed path then
+// goes through `relKey`, the same spelling walk() gives its members — Assertion 3 compares the two
+// sets directly, so a separator mismatch would break it silently, and SC2 prints these names.
 //
 // The authority THROWS on an unreadable or empty directory instead of returning []. The thrown
 // message is RECORDED, not swallowed and not allowed to abort the process: one unreadable adapter
@@ -536,7 +552,7 @@ const derive = (
   subpath: string,
 ): string[] => {
   try {
-    return list(ROOT).map((rel) => join(subpath, rel));
+    return list(ROOT).map((rel) => relKey(join(subpath, rel)));
   } catch (e) {
     derivationErrors.push(e instanceof Error ? e.message : String(e));
     return [];
@@ -618,13 +634,30 @@ if (configDirPresent && configSiblings.size === 0) {
     `${CONFIG_SELF_REF_DIR}/ carries no regular file at its top level — refusing to adjudicate its exemption against an empty sibling set (every named path would be a stray for a reason having nothing to do with the mention)`,
   );
 }
+const configHits = grepSubstring(SCAN, CONFIG_REF_NEEDLE);
 const {
   exempt,
   exemptMentions,
   strays,
   files: exemptFiles,
   unitMismatches,
-} = exemptConfigSelfRefs(grepSubstring(SCAN, CONFIG_REF_NEEDLE), configSiblings);
+} = exemptConfigSelfRefs(configHits, configSiblings);
+// THE PARTITION IS ASSERTED AS A RELATIONSHIP, NOT LEFT TO THE LOOP'S SHAPE (Phase 33 / D-15). The
+// self-reference count is DERIVED from the normalized published set (every hit's file is spelled by
+// `relKey`, the exempting prefix by the same authority) and its relationship to the total is what
+// the verdict publishes: every hit is exactly one of exempt or stray, so the two derivations must
+// sum to the hit count. On windows-latest the published self-reference line disagreed with the
+// suite's expectation while the hit count did not — a spelling can move one number and not the
+// other, and a bare integer on one side cannot see that. The line is printed on every run so a
+// reader of a green verdict sees the denominator the exemption was decided against.
+process.stdout.write(
+  `  [derivation] ${CONFIG_REF_NEEDLE} hit lines: ${configHits.length} = ${exempt.length} exempt + ${strays.length} stray\n`,
+);
+if (exempt.length + strays.length !== configHits.length) {
+  fail(
+    `the ${CONFIG_REF_NEEDLE} partition does not sum: ${exempt.length} exempt + ${strays.length} stray != ${configHits.length} hit line(s) — a hit was neither exempted nor reported as a stray`,
+  );
+}
 // The strays half — byte-identical wording to the pre-exemption gate.
 if (strays.length === 0) {
   pass(

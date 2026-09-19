@@ -34,6 +34,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, win32, posix } from "node:path";
+import { toPosixWith } from "./posix-path.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-kit-refs.js");
@@ -291,6 +292,24 @@ function reportedSiblingSet(stdout: string): { count: number; names: string[] } 
 /** The sibling-set cardinality measured this session: .gitkeep, factory.config.json, factory.config.md. */
 const CONFIG_SIBLING_FILES = 3;
 
+/**
+ * The partition the gate publishes over its Assertion-1 hits (Phase 33 / D-15): total hit lines,
+ * and the exempt and stray halves it split them into. Read from the verdict rather than re-derived,
+ * for the reason `reportedSiblingSet` states; asserted as a RELATIONSHIP by the case that reads it,
+ * because on windows-latest the published self-reference line disagreed with this suite while the
+ * hit count did not — a spelling can move one side of a partition and not the other.
+ */
+function reportedConfigPartition(stdout: string): { hits: number; exempt: number; strays: number } {
+  const m = stdout.match(/agent-factory\/config\/ hit lines: (\d+) = (\d+) exempt \+ (\d+) stray/);
+  if (!m) {
+    throw new Error(
+      "reportedConfigPartition: the gate published no hit-line partition — refusing to assert the " +
+        "self-reference count against a total the gate never disclosed",
+    );
+  }
+  return { hits: Number(m[1]), exempt: Number(m[2]), strays: Number(m[3]) };
+}
+
 // The derivation is asserted BEFORE any mirror is built, because every green case below is built on
 // the set it returns: a derivation that silently returned fewer members would build a partial mirror
 // that passes for the wrong reason. This is this repository's stated remedy for a derived set —
@@ -351,6 +370,15 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     expect(r.stdout).toContain(
       "the config self-reference exemption is exactly 3 mention(s) on 2 line(s) in 1 file(s), as declared",
     );
+    // THE RELATIONSHIP, NOT A BARE INTEGER ON ONE SIDE (Phase 33 / D-15). The self-reference count
+    // is derived from the normalized published set; what this case pins is that it and the stray
+    // count partition the hits the gate greps — and that the exempt half is the same number the
+    // verdict line above spells out, so the two published sentences cannot disagree.
+    const partition = reportedConfigPartition(r.stdout);
+    expect(partition.hits, "PREMISE: the gate must have found the two hit lines").toBeGreaterThan(0);
+    expect(partition.exempt + partition.strays).toBe(partition.hits);
+    expect(partition.strays).toBe(0);
+    expect(r.stdout).toContain(`on ${partition.exempt} line(s) exempt`);
   });
 
   it("Assertion 1 RED: a THIRD kit-internal mention in the config field reference fails, naming both counts", () => {
@@ -671,7 +699,12 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
     expect(r.status).toBe(1);
     // The exemption is scoped to ONE file, not to the directory — this is the clause that says so.
     expect(r.stdout).toContain("exempting FILES: found 2, required exactly 1");
-    expect(r.stdout).toContain(join("agent-factory", "config", "NOTES.md"));
+    // The POSIX spelling on every host (D-15): the gate publishes the exempting file through its one
+    // spelling authority, so this is a literal, not a `join`.
+    expect(r.stdout).toContain("agent-factory/config/NOTES.md");
+    // …and the partition still sums with the second file's line inside it.
+    const partition = reportedConfigPartition(r.stdout);
+    expect(partition.exempt + partition.strays).toBe(partition.hits);
   });
 
   it("Assertion 1 RED: a kit-internal mention naming a path that does not exist is a stray, not a self-reference", () => {
@@ -855,10 +888,23 @@ describe("check-kit-refs Assertion 1 exemption — the config self-references, p
 // that says so. Stating that limit here is the point: a case that quietly implied it had run on
 // Windows would be the wider-than-mechanism class this phase exists to close.
 const PACKAGING_TEMPLATE_LITERAL = "agent-factory/packaging/subagent.frontmatter.md";
-/** The two spellings the gate carried BEFORE the fix — asserted ABSENT, so reverting either reds. */
-const WR01_DEFECT_SPELLINGS = ["ghLegal.add(PACKAGING_TEMPLATE)", "acc.push(rel)"];
-/** …and the two the fix carries, asserted PRESENT. */
-const WR01_FIXED_SPELLINGS = ["ghLegal.add(relKey(PACKAGING_TEMPLATE))", "acc.push(relKey(rel))"];
+/**
+ * The spellings the gate carried BEFORE the fixes — asserted ABSENT, so reverting any one reds.
+ * The first two are WR-01's (a set entry bypassing the authority); the third is the authority's
+ * pre-Phase-33 body, which spelled with the HOST separator and so published `.claude\agents\…`
+ * on windows-latest (D-15).
+ */
+const WR01_DEFECT_SPELLINGS = [
+  "ghLegal.add(PACKAGING_TEMPLATE)",
+  "acc.push(rel)",
+  "const relKey = (rel: string): string => join(rel);",
+];
+/** …and the spellings the fixes carry, asserted PRESENT: both WR-01 entry points, and the D-15 body. */
+const WR01_FIXED_SPELLINGS = [
+  "ghLegal.add(relKey(PACKAGING_TEMPLATE))",
+  "acc.push(relKey(rel))",
+  "const relKey = (rel: string): string => toPosix(join(rel));",
+];
 
 describe("check-kit-refs Assertion 3 — one path-spelling authority for both compared sets (WR-01)", () => {
   it("Assertion 3 (win32): every path entering either compared set is spelled by one authority", () => {
@@ -877,17 +923,27 @@ describe("check-kit-refs Assertion 3 — one path-spelling authority for both co
       "the raw literal and the walk-shaped path must DISAGREE under win32 — this is the defect",
     ).not.toBe(walkShaped);
 
-    // DIRECTION 2 — the normalised literal and that same walk-shaped path ARE equal.
+    // DIRECTION 2 — the literal and the walk-shaped path, both passed through the one authority
+    // AS THE GATE NOW SPELLS IT (`toPosix(join(rel))`, here with the win32 flavour of both halves
+    // so the Windows spelling is exercised on this host), ARE equal — and equal to the POSIX literal,
+    // which is the spelling the gate publishes (Phase 33 / D-15). Before Phase 33 the authority was
+    // `join(rel)` alone, and this direction asserted agreement in the HOST spelling; that agreement
+    // held on windows-latest while every published line disagreed with the suite.
+    const authority = (rel: string): string => toPosixWith(win32.join(rel), win32.sep);
     expect(
-      win32.join(PACKAGING_TEMPLATE_LITERAL),
+      authority(PACKAGING_TEMPLATE_LITERAL),
       "…and passing the literal through the one authority must make them agree",
-    ).toBe(walkShaped);
+    ).toBe(authority(walkShaped));
+    expect(authority(walkShaped), "…in the POSIX spelling, on every host").toBe(
+      PACKAGING_TEMPLATE_LITERAL,
+    );
 
-    // THE POSIX CONTROL: on this platform the authority is a no-op, which is why the gate's output
-    // does not move and why the win32 half had to be reasoned rather than watched.
+    // THE POSIX CONTROL: on this platform `join` is a no-op for the literal and the normalizer is
+    // the identity, which is why the gate's output does not move here and why the win32 half is
+    // exercised through the explicit separator rather than watched.
     expect(posix.join(PACKAGING_TEMPLATE_LITERAL)).toBe(PACKAGING_TEMPLATE_LITERAL);
-    expect(posix.join(PACKAGING_TEMPLATE_LITERAL)).toBe(
-      posix.join(posix.join("agent-factory/packaging"), "subagent.frontmatter.md"),
+    expect(toPosixWith(posix.join(PACKAGING_TEMPLATE_LITERAL), posix.sep)).toBe(
+      toPosixWith(posix.join(posix.join("agent-factory/packaging"), "subagent.frontmatter.md"), posix.sep),
     );
 
     // …and the GATE actually routes both set-entry points through it. The subject of these greps is
