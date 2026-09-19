@@ -1314,7 +1314,20 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: TBD
+**Plans**: 11 plans (6 waves)
+
+Plans:
+- [ ] 33-01-PLAN.md — TRACER: the capture pipeline end to end at zero tokens (runner, predicates, fixture stream, runnable fixture project)
+- [ ] 33-02-PLAN.md — vitest bounds (test + hook + slow threshold) and the absent scratch root, both legs
+- [ ] 33-03-PLAN.md — published-path normalization at the emitting module, and the banned-claim dedupe key
+- [ ] 33-04-PLAN.md — test-internal path comparisons and signal-aware child assertions
+- [ ] 33-05-PLAN.md — named, counted skips for interpreter, pipe, privilege and filename absences; derived shape remainder
+- [ ] 33-06-PLAN.md — installer path identity and line endings, the temporary-clone rebuild diagnosis, the precheck anchor
+- [ ] 33-07-PLAN.md — the flip manifest and its gate: two derived sides, bounded residual denominator, citation rule
+- [ ] 33-08-PLAN.md — the live lane becomes a thin wrapper; the deny matcher's third input class recorded
+- [ ] 33-09-PLAN.md — CAP-02 measured on a pushed CI run, both legs (blocking human push confirmation)
+- [ ] 33-10-PLAN.md — the one authorized live capture, behind a blocking go that states the spend floor
+- [ ] 33-11-PLAN.md — the one-way GAP-D1 flip over exactly the declared set (blocking decision checkpoint)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
