@@ -1655,10 +1655,16 @@ describe("check-banned-claims — the one named exemption region", () => {
     expect(callSites).toBe(2);
 
     // The selection is a conjunction, not a filename test. Both conjuncts are required by name.
-    const selection = src.match(
-      /file === BANNED_CLAIM_EXEMPT_REGION\.file && exemptReadOk/,
-    );
+    // (Plan 33-03, D-15) The filename conjunct is the gate's ONE exempt-member predicate,
+    // `isExemptRegionMember(file)`, rather than an inline equality: the scan loop asked the same
+    // question at two sites, and a key-spelling defect (the Windows `overlap 1`) needs one place to
+    // be asked about. The gate on `exemptReadOk` is unchanged and still pinned here by name.
+    const selection = src.match(/isExemptRegionMember\(file\) && exemptReadOk/);
     expect(selection).not.toBeNull();
+    expect(
+      (src.match(/function isExemptRegionMember\(/g) ?? []).length,
+      "the exempt-member predicate is declared exactly once",
+    ).toBe(1);
 
     // And the flag is only ever RAISED next to the read that justifies it — never initialised true.
     expect(src).toMatch(/let exemptReadOk = false;/);

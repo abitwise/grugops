@@ -865,13 +865,24 @@ const WALK_BUDGET = { examined: 0 };
  * Every member the directory walk accumulates becomes a key in `bannedClaimScan()`'s dedupe `Set`
  * and in `bannedClaimScanOverlap()`, and is compared against the members the corpus-supplied parts
  * hand over already spelled with forward slashes (`publicDocsCorpus()`, the named literals). The
- * separator is a PARAMETER defaulting to the host's so the Windows key formation can be exercised —
- * and mutation-proven — on a POSIX host; production passes nothing.
+ * walk composes with `join`, which spells with the HOST separator, so before this function existed
+ * the two derivations produced DIFFERENT KEYS for one document on Windows: `agent-factory\README.md`
+ * from the `kit` walk never collided with `agent-factory/README.md` from the public-docs corpus,
+ * the deduped total read 121 against the pin of 120 with `overlap 1`, and the exemption region's
+ * own file — walked under the host spelling — was never recognised by `isExemptRegionMember`, so
+ * the disclaimer document was scanned WHOLE (CI run 35393299432, windows-latest, 64 cases).
+ *
+ * THE FIX IS HERE, AT KEY FORMATION, AND DELIBERATELY NOT AT THE COMPARISON. Normalizing inside the
+ * dedupe would leave the `Set`'s own members host-spelled and every consumer of a part's `members`
+ * — the PASS line, the per-part vacuity floor, the excluded-location census — reading a different
+ * spelling from the one the dedupe compared. One key, formed once, published everywhere.
+ *
+ * The separator is a PARAMETER defaulting to the host's so the Windows key formation can be
+ * exercised — and mutation-proven — on a POSIX host (`scripts/check-banned-claims.test.ts`, the
+ * separator-independence cases); production passes nothing.
  */
 export function scanKey(rel, separator = sep) {
-    void toPosixWith;
-    void separator;
-    return rel;
+    return toPosixWith(rel, separator);
 }
 /** The predicate the scan loop asks of every member: is this the one named exemption region's file? */
 export function isExemptRegionMember(file) {
@@ -891,7 +902,7 @@ function walkFiles(rel, budget, acc) {
             budget.examined += 1;
             if (budget.examined > MAX_WALK_ENTRIES) {
                 return (`the walk of ${rel} examined more than MAX_WALK_ENTRIES=${MAX_WALK_ENTRIES} directory ` +
-                    `entries, reaching ${join(rel, entry)} — refusing to continue and refusing to report a ` +
+                    `entries, reaching ${scanKey(join(rel, entry))} — refusing to continue and refusing to report a ` +
                     `verdict over the members collected so far, because a truncated scan set passes every ` +
                     `guard exactly the way a vacuous one does`);
             }
