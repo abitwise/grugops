@@ -2087,8 +2087,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   symbol from the demoted parser, so the cutover case below lists it deliberately.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 87 with this module tracked.
+ *
+ * 87 -> 88 (plan 33-03, task 1, D-15), ONE LIBRARY MODULE:
+ *   - `scripts/posix-path.ts` — the one home of the separator-parameterized published-path
+ *     normalizer (`toPosixWith(path, separator = sep)` and its host-bound `toPosix`). Node stdlib
+ *     only, no I/O, no entry guard: it is imported by the publishing modules Phase 33 fixes and by
+ *     nothing else. Its committed `.js` twin lands in the same commit.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *   function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *   grant and renders no spawn verdict; it is a pure string function over one `node:path` import.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 88 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 87;
+const NON_TEST_MODULE_COUNT = 88;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2628,7 +2639,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 59 → 60 (plan 33-01, task 1): `scripts/capture-live.ts`, the live-capture runner. It imports
     // `./canonical-frontmatter.js` (one of the three specs compared below), so both readers must
     // agree on a non-empty answer for it — a contribution to the non-vacuity floor, not to noise.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(60);
+    // 60 → 61 (plan 33-03, task 1): `scripts/posix-path.ts`, the published-path normalizer. It
+    // imports `node:path` only and none of the three specs compared below, so it contributes three
+    // empty comparisons and cannot make the agreement above vacuous on its own.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(61);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2654,7 +2668,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `loader-oracle.test-support.ts`, three specs per module as ever.
     // 58 → 59 (plan 32.1-05, task 2): `check-build-parity.ts`, three specs per module as ever.
     // 59 → 60 (plan 33-01, task 1): `capture-live.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(60 * 3);
+    // 60 → 61 (plan 33-03, task 1): `posix-path.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(61 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2856,7 +2871,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // gained, and both pins move in this plan's task-2 commit for the same reason.
       // 59 → 60 (plan 33-01, task 1): `capture-live.ts`, the same module the flat reader gained,
       // and both pins move in this plan's task-1 commit for the same reason.
-    ).toBe(60);
+      // 60 → 61 (plan 33-03, task 1): `posix-path.ts`, the same module the flat reader gained,
+      // and both pins move in this plan's task-1 commit for the same reason.
+    ).toBe(61);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9503,7 +9520,15 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 70 on this tree,
 // agreeing with the live census, and the bump lands in the SAME commit as the run in which the full
 // suite first observed the module.
-const TRIPWIRE_MODULES = 70;
+//
+// 70 -> 71 (plan 33-03, task 1): ONE test module, `scripts/posix-path.test.ts` — the suite over the
+// separator-parameterized published-path normalizer (D-15). It drives the two-argument form with
+// `path.win32.sep` so the Windows spelling is exercised and mutation-provable on a POSIX host, and
+// pins the host-bound wrapper as an equality with that form under the host's own `sep`. Every case
+// is platform-independent. The pin moved because a module landed, not to make a red go away.
+// Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 71 on this tree,
+// agreeing with the live census, and the bump lands in the SAME commit as the module.
+const TRIPWIRE_MODULES = 71;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
