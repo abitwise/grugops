@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33-12-PLAN.md (round-2 tracer: CR-03, CR-01, CR-02 landed red-first; 6 commits). Next: 33-13 (wave 8)"
-last_updated: "2026-09-20T20:33:56.781Z"
-state_head: c4abf909e604f4b1771945b499232b9ee9e40a11
+stopped_at: "Completed 33-14-PLAN.md (corpusMember at the walk: 10 windows reds closed by mechanism, red-first, mutation-proven; 3 commits). Next: 33-15 (wave 8)"
+last_updated: "2026-09-20T20:58:00.368Z"
+state_head: 4fe84114825fb174c4238b03cb357c3b2f6babe4
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 292
-  completed_plans: 281
-  percent: 96
+  completed_plans: 282
+  percent: 97
 last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Planned Phase 33 gap-closure round 2 of 4: 12 additive plans (33-12..33-23) mapped one-to-one onto 33-VERIFICATION gaps[].missing and 33-REVIEW CR-01..05; plan checker VERIFICATION PASSED; decision coverage 20/20; requirement coverage CAP-01..03 3/3; round-1 plans byte-untouched."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 2 of 23
+Plan: 3 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -539,6 +539,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P10 | 79 min | 3 tasks | 6 files |
 | Phase 33 P11 | 12 min | 4 tasks | 6 files |
 | Phase 33 P12 | 25 min | 3 tasks | 3 files |
+| Phase 33 P14 | 16 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1483,6 +1484,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-12: D-07 verdict is a path-invariant projection (per role count + kind multiset + author, verdict marker, note route); the held round-1 capture still reads divergent by six named sentences — corrected, not softened (D-20). The replay comparator is informational only.
 - [Phase 33]: 33-12: the scored transcript streams into a runner-owned sibling scratch asserted outside target/home/cwd (CR-01); runTarget/LiveOps seam for 33-13. LIVE_ALLOWED_TOOLS untouched pending the 33-21 KIT decision.
 - [Phase 33]: 33-12: D-05 provenance = plugin by name + cache path validated under ~/.claude/plugins + sha256 content digest over git ls-files vs the checkout; pass unreachable unless MET (CR-02, WR-04). Self-repro: UNMET vs current HEAD, MET vs a checkout at 8f05ed42.
+- [Phase 33]: 33-14: publicDocsCorpus() forms every walked member once through corpusMember(rel, separator = sep) = toPosixWith at the walk's acc.push (D-15); the over-budget refusal message keeps its host join spelling because Test V pins exactly one call; bannedClaimScanOverlap stays 2 and is expected 2 on Windows since both overlap members reach the corpus through named literals, never the walk
 
 ### Pending Todos
 
@@ -1610,8 +1612,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T20:33:44.551Z
-Stopped at: Completed 33-12-PLAN.md (round-2 tracer: CR-03, CR-01, CR-02 landed red-first; 6 commits). Next: 33-13 (wave 8)
+Last session: 2026-09-20T20:57:59.855Z
+Stopped at: Completed 33-14-PLAN.md (corpusMember at the walk: 10 windows reds closed by mechanism, red-first, mutation-proven; 3 commits). Next: 33-15 (wave 8)
 Resume file: None
 
 ## Operator Next Steps
