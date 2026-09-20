@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 11/11 plans executed (6 waves)
+**Plans**: 23 plans — 11/11 round-1 plans executed (6 waves); 12 gap-closure round-2 plans (waves 7-12, `gap_closure: true`) planned 2026-09-20 after verification `gaps_found` 0/3
 
 Plans:
 **Wave 1**
@@ -1345,6 +1345,38 @@ Plans:
 **Wave 6** *(blocked on Wave 5 completion)*
 
 - [x] 33-11-PLAN.md — the one-way GAP-D1 flip over exactly the declared set (blocking decision checkpoint)
+
+**Gap-closure round 2 of 4** *(planned 2026-09-20; scope = Criticals CR-01..05 + the CAP-01/02/03 gaps; one live go behind a blocking checkpoint)*
+
+**Wave 7**
+
+- [ ] 33-12-PLAN.md — TRACER: CR-03 path-invariant D-07 projection proven against the held round-1 capture (commit c7be6d0d), CR-01 runner-owned transcript through a run seam, CR-02 provenance by name + content digest folded into the outcome
+- [ ] 33-14-PLAN.md — CAP-02: `publicDocsCorpus()` publishes POSIX members from one site (10 windows reds), every consumer arm probed
+- [ ] 33-15-PLAN.md — CAP-02: context-io.test.ts spelling and plant classes (W-17..W-20, W-22..W-27) derived through the module's own host functions
+- [ ] 33-17-PLAN.md — CAP-02: uat-spec-integrity `faultKey` module fix + POINT 2; ubuntu GREEN 1b / ORDERING diagnosed then fixed with a derived margin
+- [ ] 33-18-PLAN.md — CAP-02: uat-gate-exit-contract POSIX scan set, the explicit 60 s bound removed, derived shape set; platform-shapes COVERAGE derived undriven set
+- [ ] 33-19-PLAN.md — CAP-02: foundation-guards o-prefix JSON form, freshness pre-fix arm host-independent, check-build-parity compiler launch (33-06 way)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 33-13-PLAN.md — CR-05 failed install stops the run before the spawn (seam-proven), CR-04 transcripts survive every failure + `--keep-target`/`--out` contracts (IN-08 folded)
+- [ ] 33-16-PLAN.md — CAP-02: context-io module fixes (canonical cwd for the SYMLINK cell; type-first ledger-position refusal) + every symlink fixture through `stageSymlinkOrSkip` (D-16)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 33-20-PLAN.md — CAP-02 measured on ONE pushed CI run, both legs' conclusions quoted (blocking human push confirmation); ledger rows 229-235/186/193 disposed only on green
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 33-21-PLAN.md — round-1 capture preserved under `round-1-held/`, round-2 dry run, KIT (a)/(b)/§ 2/§ 3 decision checkpoint, the one live go (blocking, floor 11.75 USD / 31 min), artifacts written after; zero-token diagnosis on red
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
+- [ ] 33-22-PLAN.md — the one-way GAP-D1 flip over exactly the 14 declared files incl. `.planning/PROJECT.md` (decision checkpoint only on OUTCOME: pass + CAP-02 MET), or the § 7 hold record
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
+- [ ] 33-23-PLAN.md — ledger close: 18 accepted-open WR/IN rows + 4 KIT rows through the tool, deferred-items resolutions with citations, REQUIREMENTS/STATE agreement
 
 ### Phase 34: Model Effort Dial & Pi Support
 
