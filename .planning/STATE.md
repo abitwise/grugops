@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 33-04-PLAN.md
-last_updated: "2026-09-20T01:04:23.940Z"
-state_head: 443be07efcb283110db26fcd4375e453eaa29c40
+stopped_at: Completed 33-05-PLAN.md
+last_updated: "2026-09-20T02:05:07.470Z"
+state_head: ba22d82e8e549aff1dfb00ce0e33c188475401fe
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 280
-  completed_plans: 275
-  percent: 98
+  completed_plans: 276
+  percent: 99
 last_activity: 2026-09-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: Completed quick tasks 260919-007 (README Quickstart example Claude Code commands, 52377a7a) and 260919-07m (installer notes name the real marketplace owner abitwise/grugops, 26c3d8cc).
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 7 of 11
+Plan: 8 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -533,6 +533,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P07 | 54 min | 3 tasks | 10 files |
 | Phase 33 P08 | 20 min | 3 tasks | 3 files |
 | Phase 33 P04 | 27 min | 3 tasks | 8 files |
+| Phase 33 P05 | 53 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -1466,6 +1467,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-08: the live lane is a thin wrapper over scripts/capture-live.js — one runner invocation, assertions over the summary artifact only (outcome line, D-02, D-04, D-05, D-07, recorded bound = derived bound, --verify-artifacts); the loud-skip keystone, its test-of-the-test and the cleanup block kept byte-identical (sha256-proven); the approval variable asserted absent at run time on the env object handed to the child; A3-live-N retired (its gating twin worktree-dogfood.test.ts unchanged); the docblock states the measured npm-test fact behind WINDOWS.md row 214; the deny matcher's header records the decoded hook_response.stdout field as its third, sound input class with the decode as its condition, function untouched
 - [Phase 33]: 33-04: test-internal path comparisons normalize AT THE COMPARISON through the one normalizer, separator-parameterized so the windows spelling is a case on a POSIX host; board-model golden/mirror reds were measured from the CI log as this class, not downstream of 33-03
 - [Phase 33]: 33-04: the guarantees +0-not-to-be-+0 windows red is a plain zero (os.tmpdir on win32 never reads TMPDIR), not a signed zero; plant TMPDIR/TMP/TEMP together; the same install.test.ts site is deferred to 33-06
+- [Phase 33]: 33-05: host absences are named, counted skips through the platform-shape corpus (every test-side FIFO, mode-0, control-byte, symlink and self-signal fixture staged by the corpus constructor or probe, printed in the one SKIPPED SHAPES format, remainder size derived never pinned); three plan premises corrected from the CI log: the guard reds were the could-not-read arm behind an MSYS mkfifo exiting 0, the check-nul-bytes reds were 14 unpinned CRLF checkouts now pinned from a derived set, and the label-agreement reds were 5 s timeouts
 
 ### Pending Todos
 
@@ -1593,8 +1595,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T01:04:23.458Z
-Stopped at: Completed 33-04-PLAN.md
+Last session: 2026-09-20T02:04:54.990Z
+Stopped at: Completed 33-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
