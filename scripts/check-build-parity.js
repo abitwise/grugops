@@ -42,12 +42,14 @@
 //
 // Strictly READ-ONLY with respect to the repository's tracked CONTENT: it runs the build, which is
 // the one thing here that writes, and then asks git a question. Node standard library only — one
-// `npx tsc` invocation and two `git` invocations. Zero npm dependencies at run time.
+// compiler launch (`typescript/lib/tsc.js` under `process.execPath`, see `buildParity`) and two `git`
+// invocations. Zero npm dependencies at run time.
 //
 // Findings are written in CLEAR PROFESSIONAL VOICE (CLAUDE.md hard rule — this is a quality and
 // trace surface, never caveman voice).
 // =================================================================================================
 import { spawnSync, execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
 import { reportMeasured } from "./vacuity.js";
@@ -112,29 +114,45 @@ export function movedBuildOutputs(root = ROOT) {
  */
 export function buildParity(root = ROOT) {
     const tracked = trackedBuildOutputs(root);
-    const build = spawnSync("npx", ["tsc"], { cwd: root, encoding: "utf8" });
-    if (build.status !== 0) {
+    const nothingStated = (buildFailure) => ({
+        buildFailure,
+        measured: { label: "Build parity", visited: 0, expected: tracked.length, findings: [] },
+    });
+    // THE COMPILER IS LAUNCHED AS A NODE SCRIPT, NEVER THROUGH THE `npx` SHIM (plan 33-19, CAP-02) — the
+    // identical launch `scripts/freshness.ts` has used since plan 33-06, and for the same reason: on
+    // Windows `npx` is `npx.cmd`, which a shell-less `spawnSync` cannot start, so the child never runs,
+    // `status` is null and `error` is set. The compiler's own entry (`typescript/lib/tsc.js`, what
+    // `bin/tsc` requires) is resolved through this module's require chain and run by the node that is
+    // running this check: no shim, no shell, no host branch — one launch on every platform. An entry
+    // that cannot be resolved is a refusal that names THAT layer, distinct from a compile that ran and
+    // refused, and distinct from a launch that produced no child. No `--outDir`: this gate rebuilds IN
+    // PLACE by design (tsconfig's `outDir` is `./`), because its subject is whether the tracked outputs
+    // MOVE when the build runs.
+    let tscEntry;
+    try {
+        tscEntry = createRequire(import.meta.url).resolve("typescript/lib/tsc.js");
+    }
+    catch (e) {
+        return nothingStated("the compiler could not be located from this checkout " +
+            `(${e instanceof Error ? e.message : String(e)}), so this check states nothing about the build outputs`);
+    }
+    const build = spawnSync(process.execPath, [tscEntry], { cwd: root, encoding: "utf8" });
+    if (build.error !== undefined || build.status !== 0) {
         // THE SPAWN'S OWN ERROR IS PART OF THE DETAIL (32.1-14, review IN-01). `spawnSync` reports two
         // different failures through two different fields, and only one of them was being read. A
-        // compiler that RAN and refused fills `stdout`/`stderr`; a compiler that never started — `npx`
-        // resolving as `npx.cmd` on Windows is the recorded case — fills neither and sets `error`
-        // instead, leaving `status` null. The `!== 0` test correctly failed closed on that, and then
-        // told the operator "the build did not complete" and nothing else. Appended rather than
-        // substituted, because a failure can legitimately carry both.
+        // compiler that RAN and refused fills `stdout`/`stderr`; a compiler that never started fills
+        // neither and sets `error` instead, leaving `status` null. The recorded case was `npx` resolving
+        // as `npx.cmd` on Windows — no longer reachable from this module, which is the reason the launch
+        // above moved off the shim (plan 33-19); the case that remains is a node that cannot be spawned.
+        // The `!== 0` test correctly failed closed on that, and then told the operator "the build did not
+        // complete" and nothing else. Appended rather than substituted, because a failure can legitimately
+        // carry both.
         const detail = [`${build.stdout ?? ""}${build.stderr ?? ""}`.trim(), build.error?.message ?? ""]
             .filter((part) => part !== "")
             .join("\n")
             .trim();
-        return {
-            buildFailure: "the build did not complete, so this check states nothing about the build outputs" +
-                (detail === "" ? "" : `:\n${detail}`),
-            measured: {
-                label: "Build parity",
-                visited: 0,
-                expected: tracked.length,
-                findings: [],
-            },
-        };
+        return nothingStated("the build did not complete, so this check states nothing about the build outputs" +
+            (detail === "" ? "" : `:\n${detail}`));
     }
     const moved = new Set(movedBuildOutputs(root));
     const findings = [];
