@@ -600,6 +600,9 @@ export interface HostCapability {
 /** The row label this gate's own capability probes are recorded under. */
 export const CAPABILITY_POSITION = "host capability probe";
 
+/** The capability the control-byte fixtures measure; named once so the tests and the probe agree. */
+export const CONTROL_BYTE_NAME_CAPABILITY = "control byte in a path component";
+
 const deniedBy = (e: unknown): boolean => {
   const code = (e as NodeJS.ErrnoException).code;
   return code === "EACCES" || code === "EPERM";
@@ -640,7 +643,7 @@ export const HOST_CAPABILITIES: readonly HostCapability[] = Object.freeze([
     },
   },
   {
-    name: "control byte in a path component",
+    name: CONTROL_BYTE_NAME_CAPABILITY,
     reasonWhenAbsent:
       "this platform refuses a path component carrying a byte below 0x20 (Windows reports ENOENT " +
       "or EINVAL for it), so a fixture whose name carries one cannot be staged",
@@ -679,6 +682,26 @@ export function stageSymlinkOrSkip(target: string, at: string, shape: string, po
   }
 }
 
+/**
+ * Stage a fixture whose NAME the platform may refuse — a path component carrying a control byte —
+ * through the caller's own `construct`. Returns `null` when it was staged, or the skip entry when
+ * the platform refused the name: the codes windows-latest reported for `repo\u0001x/plans` and
+ * `a\n` (ENOENT, or EINVAL). Any other error is the caller's bug and is rethrown. The
+ * `FORCE_ABSENT` seam names the capability the same way it names a shape.
+ */
+export function stageNameOrSkip(construct: () => void, position: string): SkipEntry | null {
+  const entry = capabilitySkipEntry(CONTROL_BYTE_NAME_CAPABILITY, position);
+  if (forcedAbsent().has(CONTROL_BYTE_NAME_CAPABILITY)) return entry;
+  try {
+    construct();
+    return null;
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "EINVAL") return entry;
+    throw e;
+  }
+}
+
 /** The capability named `name`; an unknown name THROWS for the same reason `shapeNamed` does. */
 export function capabilityNamed(name: string): HostCapability {
   const cap = HOST_CAPABILITIES.find((c) => c.name === name);
@@ -689,6 +712,15 @@ export function capabilityNamed(name: string): HostCapability {
     );
   }
   return cap;
+}
+
+/**
+ * Whether the `FORCE_ABSENT` seam names this capability. A test that MEASURES the capability on
+ * its own fixture (the chmod idiom) asks this first, so its skip arm is drivable on a host that
+ * honours the mode — the same reachability `stageShapeOrSkip` gives a shape's skip arm.
+ */
+export function isForcedAbsent(name: string): boolean {
+  return forcedAbsent().has(name);
 }
 
 /** The skip entry a TEST prints when its OWN measurement found the capability absent. */

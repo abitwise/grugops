@@ -18,6 +18,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { skipEntry, skipLine, stageNameOrSkip } from "./check-platform-shapes.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-nul-bytes.js");
@@ -276,10 +277,28 @@ describe("check-nul-bytes — the REFUSAL half, watched failing against a real t
     // prints counts and not paths.
     const weird = "a\nb.md";
     const root = repoWith({ "tracked.md": "# clean\n" });
-    writeFileSync(join(root, weird), "# clean\n");
-    const added = spawnSync("git", ["add", "--", weird], { cwd: root });
-    // Some filesystems refuse a newline in a name; skip rather than assert a platform fact.
-    if (added.status !== 0) return;
+    // A FILENAME THE HOST REFUSES IS A PLATFORM SHAPE, NOT A TEST DEFECT (plan 33-05, D-16). On
+    // windows-latest (run 35394268365) this `writeFileSync` died with `ENOENT … open '…\a<newline>'`
+    // before the silent `return` below could fire. The construction goes through the corpus helper
+    // and a refusal is PRINTED as the platform-shape remainder row — the gate's own probe of the
+    // same capability is where the absence is counted — and the case returns.
+    const POSITION = "scripts/check-nul-bytes.test.ts: a tracked file named a<newline>b.md";
+    const refused = stageNameOrSkip(() => writeFileSync(join(root, weird), "# clean\n"), POSITION);
+    if (refused !== null) {
+      console.warn(skipLine(refused, "the -z agreement asserted over ordinary names by every other REFUSAL case, and the real-tree cross-check"));
+      return;
+    }
+    const added = spawnSync("git", ["add", "--", weird], { cwd: root, encoding: "utf8" });
+    // git itself may refuse the name where the filesystem did not; printed, never silent.
+    if (added.status !== 0) {
+      console.warn(
+        skipLine(
+          skipEntry("control byte in a path component (git add)", POSITION, `git on this host refused to add a filename carrying a newline: ${(added.stderr ?? "").trim()}`),
+          "the -z agreement asserted over ordinary names by every other REFUSAL case",
+        ),
+      );
+      return;
+    }
 
     const zPaths = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
       .stdout.split("\0")
@@ -545,6 +564,63 @@ describe("check-nul-bytes — the NON-VACUITY half, against the REAL tree", () =
     const tracked = mod.trackedPaths();
     const scannedCount = mod.nulFreeTrackedFiles().length + mod.scanTracked(tracked).hits.length;
     expect(scannedCount).toBe(tracked.length);
+  });
+
+  /**
+   * The tracked text files (index side `i/lf` in `git ls-files --eol`) whose `eol` attribute is
+   * UNSPECIFIED — the set that checks out CRLF under core.autocrlf=true and then reds this gate on
+   * 0x0d. Derived from git's two views of the tree, never from a list of names.
+   */
+  function unpinnedLfTextFiles(root: string): string[] {
+    const eol = spawnSync("git", ["ls-files", "--eol", "-z"], { cwd: root, encoding: "utf8" });
+    expect(eol.status, `git ls-files --eol failed: ${eol.stderr}`).toBe(0);
+    const lfText = eol.stdout
+      .split("\0")
+      .filter((row) => row.length > 0)
+      .filter((row) => /(^|\s)i\/lf(\s|$)/.test(row.slice(0, row.indexOf("\t"))))
+      .map((row) => row.slice(row.indexOf("\t") + 1));
+    expect(lfText.length, "PREMISE: the tree has no LF text files at all, so nothing below is measured").toBeGreaterThan(0);
+    const attrs = spawnSync("git", ["check-attr", "-z", "eol", "--stdin", "-z"], {
+      cwd: root,
+      encoding: "utf8",
+      input: `${lfText.join("\0")}\0`,
+    });
+    expect(attrs.status, `git check-attr failed: ${attrs.stderr}`).toBe(0);
+    // `-z` output: path NUL attr NUL value NUL, repeated.
+    const fields = attrs.stdout.split("\0");
+    const unpinned: string[] = [];
+    for (let i = 0; i + 2 < fields.length; i += 3) {
+      if (fields[i + 1] === "eol" && fields[i + 2] === "unspecified") unpinned.push(fields[i] as string);
+    }
+    return unpinned.sort();
+  }
+
+  it("every tracked LF text file carries an eol pin — the CRLF-checkout class is refused on EVERY host, not only on windows-latest", () => {
+    // MEASURED on windows-latest, run 35394268365: `152 byte(s) across 13 of the 2364 tracked
+    // file(s)`, every one 0x0d, every one a file the per-extension pins in .gitattributes did not
+    // reach (`.gitattributes`, `.gitignore`, two `.gitkeep`, LICENSE, NOTICE, agent-factory/VERSION,
+    // five brand/*.svg, a fixture *.jsonl). core.autocrlf=true on that runner checked them out CRLF
+    // and this gate refused them — the checkout, not the blobs, which this host reads as LF. The
+    // pins now cover them; this case re-derives the unpinned set so the NEXT unpinned text class
+    // reds here rather than on one CI leg (plan 33-05, CAP-02).
+    const unpinned = unpinnedLfTextFiles(ROOT);
+    expect(
+      unpinned,
+      "a tracked LF text file has no `eol` attribute; under core.autocrlf=true it checks out CRLF and this gate refuses its 0x0d bytes — pin it in .gitattributes",
+    ).toEqual([]);
+  });
+
+  it("the unpinned-set derivation SEES an unpinned file — a throwaway tree with no .gitattributes names its extensionless text file", () => {
+    // The converse: a derivation that returned [] over every tree would make the case above vacuous.
+    const root = repoWith({ LICENSE: "MIT\n", "notes.md": "# pinned by nothing here either\n" });
+    const unpinned = unpinnedLfTextFiles(root);
+    expect(unpinned).toEqual(["LICENSE", "notes.md"]);
+    // …and a pin makes it disappear, so the predicate reads the attribute and not the name. The
+    // pin file pins itself: an unpinned `.gitattributes` is exactly one of the thirteen windows-latest
+    // refused, and the first draft of this case measured the derivation reporting it.
+    writeFileSync(join(root, ".gitattributes"), "LICENSE text eol=lf\n*.md text eol=lf\n.gitattributes text eol=lf\n");
+    spawnSync("git", ["add", "-A"], { cwd: root });
+    expect(unpinnedLfTextFiles(root)).toEqual([]);
   });
 
   it("git's own classifier is CROSS-CHECKED and parses cleanly — the corroborating source is understood", () => {

@@ -47,6 +47,7 @@ import ts from "typescript";
 import { closureTargets } from "./js-import-closure.js";
 import {
   capabilitySkipEntry,
+  isForcedAbsent,
   skipEntry,
   skipLine,
   stageShapeOrSkip,
@@ -9858,17 +9859,23 @@ describe("31-21 CONTROL 4 — the governance-config reader answers identically a
     chmodSync(configPath(root), 0o000);
     try {
       // Running as root defeats mode bits entirely; the case then measures nothing and says so.
-      let openable = true;
+      let openable = isForcedAbsent("chmod 000 enforcement");
       try {
         readFileSync(configPath(root), "utf8");
+        openable = true;
       } catch {
-        openable = false;
+        // denied — unless the seam says otherwise
       }
       if (openable) {
-        expect(
-          process.getuid?.(),
-          "PREMISE: a 000-mode file was readable and this process is not root — the case cannot run",
-        ).toBe(0);
+        // Taken ON THE MEASUREMENT (plan 33-05, D-16): root, or a host whose chmod maps onto a
+        // read-only attribute (windows-latest, where this premise was red as "not root"). Printed
+        // in the platform-shape remainder's format and counted by the gate's own probe.
+        console.warn(
+          skipLine(
+            capabilitySkipEntry("chmod 000 enforcement", "scripts/context-io.test.ts: EACCES config (31-21 CONTROL 4)"),
+            "the FIFO and DIRECTORY cases beside this one, which reach the same `unreadable` verdict",
+          ),
+        );
         return;
       }
       const g = mod.readGovernanceConfig(root);
@@ -13911,6 +13918,9 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
       "unopenable",
       "bb-unopenable.md",
       (p) => {
+        if (isForcedAbsent("chmod 000 enforcement")) {
+          return capabilitySkipEntry("chmod 000 enforcement", "scripts/context-io.test.ts: the `unopenable` plant (31-33 CR-24)");
+        }
         writeFileSync(p, "whatever\n");
         chmodSync(p, 0o000);
         if (eaccesIsDenied(p)) return null;
@@ -13984,7 +13994,7 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
     const probe = join(freshTmp("p31-33-eacces-premise-"), "denied");
     writeFileSync(probe, "x");
     chmodSync(probe, 0o000);
-    const denied = eaccesIsDenied(probe);
+    const denied = eaccesIsDenied(probe) && !isForcedAbsent("chmod 000 enforcement");
     chmodSync(probe, 0o600);
     // A root-equivalent process — or windows-latest, where chmod maps onto a read-only attribute —
     // reads it anyway. Taken ON THE MEASUREMENT (plan 33-05, D-16): the absence is printed in the

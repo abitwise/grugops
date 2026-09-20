@@ -41,3 +41,23 @@ docs/catalog/README.md text eol=lf
 *.yaml text eol=lf
 *.sh   text eol=lf
 *.txt  text eol=lf
+
+# Pin the tracked text files that carry NO extension, plus the SVG and JSONL classes, to LF.
+# Root cause (2026-09-18, CI run 35394268365, windows-latest): the per-extension pins above left
+# 13 tracked text files unpinned — `.gitattributes`, `.gitignore`, the `.gitkeep` placeholders,
+# LICENSE, NOTICE, agent-factory/VERSION, five brand/*.svg and a fixture *.jsonl — so under the
+# runner's core.autocrlf=true they checked out CRLF, and `check:nul-bytes` (which forbids 0x0d)
+# refused every one of them: "152 byte(s) across 13 of the 2364 tracked file(s)". Not drift, not a
+# NUL — the checkout. The set below is DERIVED, not guessed: `git ls-files --eol` rows whose index
+# side is `i/lf` and whose `eol` attribute `git check-attr` reports unspecified; a case in
+# scripts/check-nul-bytes.test.ts re-derives that set on every host and refuses a tracked text
+# file that is not pinned, so the next unpinned class reds here and not only on windows-latest
+# (plan 33-05, CAP-02).
+*.svg          text eol=lf
+*.jsonl        text eol=lf
+.gitattributes text eol=lf
+.gitignore     text eol=lf
+.gitkeep       text eol=lf
+LICENSE        text eol=lf
+NOTICE         text eol=lf
+VERSION        text eol=lf

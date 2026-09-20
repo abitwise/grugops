@@ -62,6 +62,13 @@ import {
 } from "./board-read.js";
 import { CONFLICT_KINDS, TICKET_REFUSAL_CODES } from "./board-model.js";
 import { MAX_WALK_ENTRIES } from "./kit-model.js";
+import {
+  capabilitySkipEntry,
+  isForcedAbsent,
+  skipLine,
+  stageNameOrSkip,
+  type SkipEntry,
+} from "./check-platform-shapes.js";
 import type { SnapshotResult, SourceState } from "./board-read.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -95,6 +102,46 @@ const TWO_COLUMNS = `${ONE_COLUMN}## Done (WIP unlimited)\n- [ABC-001] Shipped\n
 
 /** Running as root defeats a mode-0 file: the open succeeds and the case measures nothing. */
 const IS_ROOT = typeof process.getuid === "function" && process.getuid() === 0;
+
+/**
+ * THE MODE PRECONDITION, MEASURED (plan 33-05, D-16). Sets `path` to `mode` and asks whether THIS
+ * process is now denied by `probe` (`EACCES` or `EPERM`). Denied: returns `null` and leaves the mode
+ * in place for the case, which restores it. Not denied — a privileged account, or a host whose
+ * `chmod` maps onto a read-only attribute (windows-latest, where three of these premises were red
+ * on run 35394268365) — restores `restoreTo` and returns the platform-shape remainder row, which the
+ * case prints and then returns. The branch is taken on the measurement, never on the platform name,
+ * and the reason is the corpus's own (`HOST_CAPABILITIES`, "chmod 000 enforcement"), so the same
+ * absence the gate counts on its own run is what this file prints.
+ */
+function denyModeOrSkip(
+  path: string,
+  mode: number,
+  restoreTo: number,
+  probe: () => void,
+  position: string,
+): SkipEntry | null {
+  // The seam first, without touching the mode: the skip arm is then watchable on a host that
+  // honours chmod, exactly as a shape's skip arm is.
+  if (isForcedAbsent("chmod 000 enforcement")) {
+    return capabilitySkipEntry("chmod 000 enforcement", `scripts/board-read.test.ts: ${position}`);
+  }
+  chmodSync(path, mode);
+  let denied = false;
+  try {
+    probe();
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    denied = code === "EACCES" || code === "EPERM";
+  }
+  if (denied) return null;
+  chmodSync(path, restoreTo);
+  return capabilitySkipEntry("chmod 000 enforcement", `scripts/board-read.test.ts: ${position}`);
+}
+
+/** The route that still pins each mode-denied predicate below when this host cannot deny. */
+const MODE_PINNED_BY =
+  "the ENOENT / refused-document / tampered-record cases beside each mode case, which drive the same " +
+  "per-source staleness and readErrors arms without a privilege";
 
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 // TASK 1 — READ-VERIFY-REREAD, PER-SOURCE STALENESS, AND THE LAST-GOOD CARRY-FORWARD.
@@ -193,18 +240,12 @@ describe("readVerifyReread — stat, read, stat (D-11, DASH-05)", () => {
   it.skipIf(IS_ROOT)("reports `eacces` for a file whose mode denies the open", () => {
     withTempTree((dir) => {
       const path = plantBoard(dir, ONE_COLUMN);
-      chmodSync(path, 0o000);
-      let denied = false;
-      try {
-        readFileSync(path, "utf8");
-      } catch {
-        denied = true;
+      // PREMISE, MEASURED: a mode-0 file this process still reads is a printed, counted skip.
+      const skipped = denyModeOrSkip(path, 0o000, 0o644, () => readFileSync(path, "utf8"), "readVerifyReread eacces");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
       }
-      expect(
-        denied,
-        "PREMISE: the mode-0 file was still readable, so this case measured a successful read " +
-          "rather than a denied one",
-      ).toBe(true);
 
       const read = readVerifyReread(path);
       expect(read.ok).toBe(false);
@@ -418,14 +459,11 @@ describe("readSnapshot — the carry-forward is threaded, not module state (D-11
       const first = readSnapshot(dir);
       expect(first.snapshot.sources.board.source, "PREMISE: the first read was not `ok`").toBe("ok");
 
-      chmodSync(path, 0o000);
-      let denied = false;
-      try {
-        readFileSync(path, "utf8");
-      } catch {
-        denied = true;
+      const skipped = denyModeOrSkip(path, 0o000, 0o644, () => readFileSync(path, "utf8"), "readSnapshot keeps the previous board on eacces");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
       }
-      expect(denied, "PREMISE: the mode-0 board was still readable").toBe(true);
 
       const second = readSnapshot(dir, first);
       const board = second.snapshot.sources.board;
@@ -865,7 +903,11 @@ describe("board-read — the tickets walk is a TOTAL partition over its own list
       plantTicket(dir, "ABC-014.md", ADMITTED_TICKET);
       // A mode-0 file: the bytes cannot be obtained, which is exit two and DOES degrade the source.
       const denied = plantTicket(dir, "ABC-500.md", ADMITTED_TICKET);
-      chmodSync(denied, 0o000);
+      const skipped = denyModeOrSkip(denied, 0o000, 0o644, () => readFileSync(denied, "utf8"), "a PATH-authority refusal carried into the unadmitted half");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
+      }
       try {
         const settled = readTicketsSource(dir, AT, undefined, {});
         expect(settled.unadmitted.map((u) => u.id)).toEqual(["ABC-500"]);
@@ -1745,14 +1787,23 @@ function plantTicketDoc(dir: string, id: string, column: string, status: string)
   );
 }
 
-/** Build a tree whose board rows all have ticket files, then run `run` with `plans/tickets` at 000. */
+/**
+ * Build a tree whose board rows all have ticket files, then run `run` with `plans/tickets` at 000.
+ * The mode is MEASURED first (plan 33-05, D-16): where this host does not deny the listing, the
+ * remainder row is printed and `run` is not called — every case in the block below would otherwise
+ * measure a directory that read cleanly.
+ */
 function withDeniedTicketsDir(run: (dir: string, ticketsDir: string) => void): void {
   withTempTree((dir) => {
     plantBoard(dir, TICKETED_BOARD);
     plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
     plantTicketDoc(dir, "ABC-102", "Done", "done");
     const ticketsDir = join(dir, "plans", "tickets");
-    chmodSync(ticketsDir, 0o000);
+    const skipped = denyModeOrSkip(ticketsDir, 0o000, 0o755, () => readdirSync(ticketsDir), "a denied plans/tickets/ listing (32-09 CR-02)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, MODE_PINNED_BY));
+      return;
+    }
     try {
       run(dir, ticketsDir);
     } finally {
@@ -1764,6 +1815,9 @@ function withDeniedTicketsDir(run: (dir: string, ticketsDir: string) => void): v
 
 describe("board-read — a denied `plans/tickets/` is stale, not absent (plan 32-09, CR-02)", () => {
   it.skipIf(IS_ROOT)("PREMISE: the mode actually denies the listing", () => {
+    // `withDeniedTicketsDir` measures the mode and prints the skip where it is not honoured; where
+    // it IS, the listing is denied by construction, re-measured here so the block's premise is a
+    // statement about this run and not about the helper.
     withDeniedTicketsDir((_dir, ticketsDir) => {
       let denied = false;
       try {
@@ -1976,7 +2030,11 @@ describe("board-read — an unreadable claimed stage is stale, not 'nothing clai
     withTempTree((dir) => {
       plantBoard(dir, ONE_COLUMN);
       const claimedDir = plantClaimedStage(dir, "abc-104-implement", CLAIM_BODY);
-      chmodSync(claimedDir, 0o000);
+      const skipped = denyModeOrSkip(claimedDir, 0o000, 0o755, () => readdirSync(claimedDir), "an unreadable claimed stage (32-09)");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
+      }
       try {
         const result = readSnapshot(dir);
         expect(
@@ -2015,7 +2073,11 @@ describe("board-read — an unreadable context directory is stale, not empty (pl
       plantBoard(dir, ONE_COLUMN);
       const contextDir = join(dir, ".grugops", "context");
       mkdirSync(join(contextDir, "abc-104-implement"), { recursive: true });
-      chmodSync(contextDir, 0o000);
+      const skipped = denyModeOrSkip(contextDir, 0o000, 0o755, () => readdirSync(contextDir), "an unreadable .grugops/context listing (32-09)");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
+      }
       try {
         const result = readSnapshot(dir);
         expect(result.snapshot.sources.context.source).not.toBe("ok");
@@ -2036,7 +2098,11 @@ describe("board-read — an unreadable context directory is stale, not empty (pl
       mkdirSync(taskDir, { recursive: true });
       // Denying the PARENT is what makes the stat of the child fail with EACCES while the listing
       // of the parent still succeeds — the exact shape the bare `catch` at the stat swallowed.
-      chmodSync(contextDir, 0o444);
+      const skipped = denyModeOrSkip(contextDir, 0o444, 0o755, () => statSync(taskDir), "a task directory whose parent mode denies the stat (32-09)");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
+      }
       try {
         const result = readSnapshot(dir);
         const contextErrors = result.readErrors.filter((e) => e.source === "context");
@@ -2413,7 +2479,11 @@ describe("board-read — a per-ENTRY read failure degrades the whole source (pla
       plantBoard(dir, TICKETED_BOARD);
       const denied = plantTicketDoc(dir, "ABC-101", "Backlog", "backlog");
       plantTicketDoc(dir, "ABC-102", "Done", "done");
-      chmodSync(denied, 0o000);
+      const skipped = denyModeOrSkip(denied, 0o000, 0o644, () => readFileSync(denied, "utf8"), "ONE denied ticket file (32-09 per-entry)");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
+      }
       try {
         const result = readSnapshot(dir);
         // PREMISE: the DIRECTORY still lists cleanly, so this case is about the file and not about
@@ -2479,7 +2549,11 @@ describe("board-read — a per-ENTRY read failure degrades the whole source (pla
       plantBoard(dir, ONE_COLUMN);
       const claimPath = plantClaim(dir, "abc-104-implement", CLAIM_BODY);
       plantClaim(dir, "abc-106-implement", CLAIM_BODY);
-      chmodSync(claimPath, 0o000);
+      const skipped = denyModeOrSkip(claimPath, 0o000, 0o644, () => readFileSync(claimPath, "utf8"), "ONE denied claim record (32-09 per-entry)");
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, MODE_PINNED_BY));
+        return;
+      }
       try {
         const result = readSnapshot(dir);
         expect(
@@ -4701,7 +4775,19 @@ function measureClaimSentence32112(
   try {
     const plantedEntry = `repo${point}x`;
     const root = join(parent, plantedEntry);
-    mkdirSync(join(root, "plans"), { recursive: true });
+    // A FILENAME THE HOST REFUSES IS A PLATFORM SHAPE, NOT A TEST DEFECT (plan 33-05, D-16). The
+    // construction is attempted through the corpus helper: windows-latest refused `repo\u0001x`
+    // with ENOENT on run 35394268365 while it accepted the C1 points, so each point is measured on
+    // its own. A refusal prints the platform-shape remainder row — the gate's own probe of the same
+    // capability is where a reader sees the absence counted — and the case returns.
+    const refused = stageNameOrSkip(
+      () => mkdirSync(join(root, "plans"), { recursive: true }),
+      `scripts/board-read.test.ts: 32.1-12 planted entry repo<U+${point.codePointAt(0)?.toString(16).toUpperCase().padStart(4, "0") ?? "?"}>x`,
+    );
+    if (refused !== null) {
+      console.warn(skipLine(refused, "the C1 points of this same block, which every host stages, and the renderer's own spelling cases"));
+      return;
+    }
     writeFileSync(join(root, "plans", "board.md"), ONE_COLUMN, "utf8");
 
     const task = kind === "no-at" ? "task-no-at" : "task-tampered";
@@ -4882,7 +4968,15 @@ function measureComposedSentence32113(
   try {
     const plantedEntry = `repo${point}x`;
     const root = join(parent, plantedEntry);
-    mkdirSync(join(root, "plans"), { recursive: true });
+    // As in 32.1-12 above: a refused name is a printed, counted platform shape (plan 33-05).
+    const refused = stageNameOrSkip(
+      () => mkdirSync(join(root, "plans"), { recursive: true }),
+      `scripts/board-read.test.ts: 32.1-13 planted entry repo<U+${point.codePointAt(0)?.toString(16).toUpperCase().padStart(4, "0") ?? "?"}>x (${arm})`,
+    );
+    if (refused !== null) {
+      console.warn(skipLine(refused, "the C1 points of this same block, which every host stages"));
+      return;
+    }
     writeFileSync(join(root, "plans", "board.md"), ONE_COLUMN, "utf8");
     plant(root);
 
