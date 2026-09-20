@@ -1,26 +1,25 @@
-// uat-live.test.ts — Phase 19 Tier-2 GATED headless E2E harness (UAT-AUTO-02 / UAT-AUTO-04).
+// uat-live.test.ts — the Tier-2 GATED live lane, in its thin-wrapper form (Phase 33, D-08).
 //
-// This is the honest live-runtime half of the auto-UAT harness. It drives the REAL `claude` CLI
-// headlessly (`claude --print`) through the three deferred live-runtime UATs that an executor agent
-// cannot self-perform:
+// This file drives nothing. The ONE runner, scripts/capture-live.ts (committed twin
+// scripts/capture-live.js), performs the install onto the fixture project, the two bounded headless
+// runs of the real `claude` CLI, the redaction, the summary derivation and the outcome line. This
+// lane invokes that runner as a child with an arg array and asserts over the ARTIFACT it wrote —
+// the capture summary — never over the child's standard output. The artifact is what gets committed
+// and reviewed; a lane that asserted on stdout would be asserting on bytes nobody files.
 //
-//   A1      (D-31)  plugin-cache pointer resolution: install the grugops plugin into a throwaway
-//                   temp repo and confirm `/grugops:plan …` resolves the repo-relative pointers and
-//                   produces planning/Orchestrator output rather than a plugin-cache path error.
-//   A2-live (SAFE-02 / V14)  live PreToolUse deny: drive a HARMLESS matched deploy probe with NO
-//                   GRUGOPS_PROD_DEPLOY_APPROVED set and assert the clear-voice deny string fires.
-//   A3-live (DOG-02) dual-path dispatch parity: drive the SAME ticket (ABC-001) through the
-//                   sequential and the sub-agent dispatch paths and assert both converge on the same
-//                   frozen on-disk gate VERDICT STRING — the D-05 equivalence artifact (the on-disk
-//                   admitted-note set + verdict), NEVER the Phase-24/MIGR-02-deleted handoff filenames.
-//                   Byte-identical LLM prose is intentionally NOT asserted (D-05: live output is not
-//                   deterministic — the deterministic on-disk note-SET equivalence is the Tier-1
-//                   oracleDualPathEquivalence's job; this is its live confirmation).
-//   A3-live-N (DOGF-02, D-09) N-agent live confirmation: spawn N (= queue.wip_limit) REAL claude
-//                   dispatches against ONE shared absolute queue + context root (outside every cwd) and
-//                   assert the on-disk convergence — N distinct un-clobbered notes and the single-slot
-//                   task claimed exactly once — Tier-2 CONFIRMATION only (the deterministic gating proof
-//                   is scripts/worktree-dogfood.test.ts); loud-skips when unauthed.
+// What the summary assertions cover, mapped onto the historical case names so the ledger rows that
+// cite them still resolve:
+//
+//   A1      (D-31)  plugin-cache pointer resolution — the summary's plugin load report names the
+//                   plugin that loaded from the cache and records no plugin_errors.
+//   A2-live (SAFE-02 / V14)  live PreToolUse deny — the summary's deny observation row records the
+//                   prod-deploy deny as observed in a hook_response.stdout field (the CLI-emitted
+//                   channel, D-04), with the approval variable absent from the child environment.
+//   A3-live (DOG-02) dual-path dispatch parity — the summary's D-02 verdict holds in BOTH runs and
+//                   the D-07 equivalence diff list is empty.
+//   A3-live-N (DOGF-02) is no longer a case in this lane. Its deterministic gating proof is
+//                   scripts/worktree-dogfood.test.ts (unchanged); the runner's request routes work
+//                   to role agents and the D-02 predicate over the transcript is the live claim.
 //
 // THE HONESTY KEYSTONE (Constraint #6):
 // Every live assertion is gated behind a `claude auth status` probe (present AND authed). When the
@@ -28,18 +27,23 @@
 // LOUD_SKIP_MARKER sentinel via console.warn) and NEVER reports a silent green and NEVER flips a UAT
 // file. A skip is NOT a pass — the UAT stays pending. The loud-skip path is itself PROVEN below by a
 // `-t "loud-skip"` test that forces the probe false and asserts the exact sentinel, so a correct
-// loud-skip is distinguishable from a forbidden silent `it.skip` (both otherwise exit 0).
+// loud-skip is distinguishable from a forbidden silent `it.skip` (both otherwise exit 0). A loud
+// skip is never a capture: in the skipped state this file invokes no runner, writes no artifact
+// directory, and accepts no summary.
 //
 // SAFETY (mirrors docs/dogfood-human-runbook.md, non-negotiable):
-//   - The harness NEVER sets or exports GRUGOPS_PROD_DEPLOY_APPROVED (V14 — the self-approve keystone).
-//   - The A2-live probe uses a harmless guaranteed-matched command (`helm upgrade fake ./nope`),
-//     NEVER `kubectl apply` against a real kube-context.
-//   - The A1 install is scoped to a throwaway mkdtemp repo with `--scope local`, and `afterAll`
-//     cleans up (uninstall + marketplace remove + rmSync) so the developer's real claude config is
-//     not polluted.
+//   - The harness NEVER sets or exports the prod-deploy approval variable (V14 — the self-approve
+//     keystone). Its name is imported from the deny matcher as PROD_DEPLOY_REASON_SIGNATURE; this
+//     file carries no literal spelling and no assignment of it, and the environment OBJECT handed to
+//     the runner child is asserted not to define it at run time, before the spawn.
+//   - The deny probe the runner makes is the harmless guaranteed-matched command
+//     (`helm upgrade fake ./nope`), NEVER `kubectl apply` against a real kube-context.
+//   - The runner installs the plugin at local scope into mkdtemp targets it removes itself; this
+//     file's `afterAll` keeps the lane's own best-effort cleanup so the developer's real claude
+//     config is not polluted even when the runner dies mid-way.
 //
 // THIS HARNESS NEVER FLIPS A UAT FILE. A UAT status flips to passed/resolved only from a real run's
-// captured output, done by a human / the verifier — never by this test (Plan 03a/03b owns that).
+// captured output, done by a human / the verifier — never by this test (plan 33-11 owns the flip).
 //
 // dev/CI-only: the `claude` CLI + auth is a developer/CI prerequisite, NEVER a host runtime
 // dependency. This lane is kept OUT of the default `npm test` green path via the `test:e2e` script,
@@ -53,21 +57,26 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, cpSync, rmSync, writeFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-// SINGLE-SOURCE prod-deploy-deny matcher (SAFE-02 / T-26-A2): the A2 live case asserts the deny via this
-// STRUCTURAL, markdown-insensitive matcher (anchored on the guard's machine-readable
-// "permissionDecision":"deny" marker), never an exact-substring match against the model's narrated prose.
-// Imported from the committed .js twin (matching how this file imports other committed .js).
-import { prodDeployDenyFired } from "../prod-deploy-deny-match.js";
+// The approval variable's NAME, imported from the single-source deny matcher so this file spells it
+// nowhere. It is referenced ONLY to assert it is absent from the environment handed to the runner.
+import { PROD_DEPLOY_REASON_SIGNATURE } from "../prod-deploy-deny-match.js";
+// The runner's own surface: artifact names, the frozen outcome-line grammar, the run labels. Imported
+// from the committed .js twin (matching how this file imports other committed .js), so the wrapper
+// and the runner cannot disagree about what the summary is called or how its outcome line reads.
+import {
+  CAPTURE_SUMMARY_NAME,
+  OUTCOME_LINE_RE,
+  OUTCOME_LINE_SCAN_RE,
+  RUN_LABELS,
+  captureTranscriptName,
+} from "../capture-live.js";
 
 // Repo root = this file's parent's parent (scripts/e2e/ -> repo root).
 const ROOT = join(import.meta.dirname, "..", "..");
-
-// The frozen safety env var. It is referenced here ONLY to assert it is NEVER set — never assigned,
-// never injected via `env:`. The A2-live deny fires BECAUSE this variable is absent.
-const APPROVAL = "GRUGOPS_PROD_DEPLOY_APPROVED";
+const RUNNER = join(ROOT, "scripts", "capture-live.js");
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The honesty gate — a STUBBABLE, EXPORTED probe + the single loud-skip decision point.
@@ -168,7 +177,8 @@ describe("loud-skip path (BLOCKER 2 — the honesty keystone is proven, not assu
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 const LIVE = emitLoudSkipIfUnavailable();
 
-// One throwaway scope for the whole live lane; cleaned in afterAll regardless of pass/fail.
+// One throwaway scope for the whole live lane; cleaned in afterAll regardless of pass/fail. It is
+// the runner's artifact destination unless UAT_E2E_ARTIFACT_DIR names one (see `artifactDir`).
 let tmpRepo = "";
 
 // Per-call budget for agentic `claude -p` sessions. Configurable via env so a longer real run can
@@ -177,43 +187,77 @@ let tmpRepo = "";
 // and the marker assertion fails honestly — the UAT cell stays pending, never fabricated.
 const CALL_TIMEOUT_MS = Number(process.env.UAT_E2E_CALL_TIMEOUT_MS) || 300_000;
 
-// liveTimeoutMs — DERIVE each live case's vitest per-test timeout FROM CALL_TIMEOUT_MS so the two
-// bounds can never desync again (A1 fix). vitest.config.ts sets no `testTimeout`, so each live `it()`
-// would otherwise inherit vitest's built-in 5000ms default while each claudePrint is bounded at
-// CALL_TIMEOUT_MS (300s); vitest cannot interrupt the synchronous spawnSync, so it reports a 5s
-// timeout yet blocks for minutes. The `it()` 4th-arg per-test timeout (the only in-repo idiom,
-// worktree-dogfood.test.ts:210) is the fix. `nClaudeCalls` = the number of claudePrint calls in the
-// case; `extraMs` folds in the fixed-budget install/cleanup spawns. Raising UAT_E2E_CALL_TIMEOUT_MS
-// now raises BOTH bounds together (constraint 5 — they can never desync).
+// liveTimeoutMs — DERIVE the runner case's vitest per-test timeout FROM CALL_TIMEOUT_MS so the two
+// bounds can never desync again (A1 fix). vitest cannot interrupt the synchronous spawnSync that
+// waits on the runner, so a per-test bound below the runner's own would report a timeout yet block
+// for the runner's full duration. The `it()` 4th-arg per-test timeout (the in-repo idiom,
+// worktree-dogfood.test.ts:210) is the fix. `nClaudeCalls` = the number of platform calls the runner
+// makes (one per run label); `extraMs` folds in the runner's fixed-budget precheck, installs and
+// plugin operations. Raising the bound raises BOTH numbers together (constraint 5).
 function liveTimeoutMs(nClaudeCalls: number, extraMs = 0): number {
   return nClaudeCalls * CALL_TIMEOUT_MS + extraMs;
 }
 
-// WIP_LIMIT — the N-agent fan-out width, hoisted to module scope (read from the real factory config,
-// D-08 — never hard-coded) so BOTH the A3-N per-test timeout arg and the A3-N body read ONE source and
-// can never disagree.
-const WIP_LIMIT = (
-  JSON.parse(
-    readFileSync(join(ROOT, "agent-factory", "config", "factory.config.json"), "utf8"),
-  ) as { queue: { wip_limit: number } }
-).queue.wip_limit;
+// artifactDir — where the runner is told to write the summary and the redacted transcripts. The
+// scratch directory by default, removed in afterAll. UAT_E2E_ARTIFACT_DIR, when set, names a
+// directory that is NOT removed, so a red live run leaves its artifacts on disk to be filed and
+// diagnosed at zero tokens (D-11) instead of vanishing with the scratch. The value reaches the
+// runner only as one element of an arg array — never through a shell.
+function artifactDir(): string {
+  const named = process.env.UAT_E2E_ARTIFACT_DIR;
+  return named !== undefined && named !== "" ? named : tmpRepo;
+}
 
-// Helper: run the real `claude` CLI in print mode with arg arrays (never a shell on the data
-// path — ASVS V5 / command-injection). Returns combined stdout for marker assertions.
-function claudePrint(args: string[], cwd: string): { status: number | null; out: string } {
-  const r = spawnSync("claude", args, {
-    cwd,
+// The summary text, read once by the runner case and shared with the assertion cases below. It is
+// `null` until the runner has written the artifact; every assertion case refuses a null rather than
+// treating an absent summary as anything but a red (a loud skip or a dead runner is never a capture).
+let summaryText: string | null = null;
+
+function requireSummary(): string {
+  if (summaryText === null) {
+    throw new Error(
+      `no capture summary was read — the runner case did not complete (${CAPTURE_SUMMARY_NAME} absent under ${artifactDir() || "(no artifact directory)"}); an absent summary is a red, never a pass`,
+    );
+  }
+  return summaryText;
+}
+
+// Markdown table rows are the summary's machine-readable cells (the runner's --verify-artifacts
+// keys on the same shape). A row is `| label | value | ... |`; this returns the trimmed cells of the
+// first row whose first cell equals `label`, or null. No markdown heading is read anywhere in this
+// file: locating a section by its heading is a predicate LANG-07 holds to exactly one owner.
+function tableRow(text: string, label: string): string[] | null {
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.startsWith("|")) continue;
+    const cells = line.split("|").map((c) => c.trim()).slice(1, -1);
+    if (cells.length > 0 && cells[0] === label) return cells;
+  }
+  return null;
+}
+
+// Helper: run the runner as a child with an arg array (never a shell on the data path — ASVS V5 /
+// command-injection). The environment object handed to the child is CONSTRUCTED here, asserted at
+// run time not to define the approval variable, and passed through otherwise unchanged. Returns the
+// exit status plus combined output for DIAGNOSTIC messages only — no assertion below reads it.
+function runRunner(args: string[], boundMs: number): { status: number | null; out: string } {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  // The run-time form of the safety rule: not "no line in this file sets it" but "the object the
+  // child receives does not define it". A developer who exported it gets a red here, not a run
+  // whose deny could not fire.
+  expect(
+    Object.prototype.hasOwnProperty.call(env, PROD_DEPLOY_REASON_SIGNATURE),
+    `the environment handed to the runner defines the prod-deploy approval variable; this lane refuses to spawn a run whose deny could not fire. Unset it in the shell that launches vitest.`,
+  ).toBe(false);
+  const r = spawnSync("node", [RUNNER, ...args], {
+    cwd: ROOT,
     encoding: "utf8",
-    // process.env is passed through UNCHANGED — the harness explicitly never injects the approval
-    // var. (No `[APPROVAL]: …` key appears anywhere in this file by design.)
-    env: { ...process.env },
-    // Close stdin (EOF) so an interactive CLI prompt can NEVER hang the harness; bound each call so
-    // a stuck `claude` cannot block the suite indefinitely (a timed-out call returns its partial
-    // output and the marker assertion fails honestly — the UAT cell stays pending, never fabricated);
-    // raise maxBuffer so a verbose `--output-format json` agent transcript is not truncated.
+    env,
+    // Close stdin (EOF) so an interactive prompt can NEVER hang the harness; bound the child so a
+    // stuck runner cannot block the suite indefinitely; raise maxBuffer so the runner's phase log
+    // is not truncated.
     input: "",
-    timeout: CALL_TIMEOUT_MS,
-    maxBuffer: 10 * 1024 * 1024,
+    timeout: boundMs,
+    maxBuffer: 16 * 1024 * 1024,
   });
   return { status: r.status, out: `${r.stdout ?? ""}\n${r.stderr ?? ""}` };
 }
@@ -247,336 +291,114 @@ afterAll(() => {
   }
 });
 
-describe("Tier-2 live E2E against the real claude CLI (gated on present+authed)", () => {
-  // A1 — plugin-cache pointer resolution (D-31).
+describe("Tier-2 live E2E — a thin wrapper over scripts/capture-live.js (gated on present+authed)", () => {
+  // The one live invocation. Everything below asserts over the summary this case leaves behind; no
+  // case makes a second platform call (D-09: at most one live run per round).
   it.skipIf(!LIVE)(
-    "A1 (D-31): /grugops:plan resolves repo-relative pointers and produces planning output, not a cache path error",
+    "the runner completes and writes a summary closing with exactly one grammar-conformant outcome line reading pass",
     () => {
-      // Scaffold a throwaway repo: mkdtemp + copy agent-factory/ + a minimal AGENTS.md in.
       tmpRepo = mkdtempSync(join(tmpdir(), "grugops-uat-e2e-"));
-      cpSync(join(ROOT, "agent-factory"), join(tmpRepo, "agent-factory"), { recursive: true });
-      mkdirSync(join(tmpRepo, "plans", "handoffs"), { recursive: true });
-      writeFileSync(
-        join(tmpRepo, "AGENTS.md"),
-        "# grugops — start here\n\nStart at `agent-factory/roles/orchestrator.md` and act as the Orchestrator.\n",
-      );
+      const out = artifactDir();
+      const r = runRunner(["--out", out], liveTimeoutMs(RUN_LABELS.length, 20 * 60_000));
 
-      // Install the plugin form headlessly, scoped to the throwaway repo (Pitfall 3: --scope local).
-      // The marketplace source is the local path to THIS repo (Open Q2: prefer the local `./` form;
-      // the plugin-cache copy this triggers IS the D-31 condition under test).
-      spawnSync("claude", ["plugin", "marketplace", "add", ROOT, "--scope", "local"], {
-        cwd: tmpRepo,
-        encoding: "utf8",
-        input: "",
-        timeout: 60_000,
-      });
-      spawnSync("claude", ["plugin", "install", "grugops@grugops", "--scope", "local"], {
-        cwd: tmpRepo,
-        encoding: "utf8",
-        input: "",
-        timeout: 60_000,
-      });
-
-      // Open Q1: probe BOTH the colon slash-command form AND the --plugin-dir ./ fallback; lock
-      // whichever fires. Assert planning/Orchestrator markers PRESENT and the path-error substring
-      // ABSENT. On NEITHER, fail loudly (never a silent pass).
-      const REQUEST = "/grugops:plan add a GET /version endpoint";
-      const markerRe = /orchestrator|planning|plan|ticket/i;
-      // A plugin-cache path error is the D-31 failure signature: a "no such file"/path error that
-      // points into the plugin cache instead of resolving against the user's repo.
-      const pathErrorRe = /no such file|cannot find|ENOENT|file not found|plugins?[\\/].*cache/i;
-
-      const primary = claudePrint([
-        "-p",
-        REQUEST,
-        "--output-format",
-        "json",
-      ], tmpRepo);
-
-      let fired = markerRe.test(primary.out) && !pathErrorRe.test(primary.out);
-      let used = primary.out;
-
-      if (!fired) {
-        // Fallback form (Open Q1): load the plugin for one session via --plugin-dir ./.
-        const fallback = claudePrint([
-          "--plugin-dir",
-          ROOT,
-          "-p",
-          "add a GET /version endpoint, plan it",
-          "--output-format",
-          "json",
-        ], tmpRepo);
-        fired = markerRe.test(fallback.out) && !pathErrorRe.test(fallback.out);
-        used = fallback.out;
-      }
-
-      // Inconclusive-loud, never a silent pass: if neither form produced planning markers without a
-      // path error, surface the captured output and fail.
+      // The artifact, not the stdout, is the subject. The tail of the child's output rides along in
+      // the failure message only, so a dead runner's `CAPTURE NOT DERIVED: …` line is in front of
+      // the reader without being asserted on.
+      const summaryPath = join(out, CAPTURE_SUMMARY_NAME);
       expect(
-        fired,
-        `D-31: neither /grugops:plan nor --plugin-dir ./ produced planning markers without a cache path error. Captured: ${used.slice(0, 400)}`,
+        existsSync(summaryPath),
+        `the runner (exit ${String(r.status)}) left no ${CAPTURE_SUMMARY_NAME} under ${out}; a run that writes no artifact is a red. Runner output tail: ${r.out.slice(-600)}`,
       ).toBe(true);
-    },
-    // 2 claudePrint calls (primary + fallback) + 2 plugin-install spawns (60_000ms each) +
-    // marketplace-add headroom → 2*CALL_TIMEOUT_MS + 4*60_000ms.
-    liveTimeoutMs(2, 4 * 60_000),
-  );
+      summaryText = readFileSync(summaryPath, "utf8");
 
-  // A2-live — SAFE-02 live deny (V14). NEVER sets the approval var; harmless matched probe only.
-  it.skipIf(!LIVE)(
-    "A2-live (SAFE-02 / V14): a harmless matched deploy probe is DENIED because the approval var is absent",
-    () => {
-      // Guard the harness's own honesty: the approval var must NOT be present in this process env.
-      // (We assert it; we never set it. If a developer has it exported, skip-loud rather than run a
-      // test that would falsely "pass" by allowing the command.)
-      if (process.env[APPROVAL] != null) {
-        console.warn(
-          `SKIPPED A2-live: ${APPROVAL} is set in this environment — refusing to run a deny test that would not deny. Unset it and re-run.`,
-        );
-        return;
-      }
+      // D-11: exactly one outcome line matching the frozen grammar, and its word is `pass`. A `fail`
+      // or `hang` is recorded by the runner and reds this lane; it is diagnosed at zero tokens, never
+      // re-run inside the round.
+      const outcomeLines = summaryText.match(OUTCOME_LINE_SCAN_RE) ?? [];
+      expect(outcomeLines, `the summary carries ${outcomeLines.length} outcome line(s); exactly one is required`).toHaveLength(1);
+      const outcomeLine = outcomeLines[0] ?? "";
+      const word = outcomeLine.match(OUTCOME_LINE_RE)?.[2];
+      expect(word, `the outcome line reads \`${outcomeLine}\`; the lane is green only on pass. Outcome reason: ${(summaryText.match(/^Outcome reason: .*$/m) ?? ["(none recorded)"])[0]}`).toBe("pass");
 
-      // Harmless guaranteed-matched probe (Pitfall 4): `helm upgrade fake ./nope` matches the guard's
-      // deploy pattern but targets nothing real — NEVER `kubectl apply` against a live kube-context.
-      const r = claudePrint([
-        "-p",
-        "run this exact command: helm upgrade fake ./nope",
-        "--output-format",
-        "json",
-      ], tmpRepo || ROOT);
-
-      // Assert the deny via the single-source STRUCTURAL matcher. prodDeployDenyFired PARSES the
-      // transcript into JSON objects and requires, within one object, hookEventName:"PreToolUse" +
-      // permissionDecision:"deny" + the prod-deploy reason signature — so a bolded prose sentence, a
-      // doc-quote, or a byte-identical admission-guard deny cannot false-TRUE it (scripts/
-      // prod-deploy-deny-match.ts; proven by its offline non-vacuity + point-of-effect tests).
-      //
-      // CONFIRMATION ONLY (D-09), NOT a safety proof. `r.out` is `claude -p` output — bytes the AGENT
-      // authored. Two red-teams confirmed the irreducible limit: a matcher over agent-authored text can
-      // detect that a well-formed prod-deploy deny envelope APPEARS, never that the mechanical hook FIRED
-      // (the model can reproduce the envelope; a plugin-only guard may not even be installed for this
-      // headless run). The SOUND proof that the guard denies is the Tier-1 point-of-effect oracle, which
-      // executes the real guard.js and matches ITS stdout (scripts/check-uat-oracles.ts +
-      // scripts/prod-deploy-deny-match.test.ts). A green here is a live confirmation signal only — it is
-      // NOT sufficient evidence for the D-01/D-02 captured-live-run retirement gate.
-      expect(
-        prodDeployDenyFired(r.out),
-        `SAFE-02: expected the guard's structured prod-deploy deny envelope to appear. Captured: ${r.out.slice(0, 400)}`,
-      ).toBe(true);
-    },
-    // 1 claudePrint call → CALL_TIMEOUT_MS + 60_000ms headroom.
-    liveTimeoutMs(1, 60_000),
-  );
-
-  // A3-live — dual-path DISPATCH parity (DOG-02), retargeted onto the D-05 equivalence artifact.
-  //
-  // D-05 (26-CONTEXT): "the same artifact" = the ON-DISK admitted-note set + the frozen VERDICT STRING,
-  // NOT byte-identical generated code/prose — live LLM output is not byte-deterministic, which is exactly
-  // WHY the deterministic on-disk note-SET equivalence is the Tier-1 oracle's job and THIS live run is
-  // confirmation only. The single-source definition of that on-disk equivalence lives in
-  // scripts/dual-path-equivalence.ts (projectTaskState/assertEquivalent), driven by the Tier-1
-  // oracleDualPathEquivalence in scripts/check-uat-oracles.ts — this live case does NOT re-derive it; it
-  // confirms that both REAL dispatch paths reach the same frozen verdict on disk.
-  //
-  // The two Phase-24/MIGR-02-DELETED handoff-template filenames are NO LONGER asserted here (Pitfall 5 /
-  // Loud Flag 2) — they were deleted templates, so naming them was a dishonest, permanently-drifting
-  // anchor. The frozen VERDICT STRING replaces them as the on-disk parity anchor.
-  it.skipIf(!LIVE)(
-    "A3-live (DOG-02, D-05): the same ticket through sequential and sub-agent dispatch converges on the same frozen on-disk gate verdict (on-disk note-set + verdict, not deleted handoff filenames)",
-    () => {
-      // A3 fix (GAP-D3): a LIGHTER seeded ABC-001 task that stops at the §14 gate verdict. It drops the
-      // branch/build/pull-request completion session (which made both dispatches hit the 300s per-call
-      // cap before emitting the verdict) while still traversing BOTH dispatch paths through the gate to
-      // READY_FOR_HUMAN_REVIEW. The assertion is the frozen ON-DISK verdict (D-12), never a pull request —
-      // so reaching the gate verdict is sufficient and CALL_TIMEOUT_MS is NOT raised as the primary fix.
-      const TICKET =
-        "implement ABC-001: add a GET /version endpoint, then run it through the §14 gate and report the gate verdict — stop at the gate verdict, do not open a branch or build anything";
-      // The frozen verdict STRING both dispatch paths must converge on (examples/03-ticket-to-pr.md;
-      // context-io VERDICT_GREEN_MARKER). This on-disk verdict is the D-05 equivalence artifact — never
-      // the deleted handoff filenames, and never byte-identical LLM prose.
-      const FROZEN_VERDICT = "READY_FOR_HUMAN_REVIEW";
-
-      // Sequential path: drive via the AGENTS.md → orchestrator.md role-load (plain prompt).
-      const sequential = claudePrint([
-        "-p",
-        `Act as the grugops Orchestrator per AGENTS.md. ${TICKET}`,
-        "--output-format",
-        "json",
-      ], tmpRepo || ROOT);
-
-      // Sub-agent dispatch path: drive via the /grugops skill (the plugin sub-agent dispatch).
-      const subagent = claudePrint([
-        "-p",
-        `/grugops ${TICKET}`,
-        "--output-format",
-        "json",
-      ], tmpRepo || ROOT);
-
-      // Verdict-string equivalence (D-05): BOTH real dispatch paths must converge on the SAME frozen gate
-      // verdict on disk. Only the dispatch differs; the frozen verdict does not. The surrounding prose is
-      // intentionally NOT compared (non-deterministic) — the deterministic on-disk note-SET equivalence is
-      // oracleDualPathEquivalence's job (Tier-1); this is its live confirmation. A missing verdict fails
-      // honestly (the UAT stays pending — never a fabricated green).
-      const seqVerdict = sequential.out.includes(FROZEN_VERDICT);
-      const subVerdict = subagent.out.includes(FROZEN_VERDICT);
-      expect(
-        seqVerdict && subVerdict,
-        `DOG-02 (D-05): frozen gate verdict "${FROZEN_VERDICT}" must converge on BOTH dispatch paths (seq=${seqVerdict}, sub=${subVerdict}). Captured seq=${sequential.out.slice(0, 200)} | sub=${subagent.out.slice(0, 200)}`,
-      ).toBe(true);
-    },
-    // 2 claudePrint calls (sequential + sub-agent dispatch) → 2*CALL_TIMEOUT_MS + 60_000ms headroom.
-    liveTimeoutMs(2, 60_000),
-  );
-
-  // A3-live-N — the DOGF-02 N-agent LIVE confirmation (D-09), Tier-2 confirmation ONLY.
-  //
-  // The deterministic GATING proof of this property (isolation ↔ ONE shared context root, N distinct
-  // un-clobbered notes, claimed-exactly-once, stale reclaim) is scripts/worktree-dogfood.test.ts — a
-  // hermetic, token-free real-worktree N-process test. This live case CONFIRMS the same on-disk
-  // convergence holds when the N processes are REAL `claude` dispatches (D-09), not bare node children.
-  //
-  // Every claim/context call is pinned to ONE shared absolute queue root + ONE shared absolute context
-  // root, BOTH created outside every agent cwd (D-06/D-07 — the script-relative defaults are never
-  // relied upon). The committed scripts/claim.js + scripts/context-io.js from THIS checkout are imported
-  // by absolute path so each spawn resolves the same implementation regardless of its own cwd. Missing
-  // on-disk output fails honestly — a skipped/declined live run is never read as a green.
-  it.skipIf(!LIVE)(
-    "A3-live-N (DOGF-02, D-09): N real claude dispatches against ONE shared queue + context root accrete N distinct un-clobbered notes and claim a single-slot task exactly once",
-    () => {
-      // N honors queue.wip_limit (D-08) — the module-scope WIP_LIMIT (ONE hoisted source, read from
-      // the real factory config; never hard-coded) so the per-test timeout and this body can never
-      // disagree.
-      const N = WIP_LIMIT; // = 3
-
-      // Allowlist-safe task names (^[A-Za-z0-9._-]+$).
-      const CLAIM_TASK = "shared-claim-task"; // single-slot: claimed exactly once
-      const NOTE_TASK = "shared-note-task"; // multi-writer: N un-clobbered notes
-
-      // ONE shared, hermetic, absolute root — queue + context BOTH live outside every agent cwd (D-07).
-      const shared = mkdtempSync(join(tmpdir(), "grugops-nagent-live-"));
-      try {
-        const queueRoot = join(shared, "queue");
-        const contextRoot = join(shared, "context");
-        for (const stage of ["pending", "claimed", "done"]) {
-          mkdirSync(join(queueRoot, stage), { recursive: true });
-        }
-        mkdirSync(contextRoot, { recursive: true });
-        // The single-slot claim task must exist in pending/ so the winner can transition it.
-        writeFileSync(
-          join(queueRoot, "pending", `${CLAIM_TASK}.md`),
-          `# subtask ${CLAIM_TASK}\nref: context/${CLAIM_TASK}/\n`,
-        );
-
-        // The MAIN checkout's committed .js — the stable implementation every spawn imports by absolute
-        // path (D-07 Open-Q2). Passed as absolute args so the runner resolves the SAME code from any cwd.
-        const claimJs = join(ROOT, "scripts", "claim.js");
-        const contextIoJs = join(ROOT, "scripts", "context-io.js");
-
-        // A tiny ESM runner: races for the single-slot task (atomic mkdir — exactly one wins, losers see
-        // EEXIST→false) and appends ONE note to the multi-writer task under the SHARED context root
-        // (appendNote writes a fresh unique notes/<id>.md via temp+rename, so N writers never clobber).
-        const runner = join(shared, "runner.mjs");
-        writeFileSync(
-          runner,
-          `
-import { pathToFileURL } from "node:url";
-import { writeFileSync } from "node:fs";
-const [, , claimJs, contextIoJs, queueRoot, contextRoot, claimTask, noteTask, agentId, at, resultFile] =
-  process.argv;
-const claim = await import(pathToFileURL(claimJs).href);
-const ctx = await import(pathToFileURL(contextIoJs).href);
-let won = false;
-won = claim.claimTask(queueRoot, claimTask, agentId);
-if (won) claim.transition(queueRoot, claimTask, "pending", "claimed");
-ctx.appendNote(
-  noteTask,
-  { kind: "observation", by: agentId, at, verified_by: "", confidence: "high", refs: [], supersedes: null },
-  "note from " + agentId + " (cwd=" + process.cwd() + ")",
-  contextRoot,
-);
-if (won) claim.transition(queueRoot, claimTask, "claimed", "done");
-writeFileSync(resultFile, JSON.stringify({ agentId, won, cwd: process.cwd() }));
-`,
-        );
-
-        // A3-N fix (GAP-D2): the live agent stays the DRIVER (the harness never calls the runner directly
-        // — that would collapse this case into the already-green deterministic twin worktree-dogfood.test.ts
-        // and prove nothing about live dispatch). A headless `claude -p` under default permissions will not
-        // execute an arbitrary Bash command (→ 0 notes on the shared root — a permission denial, not agent
-        // whim), so the node-runner invocation is granted the NARROWEST verified tool-grant flag, scoped to
-        // node only — NOT the blanket skip-all-permissions bypass (prohibited in committed test code).
-        //
-        // VERIFIED against the installed CLI (`claude --help`, v2.1.206):
-        //   --allowedTools, --allowed-tools <tools...>
-        //       Comma or space-separated list of tool names to allow (e.g. "Bash(git *) Edit")
-        // so `Bash(node *)` is the documented scoped form (mirrors the help's `Bash(git *)` example),
-        // narrower than a blanket `Bash` grant. If the runner still does not execute, the on-disk
-        // convergence assertions below fail honestly (0 notes → a clear failure message, never a fabricated
-        // green). The captured `claude --help` evidence is recorded verbatim in 26-06-SUMMARY.md.
-        const RUNNER_BASH_GRANT = "Bash(node *)";
-        // Spawn N REAL claude dispatches, each instructed to run the runner with the SHARED absolute
-        // roots. Arg-array spawnSync only (claudePrint) — never a shell on the data path (V5); the
-        // approval env is never set. Each agent gets its own cwd dir under the shared root so a
-        // worktree-local default (if ever consulted) would visibly split them — it must not.
-        for (let i = 0; i < N; i++) {
-          const agentCwd = join(shared, `agent-${i}`);
-          mkdirSync(agentCwd, { recursive: true });
-          const resultFile = join(shared, `result-${i}.json`);
-          const cmd = [
-            "node",
-            runner,
-            claimJs,
-            contextIoJs,
-            queueRoot,
-            contextRoot,
-            CLAIM_TASK,
-            NOTE_TASK,
-            `agent-${i}`,
-            `2026-06-21T10:00:0${i}.000Z`,
-            resultFile,
-          ].join(" ");
-          claudePrint([
-            "-p",
-            `Run this exact shell command and then report done. Do not modify it: ${cmd}`,
-            "--output-format",
-            "json",
-            // Grant ONLY the narrowest verified node-scoped Bash tool so the injected runner actually
-            // executes (applied here, at the A3-N runner dispatch, never globally).
-            "--allowedTools",
-            RUNNER_BASH_GRANT,
-          ], agentCwd);
-        }
-
-        // ── On-disk convergence (never a false green — absent files fail honestly). ─────────────────
-        // (a) N distinct un-clobbered notes under the SHARED context root for NOTE_TASK.
-        const notesDir = join(contextRoot, NOTE_TASK, "notes");
-        const noteFiles = existsSync(notesDir)
-          ? readdirSync(notesDir).filter((f) => f.endsWith(".md"))
-          : [];
-        expect(
-          noteFiles.length,
-          `DOGF-02 live: expected ${N} distinct un-clobbered notes under the shared context; found ${noteFiles.length}. The live dispatches did not converge on the shared root.`,
-        ).toBe(N);
-        expect(new Set(noteFiles).size).toBe(N); // distinct nonce-id filenames — none clobbered
-
-        // (b) The single-slot task was claimed EXACTLY ONCE — exactly one runner observed claimTask===true.
-        const results = [];
-        for (let i = 0; i < N; i++) {
-          const rf = join(shared, `result-${i}.json`);
-          if (existsSync(rf)) results.push(JSON.parse(readFileSync(rf, "utf8")));
-        }
-        expect(
-          results.length,
-          `DOGF-02 live: expected ${N} runner result files; found ${results.length}. Some live dispatch did not execute the runner.`,
-        ).toBe(N);
-        const winners = results.filter((r) => r.won === true);
-        expect(winners).toHaveLength(1); // exactly-once: one atomic mkdir winner
-        expect(existsSync(join(queueRoot, "done", `${CLAIM_TASK}.md`))).toBe(true);
-      } finally {
-        rmSync(shared, { recursive: true, force: true });
+      // Every transcript the summary names is on disk beside it (redacted by the runner).
+      for (const label of RUN_LABELS) {
+        expect(existsSync(join(out, captureTranscriptName(label))), `${captureTranscriptName(label)} is missing under ${out}`).toBe(true);
       }
     },
-    // WIP_LIMIT claudePrint dispatches (one per agent) → WIP_LIMIT*CALL_TIMEOUT_MS + 60_000ms headroom.
-    liveTimeoutMs(WIP_LIMIT, 60_000),
+    // RUN_LABELS.length platform calls inside the runner, each under CALL_TIMEOUT_MS, plus the
+    // runner's own fixed budgets around them: the coordinator precheck (180 s), two installer runs
+    // (120 s each), two plugin installs and two uninstalls (120 s each), the version/help/list
+    // probes (20 s each) and the SIGINT-to-SIGTERM grace (30 s per run) — about 18 minutes summed,
+    // rounded up to 20 minutes of headroom.
+    liveTimeoutMs(RUN_LABELS.length, 20 * 60_000),
+  );
+
+  // A2-live — SAFE-02 live deny (V14), read from the CLI-emitted hook_response channel (D-04).
+  it.skipIf(!LIVE)(
+    "A2-live (SAFE-02 / V14): the summary records the prod-deploy deny as observed in a hook_response.stdout field, with the approval variable absent from the child environment",
+    () => {
+      const summary = requireSummary();
+      // The runner's own record of the rule this lane asserted at spawn time.
+      const approval = tableRow(summary, "approval key in child env");
+      expect(approval, "the summary carries no `approval key in child env` row").not.toBeNull();
+      expect(approval?.[1].startsWith("absent"), `approval key row reads: ${approval?.[1]}`).toBe(true);
+      // The deny observation row, once per run; the summary is a pass only if the runner saw the
+      // deny, so this is the specific reason a red would name.
+      const denyRows = summary
+        .split(/\r?\n/)
+        .filter((l) => l.startsWith("| D-04 prod-deploy deny observed in a hook_response.stdout |"));
+      expect(denyRows.length, "the summary carries no D-04 deny observation row").toBeGreaterThan(0);
+      expect(
+        denyRows.some((l) => l.split("|").map((c) => c.trim())[2]?.startsWith("yes")),
+        `no run's D-04 row reads yes — rows: ${denyRows.join(" // ")}`,
+      ).toBe(true);
+    },
+  );
+
+  // A1 — plugin-cache pointer resolution (D-31), from the summary's plugin load report (D-05).
+  it.skipIf(!LIVE)(
+    "A1 (D-31 / D-05): the summary's plugin load report names a loaded plugin and records no plugin_errors",
+    () => {
+      const summary = requireSummary();
+      const loaded = tableRow(summary, "D-05 plugins loaded per system/init");
+      expect(loaded, "the summary carries no `D-05 plugins loaded per system/init` row").not.toBeNull();
+      expect(loaded?.[1], "the init frame listed no plugin — the plugin form did not load").not.toBe("none listed");
+      const errors = tableRow(summary, "D-05 plugin_errors per system/init");
+      expect(errors, "the summary carries no `D-05 plugin_errors per system/init` row").not.toBeNull();
+      expect(errors?.[1], `plugin_errors were recorded: ${errors?.[1]}`).toBe("none");
+      const sha = tableRow(summary, "installed plugin sha (D-05, post hoc)");
+      expect(sha, "the summary carries no installed-plugin-sha row").not.toBeNull();
+    },
+  );
+
+  // A3-live — dual-path DISPATCH parity (DOG-02) on the D-05 (Phase 26) equivalence artifact, and
+  // the two-sided CAP-03 verdict (D-02) in both runs.
+  it.skipIf(!LIVE)(
+    "A3-live (DOG-02, D-02, D-07): the two-sided verdict holds in both runs and the equivalence diff list is empty",
+    () => {
+      const summary = requireSummary();
+      const lines = summary.split(/\r?\n/);
+      // The runner writes this exact bullet once per run when no named reason remains, and one
+      // bullet per reason otherwise. Both runs must hold; a one-sided capture is a red with a
+      // named reason (D-02), which surfaces here as a count below the run count.
+      const holds = lines.filter((l) => l === "- both sides hold: no named reason remains").length;
+      expect(holds, `the CAP-03 verdict holds in ${holds} of ${RUN_LABELS.length} run(s)`).toBe(RUN_LABELS.length);
+      // D-07: assertEquivalent over the two targets' context roots returned no diff.
+      expect(
+        lines.includes("- assertEquivalent over the two targets' context roots returned no diff"),
+        "the summary records a dual-path divergence (D-20: a real divergence is a kit finding; nothing flips until parity holds)",
+      ).toBe(true);
+    },
+  );
+
+  // The runner's own after-the-fact re-check over the artifacts it wrote (hard rule 7): every claim
+  // row cited within its transcript, no home-path spelling surviving, exactly one outcome line.
+  it.skipIf(!LIVE)(
+    "--verify-artifacts accepts the artifact set the run wrote",
+    () => {
+      requireSummary();
+      const r = runRunner(["--verify-artifacts", "--out", artifactDir()], 60_000);
+      expect(r.status, `--verify-artifacts refused the artifact set: ${r.out.slice(-800)}`).toBe(0);
+    },
   );
 });
