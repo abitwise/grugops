@@ -4,19 +4,19 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
-status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33-11-PLAN.md on the HOLD branch (GAP-D1 held by human decision 2026-09-20: 33-10 capture OUTCOME: fail on the D-07 comparator; nothing flipped, manifest stays pre-capture; CAP-01/02/03 stay open). Phase 33 round 1 executed 11/11; next: /gsd-verify-work 33 (expected gaps_found), then gap round 2 of 4"
-last_updated: "2026-09-20T18:14:05.042Z"
-state_head: 2fb979627dccfe2a8552a148f29e8e5e028c42de
+status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
+stopped_at: "Planned gap-closure round 2 (commit ad896f27). Next: /gsd-execute-phase 33 --gaps-only (waves 7-12). Human stops inside the round: 33-20 push before the CI run, 33-21 KIT decision + push-then-go (floor 11.75 USD / 31 min), 33-22 flip decision only on OUTCOME: pass."
+last_updated: "2026-09-20T19:55:26.445Z"
+state_head: ad896f27e70bafeee1344e089af85b073682020b
 progress:
   total_phases: 11
   completed_phases: 32
-  total_plans: 280
+  total_plans: 292
   completed_plans: 280
-  percent: 100
+  percent: 96
 last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-last_activity_desc: "Completed 33-11 on the HOLD branch (51268182): GAP-D1 held by human decision after the 33-10 capture read OUTCOME fail on the D-07 comparator; hold recorded in 33-FLIP-MANIFEST.md section 6 and the 28 disposition register; no flip-class or correction-class cell changed; CAP-01/02/03 ledger rows record their separate evidence (capture vs CI run 35499800942); Phase 33 not marked complete."
+last_activity_desc: "Planned Phase 33 gap-closure round 2 of 4: 12 additive plans (33-12..33-23) mapped one-to-one onto 33-VERIFICATION gaps[].missing and 33-REVIEW CR-01..05; plan checker VERIFICATION PASSED; decision coverage 20/20; requirement coverage CAP-01..03 3/3; round-1 plans byte-untouched."
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 33 (Live Capture & Windows Portability) — EXECUTED, round 1 of 4, awaiting verification
-Plan: 11 of 11 — 33-11 closed on the HOLD branch (GAP-D1 held, nothing flipped, D-20); expected verdict gaps_found (CAP-01 fail on D-07, CAP-02 CI red both legs, CAP-03 held but not marked)
+Phase: 33 (Live Capture & Windows Portability) — READY TO EXECUTE
+Plan: 11 of 23 — round 1 executed (33-01..33-11, verification gaps_found 0/3); round 2 planned (33-12..33-23, waves 7-12), 0 of 12 executed
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
