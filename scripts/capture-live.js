@@ -48,7 +48,13 @@
 //      selects `system/hook_response` frames and hands the DECODED `stdout` string to
 //      `prodDeployDenyFired`. Passing the raw JSONL line returns false by the matcher's own
 //      fails-closed contract (scripts/prod-deploy-deny-match.ts:38-40), which is exactly the
-//      harness defect the 2026-09-18 live run reproduced on the `json` channel.
+//      harness defect the 2026-09-18 live run reproduced on the `json` channel. The stream is
+//      sound because the platform emits it; the FILE it is scored from is sound only because the
+//      subject has no path to it (33-REVIEW CR-01): the transcript is streamed into a runner-owned
+//      scratch directory that is a sibling of the target — never inside `build.target`, never
+//      inside the kit home, never inside the cwd the platform is handed — and `runTarget` refuses
+//      to spawn when `isOutsideTargets` says otherwise. A file the subject plants at the old
+//      in-target location is never read.
 //
 //   6. NO HAND-TYPED SET STANDS WHERE THE SET CAN BE DERIVED. The coordinator grant is read from the
 //      installed coordinator adapter (located by its `coordinator: true` marker) and cross-derived
@@ -105,7 +111,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync, } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
 import { assertEquivalent, projectTaskState } from "./dual-path-equivalence.js";
@@ -936,6 +942,28 @@ function observePreconditions() {
         approvalKeyPresent,
     };
 }
+/**
+ * True iff `path` is outside EVERY root. Containment is decided on `relative()` — the `isWithinRoot`
+ * idiom scripts/board-read.ts uses — never on a string prefix, which would read a sibling whose name
+ * extends the root's spelling as inside it. A path equal to a root is not outside that root.
+ */
+export function isOutsideTargets(path, roots) {
+    const p = resolve(path);
+    for (const root of roots) {
+        const rel = relative(resolve(root), p);
+        const outside = rel !== "" && (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel));
+        if (!outside)
+            return false;
+    }
+    return true;
+}
+const TRANSCRIPT_LOCATION_OK = "runner-owned scratch, outside every target and outside the run's working directory";
+/** The Run-table sentence for a transcript path, derived from the same predicate `runTarget` asserts. */
+function transcriptLocation(transcriptPath, build, cwd) {
+    return isOutsideTargets(transcriptPath, [build.target, build.home, cwd])
+        ? TRANSCRIPT_LOCATION_OK
+        : "INSIDE a target, the kit home or the run's working directory — the subject could reach it; refused";
+}
 function buildTarget(label) {
     if (!existsSync(INSTALLER))
         fail(`the installer is missing at ${INSTALLER} — run \`npm run build\` so the committed .js twin exists`);
@@ -943,6 +971,7 @@ function buildTarget(label) {
         fail(`the fixture project is missing at ${FIXTURE_TARGET}`);
     const target = makeScratch(`target-${label}`);
     const home = makeScratch(`home-${label}`);
+    const transcriptDir = makeScratch(`transcript-${label}`);
     cpSync(FIXTURE_TARGET, target, { recursive: true });
     const env = spawnEnv({ GRUGOPS_HOME: home });
     const init = spawnSync(GIT_CMD, ["init", "--quiet"], { cwd: target, encoding: "utf8", input: "", timeout: PROBE_BOUND_MS, env });
@@ -959,7 +988,7 @@ function buildTarget(label) {
     if (detail.includes("install INCOMPLETE")) {
         fail(`the install into target ${label} printed the INCOMPLETE banner while exiting ${String(r.status)} — the banner and the exit status disagree. Installer output follows:\n${detail}`);
     }
-    return { label, target, home, installerLine: `the installer ran cleanly into a fresh copy of the fixture project with an isolated kit home; nothing outside those two directories was written` };
+    return { label, target, home, transcriptDir, installerLine: `the installer ran cleanly into a fresh copy of the fixture project with an isolated kit home; nothing outside those two directories was written` };
 }
 /**
  * The live invocation: `spawn` (never `spawnSync`) with stdout piped to a write stream so a killed
@@ -1015,6 +1044,60 @@ function pluginUninstall(target, pluginName) {
     catch {
         /* best-effort: cleanup failure never masks a result */
     }
+}
+export const LIVE_OPS = { pluginInstall, runPlatform, pluginUninstall };
+/**
+ * One target, end to end: plugin install, the bounded platform run streamed into the runner-owned
+ * transcript directory, the derivation over that transcript and the target's context root, and
+ * the plugin uninstall. The transcript path is asserted outside the target, the kit home and the
+ * cwd BEFORE the platform is spawned (CR-01) — a misconfiguration is a refusal, not a capture.
+ */
+export async function runTarget(build, run, ops = LIVE_OPS) {
+    const installLine = `target ${build.label}: ${ops.pluginInstall(build.target, run.pluginName, run.marketplaceName)}`;
+    const transcriptName = captureTranscriptName(build.label);
+    const transcriptPath = join(build.transcriptDir, transcriptName);
+    const cwd = build.target;
+    if (!isOutsideTargets(transcriptPath, [build.target, build.home])) {
+        fail(`the transcript path ${transcriptPath} is inside target ${build.label} or its kit home — the subject could write the file it is scored from (CR-01); refusing to spawn`);
+    }
+    if (!isOutsideTargets(transcriptPath, [cwd])) {
+        fail(`the transcript path ${transcriptPath} is inside the working directory the platform would be handed (${cwd}) — refusing to spawn (CR-01)`);
+    }
+    const args = ["-p", run.request, "--output-format", "stream-json", "--verbose", "--include-hook-events", "--forward-subagent-text", "--allowedTools", ...run.allowedTools];
+    if (run.agent !== null)
+        args.push("--agent", run.agent);
+    const env = spawnEnv();
+    console.log(`run ${build.label}: starting under a ${run.boundMs} ms bound; transcript streamed to ${transcriptPath}`);
+    const result = await ops.runPlatform(args, cwd, env, transcriptPath, run.boundMs);
+    console.log(`run ${build.label}: status ${String(result.status)}, signal ${String(result.signal)}, ${result.durationMs} ms`);
+    const hung = result.timedOut || result.status === 143 || result.signal === "SIGTERM";
+    let failed = result.error !== null || (result.status !== 0 && !hung);
+    const frames = await readFrames(transcriptPath);
+    const grant = deriveGrant(build.target);
+    const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
+    const derived = deriveClaims(frames, grant, stamps);
+    if (derived.capThreeReasons.length > 0)
+        failed = true;
+    const transcriptText = readFileSync(transcriptPath, "utf8");
+    ops.pluginUninstall(build.target, run.pluginName);
+    return {
+        label: build.label,
+        transcriptName,
+        transcriptLocation: transcriptLocation(transcriptPath, build, cwd),
+        argv: args,
+        frames,
+        claims: derived.claims,
+        withheld: derived.withheld,
+        targetRows: targetObservations(build, grant, stamps),
+        capThreeReasons: derived.capThreeReasons,
+        run: result,
+        transcriptPath,
+        transcriptText,
+        installLine,
+        projection: projectLivePath(stamps, frames.frames, grant.prefix),
+        hung,
+        failed,
+    };
 }
 /** D-05 post hoc: the git HEAD of an installed plugin's cache path, or `UNKNOWN - verify`. */
 function installedPluginSha(cachePath) {
@@ -1088,6 +1171,7 @@ export function renderReport(m) {
     L.push(`| installed plugin sha (D-05, post hoc) | ${cell(m.installedPluginSha)} |`);
     for (const r of m.runs) {
         L.push(`| run ${r.label} transcript | ${r.transcriptName} (${r.frames.lineCount} line(s), ${r.frames.frames.length} frame(s), ${r.frames.partial} partial line(s)) |`);
+        L.push(`| run ${r.label} transcript location | ${cell(r.transcriptLocation)} |`);
         L.push(`| run ${r.label} argv | ${cell(JSON.stringify(r.argv))} |`);
         if (r.run !== null) {
             L.push(`| run ${r.label} exit | status ${String(r.run.status)}, signal ${String(r.run.signal)}, timed out ${r.run.timedOut}, escalated ${r.run.escalated}, wall ${r.run.durationMs} ms |`);
@@ -1361,6 +1445,8 @@ async function dryRun(opts) {
         runs.push({
             label: build.label,
             transcriptName: DRY_RUN_TRANSCRIPT_NAME,
+            // Where a LIVE transcript for this target would land, decided by the same predicate.
+            transcriptLocation: transcriptLocation(join(build.transcriptDir, captureTranscriptName(build.label)), build, build.target),
             argv: ["(dry run: no platform invocation)"],
             frames,
             claims: derived.claims,
@@ -1437,31 +1523,22 @@ async function capture(opts) {
     let hang = false;
     let anyFailure = false;
     for (const build of targets) {
-        installLines.push(`target ${build.label}: ${pluginInstall(build.target, obs.pluginName, obs.marketplaceName)}`);
-        const transcriptName = captureTranscriptName(build.label);
-        const transcriptPath = join(build.target, transcriptName);
-        const args = ["-p", LIVE_REQUEST, "--output-format", "stream-json", "--verbose", "--include-hook-events", "--forward-subagent-text", "--allowedTools", ...LIVE_ALLOWED_TOOLS];
-        if (build.label === "B")
-            args.push("--agent", grantSource.coordinator);
-        const env = spawnEnv();
-        console.log(`run ${build.label}: starting under a ${CALL_BOUND_MS} ms bound`);
-        const result = await runPlatform(args, build.target, env, transcriptPath, CALL_BOUND_MS);
-        console.log(`run ${build.label}: status ${String(result.status)}, signal ${String(result.signal)}, ${result.durationMs} ms`);
-        const thisRunHung = result.timedOut || result.status === 143 || result.signal === "SIGTERM";
-        if (thisRunHung)
+        const r = await runTarget(build, {
+            request: LIVE_REQUEST,
+            allowedTools: LIVE_ALLOWED_TOOLS,
+            agent: build.label === "B" ? grantSource.coordinator : null,
+            pluginName: obs.pluginName,
+            marketplaceName: obs.marketplaceName,
+            boundMs: CALL_BOUND_MS,
+        });
+        installLines.push(r.installLine);
+        if (r.hung)
             hang = true;
-        if (result.error !== null || (result.status !== 0 && !thisRunHung))
+        if (r.failed)
             anyFailure = true;
-        const frames = await readFrames(transcriptPath);
-        const grant = deriveGrant(build.target);
-        const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
-        const derived = deriveClaims(frames, grant, stamps);
-        if (derived.capThreeReasons.length > 0)
-            anyFailure = true;
-        runs.push({ label: build.label, transcriptName, argv: args, frames, claims: derived.claims, withheld: derived.withheld, targetRows: targetObservations(build, grant, stamps), capThreeReasons: derived.capThreeReasons, run: result });
-        projections.push({ label: build.label, projection: projectLivePath(stamps, frames.frames, grant.prefix) });
-        rawTranscripts.push({ name: transcriptName, text: readFileSync(transcriptPath, "utf8") });
-        pluginUninstall(build.target, obs.pluginName);
+        runs.push(r);
+        projections.push({ label: r.label, projection: r.projection });
+        rawTranscripts.push({ name: r.transcriptName, text: r.transcriptText });
     }
     // The replay comparator is recorded for the reader; it is NOT an outcome input (33-DIAGNOSIS
     // § 1.2: keyed on model-chosen task ids and timestamps, it reds over any two live sessions).
