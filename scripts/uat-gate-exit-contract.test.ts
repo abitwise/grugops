@@ -632,6 +632,18 @@ describe("the disposition register's measuring stick did not move", () => {
     expect(m![1].startsWith("4d2b8f0")).toBe(true);
   });
 
+  // NO PER-TEST BOUND (plan 33-18, D-14 — W-13, WINDOWS.md row 232). This case carried its own
+  // `60_000` argument, sized to "~7 s on this machine". The gate it spawns, `check-diff-disposition`,
+  // runs a real `git diff` over EVERY disposition document in the tree, so its duration grows with
+  // every disposition file the repository adds and no fixed number is its duration. Measured on
+  // windows-latest: 56 481 ms at the phase-33 baseline (run 35394268365, PASSED, 3.5 s under the
+  // argument), then 61 989 ms after this phase added twenty disposition rows (run 35499800942,
+  // `Error: Test timed out in 60000ms.`). The argument, not the gate, was the defect: D-14's rule is
+  // "add warning, don't prevent test run", and its mechanism is the GLOBAL `testTimeout: 180_000`
+  // (a hang still dies there) plus `slowTestThreshold: 5_000` (a slow run is printed, never failed).
+  // Derive-vs-remove was decided as REMOVE: the derivation would be "the global bound", which is
+  // already in force, and a per-test number below it would reintroduce the same red on a slower
+  // runner. No platform conditional (D-14, D-16).
   it("the watched corpus is not narrowed — the gate reports its own cardinality, unchanged at 40", () => {
     const r = spawnSync("node", [join(REPO_ROOT, "scripts", "check-diff-disposition.js")], {
       cwd: REPO_ROOT,
@@ -641,10 +653,7 @@ describe("the disposition register's measuring stick did not move", () => {
     const m = all.match(/watched corpus:\s*(\d+)\s*markdown file\(s\)/);
     expect(m).not.toBeNull();
     expect(Number(m![1])).toBe(40);
-    // The gate spawns a real `git diff` against the recorded base over the whole watched corpus and
-    // takes ~7 s on this machine. The budget is sized to the measured spawn cost, so a red here is
-    // drift rather than the default 5 000 ms timeout.
-  }, 60_000);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -830,16 +839,48 @@ describe("the skip list is a MEASURED artifact, not a printed line nobody reads"
     expect(r.out).toContain(`SKIPPED SHAPES (${String(expectedUnderSeam)}):`);
   }, 180_000);
 
+  /**
+   * EVERY NAME THE GATE CAN PRINT IN A `shape="…"` FIELD, DERIVED FROM THE MODULE'S OWN TWO TABLES
+   * (plan 33-18, W-14 — WINDOWS.md row 232). The per-line check below pinned the literal `FIFO` on
+   * EVERY skipped line; plan 33-05 then widened the remainder with the host-capability rows, and on
+   * windows-latest (run 35499800942) the first non-FIFO line — `shape="chmod 000 enforcement"` —
+   * was a red created by this repository's own change. The admissible set is what the module can
+   * publish: a corpus shape's `name`, or a host capability's `name` (printed under
+   * `CAPABILITY_POSITION`). Two floors: the set is larger than one, so a derivation that came back
+   * as a single name is red; and its size is the SUM of the two tables, so a name shared between
+   * them (which would make one row ambiguous) is red too.
+   */
+  const ADMISSIBLE_SHAPE_NAMES: ReadonlySet<string> = new Set([
+    ...SHAPES.map((s) => s.name),
+    ...HOST_CAPABILITIES.map((c) => c.name),
+  ]);
+
   it("NON-EMPTY on a platform lacking a shape, and each entry names the shape AND the platform", () => {
     // Darwin constructs every shape, so the absent-platform arm is reached through the disclosed
     // test seam. Without it this arm would never execute anywhere a developer can watch it.
+    expect(ADMISSIBLE_SHAPE_NAMES.size, "the admissible shape set is a single name or empty").toBeGreaterThan(1);
+    expect(ADMISSIBLE_SHAPE_NAMES.size, "a shape name and a capability name collide").toBe(
+      SHAPES.length + HOST_CAPABILITIES.length,
+    );
     const r = runGate({ GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT: "FIFO" });
     expect(r.status).toBe(0);
     const m = /SKIPPED SHAPES \((\d+)\):/.exec(r.out);
     expect(m).not.toBeNull();
     expect(Number(m![1])).toBeGreaterThan(0);
-    for (const line of r.out.split("\n").filter((l) => l.trim().startsWith('shape="'))) {
-      expect(line).toContain('shape="FIFO"');
+    const lines = r.out.split("\n").filter((l) => l.trim().startsWith('shape="'));
+    // The seam's own premise: the shape it forced absent IS in the remainder. That FIFO appears at
+    // EVERY published position under the seam is the preceding case's assertion, not this one's.
+    expect(lines.some((l) => l.includes('shape="FIFO"')), "the forced-absent shape is not in the remainder").toBe(true);
+    for (const line of lines) {
+      const shape = /shape="([^"]*)"/.exec(line)?.[1];
+      expect(shape, `a remainder line names no shape: ${line}`).toBeDefined();
+      // THE RELATIONSHIP, not a literal: whatever this host's remainder holds beyond the forced
+      // FIFO — nothing on darwin/ubuntu, three capability rows on windows-latest — every row names
+      // a shape or capability the module itself declares.
+      expect(
+        ADMISSIBLE_SHAPE_NAMES.has(shape!),
+        `a remainder line names a shape the module does not declare: ${line}`,
+      ).toBe(true);
       expect(line).toContain('position="');
       expect(line).toContain(`platform=${process.platform}`);
       expect(line.length).toBeGreaterThan(60); // it carries a reason, not just a name
