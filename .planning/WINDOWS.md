@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 197
+open_count: 199
 waived_count: 3
-fixed_count: 25
-total_count: 225
-last_updated: 2026-09-19T23:53:15.140Z
+fixed_count: 26
+total_count: 228
+last_updated: 2026-09-20T03:18:39.937Z
 ---
 
 # Broken Windows Ledger
@@ -239,7 +239,10 @@ last_updated: 2026-09-19T23:53:15.140Z
 | 222 | 32.1 | deviation | scripts/check-build-parity.ts |  | Plan 32.1-14 GREEN-proof section 3.2 row A (review IN-02; 32.1-LEDGER.md section 3.4, re-homed-with-named-owner). The build-parity gate derives its moved-outputs set from `git diff --name-only -- '*.js'`, which cannot see a `.js` the build produced for a `.ts` with no committed twin. The gate's result is correct on this tree only because a later workflow step's working-tree arm sees the file; the ordering dependency is recorded in the module header by plan 32.1-14. Deriving the set from `git status --porcelain -- '*.js'` instead would make the gate hold its own subject, and is a decision about what the gate's subject set contains rather than a defect fix. | open |  | 2026-09-18T15:04:52.182Z |  |
 | 223 | 32.1 | deviation | scripts/check-foundation-guards.test.ts |  | Plan 32.1-14 GREEN-proof section 3.2 row B (review IN-06; 32.1-LEDGER.md section 3.5, re-homed-with-named-owner). The computed-key census decides guardedness per ENCLOSING FUNCTION rather than per read, so a guarded call and an unguarded read of the same register in one function both pass. Bounded by the `scattered` assertion (one function per register) and no worse than the text rule it replaced. Remedy if tightened: require the `Object.hasOwn` call to be an ancestor condition of the read. | open |  | 2026-09-18T15:04:52.271Z |  |
 | 224 | 32.1 | deviation | package.json |  | Plan 32.1-14 GREEN-proof section 3.2 row C (review IN-03; 32.1-LEDGER.md item 32.1-IN-03, waived-with-reason). `check:build-parity` compiles the tree twice per invocation - once through the declared shape's `tsc --outDir .tmp-build` prefix and once inside the module. ACCEPTED: the honest alternative is a third declared command shape, which `scripts/check-foundation-guards.test.ts` deliberately refuses, and a declared shape with a named exception is a declared shape that has started widening. | open |  | 2026-09-18T15:04:52.357Z |  |
-| 225 | 33 | lint-warning | README.md | 26 | check:diff-disposition exits 1 on 21 undispositioned README.md clauses (lines 26-33, introduced by commit 52377a7a before Phase 33); pre-existing, outside plan 33-07's files, logged in 33 deferred-items.md; remedy is a disposition file under docs/audit/29-style-dispositions/ — CI runs the gate at ci.yml:497 so both CAP-02 legs see it | open |  | 2026-09-19T23:53:15.140Z |  |
+| 225 | 33 | lint-warning | README.md | 26 | check:diff-disposition exits 1 on 21 undispositioned README.md clauses (lines 26-33, introduced by commit 52377a7a before Phase 33); pre-existing, outside plan 33-07's files, logged in 33 deferred-items.md; remedy is a disposition file under docs/audit/29-style-dispositions/ — CI runs the gate at ci.yml:497 so both CAP-02 legs see it | fixed |  | 2026-09-19T23:53:15.140Z | 2026-09-20T03:18:39.670Z |
+| 226 | 33 | unrun-verify | scripts/context-io.test.ts | 4005 | 33-09: ten windows reds NOT ADDRESSED by any Phase 33 plan — trustedRepoRoot vs the POSIX literal /tmp/some-project (:4005, :4237) and two drive() cases with no child output; 8.3 short-name vs long-name rungs (:11329, :11393, :11404); R-31-19-07 symlink cell (:8454); CONTROL 5b marker-less home (:10701); the home-walk premise (:15800). Expected red on the 33-09 pushed run; owner: the CAP-02 gap round | open |  | 2026-09-20T03:18:39.761Z |  |
+| 227 | 33 | unrun-verify | scripts/runnable-ref/uat-spec-integrity.ts | 3237 | 33-09: two windows reds NOT ADDRESSED — parseFaults keyed by the compiler host fileName (:1359) but looked up with join(repoRoot, rel) (:3237), so GREEN 1 prints 'the program did not include it' instead of the recorded fault; POINT 2 (test :8871) compares included.has(join(root, rel)) against forward-slashed Program fileNames. Expected red on the 33-09 pushed run; owner: the CAP-02 gap round | open |  | 2026-09-20T03:18:39.851Z |  |
+| 228 | 33 | unrun-verify | scripts/check-foundation-guards.test.ts | 10824 | 33-09: one windows red NOT ADDRESSED — the o-prefix case expects the host-spelled sibling path in the refusal section, but the guard echoes models.preset as a JSON string (doubled backslashes), invisible on a POSIX host. Expected red on the 33-09 pushed run; owner: the CAP-02 gap round | open |  | 2026-09-20T03:18:39.937Z |  |
 
 ````json
 [
@@ -2986,9 +2989,48 @@ last_updated: 2026-09-19T23:53:15.140Z
     "file": "README.md",
     "line": 26,
     "description": "check:diff-disposition exits 1 on 21 undispositioned README.md clauses (lines 26-33, introduced by commit 52377a7a before Phase 33); pre-existing, outside plan 33-07's files, logged in 33 deferred-items.md; remedy is a disposition file under docs/audit/29-style-dispositions/ — CI runs the gate at ci.yml:497 so both CAP-02 legs see it",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-19T23:53:15.140Z",
+    "resolved_at": "2026-09-20T03:18:39.670Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 226,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/context-io.test.ts",
+    "line": 4005,
+    "description": "33-09: ten windows reds NOT ADDRESSED by any Phase 33 plan — trustedRepoRoot vs the POSIX literal /tmp/some-project (:4005, :4237) and two drive() cases with no child output; 8.3 short-name vs long-name rungs (:11329, :11393, :11404); R-31-19-07 symlink cell (:8454); CONTROL 5b marker-less home (:10701); the home-walk premise (:15800). Expected red on the 33-09 pushed run; owner: the CAP-02 gap round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T03:18:39.761Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 227,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/runnable-ref/uat-spec-integrity.ts",
+    "line": 3237,
+    "description": "33-09: two windows reds NOT ADDRESSED — parseFaults keyed by the compiler host fileName (:1359) but looked up with join(repoRoot, rel) (:3237), so GREEN 1 prints 'the program did not include it' instead of the recorded fault; POINT 2 (test :8871) compares included.has(join(root, rel)) against forward-slashed Program fileNames. Expected red on the 33-09 pushed run; owner: the CAP-02 gap round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T03:18:39.851Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 228,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": 10824,
+    "description": "33-09: one windows red NOT ADDRESSED — the o-prefix case expects the host-spelled sibling path in the refusal section, but the guard echoes models.preset as a JSON string (doubled backslashes), invisible on a POSIX host. Expected red on the 33-09 pushed run; owner: the CAP-02 gap round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T03:18:39.937Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
