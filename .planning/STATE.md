@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 33-05-PLAN.md
-last_updated: "2026-09-20T02:05:07.470Z"
-state_head: ba22d82e8e549aff1dfb00ce0e33c188475401fe
+stopped_at: Completed 33-06-PLAN.md
+last_updated: "2026-09-20T02:40:22.913Z"
+state_head: 264e30cbb1899e0a23c080d9a7b26c29e7f83524
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 280
-  completed_plans: 276
+  completed_plans: 277
   percent: 99
 last_activity: 2026-09-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -534,6 +534,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P08 | 20 min | 3 tasks | 3 files |
 | Phase 33 P04 | 27 min | 3 tasks | 8 files |
 | Phase 33 P05 | 53 min | 3 tasks | 12 files |
+| Phase 33 P06 | 28 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -1468,6 +1469,9 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-04: test-internal path comparisons normalize AT THE COMPARISON through the one normalizer, separator-parameterized so the windows spelling is a case on a POSIX host; board-model golden/mirror reds were measured from the CI log as this class, not downstream of 33-03
 - [Phase 33]: 33-04: the guarantees +0-not-to-be-+0 windows red is a plain zero (os.tmpdir on win32 never reads TMPDIR), not a signed zero; plant TMPDIR/TMP/TEMP together; the same install.test.ts site is deferred to 33-06
 - [Phase 33]: 33-05: host absences are named, counted skips through the platform-shape corpus (every test-side FIFO, mode-0, control-byte, symlink and self-signal fixture staged by the corpus constructor or probe, printed in the one SKIPPED SHAPES format, remainder size derived never pinned); three plan premises corrected from the CI log: the guard reds were the could-not-read arm behind an MSYS mkfifo exiting 0, the check-nul-bytes reds were 14 unpinned CRLF checkouts now pinned from a derived set, and the label-agreement reds were 5 s timeouts
+- [Phase 33]: 33-06: the eight freshness.test.ts windows reds were the gate's LAUNCH of the compiler (a shell-less spawn of the npx.cmd shim, status null, no compiler text, 282 ms), not the clone, not dependency resolution, not tsc; freshness.ts now runs typescript/lib/tsc.js under process.execPath with named launch/locate refusals, and Test 3 demands the compiler's own diagnostic code — Reproduced on darwin by making npx unreachable (same sentence, 0.18 s); scripts/check-build-parity.ts:134 records the identical case from review 32.1-14; the fix is at the launch layer only
+- [Phase 33]: 33-06: install.test.ts compares its kit root canonically on BOTH sides (realpathSync.native then the 33-03 normalizer) with the forward-slash spelling asserted separately; the CI log shows its three windows kit-path reds were separator-only (RUNNER~1 on both sides) and the 8.3/long-name class is confined to context-io.test.ts, disproving RESEARCH item 2 for the install suite — Two classes, two fixes, one helper whose comment says which step answers which, so neither is deleted as redundant
+- [Phase 33]: 33-06: two install-suite fixtures built with spawnSync ln -s (MSYS ln exits 0 and leaves a COPY on windows-latest) are staged through stageSymlinkOrSkip; the pinned-clock migrate wrapper imports by pathToFileURL (a bare Windows path is refused as protocol d:); the R-5 temp-root premise plants TMPDIR, TMP and TEMP; process.platform count unchanged at 15 — Every class read from the CI log's Received text; every new skip arm driven on darwin via FORCE_ABSENT
 
 ### Pending Todos
 
@@ -1595,8 +1599,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T02:04:54.990Z
-Stopped at: Completed 33-05-PLAN.md
+Last session: 2026-09-20T02:39:49.700Z
+Stopped at: Completed 33-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
