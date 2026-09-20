@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33-13-PLAN.md (CR-05 install-failure refusal, CR-04 transcript survival, IN-08 folded; 4 task commits + docs a87db88d). Next: 33-16 (wave 8) or 33-20"
-last_updated: "2026-09-20T23:09:00.769Z"
-state_head: a87db88dc06a4f19daf34415a40e66a30113df91
+stopped_at: "Completed 33-16-PLAN.md (W-21 + W-28 module closures, D-16 symlink routing, cell export; 7 task commits + docs 66015135). Next: 33-20 (wave 9)"
+last_updated: "2026-09-20T23:52:33.042Z"
+state_head: 66015135aea81bc7b360c7e498cd8eff7a107c56
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 292
-  completed_plans: 287
-  percent: 98
+  completed_plans: 288
+  percent: 99
 last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Planned Phase 33 gap-closure round 2 of 4: 12 additive plans (33-12..33-23) mapped one-to-one onto 33-VERIFICATION gaps[].missing and 33-REVIEW CR-01..05; plan checker VERIFICATION PASSED; decision coverage 20/20; requirement coverage CAP-01..03 3/3; round-1 plans byte-untouched."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 8 of 23
+Plan: 9 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -545,6 +545,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P18 | 16 min | 3 tasks | 2 files |
 | Phase 33 P19 | 22 min | 3 tasks | 4 files |
 | Phase 33 P13 | 13 min | 2 tasks | 3 files |
+| Phase 33 P16 | 35 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1496,6 +1497,9 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-19: assert an echoed value in the form its producer publishes it (quoteValue = JSON.stringify), and assert a historical checkout's arm as the host-independent fact plus a named two-shape classification that refuses a third - never a platform branch
 - [Phase 33]: 33-19: check-build-parity.ts takes the 33-06 compiler launch (typescript/lib/tsc.js via createRequire, under process.execPath, in place); a git-diff-verdict gate is tested against a built diff-clean clone, not the checkout
 - [Phase 33]: 33-13: cleanup is a pure truth table over (exit code, --keep-target) applied to two scratch classes — the flag decides targets and kit homes; the flag OR a non-zero exit preserves the paid transcript scratch, each surviving path printed. A plugin install that does not complete THROWS through fail (installOutcome) before any platform child; --out refuses a flag-shaped value (IN-08).
+- [Phase 33]: 33-16: the trusted-root walk's start is canonicalised where the cwd is READ (canonicalWorkingDirectory, rung 1) so a link-spelled cwd names the target on every host; the 31-15 mirror's two anchors stay byte-untouched
+- [Phase 33]: 33-16: a non-regular GOV-02 ledger position is classified by TYPE (one statSync, no new node:fs binding) before any open; the fstat guard stays as the race authority and both write-side arms carry 'refused rather than waited on'
+- [Phase 33]: 33-16: every directory-symlink fixture in context-io.test.ts is D-16-routed through stageSymlinkOrSkip (10 raw sites to 0, 13 helper sites; 35 counted rows under the seam); rebuilding context-io.js always requires npm run generate:hook-manifest
 
 ### Pending Todos
 
@@ -1623,8 +1627,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T23:08:47.551Z
-Stopped at: Completed 33-13-PLAN.md (CR-05 install-failure refusal, CR-04 transcript survival, IN-08 folded; 4 task commits + docs a87db88d). Next: 33-16 (wave 8) or 33-20
+Last session: 2026-09-20T23:52:32.599Z
+Stopped at: Completed 33-16-PLAN.md (W-21 + W-28 module closures, D-16 symlink routing, cell export; 7 task commits + docs 66015135). Next: 33-20 (wave 9)
 Resume file: None
 
 ## Operator Next Steps
