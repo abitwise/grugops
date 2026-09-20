@@ -1280,7 +1280,11 @@ export interface ProgramContext {
   readonly moduleSymbol: TsSymbol;
   readonly frameworkFiles: ReadonlySet<string>;
   readonly typePaths: ReadonlyMap<TsSymbol, string>;
-  /** Per-file parse faults the compiler host caught, keyed by the file name it was asked for. */
+  /**
+   * Per-file parse faults the compiler host caught, keyed by `faultKey(fileName)` — the POSIX
+   * spelling of the file name it was asked for, so the checker's `faultKey(join(repoRoot, rel))`
+   * finds it on every host (33-17, D-15).
+   */
   readonly parseFaults: ReadonlyMap<string, string>;
 }
 
@@ -1356,7 +1360,8 @@ export function createProgramForTarget(
       try {
         return inner(fileName, languageVersion, onError, shouldCreate);
       } catch (cause) {
-        parseFaults.set(fileName, describeCause(cause));
+        // 33-17 (D-15): keyed through the ONE rule the checker looks it up with — see `faultKey`.
+        parseFaults.set(faultKey(fileName), describeCause(cause));
         return undefined;
       }
     };
@@ -1400,6 +1405,47 @@ export function createProgramForTarget(
       parseFaults,
     },
   };
+}
+
+/**
+ * THE ONE PLACE A PARSE-FAULT KEY IS FORMED (Phase 33 / CAP-02, D-15 — plan 33-17).
+ *
+ * The compiler host reports the `fileName` it was asked for with FORWARD SLASHES on every host —
+ * that is the spelling `parseFaults` was keyed under. The checker composes its lookup with `join`,
+ * which spells with the HOST separator. On a POSIX host the two are one string and the lookup
+ * succeeds; on win32 they never met: the fault was RECORDED under `D:/a/repo/e2e/uat/x.uat.spec.ts`
+ * and LOOKED UP under `D:\a\repo\e2e\uat\x.uat.spec.ts`, so the fallback sentence
+ * ("the program did not include it") was printed for a file whose real diagnostic — `Maximum call
+ * stack size exceeded` — existed (CI run 35499800942, windows-latest, `33-CI-MEASUREMENT.md` § 2.4
+ * row W-30; WINDOWS.md row 227). A lost diagnostic is a Repudiation defect in the trace: the
+ * verdict was still a refusal, but the reason it printed was false.
+ *
+ * THE FIX IS HERE, AT KEY FORMATION, AND AT BOTH SITES — `parseFaults.set(faultKey(fileName))`
+ * and `parseFaults.get(faultKey(join(repoRoot, rel)))` — never at one of them. The Program's own
+ * `getSourceFile` lookup is left as it is: the compiler canonicalises its own argument, and the CI
+ * log shows that lookup succeeding on win32 (the file was found; only the fault was not).
+ *
+ * The rule is the one `scripts/posix-path.ts` publishes (`toPosixWith`), REIMPLEMENTED here rather
+ * than imported, for the reason `reportMeasured` below states: this runnable is node:-builtins-only
+ * and executes MATERIALIZED on a host that has no grugops sources beside it, so a relative import
+ * would fail at load on every installed copy. Naming the origin keeps the two visibly the SAME
+ * RULE; the suite holds them equal over discriminating spellings (`uat-spec-integrity.test.ts`,
+ * case AA) so the two spellings of one rule cannot drift apart silently.
+ *
+ * The separator is a PARAMETER defaulting to the host's so the win32 key formation can be
+ * exercised — and mutation-proven — on a POSIX host; production passes nothing. An EMPTY separator
+ * is refused rather than honoured, exactly as the shared normalizer refuses it: `"abc".split("")`
+ * splits every character and would silently rewrite `abc` to `a/b/c`.
+ */
+export function faultKey(path: string, separator: string = sep): string {
+  if (separator === "") {
+    throw new Error(
+      "uat-spec-integrity.faultKey: refusing an empty separator — it would split every character. " +
+        "Pass the separator the path was spelled with (`path.sep`, `path.win32.sep`).",
+    );
+  }
+  if (separator === "/") return path;
+  return path.split(separator).join("/");
 }
 
 /** One sentence for a thrown cause, so every could-not-run reason reads the same way. */
@@ -3234,7 +3280,8 @@ export function analyzeSpecs(
       // parse sentence again, at the one place that can tell.
       const analysed = ctx.program.getSourceFile(join(repoRoot, rel));
       if (analysed === undefined) {
-        const fault = ctx.parseFaults.get(join(repoRoot, rel));
+        // 33-17 (D-15): looked up through the ONE rule the host recorded it with — see `faultKey`.
+        const fault = ctx.parseFaults.get(faultKey(join(repoRoot, rel)));
         errors.push(
           `The UAT spec ${rel} could not be PARSED (${fault ?? "the program did not include it"}); the parser itself faulted on this file, so no verdict is reported for it.`,
         );
