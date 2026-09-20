@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 199
+open_count: 206
 waived_count: 3
 fixed_count: 26
-total_count: 228
-last_updated: 2026-09-20T03:18:39.937Z
+total_count: 235
+last_updated: 2026-09-20T09:09:41.224Z
 ---
 
 # Broken Windows Ledger
@@ -243,6 +243,13 @@ last_updated: 2026-09-20T03:18:39.937Z
 | 226 | 33 | unrun-verify | scripts/context-io.test.ts | 4005 | 33-09: ten windows reds NOT ADDRESSED by any Phase 33 plan — trustedRepoRoot vs the POSIX literal /tmp/some-project (:4005, :4237) and two drive() cases with no child output; 8.3 short-name vs long-name rungs (:11329, :11393, :11404); R-31-19-07 symlink cell (:8454); CONTROL 5b marker-less home (:10701); the home-walk premise (:15800). Expected red on the 33-09 pushed run; owner: the CAP-02 gap round | open |  | 2026-09-20T03:18:39.761Z |  |
 | 227 | 33 | unrun-verify | scripts/runnable-ref/uat-spec-integrity.ts | 3237 | 33-09: two windows reds NOT ADDRESSED — parseFaults keyed by the compiler host fileName (:1359) but looked up with join(repoRoot, rel) (:3237), so GREEN 1 prints 'the program did not include it' instead of the recorded fault; POINT 2 (test :8871) compares included.has(join(root, rel)) against forward-slashed Program fileNames. Expected red on the 33-09 pushed run; owner: the CAP-02 gap round | open |  | 2026-09-20T03:18:39.851Z |  |
 | 228 | 33 | unrun-verify | scripts/check-foundation-guards.test.ts | 10824 | 33-09: one windows red NOT ADDRESSED — the o-prefix case expects the host-spelled sibling path in the refusal section, but the guard echoes models.preset as a JSON string (doubled backslashes), invisible on a POSIX host. Expected red on the 33-09 pushed run; owner: the CAP-02 gap round | open |  | 2026-09-20T03:18:39.937Z |  |
+| 229 | 33 | unrun-verify | scripts/check-public-docs-vocabulary.ts | 268 | 33-09 run 35499800942 windows: publicDocsCorpus's examples part is a readdirSync walk joined with the host separator, so the corpus publishes examples\\NN-*.md while its root part (git ls-files) is POSIX; 10 reds in 2 consumers — check-banned-claims.test.ts 3 (uncovered remainder / intruder / equality 2019 vs 2024) and check-flip-manifest.test.ts 7 (publicDocs part derived-vs-listed disagreement on examples/03-ticket-to-pr.md). 33-03 normalized the dedupe KEY, not the published member (D-15 boundary is this module); the 7 are new to this phase (33-07's gate consumes the same corpus) | open |  | 2026-09-20T09:09:40.673Z |  |
+| 230 | 33 | unrun-verify | scripts/runnable-ref/uat-spec-integrity.test.ts | 6748 | 33-09 run 35499800942 UBUNTU (the leg expected green): GREEN 1b (expected +0 to be 2 — a pathological spec beside a clean one exits 0) and ORDERING (nested.uat.spec.ts never named on stderr, indexOf -1) — byte-identical assertion texts to baseline run 35394268365; never timeouts, never .temp; RESEARCH folded them into the .temp class and no plan's mechanism touched them; ubuntu-only (green on both windows runs); GREEN 1 alone PASSED on the same leg (9.9 s), so the single-spec refusal works and the two-file arrangement is what exits 0 — mechanism UNKNOWN - verify | open |  | 2026-09-20T09:09:40.784Z |  |
+| 231 | 33 | unrun-verify | scripts/uat-gate-exit-contract.test.ts | 450 | 33-09 run 35499800942 windows: 2 survived reds NOT ADDRESSED (identical texts to baseline) — scannedDocuments() joins readdir entries with the host separator, then filters on the POSIX literal docs/audit/ (0 audits) and splits on / for the tracked-list key (9 ordinal claims 'absent'); Task 1 attributed this file's 4 baseline reds wholly to 33-05's SKIPPED SHAPES class — 2 of the 4 were this test-side separator class | open |  | 2026-09-20T09:09:40.867Z |  |
+| 232 | 33 | unrun-verify | scripts/uat-gate-exit-contract.test.ts | 782 | 33-09 run 35499800942 windows: 2 NEW reds created by phase-33 changes — (1) 'the watched corpus is not narrowed … 40' timed out at its OWN explicit 60_000 ms argument (baseline windows 56 481 ms passed; this run's check-diff-disposition file took 160 084 ms vs 129 998 ms) — D-14's global bound does not govern an explicit per-test argument; (2) 'NON-EMPTY on a platform lacking a shape' pins shape="FIFO" on EVERY skipped line, but 33-05 widened the windows remainder to 5 rows including three host-capability probes (chmod 000 enforcement, signal-terminated child, control byte) | open |  | 2026-09-20T09:09:40.949Z |  |
+| 233 | 33 | unrun-verify | scripts/check-platform-shapes.test.ts | 849 | 33-09 run 35499800942 windows: COVERAGE case survived with identical text — 33-05 gated the MIRROR on the measured signal-terminated-child capability, so on win32 the label 'NOT ORDINARY (signalled)' is never watched, but DISCLOSED_UNDRIVEN still pins the two-label pair; incomplete fix (3 of the file's 4 baseline reds closed) | open |  | 2026-09-20T09:09:41.033Z |  |
+| 234 | 33 | unrun-verify | scripts/context-io.test.ts | 14059 | 33-09 run 35499800942 windows: 2 context-io reds beyond row 226's ten, both in 33-05's class — CR-24 'every planted condition reports its OWN arm' moved from the unopenable arm (baseline) to the above-ceiling arm, where the row's detail carries the path JSON-escaped (doubled backslashes) and the authority's message the host spelling (same class as row 228); R-31-21-03's probe still reads not-waited-on=false (identical text to baseline; a retained-position fixture 33-05's FIFO routing did not reach — UNKNOWN - verify whether the fixture is a FIFO) | open |  | 2026-09-20T09:09:41.120Z |  |
+| 235 | 33 | unrun-verify | scripts/freshness.test.ts | 416 | 33-09 run 35499800942 windows: DISCRIMINATION PAIR survived (7 of 8 freshness reds closed by 33-06) — the pair's PRE-FIX arm clones the pre-fix tree 020905f9 and runs ITS gate, which still launches npx tsc without a shell and cannot start a compiler on windows (exit 1, 'did not compile cleanly', no stderr), so the vacuity the test preserves as evidence is unobservable there; the post-fix arm now runs the compiler and names the planted stale hooks/guard.js correctly | open |  | 2026-09-20T09:09:41.224Z |  |
 
 ````json
 [
@@ -3031,6 +3038,97 @@ last_updated: 2026-09-20T03:18:39.937Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-20T03:18:39.937Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 229,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/check-public-docs-vocabulary.ts",
+    "line": 268,
+    "description": "33-09 run 35499800942 windows: publicDocsCorpus's examples part is a readdirSync walk joined with the host separator, so the corpus publishes examples\\NN-*.md while its root part (git ls-files) is POSIX; 10 reds in 2 consumers — check-banned-claims.test.ts 3 (uncovered remainder / intruder / equality 2019 vs 2024) and check-flip-manifest.test.ts 7 (publicDocs part derived-vs-listed disagreement on examples/03-ticket-to-pr.md). 33-03 normalized the dedupe KEY, not the published member (D-15 boundary is this module); the 7 are new to this phase (33-07's gate consumes the same corpus)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T09:09:40.673Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 230,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/runnable-ref/uat-spec-integrity.test.ts",
+    "line": 6748,
+    "description": "33-09 run 35499800942 UBUNTU (the leg expected green): GREEN 1b (expected +0 to be 2 — a pathological spec beside a clean one exits 0) and ORDERING (nested.uat.spec.ts never named on stderr, indexOf -1) — byte-identical assertion texts to baseline run 35394268365; never timeouts, never .temp; RESEARCH folded them into the .temp class and no plan's mechanism touched them; ubuntu-only (green on both windows runs); GREEN 1 alone PASSED on the same leg (9.9 s), so the single-spec refusal works and the two-file arrangement is what exits 0 — mechanism UNKNOWN - verify",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T09:09:40.784Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 231,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/uat-gate-exit-contract.test.ts",
+    "line": 450,
+    "description": "33-09 run 35499800942 windows: 2 survived reds NOT ADDRESSED (identical texts to baseline) — scannedDocuments() joins readdir entries with the host separator, then filters on the POSIX literal docs/audit/ (0 audits) and splits on / for the tracked-list key (9 ordinal claims 'absent'); Task 1 attributed this file's 4 baseline reds wholly to 33-05's SKIPPED SHAPES class — 2 of the 4 were this test-side separator class",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T09:09:40.867Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 232,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/uat-gate-exit-contract.test.ts",
+    "line": 782,
+    "description": "33-09 run 35499800942 windows: 2 NEW reds created by phase-33 changes — (1) 'the watched corpus is not narrowed … 40' timed out at its OWN explicit 60_000 ms argument (baseline windows 56 481 ms passed; this run's check-diff-disposition file took 160 084 ms vs 129 998 ms) — D-14's global bound does not govern an explicit per-test argument; (2) 'NON-EMPTY on a platform lacking a shape' pins shape=\"FIFO\" on EVERY skipped line, but 33-05 widened the windows remainder to 5 rows including three host-capability probes (chmod 000 enforcement, signal-terminated child, control byte)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T09:09:40.949Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 233,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/check-platform-shapes.test.ts",
+    "line": 849,
+    "description": "33-09 run 35499800942 windows: COVERAGE case survived with identical text — 33-05 gated the MIRROR on the measured signal-terminated-child capability, so on win32 the label 'NOT ORDINARY (signalled)' is never watched, but DISCLOSED_UNDRIVEN still pins the two-label pair; incomplete fix (3 of the file's 4 baseline reds closed)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T09:09:41.033Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 234,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/context-io.test.ts",
+    "line": 14059,
+    "description": "33-09 run 35499800942 windows: 2 context-io reds beyond row 226's ten, both in 33-05's class — CR-24 'every planted condition reports its OWN arm' moved from the unopenable arm (baseline) to the above-ceiling arm, where the row's detail carries the path JSON-escaped (doubled backslashes) and the authority's message the host spelling (same class as row 228); R-31-21-03's probe still reads not-waited-on=false (identical text to baseline; a retained-position fixture 33-05's FIFO routing did not reach — UNKNOWN - verify whether the fixture is a FIFO)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T09:09:41.120Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 235,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/freshness.test.ts",
+    "line": 416,
+    "description": "33-09 run 35499800942 windows: DISCRIMINATION PAIR survived (7 of 8 freshness reds closed by 33-06) — the pair's PRE-FIX arm clones the pre-fix tree 020905f9 and runs ITS gate, which still launches npx tsc without a shell and cannot start a compiler on windows (exit 1, 'did not compile cleanly', no stderr), so the vacuity the test preserves as evidence is unobservable there; the post-fix arm now runs the compiler and names the planted stale hooks/guard.js correctly",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T09:09:41.224Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

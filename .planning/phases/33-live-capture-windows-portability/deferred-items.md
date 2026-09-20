@@ -54,3 +54,27 @@ explicit `status: resolved`.
   **Found during:** plan 33-09 Task 1 (2026-09-20), same pairing; the hook-timeout half of this file's baseline red is 33-02's `hookTimeout`.
   **What:** `(o-prefix) a root that is a string PREFIX of a sibling path rewrites nothing` (:10824) expects the guard's refusal section to contain the host-spelled sibling path (`C:\Users\RUNNER~1\…\mirXTRA\deep`); the guard echoes the illegal `models.preset` as a JSON string, so the windows log's Received text carries doubled backslashes (`"C:\\Users\\…"`) and the single-backslash `toContain` cannot see it. On darwin the path carries no backslash, so the assertion cannot observe the difference.
   **Why deferred:** outside plan 33-09's files; a test-side spelling class (compare the echoed value after JSON decoding, or assert the JSON-escaped form). Owner: the CAP-02 gap round.
+
+- `publicDocsCorpus()` publishes its `examples/` members host-separated — ten windows reds across `scripts/check-banned-claims.test.ts` (3) and `scripts/check-flip-manifest.test.ts` (7) on run 35499800942
+  status: open
+  **Found during:** plan 33-09 Task 3 (2026-09-20), pairing the pushed run's `Failed Tests 31` against the baseline by exact key.
+  **What:** `scripts/check-public-docs-vocabulary.ts` derives the corpus's `examples` part from a `readdirSync` walk joined with `path.join` (`:268`) while the root part comes from `git ls-files`; on windows the five `examples\NN-*.md` members are neither admitted nor excluded-by-name under their POSIX names (banned-claims: uncovered list of 5, intruder list of 5, `expected 2019 to be 2024`), and 33-07's flip gate reports `derived but not listed: [examples\03-ticket-to-pr.md]; listed but not derived: [examples/03-ticket-to-pr.md]` in all seven of its converse/control cases. 33-03 normalized the dedupe KEY formed from the member, not the member; no phase-33 commit touches the corpus module. WINDOWS.md row 229; `33-CI-MEASUREMENT.md` § 2.5 (a).
+  **Why deferred:** a measurement plan under the four-round cap — no fix and re-run in one round. D-15 names the remedy (normalize once, in the module that publishes). Owner: the CAP-02 gap round.
+
+- Two UBUNTU reds in `scripts/runnable-ref/uat-spec-integrity.test.ts` (`GREEN 1b` :6748, `ORDERING` :7089) survived with byte-identical baseline texts and were never in the `.temp` class
+  status: open
+  **Found during:** plan 33-09 Task 3 (2026-09-20) — the ubuntu leg of run 35499800942 concluded `failure` where § 1.5 expected green.
+  **What:** `expected +0 to be 2` (a pathological spec beside a clean one exits 0) and `expected -1 to be greater than or equal to 0` (`nested.uat.spec.ts` never named on stderr). RESEARCH folded them into ".temp scandir ENOENT and its downstream vacuity-floor assertions", Task 1 attributed the file to 33-02's `.temp` fix, and neither mechanism touches them. `GREEN 1` (the pathological spec alone) PASSED on the same leg in 9.9 s. Ubuntu-only: green on both windows runs. Mechanism `UNKNOWN - verify`. WINDOWS.md row 230.
+  **Why deferred:** outside this plan's files; a fix and a re-run do not belong in one round. Owner: the CAP-02 gap round.
+
+- `scripts/uat-gate-exit-contract.test.ts`: two mis-attributed survivors (`:450-455` host-joined `scannedDocuments()` filtered on the POSIX literal `docs/audit/` and keyed by `split("/")`) and two reds this phase's own changes created (`:575` explicit `60_000` ms bound exceeded at 61 989 ms on windows; `:782` per-line `shape="FIFO"` literal under the remainder 33-05 widened to five rows)
+  status: open
+  **Found during:** plan 33-09 Task 3 (2026-09-20).
+  **What:** the file's baseline 4 reds were 2 of 33-05's `SKIPPED SHAPES` class (closed) plus these 2 test-internal separator cases (untouched, identical texts); the 2 new ones are a per-test bound sitting 3.5 s above the baseline windows measurement of a gate that grew with this phase's disposition rows, and a per-entry literal that a derived remainder count did not cover. WINDOWS.md rows 231, 232.
+  **Why deferred:** measurement round; D-14 governs the global bound, not an explicit per-test argument — the gap round decides whether the argument goes or is derived. Owner: the CAP-02 gap round.
+
+- Three incomplete fixes one arm over: `scripts/check-platform-shapes.test.ts:849` `DISCLOSED_UNDRIVEN` pins two labels while 33-05's capability gate leaves `NOT ORDINARY (signalled)` unwatched on win32; `scripts/context-io.test.ts:14059` CR-24 moved from the `unopenable` arm to the `above-ceiling` arm (JSON-escaped path in the detail cell) and `:15771` R-31-21-03's probe still reads `not-waited-on=false`; `scripts/freshness.test.ts:416` the discrimination pair's PRE-FIX arm runs the pre-fix tree's `npx tsc` launch, which starts no compiler on windows
+  status: open
+  **Found during:** plan 33-09 Task 3 (2026-09-20).
+  **What:** each survivor's file had its baseline class closed (3/4, 18/30 beyond the ten predicted, 7/8) and the case moved to the sibling arm the fix did not reach — the pattern the project's memory records for every gap-closure phase. WINDOWS.md rows 233, 234, 235.
+  **Why deferred:** measurement round. Owner: the CAP-02 gap round — probe every ARM that consumes the changed value before marking the class closed.
