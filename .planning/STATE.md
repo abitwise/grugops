@@ -5,18 +5,18 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33-10-PLAN.md (live capture OUTCOME: fail — D-07 comparator; diagnosed at zero tokens; nothing flips; commits c7be6d0d, e1988cda local, not pushed)"
-last_updated: "2026-09-20T12:27:20.996Z"
-state_head: e1988cdae6f2696785d2d75a3a69dc474d8f49f4
+stopped_at: "Completed 33-11-PLAN.md on the HOLD branch (GAP-D1 held by human decision 2026-09-20: 33-10 capture OUTCOME: fail on the D-07 comparator; nothing flipped, manifest stays pre-capture; CAP-01/02/03 stay open). Phase 33 round 1 executed 11/11; next: /gsd-verify-work 33 (expected gaps_found), then gap round 2 of 4"
+last_updated: "2026-09-20T18:02:45.068Z"
+state_head: 51268182b2b6e76c8bf30ad9f6e97eda16c98b8a
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 280
   completed_plans: 279
   percent: 100
-last_activity: 2026-09-19
+last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-last_activity_desc: Completed quick tasks 260919-007 (README Quickstart example Claude Code commands, 52377a7a) and 260919-07m (installer notes name the real marketplace owner abitwise/grugops, 26c3d8cc).
+last_activity_desc: "Completed 33-11 on the HOLD branch (51268182): GAP-D1 held by human decision after the 33-10 capture read OUTCOME fail on the D-07 comparator; hold recorded in 33-FLIP-MANIFEST.md section 6 and the 28 disposition register; no flip-class or correction-class cell changed; CAP-01/02/03 ledger rows record their separate evidence (capture vs CI run 35499800942); Phase 33 not marked complete."
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 11 of 11
+Phase: 33 (Live Capture & Windows Portability) — EXECUTED, round 1 of 4, awaiting verification
+Plan: 11 of 11 — 33-11 closed on the HOLD branch (GAP-D1 held, nothing flipped, D-20); expected verdict gaps_found (CAP-01 fail on D-07, CAP-02 CI red both legs, CAP-03 held but not marked)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -1477,6 +1477,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-09: CAP-02 NOT marked complete - CI run 35499800942 for d9bd4315 concluded failure on BOTH legs (ubuntu 2/5342 in uat-spec-integrity GREEN 1b/ORDERING, mis-attributed to the .temp class; windows 31/5342 in 8 files, 13 predicted + 18 beyond, 10 of them from publicDocsCorpus's host-joined examples/ part); no fix, no re-run, no platform conditional, no ledger flip; rows 229-235 appended via the tool; row 186 has a second green windows measurement, not disposed
 - [Phase 33]: 33-10: the one authorized live capture ran once (11.75 USD, 31 min 07 s): CAP-03 both sides hold on both dispatch paths, the prod-deploy deny observed on the hook channel for the probe in both, grugops 2.1.0 loaded from the plugin cache — OUTCOME: fail because the D-07 comparator (dual-path-equivalence.ts) asserts byte-identical model prose and keys on model-chosen task ids; classed SUITE in 33-DIAGNOSIS.md, nothing fixed, nothing re-run, nothing flips (D-20) — D-11 requires a red run to be diagnosed at zero tokens and re-asked in the NEXT round; D-07 says byte-identical prose is not asserted, and the runner asserted it by construction
 - [Phase 33]: 33-10 KIT findings recorded verbatim, not fixed (D-20): the --agent path's session carries exactly the coordinator adapter's 7-tool grant (no MCP admission tool) and its nine notes were hand-written by the Write tool after the guard refused the heredocs; the guard's command model refuses 2>&1 and $var on tool name alone (15 of 17 live denies, reproduced offline); admitAndAppend writes verified_by: undefined when the field is absent (reproduced offline) — each has an offline reproduction in 33-DIAGNOSIS.md and belongs to gap-closure round 2 of 4; CAP-03 / CAP-01 stay unmarked on a red run
+- [Phase 33]: 33-11: GAP-D1 HELD (human, 2026-09-20) — the 33-10 capture reads OUTCOME: fail on the D-07 comparator, so under D-20 nothing flips: manifest status stays pre-capture, every flip-class and correction-class row untouched, no WINDOWS row added, PROJECT.md owed to the capture-day commit (declared F59-F62 but absent from 33-11's files list); CAP-01/CAP-02/CAP-03 stay open with separate citations (33-CAPTURE-SUMMARY.md vs 33-CI-MEASUREMENT.md Part 2)
 
 ### Pending Todos
 
@@ -1604,8 +1605,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T12:26:51.564Z
-Stopped at: Completed 33-10-PLAN.md (live capture OUTCOME: fail — D-07 comparator; diagnosed at zero tokens; nothing flips; commits c7be6d0d, e1988cda local, not pushed)
+Last session: 2026-09-20T18:02:27.866Z
+Stopped at: Completed 33-11-PLAN.md on the HOLD branch (GAP-D1 held by human decision 2026-09-20: 33-10 capture OUTCOME: fail on the D-07 comparator; nothing flipped, manifest stays pre-capture; CAP-01/02/03 stay open). Phase 33 round 1 executed 11/11; next: /gsd-verify-work 33 (expected gaps_found), then gap round 2 of 4
 Resume file: None
 
 ## Operator Next Steps

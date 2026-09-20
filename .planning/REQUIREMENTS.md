@@ -223,9 +223,9 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | DASH-06 | Phase 32 | Complete |
 | DASH-07 | Phase 32 | Complete |
 | DASH-08 | Phase 32 | Complete |
-| CAP-01 | Phase 33 | Pending |
-| CAP-02 | Phase 33 | Pending |
-| CAP-03 | Phase 33 | Pending |
+| CAP-01 | Phase 33 | Pending — the capture was performed 2026-09-20 (plan 33-10) and reads `OUTCOME: fail` on the D-07 dual-path comparator; GAP-D1 held open at plan 33-11 by human decision (D-20), nothing flipped. Evidence: `33-CAPTURE-SUMMARY.md` (capture) and `33-FLIP-MANIFEST.md` § 6 (hold record). |
+| CAP-02 | Phase 33 | Pending — NOT met: CI run `35499800942` concluded failure on BOTH legs (ubuntu 2 reds, windows 31 reds). Evidence: `33-CI-MEASUREMENT.md` Part 2 (plan 33-09) — a different artifact from the capture summary; the two citations are not interchangeable. |
+| CAP-03 | Phase 33 | Pending — both CAP-03 sides held in both dispatch paths and the D-04 deny was observed on the hook channel (2026-09-20), but not marked complete because the run's outcome word is `fail` (D-11, D-20). Evidence: `33-CAPTURE-SUMMARY.md` § CAP-03 verdict (D-02), runs A and B. |
 
 ### Coverage by phase
 
