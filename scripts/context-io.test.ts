@@ -29,7 +29,6 @@ import {
   readFileSync,
   readdirSync,
   existsSync,
-  symlinkSync,
   rmSync,
   cpSync,
   chmodSync,
@@ -421,11 +420,25 @@ function admitViaCli(
   noteFile: string,
   contextRoot: string,
   extraEnv: Record<string, string> = {},
-): { status: number | null; stdout: string; stderr: string } {
+): { status: number | null; stdout: string; stderr: string } | null {
   const repoRoot = mkdtempSync(join(tmpdir(), "admit-repo-"));
   tmpDirs.push(repoRoot);
   mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
-  symlinkSync(contextRoot, join(repoRoot, ".grugops", "context"));
+  // The link is a DIRECTORY SYMLINK, which needs a privilege some hosts lack (D-16, plan 33-16):
+  // staged through the corpus helper, and a refusal is one printed, counted row handed back to the
+  // caller as `null` — the caller returns, never `it.skip`, never a platform conditional.
+  const skipped = stageSymlinkOrSkip(
+    contextRoot,
+    join(repoRoot, ".grugops", "context"),
+    "directory symlink to a context store",
+    `scripts/context-io.test.ts: admitViaCli (${task})`,
+  );
+  if (skipped !== null) {
+    console.warn(
+      skipLine(skipped, "the in-process appendNote/admit cases over the same rules, which link nothing"),
+    );
+    return null;
+  }
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
@@ -565,6 +578,7 @@ describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () =
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#NOPE-001" }));
     const r = runAdmit(task, f, contextRoot);
+    if (r === null) return;
     expect(r.status).not.toBe(0);
     expect(`${r.stdout}${r.stderr}`).toContain("NOPE-001");
   });
@@ -580,6 +594,7 @@ describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () =
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` }));
     const r = runAdmit(task, f, contextRoot);
+    if (r === null) return;
     expect(r.status).toBe(0);
   });
 
@@ -590,6 +605,7 @@ describe("context-io.js — verify-before-write admission (VFY-01/VFY-02)", () =
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-BBBB" }));
     const r = runAdmit(task, f, contextRoot);
+    if (r === null) return;
     expect(r.status).not.toBe(0);
     expect(`${r.stdout}${r.stderr}`).toContain("RUN-BBBB");
   });
@@ -664,6 +680,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
       goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` }).replace(/\n/g, "\r\n"),
     );
     const r = runAdmit(task, f, contextRoot);
+    if (r === null) return;
     // RED before the Task-2 fix: "no live green §14-gate verdict found" because the CRLF verdict
     // is dropped by readContext. GREEN after: the CRLF verdict is parsed identically to its LF form.
     expect(r.status).toBe(0);
@@ -691,6 +708,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: `§14-gate#${id}` })); // LF finding
     const r = runAdmit(task, f, contextRoot);
+    if (r === null) return;
     expect(r.status).toBe(0);
   });
 });
@@ -3546,6 +3564,7 @@ describe("context-io CLI: the dispatched verbs and the usage line are one set (p
     const f = join(contextRoot, "finding.md");
     writeFileSync(f, goodNoteText({ kind: "finding", verified_by: "§14-gate#RUN-CLI-3" }));
     const admitted = admitViaCli("cli-task", f, contextRoot);
+    if (admitted === null) return;
     expect(admitted.status, `${admitted.stdout}${admitted.stderr}`).toBe(0);
   });
 });
@@ -3831,16 +3850,18 @@ describe("30-11 A-7 — the admit CLI's success line asserts only checks that RA
     );
   }
 
-  function admitVia(f: Parameters<typeof noteText>[0]): { status: number | null; msg: string } {
+  function admitVia(f: Parameters<typeof noteText>[0]): { status: number | null; msg: string } | null {
     const root = freshTmp("ctx-admit-");
     const file = join(root, "candidate.md");
     writeFileSync(file, noteText(f));
     const r = admitViaCli("t", file, join(root, "ctx"));
+    if (r === null) return null; // the helper printed the counted skip row
     return { status: r.status, msg: (r.stdout + r.stderr).trim() };
   }
 
   it("a human-stamped finding admits WITHOUT claiming a gate cross-check matched", () => {
     const r = admitVia({ kind: "finding", by: "software-engineer", verified_by: "human:alice" });
+    if (r === null) return;
     expect(r.status).toBe(0);
     expect(r.msg).not.toContain("the §14-gate stamp matches a live green verdict");
     expect(r.msg).toContain("every admission check that applies to it");
@@ -3848,6 +3869,7 @@ describe("30-11 A-7 — the admit CLI's success line asserts only checks that RA
 
   it("a soft claim admits WITHOUT claiming a gate cross-check matched", () => {
     const r = admitVia({ kind: "claim", by: "software-engineer" });
+    if (r === null) return;
     expect(r.status).toBe(0);
     expect(r.msg).not.toContain("the §14-gate stamp matches a live green verdict");
   });
@@ -3892,6 +3914,7 @@ describe("30-11 — the green-verdict RECOGNIZER and the impersonation refusal d
       writeFileSync(wf, note({ kind: "finding", by, verified_by: "human:alice" }));
       mkdirSync(join(w, "ctx"), { recursive: true });
       const a = admitViaCli("t", wf, join(w, "ctx"));
+      if (a === null) return;
       const refusedAsImpersonation =
         a.status !== 0 && (a.stderr + a.stdout).includes("reserved author identity");
 
@@ -3916,6 +3939,7 @@ describe("30-11 — the green-verdict RECOGNIZER and the impersonation refusal d
         note({ kind: "finding", by: "software-engineer", verified_by: "§14-gate#RUN-9" }),
       );
       const b = admitViaCli("t", ff, ctx);
+      if (b === null) return;
       const recognized = b.status === 0;
 
       expect(
@@ -4140,7 +4164,16 @@ describe("30-11 RA1-2 (reader half) — a governance config that is not a regula
     mkdirSync(join(base, ".grugops"), { recursive: true });
     const real = join(base, "real.json");
     writeFileSync(real, '{"checkpoints":{"protected_branch_merge":"notify"}}');
-    symlinkSync(real, join(base, ".grugops", "factory.config.json"));
+    const skipped = stageSymlinkOrSkip(
+      real,
+      join(base, ".grugops", "factory.config.json"),
+      "symlink to a factory config file",
+      "scripts/context-io.test.ts: a SYMLINK to a regular file still reads (30-11 RA1-2)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the NON-VACUITY regular-file case beside this one (the same `ok` read)"));
+      return;
+    }
     const res = mod.readGovernanceConfig(base);
     expect(res.source).toBe("ok");
     expect(res.config.checkpoints.protected_branch_merge).toBe("notify");
@@ -8041,7 +8074,16 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       writeConfig(kit, [".grugops", "factory.config.json"], ACTIVE);
       const home = join(tree, "home");
       mkdirSync(join(home, ".git"), { recursive: true });
-      symlinkSync(join(kit, ".grugops"), join(home, ".grugops"));
+      const skipped = stageSymlinkOrSkip(
+        join(kit, ".grugops"),
+        join(home, ".grugops"),
+        "directory symlink to a kit home",
+        "scripts/context-io.test.ts: INVARIANCE 4, $HOME/.grugops linked into the kit (31-27)",
+      );
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, "INVARIANCE 1-3 beside this case, and the R-31-19-07 CASE cell (31-23)"));
+        return;
+      }
 
       const flipped = drive("appendNote", { cwd: home, env: asHome(home), kit });
 
@@ -8168,7 +8210,16 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       const deep = join(real, "a", "b");
       mkdirSync(deep, { recursive: true });
       const link = join(base, "link-home");
-      symlinkSync(real, link);
+      const skipped = stageSymlinkOrSkip(
+        real,
+        link,
+        "directory symlink to a home directory",
+        "scripts/context-io.test.ts: ADJACENCY, a SYMLINKED spelling of home (31-23)",
+      );
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, "the STRICT-ancestor and HOME-itself cases beside this one (the identity set's spelling-free half)"));
+        return;
+      }
       // HOME spelled through the link: the same directory under a different string. A text-only
       // comparison would miss it, and a missed stop is the unsafe direction.
       expect(drive("trustedRepoRoot", { cwd: deep, env: asHome(link) }).root).toBe(KIT);
@@ -9926,7 +9977,16 @@ describe("31-21 CONTROL 4 — the governance-config reader answers identically a
     const root = projectRoot("p31-21-cfg-symlink-");
     const real = join(freshTmp("p31-21-cfg-target-"), "real.json");
     writeFileSync(real, JSON.stringify({ context: { human_admission: "all" } }));
-    symlinkSync(real, configPath(root));
+    const skipped = stageSymlinkOrSkip(
+      real,
+      configPath(root),
+      "symlink to a factory config file",
+      "scripts/context-io.test.ts: a SYMLINK to a regular file still reads (31-21 CONTROL 4)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the regular-file case beside this one (the same `ok` read through the descriptor)"));
+      return;
+    }
     const g = mod.readGovernanceConfig(root);
     expect(g.source, "a config legitimately delivered through a symlink was refused").toBe("ok");
     expect(g.config.human_admission).toBe("all");
@@ -10893,7 +10953,18 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     //     root of its own, so it is accepted — the link is not a way to reach an unanchored store.
     const linkHost = governanceRoot("p31-22-symlink-link-");
     mkdirSync(join(linkHost, ".grugops"), { recursive: true });
-    symlinkSync(realStore, join(linkHost, ".grugops", "context"));
+    // Every link in this case is a DIRECTORY symlink staged through the corpus helper (D-16, plan
+    // 33-16): a host without the privilege prints the counted row at the first one and returns.
+    const skipA = stageSymlinkOrSkip(
+      realStore,
+      join(linkHost, ".grugops", "context"),
+      "directory symlink to a context store",
+      "scripts/context-io.test.ts: ADJACENCY (a), a link to a real anchored store (31-22)",
+    );
+    if (skipA !== null) {
+      console.warn(skipLine(skipA, "the R-31-22-02 destination-shape case beside this one, and the origin-refusal cases above it (the lexical rule without a link)"));
+      return;
+    }
     const viaLink = join(linkHost, ".grugops", "context");
     const repoRoot = governanceRoot("p31-22-symlink-repo-");
     expect(promote(viaLink, destStore("p31-22-symlink-dest-"), id, repoRoot).threw).toBeNull();
@@ -10901,7 +10972,16 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     //     reads, so it is refused for where it sits rather than for what it points at.
     const loose = freshTmp("p31-22-symlink-loose-");
     mkdirSync(join(loose, ".grugops"), { recursive: true });
-    symlinkSync(realStore, join(loose, ".grugops", "context"));
+    const skipB = stageSymlinkOrSkip(
+      realStore,
+      join(loose, ".grugops", "context"),
+      "directory symlink to a context store",
+      "scripts/context-io.test.ts: ADJACENCY (b), a shaped link under an unanchored directory (31-22)",
+    );
+    if (skipB !== null) {
+      console.warn(skipLine(skipB, "the R-31-22-02 destination-shape case beside this one, and the origin-refusal cases above it (the lexical rule without a link)"));
+      return;
+    }
     expect(
       promote(join(loose, ".grugops", "context"), destStore("p31-22-symlink-dest2-"), id, repoRoot).threw,
     ).toContain("DECLINED (origin-outside-trusted-store)");
@@ -10919,7 +10999,16 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     );
     const anchoredHost = governanceRoot("p31-22-symlink-anchored-");
     mkdirSync(join(anchoredHost, ".grugops"), { recursive: true });
-    symlinkSync(ordinary, join(anchoredHost, ".grugops", "context"));
+    const skipC = stageSymlinkOrSkip(
+      ordinary,
+      join(anchoredHost, ".grugops", "context"),
+      "directory symlink to a context store",
+      "scripts/context-io.test.ts: ADJACENCY (c), an anchored link whose realpath is ordinary (31-22)",
+    );
+    if (skipC !== null) {
+      console.warn(skipLine(skipC, "the R-31-22-02 destination-shape case beside this one, and the origin-refusal cases above it (the lexical rule without a link)"));
+      return;
+    }
     expect(
       promote(join(anchoredHost, ".grugops", "context"), destStore("p31-22-symlink-dest3-"), id, repoRoot).threw,
       "R-31-22-03 states this shape is ACCEPTED; if it now refuses, the residual is what to correct",
@@ -11815,10 +11904,27 @@ describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set 
     const fossil = freshTmp("p31-37-fossil-");
     writeFileSync(join(fossil, "_FOSSIL_"), "x");
     const gone = join(freshTmp("p31-37-gone-"), "absent");
-    const symRepo = join(freshTmp("p31-37-symrepo-"), "link");
-    symlinkSync(git, symRepo);
-    const symBare = join(freshTmp("p31-37-symbare-"), "link");
-    symlinkSync(bare, symBare);
+    // The two symlink shapes are DIRECTORY symlinks staged through the corpus helper (D-16, plan
+    // 33-16): a host without the privilege prints one counted row per shape and the corpus is
+    // built without that row — the non-vacuity floor below still holds on the eleven others.
+    const linked: Array<[string, string]> = [];
+    for (const [label, target, prefix] of [
+      ["symlink -> dir WITH .git", git, "p31-37-symrepo-"],
+      ["symlink -> dir with NO marker", bare, "p31-37-symbare-"],
+    ] as const) {
+      const at = join(freshTmp(prefix), "link");
+      const skipped = stageSymlinkOrSkip(
+        target,
+        at,
+        "symlink to a git directory",
+        `scripts/context-io.test.ts: 31-37 delivered-root corpus, ${label}`,
+      );
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, "the un-linked twin of the same shape in this corpus (the dir WITH .git, the dir with NO marker)"));
+        continue;
+      }
+      linked.push([label, at]);
+    }
     const outer = freshTmp("p31-37-nested-");
     mkdirSync(join(outer, ".git"), { recursive: true });
     const nested = join(outer, "pkg");
@@ -11834,8 +11940,7 @@ describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set 
       ["existing dir WITH .hg", hg],
       ["existing dir WITH _FOSSIL_", fossil],
       ["the KIT's own root (carries .git)", kitRoot],
-      ["symlink -> dir WITH .git", symRepo],
-      ["symlink -> dir with NO marker", symBare],
+      ...linked,
       ["existing dir INSIDE a repo, no marker of its own", nested],
     ];
   }
@@ -12481,7 +12586,7 @@ describe("31-29 — CR-19: the GOV-02 ledger's two sides agree at the boundary t
         "(a module that opened first would answer through the `unopenable` arm)";
     }
     expect(rawOpen, "the raw open produced no reading at all").toMatch(/^(opened|threw)/);
-    console.warn(`33-16 Test Y PREMISE on ${process.platform}: raw open of a directory ${rawOpen}`);
+    console.warn(`33-16 Test Y PREMISE on this host: raw open of a directory at the ledger position ${rawOpen}`);
     // THE ARM, host-independent: the position is classified by its type before any open.
     const started = Date.now();
     let refusal: unknown = null;
