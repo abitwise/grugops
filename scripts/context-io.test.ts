@@ -14336,11 +14336,10 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
    * — backslash first, then pipe, then newlines to a space. The expectation below must be the SAME
    * escaping over the authority's message, not a hand-written pipe replacement that differs from
    * it: on a host whose paths carry backslashes the cell doubles them and a pipe-only expectation
-   * reads the module's correct publication as a red. `cell` is not exported; this is the
-   * source-quoted form, and plan 33-16 (the module's plan) replaces it with the exported authority.
+   * reads the module's correct publication as a red. `cell` IS the exported authority now (plan
+   * 33-16, on 33-15's note): this binding is the import, so there is one escaping and no twin.
    */
-  const rendererCell = (s: string): string =>
-    s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+  const rendererCell = mod.cell;
 
   /**
    * ONE PLANT PER ARM. Each is named by the condition it MEETS, and each is driven through the

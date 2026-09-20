@@ -4093,7 +4093,15 @@ function ledgerRecordsId(repoRoot: string, id: string): boolean {
 
 // ── cell(): escape free-text before it enters a pipe-delimited markdown table cell (T-20-02). ───
 // Cloned from generate-catalog.ts: backslash first, then pipe, then flatten newlines to a space.
-function cell(s: string): string {
+/**
+ * The ONE escaping a value crosses to become a table cell — backslash first, then pipe, then a line
+ * break to a space. EXPORTED (plan 33-16, on plan 33-15's note) so the test that compares a
+ * skip-report detail cell to the authority's own message compares through THIS function rather
+ * than a source-quoted twin of it: two spellings of one escaping is the drift this module keeps
+ * deleting, and a twin that lagged the original would read the renderer's correct publication as
+ * a red on every host whose paths carry a backslash (windows-latest row W-27).
+ */
+export function cell(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
