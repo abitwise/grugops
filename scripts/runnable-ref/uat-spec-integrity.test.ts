@@ -6718,6 +6718,16 @@ function parseBoundary(): Boundary {
   return parseBoundaryFor({});
 }
 
+/**
+ * 33-17 (U-1 / U-2): the depth a MIXED arrangement (the nested spec beside a sibling) plants.
+ *
+ * RED (characterization): today every mixed case plants the exact one-file `overflow`, so this is
+ * introduced as that depth and test AD asserts the margin the fix must carry.
+ */
+function mixedArrangementDepth(boundary: { readonly overflow: number }): number {
+  return boundary.overflow;
+}
+
 describe("uat-spec-integrity — 33-17 (U-1 / U-2): the boundary, measured per arrangement", () => {
   // The diagnosis's own measurement (plan 33-17 Task 2). The two ubuntu reds on CI run 35499800942
   // (`GREEN 1b`, `ORDERING` (b)) run the nested spec BESIDE a clean one at the depth bisected with
@@ -6739,6 +6749,34 @@ describe("uat-spec-integrity — 33-17 (U-1 / U-2): the boundary, measured per a
     expect(oneFile.overflow - oneFile.safe, "the one-file bisection did not converge on an adjacent pair").toBe(1);
     expect(mixed.overflow - mixed.safe, "the mixed bisection did not converge on an adjacent pair").toBe(1);
     expect(oneFile, "parseBoundary() and parseBoundaryFor({}) are two authorities").toEqual(parseBoundary());
+  });
+
+  // ── AD: the mixed arrangement is refused at the DERIVED depth, and that depth carries margin ───
+  //
+  // The behavioural half (exit 2, `visited 1 of 2`, the parse fault NAMED) is red only on a host
+  // where the arrangement shift crosses the adjacent pair — on this host the shift measured 0, so
+  // that half is the diagnosis's own measurement and the pushed run's expected green. The margin
+  // half is red wherever the depth is the bare boundary: a future author cannot shrink the margin
+  // back to zero without this case going red on every host.
+  it("AD: the mixed arrangement is refused at mixedArrangementDepth(boundary), which is at least twice the one-file overflow", () => {
+    const boundary = parseBoundary();
+    const depth = mixedArrangementDepth(boundary);
+    expect(
+      depth,
+      `the derived mixed-arrangement depth ${depth} carries no margin over the one-file overflow ${boundary.overflow}`,
+    ).toBeGreaterThanOrEqual(2 * boundary.overflow);
+
+    const root = mkTargetRepo({});
+    plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(depth));
+    plant(root, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
+    const r = runCheck(root);
+    expect([0, 1, 2], `exit code outside the D-12 contract: ${r.status}`).toContain(r.status);
+    expect(r.status, `stderr began: ${r.stderr.split("\n")[0]}`).toBe(2);
+    expect(r.stderr).toContain("visited 1 of 2 derived uat specs");
+    // 33-17 (W-30): the fault the host recorded is the fault the checker prints — the diagnostic
+    // is NAMED, never the fallback sentence, in the two-file arrangement too.
+    expect(r.stderr).toContain("could not be PARSED (Maximum call stack size exceeded)");
+    expect(r.stdout).toBe("");
   });
 });
 
