@@ -36,6 +36,9 @@ import {
   statSync,
   realpathSync,
   copyFileSync,
+  openSync,
+  closeSync,
+  constants as fsConstants,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -12394,14 +12397,20 @@ describe("31-29 — CR-19: the GOV-02 ledger's two sides agree at the boundary t
   it("CONTROL: a FIFO at the ledger path still refuses by SHAPE, not by ceiling (31-21)", () => {
     // MEASURED CORRECTION to this case's own first spelling, recorded rather than quietly amended.
     // It expected the fstat SHAPE branch ("is not a regular file"). A FIFO with no reader never
-    // reaches that branch: `O_WRONLY | O_NONBLOCK` fails at open(2) with ENXIO, which is exactly
-    // what 31-21 built the non-blocking open FOR — the refusal is one branch EARLIER than assumed.
-    // The property this control exists to hold is unchanged and is what is asserted: the ledger's
-    // shape refusal is still reachable, still bounded, and is NOT the new ceiling clause.
+    // reached that branch: `O_WRONLY | O_NONBLOCK` failed at open(2) with ENXIO, which is exactly
+    // what 31-21 built the non-blocking open FOR — the refusal was one branch EARLIER than assumed.
+    //
+    // MOVED A SECOND TIME, BY PLAN 33-16 (W-28), AND RECORDED THE SAME WAY. The position's TYPE is
+    // now classified BEFORE the open, so a FIFO answers through the `not-a-regular-file` arm on
+    // every host — the same arm a directory answers through — and the ENXIO spelling is no longer
+    // reached from here (the `unopenable` arm still answers a position whose parent does not
+    // exist: Test Z in the 33-16 block below). The property this control exists to hold is
+    // unchanged and is what is asserted: the ledger's shape refusal is still reachable, still
+    // bounded, still a bounded refusal by its own words, and is NOT the new ceiling clause.
     const { root, ctx, ledger } = retainedRepo("p31-29-ledger-fifo-");
     const skipped = stageShapeOrSkip("FIFO", ledger, "scripts/context-io.test.ts: a FIFO at the ledger path (31-29 CR-19 CONTROL)");
     if (skipped !== null) {
-      console.warn(skipLine(skipped, "the DIRECTORY-at-the-ledger-path CONTROL beside this one (the fstat SHAPE branch)"));
+      console.warn(skipLine(skipped, "the DIRECTORY-at-the-ledger-path CONTROL beside this one (the same TYPE arm)"));
       return;
     }
     let message = "";
@@ -12411,15 +12420,20 @@ describe("31-29 — CR-19: the GOV-02 ledger's two sides agree at the boundary t
     } catch (e) {
       message = (e as Error).message;
     }
-    expect(message).toContain("could not be opened for append (ENXIO)");
+    expect(message).toContain("is not a regular file");
+    expect(message).toContain("refused rather than waited on");
     expect(message).toContain(mod.UNRECORDABLE_ADMISSION_REFUSAL);
     expect(message).not.toContain(mod.LEDGER_ABOVE_CEILING_CLAUSE);
   });
 
-  it("CONTROL: a DIRECTORY at the ledger path reaches the fstat SHAPE branch (31-21, unmoved)", () => {
+  it("CONTROL: a DIRECTORY at the ledger path reaches the TYPE arm, `not-a-regular-file` (31-21; re-homed by 33-16)", () => {
     // The converse position, so the shape branch is proven REACHABLE rather than assumed dead after
-    // the ceiling branch landed beside it. A directory opens (EISDIR is raised on write, not open,
-    // on darwin) and is refused by fstat.
+    // the ceiling branch landed beside it. THE FIRST SPELLING OF THIS COMMENT WAS WRONG ON DARWIN
+    // and right on win32, and windows-latest row W-28 is what showed it: on darwin a directory does
+    // NOT open under `O_WRONLY` (EISDIR at open(2), the `unopenable` arm), while on win32 the open
+    // of a directory handle SUCCEEDS and the fstat arm answered instead. Two hosts, two arms, one
+    // property. Plan 33-16 classifies the type before the open, so the arm is the same everywhere;
+    // Test Y in the 33-16 block below asserts WHICH arm and quotes this host's raw-open reading.
     const { root, ctx, ledger } = retainedRepo("p31-29-ledger-dir-");
     mkdirSync(ledger, { recursive: true });
     let message = "";
@@ -12431,6 +12445,134 @@ describe("31-29 — CR-19: the GOV-02 ledger's two sides agree at the boundary t
     }
     expect(message).toContain(mod.UNRECORDABLE_ADMISSION_REFUSAL);
     expect(message).not.toContain(mod.LEDGER_ABOVE_CEILING_CLAUSE);
+  });
+
+  // ── 33-16 (W-28): the arm that refuses a non-regular ledger position is decided by its TYPE ────
+  //
+  // windows-latest run 35499800942, row W-28: `R-31-21-03's published shape AGREES with the reading
+  // its probe takes` read `not-waited-on=false`. The probe plants a DIRECTORY at the ledger
+  // position. On darwin `openSync(dir, O_WRONLY | O_APPEND | O_CREAT | O_NONBLOCK)` fails with
+  // EISDIR and the `unopenable` arm answers — whose sentence carries "refused rather than waited on".
+  // On win32 the open of a directory handle succeeds, `fstat` reports a non-file, and the
+  // `not-a-regular-file` arm answered — whose sentence did NOT carry the phrase. The refusal arm
+  // was decided by which host's open call happened to fail. Classifying the position's TYPE before
+  // any open makes the arm the same on every host, and both arms are bounded refusals, so both
+  // sentences carry the phrase R-31-21-03 publishes.
+
+  it("33-16 Test Y (W-28): a DIRECTORY at the ledger position is refused by TYPE — `not-a-regular-file`, worded as a bounded refusal, on every host", () => {
+    const { root, ctx, ledger } = retainedRepo("p33-16-ledger-dir-");
+    mkdirSync(ledger, { recursive: true });
+    // THE PREMISE, READ FIRST — this host's own answer to the raw open a module that opened FIRST
+    // would have made. It is a reading, recorded whichever way it falls, because it is exactly the
+    // host-dependent fact the fix stops depending on: darwin refuses at open (EISDIR → the
+    // `unopenable` arm before 33-16), win32 opens the handle (→ the fstat arm before 33-16).
+    let rawOpen: string;
+    try {
+      const fd = openSync(
+        ledger,
+        fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_CREAT | fsConstants.O_NONBLOCK,
+        0o600,
+      );
+      closeSync(fd);
+      rawOpen = "opened (a module that opened first would answer through the fstat arm)";
+    } catch (e) {
+      rawOpen =
+        `threw ${(e as NodeJS.ErrnoException).code ?? "unknown"} ` +
+        "(a module that opened first would answer through the `unopenable` arm)";
+    }
+    expect(rawOpen, "the raw open produced no reading at all").toMatch(/^(opened|threw)/);
+    console.warn(`33-16 Test Y PREMISE on ${process.platform}: raw open of a directory ${rawOpen}`);
+    // THE ARM, host-independent: the position is classified by its type before any open.
+    const started = Date.now();
+    let refusal: unknown = null;
+    try {
+      mod.appendNote(T, observation, "a body", ctx, undefined, root);
+      expect.unreachable("the directory ledger accepted an append");
+    } catch (e) {
+      refusal = e;
+    }
+    expect(Date.now() - started, "the refusal was not bounded").toBeLessThan(5000);
+    const message = (refusal as Error).message;
+    expect(
+      message,
+      `the arm answering a DIRECTORY at the ledger depends on the host's open call (raw open ${rawOpen}); ` +
+        "the position's TYPE must decide it: " + message,
+    ).toContain("is not a regular file");
+    expect(message, "the type arm is a bounded refusal and must say so").toContain(
+      "refused rather than waited on",
+    );
+    expect(message).toContain("writing to a FIFO or a device can block forever");
+    expect(message).toContain(mod.CANONICAL_READ_POSITION);
+    expect(message).toContain(mod.UNRECORDABLE_ADMISSION_REFUSAL);
+    // Nothing written: no note in the store, the ledger position still the directory it was.
+    expect(existsSync(join(ctx, T, "notes"))).toBe(false);
+    expect(statSync(ledger).isDirectory()).toBe(true);
+  });
+
+  it("33-16 Test Z (W-28): a FIFO still answers the type arm, and a regular file the process may not open still answers `unopenable` — both worded as bounded refusals", () => {
+    // ARM 1 — the FIFO, through the corpus (a host that cannot stage one prints the counted row).
+    const fifo = retainedRepo("p33-16-ledger-fifo-");
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      fifo.ledger,
+      "scripts/context-io.test.ts: a FIFO at the ledger position (33-16 Test Z)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "33-16 Test Y beside this case (a DIRECTORY, the same TYPE arm)"));
+    } else {
+      let message = "";
+      try {
+        mod.appendNote(T, observation, "a body", fifo.ctx, undefined, fifo.root);
+        expect.unreachable("the FIFO ledger accepted an append");
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, "a FIFO at the ledger did not answer the TYPE arm").toContain("is not a regular file");
+      expect(message).toContain("refused rather than waited on");
+      expect(existsSync(join(fifo.ctx, T, "notes"))).toBe(false);
+    }
+    // ARM 2 — the `unopenable` arm is still REACHED, by a REGULAR file the process may not open:
+    // the type classification passes it (it IS a regular file), so the open itself is asked and it
+    // fails (EACCES). This is the proof that the pre-open classification made no arm unreachable.
+    // Mode bits need a host that enforces them (root and windows-latest do not): measured, and a
+    // host that still opens the file prints the counted capability row (plan 33-05, D-16).
+    const denied = retainedRepo("p33-16-ledger-eacces-");
+    writeFileSync(denied.ledger, "");
+    chmodSync(denied.ledger, 0o000);
+    try {
+      let openable = isForcedAbsent("chmod 000 enforcement");
+      try {
+        readFileSync(denied.ledger, "utf8");
+        openable = true;
+      } catch {
+        // denied — unless the seam says otherwise
+      }
+      if (openable) {
+        console.warn(
+          skipLine(
+            capabilitySkipEntry("chmod 000 enforcement", "scripts/context-io.test.ts: the `unopenable` ledger (33-16 Test Z)"),
+            "the CR-19 FIFO CONTROL's own pre-33-16 record (ENXIO at open) and the CR-24 `unopenable` plant one register over",
+          ),
+        );
+        return;
+      }
+      let message2 = "";
+      try {
+        mod.appendNote(T, observation, "a body", denied.ctx, undefined, denied.root);
+        expect.unreachable("an unopenable ledger position accepted an append");
+      } catch (e) {
+        message2 = (e as Error).message;
+      }
+      expect(message2, "the `unopenable` arm no longer answers an open that fails").toContain(
+        "could not be opened for append (EACCES)",
+      );
+      expect(message2).toContain("refused rather than waited on");
+      expect(message2).toContain(mod.CANONICAL_READ_POSITION);
+      expect(message2).not.toContain("is not a regular file");
+      expect(existsSync(join(denied.ctx, T, "notes"))).toBe(false);
+    } finally {
+      chmodSync(denied.ledger, 0o600);
+    }
   });
 });
 
