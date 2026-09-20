@@ -6,8 +6,8 @@
 // rebuild against a rebuild and could not report a committed .js that was hand-edited or never
 // rebuilt. A repair to a gate that could not fail is worth nothing unless the repair itself is shown
 // to discriminate. So the load-bearing case below applies ONE plant to TWO clones — one at the
-// pre-fix commit, one at the post-fix commit — and asserts exit 0 on the first and exit 1 on the
-// second, with `tsc` having run in both.
+// pre-fix commit, one at the post-fix commit — and asserts that the first never names the plant
+// (in one of the two measured pre-fix shapes; see `prefixShape`) and the second exits 1 naming it.
 //
 // EVERY REPRODUCTION RUNS ON A REAL GIT REPOSITORY. This gate's subject is HEAD, so a synthesized
 // directory has nothing for it to read and a `git archive` extract has no HEAD at all. Each case gets
@@ -227,6 +227,45 @@ function transcript(label: string, run: Run): string {
   ].join("\n");
 }
 
+/**
+ * The two MEASURED shapes a pre-fix run takes, and the third it must not (plan 33-19, W-29, D-14).
+ *
+ * The pre-fix arm of the discrimination pair is evidence of ONE fact: the gate at PRE_FIX_SHA does
+ * not name the planted stale `.js`. That fact has two observable spellings, because the pre-fix gate
+ * launches its compiler through a shell-less `spawnSync("npx", …)`:
+ *
+ *   "green-vacuous"        exit 0 + the fresh line — the compiler ran and the gate compared a rebuild
+ *                          against a rebuild (measured on every POSIX run of this file).
+ *   "no-compiler-vacuous"  exit 1 + `the rebuild did not compile cleanly` with NO compiler text on
+ *                          either stream — `npx` is `npx.cmd` on win32, the child never started, and
+ *                          the pre-fix `!== 0` test read the null status as a failed compile
+ *                          (measured on windows-latest run 35499800942, row W-29: `exit 1 …
+ *                          did not compile cleanly … stderr: (no stderr)`).
+ *
+ * Both are the same vacuity — a gate that did not detect the plant — and neither is a red. Anything
+ * else is "unexpected" and IS a red: a compile that ran and refused (compiler text present), a stale
+ * verdict, a crash. This is a disjunction over the OBSERVED output, never a host-platform branch,
+ * the same discipline as D-16's named skip; the CI log records which shape the leg took.
+ */
+type PrefixShape = "green-vacuous" | "no-compiler-vacuous" | "unexpected";
+
+/** A compiler that ran leaves its own diagnostic codes behind; a launch that never started leaves none. */
+const COMPILER_TEXT = /\bTS\d{4}\b/;
+
+function prefixShape(run: Run): PrefixShape {
+  const both = `${run.stdout}${run.stderr}`;
+  if (run.status === 0 && run.stdout.includes(FRESH_LINE)) return "green-vacuous";
+  if (
+    run.status === 1 &&
+    run.stdout.includes("the rebuild did not compile cleanly") &&
+    !COMPILER_TEXT.test(both) &&
+    !run.stdout.includes(FRESH_LINE)
+  ) {
+    return "no-compiler-vacuous";
+  }
+  return "unexpected";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // The clone matrix, built once. One plant per clone; no clone is reused between plants.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -401,20 +440,40 @@ describe("freshness.js (D-02 build-output drift gate; subject moved to HEAD by D
     expect(c.workingOnly, msg).toBe(0);
   });
 
+  // THE PRE-FIX ARM'S EVIDENCE IS "DID NOT NAME THE PLANT", NOT "EXITED 0" (plan 33-19, W-29).
+  //
+  // This case used to assert exit 0 + the fresh line on the pre-fix clone. That is ONE of the two ways
+  // the pre-fix launch fails to detect the plant, the one every POSIX run measures. windows-latest run
+  // 35499800942 measured the other: the pre-fix gate's shell-less `npx` never started a compiler
+  // there, so the pre-fix clone exited 1 with `the rebuild did not compile cleanly` and no stderr —
+  // still not naming the plant, still the same vacuity, but a red against an exit-0 expectation
+  // (WINDOWS.md row 235). The historical checkout is never patched to make this green; the assertion
+  // is reformulated to what every host can observe. The post-fix arm is unchanged.
   it("DISCRIMINATION PAIR: the same planted stale committed .js is green on the pre-fix tree and red on the post-fix tree", () => {
     const before = F.prefixPlantAfterBuild;
     const after = F.postfixPlantAfterBuild;
+    const shape = prefixShape(before);
     const msg = [
       `plant: bytes appended to ${PLANT_REL} and COMMITTED; \`npm run build\` run in BOTH clones before the gate.`,
-      `pre-fix  clone (checked out ${PRE_FIX_SHA})`,
+      `pre-fix  clone (checked out ${PRE_FIX_SHA}) — shape: ${shape}`,
       transcript("pre-fix", before),
       `post-fix clone (checked out ${F.postFixSha})`,
       transcript("post-fix", after),
     ].join("\n");
+    console.log(`DISCRIMINATION PAIR: pre-fix shape = ${shape}`);
 
-    // The vacuity, preserved as evidence rather than described.
-    expect(before.status, msg).toBe(0);
-    expect(before.stdout, msg).toContain(FRESH_LINE);
+    // The vacuity, preserved as evidence rather than described: the pre-fix gate does not name the
+    // plant. The post-fix sentence is asserted absent because the pair discriminates on that ONE
+    // sentence (asserted present on `after` below). The pre-fix gate's own stale vocabulary was
+    // `STALE: <path>`, so that negative alone would be vacuous against it — the plant path is
+    // therefore also asserted absent from EVERY line of the pre-fix stdout, whatever the spelling.
+    expect(before.stdout, msg).not.toContain(`STALE COMMITTED OUTPUT: ${PLANT_REL}`);
+    expect(
+      before.stdout.split("\n").filter((line) => line.includes(PLANT_REL)),
+      msg,
+    ).toEqual([]);
+    // The run took one of the two measured shapes; a third shape is refused, never absorbed.
+    expect(shape, msg).not.toBe("unexpected");
 
     // The repair.
     expect(after.status, msg).toBe(1);
