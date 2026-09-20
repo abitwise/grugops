@@ -38,7 +38,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync, mkdtempSync, existsSync } from "node:fs";
-import { join, relative, resolve, win32 } from "node:path";
+import { join, relative, resolve, sep, win32 } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
@@ -56,6 +56,8 @@ import {
   skipEntry,
   type SkipEntry,
 } from "./check-platform-shapes.js";
+// The ONE published-path normalizer (D-15): the scanned document set below is a PUBLISHED set.
+import { toPosixWith } from "./posix-path.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const WF05 = join(REPO_ROOT, "agent-factory", "workflows", "05-pr-quality-gate.md");
@@ -441,19 +443,37 @@ export function ordinalClaimsIn(text: string): string[] {
   return [...text.matchAll(re)].map((m) => m[1].toLowerCase());
 }
 
+/** The two things a path API contributes to the scanned set: how it joins, and what it joins with. */
+export interface ScanPathApi {
+  readonly join: (...parts: string[]) => string;
+  readonly sep: string;
+}
+
 /**
  * The scanned document set, DERIVED: every `*-SUMMARY.md` of this phase plus every `docs/audit/31-*`
  * document. Never listed — a hand-typed member list is the set-literal drift class this repository
  * names as its second systemic failure.
+ *
+ * PUBLISHED IN POSIX (plan 33-18, D-15). The members are printed in failure messages, filtered on the
+ * literal `docs/audit/` and keyed by `split("/")`, so they are normalized ONCE, at this one
+ * member-forming site, through the shared normalizer — never at a consumer. `api` is the path API
+ * the joins are taken with; production callers use `scannedDocuments()` (bound to `node:path`) and
+ * test AE hands in `path.win32` so the Windows spelling is exercised on every host. A read through
+ * `readFileSync` accepts the POSIX spelling on win32, so a member is still a location.
  */
-export function scannedDocuments(): string[] {
+export function scannedDocumentsWith(api: ScanPathApi): string[] {
   const summaries = readdirSync(PHASE_DIR)
     .filter((f) => f.endsWith("-SUMMARY.md"))
-    .map((f) => join(PHASE_DIR, f));
+    .map((f) => toPosixWith(api.join(PHASE_DIR, f), api.sep));
   const audits = readdirSync(AUDIT_DIR)
     .filter((f) => /^31-.*\.md$/.test(f))
-    .map((f) => join(AUDIT_DIR, f));
+    .map((f) => toPosixWith(api.join(AUDIT_DIR, f), api.sep));
   return [...summaries, ...audits].sort();
+}
+
+/** The host-bound form of the derivation: `scannedDocumentsWith` given `node:path`. */
+export function scannedDocuments(): string[] {
+  return scannedDocumentsWith({ join, sep });
 }
 
 /** The ordinals the tracked list itself declares, read off its `| N |` first column. */
