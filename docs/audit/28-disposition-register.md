@@ -159,6 +159,8 @@ hits on this file, because neither line contains an `agent-factory/handoffs/` pa
 `handoff packet` — and D-10 forbids widening the matcher to chase the bare word. This paragraph is
 the only record that the residual exists.
 
+**Held at plan 33-11, 2026-09-20 — NOT yet discharged.** The one authorized live capture (`.planning/phases/33-live-capture-windows-portability/33-CAPTURE-SUMMARY.md`) reads `OUTCOME: fail` on the D-07 dual-path comparison, so under D-20 nothing flipped: the parity table, its intro sentence and the `Handoff filenames produced` row are exactly as 28-05 left them, and the row-granularity overlap above stays open pending a parity-proven capture. The hold, its evidence and the path back to the flip are recorded in `.planning/phases/33-live-capture-windows-portability/33-FLIP-MANIFEST.md` § 6 (Hold record).
+
 ### The D-01 count amendment — "18 roles" corrected to 17 at three sites
 
 **Made by plan 28-07, 2026-08-12.** `ROADMAP.md`'s phase entry, its success criterion 1, and

@@ -376,3 +376,57 @@ does not apply to them.
 Amendments to this manifest — a member missing from the declared set, a scope rule that pulled in
 a truthful record, a moved pin — are recorded here with their reason, in the same commit series as
 the flip, before the gate is re-run.
+
+---
+
+## 6. Hold record (plan 33-11, 2026-09-20)
+
+**Decision: hold.** Selected by the human at plan 33-11's blocking decision checkpoint on
+2026-09-20, from the three options the plan offered (flip, hold, correction-only). Nothing flips.
+
+**Evidence the hold rests on.** `33-CAPTURE-SUMMARY.md` (commit `c7be6d0d`, checkout `8f05ed42`)
+carries exactly one outcome line under its `Completion` section, and it reads `OUTCOME: fail`. The
+one condition that set it is the `Dual-path equivalence (D-07)` section: the comparator returned
+named differences (`ARCH-AUDIT-001: note-count differs: path A has 15, path B has 0`;
+`AUDIT-01-map` / `AUDIT-02-architecture` / `AUDIT-03-security: note-count differs: path A has 0,
+path B has 3`; no note on both sides). `33-DIAGNOSIS.md` § 1 attributes the red: cause class SUITE
+(`scripts/dual-path-equivalence.ts` asserts byte-identical model prose and keys on model-chosen task
+ids, which D-07 disclaims), with a KIT rider under D-20 recorded verbatim in § 1.3 (the `--agent`
+path's seven-tool grant, the notes reaching disk by different routes, the task decomposition
+difference). Both CAP-03 sides held in both runs and the D-04 deny was observed on the hook channel
+in both — none of that is disputed by this record; it is not sufficient, because D-20 holds every
+flip until the two paths show parity under a predicate that can be met.
+
+**What this record does and does not change.**
+
+- Every flip-class row in section 2.3 (F1 through F62) and every correction-class row in section 3
+  (C1 through C10) is untouched. Each pre-flip anchor still occurs in its file; each post-flip
+  marker is still absent; the parity table still has seven data rows with their pre-flip labels;
+  the six ledger rows are still `open`. The gate re-run over this tree after this section was
+  written reports the same derivation as before it: 28 pinned / 28 derived, 62 flip rows, 10
+  correction rows, 2 exemption anchors, exit 0.
+- The status line at the top of this document still reads the first declared value. The residual
+  rule (section 1.4) and the commit-set rule (section 2.1) therefore stay out of force. This is
+  deliberate: the second value is written only in the commit that performs the flip, and no such
+  commit exists.
+- The correction class (section 3) is also held, by the human's choice of `hold` over `partial`:
+  no correction-class edit lands in this round, so the one-commit rule of section 2.1 does not have
+  to be re-stated across two commits.
+- `.planning/WINDOWS.md` receives no row from this record. The D-07 finding and the three KIT
+  findings are carried in `33-DIAGNOSIS.md` with their offline reproductions; whether they become
+  ledger rows is the next round's decision, taken through the tool section 1.6 names.
+- `docs/audit/28-disposition-register.md` receives a dated note under its
+  `examples/03-ticket-to-pr.md` entry stating that the row-granularity overlap is not yet
+  discharged and pointing here. That note does not carry the F14 marker literal, so F14 still reads
+  as absent.
+
+**The path back to the flip.** GAP-D1 stays open. The next gap-closure round (round 2 of the
+four-round cap for Phase 33) owns the comparator's predicate (`33-DIAGNOSIS.md` § 1.4 names the
+path-invariant projection), the kit decisions on the `--agent` grant and the reader's admission of
+hand-written notes, and a fresh go for a second capture. When a capture reads `OUTCOME: pass` with
+an empty D-07 difference list, plan 33-11's Tasks 2 through 4 are executed as written against
+this manifest: the status line flips to the second value in the same commit as the fourteen
+declared files, and the residual and commit-set rules come into force over it. One item that
+capture-day commit must not miss, recorded here so it is not re-discovered: `.planning/PROJECT.md`
+is in the declared set (rows F59 through F62 in section 2.3, with the reason in section 1.3) but
+not in plan 33-11's `<files>` list; the manifest is the instruction.
