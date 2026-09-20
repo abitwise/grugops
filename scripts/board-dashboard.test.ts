@@ -680,6 +680,37 @@ describe("board-dashboard — the exit contract (D-18, T-32-08, T-32-10)", () =>
   });
 });
 
+/**
+ * The TWO legitimate outcomes of a SIGINT this test sent, named — and nothing else.
+ *
+ * Where a signal is delivered, the dashboard's handler closes its handles and the child EXITS 0.
+ * Where `kill("SIGINT")` terminates the child abruptly instead (node on win32 has no signal to
+ * deliver; the process is ended forcefully), the `close` event carries no exit code and names the
+ * signal. Both are the child ending the way this test ended it. A nonzero code, or a signal this
+ * test never sent, is still a failure, and the observed pair is printed so a third outcome can be
+ * read rather than guessed at. No host branch chooses an arm: the disjunction holds everywhere.
+ */
+function expectEndedBySigint(code: number | null, signal: NodeJS.Signals | null): void {
+  expect(
+    (code === 0 && signal === null) || (code === null && signal === "SIGINT"),
+    `the child neither exited 0 nor was terminated by the SIGINT this test sent — observed ` +
+      `${JSON.stringify({ code, signal })}`,
+  ).toBe(true);
+}
+
+describe("expectEndedBySigint — both arms, and the third outcome prints the observed pair (33-04)", () => {
+  it("accepts an exit 0 with no signal, and a null code carrying the SIGINT this test sends", () => {
+    expect(() => expectEndedBySigint(0, null)).not.toThrow();
+    expect(() => expectEndedBySigint(null, "SIGINT")).not.toThrow();
+  });
+  it("refuses a nonzero code and a signal the test never sent, naming what it saw", () => {
+    expect(() => expectEndedBySigint(1, null)).toThrow(/observed \{"code":1,"signal":null\}/);
+    expect(() => expectEndedBySigint(null, "SIGKILL")).toThrow(/observed \{"code":null,"signal":"SIGKILL"\}/);
+    // A code AND a signal together is not one of the two arms either.
+    expect(() => expectEndedBySigint(0, "SIGINT")).toThrow(/observed/);
+  });
+});
+
 describe("board-dashboard — SIGINT closes the loop rather than the process mid-frame", () => {
   it("closes every watcher, clears both timers and exits 0 on interrupt", () => {
     vi.useFakeTimers();
@@ -890,7 +921,7 @@ describe("board-dashboard — a board removed under a live run degrades VISIBLY 
         const stopAt = setTimeout(() => proc.kill("SIGINT"), 2_600);
 
         proc.on("error", reject);
-        proc.on("close", (code) => {
+        proc.on("close", (code, signal) => {
           clearTimeout(removeAt);
           clearTimeout(stopAt);
           rmSync(dir, { recursive: true, force: true });
@@ -912,7 +943,7 @@ describe("board-dashboard — a board removed under a live run degrades VISIBLY 
             ).toContain("In Development");
             expect(last).toContain("ABC-104");
             expect(err).not.toBe("");
-            expect(code).toBe(0);
+            expectEndedBySigint(code, signal);
             resolve();
           } catch (e) {
             reject(e as Error);
@@ -955,7 +986,7 @@ describe("board-dashboard — NDJSON under --json --watch, measured from outside
         const stopAt = setTimeout(() => proc.kill("SIGINT"), 2_400);
 
         proc.on("error", reject);
-        proc.on("close", (code) => {
+        proc.on("close", (code, signal) => {
           clearTimeout(touchAt);
           clearTimeout(stopAt);
           rmSync(dir, { recursive: true, force: true });
@@ -981,7 +1012,7 @@ describe("board-dashboard — NDJSON under --json --watch, measured from outside
               "the whole --watch --json stream parsed as a single document, so this case is no " +
                 "longer measuring the streaming contract it exists to measure",
             ).toThrow();
-            expect(code).toBe(0);
+            expectEndedBySigint(code, signal);
             resolve();
           } catch (e) {
             reject(e as Error);

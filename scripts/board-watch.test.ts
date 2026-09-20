@@ -1362,6 +1362,37 @@ describe("board-dashboard — `--json --watch` emits NDJSON (D-18)", () => {
   });
 });
 
+/**
+ * The TWO legitimate outcomes of a SIGINT this test sent, named — and nothing else.
+ *
+ * Where a signal is delivered, the dashboard's handler closes its handles and the child EXITS 0.
+ * Where `kill("SIGINT")` terminates the child abruptly instead (node on win32 has no signal to
+ * deliver; the process is ended forcefully), the `close` event carries no exit code and names the
+ * signal. Both are the child ending the way this test ended it. A nonzero code, or a signal this
+ * test never sent, is still a failure, and the observed pair is printed so a third outcome can be
+ * read rather than guessed at. No host branch chooses an arm: the disjunction holds everywhere.
+ */
+function expectEndedBySigint(code: number | null, signal: NodeJS.Signals | null): void {
+  expect(
+    (code === 0 && signal === null) || (code === null && signal === "SIGINT"),
+    `the child neither exited 0 nor was terminated by the SIGINT this test sent — observed ` +
+      `${JSON.stringify({ code, signal })}`,
+  ).toBe(true);
+}
+
+describe("expectEndedBySigint — both arms, and the third outcome prints the observed pair (33-04)", () => {
+  it("accepts an exit 0 with no signal, and a null code carrying the SIGINT this test sends", () => {
+    expect(() => expectEndedBySigint(0, null)).not.toThrow();
+    expect(() => expectEndedBySigint(null, "SIGINT")).not.toThrow();
+  });
+  it("refuses a nonzero code and a signal the test never sent, naming what it saw", () => {
+    expect(() => expectEndedBySigint(1, null)).toThrow(/observed \{"code":1,"signal":null\}/);
+    expect(() => expectEndedBySigint(null, "SIGKILL")).toThrow(/observed \{"code":null,"signal":"SIGKILL"\}/);
+    // A code AND a signal together is not one of the two arms either.
+    expect(() => expectEndedBySigint(0, "SIGINT")).toThrow(/observed/);
+  });
+});
+
 describe("board-dashboard — the process contract under --watch, driven as a child (D-18)", () => {
   it(
     "emits only complete JSON documents across two poll periods and exits 0 on SIGINT",
@@ -1382,10 +1413,12 @@ describe("board-dashboard — the process contract under --watch, driven as a ch
         err += c;
       });
 
-      const code = await new Promise<number | null>((resolve) => {
-        setTimeout(() => child.kill("SIGINT"), 2_300);
-        child.on("close", (c) => resolve(c));
-      });
+      const ended = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+        (resolve) => {
+          setTimeout(() => child.kill("SIGINT"), 2_300);
+          child.on("close", (code, signal) => resolve({ code, signal }));
+        },
+      );
 
       const lines = out.split("\n").filter((l) => l !== "");
       expect(
@@ -1397,7 +1430,7 @@ describe("board-dashboard — the process contract under --watch, driven as a ch
         const parsed = JSON.parse(line) as { snapshot: { schemaVersion: number } };
         expect(parsed.snapshot.schemaVersion).toBe(SCHEMA_VERSION);
       }
-      expect(code).toBe(0);
+      expectEndedBySigint(ended.code, ended.signal);
     },
     15_000,
   );

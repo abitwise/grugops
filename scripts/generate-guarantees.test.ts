@@ -692,8 +692,21 @@ describe("guarantees-freshness.js — the byte-equality drift gate", () => {
   });
 
   it("FAIL-CLOSED: an unwritable mirror directory NEVER reports fresh", () => {
-    const r = runFreshness({ TMPDIR: join(ROOT, "no-such-tmp-dir-for-guarantees") });
-    expect(r.status).not.toBe(0);
+    // THE PLANTED TEMP ROOT MUST BE THE ONE THE CHILD READS, ON EVERY HOST. `os.tmpdir()` consults
+    // `TMPDIR`, then `TMP`, then `TEMP` on POSIX — and on win32 consults `TEMP`, then `TMP`, and
+    // never `TMPDIR` at all. Planting `TMPDIR` alone therefore plants nothing on a windows host:
+    // the mirror lands in the real temp directory, the gate reports fresh, and the status is a
+    // plain 0 — which vitest spells `+0`, so the windows red read as `expected +0 not to be +0`.
+    // That is not a signed zero: neither `spawnSync` nor `runFreshness`'s `r.status ?? -1` ever
+    // produces -0 (measured: vitest prints -0 as `-0`). All three variables are set, so the
+    // premise holds wherever the child runs, with no host branch deciding which one to set.
+    const dead = join(ROOT, "no-such-tmp-dir-for-guarantees");
+    expect(existsSync(dead), "PREMISE: the planted temp root exists, so this arm plants nothing").toBe(false);
+    const r = runFreshness({ TMPDIR: dead, TMP: dead, TEMP: dead });
+    // Strict numeric inequality, under which -0 and 0 are one value, rather than `not.toBe(0)`
+    // (Object.is), under which a hypothetical -0 would read as "not zero" and pass this arm
+    // vacuously. The observed status is printed either way.
+    expect(r.status !== 0, `the gate exited ${r.status} over an absent temp root`).toBe(true);
     expect(r.stdout.toLowerCase()).not.toContain("matches a fresh regeneration");
     expect(r.stdout).toContain("mirror");
   });

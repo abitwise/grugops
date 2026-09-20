@@ -1708,6 +1708,11 @@ describe("board-model — the configured id prefix is enforced by the parse, not
 
 import { existsSync, writeFileSync } from "node:fs";
 import { readSnapshot } from "./board-read.js";
+// Plan 33-03's one normalizer, used TWICE in this file and both times on a test-internal comparison
+// (the golden projection below, and the mutation mirror's file-name equality further down) — never
+// on a path the modules publish, which stays as they spell it (D-15; 33-03 § the census).
+import { toPosixWith } from "./posix-path.js";
+import { win32 } from "node:path";
 
 const FIXTURE_DIR = join(ROOT, "scripts", "fixtures", "board-snapshot");
 const GOLDEN_PATH = join(FIXTURE_DIR, "expected-snapshot.json");
@@ -1728,10 +1733,33 @@ const INSTANT_KEYS = new Set(["readAt", "generatedAt", "since"]);
  * carrying the fixture's absolute path — `repoRoot`, a `readErrors[].path`, a message quoting one —
  * has that prefix replaced. Everything else is compared exactly, which is the whole point.
  */
+/**
+ * A location token in the projected document: the fixture-root placeholder and the path spelled
+ * after it, up to whitespace or a quote. Only THIS token is re-spelled below, so a sentence that
+ * merely quotes a location keeps every other byte.
+ */
+const LOCATION_TOKEN = /<fixture-root>[^\s`"']*/g;
+
+/**
+ * Spell every location token in `text` with `/`. The separator is a parameter defaulted to the
+ * host's (the form `normalize` calls) so a case on this POSIX host can hand it `win32.sep` and
+ * watch the windows spelling change — deleting the normalization reds that case here.
+ */
+const projectLocations = (text: string, separator?: string): string =>
+  text.replace(LOCATION_TOKEN, (token) => toPosixWith(token, separator));
+
 function normalize(value: unknown, key: string | null, root: string): unknown {
   if (typeof value === "string") {
     if (key !== null && INSTANT_KEYS.has(key)) return FIXED_INSTANT;
-    return value.split(root).join(FIXED_ROOT);
+    // THE GOLDEN IS A HOST-INDEPENDENT PROJECTION, NOT THE RAW BYTES: the root is already replaced
+    // by a placeholder and every instant by a fixed one. An absolute location under that root is
+    // published in the host's own spelling — plan 33-03 leaves absolute locations as the host
+    // spells them, on purpose — so on windows a `path`, and any sentence quoting it, renders with
+    // backslashes and the byte-for-byte comparison reads `<fixture-root>\.grugops\queue\…`
+    // against the golden's `<fixture-root>/.grugops/queue/…` (windows-latest run 35394268365,
+    // line 75). The projection spells the location token one way HERE, in the test; the module
+    // that published it is untouched. Under the POSIX separator the projection is the identity.
+    return projectLocations(value.split(root).join(FIXED_ROOT));
   }
   if (Array.isArray(value)) return value.map((v) => normalize(v, null, root));
   if (value !== null && typeof value === "object") {
@@ -1785,6 +1813,24 @@ const GOLDEN_ABSENT =
   "assertion below would measure nothing. Regenerate it with the command in that fixture's " +
   "README.md: npm run build && GRUGOPS_UPDATE_BOARD_GOLDEN=1 npx vitest run " +
   "--exclude '**/scripts/e2e/**' scripts/board-model.test.ts -t \"golden\"";
+
+describe("board-model — the golden projection spells a location token one way on every host (33-04)", () => {
+  it("re-spells the token after the placeholder under the windows separator, and only the token", () => {
+    const sentence =
+      "<fixture-root>\\.grugops\\queue\\claimed\\abc-105-tampered\\claim.md carries 2 `at:` lines";
+    expect(projectLocations(sentence, win32.sep)).toBe(
+      "<fixture-root>/.grugops/queue/claimed/abc-105-tampered/claim.md carries 2 `at:` lines",
+    );
+    // A bare `path` value, the other shape the golden carries.
+    expect(projectLocations("<fixture-root>\\plans\\board.md", win32.sep)).toBe(
+      "<fixture-root>/plans/board.md",
+    );
+    // Under the POSIX separator the projection is the identity — the live call on this host.
+    expect(projectLocations("<fixture-root>/plans/board.md", "/")).toBe("<fixture-root>/plans/board.md");
+    // A backslash OUTSIDE a location token is not a separator and is left alone.
+    expect(projectLocations("no location here \\ at all", win32.sep)).toBe("no location here \\ at all");
+  });
+});
 
 describe("board-model — the committed golden freezes schemaVersion 2 byte for byte (D-19)", () => {
   const rendered = serializeFixture();
@@ -3950,6 +3996,17 @@ const SEEDED_TAG_REPLACEMENT = "`no row names ${t.id}`";
 const SEEDED_READ_TAG_REMOVAL = "spelled`${claimMd} carries no ";
 const SEEDED_READ_TAG_REPLACEMENT = "`${claimMd} carries no ";
 
+/**
+ * Is the file the compiler asks for the module the mirror serves? ONE SPELLING ON BOTH SIDES: the
+ * compiler asks with `/`-spelled names on every host, and `hostName` was `join`-built with the host
+ * separator. Compared as host-spelled strings, the equality never held on windows, the mutation was
+ * never applied, and the mirror returned the LIVE census — `expected 86 not to be 86` in all six
+ * control cases (windows-latest run 35394268365). Plan 33-02's compiler-boundary class one register
+ * over. The separator is a parameter defaulted to the host's so the windows case runs here.
+ */
+const sameSource = (compilerName: string, hostName: string, separator?: string): boolean =>
+  toPosixWith(compilerName, separator) === toPosixWith(hostName, separator);
+
 /** The same API, with ONE named module served from mutated text. */
 function mirroringApi(module: string, mutate: (text: string) => string): TsProgramApi {
   const api = ts as unknown as TsProgramApi;
@@ -3960,7 +4017,7 @@ function mirroringApi(module: string, mutate: (text: string) => string): TsProgr
       const host = api.createCompilerHost(options, setParentNodes);
       const inner = host.getSourceFile.bind(host);
       host.getSourceFile = (fileName, languageVersion, onError, shouldCreate) => {
-        if (fileName === target) {
+        if (sameSource(fileName, target)) {
           const text = mutate(readFileSync(target, "utf8"));
           return ts.createSourceFile(
             fileName,
@@ -4058,6 +4115,22 @@ const SEEDED_REMOVALS: readonly SeededRemoval[] = [
     declaration: "board-dashboard.ts#oneLine",
   },
 ];
+
+describe("33-04 — the mirror recognises its module whichever separator the host spelled it with", () => {
+  it("a `/`-spelled compiler name equals a backslash-joined host name under the windows separator", () => {
+    const compiler = "C:/repo/scripts/board-model.ts";
+    const host = win32.join("C:\\repo", "scripts", "board-model.ts");
+    expect(host, "PREMISE: the host spelling carries no backslash, so nothing below is exercised").toContain(
+      "\\",
+    );
+    expect(sameSource(compiler, host, win32.sep)).toBe(true);
+    // The converse: a DIFFERENT module is still different — the predicate is not simply true.
+    expect(sameSource(compiler, win32.join("C:\\repo", "scripts", "board-read.ts"), win32.sep)).toBe(false);
+    // Under the POSIX separator the two spellings are two different strings, which is the live
+    // call on this host: `join` spells `/` here and the equality is plain.
+    expect(sameSource("/repo/scripts/board-model.ts", "/repo/scripts/board-model.ts", "/")).toBe(true);
+  });
+});
 
 describe("32.1-13 — the ownership equality is a control, not a coincidence, in ALL THREE modules", () => {
   for (const seeded of SEEDED_REMOVALS) {
