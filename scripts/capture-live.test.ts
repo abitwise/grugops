@@ -22,7 +22,7 @@
 
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
@@ -34,6 +34,7 @@ import {
   capThreePredicate,
   childEnvironment,
   compareLivePaths,
+  contentDigest,
   denyObservedInStream,
   denyObservation,
   deriveGrant,
@@ -50,8 +51,11 @@ import {
   noteRoute,
   OUTCOME_LINE_SCAN_RE,
   parseFrames,
+  pluginCachePathAccepted,
   pluginLoadReport,
+  pluginUnderTest,
   projectLivePath,
+  provenanceVerdict,
   readFrames,
   READINESS_PREFIX,
   redactText,
@@ -756,6 +760,105 @@ describe("CR-01: the scored transcript is streamed into a runner-owned scratch o
   });
 });
 
+// ── CR-02 / WR-04: provenance by NAME, by CONTENT, and in the outcome ──────────────────────────
+//
+// The round-1 capture scored `loaded[0]` — context7, not grugops — and recorded the result as a
+// footnote (33-CAPTURE-SUMMARY.md line 15, `UNKNOWN - verify`). The plugin cache is not a git
+// checkout (33-DIAGNOSIS § 4.2), so provenance is the CONTENT of the cache copy over the checkout's
+// tracked files, and a `pass` is unreachable unless that comparison is MET. The one transcript
+// field that reaches a filesystem call — the plugin path — is validated under the cache root first.
+
+function initFrameWithPlugins(plugins: { name: string; path: string; version: string | null }[]): StreamFrame {
+  const init = FIXTURE.frames.find((f) => f.type === "system" && f.subtype === "init") as StreamFrame;
+  return { ...init, plugins };
+}
+
+function treeWith(files: Record<string, string>): string {
+  const root = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-tree-`));
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(join(root, ...rel.split("/").slice(0, -1)), { recursive: true });
+    writeFileSync(join(root, ...rel.split("/")), text);
+  }
+  return root;
+}
+
+describe("CR-02 / WR-04: plugin provenance is selected by name, validated under the cache root, compared by content, and gates the outcome", () => {
+  it("wrong-entry fixture: with context7 at index 0 and grugops second, pluginUnderTest returns the grugops entry; an unlisted name is null", () => {
+    const tmp = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-plugins-`));
+    const grugopsEntry = { name: "grugops", path: join(tmp, "cache", "grugops", "grugops", "2.1.0"), version: "2.1.0" };
+    const frames = [initFrameWithPlugins([{ name: "context7", path: join(tmp, "ctx7"), version: null }, grugopsEntry]), ...FIXTURE.frames.filter((f) => !(f.type === "system" && f.subtype === "init"))];
+    const report = pluginLoadReport(frames);
+    expect(report.loaded, "premise: the first entry is NOT the plugin under test").toHaveLength(2);
+    expect(report.loaded[0].name).not.toBe("grugops");
+    expect(pluginUnderTest(report, "grugops")).toEqual(grugopsEntry);
+    expect(pluginUnderTest(report, "context7")?.path).toBe(join(tmp, "ctx7"));
+    expect(pluginUnderTest(report, "playwright")).toBeNull();
+    expect(pluginUnderTest(pluginLoadReport(FIXTURE.frames.filter((f) => !(f.type === "system" && f.subtype === "init"))), "grugops"), "no init frame → nothing is under test").toBeNull();
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("cache path validation (WR-04): the realpath of an existing directory under the cache root is accepted; outside, a regular file, a missing path, a dash-prefixed value and a link that leaves the root are refused", () => {
+    const cacheRoot = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-cache-`));
+    const inside = join(cacheRoot, "cache", "grugops", "grugops", "2.1.0");
+    mkdirSync(inside, { recursive: true });
+    writeFileSync(join(cacheRoot, "cache", "a-file.txt"), "x");
+    const outside = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-outside-`));
+    expect(pluginCachePathAccepted(inside, cacheRoot)).toBe(realpathSync.native(inside));
+    expect(pluginCachePathAccepted(outside, cacheRoot), "outside the cache root").toBeNull();
+    expect(pluginCachePathAccepted(join(cacheRoot, "cache", "a-file.txt"), cacheRoot), "a regular file").toBeNull();
+    expect(pluginCachePathAccepted(join(cacheRoot, "cache", "nope", "1.0.0"), cacheRoot), "a non-existent path").toBeNull();
+    expect(pluginCachePathAccepted("-C", cacheRoot), "a dash-prefixed value").toBeNull();
+    expect(pluginCachePathAccepted(`-${inside}`, cacheRoot), "a dash-prefixed spelling of a real directory").toBeNull();
+    expect(pluginCachePathAccepted(cacheRoot, cacheRoot), "the cache root itself is not a plugin directory").toBeNull();
+    // A link under the root that resolves outside it is refused on its REAL path (the lexical
+    // containment that admitted a symlink escape is the P32 CR-04 class).
+    symlinkSync(outside, join(cacheRoot, "cache", "escape"), "dir");
+    expect(pluginCachePathAccepted(join(cacheRoot, "cache", "escape"), cacheRoot), "a link that leaves the cache root").toBeNull();
+    expect(pluginCachePathAccepted(inside, join(cacheRoot, "does-not-exist")), "an unresolvable cache root accepts nothing").toBeNull();
+    for (const d of [cacheRoot, outside]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("content digest is two-sided and order-independent: equal trees digest equal; one changed byte, or one missing file, digests differ", () => {
+    const files = { "AGENTS.md": "# agents\n", "scripts/a.js": "export const a = 1;\n", "agent-factory/roles/x.md": "role\n" };
+    const rels = Object.keys(files);
+    const a = treeWith(files);
+    const b = treeWith(files);
+    expect(contentDigest(a, rels)).toBe(contentDigest(b, rels));
+    expect(contentDigest(a, rels)).toMatch(/^[0-9a-f]{64}$/);
+    expect(contentDigest(a, [...rels].reverse()), "independent of the order relPaths are given in").toBe(contentDigest(a, rels));
+    const changed = treeWith({ ...files, "scripts/a.js": "export const a = 2;\n" });
+    expect(contentDigest(changed, rels)).not.toBe(contentDigest(a, rels));
+    const missing = treeWith({ "AGENTS.md": files["AGENTS.md"], "scripts/a.js": files["scripts/a.js"] });
+    expect(contentDigest(missing, rels), "a missing file on one side").not.toBe(contentDigest(a, rels));
+    // Two sides missing the SAME file digest equal — the digest is over the named set, not over
+    // whatever happens to exist.
+    const missingToo = treeWith({ "AGENTS.md": files["AGENTS.md"], "scripts/a.js": files["scripts/a.js"] });
+    expect(contentDigest(missing, rels)).toBe(contentDigest(missingToo, rels));
+    for (const d of [a, b, changed, missing, missingToo]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("verdict and outcome: equal digests are MET, differing digests are UNMET naming both, a null installed digest is UNKNOWN - verify, and an outcome of pass is unreachable unless MET", () => {
+    expect(provenanceVerdict("abc", "abc").state).toBe("MET");
+    const unmet = provenanceVerdict("abc", "abd");
+    expect(unmet.state).toBe("UNMET");
+    expect(unmet.detail).toContain("abc");
+    expect(unmet.detail).toContain("abd");
+    expect(provenanceVerdict("abc", null).state).toBe("UNKNOWN - verify");
+    expect(provenanceVerdict(null, "abc").state).toBe("UNKNOWN - verify");
+    for (const provenance of ["UNMET", "UNKNOWN - verify"] as const) {
+      expect(deriveOutcome({ hang: false, anyFailure: false, parityDiffs: [], provenance }), provenance).toBe("fail");
+    }
+    expect(deriveOutcome({ hang: false, anyFailure: false, parityDiffs: [], provenance: "MET" })).toBe("pass");
+  });
+
+  it("the runner reads no index-zero plugin entry and runs no git inside a transcript-named path", () => {
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    expect(src.includes("loaded[0]")).toBe(false);
+    expect(src.includes("installedPluginSha")).toBe(false);
+    expect((src.match(/rev-parse/g) ?? []).length, "HEAD, the remote ref and checkoutSha — the cache-path git call is gone").toBe(3);
+  });
+});
+
 // ── The end-to-end slice at zero tokens: --dry-run, then --verify-artifacts over its own output ──
 
 describe("--dry-run walks every phase against the committed fixture and makes no model call (D-10)", () => {
@@ -776,6 +879,10 @@ describe("--dry-run walks every phase against the committed fixture and makes no
     expect(report).toContain("- parity: the two projections are equal");
     // CR-01: the Run table states where a live transcript lands, derived from the same predicate.
     for (const run of ["A", "B"]) expect(report).toContain(`| run ${run} transcript location | runner-owned scratch, outside every target and outside the run's working directory |`);
+    // CR-02: the provenance rows replace the old sha row; over the fixture the state is UNKNOWN.
+    expect(report).toMatch(/\| installed plugin provenance \(D-05, content digest over \d+ tracked files\) \| UNKNOWN - verify — /);
+    expect(report).toContain("| plugin under test per system/init | grugops 2.1.0 at ");
+    expect(report).not.toContain("installed plugin sha (D-05, post hoc)");
     expect(existsSync(join(out, DRY_RUN_TRANSCRIPT_NAME))).toBe(true);
     expect(verifyArtifacts(out)).toEqual([]);
     // Every scratch target and kit home the run created was removed (hard rule 3).
