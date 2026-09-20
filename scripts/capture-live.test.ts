@@ -33,9 +33,11 @@ import {
   authorStamps,
   capThreePredicate,
   childEnvironment,
+  compareLivePaths,
   denyObservedInStream,
   denyObservation,
   deriveGrant,
+  deriveOutcome,
   DRY_RUN_COMPLETE,
   DRY_RUN_REPORT_NAME,
   DRY_RUN_TRANSCRIPT_NAME,
@@ -43,9 +45,11 @@ import {
   FIXTURE_JSONL,
   frameKinds,
   homeSpellingSurvivors,
+  noteRoute,
   OUTCOME_LINE_SCAN_RE,
   parseFrames,
   pluginLoadReport,
+  projectLivePath,
   readFrames,
   READINESS_PREFIX,
   redactText,
@@ -54,6 +58,7 @@ import {
   spawnObservations,
   TMP_PREFIX,
   verifyArtifacts,
+  type AuthorStamp,
   type PreconditionObservation,
   type StreamFrame,
 } from "./capture-live.js";
@@ -101,12 +106,14 @@ function adapterCensus(): string[] {
 
 // A context root with hand-written notes in the store's own on-disk shape (the board-snapshot
 // fixture at scripts/fixtures/board-snapshot is the precedent), for the D-02 side-(b) cases.
-function contextRootWithNotes(notes: readonly { by: string; kind: string; body: string }[]): string {
+// `hour` moves every `at` stamp: two roots built with different hours carry the same notes at
+// different times, which is the one axis a path-invariant projection must ignore (33-12, CR-03).
+function contextRootWithNotes(notes: readonly { by: string; kind: string; body: string }[], hour = 10): string {
   const root = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-ctx-`));
   const notesDir = join(root, "audit-current-architecture", "notes");
   mkdirSync(notesDir, { recursive: true });
   notes.forEach((n, i) => {
-    const at = `2026-09-19T10:0${i}:00.000Z`;
+    const at = `2026-09-19T${String(hour).padStart(2, "0")}:0${i}:00.000Z`;
     const id = `${at.replace(/[-:]/g, "").replace(".000Z", "Z")}-${n.kind}-note${i}`;
     writeFileSync(
       join(notesDir, `${id}.md`),
@@ -483,6 +490,163 @@ describe("precondition evaluation is a derived verdict distinct from the exit co
   });
 });
 
+// ── D-07 / CR-03: the path-invariant projection, proven against the HELD round-1 capture ────────
+//
+// The round-1 capture (commit c7be6d0d) is immutable (D-11) and is read straight from that commit,
+// never from the working tree, so a later edit to the filed artifacts cannot move these cases. A
+// clone that cannot show the sha is a LOUD red naming it, not a skip.
+
+const HELD_CAPTURE_SHA = "c7be6d0d";
+const HELD_CAPTURE_DIR = ".planning/phases/33-live-capture-windows-portability";
+
+function heldCapture(name: string): string {
+  const r = spawnSync("git", ["show", `${HELD_CAPTURE_SHA}:${HELD_CAPTURE_DIR}/${name}`], { cwd: ROOT, encoding: "utf8", input: "", maxBuffer: 64 * 1024 * 1024 });
+  if (r.error !== undefined || r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+    throw new Error(`git cannot show ${HELD_CAPTURE_SHA}:${HELD_CAPTURE_DIR}/${name} (exit ${String(r.status)}) — the held round-1 capture must be reachable from this clone: ${(r.stderr ?? "").trim()}`);
+  }
+  return r.stdout;
+}
+
+// The observation table is located by its HEADER ROW (the same rule `verifyArtifacts` uses — never
+// by a markdown heading), and each `D-02 side (b) author stamp | KIND by BY | note:TASK/ID` row is
+// parsed into an AuthorStamp with an empty body. The `verdict marker` row's word is read alongside.
+function stampsFromSummary(text: string, run: "A" | "B"): { stamps: AuthorStamp[]; verdictWord: "absent" | "present" | null } {
+  const lines = text.split(/\r?\n/);
+  const cellsOf = (line: string): string[] => line.split("|").map((c) => c.trim()).slice(1, -1);
+  const isSeparator = (line: string): boolean => line.startsWith("|") && cellsOf(line).length > 0 && cellsOf(line).every((c) => /^-+$/.test(c));
+  const stamps: AuthorStamp[] = [];
+  let verdictWord: "absent" | "present" | null = null;
+  let inTable = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.startsWith("|")) {
+      inTable = false;
+      continue;
+    }
+    if (isSeparator(line)) continue;
+    const body = cellsOf(line);
+    if (isSeparator(lines[i + 1] ?? "")) {
+      inTable = body[0] === `observation (run ${run})`;
+      continue;
+    }
+    if (!inTable) continue;
+    if (body[0] === "D-02 side (b) author stamp") {
+      const value = body[1].match(/^(\S+) by (\S+)$/);
+      const cite = body[2].match(/^note:([^/]+)\/(.+)$/);
+      if (value === null || cite === null) throw new Error(`unparseable author-stamp row in the held summary: ${line}`);
+      stamps.push({ task: cite[1], noteId: cite[2], kind: value[1], by: value[2], body: "" });
+    } else if (body[0].startsWith("verdict marker ")) {
+      verdictWord = body[1].startsWith("absent") ? "absent" : body[1].startsWith("present") ? "present" : null;
+    }
+  }
+  return { stamps, verdictWord };
+}
+
+// An independent count of propose_note tool-use blocks over a transcript's TEXT, so the route
+// derivation is asserted against something other than itself.
+function proposeNoteBlocksInText(text: string): number {
+  return (text.match(/"type":"tool_use","id":"[^"]+","name":"[^"]*propose_note"/g) ?? []).length;
+}
+
+function toolUseFrame(name: string, input: Record<string, unknown>): StreamFrame {
+  return { type: "assistant", message: { content: [{ type: "tool_use", id: `toolu_${name}`, name, input }] } };
+}
+
+describe("D-07 parity is a path-invariant projection: per role the note count, kind multiset and author, the note route, and the frozen verdict (CR-03)", () => {
+  const prefix = deriveGrant(ROOT).prefix;
+
+  it("held capture (commit c7be6d0d): the projection still names the round-1 divergences by role, route and count — the predicate is corrected, not softened (D-20)", () => {
+    const summary = heldCapture("33-CAPTURE-SUMMARY.md");
+    const textA = heldCapture("33-CAPTURE-A.jsonl");
+    const textB = heldCapture("33-CAPTURE-B.jsonl");
+    const a = stampsFromSummary(summary, "A");
+    const b = stampsFromSummary(summary, "B");
+    const framesA = parseFrames(textA);
+    const framesB = parseFrames(textB);
+    // Premises first, so a wrong fixture is a named red rather than a mysterious diff list.
+    expect(a.stamps, "run A carries 15 author-stamp rows").toHaveLength(15);
+    expect(b.stamps, "run B carries 9 author-stamp rows").toHaveLength(9);
+    expect(framesA.frames, "run A parses to 2079 frames").toHaveLength(2079);
+    expect(framesB.frames, "run B parses to 1924 frames").toHaveLength(1924);
+    expect(a.verdictWord).toBe("absent");
+    expect(b.verdictWord).toBe("absent");
+    expect(proposeNoteBlocksInText(textA), "independent count of propose_note blocks in A").toBe(3);
+    expect(proposeNoteBlocksInText(textB), "independent count of propose_note blocks in B").toBe(0);
+
+    const diffs = compareLivePaths(projectLivePath(a.stamps, framesA.frames, prefix), projectLivePath(b.stamps, framesB.frames, prefix));
+    expect(diffs.length, "the held capture reads as DIVERGENT under the corrected predicate").toBeGreaterThan(0);
+    for (const want of [
+      "brownfield-mapper: note count differs: path A has 5, path B has 3",
+      "architect-design: note count differs: path A has 4, path B has 3",
+      "security-nfr: note count differs: path A has 4, path B has 3",
+      "orchestrator: present only in path A (2 note(s))",
+      "note route: direct writes into the context root differ: path A 0, path B 9",
+      "note route: propose_note tool-use blocks differ: path A 3, path B 0",
+    ]) {
+      expect(diffs, `the diff list carries verbatim: ${want}`).toContain(want);
+    }
+    // Absent on both sides is parity on that field, so no entry mentions the marker.
+    expect(diffs.filter((d) => d.includes("verdict marker")), "no verdict-marker entry when both sides are absent").toEqual([]);
+  });
+
+  it("parity: two roots carrying the same {by, kind} multiset per role but different `at` stamps and bodies project to an EMPTY diff list", () => {
+    const notes = [
+      { by: "grugops-orchestrator", kind: "decision", body: "Decomposed the request into three subtasks." },
+      { by: "brownfield-mapper", kind: "observation", body: "Node 22 project, one entry point." },
+      { by: "brownfield-mapper", kind: "claim", body: "All four gate scripts exit 0." },
+      { by: "security-nfr", kind: "observation", body: "No secret-shaped literal in the tree." },
+    ];
+    const rootA = contextRootWithNotes(notes, 10);
+    const rootB = contextRootWithNotes(notes.map((n) => ({ ...n, body: `${n.body} Stated differently on path B, at another time.` })), 14);
+    const stampsA = authorStamps(rootA);
+    const stampsB = authorStamps(rootB);
+    // Control: the two roots really do differ on every axis the projection must ignore.
+    expect(stampsA.map((s) => s.body)).not.toEqual(stampsB.map((s) => s.body));
+    expect(stampsA.map((s) => s.noteId)).not.toEqual(stampsB.map((s) => s.noteId));
+    expect(compareLivePaths(projectLivePath(stampsA, FIXTURE.frames, prefix), projectLivePath(stampsB, FIXTURE.frames, prefix))).toEqual([]);
+  });
+
+  it("kind multiset: the same roots with one note's kind changed on one side name that role and `kind multiset differs`", () => {
+    const notes = [
+      { by: "brownfield-mapper", kind: "observation", body: "x" },
+      { by: "brownfield-mapper", kind: "claim", body: "y" },
+      { by: "security-nfr", kind: "observation", body: "z" },
+    ];
+    const rootA = contextRootWithNotes(notes, 10);
+    const rootB = contextRootWithNotes(notes.map((n, i) => (i === 1 ? { ...n, kind: "observation" } : n)), 11);
+    const diffs = compareLivePaths(projectLivePath(authorStamps(rootA), FIXTURE.frames, prefix), projectLivePath(authorStamps(rootB), FIXTURE.frames, prefix));
+    expect(diffs).toHaveLength(1);
+    expect(diffs[0]).toContain("brownfield-mapper");
+    expect(diffs[0]).toContain("kind multiset differs");
+    expect(diffs[0]).toContain("[claim, observation]");
+    expect(diffs[0]).toContain("[observation, observation]");
+  });
+
+  it("note route is derived from tool-use blocks only: the fixture's counts match an independent grep, and an in-memory Write/Edit under the context root moves the count by exactly one", () => {
+    const base = noteRoute(FIXTURE.frames);
+    expect(base).toEqual({ directContextWrites: 0, proposeNoteCalls: proposeNoteBlocksInText(FIXTURE_TEXT) });
+    const under = "/tmp/target/.grugops/context/AUDIT-1/notes/20260920T115322Z-brownfield-mapper-observation-9ba9.md";
+    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: under, content: "---\nkind: observation\n---\n" })]).directContextWrites).toBe(base.directContextWrites + 1);
+    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Edit", { file_path: under, old_string: "a", new_string: "b" })]).directContextWrites).toBe(base.directContextWrites + 1);
+    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: "/tmp/target/src/index.mjs", content: "x" })]).directContextWrites).toBe(base.directContextWrites);
+    // The plugin-spelled and the grant-spelled tool names both count; the match is on the suffix.
+    for (const name of ["mcp__plugin_grugops_grugops__propose_note", "mcp__grugops__propose_note"]) {
+      expect(noteRoute([...FIXTURE.frames, toolUseFrame(name, { task: "T", kind: "claim", by: "x" })]).proposeNoteCalls, name).toBe(base.proposeNoteCalls + 1);
+    }
+    // A tool_result carrying the same text is not a tool-use block and moves nothing.
+    const resultOnly: StreamFrame = { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t", content: `Write ${under}` }] } };
+    expect(noteRoute([...FIXTURE.frames, resultOnly])).toEqual(base);
+  });
+
+  it("outcome wiring: deriveOutcome reads parity and provenance; hang wins over everything", () => {
+    expect(deriveOutcome({ hang: false, anyFailure: false, parityDiffs: ["x"], provenance: "MET" })).toBe("fail");
+    expect(deriveOutcome({ hang: false, anyFailure: false, parityDiffs: [], provenance: "MET" })).toBe("pass");
+    expect(deriveOutcome({ hang: false, anyFailure: true, parityDiffs: [], provenance: "MET" })).toBe("fail");
+    expect(deriveOutcome({ hang: true, anyFailure: false, parityDiffs: [], provenance: "MET" })).toBe("hang");
+    expect(deriveOutcome({ hang: true, anyFailure: true, parityDiffs: ["x"], provenance: "UNMET" })).toBe("hang");
+  });
+});
+
 // ── The end-to-end slice at zero tokens: --dry-run, then --verify-artifacts over its own output ──
 
 describe("--dry-run walks every phase against the committed fixture and makes no model call (D-10)", () => {
@@ -497,6 +661,10 @@ describe("--dry-run walks every phase against the committed fixture and makes no
     expect(report.match(OUTCOME_LINE_SCAN_RE)).toEqual(["OUTCOME: no-go"]);
     expect(report).toContain(READINESS_PREFIX);
     expect(report).not.toContain("PASSED");
+    // The D-07 section the flip manifest cites, and the demoted replay comparator beside it (33-12).
+    expect(report).toContain("## Dual-path parity (D-07) — path-invariant projection");
+    expect(report).toContain("## Replay comparator (informational — task-id keyed, deterministic replay only)");
+    expect(report).toContain("- parity: the two projections are equal");
     expect(existsSync(join(out, DRY_RUN_TRANSCRIPT_NAME))).toBe(true);
     expect(verifyArtifacts(out)).toEqual([]);
     // Every scratch target and kit home the run created was removed (hard rule 3).
