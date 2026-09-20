@@ -38,7 +38,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync, mkdtempSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
@@ -722,33 +722,61 @@ describe("the skip list is a MEASURED artifact, not a printed line nobody reads"
 });
 
 describe("the mkfifo call sites that make a Windows suite run unreachable are MEASURED, not asserted", () => {
-  // The finding is a property of the SOURCE, so darwin can measure it. What a Windows run then does
-  // is NOT measurable from here and is not claimed anywhere. Carried in deferred-items.md.
-  it("counts the unguarded POSIX-only FIFO constructions in the test corpus", () => {
+  // The finding is a property of the SOURCE, so darwin can measure it. Plan 31-30 counted fourteen
+  // unguarded `mkfifo` spawns across four test modules and carried them; plan 33-05 closed them by
+  // routing EVERY test-side FIFO through the corpus's own constructor (`stageShapeOrSkip("FIFO", …)`
+  // in `scripts/check-platform-shapes.ts`, which is `mkfifo` FOLLOWED BY `isFIFO()` and returns a
+  // printed skip row on refusal). The census therefore now asserts the new truth in BOTH directions:
+  // no test module spawns `mkfifo` itself, and the ONE spawn in the tree is the corpus constructor.
+  // The sites are found in the SYNTAX TREE — a call whose first argument is the literal "mkfifo" —
+  // rather than by a line regex, because the comments that record the old sites still spell it.
+  function mkfifoSpawnSites(file: string): string[] {
+    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
     const sites: string[] = [];
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        node.arguments[0] !== undefined &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        node.arguments[0].text === "mkfifo"
+      ) {
+        sites.push(`${relative(REPO_ROOT, file)}:${String(source.getLineAndCharacterOfPosition(node.getStart()).line + 1)}`);
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(source);
+    return sites;
+  }
+
+  it("NO test module spawns mkfifo itself, and the ONE spawn in the tree is the corpus constructor", () => {
+    const testSites: string[] = [];
+    let scanned = 0;
+    // RECURSIVE, so `scripts/e2e/` and `scripts/runnable-ref/` are in the denominator too — a walk
+    // that stopped at the top level would be silently short of the modules vitest actually runs.
     for (const dir of ["scripts", "hooks", "install"]) {
-      for (const f of readdirSync(join(REPO_ROOT, dir))) {
+      for (const f of readdirSync(join(REPO_ROOT, dir), { recursive: true, encoding: "utf8" })) {
         if (!f.endsWith(".test.ts")) continue;
-        readFileSync(join(REPO_ROOT, dir, f), "utf8")
-          .split("\n")
-          .forEach((l, i) => {
-            if (/["']mkfifo["']/.test(l)) sites.push(`${dir}/${f}:${String(i + 1)}`);
-          });
+        scanned += 1;
+        testSites.push(...mkfifoSpawnSites(join(REPO_ROOT, dir, f)));
       }
     }
-    // The scan's own premise: a walk that found nothing would pass forever.
-    expect(sites.length, "the mkfifo scan found no call sites at all — the scan is broken").toBeGreaterThan(0);
-    // The one GUARDED site is the parity corpus's own shape, which returns false and skips.
-    const guarded = sites.filter((s) => s.startsWith("scripts/nonblocking-reader-parity.test.ts"));
-    expect(guarded.length).toBe(1);
-    // Recorded rather than thresholded: this number is a carried finding with an owner, not a gate
-    // this plan is closing. A rising count is visible in the diff of this assertion's message.
+    // The scan's own premise: a walk over no files would pass forever.
+    expect(scanned, "the census scanned no test modules at all — the scan is broken").toBeGreaterThan(10);
+    // THE CONVERSE, and the proof the syntax walk sees a spawn when there is one: the corpus
+    // constructor is exactly one call, at the FIFO shape's `make()`.
+    const corpusSites = mkfifoSpawnSites(join(REPO_ROOT, "scripts", "check-platform-shapes.ts"));
+    expect(
+      corpusSites,
+      "the corpus constructor is not exactly one mkfifo spawn — either the walk is blind or a second constructor exists",
+    ).toHaveLength(1);
     // eslint-disable-next-line no-console
     console.log(
-      `[31-30] mkfifo call sites in test modules: ${String(sites.length)} ` +
-        `(${String(guarded.length)} guarded, ${String(sites.length - guarded.length)} unguarded)\n  ` +
-        sites.join("\n  "),
+      `[33-05] mkfifo spawn sites: test modules scanned=${String(scanned)} test-side spawns=${String(testSites.length)} ` +
+        `corpus constructor=${corpusSites.join(", ")}`,
     );
-    expect(sites.length - guarded.length).toBeGreaterThan(0);
+    expect(
+      testSites,
+      "a test module spawns mkfifo itself; every test-side FIFO must be staged through stageShapeOrSkip so a host that cannot construct one prints a counted skip",
+    ).toEqual([]);
   });
 });

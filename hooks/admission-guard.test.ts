@@ -28,11 +28,12 @@
 // Vitest globals:false (repo default) -> import explicitly.
 
 import { describe, it, expect } from "vitest";
-import { spawnSync, execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
+import { skipLine, stageShapeOrSkip } from "../scripts/check-platform-shapes.js";
 
 // The COMMITTED checkpoints artifact — the same module the spawned hook imports its grant name from.
 const cp: typeof import("../scripts/checkpoints.js") = await import(
@@ -426,7 +427,21 @@ describe("30-11 RA1-2 (round 2) — the admission guard has no exit that decides
     const dir = mkdtempSync(join(tmpdir(), "adm-fifo-"));
     tmpDirs.push(dir);
     mkdirSync(join(dir, ".grugops"), { recursive: true });
-    execFileSync("mkfifo", [join(dir, ".grugops", "factory.config.json")]);
+    // THE FIFO IS STAGED THROUGH THE PLATFORM-SHAPE CORPUS (plan 33-05, D-16): `mkfifo` followed by
+    // `isFIFO()`. On windows-latest the bare `execFileSync("mkfifo")` this case used to call EXITED
+    // 0 (MSYS ships one) and left nothing Node could open, so the guard answered about an absent
+    // config and this case asserted over a fixture that was never there. A host that cannot stage
+    // the shape now prints the remainder row and returns; the predicate — a non-regular config path
+    // is a bounded DENY — is still pinned by the DIRECTORY case in `hooks/guard.test.ts` (RA1-2).
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      join(dir, ".grugops", "factory.config.json"),
+      "hooks/admission-guard.test.ts: a FIFO at the config path",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the DIRECTORY-at-the-config-path case in hooks/guard.test.ts (same fstat rule)"));
+      return;
+    }
     const { status, stdout } = runGuard(
       payload({ by: "security-nfr", kind: "finding", verified_by: "" }),
       { CLAUDE_PROJECT_DIR: dir },

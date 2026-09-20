@@ -20,7 +20,7 @@
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { spawnSync, execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -34,12 +34,14 @@ import {
   chmodSync,
   cpSync,
   realpathSync,
+  statSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { closureTargets } from "../scripts/js-import-closure.js";
+import { skipEntry, skipLine, stageShapeOrSkip } from "../scripts/check-platform-shapes.js";
 
 // The COMMITTED checkpoints artifact — the same module the spawned guard imports, so the recognizer
 // this file counts banners with and the composer the guard prints them from are one authority.
@@ -1201,17 +1203,26 @@ describe("30-11 RA1-5 — the assignment operator set is `=` and `+=`", () => {
 });
 
 describe("30-11 RA1-2 — the process has no exit that decides nothing", () => {
-  /** A project root whose config path is created by `make` — a FIFO, a device, a directory… */
-  function projectWithConfigPath(make: (p: string) => void): string {
+  /**
+   * A project root whose config path is created by `make` — a FIFO, a device, a directory… `make`
+   * returns the skip row when THIS HOST cannot stage the shape (plan 33-05, D-16), and the caller
+   * prints it and returns rather than asserting over a config that was never there.
+   */
+  function projectWithConfigPath(
+    make: (p: string) => ReturnType<typeof stageShapeOrSkip>,
+  ): { root: string; skipped: ReturnType<typeof stageShapeOrSkip> } {
     const root = mkdtempSync(join(tmpdir(), "guard-nonfile-"));
     cpTmpDirs.push(root);
     mkdirSync(join(root, ".grugops"), { recursive: true });
-    make(join(root, ".grugops", "factory.config.json"));
-    return root;
+    return { root, skipped: make(join(root, ".grugops", "factory.config.json")) };
   }
+  const CONFIG_POSITION = "hooks/guard.test.ts: the config path (RA1-2)";
 
   it("CONTROL: a regular config answers, and fast (the timeout rows below are real hangs)", () => {
-    const root = projectWithConfigPath((p) => writeFileSync(p, "{}"));
+    const { root } = projectWithConfigPath((p) => {
+      writeFileSync(p, "{}");
+      return null;
+    });
     const t0 = Date.now();
     const r = runAt(root, PUSH);
     expect(r.stdout).toContain('"permissionDecision":"deny"');
@@ -1219,15 +1230,44 @@ describe("30-11 RA1-2 — the process has no exit that decides nothing", () => {
   });
 
   for (const [label, make] of [
-    ["a FIFO", (p: string) => execFileSync("mkfifo", [p])],
-    ["a symlink to /dev/zero", (p: string) => symlinkSync("/dev/zero", p)],
+    // THE FIFO IS STAGED THROUGH THE PLATFORM-SHAPE CORPUS (plan 33-05): `mkfifo` then `isFIFO()`,
+    // so an `mkfifo` that exits 0 over nothing (MSYS on windows-latest) is a skip, not a fixture.
+    ["a FIFO", (p: string) => stageShapeOrSkip("FIFO", p, CONFIG_POSITION)],
+    [
+      "a symlink to /dev/zero",
+      (p: string): ReturnType<typeof stageShapeOrSkip> => {
+        // The premise is MEASURED, not assumed from the platform name: a host with no character
+        // device at /dev/zero would stage a dangling link, and the guard would then deny for a
+        // different reason (an absent config) than the one this case pins (a device that blocks).
+        let device = false;
+        try {
+          device = statSync("/dev/zero").isCharacterDevice();
+        } catch {
+          device = false;
+        }
+        if (!device) {
+          return skipEntry(
+            "symlink to a character device",
+            CONFIG_POSITION,
+            "this host has no character device at /dev/zero, so a link to one cannot be staged",
+          );
+        }
+        symlinkSync("/dev/zero", p);
+        return null;
+      },
+    ],
   ] as const) {
     it(`${label} at the config path DENIES rather than blocking forever`, () => {
       // `readFileSync` on a non-regular file BLOCKS. Measured on the round-1 artifact: no exit, zero
       // bytes on BOTH stdout and stderr at 20 seconds, against a control answering in 31 ms. A
       // PreToolUse hook that never answers produces no decision, which the host treats as an allow —
       // so one allowed `mkfifo` turned the guard off for every subsequent command.
-      const root = projectWithConfigPath(make);
+      const { root, skipped } = projectWithConfigPath(make);
+      if (skipped !== null) {
+        // PRINTED and counted in the platform-shape remainder's format, never a silent pass (D-16).
+        console.warn(skipLine(skipped, "the DIRECTORY-at-the-config-path case in the 31-21 CONTROL 4 describe of scripts/context-io.test.ts, which reaches the same not-a-regular-file rule"));
+        return;
+      }
       const r = runAt(root, PUSH);
       expect(r.status, "a timed-out hook produces status null and no decision").toBe(0);
       expect(r.stdout).toContain('"permissionDecision":"deny"');
@@ -1844,7 +1884,19 @@ describe("31-27 CR-17 — a non-regular file at ANY manifest position is a bound
       const root = wrapperMirror();
       const abs = join(root, position);
       rmSync(abs, { recursive: true, force: true });
-      execFileSync("mkfifo", [abs]);
+      // STAGED THROUGH THE PLATFORM-SHAPE CORPUS (plan 33-05, D-16). On windows-latest run
+      // 35394268365 all thirteen of these cases were red with the SAME text: the wrapper answered
+      // `hook module "<position>" could not be read (ENOENT …)` — the third arm of
+      // `verifyDeciderClosure`, not the `manifest-path-not-a-regular-file` arm this case pins. The
+      // bare `execFileSync("mkfifo", [abs])` had EXITED 0 (MSYS ships an `mkfifo`) and left nothing
+      // Node could open, so the assertion ran over an absent module. The corpus constructor is
+      // `mkfifo` FOLLOWED BY `isFIFO()`: a host that cannot stage a FIFO prints the remainder row and
+      // returns, and the fstat rule at this position stays pinned by the DIRECTORY case beside it.
+      const skipped = stageShapeOrSkip("FIFO", abs, `hooks/guard.test.ts: a FIFO at ${position}`);
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, `the DIRECTORY-at-${position} case beside this one (same fstat rule, same named deny)`));
+        return;
+      }
       const r = runDerived(root);
       expect(r.status, "the wrapper must ANSWER, not be killed by the harness bound").toBe(0);
       const reason = denyReason(r.stdout);
@@ -1888,10 +1940,19 @@ describe("31-27 CR-17 — a non-regular file at ANY manifest position is a bound
         await new Promise((r) => setTimeout(r, 50));
       }
       if (!existsSync(abs)) {
-        // LOUD skip, never a silent green: the shape is named and so is the platform.
-        expect(
-          `SKIPPED shape=unix-socket platform=${process.platform}: no socket could be bound at a manifest position`,
-        ).toContain("SKIPPED shape=unix-socket");
+        // LOUD skip, never a silent green: the shape is named and so is the platform, PRINTED in
+        // the platform-shape remainder's own row format (plan 33-05, D-16) — the previous
+        // `expect("SKIPPED …").toContain("SKIPPED …")` was a tautology that printed nothing.
+        console.warn(
+          skipLine(
+            skipEntry(
+              "unix socket",
+              "hooks/guard.test.ts: a UNIX SOCKET at a manifest position",
+              "no socket could be bound at a filesystem path on this host within 5 s of the listener starting",
+            ),
+            "the FIFO and DIRECTORY cases at the same manifest position (same fstat rule)",
+          ),
+        );
         return;
       }
       const r = runDerived(root);

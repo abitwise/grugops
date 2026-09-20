@@ -98,6 +98,50 @@ import {
 // The property under test is that the RECONSTRUCTION recovers the semantic value; the verdict for
 // that value is stated here as ground truth.
 
+// ── THE LOADER ORACLE'S INTERPRETER, RESOLVED ONCE FOR THE WHOLE FILE (plan 33-05, D-16) ──────
+//
+// THE INTERPRETER IS RESOLVED FROM `PATH`, NOT PINNED TO AN ABSOLUTE PATH — the idiom
+// `scripts/context-io.test.ts` already carries (28-REVIEW WR-13). This file pinned `/usr/bin/ruby`
+// in two `describe`-scoped declarations and four literal call sites, and on the windows-latest CI
+// leg (run 35394268365) the two D-59 differential cases died at `spawnSync /usr/bin/ruby ENOENT`:
+// their `runLoader` had no probe, so an absent interpreter was a spawn error rather than a skip.
+// Every executable reference now reads this one name, overridable with `YAML_ORACLE_RUBY` for an
+// unusual image — and for the verify command that SIMULATES the absence, which is how the skip
+// arms below are watched rather than assumed. Comments that quote `/usr/bin/ruby -ryaml` beside a
+// corpus row record WHICH loader adjudicated that row when it was measured; they are evidence, not
+// call sites, and they are left as written.
+const RUBY = process.env.YAML_ORACLE_RUBY ?? "ruby";
+
+/** The probe's two arms. Parameterised on the path so the SKIP arm can be DRIVEN by a case. */
+type LoaderProbe =
+  | { readonly ok: true; readonly version: string }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Probe the loader ONCE per case, before any batch is handed to it. A failed probe is a PRINTED
+ * skip at the call site (`SKIPPED …`), never a silent pass and never a spawn error — the sweep and
+ * the module-side pins in the same `describe` still run and still report their own green.
+ */
+const probeLoader = (rubyPath: string): LoaderProbe => {
+  try {
+    const version = execFileSync(
+      rubyPath,
+      [
+        "-ryaml",
+        "-e",
+        "print \"ruby=#{RUBY_VERSION} psych=#{Psych::VERSION} libyaml=#{Psych.libyaml_version.join('.')}\"",
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+    return { ok: true, version };
+  } catch {
+    return {
+      ok: false,
+      reason: `${rubyPath} with the yaml (Psych/libyaml) library is not runnable on this machine`,
+    };
+  }
+};
+
 interface Value {
   readonly label: string;
   readonly value: string;
@@ -7851,20 +7895,14 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
     // box. Folding them would either make the sweep skip wholesale on a machine without Ruby, or make
     // this silently never run — and a silent skip is exactly the degradation these plans warn about.
     // So it probes first and PRINTS its reason when it skips, following the chmod-fixture precedent.
-    let loader: string;
-    try {
-      loader = execFileSync(
-        "/usr/bin/ruby",
-        ["-ryaml", "-e", "print RUBY_VERSION"],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-      );
-    } catch {
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
       console.warn(
-        "SKIPPED D-49 loader cross-check: /usr/bin/ruby with the yaml (Psych/libyaml) library is not runnable on this machine. This is a PRINTED skip, never a silent one — the sweep and both pins above still ran.",
+        `SKIPPED D-49 loader cross-check: ${probe.reason}. This is a PRINTED skip, never a silent one — the sweep and both pins above still ran.`,
       );
       return;
     }
-    expect(loader.length).toBeGreaterThan(0);
+    expect(probe.version.length).toBeGreaterThan(0);
 
     // WHAT IS ASSERTED, AND WHAT IS DELIBERATELY NOT. Byte equality with the loader is NOT the
     // predicate: this module joins a block sequence with a comma-space BY CONTRACT so that one token
@@ -7922,7 +7960,7 @@ describe("frontmatter — the multi-line scalar sweep (D-49 / SPAWN-04 + KIT-03)
       // name-set comparison below differ only in WHOSE value they read. The join moved from `|` to
       // `, ` for that reason; token presence cannot notice, because the token is a whole element.
       const loaded = execFileSync(
-        "/usr/bin/ruby",
+        RUBY,
         [
           "-ryaml",
           "-e",
@@ -8510,7 +8548,6 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
   const HARNESS_TOKEN = "Agent(grugops-orchestrator)";
   const FIRST = "Read,";
   const SECOND = "Write,";
-  const RUBY = "/usr/bin/ruby";
 
   // ── AXIS 1: THE KEY-LINE SHAPE ────────────────────────────────────────────────────────────────
   //
@@ -9697,31 +9734,10 @@ describe("frontmatter — the loader differential over a GENERATED corpus (D-52 
     },
   ];
 
-  // Parameterised on the interpreter path for ONE reason: so the SKIP branch can be EXERCISED by a
-  // case rather than assumed reachable. A harness that silently never runs is worse than no harness,
-  // and "the skip prints" is itself a claim that needs a pin.
-  type LoaderProbe =
-    | { readonly ok: true; readonly version: string }
-    | { readonly ok: false; readonly reason: string };
-  const probeLoader = (rubyPath: string): LoaderProbe => {
-    try {
-      const version = execFileSync(
-        rubyPath,
-        [
-          "-ryaml",
-          "-e",
-          "print \"ruby=#{RUBY_VERSION} psych=#{Psych::VERSION} libyaml=#{Psych.libyaml_version.join('.')}\"",
-        ],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-      );
-      return { ok: true, version };
-    } catch {
-      return {
-        ok: false,
-        reason: `${rubyPath} with the yaml (Psych/libyaml) library is not runnable on this machine`,
-      };
-    }
-  };
+  // The probe is `probeLoader` at file scope (plan 33-05): parameterised on the interpreter path
+  // for ONE reason — so the SKIP branch can be EXERCISED by a case rather than assumed reachable. A
+  // harness that silently never runs is worse than no harness, and "the skip prints" is itself a
+  // claim that needs a pin.
 
   // ── THE DIFFERENTIAL ──────────────────────────────────────────────────────────────────────────
 
@@ -13352,28 +13368,19 @@ describe("frontmatter — D-54: the node start is a structural position (CR-01, 
         .map((c) => c.where),
     ).toEqual([]);
 
-    let loaderVersion: string;
-    try {
-      loaderVersion = execFileSync(
-        "/usr/bin/ruby",
-        [
-          "-ryaml",
-          "-e",
-          "print \"ruby=#{RUBY_VERSION} psych=#{Psych::VERSION} libyaml=#{Psych.libyaml_version.join('.')}\"",
-        ],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-      );
-    } catch {
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
       console.warn(
-        `SKIPPED D-54 loader adjudication: /usr/bin/ruby with the yaml (Psych/libyaml) library is not runnable on this machine. This is a PRINTED skip, never a silent one — the ${CELLS}-cell corpus was enumerated and no expectation was invented in the loader's absence.`,
+        `SKIPPED D-54 loader adjudication: ${probe.reason}. This is a PRINTED skip, never a silent one — the ${CELLS}-cell corpus was enumerated and no expectation was invented in the loader's absence.`,
       );
       return;
     }
+    const loaderVersion = probe.version;
 
     // ONE PROCESS PER RUN, NOT ONE PER CELL — and the returned length is asserted, so a truncated
     // batch fails arithmetically instead of silently shortening the adjudication.
     const raw = execFileSync(
-      "/usr/bin/ruby",
+      RUBY,
       [
         "-e",
         [
@@ -14834,7 +14841,6 @@ describe("frontmatter — D-59: the block-scalar quoting exemption is region-sco
 // THREE AXES, ENUMERATED AS DATA, and every cell's expected verdict computed from the LOADER rather
 // than from the module. A corpus whose expectation is the module's own answer measures nothing.
 describe("frontmatter — D-59: the region-kind x escape-kind x spelling union (KIT-03 / SPAWN-04)", () => {
-  const RUBY = "/usr/bin/ruby";
   const TOKEN = "Agent(grugops-orchestrator)";
   // The pre-`27-55` commit. The identical axis is run against a hermetic mirror of it below, and the
   // never-exemptible partition there must be NON-empty — a corpus that cannot fail on the defect it
@@ -15162,6 +15168,16 @@ describe("frontmatter — D-59: the region-kind x escape-kind x spelling union (
   // ── THE DIFFERENTIAL ──────────────────────────────────────────────────────────────────────────
 
   it("D-59 the union differential — both never-exemptible directions are EMPTY against the post-fix build", () => {
+    // THE PROBE COMES FIRST (plan 33-05). This case and the mirror case below were the two
+    // `spawnSync /usr/bin/ruby ENOENT` reds on windows-latest: `runLoader` handed a batch to an
+    // interpreter nobody had probed, so an absent loader was a spawn error rather than a skip.
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED the D-59 union differential: ${probe.reason}. This is a PRINTED skip, never a silent one — the axes are enumerated and pinned above, and no expectation was invented in the loader's absence.`,
+      );
+      return;
+    }
     const cells = enumerateCells();
     const loader = runLoader(cells);
     const p = adjudicate(cells, loader, hasSpawnGrant);
@@ -15199,6 +15215,13 @@ describe("frontmatter — D-59: the region-kind x escape-kind x spelling union (
     // enumeration, the SAME loader batch and the SAME partition function against the build that
     // shipped the regression — so the green line above is a statement about the fix and not about
     // the corpus.
+    const probe = probeLoader(RUBY);
+    if (!probe.ok) {
+      console.warn(
+        `SKIPPED the D-59 non-circularity mirror: ${probe.reason}. PRINTED, never silent — no mirror was built and no verdict was invented in the loader's absence.`,
+      );
+      return;
+    }
     const dir = mkdtempSync(join(tmpdir(), "grugops-d59-prefix-"));
     try {
       const tarball = join(dir, "pre.tar");

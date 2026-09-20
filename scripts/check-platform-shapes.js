@@ -60,7 +60,7 @@
 // Clear professional voice throughout (CLAUDE.md hard rule for tooling and safety surfaces).
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync, } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync, } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
@@ -282,6 +282,12 @@ function digest(b) {
 /** The two position labels, stated once so the per-position premise below can select their rows. */
 const NOTE_POSITION = "note path";
 const MANIFEST_POSITION_LABEL = "DECIDER_MANIFEST module path";
+/**
+ * The positions this gate drives every shape at, PUBLISHED so a consumer can derive the remainder
+ * this host should print (one skip per unconstructible shape per position) instead of pinning a
+ * number that is only right on one platform (plan 33-05, T-33-25).
+ */
+export const POSITION_LABELS = Object.freeze([NOTE_POSITION, MANIFEST_POSITION_LABEL]);
 function forcedAbsent() {
     const raw = process.env[FORCE_ABSENT_ENV] ?? "";
     return new Set(raw.split(",").map((s) => s.trim()).filter((s) => s !== ""));
@@ -391,6 +397,182 @@ export const SHAPES = Object.freeze([
         },
     },
 ]);
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// THE ONE SKIP FORMAT, AND THE TEST-FIXTURE ENTRY INTO THE SAME REMAINDER (plan 33-05, D-16).
+//
+// A fixture a test cannot stage on this host — a FIFO where `mkfifo` has no equivalent, a filename
+// the platform refuses, a mode-0 path a privileged user still reads — is the SAME fact this gate
+// records as a skip: a shape the platform could not construct. Until plan 33-05 each test module
+// spelled that fact its own way: an `expect("SKIPPED …").toContain("SKIPPED")` tautology that
+// printed nothing, a bare `execFileSync("mkfifo")` that threw where `mkfifo` was absent, or — the
+// case the windows-latest run 35394268365 measured at thirteen manifest positions — an MSYS `mkfifo`
+// that EXITED 0 and left nothing Node could open, so the case ran its assertions over an absent
+// file and reported the wrong refusal arm. A reader had no single place to look for what a host
+// could not stage, and a construction that "succeeded" without producing the shape was a fixture.
+//
+// Every such line is now formed HERE, in the format the SKIPPED SHAPES block prints, from the
+// corpus's own `make()` and `reasonWhenAbsent` — one spelling, one reason per shape — and the
+// `FORCE_ABSENT` seam is reachable from a test exactly as it is reachable from this gate, so a
+// test's skip arm can be watched on a host that constructs everything.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+/** One remainder row, spelled the ONE way the SKIPPED SHAPES block prints it. */
+export function formatSkipEntry(s) {
+    return `shape="${s.shape}" position="${s.position}" platform=${s.platform}: ${s.reason}`;
+}
+/** A skip entry for THIS platform; the platform field is filled here so no test spells it. */
+export function skipEntry(shape, position, reason) {
+    return { shape, position, platform: process.platform, reason };
+}
+/**
+ * The line a TEST prints when it takes a named skip: the remainder row, prefixed so it is greppable
+ * beside this gate's own block, and suffixed with the deterministic route that still pins the
+ * predicate the skipped fixture would have exercised. A skip that names no surviving route is a
+ * coverage loss nobody recorded.
+ */
+export function skipLine(s, pinnedBy) {
+    return `SKIPPED ${formatSkipEntry(s)}; the predicate is still pinned by ${pinnedBy}`;
+}
+/**
+ * The corpus shape named `name`. A name the corpus does not carry THROWS: a typo that quietly
+ * became "cannot construct" would be a silent skip wearing a name.
+ */
+export function shapeNamed(name) {
+    const shape = SHAPES.find((s) => s.name === name);
+    if (shape === undefined) {
+        throw new Error(`the platform-shape corpus carries no shape named "${name}" (it carries: ` +
+            `${SHAPES.map((s) => JSON.stringify(s.name)).join(", ")})`);
+    }
+    return shape;
+}
+/**
+ * Stage the corpus shape `name` at `at` for a test fixture.
+ *
+ * Returns `null` when the shape was constructed, or the skip entry to print when this platform
+ * refused it. The construction is the corpus's own `make()` — for a FIFO that is `mkfifo` FOLLOWED
+ * BY `statSync(at).isFIFO()`, which is what turns an MSYS `mkfifo` exiting 0 over nothing into a
+ * skip rather than a fixture — and the `FORCE_ABSENT` seam is honoured first, without constructing,
+ * so the caller's skip arm is drivable on any host. `position` is the caller's own label for the
+ * row; `ordinary` is the bytes a regular-file shape would hold, which a FIFO ignores.
+ */
+export function stageShapeOrSkip(name, at, position, ordinary = Buffer.alloc(0)) {
+    const shape = shapeNamed(name);
+    const entry = skipEntry(shape.name, position, shape.reasonWhenAbsent);
+    if (forcedAbsent().has(shape.name))
+        return entry;
+    return shape.make(at, ordinary) ? null : entry;
+}
+/** The row label this gate's own capability probes are recorded under. */
+export const CAPABILITY_POSITION = "host capability probe";
+const deniedBy = (e) => {
+    const code = e.code;
+    return code === "EACCES" || code === "EPERM";
+};
+export const HOST_CAPABILITIES = Object.freeze([
+    {
+        name: "chmod 000 enforcement",
+        reasonWhenAbsent: "this process still reads a mode-0 regular file and still lists a mode-0 directory (a " +
+            "privileged account, or a filesystem that does not enforce POSIX mode bits — Windows maps " +
+            "chmod onto a read-only attribute), so a permission-denied precondition cannot be produced",
+        probe(scratch) {
+            const file = join(scratch, "mode-0-file");
+            const dir = join(scratch, "mode-0-dir");
+            writeFileSync(file, "x");
+            mkdirSync(dir);
+            writeFileSync(join(dir, "entry"), "x");
+            chmodSync(file, 0o000);
+            chmodSync(dir, 0o000);
+            let readDenied = false;
+            let listDenied = false;
+            try {
+                readFileSync(file);
+            }
+            catch (e) {
+                readDenied = deniedBy(e);
+            }
+            try {
+                readdirSync(dir);
+            }
+            catch (e) {
+                listDenied = deniedBy(e);
+            }
+            // The mode is RESTORED before the answer is read — the chmod idiom `scripts/kit-model.test.ts`
+            // already carries — so the scratch root can be removed whatever the host answered.
+            chmodSync(file, 0o600);
+            chmodSync(dir, 0o700);
+            return readDenied && listDenied;
+        },
+    },
+    {
+        name: "control byte in a path component",
+        reasonWhenAbsent: "this platform refuses a path component carrying a byte below 0x20 (Windows reports ENOENT " +
+            "or EINVAL for it), so a fixture whose name carries one cannot be staged",
+        probe(scratch) {
+            try {
+                // Both constructions the test corpus stages: a DIRECTORY whose name carries U+0001 with a
+                // child beneath it, and a FILE whose name carries a newline.
+                mkdirSync(join(scratch, "d\u0001x", "plans"), { recursive: true });
+                writeFileSync(join(scratch, "f\nx"), "x");
+                return true;
+            }
+            catch {
+                return false;
+            }
+        },
+    },
+]);
+/** The corpus's symlink shape, whose `reasonWhenAbsent` names the privilege a symlink fixture needs. */
+const SYMLINK_SHAPE_NAME = "symlink to a regular file (CONTROL — it resolves to one)";
+/**
+ * Stage a symbolic link at `at` for a test fixture (D-16). A refusal for want of the privilege
+ * (EPERM, or EACCES) returns the skip entry, with the corpus's own reason for the symlink shape;
+ * any other error is the caller's bug and is rethrown. `shape` is the caller's label for the row —
+ * a dangling link and a link to a device are different fixtures with one privilege.
+ */
+export function stageSymlinkOrSkip(target, at, shape, position) {
+    const entry = skipEntry(shape, position, shapeNamed(SYMLINK_SHAPE_NAME).reasonWhenAbsent);
+    if (forcedAbsent().has(SYMLINK_SHAPE_NAME) || forcedAbsent().has(shape))
+        return entry;
+    try {
+        symlinkSync(target, at);
+        return null;
+    }
+    catch (e) {
+        if (deniedBy(e))
+            return entry;
+        throw e;
+    }
+}
+/** The capability named `name`; an unknown name THROWS for the same reason `shapeNamed` does. */
+export function capabilityNamed(name) {
+    const cap = HOST_CAPABILITIES.find((c) => c.name === name);
+    if (cap === undefined) {
+        throw new Error(`the platform-shape corpus carries no host capability named "${name}" (it carries: ` +
+            `${HOST_CAPABILITIES.map((c) => JSON.stringify(c.name)).join(", ")})`);
+    }
+    return cap;
+}
+/** The skip entry a TEST prints when its OWN measurement found the capability absent. */
+export function capabilitySkipEntry(name, position) {
+    const cap = capabilityNamed(name);
+    return skipEntry(cap.name, position, cap.reasonWhenAbsent);
+}
+/**
+ * Probe the capability NOW, in a scratch root this function owns, honouring `FORCE_ABSENT` first.
+ * Returns `null` when the host has it, or the skip entry to print when it does not.
+ */
+export function hostCapabilityOrSkip(name, position) {
+    const cap = capabilityNamed(name);
+    const entry = skipEntry(cap.name, position, cap.reasonWhenAbsent);
+    if (forcedAbsent().has(cap.name))
+        return entry;
+    const scratch = mkdtempSync(join(tmpdir(), "grugops-host-capability-"));
+    try {
+        return cap.probe(scratch) ? null : entry;
+    }
+    finally {
+        rmSync(scratch, { recursive: true, force: true });
+    }
+}
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // The positions. Each drives a REAL committed runnable in a CHILD process with a timeout, because
 // an unbounded read at a FIFO would otherwise hang this gate rather than report on it.
@@ -650,12 +832,7 @@ function record(position, shape, outcome, ms, verdict) {
     rows.push({ position, shape: shape.name, outcome, ms, verdict });
 }
 function skip(position, shape) {
-    skips.push({
-        shape: shape.name,
-        position,
-        platform: process.platform,
-        reason: shape.reasonWhenAbsent,
-    });
+    skips.push(skipEntry(shape.name, position, shape.reasonWhenAbsent));
 }
 function drivePosition(position, plant) {
     const forced = forcedAbsent();
@@ -941,6 +1118,20 @@ function measureDirectoryIdentity() {
     });
 }
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+/**
+ * The host-capability probes, run on THIS host and recorded in the same remainder as the shapes
+ * (plan 33-05, D-16). An absent capability is a skip row under `CAPABILITY_POSITION`; the block
+ * below prints every probe's answer so "present" and "never asked" are different facts.
+ */
+function probeHostCapabilities() {
+    process.stdout.write(`\nHOST CAPABILITIES (${String(HOST_CAPABILITIES.length)}):\n`);
+    for (const cap of HOST_CAPABILITIES) {
+        const absent = hostCapabilityOrSkip(cap.name, CAPABILITY_POSITION);
+        if (absent !== null)
+            skips.push(absent);
+        process.stdout.write(`  ${cap.name.padEnd(36)} ${absent === null ? "present" : "ABSENT (skipped, see below)"}\n`);
+    }
+}
 function main() {
     process.stdout.write(`[check_platform_shapes] platform=${process.platform} node=${process.version}\n` +
         "the shape corpus, driven on this platform, with a recorded skip list (plan 31-30, R-03)\n");
@@ -975,6 +1166,7 @@ function main() {
         runManifestPosition();
         runExitCodeContract();
         measureDirectoryIdentity();
+        probeHostCapabilities();
     }
     catch (cause) {
         failures.push(`the probe itself could not complete (${cause instanceof Error ? cause.message : String(cause)}). ` +
@@ -996,7 +1188,7 @@ function main() {
     }
     else {
         for (const s of skips) {
-            process.stdout.write(`  shape="${s.shape}" position="${s.position}" platform=${s.platform}: ${s.reason}\n`);
+            process.stdout.write(`  ${formatSkipEntry(s)}\n`);
         }
     }
     // THE VACUITY FLOOR. A corpus that drove nothing is a check that did not run, never a pass.
@@ -1017,7 +1209,7 @@ function main() {
     //      same verdict would leave the CONTROL's equality trivially satisfiable.
     //   3. THE DISCRIMINANT EXISTS IN WHAT IT CLASSIFIES. A marker absent from the committed wrapper
     //      can only ever report one class.
-    for (const position of [NOTE_POSITION, MANIFEST_POSITION_LABEL]) {
+    for (const position of POSITION_LABELS) {
         const drivenHere = rows.filter((r) => r.position === position);
         const skippedHere = skips.filter((s) => s.position === position);
         if (drivenHere.length + skippedHere.length !== SHAPES.length) {

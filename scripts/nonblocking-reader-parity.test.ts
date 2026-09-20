@@ -51,6 +51,7 @@ import {
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { closureTargets } from "./js-import-closure.js";
+import { shapeNamed, skipEntry, skipLine, stageShapeOrSkip } from "./check-platform-shapes.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -600,7 +601,16 @@ type Shape = {
   readonly name: string;
   /** Create the shape at `at`; return false when this platform cannot make it. */
   readonly make: (at: string) => boolean;
+  /**
+   * Why this platform might not make it — printed in the skip row (plan 33-05, D-16). Only the
+   * non-portable shapes carry one; a portable shape that returned false would be a harness fault,
+   * and the drive loop below treats it as one rather than as a skip.
+   */
+  readonly reasonWhenAbsent?: string;
 };
+
+/** The parity corpus's one position label, as the skip row names it. */
+const PARITY_POSITION = "parity corpus position (scripts/nonblocking-reader-parity.test.ts)";
 
 const SHAPES: readonly Shape[] = Object.freeze([
   { name: "absent", make: () => true },
@@ -636,17 +646,18 @@ const SHAPES: readonly Shape[] = Object.freeze([
   },
   {
     name: "FIFO",
-    make: (at: string): boolean => {
-      try {
-        execFileSync("mkfifo", [at]);
-        return existsSync(at);
-      } catch {
-        return false;
-      }
-    },
+    // THE CORPUS'S OWN CONSTRUCTOR (plan 33-05): `mkfifo` followed by `isFIFO()`, so an `mkfifo`
+    // that exits 0 without producing a FIFO — MSYS on windows-latest — is a skip, not a fixture.
+    // `existsSync` alone could not tell those apart.
+    make: (at: string): boolean => stageShapeOrSkip("FIFO", at, PARITY_POSITION) === null,
+    // The reason is the corpus's own, read rather than restated beside it.
+    reasonWhenAbsent: shapeNamed("FIFO").reasonWhenAbsent,
   },
   {
     name: "unix socket",
+    reasonWhenAbsent:
+      "a socket bound at a filesystem path is a POSIX shape; this platform left nothing at the " +
+      "path after the listener reported bound",
     make: (at: string): boolean => {
       // Bound by a child that STAYS ALIVE — a server that closes unlinks its own socket, and the
       // corpus would then be silently driving the `absent` shape while reporting `unix socket`.
@@ -761,11 +772,19 @@ describe("31-27 — one shared file-shape corpus, the SAME decision required of 
       if (!made) {
         // A LOUD skip carrying the shape and the platform. It is COUNTED below, and the count is
         // asserted against what the platform predicate reported — a corpus that silently ran fewer
-        // shapes than it claims is a red test here, not a green one.
-        skipped.push(`${shape.name}@${process.platform}`);
+        // shapes than it claims is a red test here, not a green one. The row is PRINTED in the
+        // one format the platform-shape remainder prints (plan 33-05, D-16) — the old
+        // `expect("SKIPPED …").toContain("SKIPPED")` printed nothing — and a PORTABLE shape that
+        // returned false is a harness fault, refused by name rather than counted as a skip.
         expect(
-          `SKIPPED shape="${shape.name}" platform=${process.platform}: this platform would not create it`,
-        ).toContain("SKIPPED");
+          shape.reasonWhenAbsent,
+          `"${shape.name}" is a portable shape and its constructor returned false on this host`,
+        ).toBeDefined();
+        const entry = skipEntry(shape.name, PARITY_POSITION, shape.reasonWhenAbsent ?? "");
+        skipped.push(`${shape.name}@${entry.platform}`);
+        console.warn(
+          skipLine(entry, "the DIRECTORY row of this same corpus, which reaches the same fstat rule"),
+        );
         return;
       }
       const t0 = Date.now();

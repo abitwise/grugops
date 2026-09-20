@@ -45,6 +45,14 @@ import ts from "typescript";
 // import closure, never from a hand-listed file set — a mirror that misses a module reproduces "the
 // module is missing" instead of the property under test.
 import { closureTargets } from "./js-import-closure.js";
+import {
+  capabilitySkipEntry,
+  skipEntry,
+  skipLine,
+  stageShapeOrSkip,
+  stageSymlinkOrSkip,
+  type SkipEntry,
+} from "./check-platform-shapes.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const CONTEXT_IO_JS = join(ROOT, "scripts", "context-io.js");
@@ -4083,7 +4091,18 @@ describe("30-11 RA1-2 (reader half) — a governance config that is not a regula
   it("a FIFO at the config path is unreadable, not read — and unreadable is the strictest matrix", () => {
     const base = freshTmp("nonfile-");
     mkdirSync(join(base, ".grugops"), { recursive: true });
-    execFileSync("mkfifo", [join(base, ".grugops", "factory.config.json")]);
+    // STAGED THROUGH THE PLATFORM-SHAPE CORPUS (plan 33-05, D-16): `mkfifo` then `isFIFO()`. A host
+    // that cannot stage a FIFO prints the remainder row and returns; the DIRECTORY case beside this
+    // one reaches the same `unreadable` verdict through the same fstat rule.
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      join(base, ".grugops", "factory.config.json"),
+      "scripts/context-io.test.ts: a FIFO at the config path (RA1-2 reader half)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the DIRECTORY-at-the-config-path case beside this one"));
+      return;
+    }
     const res = mod.readGovernanceConfig(base);
     expect(res.source).toBe("unreadable");
     // Every checkpoint at `block`: an unknown declaration is enforced at the strictest value.
@@ -9589,14 +9608,18 @@ describe("31-21 — CR-12: a non-regular file at a read position is refused in b
     return join(notes, `${id}.md`);
   }
 
-  function mkfifoAt(path: string): void {
-    const r = spawnSync("mkfifo", [path], { encoding: "utf8" });
-    expect(
-      r.status,
-      `PREMISE: mkfifo failed at ${path} (${r.stderr ?? ""}) — every FIFO case below would then ` +
-        "measure an ordinary absent path and pass vacuously",
-    ).toBe(0);
-    expect(statSync(path).isFIFO(), "PREMISE: the planted path is not a FIFO").toBe(true);
+  /**
+   * Stage a FIFO through the platform-shape corpus (plan 33-05, D-16): `mkfifo` FOLLOWED BY
+   * `isFIFO()`, so a host whose `mkfifo` exits 0 over nothing (MSYS on windows-latest) is a printed
+   * skip rather than a case that measures an ordinary absent path and passes vacuously. Returns the
+   * remainder row to print, or `null` when the FIFO is there.
+   */
+  function fifoAtOrSkip(path: string, position: string): SkipEntry | null {
+    const skipped = stageShapeOrSkip("FIFO", path, `scripts/context-io.test.ts: ${position}`);
+    if (skipped === null) {
+      expect(statSync(path).isFIFO(), "PREMISE: the planted path is not a FIFO").toBe(true);
+    }
+    return skipped;
   }
 
   const FIFO_ID = "20260909T050000Z-qe-observation-cafe0001";
@@ -9612,7 +9635,11 @@ describe("31-21 — CR-12: a non-regular file at a read position is refused in b
   it("GREEN 1: a FIFO at a note path is a NAMED refusal in bounded time, not a hang", () => {
     const base = freshTmp("p31-21-fifo-note-");
     const path = stagedNotePath(base, FIFO_ID);
-    mkfifoAt(path);
+    const skipped = fifoAtOrSkip(path, "GREEN 1, a FIFO at a note path");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "GREEN 1b beside this case (a DIRECTORY at a note path, the same refusal)"));
+      return;
+    }
     const r = drive("note", base, FIFO_ID);
     expect(
       r.timedOut,
@@ -9644,7 +9671,26 @@ describe("31-21 — CR-12: a non-regular file at a read position is refused in b
     const base = freshTmp("p31-21-dev-note-");
     const id = "20260909T050000Z-qe-observation-cafe0003";
     const path = stagedNotePath(base, id);
-    symlinkSync("/dev/zero", path);
+    // THE PREMISE IS MEASURED (plan 33-05, D-16): a host with no character device at /dev/zero
+    // would stage a DANGLING link, which the driver refuses as absent — a different arm from the
+    // one this case pins. The link itself may also need a privilege the host lacks.
+    let device = false;
+    try {
+      device = statSync("/dev/zero").isCharacterDevice();
+    } catch {
+      device = false;
+    }
+    const skipped = device
+      ? stageSymlinkOrSkip("/dev/zero", path, "symlink to a character device", "scripts/context-io.test.ts: GREEN 1c")
+      : skipEntry(
+          "symlink to a character device",
+          "scripts/context-io.test.ts: GREEN 1c",
+          "this host has no character device at /dev/zero, so a link to one cannot be staged",
+        );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "GREEN 1b beside this case (a DIRECTORY at a note path, the same refusal)"));
+      return;
+    }
     const r = drive("note", base, id);
     expect(r.timedOut, "the character-device case did not answer").toBe(false);
     expect(r.ms).toBeLessThan(BOUNDED_MS);
@@ -9657,7 +9703,11 @@ describe("31-21 — CR-12: a non-regular file at a read position is refused in b
     // AT THE DESTINATION'S OWN ROOT (31-29, CR-20 / D-31) — the ledger the derived root names.
     const audit = join(base, "destproj", ".grugops", "audit");
     mkdirSync(audit, { recursive: true });
-    mkfifoAt(join(audit, "admissions.jsonl"));
+    const skipped = fifoAtOrSkip(join(audit, "admissions.jsonl"), "GREEN 2, a FIFO at the GOV-02 ledger path");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the 31-29 CR-19 CONTROL that a DIRECTORY at the ledger path reaches the fstat SHAPE branch"));
+      return;
+    }
     const r = drive("promote", base);
     expect(
       r.timedOut,
@@ -9831,8 +9881,15 @@ describe("31-21 CONTROL 4 — the governance-config reader answers identically a
 
   it("a FIFO at the config position is REFUSED (RA1-2) — `unreadable`, in bounded time", () => {
     const root = projectRoot("p31-21-cfg-fifo-");
-    const r = spawnSync("mkfifo", [configPath(root)], { encoding: "utf8" });
-    expect(r.status, `PREMISE: mkfifo failed (${r.stderr ?? ""})`).toBe(0);
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      configPath(root),
+      "scripts/context-io.test.ts: a FIFO at the config position (31-21 CONTROL 4)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the DIRECTORY-at-the-config-path case in the 30-11 RA1-2 (reader half) describe"));
+      return;
+    }
     const started = Date.now();
     const g = mod.readGovernanceConfig(root);
     expect(Date.now() - started, "the config read was not bounded").toBeLessThan(5000);
@@ -9945,8 +10002,11 @@ describe("31-21 — a non-regular file inside a notes/ directory is skipped, nev
       lean,
     );
     const planted = join(ctx, T, "notes", "20260909T070000Z-qe-observation-feedface.md");
-    const r0 = spawnSync("mkfifo", [planted], { encoding: "utf8" });
-    expect(r0.status, `PREMISE: mkfifo failed (${r0.stderr ?? ""})`).toBe(0);
+    const skipped = stageShapeOrSkip("FIFO", planted, "scripts/context-io.test.ts: a FIFO in notes/ during the walk");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the DIRECTORY-named-like-a-note case beside this one (skipped by the same rule)"));
+      return;
+    }
 
     const r = walk(ctx);
     expect(
@@ -9995,8 +10055,15 @@ describe("31-21 — a non-regular file inside a notes/ directory is skipped, nev
     mkdirSync(join(lean, ".grugops"), { recursive: true });
     const id = "20260909T074500Z-qe-observation-c0ffee01";
     mkdirSync(join(ctx, T, "notes"), { recursive: true });
-    const r0 = spawnSync("mkfifo", [join(ctx, T, "notes", `${id}.md`)], { encoding: "utf8" });
-    expect(r0.status, `PREMISE: mkfifo failed (${r0.stderr ?? ""})`).toBe(0);
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      join(ctx, T, "notes", `${id}.md`),
+      "scripts/context-io.test.ts: a FIFO in the destination notes/ at the promoted id",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the 31-29 CR-19 three-shapes case, whose DIRECTORY plant at a note destination draws the same NOTE_PATH_NOT_REGULAR_FILE_CLAUSE"));
+      return;
+    }
     expect(() =>
       mod.appendNote(
         T,
@@ -10148,7 +10215,7 @@ describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, 
     };
   }
 
-  function stageFifoLedger(prefix: string): string {
+  function stageFifoLedger(prefix: string): { base: string; skipped: SkipEntry | null } {
     const base = freshTmp(prefix);
     // RE-STAGED (31-39, CR-27 / D-39), AND STRICTLY STRONGER THAN BEFORE. The dial root and the
     // repository whose audit trail records an admission are now two separate answers: the WRITERS
@@ -10161,11 +10228,19 @@ describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, 
     for (const owner of ["strict", "proj"]) {
       const audit = join(base, owner, ".grugops", "audit");
       mkdirSync(audit, { recursive: true });
-      const r = spawnSync("mkfifo", [join(audit, "admissions.jsonl")], { encoding: "utf8" });
-      expect(r.status, `PREMISE: mkfifo failed at ${owner} (${r.stderr ?? ""})`).toBe(0);
+      // Through the platform-shape corpus (plan 33-05): a host that cannot stage the FIFO hands the
+      // caller the remainder row, and the caller prints it and returns.
+      const skipped = stageShapeOrSkip(
+        "FIFO",
+        join(audit, "admissions.jsonl"),
+        `scripts/context-io.test.ts: a FIFO at the ${owner} GOV-02 ledger (${prefix})`,
+      );
+      if (skipped !== null) return { base, skipped };
     }
-    return base;
+    return { base, skipped: null };
   }
+  const LEDGER_FIFO_PINNED_BY =
+    "the 31-29 CR-19 CONTROL that a DIRECTORY at the ledger path reaches the fstat SHAPE branch";
 
   // BOTH WRITERS that reach `appendAuditLedger` WITHOUT a ledger look: `appendNote` (through the
   // authority's own ledger append) and `admitAndAppend`'s gated branch. `promoteAdmitted` is already
@@ -10189,7 +10264,11 @@ describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, 
 
   for (const route of ["appendNote", "admitAndAppend"] as const) {
     it(`${route}: a FIFO at the ledger REFUSES in bounded time and writes no note`, () => {
-      const base = stageFifoLedger(`p31-21-appendfifo-${route}-`);
+      const { base, skipped } = stageFifoLedger(`p31-21-appendfifo-${route}-`);
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, LEDGER_FIFO_PINNED_BY));
+        return;
+      }
       const r = driveLedger(base, route);
       expect(
         r.timedOut,
@@ -10207,7 +10286,11 @@ describe("31-21 — a non-regular GOV-02 ledger position refuses the ADMISSION, 
   }
 
   it("the AUTHORITY itself is bounded: raw admit() throws rather than wedging", () => {
-    const base = stageFifoLedger("p31-21-appendfifo-authority-");
+    const { base, skipped } = stageFifoLedger("p31-21-appendfifo-authority-");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, LEDGER_FIFO_PINNED_BY));
+      return;
+    }
     const r = driveLedger(base, "admit");
     expect(r.timedOut, `raw admit() blocks on a FIFO ledger. ${r.raw}`).toBe(false);
     expect(r.ms).toBeLessThan(5000);
@@ -11946,22 +12029,44 @@ describe("31-29 — CR-19: the note ceiling is enforced on the side that ADMITS"
   });
 
   it("THE CLAUSE NAMES THE CONDITION THAT IS TRUE: three shapes, two clauses, no false sentence", () => {
-    const shapes: ReadonlyArray<readonly [string, (p: string) => void, string]> = [
+    // Each plant returns the remainder row when THIS HOST cannot stage it (plan 33-05, D-16); the
+    // FIFO row is then printed and skipped while the two other shapes still run.
+    const shapes: ReadonlyArray<readonly [string, (p: string) => SkipEntry | null, string]> = [
       [
         "an over-ceiling REGULAR file",
-        (p) => writeFileSync(p, Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61)),
+        (p) => {
+          writeFileSync(p, Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61));
+          return null;
+        },
         mod.NOTE_ABOVE_CEILING_CLAUSE,
       ],
-      ["a FIFO", (p) => execFileSync("mkfifo", [p]), mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE],
-      ["a directory", (p) => mkdirSync(p, { recursive: true }), mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE],
+      [
+        "a FIFO",
+        (p) => stageShapeOrSkip("FIFO", p, "scripts/context-io.test.ts: a FIFO at a note destination (31-29 CR-19)"),
+        mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE,
+      ],
+      [
+        "a directory",
+        (p) => {
+          mkdirSync(p, { recursive: true });
+          return null;
+        },
+        mod.NOTE_PATH_NOT_REGULAR_FILE_CLAUSE,
+      ],
     ];
+    let driven = 0;
     for (const [label, plant, expectedClause] of shapes) {
       const { root, ctx } = contextStore(`p31-29-clause-${label.replace(/[^a-z]/gi, "")}-`);
       const id = "20260910T000000Z-engineer-observation-bbbbbbb1";
       const notesDir = join(ctx, T, "notes");
       mkdirSync(notesDir, { recursive: true });
       const p = join(notesDir, `${id}.md`);
-      plant(p);
+      const skipped = plant(p);
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, "the `a directory` plant in this same loop (same clause)"));
+        continue;
+      }
+      driven += 1;
       const st = statSync(p);
       let message = "";
       try {
@@ -11982,6 +12087,9 @@ describe("31-29 — CR-19: the note ceiling is enforced on the side that ADMITS"
         expect(message).toContain("IS a regular file");
       }
     }
+    // Both clauses must still have been driven: the ceiling clause by the regular file, the shape
+    // clause by the directory whatever the host did with the FIFO.
+    expect(driven, "fewer than two shapes were driven, so a clause went unmeasured").toBeGreaterThanOrEqual(2);
   });
 
   it("EMPTY: a ZERO-BYTE note file is still the APPEND-ONLY refusal, not a ceiling case", () => {
@@ -12096,7 +12204,11 @@ describe("31-29 — CR-19: the GOV-02 ledger's two sides agree at the boundary t
     // The property this control exists to hold is unchanged and is what is asserted: the ledger's
     // shape refusal is still reachable, still bounded, and is NOT the new ceiling clause.
     const { root, ctx, ledger } = retainedRepo("p31-29-ledger-fifo-");
-    execFileSync("mkfifo", [ledger]);
+    const skipped = stageShapeOrSkip("FIFO", ledger, "scripts/context-io.test.ts: a FIFO at the ledger path (31-29 CR-19 CONTROL)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the DIRECTORY-at-the-ledger-path CONTROL beside this one (the fstat SHAPE branch)"));
+      return;
+    }
     let message = "";
     try {
       mod.appendNote(T, observation, "a body", ctx, undefined, root);
@@ -12630,7 +12742,15 @@ describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repo
     const dest = storeUnder(destRoot);
     // A FIFO at the DESTINATION's ledger path — the ledger the derived root now names.
     mkdirSync(join(destRoot, ".grugops", "audit"), { recursive: true });
-    execFileSync("mkfifo", [join(destRoot, ".grugops", "audit", "admissions.jsonl")]);
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      join(destRoot, ".grugops", "audit", "admissions.jsonl"),
+      "scripts/context-io.test.ts: a FIFO at the destination ledger (31-29 CR-20 CONTROL 4)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "GREEN 2 of the 31-21 CR-12 describe and the 31-29 CR-19 DIRECTORY-at-the-ledger CONTROL, which reach the same unreadable-ledger decline"));
+      return;
+    }
     expect(() =>
       mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot),
     ).toThrow(/unreadable-audit-ledger/);
@@ -12863,22 +12983,37 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
     // over all five arms lives in the `31-33 — CR-24` block below; this case keeps its original
     // three plants so the 31-29 closure it was written for stays driven at its own coordinates.
     const seen: Record<string, string> = {};
-    const cases: ReadonlyArray<readonly [string, string, (notesDir: string) => void]> = [
+    // A plant returns the remainder row when THIS HOST cannot stage it (plan 33-05, D-16).
+    const cases: ReadonlyArray<readonly [string, string, (notesDir: string) => SkipEntry | null]> = [
       [
         "unparseable",
         "unparseable",
-        (d) => writeFileSync(join(d, "aaa.md"), "this is not a note at all\n"),
+        (d) => {
+          writeFileSync(join(d, "aaa.md"), "this is not a note at all\n");
+          return null;
+        },
       ],
-      ["not a regular file", "not-a-regular-file", (d) => execFileSync("mkfifo", [join(d, "aaa.md")])],
+      [
+        "not a regular file",
+        "not-a-regular-file",
+        (d) => stageShapeOrSkip("FIFO", join(d, "aaa.md"), "scripts/context-io.test.ts: a FIFO in notes/ (31-29 IN-14 three arms)"),
+      ],
       [
         "over the ceiling",
         "above-ceiling",
-        (d) => writeFileSync(join(d, "aaa.md"), Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61)),
+        (d) => {
+          writeFileSync(join(d, "aaa.md"), Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61));
+          return null;
+        },
       ],
     ];
     for (const [label, arm, plant] of cases) {
       const ctx = store(`p31-29-skip-${label.replace(/[^a-z]/gi, "")}-`);
-      plant(join(ctx, T, "notes"));
+      const skipped = plant(join(ctx, T, "notes"));
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, "the 31-33 CR-24 cross product, whose remaining arms are still compared pairwise"));
+        continue;
+      }
       expect(mod.readContext(T, ctx), `${label} was returned as a note`).toEqual([]);
       mod.render(T, ctx);
       const md = indexOf(ctx);
@@ -12886,10 +13021,13 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
       expect(md).toContain("| aaa.md | " + arm + " |");
       seen[label] = md.slice(md.indexOf("## Skipped entries"));
     }
-    // DISTINCT: the unparseable arm and the non-regular arm are not the same text.
-    expect(seen["unparseable"]).not.toBe(seen["not a regular file"]);
+    // DISTINCT: the unparseable arm and the non-regular arm are not the same text — compared only
+    // where the non-regular plant was staged; its absence is a printed row above, never a green.
     expect(seen["unparseable"]).toContain("unparseable");
-    expect(seen["not a regular file"]).toContain("not-a-regular-file");
+    if (seen["not a regular file"] !== undefined) {
+      expect(seen["unparseable"]).not.toBe(seen["not a regular file"]);
+      expect(seen["not a regular file"]).toContain("not-a-regular-file");
+    }
     // …and the over-ceiling entry carries its BYTE COUNT, so "unreadable" is legible as a size.
     expect(seen["over the ceiling"]).toMatch(/\d+ bytes, above the \d+-byte ceiling/);
   });
@@ -12899,7 +13037,14 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
     const notes = join(ctx, T, "notes");
     writeFileSync(join(notes, "one.md"), "not a note\n");
     writeFileSync(join(notes, "two.md"), "also not a note\n");
-    execFileSync("mkfifo", [join(notes, "three.md")]);
+    // The third entry is a FIFO where the host can stage one and a DIRECTORY where it cannot —
+    // both are "not read as a note", so the COUNT this case pins is the same either way, and the
+    // substitution is printed as the remainder row rather than made silently (plan 33-05).
+    const fifoSkipped = stageShapeOrSkip("FIFO", join(notes, "three.md"), "scripts/context-io.test.ts: the third skipped entry (31-29 IN-14 count)");
+    if (fifoSkipped !== null) {
+      console.warn(skipLine(fifoSkipped, "a DIRECTORY at the same entry, staged in its place below"));
+      mkdirSync(join(notes, "three.md"), { recursive: true });
+    }
     // …and ONE real note, so the report is not the whole output.
     const id = mod.appendNote(
       T,
@@ -13745,24 +13890,85 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
    * authority itself below so the expected arm is the authority's own answer rather than this
    * file's opinion about the plant.
    */
-  const PLANTS: ReadonlyArray<readonly [string, string, (p: string) => void]> = Object.freeze([
-    ["unparseable", "aa-unparseable.md", (p) => writeFileSync(p, "this is not a note at all\n")],
+  //
+  // EACH PLANT RETURNS THE REMAINDER ROW WHEN THIS HOST CANNOT STAGE IT (plan 33-05, D-16). Three of
+  // the five need something a host may not have: `unopenable` needs `chmod 000` to be honoured
+  // (measured, not assumed — a privileged account and windows-latest both read the file anyway),
+  // `not-a-regular-file` needs a FIFO, `vanished` needs the symlink privilege. A plant the host
+  // refuses is PRINTED in the platform-shape remainder's format and its arm is left out of the
+  // cases below, which derive their counts from what was staged; nothing is asserted over a plant
+  // that was never there, and no arm is silently reported as measured.
+  const PLANTS: ReadonlyArray<readonly [string, string, (p: string) => SkipEntry | null]> = Object.freeze([
+    [
+      "unparseable",
+      "aa-unparseable.md",
+      (p) => {
+        writeFileSync(p, "this is not a note at all\n");
+        return null;
+      },
+    ],
     [
       "unopenable",
       "bb-unopenable.md",
       (p) => {
         writeFileSync(p, "whatever\n");
         chmodSync(p, 0o000);
+        if (eaccesIsDenied(p)) return null;
+        // The chmod idiom (`scripts/kit-model.test.ts`): restore the mode, name the privilege.
+        chmodSync(p, 0o600);
+        rmSync(p, { force: true });
+        return capabilitySkipEntry("chmod 000 enforcement", "scripts/context-io.test.ts: the `unopenable` plant (31-33 CR-24)");
       },
     ],
-    ["not-a-regular-file", "cc-fifo.md", (p) => execFileSync("mkfifo", [p])],
+    [
+      "not-a-regular-file",
+      "cc-fifo.md",
+      (p) => stageShapeOrSkip("FIFO", p, "scripts/context-io.test.ts: the `not-a-regular-file` plant (31-33 CR-24)"),
+    ],
     [
       "above-ceiling",
       "dd-overceiling.md",
-      (p) => writeFileSync(p, Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61)),
+      (p) => {
+        writeFileSync(p, Buffer.alloc(mod.NOTE_FILE_MAX_BYTES + 1, 0x61));
+        return null;
+      },
     ],
-    ["vanished", "ee-dangling-symlink.md", (p) => symlinkSync(join(p, "..", "no-such-target"), p)],
+    [
+      "vanished",
+      "ee-dangling-symlink.md",
+      (p) =>
+        stageSymlinkOrSkip(
+          join(p, "..", "no-such-target"),
+          p,
+          "dangling symlink",
+          "scripts/context-io.test.ts: the `vanished` plant (31-33 CR-24)",
+        ),
+    ],
   ]);
+
+  /** The route that still pins every arm a host could not stage here. */
+  const CR24_PINNED_BY = "the remaining staged arms of this same block, compared pairwise below";
+
+  /** Stage every plant under `notes`; print and count the ones this host refused. */
+  function stagePlants(notes: string): { staged: (readonly [string, string])[]; opened: string[] } {
+    const staged: (readonly [string, string])[] = [];
+    const opened: string[] = [];
+    for (const [arm, file, plant] of PLANTS) {
+      const skipped = plant(join(notes, file));
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, CR24_PINNED_BY));
+        continue;
+      }
+      staged.push([arm, file]);
+      if (arm === "unopenable") opened.push(join(notes, file));
+    }
+    // THE VACUITY FLOOR: the two arms no host can refuse must be there, or the block measured nothing.
+    expect(
+      staged.map(([arm]) => arm),
+      "the arms no privilege can refuse were not staged — the block is not measuring the table",
+    ).toEqual(expect.arrayContaining(["unparseable", "above-ceiling"]));
+    return { staged, opened };
+  }
 
   /** The EACCES plant only proves anything where `chmod 000` actually denies THIS process a read. */
   function eaccesIsDenied(path: string): boolean {
@@ -13780,21 +13986,34 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
     chmodSync(probe, 0o000);
     const denied = eaccesIsDenied(probe);
     chmodSync(probe, 0o600);
-    // A root-equivalent process reads it anyway. Recorded `UNKNOWN - verify` rather than reported as
-    // passing — the plan's own precondition, honoured rather than assumed.
-    expect(
-      denied,
-      "UNKNOWN - verify: this process reads a `chmod 000` regular file, so the `unopenable` arm " +
-        "cannot be measured on this box and its cases below prove nothing about it",
-    ).toBe(true);
+    // A root-equivalent process — or windows-latest, where chmod maps onto a read-only attribute —
+    // reads it anyway. Taken ON THE MEASUREMENT (plan 33-05, D-16): the absence is printed in the
+    // platform-shape remainder's format and counted, and the `unopenable` plant above returns the
+    // same row so every case below leaves that arm out rather than proving nothing about it.
+    if (!denied) {
+      console.warn(
+        skipLine(
+          capabilitySkipEntry("chmod 000 enforcement", "scripts/context-io.test.ts: the EACCES premise (31-33 CR-24)"),
+          CR24_PINNED_BY,
+        ),
+      );
+      return;
+    }
+    expect(denied).toBe(true);
   });
 
   it("every planted condition reports its OWN arm, read from the authority's discriminant", () => {
+    let driven = 0;
     for (const [arm, file, plant] of PLANTS) {
       const ctx = store(`p31-33-arm-${arm}-`);
       const notes = join(ctx, T, "notes");
       const path = join(notes, file);
-      plant(path);
+      const skipped = plant(path);
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, CR24_PINNED_BY));
+        continue;
+      }
+      driven += 1;
       // THE AUTHORITY'S OWN ANSWER FOR THIS EXACT POSITION, asked directly. The rendered arm is
       // then compared against a fact the module decided, never against this file's expectation of
       // what the plant ought to be — which is what makes a row that contradicts its own detail
@@ -13833,6 +14052,7 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
       }
       if (arm === "unopenable") chmodSync(path, 0o600);
     }
+    expect(driven, "fewer than two arms were driven, so no arm's own answer was compared").toBeGreaterThanOrEqual(2);
   });
 
   it("the FULL pairwise cross product of arms produces DISTINCT rendered rows", () => {
@@ -13843,7 +14063,11 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
     for (const [arm, file, plant] of PLANTS) {
       const ctx = store(`p31-33-cross-${arm}-`);
       const path = join(ctx, T, "notes", file);
-      plant(path);
+      const skipped = plant(path);
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, CR24_PINNED_BY));
+        continue;
+      }
       mod.render(T, ctx);
       // THE ARM CELL IS WHAT IS COMPARED, and that is the whole point. Comparing the WHOLE rendered
       // row would pass on the pre-fix module, because two conditions filed under ONE arm still carry
@@ -13853,7 +14077,11 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
       rendered.set(arm, armOf(indexOf(ctx), file));
       if (arm === "unopenable") chmodSync(path, 0o600);
     }
-    const arms = PLANTS.map(([arm]) => arm);
+    // The arms COMPARED are the arms STAGED, and the pair count is derived from that number.
+    const arms = [...rendered.keys()];
+    expect(arms, "the arms no privilege can refuse were not rendered").toEqual(
+      expect.arrayContaining(["unparseable", "above-ceiling"]),
+    );
     let pairs = 0;
     for (const a of arms) {
       for (const b of arms) {
@@ -13875,17 +14103,13 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
   it("NO rendered row's detail contradicts its arm — asserted as a property over every arm", () => {
     const ctx = store("p31-33-contradiction-");
     const notes = join(ctx, T, "notes");
-    const opened: string[] = [];
-    for (const [arm, file, plant] of PLANTS) {
-      plant(join(notes, file));
-      if (arm === "unopenable") opened.push(join(notes, file));
-    }
+    const { staged, opened } = stagePlants(notes);
     mod.render(T, ctx);
     const md = indexOf(ctx);
     // The PLANT's own expected arm is deliberately NOT read in this loop. The property is about the
     // TABLE — the arm column against the detail column — so introducing the fixture's expectation
     // here would let a row that agrees with the fixture and contradicts itself pass.
-    for (const [, file] of PLANTS) {
+    for (const [, file] of staged) {
       const detail = detailOf(md, file);
       if (detail === "") continue;
       // THE PROPERTY: the detail in a row is the AUTHORITY's own message, so the arm the row is
@@ -14012,13 +14236,13 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
   it("CONTROL 2: the counted-entries report still counts the number of skipped entries", () => {
     const ctx = store("p31-33-count-");
     const notes = join(ctx, T, "notes");
-    const opened: string[] = [];
-    for (const [arm, file, plant] of PLANTS) {
-      plant(join(notes, file));
-      if (arm === "unopenable") opened.push(join(notes, file));
-    }
+    const { staged, opened } = stagePlants(notes);
     mod.render(T, ctx);
-    expect(indexOf(ctx)).toContain("5 entries in this task's notes/ directory were not read as a note");
+    // The count is the number of plants this host STAGED (five where it has every privilege),
+    // derived from the staging above rather than typed beside it.
+    expect(indexOf(ctx)).toContain(
+      `${String(staged.length)} entries in this task's notes/ directory were not read as a note`,
+    );
     for (const p of opened) chmodSync(p, 0o600);
   });
 
@@ -14040,7 +14264,14 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
       undefined,
       resolve(join(ctx, "..", "..")),
     );
-    execFileSync("mkfifo", [join(ctx, T, "notes", "zz-fifo.md")]);
+    // A FIFO where the host can stage one, a DIRECTORY where it cannot: both are one planted
+    // non-regular entry beside a real note, which is what R-31-21-02 is about. The substitution is
+    // PRINTED as the remainder row, never made silently (plan 33-05).
+    const fifoSkipped = stageShapeOrSkip("FIFO", join(ctx, T, "notes", "zz-fifo.md"), "scripts/context-io.test.ts: one planted FIFO (31-33 CONTROL 3)");
+    if (fifoSkipped !== null) {
+      console.warn(skipLine(fifoSkipped, "a DIRECTORY at the same entry, staged in its place below"));
+      mkdirSync(join(ctx, T, "notes", "zz-fifo.md"), { recursive: true });
+    }
     expect(mod.readContext(T, ctx).map((n) => n.id)).toEqual([id]);
     expect(() => mod.render(T, ctx)).not.toThrow();
     expect(indexOf(ctx)).toContain("| a real body |");
