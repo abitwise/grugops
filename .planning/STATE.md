@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Planned gap-closure round 2 (commit ad896f27). Next: /gsd-execute-phase 33 --gaps-only (waves 7-12). Human stops inside the round: 33-20 push before the CI run, 33-21 KIT decision + push-then-go (floor 11.75 USD / 31 min), 33-22 flip decision only on OUTCOME: pass."
-last_updated: "2026-09-20T19:55:26.445Z"
-state_head: ad896f27e70bafeee1344e089af85b073682020b
+stopped_at: "Completed 33-12-PLAN.md (round-2 tracer: CR-03, CR-01, CR-02 landed red-first; 6 commits). Next: 33-13 (wave 8)"
+last_updated: "2026-09-20T20:33:56.781Z"
+state_head: c4abf909e604f4b1771945b499232b9ee9e40a11
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 292
-  completed_plans: 280
+  completed_plans: 281
   percent: 96
 last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 33 (Live Capture & Windows Portability) — READY TO EXECUTE
-Plan: 11 of 23 — round 1 executed (33-01..33-11, verification gaps_found 0/3); round 2 planned (33-12..33-23, waves 7-12), 0 of 12 executed
+Phase: 33 (Live Capture & Windows Portability) — EXECUTING
+Plan: 2 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -538,6 +538,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P09 | 47min | 3 tasks | 4 files |
 | Phase 33 P10 | 79 min | 3 tasks | 6 files |
 | Phase 33 P11 | 12 min | 4 tasks | 6 files |
+| Phase 33 P12 | 25 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1479,6 +1480,9 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-10: the one authorized live capture ran once (11.75 USD, 31 min 07 s): CAP-03 both sides hold on both dispatch paths, the prod-deploy deny observed on the hook channel for the probe in both, grugops 2.1.0 loaded from the plugin cache — OUTCOME: fail because the D-07 comparator (dual-path-equivalence.ts) asserts byte-identical model prose and keys on model-chosen task ids; classed SUITE in 33-DIAGNOSIS.md, nothing fixed, nothing re-run, nothing flips (D-20) — D-11 requires a red run to be diagnosed at zero tokens and re-asked in the NEXT round; D-07 says byte-identical prose is not asserted, and the runner asserted it by construction
 - [Phase 33]: 33-10 KIT findings recorded verbatim, not fixed (D-20): the --agent path's session carries exactly the coordinator adapter's 7-tool grant (no MCP admission tool) and its nine notes were hand-written by the Write tool after the guard refused the heredocs; the guard's command model refuses 2>&1 and $var on tool name alone (15 of 17 live denies, reproduced offline); admitAndAppend writes verified_by: undefined when the field is absent (reproduced offline) — each has an offline reproduction in 33-DIAGNOSIS.md and belongs to gap-closure round 2 of 4; CAP-03 / CAP-01 stay unmarked on a red run
 - [Phase 33]: 33-11: GAP-D1 HELD (human, 2026-09-20) — the 33-10 capture reads OUTCOME: fail on the D-07 comparator, so under D-20 nothing flips: manifest status stays pre-capture, every flip-class and correction-class row untouched, no WINDOWS row added, PROJECT.md owed to the capture-day commit (declared F59-F62 but absent from 33-11's files list); CAP-01/CAP-02/CAP-03 stay open with separate citations (33-CAPTURE-SUMMARY.md vs 33-CI-MEASUREMENT.md Part 2)
+- [Phase 33]: 33-12: D-07 verdict is a path-invariant projection (per role count + kind multiset + author, verdict marker, note route); the held round-1 capture still reads divergent by six named sentences — corrected, not softened (D-20). The replay comparator is informational only.
+- [Phase 33]: 33-12: the scored transcript streams into a runner-owned sibling scratch asserted outside target/home/cwd (CR-01); runTarget/LiveOps seam for 33-13. LIVE_ALLOWED_TOOLS untouched pending the 33-21 KIT decision.
+- [Phase 33]: 33-12: D-05 provenance = plugin by name + cache path validated under ~/.claude/plugins + sha256 content digest over git ls-files vs the checkout; pass unreachable unless MET (CR-02, WR-04). Self-repro: UNMET vs current HEAD, MET vs a checkout at 8f05ed42.
 
 ### Pending Todos
 
@@ -1606,8 +1610,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T18:02:27.866Z
-Stopped at: Completed 33-11-PLAN.md on the HOLD branch (GAP-D1 held by human decision 2026-09-20: 33-10 capture OUTCOME: fail on the D-07 comparator; nothing flipped, manifest stays pre-capture; CAP-01/02/03 stay open). Phase 33 round 1 executed 11/11; next: /gsd-verify-work 33 (expected gaps_found), then gap round 2 of 4
+Last session: 2026-09-20T20:33:44.551Z
+Stopped at: Completed 33-12-PLAN.md (round-2 tracer: CR-03, CR-01, CR-02 landed red-first; 6 commits). Next: 33-13 (wave 8)
 Resume file: None
 
 ## Operator Next Steps
