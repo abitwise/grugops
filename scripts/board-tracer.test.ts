@@ -895,10 +895,15 @@ describe("board-dashboard — the process contract, driven as a child (D-18, T-3
   });
 
   it("exits 2 on an unreadable root, with a NAMED one-line message and no stack on stdout", () => {
-    const r = drive(["/no/such/path", "--once", "--json"]);
+    // A path that cannot exist, rooted at a directory this host actually has: a POSIX-absolute
+    // literal resolves onto the current drive on windows and is then spelled with that drive in
+    // the refusal, so the literal it was compared against never matched. The subject is
+    // unchanged — the tool refuses an absent tree by name — only WHICH absent tree.
+    const missing = join(realpathSync(tmpdir()), "grugops-tracer-no-such-path-33-04");
+    const r = drive([missing, "--once", "--json"]);
     expect(r.code).toBe(2);
     expect(r.out).toBe("");
-    expect(r.err).toContain("/no/such/path");
+    expect(r.err).toContain(missing);
     expect(r.err).not.toContain("    at ");
   });
 

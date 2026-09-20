@@ -36,6 +36,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
+// THE ONE published-path normalizer (plan 33-03), applied here to a TEST-INTERNAL comparison:
+// `armedRel` is `relative()` over real directories, compared against POSIX literals, and never
+// published by the dashboard. The measured carrier of six windows reds (33-RESEARCH § Windows
+// per-file census, `.grugops\context` vs `.grugops/context`) is that line, not a module.
+import { toPosix } from "./posix-path.js";
 
 import {
   DEBOUNCE_MS,
@@ -340,7 +345,10 @@ function withLinkedTree(
     body({
       refused: doc.readErrors.filter((e) => e.code === OUTSIDE_ROOT),
       armed,
-      armedRel: armed.map((d) => relative(realTree, d)).sort(),
+      // Spelled the way the literals below spell it: `relative()` joins with the HOST separator,
+      // and the expected lists are POSIX (the same spelling `FIXED_SUBPATHS` uses). Test-internal —
+      // the dashboard publishes its own `rel` from `WATCH_DIRS`, which is POSIX by construction.
+      armedRel: armed.map((d) => toPosix(relative(realTree, d))).sort(),
     });
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -1080,7 +1088,10 @@ describe("board-dashboard — an escaping ENTRY leaves its DIRECTORY armed (plan
           "PREMISE: the three sources under `plans/` were not all refused",
         ).toEqual(["board", "tickets", "traceability"]);
         expect(
-          refused.some((e) => e.path.endsWith("/plans")),
+          // `e.path` is an absolute host LOCATION (plan 33-03 leaves those in the host spelling);
+          // the suffix is compared in one spelling so this premise decides the same thing on
+          // every host rather than passing vacuously wherever the separator differs.
+          refused.some((e) => toPosix(e.path).endsWith("/plans")),
           "PREMISE FOR THE PREVIOUS PARAGRAPH: if the authority DID spell `plans` itself, a path " +
             "set with an ancestor walk would also pass this case, and the comment above would be " +
             "describing a mechanism this tree never exercises",

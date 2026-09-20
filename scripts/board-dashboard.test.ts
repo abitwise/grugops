@@ -611,10 +611,14 @@ describe("board-dashboard — the exit contract (D-18, T-32-08, T-32-10)", () =>
   });
 
   it("exits 2 with a named one-line stderr message and an EMPTY stdout for an unreadable repoRoot", () => {
-    const r = runMain([join(ROOT, "no", "such", "tree"), "--once"], false);
+    // The absent tree is constructed under the host's own temp root and the refusal is asserted
+    // to name THAT path — never a `/`-spelled fragment of a `join()` result, which the host
+    // spells its own way. Same construction as the spawned case further down.
+    const missing = join(realpathSync(tmpdir()), "grugops-dashboard-no-such-tree-33-04");
+    const r = runMain([missing, "--once"], false);
     expect(r.code).toBe(2);
     expect(r.out).toBe("");
-    expect(r.err).toContain("no/such/tree");
+    expect(r.err).toContain(missing);
     expect(r.err).not.toContain("    at ");
   });
 

@@ -29,6 +29,9 @@ import {
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { jsImportClosure } from "./js-import-closure.js";
+// Plan 33-03's one normalizer, for the walked-path comparison below (test-internal: the `where`
+// strings are compared against a POSIX literal in this file and never published by the gate).
+import { toPosix } from "./posix-path.js";
 // The single-source equivalence comparator the Tier-1 oracle uses — imported here for the RED
 // non-vacuity case (proving assertEquivalent genuinely goes red on divergence, not a fabricated green).
 import { assertEquivalent, type ProjectedNote } from "./dual-path-equivalence.js";
@@ -576,7 +579,9 @@ describe("check-uat-oracles.js — D-20 termination, input bound, and the closed
             if (!LOOKAROUND_OPEN.test(body)) continue;
             if (consumingRemainder(body) !== "") continue;
             hits.push({
-              where: `${file.slice(ROOT.length + 1)}:${n + 1}`,
+              // The walk joins with the host separator; SANCTIONED_PURE_LOOKAHEAD.file is spelled
+              // the way git spells it. One spelling on both sides of that comparison.
+              where: `${toPosix(file.slice(ROOT.length + 1))}:${n + 1}`,
               source: body,
             });
           }
