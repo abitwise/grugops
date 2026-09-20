@@ -855,7 +855,8 @@ describe("CR-02 / WR-04: plugin provenance is selected by name, validated under 
     const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
     expect(src.includes("loaded[0]")).toBe(false);
     expect(src.includes("installedPluginSha")).toBe(false);
-    expect((src.match(/rev-parse/g) ?? []).length, "HEAD, the remote ref and checkoutSha — the cache-path git call is gone").toBe(3);
+    // Counted per LINE, the same instrument as the plan's `grep -a -c 'rev-parse'`.
+    expect(src.split("\n").filter((l) => l.includes("rev-parse")).length, "HEAD, the remote ref and checkoutSha — the cache-path git call is gone").toBe(3);
   });
 });
 

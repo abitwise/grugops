@@ -91,10 +91,15 @@
 // Neither `claude plugin install` nor `claude plugin marketplace add` accepts a sha, ref, tag or
 // version pin, so "install grugops at the exact sha under test" is not expressible as a command.
 //   CHOSEN — route 2: install from the existing user-scope marketplace row (`abitwise/grugops`,
-//     GitHub source) at LOCAL scope in the target, then verify the installed sha POST HOC by reading
-//     `system/init.plugins[].path` from the transcript and running `git -C <that path> rev-parse
-//     HEAD`. Exact, zero extra tokens, and the evidence lands in the capture itself. Precondition:
-//     the sha under test is pushed (the pushed-sha row below), or the installed sha cannot equal it.
+//     GitHub source) at LOCAL scope in the target, then verify the installed copy POST HOC by
+//     CONTENT: select the plugin BY NAME from `system/init.plugins[]` (never by index — the
+//     round-1 capture listed context7 first, 33-REVIEW CR-02), validate its `path` under the plugin
+//     cache root (`pluginCachePathAccepted`, WR-04), and compare a sha256 over the checkout's
+//     tracked files (`git ls-files`) between the cache copy and the checkout (`contentDigest`).
+//     The cache copy is not a git checkout (33-DIAGNOSIS § 4.2), so no git runs inside it. The
+//     verdict is three-state and feeds `deriveOutcome`: `pass` is unreachable unless it is MET.
+//     Zero extra tokens, and the evidence lands in the capture itself. Precondition: the sha under
+//     test is pushed (the pushed-sha row below), or the installed copy cannot equal the checkout.
 //   REJECTED — route 1: generate a throwaway marketplace catalog in a temp dir declaring a `github`
 //     source with a pinned sha and add it under a non-colliding name. Gives an exact cache copy, but
 //     costs a generated catalog file and a second marketplace row in user state, which the
@@ -103,13 +108,17 @@
 //     plugin-CACHE copy, so it does not exercise the D-31 cache-pointer resolution the A1 case
 //     exists for. It remains the deny-case fallback D-04 names, not a provenance route.
 //
-// Node stdlib ONLY — node:child_process, node:fs, node:os, node:path, node:readline. Zero npm
-// dependencies. Arg-array spawns only; no shell on the data path (ASVS V5). No transcript field is
-// ever interpolated into a path or a command (T-33-02).
+// Node stdlib ONLY — node:child_process, node:crypto, node:fs, node:os, node:path, node:readline.
+// Zero npm dependencies. Arg-array spawns only; no shell on the data path (ASVS V5). No transcript
+// field is ever interpolated into a command. Exactly ONE transcript field reaches a filesystem
+// call — the plugin path from `system/init.plugins[].path` — and it is validated under the plugin
+// cache root (`pluginCachePathAccepted`: no dash prefix, realpath, a directory, strictly inside
+// the root) before any read (T-33-02, WR-04).
 //
 // Clear professional voice throughout (CLAUDE.md hard rule — this is a safety surface).
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync, } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync, } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
@@ -1099,15 +1108,119 @@ export async function runTarget(build, run, ops = LIVE_OPS) {
         failed,
     };
 }
-/** D-05 post hoc: the git HEAD of an installed plugin's cache path, or `UNKNOWN - verify`. */
-function installedPluginSha(cachePath) {
-    if (cachePath === "")
-        return "UNKNOWN - verify — the init frame named no plugin path";
-    const env = spawnEnv();
-    const sha = probe(GIT_CMD, ["-C", cachePath, "rev-parse", "HEAD"], env, PROBE_BOUND_MS);
-    if (sha === null)
-        return `UNKNOWN - verify — \`git -C <plugin path> rev-parse HEAD\` could not be read for the path the init frame named`;
-    return sha.trim();
+// ---------------------------------------------------------------------------
+// D-05 post hoc — plugin provenance by name, by content, and in the outcome (33-12, CR-02, WR-04)
+// ---------------------------------------------------------------------------
+/** The plugin under test, selected from `system/init.plugins[]` by exact NAME — never by index. */
+export function pluginUnderTest(report, pluginName) {
+    return report.loaded.find((p) => p.name === pluginName) ?? null;
+}
+/**
+ * The one transcript field that reaches a filesystem call, validated before it does (WR-04): a
+ * candidate beginning with `-` is refused (an option, not a path); the candidate is resolved with
+ * `realpathSync.native` so a link that leaves the cache root is judged on where it lands; it must
+ * be a directory; and it must sit STRICTLY inside the cache root by the same `relative()` rule
+ * `isOutsideTargets` uses (the root itself is not a plugin directory). Returns the real path, or
+ * null naming nothing — the caller records the refusal.
+ */
+export function pluginCachePathAccepted(candidate, cacheRoot) {
+    if (candidate === "" || candidate.startsWith("-"))
+        return null;
+    let realRoot;
+    let real;
+    try {
+        realRoot = realpathSync.native(cacheRoot);
+        real = realpathSync.native(candidate);
+        if (!statSync(real).isDirectory())
+            return null;
+    }
+    catch {
+        return null;
+    }
+    if (real === realRoot)
+        return null;
+    if (isOutsideTargets(real, [realRoot]))
+        return null;
+    return real;
+}
+/**
+ * sha256 over, for each path in SORTED order: the POSIX relative path, a NUL, the file's bytes (or
+ * the literal `MISSING` when the file does not exist under `root`), a NUL. Order-independent by
+ * construction; a missing file on either side moves the digest.
+ */
+export function contentDigest(root, relPaths) {
+    const hash = createHash("sha256");
+    const sorted = [...relPaths].map((p) => toPosix(p)).sort();
+    for (const rel of sorted) {
+        hash.update(rel);
+        hash.update("\0");
+        let bytes = null;
+        try {
+            const full = join(root, ...rel.split("/"));
+            if (statSync(full).isFile())
+                bytes = readFileSync(full);
+        }
+        catch {
+            bytes = null;
+        }
+        hash.update(bytes ?? Buffer.from("MISSING", "utf8"));
+        hash.update("\0");
+    }
+    return hash.digest("hex");
+}
+/** The three-state provenance verdict over the two digests. Pure. */
+export function provenanceVerdict(checkoutDigest, installedDigest) {
+    if (checkoutDigest === null)
+        return { state: "UNKNOWN - verify", detail: "the checkout digest could not be derived (the tracked-file list was unreadable)" };
+    if (installedDigest === null)
+        return { state: "UNKNOWN - verify", detail: "the installed copy's digest could not be derived" };
+    if (checkoutDigest === installedDigest)
+        return { state: "MET", detail: `the installed copy's content digest ${installedDigest} equals the checkout's` };
+    return { state: "UNMET", detail: `the installed copy's content digest ${installedDigest} differs from the checkout's ${checkoutDigest} — the plugin that was scored is not, byte for byte, the checkout under test` };
+}
+/** The plugin cache root: a fixed derivation from the operator's home, never argv, env or transcript. */
+function pluginCacheRoot() {
+    return join(homedir(), ".claude", "plugins");
+}
+/** The checkout's tracked files, through `git ls-files -z` in SCRIPT_ROOT, or null when unreadable. */
+function trackedFiles() {
+    const out = probe(GIT_CMD, ["ls-files", "-z"], spawnEnv(), PROBE_BOUND_MS, SCRIPT_ROOT);
+    if (out === null)
+        return null;
+    const list = out.split("\0").filter((p) => p !== "");
+    return list.length === 0 ? null : list;
+}
+/** THE ONE provenance derivation, used by the live run and the dry run alike. */
+function deriveProvenance(plugins, pluginName) {
+    const tracked = trackedFiles();
+    const checkoutDigest = tracked === null ? null : contentDigest(SCRIPT_ROOT, tracked);
+    const under = pluginUnderTest(plugins, pluginName);
+    let installedDigest = null;
+    let refusal = null;
+    let pluginLine;
+    if (under === null) {
+        pluginLine = `UNKNOWN - verify — the init frame ${plugins.frameIndex === null ? "was not seen" : `lists no plugin named ${pluginName}`}`;
+        refusal = `no plugin named ${pluginName} in system/init.plugins[]`;
+    }
+    else {
+        pluginLine = `${under.name}${under.version ? ` ${under.version}` : ""} at ${under.path}`;
+        const accepted = pluginCachePathAccepted(under.path, pluginCacheRoot());
+        if (accepted === null) {
+            refusal = `the path the init frame names for ${pluginName} was not accepted under the plugin cache root (it must be an existing directory strictly inside ${pluginCacheRoot()}, not dash-prefixed, judged on its real path)`;
+        }
+        else if (tracked !== null) {
+            installedDigest = contentDigest(accepted, tracked);
+        }
+    }
+    const verdict = provenanceVerdict(checkoutDigest, installedDigest);
+    return {
+        state: verdict.state,
+        detail: refusal === null ? verdict.detail : `${verdict.detail}: ${refusal}`,
+        checkoutDigest,
+        installedDigest,
+        trackedCount: tracked?.length ?? 0,
+        pluginLine,
+    };
 }
 /** The heading the flip manifest's D-18 cells cite. Emitted by `renderReport`; frozen by 33-12. */
 export const PARITY_SECTION_HEADING = "## Dual-path parity (D-07) — path-invariant projection";
@@ -1168,7 +1281,8 @@ export function renderReport(m) {
     L.push(`| per-call bound (ms) | ${m.boundMs} |`);
     L.push(`| bound actually used | ${cell(m.boundUsed)} |`);
     L.push(`| approval key in child env | ${cell(m.approvalKeyLine)} |`);
-    L.push(`| installed plugin sha (D-05, post hoc) | ${cell(m.installedPluginSha)} |`);
+    L.push(`| installed plugin provenance (D-05, content digest over ${m.provenance.trackedCount} tracked files) | ${m.provenance.state} — ${cell(m.provenance.detail)} |`);
+    L.push(`| plugin under test per system/init | ${cell(m.provenance.pluginLine)} |`);
     for (const r of m.runs) {
         L.push(`| run ${r.label} transcript | ${r.transcriptName} (${r.frames.lineCount} line(s), ${r.frames.frames.length} frame(s), ${r.frames.partial} partial line(s)) |`);
         L.push(`| run ${r.label} transcript location | ${cell(r.transcriptLocation)} |`);
@@ -1460,7 +1574,8 @@ async function dryRun(opts) {
     console.log(`phase 3: ${frames.frames.length} fixture frame(s) derived over, once per target (${runs.length})`);
     const diffs = equivalence(targets);
     const parityDiffs = compareLivePaths(projections[0].projection, projections[1].projection);
-    const plugins = pluginLoadReport(frames.frames);
+    const provenance = deriveProvenance(pluginLoadReport(frames.frames), obs.pluginName);
+    console.log(`phase 3: plugin provenance (D-05) over the fixture init frame: ${provenance.state}`);
     const model = {
         mode: "dry-run",
         generatedAt: new Date().toISOString(),
@@ -1469,7 +1584,7 @@ async function dryRun(opts) {
         boundMs: CALL_BOUND_MS,
         boundUsed: "not applied — no platform call was made",
         approvalKeyLine: "absent; asserted on the constructed child environment before every spawn",
-        installedPluginSha: plugins.loaded.length === 0 ? "UNKNOWN - verify — the fixture init frame lists no plugin" : installedPluginSha(plugins.loaded[0].path),
+        provenance,
         preconditions: table,
         targets: targets.map((t) => ({ label: t.label, installerLine: t.installerLine })),
         runs,
@@ -1547,15 +1662,19 @@ async function capture(opts) {
     const denyFired = runs.some((r) => denyObservedInStream(r.frames.frames));
     if (!denyFired)
         anyFailure = true;
-    const firstPlugins = pluginLoadReport(runs[0].frames.frames);
-    const outcome = deriveOutcome({ hang, anyFailure, parityDiffs, provenance: "MET" });
+    // D-05 provenance is read from run A's init frame (the same install route serves both runs) and
+    // is an outcome input: a pass over a plugin that is not the checkout is a fabricated proof.
+    const provenance = deriveProvenance(pluginLoadReport(runs[0].frames.frames), obs.pluginName);
+    const outcome = deriveOutcome({ hang, anyFailure, parityDiffs, provenance: provenance.state });
     const outcomeReason = hang
         ? "a run reached the bound and was stopped (exit 143 or SIGINT at the bound)"
         : anyFailure
             ? "a run exited non-zero, a CAP-03 side failed, or the deny was not observed — see the sections above"
             : parityDiffs.length > 0
                 ? `the two paths diverge under the path-invariant D-07 projection (${parityDiffs.length} named difference(s)) — see the parity section`
-                : "both runs completed, both CAP-03 sides hold in both runs, the deny was observed on the hook channel, and the two paths project to parity";
+                : provenance.state !== "MET"
+                    ? `plugin provenance is ${provenance.state} — ${provenance.detail}`
+                    : "both runs completed, both CAP-03 sides hold in both runs, the deny was observed on the hook channel, the two paths project to parity, and the scored plugin is the checkout by content";
     const model = {
         mode: "capture",
         generatedAt: new Date().toISOString(),
@@ -1564,7 +1683,7 @@ async function capture(opts) {
         boundMs: CALL_BOUND_MS,
         boundUsed: `${CALL_BOUND_MS} ms per call (SIGINT at the bound, SIGTERM ${SIGTERM_GRACE_MS} ms later)`,
         approvalKeyLine: "absent; asserted on the constructed child environment before every spawn",
-        installedPluginSha: firstPlugins.loaded.length === 0 ? "UNKNOWN - verify — the init frame lists no plugin" : installedPluginSha(firstPlugins.loaded[0].path),
+        provenance,
         preconditions: table,
         targets: targets.map((t, i) => ({ label: t.label, installerLine: `${t.installerLine}; ${installLines[i]}` })),
         runs,
