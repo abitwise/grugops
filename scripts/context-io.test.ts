@@ -8520,17 +8520,36 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       writeConfig(proj, [".grugops", "factory.config.json"], ACTIVE);
 
       // CELL 2 — the SYMLINK axis. `ln -s <kit> <tree>/link`, then the module, HOME and the working
-      // directory all addressed through that link. MEASURED: the exclusion HOLDS, because Node's
-      // ESM resolver realpaths a symlinked module specifier and `process.cwd()` returns the
-      // kernel's realpath, so BOTH sides are the real spelling before the equality is asked.
+      // directory all addressed through that link. MEASURED: the exclusion HOLDS. The module side
+      // is the real spelling because Node's ESM resolver realpaths a symlinked module specifier;
+      // the working-directory side is the real spelling because the WALK CANONICALISES ITS START
+      // through rung 1 (`canonicalWorkingDirectory`, plan 33-16) — NOT because of a kernel behaviour
+      // only POSIX has. On win32 `process.cwd()` keeps the link spelling (windows-latest row W-21:
+      // `expected '…\link\proj' to be '…\kit\proj'`), and the module now removes it. The link is
+      // staged through the corpus helper (D-16): a host without the privilege prints a counted row.
       const link = join(tree, "link");
-      symlinkSync(kit, link);
-      const viaLink = drive("trustedRepoRoot", { cwd: join(link, "proj"), env: asHome(link), kit: link });
-      expect(
-        viaLink.root,
-        "the SYMLINK cell's measured verdict moved. R-31-19-07 records it as HOLDING; if that " +
-          "changed, the register member is the thing to correct, not this case",
-      ).toBe(proj);
+      const linkSkipped = stageSymlinkOrSkip(
+        kit,
+        link,
+        "directory symlink to a kit home",
+        "scripts/context-io.test.ts: R-31-19-07 CELL 2, the SYMLINK axis (31-23)",
+      );
+      if (linkSkipped !== null) {
+        // The CASE cell below is still measured: only the SYMLINK cell needs the privilege.
+        console.warn(
+          skipLine(
+            linkSkipped,
+            "the W-21 case in the 31-27 tier block (the authority driven on a link spelling in-child)",
+          ),
+        );
+      } else {
+        const viaLink = drive("trustedRepoRoot", { cwd: join(link, "proj"), env: asHome(link), kit: link });
+        expect(
+          viaLink.root,
+          "the SYMLINK cell's measured verdict moved. R-31-19-07 records it as HOLDING; if that " +
+            "changed, the register member is the thing to correct, not this case",
+        ).toBe(proj);
+      }
 
       // CELL 1 — the CASE axis, CLOSED BY PLAN 31-27 AND RE-MEASURED HERE RATHER THAN DELETED.
       //

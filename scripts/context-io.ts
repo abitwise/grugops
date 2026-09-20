@@ -4636,6 +4636,34 @@ function canonicalDirectoryPath(candidate: string): string {
   return join(canonicalDirectoryPath(parent), basename(abs));
 }
 
+/**
+ * The working directory the trusted-root walk STARTS from, in the one canonical spelling
+ * (plan 33-16, closing windows-latest row W-21 of run 35499800942).
+ *
+ * WHY THE WALK'S START IS CANONICALISED AT ALL. `trustedRepoRoot` answers the walk's `nearest`
+ * directory, which is spelled from the working directory it started at. On darwin `process.cwd()`
+ * returns the kernel's realpath, so a process started inside `<link>/proj` — `<link>` a directory
+ * symlink to `<kit>` — already walks from `<kit>/proj`, and the R-31-19-07 SYMLINK cell HELD by that
+ * kernel behaviour alone. On win32 `process.cwd()` keeps the spelling the process was started with:
+ * the walk began at `<link>\proj`, the answer was `<link>\proj`, and the cell's verdict MOVED
+ * (`expected '…\link\proj' to be '…\kit\proj'`). Two hosts, two answers for one directory, decided
+ * by which one's cwd call happened to resolve links.
+ *
+ * WHY THIS IS `canonicalDirectoryPath` AND NOT A SECOND RESOLVER. Tier 0's delivered root is already
+ * spelled through that ladder (rung 1 `realpathSync.native`, rung 2 portable, rung 3 the deepest
+ * existing ancestor), and the module-own exclusion compares through it on both sides. A walk that
+ * started from a differently-spelled input would be a second authority for "what is this directory
+ * called" — the shape this module keeps deleting. D-15: a location the module opens is canonicalised
+ * where the module reads it, once. It is read in `trustedRepoRoot`, so it is canonicalised there,
+ * through this one exported name, and the 31-15 monotonicity mirror's two anchors are untouched.
+ *
+ * EXPORTED so the test can drive the authority on a link spelling directly, on a host whose kernel
+ * would never let the walk see one.
+ */
+export function canonicalWorkingDirectory(raw: string): string {
+  return canonicalDirectoryPath(raw);
+}
+
 export const MODULE_OWN_CONFIG_POSITIONS: readonly string[] = Object.freeze(
   // BOTH SIDES through the same authority (31-27, `R-31-19-07`). This side is canonicalised here;
   // the candidate side is canonicalised in `homeConfigPositionIsProjectOwned` below. A comparison
@@ -5250,7 +5278,12 @@ export function trustedRepoRoot(): string {
   }
   let cwd: string | null = null;
   try {
-    cwd = process.cwd();
+    // CANONICALISED WHERE IT IS READ (plan 33-16, W-21). On darwin `process.cwd()` answers the
+    // kernel's realpath; on win32 it KEEPS the spelling the process was started with, so a working
+    // directory addressed through a directory symlink walked from the LINK spelling and the
+    // R-31-19-07 SYMLINK cell moved on windows-latest. The walk's start now goes through the same
+    // canonicaliser tier 0's delivered root does, so both are spelled by one authority.
+    cwd = canonicalWorkingDirectory(process.cwd());
   } catch {
     // A deleted working directory is not a project root. Fall through to the kit rather than throw
     // inside a governance read — the reader's job is to answer, and the un-lowered answer is safe.
@@ -5262,6 +5295,8 @@ export function trustedRepoRoot(): string {
   // programs and compares verdict by verdict. Each anchor's occurrence count is asserted exactly
   // before the mutation and at zero after it, so a mutation that matched nothing cannot masquerade
   // as a passing control. Keep both on ONE line each; a reformat is a red test, not a silent miss.
+  // The 33-16 canonicalisation lives on the READ line inside the `try` above, so the mirror's two
+  // anchors — this line and the loop's first element — are byte-untouched by it.
   const discovered = cwd === null ? null : projectRootFromWorkingDirectory(cwd);
   if (discovered !== null) return discovered;
   return GOVERNANCE_FALLBACK_BASE;
