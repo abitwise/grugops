@@ -1828,8 +1828,8 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
    * platform's and watch the spelling change — `join` already spells `/` here, so the live census
    * alone could never tell the normalizer from a function that does nothing.
    */
-  const scannedName = (absolute: string, scriptsDir: string, _separator?: string): string =>
-    absolute.slice(scriptsDir.length + 1);
+  const scannedName = (absolute: string, scriptsDir: string, separator?: string): string =>
+    toPosixWith(absolute.slice(scriptsDir.length + 1), separator);
 
   /**
    * The scanned set: every `.ts` file under the directory AT TEST TIME, RECURSIVELY. Never a
