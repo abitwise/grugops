@@ -6674,10 +6674,21 @@ function plant(root: string, relPath: string, body: string | Uint8Array): void {
 // finished) or anything else (it did not). The predicate is well-defined both BEFORE this plan's
 // change (the other side is an uncaught exit 1) and after it (an exit 2 could-not-run), so the
 // same discovery drives the RED measurement and the GREEN one.
-let boundaryCache: { readonly safe: number; readonly overflow: number } | null = null;
-function parseBoundary(): { readonly safe: number; readonly overflow: number } {
-  if (boundaryCache !== null) return boundaryCache;
+//
+// 33-17 (U-1 / U-2): THE BOUNDARY IS A PROPERTY OF THE ARRANGEMENT IT WAS BISECTED IN. The
+// bisection below plants the nested spec ALONE; `parseBoundaryFor` takes the sibling files to plant
+// beside it, so the depth at which the parser overflows can be measured in the two-file arrangement
+// the mixed cases actually run — on this host, as a number beside the one-file number. There is ONE
+// bisection: `parseBoundary()` is `parseBoundaryFor({})`, cached per arrangement, for the reason the
+// paragraph above gives (a second copy would be a second authority for the same number).
+type Boundary = { readonly safe: number; readonly overflow: number };
+const boundaryCache = new Map<string, Boundary>();
+function parseBoundaryFor(arrangement: Record<string, string>): Boundary {
+  const key = JSON.stringify(Object.entries(arrangement).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  const cached = boundaryCache.get(key);
+  if (cached !== undefined) return cached;
   const root = mkTargetRepo({});
+  for (const [rel, body] of Object.entries(arrangement)) plant(root, rel, body);
   const finishes = (depth: number): boolean => {
     plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(depth));
     return runCheck(root).status === 0;
@@ -6699,9 +6710,37 @@ function parseBoundary(): { readonly safe: number; readonly overflow: number } {
     if (finishes(mid)) lo = mid;
     else hi = mid;
   }
-  boundaryCache = { safe: lo, overflow: hi };
-  return boundaryCache;
+  const measured: Boundary = { safe: lo, overflow: hi };
+  boundaryCache.set(key, measured);
+  return measured;
 }
+function parseBoundary(): Boundary {
+  return parseBoundaryFor({});
+}
+
+describe("uat-spec-integrity — 33-17 (U-1 / U-2): the boundary, measured per arrangement", () => {
+  // The diagnosis's own measurement (plan 33-17 Task 2). The two ubuntu reds on CI run 35499800942
+  // (`GREEN 1b`, `ORDERING` (b)) run the nested spec BESIDE a clean one at the depth bisected with
+  // the nested spec ALONE. This case measures both boundaries on the host that runs it and prints
+  // them, so the summary can quote numbers rather than a hypothesis. It asserts only what is true
+  // on every host: both pairs are adjacent (the bisection converged), and the one-file pair is the
+  // pair `parseBoundary()` hands every other case — which holds by construction (one bisection) and
+  // is stated so a reader sees the two are one authority. Whether the two pairs DIFFER is the
+  // observation, not an assertion: on a host where they are equal the mechanism is consistent but
+  // unconfirmed, and the pushed run is what settles it.
+  it("parseBoundaryFor: the one-file and the mixed-arrangement boundaries, measured on this host", () => {
+    const oneFile = parseBoundaryFor({});
+    const mixed = parseBoundaryFor({ "e2e/uat/clean.uat.spec.ts": CLEAN_SPEC });
+    console.log(
+      `[33-17 boundary] one-file {safe: ${oneFile.safe}, overflow: ${oneFile.overflow}} · ` +
+        `mixed {safe: ${mixed.safe}, overflow: ${mixed.overflow}} · ` +
+        `shift ${mixed.overflow - oneFile.overflow} · node ${process.version} ${process.platform}/${process.arch}`,
+    );
+    expect(oneFile.overflow - oneFile.safe, "the one-file bisection did not converge on an adjacent pair").toBe(1);
+    expect(mixed.overflow - mixed.safe, "the mixed bisection did not converge on an adjacent pair").toBe(1);
+    expect(oneFile, "parseBoundary() and parseBoundaryFor({}) are two authorities").toEqual(parseBoundary());
+  });
+});
 
 describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one decided boundary", () => {
   // ── GREEN 1: the pathological parse is a COULD-NOT-RUN, and the vacuity floor speaks ──────────
