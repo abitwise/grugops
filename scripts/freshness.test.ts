@@ -44,7 +44,7 @@ import {
   existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 // The host compiler, read for its OWN diagnostics table in Test 3 (the planted error's code is
 // derived from it, never typed) — the same reading scripts/runnable-ref/uat-spec-integrity.test.ts
 // takes. A dev dependency; the gate under test resolves the same package at run time.
@@ -52,6 +52,11 @@ import ts from "typescript";
 
 const ROOT = join(import.meta.dirname, "..");
 const FRESHNESS_JS = join(ROOT, "scripts", "freshness.js");
+/** The second consumer of the 33-06 compiler launch (plan 33-19); exercised by Tests AF and AG below. */
+const PARITY_TS = join(ROOT, "scripts", "check-build-parity.ts");
+const PARITY_JS = join(ROOT, "scripts", "check-build-parity.js");
+/** The parity module's runtime siblings — what a copy of it needs beside it to load at all. */
+const PARITY_SIBLINGS = ["check-build-parity.js", "is-entry.js", "vacuity.js"] as const;
 const CLONE_ROOT = join(ROOT, ".temp", "freshness-clones");
 const BIG = 64 * 1024 * 1024;
 
@@ -282,6 +287,8 @@ type Fixtures = {
   untracked: Run;
   refusalNested: Run;
   refusalOutside: Run;
+  /** A built, diff-clean post-fix clone for the build-parity gate to rebuild in place (plan 33-19). */
+  parityClone: string;
   cloneCount: number;
   perCloneHeadJsCount: Record<string, number>;
 };
@@ -396,6 +403,17 @@ beforeAll(() => {
   }
   const refusalOutside = runGateIn(outsideDir, "(not a repository)");
 
+  // 9. The build-parity clone (plan 33-19): a post-fix clone built in place, so its working tree
+  //    agrees with its index and `check-build-parity.js` has a diff-clean tree to rebuild. The gate is
+  //    run against THIS clone rather than the checkout because its verdict is `git diff` over the
+  //    tracked `.js`: on the checkout it describes the developer's staging state (33-17 measured it
+  //    "moved" on modified-but-uncommitted output), not the launcher under test.
+  const parityClone = makeClone("postfix-parity", postFixSha);
+  const parityBuild = npmIn(parityClone, ["run", "build"]);
+  if (parityBuild.status !== 0) {
+    throw new Error(`harness: \`npm run build\` failed in the parity clone\n${parityBuild.out}`);
+  }
+
   F = {
     postFixSha,
     prefixPlantAfterBuild,
@@ -408,6 +426,7 @@ beforeAll(() => {
     untracked,
     refusalNested,
     refusalOutside,
+    parityClone,
     cloneCount: clonesCreated.length,
     perCloneHeadJsCount,
   };
@@ -580,7 +599,8 @@ describe("freshness.js (D-02 build-output drift gate; subject moved to HEAD by D
   });
 
   it("PROVENANCE: one clone per plant, none reused, none reset with `git checkout --` and none extracted from an archive", () => {
-    expect(F.cloneCount).toBe(7);
+    // 7 for the freshness matrix + 1 built parity clone (plan 33-19, Tests AF/AG).
+    expect(F.cloneCount).toBe(8);
     expect(new Set(clonesCreated).size).toBe(clonesCreated.length);
     for (const dir of clonesCreated) {
       expect(dir.startsWith(CLONE_ROOT)).toBe(true);
@@ -615,6 +635,120 @@ describe("freshness.js (D-02 build-output drift gate; subject moved to HEAD by D
     } finally {
       rmSync(badTs, { force: true });
       expect(existsSync(badTs)).toBe(false);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The SECOND consumer of the compiler launch (plan 33-19, the `deferred-items.md` item 33-06 left).
+//
+// `scripts/check-build-parity.ts` carried the launch `scripts/freshness.ts` had until 33-06:
+// `spawnSync("npx", ["tsc"])` with no shell. On win32 `npx` is `npx.cmd`, the child never starts,
+// `status` is null and the module reports "the build did not complete" — the null-status build that
+// review 32.1-14 IN-01 recorded and 33-06 diagnosed. It runs only in the ubuntu-scoped parity step, so
+// it was never a measured red; the CAP-02 bar is both legs, so it takes the identical launch here:
+// `typescript/lib/tsc.js` resolved through `createRequire(import.meta.url)`, run under
+// `process.execPath`, in the checkout root, rebuilding in place as the gate always has.
+//
+// These cases live HERE, in the compiler-launch suite, rather than in a module of their own, so the
+// `TRIPWIRE_MODULES` census in scripts/check-foundation-guards.test.ts does not move.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The parity gate's PASS line, as `reportMeasured` renders it: the measurement, never a sentence. */
+const PARITY_PASS_RE =
+  /PASS {2}Build parity: tracked build outputs that moved when the build ran: 0 findings over (\d+)\/(\d+) elements/;
+
+/** The two arms a module copy outside the checkout's require chain can take, and the third it must not. */
+type LocateShape = "located" | "locate-refusal" | "unexpected";
+
+function locateShape(run: Run): LocateShape {
+  const both = `${run.stdout}${run.stderr}`;
+  if (run.status === 0 && PARITY_PASS_RE.test(run.stdout)) return "located";
+  if (
+    run.status === 1 &&
+    both.includes("the compiler could not be located from this checkout") &&
+    !both.includes("the build did not complete")
+  ) {
+    return "locate-refusal";
+  }
+  return "unexpected";
+}
+
+/** Run a parity module at `moduleJs` against `root`, with NODE_PATH removed so resolution is the module's own. */
+function runParity(moduleJs: string, root: string): Run {
+  const env: NodeJS.ProcessEnv = { ...GIT_ENV, CHECK_ROOT: root };
+  delete env.NODE_PATH;
+  const r = spawnSync(process.execPath, [moduleJs], { cwd: root, encoding: "utf8", env, maxBuffer: BIG });
+  return {
+    head: gitIn(root, ["rev-parse", "HEAD"]).trim(),
+    status: r.status ?? -1,
+    stdout: r.stdout ?? "",
+    stderr: `${r.stderr ?? ""}${r.error ? `\nspawn error: ${r.error.message}` : ""}`,
+  };
+}
+
+describe("check-build-parity.js launches the compiler the way freshness.js does (plan 33-19)", () => {
+  it("Test AF (check-build-parity): the source resolves typescript/lib/tsc.js through createRequire and spawns process.execPath with no \"npx\" literal, and the gate exits 0 with its clean-diff line on a built clone", () => {
+    // STRUCTURAL HALF — the launch is the 33-06 launch, read from the source rather than inferred
+    // from a green run (a green run on POSIX is also what the shim produces).
+    const source = readFileSync(PARITY_TS, "utf8");
+    expect(source, "the compiler entry is resolved through the module's own require chain").toContain(
+      'createRequire(import.meta.url).resolve("typescript/lib/tsc.js")',
+    );
+    expect(source, "the compiler runs under the node running the gate").toContain("spawnSync(process.execPath,");
+    expect(source, "no shim on any host: the double-quoted npx literal must be gone").not.toContain('"npx"');
+
+    // BEHAVIOURAL HALF — the working tree's committed module, run against a built, diff-clean clone.
+    const run = runParity(PARITY_JS, F.parityClone);
+    const msg = transcript("parity gate on the built clone", run);
+    expect(run.status, msg).toBe(0);
+    const pass = PARITY_PASS_RE.exec(run.stdout);
+    expect(pass, msg).not.toBe(null);
+    // The measurement the PASS line carries: every tracked output examined, none moved, and the
+    // denominator derived by a different command shape from the module's own.
+    const tracked = gitIn(F.parityClone, ["ls-files", "--", "*.js"]).split("\n").filter((l) => l.trim() !== "").length;
+    expect(Number(pass![1]), msg).toBe(tracked);
+    expect(Number(pass![2]), msg).toBe(tracked);
+    expect(tracked, msg).toBeGreaterThan(0);
+    expect(run.stdout, msg).toContain("ALL CHECKS PASSED");
+  });
+
+  it("Test AG (check-build-parity): a copy of the module outside the checkout's require chain names the locate layer, or resolves and builds — never a null-status build", () => {
+    const outside = mkdtempSync(join(tmpdir(), "grugops-parity-outside-"));
+    try {
+      mkdirSync(join(outside, "scripts"), { recursive: true });
+      for (const name of PARITY_SIBLINGS) {
+        copyFileSync(join(ROOT, "scripts", name), join(outside, "scripts", name));
+      }
+      // The walk the module's `createRequire` will take, recorded in the message so a "located" arm
+      // arrives with the directory that made it so.
+      const walk: string[] = [];
+      for (let dir = outside; ; dir = dirname(dir)) {
+        if (existsSync(join(dir, "node_modules", "typescript"))) walk.push(join(dir, "node_modules"));
+        if (dirname(dir) === dir) break;
+      }
+
+      const run = runParity(join(outside, "scripts", "check-build-parity.js"), F.parityClone);
+      const shape = locateShape(run);
+      const msg = [
+        `module copied to ${outside} (no checkout above it); CHECK_ROOT = the built parity clone`,
+        `typescript resolvable from: ${walk.length === 0 ? "(nowhere on the walk)" : walk.join(", ")}`,
+        `shape: ${shape}`,
+        transcript("parity module outside the checkout", run),
+      ].join("\n");
+      console.log(`Test AG: locate shape = ${shape}`);
+
+      // Whichever arm the host gave, the module named its layer: a refusal that says WHICH layer
+      // could not be established, or a build that ran. A null-status build wearing the compile-failure
+      // sentence — the pre-33-06 shape — is neither, and is refused.
+      expect(shape, msg).not.toBe("unexpected");
+      expect(`${run.stdout}${run.stderr}`, msg).not.toContain("the build did not complete");
+      if (shape === "locate-refusal") {
+        expect(run.stderr, msg).toContain("so this check states nothing about the build outputs");
+        expect(run.stdout, msg).not.toContain("ALL CHECKS PASSED");
+      }
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 });
