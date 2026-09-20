@@ -77,7 +77,10 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
-import { join } from "node:path";
+import { join, sep } from "node:path";
+// Phase 33 / CAP-02, D-15: the ONE published-path normalizer. Every corpus member this module
+// publishes passes through it once, at the point the member is formed (`corpusMember` below).
+import { toPosixWith } from "./posix-path.js";
 // Phase 27 (SPAWN-05 / D-24), extended by Phase 28 (AUDIT-02 / D-09): the retired-vocabulary
 // literals are single-source. Both arrays are taken whole; neither is filtered, sliced, or
 // re-declared here.
@@ -246,6 +249,38 @@ const DERIVATION_REFUSALS: string[] = [];
 // independent of the tree's shape. Returning the members collected so far would be a silent
 // truncation, and a truncated scan set passes every guard exactly the way a vacuous one does — so
 // the walk reports a named refusal instead.
+/**
+ * THE ONE PLACE A CORPUS MEMBER IS FORMED (Phase 33 / CAP-02, D-15).
+ *
+ * Every member the directory walk accumulates is what `publicDocsCorpus()` and `publicDocsScan()`
+ * publish: the banned-claims gate keys its dedupe `Set` and its overlap on it, the flip gate
+ * compares it against a manifest's forward-slash listing, the audit register uses it as a vouching
+ * set, and this gate's own PASS/FAIL lines print it. The walk composes LOCATIONS with `join`, which
+ * spells with the HOST separator, so before this function existed the `examples` part published
+ * `examples\03-ticket-to-pr.md` on Windows while every consumer compared against
+ * `examples/03-ticket-to-pr.md` from `git ls-files` or a hand-listed manifest: the five examples
+ * read as an uncovered remainder, as five intruders and as a 2019-vs-2024 equality miss in
+ * `check-banned-claims.test.ts`, and as `derived but not listed … listed but not derived` in all
+ * seven converse and control cases of `check-flip-manifest.test.ts` (CI run 35499800942,
+ * windows-latest — ten reds, one boundary). Plan 33-03 normalized the dedupe KEY that gate forms
+ * from the member; the member itself is formed here, and here is where it is spelled.
+ *
+ * THE FIX IS AT MEMBER FORMATION, AND DELIBERATELY NOT AT ANY COMPARISON. Normalizing in a consumer
+ * would leave this module publishing two spellings of one document and every other consumer
+ * reading whichever it happened to compare; normalizing in a test would leave the published form
+ * host-specific (D-15's own rejected alternative). One member, formed once, published everywhere.
+ *
+ * The recursion's `join(rel, entry)` stays host-spelled: it is a location the walk OPENS, not a
+ * spelling it publishes (the partition `scripts/posix-path.ts` records in its header).
+ *
+ * The separator is a PARAMETER defaulting to the host's so the Windows member formation can be
+ * exercised — and mutation-proven — on a POSIX host (`scripts/check-public-docs-vocabulary.test.ts`,
+ * the 33-14 cases); production passes nothing.
+ */
+export function corpusMember(rel: string, separator: string = sep): string {
+  return toPosixWith(rel, separator);
+}
+
 function walkFiles(
   rel: string,
   budget: { examined: number },
@@ -269,7 +304,8 @@ function walkFiles(
       if (refusal !== null) return refusal;
     }
   } else if (st.isFile()) {
-    acc.push(rel);
+    // The member is formed as it is published — the one site (D-15).
+    acc.push(corpusMember(rel));
   }
   return null;
 }
@@ -359,6 +395,9 @@ function rootMarkdown(): string[] {
 
 // Part `examples`: the worked examples, taken as a DIRECTORY entry so membership self-derives
 // through walkFiles() with no import and no name written down. A sixth example enters by existing.
+// It is the corpus's ONE walked part — the only part whose members are composed from directory
+// entries rather than read as bare names or named literals — so it is the only part that ever
+// carried the host separator, and `corpusMember` inside the walk is where that is spelled away.
 function examplesMarkdown(): string[] {
   const acc: string[] = [];
   const refusal = walkFiles(EXAMPLES_DIR, { examined: 0 }, acc);
