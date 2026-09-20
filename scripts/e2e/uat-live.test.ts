@@ -46,8 +46,23 @@
 // captured output, done by a human / the verifier — never by this test (plan 33-11 owns the flip).
 //
 // dev/CI-only: the `claude` CLI + auth is a developer/CI prerequisite, NEVER a host runtime
-// dependency. This lane is kept OUT of the default `npm test` green path via the `test:e2e` script,
-// so CI stays green-without-a-key — the loud-skip is the designed CI fallback, never a CI secret.
+// dependency. The loud-skip is the designed fallback on a machine without one, never a CI secret.
+//
+// WHAT THE DEFAULT TEST SCRIPT DOES WITH THIS FILE (measured; WINDOWS.md row 214). An earlier
+// revision of this docblock claimed the lane was kept out of the default `npm test` green path via
+// the `test:e2e` script. That claim was false, and because it is a money-and-safety claim it is
+// corrected here from the two files that decide it rather than softened:
+//   - package.json `scripts.test` is the bare runner invocation `vitest run`, with no exclusion.
+//   - vitest.config.ts `exclude` is `[...configDefaults.exclude, "**/scripts/runnable-ref/fixtures/**",
+//     "**/.temp/**"]` — the parse corpus and the scratch root, and nothing under scripts/e2e.
+// So the default script DOES collect this file, and on an authenticated machine it runs the live
+// cases and spends real tokens (the 2026-09-18 run is the proof that collection happened). The
+// regression lane is the EXCLUDING command, and it is the only one to run for a green:
+//     npx vitest run --exclude '**/scripts/e2e/**'
+// `npm test` must not be run bare on an authenticated machine. The `test:e2e` script (`vitest run
+// scripts/e2e`) is how this lane is run ON PURPOSE, under the go protocol (D-09: one live run per
+// gap-closure round, behind a blocking human checkpoint). CI is green-without-a-key because its
+// `Vitest (e2e lane excluded)` step passes the exclusion, not because the default script does.
 //
 // Node stdlib ONLY — node:child_process, node:fs, node:os, node:path. Zero npm deps.
 // Vitest globals:false (the repo default) → import test fns explicitly.
@@ -67,6 +82,7 @@ import { PROD_DEPLOY_REASON_SIGNATURE } from "../prod-deploy-deny-match.js";
 // from the committed .js twin (matching how this file imports other committed .js), so the wrapper
 // and the runner cannot disagree about what the summary is called or how its outcome line reads.
 import {
+  CALL_BOUND_MS,
   CAPTURE_SUMMARY_NAME,
   OUTCOME_LINE_RE,
   OUTCOME_LINE_SCAN_RE,
@@ -181,11 +197,15 @@ const LIVE = emitLoudSkipIfUnavailable();
 // the runner's artifact destination unless UAT_E2E_ARTIFACT_DIR names one (see `artifactDir`).
 let tmpRepo = "";
 
-// Per-call budget for agentic `claude -p` sessions. Configurable via env so a longer real run can
-// resolve the heavier A1/A3 cases (a full planning / take-it-to-a-PR session can take minutes)
-// without editing the harness; defaults to a generous 300s. A timed-out call returns partial output
-// and the marker assertion fails honestly — the UAT cell stays pending, never fabricated.
-const CALL_TIMEOUT_MS = Number(process.env.UAT_E2E_CALL_TIMEOUT_MS) || 300_000;
+// Per-call budget for the runner's agentic `claude -p` sessions — ONE number with two consumers
+// (D-12). The number is the runner's own exported CALL_BOUND_MS, imported rather than re-declared,
+// so this file holds no second per-call bound that could drift from the one the runner actually
+// applies. The environment override stays in front of it for the same reason it always was (a
+// longer run without editing the harness) — but note that the override does NOT reach the runner:
+// the runner runs under CALL_BOUND_MS regardless, and the recorded-bound assertion below refuses any
+// value that differs from what the summary records. An override can therefore only ever restate the
+// runner's bound or red the lane loudly; it can never desync the two silently.
+const CALL_TIMEOUT_MS = Number(process.env.UAT_E2E_CALL_TIMEOUT_MS) || CALL_BOUND_MS;
 
 // liveTimeoutMs — DERIVE the runner case's vitest per-test timeout FROM CALL_TIMEOUT_MS so the two
 // bounds can never desync again (A1 fix). vitest cannot interrupt the synchronous spawnSync that
@@ -193,7 +213,13 @@ const CALL_TIMEOUT_MS = Number(process.env.UAT_E2E_CALL_TIMEOUT_MS) || 300_000;
 // for the runner's full duration. The `it()` 4th-arg per-test timeout (the in-repo idiom,
 // worktree-dogfood.test.ts:210) is the fix. `nClaudeCalls` = the number of platform calls the runner
 // makes (one per run label); `extraMs` folds in the runner's fixed-budget precheck, installs and
-// plugin operations. Raising the bound raises BOTH numbers together (constraint 5).
+// plugin operations. Raising the runner's bound raises BOTH numbers together (constraint 5).
+//
+// D-12 also requires that the bound ACTUALLY USED is written into the summary (the runner's
+// `per-call bound (ms)` row). The runner case asserts that recorded number equals CALL_TIMEOUT_MS.
+// That assertion — not the import alone — is what makes drift impossible rather than unlikely: a
+// wrapper that derived its per-test bound from a number the runner did not run under would fail
+// there, by name, before any later assertion could read a bound-cut transcript as a result.
 function liveTimeoutMs(nClaudeCalls: number, extraMs = 0): number {
   return nClaudeCalls * CALL_TIMEOUT_MS + extraMs;
 }
@@ -319,6 +345,15 @@ describe("Tier-2 live E2E — a thin wrapper over scripts/capture-live.js (gated
       const outcomeLine = outcomeLines[0] ?? "";
       const word = outcomeLine.match(OUTCOME_LINE_RE)?.[2];
       expect(word, `the outcome line reads \`${outcomeLine}\`; the lane is green only on pass. Outcome reason: ${(summaryText.match(/^Outcome reason: .*$/m) ?? ["(none recorded)"])[0]}`).toBe("pass");
+
+      // D-12: the bound the runner RECORDED is the bound this wrapper DERIVED its own timeout from.
+      // Two consumers of one number, checked against each other on the artifact.
+      const recorded = tableRow(summaryText, "per-call bound (ms)");
+      expect(recorded, "the summary carries no `per-call bound (ms)` row").not.toBeNull();
+      expect(
+        Number(recorded?.[1]),
+        `the summary records a per-call bound of ${recorded?.[1]} ms while this wrapper derived its per-test timeout from ${CALL_TIMEOUT_MS} ms — the two consumers of the one bound disagree (an UAT_E2E_CALL_TIMEOUT_MS override does not reach the runner)`,
+      ).toBe(CALL_TIMEOUT_MS);
 
       // Every transcript the summary names is on disk beside it (redacted by the runner).
       for (const label of RUN_LABELS) {
