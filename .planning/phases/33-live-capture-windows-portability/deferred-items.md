@@ -78,3 +78,9 @@ explicit `status: resolved`.
   **Found during:** plan 33-09 Task 3 (2026-09-20).
   **What:** each survivor's file had its baseline class closed (3/4, 18/30 beyond the ten predicted, 7/8) and the case moved to the sibling arm the fix did not reach — the pattern the project's memory records for every gap-closure phase. WINDOWS.md rows 233, 234, 235.
   **Why deferred:** measurement round. Owner: the CAP-02 gap round — probe every ARM that consumes the changed value before marking the class closed.
+
+- User plugin state carries two stale `grugops@grugops` rows at version `0.1.0` (the retired pre-release seed), both disabled: a project-scope row for a repository outside this checkout and a local-scope row whose project path is a `grugops-uat-e2e-*` temp target of the 2026-09-18 live run that no longer exists
+  status: open
+  **Found during:** plan 33-10 Task 1 (2026-09-20), the zero-token re-probe (`claude plugin list`); recorded in `33-DRYRUN-REPORT.md` § 2.
+  **What:** the runner installs at local scope inside its own `mkdtemp` target and uninstalls in cleanup, so the live run does not collide with these rows by construction; but a local-scope row that outlived its temp directory means a prior lane cleanup (or a run cut at its bound) left registry residue, and the `plugin listing readable` precondition row reads `the listing names grugops` on the strength of residue rather than of anything this checkout installed. On a clean machine that detail reads differently; the row is MET either way.
+  **Why deferred:** user-scope plugin state outside the repository, not in plan 33-10's file set (this plan touches nothing outside the phase directory before the go). Owner: the human (a `claude plugin uninstall` of the two stale rows) or the next CAP-03 round if the post-run listing shows the runner leaving a row of its own behind.
