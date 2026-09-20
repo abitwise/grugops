@@ -33,6 +33,8 @@ import {
   authorStamps,
   capThreePredicate,
   childEnvironment,
+  cleanupPlan,
+  cleanupScratch,
   compareLivePaths,
   contentDigest,
   denyObservedInStream,
@@ -49,8 +51,11 @@ import {
   installOutcome,
   isOutsideTargets,
   LIVE_OPS,
+  makeScratch,
+  makeScratchTranscript,
   noteRoute,
   OUTCOME_LINE_SCAN_RE,
+  parseArgs,
   parseFrames,
   pluginCachePathAccepted,
   pluginLoadReport,
@@ -70,6 +75,7 @@ import {
   type LiveOps,
   type PlatformRunResult,
   type PreconditionObservation,
+  type ScratchRegistry,
   type StreamFrame,
   type TargetBuild,
 } from "./capture-live.js";
@@ -920,6 +926,69 @@ describe("CR-02 / WR-04: plugin provenance is selected by name, validated under 
     expect(src.includes("installedPluginSha")).toBe(false);
     // Counted per LINE, the same instrument as the plan's `grep -a -c 'rev-parse'`.
     expect(src.split("\n").filter((l) => l.includes("rev-parse")).length, "HEAD, the remote ref and checkoutSha — the cache-path git call is gone").toBe(3);
+  });
+});
+
+// ── CR-04 / IN-08: the paid transcript survives EVERY failure path; --keep-target and --out keep their contracts ──
+//
+// Round 1's `finally` ran `cleanupScratch(code === 0 && keepTarget)`: on ANY non-zero exit every
+// scratch directory was removed, `--keep-target` or not, and the raw transcripts of both runs lived
+// only in scratch until `writeArtifacts` — the LAST step. A `fail()` between run completion and that
+// write (a redaction survivor, a `readContext` throw) destroyed the only copy of an artifact that
+// cost real tokens, on the one path where the operator needs it. So scratch now has TWO classes with
+// two contracts, decided by a pure truth table (`cleanupPlan`): the flag decides targets and kit
+// homes; the flag OR a non-zero exit preserves transcripts. IN-08 lives in the same argument
+// handling: `--out --dry-run` used to start a LIVE capture into a directory named `--dry-run`.
+
+describe("CR-04 / IN-08: transcripts survive every non-zero exit, --keep-target decides targets, --out refuses a flag", () => {
+  it("Test P: cleanupPlan's truth table — the flag decides targets; the flag OR a non-zero exit preserves transcripts", () => {
+    expect(cleanupPlan(0, false)).toEqual({ removeTargets: true, removeTranscripts: true });
+    expect(cleanupPlan(0, true)).toEqual({ removeTargets: false, removeTranscripts: false });
+    expect(cleanupPlan(1, false)).toEqual({ removeTargets: true, removeTranscripts: false });
+    expect(cleanupPlan(1, true)).toEqual({ removeTargets: false, removeTranscripts: false });
+    // The exit-code-decides shape is gone from the runner's finally.
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    expect(src.includes("cleanupScratch(code === 0"), "the exit-code-decides cleanup call no longer exists in the source").toBe(false);
+    expect(src).toContain("cleanupScratch(cleanupPlan(code, keepTarget))");
+  });
+
+  it("Test Q: the two scratch classes are separate — removing targets leaves the transcript directory on disk, and the reverse plan does the reverse; a preserved transcript path is returned for printing", () => {
+    const registry: ScratchRegistry = { targets: [], transcripts: [] };
+    const target = makeScratch("target-A", registry);
+    const transcript = makeScratchTranscript("A", registry);
+    expect(registry.targets).toEqual([target]);
+    expect(registry.transcripts).toEqual([transcript]);
+    expect(existsSync(target) && existsSync(transcript), "control: both exist before any cleanup").toBe(true);
+    const preserved = cleanupScratch({ removeTargets: true, removeTranscripts: false }, registry);
+    expect(existsSync(target), "the target class was removed").toBe(false);
+    expect(existsSync(transcript), "the transcript class survived").toBe(true);
+    expect(preserved, "the surviving transcript directory is returned so the runner can print it").toEqual([transcript]);
+    expect(registry.targets).toEqual([]);
+    expect(registry.transcripts).toEqual([transcript]);
+    // The reverse plan over a fresh pair.
+    const registry2: ScratchRegistry = { targets: [], transcripts: [] };
+    const target2 = makeScratch("target-B", registry2);
+    const transcript2 = makeScratchTranscript("B", registry2);
+    const preserved2 = cleanupScratch({ removeTargets: false, removeTranscripts: true }, registry2);
+    expect(existsSync(target2), "the target class survived").toBe(true);
+    expect(existsSync(transcript2), "the transcript class was removed").toBe(false);
+    expect(preserved2).toEqual([]);
+    expect(registry2.targets).toEqual([target2]);
+    // Both removed: nothing survives, nothing is returned.
+    expect(cleanupScratch({ removeTargets: true, removeTranscripts: true }, registry2)).toEqual([]);
+    expect(existsSync(target2)).toBe(false);
+    rmSync(transcript, { recursive: true, force: true });
+  });
+
+  it("Test R: --out refuses a value beginning with `--` in either spelling, naming --out and the value; a real path followed by --dry-run parses both", () => {
+    expect(() => parseArgs(["--out", "--dry-run"])).toThrow(/--out.*--dry-run/);
+    expect(() => parseArgs(["--out=--dry-run"])).toThrow(/--out.*--dry-run/);
+    const opts = parseArgs(["--out", "/tmp/x", "--dry-run"]);
+    expect(opts.out).toBe("/tmp/x");
+    expect(opts.dryRun).toBe(true);
+    expect(parseArgs(["--out=/tmp/y"]).out).toBe("/tmp/y");
+    // Control: the pre-existing refusal of an empty value still holds.
+    expect(() => parseArgs(["--out"])).toThrow(/--out requires a directory path/);
   });
 });
 
