@@ -6280,6 +6280,49 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
   }
 
   /**
+   * THE CEILING ON A DEEP `drive()` FIXTURE'S COMPOSED PATH, in characters, asserted as a PREMISE
+   * before the child is started (plan 33-15, W-19 / W-20).
+   *
+   * WHAT WAS MEASURED. On windows-latest run 35499800942 the two cases that drive a cwd 70 levels
+   * below a project root — `BOUND: the ancestor walk is limited …` and `the published step limit …`
+   * — threw `driver produced no result for trustedRepoRoot:` with EMPTY output: no answer, not a
+   * wrong one. Every other `drive()` case on that leg answered.
+   *
+   * THE HYPOTHESIS — `UNKNOWN - verify`, because the log names no layer: the composed cwd
+   * (`<temp>\p31-15-deep-XXXXXX\d0\d1\…\d69`, about 325 characters with `RUNNER~1`'s short temp
+   * root) exceeded the length a Windows child can be STARTED in — a `CreateProcess` current-directory
+   * bound near 260 characters — so `spawnSync` failed before the driver ran. The observation that
+   * settles it is the pushed run's own driver output (plan 33-20): a non-empty result, or the
+   * spawn error and exit status `drive()` now quotes beside an empty one.
+   *
+   * THE FIX WITHOUT A CONDITIONAL. The walk bound is about DEPTH, not length, so the deep fixtures
+   * are composed from single-character segments (`d/d/…/d`), which keeps every level and roughly
+   * halves the length (about 195 characters for the same 70 levels); and the composed length is
+   * asserted under this ceiling on EVERY host, so a temp root long enough to break the premise is a
+   * named red rather than an empty stdout. 240 leaves headroom under the bound named above for the
+   * driver's own arguments, which are not part of the cwd.
+   */
+  const DEEP_FIXTURE_MAX_PATH_CHARS = 240;
+
+  /**
+   * A directory `levels` below `top`, composed from single-character segments so the walk bound is
+   * exercised at full DEPTH without a path the host cannot start a child in; the composed length is
+   * asserted under `DEEP_FIXTURE_MAX_PATH_CHARS` as a premise, and the directory is created.
+   */
+  function deepFixture(top: string, levels: number): string {
+    const deep = join(top, ...Array.from({ length: levels }, () => "d"));
+    expect(
+      deep.length,
+      `PREMISE: the deep fixture's composed path is ${String(deep.length)} characters, over the ` +
+        `${String(DEEP_FIXTURE_MAX_PATH_CHARS)}-character ceiling a child can be started in — the ` +
+        `temp root is too long for this fixture, and the walk bound below would be measured as an ` +
+        `empty driver result rather than as itself`,
+    ).toBeLessThanOrEqual(DEEP_FIXTURE_MAX_PATH_CHARS);
+    mkdirSync(deep, { recursive: true });
+    return deep;
+  }
+
+  /**
    * The launching session's own project-directory and grant variables are REMOVED, never blanked:
    * this whole block is about what happens when they name nothing, and a value leaking in from the
    * shell that started vitest would make every case below measure the step-1 path instead.
@@ -6313,7 +6356,14 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     );
     const line = (r.stdout ?? "").trim().split("\n").pop() ?? "";
     if (!line.startsWith("{")) {
-      throw new Error(`driver produced no result for ${consumer}: ${(r.stdout ?? "") + (r.stderr ?? "")}`);
+      // The spawn error and the exit status are quoted BESIDE the output, so an empty output names
+      // its layer: a child that never started (`error` set, `status` null) is a different fact
+      // from a child that ran and printed nothing (plan 33-15, W-19 / W-20).
+      throw new Error(
+        `driver produced no result for ${consumer} (cwd ${String(opts.cwd.length)} chars; ` +
+          `spawn error: ${r.error?.message ?? "none"}; status: ${String(r.status)}; ` +
+          `signal: ${String(r.signal)}): ${(r.stdout ?? "") + (r.stderr ?? "")}`,
+      );
     }
     return JSON.parse(line) as Driven;
   }
@@ -6470,8 +6520,8 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
 
   it("BOUND: the ancestor walk is limited, so a configuration far above the cwd is not reached", () => {
     const top = projectWith(ACTIVE, "p31-15-deep-");
-    const deep = join(top, ...Array.from({ length: 70 }, (_v, i) => `d${i}`));
-    mkdirSync(deep, { recursive: true });
+    // 70 levels, single-character segments, length asserted under DEEP_FIXTURE_MAX_PATH_CHARS.
+    const deep = deepFixture(top, 70);
     const r = drive("trustedRepoRoot", { cwd: deep });
     expect(r.root, "a walk without a step limit would have found the configuration 70 levels up").toBe(KIT);
   });
@@ -7291,15 +7341,15 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(Number.isInteger(limit) && limit > 1).toBe(true);
 
       // Just inside the published limit the configuration IS found…
+      // Both fixtures are composed from single-character segments with their length asserted under
+      // DEEP_FIXTURE_MAX_PATH_CHARS (plan 33-15): the DEPTH is what the limit is about.
       const near = projectWith(ACTIVE, "p31-19-limit-near-");
-      const nearDir = join(near, ...Array.from({ length: limit - 4 }, (_v, i) => `d${String(i)}`));
-      mkdirSync(nearDir, { recursive: true });
+      const nearDir = deepFixture(near, limit - 4);
       expect(drive("trustedRepoRoot", { cwd: nearDir }).root).toBe(near);
 
       // …and past it, it is not. The published number is therefore the walk's number.
       const far = projectWith(ACTIVE, "p31-19-limit-far-");
-      const farDir = join(far, ...Array.from({ length: limit + 6 }, (_v, i) => `d${String(i)}`));
-      mkdirSync(farDir, { recursive: true });
+      const farDir = deepFixture(far, limit + 6);
       expect(drive("trustedRepoRoot", { cwd: farDir }).root).toBe(KIT);
     });
 
@@ -10657,6 +10707,25 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     ).toBeNull();
   });
 
+  /**
+   * Plant `home` as THIS process's home directory under BOTH names `os.homedir()` reads — `HOME` on
+   * POSIX, `USERPROFILE` on win32 — the way `asHome` does for the child-driven cases next door, and
+   * return the restorer (plan 33-15, the 33-04 `TMPDIR`/`TMP`/`TEMP` precedent). One plant, two
+   * names, no branch: a case that set only `HOME` measured the platform rather than the home rule,
+   * and on windows-latest CONTROL 5b's marker-less home was never the home at all.
+   */
+  function plantHome(home: string): () => void {
+    const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
+    process.env.HOME = home;
+    process.env.USERPROFILE = home;
+    return () => {
+      for (const name of ["HOME", "USERPROFILE"] as const) {
+        if (previous[name] === undefined) delete process.env[name];
+        else process.env[name] = previous[name];
+      }
+    };
+  }
+
   it("CONTROL 5a (WAVE 3): a HOME-ROOTED project's own store PROMOTES — the DECLARED movement", () => {
     // `originStoreIsRootAnchored` asks `projectRootFromWorkingDirectory` about the origin's
     // GRANDPARENT, which for a home-rooted project's own store is `$HOME`. At THIS wave the walk is
@@ -10688,8 +10757,7 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     const id = seedBytes(originStore);
     copyBytesInto(originStore, id, origin);
     const repoRoot = governanceRoot("p31-22-5a-repo-");
-    const previousHome = process.env.HOME;
-    process.env.HOME = home;
+    const restoreHome = plantHome(home);
     try {
       const out = promote(origin, destStore("p31-22-5a-dest-"), id, repoRoot);
       expect(
@@ -10700,8 +10768,7 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
       ).toBeNull();
       expect(out.promotedId, "the promotion wrote nothing").toBe(id);
     } finally {
-      if (previousHome === undefined) delete process.env.HOME;
-      else process.env.HOME = previousHome;
+      restoreHome();
     }
   });
 
@@ -10717,14 +10784,18 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     const id = seedBytes(originStore);
     copyBytesInto(originStore, id, origin);
     const repoRoot = governanceRoot("p31-22-5b-repo-");
-    const previousHome = process.env.HOME;
-    process.env.HOME = home;
+    const restoreHome = plantHome(home);
     try {
       const out = promote(origin, destStore("p31-22-5b-dest-"), id, repoRoot);
+      expect(
+        out.threw,
+        "CONTROL 5b PROMOTED: the marker-less home was not the walk's home stop, so the origin's " +
+          "ancestry was climbed past it — on a host whose `os.homedir()` reads a name this case " +
+          "did not plant, that is the platform answering, not the rule",
+      ).not.toBeNull();
       expect(out.threw).toContain("DECLINED (origin-outside-trusted-store)");
     } finally {
-      if (previousHome === undefined) delete process.env.HOME;
-      else process.env.HOME = previousHome;
+      restoreHome();
     }
   });
 
@@ -15895,10 +15966,12 @@ describe("31-41 — the shared-install shape is MEASURED against the widened ref
         `}));`,
       ].join("\n"),
     );
+    // BOTH names `os.homedir()` reads are planted — `HOME` on POSIX, `USERPROFILE` on win32 — the
+    // way `asHome` does for the 31-19/31-23 drivers (plan 33-15). One plant, two names, no branch.
     const read = spawnSync("node", [driver], {
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
-      env: { ...process.env, HOME: home },
+      env: { ...process.env, HOME: home, USERPROFILE: home },
     });
     expect(read.status, `PREMISE: the reading driver failed. stderr: ${read.stderr}`).toBe(0);
     const answer = JSON.parse(read.stdout.trim().split("\n").pop() as string) as {
@@ -15962,10 +16035,12 @@ describe("31-41 — the shared-install shape is MEASURED against the widened ref
         `console.log(JSON.stringify({ resolverAnswer: mod.governanceRootOf(kitStore), rebinding }));`,
       ].join("\n"),
     );
+    // BOTH names `os.homedir()` reads are planted — `HOME` on POSIX, `USERPROFILE` on win32 — the
+    // way `asHome` does for the 31-19/31-23 drivers (plan 33-15). One plant, two names, no branch.
     const read = spawnSync("node", [driver], {
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
-      env: { ...process.env, HOME: home },
+      env: { ...process.env, HOME: home, USERPROFILE: home },
     });
     expect(read.status, `PREMISE: the control driver failed. stderr: ${read.stderr}`).toBe(0);
     const answer = JSON.parse(read.stdout.trim().split("\n").pop() as string) as {
