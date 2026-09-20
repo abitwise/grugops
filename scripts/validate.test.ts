@@ -45,9 +45,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import ts from "typescript";
 import { TICKET_KEYS } from "./board-model.js";
+// THE ONE published-path normalizer (plan 33-03). Imported for the census below, NOT because the
+// census is published — it is a test-internal comparison against `git ls-files`, and the file
+// would otherwise carry a second definition of the same one-liner (RESEARCH Pitfall 3, D-15).
+import { toPosixWith } from "./posix-path.js";
 import { pathToFileURL } from "node:url";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
@@ -1813,14 +1817,44 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
     ts.createSourceFile(name, text, ts.ScriptTarget.ES2022, true);
 
   /**
+   * The walked side's relative name, in the spelling git uses. `readdirSync` hands back entries the
+   * host joins with ITS separator; `git ls-files` (the floor below) always emits `/`. On a Windows
+   * host every nested entry — the 26 tracked sources under `scripts/e2e/` and
+   * `scripts/runnable-ref/` — read as unscanned for that spelling alone (33-RESEARCH § Class A),
+   * and there is no publishing boundary to fix because this set is never published: it is a
+   * test-internal comparison, so the normalization belongs here and not in a production module
+   * (RESEARCH Pitfall 3, D-15). The normalizer is plan 33-03's one authority, not a second
+   * one-liner; the separator is a parameter so a case on this POSIX host can hand it the other
+   * platform's and watch the spelling change — `join` already spells `/` here, so the live census
+   * alone could never tell the normalizer from a function that does nothing.
+   */
+  const scannedName = (absolute: string, scriptsDir: string, _separator?: string): string =>
+    absolute.slice(scriptsDir.length + 1);
+
+  /**
    * The scanned set: every `.ts` file under the directory AT TEST TIME, RECURSIVELY. Never a
    * literal array, and never depth-one — `scripts/` carries subdirectories, and a second reader
    * placed in one of them would sit outside a depth-one glob without anything going red.
    */
   const SCANNED = readdirSync(SCRIPTS_DIR, { withFileTypes: true, recursive: true })
     .filter((e) => e.isFile() && e.name.endsWith(".ts"))
-    .map((e) => join(e.parentPath, e.name).slice(SCRIPTS_DIR.length + 1))
+    .map((e) => scannedName(join(e.parentPath, e.name), SCRIPTS_DIR))
     .sort();
+
+  /**
+   * The git side: every tracked `.ts` under scripts/, sliced to the same relative form. Derived
+   * ONCE, beside the walked side, so the two derivations of "the scripts sources" sit next to each
+   * other and their difference is a set of names rather than two numbers. `scripts/*.ts` is the
+   * pathspec that returns the whole tree (`scripts/**\/*.ts` returns a sixth of it — see CASE 1
+   * below); git spells `/` on every host, which is what the walked side is normalized TO.
+   */
+  const TRACKED = execFileSync("git", ["ls-files", "scripts/*.ts"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  })
+    .split("\n")
+    .filter(Boolean)
+    .map((p) => p.slice("scripts/".length));
 
   /** One scanned file: a name and the text to parse. Planted rows use the same shape. */
   interface ScannedFile {
@@ -2028,8 +2062,13 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
     readonly reportRoot: string;
   }
 
-  /** The compiler's own path spelling, normalized so a Windows separator compares equal. */
-  const posix = (p: string): string => p.split("\\").join("/");
+  /**
+   * The compiler's own path spelling, normalized so a Windows separator compares equal. TypeScript
+   * spells every `fileName` with `/`; a `join`-built name on Windows does not. Bound to plan 33-03's
+   * one normalizer with the Windows separator given explicitly, rather than a second one-liner
+   * (this file must not define the helper twice).
+   */
+  const posix = (p: string): string => toPosixWith(p, win32.sep);
 
   /**
    * Every place the ticket-reading pair is assembled ACROSS two files — asked in BOTH directions.
@@ -2498,20 +2537,76 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
     // BOUNDARY 1 — the FILE SET. A census over an empty glob reports one-of-nothing as success, so
     // the denominator is asserted BEFORE the count of one is claimed — and against an independently
     // derived set (git's index) rather than against itself.
-    console.log(`ticket-frontmatter census: scanned ${SCANNED.length} .ts file(s) under scripts/`);
-    expect(SCANNED.length, "the glob found no TypeScript at all — the census would be vacuous")
-      .toBeGreaterThan(0);
-    const tracked = execFileSync("git", ["ls-files", "scripts/*.ts"], {
-      cwd: ROOT,
-      encoding: "utf8",
-    })
-      .split("\n")
-      .filter(Boolean)
-      .map((p) => p.slice("scripts/".length));
-    expect(tracked.length, "git reported no tracked scripts/*.ts — the floor is vacuous")
-      .toBeGreaterThan(0);
-    const unscanned = tracked.filter((t) => !SCANNED.includes(t));
+    //
+    // THE VACUITY FLOOR, per side and by name. An EMPTY denominator and a SILENTLY SHORT one are
+    // two different facts, and this floor catches only the first: it refuses when either derived
+    // side is empty and says WHICH, instead of comparing two empty arrays and passing. The second
+    // fact is caught below by comparing the two derivations in BOTH directions — a short git side
+    // leaves walked entries git never named, a short walked side leaves tracked entries the walk
+    // never opened — and the element count on each side is read from the derived array itself,
+    // before the comparison loops run, never from a counter inside the loop that consumes it.
+    const walkedCount = SCANNED.length;
+    const trackedCount = TRACKED.length;
+    console.log(
+      `ticket-frontmatter census: scanned ${walkedCount} .ts file(s) under scripts/; git tracks ${trackedCount}`,
+    );
+    expect(
+      walkedCount,
+      "REFUSED: the WALKED side is empty — the glob found no TypeScript at all under scripts/, " +
+        "so the census would be vacuous",
+    ).toBeGreaterThan(0);
+    expect(
+      trackedCount,
+      "REFUSED: the TRACKED side is empty — git reported no tracked scripts/*.ts, so the floor " +
+        "is vacuous",
+    ).toBeGreaterThan(0);
+    const unscanned = TRACKED.filter((t) => !SCANNED.includes(t));
     expect(unscanned, "a tracked TypeScript file the census never opened").toEqual([]);
+    const unnamed = SCANNED.filter((s) => !TRACKED.includes(s));
+    expect(
+      unnamed,
+      "a .ts the walk opened that git never named — either a scratch file sits under scripts/, " +
+        "or the git side came back SHORT and the floor above could not see it",
+    ).toEqual([]);
+  });
+
+  it("the walked side and the git side agree on every NESTED entry — the 26-file class, both sides counted", () => {
+    // The Windows shape of the census defect, isolated: a nested entry is the only kind whose
+    // spelling carries a separator at all. Both sides are filtered by the SAME predicate — "contains
+    // the git separator" — so a walked side spelled with the host's other separator has ZERO members
+    // here while the git side has all of them, and the two counts are printed beside each other.
+    const nestedTracked = TRACKED.filter((t) => t.includes("/"));
+    const nestedScanned = SCANNED.filter((s) => s.includes("/"));
+    expect(
+      nestedTracked.length,
+      "PREMISE: git tracks no nested .ts under scripts/, so this case would compare nothing",
+    ).toBeGreaterThan(0);
+    expect(
+      nestedScanned,
+      `nested walked ${nestedScanned.length} vs nested tracked ${nestedTracked.length}: the walked ` +
+        "side renders a subdirectory entry in a spelling git never uses",
+    ).toEqual(nestedTracked);
+  });
+
+  it("a nested entry the host joins with a BACKSLASH renders in git's spelling — the mutation case", () => {
+    // On this POSIX host `join` already spells `/`, so neither case above can tell the normalizer
+    // from a function that does nothing. The other platform's separator is handed in explicitly,
+    // over the exact shape `readdirSync` + `path.win32.join` produce; deleting the normalization
+    // from `scannedName` reds THIS case, on this host.
+    const scriptsDir = win32.join("C:\\repo", "scripts");
+    const oneDeep = win32.join(scriptsDir, "e2e", "uat-live.test.ts");
+    expect(scannedName(oneDeep, scriptsDir, win32.sep)).toBe("e2e/uat-live.test.ts");
+    const twoDeep = win32.join(scriptsDir, "runnable-ref", "fixtures", "sample.uat.spec.ts");
+    expect(scannedName(twoDeep, scriptsDir, win32.sep)).toBe("runnable-ref/fixtures/sample.uat.spec.ts");
+    // A top-level entry has no separator to rewrite; the name passes through untouched.
+    expect(scannedName(win32.join(scriptsDir, "validate.test.ts"), scriptsDir, win32.sep)).toBe(
+      "validate.test.ts",
+    );
+    // The live set is built under the HOST separator (no third argument): on this host that is the
+    // identity for a `/`-joined name, and it must equal the git spelling of the same entry.
+    expect(scannedName(join(SCRIPTS_DIR, "e2e", "uat-live.test.ts"), SCRIPTS_DIR)).toBe(
+      "e2e/uat-live.test.ts",
+    );
   });
 
   it("TICKET_FRONTMATTER_READER_COUNT is 1, and the carrier is scripts/board-model.ts", () => {
