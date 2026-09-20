@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 32.1 COMPLETE 2026-09-18 by human override (verification 16/17 human_needed -> passed with human_override; UAT 1 pass / 3 skipped WINDOWS-anchored tests deferred; WINDOWS rows 211-213, 222-224 accepted open). Next: Phase 33 — Live Capture & Windows Portability, not yet planned. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 33-09-PLAN.md (CAP-02 measured NOT MET on run 35499800942; sha d9bd4315 pushed; b1f8850a + SUMMARY local)
-last_updated: "2026-09-20T09:19:54.128Z"
-state_head: b1f8850a68772f3188c8a38121ff939de2c02feb
+stopped_at: "Completed 33-10-PLAN.md (live capture OUTCOME: fail — D-07 comparator; diagnosed at zero tokens; nothing flips; commits c7be6d0d, e1988cda local, not pushed)"
+last_updated: "2026-09-20T12:27:20.996Z"
+state_head: e1988cdae6f2696785d2d75a3a69dc474d8f49f4
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 280
-  completed_plans: 278
-  percent: 99
+  completed_plans: 279
+  percent: 100
 last_activity: 2026-09-19
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: Completed quick tasks 260919-007 (README Quickstart example Claude Code commands, 52377a7a) and 260919-07m (installer notes name the real marketplace owner abitwise/grugops, 26c3d8cc).
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 10 of 11
+Plan: 11 of 11
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -536,6 +536,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P05 | 53 min | 3 tasks | 12 files |
 | Phase 33 P06 | 28 min | 3 tasks | 6 files |
 | Phase 33 P09 | 47min | 3 tasks | 4 files |
+| Phase 33 P10 | 79 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -1474,6 +1475,8 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-06: install.test.ts compares its kit root canonically on BOTH sides (realpathSync.native then the 33-03 normalizer) with the forward-slash spelling asserted separately; the CI log shows its three windows kit-path reds were separator-only (RUNNER~1 on both sides) and the 8.3/long-name class is confined to context-io.test.ts, disproving RESEARCH item 2 for the install suite — Two classes, two fixes, one helper whose comment says which step answers which, so neither is deleted as redundant
 - [Phase 33]: 33-06: two install-suite fixtures built with spawnSync ln -s (MSYS ln exits 0 and leaves a COPY on windows-latest) are staged through stageSymlinkOrSkip; the pinned-clock migrate wrapper imports by pathToFileURL (a bare Windows path is refused as protocol d:); the R-5 temp-root premise plants TMPDIR, TMP and TEMP; process.platform count unchanged at 15 — Every class read from the CI log's Received text; every new skip arm driven on darwin via FORCE_ABSENT
 - [Phase 33]: 33-09: CAP-02 NOT marked complete - CI run 35499800942 for d9bd4315 concluded failure on BOTH legs (ubuntu 2/5342 in uat-spec-integrity GREEN 1b/ORDERING, mis-attributed to the .temp class; windows 31/5342 in 8 files, 13 predicted + 18 beyond, 10 of them from publicDocsCorpus's host-joined examples/ part); no fix, no re-run, no platform conditional, no ledger flip; rows 229-235 appended via the tool; row 186 has a second green windows measurement, not disposed
+- [Phase 33]: 33-10: the one authorized live capture ran once (11.75 USD, 31 min 07 s): CAP-03 both sides hold on both dispatch paths, the prod-deploy deny observed on the hook channel for the probe in both, grugops 2.1.0 loaded from the plugin cache — OUTCOME: fail because the D-07 comparator (dual-path-equivalence.ts) asserts byte-identical model prose and keys on model-chosen task ids; classed SUITE in 33-DIAGNOSIS.md, nothing fixed, nothing re-run, nothing flips (D-20) — D-11 requires a red run to be diagnosed at zero tokens and re-asked in the NEXT round; D-07 says byte-identical prose is not asserted, and the runner asserted it by construction
+- [Phase 33]: 33-10 KIT findings recorded verbatim, not fixed (D-20): the --agent path's session carries exactly the coordinator adapter's 7-tool grant (no MCP admission tool) and its nine notes were hand-written by the Write tool after the guard refused the heredocs; the guard's command model refuses 2>&1 and $var on tool name alone (15 of 17 live denies, reproduced offline); admitAndAppend writes verified_by: undefined when the field is absent (reproduced offline) — each has an offline reproduction in 33-DIAGNOSIS.md and belongs to gap-closure round 2 of 4; CAP-03 / CAP-01 stay unmarked on a red run
 
 ### Pending Todos
 
@@ -1601,8 +1604,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T09:19:30.897Z
-Stopped at: Completed 33-09-PLAN.md (CAP-02 measured NOT MET on run 35499800942; sha d9bd4315 pushed; b1f8850a + SUMMARY local)
+Last session: 2026-09-20T12:26:51.564Z
+Stopped at: Completed 33-10-PLAN.md (live capture OUTCOME: fail — D-07 comparator; diagnosed at zero tokens; nothing flips; commits c7be6d0d, e1988cda local, not pushed)
 Resume file: None
 
 ## Operator Next Steps
