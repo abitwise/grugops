@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 14/23 plans executed — 11/11 round-1 plans executed (6 waves); 12 gap-closure round-2 plans (waves 7-12, `gap_closure: true`) planned 2026-09-20 after verification `gaps_found` 0/3
+**Plans**: 15/23 plans executed — 11/11 round-1 plans executed (6 waves); 12 gap-closure round-2 plans (waves 7-12, `gap_closure: true`) planned 2026-09-20 after verification `gaps_found` 0/3
 
 Plans:
 **Wave 1**
@@ -1353,7 +1353,7 @@ Plans:
 - [x] 33-12-PLAN.md — TRACER: CR-03 path-invariant D-07 projection proven against the held round-1 capture (commit c7be6d0d), CR-01 runner-owned transcript through a run seam, CR-02 provenance by name + content digest folded into the outcome
 - [x] 33-14-PLAN.md — CAP-02: `publicDocsCorpus()` publishes POSIX members from one site (10 windows reds), every consumer arm probed
 - [x] 33-15-PLAN.md — CAP-02: context-io.test.ts spelling and plant classes (W-17..W-20, W-22..W-27) derived through the module's own host functions
-- [ ] 33-17-PLAN.md — CAP-02: uat-spec-integrity `faultKey` module fix + POINT 2; ubuntu GREEN 1b / ORDERING diagnosed then fixed with a derived margin
+- [x] 33-17-PLAN.md — CAP-02: uat-spec-integrity `faultKey` module fix + POINT 2; ubuntu GREEN 1b / ORDERING diagnosed then fixed with a derived margin
 - [ ] 33-18-PLAN.md — CAP-02: uat-gate-exit-contract POSIX scan set, the explicit 60 s bound removed, derived shape set; platform-shapes COVERAGE derived undriven set
 - [ ] 33-19-PLAN.md — CAP-02: foundation-guards o-prefix JSON form, freshness pre-fix arm host-independent, check-build-parity compiler launch (33-06 way)
 
@@ -1434,7 +1434,7 @@ Plans:
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
-| 33. Live Capture & Windows Portability | v2.1 | 14/23 | In Progress|  |
+| 33. Live Capture & Windows Portability | v2.1 | 15/23 | In Progress|  |
 | 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
