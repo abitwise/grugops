@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33-17-PLAN.md (faultKey at both parseFaults sites; U-1/U-2 diagnosed then closed by mixedArrangementDepth; 5 commits). Next: 33-16 / 33-18 (wave 8)"
-last_updated: "2026-09-20T21:48:22.121Z"
-state_head: 903f0fdcdd9627e52247a9e9ad1609f208e62370
+stopped_at: "Completed 33-18-PLAN.md (W-12..W-16 closed by derivation: POSIX scanned set via test AE win32 seam, 60_000 bound removed, admissible shapes + undriven labels derived; 5 commits). Next: 33-16 (wave 8) or 33-19"
+last_updated: "2026-09-20T22:10:58.254Z"
+state_head: c4b0f9fef84a4a45ae54aacc5ba18623c8f26302
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 292
-  completed_plans: 284
-  percent: 97
+  completed_plans: 285
+  percent: 98
 last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Planned Phase 33 gap-closure round 2 of 4: 12 additive plans (33-12..33-23) mapped one-to-one onto 33-VERIFICATION gaps[].missing and 33-REVIEW CR-01..05; plan checker VERIFICATION PASSED; decision coverage 20/20; requirement coverage CAP-01..03 3/3; round-1 plans byte-untouched."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 5 of 23
+Plan: 6 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -542,6 +542,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P14 | 16 min | 2 tasks | 3 files |
 | Phase 33 P15 | 16 min | 3 tasks | 1 files |
 | Phase 33 P17 | 24 min | 3 tasks | 3 files |
+| Phase 33 P18 | 16 min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -1617,8 +1618,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T21:47:54.167Z
-Stopped at: Completed 33-17-PLAN.md (faultKey at both parseFaults sites; U-1/U-2 diagnosed then closed by mixedArrangementDepth; 5 commits). Next: 33-16 / 33-18 (wave 8)
+Last session: 2026-09-20T22:10:57.715Z
+Stopped at: Completed 33-18-PLAN.md (W-12..W-16 closed by derivation: POSIX scanned set via test AE win32 seam, 60_000 bound removed, admissible shapes + undriven labels derived; 5 commits). Next: 33-16 (wave 8) or 33-19
 Resume file: None
 
 ## Operator Next Steps
