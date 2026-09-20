@@ -6719,13 +6719,28 @@ function parseBoundary(): Boundary {
 }
 
 /**
- * 33-17 (U-1 / U-2): the depth a MIXED arrangement (the nested spec beside a sibling) plants.
+ * 33-17 (U-1 / U-2): the depth a MIXED arrangement (the nested spec beside a sibling) plants —
+ * DERIVED from the measured boundary, never a literal, and never a platform conditional (D-14).
  *
- * RED (characterization): today every mixed case plants the exact one-file `overflow`, so this is
- * introduced as that depth and test AD asserts the margin the fix must carry.
+ * The boundary is exact for the one-file arrangement it was bisected in. A second root file shifts
+ * the stack baseline at which the pathological file is parsed by a handful of frames — the compiler
+ * reaches it one root-file iteration later, with the parser's functions already invoked once (the
+ * ordering measured in the plan summary) — and at an ADJACENT pair a shift of a few frames in either
+ * direction flips the outcome. MEASURED: on ubuntu-latest (node 22, x64; CI run 35499800942) the
+ * two-file program FINISHED the depth the one-file program could not, and `GREEN 1b` exited 0 where
+ * 2 was expected; on windows-latest and on this host (node 24, darwin/arm64, shift 0) it did not.
+ * Doubling the depth keeps the parse an overflow in any arrangement whose baseline shift is smaller
+ * than the boundary itself — which is every arrangement this suite drives, since a sibling adds
+ * frames, not a second stack — while still deriving from THIS host's measurement, so a host with a
+ * larger stack moves both numbers together. The one-file adjacency cases keep the exact boundary:
+ * they ARE the measurement. Test AD pins the relation so the margin cannot be shrunk without a red.
+ *
+ * The parameter is typed on `overflow` alone so the same rule serves the in-process number
+ * (`inProcessOverflowDepth()`, a doubling search rather than a bisection — its margin over the
+ * worker thread's true boundary is anywhere in [1, depth/2], so PROBE 2 (b) needs the same rule).
  */
 function mixedArrangementDepth(boundary: { readonly overflow: number }): number {
-  return boundary.overflow;
+  return 2 * boundary.overflow;
 }
 
 describe("uat-spec-integrity — 33-17 (U-1 / U-2): the boundary, measured per arrangement", () => {
@@ -6822,9 +6837,11 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
   // ── GREEN 1b: the DENOMINATOR floor is a DIFFERENT branch, and it is reached too ──────────────
 
   it("GREEN 1b: the pathological spec alongside a clean one exits 2 with `visited 1 of 2` on stderr", () => {
-    const { overflow } = parseBoundary();
+    // 33-17 (U-1): a MIXED arrangement plants the derived depth with margin, not the bare
+    // one-file boundary — see `mixedArrangementDepth`. Expected green on the pushed run.
+    const depth = mixedArrangementDepth(parseBoundary());
     const root = mkTargetRepo({});
-    plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    plant(root, "e2e/uat/nested.uat.spec.ts", nestedSpec(depth));
     plant(root, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
     const r = runCheck(root);
 
@@ -7166,8 +7183,11 @@ describe("uat-spec-integrity — 31-25 CR-15: every exit passes through one deci
 
     // (b) a mixed run that still reaches a STDOUT branch: the reason is on stderr, and it is written
     //     before the process ever reaches the branch that writes to stdout.
+    //     33-17 (U-2): the mixed arrangement plants the derived depth with margin — see
+    //     `mixedArrangementDepth`; (a) above keeps the exact boundary, being one file. Expected
+    //     green on the pushed run.
     const mixed = mkTargetRepo({});
-    plant(mixed, "e2e/uat/nested.uat.spec.ts", nestedSpec(overflow));
+    plant(mixed, "e2e/uat/nested.uat.spec.ts", nestedSpec(mixedArrangementDepth({ overflow })));
     plant(mixed, "e2e/uat/clean.uat.spec.ts", CLEAN_SPEC);
     const mr = runCheck(mixed);
     expect(mr.stderr.indexOf("e2e/uat/nested.uat.spec.ts")).toBeGreaterThanOrEqual(0);
@@ -7786,7 +7806,9 @@ describe("uat-spec-integrity — 31-25 PROBES: how is this boundary REACHED, not
 
   it("PROBE 2 (b): a caught file contributes NOTHING to `visited`, and `expected` is unchanged", async () => {
     const { analyzeSpecs } = await loadChecker();
-    const overflow = inProcessOverflowDepth();
+    // 33-17: a mixed arrangement — the in-process number is a doubling-search result whose margin
+    // over the thread's true boundary can be a single frame, so it takes the same derived rule.
+    const overflow = mixedArrangementDepth({ overflow: inProcessOverflowDepth() });
     const root = mkRoot({
       "e2e/uat/nested.uat.spec.ts": nestedSpec(overflow),
       "e2e/uat/clean.uat.spec.ts": CLEAN_SPEC,
