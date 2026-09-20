@@ -27,13 +27,27 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
+// The one published-path normalizer (plan 33-03), used HERE at a test-internal comparison only: the
+// script under test is byte-unchanged by plan 33-06, and its kit-path line is the installer's own
+// forward-slash publication.
+import { toPosix } from "./posix-path.js";
 
 const ROOT = join(import.meta.dirname, "..");
+
+// canonicalPath — one spelling for a directory two calls may name differently (plan 33-06). The
+// real-path call collapses an 8.3 short name and its long form (windows-latest reports the temp root
+// as `C:\Users\RUNNER~1\…` from one call and `C:\Users\runneradmin\…` from another) and macOS's
+// `/var` → `/private/var`; the normalizer then spells the result forward-slashed, which the
+// real-path call alone would not do. Both sides of the kit-path comparison below go through it.
+function canonicalPath(p: string): string {
+  return toPosix(realpathSync.native(p));
+}
 const PRECHECK_JS = join(ROOT, "scripts", "coordinator-resolution-precheck.js");
 
 // Restated from the script under test rather than imported — see the header for why importing it is
@@ -59,6 +73,8 @@ const tempEntries = (): string[] =>
 
 // One kept scratch install, produced by the script itself, reused as the base for both RED plants.
 let keptTarget = "";
+let keptHome = "";
+let keptRun: SpawnSyncReturns<string>;
 let defaultRun: SpawnSyncReturns<string>;
 let tempBefore: string[] = [];
 let tempAfter: string[] = [];
@@ -69,7 +85,8 @@ beforeAll(() => {
   defaultRun = run();
   tempAfter = tempEntries();
 
-  const kept = run(["--keep-scratch-target"]);
+  keptRun = run(["--keep-scratch-target"]);
+  const kept = keptRun;
   const m = kept.stdout.match(/^scratch target kept at: (.+)$/m);
   const h = kept.stdout.match(/^scratch kit home kept at: (.+)$/m);
   if (m === null || h === null) {
@@ -78,7 +95,8 @@ beforeAll(() => {
     );
   }
   keptTarget = m[1].trim();
-  ownedDirs.push(keptTarget, h[1].trim());
+  keptHome = h[1].trim();
+  ownedDirs.push(keptTarget, keptHome);
 }, 400_000);
 
 afterAll(() => {
@@ -120,9 +138,27 @@ describe("coordinator resolution precheck (SPAWN-03 observable half)", () => {
       /^coordinator agent name: \S+/m,
       /^coordinator grant size: \d+ enumerated name\(s\)\.$/m,
       /^granted names resolving to an installed adapter file: (\d+) of \1\.$/m,
-      /^materialized kit path: \/.+$/m,
+      // The STABLE part of the sentence only. The anchor used to demand a leading `/`, a
+      // POSIX-absolute spelling the script never promised: the value is the installer's published
+      // KIT= line, which on windows-latest run 35394268365 read `C:/Users/RUNNER~1/…` and failed
+      // this regex while being exactly right. The path-bearing part is asserted separately, below.
+      /^materialized kit path: \S.*$/m,
     ];
     for (const re of labels) expect(defaultRun.stdout).toMatch(re);
+  });
+
+  it("Case 2b (green): the materialized kit path names the kit the script installed, compared canonically", () => {
+    // Over the KEPT run, because only there does the kit directory still exist to be resolved: the
+    // default run removes its scratch install on exit (hard rule 3). The printed value is compared
+    // to the kit root under the home the script itself reported, both sides through canonicalPath,
+    // so a host that reports its temp root under two names or two separators still compares one
+    // directory with itself. `isAbsolute` is the host's own notion — `/…` on POSIX, `C:/…` or
+    // `C:\…` on Windows — with no platform branch in this file.
+    const m = keptRun.stdout.match(/^materialized kit path: (.+)$/m);
+    expect(m, `no materialized kit path line in the kept run:\n${keptRun.stdout}`).not.toBeNull();
+    const printed = m![1].trim();
+    expect(isAbsolute(printed), `the printed kit path is not absolute: ${printed}`).toBe(true);
+    expect(canonicalPath(printed)).toBe(canonicalPath(join(keptHome, "agent-factory")));
   });
 
   it("Case 3 (honesty): prints the human-only notice, both unperformed steps and every recording slot", () => {
