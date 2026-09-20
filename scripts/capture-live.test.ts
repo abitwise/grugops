@@ -46,6 +46,7 @@ import {
   FIXTURE_JSONL,
   frameKinds,
   homeSpellingSurvivors,
+  installOutcome,
   isOutsideTargets,
   LIVE_OPS,
   noteRoute,
@@ -757,6 +758,68 @@ describe("CR-01: the scored transcript is streamed into a runner-owned scratch o
     const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
     expect(src.includes("join(build.target, transcriptName)"), "the in-target transcript location no longer exists in the source").toBe(false);
     expect(src.includes("join(build.transcriptDir, captureTranscriptName(")).toBe(true);
+  });
+});
+
+// ── CR-05: a failed plugin install stops the run BEFORE the paid spawn ─────────────────────────
+//
+// Round 1's `pluginInstall` returned a string beginning `UNKNOWN - verify` on a non-zero exit and
+// `capture()` appended it to the install lines and went on to `runPlatform`: up to CALL_BOUND_MS of
+// spend per label against a target with no plugin, surfacing only as `OUTCOME: fail` after the
+// budget was gone. The install is a phase-2 precondition of D-05 route 2, and the header's contract
+// is that nothing spawns while a precondition is not MET. So the decision is a pure, exported
+// function (`installOutcome`), the real `pluginInstall` THROWS through `fail` on its `ok: false`
+// arm, and `runTarget` calls the install first and lets the throw propagate — proven through the
+// same recording seam Test G uses, with the recorder's call count as the witness.
+
+/** A recorder whose install is decided by the shipped `installOutcome` over a canned spawn result. */
+function installDecidingOps(streamText: string, spawnResult: { status: number | null; error: Error | undefined; stdout: string; stderr: string }): ReturnType<typeof recordingOps> {
+  const ops = recordingOps(streamText);
+  ops.pluginInstall = (_target, pluginName, marketplaceName) => {
+    const o = installOutcome(spawnResult);
+    if (!o.ok) throw new Error(`plugin install ${pluginName}@${marketplaceName} did not complete (${o.reason})`);
+    return `installed ${pluginName}@${marketplaceName} at local scope: ${o.line}`;
+  };
+  return ops;
+}
+
+describe("CR-05: a plugin install that does not complete stops the run before any platform child is spawned", () => {
+  it("Test M: installOutcome is the pure install decision — a non-zero exit names the exit and the platform's stderr, a spawn error names the error, exit 0 is ok with the platform's line; and the source no longer returns an UNKNOWN - verify install string", () => {
+    const failed = installOutcome({ status: 1, error: undefined, stdout: "", stderr: "boom" });
+    expect(failed.ok).toBe(false);
+    if (failed.ok) throw new Error("unreachable");
+    expect(failed.reason).toContain("exit 1");
+    expect(failed.reason).toContain("boom");
+    const unstartable = installOutcome({ status: null, error: new Error("spawn claude ENOENT"), stdout: "", stderr: "" });
+    expect(unstartable.ok).toBe(false);
+    if (unstartable.ok) throw new Error("unreachable");
+    expect(unstartable.reason).toContain("ENOENT");
+    const ok = installOutcome({ status: 0, error: undefined, stdout: "Installed grugops@grugops\n", stderr: "" });
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) throw new Error("unreachable");
+    expect(ok.line).toContain("Installed grugops@grugops");
+    // The returned-string failure shape is gone from the runner: the real pluginInstall throws.
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    expect(src.includes("UNKNOWN - verify — `plugin install"), "the UNKNOWN - verify install string no longer exists in the source").toBe(false);
+    expect(src).toContain("did not complete (${o.reason})");
+  });
+
+  it("Test N: through the seam, an install that does not complete rejects runTarget naming `plugin install`, and the platform recorder was called exactly 0 times", async () => {
+    const build = handBuiltTarget("A");
+    const ops = installDecidingOps(FIXTURE_TEXT, { status: 1, error: undefined, stdout: "", stderr: "marketplace grugops not found" });
+    await expect(runTarget(build, RUN_SPEC, ops)).rejects.toThrow(/plugin install grugops@grugops did not complete/);
+    expect(ops.calls, "no platform child was launched after the failed install").toHaveLength(0);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test O: converse — an install that completes is followed by exactly 1 platform launch and the report is returned with the install line", async () => {
+    const build = handBuiltTarget("A");
+    const ops = installDecidingOps(FIXTURE_TEXT, { status: 0, error: undefined, stdout: "Installed grugops@grugops", stderr: "" });
+    const report = await runTarget(build, RUN_SPEC, ops);
+    expect(ops.calls).toHaveLength(1);
+    expect(report.installLine).toContain("installed grugops@grugops at local scope: Installed grugops@grugops");
+    expect(report.transcriptText).toBe(FIXTURE_TEXT);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
   });
 });
 
