@@ -505,6 +505,16 @@ export const HOST_CAPABILITIES = Object.freeze([
         },
     },
     {
+        name: "signal-terminated child",
+        reasonWhenAbsent: "a child that signals itself ends on this host with an exit STATUS and no signal (Windows " +
+            "has no POSIX signal delivery; node ends the process with a status instead), so a " +
+            "signal-terminated outcome cannot be staged and is reported as a non-zero exit",
+        probe() {
+            const r = spawnSync(process.execPath, ["-e", "process.kill(process.pid, 'SIGTERM'); setTimeout(() => {}, 5000);"], { encoding: "utf8", timeout: DRIVE_TIMEOUT_MS });
+            return r.signal !== null;
+        },
+    },
+    {
         name: CONTROL_BYTE_NAME_CAPABILITY,
         reasonWhenAbsent: "this platform refuses a path component carrying a byte below 0x20 (Windows reports ENOENT " +
             "or EINVAL for it), so a fixture whose name carries one cannot be staged",

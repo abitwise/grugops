@@ -47,6 +47,15 @@ import ts from "typescript";
 // member set from THIS import and refuses any scripts/*.test.ts that spells the block's step name
 // with a locator of its own. It fired on this file's first draft, which is the gate working.
 import { UBUNTU_BLOCK_STEP_NAME, ciWorkflow } from "./ci-workflow.testkit.js";
+import {
+  CAPABILITY_POSITION,
+  HOST_CAPABILITIES,
+  POSITION_LABELS,
+  SHAPES,
+  hostCapabilityOrSkip,
+  skipEntry,
+  type SkipEntry,
+} from "./check-platform-shapes.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const WF05 = join(REPO_ROOT, "agent-factory", "workflows", "05-pr-quality-gate.md");
@@ -679,15 +688,86 @@ describe("the skip list is a MEASURED artifact, not a printed line nobody reads"
     return { status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
   }
 
-  it("EMPTY on a platform that constructs every shape — and it SAYS SO rather than printing nothing", () => {
+  /**
+   * THE REMAINDER THIS HOST SHOULD PRINT, DERIVED FROM THE CORPUS ON THE RUNNING HOST (plan 33-05,
+   * T-33-25). The first spelling of the case below pinned the literal `SKIPPED SHAPES (0):` — right
+   * on darwin and ubuntu, and a FAILURE on windows-latest, where the correct remainder is two (the
+   * FIFO at both positions; measured on run 35394268365). A platform whose correct answer is two is a
+   * MEASUREMENT, and pinning zero made the correct answer a failure. So the expectation is built the
+   * way the gate builds its own list: every corpus shape is CONSTRUCTED here, in a scratch root, with
+   * the corpus's own `make()`; a shape this host refuses contributes one entry per published
+   * position; every host capability is probed with the corpus's own probe and an absence contributes
+   * one entry under the capability position. Two consumers of one corpus, compared as a relationship.
+   */
+  function derivedRemainder(): SkipEntry[] {
+    const scratch = mkdtempSync(join(tmpdir(), "grugops-derived-remainder-"));
+    const entries: SkipEntry[] = [];
+    try {
+      SHAPES.forEach((shape, i) => {
+        const at = join(scratch, `shape-${String(i)}`, "position.md");
+        mkdirSync(join(scratch, `shape-${String(i)}`), { recursive: true });
+        if (shape.make(at, Buffer.from("ordinary\n"))) return;
+        for (const position of POSITION_LABELS) {
+          entries.push(skipEntry(shape.name, position, shape.reasonWhenAbsent));
+        }
+      });
+      for (const cap of HOST_CAPABILITIES) {
+        const absent = hostCapabilityOrSkip(cap.name, CAPABILITY_POSITION);
+        if (absent !== null) entries.push(absent);
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+    return entries;
+  }
+
+  /** The rows the gate printed under its SKIPPED SHAPES block, as (shape, position) pairs. */
+  function printedRemainder(out: string): Array<{ shape: string; position: string }> {
+    return out
+      .split("\n")
+      .filter((l) => l.trim().startsWith('shape="'))
+      .map((l) => {
+        const m = /shape="([^"]*)" position="([^"]*)"/.exec(l);
+        return { shape: m?.[1] ?? "", position: m?.[2] ?? "" };
+      });
+  }
+
+  it("the printed remainder EQUALS the remainder derived from the corpus on this host — and an empty one SAYS SO rather than printing nothing", () => {
+    const expected = derivedRemainder();
     const r = runGate();
     expect(r.status).toBe(0);
-    expect(r.out).toContain("SKIPPED SHAPES (0):");
-    expect(r.out).toContain("(none) — this platform constructed every shape in the corpus");
+    // THE RELATIONSHIP, not a literal: the count the block prints is the count the corpus derives.
+    expect(r.out).toContain(`SKIPPED SHAPES (${String(expected.length)}):`);
+    const printed = printedRemainder(r.out);
+    expect(printed.length, "the block's count and its rows disagree").toBe(expected.length);
+    const key = (e: { shape: string; position: string }): string => `${e.shape} @ ${e.position}`;
+    expect(printed.map(key).sort()).toEqual(expected.map(key).sort());
+    if (expected.length === 0) {
+      expect(r.out).toContain("(none) — this platform constructed every shape in the corpus");
+    } else {
+      expect(r.out).not.toContain("(none) — this platform constructed every shape in the corpus");
+    }
     // The corpus really drove things; an empty skip list beside an empty driven list proves nothing.
     expect(r.out).toMatch(/DRIVEN \((\d+)\):/);
     const driven = Number(/DRIVEN \((\d+)\):/.exec(r.out)![1]);
     expect(driven).toBeGreaterThan(10);
+    // eslint-disable-next-line no-console
+    console.log(`[33-05] platform-shape remainder on this host: derived=${String(expected.length)} printed=${String(printed.length)}`);
+  }, 180_000);
+
+  it("the derivation MOVES with the corpus: a shape forced absent adds exactly one entry per published position, and the gate prints the same", () => {
+    // The seam names one shape. The derived remainder without the seam, minus any FIFO entries it
+    // already holds, plus one FIFO entry per published position, is what the gate must print under
+    // the seam — so "derived equals printed" is a statement about two consumers agreeing on a
+    // NON-EMPTY list, not about both being empty.
+    const baseline = derivedRemainder();
+    const expectedUnderSeam = baseline.filter((e) => e.shape !== "FIFO").length + POSITION_LABELS.length;
+    const r = runGate({ GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT: "FIFO" });
+    expect(r.status).toBe(0);
+    const printed = printedRemainder(r.out);
+    expect(printed.filter((e) => e.shape === "FIFO").map((e) => e.position).sort()).toEqual([...POSITION_LABELS].sort());
+    expect(printed.length).toBe(expectedUnderSeam);
+    expect(r.out).toContain(`SKIPPED SHAPES (${String(expectedUnderSeam)}):`);
   }, 180_000);
 
   it("NON-EMPTY on a platform lacking a shape, and each entry names the shape AND the platform", () => {
@@ -707,11 +787,31 @@ describe("the skip list is a MEASURED artifact, not a printed line nobody reads"
   }, 180_000);
 
   it("a silent Windows remainder is RED: REQUIRE_SKIPS with an empty list fails the step", () => {
+    // The switch's contract, stated as the relationship it is: with REQUIRE_SKIPS set, the gate is
+    // red exactly when the remainder this host derives is EMPTY. On a host that constructs every
+    // shape (darwin, ubuntu) that is the red arm, watched here; on a host whose derived remainder is
+    // non-empty (windows-latest, FIFO at two positions) the same switch must NOT red — the first
+    // spelling of this case pinned exit 1 unconditionally and was itself a windows red.
+    const expected = derivedRemainder();
     const r = runGate({ GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS: "1" });
-    expect(r.status).toBe(1);
-    expect(r.out).toContain("the skip list is EMPTY");
-    expect(r.out).toContain("CHECK(S) FAILED");
+    if (expected.length === 0) {
+      expect(r.status).toBe(1);
+      expect(r.out).toContain("the skip list is EMPTY");
+      expect(r.out).toContain("CHECK(S) FAILED");
+    } else {
+      expect(r.status, `REQUIRE_SKIPS red a host whose derived remainder is ${String(expected.length)}:\n${r.out}`).toBe(0);
+      expect(r.out).toContain(`SKIPPED SHAPES (${String(expected.length)}):`);
+    }
   }, 180_000);
+
+  it("the RED arm of REQUIRE_SKIPS is reachable on EVERY host: an empty list under the switch is refused by the gate's own source", () => {
+    // Where the derived remainder is non-empty the case above cannot watch the red arm, so the
+    // refusal is asserted at its source: the gate names the switch and the empty-list condition in
+    // one clause, and prints the sentence the case above matches.
+    const source = readFileSync(join(REPO_ROOT, "scripts", "check-platform-shapes.ts"), "utf8");
+    expect(source).toContain('process.env[REQUIRE_SKIPS_ENV] ?? "") !== "" && skips.length === 0');
+    expect(source).toContain("is set and the skip list is EMPTY");
+  });
 
   it("the exit-code contract and the R-31-19-03 identity measurement are both driven and printed", () => {
     const r = runGate();

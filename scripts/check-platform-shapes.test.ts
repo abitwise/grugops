@@ -40,6 +40,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { hostCapabilityOrSkip, skipLine } from "./check-platform-shapes.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-platform-shapes.js");
@@ -183,6 +184,14 @@ function rowsFor(run: Run, shape: string): string[] {
   return corpusRows(run).filter((l) => l.includes(shape));
 }
 
+/** The SKIPPED SHAPES rows naming a given shape at a corpus position (plan 33-05). */
+function skipsFor(run: Run, shape: string): string[] {
+  return run.stdout
+    .split("\n")
+    .filter((l) => l.trim().startsWith(`shape="${shape}"`))
+    .filter((l) => POSITIONS.some((p) => l.includes(`position="${p}"`)));
+}
+
 describe("31-36 WR-31 — the CONTROL rows can observe the property they claim", () => {
   it("PREMISE: the corpus, its CONTROLS and the positions were actually derived from the module", () => {
     // A derivation that silently went short makes every count below trivially satisfiable. This is
@@ -224,13 +233,33 @@ describe("31-36 WR-31 — the CONTROL rows can observe the property they claim",
   });
 
   it("CONTROL: the refusal-expecting rows are unmoved — every one is a named refusal", () => {
+    // EVERY REFUSING SHAPE IS ACCOUNTED FOR AT EVERY POSITION: driven as a named refusal, or
+    // recorded as a skip. The first spelling of this case demanded a driven row per position and
+    // was red on windows-latest (run 35394268365), where the FIFO is legitimately skipped at both
+    // positions; a skip is the platform's answer, and a row that is neither driven nor skipped is
+    // the silent shortfall this case exists to catch (plan 33-05, T-33-25).
     const run = runGate({});
     for (const shape of REFUSING_SHAPES) {
       const rows = rowsFor(run, shape);
-      expect(rows.length, `no row drove the shape "${shape}"`).toBe(POSITIONS.length);
+      const skips = skipsFor(run, shape);
+      expect(
+        rows.length + skips.length,
+        `the shape "${shape}" was neither driven nor skipped at every position (driven ${String(rows.length)}, skipped ${String(skips.length)})`,
+      ).toBe(POSITIONS.length);
       for (const row of rows) {
         expect(row.trimEnd().endsWith("named refusal"), `"${row.trim()}"`).toBe(true);
       }
+    }
+  });
+
+  it("CONTROL (the other arm, driven through the seam): a refusing shape this platform cannot stage is accounted for by its skips", () => {
+    const shape = REFUSING_SHAPES.find((s) => s === "FIFO") ?? (REFUSING_SHAPES[0] as string);
+    const run = runGate({ [FORCE_ABSENT_ENV]: shape });
+    expect(rowsFor(run, shape)).toEqual([]);
+    expect(skipsFor(run, shape).length).toBe(POSITIONS.length);
+    // …and the other refusing shapes are still driven, so the seam moved exactly one shape.
+    for (const other of REFUSING_SHAPES.filter((s) => s !== shape)) {
+      expect(rowsFor(run, other).length).toBe(POSITIONS.length);
     }
   });
 
@@ -718,6 +747,16 @@ describe("31-43 IN-20 — the printed label is derived from the outcome that hap
   });
 
   it("MIRROR: a driver killed by a signal is named as that, not as a refusal", () => {
+    // THE PREMISE, MEASURED (plan 33-05, D-16): a driver that signals itself ends with a SIGNAL only
+    // where the host delivers one. On windows-latest (run 35394268365) the same mirror ended with a
+    // status and the gate — correctly — printed `NOT ORDINARY (nonzero-exit)`; this case then
+    // asserted the outcome the host cannot produce. The capability is probed through the corpus, and
+    // its absence is printed as the remainder row and counted by the gate's own probe.
+    const cannot = hostCapabilityOrSkip("signal-terminated child", "scripts/check-platform-shapes.test.ts: MIRROR signals-itself");
+    if (cannot !== null) {
+      console.warn(skipLine(cannot, "the crashed / nonzero-exit / no-write / unclassifiable MIRROR cases beside this one, which drive the same label derivation"));
+      return;
+    }
     const run = runMirror("signals-itself");
     const probe = probeExports();
     expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
