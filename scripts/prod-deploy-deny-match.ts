@@ -12,12 +12,35 @@
 // hand it the real stdout of an executed guard.js (as scripts/prod-deploy-deny-match.test.ts and the
 // Tier-1 oracle scripts/check-uat-oracles.ts do) and a TRUE means the guard denied — an unforgeable
 // channel the guard alone writes. It is NOT a safety proof over an AGENT-AUTHORED transcript (e.g.
-// `claude -p` stdout in scripts/e2e/uat-live.test.ts): those bytes are written by the model, which can
-// reproduce any envelope verbatim, so a TRUE there means only "a well-formed prod-deploy deny envelope
-// appears in the text," never "the mechanical guard fired." Two independent red-teams confirmed this is
-// irreducible: no matcher over adversary-authored input can attribute the deny to the hook. The live
-// Tier-2 lane is therefore CONFIRMATION-ONLY (D-09), never sufficient evidence for the D-01/D-02 captured
-// -live-run retirement gate; the sound proof is the Tier-1 point-of-effect oracle. See 26-06-SUMMARY.md.
+// `claude -p --output-format json` stdout, which scripts/e2e/uat-live.test.ts handed this matcher until
+// Phase 33): those bytes are written by the model, which can reproduce any envelope verbatim, so a TRUE
+// there means only "a well-formed prod-deploy deny envelope appears in the text," never "the mechanical
+// guard fired." Two independent red-teams confirmed this is irreducible: no matcher over
+// adversary-authored input can attribute the deny to the hook. A live lane that hands this matcher
+// agent-authored bytes is therefore CONFIRMATION-ONLY (D-09), never sufficient evidence for the D-01/D-02
+// captured-live-run retirement gate; the sound proof is the Tier-1 point-of-effect oracle. See
+// 26-06-SUMMARY.md.
+//
+// THE THIRD INPUT CLASS (Phase 33, D-04): the `stdout` field of a `system`/`hook_response` frame in a
+// `claude -p --output-format stream-json --include-hook-events` transcript, DECODED from its JSON string
+// before it is handed in. This class belongs with the SOUND class above, not with the agent-authored
+// one: the field carries the guard's own standard output as the platform captured it when it ran the
+// hook — the platform emits the frame, the model never writes it — so a TRUE over that field means the
+// mechanical guard fired at the point of effect, exactly as a TRUE over guard.js's stdout does. That
+// soundness has one condition, which is why the decode is required and not a convenience: the field is
+// a JSON STRING inside the frame, and the STRUCTURAL DESIGN section below records that a real deny
+// escaped inside a JSON string value is NOT matched — the matcher fails CLOSED. Handed the raw JSONL
+// line, this predicate returns FALSE for a deny that did fire (measured for the structurally identical
+// `--output-format json` result field in 32.1-15-DIAGNOSIS.md § 2.2, and reproduced offline in
+// scripts/capture-live.test.ts against the committed fixture). The one caller of this class,
+// scripts/capture-live.ts `denyObservedInStream`, therefore decodes the frame and passes the field
+// alone; a caller that passes a frame or a line has left the sound class and gets an honest FALSE.
+// This channel is also the ONLY one that can carry the observation: the platform's
+// `permission_denied` result event explicitly excludes PreToolUse hook denies (documented on
+// SDKPermissionDeniedMessage in the published SDK type declarations, 33-RESEARCH.md § "The prod-deploy
+// deny (D-04)"), so no permission event can record that this guard denied — only the hook-response
+// frame does. The two hooks in hooks/hooks.json route through one entry point, so `hook_name` does not
+// tell them apart; the reason signature below still does.
 //
 // ── STRUCTURAL DESIGN (the terminal lesson — parse one format, attribute to one authority) ───────────
 // The guard's deny() writes exit 0 + JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse",
