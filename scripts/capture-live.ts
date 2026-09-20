@@ -34,9 +34,15 @@
 //      call was made; the live run's last line points at the outcome line rather than restating it.
 //      The words that let a skim conclude otherwise are kept out of this file's own wording.
 //
-//   3. EVERY WRITE LANDS IN A DIRECTORY THIS SCRIPT CREATED OR WAS GIVEN WITH --out. Targets and
-//      kit homes are `mkdtemp` directories with the fixed prefix below, removed on every exit path
-//      unless --keep-target is passed, which says so.
+//   3. EVERY WRITE LANDS IN A DIRECTORY THIS SCRIPT CREATED OR WAS GIVEN WITH --out. Scratch has
+//      TWO classes with two contracts, decided by the pure `cleanupPlan` (33-REVIEW CR-04):
+//        - TARGETS AND KIT HOMES are `mkdtemp` directories with the fixed prefix below, removed on
+//          every exit path unless --keep-target is passed — the flag decides, never the exit code.
+//        - TRANSCRIPT SCRATCH (the runner-owned directories the paid transcripts are streamed into)
+//          survives EVERY non-zero exit and every run under --keep-target, each surviving path
+//          printed as `transcript scratch preserved (exit <code>): <path>`; only a clean exit
+//          without the flag removes it. A transcript that cost tokens is never deleted by this
+//          runner on a failure path.
 //
 //   4. THE PROD-DEPLOY APPROVAL KEY IS NEVER SET BY THIS RUNNER (D-04, T-33-04). The child
 //      environment is CONSTRUCTED explicitly (`childEnvironment`) and the key's ABSENCE is asserted
@@ -301,18 +307,55 @@ function spawnEnv(extra: Readonly<Record<string, string>> = {}): NodeJS.ProcessE
 // Scratch directories (hard rule 3)
 // ---------------------------------------------------------------------------
 
-const scratch: string[] = [];
+/** The two scratch classes (hard rule 3): targets and kit homes, and the runner-owned transcript directories. */
+export interface ScratchRegistry {
+  targets: string[];
+  transcripts: string[];
+}
 
-function makeScratch(suffix: string): string {
+const SCRATCH: ScratchRegistry = { targets: [], transcripts: [] };
+
+/** A target or kit-home scratch directory, registered in the TARGETS class. */
+export function makeScratch(suffix: string, registry: ScratchRegistry = SCRATCH): string {
   const d = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}${suffix}-`));
-  scratch.push(d);
+  registry.targets.push(d);
   return d;
 }
 
-function cleanupScratch(keep: boolean): void {
-  if (keep) return;
-  for (const d of scratch) rmSync(d, { recursive: true, force: true });
-  scratch.length = 0;
+/** A runner-owned transcript scratch directory for one run label, registered in the TRANSCRIPTS class. */
+export function makeScratchTranscript(label: string, registry: ScratchRegistry = SCRATCH): string {
+  const d = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}transcript-${label}-`));
+  registry.transcripts.push(d);
+  return d;
+}
+
+export interface CleanupPlan {
+  removeTargets: boolean;
+  removeTranscripts: boolean;
+}
+
+/**
+ * The cleanup truth table, pure (CR-04). The flag decides targets and kit homes; the flag OR a
+ * non-zero exit preserves transcripts. Only a clean exit without the flag removes both classes.
+ */
+export function cleanupPlan(code: number, keepTarget: boolean): CleanupPlan {
+  return { removeTargets: !keepTarget, removeTranscripts: !keepTarget && code === 0 };
+}
+
+/**
+ * Apply a cleanup plan to a registry. Removed entries leave the registry; the transcript
+ * directories that survive are returned so the runner can print their paths.
+ */
+export function cleanupScratch(plan: CleanupPlan, registry: ScratchRegistry = SCRATCH): string[] {
+  if (plan.removeTargets) {
+    for (const d of registry.targets) rmSync(d, { recursive: true, force: true });
+    registry.targets.length = 0;
+  }
+  if (plan.removeTranscripts) {
+    for (const d of registry.transcripts) rmSync(d, { recursive: true, force: true });
+    registry.transcripts.length = 0;
+  }
+  return [...registry.transcripts];
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +369,12 @@ interface Options {
   out: string | null;
 }
 
+/** The `--out` value guard (33-REVIEW IN-08): a value spelled like a flag is refused by name, never consumed as a path. */
+function outValue(v: string): string {
+  if (v.startsWith("--")) fail(`--out was given \`${v}\`, which is a flag, not a directory path — write --out <dir> or --out=<dir>`);
+  return v;
+}
+
 export function parseArgs(argv: readonly string[]): Options {
   const opts: Options = { dryRun: false, verifyArtifacts: false, keepTarget: false, out: null };
   for (let i = 0; i < argv.length; i++) {
@@ -333,8 +382,8 @@ export function parseArgs(argv: readonly string[]): Options {
     if (a === "--dry-run") opts.dryRun = true;
     else if (a === "--verify-artifacts") opts.verifyArtifacts = true;
     else if (a === "--keep-target") opts.keepTarget = true;
-    else if (a === "--out") opts.out = argv[++i] ?? "";
-    else if (a.startsWith("--out=")) opts.out = a.slice("--out=".length);
+    else if (a === "--out") opts.out = outValue(argv[++i] ?? "");
+    else if (a.startsWith("--out=")) opts.out = outValue(a.slice("--out=".length));
     else {
       fail(
         `unrecognized argument \`${a}\` — this command takes --dry-run, --verify-artifacts, --keep-target and --out <dir> only`,
@@ -1229,7 +1278,7 @@ function buildTarget(label: RunLabel): TargetBuild {
   if (!existsSync(FIXTURE_TARGET)) fail(`the fixture project is missing at ${FIXTURE_TARGET}`);
   const target = makeScratch(`target-${label}`);
   const home = makeScratch(`home-${label}`);
-  const transcriptDir = makeScratch(`transcript-${label}`);
+  const transcriptDir = makeScratchTranscript(label);
   cpSync(FIXTURE_TARGET, target, { recursive: true });
   const env = spawnEnv({ GRUGOPS_HOME: home });
   const init = spawnSync(GIT_CMD, ["init", "--quiet"], { cwd: target, encoding: "utf8", input: "", timeout: PROBE_BOUND_MS, env });
@@ -1367,7 +1416,9 @@ export interface TargetRun extends RunReport {
  * the plugin uninstall. The install is the FIRST platform-touching step and its failure propagates,
  * so `ops.runPlatform` is unreachable after an install that did not complete (CR-05). The
  * transcript path is asserted outside the target, the kit home and the cwd BEFORE the platform is
- * spawned (CR-01) — a misconfiguration is a refusal, not a capture.
+ * spawned (CR-01) — a misconfiguration is a refusal, not a capture. Because the transcript is
+ * streamed into `build.transcriptDir` as it arrives and that directory survives every non-zero
+ * exit (hard rule 3, CR-04), no copy step is needed before derivation — do not add one.
  */
 export async function runTarget(build: TargetBuild, run: RunSpec, ops: LiveOps = LIVE_OPS): Promise<TargetRun> {
   const installLine = `target ${build.label}: ${ops.pluginInstall(build.target, run.pluginName, run.marketplaceName)}`;
@@ -2074,7 +2125,9 @@ async function runAll(): Promise<void> {
     console.log("No outcome line is reported, because a phase could not be derived.");
     code = 1;
   } finally {
-    cleanupScratch(code === 0 && keepTarget);
+    // The flag decides targets; the flag OR a non-zero exit preserves the paid transcripts (CR-04).
+    // The operator needs each surviving path for the diagnosis D-11 asks of a red run.
+    for (const p of cleanupScratch(cleanupPlan(code, keepTarget))) console.log(`transcript scratch preserved (exit ${code}): ${p}`);
   }
   process.exitCode = code;
 }
