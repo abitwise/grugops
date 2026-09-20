@@ -10853,13 +10853,21 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
 
     // THE PROPERTY: the echoed sibling path survives whole. Under a substring match its leading
     // characters are deleted and it becomes `mirXTRA/deep` — a path that does not exist.
+    //
+    // COMPARED IN THE FORM THE GUARD PUBLISHES IT (plan 33-19, W-11, D-15). The refusal renders the
+    // illegal `models.preset` through `quoteValue` in scripts/model-tiers.ts, which is
+    // `JSON.stringify` — so the published spelling of the sibling path is `JSON.stringify(siblingDeep)`:
+    // byte-identical to the raw path on a host whose separator needs no escaping, and every backslash
+    // doubled on win32. windows-latest run 35499800942 received `"C:\\Users\\RUNNER~1\\…\\mirXTRA\\deep"`
+    // and this case, then comparing the raw single-backslash spelling, could not see it (WINDOWS.md row
+    // 228). Both halves now go through the same escaping, so the negative cannot pass vacuously by
+    // asking for a spelling the section never carries, and the host's separator cannot split the
+    // assertion. No platform read: the expectation is derived from the echo's one escaping.
     expect(
       section,
       "a root that is a string prefix of a sibling path must not be rewritten out of the sibling — the match has to end on a path boundary or it is a substring match wearing a path's name",
-    ).toContain(siblingDeep);
-    expect(section).not.toContain(
-      `"${siblingDeep.slice(m.length)}"`,
-    );
+    ).toContain(JSON.stringify(siblingDeep));
+    expect(section).not.toContain(JSON.stringify(siblingDeep.slice(m.length)));
   });
 
   // (Plan 29.1-12, R2-CR-01) TODAY'S MEANING OF AN ABSENT OVERRIDE IS PINNED, NOT INFERRED.
