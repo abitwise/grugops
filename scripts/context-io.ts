@@ -1128,6 +1128,20 @@ export const UNRECORDABLE_ADMISSION_REFUSAL =
  * the read-side refusal. `O_NONBLOCK` makes the open itself safe (a FIFO with no reader fails ENXIO
  * rather than waiting), `fstat` on the descriptor refuses everything that is not a regular file, and
  * `O_APPEND` keeps the append-only guarantee the ledger's own comment makes.
+ *
+ * THE TYPE IS CLASSIFIED BEFORE THE OPEN (plan 33-16, closing windows-latest row W-28 of run
+ * 35499800942). Before this change, WHICH refusal arm answered a non-regular position was decided
+ * by which host's open call happened to fail. On POSIX a directory fails at open(2) with EISDIR and
+ * answered through the `unopenable` arm — by an accident of open semantics, not by design; on win32
+ * the open of a directory handle SUCCEEDS and the `fstat` arm answered instead. Two hosts, two
+ * sentences, one property — and R-31-21-03's probe, which reads the property as the sentence
+ * "refused rather than waited on", was green on darwin and red on windows-latest. So the position
+ * is `stat`-ed first (following a link, because the open would follow it too), and a present entry
+ * that is not a regular file is refused by TYPE without an open on any host. The post-open `fstat`
+ * guard is KEPT EXACTLY AS IT WAS: it is the authoritative check against a race between the stat
+ * and the open, and it now answers only when the position changed type between the two calls. Both
+ * arms are bounded refusals, so both sentences carry the phrase the probe reads. A position the stat
+ * cannot classify at all (absent, dangling, a loop) is left to the open, as before.
  */
 function appendRegularFileLine(
   path: string,
@@ -1135,6 +1149,23 @@ function appendRegularFileLine(
   position: string,
   maxBytes: number,
 ): void {
+  let present: ReturnType<typeof statSync> | undefined;
+  try {
+    present = statSync(path, { throwIfNoEntry: false });
+  } catch {
+    present = undefined; // unclassifiable here — the open below is asked, and its arm answers
+  }
+  // ONE SENTENCE FOR THE ONE ARM, whichever of its two sites throws it: the type classification
+  // here, or the post-open fstat guard below on a position that changed type between the two calls.
+  const notRegularFile = (): ReadPositionRefusal =>
+    new ReadPositionRefusal(
+      "not-a-regular-file",
+      `context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
+        `waited on, because writing to a FIFO or a device can block forever and a program that ` +
+        `never answers records nothing. The canonical form for this position is ` +
+        `${CANONICAL_READ_POSITION}.`,
+    );
+  if (present !== undefined && !present.isFile()) throw notRegularFile();
   let fd: number;
   try {
     fd = openSync(
@@ -1152,15 +1183,7 @@ function appendRegularFileLine(
   }
   try {
     const st = fstatSync(fd);
-    if (!st.isFile()) {
-      throw new ReadPositionRefusal(
-        "not-a-regular-file",
-        `context-io: the ${position} "${path}" is not a regular file — it is refused rather than ` +
-          `written, because writing to a FIFO or a device can block forever and a program that ` +
-          `never answers records nothing. The canonical form for this position is ` +
-          `${CANONICAL_READ_POSITION}.`,
-      );
-    }
+    if (!st.isFile()) throw notRegularFile();
     // ── THE SAME RECONCILIATION, ONE REGISTER OVER (31-29, CR-19). ───────────────────────────────
     //
     // The append side carried NO ceiling while `ledgerRecordsId` carried 64 MiB, which is the note
