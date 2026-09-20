@@ -13981,6 +13981,21 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
       .find((l) => l.startsWith(`| ${file} |`)) ?? "";
   const armOf = (md: string, file: string): string => (rowFor(md, file).split("|")[2] ?? "").trim();
   const detailOf = (md: string, file: string): string => (rowFor(md, file).split("|")[3] ?? "").trim();
+  /**
+   * THE RENDERER'S OWN CELL ESCAPING, the publishing boundary a detail cell crosses (plan 33-15,
+   * W-27). `render` composes every skip-report row as `| cell(file) | cell(arm) | cell(detail) |`,
+   * and `cell` in `scripts/context-io.ts` reads, verbatim:
+   *
+   *     return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+   *
+   * — backslash first, then pipe, then newlines to a space. The expectation below must be the SAME
+   * escaping over the authority's message, not a hand-written pipe replacement that differs from
+   * it: on a host whose paths carry backslashes the cell doubles them and a pipe-only expectation
+   * reads the module's correct publication as a red. `cell` is not exported; this is the
+   * source-quoted form, and plan 33-16 (the module's plan) replaces it with the exported authority.
+   */
+  const rendererCell = (s: string): string =>
+    s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 
   /**
    * ONE PLANT PER ARM. Each is named by the condition it MEETS, and each is driven through the
@@ -14146,8 +14161,10 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
         } catch (e) {
           message = (e as Error).message;
         }
+        // …compared THROUGH the renderer's own cell escaping (`rendererCell` above), so the host's
+        // spelling of the path inside the message — backslashes included — cannot split the two.
         expect(detailOf(md, file), `the ${arm} row's detail is not the authority's own message`).toBe(
-          message.replace(/\|/g, "\\|"),
+          rendererCell(message),
         );
       }
       if (arm === "unopenable") chmodSync(path, 0o600);
