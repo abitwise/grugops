@@ -40,7 +40,8 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hostCapabilityOrSkip, skipLine } from "./check-platform-shapes.js";
+import { fileURLToPath } from "node:url";
+import { HOST_CAPABILITIES, hostCapabilityOrSkip, skipLine } from "./check-platform-shapes.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-platform-shapes.js");
@@ -135,6 +136,63 @@ const CONTROL_SHAPES = SHAPES.filter((s) => !s.expectsRefusal).map((s) => s.name
 const REFUSING_SHAPES = SHAPES.filter((s) => s.expectsRefusal).map((s) => s.name);
 
 const ORDINARY_OUTCOME = "ordinary outcome (correct)";
+
+/** This test module's own path, for the census below — the file reads its own syntax tree. */
+const THIS_FILE = fileURLToPath(import.meta.url);
+
+/**
+ * THE ONE TABLE GATING A MIRROR CASE ON A HOST CAPABILITY (plan 33-18, W-12 — WINDOWS.md row 233).
+ *
+ * Plan 33-05 gated the `signals-itself` MIRROR on the measured `signal-terminated child` capability:
+ * on a host without POSIX signal delivery the mirror ends with a STATUS, the gate — correctly —
+ * prints `NOT ORDINARY (nonzero-exit)`, and the `signalled` label is never watched. The COVERAGE
+ * case below then pinned the undriven set as a two-element literal written on a host that has every
+ * capability, so on windows-latest (run 35499800942) the set was `answered`, `no-answer`,
+ * `signalled` against a pin of two: an incomplete fix, one arm over.
+ *
+ * So the gating is ONE table, read by BOTH consumers: the mirror case takes its capability and
+ * position from here, and the COVERAGE case derives the labels a skipped mirror leaves unwatched
+ * from the SAME `hostCapabilityOrSkip` measurement — the two cannot disagree, and no
+ * platform identifier is read anywhere. A row names the mirror `kind` the module publishes, the row
+ * `label` that kind produces where the capability is present, and the `capability` the module
+ * declares in `HOST_CAPABILITIES`; the CENSUS case asserts all three against their authorities and
+ * counts the gated mirror cases in this file's own syntax tree against the table's size.
+ */
+interface MirrorCapabilityGate {
+  readonly kind: string;
+  readonly label: string;
+  readonly capability: string;
+  readonly position: string;
+}
+
+const MIRROR_CAPABILITY_GATES: readonly MirrorCapabilityGate[] = Object.freeze([
+  {
+    kind: "signals-itself",
+    label: "NOT ORDINARY (signalled)",
+    capability: "signal-terminated child",
+    position: "scripts/check-platform-shapes.test.ts: MIRROR signals-itself",
+  },
+]);
+
+/** The table row for a mirror kind; a kind the table does not gate THROWS rather than reading as ungated. */
+function mirrorGate(kind: string): MirrorCapabilityGate {
+  const gate = MIRROR_CAPABILITY_GATES.find((g) => g.kind === kind);
+  if (gate === undefined) {
+    throw new Error(`MIRROR_CAPABILITY_GATES carries no row for the mirror kind "${kind}"`);
+  }
+  return gate;
+}
+
+/**
+ * The labels this host cannot watch because the mirror producing them is gated on a capability the
+ * host measured ABSENT — the same measurement the mirror case itself takes. Empty on a host that
+ * has every capability (darwin, ubuntu); on windows-latest it is exactly `NOT ORDINARY (signalled)`.
+ */
+function labelsGatedByAbsentCapability(): string[] {
+  return MIRROR_CAPABILITY_GATES.filter((g) => hostCapabilityOrSkip(g.capability, g.position) !== null).map(
+    (g) => g.label,
+  );
+}
 
 interface Run {
   readonly status: number | null;
@@ -752,15 +810,18 @@ describe("31-43 IN-20 — the printed label is derived from the outcome that hap
     // status and the gate — correctly — printed `NOT ORDINARY (nonzero-exit)`; this case then
     // asserted the outcome the host cannot produce. The capability is probed through the corpus, and
     // its absence is printed as the remainder row and counted by the gate's own probe.
-    const cannot = hostCapabilityOrSkip("signal-terminated child", "scripts/check-platform-shapes.test.ts: MIRROR signals-itself");
+    // The gate is the TABLE's row, so the COVERAGE case below derives the label this skip leaves
+    // unwatched from the same capability and position (plan 33-18, W-12).
+    const gate = mirrorGate("signals-itself");
+    const cannot = hostCapabilityOrSkip(gate.capability, gate.position);
     if (cannot !== null) {
       console.warn(skipLine(cannot, "the crashed / nonzero-exit / no-write / unclassifiable MIRROR cases beside this one, which drive the same label derivation"));
       return;
     }
-    const run = runMirror("signals-itself");
+    const run = runMirror(gate.kind);
     const probe = probeExports();
     expect(labelOfRow(run, NOTE_POSITION_LABEL, CONTROL_SHAPES[0] as string, probe.rowLabels)).toBe(
-      "NOT ORDINARY (signalled)",
+      gate.label,
     );
   });
 
@@ -845,8 +906,21 @@ describe("31-43 IN-20 — the printed label is derived from the outcome that hap
     // them. `answered` is the MANIFEST position's own ordinary outcome and no note-position mirror
     // can produce it at a position that expects it to be wrong; `no-answer` needs a child that
     // produces no exit code and no signal, which no driver mirror can arrange.
+    //
+    // PLUS THE LABELS THIS HOST'S MEASURED CAPABILITIES REMOVE (plan 33-18, W-12): a mirror gated on
+    // a capability the host lacks still RUNS below (every published kind is driven here), but the
+    // label it produces there is the host's — `nonzero-exit` for a self-signalling child on
+    // windows — so the gated label goes unwatched. The expected set is DERIVED from
+    // MIRROR_CAPABILITY_GATES through the same `hostCapabilityOrSkip` the mirror case takes; no
+    // platform is read and no list is widened by hand. Darwin/ubuntu: the two disclosed labels;
+    // windows-latest: those plus exactly `NOT ORDINARY (signalled)`.
     const probe = probeExports();
     const DISCLOSED_UNDRIVEN = ["NOT ORDINARY (answered)", "NOT ORDINARY (no-answer)"];
+    const gatedByAbsentCapability = labelsGatedByAbsentCapability();
+    const expectedUndriven = [...DISCLOSED_UNDRIVEN, ...gatedByAbsentCapability];
+    expect(new Set(expectedUndriven).size, "a gated label repeats a disclosed one").toBe(expectedUndriven.length);
+    // eslint-disable-next-line no-console
+    console.log(`[33-18] COVERAGE undriven set on this host: ${JSON.stringify(expectedUndriven)}`);
     const watched = new Set<string>();
     const runs = [
       runGate({}),
@@ -862,9 +936,70 @@ describe("31-43 IN-20 — the printed label is derived from the outcome that hap
     const unwatched = probe.labels.filter((l) => !watched.has(l)).sort();
     expect(
       unwatched,
-      "the set of labels no run produced is not the disclosed pair. A label nobody has watched " +
-        "being printed is a label nobody has watched at all.",
-    ).toEqual([...DISCLOSED_UNDRIVEN].sort());
+      "the set of labels no run produced is not the disclosed pair plus the labels this host's " +
+        "measured capabilities remove. A label nobody has watched being printed is a label nobody " +
+        "has watched at all.",
+    ).toEqual([...expectedUndriven].sort());
+  });
+
+  it("CENSUS: MIRROR_CAPABILITY_GATES names published kinds, published labels and declared capabilities, and every gated MIRROR case in this file is a row of it", () => {
+    // Derive the set, assert the count — applied to the gating table itself, so a second mirror
+    // gated on a capability without a row here (or a row nobody consumes) is red rather than a
+    // silent one-arm-over the next windows run finds.
+    expect(MIRROR_CAPABILITY_GATES.length, "the gating table is empty").toBeGreaterThan(0);
+    const probe = probeExports();
+    const capabilityNames = new Set(HOST_CAPABILITIES.map((c) => c.name));
+    expect(capabilityNames.size, "HOST_CAPABILITIES came back empty").toBeGreaterThan(0);
+    for (const g of MIRROR_CAPABILITY_GATES) {
+      expect(capabilityNames.has(g.capability), `"${g.capability}" is not a declared host capability`).toBe(true);
+      expect(probe.mirrorKinds, `"${g.kind}" is not a published mirror kind`).toContain(g.kind);
+      expect(probe.rowLabels, `"${g.label}" is not a published row label`).toContain(g.label);
+    }
+    // THE CENSUS, from this file's own syntax tree: an `it(...)` whose title opens with `MIRROR:` and
+    // whose body calls `hostCapabilityOrSkip(` is a gated mirror case. Each such call must take its
+    // capability from a table row (a `.capability` property access), never from a string literal —
+    // a literal beside the table is the second spelling the table exists to remove.
+    const source = ts.createSourceFile(THIS_FILE, readFileSync(THIS_FILE, "utf8"), ts.ScriptTarget.Latest, true);
+    let gatedMirrorCases = 0;
+    let mirrorCases = 0;
+    const literalGates: string[] = [];
+    const callsIn = (node: ts.Node): ts.CallExpression[] => {
+      const out: ts.CallExpression[] = [];
+      const walk = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "hostCapabilityOrSkip") out.push(n);
+        ts.forEachChild(n, walk);
+      };
+      walk(node);
+      return out;
+    };
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "it" &&
+        node.arguments[0] !== undefined &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        node.arguments[0].text.startsWith("MIRROR:")
+      ) {
+        mirrorCases += 1;
+        const calls = callsIn(node);
+        if (calls.length > 0) gatedMirrorCases += 1;
+        for (const c of calls) {
+          const first = c.arguments[0];
+          const fromTable =
+            first !== undefined && ts.isPropertyAccessExpression(first) && first.name.text === "capability";
+          if (!fromTable) literalGates.push(`line ${String(source.getLineAndCharacterOfPosition(c.getStart()).line + 1)}`);
+        }
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(source);
+    expect(mirrorCases, "the census found no MIRROR cases — the walk is blind").toBeGreaterThan(5);
+    expect(literalGates, "a MIRROR case gates on a capability spelled beside the table").toEqual([]);
+    expect(
+      gatedMirrorCases,
+      "the number of MIRROR cases gated on a capability is not the number of rows in MIRROR_CAPABILITY_GATES",
+    ).toBe(MIRROR_CAPABILITY_GATES.length);
   });
 
   it("COVERAGE: every mirror kind the module publishes was driven by a case above", () => {
