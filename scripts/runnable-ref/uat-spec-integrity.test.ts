@@ -30,10 +30,14 @@ import {
   writeFileSync,
   symlinkSync,
 } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, sep, win32 } from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
+// 33-17 (D-15): the shared normalizer, imported HERE so the checker's inline `faultKey` — which the
+// materialized runnable cannot import (node:-builtins-only, see the module header) — is asserted
+// equal to it. Two spellings of one rule, held equal by a test rather than by an import.
+import { toPosix, toPosixWith } from "../posix-path.js";
 
 // Run the COMMITTED compiled artifact, not the .ts (the repo-wide runnable-test convention).
 const HERE = import.meta.dirname;
@@ -138,6 +142,9 @@ interface CheckerModule {
   ): { readonly kind: "framework"; readonly path: string } | { readonly kind: "foreign" } | { readonly kind: "unresolved" };
   findBannedConstructs(ts: unknown, sf: unknown, relPath: string, ctx: ProgramContextView): string[];
   readonly PROGRAM_UNAVAILABLE_REASON: string;
+  // 33-17 (D-15): THE ONE PLACE a parse-fault key is formed — for the compiler host's `fileName`
+  // and for the checker's `join(repoRoot, rel)` alike.
+  faultKey(path: string, separator?: string): string;
   readonly UNRESOLVABLE_CALLEE_RESIDUALS: readonly string[];
   readonly SKIPPED_DIRECTORIES: readonly string[];
   readonly SKIPPED_DIRECTORY_DISCLOSURE_MARKER: string;
@@ -8869,7 +8876,14 @@ describe("uat-spec-integrity — 31-28 PROTOCOL: the seven points, against this 
   // ── POINT 2: what BOUNDS the checker's input ─────────────────────────────────────────────────
 
   it("POINT 2: the Program's included files are a SUPERSET of the derived spec set", async () => {
-    const { deriveSpecPaths, loadTypeScriptFromTarget, createProgramForTarget } = await loadChecker();
+    const { deriveSpecPaths, loadTypeScriptFromTarget, createProgramForTarget, faultKey } = await loadChecker();
+    // 33-17 (W-31, D-15): the two sides of this comparison are spelled by two authorities — the
+    // Program publishes `fileName` with forward slashes on every host; `join(root, rel)` carries the
+    // host separator. MEASURED on the windows leg of CI run 35499800942: `e2e/uat/a.uat.spec.ts is in
+    // the derived set and NOT in the program` — a false "unchecked" from comparing two spellings of
+    // one file. Both sides now pass through the checker's ONE key-forming rule, the same rule the
+    // checker itself uses to find a recorded parse fault (test AC).
+    expect(typeof faultKey, "the checker exports no key-forming rule for a parse fault").toBe("function");
     const root = mkGeneratedTarget({
       "e2e/uat/a.uat.spec.ts": CLEAN_SPEC,
       "e2e/uat/b.uat.spec.ts": CLEAN_SPEC,
@@ -8888,12 +8902,24 @@ describe("uat-spec-integrity — 31-28 PROTOCOL: the seven points, against this 
         getSourceFiles(): readonly { readonly fileName: string }[];
       })
         .getSourceFiles()
-        .map((f) => f.fileName),
+        .map((f) => faultKey(f.fileName)),
     );
     for (const rel of derived) {
       expect(
-        included.has(join(root, rel)),
+        included.has(faultKey(join(root, rel))),
         `${rel} is in the derived set and NOT in the program — it would be unchecked at exit 0`,
+      ).toBe(true);
+    }
+    // The rule is applied on BOTH sides, so the comparison never depends on which of the two
+    // spellings this host happens to produce: the same lookup through a win32-spelled join, keyed
+    // the same way, is found too — driven with `path.win32` so the windows spelling is exercised on
+    // this host rather than assumed.
+    const win32Included = new Set([...included].map((f) => faultKey(f, win32.sep)));
+    const win32Root = root.split(sep).join(win32.sep);
+    for (const rel of derived) {
+      expect(
+        win32Included.has(faultKey(win32.join(win32Root, rel), win32.sep)),
+        `${rel}: a win32-joined lookup keyed by the same rule was not found`,
       ).toBe(true);
     }
   });
@@ -11270,5 +11296,81 @@ describe("browser-uat-recipe.md — 31-42: the published truncation arms equal t
       );
       expect((SURFACE_TRUNCATION_REACHED[arm] ?? "").length, `${arm}: the arm carries an empty sentence`).toBeGreaterThan(0);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 33-17 (D-15, W-30 / W-31): ONE PARSE-FAULT KEY FOR THE COMPILER HOST AND THE CHECKER
+//
+// MEASURED on the windows leg of CI run 35499800942 (`33-CI-MEASUREMENT.md` § 2.4 row W-30):
+// `GREEN 1` expected `could not be PARSED (Maximum call stack size exceeded)` and received
+// `could not be PARSED (the program did not include it)`. The mechanism, read from the module:
+// `parseFaults` was SET under the compiler host's `fileName` (forward slashes on every host) and
+// GOT under `join(repoRoot, rel)` (the host separator). On a POSIX host the two spell the same
+// string, so the lookup succeeds and no assertion here can see the defect; on win32 the fault was
+// recorded and never found, and the fallback sentence was printed for a file whose real diagnostic
+// existed — a lost diagnostic, a Repudiation-class defect in the trace (T-33-83).
+//
+// The fix is ONE key-forming function applied at BOTH sites. The cases below drive it with
+// `path.win32` so the windows spelling is exercised on this host, and hold it equal to the shared
+// normalizer `scripts/posix-path.ts` — which the materialized runnable cannot import — so the two
+// spellings of the rule cannot drift apart silently.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("uat-spec-integrity — 33-17 (D-15): one parse-fault key for the host and the checker", () => {
+  // ── AA: the key spells a win32 pair the same, and on the host separator it IS toPosix ─────────
+
+  it("AA: faultKey spells a backslash path and its forward-slash twin identically under win32, and is toPosix on the host", async () => {
+    const { faultKey } = await loadChecker();
+    expect(typeof faultKey, "the checker exports no key-forming rule for a parse fault").toBe("function");
+
+    const backslashed = "D:\\a\\repo\\e2e\\uat\\x.uat.spec.ts";
+    const forward = "D:/a/repo/e2e/uat/x.uat.spec.ts";
+    expect(faultKey(backslashed, win32.sep)).toBe(faultKey(forward, win32.sep));
+    expect(faultKey(backslashed, win32.sep), "the win32 key is not the POSIX spelling").toBe(forward);
+    // CONVERSE (the assertion above is not satisfied by a function that returns its input): the
+    // two inputs really differ.
+    expect(backslashed).not.toBe(forward);
+
+    // On the host separator the rule is `toPosix` — the module's own inline spelling held EQUAL to
+    // the shared normalizer, over spellings that discriminate: a pure win32 path, a mixed one (the
+    // shape `path.win32.join` makes from a POSIX literal), a POSIX one, and one with no separator.
+    for (const p of [backslashed, forward, "plans\\tickets/ABC.md", "e2e/uat/x.uat.spec.ts", "x.ts"]) {
+      expect(faultKey(p), `host-separator form differs from toPosix for ${p}`).toBe(toPosix(p));
+      expect(faultKey(p, win32.sep), `win32 form differs from toPosixWith for ${p}`).toBe(
+        toPosixWith(p, win32.sep),
+      );
+      expect(faultKey(p, "/"), `the "/" separator must be the identity for ${p}`).toBe(p);
+    }
+    // …and the shared normalizer's one refusal is the inline rule's refusal too.
+    expect(() => faultKey("abc", "")).toThrow(/empty separator/);
+  });
+
+  // ── AB: the map round-trips through the key on a win32-spelled pair ────────────────────────────
+
+  it("AB: a Map keyed by faultKey(hostFileName) is found by faultKey(win32.join(root, rel)) — and NOT without the key", async () => {
+    const { faultKey } = await loadChecker();
+    expect(typeof faultKey).toBe("function");
+
+    // The two spellings the two sites produce on win32: the compiler host reports the file with
+    // forward slashes; the checker composes the lookup with the host's `join`.
+    const root = "D:\\a\\repo";
+    const rel = "e2e/uat/nested.uat.spec.ts";
+    const hostFileName = "D:/a/repo/e2e/uat/nested.uat.spec.ts";
+    const checkerLookup = win32.join(root, rel);
+    // PREMISE: the two really are two spellings on win32 (the defect's precondition).
+    expect(checkerLookup).toBe("D:\\a\\repo\\e2e\\uat\\nested.uat.spec.ts");
+    expect(checkerLookup).not.toBe(hostFileName);
+
+    // The defect, reproduced on this host: keyed raw, the fault is recorded and never found.
+    const raw = new Map<string, string>();
+    raw.set(hostFileName, "Maximum call stack size exceeded");
+    expect(raw.get(checkerLookup), "CONVERSE: the raw-keyed map must NOT find the win32 lookup").toBeUndefined();
+
+    // The fix: keyed and looked up through the ONE rule, the diagnostic is found.
+    const keyed = new Map<string, string>();
+    keyed.set(faultKey(hostFileName, win32.sep), "Maximum call stack size exceeded");
+    expect(keyed.get(faultKey(checkerLookup, win32.sep))).toBe("Maximum call stack size exceeded");
+    expect(keyed.size).toBe(1);
   });
 });
