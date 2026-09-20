@@ -65,6 +65,10 @@ import {
 // import the gate itself makes, so this harness cannot come to disagree with the gate about which
 // document the `guarantees` part names.
 import { OUT as GUARANTEES_DOC } from "./generate-guarantees.js";
+// (Plan 33-14) The tree's ONE canonical-markdown predicate — the same import the gate makes for its
+// `examples` filter — so the relationship case at the foot of this file intersects the tracked set
+// with the gate's own membership rule rather than restating an extension literal.
+import { isCanonicalMarkdownName } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-public-docs-vocabulary.js");
@@ -916,5 +920,35 @@ describe("33-14 — the corpus member is formed ONCE, in POSIX, at the walk's on
     expect(callIdx[0]).toBeLessThan(walkEnd);
     // The call is the accumulation itself — the member is formed as it is published.
     expect(lines[callIdx[0]]).toMatch(/acc\.push\(corpusMember\(rel\)\)/);
+  });
+
+  // ── Task 2: the relationship, not an integer (33-REVIEW IN-05's remedy applied here) ──────────
+  //
+  // `PUBLIC_DOCS_SCAN_COUNT` pins the scan at 11 and the CI-measurement quotes `examples 5`, but a
+  // number is a set-literal one register over: a sixth example moves the pin and nothing else says
+  // WHICH document entered. This case pins the RULE instead — the `examples` part IS the tracked set
+  // under examples/ intersected with the gate's own canonical-markdown predicate — so a sixth
+  // example or a renamed one moves both sides together, and a document that enters one side without
+  // the other is named. Both sides are DERIVED: one from git, one from the module; neither is typed.
+  it("Task 2: the examples part equals `git ls-files -- examples` ∩ isCanonicalMarkdownName as a set, both directions — a sixth or renamed example moves both sides together", () => {
+    const tracked = trackedExamples();
+    const canonical = tracked.filter(isCanonicalMarkdownName);
+    const nonCanonical = tracked.filter((t) => !isCanonicalMarkdownName(t));
+    expect(canonical.length, "PREMISE: at least one canonical markdown file is tracked under examples/").toBeGreaterThan(0);
+    const examples = [...PUBLIC_DOCS_CORPUS_PARTS.find((p) => p.name === "examples")!.members].sort();
+
+    // (1) Every tracked canonical-markdown file under examples/ is a member — the walk publishes
+    //     what git tracks, under git's own POSIX spelling.
+    for (const t of canonical) expect(examples, `tracked canonical markdown not published: ${t}`).toContain(t);
+    // (2) Every member is a tracked canonical-markdown file — the walk publishes nothing git does
+    //     not track (an untracked scratch file, a stray non-markdown entry) under any spelling.
+    for (const e of examples) expect(canonical, `published but not tracked canonical markdown: ${e}`).toContain(e);
+    // (3) The equality, so nothing is dropped in silence.
+    expect(examples).toEqual(canonical);
+    // (4) The converse over the complement: a tracked entry the predicate refuses is never a
+    //     member. Vacuous on this tree today (git tracks no non-markdown file under examples/), and
+    //     said so rather than left to be inferred — the loop is the guarantee the day it is not.
+    for (const n of nonCanonical) expect(examples, `non-canonical entry published: ${n}`).not.toContain(n);
+    expect(canonical.length + nonCanonical.length).toBe(tracked.length);
   });
 });
