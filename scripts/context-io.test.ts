@@ -4002,8 +4002,12 @@ describe("30-11 RA2-1 — the admit verb does not take the governance root from 
       expect(mod.trustedRepoRoot(), "an empty value is not a supplied one").toBe(unset);
       process.env.CLAUDE_PROJECT_DIR = "   ";
       expect(mod.trustedRepoRoot(), "whitespace names nothing either").toBe(unset);
+      // The module answers `resolve(fromEnv.trim())`, so the expectation is the SAME host function
+      // over the SAME literal — never the literal itself (plan 33-15, D-15). The literal stays POSIX
+      // on purpose: on a POSIX host `resolve` is the identity and this line is unchanged; on win32
+      // both sides spell `<drive>:\tmp\some-project`, which is what the module publishes there.
       process.env.CLAUDE_PROJECT_DIR = "/tmp/some-project";
-      expect(mod.trustedRepoRoot()).toBe("/tmp/some-project");
+      expect(mod.trustedRepoRoot()).toBe(resolve("/tmp/some-project"));
     } finally {
       if (before === undefined) delete process.env.CLAUDE_PROJECT_DIR;
       else process.env.CLAUDE_PROJECT_DIR = before;
@@ -4234,10 +4238,13 @@ describe("30-11 RA4-2 — a presence predicate publishes the value it tested", (
   it("trustedRepoRoot returns the TRIMMED value, as grantedBy does next door", () => {
     const before = process.env.CLAUDE_PROJECT_DIR;
     try {
+      // Expected through `resolve`, the function the module applies after trimming (plan 33-15,
+      // D-15): the property under test is the TRIM, and the spelling of the trimmed value is the
+      // host's — `/tmp/some-project` here, `<drive>:\tmp\some-project` on win32 — on both sides.
       process.env.CLAUDE_PROJECT_DIR = " /tmp/some-project ";
-      expect(mod.trustedRepoRoot()).toBe("/tmp/some-project");
+      expect(mod.trustedRepoRoot()).toBe(resolve("/tmp/some-project"));
       process.env.CLAUDE_PROJECT_DIR = "/tmp/some-project\n";
-      expect(mod.trustedRepoRoot()).toBe("/tmp/some-project");
+      expect(mod.trustedRepoRoot()).toBe(resolve("/tmp/some-project"));
     } finally {
       if (before === undefined) delete process.env.CLAUDE_PROJECT_DIR;
       else process.env.CLAUDE_PROJECT_DIR = before;
@@ -11330,8 +11337,13 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
     // The positive case, so the seven refusals above are not vacuously satisfied by a function that
     // returns null for everything.
     const r = repo("p31-27-ok-");
+    // Tier 0 answers rung 1 of the canonicaliser — `realpathSync.native`, the kernel's spelling —
+    // so the expectation is taken through the same rung (plan 33-15, D-15; the remedy
+    // `install/install.test.ts`'s `canonicalPath` already applies). The portable `realpathSync`
+    // agrees on darwin and disagrees on a host whose temp root is an 8.3 short name (`RUNNER~1`
+    // against `runneradmin`), which measured the platform rather than the tier.
     expect(inChild("m.hostDeliveredRoot()", { [mod.HOST_DELIVERED_ROOT_ENV]: r })).toBe(
-      realpathSync(r),
+      realpathSync.native(r),
     );
   });
 
@@ -11393,12 +11405,14 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
   it("tier 0 OUTRANKS tier 1, which is the only reason it is a tier at all", () => {
     const delivered = repo("p31-27-rank-delivered-");
     const ambient = repo("p31-27-rank-ambient-");
+    // The winning tier publishes rung 1's spelling (`realpathSync.native`), so the expectation is
+    // taken through rung 1 as well (plan 33-15, D-15) — the same reason as the ACCEPTS case above.
     expect(
       inChild("m.trustedRepoRoot()", {
         [mod.HOST_DELIVERED_ROOT_ENV]: delivered,
         CLAUDE_PROJECT_DIR: ambient,
       }),
-    ).toBe(realpathSync(delivered));
+    ).toBe(realpathSync.native(delivered));
   });
 
   it("the canonicaliser's THREE rungs are each driven, and the rung this platform used is named", () => {
@@ -11409,9 +11423,14 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
     expect(typeof (realpathSync as { native?: unknown }).native, "rung 1 is what darwin used").toBe(
       "function",
     );
-    // Rung 2 (portable realpath) — asserted to agree with rung 1 on an existing path, which is what
-    // makes it a legitimate fallback rather than a different rule.
-    expect(realpathSync(r)).toBe(realpathSync.native(r));
+    // Rung 2 (portable realpath) — asserted to name the SAME DIRECTORY rung 1 names, which is what
+    // makes it a legitimate fallback rather than a different rule. The property is identity of the
+    // directory, not of the spelling: re-canonicalising rung 2's answer through rung 1 is the
+    // identity on rung 1's answer. A spelling equality here (`realpathSync(r)` against
+    // `realpathSync.native(r)`) is disproved by the 8.3 short-name class — the portable resolver
+    // keeps `RUNNER~1` where the kernel answers `runneradmin` — and both spell one directory
+    // (plan 33-15, D-15).
+    expect(realpathSync.native(realpathSync(r))).toBe(realpathSync.native(r));
     // Rung 3 (deepest EXISTING ancestor, remainder re-joined) — a NON-EXISTENT leaf under an
     // existing, case-differently-spelled parent. This is the rung MODULE_OWN_CONFIG_POSITIONS
     // actually reaches, because a candidate position need not exist; a bare `resolve` here is what
