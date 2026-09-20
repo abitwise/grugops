@@ -113,6 +113,7 @@ import { currentState, readContext } from "./context-io.js";
 import { listAgentAdapters } from "./kit-model.js";
 import { admit, admittedGrantedNames, admittedKeyHasValue, admittedValuesFor, } from "./canonical-frontmatter.js";
 import { isEntrypoint } from "./is-entry.js";
+import { toPosix } from "./posix-path.js";
 // ---------------------------------------------------------------------------
 // Fixed literals. None is ever taken from argv, env, or transcript content (ASVS V12).
 // ---------------------------------------------------------------------------
@@ -208,7 +209,6 @@ class CaptureFailure extends Error {
 function fail(message) {
     throw new CaptureFailure(message);
 }
-const toPosix = (p) => p.split(sep).join("/");
 // ---------------------------------------------------------------------------
 // Child environment (hard rule 4)
 // ---------------------------------------------------------------------------
@@ -652,6 +652,108 @@ export function capThreePredicate(input) {
 export function verdictMarkerObserved(stamps) {
     return stamps.find((s) => s.body.includes(VERDICT_GREEN_MARKER)) ?? null;
 }
+const PROPOSE_NOTE_SUFFIX = "propose_note";
+/**
+ * The route the notes took to disk, derived from TOOL-USE BLOCKS only. A `Write` or `Edit` whose
+ * `file_path` contains `/.grugops/context/` is a direct write into the context root (path B's nine
+ * notes, 33-DIAGNOSIS § 1.3 (ii)); a block whose name ends in `propose_note` is the sanctioned
+ * writer. The suffix is matched because the installed plugin exposes
+ * `mcp__plugin_grugops_grugops__propose_note` while the grant spells `mcp__grugops__propose_note`.
+ * Nested subagent frames are ordinary frames here — the direct writes are by role agents.
+ */
+export function noteRoute(frames) {
+    const contextMarker = `/${toPosix(CONTEXT_SUBPATH)}/`;
+    let directContextWrites = 0;
+    let proposeNoteCalls = 0;
+    for (const frame of frames) {
+        for (const block of contentBlocks(frame)) {
+            if (block.type !== "tool_use" || typeof block.name !== "string")
+                continue;
+            if (block.name.endsWith(PROPOSE_NOTE_SUFFIX)) {
+                proposeNoteCalls += 1;
+                continue;
+            }
+            if (block.name !== "Write" && block.name !== "Edit")
+                continue;
+            const input = typeof block.input === "object" && block.input !== null ? block.input : {};
+            const filePath = typeof input.file_path === "string" ? toPosix(input.file_path) : "";
+            if (filePath.includes(contextMarker))
+                directContextWrites += 1;
+        }
+    }
+    return { directContextWrites, proposeNoteCalls };
+}
+/**
+ * Project one live path to the fields D-07 actually defines: per role (the `by` stamp with the
+ * adapter prefix stripped) the admitted-note count and the kind multiset; whether the frozen green
+ * verdict marker is present; and the route the notes took to disk. NOTHING ELSE ENTERS — not `at`,
+ * not `body`, not `noteId`, not `task`, not `refs`. Every one of those is model-chosen across two
+ * independent sessions (33-DIAGNOSIS § 1.2: the task ids, the timestamps, the refs lists and every
+ * byte of every body differ between two runs that did identical work), so a projection that kept
+ * any of them would be a predicate two live sessions can never meet, which is the CR-03 defect.
+ */
+export function projectLivePath(stamps, frames, prefix) {
+    const byRole = new Map();
+    for (const s of stamps) {
+        const role = roleKey(s.by, prefix);
+        const kinds = byRole.get(role);
+        if (kinds === undefined)
+            byRole.set(role, [s.kind]);
+        else
+            kinds.push(s.kind);
+    }
+    const roles = [...byRole.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([role, kinds]) => ({ role, count: kinds.length, kinds: [...kinds].sort() }));
+    return { roles, verdictMarker: verdictMarkerObserved(stamps) !== null, route: noteRoute(frames) };
+}
+/** Named diffs between two projections. EMPTY iff the two paths are at parity. */
+export function compareLivePaths(a, b) {
+    const diffs = [];
+    const rolesA = new Map(a.roles.map((r) => [r.role, r]));
+    const rolesB = new Map(b.roles.map((r) => [r.role, r]));
+    const roles = [...new Set([...rolesA.keys(), ...rolesB.keys()])].sort((x, y) => x.localeCompare(y));
+    for (const role of roles) {
+        const ra = rolesA.get(role);
+        const rb = rolesB.get(role);
+        if (ra === undefined) {
+            diffs.push(`${role}: present only in path B (${rb.count} note(s))`);
+        }
+        else if (rb === undefined) {
+            diffs.push(`${role}: present only in path A (${ra.count} note(s))`);
+        }
+        else if (ra.count !== rb.count) {
+            diffs.push(`${role}: note count differs: path A has ${ra.count}, path B has ${rb.count}`);
+        }
+        else if (JSON.stringify(ra.kinds) !== JSON.stringify(rb.kinds)) {
+            diffs.push(`${role}: kind multiset differs: path A has [${ra.kinds.join(", ")}], path B has [${rb.kinds.join(", ")}]`);
+        }
+    }
+    if (a.verdictMarker !== b.verdictMarker) {
+        const word = (present) => (present ? "present" : "absent");
+        diffs.push(`verdict marker ${VERDICT_GREEN_MARKER} differs: path A ${word(a.verdictMarker)}, path B ${word(b.verdictMarker)}`);
+    }
+    if (a.route.directContextWrites !== b.route.directContextWrites) {
+        diffs.push(`note route: direct writes into the context root differ: path A ${a.route.directContextWrites}, path B ${b.route.directContextWrites}`);
+    }
+    if (a.route.proposeNoteCalls !== b.route.proposeNoteCalls) {
+        diffs.push(`note route: propose_note tool-use blocks differ: path A ${a.route.proposeNoteCalls}, path B ${b.route.proposeNoteCalls}`);
+    }
+    return diffs;
+}
+/**
+ * THE ONE OUTCOME DERIVATION. `hang` first; then `fail` on any run failure, on a non-empty parity
+ * diff list, or on plugin provenance that is not MET; else `pass`. A `pass` is therefore
+ * unreachable while the two paths diverge or while the scored plugin is not, byte for byte, the
+ * checkout under test.
+ */
+export function deriveOutcome(input) {
+    if (input.hang)
+        return "hang";
+    if (input.anyFailure || input.parityDiffs.length > 0 || input.provenance !== "MET")
+        return "fail";
+    return "pass";
+}
 /** Both spellings of the operator home directory, or null where one cannot be determined. */
 export function homeSpellings() {
     let plain = null;
@@ -924,6 +1026,10 @@ function installedPluginSha(cachePath) {
         return `UNKNOWN - verify — \`git -C <plugin path> rev-parse HEAD\` could not be read for the path the init frame named`;
     return sha.trim();
 }
+/** The heading the flip manifest's D-18 cells cite. Emitted by `renderReport`; frozen by 33-12. */
+export const PARITY_SECTION_HEADING = "## Dual-path parity (D-07) — path-invariant projection";
+export const REPLAY_SECTION_HEADING = "## Replay comparator (informational — task-id keyed, deterministic replay only)";
+export const PARITY_EQUAL_LINE = "- parity: the two projections are equal";
 const cell = (s) => s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 /** Build the claim rows a run's transcript supports. Every row cites the frame it came from. */
 export function deriveClaims(frames, grant, stamps) {
@@ -1027,7 +1133,33 @@ export function renderReport(m) {
                 L.push(`- ${reason}`);
         L.push("");
     }
-    L.push("## Dual-path equivalence (D-07)");
+    L.push(PARITY_SECTION_HEADING);
+    L.push("");
+    L.push("Per role: the admitted-note count and the kind multiset; then the frozen verdict marker and the route the notes took to disk. `at` stamps, note bodies, task ids and refs are model-chosen and do not enter (33-DIAGNOSIS § 1.2).");
+    L.push("");
+    for (const p of m.parity.projections) {
+        L.push(`Run ${p.label}:`);
+        L.push("");
+        L.push("| role | notes | kinds |");
+        L.push("|---|---|---|");
+        if (p.projection.roles.length === 0)
+            L.push("| (no live note) | 0 | |");
+        for (const r of p.projection.roles)
+            L.push(`| ${cell(r.role)} | ${r.count} | ${cell(r.kinds.join(", "))} |`);
+        L.push(`| verdict marker ${VERDICT_GREEN_MARKER} | ${p.projection.verdictMarker ? "present" : "absent"} | |`);
+        L.push(`| note route: direct writes into the context root | ${p.projection.route.directContextWrites} | |`);
+        L.push(`| note route: propose_note tool-use blocks | ${p.projection.route.proposeNoteCalls} | |`);
+        L.push("");
+    }
+    if (m.parity.diffs.length === 0)
+        L.push(PARITY_EQUAL_LINE);
+    else
+        for (const d of m.parity.diffs)
+            L.push(`- ${cell(d)}`);
+    L.push("");
+    L.push(REPLAY_SECTION_HEADING);
+    L.push("");
+    L.push("The DOGF-01 replay comparator keeps `at`, `refs` and `body` and keys on the task id; over two independent live sessions its grammar guarantees a diff (33-DIAGNOSIS § 1.2). Its output is recorded and is not an input to the outcome.");
     L.push("");
     if (m.equivalenceDiffs.length === 0)
         L.push("- assertEquivalent over the two targets' context roots returned no diff");
@@ -1221,6 +1353,7 @@ async function dryRun(opts) {
     if (frames.frames.length === 0)
         fail(`the fixture transcript ${FIXTURE_JSONL} yielded no frame — the parser proves nothing over an empty stream`);
     const runs = [];
+    const projections = [];
     for (const build of targets) {
         const grant = deriveGrant(build.target);
         const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
@@ -1236,9 +1369,11 @@ async function dryRun(opts) {
             capThreeReasons: derived.capThreeReasons,
             run: null,
         });
+        projections.push({ label: build.label, projection: projectLivePath(stamps, frames.frames, grant.prefix) });
     }
     console.log(`phase 3: ${frames.frames.length} fixture frame(s) derived over, once per target (${runs.length})`);
     const diffs = equivalence(targets);
+    const parityDiffs = compareLivePaths(projections[0].projection, projections[1].projection);
     const plugins = pluginLoadReport(frames.frames);
     const model = {
         mode: "dry-run",
@@ -1252,6 +1387,7 @@ async function dryRun(opts) {
         preconditions: table,
         targets: targets.map((t) => ({ label: t.label, installerLine: t.installerLine })),
         runs,
+        parity: { projections, diffs: parityDiffs },
         equivalenceDiffs: diffs,
         outcome: "no-go",
         outcomeReason: "no model call was made — a dry run is not a capture (D-10, D-11)",
@@ -1297,6 +1433,7 @@ async function capture(opts) {
     const runs = [];
     const rawTranscripts = [];
     const installLines = [];
+    const projections = [];
     let hang = false;
     let anyFailure = false;
     for (const build of targets) {
@@ -1322,17 +1459,26 @@ async function capture(opts) {
         if (derived.capThreeReasons.length > 0)
             anyFailure = true;
         runs.push({ label: build.label, transcriptName, argv: args, frames, claims: derived.claims, withheld: derived.withheld, targetRows: targetObservations(build, grant, stamps), capThreeReasons: derived.capThreeReasons, run: result });
+        projections.push({ label: build.label, projection: projectLivePath(stamps, frames.frames, grant.prefix) });
         rawTranscripts.push({ name: transcriptName, text: readFileSync(transcriptPath, "utf8") });
         pluginUninstall(build.target, obs.pluginName);
     }
+    // The replay comparator is recorded for the reader; it is NOT an outcome input (33-DIAGNOSIS
+    // § 1.2: keyed on model-chosen task ids and timestamps, it reds over any two live sessions).
     const diffs = equivalence(targets);
-    if (diffs.length > 0)
-        anyFailure = true;
+    const parityDiffs = compareLivePaths(projections[0].projection, projections[1].projection);
     const denyFired = runs.some((r) => denyObservedInStream(r.frames.frames));
     if (!denyFired)
         anyFailure = true;
     const firstPlugins = pluginLoadReport(runs[0].frames.frames);
-    const outcome = hang ? "hang" : anyFailure ? "fail" : "pass";
+    const outcome = deriveOutcome({ hang, anyFailure, parityDiffs, provenance: "MET" });
+    const outcomeReason = hang
+        ? "a run reached the bound and was stopped (exit 143 or SIGINT at the bound)"
+        : anyFailure
+            ? "a run exited non-zero, a CAP-03 side failed, or the deny was not observed — see the sections above"
+            : parityDiffs.length > 0
+                ? `the two paths diverge under the path-invariant D-07 projection (${parityDiffs.length} named difference(s)) — see the parity section`
+                : "both runs completed, both CAP-03 sides hold in both runs, the deny was observed on the hook channel, and the two paths project to parity";
     const model = {
         mode: "capture",
         generatedAt: new Date().toISOString(),
@@ -1345,9 +1491,10 @@ async function capture(opts) {
         preconditions: table,
         targets: targets.map((t, i) => ({ label: t.label, installerLine: `${t.installerLine}; ${installLines[i]}` })),
         runs,
+        parity: { projections, diffs: parityDiffs },
         equivalenceDiffs: diffs,
         outcome,
-        outcomeReason: hang ? "a run reached the bound and was stopped (exit 143 or SIGINT at the bound)" : anyFailure ? "a run exited non-zero, a CAP-03 side failed, the deny was not observed, or the two paths diverged — see the sections above" : "both runs completed, both CAP-03 sides hold in both runs, the deny was observed on the hook channel, and the two paths are equivalent",
+        outcomeReason,
     };
     writeArtifacts(outDir, CAPTURE_SUMMARY_NAME, renderReport(model), rawTranscripts, homes);
     console.log(`wrote ${join(outDir, CAPTURE_SUMMARY_NAME)} and ${rawTranscripts.length} transcript(s)`);
