@@ -100,6 +100,8 @@
 //     verdict is three-state and feeds `deriveOutcome`: `pass` is unreachable unless it is MET.
 //     Zero extra tokens, and the evidence lands in the capture itself. Precondition: the sha under
 //     test is pushed (the pushed-sha row below), or the installed copy cannot equal the checkout.
+//     The install itself is a phase-2 precondition: a `plugin install` that does not complete stops
+//     the run through `fail` before any model call (`installOutcome`, 33-REVIEW CR-05).
 //   REJECTED — route 1: generate a throwaway marketplace catalog in a temp dir declaring a `github`
 //     source with a pinned sha and add it under a non-colliding name. Gives an exact cache copy, but
 //     costs a generated catalog file and a second marketplace row in user state, which the
@@ -1037,14 +1039,25 @@ function runPlatform(args, cwd, env, transcriptPath, boundMs) {
         child.on("close", (status, signal) => settle(status, signal, null));
     });
 }
+export function installOutcome(r) {
+    const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
+    if (r.error !== undefined || r.status !== 0) {
+        return { ok: false, reason: `exit ${String(r.status)}${r.error ? ` (${r.error.message})` : ""}${detail === "" ? "" : `: ${detail}`}` };
+    }
+    return { ok: true, line: detail };
+}
+/**
+ * Install the plugin under test into the target at local scope. An install that does not complete
+ * is a REFUSAL, thrown through `fail` — never a returned string the caller could append and walk
+ * past (CR-05): the install is a phase-2 precondition, and nothing spends while it is not MET.
+ */
 function pluginInstall(target, pluginName, marketplaceName) {
     const env = spawnEnv();
     const r = spawnSync(PLATFORM_CMD, ["plugin", "install", `${pluginName}@${marketplaceName}`, "--scope", "local", "--yes"], { cwd: target, encoding: "utf8", input: "", timeout: PLUGIN_OP_BOUND_MS, env });
-    const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
-    if (r.error !== undefined || r.status !== 0) {
-        return `UNKNOWN - verify — \`plugin install ${pluginName}@${marketplaceName} --scope local\` exited ${String(r.status)}${r.error ? ` (${r.error.message})` : ""}: ${detail}`;
-    }
-    return `installed ${pluginName}@${marketplaceName} at local scope: ${detail}`;
+    const o = installOutcome({ status: r.status, error: r.error, stdout: r.stdout ?? "", stderr: r.stderr ?? "" });
+    if (!o.ok)
+        fail(`plugin install ${pluginName}@${marketplaceName} did not complete (${o.reason})`);
+    return `installed ${pluginName}@${marketplaceName} at local scope: ${o.line}`;
 }
 function pluginUninstall(target, pluginName) {
     try {
@@ -1058,8 +1071,10 @@ export const LIVE_OPS = { pluginInstall, runPlatform, pluginUninstall };
 /**
  * One target, end to end: plugin install, the bounded platform run streamed into the runner-owned
  * transcript directory, the derivation over that transcript and the target's context root, and
- * the plugin uninstall. The transcript path is asserted outside the target, the kit home and the
- * cwd BEFORE the platform is spawned (CR-01) — a misconfiguration is a refusal, not a capture.
+ * the plugin uninstall. The install is the FIRST platform-touching step and its failure propagates,
+ * so `ops.runPlatform` is unreachable after an install that did not complete (CR-05). The
+ * transcript path is asserted outside the target, the kit home and the cwd BEFORE the platform is
+ * spawned (CR-01) — a misconfiguration is a refusal, not a capture.
  */
 export async function runTarget(build, run, ops = LIVE_OPS) {
     const installLine = `target ${build.label}: ${ops.pluginInstall(build.target, run.pluginName, run.marketplaceName)}`;
