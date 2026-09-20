@@ -40,7 +40,7 @@ import {
   statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep, win32 } from "node:path";
 import {
   PUBLIC_DOCS_SCAN_COUNT,
   PUBLIC_DOCS_EXEMPT,
@@ -52,6 +52,10 @@ import {
   // into a comparison between two nothings.
   publicDocsCorpus,
   grepSubstringInsensitive,
+  // (Plan 33-14, D-15) The one member-forming function. Its separator is a parameter so the Windows
+  // spelling is exercised — and mutation-proven — on this POSIX host; see the 33-14 describe at the
+  // foot of this file.
+  corpusMember,
 } from "./check-public-docs-vocabulary.js";
 import {
   RETIRED_PATH_FORMS,
@@ -786,5 +790,131 @@ describe("30-10 R4 R6-6 — the public-docs corpus refuses the ALIAS imitation, 
     const r = runGate(mirror);
     expect(r.status, r.stdout).toBe(0);
     expect(r.stdout).toContain(`${PUBLIC_DOCS_SCAN_COUNT} public document(s)`);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// PLAN 33-14 (Phase 33 / CAP-02, D-15) — THE CORPUS MEMBER IS FORMED ONCE, IN POSIX, AT THE WALK.
+//
+// THE MEASURED DEFECT (CI run 35499800942, windows-latest; 33-CI-MEASUREMENT.md § 2.4 rows W-1..W-10).
+// `examplesMarkdown()` accumulates its members through `walkFiles`, which composes each entry with
+// `join` — the HOST separator — and pushed the composed string straight into the corpus. On
+// windows the `examples` part therefore published `examples\03-ticket-to-pr.md` while every
+// consumer compares against forward-slash spellings from `git ls-files` and from a hand-listed
+// manifest: `check-banned-claims.test.ts` reported the five examples as an uncovered remainder, as
+// five intruders, and as a 2019-vs-2024 equality miss (W-1..W-3); `check-flip-manifest.test.ts`
+// reported `derived but not listed: [examples\03-ticket-to-pr.md]; listed but not derived:
+// [examples/03-ticket-to-pr.md]` in all seven of its converse and control cases (W-4..W-10). Ten
+// reds, one publishing boundary. Plan 33-03 normalized the dedupe KEY the banned-claims gate forms
+// from a member and left the member itself host-spelled — the fix belongs in the module that
+// PUBLISHES the member, and that module is this one (D-15).
+//
+// WHY THESE CASES CAN SEE IT ON A POSIX HOST. `corpusMember` takes its separator as a parameter;
+// handing it `win32.sep` forms the member exactly as the Windows walk would. Test T is the one
+// assertion that discriminates here: with the normalization deleted (an identity body) the
+// backslash spelling is returned unchanged, and the case reads `examples\03-ticket-to-pr.md` vs
+// `examples/03-ticket-to-pr.md`. Test U is the production consequence, asserted where a Windows run
+// would show it — a no-op check on this host, the measurement on windows-latest. Test V pins the
+// SITE: one call, at member formation, never at a comparison and never in a consumer.
+//
+// NO PLATFORM CONDITIONAL, by D-14 / D-16: none of these cases reads `process.platform`, and the
+// module under test does not either.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** `git ls-files -- examples` from the repository root — POSIX by git's own contract, never typed. */
+function trackedExamples(): string[] {
+  const r = spawnSync("git", ["ls-files", "--", "examples"], { cwd: ROOT, encoding: "utf8" });
+  expect(r.status, `git ls-files failed: ${r.stderr}`).toBe(0);
+  return r.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .sort();
+}
+
+describe("33-14 — the corpus member is formed ONCE, in POSIX, at the walk's one publishing site (D-15)", () => {
+  const WALKED_ON_WINDOWS = ["examples", "03-ticket-to-pr.md"].join(win32.sep);
+  const PUBLISHED = "examples/03-ticket-to-pr.md";
+
+  it("Test T: a backslash-walked member is published with forward slashes, a POSIX one is unchanged, and `/` is the identity", () => {
+    // PREMISE — the negative control that gives the case its meaning: the two spellings differ
+    // before member formation. Without it a `corpusMember` that did nothing would satisfy the
+    // second assertion on a tree whose spellings already agreed.
+    expect(WALKED_ON_WINDOWS).not.toBe(PUBLISHED);
+    expect(WALKED_ON_WINDOWS).toContain(win32.sep);
+
+    // THE ONE ASSERTION THAT DISCRIMINATES ON THIS HOST. With the normalization deleted this reads
+    // `examples\03-ticket-to-pr.md` vs `examples/03-ticket-to-pr.md`.
+    expect(corpusMember(WALKED_ON_WINDOWS, win32.sep)).toBe(PUBLISHED);
+    // A member already spelled the published way is unchanged under the Windows separator.
+    expect(corpusMember(PUBLISHED, win32.sep)).toBe(PUBLISHED);
+    // Under `/` the function is the identity — a backslash is a legal filename byte on a POSIX
+    // host, and the member formation must never rewrite one there.
+    expect(corpusMember(WALKED_ON_WINDOWS, "/")).toBe(WALKED_ON_WINDOWS);
+    expect(corpusMember(PUBLISHED, "/")).toBe(PUBLISHED);
+    // The host-bound default is the two-argument form under this host's separator, on every host.
+    expect(corpusMember(PUBLISHED)).toBe(corpusMember(PUBLISHED, sep));
+  });
+
+  it("Test U: the live corpus is separator-independent — no member carries a backslash, every member is its own win32-formed spelling, and the examples part equals `git ls-files -- examples` both ways", () => {
+    const corpus = publicDocsCorpus();
+    expect(corpus.length, "PREMISE: the corpus is non-empty").toBeGreaterThan(0);
+    for (const m of corpus) {
+      expect(m, m).not.toContain("\\");
+      expect(m, m).toBe(corpusMember(m, win32.sep));
+    }
+
+    // The examples part against the tracked set, DERIVED from git rather than typed, compared as
+    // sets in BOTH directions so neither a member git does not track nor a tracked file the walk
+    // did not publish can pass. On windows-latest this is the measurement: git spells POSIX, and
+    // before this plan the part spelled `examples\…`.
+    const tracked = trackedExamples();
+    expect(tracked.length, "PREMISE: git tracks at least one file under examples/").toBeGreaterThan(0);
+    // PREMISE for a RAW comparison: every tracked entry under examples/ is canonical markdown today,
+    // so the raw tracked set and the corpus part describe the same documents. A non-markdown file
+    // added under examples/ trips THIS line by name rather than silently failing the equality
+    // below; the relationship case that follows this block is the one that survives such a file.
+    for (const t of tracked) expect(t, `${t} is not canonical markdown`).toMatch(/\.md$/);
+    const examplesPart = PUBLIC_DOCS_CORPUS_PARTS.find((p) => p.name === "examples");
+    expect(examplesPart, "PREMISE: the corpus has an examples part").toBeDefined();
+    const examples = [...examplesPart!.members].sort();
+    for (const t of tracked) expect(examples, `tracked but not published: ${t}`).toContain(t);
+    for (const e of examples) expect(tracked, `published but not tracked: ${e}`).toContain(e);
+    expect(examples).toEqual(tracked);
+  });
+
+  it("Test V: the SITE, not a consumer — the module calls corpusMember exactly once outside its own definition, and that call is inside walkFiles", () => {
+    // A normalization applied at a comparison, in a consumer, or in a test is the over-application
+    // RESEARCH Pitfall 3 names and the D-15 prohibition forbids. The member is formed at the walk's
+    // one accumulation site and nowhere else, so every consumer reads the spelling the dedupe
+    // compared. Comment lines are dropped before counting, the way the B-8 census above does it, so
+    // a docblock that names the function is not a call.
+    const lines = readFileSync(join(ROOT, "scripts", "check-public-docs-vocabulary.ts"), "utf8").split("\n");
+    const isComment = (l: string): boolean => /^\s*(\/\/|\*|\/\*)/.test(l);
+    const callIdx: number[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (isComment(l)) continue;
+      if (!l.includes("corpusMember(")) continue;
+      if (/function corpusMember\(/.test(l)) continue;
+      callIdx.push(i);
+    }
+    expect(callIdx, `call lines: ${callIdx.map((i) => `${i + 1}: ${lines[i].trim()}`).join(" | ")}`).toHaveLength(1);
+
+    // …and the one call sits inside walkFiles: after its declaration line and before the next
+    // top-level declaration.
+    const walkStart = lines.findIndex((l) => /^function walkFiles\(/.test(l));
+    expect(walkStart, "PREMISE: walkFiles is declared at top level").toBeGreaterThanOrEqual(0);
+    let walkEnd = lines.length;
+    for (let i = walkStart + 1; i < lines.length; i++) {
+      if (/^(export )?(async )?(function|const|let|class) /.test(lines[i])) {
+        walkEnd = i;
+        break;
+      }
+    }
+    expect(callIdx[0]).toBeGreaterThan(walkStart);
+    expect(callIdx[0]).toBeLessThan(walkEnd);
+    // The call is the accumulation itself — the member is formed as it is published.
+    expect(lines[callIdx[0]]).toMatch(/acc\.push\(corpusMember\(rel\)\)/);
   });
 });
