@@ -38,7 +38,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, writeFileSync, rmSync, mkdirSync, mkdtempSync, existsSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { join, relative, resolve, win32 } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
@@ -517,6 +517,46 @@ describe("the harness-false-result tally is ONE list with the numbering read off
     expect(claimsExamined, "the ordinal scan matched NOTHING — the predicate, not the tree").toBeGreaterThan(5);
     expect(claimingDocs, "the claims must be spread across documents, not all in one").toBeGreaterThan(2);
     expect(missing).toEqual([]);
+  });
+
+  it("SEPARATOR SEAM (test AE, plan 33-18): scannedDocumentsWith(win32) publishes POSIX members, so the docs/audit/ filter and the split(\"/\") key see ONE spelling on every host", () => {
+    // THE DEFECT THIS PINS (CI run 35499800942, windows-latest, W-15 / W-16 — WINDOWS.md row 231):
+    // the scanned set was joined with the HOST separator and then consumed by two POSIX-spelled
+    // predicates. On windows the `docs/audit/` filter matched NOTHING (`audits.length` read 0) and
+    // the `split("/").pop()` key handed the whole `D:\a\grugops\…\31-NN-SUMMARY.md` spelling to the
+    // tracked-list lookup, so nine ordinal claims were reported "absent from the tracked list".
+    // The set is PUBLISHED — its members are printed in failure messages and keyed by `/` — so it
+    // is normalized ONCE, at its member-forming site (D-15), through the shared normalizer.
+    //
+    // THE SEAM: the same derivation is given `path.win32` for its joins. On a POSIX host the
+    // host-bound form is the identity and cannot discriminate a normalizer from a no-op, so the
+    // win32 spelling is exercised here — the premise that `win32.join` really produces a backslash
+    // is asserted first, so a seam that quietly became the identity is itself red.
+    expect(typeof scannedDocumentsWith, "the injected-separator derivation is not defined").toBe("function");
+    expect(win32.join(AUDIT_DIR, "31-x.md"), "the seam's premise: path.win32 joins with a backslash").toContain("\\");
+    const members = scannedDocumentsWith(win32);
+    expect(members.length, "the seam's derivation came back short").toBeGreaterThan(25);
+    for (const m of members) {
+      expect(m, "a published member carries the win32 separator").not.toContain("\\");
+      expect(
+        m.includes(`${"docs"}/audit/`) || m.endsWith("-SUMMARY.md"),
+        `a member is neither an audit document nor a SUMMARY under the POSIX spelling: ${m}`,
+      ).toBe(true);
+    }
+    // THE CONSUMING ARMS, run over the seam's members with the SAME predicates the two cases above
+    // use — the `audits` filter, the `summaries` filter, and the ordinal key.
+    const audits = members.filter((m) => m.includes(`${"docs"}/audit/`));
+    const summaries = members.filter((m) => m.endsWith("-SUMMARY.md"));
+    expect(audits.length, "the docs/audit/ filter matched nothing — W-15's red").toBeGreaterThan(0);
+    expect(summaries.length + audits.length).toBe(members.length);
+    for (const m of members) {
+      const key = m.split("/").pop()!;
+      expect(key, "the ordinal key is not a bare file name — W-16's red").toMatch(/^[^\\/]+\.md$/);
+    }
+    // ONE SPELLING: the seam's derivation and the host-bound derivation publish the SAME set. On a
+    // POSIX host the host-bound form is already POSIX, so this equality holds exactly when the
+    // win32-joined members were normalized; on win32 both derivations take the same joins.
+    expect(members).toEqual(scannedDocuments());
   });
 
   it("SEEDED MIRROR: a document carrying an unlisted ordinal claim turns the gate red", () => {
