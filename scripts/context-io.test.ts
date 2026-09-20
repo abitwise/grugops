@@ -11524,6 +11524,85 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
     }
   });
 
+  it("W-21 (33-16, Test W): the walk STARTS from the canonical working directory — a cwd spelled through a directory symlink is the link target's own spelling", () => {
+    // WHAT THE WINDOWS LEG MEASURED (run 35499800942, row W-21): the R-31-19-07 SYMLINK cell's
+    // verdict moved — `expected '…\link\proj' to be '…\kit\proj'` — because on win32
+    // `process.cwd()` KEEPS the spelling the child was started with, while on darwin the kernel
+    // answers the realpath. The exclusion held on darwin by a kernel behaviour, not by the module.
+    //
+    // THE SEAM IS THE cwd VALUE, not the kernel, so the case is drivable on darwin: the child's
+    // `process.cwd` is replaced with the link spelling and `trustedRepoRoot` is asked in that child
+    // against the committed `.js`. The walk's start and the delivered root must be spelled by ONE
+    // authority — `canonicalDirectoryPath`, rung 1 `realpathSync.native` — so the module exports
+    // that read as `canonicalWorkingDirectory` and applies it where the cwd is READ (D-15: once,
+    // in the module that reads the input).
+    //
+    // PART 1 — the exported authority. The premise is the export itself: on the committed `.js`
+    // before plan 33-16 the module had no such name, and that premise failing is this case's RED.
+    const exported = (mod as unknown as Record<string, unknown>).canonicalWorkingDirectory;
+    expect(
+      typeof exported,
+      "the module does not export canonicalWorkingDirectory — the walk's start has no canonicaliser",
+    ).toBe("function");
+    const canonicalWorkingDirectory = exported as (raw: string) => string;
+    const tree = realpathSync.native(freshTmp("p33-16-w21-"));
+    const real = join(tree, "real");
+    const proj = join(real, "proj");
+    mkdirSync(join(proj, ".git"), { recursive: true });
+    mkdirSync(join(proj, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(proj, ".grugops", "factory.config.json"),
+      JSON.stringify({ human_admission: "high-severity" }),
+    );
+    // A canonical path is a FIXED POINT of the authority, whichever spelling reached it.
+    expect(canonicalWorkingDirectory(proj)).toBe(realpathSync.native(proj));
+    expect(canonicalWorkingDirectory(realpathSync.native(proj))).toBe(realpathSync.native(proj));
+    // A directory symlink needs a privilege some hosts lack (D-16): staged through the corpus helper,
+    // and a refusal is a printed, counted row — never a red, never a platform conditional.
+    const link = join(tree, "link");
+    const skipped = stageSymlinkOrSkip(
+      real,
+      link,
+      "directory symlink to a project's parent",
+      "scripts/context-io.test.ts: W-21 the walk starts from the canonical working directory (33-16)",
+    );
+    if (skipped !== null) {
+      console.warn(
+        skipLine(
+          skipped,
+          "the fixed-point half of this same case above, and CELL 2 of the R-31-19-07 case (31-23)",
+        ),
+      );
+      return;
+    }
+    // Through the link, the authority answers the TARGET's canonical spelling.
+    expect(canonicalWorkingDirectory(join(link, "proj"))).toBe(realpathSync.native(proj));
+
+    // PART 2 — the walk, driven on the cwd VALUE. HOME is planted at a marker-less directory of the
+    // same tree (both names `os.homedir()` reads, plan 33-15) so the walk has a determined home and
+    // stops at the project's own boundary, and the child's `process.cwd` answers the LINK spelling —
+    // which is what win32 answers for a child started there. Before 33-16 the walk returned the raw
+    // cwd spelling (`…/link/proj`, W-21's exact shape); the canonical spelling is the one answer.
+    const home = join(tree, "home");
+    mkdirSync(home, { recursive: true });
+    const viaLinkSpelledCwd = inChild(
+      `(process.cwd = () => ${JSON.stringify(join(link, "proj"))}, m.trustedRepoRoot())`,
+      { HOME: home, USERPROFILE: home },
+    );
+    expect(
+      viaLinkSpelledCwd,
+      "a working directory spelled through a directory symlink was walked from the LINK spelling; " +
+        "the walk's start must be canonicalised where the cwd is read, the way tier 0's root is",
+    ).toBe(realpathSync.native(proj));
+    // …and the canonical cwd gives the SAME answer, so the fix moved one spelling onto the other
+    // rather than producing a third.
+    const viaCanonicalCwd = inChild(
+      `(process.cwd = () => ${JSON.stringify(proj)}, m.trustedRepoRoot())`,
+      { HOME: home, USERPROFILE: home },
+    );
+    expect(viaCanonicalCwd).toBe(viaLinkSpelledCwd);
+  });
+
   it("TRUSTED_ROOT_TIERS names FIVE steps and is frozen", () => {
     expect(Object.isFrozen(mod.TRUSTED_ROOT_TIERS)).toBe(true);
     expect(mod.TRUSTED_ROOT_TIERS).toHaveLength(5);
