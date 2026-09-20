@@ -48,6 +48,7 @@ import {
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 // THE SHARED ADAPTER AUTHORITY — imported HERE, IN THE TEST ONLY (KIT-02 / D-18 as amended by
 // D-28).
@@ -105,6 +106,15 @@ import {
 // Sized FROM the constant, never from a restated number. Drives the COMMITTED .js — the repo idiom.
 import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarkers } from "./kit-source.js";
 
+// THE ONE PUBLISHED-PATH NORMALIZER (plan 33-03, D-15) and THE ONE PLATFORM-SHAPE SKIP FORMAT
+// (plan 33-05, D-16), imported in the test only, under the same exception as the two imports above:
+// install.ts keeps importing nothing from scripts/. The normalizer spells the expected kit root the
+// way the installer publishes it; the skip helpers stage the two symlink fixtures this file used to
+// build with `ln -s`, so a host that refuses the link prints one counted SKIPPED row instead of
+// running the case's assertions over a copy that `ln` left behind (plan 33-06, CAP-02).
+import { toPosix } from "../scripts/posix-path.js";
+import { stageSymlinkOrSkip, skipLine, type SkipEntry } from "../scripts/check-platform-shapes.js";
+
 // The repo root (install/ is one level under it) and the committed compiled installer/uninstaller.
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -116,6 +126,66 @@ function mkTmp(): string {
   const d = mkdtempSync(join(tmpdir(), "grugops-"));
   tmpDirs.push(d);
   return d;
+}
+
+// ── Canonical temporary-directory comparison (plan 33-06, CAP-02) ────────────────────────────────
+//
+// TWO DISTINCT CLASSES, TWO DISTINCT FIXES — a later reader must not replace one with the other.
+//
+// (1) IDENTITY. A host can report ONE temporary directory under TWO names. On windows-latest
+//     `os.tmpdir()` hands back the 8.3 short form (`C:\Users\RUNNER~1\AppData\Local\Temp`) while
+//     another call over the same directory hands back its long form (`C:\Users\runneradmin\…`); on
+//     macOS `mkdtempSync(tmpdir())` returns `/var/folders/…`, whose real path is
+//     `/private/var/folders/…`. Only the platform's canonical real-path call — `realpathSync.native`
+//     — collapses those pairs. A separator rewrite cannot: both spellings are already
+//     single-separator strings and differ in a path COMPONENT, not in a separator.
+// (2) SEPARATOR. The installer PUBLISHES its kit path forward-slashed (install.ts `toPosix`, so the
+//     materialized KIT= line is byte-identical to what the former sh installer wrote), while
+//     `join(home, "agent-factory")` in this file is host-separated. That, and not class (1), is
+//     what every one of this file's three KIT-path reds on windows-latest run 35394268365 measured:
+//     BOTH sides of each carried `RUNNER~1`, and they disagreed on `\` versus `/` alone. 33-03's
+//     normalizer is that fix; `realpathSync.native` does not address it, because it returns the
+//     host's own separator.
+//
+// canonicalPath resolves through the real-path call FIRST (it needs the on-disk spelling, and it
+// accepts either separator on every platform), THEN spells the result forward-slashed, so two
+// strings that name one directory compare equal whichever name and separator each side arrived in.
+// BOTH sides of every temporary-directory comparison in this file go through it. No host branch.
+function canonicalPath(p: string): string {
+  return toPosix(realpathSync.native(p));
+}
+
+// materializedKit — the value of the KIT="…" line inside an adapter body's grugops:materialized-kit
+// block, or "" when there is none: the same fail-closed reading install.ts's readAdapterKit takes
+// over a file. The cases below compare THIS value canonically, rather than searching the body for a
+// host-spelled string, because the published spelling is forward-slash by contract and a
+// host-separated expectation disagrees with a CORRECT publication (class (2) above).
+function materializedKit(body: string): string {
+  let inblk = false;
+  let line = "";
+  for (const l of body.split("\n")) {
+    if (l === "# <!-- grugops:materialized-kit -->") {
+      inblk = true;
+      continue;
+    }
+    if (l === "# <!-- /grugops:materialized-kit -->") {
+      inblk = false;
+      continue;
+    }
+    if (inblk && l.startsWith('KIT="')) line = l;
+  }
+  return line === "" ? "" : line.slice('KIT="'.length).replace(/"$/, "");
+}
+
+// expectMaterializedKit — the published kit root of an adapter body names the kit under `home`.
+// Two facts, asserted separately so a failure names which one broke: the SPELLING is the
+// forward-slash form the installer publishes (no backslash anywhere in it, on any host), and the
+// IDENTITY holds canonically on both sides (class (1) and class (2) together).
+function expectMaterializedKit(body: string, home: string): void {
+  const published = materializedKit(body);
+  expect(published, "no KIT= line inside the grugops:materialized-kit block").not.toBe("");
+  expect(published.includes("\\"), `the published KIT= is not forward-slash spelled: ${published}`).toBe(false);
+  expect(canonicalPath(published)).toBe(canonicalPath(join(home, "agent-factory")));
 }
 afterEach(() => {
   while (tmpDirs.length) {
@@ -194,17 +264,15 @@ function makeOldLayoutFixture(opts?: { symlink?: boolean; rootConfig?: boolean }
   );
   if (opts?.symlink) {
     // LANDMINE: the orchestrator adapter is a symlink into a planted source clone carrying a
-    // SENTINEL. A naive writeFileSync(dest) would follow the link and clobber the clone.
+    // SENTINEL. A naive writeFileSync(dest) would follow the link and clobber the clone. The clone
+    // is planted HERE; the link itself is staged by the CASE through stageOldLayoutSymlinkAdapter,
+    // because a host that refuses the link (D-16) must be answered where the case can print the
+    // skip row and return — a builder cannot.
     mkdirSync(join(d, "source-clone"), { recursive: true });
     writeFileSync(
       join(d, "source-clone", "orchestrator-src.md"),
       "SENTINEL-SOURCE-CLONE — a writeFileSync through the live symlink dest would corrupt this.\n",
     );
-    // Target is relative to the symlink's OWN directory (.claude/agents/), so it must climb back
-    // to the fixture root before descending into source-clone/.
-    spawnSync("ln", ["-s", join("..", "..", "source-clone", "orchestrator-src.md"), "grugops-orchestrator.md"], {
-      cwd: join(d, ".claude", "agents"),
-    });
   } else {
     writeFileSync(
       join(d, ".claude", "agents", "grugops-orchestrator.md"),
@@ -213,6 +281,23 @@ function makeOldLayoutFixture(opts?: { symlink?: boolean; rootConfig?: boolean }
   }
   // NO .grugops/install.json marker — the second detection signal (D-03 old-layout = no marker).
   return d;
+}
+
+// stageOldLayoutSymlinkAdapter — the LANDMINE link of a `{ symlink: true }` old-layout fixture:
+// .claude/agents/grugops-orchestrator.md → ../../source-clone/orchestrator-src.md (relative to the
+// link's OWN directory, so it climbs back to the fixture root before descending). Staged through
+// the D-16 helper rather than `spawnSync("ln", ["-s", …])`: on windows-latest run 35394268365 the
+// MSYS `ln` in PATH exited 0 and left a COPY, so `isSymbolicLink()` read false and the case failed
+// over a fixture it never had. `symlinkSync` either stages the link or is refused by name (EPERM
+// for want of SeCreateSymbolicLink), and the refusal is the returned skip entry — one counted row,
+// never a silent pass. No host branch: the measurement decides.
+function stageOldLayoutSymlinkAdapter(d: string, position: string): SkipEntry | null {
+  return stageSymlinkOrSkip(
+    join("..", "..", "source-clone", "orchestrator-src.md"),
+    join(d, ".claude", "agents", "grugops-orchestrator.md"),
+    "symlink adapter into a planted source clone (old layout)",
+    position,
+  );
 }
 
 // snapshot — a stable, content-addressed manifest of a tree (sorted "path hash|LINK" lines) so two
@@ -587,13 +672,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    const expectKit = join(home, "agent-factory");
+    // The published kit root is compared canonically on both sides, and its forward-slash spelling
+    // is asserted separately — see canonicalPath / expectMaterializedKit above (plan 33-06).
     const agent = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
     expect(agent).toContain("grugops:materialized-kit");
-    expect(agent).toContain(expectKit);
+    expectMaterializedKit(agent, home);
     const skill = readFileSync(join(target, ".claude", "skills", "grugops", "SKILL.md"), "utf8");
     expect(skill).toContain("grugops:materialized-kit");
-    expect(skill).toContain(expectKit);
+    expectMaterializedKit(skill, home);
   });
 
   // ── Two-root: the per-repo state plane is seeded, but plans/handoffs/ is NOT (two-root [3]) ─────
@@ -988,17 +1074,37 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
   // ── never-delete: uninstall preserves a USER-owned AGENTS.md symlink (install.test.sh Check 5, CR-01) ─
   it("never-delete: uninstall preserves a user-owned AGENTS.md symlink; removes a grugops-source one", () => {
+    // Both links are staged through the D-16 helper, not `spawnSync("ln", ["-s", …])`: on
+    // windows-latest run 35394268365 the MSYS `ln` in PATH exited 0 and left a COPY, so
+    // `isSymbolicLink()` read false over a fixture the case never had. `symlinkSync` either stages
+    // the link or is refused by name (EPERM for want of SeCreateSymbolicLink); a refusal prints one
+    // counted SKIPPED row and the case returns — never a pass over a copy. No host branch.
+    const POSITION = "install/install.test.ts: never-delete user-owned AGENTS.md symlink";
+    const PINNED_BY =
+      "the never-delete cases over REGULAR user files beside this one (the link-specific half is unmeasured on this host)";
+
     // user-owned symlink into the user's own content → must survive uninstall
     const userT = makeFixture();
     writeFileSync(join(userT, "my-real-agents.md"), "USER-OWNED AGENTS — uninstall must never delete this.\n");
-    spawnSync("ln", ["-s", "my-real-agents.md", "AGENTS.md"], { cwd: userT });
+    const skippedUser = stageSymlinkOrSkip("my-real-agents.md", join(userT, "AGENTS.md"), "symlink AGENTS.md (user-owned)", POSITION);
+    if (skippedUser !== null) {
+      console.warn(skipLine(skippedUser, PINNED_BY));
+      return;
+    }
+    // PREMISE: the link exists as a link, or the assertions below measure a regular file.
+    expect(lstatSync(join(userT, "AGENTS.md")).isSymbolicLink(), "PREMISE: the user-owned link was not staged").toBe(true);
     expect(runUninstall(userT, mkTmp()).status).toBe(0);
     expect(lstatSync(join(userT, "AGENTS.md")).isSymbolicLink()).toBe(true);
     expect(readFileSync(join(userT, "AGENTS.md"), "utf8")).toContain("USER-OWNED AGENTS");
 
     // a symlink that resolves to the grugops source IS grugops-owned → removed
     const grugT = makeFixture();
-    spawnSync("ln", ["-s", join(REPO_ROOT, "AGENTS.md"), "AGENTS.md"], { cwd: grugT });
+    const skippedGrug = stageSymlinkOrSkip(join(REPO_ROOT, "AGENTS.md"), join(grugT, "AGENTS.md"), "symlink AGENTS.md (grugops-source)", POSITION);
+    if (skippedGrug !== null) {
+      console.warn(skipLine(skippedGrug, PINNED_BY));
+      return;
+    }
+    expect(lstatSync(join(grugT, "AGENTS.md")).isSymbolicLink(), "PREMISE: the grugops-source link was not staged").toBe(true);
     expect(runUninstall(grugT, mkTmp()).status).toBe(0);
     expect(existsSync(join(grugT, "AGENTS.md"))).toBe(false);
   });
@@ -2628,7 +2734,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       const dead = join(mkTmp(), "no-such-temp-root");
       // PREMISE: the path really is absent, or this arm exercises nothing.
       expect(existsSync(dead)).toBe(false);
-      const r = runWithEnv(src, target, mkTmp(), { TMPDIR: dead });
+      // THE PLANTED TEMP ROOT MUST BE THE ONE THE CHILD READS, ON EVERY HOST. `os.tmpdir()` consults
+      // `TMPDIR`, then `TMP`, then `TEMP` on POSIX — and on win32 consults `TEMP`, then `TMP`, and
+      // never `TMPDIR` at all (node's own os.tmpdir source). Planting `TMPDIR` alone therefore
+      // plants nothing on a windows host: the render mirror lands in the real temp directory, the
+      // install succeeds, and windows-latest run 35394268365 read `tmpdir: status=0` where the
+      // contract says 3. That is the PREMISE failing, not the exit-3 contract — the contract is
+      // asserted unchanged below. All three variables are set, so the premise holds wherever the
+      // child runs, with no host branch deciding which one to set (the same plant as
+      // scripts/generate-guarantees.test.ts, plan 33-04; this site was deferred to plan 33-06).
+      const r = runWithEnv(src, target, mkTmp(), { TMPDIR: dead, TMP: dead, TEMP: dead });
       expect(`tmpdir: status=${r.status}`).toBe("tmpdir: status=3");
       expect(r.stdout).toContain("install INCOMPLETE");
       expect(installedAdapters(target)).toEqual([]);
@@ -3091,9 +3206,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(dRoot, "agent-factory", "config", "factory.config.json"))).toBe(true);
 
     // symlink variant: the orchestrator adapter is a symlink into a planted source clone (LANDMINE).
+    // The clone is planted by the builder; the link is staged here through the D-16 helper, so a
+    // host that refuses it prints one counted SKIPPED row rather than asserting over a copy.
     const dLink = makeOldLayoutFixture({ symlink: true });
-    expect(lstatSync(join(dLink, ".claude", "agents", "grugops-orchestrator.md")).isSymbolicLink()).toBe(true);
     expect(existsSync(join(dLink, "source-clone", "orchestrator-src.md"))).toBe(true);
+    const skipped = stageOldLayoutSymlinkAdapter(dLink, "install/install.test.ts: old-layout fixture shape, symlink variant");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the plain and rootConfig arms of this same case, asserted above"));
+      return;
+    }
+    expect(lstatSync(join(dLink, ".claude", "agents", "grugops-orchestrator.md")).isSymbolicLink()).toBe(true);
     expect(readFileSync(join(dLink, ".claude", "agents", "grugops-orchestrator.md"), "utf8")).toContain(
       "SENTINEL-SOURCE-CLONE",
     );
@@ -3125,7 +3247,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // the resolver adapters carry the materialized KIT= block pointing at the shared kit.
     const agent = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
     expect(agent).toContain("grugops:materialized-kit");
-    expect(agent).toContain(join(home, "agent-factory"));
+    expectMaterializedKit(agent, home); // canonical on both sides; forward-slash spelling (plan 33-06)
     // never-delete-first: the displaced in-repo agent-factory/ is renamed to a timestamped backup.
     expect(backupGlob(target, "agent-factory").length).toBe(1);
   });
@@ -3364,17 +3486,25 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeFileSync(join(collidingBak, "SENTINEL.md"), "PRE-EXISTING BACKUP — MUST NOT BE CLOBBERED\n");
 
     // A throwaway ESM wrapper: pin the clock, then run the committed installer with correct argv.
+    // The import specifier is a file:// URL, never the bare path: an ESM `import()` of a Windows
+    // absolute path reads its drive letter as a URL scheme and refuses it before any module loads
+    // (`ERR_UNSUPPORTED_ESM_URL_SCHEME … Received protocol 'd:'`, reproduced on darwin with a
+    // `D:\…` string; measured on windows-latest run 35394268365 as an EMPTY stdout, exit 1). That
+    // was the wrapper failing to reach the installer, not the installer failing to abort.
     const wrapperDir = mkTmp();
     const wrapper = join(wrapperDir, "pin-clock.mjs");
     writeFileSync(
       wrapper,
       `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
-        `await import(${JSON.stringify(INSTALL_JS)});\n`,
+        `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});\n`,
     );
     const r = spawnSync("node", [wrapper, "--yes", "--migrate"], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
+    // PREMISE: the wrapper reached the installer at all — a failure here names the wrapper's layer
+    // (its stderr) instead of reading as "the installer did not abort".
+    expect(r.stdout !== "", `the wrapper printed nothing; stderr: ${r.stderr}`).toBe(true);
     // The handoffs-backup step aborts in clear voice; the original is preserved untouched and the
     // pre-existing backup is never overwritten (D-18 never-clobber).
     expect(r.stdout).toMatch(/aborted/);
@@ -3386,6 +3516,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // corrupt the source clone — the symlink dest is unlinked before re-materialize (HIGH-severity).
   it("migrate: symlink adapter does not corrupt source clone", () => {
     const target = makeOldLayoutFixture({ symlink: true });
+    // The LANDMINE link is staged through the D-16 helper; a host that refuses it prints one
+    // counted SKIPPED row and the through-the-link write stays unmeasured here, by name.
+    const skipped = stageOldLayoutSymlinkAdapter(target, "install/install.test.ts: migrate symlink adapter LANDMINE");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the plain-adapter migrate cases beside this one (the through-the-link write is unmeasured on this host)"));
+      return;
+    }
+    // PREMISE: the adapter IS a link, or the case below measures a regular-file migrate twice.
+    expect(lstatSync(join(target, ".claude", "agents", "grugops-orchestrator.md")).isSymbolicLink(), "PREMISE: the LANDMINE link was not staged").toBe(true);
     const home = mkTmp();
     const srcClone = join(target, "source-clone", "orchestrator-src.md");
     const before = readFileSync(srcClone, "utf8");
@@ -3579,8 +3718,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // make the INSTALLED kit a newer version than the running source checkout → a downgrade.
     const installedVer = "99.0.0-installed";
     writeFileSync(join(home, "agent-factory", "VERSION"), installedVer + "\n");
-    // the source VERSION is whatever the repo ships (older than 99.0.0).
-    const sourceVer = readFileSync(join(REPO_ROOT, "agent-factory", "VERSION"), "utf8").split("\n")[0];
+    // the source VERSION is whatever the repo ships (older than 99.0.0). Compared TRIMMED: the
+    // repository pins every tracked text file to line feeds (.gitattributes — VERSION itself since
+    // plan 33-05), and the installer prints the version as a token, so an expectation that keeps a
+    // line ending asserts the opposite of the repository's own rule. On windows-latest run
+    // 35394268365, before the VERSION pin, `split("\n")[0]` over a CRLF checkout carried a trailing
+    // carriage return (`'2.1.0\r'`) that no installer output could contain.
+    const sourceVer = readFileSync(join(REPO_ROOT, "agent-factory", "VERSION"), "utf8").trim();
+    expect(sourceVer, "PREMISE: the source VERSION is a bare token").toMatch(/^[0-9A-Za-z.+-]+$/);
 
     const r = runInstall(target, home, "--update");
     expect(r.status).toBe(0); // proceeds (no refusal — D-07)
@@ -3711,14 +3856,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(runInstallFrom(src, target, home).status).toBe(0);
 
     // All SEVENTEEN destination paths are asserted — never a sampled subset.
-    const expectKit = join(home, "agent-factory");
     for (const a of SYNTH_ADAPTERS) {
       const p = join(target, ".claude", "agents", a);
       expect(existsSync(p)).toBe(true);
       const body = readFileSync(p, "utf8");
       expect(body).toContain("grugops:materialized-kit");
-      const kitLine = body.split("\n").find((l) => l.startsWith('KIT="'));
-      expect(kitLine).toBe(`KIT="${expectKit}"`); // resolved kit root, materialized per adapter
+      // resolved kit root, materialized per adapter — canonical on both sides, forward-slash
+      // spelled (plan 33-06; the windows red here was `KIT="C:/…"` against an expected `C:\…`).
+      expectMaterializedKit(body, home);
     }
     expect(SYNTH_ADAPTERS.length).toBe(17);
     // The target's adapter dir holds EXACTLY the derived set — nothing extra, nothing missing.
