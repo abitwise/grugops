@@ -70,6 +70,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, readdirSync, readFileSync, existsSync, } from "node:fs";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 import { join, sep } from "node:path";
 // Repo root = this script's parent's parent (scripts/ -> repo root).
 const ROOT = join(import.meta.dirname, "..");
@@ -209,13 +210,52 @@ const tmp = mkdtempSync(join(tmpdir(), "grugops-fresh-"));
 function cleanup() {
     rmSync(tmp, { recursive: true, force: true });
 }
-const build = spawnSync("npx", ["tsc", "--outDir", tmp], { cwd: ROOT, encoding: "utf8" });
-if (build.status !== 0) {
+// THE COMPILER IS LAUNCHED AS A NODE SCRIPT, NEVER THROUGH THE `npx` SHIM (plan 33-06, CAP-02).
+//
+// WHAT WAS MEASURED. On windows-latest run 35394268365 every clone this gate ran in reported
+// "the rebuild did not compile cleanly" in under 300 ms, with not one line of compiler text —
+// eight reds in scripts/freshness.test.ts, and a Test 3 that passed vacuously because "not fresh"
+// is also what a compiler that never ran produces. On Windows `npx` is `npx.cmd`, and a shell-less
+// `spawnSync("npx", …)` cannot start it: the child never runs, `status` is null and `error` is set
+// (ENOENT, or the .cmd-without-shell EINVAL). The `!== 0` test read that null as a failed compile.
+// Reproduced on darwin by making `npx` unreachable: the same sentence, the same silence, 0.18 s.
+// scripts/check-build-parity.ts:134 records the identical case from review 32.1-14.
+//
+// THE LAYER, AND WHY THIS IS THE FIX. The clone was intact and dependency resolution was never
+// reached; the failure was the LAUNCH of the compiler. So the compiler's own entry
+// (`typescript/lib/tsc.js`, what `bin/tsc` requires) is resolved through this module's require chain
+// — the harness's clone under `.temp/` has no node_modules of its own and finds the checkout's, as
+// `npx` found the ancestor `.bin` — and is run by the node that is running this gate. No shim, no
+// shell on the data path (`tmp` rides an argv array), and no host branch: one launch on every
+// platform. An entry that cannot be resolved is a refusal that names THAT layer, distinct from a
+// compile that ran and refused.
+let tscEntry;
+try {
+    tscEntry = createRequire(import.meta.url).resolve("typescript/lib/tsc.js");
+}
+catch (e) {
+    console.log("BUILD-OUTPUT CHECK FAILED: the compiler could not be located from this checkout " +
+        `(${e instanceof Error ? e.message : String(e)}), so this gate states nothing about the build outputs.`);
+    cleanup();
+    process.exit(1);
+}
+const build = spawnSync(process.execPath, [tscEntry, "--outDir", tmp], { cwd: ROOT, encoding: "utf8" });
+if (build.error !== undefined || build.status !== 0) {
+    // The child's OWN text first, both streams: a compiler that ran and refused is quoted, never
+    // summarised. Then the layer — a launch that never produced a child is named as such, with the
+    // spawn's error, instead of wearing the compile-failure sentence.
     if (build.stdout)
         process.stdout.write(build.stdout);
     if (build.stderr)
         process.stderr.write(build.stderr);
-    console.log("BUILD-OUTPUT CHECK FAILED: the rebuild did not compile cleanly, so this gate states nothing about the build outputs.");
+    if (build.error !== undefined) {
+        console.log(`BUILD-OUTPUT CHECK FAILED: the compiler could not be launched (${build.error.message}), ` +
+            "so this gate states nothing about the build outputs.");
+    }
+    else {
+        console.log("BUILD-OUTPUT CHECK FAILED: the rebuild did not compile cleanly, so this gate states nothing about the build outputs." +
+            ` (tsc exit ${build.status ?? `signal ${build.signal}`})`);
+    }
     cleanup();
     process.exit(1);
 }

@@ -45,6 +45,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// The host compiler, read for its OWN diagnostics table in Test 3 (the planted error's code is
+// derived from it, never typed) — the same reading scripts/runnable-ref/uat-spec-integrity.test.ts
+// takes. A dev dependency; the gate under test resolves the same package at run time.
+import ts from "typescript";
 
 const ROOT = join(import.meta.dirname, "..");
 const FRESHNESS_JS = join(ROOT, "scripts", "freshness.js");
@@ -207,11 +211,19 @@ function parseCounts(stdout: string): Counts {
   };
 }
 
-/** The provenance every assertion message carries. */
+/**
+ * The provenance every assertion message carries: the clone, the exit, and BOTH of the gate's
+ * streams. stderr is where the gate forwards the compiler's own diagnostics (and where a launch
+ * failure lands), so a message without it can only say the rebuild was unclean — which is what the
+ * eight windows-latest reds of run 35394268365 said, eight times, with no compiler text in sight
+ * (plan 33-06, T-33-29). A future log carries the compiler's text, or names the layer that never
+ * produced any.
+ */
 function transcript(label: string, run: Run): string {
   return [
     `${label}: clone HEAD ${run.head || "(none)"} exit ${run.status}`,
     run.stdout.trim() || "(no stdout)",
+    `stderr: ${run.stderr.trim() || "(no stderr)"}`,
   ].join("\n");
 }
 
@@ -526,8 +538,21 @@ describe("freshness.js (D-02 build-output drift gate; subject moved to HEAD by D
     try {
       const r = spawnSync("node", [FRESHNESS_JS], { cwd: ROOT, encoding: "utf8", maxBuffer: BIG });
       const out = r.stdout ?? "";
-      expect(r.status, out).not.toBe(0);
-      expect(out, out).not.toContain(FRESH_LINE);
+      const both = `${out}${r.stderr ?? ""}`;
+      expect(r.status, both).not.toBe(0);
+      expect(out, both).not.toContain(FRESH_LINE);
+      // THE COMPILER ANSWERED, NOT ONLY THE GATE. "Not fresh" is also what a compiler that never
+      // launched produces — this case passed on windows-latest run 35394268365 while the gate's
+      // `npx` spawn returned ENOENT and no compiler ever ran (plan 33-06). The gate now forwards the
+      // child's own text, so the planted error's diagnostic — the code the host compiler's own table
+      // declares for it, never a typed number — must be in the output, and the launch-failure
+      // sentence must not. A host where this reds is a host where the rebuild did not happen.
+      const table = (ts as unknown as { Diagnostics?: Record<string, { code?: unknown }> }).Diagnostics;
+      const planted = table?.["Type_0_is_not_assignable_to_type_1"]?.code;
+      expect(typeof planted, "PREMISE: the host compiler's diagnostics table has no entry for the planted error").toBe("number");
+      expect(both, both).toContain(`TS${planted}`);
+      expect(both, both).not.toContain("could not be launched");
+      expect(both, both).not.toContain("could not be located");
     } finally {
       rmSync(badTs, { force: true });
       expect(existsSync(badTs)).toBe(false);
