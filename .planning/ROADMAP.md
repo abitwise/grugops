@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 23/23 plans executed — 11/11 round-1 plans executed (6 waves); 12 gap-closure round-2 plans (waves 7-12, `gap_closure: true`) planned 2026-09-20 after verification `gaps_found` 0/3
+**Plans**: 23/34 plans executed — 11/11 round-1 plans executed (6 waves); 12/12 gap-closure round-2 plans executed (waves 7-12); 11 gap-closure round-3 plans (33-24..33-34, waves 13-23, `gap_closure: true`) planned 2026-09-21 after round-2 verification `gaps_found` 0/3 — round 3 of the four-round cap
 
 Plans:
 **Wave 1**
@@ -1377,6 +1377,52 @@ Plans:
 **Wave 12** *(blocked on Wave 11 completion)*
 
 - [x] 33-23-PLAN.md — ledger close: 18 accepted-open WR/IN rows + 4 KIT rows through the tool, deferred-items resolutions with citations, REQUIREMENTS/STATE agreement
+
+**Gap-closure round 3 of 4** *(planned 2026-09-21; scope = row 236 at one authority on every arm, review CR-01 + WR-01..06, the human's KIT (a)/(b) directions, § 2/§ 3, the two owed flip amendments, push-before-go sequencing; one live go behind a blocking checkpoint)*
+
+**Wave 13**
+
+- [ ] 33-24-PLAN.md — TRACER: row 236 at ONE spelling authority — the win32 spelling decided by evidence (rung 1), `tmp15` + the home boundary + the env tier through `canonicalDirectoryPath` (WR-05), every consumer arm probed, the 35 titles handed to the CI plan
+
+**Wave 14** *(blocked on Wave 13 completion)*
+
+- [ ] 33-25-PLAN.md — KIT (b): the note reader REFUSES notes the sanctioned writer did not seal (`unsealed` arm, one predicate, the real path-B notes as the RED fixture, every reader route + the compactor's walk, contract/WF16/CHANGELOG)
+
+**Wave 15** *(blocked on Wave 14 completion)*
+
+- [ ] 33-26-PLAN.md — KIT § 3: an absent NoteInput scalar is refused by name on both composers (no `verified_by: undefined`); the MCP route's own default documented
+
+**Wave 16** *(blocked on Wave 15 completion)*
+
+- [ ] 33-27-PLAN.md — KIT § 2: the guard reads a redirection as a redirection (one anchored grammar at the split and the word), keeps `$var`/heredoc fail-closed by recorded disposition, names the mechanism in the deny; proven on the round-1 commands on stdin
+
+**Wave 17** *(blocked on Wave 16 completion)*
+
+- [ ] 33-28-PLAN.md — KIT (a): the coordinator's grant carries the plugin's scoped admission tool through the generator (`admit` token; the alphabet admits `_` by recorded decision); the admission hook matcher fixed to the scoped name it never matched in plugin form; every pin derived
+
+**Wave 18** *(blocked on Wave 17 completion)*
+
+- [ ] 33-29-PLAN.md — CR-01: the verdict scored from the pipe bytes, the grant derived before the spawn with drift folded into failed, `Edit(//ABS/**)` scoped grant (`Bash(node *)` kept by reason), containment before install + uninstall in finally (WR-06; IN-01/IN-02 folded)
+
+**Wave 19** *(blocked on Wave 18 completion)*
+
+- [ ] 33-30-PLAN.md — WR-02 pre-spawn provenance from the platform's registry row, WR-03 working-tree row, WR-04 probe stdout-only, IN-05 control bytes, WR-01 route axis (anchored marker, every writing tool, unclassified node-mediated writes)
+
+**Wave 20** *(blocked on Wave 19 completion)*
+
+- [ ] 33-31-PLAN.md — CAP-02 measured on ONE pushed run, both legs' conclusions quoted (blocking human push — push one of two); rows 226-236/186/193 disposed only on green; a red is round 4's inventory
+
+**Wave 21** *(blocked on Wave 20 completion)*
+
+- [ ] 33-32-PLAN.md — push checkpoint BEFORE the go (push two of two), readiness against the pushed sha at zero tokens (report untracked until after the run), the one live go (D-09, floor 11.75 USD / 31 min), the capture with artifacts committed after; zero-token diagnosis on red
+
+**Wave 22** *(blocked on Wave 21 completion)*
+
+- [ ] 33-33-PLAN.md — the one-way GAP-D1 flip over exactly the 14 declared files with the two owed amendments (`.planning/PROJECT.md` in the commit; F14 literal = 33-33) — decision checkpoint only on OUTCOME: pass + CAP-02 MET — or the § 8 hold record naming round 4 as the last
+
+**Wave 23** *(blocked on Wave 22 completion)*
+
+- [ ] 33-34-PLAN.md — ledger close: `33-REVIEW.md` snapshotted as `33-REVIEW-round2.md` first; rows 255-258 disposed; round-2 review findings fixed-by-name or accepted-open rows; the round's own findings as rows; deferred-items citations; REQUIREMENTS/STATE agreement
 
 ### Phase 34: Model Effort Dial & Pi Support
 
