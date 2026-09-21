@@ -545,3 +545,197 @@ extraction was validated first against the baseline windows log, where it reprod
 census file for file (23 files; 198 unique `FAIL` keys, one case listed twice for two errors) before
 being applied to the new logs. The `Failed Tests` sections carry zero control bytes (scanned before
 any line was quoted here).
+
+## Part 3 — round 2: the pre-push inventory (Task 1)
+
+Gap-closure round 2 of the phase's four-round cap (plan 33-20). Round 1's measurement (Part 2, run
+`35499800942`) left 33 red rows — U-1, U-2, W-1..W-31 (§ 2.4) — and the six fix plans of waves 7
+and 8 (33-14 through 33-19) each closed a subset by mechanism on this host. This part is the same
+shape as Part 1: every workflow command run locally in the workflow's order with its exit status,
+then one row per § 2.4 red with the closing plan, the LOCAL result of running that exact title, and
+whether the windows outcome is measurable on this machine at all. The expectation the run decides is
+written at the end, before the push, together with what would falsify it. Nothing here is a CI
+conclusion; § 3.2 (Task 3) is.
+
+### 3.1 The pre-push inventory
+
+**Tree under measurement:** `cdf9a9b7b9b9d114b2fbd693c6b11807878952be` (the dispatch base of this
+plan; `docs(33-16): record plan 33-16 completion in STATE and ROADMAP`), plus this document, which
+this task's commit adds on top. `origin/main` is `8f05ed42bd9e638dff5b32babf5c971024c4df30` (the
+last of four docs-only commits pushed after run `35499800942`'s sha `d9bd4315`; its own run
+`35507901650` concluded `failure` on the same vitest step, with no source change between the two).
+`git merge-base --is-ancestor origin/main HEAD` → true: the push is a fast-forward.
+`git log --oneline origin/main..HEAD | wc -l` → **61** commits carried (33-12 through 33-19 and
+33-13's out-of-order landing, with their `docs(…)` records). Two untracked paths in the working tree
+(`.planning/milestone.lock`, `.planning/phases/34-model-effort-dial-pi-support/`) are not this
+plan's and are not carried by any commit.
+
+**Host:** darwin/arm64, node v24.12.0, npm 11.7.0 (the CI matrix runs node 22). **Date:**
+2026-09-21 (00:04–00:30 UTC). **Prohibition honoured:** `npm test` was not run; the vitest command
+below is the workflow's own with the `scripts/e2e` exclusion.
+
+**Every workflow command, in the workflow's order, with its local exit status** (the step list is
+unchanged from § 1.1 — `.github/workflows/ci.yml` re-read; headline numbers copied from each
+transcript):
+
+| # | Workflow step | Leg | Command (as the workflow runs it) | Local exit | Headline numbers |
+|--:|---|---|---|--:|---|
+| 1 | Install | both | `npm ci` | 0 | `added 48 packages, and audited 49 packages in 877ms`; `4 vulnerabilities (2 moderate, 2 high)` in dev-only deps (informational, as in § 1.1) |
+| 2 | Freshness gate before any build | ubuntu | `npm run freshness` | 0 | `All build outputs fresh: 69 committed .js file(s) match a rebuild of their sources.` |
+| 3 | Build and working-tree parity assertion | ubuntu | `node scripts/check-build-parity.js` | 0 | `PASS Build parity: tracked build outputs that moved when the build ran: 0 findings over 69/69 elements` — this is the FIRST local run of the parity gate on 33-19's `createRequire` + `process.execPath` compiler launch (the `npx tsc` launch is gone) |
+| 4 | Build | windows | `npm run build` | 0 | `tsc` exit 0; `git status --short -- '*.js'` empty afterwards |
+| 5 | Typecheck | both | `npm run typecheck` | 0 | three targets (`tsc --noEmit`, `tsconfig.tests.json`, `tsconfig.fixtures.json`) |
+| 6 | Platform shape corpus, exit-code contract, directory identity | both | `node scripts/check-platform-shapes.js` | 0 | `HOST CAPABILITIES (3)`: `chmod 000 enforcement present`, `signal-terminated child present`, `control byte in a path component present`; `DRIVEN (13)`; `SKIPPED SHAPES (0)`; `ALL CHECKS PASSED` |
+| 7 | Windows shape remainder is recorded, not silent | windows | `GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS=1 node scripts/check-platform-shapes.js` | **1** | `SKIPPED SHAPES (0):` then `FAIL GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS is set and the skip list is EMPTY.` — the designed answer on a host that constructs every shape (§ 1.1 row 7). On windows-latest this step exited 0 on run `35499800942` with a 5-row remainder (§ 2.3); no plan in this round touched the corpus or the capability probes, so the same non-empty remainder is expected. |
+| 8 | Vitest (e2e lane excluded) | both | `npx vitest run --exclude '**/scripts/e2e/**'` | 0 | `Test Files 78 passed (78)` · `Tests 5375 passed \| 2 skipped (5377)` · `Duration 492.17s` (tests 478.84 s); 0 `Test timed out`, 0 `Hook timed out`, 0 `RangeError` lines in the transcript; 8m14s wall (00:05:33Z → 00:13:47Z) |
+| 9 | Freshness gates + repo gates (one step, 23 commands, stops at the first non-zero) | ubuntu | the 22 rows below (the workflow's `git status --porcelain` and its `test -z` are rows 9.9/9.10) | 0 | every command exit 0 |
+
+The ubuntu-only step, command by command, run one after another in the workflow's order:
+
+| # | Command | Local exit | Headline |
+|--:|---|--:|---|
+| 9.1 | `npm run freshness` | 0 | `All build outputs fresh: 69 committed .js file(s) match a rebuild of their sources.` |
+| 9.2 | `npm run freshness:catalog` | 0 | `Catalog fresh: docs/catalog/README.md matches a fresh regeneration.` |
+| 9.3 | `npm run freshness:context` | 0 | `Context fresh: no .grugops/context/ tree exists yet — nothing committed to drift (vacuous pass).` |
+| 9.4 | `npm run freshness:adapters` | 0 | `Adapters fresh: 17 adapter(s) compared in .claude/agents, 0 byte difference(s), directory listings set-equal.` |
+| 9.5 | `npm run freshness:skill-twins` | 0 | `Skill twins fresh: 7 twin(s) compared in .claude/skills, 0 byte difference(s), directory listings set-equal.` |
+| 9.6 | `npm run freshness:guarantees` | 0 | `Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration.` |
+| 9.7 | `npm run freshness:hook-manifest` | 0 | `Hook manifest fresh: 2 decider(s), 26 module hash(es) match a fresh derivation.` (33-16 re-derived the manifest twice after `context-io.js` moved) |
+| 9.8 | `npm run generate:adapters` | 0 | — |
+| 9.9 | `git status --porcelain -- .claude/agents/` | 0 | empty |
+| 9.10 | `test -z "$(git status --porcelain -- .claude/agents/)"` | 0 | — |
+| 9.11 | `node scripts/check-foundation-guards.js` | 0 | `ALL CHECKS PASSED` (last PASS line: dual-path equivalence) |
+| 9.12 | `node scripts/check-kit-refs.js` | 0 | `invariant marker present at all 26 marker sites (2 named + 24 derived adapters)`; `ALL CHECKS PASSED` |
+| 9.13 | `node scripts/check-public-docs-vocabulary.js` | 0 | `AUDIT-02: 11 public document(s) carry zero retired vocabulary — root 4, examples 5, kitReadme 1, guarantees 1` (33-14's module; the examples part is now published through `corpusMember`) |
+| 9.14 | `node scripts/check-audit-register.js` | 0 | `AUDIT-01 completeness: equality one holds — 36 counted register row(s) set-equal in both directions to 36 derived file(s)` |
+| 9.15 | `node scripts/check-claim-anchors.js` | 0 | `47 registry row(s) parsed from 47 claim-heading-shaped line(s)` |
+| 9.16 | `node scripts/check-banned-claims.js` | 0 | `banned claims: 0 findings over 120/120 elements`; `LANG-04: 120 document(s) … kit 75, publicDocs 12, installReadme 1, skillSources 7, claudeAdapters 24, pluginManifests 2, guarantees 1, overlap 2` |
+| 9.17 | `node scripts/check-imperative-lexicon.js` | 0 | `LANG-01: 76 Technical Name(s) DERIVED from the kit` |
+| 9.18 | `node scripts/check-diff-disposition.js` | 0 | `PASS diff disposition — changed watched file(s): 0 findings over 39/39 elements` (§ 1.3's disposition file still covers the README; no watched file changed in this round) |
+| 9.19 | `node scripts/check-nul-bytes.js` | 0 | `2440 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte` (2434 at 33-15; the round's new files are all tracked and clean) |
+| 9.20 | `node scripts/check-residual-citations.js` | 0 | `residual citations: 5 path claim(s) across 2 published row(s), every one a tracked file` |
+| 9.21 | `node scripts/check-flip-manifest.js` | 0 | `live-surface set: 28 document(s) over 5 floored parts, pinned at 28`; `every declared locator resolves in the pre-capture state: 62 flip row(s), 10 correction row(s), 2 exemption anchor(s)` — the gate whose seven test titles were red on windows (W-4..W-10) now reads a POSIX `publicDocs` part on every host |
+| 9.22 | `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` | 0 | `ALL CHECKS PASSED` |
+
+The plan's own verify chains were also run exactly as written: `npx tsc --noEmit` exit 0;
+`npm run build && npm run check:build-parity && npm run freshness` exit 0 (parity `0 findings over
+69/69 elements`, freshness `69 committed .js file(s)`); `npm run check:nul-bytes` exit 0
+(re-run after this document was written, see the SUMMARY). The working tree is clean of tracked
+changes after every command (`git status --short` shows only the two untracked paths named above).
+
+**Suite totals beside the previous readings:**
+
+| Leg / host | Test files | Tests | Duration | Source |
+|---|---|---|---|---|
+| ubuntu-latest, run `35499800942` (round 1, sha `d9bd4315`) | 1 failed / 77 passed (78) | **2 failed** / 5339 passed / 1 skipped (5342) | 856.26 s | § 2.2 |
+| windows-latest, run `35499800942` (round 1) | 8 failed / 70 passed (78) | **31 failed** / 5308 passed / 3 skipped (5342) | 1857.42 s | § 2.2 |
+| this host (darwin/arm64, node 24), tree `cdf9a9b7` | 78 passed (78) | **0 failed** / 5375 passed / 2 skipped (5377) | 492.17 s | row 8 above |
+
+The denominator moved 5342 → 5377 (35 cases added by 33-12..33-19; each plan's SUMMARY records its
+own delta; the file count is unchanged at 78). The pushed run's totals are read against
+**5377 / 78**.
+
+**One row per § 2.4 red — the closing plan, the mechanism, the local result, and whether the
+windows outcome is measurable here.** Each local result is one invocation of
+`npx vitest run --exclude '**/scripts/e2e/**' <file> -t "<title>"` with the title regex-escaped so
+it matches exactly one case; the exit status and the vitest `Tests` line are quoted from that
+invocation's own output (transcripts `titles/<row>.log` in the executor's scratch directory). Every
+one of the 33 exited 0 with exactly one test passed. The measurability column uses three values:
+**separator seam** — the windows spelling was handed to the predicate on this host (`win32.sep`,
+`path.win32`, a backslash in a fixture name) and the pre-fix assertion reproduced the CI text;
+**capability seam** — the windows host's absent capability was forced on this host
+(`GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT`) and the pre-fix assertion reproduced the CI text;
+**unmeasured locally, by construction** — the windows mechanism has no darwin analogue, so the
+fix's correctness on windows is inferred from a read of the platform (node's source, the Win32
+API) and is exactly what the pushed run decides.
+
+| Row | File : case | Closing plan | Mechanism (one clause) | Local result | Windows outcome measurable here? |
+|---|---|---|---|---|---|
+| U-1 | `scripts/runnable-ref/uat-spec-integrity.test.ts` : `GREEN 1b: the pathological spec alongside a clean one exits 2 with `visited 1 of 2` on stderr` | 33-17 | the two-file case plants `mixedArrangementDepth(parseBoundary())` = 2× the measured one-file overflow boundary, off the zero-margin adjacent pair | exit 0 · `Tests 1 passed \| 388 skipped (389)` | POSIX host runs the same arrangement, but the ubuntu boundary shift that produced the red is **unmeasured locally, by construction** (this host measured `one-file {627, 628} · mixed {627, 628} · shift 0`; 33-17 marks the ubuntu mechanism `UNKNOWN - verify`, cause class SUITE; the pushed ubuntu leg is the settling observation) |
+| U-2 | same file : `ORDERING: the per-file could-not-run reason precedes reportMeasured's output` | 33-17 | same arrangement, same derived depth at (b) | exit 0 · `Tests 1 passed \| 388 skipped (389)` | as U-1 |
+| W-1 | `scripts/check-banned-claims.test.ts` : `the remainder of the tracked TEXT SURFACE minus the scan is covered by an entry of the list` | 33-14 | `publicDocsCorpus()` publishes each walked `examples/` member through `corpusMember(rel)` = `toPosixWith(rel, sep)` at the walk's accumulation site (D-15) | exit 0 · `Tests 1 passed \| 130 skipped (131)` | **separator seam** — Test T hands `win32.sep` to `corpusMember` and a COMPILED identity mutant reds it with `expected 'examples\03-ticket-to-pr.md' to be 'examples/03-ticket-to-pr.md'`; this title itself is a POSIX no-op here |
+| W-2 | same file : `THE MISSING DIRECTION: every scan member is a TRACKED path, and an intruder is NAMED` | 33-14 | same | exit 0 · `Tests 1 passed \| 130 skipped (131)` | separator seam (as W-1) |
+| W-3 | same file : `THE EQUALITY, so nothing is dropped in silence: surfaced == admitted + excluded-by-name` | 33-14 | same | exit 0 · `Tests 1 passed \| 130 skipped (131)` | separator seam (as W-1) |
+| W-4 | `scripts/check-flip-manifest.test.ts` : `exits 0, names the status it read, and prints every part with the derived total beside the pin` | 33-14 | same module fix; the gate's derived `publicDocs` part is POSIX on every host, the listed side always was | exit 0 · `Tests 1 passed \| 36 skipped (37)` | separator seam (as W-1); the gate itself printed all five `examples/` members forward-slashed (row 9.21) |
+| W-5 | same file : `CONVERSE 1: the same cell surviving OUTSIDE the live-surface set (a plan record, an excluded ledger) passes` | 33-14 | same | exit 0 · `Tests 1 passed \| 36 skipped (37)` | separator seam |
+| W-6 | same file : `the same surviving cell does NOT fail the gate in the pre-capture state — before the flip those cells are correct` | 33-14 | same | exit 0 · `Tests 1 passed \| 36 skipped (37)` | separator seam |
+| W-7 | same file : `CONVERSE 2: every cell carrying a well-formed citation to an existing summary section passes` | 33-14 | same | exit 0 · `Tests 1 passed \| 36 skipped (37)` | separator seam |
+| W-8 | same file : `CONVERSE: a GAP-D1 line WITHOUT a deferral marker (the discharge note) passes, and so does the exempt history line` | 33-14 | same | exit 0 · `Tests 1 passed \| 36 skipped (37)` | separator seam |
+| W-9 | same file : `the flip commit is DERIVED from history — a later commit on top does not move the comparison` | 33-14 | same | exit 0 · `Tests 1 passed \| 36 skipped (37)` | separator seam |
+| W-10 | same file : `CONVERSE: an explicit --range over exactly the declared set passes in the discharged state` | 33-14 | same | exit 0 · `Tests 1 passed \| 36 skipped (37)` | separator seam |
+| W-11 | `scripts/check-foundation-guards.test.ts` : `(o-prefix) a root that is a string PREFIX of a sibling path rewrites nothing` | 33-19 | both halves of the assertion compare through `quoteValue` = `JSON.stringify`, the form the guard publishes the illegal `models.preset` in | exit 0 · `Tests 1 passed \| 299 skipped (300)` | **separator seam** — a backslash in the sibling directory's name reproduced W-11's exact shape against the old assertion on darwin; the new one passes |
+| W-12 | `scripts/check-platform-shapes.test.ts` : `COVERAGE: every label was WATCHED live except the two this platform cannot stage` | 33-18 | `expectedUndriven` = `DISCLOSED_UNDRIVEN` ∪ `labelsGatedByAbsentCapability()`, read from the one `MIRROR_CAPABILITY_GATES` table through the same `hostCapabilityOrSkip` the mirror case takes | exit 0 · `Tests 1 passed \| 26 skipped (27)` | **capability seam** — under `FORCE_ABSENT="signal-terminated child"` the set grew by exactly `NOT ORDINARY (signalled)` and the mirror printed its SKIPPED row |
+| W-13 | `scripts/uat-gate-exit-contract.test.ts` : `the watched corpus is not narrowed — the gate reports its own cardinality, unchanged at 40` | 33-18 | the explicit `}, 60_000)` argument is removed; D-14's global 180 s bound governs | exit 0 · `Tests 1 passed \| 34 skipped (35)` (tests 10.65 s here) | **unmeasured locally, by construction** — a windows wall-clock duration (61 989 ms on run `35499800942`, 56 481 ms at the baseline); the run decides whether it stays under 180 000 ms |
+| W-14 | same file : `NON-EMPTY on a platform lacking a shape, and each entry names the shape AND the platform` | 33-18 | the per-line check demands membership in `ADMISSIBLE_SHAPE_NAMES` = `SHAPES` ∪ `HOST_CAPABILITIES` names (two floors), not the literal `shape="FIFO"` | exit 0 · `Tests 1 passed \| 34 skipped (35)` | **capability seam** — `FORCE_ABSENT="FIFO,chmod 000 enforcement"` emulated the windows remainder; the old literal reproduced W-14's exact text, the derived loop is green |
+| W-15 | same file : `the scanned document set is DERIVED and its cardinality is asserted, so a short scan is red` | 33-18 | `scannedDocumentsWith({ join, sep })` maps every member through `toPosixWith(p, api.sep)` at the one push site | exit 0 · `Tests 1 passed \| 34 skipped (35)` | **separator seam** — test AE drives `path.win32`; removing the normalizer reds AE on darwin with `expected '\Users\…' not to contain '\'` |
+| W-16 | same file : `every ordinal-claiming sentence in the scanned set appears in the tracked list` | 33-18 | same push site; the `split("/").pop()` key is a bare file name on every host | exit 0 · `Tests 1 passed \| 34 skipped (35)` | separator seam (as W-15) |
+| W-17 | `scripts/context-io.test.ts` : `trustedRepoRoot is ONE function, and an empty CLAUDE_PROJECT_DIR names nothing` | 33-15 | the expectation is `resolve("/tmp/some-project")`, the module's own `resolve(fromEnv.trim())` over the same literal | exit 0 · `Tests 1 passed \| 662 skipped (663)` | **separator seam** — `path.win32.resolve("/tmp/some-project") === "/tmp/some-project"` → `false` on this host, which is the CI text's mechanism; the derivation is an identity on POSIX |
+| W-18 | same file : `trustedRepoRoot returns the TRIMMED value, as grantedBy does next door` | 33-15 | same derivation at both assertions | exit 0 · `Tests 1 passed \| 662 skipped (663)` | separator seam (as W-17) |
+| W-19 | same file : `BOUND: the ancestor walk is limited, so a configuration far above the cwd is not reached` | 33-15 | `deepFixture(top, 70)` composes single-character segments and asserts the composed length ≤ `DEEP_FIXTURE_MAX_PATH_CHARS = 240` as a PREMISE; `drive()` now quotes the spawn error/status/signal | exit 0 · `Tests 1 passed \| 662 skipped (663)` | **unmeasured locally, by construction** — a `CreateProcess` cwd length bound; this host spawns at 215 chars, the 240 ceiling hypothesis is `UNKNOWN - verify` (33-15); the run's driver output (an answer, or the quoted spawn error) settles it |
+| W-20 | same file : `the published step limit is the one the walk has, driven from the sentence itself` | 33-15 | `deepFixture(near, limit - 4)` (201 chars here) and `deepFixture(far, limit + 6)` under the same ceiling | exit 0 · `Tests 1 passed \| 662 skipped (663)` | as W-19 |
+| W-21 | same file : `R-31-19-07 re-measured on BOTH axes: the SYMLINK cell still HOLDS, the CASE cell is CLOSED` | 33-16 | `trustedRepoRoot` walks from `canonicalWorkingDirectory(process.cwd())` (rung 1 `realpathSync.native`), so a cwd spelled through a directory symlink names the target on every host | exit 0 · `Tests 1 passed \| 662 skipped (663)` | **separator seam** in kind (a directory-symlink cwd on darwin: pre-fix probe `equal: false`, post-fix `equal: true`); on windows the fixture needs the runner's `SeCreateSymbolicLink` privilege (held on run `35499800942`); if lost, 33-16's D-16 routing prints a SKIPPED row, not a red |
+| W-22 | same file : `CONTROL 5b (BOTH WAVES): the same store at a MARKER-LESS home declines` | 33-15 | `plantHome(home)` sets `HOME` and `USERPROFILE` together (win32 `os.homedir()` reads `USERPROFILE`); the decline is asserted by name before the clause | exit 0 · `Tests 1 passed \| 662 skipped (663)` | **unmeasured locally, by construction** — the win32 `USERPROFILE` read is node's source, not a darwin behaviour; the darwin MIRROR (mutation A: plant `USERPROFILE` only) reds 5b with `CONTROL 5b PROMOTED … expected null not to be null`, so the fix's shape is proven, its win32 effect is the run's |
+| W-23 | same file : `hostDeliveredRoot() ACCEPTS a canonical, existing, version-controlled directory` | 33-15 | the expectation is `realpathSync.native(r)`, rung 1's own spelling | exit 0 · `Tests 1 passed \| 662 skipped (663)` | **unmeasured locally, by construction** — 8.3 short names (`RUNNER~1` vs `runneradmin`) have no darwin analogue; the derivation is an identity here (`native(portable(d)) === native(d)` → `true`) |
+| W-24 | same file : `tier 0 OUTRANKS tier 1, which is the only reason it is a tier at all` | 33-15 | `toBe(realpathSync.native(delivered))` | exit 0 · `Tests 1 passed \| 662 skipped (663)` | unmeasured locally, by construction (8.3, as W-23) |
+| W-25 | same file : `the canonicaliser's THREE rungs are each driven, and the rung this platform used is named` | 33-15 | rung 2 is asserted to name rung 1's directory: `native(realpathSync(r))` vs `native(r)` | exit 0 · `Tests 1 passed \| 662 skipped (663)` | unmeasured locally, by construction (8.3, as W-23) |
+| W-26 | same file : `the three readings are taken against a kit home the COMMITTED installer created` | 33-15 | the reading driver AND its CONTROL pass `{ HOME: home, USERPROFILE: home }` to the child | exit 0 · `Tests 1 passed \| 662 skipped (663)` | unmeasured locally, by construction (win32 `USERPROFILE`, as W-22) |
+| W-27 | same file : `every planted condition reports its OWN arm, read from the authority's discriminant` | 33-15 (33-16 made `cell` the import) | the detail-cell expectation is `rendererCell(message)` = the module's exported `cell` (backslash doubled, pipe escaped), not a pipe-only replacement | exit 0 · `Tests 1 passed \| 662 skipped (663)` | **separator seam** — a note at `notes/dd\overceiling.md` on darwin renders `dd\\overceiling.md`: pipe-only form `false`, `rendererCell` `true` |
+| W-28 | same file : `R-31-21-03's published shape AGREES with the reading its probe takes` | 33-16 | `appendRegularFileLine` `statSync`s the position first and refuses a non-regular entry as `not-a-regular-file` BEFORE any open, so the arm no longer depends on which error the host's open call fails into | exit 0 · `Tests 1 passed \| 662 skipped (663)` | the darwin arm was reproduced (RED: raw open `EISDIR`, module answered `unopenable`); the windows open-error arm is now UNREACHABLE by construction rather than measured; whether the retained-position fixture is a FIFO on windows stays `UNKNOWN - verify` (§ 2.4) — the run decides |
+| W-29 | `scripts/freshness.test.ts` : `DISCRIMINATION PAIR: the same planted stale committed .js is green on the pre-fix tree and red on the post-fix tree` | 33-19 | the pre-fix arm asserts what every host can observe — the pre-fix gate never names the plant — with `prefixShape(run)` ∈ {`green-vacuous`, `no-compiler-vacuous`} and `unexpected` refused | exit 0 · `Tests 1 passed \| 12 skipped (13)` (tests 22.61 s) | **capability seam** in kind — `npx` removed from PATH on darwin produces the windows shape (`no-compiler-vacuous`, exit 1, `stderr: (no stderr)`); both shapes measured here, the refusal arm proven by mutation |
+| W-30 | `scripts/runnable-ref/uat-spec-integrity.test.ts` : `GREEN 1: a spec the parser cannot finish exits 2 with the vacuity floor on stderr` | 33-17 | `faultKey` is the one key-forming rule at the compiler host's `set` and the checker's `get` | exit 0 · `Tests 1 passed \| 388 skipped (389)` | **separator seam** — test AB uses a `path.win32` pair on darwin: the raw-keyed map does NOT find the lookup, the `faultKey`-keyed one does; identity mutant reds AA, AB, POINT 2 |
+| W-31 | same file : `POINT 2: the Program's included files are a SUPERSET of the derived spec set` | 33-17 | both sides of the comparison go through `faultKey`; a win32-spelled lookup is added | exit 0 · `Tests 1 passed \| 388 skipped (389)` | separator seam (as W-30) |
+
+**Tally.** 33 of 33 rows exit 0 locally with exactly one test passed. By measurability: 19 rows are
+closed on a separator seam (W-1..W-11, W-15..W-18, W-21, W-27, W-30, W-31); 3 on a capability seam
+(W-12, W-14, W-29); **11 are unmeasured locally, by construction** — U-1, U-2 (the ubuntu boundary
+shift), W-13 (a windows duration), W-19, W-20 (a `CreateProcess` cwd bound), W-22, W-26 (win32
+`USERPROFILE`), W-23, W-24, W-25 (8.3 short names), and W-28 (the windows open-error arm, now
+unreachable). Those eleven are what the run actually decides; the other twenty-two it confirms.
+
+**Also unmeasured locally, by construction, beyond the 33** (carried from § 1.4, with what changed):
+
+- `scripts/board-watch-live.test.ts` (WINDOWS.md row 186): green on both legs of both prior runs
+  (§ 2.3: `6 tests 7776ms` on windows). Unconditional per D-16; the pushed run is its third
+  measurement, and the plan disposes row 186 only on a green run.
+- The D-14 bounds: no test on either leg approached 180 000 ms on run `35499800942` (slowest 86 234
+  ms). Nothing in this round changed a bound; W-13's removed 60 s argument moves that case under the
+  global one.
+- The windows `SKIPPED SHAPES` remainder under `REQUIRE_SKIPS` (row 7): expected the same 5 rows as
+  § 2.3, since neither the corpus nor the capability probes changed.
+- The runner's `SeCreateSymbolicLink` privilege: held on run `35499800942`. Every directory-symlink
+  fixture in `scripts/context-io.test.ts` is now routed through `stageSymlinkOrSkip` (33-16, 10 → 0
+  raw `symlinkSync`), so a lost privilege prints SKIPPED rows counted in the remainder, never a red.
+- **The 23-command ubuntu gate chain (row 9) has never been exercised by CI:** the step after a
+  failed vitest step does not run, and the ubuntu vitest step has been red on every run since
+  2026-07-15. It is green end to end here; its first CI reading is this run's, on a node 22 runner
+  with a fresh checkout.
+- The `check-build-parity` step on ubuntu (row 3) is likewise the first CI reading of 33-19's
+  compiler launch (`typescript/lib/tsc.js` under `process.execPath`, in place, in the checkout
+  root).
+
+**What the pushed run will decide, stated before the push:**
+
+1. **Ubuntu leg:** expected green on every step — install, freshness, parity, typecheck, platform
+   shapes, vitest (5377 / 78, 0 failed), and the 23-command gate chain reached for the first time.
+   Falsifier: any red step. A red at vitest on U-1 or U-2 falsifies 33-17's SUITE diagnosis (the
+   derived doubled depth did not clear the ubuntu boundary, or the cause class is not SUITE); a red
+   anywhere else in vitest is a regression or a runner-only fact (node 22, a fresh checkout); a red
+   in the gate chain is a class no run has ever measured. Each is this round's finding.
+2. **Windows leg:** expected green on every step — the 5-row remainder at step 7 exiting 0, and
+   vitest with **0 failed** over 5377 / 78: all 31 W-rows closed, no NOT ADDRESSED residue (Part 1
+   § 1.5 predicted 13 survivors; this round predicts none). Falsifier: any red. A red among the 31
+   is a mechanism this round got wrong, attributable to the closing plan in the row above (the
+   eleven `unmeasured locally, by construction` rows are where that is likeliest, and they are
+   named); a red outside the 31 is a reproduction that did not transfer or a class created by this
+   round's changes — the same shape as § 2.4's 18 unpredicted reds — and is inventoried as `new`.
+   Either is round 3's input; none is answered with a platform conditional (D-14/D-16) and none is
+   fixed inside this plan (D-11's shape).
+3. **CAP-02 verdict:** MET only if BOTH legs' `conclusion` fields read `success` (D-13). Any red on
+   either leg is NOT MET, the inventory is re-derived from that leg's own log in § 2.4's shape, and
+   rows 229–235, 186 and 193 stay exactly as they are.
+
+**No source file is changed by this task.** The sha of the commit before this task is
+`cdf9a9b7b9b9d114b2fbd693c6b11807878952be`; this task's commit carries only this document, so
+`git diff --stat cdf9a9b7..HEAD -- scripts install hooks` is empty after it (quoted in the SUMMARY
+with the commit's sha). The push is not made by this task; it is behind Task 2's named human
+confirmation.
