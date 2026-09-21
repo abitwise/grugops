@@ -13371,6 +13371,33 @@ describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repo
     expect(readFileSync(join(dest, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
   });
 
+  it("CONTROL 2b (33-25, the promoteAdmitted route): an UNSEALED occupant at the destination id is not live there — the route falls through to the chokepoint's append-only refusal, and the occupant's bytes are unchanged", () => {
+    const origin = govRoot("p31-29-c2b-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const destRoot = govRoot("p31-29-c2b-dest-");
+    const dest = storeUnder(destRoot);
+    mkdirSync(join(dest, TASK, "notes"), { recursive: true });
+    const occupant =
+      `---\nid: ${id}\nkind: observation\nby: qe\nat: 2026-09-09T01:00:00Z\n` +
+      `verified_by: \nconfidence: high\nrefs:\nsupersedes: \n---\n\nnot the promoted note\n`;
+    writeFileSync(join(dest, TASK, "notes", `${id}.md`), occupant);
+    // The destination-liveness read goes through the one walk: the hand-written occupant is NOT a
+    // live note, so this route's own clause is not reached — and the write is still refused, by the
+    // chokepoint, with the occupant byte-unchanged. Nothing read the hand-written note as admitted.
+    let threw: string | null = null;
+    try {
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw, "the promotion wrote over an unsealed occupant").not.toBeNull();
+    expect(threw).not.toContain("destination-id-occupied");
+    expect(threw).toContain("context-io.writeNoteFile: refusing to write");
+    expect(readFileSync(join(dest, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+    expect(mod.readContext(TASK, dest), "the unsealed occupant was returned as a note").toEqual([]);
+  });
+
   it("CONTROL 3 (CR-08 unmoved): the legitimate promotion still writes, `to` and the root agreeing", () => {
     const origin = govRoot("p31-29-c3-origin-");
     const originStore = storeUnder(origin);
@@ -16944,5 +16971,138 @@ describe("33-25 — KIT (b): the reader refuses a note the sanctioned writer did
     expect(mod.noteSeal("x")).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(mod.noteSeal("x")).toBe(mod.noteSeal("x"));
     expect(mod.noteSeal("x")).not.toBe(mod.noteSeal("y"));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-25, TASK 2 — HOW THE REFUSAL IS REACHED, probed from every reader route, not only what it
+// refuses. One directory holding one sealed note and one unsealed note; six routes; one answer.
+// The compactor's second walk is probed in scripts/compactor.test.ts (R3/R4), and the
+// `promoteAdmitted` destination-liveness arm in the `31-29 — CR-20` block (CONTROL 2b).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// The three consumer routes, imported as the committed `.js` the hosts run (module level: a
+// top-level `await` is legal here and not inside a `describe` body).
+const dpe: typeof import("./dual-path-equivalence.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "dual-path-equivalence.js")).href
+);
+const trace: typeof import("./trace-render.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "trace-render.js")).href
+);
+const capture: typeof import("./capture-live.js") = await import(
+  pathToFileURL(join(ROOT, "scripts", "capture-live.js")).href
+);
+
+describe("33-25 — R1/R2: every reader route reaches the refusal", () => {
+  const T = "T-R1";
+
+  /** One sealed note (through the writer) and one unsealed note (by hand) under one task. */
+  function mixedStore(prefix: string): { ctx: string; sealedId: string; unsealedFile: string } {
+    const root = freshTmp(prefix);
+    const ctx = join(root, ".grugops", "context");
+    mkdirSync(ctx, { recursive: true });
+    const sealedId = mod.appendNote(
+      T,
+      {
+        kind: "observation",
+        by: "software-engineer",
+        at: "2026-09-21T01:00:00Z",
+        verified_by: "",
+        confidence: "high",
+        refs: ["ABC-001"],
+        supersedes: null,
+      } as Parameters<typeof mod.appendNote>[1],
+      "the writer composed this one\n",
+      ctx,
+      undefined,
+      freshTmp(`${prefix}lean-`),
+    );
+    const unsealedFile = "20260921T020000Z-software-engineer-observation-hand0001.md";
+    writeFileSync(
+      join(ctx, T, "notes", unsealedFile),
+      "---\nid: 20260921T020000Z-software-engineer-observation-hand0001\nkind: observation\n" +
+        "by: software-engineer\nat: 2026-09-21T02:00:00Z\nverified_by: \nconfidence: high\n" +
+        "refs:\n  - ABC-002\nsupersedes: \n---\n\na hand composed this one\n",
+    );
+    // PREMISE: both are structurally notes and only one is sealed.
+    const unsealedText = readFileSync(join(ctx, T, "notes", unsealedFile), "utf8");
+    expect(mod.parseNote(unsealedText), "PREMISE: the hand-written note does not parse").not.toBeNull();
+    expect(mod.sealVerdict(unsealedText)).toEqual({ ok: false, reason: "absent" });
+    return { ctx, sealedId, unsealedFile };
+  }
+
+  it("R1 — six routes, one directory, one answer: readContext 1, currentState 1, render 1 note + 1 `unsealed`, projectTaskState 1, trace-render 1 row, authorStamps 1 stamp", () => {
+    const { ctx, sealedId, unsealedFile } = mixedStore("p33-25-r1-");
+    // 1. readContext
+    const records = mod.readContext(T, ctx);
+    expect(records.map((n) => n.id), "readContext").toEqual([sealedId]);
+    // 2. currentState over readContext
+    expect(mod.currentState(mod.readContext(T, ctx)).map((n) => n.id), "currentState").toEqual([sealedId]);
+    // 3. render: the index names one note and the skip report names the other under `unsealed`
+    mod.render(T, ctx);
+    const jsonl = readFileSync(join(ctx, T, "index.jsonl"), "utf8").trimEnd().split("\n");
+    expect(jsonl, "render index.jsonl").toHaveLength(1);
+    expect((JSON.parse(jsonl[0]) as { id: string }).id).toBe(sealedId);
+    const md = readFileSync(join(ctx, T, "index.md"), "utf8");
+    expect(md, "render index.md").toContain("1 entry in this task's notes/ directory was not read as a note");
+    expect(md).toContain(`| ${unsealedFile} | unsealed | absent |`);
+    // 4. dual-path-equivalence.projectTaskState
+    expect(dpe.projectTaskState(ctx, T).map((p) => p.body), "projectTaskState").toEqual(["the writer composed this one"]);
+    // 5. trace-render: one ticket row (ABC-001), none for the hand-written note's ABC-002
+    const rows = trace.buildRows(ctx);
+    expect(rows.map((r) => r.id), "trace-render").toEqual(["ABC-001"]);
+    // 6. capture-live.authorStamps (CAP-03 side (b))
+    const stamps = capture.authorStamps(ctx);
+    expect(stamps.map((s) => s.noteId), "authorStamps").toEqual([sealedId]);
+  });
+
+  it("R2 — CAP-03 side (b) sees the KIT change at zero tokens: the nine path-B notes planted alone give 0 stamps, and the predicate names side (b) by its no-note reason", () => {
+    // The nine `Write`-tool notes of the held capture, planted exactly as S1 plants them.
+    const lines = spawnSync("git", ["show", "c7be6d0d:.planning/phases/33-live-capture-windows-portability/33-CAPTURE-B.jsonl"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      input: "",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    expect(lines.status, `PREMISE: git show failed: ${lines.stderr}`).toBe(0);
+    const frames = lines.stdout.split("\n");
+    const root = freshTmp("p33-25-r2-");
+    const ctx = join(root, ".grugops", "context");
+    let planted = 0;
+    for (const n of [774, 795, 817, 1542, 1607, 1638, 1757, 1779, 1802]) {
+      const frame = JSON.parse(frames[n - 1]) as {
+        message?: { content?: Array<{ type: string; name?: string; input?: { file_path?: string; content?: string } }> };
+      };
+      const w = (frame.message?.content ?? []).find((b) => b.type === "tool_use" && b.name === "Write");
+      const m = (w?.input?.file_path ?? "").replace(/\\/g, "/").match(/\/\.grugops\/context\/([^/]+)\/notes\/([^/]+\.md)$/);
+      expect(m, `PREMISE: B:${n} is not a notes/ write`).not.toBeNull();
+      const [, task, file] = m as RegExpMatchArray;
+      mkdirSync(join(ctx, task, "notes"), { recursive: true });
+      writeFileSync(join(ctx, task, "notes", file), w?.input?.content as string);
+      planted++;
+    }
+    expect(planted).toBe(9);
+    expect(capture.contextTasks(ctx), "PREMISE: the three audit tasks are listed").toHaveLength(3);
+    const stamps = capture.authorStamps(ctx);
+    expect(stamps, "a hand-written note produced an author stamp").toEqual([]);
+    // The instrument names side (b) by its no-note reason — the reader refuses what side (b) would
+    // otherwise have counted. Side (a) is given a satisfied shape so side (b) is the only red.
+    const reasons = capture.capThreePredicate({
+      grant: {
+        granted: ["brownfield-mapper", "architect-design", "security-nfr"],
+        adapterNames: ["brownfield-mapper", "architect-design", "security-nfr", "grugops-orchestrator"],
+        coordinator: "grugops-orchestrator",
+        prefix: "",
+        reasons: [],
+      },
+      observations: [
+        { role: "brownfield-mapper", toolUseId: "tu-1", evidence: "nested-frames", frameCount: 3, frameIndex: 1, evidenceFrameIndex: 2 },
+        { role: "architect-design", toolUseId: "tu-2", evidence: "task-notification", frameCount: 1, frameIndex: 4, evidenceFrameIndex: 5 },
+      ],
+      stamps,
+    });
+    expect(reasons).toEqual([
+      "side (b): no live note exists under the target's context root, so no author stamp can be read",
+    ]);
   });
 });

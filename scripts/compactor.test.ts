@@ -71,6 +71,24 @@ const ctxio: typeof import("./context-io.js") = await import(
   pathToFileURL(CONTEXT_IO_JS).href
 );
 
+// ── sealed: PROMOTED-tier raw bytes, sealed through the one exported digest (plan 33-25, KIT (b)). ──
+// The carve-out's gate (c) asks `sealVerdict` of every promoted note, so a case that plants raw
+// promoted bytes and expects ACCEPTANCE must seal them the way `composeNote` does — the unsealed
+// text digested through `noteSeal`, the line inserted LAST inside the fence, in the note's own line
+// terminator (the round-5 matrix drives a CRLF promoted note; the digest is line-ending-normalised
+// exactly as the parser is). Raw bytes stay raw where a case needs a shape the writer would not
+// produce (a laundered field, a fixed id, a byte-exact drop) — the mutation is applied first and the
+// mutated bytes are sealed, so the case still measures the field and not the seal. RAW THREAD
+// records are never sealed: the thread tier is exempt by tier.
+function sealed(text: string): string {
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const open = `---${eol}`;
+  const close = `${eol}---${eol}`;
+  const fenceEnd = text.indexOf(close, open.length);
+  if (!text.startsWith(open) || fenceEnd < 0) throw new Error("sealed(): the text has no frontmatter fence");
+  return text.slice(0, fenceEnd) + `${eol}${ctxio.NOTE_SEAL_KEY}: ${ctxio.noteSeal(text)}` + text.slice(fenceEnd);
+}
+
 // ── Note composition (mirrors context-io.test.ts goodNoteText shape) ──────────────────────────────
 // A complete, valid note frontmatter+body the carve-out cases mutate one field of.
 function noteText(over: Partial<Record<string, string>> = {}): string {
@@ -126,19 +144,23 @@ function goodRawThread(threadDir: string): void {
 // The compact distillation the agent proposes to promote. Each RED case drops exactly one element.
 function goodPromotedSet(promotedDir: string, over?: { finding?: Partial<Record<string, string>>; dropFA?: boolean }): void {
   mkdirSync(promotedDir, { recursive: true });
+  // Promoted-tier plants are SEALED after the case's mutation is applied (plan 33-25), so a drop
+  // case still refuses on the dropped field and the faithful case is accepted.
   writeFileSync(
     join(promotedDir, "finding.md"),
-    noteText({ kind: "finding", verified_by: "§14-gate#SEED-001", ...(over?.finding ?? {}) }),
+    sealed(noteText({ kind: "finding", verified_by: "§14-gate#SEED-001", ...(over?.finding ?? {}) })),
   );
   if (!over?.dropFA) {
     writeFileSync(
       join(promotedDir, "FA-1.md"),
-      noteText({
-        id: "20260617T142305Z-engineer-failed-attempt-fa1",
-        kind: "failed-attempt",
-        verified_by: "",
-        body: "FA-1: shared token cache broke under concurrency.",
-      }),
+      sealed(
+        noteText({
+          id: "20260617T142305Z-engineer-failed-attempt-fa1",
+          kind: "failed-attempt",
+          verified_by: "",
+          body: "FA-1: shared token cache broke under concurrency.",
+        }),
+      ),
     );
   }
 }
@@ -1227,14 +1249,17 @@ describe("compactor.js — CMP-02 round-4 oracle unification (CR-03 + CR-01, hel
     );
     mkdirSync(promoted, { recursive: true });
     // Provenance byte-equal; ONLY the body shortened (the sanctioned D-01 compression latitude).
+    // Sealed: a promoted note the writer composed (plan 33-25).
     writeFileSync(
       join(promoted, "fa.md"),
-      faNoteText({
-        id: "20260617T142305Z-engineer-failed-attempt-keep",
-        verified_by: "",
-        token: "FA-3",
-        body: "FA-3: shared token cache broke under concurrency.",
-      }),
+      sealed(
+        faNoteText({
+          id: "20260617T142305Z-engineer-failed-attempt-keep",
+          verified_by: "",
+          token: "FA-3",
+          body: "FA-3: shared token cache broke under concurrency.",
+        }),
+      ),
     );
     const r = runCheck(thread, promoted);
     expect(r.status, "a faithful FA body-only compaction must be accepted").toBe(0);
@@ -1662,9 +1687,11 @@ describe("compactor.js — CMP-02 round-5 line-shape × field × kind matrix (pi
           // Promoted note: the targeted field's value laundered behind the reshaped line.
           const promotedFields = { ...base, [field]: launderedValue(field, kind) };
           mkdirSync(promoted, { recursive: true });
+          // The laundered promoted bytes, SEALED after the reshape (plan 33-25) so every cell still
+          // measures the line shape and the value, never the seal; the CRLF cell seals in CRLF.
           writeFileSync(
             join(promoted, "note.md"),
-            buildNote(promotedFields, "AUTH-01", tokenBody, field, shape),
+            sealed(buildNote(promotedFields, "AUTH-01", tokenBody, field, shape)),
           );
           const r = runCheck(thread, promoted);
           // The two parser-NORMALIZED shapes (trailing-whitespace trimmed, CRLF normalized) carry no
@@ -2058,8 +2085,9 @@ describe("compactor.js — CMP-02 round-6 multi-note thread file (held-out RED-f
         supersedes: "",
         body: opts?.corruptBody === 1 ? bodies[1] + " TAMPERED" : bodies[1],
       });
-      if (opts?.drop !== 0) writeFileSync(join(promoted, "n0.md"), note0);
-      if (opts?.drop !== 1) writeFileSync(join(promoted, "n1.md"), note1);
+      // Promoted plants sealed after the case's corruption is applied (plan 33-25).
+      if (opts?.drop !== 0) writeFileSync(join(promoted, "n0.md"), sealed(note0));
+      if (opts?.drop !== 1) writeFileSync(join(promoted, "n1.md"), sealed(note1));
       return promoted;
     };
 
@@ -3203,7 +3231,7 @@ describe("33-25 — the compactor's promoted-tier walk asks the one seal predica
     expect(rawText).not.toMatch(/^seal:/m);
     // The tier exemption is stated in the module by TIER, not by kind or author.
     const source = readFileSync(join(ROOT, "scripts", "compactor.ts"), "utf8");
-    expect(source).toContain("exempt BY TIER");
+    expect(source).toMatch(/EXEMPT BY TIER — never by kind, never by author/);
     expect(source, "the compactor computes a digest of its own").not.toContain("createHash");
   });
 

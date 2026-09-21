@@ -52,7 +52,7 @@
 import { readFileSync, readdirSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
-import { appendNote, promoteAdmitted as ctxPromoteAdmitted, admit, currentState, noteId, parseNote, splitNotes, validate, NOTE_KINDS, } from "./context-io.js";
+import { appendNote, promoteAdmitted as ctxPromoteAdmitted, admit, currentState, noteId, parseNote, sealVerdict, splitNotes, validate, NOTE_KINDS, } from "./context-io.js";
 // ── Context root (production). Tests pass an explicit root. ──────────────────────────────────────
 const REPO_ROOT = join(import.meta.dirname, "..");
 const DEFAULT_CONTEXT_ROOT = join(REPO_ROOT, ".grugops", "context");
@@ -272,6 +272,30 @@ export function checkCarveOut(rawThread, promoted, _dial = DEFAULT_DIAL) {
                 `the shared write-path validator so it refuses exactly what appendNote refuses; CMP-02, IN-02).`);
         }
     }
+    // Gate (c) — THE SEAL, asked of the PROMOTED tier through the ONE exported predicate (plan 33-25,
+    // KIT (b), WINDOWS.md row 256). The promoted tier is the shared verified context, and a promoted
+    // note the sanctioned writer did not compose — hand-composed, composed by a kit version before the
+    // seal existed, or edited after the write — is refused here BY NAME, fail closed, the WR-01/WR-02
+    // shape: this oracle must not accept as promoted truth a note the reader would refuse to return.
+    // `sealVerdict` is imported from context-io.ts and nothing is computed locally: the compactor is
+    // the second reader in the tree, and a second reader with its own digest is the drift this
+    // repository keeps deleting (R4 in scripts/compactor.test.ts removes this one call in a mirror and
+    // proves the FAIL disappears with it).
+    //
+    // THE RAW THREAD TIER IS EXEMPT BY TIER — never by kind, never by author. `threads/<agent>.md` is
+    // the agent's local scratch by contract (WF18, D-07/D-08): it is gitignored, it is never read as
+    // an admitted note by any reader, and `composeThreadNote` stays UNSEALED so a thread record cannot
+    // be mistaken for a note the writer admitted. What the carve-out asks of the raw tier is
+    // survival — every load-bearing field byte-equal on a promoted counterpart the writer sealed.
+    for (const [file, fields] of promotedNotes) {
+        const seal = sealVerdict(fields.text);
+        if (!seal.ok) {
+            findings.push(`carve-out FAIL: promoted note "${file}" is unsealed (${seal.reason}) — the sanctioned ` +
+                `writer seals every note it composes, and a promoted note without a matching seal was not ` +
+                `composed by it; the reader refuses such a note and so does this carve-out. Promote through ` +
+                `the writer (CMP-02, plan 33-25).`);
+        }
+    }
     // 1. The id-keyed exact 1:1 carve-out, UNIFIED over durable notes AND failed-attempts. Identity is
     // the frozen `id` field ALONE — never a forgeable/collidable content tuple, and never the FA body
     // token (WR-01). The required-survival set is ASYMMETRIC: it starts from currentState(rawThread) —
@@ -461,6 +485,10 @@ export function writeThread(task, agent, body, contextRoot = DEFAULT_CONTEXT_ROO
 // ── composeThreadNote: an id-bearing structured note fence for the thread tier. ──────────────────
 // Mirrors context-io's composeNote frontmatter shape (id: first) so the compaction step parses a
 // thread record identically to a promoted note. The id is the frozen creation-time noteId() value.
+// NOT SEALED, BY TIER (plan 33-25): the thread tier is the agent's local scratch (WF18), never read
+// as an admitted note, and a thread record carrying the writer's seal would read as one. The seal
+// belongs to the promoted tier, where `appendNote` emits it; checkCarveOut's gate (c) asks it of
+// promoted notes only. This composer computes no digest and imports none.
 function composeThreadNote(note, body) {
     // IN-01: the frozen id comes from the single exported noteId() — the SAME formula a promoted
     // counterpart's id is produced by (context-io.appendNote/emitVerdict). A thread note's id therefore
