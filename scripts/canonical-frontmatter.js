@@ -144,6 +144,10 @@ export const DOUBLE_QUOTED_KEYS = [
 // ASCII letter and every ASCII digit, because a future role named `grugops-zebra` or a version
 // string carrying a `7` must not red the gate for a reason that has nothing to do with safety — and
 // enumerates the punctuation EXACTLY as measured, adding nothing the corpus does not spell.
+// Re-measured 2026-09-21 (plan 33-28): the corpus now spells `_` on exactly ONE grant line — the
+// coordinator adapter's `tools:` value, which carries the platform's scoped MCP admission tool
+// `mcp__plugin_grugops_grugops__propose_note` — so the underscore member below is corpus-measured
+// too; every other character is as the 27-62 measurement recorded it.
 //
 // WHAT IS DELIBERATELY ABSENT, AND WHY THAT IS THE LOAD-BEARING PART. Every YAML-significant byte is
 // outside this set: `:` `#` `&` `*` `!` `|` `>` `[` `]` `{` `}` `'` `"` `%` `@` backtick `?` `\` and
@@ -164,6 +168,15 @@ export const PLAIN_SCALAR_ALPHABET = new Set([
     " ",
     "(),-.;",
     "—", // EM DASH — used in every skill `description` this kit ships
+    // UNDERSCORE — decision D-33-R3-02 (plan 33-28), the ONE widening of P27's closed form. The
+    // platform exposes a plugin's bundled MCP server under the scoped name
+    // `mcp__plugin_PLUGIN_SERVER__TOOL` (round-1 init frame A:11), and the coordinator adapter's
+    // `tools:` grant must carry it for the sanctioned admission route to exist on the `--agent`
+    // path (33-DIAGNOSIS § 1.3 (i)). `_` is not a YAML-significant byte — it opens no anchor,
+    // alias, tag, block header, flow collection, comment or escape — so admitting it keeps this
+    // set an allow-list of bytes no YAML construct is spelled with. K2 in the test file generates
+    // the converse: every YAML-significant byte and every non-SPACE whitespace stays refused.
+    "_",
 ].join(""));
 // The document delimiter, spelled once. A line is a delimiter if and only if it is these three bytes
 // and nothing else — no leading residue, no trailing residue, no invisible characters. Every other
