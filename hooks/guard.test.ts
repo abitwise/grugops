@@ -2186,3 +2186,168 @@ describe("31-27 S1 — the wrapper's host-delivered root, observed at the decide
     ).toBe(`DELIVERED=${realpathSync(real)}`);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-27 — THE DENY NAMES WHAT FIRED (33-DIAGNOSIS.md § 2, WINDOWS.md row 257).
+//
+// Round 1's transcripts carried the `git push`-without-a-branch sentence on a refused `git log`: the
+// escape ternary asked "is this the protected-branch group and not a literal match?" BEFORE it asked
+// "did the model refuse to read this?", so a `git log` denied for an unreadable sibling word was
+// described as a push. The fix: the fail-closed arm is asked first and names the word(s) the model
+// would not read; the push sentence is printed only when the READABLE model matched a git push.
+// The words come from `CommandMatch.unreadable`, derived from the one classification in
+// scripts/checkpoints.ts — the guard never re-scans the command to find them.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const PUSH_SENTENCE = "git push origin <branch>";
+const ESCAPE_SENTENCE = "shell substitution or expansion";
+
+function denyReason(json: string, env: Record<string, string> = {}): string {
+  const r = runGuard(json, env);
+  expect(r.stdout).toContain('"permissionDecision":"deny"');
+  return JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason as string;
+}
+
+describe("33-27 G5 — an unreadable sibling word beside a governed tool is described as such, never as a push", () => {
+  it("git log --oneline -5 $x DENIES with the escape sentence naming `$x`, and WITHOUT the push sentence", () => {
+    const reason = denyReason(payload("git log --oneline -5 $x"));
+    expect(reason).toContain(ESCAPE_SENTENCE);
+    expect(reason).toContain("`$x`");
+    expect(reason).not.toContain(PUSH_SENTENCE);
+  });
+
+  it("the word named is the one the classification refused — each kept arm names its own word", () => {
+    for (const [cmd, word] of [
+      ['echo "npm run $s"', "`$s`"],
+      ["wc -c $(git ls-files)", "`$(git`"],
+      ["cat <<'EOF'\ngit push\nEOF", "`<<EOF`"],
+      ["find . -path ./.git -prune -o \\( -name x \\) -print", "`\\(`"],
+    ] as const) {
+      const reason = denyReason(payload(cmd));
+      expect(reason, cmd).toContain(ESCAPE_SENTENCE);
+      expect(reason, cmd).toContain(word);
+      expect(reason, cmd).not.toContain(PUSH_SENTENCE);
+    }
+  });
+
+  it("a control byte inside the unreadable word is SPELLED in the deny text, never emitted raw", () => {
+    // U+0085 (NEL), built from its code point so no raw control byte is written into this file.
+    const nel = String.fromCodePoint(0x85);
+    const reason = denyReason(payload(`git log $x${nel}`));
+    expect(reason).toContain("U+0085");
+    expect(reason).not.toContain(nel);
+  });
+});
+
+describe("33-27 G6 — the push sentence still fires where it should (RA1-3, unchanged)", () => {
+  it("git push with no branch, readable, DENIES with the push sentence and WITHOUT the escape sentence", () => {
+    const reason = denyReason(payload("git push"));
+    expect(reason).toContain(PUSH_SENTENCE);
+    expect(reason).not.toContain(ESCAPE_SENTENCE);
+  });
+
+  it("a readable push beside an unreadable tool-free segment is a PUSH, not a substitution", () => {
+    // `cd $R` is opaque and names no tool; the checkpoint came from the readable `git push`.
+    const reason = denyReason(payload("cd $R; git push"));
+    expect(reason).toContain(PUSH_SENTENCE);
+    expect(reason).not.toContain(ESCAPE_SENTENCE);
+  });
+
+  it("a literal-pattern match carries neither sentence", () => {
+    const reason = denyReason(payload("git push origin main"));
+    expect(reason).not.toContain(PUSH_SENTENCE);
+    expect(reason).not.toContain(ESCAPE_SENTENCE);
+  });
+});
+
+describe("33-27 G7 — the fifteen § 2 commands replayed on stdin against the committed guard, as the diagnosis replayed them", () => {
+  // The held round-1 capture, read at its commit (D-11) — the `heldCapture` idiom of capture-live.test.ts.
+  const HELD_SHA = "c7be6d0d";
+  const HELD_DIR = ".planning/phases/33-live-capture-windows-portability";
+  const LINES: Readonly<Record<"A" | "B", readonly number[]>> = {
+    A: [445, 458, 586, 667, 1493, 1507, 1628],
+    B: [35, 217, 434, 469, 562, 1504, 1527, 1740],
+  };
+  const commands = new Map<string, string>();
+  for (const run of ["A", "B"] as const) {
+    const r = spawnSync("git", ["show", `${HELD_SHA}:${HELD_DIR}/33-CAPTURE-${run}.jsonl`], {
+      cwd: join(import.meta.dirname, ".."),
+      encoding: "utf8",
+      input: "",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (r.status !== 0 || !r.stdout) throw new Error(`git cannot show the held capture ${run}: ${(r.stderr ?? "").trim()}`);
+    const lines = r.stdout.split("\n");
+    for (const n of LINES[run]) {
+      const frame = JSON.parse(lines[n - 1] as string) as { message: { content: { type: string; name?: string; input?: { command?: string } }[] } };
+      const use = frame.message.content.find((b) => b.type === "tool_use" && b.name === "Bash");
+      commands.set(`${run}:${n}`, use!.input!.command as string);
+    }
+  }
+
+  // The partition G1 measured in scripts/checkpoints.test.ts, restated here so the two files cannot
+  // drift apart silently: four ALLOW at the guard, eleven DENY.
+  const ALLOW = ["A:586", "A:1628", "B:35", "A:458"] as const;
+  const DENY = ["A:445", "B:562", "B:1527", "B:434", "B:469", "B:1504", "B:1740", "A:667", "A:1493", "A:1507", "B:217"] as const;
+
+  // The diagnosis's replay shape: a PreToolUse / Bash payload on stdin, no GRUGOPS_ variable in the environment.
+  const diagnosisPayload = (command: string): string =>
+    JSON.stringify({ tool_name: "Bash", tool_input: { command }, hook_event_name: "PreToolUse", cwd: "." });
+  function replay(command: string): { status: number | null; stdout: string } {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || v === undefined) continue;
+      env[k] = v;
+    }
+    const r = spawnSync("node", [GUARD_JS], { input: diagnosisPayload(command), encoding: "utf8", env, timeout: SPAWN_TIMEOUT_MS });
+    return { status: r.status, stdout: r.stdout ?? "" };
+  }
+
+  it("the partition sums to fifteen and names each of the fifteen once", () => {
+    const all = [...ALLOW, ...DENY];
+    expect(all.length).toBe(15);
+    expect(new Set(all).size).toBe(15);
+    for (const id of all) expect(commands.has(id), id).toBe(true);
+  });
+
+  for (const id of ALLOW) {
+    it(`${id} ALLOWS on stdin: exit 0, no deny envelope`, () => {
+      const r = replay(commands.get(id) as string);
+      expect(r.status).toBe(0);
+      expect(r.stdout).not.toContain("permissionDecision");
+    });
+  }
+
+  for (const id of DENY) {
+    it(`${id} still DENIES on stdin, with the corrected sentence naming the word and without the push sentence`, () => {
+      const r = replay(commands.get(id) as string);
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('"permissionDecision":"deny"');
+      const reason = JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason as string;
+      expect(reason).toContain(ESCAPE_SENTENCE);
+      expect(reason).not.toContain(PUSH_SENTENCE);
+      // The word named is the FIRST the classification refused, as the model reports it.
+      const first = cp.matchCommandCheckpoints(commands.get(id) as string).unreadable[0] as string;
+      const head = first.slice(0, 20);
+      if (/^[\x20-\x7E]+$/.test(head)) expect(reason, `${id} names ${JSON.stringify(head)}`).toContain(head);
+    });
+  }
+
+  it("the probe `helm upgrade fake ./nope` still DENIES by literal pattern, with no escape sentence", () => {
+    const r = replay("helm upgrade fake ./nope");
+    expect(r.stdout).toContain('"permissionDecision":"deny"');
+    const reason = JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason as string;
+    expect(reason).toContain("Production deploy blocked");
+    expect(reason).not.toContain(ESCAPE_SENTENCE);
+    expect(reason).not.toContain(PUSH_SENTENCE);
+  });
+
+  it("the diagnosis's six-line table, replayed: the two redirection rows now allow, the rest are unchanged", () => {
+    expect(replay("git log --oneline -5").stdout).not.toContain("permissionDecision");
+    expect(replay("git log --oneline -5 2>&1").stdout).not.toContain("permissionDecision");
+    expect(replay('echo "npm run lint"').stdout).not.toContain("permissionDecision");
+    expect(replay('echo "npm run $s"').stdout).toContain('"permissionDecision":"deny"');
+    expect(replay("cat AGENTS.md 2>&1").stdout).not.toContain("permissionDecision");
+    expect(replay("helm upgrade fake ./nope").stdout).toContain('"permissionDecision":"deny"');
+  });
+});
