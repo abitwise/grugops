@@ -4117,7 +4117,9 @@ describe("30-11 RA2-3 — emitCheckpointNote refuses before composing, on conten
       const root = freshTmp("ra23-");
       expect(() =>
         mod.emitCheckpointNote({ ...base, ...(patch as Record<string, unknown>) } as never, root),
-      ).toThrow(/refusing to emit/);
+        // The vocabulary refusals say "refusing to emit"; the two missing-field cases now reach the
+        // module's ONE scalar guard (plan 33-26), which says "refusing to compose" and names the field.
+      ).toThrow(/refusing to (emit|compose)/);
       // The strongest form of "no partial record": nothing was created at all.
       expect(tree(root)).toEqual([]);
     });
@@ -17239,6 +17241,8 @@ describe("33-26 — KIT § 3: an absent scalar is refused by name, never seriali
       ["supersedes (undefined is not null)", note({ supersedes: undefined }), /"supersedes".*absent/],
       ["refs[] number", note({ refs: ["ok", 42] }), /"refs\[\]".*number/],
       ["refs[] undefined", note({ refs: [undefined] }), /"refs\[\]".*absent/],
+      ["refs absent", note({ refs: undefined }), /"refs".*absent/],
+      ["refs a string (would iterate characters; \"\" would compose an empty list)", note({ refs: "" }), /"refs".*string/],
       ["confidence number (wrong type, not absence)", note({ confidence: 3 }), /"confidence".*number/],
       ["by null", note({ by: null }), /"by".*null/],
     ];
@@ -17332,32 +17336,74 @@ describe("33-26 — KIT § 3: an absent scalar is refused by name, never seriali
         if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "note") interpolated.add(n.name.text);
       });
     }
-    // (d) The guarded set: every `assertNoteScalar("<name>", note.<field>)` in composeValidatedNote, plus
-    //     the `refs[]` loop over `note.refs`.
+    // (d) The guarded set: every `assertNoteScalar("<name>", note.<field>)` in the ONE field list
+    //     `assertNoteFields`, plus `note.refs` handed to the exported list guard `assertNoteRefs`,
+    //     whose own body is the loop that passes each entry through the scalar guard as `refs[]`.
     const guarded = new Set<string>();
-    let refsLoopGuarded = false;
-    walk(decl("composeValidatedNote").body as ts.Node, (n) => {
-      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "assertNoteScalar") {
-        const [nameArg, valueArg] = n.arguments;
+    const fields = decl("assertNoteFields");
+    expect((fields.modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword), "the field list is not exported").toBe(true);
+    walk(fields.body as ts.Node, (n) => {
+      if (!ts.isCallExpression(n) || !ts.isIdentifier(n.expression)) return;
+      if (n.expression.text === "assertNoteScalar") {
+        const valueArg = n.arguments[1];
         if (valueArg && ts.isPropertyAccessExpression(valueArg) && ts.isIdentifier(valueArg.expression) && valueArg.expression.text === "note") {
           guarded.add(valueArg.name.text);
         }
-        if (nameArg && ts.isStringLiteral(nameArg) && nameArg.text === "refs[]") refsLoopGuarded = true;
       }
-      if (ts.isForOfStatement(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.getText(source) === "note.refs") {
+      if (n.expression.text === "assertNoteRefs" && n.arguments[0]?.getText(source) === "note.refs") guarded.add("refs");
+    });
+    let refsLoopGuarded = false;
+    const refsGuard = decl("assertNoteRefs");
+    expect((refsGuard.modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword), "the list guard is not exported").toBe(true);
+    walk(refsGuard.body as ts.Node, (n) => {
+      if (ts.isForOfStatement(n)) {
         walk(n.statement, (inner) => {
-          if (ts.isCallExpression(inner) && ts.isIdentifier(inner.expression) && inner.expression.text === "assertNoteScalar") guarded.add("refs");
+          if (
+            ts.isCallExpression(inner) &&
+            ts.isIdentifier(inner.expression) &&
+            inner.expression.text === "assertNoteScalar" &&
+            ts.isStringLiteral(inner.arguments[0]) &&
+            inner.arguments[0].text === "refs[]"
+          ) refsLoopGuarded = true;
         });
       }
     });
-    expect(refsLoopGuarded).toBe(true);
+    expect(refsLoopGuarded, "assertNoteRefs does not pass each entry through the scalar guard as refs[]").toBe(true);
     expect([...interpolated].sort()).toEqual(["at", "by", "confidence", "content_hash", "gate_run", "kind", "refs", "sha", "supersedes", "verified_by"]);
     for (const f of interpolated) {
-      expect([...guarded], `composeNote interpolates note.${f} but composeValidatedNote does not pass it through the guard`).toContain(f);
+      expect([...guarded], `composeNote interpolates note.${f} but assertNoteFields does not pass it through the guard`).toContain(f);
     }
     expect(interpolated.size).toBe(10);
+    expect(guarded.size).toBe(10);
+    // (f) HOW THE GUARD IS REACHED: composeNote's FIRST statement asks the field list (the point of
+    //     effect — no caller can compose unguarded), AND every function that calls composeNote asks
+    //     it earlier in its own body, ahead of `noteId`. The caller set is derived and its count pinned.
+    const composeBody = decl("composeNote").body as ts.Block;
+    const first = composeBody.statements[0];
+    expect(
+      first && ts.isExpressionStatement(first) && ts.isCallExpression(first.expression) && first.expression.expression.getText(source) === "assertNoteFields",
+      "composeNote's first statement is not assertNoteFields(note)",
+    ).toBe(true);
+    const callers: string[] = [];
+    for (const statement of source.statements) {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body || statement.name.text === "composeNote") continue;
+      let firstCompose = Number.POSITIVE_INFINITY;
+      let firstGuard = Number.POSITIVE_INFINITY;
+      let firstNoteId = Number.POSITIVE_INFINITY;
+      walk(statement.body, (n) => {
+        if (!ts.isCallExpression(n) || !ts.isIdentifier(n.expression)) return;
+        if (n.expression.text === "composeNote") firstCompose = Math.min(firstCompose, n.getStart(source));
+        if (n.expression.text === "assertNoteFields") firstGuard = Math.min(firstGuard, n.getStart(source));
+        if (n.expression.text === "noteId") firstNoteId = Math.min(firstNoteId, n.getStart(source));
+      });
+      if (firstCompose === Number.POSITIVE_INFINITY) continue;
+      callers.push(statement.name.text);
+      expect(firstGuard, `${statement.name.text} composes without asking assertNoteFields`).toBeLessThan(firstCompose);
+      expect(firstGuard, `${statement.name.text} computes noteId before asking assertNoteFields`).toBeLessThan(firstNoteId);
+    }
+    expect(callers.sort()).toEqual(["admitAndAppend", "composeValidatedNote", "emitCheckpointNote", "emitVerdict"]);
     // (e) `supersedes` is guarded on the NON-NULL arm — `undefined` is not `null` and must reach the guard.
-    const cvn = (decl("composeValidatedNote").body as ts.Block).getText(source);
-    expect(cvn).toMatch(/if \(note\.supersedes !== null\) assertNoteScalar\("supersedes", note\.supersedes\)/);
+    const fieldList = (fields.body as ts.Block).getText(source);
+    expect(fieldList).toMatch(/if \(note\.supersedes !== null\) assertNoteScalar\("supersedes", note\.supersedes\)/);
   });
 });

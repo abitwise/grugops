@@ -165,26 +165,99 @@ function isInvalidEvidencePhrase(value) {
     }
     return false;
 }
-// ── Single-line field guard (provenance-forgery mitigation, CR-01) ──────────────────────────────
-// Every NoteInput field is interpolated RAW into the YAML provenance fence by composeNote. An
-// embedded newline would inject additional `key: value` lines; because parseNote lets a later key
-// overwrite an earlier one, an injected `kind:`/`verified_by:` could flip a soft `claim` into a
-// forged verified `finding`. Reject any field carrying a CR or LF BEFORE composing.
-function assertSingleLine(name, value) {
+// ── THE ONE scalar field guard (CR-01 single-line rule + the 33-26 string-type rule) ────────────
+// Every NoteInput scalar is interpolated RAW into the YAML provenance fence by composeNote. Two
+// rules, one guard, in this order:
+//
+//   1. TYPE (plan 33-26, 33-DIAGNOSIS § 3 / WINDOWS.md row 258). A value that is not a string is
+//      refused BY NAME before anything is composed. The fault this closes was serialization, not
+//      the caller's spelling: `${note.verified_by}` with the key absent — or explicitly `undefined` —
+//      wrote the literal line `verified_by: undefined`, and because `"undefined"` is in no
+//      hollow-evidence list the note read back with a non-empty stamp no gate and no human set. The
+//      former guard could not see it: `/[\r\n]/.test(undefined)` coerces to the string `"undefined"`
+//      and passes (the same blindness `emitCheckpointNote` closed for its body fields in 30-11
+//      round 4 with a loop of its own; that loop now asks this guard). A writer does not invent a
+//      value the caller did not give — absence is a refusal, never a silent `""` and never a word.
+//      Emptiness is NOT absence: `""` is a string and still writes as the honest empty value.
+//   2. SINGLE-LINE (CR-01). An embedded newline would inject additional `key: value` lines; because
+//      parseNote lets a later key overwrite an earlier one, an injected `kind:`/`verified_by:` could
+//      flip a soft `claim` into a forged verified `finding`. Reject any CR or LF BEFORE composing.
+//
+// EXPORTED so the raw-thread composer in scripts/compactor.ts asks the SAME guard rather than
+// carrying a copy; the V4 case in scripts/context-io.test.ts derives from this file's AST that this
+// is the one function spelling either rule, and that every scalar composeNote interpolates passes
+// through it in composeValidatedNote.
+export function assertNoteScalar(name, value) {
+    if (typeof value !== "string") {
+        const shape = value === undefined ? "absent (undefined)" : value === null ? "null" : `a ${typeof value}`;
+        throw new Error(`context-io: field "${name}" is ${shape}, not a string — refusing to compose. A missing or ` +
+            `mistyped caller field would otherwise reach the fence as literal text; the writer does not ` +
+            `invent a value the caller did not give.`);
+    }
     if (/[\r\n]/.test(value)) {
         throw new Error(`context-io: field "${name}" must be single-line (no embedded newline): ${JSON.stringify(value)}`);
     }
+}
+// ── The `refs` list guard (plan 33-26, the list companion of the scalar guard above) ────────────
+// `refs` is the one NoteInput field that is a list, and the composers read `.length` and `.map` on it
+// after iterating its entries. A `for…of` over a non-array does not refuse by name: `undefined` is a
+// TypeError with no field in it, and a STRING iterates its characters — `refs: ""` would then compose
+// an empty `refs:` block, the silent normalisation of a mistyped field this plan prohibits. So the
+// list is refused by name unless it is an array, and each entry then passes the one scalar guard.
+export function assertNoteRefs(refs) {
+    if (!Array.isArray(refs)) {
+        const shape = refs === undefined ? "absent (undefined)" : refs === null ? "null" : `a ${typeof refs}`;
+        throw new Error(`context-io: field "refs" is ${shape}, not a list — refusing to compose. The writer does not ` +
+            `invent a value the caller did not give.`);
+    }
+    for (const r of refs)
+        assertNoteScalar("refs[]", r);
 }
 // ── Hex-scalar guard for `sha` / `content_hash` (Phase 31, T-31-03) ─────────────────────────────
 // The write-path companion to SHA_HEX_RE's validator rule: the composer guards what is about to be
 // interpolated into a fence, the validator guards text that arrives from disk. Both ask the ONE
 // exported allowlist, so there is no second charset spelled anywhere. Called only AFTER
-// assertSingleLine, so a CR/LF is reported as the injection attempt it is rather than as a
+// assertNoteScalar, so a CR/LF is reported as the injection attempt it is rather than as a
 // charset miss.
 function assertHexScalar(name, value) {
     if (!SHA_HEX_RE.test(value)) {
         throw new Error(`context-io: field "${name}" must be lowercase hex matching ${SHA_HEX_RE} — an abbreviated ` +
             `or full git object id, or a sha256 digest: ${JSON.stringify(value)}`);
+    }
+}
+// ── THE ONE FIELD LIST (plan 33-26): every NoteInput field a composer interpolates, guarded here. ──
+// `composeNote` and the compactor's `composeThreadNote` interpolate the same fields; before this plan
+// only `composeValidatedNote` guarded them, while `admitAndAppend` composed on both of its own
+// branches first (a mistyped scalar on the gated branch could reach the GOV-02 ledger before the
+// writer refused it) and the thread composer guarded nothing. So the list is spelled ONCE, exported,
+// and asked (a) by `composeNote` itself as its first statement — no caller can compose unguarded —
+// and (b) by every route ahead of its `noteId` call, so an absent field is a refusal that names it
+// rather than a TypeError out of `note.at.replace`. The order is the CR-01 order `appendNote` has
+// always used; the two hex fields pass the anchored allowlist AFTER their single-line check, so a
+// CR/LF is reported as the injection attempt it is rather than as a charset miss. Guarded whenever
+// the provenance field is SET — the same condition `provenanceBlock` emits on. The V4 case in
+// scripts/context-io.test.ts derives from this file's AST that the set guarded here covers every
+// field `composeNote` interpolates, and that every caller of `composeNote` asks this first.
+export function assertNoteFields(note) {
+    const n = note;
+    assertNoteScalar("kind", note.kind);
+    assertNoteScalar("by", note.by);
+    assertNoteScalar("at", note.at);
+    assertNoteScalar("verified_by", note.verified_by);
+    assertNoteScalar("confidence", note.confidence);
+    // `null` is the honest "supersedes nothing"; `undefined` is absence and reaches the guard.
+    if (note.supersedes !== null)
+        assertNoteScalar("supersedes", note.supersedes);
+    assertNoteRefs(note.refs);
+    if (n.sha !== undefined) {
+        assertNoteScalar("sha", note.sha);
+        assertHexScalar("sha", note.sha);
+    }
+    if (n.gate_run !== undefined)
+        assertNoteScalar("gate_run", note.gate_run);
+    if (n.content_hash !== undefined) {
+        assertNoteScalar("content_hash", note.content_hash);
+        assertHexScalar("content_hash", note.content_hash);
     }
 }
 // ── R6-1 CO-PRIMARY: path-metacharacter set for the `by`/`at` provenance scalars (Plan 25-12). ────
@@ -1368,6 +1441,10 @@ export function sealVerdict(text) {
 // change for the new key. The S5 case in `scripts/context-io.test.ts` derives from this file's AST
 // that this is the one function spelling the seal key's line shape.
 function composeNote(note, body, id) {
+    // THE POINT OF EFFECT (plan 33-26): whatever route reaches this composer, the fields it is about
+    // to interpolate have passed the one guard. Callers ask it earlier too (ahead of `noteId`), so
+    // this call is the floor, not the only place — a caller added later cannot compose unguarded.
+    assertNoteFields(note);
     const refsBlock = note.refs.length === 0 ? "refs:\n" : "refs:\n" + note.refs.map((r) => `  - ${r}`).join("\n") + "\n";
     const fence = `id: ${id}\n` +
         `kind: ${note.kind}\n` +
@@ -1426,32 +1503,10 @@ export function noteId(note) {
 // performed, in the order it already performed it.
 function composeValidatedNote(task, note, body, precomputedId) {
     assertSafeTask(task);
-    // Field-injection guard (CR-01): no interpolated provenance field may carry a newline, which
-    // would smuggle additional frontmatter lines into the fence and forge a verified note.
-    assertSingleLine("kind", note.kind);
-    assertSingleLine("by", note.by);
-    assertSingleLine("at", note.at);
-    assertSingleLine("verified_by", note.verified_by);
-    assertSingleLine("confidence", note.confidence);
-    if (note.supersedes !== null)
-        assertSingleLine("supersedes", note.supersedes);
-    for (const r of note.refs)
-        assertSingleLine("refs[]", r);
-    // The three evidence-provenance scalars are interpolated into the same fence, so CR-01 applies to
-    // them identically: a newline in `sha` would smuggle an extra `key: value` line into the
-    // frontmatter. Guarded whenever the field is SET — the same condition the composer emits on, so
-    // no value can reach the fence unguarded — and the two hex fields additionally pass the anchored
-    // allowlist here on the write path.
-    if (note.sha !== undefined) {
-        assertSingleLine("sha", note.sha);
-        assertHexScalar("sha", note.sha);
-    }
-    if (note.gate_run !== undefined)
-        assertSingleLine("gate_run", note.gate_run);
-    if (note.content_hash !== undefined) {
-        assertSingleLine("content_hash", note.content_hash);
-        assertHexScalar("content_hash", note.content_hash);
-    }
+    // Field guard (CR-01 single-line + 33-26 string-type): every interpolated field, in the one list
+    // `assertNoteFields` spells, BEFORE `noteId` reads `note.at` — so an absent field is a refusal
+    // that names it, and nothing is composed.
+    assertNoteFields(note);
     // Compute the frozen id ONCE and use it for BOTH the emitted `id:` frontmatter field and the
     // <id>.md filename — a single source of the identity so frontmatter `id` and filename can never
     // diverge. Guard it as a single-line field (an attacker must not forge/collide an id via a
@@ -1463,7 +1518,7 @@ function composeValidatedNote(task, note, body, precomputedId) {
     // id is generated here exactly as before — appendNote's behavior is byte-identical for every
     // existing caller (additive optional parameter).
     const id = precomputedId ?? noteId(note);
-    assertSingleLine("id", id);
+    assertNoteScalar("id", id);
     const text = composeNote(note, body, id);
     const findings = validate(text);
     if (findings.length > 0) {
@@ -3054,7 +3109,7 @@ export function emitVerdict(task, id, integrity, sha, contextRoot = DEFAULT_CONT
     assertSafeTask(task);
     // The per-run id is interpolated into a ref; it must be single-line and grammar-clean so the
     // emitted stamp `§14-gate#<id>` is a valid GATE_STAMP_RE stamp downstream findings can match.
-    assertSingleLine("verdict id", id);
+    assertNoteScalar("verdict id", id);
     if (!GATE_STAMP_RE.test(verdictStampFor(id))) {
         throw new Error(`context-io.emitVerdict: invalid per-run id "${id}" — the emitted stamp ` +
             `"${verdictStampFor(id)}" must match ${GATE_STAMP_RE}.`);
@@ -3063,7 +3118,7 @@ export function emitVerdict(task, id, integrity, sha, contextRoot = DEFAULT_CONT
     // the first line that builds any part of the note — a refusal here can leave no partial file
     // because nothing has been composed. `(sha as unknown) ?? ""` covers the untyped caller who hands
     // across `undefined` or `null`; a padded or empty value fails the anchored allowlist.
-    assertSingleLine("verdict sha", sha ?? "");
+    assertNoteScalar("verdict sha", sha ?? "");
     assertHexScalar("verdict sha", sha ?? "");
     // REFUSE BEFORE COMPOSE (D-16). Placed above the first line that builds any part of the note, so
     // a refusal cannot leave a partial or zero-length note file behind — the only way to guarantee
@@ -3088,12 +3143,11 @@ export function emitVerdict(task, id, integrity, sha, contextRoot = DEFAULT_CONT
         sha,
     };
     const body = `${VERDICT_GREEN_MARKER}: the §14 quality gate run ${id} passed (all checks green).`;
-    for (const r of note.refs)
-        assertSingleLine("refs[]", r);
+    assertNoteFields(note);
     // The verdict note carries its own frozen id (the same one in its <id>.md filename) — a single
     // source of identity, single-line-guarded like every other provenance field.
     const noteIdStr = noteId(note);
-    assertSingleLine("id", noteIdStr);
+    assertNoteScalar("id", noteIdStr);
     const text = composeNote(note, body, noteIdStr);
     return emitTrusted(GATE_IDENTITY, "emitVerdict", task, note, text, noteIdStr, contextRoot);
 }
@@ -3249,27 +3303,29 @@ export function emitCheckpointNote(input, contextRoot = DEFAULT_CONTEXT_ROOT, at
     //
     // Round 3 closed `RA2-3` with a TYPE refusal over `actor`/`command`/`authorizedBy`, and closed
     // `RA4-1` with a SINGLE-LINE refusal over `envVarName`/`actionApproval`. Two fixes, each covering
-    // one field-set on one axis — and the remaining cell was open: `assertSingleLine` does not refuse a
-    // non-string, because `/[\r\n]/.test(undefined)` coerces to the string `"undefined"` and passes.
-    // Measured: `actionApproval: undefined` WROTE the record, minting the sentence
-    // `- action approved by: undefined was set by a human` under the reserved identity. That line is
-    // the record's assertion that a human set an approval; a missing field minted it rather than
-    // refusing, and no reader or test can tell the forged line from a real one.
+    // one field-set on one axis — and the remaining cell was open: the single-line guard of the time
+    // did not refuse a non-string, because `/[\r\n]/.test(undefined)` coerces to the string
+    // `"undefined"` and passes. Measured: `actionApproval: undefined` WROTE the record, minting the
+    // sentence `- action approved by: undefined was set by a human` under the reserved identity. That
+    // line is the record's assertion that a human set an approval; a missing field minted it rather
+    // than refusing, and no reader or test can tell the forged line from a real one.
     //
     // The axis is "is this a field of the record", not "which fields did which round remember". One
     // loop, both rules, and the nullable set is DERIVED from the input type's own optionality rather
     // than hand-listed — `scripts/context-io.test.ts` asserts the loop covers exactly the fields the
     // body interpolates.
+    //
+    // BOTH RULES NOW LIVE IN THE ONE GUARD (plan 33-26). The type refusal this loop carried since
+    // round 4 was the module's second spelling of "a non-string is not a field value"; the provenance
+    // scalars in composeValidatedNote had none, and that blindness wrote `verified_by: undefined` into
+    // a real capture (33-DIAGNOSIS § 3). `assertNoteScalar` now refuses a non-string by name before
+    // its newline test, so this loop asks it and spells nothing of its own.
     const NULLABLE_BODY_FIELDS = new Set(["envVarName", "actionApproval", "authorizedBy"]);
     for (const field of ["envVarName", "actionApproval", "authorizedBy", "actor", "command"]) {
         const value = input[field];
         if (value === null && NULLABLE_BODY_FIELDS.has(field))
             continue;
-        if (typeof value !== "string") {
-            throw new Error(`context-io.emitCheckpointNote: refusing to emit — ${field} is ${value === undefined ? "undefined" : typeof value}, not a string. A misspelled or missing caller field reaches the record as the literal text ` +
-                `"undefined", and this record's whole value is that its sentences are true.`);
-        }
-        assertSingleLine(field, value);
+        assertNoteScalar(field, value);
     }
     const note = {
         kind: "finding",
@@ -3305,10 +3361,9 @@ export function emitCheckpointNote(input, contextRoot = DEFAULT_CONTEXT_ROOT, at
                 `action at the enforced posture — it does not authorize the declared lowering\n`) +
         `- actor: ${bodyValue(input.actor)}\n` +
         `- command: ${bodyValue(input.command)}\n`;
-    for (const r of note.refs)
-        assertSingleLine("refs[]", r);
+    assertNoteFields(note);
     const id = noteId(note);
-    assertSingleLine("id", id);
+    assertNoteScalar("id", id);
     const text = composeNote(note, body, id);
     return emitTrusted(CHECKPOINT_GUARD_IDENTITY, "emitCheckpointNote", task, note, text, id, contextRoot);
 }
@@ -5291,6 +5346,11 @@ export function admitAndAppend(task, note, body, contextRoot = DEFAULT_CONTEXT_R
 // re-introduce the divergence in the other direction, which is why they move together.
 repoRoot = trustedRepoRoot()) {
     assertSafeTask(task);
+    // THE FIELD GUARD, FIRST (plan 33-26, 33-DIAGNOSIS § 3). This route composes on both of its
+    // branches below before it ever reaches the shared writer's own guard, and it ledgers on the gated
+    // branch before it persists — so an absent or mistyped scalar must be refused HERE, by name,
+    // before governance is read, before `noteId` touches `note.at`, and before any bytes exist.
+    assertNoteFields(note);
     // ── THE OWNING REPOSITORY IS DERIVED FROM THIS CALL'S OWN STORE (31-33, CR-22 / D-34). ────────
     //
     // `agent-factory/workflows/18-context-compaction.md` names this route BY HAND as the other one
