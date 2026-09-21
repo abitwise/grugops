@@ -739,3 +739,237 @@ unreachable). Those eleven are what the run actually decides; the other twenty-t
 `git diff --stat cdf9a9b7..HEAD -- scripts install hooks` is empty after it (quoted in the SUMMARY
 with the commit's sha). The push is not made by this task; it is behind Task 2's named human
 confirmation.
+
+### 3.2 The push and the run (Task 3)
+
+The blocking checkpoint (Task 2, `gate="blocking-human"`) was answered by the human with "push
+approved" and then "pushed" (verbatim): the human pushed `9e1c1131` to `origin/main` themselves.
+Verified before this task began: `git fetch` → `origin/main` == HEAD ==
+`9e1c1131cec8943e2ac96233ed7e624720ced14b` (the § 3.1 tree `cdf9a9b7` plus § 3.1's own commit).
+`git log --oneline origin/main..HEAD` was empty at dispatch. No executor push; the human also asked
+that every commit of this plan after the push stay local.
+
+**The run, read from its own metadata** (`gh run view 35579263776 --json
+databaseId,headSha,status,conclusion,createdAt,updatedAt,jobs`, saved as `run.json` in the
+executor's scratch directory; every word below is copied from that JSON):
+
+| Field | Value |
+|---|---|
+| run id | `35579263776` (workflow `ci`, branch `main`) |
+| head sha | `9e1c1131cec8943e2ac96233ed7e624720ced14b` |
+| created / completed | 2026-09-21T08:42:01Z / 2026-09-21T09:13:43Z |
+| run `conclusion` | **`failure`** |
+| job `test (ubuntu-latest)` | id `106268089166`, `conclusion: "success"`, 08:42:04Z → 08:58:16Z (**16 m 12 s**) |
+| job `test (windows-latest)` | id `106268089020`, `conclusion: "failure"`, 08:42:04Z → 09:13:43Z (**31 m 39 s**) |
+
+Per-step conclusions, from the same `jobs[].steps[]` array (a step is named as the workflow names
+it; `skipped` on the leg it is not scoped to):
+
+| # | Step | ubuntu | windows |
+|--:|---|---|---|
+| 4 | Install | success | success |
+| 5 | Freshness gate before any build | success | (skipped — ubuntu only) |
+| 6 | Build and working-tree parity assertion | **success** — the first CI reading of 33-19's compiler launch (§ 3.1 row 3): `PASS Build parity: … 0 findings over 69/69 elements` | (skipped — ubuntu only) |
+| 7 | Build (every other leg) | (skipped) | success |
+| 8 | Typecheck | success | success |
+| 9 | Platform shape corpus, exit-code contract, directory identity | success | success |
+| 10 | Windows shape remainder is recorded, not silent | (skipped) | **success** — `HOST CAPABILITIES (3)` all `ABSENT`, `DRIVEN (11)`, `SKIPPED SHAPES (5)` (the same five rows as § 2.3, as § 3.1 expected), `ALL CHECKS PASSED` |
+| 11 | **Vitest (e2e lane excluded)** | **success** (08:42:45Z → 08:57:24Z) | **failure** (08:43:07Z → 09:13:39Z) |
+| 12 | Freshness gates + repo gates | **success** (08:57:24Z → 08:58:12Z) — **reached and green on CI for the first time** (§ 3.1: never exercised before this run); 12 `ALL CHECKS PASSED` lines, one per gate, with the same headline numbers § 3.1 rows 9.1–9.22 recorded locally (`69 committed .js file(s)`, `17 adapter(s)`, `7 twin(s)`, `2 decider(s), 26 module hash(es)`, `26 marker sites`, `AUDIT-02: 11 public document(s)`, `36 counted register row(s)`, `47 registry row(s)`, `banned claims: 0 findings over 120/120`, `LANG-01: 76 Technical Name(s)`, `diff disposition … 0 findings over 39/39`, `2440 tracked file(s) scanned as raw bytes, ZERO`, `residual citations: 5 path claim(s)`, `live-surface set: 28 document(s) … pinned at 28`, `62 flip row(s), 10 correction row(s), 2 exemption anchor(s)`) | (ubuntu only) |
+
+**Suite totals**, read from each leg's own vitest summary block
+(`gh api repos/abitwise/grugops/actions/jobs/<job>/logs`, ANSI stripped, the `Test Files` / `Tests`
+/ `Duration` lines quoted verbatim; the denominators are the 5377 / 78 § 3.1 said to read against):
+
+| Leg | Test Files | Tests | Duration | Timeouts |
+|---|---|---|---|---|
+| ubuntu-latest, run `35579263776` | **78 passed (78)** | **5376 passed \| 1 skipped (5377)** | 878.44 s (tests 847.99 s) | 0 `Test timed out`, 0 `Hook timed out`, 0 `RangeError` |
+| windows-latest, run `35579263776` | **1 failed** \| 77 passed (78) | **35 failed** \| 5339 passed \| 3 skipped (5377) | 1829.81 s (tests 1789.91 s) | 0 `Test timed out`, 0 `Hook timed out`, 0 `RangeError` |
+| ubuntu-latest, run `35499800942` (round 1) | 1 failed \| 77 passed (78) | 2 failed \| 5339 passed \| 1 skipped (5342) | 856.26 s | 0 / 0 / 0 |
+| windows-latest, run `35499800942` (round 1) | 8 failed \| 70 passed (78) | 31 failed \| 5308 passed \| 3 skipped (5342) | 1857.42 s | 1 explicit per-test timeout (W-13) |
+
+Both job logs carry exactly two bytes below 0x20 outside ANSI escapes and line endings — two NUL
+bytes inside one passing test's own stdout on each leg (a frontmatter-refusal fixture that plants
+`\0---\0` as a document's first line), at byte offsets 1 558 452 / 1 558 456 of the windows log, whose `Failed Tests 35` section begins at
+byte 1 659 853 — 101 KB later; the section itself carries zero control bytes.
+
+### 3.3 The verdict, and the re-derived inventory — this round's finding
+
+**CAP-02 verdict on this run: NOT MET.** D-13's bar is both legs' `conclusion` fields reading
+`success`; the ubuntu job's reads `"success"` and the windows job's reads `"failure"`, at step 11.
+Half of the bar is newly met — the ubuntu leg is green end to end for the first time, gate chain
+included — and the other half is one file.
+
+**§ 3.1's prediction, leg by leg:**
+
+| § 3.1 expectation | Measured | Delta |
+|---|---|---|
+| Ubuntu green on every step, vitest 5377 / 78 / 0 failed, the 23-command gate chain reached for the first time | **Exactly that.** 78/78 files, 5376 passed / 1 skipped, step 12 reached and green. U-1 and U-2 green: the runner measured `[33-17 boundary] one-file {safe: 677, overflow: 678} · mixed {safe: 678, overflow: 679} · shift 1 · node v22.23.2 linux/x64` — the ubuntu shift 33-17 marked `UNKNOWN - verify` is now measured at **1** (this host measured 0), and the doubled derived depth cleared it. | None. The prediction held; 33-17's SUITE diagnosis is confirmed on the leg that produced the red. |
+| Windows green on every step, vitest 0 failed over 5377 / 78, all 31 W-rows closed, no residue | Steps 4–10 green as predicted (the 5-row remainder at step 10 exited 0). Vitest red: **35 cases in 1 file** (`scripts/context-io.test.ts`, 663 tests \| 35 failed, 61 429 ms). **29 of the 31 W-rows are green**; W-20 and W-21 are red with NEW texts (their round-1 texts are gone); **33 cases green on run `35499800942` are red now.** | **A finding — one class, one commit.** Every one of the 35 reads `expected 'C:\Users\runneradmin\…' to be 'C:\Users\RUNNER~1\…'` (two carry the same pair JSON-quoted or through a `startsWith`). § 3.1 row W-21 named its seam "separator seam in kind" — the seam 33-16 measured on darwin (a directory-symlink cwd) has no 8.3 axis, and the 8.3 axis is where the fix landed. Falsified: 33-16's W-21 mechanism, as applied (the direction is right; the spelling it publishes is not the one the block's fixtures hold). |
+| CAP-02 MET only if both legs `success` | ubuntu `success`, windows `failure` | NOT MET, by one class. |
+
+**The eleven `unmeasured locally, by construction` rows (§ 3.1's tally) — what the run decided:**
+U-1, U-2 green (the ubuntu boundary shift, measured at 1, cleared by the doubled depth); W-13 green
+in **59 235 ms** under D-14's 180 000 ms bound (round 1: 61 989 ms, cut at its own 60 s argument);
+W-19 green (the 240-char fixture ceiling cleared the `CreateProcess` cwd bound: the driver answered);
+W-22, W-26 green (win32 `USERPROFILE`); W-23, W-24, W-25 green (the 8.3 axis, where the
+expectation was derived through `realpathSync.native`); W-28 green (the pre-open type
+classification). W-20's own axis also answered — `driver produced no result` is gone — but the case
+is red on the axis below. **Ten of eleven closed on the axis they were written for; the eleventh
+closed on its axis and reopened on 33-16's.** Of the 22 rows § 3.1 called measurable here, 21 are
+green and W-21 is the one whose measurability was overstated.
+
+**Re-derived from the windows leg's own log** (`gh api
+repos/abitwise/grugops/actions/jobs/106268089020/logs`, ANSI stripped, CR stripped, control bytes
+scanned before quoting — the `Failed Tests 35` section carries none; assertion texts as the log
+prints them, vitest's own `…` truncation kept). Every case is in
+`scripts/context-io.test.ts`, inside `describe("31-15 — WR-15: the target repository's dial is read
+on every host")` (lines :6456–:8605); the sub-block is named where there is one (`step 3`, `WR-21`
+= "31-19 — WR-21: the walk stops at the user's home directory", `CR-13` = "31-23 — CR-13: the home
+directory is inspected, and answers only as a repository"). Labels from § 2.4's four: **new** — green
+on run `35499800942`, red now; **incomplete fix** — a round-1 red a round-2 plan addressed, surviving
+one arm over. No case is `not addressed` and none is `mis-attributed`: every red is either created
+by, or moved onto, one mechanism.
+
+**Windows leg — 1 file, 35 cases (round 1: 8 files, 31):**
+
+| # | Line | Case | Assertion text (from the log) | Label |
+|--:|---|---|---|---|
+| N-1 | :6456 | ROW 6, GREEN: both variables unset and the cwd inside a project — the project's dial REFUSES | `step 3 must answer the project the working directory is in: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-2 | :6501 | EMPTY INPUT: an empty or whitespace-only installer variable names nothing and falls through | `a "" value must not name a root: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-3 | :6524 | CONTROL 3 (adjacency): when the cwd IS the project root, it answers at distance zero | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-4 | :6552 | BOUND, non-vacuous: an inner repository that DOES carry a configuration answers with its own | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-5 | :6718 | step 3 › the three in-process writers agree with the one function | `appendNote resolved a different root at step 3: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-6 | :6753 | step 3 › promoteAdmitted's fail-closed arm reads the SAME root (D-14 shape) | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-7 | :6947 | CASCADE: removing each step's input hands the answer to the next step, down to the kit | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-8 | :7164 | WR-21 › CONTROL 3: a project that is a DIRECT CHILD of the home directory still resolves to itself | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-9 | :7178 | WR-21 › CONTROL 1 (WR-15 intact): the row-6 spot-check still refuses, naming the dial | `step 3 must still answer the project the working directory is in: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-10 | :7247 | WR-21 › MUTATION PROOF: with the home stop removed, the ancestor IS adopted and IS written to | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-11 | :7315 | WR-21 › EMPTY INPUT: a home directory that cannot be determined degrades to the KIT, not to a walk | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-12 | :7350 | WR-21 › PRECEDENCE: a configuration beats the same directory's marker; the home stop beats both | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| W-20 | :7384 | WR-21 › the published step limit is the one the walk has, driven from the sentence itself | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **incomplete fix** (33-15 → 33-16) — round-1 text `driver produced no result` is GONE (33-15's 240-char fixture ceiling cleared the `CreateProcess` bound: the driver answered); the case now fails on the 8.3 axis 33-16's canonicaliser introduced. Line moved :7290 → :7384. |
+| N-14 | :7469 | WR-21 › INNER: a vendored kit's in-repo configuration no longer outranks the repository's own | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-15 | :7484 | WR-21 › INNER, non-vacuous: where the repository root carries NO configuration, the nested one still answers | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-16 | :7502 | WR-21 › BELOW-HOME, recorded as R-31-19-01: a below-home ancestor configuration still governs | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-17 | :7746 | CR-13 › GREEN 1 (CR-13 / row 8): a repository ROOTED AT HOME reads its OWN dial | `the home-rooted repository's own root was skipped: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-18 | :7775 | CR-13 › GREEN 1b (the home-rooted INSTALLED project): the installer's own marker is not consulted | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-19 | :7785 | CR-13 › GREEN 1c (the re-check's tree (b), DECIDED): dotfiles + a shared install resolve to HOME | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-20 | :7798 | CR-13 › RED 2 (the VENDORED KIT at a home candidate position): the NESTED project's dial governs | `PREMISE: the scratch program must adopt home, or this case is empty: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-21 | :7825 | CR-13 › RED 2b (the MODULE'S OWN position at home): the running kit is not a project | `PREMISE: the scratch program must adopt its own kit root at home: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-22 | :7855 | CR-13 › INVARIANCE 1: `mkdir -p $HOME/.grugops/agent-factory` does not move the verdict | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-23 | :7869 | CR-13 › INVARIANCE 2: `touch $HOME/.grugops/install.json`, empty and `{}`, does not move the verdict | `expected '"C:\\Users\\runneradmin\\AppData\\Loc…' to be '"C:\\Users\\RUNNER~1\\AppData\\Local\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-24 | :7889 | CR-13 › INVARIANCE 3: GRUGOPS_HOME unset, redirected, empty and $HOME all give one verdict | `expected false to be true` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-25 | :8130 | CR-13 › GREEN 3 (the MARKER-ONLY home): a home carrying `.git` and no configuration yields nearest | `a marker-only home must yield whatever was remembered below it: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-26 | :8152 | CR-13 › CONTROL 1 (verification row 9 / R-31-19-01): the tree one level BELOW home is unmoved | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-27 | :8165 | CR-13 › CONTROL 2 (31-15's own spot-check): an ordinary project's refusal still names the dial | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-28 | :8176 | CR-13 › CONTROL 3 (a repository directly under home): still resolves to itself | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-29 | :8199 | CR-13 › EMPTY: a home directory that cannot be determined still stops the search entirely | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-30 | :8415 | CR-13 › MUTATION 1: the MARKER requirement removed breaks GREEN 2 and GREEN 4, and nothing else | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-31 | :8443 | CR-13 › MUTATION 3: the KIND conjunct removed breaks RED 2 and NOT GREEN 1 / 1b / 1c | `removing the KIND conjunct must let the vendored kit's own configuration govern: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-32 | :8460 | CR-13 › MUTATION 4: the MODULE-OWN exclusion removed breaks RED 2b and NOT GREEN 1 or RED 2 | `removing the exclusion must let the RUNNING kit's own configuration govern its nested project: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-33 | :8541 | CR-13 › R-31-19-06 OCCUPIED BY CONSTRUCTION (a): THREE operations make a bare home adoptable | `the three named operations did not move the verdict: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| N-34 | :8555 | CR-13 › R-31-19-06 OCCUPIED BY CONSTRUCTION (b): ONE operation degrades a governed answer to the kit | `expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **new** — green on run `35499800942` (absent from § 2.4); created by 33-16's `c1fca72b`. |
+| W-21 | :8605 | CR-13 › R-31-19-07 re-measured on BOTH axes: the SYMLINK cell still HOLDS, the CASE cell is CLOSED | `the SYMLINK cell's measured verdict moved. R-31-19-07 records it as HOLDING; if that changed, the register member is the thing to correct, not this case: expected 'C:\Users\runneradmin\AppData\Local\Te…' to be 'C:\Users\RUNNER~1\AppData\Local\Temp\…'` | **incomplete fix** (33-16) — round-1 text (`…\link\proj` vs `…\kit\proj`) is GONE: the SYMLINK cell now resolves through the link to the kit target, so the mechanism 33-16 aimed at holds; the two spellings of that target disagree on 8.3. Line moved :8476 → :8605. |
+
+**The mechanism, read from the tree under test (`9e1c1131`), not from the log alone:**
+
+- `scripts/context-io.ts:5317` — `trustedRepoRoot`'s step 3 now starts the ancestor walk from
+  `canonicalWorkingDirectory(process.cwd())` (33-16, commit `c1fca72b`, the W-21 fix).
+  `canonicalWorkingDirectory` (`:4694`) is `canonicalDirectoryPath`, whose rung 1 is
+  `realpathSync.native(abs)`. On win32, `realpathSync.native` resolves through
+  `GetFinalPathNameByHandle`, which **expands 8.3 short names**: `C:\Users\RUNNER~1\…` becomes
+  `C:\Users\runneradmin\…`.
+- `scripts/context-io.test.ts:6226-6228` — the WR-15 block's fixture root is `tmp15(prefix)` =
+  `realpathSync(freshTmp(prefix))`: the JS-implemented rung 2, which walks `lstat`/`readlink` and
+  **preserves** the 8.3 spelling `os.tmpdir()` hands it on the runner. Every case in the block that
+  compares the walk's answer (`r.root`, an in-process writer's root, a `JSON.stringify(root)`, a
+  `startsWith(home)`) to a `tmp15`-derived directory now compares the two spellings of one
+  directory.
+- Why darwin and ubuntu cannot see it: on POSIX hosts `realpathSync` and `realpathSync.native`
+  agree (no short names exist), so the block is green on both — 663/663 locally (§ 3.1) and on the
+  ubuntu leg. This is the same axis round 1 recorded for W-23/W-24/W-25 (row 226, "the 8.3
+  short-name class") and that 33-15 closed for those three by deriving the expectation through
+  `realpathSync.native`; those three are green on this run. 33-16 applied a rung-1 canonicaliser
+  to the module and left the block's rung-2 fixtures as they were — the fix closed the symlink
+  arm it was aimed at and moved the block onto the 8.3 arm, the shape the project's memory names
+  ("created by previous fix").
+- What the next round takes, stated as the class and not as a fix (D-11): the two sides of every
+  comparison in the block must be spelled by ONE authority. Either the fixture helper canonicalises
+  through the same rung the module uses (the 33-15 shape, `realpathSync.native`), or the module's
+  published spelling is defined and the fixtures derive from it — one authority, asserted once, not
+  35 per-case `.native` calls (D-15's "normalize once, in the module that publishes"). A
+  `process.platform` branch anywhere is prohibited (D-14/D-16). Whether `canonicalDirectoryPath`'s
+  rung 1 SHOULD expand 8.3 names on win32 (the published spelling question) is round 3's decision,
+  recorded as `UNKNOWN - verify` here: the log proves the disagreement, not which spelling is
+  right.
+
+**What this run did NOT do, by the plan's prohibitions:** no platform conditional was added; nothing
+was fixed; nothing was re-pushed; `npm test` was not run; no WINDOWS.md row was flipped — rows
+229–235 stay `open` (their cases are green on this run, but the plan disposes them only on a run
+whose both legs are green), rows 186 and 193 are untouched. One row was appended (§ 3.4). The
+four-round cap governs what follows: this is round 2's measurement and the input to round 3.
+
+**Row 186 (`scripts/board-watch-live.test.ts`), the third measurement:** `✓
+scripts/board-watch-live.test.ts (6 tests) 7706ms` on windows-latest and `✓ … (6 tests) 7292ms` on
+ubuntu-latest (round 1: 7776 / 7288 ms; baseline: 7715 / 7291 ms). Three green windows
+measurements now exist by id — `35394268365`, `35499800942`, `35579263776` — for the round that
+disposes the row; it is not disposed here, for the reason above.
+
+**D-16 on the runner:** one `SKIPPED:` line in the whole windows vitest transcript — `SKIPPED:
+FIFO@win32, unix socket@win32` (the platform-shape corpus's own remainder) — and none from the
+thirteen `stageSymlinkOrSkip` sites: the runner still holds `SeCreateSymbolicLink`, so every
+directory-symlink fixture was staged and W-21's link was created (its red is the spelling, not the
+link).
+
+**The slowest test on each leg — D-14's falsification, recorded:**
+
+| Leg | Rank | Duration | Test | Outcome |
+|---|--:|--:|---|---|
+| windows | 1 | **79 122 ms** | `every gate-plantable corpus row moves the gate from exit 0 to exit 1, with the refusal TEXT read from the gate's own output` | PASSED (round 1: 86 234 ms) |
+| windows | 2 | 59 235 ms | `the watched corpus is not narrowed — the gate reports its own cardinality, unchanged at 40` | **PASSED under the 180 000 ms global bound** (round 1: FAILED at its own 60 000 ms argument, W-13) |
+| windows | 3 | 55 176 ms | `GREEN 4: a directory tree as deep as this platform permits is derived without a throw` | PASSED (round 1: 59 197 ms) |
+| windows | 4 | 21 357 ms | `parseBoundaryFor: the one-file and the mixed-arrangement boundaries, measured on this host` | PASSED (new in 33-17; `shift 0` on win32) |
+| windows | 5 | 15 434 ms | `EVERY row's label agrees with the failure entries recorded beside it, in every run` | PASSED (round 1: 14 685 ms) |
+| ubuntu | 1 | **38 987 ms** | `every gate-plantable corpus row moves the gate …` | PASSED (round 1: 39 393 ms) |
+| ubuntu | 2 | 18 638 ms | `parseBoundaryFor: the one-file and the mixed-arrangement boundaries, measured on this host` | PASSED (new in 33-17; `shift 1` on linux) |
+| ubuntu | 3 | 10 368 ms | `the wrapper ANSWERS for a decider that never exits (RA5-6)` | PASSED |
+
+Slowest files: windows `scripts/runnable-ref/uat-spec-integrity.test.ts` 389 837 ms (389 tests; the
+33-17 boundary measurement runs inside it), `scripts/check-foundation-guards.test.ts` 289 174 ms,
+`scripts/check-diff-disposition.test.ts` 162 535 ms (round 1: 160 084); ubuntu `uat-spec-integrity`
+274 777 ms, `check-foundation-guards` 114 656 ms, `freshness` 67 308 ms. The 180 000 ms
+`testTimeout` sits 2.27× above the slowest measured test on the slower leg; no test on either leg
+hit it and no hook timed out. The one bound that fired in round 1 (W-13's explicit 60 s argument)
+is gone and the case measured 59.2 s, 0.8 s under the argument it no longer carries — D-14's
+global bound, not a per-test literal, is what governs it now.
+
+### 3.4 Ledger changes made in this task, through the tool
+
+No row was flipped. One row was appended — one per finding class, and this round has one class —
+with the ledger tool; the three representations were checked to agree afterwards.
+
+```
+node ~/.claude/gsd-core/bin/gsd-tools.cjs windows append --kind unrun-verify --phase 33 --file scripts/context-io.ts --line 5317 --description "33-20 run 35579263776 windows: 35 reds in ONE file (scripts/context-io.test.ts :6456-:8605, the 31-15 WR-15 block), ONE class — 33-16's canonicalWorkingDirectory(process.cwd()) (c1fca72b) takes rung 1 realpathSync.native, which EXPANDS 8.3 short names (RUNNER~1 -> runneradmin), while the block's fixtures are tmp15() = realpathSync(freshTmp()) (test :6226, rung 2, which PRESERVES them); every case comparing the walk's root to a tmp15 fixture reads expected 'C:\\Users\\runneradmin\\...' to be 'C:\\Users\\RUNNER~1\\...'. 33 cases green on run 35499800942 are NEW; W-20 and W-21 moved from their round-1 arms onto this one (incomplete fix). Same axis 33-15 derived for W-23..W-25 (green on this run); the fix belongs at one authority, not per fixture (D-15's shape). Ubuntu leg: success (all 33 § 3.1 rows green there). Owner: round 3"        # row 236
+node ~/.claude/gsd-core/bin/gsd-tools.cjs windows status
+```
+
+`windows status` afterwards: `open_count: 207`, `waived_count: 3`, `fixed_count: 26`,
+`total_count: 236`, `entries` length 236; the markdown table has 236 id rows
+(`grep -a -c -E '^\| [0-9]+ \| ' .planning/WINDOWS.md` → 236); the JSON appendix has 236 `"id":`
+entries. The three representations agree. Rows 186, 193, 226–235 are byte-unchanged.
+
+**REQUIREMENTS.md:** the CAP-02 checkbox stays `[ ]`; the coverage-table row is updated to
+`Pending — NOT met: CI run 35579263776 …` with this run's counts and this part as the evidence. No
+other row is touched.
+
+**No source file changed in this plan:** `git diff --stat cdf9a9b7b9b9d114b2fbd693c6b11807878952be..9e1c1131cec8943e2ac96233ed7e624720ced14b -- scripts install hooks` is empty (the § 3.1 base and the pushed head), and this task's commit carries only `.planning/` files — the diff against it is quoted in the SUMMARY.
+
+### 3.5 Transcripts
+
+The two job logs (`gh api repos/abitwise/grugops/actions/jobs/106268089166/logs`,
+`…/106268089020/logs`), `run.json`, the extraction script (`extract.cjs`) and its JSON outputs are
+in the executor's scratch directory for this session; every number above is copied from those
+outputs. The 35 `FAIL` keys were extracted from the windows `Failed Tests 35` section and the 33
+§ 3.1 titles were each searched for in that section (2 present) and, for the rest, in the
+transcript's `✓` file lines (the 31 absent from the section belong to files the reporter marks
+`✓` with every test passed — the reporter prints no per-test line for a fast passing test).

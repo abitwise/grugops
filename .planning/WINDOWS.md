@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 206
+open_count: 207
 waived_count: 3
 fixed_count: 26
-total_count: 235
-last_updated: 2026-09-20T09:09:41.224Z
+total_count: 236
+last_updated: 2026-09-21T09:19:10.313Z
 ---
 
 # Broken Windows Ledger
@@ -250,6 +250,7 @@ last_updated: 2026-09-20T09:09:41.224Z
 | 233 | 33 | unrun-verify | scripts/check-platform-shapes.test.ts | 849 | 33-09 run 35499800942 windows: COVERAGE case survived with identical text — 33-05 gated the MIRROR on the measured signal-terminated-child capability, so on win32 the label 'NOT ORDINARY (signalled)' is never watched, but DISCLOSED_UNDRIVEN still pins the two-label pair; incomplete fix (3 of the file's 4 baseline reds closed) | open |  | 2026-09-20T09:09:41.033Z |  |
 | 234 | 33 | unrun-verify | scripts/context-io.test.ts | 14059 | 33-09 run 35499800942 windows: 2 context-io reds beyond row 226's ten, both in 33-05's class — CR-24 'every planted condition reports its OWN arm' moved from the unopenable arm (baseline) to the above-ceiling arm, where the row's detail carries the path JSON-escaped (doubled backslashes) and the authority's message the host spelling (same class as row 228); R-31-21-03's probe still reads not-waited-on=false (identical text to baseline; a retained-position fixture 33-05's FIFO routing did not reach — UNKNOWN - verify whether the fixture is a FIFO) | open |  | 2026-09-20T09:09:41.120Z |  |
 | 235 | 33 | unrun-verify | scripts/freshness.test.ts | 416 | 33-09 run 35499800942 windows: DISCRIMINATION PAIR survived (7 of 8 freshness reds closed by 33-06) — the pair's PRE-FIX arm clones the pre-fix tree 020905f9 and runs ITS gate, which still launches npx tsc without a shell and cannot start a compiler on windows (exit 1, 'did not compile cleanly', no stderr), so the vacuity the test preserves as evidence is unobservable there; the post-fix arm now runs the compiler and names the planted stale hooks/guard.js correctly | open |  | 2026-09-20T09:09:41.224Z |  |
+| 236 | 33 | unrun-verify | scripts/context-io.ts | 5317 | 33-20 run 35579263776 windows: 35 reds in ONE file (scripts/context-io.test.ts :6456-:8605, the 31-15 WR-15 block), ONE class — 33-16's canonicalWorkingDirectory(process.cwd()) (c1fca72b) takes rung 1 realpathSync.native, which EXPANDS 8.3 short names (RUNNER~1 -> runneradmin), while the block's fixtures are tmp15() = realpathSync(freshTmp()) (test :6226, rung 2, which PRESERVES them); every case comparing the walk's root to a tmp15 fixture reads expected 'C:\\Users\\runneradmin\\...' to be 'C:\\Users\\RUNNER~1\\...'. 33 cases green on run 35499800942 are NEW; W-20 and W-21 moved from their round-1 arms onto this one (incomplete fix). Same axis 33-15 derived for W-23..W-25 (green on this run); the fix belongs at one authority, not per fixture (D-15's shape). Ubuntu leg: success (all 33 § 3.1 rows green there). Owner: round 3 | open |  | 2026-09-21T09:19:10.313Z |  |
 
 ````json
 [
@@ -3129,6 +3130,19 @@ last_updated: 2026-09-20T09:09:41.224Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-20T09:09:41.224Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 236,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": 5317,
+    "description": "33-20 run 35579263776 windows: 35 reds in ONE file (scripts/context-io.test.ts :6456-:8605, the 31-15 WR-15 block), ONE class — 33-16's canonicalWorkingDirectory(process.cwd()) (c1fca72b) takes rung 1 realpathSync.native, which EXPANDS 8.3 short names (RUNNER~1 -> runneradmin), while the block's fixtures are tmp15() = realpathSync(freshTmp()) (test :6226, rung 2, which PRESERVES them); every case comparing the walk's root to a tmp15 fixture reads expected 'C:\\Users\\runneradmin\\...' to be 'C:\\Users\\RUNNER~1\\...'. 33 cases green on run 35499800942 are NEW; W-20 and W-21 moved from their round-1 arms onto this one (incomplete fix). Same axis 33-15 derived for W-23..W-25 (green on this run); the fix belongs at one authority, not per fixture (D-15's shape). Ubuntu leg: success (all 33 § 3.1 rows green there). Owner: round 3",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T09:19:10.313Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
