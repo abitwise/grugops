@@ -22,9 +22,9 @@
 
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
 import { admit, admittedGrantedNames } from "./canonical-frontmatter.js";
 import { listAgentAdapters } from "./kit-model.js";
@@ -52,6 +52,7 @@ import {
   installOutcome,
   isOutsideTargets,
   LIVE_OPS,
+  liveAllowedTools,
   makeScratch,
   makeScratchTranscript,
   noteRoute,
@@ -67,6 +68,7 @@ import {
   READINESS_PREFIX,
   redactText,
   REDACTION_PLACEHOLDER,
+  renderReport,
   REQUIRED_FLAGS,
   runCommandBuffered,
   runTarget,
@@ -77,6 +79,8 @@ import {
   type LiveOps,
   type PlatformRunResult,
   type PreconditionObservation,
+  type ReportModel,
+  type RunReport,
   type ScratchRegistry,
   type StreamFrame,
   type TargetBuild,
@@ -908,6 +912,164 @@ describe("CR-01 round 2: the verdict is scored from the bytes the runner receive
   });
 });
 
+// ── CR-01 round 2, items 2 and 3: the grant is fixed BEFORE the subject exists, and is scoped ──
+//
+// The CAP-03 grant was derived from `.claude/agents/*.md` AFTER the run — files the subject held
+// `Edit` over — so a role it was never granted could be made a member by editing the adapter it was
+// being scored against. `runTarget` now derives the grant before `ops.runPlatform`, scores against
+// that value, re-derives once afterwards and folds any difference on the four derived fields into
+// `failed` with a Run-table row naming the fields (never the adapter text). `capture()` hands each
+// run the grant it derived from target A before the loop, and a target whose pre-spawn derivation
+// differs is refused before any token. The `--allowedTools` list is `liveAllowedTools(target)`: one
+// scoped `Edit(//ABS/**)` rule in the platform's absolute form, no bare `Write` or `Edit`, the
+// admission tool spelled as the platform exposes it (held init frame A:11), `Bash(node *)` kept by
+// recorded reason, and the whole list printed as a per-run Run-table row.
+
+/** A hand-built target carrying the checkout's installed adapters, so `deriveGrant` has a census to read. */
+function installedTarget(label: "A" | "B"): TargetBuild {
+  const build = handBuiltTarget(label);
+  cpSync(join(ROOT, ".claude", "agents"), join(build.target, ".claude", "agents"), { recursive: true });
+  return build;
+}
+
+/** The four derived fields of a grant, in one comparable string. */
+function grantKey(g: { granted: string[]; coordinator: string | null; prefix: string; adapterNames: string[] }): string {
+  return JSON.stringify({ granted: g.granted, coordinator: g.coordinator, prefix: g.prefix, adapterNames: g.adapterNames });
+}
+
+/** A minimal report model around the given runs, so a Run-table row can be asserted on rendered text. */
+function reportModelWith(runs: RunReport[]): ReportModel {
+  return {
+    mode: "capture",
+    generatedAt: "2026-09-21T00:00:00.000Z",
+    checkoutSha: "0".repeat(40),
+    platformVersion: "2.1.278 (Claude Code)",
+    boundMs: 1000,
+    boundUsed: "1000 ms per call",
+    approvalKeyLine: "absent",
+    provenance: { state: "UNKNOWN - verify", detail: "no init frame in this model", checkoutDigest: null, installedDigest: null, trackedCount: 0, pluginLine: "(none)" },
+    preconditions: evaluatePreconditions(observation()),
+    targets: runs.map((r) => ({ label: r.label, installerLine: "(hand-built)" })),
+    runs,
+    parity: { projections: [], diffs: [] },
+    equivalenceDiffs: [],
+    outcome: "fail",
+    outcomeReason: "model built by the offline suite",
+  };
+}
+
+describe("CR-01 round 2: the spawn grant is fixed before the subject exists, drift fails the run, and the tool grant is scoped to the target in the platform's own rule form", () => {
+  const INJECTED = "grugops-not-a-role";
+
+  it("Test C5 (the review's attack 2): an adapter edited DURING the run does not reach the CAP-03 grant — the pre-spawn derivation scores, the injected role is named outside the grant, the drift is named by field in a Run-table row and the run is failed", async () => {
+    const build = installedTarget("A");
+    const preSpawn = deriveGrant(build.target);
+    expect(preSpawn.reasons, "premise: the installed census and the coordinator grant agree").toEqual([]);
+    expect(preSpawn.granted.includes(INJECTED)).toBe(false);
+    const stream = FIXTURE_TEXT.split("grugops-security-nfr").join(INJECTED);
+    const agentsDir = join(build.target, ".claude", "agents");
+    const coordinatorPath = join(agentsDir, "grugops-orchestrator.md");
+    const ops = recordingOps(stream, () => {
+      // The subject, mid-run, widens its own grant: the injected name joins the coordinator's
+      // Agent(...) list and an adapter is planted for it, so the edited tree is self-consistent.
+      const text = readFileSync(coordinatorPath, "utf8");
+      const widened = text.replace("grugops-uat-planner)", `grugops-uat-planner, ${INJECTED})`);
+      expect(widened, "premise: the coordinator's list was widened").not.toBe(text);
+      writeFileSync(coordinatorPath, widened);
+      writeFileSync(join(agentsDir, `${INJECTED}.md`), readFileSync(join(agentsDir, "grugops-security-nfr.md"), "utf8").replace("name: grugops-security-nfr", `name: ${INJECTED}`));
+    });
+    const report = await runTarget(build, RUN_SPEC, ops);
+    const postRun = deriveGrant(build.target);
+    expect(postRun.granted.includes(INJECTED), "control: the edited tree WOULD grant the injected role").toBe(true);
+    expect(postRun.reasons, "control: the edit is self-consistent — census still equals grant + 1").toEqual([]);
+    expect(report.capThreeReasons.some((r) => r.includes(INJECTED) && r.includes("not a member of the derived grant")), `side (a) was scored against the PRE-spawn grant; reasons: ${report.capThreeReasons.join(" / ")}`).toBe(true);
+    expect(grantKey(report.grant)).toBe(grantKey(preSpawn));
+    expect(report.grantDrift).toEqual(["adapterNames", "granted"]);
+    expect(report.failed).toBe(true);
+    const rendered = renderReport(reportModelWith([report]));
+    expect(rendered).toContain("| run A spawn grant drift | field(s) changed after the spawn: adapterNames, granted — the run is failed |");
+    const driftRow = rendered.split("\n").find((l) => l.startsWith("| run A spawn grant drift |")) ?? "";
+    expect(driftRow.includes("Agent("), "the row names fields, never the adapter text").toBe(false);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C6 (the grant is one derivation): a target whose pre-spawn derivation equals the expected grant runs and reports no drift; a target whose adapters differ at build time is refused BEFORE any spawn — the recorder was called 0 times; capture() hands grantSource as the expected grant", async () => {
+    const a = installedTarget("A");
+    const b = installedTarget("B");
+    const grantSource = deriveGrant(a.target);
+    expect(grantSource.reasons).toEqual([]);
+    const honest = recordingOps(FIXTURE_TEXT);
+    const report = await runTarget(b, { ...RUN_SPEC, expectedGrant: grantSource }, honest);
+    expect(honest.calls).toHaveLength(1);
+    expect(grantKey(report.grant)).toBe(grantKey(grantSource));
+    expect(report.grantDrift).toEqual([]);
+    // Target B's adapters now differ from A's at build time: one more adapter, so the census moves.
+    writeFileSync(join(b.target, ".claude", "agents", `${INJECTED}.md`), readFileSync(join(b.target, ".claude", "agents", "grugops-security-nfr.md"), "utf8").replace("name: grugops-security-nfr", `name: ${INJECTED}`));
+    expect(grantKey(deriveGrant(b.target)), "premise: the two derivations differ").not.toBe(grantKey(grantSource));
+    const refusing = recordingOps(FIXTURE_TEXT);
+    await expect(runTarget(b, { ...RUN_SPEC, expectedGrant: grantSource }, refusing)).rejects.toThrow(/target B: the pre-spawn grant derivation differs from the expected grant on adapterNames — refusing to spawn/);
+    expect(refusing.calls, "no platform child was launched for a target whose grant is not the expected one").toHaveLength(0);
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    expect(functionText(src, "async function capture(").includes("expectedGrant: grantSource,"), "capture() hands the pre-loop derivation to every run").toBe(true);
+    for (const d of [a.target, a.home, a.transcriptDir, b.target, b.home, b.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C7 (the scoped grant, form-checked): no bare Write or Edit; exactly one Edit(//ABS/**) rule naming the target's real path; Bash(node *) and Bash(helm upgrade *) kept; the admission tool spelled as the held init frame A:11 exposes it; the argv carries exactly that list after --allowedTools", async () => {
+    const build = handBuiltTarget("A");
+    const grant = liveAllowedTools(build.target);
+    expect(grant).toHaveLength(8);
+    expect(grant.includes("Write"), "no unscoped Write").toBe(false);
+    expect(grant.includes("Edit"), "no unscoped Edit").toBe(false);
+    expect(grant.some((x) => /^Write\(/.test(x)), "a Write(path) rule is never matched by the platform, so none is written").toBe(false);
+    const scoped = grant.filter((x) => /^Edit\(\/\/.+\/\*\*\)$/.test(x));
+    expect(scoped).toHaveLength(1);
+    const real = realpathSync.native(build.target);
+    const anchored = scoped[0].slice("Edit(//".length, -"/**)".length);
+    expect(`/${anchored}`, "with the leading // removed, the rule names the target's REAL path").toBe(real.split(sep).join("/"));
+    expect(grant).toContain("Bash(node *)");
+    expect(grant).toContain("Bash(helm upgrade *)");
+    const mcp = grant.filter((x) => x.startsWith("mcp__"));
+    expect(mcp).toHaveLength(1);
+    // The admission spelling is DERIVED from the held init frame (A:11), never typed here.
+    const init = JSON.parse(heldCapture("33-CAPTURE-A.jsonl").split("\n")[10]) as { type: string; subtype: string; tools: string[] };
+    expect(init.type).toBe("system");
+    expect(init.subtype).toBe("init");
+    const exposed = init.tools.filter((t) => t.startsWith("mcp__plugin_grugops_grugops__"));
+    expect(exposed).toHaveLength(1);
+    expect(mcp[0]).toBe(exposed[0]);
+    expect(grant.includes("mcp__grugops__propose_note"), "the bare spelling is gone").toBe(false);
+    // And it is the name the checkout's coordinator adapter carries since 33-28 (second derivation).
+    expect(readFileSync(ORCHESTRATOR_ADAPTER, "utf8").split("\n").find((l) => l.startsWith("tools:"))?.endsWith(`, ${exposed[0]}`)).toBe(true);
+    for (const entry of grant) expect(entry, "every entry is a bare tool, a Bash(...) rule, the one Edit(//...) rule or the mcp name").toMatch(/^([A-Z][A-Za-z]+|Bash\([^()]+\)|Edit\(\/\/.+\/\*\*\)|mcp__[a-z_]+)$/);
+    const ops = recordingOps(FIXTURE_TEXT);
+    const report = await runTarget(build, { ...RUN_SPEC, allowedTools: grant }, ops);
+    const args = ops.calls[0].args;
+    const at = args.indexOf("--allowedTools");
+    expect(at).toBeGreaterThan(0);
+    const after = args.slice(at + 1);
+    const stop = after.indexOf("--agent");
+    expect(stop === -1 ? after : after.slice(0, stop)).toEqual(grant);
+    expect([...report.toolGrant]).toEqual(grant);
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    expect(functionText(src, "async function capture(").includes("allowedTools: liveAllowedTools(build.target),"), "capture() resolves the grant per target").toBe(true);
+    expect(src.includes("const LIVE_ALLOWED_TOOLS"), "the unscoped literal list is gone").toBe(false);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C8 (the report says the grant): the Run table carries `| run X tool grant | RESOLVED_LIST |` per run, and the readiness table carries no row that could be MET without the target existing", async () => {
+    const build = handBuiltTarget("A");
+    const grant = liveAllowedTools(build.target);
+    const ops = recordingOps(FIXTURE_TEXT);
+    const report = await runTarget(build, { ...RUN_SPEC, allowedTools: grant }, ops);
+    const rendered = renderReport(reportModelWith([report]));
+    expect(rendered).toContain(`| run A tool grant | ${JSON.stringify(grant)} |`);
+    expect(rendered).toContain("| run A spawn grant drift | none — the post-run derivation equals the pre-spawn derivation on granted, adapterNames, coordinator and prefix |");
+    const table = evaluatePreconditions(observation());
+    expect(table.rows.some((r) => /grant/i.test(r.name)), "the grant is a per-run row, not a precondition").toBe(false);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+});
+
 // ── CR-05: a failed plugin install stops the run BEFORE the paid spawn ─────────────────────────
 //
 // Round 1's `pluginInstall` returned a string beginning `UNKNOWN - verify` on a non-zero exit and
@@ -1153,6 +1315,16 @@ describe("--dry-run walks every phase against the committed fixture and makes no
     expect(report).toContain("- parity: the two projections are equal");
     // CR-01: the Run table states where a live transcript lands, derived from the same predicate.
     for (const run of ["A", "B"]) expect(report).toContain(`| run ${run} transcript location | runner-owned scratch, outside every target and outside the run's working directory |`);
+    // CR-01 round 2: the resolved tool grant is a per-run row, in the dry run too — one scoped
+    // Edit(//ABS/**) rule, no bare Write or Edit, the scoped admission spelling.
+    for (const run of ["A", "B"]) {
+      const row = report.split("\n").find((l) => l.startsWith(`| run ${run} tool grant | `));
+      expect(row, `the Run table carries a tool grant row for run ${run}`).toBeDefined();
+      const list = JSON.parse((row as string).slice(`| run ${run} tool grant | `.length, -" |".length)) as string[];
+      expect(list.filter((x) => /^Edit\(\/\/.+\/\*\*\)$/.test(x))).toHaveLength(1);
+      expect(list.includes("Write") || list.includes("Edit")).toBe(false);
+      expect(list).toContain("mcp__plugin_grugops_grugops__propose_note");
+    }
     // CR-02: the provenance rows replace the old sha row; over the fixture the state is UNKNOWN.
     expect(report).toMatch(/\| installed plugin provenance \(D-05, content digest over \d+ tracked files\) \| UNKNOWN - verify — /);
     expect(report).toContain("| plugin under test per system/init | grugops 2.1.0 at ");
