@@ -1435,8 +1435,9 @@ describe("--dry-run walks every phase against the committed fixture and makes no
       expect(list.filter((x) => /^Edit\(\/\/.+\/\*\*\)$/.test(x))).toHaveLength(1);
       expect(list.includes("Write") || list.includes("Edit")).toBe(false);
       expect(list).toContain("mcp__plugin_grugops_grugops__propose_note");
-      // WR-06: a dry run installs no plugin, so it records no uninstall exit — the row is a live-run row.
-      expect(report.includes(`| run ${run} plugin uninstall |`)).toBe(false);
+      // WR-06: the dry run walks the uninstall row too (D-10) and says truthfully that nothing was installed — never an exit.
+      expect(report).toContain(`| run ${run} plugin uninstall | not run — no plugin was installed for this run (dry run, D-10) |`);
+      expect(report.includes(`| run ${run} plugin uninstall | exit`)).toBe(false);
     }
     // CR-02: the provenance rows replace the old sha row; over the fixture the state is UNKNOWN.
     expect(report).toMatch(/\| installed plugin provenance \(D-05, content digest over \d+ tracked files\) \| UNKNOWN - verify — /);

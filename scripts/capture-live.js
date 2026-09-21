@@ -1161,91 +1161,110 @@ function pluginInstall(target, pluginName, marketplaceName) {
         fail(`plugin install ${pluginName}@${marketplaceName} did not complete (${o.reason})`);
     return `installed ${pluginName}@${marketplaceName} at local scope: ${o.line}`;
 }
+/** The uninstall rendered for the Run table and the console: `exit 0`, `exit N — detail`, or `error: message`. */
+export function uninstallLine(u) {
+    if (u.error !== null)
+        return `error: ${u.error}${u.detail === "" ? "" : ` — ${u.detail}`}`;
+    if (u.status === 0)
+        return "exit 0";
+    return `exit ${String(u.status)}${u.detail === "" ? "" : ` — ${u.detail}`}`;
+}
 function pluginUninstall(target, pluginName) {
-    try {
-        spawnSync(PLATFORM_CMD, ["plugin", "uninstall", pluginName, "--scope", "local"], { cwd: target, encoding: "utf8", input: "", timeout: PLUGIN_OP_BOUND_MS, env: childEnvironment(process.env) });
-    }
-    catch {
-        /* best-effort: cleanup failure never masks a result */
-    }
+    const r = spawnSync(PLATFORM_CMD, ["plugin", "uninstall", pluginName, "--scope", "local"], { cwd: target, encoding: "utf8", input: "", timeout: PLUGIN_OP_BOUND_MS, env: childEnvironment(process.env) });
+    const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
+    return { status: r.status, error: r.error === undefined ? null : r.error.message, detail };
 }
 export const LIVE_OPS = Object.freeze({ pluginInstall, runPlatform, pluginUninstall });
 /**
- * One target, end to end: plugin install, the bounded platform run streamed into the runner-owned
- * transcript directory, the derivation over the bytes the runner RECEIVED and the target's context
- * root, and the plugin uninstall. The install is the FIRST platform-touching step and its failure
- * propagates, so `ops.runPlatform` is unreachable after an install that did not complete (CR-05).
- * The transcript path is asserted outside the target, the kit home and the cwd BEFORE the platform
- * is spawned (CR-01) — a misconfiguration is a refusal, not a capture. The frames are parsed from
+ * One target, end to end, in this order (33-REVIEW WR-06): the two pure containment refusals, the
+ * plugin install, then the bounded platform run streamed into the runner-owned transcript
+ * directory and the derivation over the bytes the runner RECEIVED and the target's context root —
+ * inside a `try` whose `finally` runs the plugin uninstall and records its exit. A run that never
+ * spawns installs nothing; a run that dies uninstalls anyway and says whether it managed to. The
+ * install is the FIRST platform-touching step and its failure propagates, so `ops.runPlatform` is
+ * unreachable after an install that did not complete (CR-05). The transcript path is asserted
+ * outside the target, the kit home and the cwd BEFORE anything is installed (CR-01, WR-06) — a
+ * misconfiguration is a refusal, not a capture and not a registry row. The frames are parsed from
  * `result.transcriptText` — the pipe bytes — and the transcript FILE is never opened here (hard
  * rule 5, CR-01 round 2): a file the subject can append to is a copy, not evidence. Because the
  * transcript is streamed into `build.transcriptDir` as it arrives and that directory survives every
  * non-zero exit (hard rule 3, CR-04), no copy step is needed before derivation — do not add one.
  */
 export async function runTarget(build, run, ops = LIVE_OPS) {
-    const installLine = `target ${build.label}: ${ops.pluginInstall(build.target, run.pluginName, run.marketplaceName)}`;
     const transcriptName = captureTranscriptName(build.label);
     const transcriptPath = join(build.transcriptDir, transcriptName);
     const cwd = build.target;
+    // Pure refusals first (WR-06): nothing is installed for a run that was never going to spawn.
     if (!isOutsideTargets(transcriptPath, [build.target, build.home])) {
         fail(`the transcript path ${transcriptPath} is inside target ${build.label} or its kit home — the subject could write the file it is scored from (CR-01); refusing to spawn`);
     }
     if (!isOutsideTargets(transcriptPath, [cwd])) {
         fail(`the transcript path ${transcriptPath} is inside the working directory the platform would be handed (${cwd}) — refusing to spawn (CR-01)`);
     }
-    // The grant is derived BEFORE the subject exists (CR-01 round 2, item 2): the installer rendered
-    // the adapters at build time and the plugin install added none, so this is the grant under test.
-    // Every CAP-03 side below is scored against THIS value, never against a post-run re-read.
-    const grant = deriveGrant(build.target);
-    if (run.expectedGrant !== null) {
-        const disagreement = grantDriftFields(run.expectedGrant, grant);
-        if (disagreement.length > 0) {
-            fail(`target ${build.label}: the pre-spawn grant derivation differs from the expected grant on ${disagreement.join(", ")} — refusing to spawn; the two targets would not be scored against one grant`);
+    const installLine = `target ${build.label}: ${ops.pluginInstall(build.target, run.pluginName, run.marketplaceName)}`;
+    let scored;
+    let uninstall;
+    try {
+        // The grant is derived BEFORE the subject exists (CR-01 round 2, item 2): the installer rendered
+        // the adapters at build time and the plugin install added none, so this is the grant under test.
+        // Every CAP-03 side below is scored against THIS value, never against a post-run re-read.
+        const grant = deriveGrant(build.target);
+        if (run.expectedGrant !== null) {
+            const disagreement = grantDriftFields(run.expectedGrant, grant);
+            if (disagreement.length > 0) {
+                fail(`target ${build.label}: the pre-spawn grant derivation differs from the expected grant on ${disagreement.join(", ")} — refusing to spawn; the two targets would not be scored against one grant`);
+            }
         }
+        const args = ["-p", run.request, "--output-format", "stream-json", "--verbose", "--include-hook-events", "--forward-subagent-text", "--allowedTools", ...run.allowedTools];
+        if (run.agent !== null)
+            args.push("--agent", run.agent);
+        const env = spawnEnv();
+        console.log(`run ${build.label}: starting under a ${run.boundMs} ms bound; transcript streamed to ${transcriptPath}`);
+        const result = await ops.runPlatform(args, cwd, env, transcriptPath, run.boundMs);
+        console.log(`run ${build.label}: status ${String(result.status)}, signal ${String(result.signal)}, ${result.durationMs} ms`);
+        const hung = result.timedOut || result.status === 143 || result.signal === "SIGTERM";
+        let failed = result.error !== null || (result.status !== 0 && !hung);
+        // Scored from the pipe: the frames are the bytes this process received, never the file (rule 5).
+        const transcriptText = result.transcriptText;
+        const frames = parseFrames(result.transcriptText);
+        const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
+        const derived = deriveClaims(frames, grant, stamps);
+        if (derived.capThreeReasons.length > 0)
+            failed = true;
+        // One post-run re-derivation, compared field by field: an adapter the subject edited during the
+        // run is named by FIELD in the Run table and fails the run; it never reaches the verdict above.
+        const grantDrift = grantDriftFields(grant, deriveGrant(build.target));
+        if (grantDrift.length > 0)
+            failed = true;
+        scored = {
+            label: build.label,
+            transcriptName,
+            transcriptLocation: transcriptLocation(transcriptPath, build, cwd),
+            argv: args,
+            frames,
+            claims: derived.claims,
+            withheld: derived.withheld,
+            targetRows: targetObservations(build, grant, stamps),
+            capThreeReasons: derived.capThreeReasons,
+            run: result,
+            toolGrant: run.allowedTools,
+            grantDrift,
+            transcriptPath,
+            transcriptText,
+            grant,
+            installLine,
+            projection: projectLivePath(stamps, frames.frames, grant.prefix),
+            hung,
+            failed,
+        };
     }
-    const args = ["-p", run.request, "--output-format", "stream-json", "--verbose", "--include-hook-events", "--forward-subagent-text", "--allowedTools", ...run.allowedTools];
-    if (run.agent !== null)
-        args.push("--agent", run.agent);
-    const env = spawnEnv();
-    console.log(`run ${build.label}: starting under a ${run.boundMs} ms bound; transcript streamed to ${transcriptPath}`);
-    const result = await ops.runPlatform(args, cwd, env, transcriptPath, run.boundMs);
-    console.log(`run ${build.label}: status ${String(result.status)}, signal ${String(result.signal)}, ${result.durationMs} ms`);
-    const hung = result.timedOut || result.status === 143 || result.signal === "SIGTERM";
-    let failed = result.error !== null || (result.status !== 0 && !hung);
-    // Scored from the pipe: the frames are the bytes this process received, never the file (rule 5).
-    const transcriptText = result.transcriptText;
-    const frames = parseFrames(result.transcriptText);
-    const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
-    const derived = deriveClaims(frames, grant, stamps);
-    if (derived.capThreeReasons.length > 0)
-        failed = true;
-    // One post-run re-derivation, compared field by field: an adapter the subject edited during the
-    // run is named by FIELD in the Run table and fails the run; it never reaches the verdict above.
-    const grantDrift = grantDriftFields(grant, deriveGrant(build.target));
-    if (grantDrift.length > 0)
-        failed = true;
-    ops.pluginUninstall(build.target, run.pluginName);
-    return {
-        label: build.label,
-        transcriptName,
-        transcriptLocation: transcriptLocation(transcriptPath, build, cwd),
-        argv: args,
-        frames,
-        claims: derived.claims,
-        withheld: derived.withheld,
-        targetRows: targetObservations(build, grant, stamps),
-        capThreeReasons: derived.capThreeReasons,
-        run: result,
-        toolGrant: run.allowedTools,
-        grantDrift,
-        transcriptPath,
-        transcriptText,
-        grant,
-        installLine,
-        projection: projectLivePath(stamps, frames.frames, grant.prefix),
-        hung,
-        failed,
-    };
+    finally {
+        // Every exit path after the install — a completed run, a throw from the platform, a throw from
+        // the derivation — uninstalls, and the exit is recorded rather than swallowed (WR-06).
+        uninstall = ops.pluginUninstall(build.target, run.pluginName);
+        console.log(`run ${build.label}: plugin uninstall ${uninstallLine(uninstall)}`);
+    }
+    return { ...scored, uninstall };
 }
 // ---------------------------------------------------------------------------
 // D-05 post hoc — plugin provenance by name, by content, and in the outcome (33-12, CR-02, WR-04)
@@ -1431,6 +1450,8 @@ export function renderReport(m) {
             L.push(`| run ${r.label} exit | status ${String(r.run.status)}, signal ${String(r.run.signal)}, timed out ${r.run.timedOut}, escalated ${r.run.escalated}, wall ${r.run.durationMs} ms |`);
             L.push(`| run ${r.label} spawn grant drift | ${r.grantDrift.length === 0 ? "none — the post-run derivation equals the pre-spawn derivation on granted, adapterNames, coordinator and prefix" : `field(s) changed after the spawn: ${cell(r.grantDrift.join(", "))} — the run is failed`} |`);
         }
+        // WR-06: the uninstall's recorded exit; a dry run installs nothing, so it says so rather than an exit.
+        L.push(`| run ${r.label} plugin uninstall | ${r.uninstall === null ? "not run — no plugin was installed for this run (dry run, D-10)" : cell(uninstallLine(r.uninstall))} |`);
         L.push(`| run ${r.label} claim rows withheld (no citation) | ${r.withheld} |`);
     }
     L.push("");
@@ -1711,6 +1732,7 @@ async function dryRun(opts) {
             run: null,
             toolGrant: liveAllowedTools(build.target),
             grantDrift: [],
+            uninstall: null,
         });
         projections.push({ label: build.label, projection: projectLivePath(stamps, frames.frames, grant.prefix) });
     }
