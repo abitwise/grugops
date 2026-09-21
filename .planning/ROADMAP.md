@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 23/34 plans executed — 11/11 round-1 plans executed (6 waves); 12/12 gap-closure round-2 plans executed (waves 7-12); 11 gap-closure round-3 plans (33-24..33-34, waves 13-23, `gap_closure: true`) planned 2026-09-21 after round-2 verification `gaps_found` 0/3 — round 3 of the four-round cap
+**Plans**: 24/34 plans executed — 11/11 round-1 plans executed (6 waves); 12/12 gap-closure round-2 plans executed (waves 7-12); 11 gap-closure round-3 plans (33-24..33-34, waves 13-23, `gap_closure: true`) planned 2026-09-21 after round-2 verification `gaps_found` 0/3 — round 3 of the four-round cap
 
 Plans:
 **Wave 1**
@@ -1382,7 +1382,7 @@ Plans:
 
 **Wave 13**
 
-- [ ] 33-24-PLAN.md — TRACER: row 236 at ONE spelling authority — the win32 spelling decided by evidence (rung 1), `tmp15` + the home boundary + the env tier through `canonicalDirectoryPath` (WR-05), every consumer arm probed, the 35 titles handed to the CI plan
+- [x] 33-24-PLAN.md — TRACER: row 236 at ONE spelling authority — the win32 spelling decided by evidence (rung 1), `tmp15` + the home boundary + the env tier through `canonicalDirectoryPath` (WR-05), every consumer arm probed, the 35 titles handed to the CI plan
 
 **Wave 14** *(blocked on Wave 13 completion)*
 
@@ -1480,7 +1480,7 @@ Plans:
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
-| 33. Live Capture & Windows Portability | v2.1 | 23/23 | In Progress|  |
+| 33. Live Capture & Windows Portability | v2.1 | 24/34 | In Progress|  |
 | 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
