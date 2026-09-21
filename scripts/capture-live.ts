@@ -55,12 +55,14 @@
 //      `prodDeployDenyFired`. Passing the raw JSONL line returns false by the matcher's own
 //      fails-closed contract (scripts/prod-deploy-deny-match.ts:38-40), which is exactly the
 //      harness defect the 2026-09-18 live run reproduced on the `json` channel. The stream is
-//      sound because the platform emits it; the FILE it is scored from is sound only because the
-//      subject has no path to it (33-REVIEW CR-01): the transcript is streamed into a runner-owned
-//      scratch directory that is a sibling of the target — never inside `build.target`, never
-//      inside the kit home, never inside the cwd the platform is handed — and `runTarget` refuses
-//      to spawn when `isOutsideTargets` says otherwise. A file the subject plants at the old
-//      in-target location is never read.
+//      sound for two reasons, and both are needed: the platform emits it, AND the runner scores
+//      the bytes it itself received on the child's stdout pipe — `runPlatform` buffers every
+//      chunk it also streams to disk and resolves with `transcriptText`, and `runTarget` derives
+//      `parseFrames(result.transcriptText)` and never opens the transcript path again (33-REVIEW
+//      round-2 CR-01). The transcript FILE is written for the operator and the diagnosis; it is
+//      not an input to the verdict, so the subject's reach over the scratch directory no longer
+//      matters to the verdict. The sibling-scratch location and the `isOutsideTargets` refusal
+//      stay because they protect the operator's copy, not because the verdict depends on them.
 //
 //   6. NO HAND-TYPED SET STANDS WHERE THE SET CAN BE DERIVED. The coordinator grant is read from the
 //      installed coordinator adapter (located by its `coordinator: true` marker) and cross-derived
@@ -420,7 +422,12 @@ export interface ReadFramesResult {
   lineCount: number;
 }
 
-/** Pattern 1: a line-delimited reader that survives a killed run by counting, not throwing. */
+/**
+ * Pattern 1: a line-delimited reader that survives a killed run by counting, not throwing. It reads
+ * a FILE, so it has exactly two callers: `dryRun` over the committed fixture and `--verify-artifacts`
+ * over an already-written artifact set. It is NOT how a live run is scored — `runTarget` parses the
+ * bytes the runner received on the pipe through `parseFrames` (hard rule 5, CR-01 round 2).
+ */
 export async function readFrames(path: string): Promise<ReadFramesResult> {
   const frames: StreamFrame[] = [];
   const lineNumbers: number[] = [];
@@ -1306,13 +1313,22 @@ export interface PlatformRunResult {
   durationMs: number;
   error: string | null;
   stderrTail: string;
+  /**
+   * The bytes the runner itself received on the child's stdout pipe, decoded as UTF-8 — the ONE
+   * input the verdict's frames are parsed from (hard rule 5, CR-01 round 2). The file at the
+   * transcript path is the same bytes written for the operator; it is never read back for scoring.
+   */
+  transcriptText: string;
 }
 
 /**
- * The live invocation: `spawn` (never `spawnSync`) with stdout piped to a write stream so a killed
- * run still leaves its partial JSONL on disk; SIGINT at the bound, SIGTERM as the escalation.
+ * The bounded, buffered child run: `spawn` (never `spawnSync`) with every stdout chunk BOTH
+ * appended to an in-memory buffer and piped to a write stream, so a killed run still leaves its
+ * partial JSONL on disk AND the runner holds the bytes it received; SIGINT at the bound, SIGTERM as
+ * the escalation. Exported with the command as a parameter so the offline suite can drive the real
+ * buffering with a node child (Test C3b); the live path is `runPlatform`, which binds `PLATFORM_CMD`.
  */
-function runPlatform(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv, transcriptPath: string, boundMs: number): Promise<PlatformRunResult> {
+export function runCommandBuffered(command: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv, transcriptPath: string, boundMs: number): Promise<PlatformRunResult> {
   return new Promise((resolvePromise) => {
     const out = createWriteStream(transcriptPath);
     const started = Date.now();
@@ -1320,9 +1336,13 @@ function runPlatform(args: readonly string[], cwd: string, env: NodeJS.ProcessEn
     let timedOut = false;
     let escalated = false;
     let stderrTail = "";
-    const child = spawn(PLATFORM_CMD, [...args], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+    const chunks: Buffer[] = [];
+    const child = spawn(command, [...args], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
     child.stdin.end();
-    child.stdout.pipe(out);
+    child.stdout.on("data", (d: Buffer) => {
+      chunks.push(d);
+      out.write(d);
+    });
     child.stderr.on("data", (d: Buffer) => {
       stderrTail = `${stderrTail}${d.toString("utf8")}`.slice(-64_000);
     });
@@ -1339,11 +1359,16 @@ function runPlatform(args: readonly string[], cwd: string, env: NodeJS.ProcessEn
       settled = true;
       clearTimeout(t1);
       clearTimeout(t2);
-      out.end(() => resolvePromise({ status, signal, timedOut, escalated, durationMs: Date.now() - started, error, stderrTail }));
+      out.end(() => resolvePromise({ status, signal, timedOut, escalated, durationMs: Date.now() - started, error, stderrTail, transcriptText: Buffer.concat(chunks).toString("utf8") }));
     };
     child.on("error", (e) => settle(null, null, e.message));
     child.on("close", (status, signal) => settle(status, signal, null));
   });
+}
+
+/** The live invocation of the platform under test. */
+function runPlatform(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv, transcriptPath: string, boundMs: number): Promise<PlatformRunResult> {
+  return runCommandBuffered(PLATFORM_CMD, args, cwd, env, transcriptPath, boundMs);
 }
 
 /** The install decision, pure (33-REVIEW CR-05): `ok: false` carries the reason the caller throws with. */
@@ -1389,7 +1414,7 @@ export interface LiveOps {
   pluginUninstall: typeof pluginUninstall;
 }
 
-export const LIVE_OPS: LiveOps = { pluginInstall, runPlatform, pluginUninstall };
+export const LIVE_OPS: Readonly<LiveOps> = Object.freeze({ pluginInstall, runPlatform, pluginUninstall });
 
 export interface RunSpec {
   request: string;
@@ -1412,15 +1437,17 @@ export interface TargetRun extends RunReport {
 
 /**
  * One target, end to end: plugin install, the bounded platform run streamed into the runner-owned
- * transcript directory, the derivation over that transcript and the target's context root, and
- * the plugin uninstall. The install is the FIRST platform-touching step and its failure propagates,
- * so `ops.runPlatform` is unreachable after an install that did not complete (CR-05). The
- * transcript path is asserted outside the target, the kit home and the cwd BEFORE the platform is
- * spawned (CR-01) — a misconfiguration is a refusal, not a capture. Because the transcript is
- * streamed into `build.transcriptDir` as it arrives and that directory survives every non-zero
- * exit (hard rule 3, CR-04), no copy step is needed before derivation — do not add one.
+ * transcript directory, the derivation over the bytes the runner RECEIVED and the target's context
+ * root, and the plugin uninstall. The install is the FIRST platform-touching step and its failure
+ * propagates, so `ops.runPlatform` is unreachable after an install that did not complete (CR-05).
+ * The transcript path is asserted outside the target, the kit home and the cwd BEFORE the platform
+ * is spawned (CR-01) — a misconfiguration is a refusal, not a capture. The frames are parsed from
+ * `result.transcriptText` — the pipe bytes — and the transcript FILE is never opened here (hard
+ * rule 5, CR-01 round 2): a file the subject can append to is a copy, not evidence. Because the
+ * transcript is streamed into `build.transcriptDir` as it arrives and that directory survives every
+ * non-zero exit (hard rule 3, CR-04), no copy step is needed before derivation — do not add one.
  */
-export async function runTarget(build: TargetBuild, run: RunSpec, ops: LiveOps = LIVE_OPS): Promise<TargetRun> {
+export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<LiveOps> = LIVE_OPS): Promise<TargetRun> {
   const installLine = `target ${build.label}: ${ops.pluginInstall(build.target, run.pluginName, run.marketplaceName)}`;
   const transcriptName = captureTranscriptName(build.label);
   const transcriptPath = join(build.transcriptDir, transcriptName);
@@ -1439,12 +1466,13 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: LiveOps =
   console.log(`run ${build.label}: status ${String(result.status)}, signal ${String(result.signal)}, ${result.durationMs} ms`);
   const hung = result.timedOut || result.status === 143 || result.signal === "SIGTERM";
   let failed = result.error !== null || (result.status !== 0 && !hung);
-  const frames = await readFrames(transcriptPath);
+  // Scored from the pipe: the frames are the bytes this process received, never the file (rule 5).
+  const transcriptText = result.transcriptText;
+  const frames = parseFrames(result.transcriptText);
   const grant = deriveGrant(build.target);
   const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
   const derived = deriveClaims(frames, grant, stamps);
   if (derived.capThreeReasons.length > 0) failed = true;
-  const transcriptText = readFileSync(transcriptPath, "utf8");
   ops.pluginUninstall(build.target, run.pluginName);
   return {
     label: build.label,
