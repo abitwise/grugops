@@ -569,3 +569,48 @@ describe("admission-server — GAP-R7-1 round-8 unified-classifier end-to-end (R
     expect(noteFiles(root, task)).toHaveLength(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-26, TASK 2 — the MCP route is UNCHANGED, and that is asserted rather than assumed. The
+// server coerces an absent `verified_by` to the empty string at its own boundary
+// (`String(args.verified_by ?? "")`): the tool's argument schema declares the field optional, and
+// the server is the boundary that owns that default. That is not the writer inventing a value — an
+// in-process caller passing `undefined` to `admitAndAppend` has made no such declaration, and is
+// refused by name there (scripts/context-io.test.ts, 33-26 V1/V2).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33-26 — V6: propose_note with `verified_by` OMITTED keeps its boundary default (empty), for a soft note and a finding alike", () => {
+  it("an `observation` with no verified_by argument is ADMITTED and persists `verified_by: ` (empty) — never the word undefined", () => {
+    const root = repoWithGovernance({ human_admission: "off" });
+    const a = args({ task: "asrv-v6-obs", kind: "observation" });
+    delete a.verified_by;
+    expect("verified_by" in a).toBe(false);
+    const res = withProjectDir(root, () => srv.handleProposeNote(a));
+    expect(res.isError, res.content[0]?.text).toBeFalsy();
+    const files = noteFiles(root, "asrv-v6-obs");
+    expect(files).toHaveLength(1);
+    const lines = readFileSync(join(notesDir(root, "asrv-v6-obs"), files[0]), "utf8").split("\n");
+    expect(lines).toContain("verified_by: ");
+    expect(lines).not.toContain("verified_by: undefined");
+    expect(cio.readContext("asrv-v6-obs", join(root, ".grugops", "context")).map((n) => n.verified_by)).toEqual([""]);
+  });
+
+  it("a `finding` with no verified_by argument is REFUSED by admit() as a hollow stamp (the boundary default is empty, and empty is not evidence); nothing is written", () => {
+    const root = repoWithGovernance({ human_admission: "off" });
+    const a = args({ task: "asrv-v6-finding", kind: "finding", by: "software-engineer" });
+    delete a.verified_by;
+    const res = withProjectDir(root, () => srv.handleProposeNote(a));
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toMatch(/verified_by/);
+    expect(res.content[0].text).not.toMatch(/absent \(undefined\)/); // refused by admit(), not by the writer's type guard
+    expect(noteFiles(root, "asrv-v6-finding")).toHaveLength(0);
+  });
+
+  it("the boundary default is the server's own sentence: `String(args.verified_by ?? \"\")` precedes the admitAndAppend call in the handler", () => {
+    const src = readFileSync(join(ROOT, "scripts", "admission-server.ts"), "utf8");
+    const coerce = src.indexOf('verified_by: String(args.verified_by ?? "")');
+    const call = src.indexOf("admitAndAppend(task, note, body, contextRoot, repoRoot)");
+    expect(coerce).toBeGreaterThan(-1);
+    expect(call).toBeGreaterThan(coerce);
+  });
+});

@@ -35,8 +35,9 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import ts from "typescript";
 
 const ROOT = join(import.meta.dirname, "..");
 const COMPACTOR_JS = join(ROOT, "scripts", "compactor.js");
@@ -3260,5 +3261,136 @@ describe("33-25 — the compactor's promoted-tier walk asks the one seal predica
     expect(mutated.status, `the mutated module still refused: ${mutated.stderr}`).toBe(0);
     expect(mutated.stderr).not.toContain("unsealed");
     expect(mutated.stdout).toContain("carve-out intact");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-26, TASK 2 — the SIBLING composer. 33-DIAGNOSIS § 3 named `admitAndAppend`/`composeNote`;
+// the raw thread tier's `composeThreadNote` interpolates the same six scalars from the same
+// `NoteInput` with no guard at all, so the word `undefined` could reach a thread record the same
+// way. It is closed by asking the ONE exported guard from context-io — no local guard body — and
+// the set of interpolation sites is derived from the sources, not hand-listed.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33-26 — the sibling composer asks the same guard; the interpolation-site set is derived", () => {
+  const DISPATCH_BASE_SHA = "941197e2022ba63f015fda17c1955f131593309c";
+  const SCRIPTS_DIR = join(ROOT, "scripts");
+
+  function gitShowAt(sha: string, path: string): string {
+    const r = spawnSync("git", ["show", `${sha}:${path}`], { cwd: ROOT, encoding: "utf8", input: "", maxBuffer: 64 * 1024 * 1024 });
+    if (r.error !== undefined || r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+      throw new Error(`git cannot show ${sha}:${path} (exit ${String(r.status)}): ${(r.stderr ?? "").trim()}`);
+    }
+    return r.stdout;
+  }
+  /** The base kit (every committed .js at the dispatch base), so the base compactor runs beside its own context-io. */
+  async function baseCompactor(): Promise<typeof import("./compactor.js")> {
+    const kit = freshTmp("p33-26-v5-basekit-");
+    const listing = spawnSync("git", ["ls-tree", "-r", "--name-only", DISPATCH_BASE_SHA, "scripts", "hooks"], { cwd: ROOT, encoding: "utf8", input: "", maxBuffer: 64 * 1024 * 1024 });
+    expect(listing.status, `PREMISE: git ls-tree failed: ${listing.stderr}`).toBe(0);
+    const jsFiles = listing.stdout.split("\n").filter((f) => f.endsWith(".js"));
+    expect(jsFiles.length).toBeGreaterThan(10);
+    for (const f of jsFiles) {
+      mkdirSync(dirname(join(kit, f)), { recursive: true });
+      writeFileSync(join(kit, f), gitShowAt(DISPATCH_BASE_SHA, f));
+    }
+    mkdirSync(join(kit, "agent-factory", "config"), { recursive: true });
+    writeFileSync(join(kit, "agent-factory", "config", "factory.config.json"), gitShowAt(DISPATCH_BASE_SHA, "agent-factory/config/factory.config.json"));
+    return (await import(pathToFileURL(join(kit, "scripts", "compactor.js")).href)) as typeof import("./compactor.js");
+  }
+  type Note = Parameters<typeof mod.writeThread>[4];
+  const note = (over: Record<string, unknown> = {}): Note =>
+    ({ kind: "observation", by: "engineer", at: "2026-09-21T00:00:00Z", verified_by: "", confidence: "low", refs: [], supersedes: null, ...over }) as unknown as Note;
+  function without(key: string): Note {
+    const n = note() as unknown as Record<string, unknown>;
+    delete n[key];
+    return n as unknown as Note;
+  }
+
+  it("V5 — PREMISE on the base: `writeThread` with NO `verified_by` key appended a thread record carrying the literal `verified_by: undefined`", async () => {
+    const base = await baseCompactor();
+    const ctx = join(freshTmp("p33-26-v5-base-"), "ctx");
+    const threadPath = base.writeThread("task-v5", "engineer", "a raw trajectory line\n", ctx, without("verified_by"));
+    expect(existsSync(threadPath)).toBe(true);
+    expect(readFileSync(threadPath, "utf8").split("\n")).toContain("verified_by: undefined");
+  });
+
+  it("V5 — HEAD: `writeThread` with NO `verified_by` key throws naming `verified_by`; the thread file is not created", () => {
+    const ctx = join(freshTmp("p33-26-v5-head-"), "ctx");
+    let message = "";
+    try {
+      mod.writeThread("task-v5", "engineer", "a raw trajectory line\n", ctx, without("verified_by"));
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message, "writeThread accepted an absent verified_by").not.toBe("");
+    expect(message).toContain('"verified_by"');
+    expect(message).toMatch(/absent/);
+    expect(existsSync(join(ctx, "task-v5", "threads", "engineer.md")), "the thread file was created before the refusal").toBe(false);
+  });
+
+  it("V5 — HEAD: an EXISTING thread file is not appended to when a later note is absent-fielded; every one of the six scalars and refs[] is refused by name", () => {
+    const ctx = join(freshTmp("p33-26-v5-append-"), "ctx");
+    const threadPath = mod.writeThread("task-v5", "engineer", "first, well-formed\n", ctx, note());
+    const before = readFileSync(threadPath, "utf8");
+    expect(before).toContain("verified_by: \n"); // the honest empty value still writes on this tier too
+    for (const [n, re] of [
+      [note({ kind: undefined }), /"kind".*absent/],
+      [note({ by: undefined }), /"by".*absent/],
+      [note({ at: undefined }), /"at".*absent/],
+      [note({ verified_by: undefined }), /"verified_by".*absent/],
+      [note({ confidence: undefined }), /"confidence".*absent/],
+      [note({ supersedes: undefined }), /"supersedes".*absent/],
+      [note({ refs: ["ok", 7] }), /"refs\[\]".*number/],
+      [note({ refs: undefined }), /"refs".*absent/],
+    ] as Array<[Note, RegExp]>) {
+      expect(() => mod.writeThread("task-v5", "engineer", "second\n", ctx, n)).toThrow(re);
+      expect(readFileSync(threadPath, "utf8"), "the thread file moved after a refusal").toBe(before);
+    }
+    expect(readFileSync(threadPath, "utf8")).not.toContain("undefined");
+  });
+
+  it("V7 — the set is DERIVED: exactly 2 `${note.verified_by}` interpolation sites across scripts/*.ts (tests excluded), each inside a function that asks the exported field guard BEFORE the interpolation; the compactor carries no guard body of its own", () => {
+    const sources = readdirSync(SCRIPTS_DIR).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.endsWith(".d.ts"));
+    expect(sources.length).toBeGreaterThan(20);
+    const sites: Array<{ file: string; fn: string; guardedBefore: boolean }> = [];
+    for (const file of sources) {
+      const text = readFileSync(join(SCRIPTS_DIR, file), "utf8");
+      if (!text.includes("note.verified_by")) continue;
+      const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+      const visitFn = (name: string, body: ts.Node): void => {
+        let interpolationAt = -1;
+        let guardAt = -1;
+        const walk = (n: ts.Node): void => {
+          if (ts.isTemplateExpression(n)) {
+            for (const span of n.templateSpans) {
+              if (span.expression.getText(source) === "note.verified_by") interpolationAt = interpolationAt === -1 ? span.getStart(source) : Math.min(interpolationAt, span.getStart(source));
+            }
+          }
+          if (ts.isCallExpression(n) && n.expression.getText(source) === "assertNoteFields" && n.arguments[0]?.getText(source) === "note") {
+            guardAt = guardAt === -1 ? n.getStart(source) : Math.min(guardAt, n.getStart(source));
+          }
+          ts.forEachChild(n, walk);
+        };
+        walk(body);
+        if (interpolationAt !== -1) sites.push({ file, fn: name, guardedBefore: guardAt !== -1 && guardAt < interpolationAt });
+      };
+      const outer = (n: ts.Node): void => {
+        if (ts.isFunctionDeclaration(n) && n.name && n.body) visitFn(n.name.text, n.body);
+        ts.forEachChild(n, outer);
+      };
+      outer(source);
+    }
+    expect(sites.map((s) => `${s.file}#${s.fn}`).sort()).toEqual(["compactor.ts#composeThreadNote", "context-io.ts#composeNote"]);
+    expect(sites).toHaveLength(2);
+    for (const s of sites) expect(s.guardedBefore, `${s.file}#${s.fn} interpolates note.verified_by without asking assertNoteFields first`).toBe(true);
+    // The field guard names `verified_by` in its one list (so "asks assertNoteFields" is "guards this field").
+    const ctxioSrc = readFileSync(join(SCRIPTS_DIR, "context-io.ts"), "utf8");
+    expect(ctxioSrc).toMatch(/export function assertNoteFields\([\s\S]*?assertNoteScalar\("verified_by", note\.verified_by\)/);
+    // No second guard body beside the exported one: the compactor spells neither rule.
+    const compactorSrc = readFileSync(join(SCRIPTS_DIR, "compactor.ts"), "utf8");
+    expect(compactorSrc).not.toMatch(/must be single-line/);
+    expect(compactorSrc).not.toMatch(/typeof [^\n]* !== "string"/);
+    expect(compactorSrc).toMatch(/import \{[^}]*assertNoteFields[^}]*\} from "\.\/context-io\.js"/);
   });
 });
