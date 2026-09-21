@@ -1,278 +1,187 @@
 ---
 phase: 33-live-capture-windows-portability
-reviewed: 2026-09-20T18:33:35Z
+reviewed: 2026-09-21T11:27:10Z
 depth: standard
-files_reviewed: 55
+files_reviewed: 21
 files_reviewed_list:
-  - .gitattributes
-  - .github/workflows/ci.yml
   - docs/audit/28-disposition-register.md
-  - docs/audit/29-style-dispositions/33-09.md
-  - hooks/admission-guard.test.ts
-  - hooks/guard.test.ts
-  - install/install.test.ts
-  - package.json
-  - scripts/board-dashboard.test.ts
-  - scripts/board-model.test.ts
-  - scripts/board-read.test.ts
-  - scripts/board-tracer.test.ts
-  - scripts/board-watch.test.ts
+  - hooks/hook-entry.js
+  - hooks/hook-entry.ts
   - scripts/capture-live.js
   - scripts/capture-live.test.ts
   - scripts/capture-live.ts
-  - scripts/check-banned-claims.js
-  - scripts/check-banned-claims.test.ts
-  - scripts/check-banned-claims.ts
-  - scripts/check-claim-anchors.test.ts
-  - scripts/check-flip-manifest.js
-  - scripts/check-flip-manifest.test.ts
-  - scripts/check-flip-manifest.ts
+  - scripts/check-build-parity.js
+  - scripts/check-build-parity.ts
   - scripts/check-foundation-guards.test.ts
-  - scripts/check-kit-refs.js
-  - scripts/check-kit-refs.test.ts
-  - scripts/check-kit-refs.ts
-  - scripts/check-nul-bytes.test.ts
-  - scripts/check-platform-shapes.js
   - scripts/check-platform-shapes.test.ts
-  - scripts/check-platform-shapes.ts
+  - scripts/check-public-docs-vocabulary.js
   - scripts/check-public-docs-vocabulary.test.ts
-  - scripts/check-uat-oracles.test.ts
+  - scripts/check-public-docs-vocabulary.ts
+  - scripts/context-io.js
   - scripts/context-io.test.ts
-  - scripts/coordinator-resolution-precheck.test.ts
-  - scripts/e2e/fixtures/capture-sample.jsonl
-  - scripts/e2e/fixtures/capture-target/package.json
-  - scripts/e2e/fixtures/capture-target/src/index.mjs
-  - scripts/e2e/uat-live.test.ts
-  - scripts/freshness.js
+  - scripts/context-io.ts
   - scripts/freshness.test.ts
-  - scripts/freshness.ts
-  - scripts/frontmatter.test.ts
-  - scripts/generate-guarantees.test.ts
-  - scripts/nonblocking-reader-parity.test.ts
-  - scripts/posix-path.js
-  - scripts/posix-path.test.ts
-  - scripts/posix-path.ts
-  - scripts/prod-deploy-deny-match.js
-  - scripts/prod-deploy-deny-match.ts
+  - scripts/runnable-ref/uat-spec-integrity.js
   - scripts/runnable-ref/uat-spec-integrity.test.ts
+  - scripts/runnable-ref/uat-spec-integrity.ts
   - scripts/uat-gate-exit-contract.test.ts
-  - scripts/validate.test.ts
-  - vitest.config.ts
 findings:
-  critical: 5
-  warning: 13
-  info: 8
-  total: 26
+  critical: 1
+  warning: 6
+  info: 7
+  total: 14
 status: issues_found
 ---
 
-# Phase 33: Code Review Report
+# Phase 33: Code Review Report — gap-closure round 2
 
-**Reviewed:** 2026-09-20T18:33:35Z
+**Reviewed:** 2026-09-21T11:27:10Z
 **Depth:** standard
-**Files Reviewed:** 55
+**Files Reviewed:** 21
 **Status:** issues_found
+
+Round-2 numbering starts at 01. Round-1 IDs (CR-01..05, WR-01..13, IN-01..08) live in `33-REVIEW-round1.md`; where a round-2 finding is about a round-1 closure, the round-1 ID is named in the text. Round-1 findings the human accepted open into WINDOWS.md rows 237–254 are not re-reported.
 
 ## Summary
 
-The phase adds three new tooling modules (`scripts/capture-live.ts`, `scripts/check-flip-manifest.ts`, `scripts/posix-path.ts`), extends `scripts/check-platform-shapes.ts` with a shared skip/host-capability corpus, re-launches the compiler in `scripts/freshness.ts`, normalizes published paths in `scripts/check-kit-refs.ts` and `scripts/check-banned-claims.ts`, and reworks roughly thirty test files for Windows portability. The committed `.js` twins were not reviewed separately; the freshness gate owns their parity.
+Scope was the diff `7ef5a1c4..HEAD` over the 21 listed files, read against the whole file. The six committed `.js` twins (`hooks/hook-entry.js`, `scripts/capture-live.js`, `scripts/check-build-parity.js`, `scripts/check-public-docs-vocabulary.js`, `scripts/context-io.js`, `scripts/runnable-ref/uat-spec-integrity.js`) were rebuilt with `tsc --outDir <scratch>` and are byte-identical to the build; `hooks/hook-entry.ts` changed in exactly two manifest lines and the new hash is `sha256(scripts/context-io.js)`. Their logic was not reviewed twice.
 
-The pure derivations in `capture-live.ts` (frame parsing, deny attribution on the decoded `hook_response.stdout`, the two-way grant derivation, the three-state precondition table) are well-built and the offline suite is genuinely two-sided. The defects are in how the live runner is REACHED and what it does around those predicates: the transcript it scores is streamed into the directory the agent runs in with `Write`/`Edit` granted (CR-01); the D-05 provenance row reads the wrong plugin and is never compared to anything (CR-02 -- the committed capture shows `UNKNOWN - verify` on that row); the D-07 comparator it reuses compares wall-clock timestamps and model-authored prose, so `OUTCOME: pass` is unreachable for two real runs (CR-03); a failure after the runs deletes the paid transcripts even under `--keep-target` (CR-04); and a failed plugin install does not stop the spend (CR-05). The flip-manifest gate has one fail-open arm (substring exemption anchors, WR-08) and one part that is the manifest compared with itself (WR-09). The platform-shape skip corpus, by design, converts several safety-bearing FIFO cases into `console.warn` greens on any host whose `mkfifo` misbehaves (WR-10).
+What holds up: `cleanupPlan`'s truth table matches the `finally` at `capture-live.ts:2130` in all four cells (CR-04 closed); `installOutcome` is total over `{status, error}` and `runTarget` calls the install first so a refused install never reaches `ops.runPlatform` (CR-05 closed); `isOutsideTargets` is `relative()`-based, refuses the root itself and a lookalike sibling; `pluginCachePathAccepted` judges on `realpathSync.native` so a link that leaves the cache root is refused, and I confirmed it accepts the real `~/.claude/plugins/cache/grugops/grugops/2.1.0` directory on this host; `contentDigest` is order-independent and moves on one byte or one missing file; `deriveOutcome` cannot answer `pass` while provenance is not `MET` (CR-02 closed as a mechanism); `faultKey` is held equal to `toPosixWith` on every arm including the empty-separator refusal (test AA); `corpusMember` has exactly one call site and the walk is the only host-spelled part; `appendRegularFileLine` classifies by type before the open and keeps the post-open `fstat` as the race authority; no test in scope reads `process.platform` as a conditional (the one read is a log string in `uat-spec-integrity.test.ts`).
 
-The known open item at `scripts/check-public-docs-vocabulary.ts:268` is not re-reported.
+What does not hold up is the premise behind the CR-01 closure. The transcript moved out of the subject's cwd, but the subject still holds unscoped `Write`, `Edit` and `Bash(node *)` (`capture-live.ts:250-260`), so it can reach the sibling scratch, the plugin cache copy the provenance digest reads, and the adapter files the grant is re-derived from after the run. The predicate is sound; the file it reads after the subject has run is not, which is the class this project's history records. The provenance arm is fail-closed but post hoc, and the version-keyed plugin cache makes a stale copy a predictable `UNMET` after the full spend.
 
 ## Critical Issues
 
-### CR-01: The transcript the deny predicate scores is written inside the agent's cwd, with `Write` and `Edit` granted
+### CR-01: The CR-01 closure rests on "the subject has no path to it", which the shipped grant contradicts — the verdict is still derived from files the subject can write
 
-**File:** `scripts/capture-live.ts:1567` (also `:225-235`, `:1098-1108`, `:1577-1583`)
-**Issue:** `transcriptPath = join(build.target, transcriptName)` places `33-CAPTURE-A.jsonl` inside the target directory, which is the `cwd` handed to `claude -p`. `LIVE_ALLOWED_TOOLS` grants `Write`, `Edit`, `Glob` and `Read`. The model can therefore discover the file it is being scored from and append or rewrite frames in it -- including a `system/hook_response` frame whose `stdout` carries a byte-perfect prod-deploy deny envelope, or `parent_tool_use_id`/`task_notification` frames that satisfy CAP-03 side (a). Hard rule 5 and the matcher header (`prod-deploy-deny-match.ts:24-37`) argue that `hook_response.stdout` is sound because "the platform emits the frame, the model never writes it"; that holds for the stream, but not for a file in the agent's project directory. `readFrames(transcriptPath)` at `:1577` and `readFileSync(transcriptPath)` at `:1583` read that file after the run. This is the exact class the project's history records: the predicate is sound, the input it is handed is not.
-**Fix:**
+**File:** `scripts/capture-live.ts:57-63` (header), `:250-260` (`LIVE_ALLOWED_TOOLS`), `:1438-1447` (`runTarget` re-reads from disk), `:1443` (grant derived after the run), `:1576` (cache copy digested after the run); `scripts/capture-live.test.ts:672`, `:741` (the test states the same premise); `33-12-SUMMARY.md:129` ("the scored transcript is unreachable from the subject's grants")
+**Issue:** Round-1 CR-01 was closed by streaming the transcript into a sibling `mkdtemp` under `tmpdir()` and asserting `isOutsideTargets` before the spawn. The header now argues the file is sound "only because the subject has no path to it". The subject's grant is byte-identical to round 1 (33-12-SUMMARY line 46 says so) and contains `Write`, `Edit` and `Bash(node *)` with no path scope. A `Write`/`Edit` rule with no pattern is not cwd-bounded in Claude Code, and `Bash(node *)` is arbitrary code as the runner's user. The scratch directory carries the fixed literal prefix `grugops-capture-live-transcript-A-` under the OS temp directory, so it is one `Glob`/`readdirSync` away. Three verdict inputs are re-read from disk AFTER the subject ran and are therefore assembled from subject-writable state:
+
+1. `readFrames(transcriptPath)` at `:1442` and `readFileSync(transcriptPath)` at `:1447` — the deny attribution (`denyObservedInStream`) and the CAP-03 side (a) spawn evidence are scored from the file, not from the bytes the runner received on the pipe. Concrete input: while the run is live, `Bash`: `node -e "require('fs').appendFileSync('/tmp/grugops-capture-live-transcript-A-<suffix>/33-CAPTURE-A.jsonl', JSON.stringify({type:'system',subtype:'hook_response',stdout:'<byte-perfect deny envelope>'})+'\n')"`. The offline test at `:741` proves only that a file planted at the OLD in-target location is not read; it never plants at the new location.
+2. `deriveGrant(build.target)` at `:1443` reads `.claude/agents/*.md` from the cwd the subject had `Edit` over. `capThreePredicate` decides side (a) membership and side (b) authorship against that grant and its derived prefix. Concrete input: `Edit .claude/agents/<any>.md` to add a `coordinator: true` marker or a granted name, and a spawned role that was not granted reads as a member; `capture()` derives `grantSource` before the runs but never compares it with the post-run derivation.
+3. `contentDigest(accepted, tracked)` at `:1576` reads the cache copy under `~/.claude/plugins/cache/...` after both runs; with `Bash(node *)` the subject can rewrite that copy to the checkout's bytes and turn a stale plugin into `MET`.
+
+`33-21` recorded dropping `Write`/`Edit` as a human KIT decision; `Bash(node *)` was not part of that decision and is sufficient on its own. The `OUTCOME: pass` line is therefore still reachable over a run whose deny never fired.
+**Fix:** Make the verdict independent of anything on disk the subject could touch, and narrow the grant:
 ```ts
-// Write the transcript into a runner-owned directory the agent has no grant over.
-const transcriptDir = makeScratch(`transcript-${build.label}`); // sibling of target, never its child
-const transcriptPath = join(transcriptDir, transcriptName);
+// runPlatform: keep the bytes the runner itself received; the file is a copy for the operator.
+const chunks: Buffer[] = [];
+child.stdout.on("data", (d: Buffer) => { chunks.push(d); out.write(d); });
+// ... settle(...) resolves with { ..., transcriptText: Buffer.concat(chunks).toString("utf8") }
+// runTarget: derive over result.transcriptText via parseFrames(), never readFrames(transcriptPath).
 ```
-Additionally record in the report that the transcript path was outside every target, and consider dropping `Write`/`Edit` from the grant if the request does not need them (the July observation used `mcp__grugops__propose_note` for the notes).
-
-### CR-02: D-05 provenance reads `loaded[0]` (the first plugin in the init frame, not grugops) and is never compared to the checkout sha or folded into the outcome
-
-**File:** `scripts/capture-live.ts:1600` (and `:1514`, `:1591`, `:1151-1157`)
-**Issue:** `installedPluginSha(firstPlugins.loaded[0].path)` assumes the plugin under test is the first entry of `system/init.plugins[]`. The committed capture (`33-CAPTURE-SUMMARY.md:70`) lists `context7`, `playwright`, `superpowers` before `grugops`, so the post-hoc `git -C <path> rev-parse HEAD` ran against context7's cache directory and the row reads `UNKNOWN - verify` (`33-CAPTURE-SUMMARY.md:15`). Independently, even a correct sha is only RECORDED: nothing compares it to `checkoutSha()` and `outcome` at `:1591` is `hang ? ... : anyFailure ? "fail" : "pass"` with no provenance term. D-05's chosen route ("verify the installed sha POST HOC") is therefore not implemented as a verification; `OUTCOME: pass` is reportable over a plugin whose sha is unknown or differs from the tree under test. The pushed-sha precondition does not close this: it compares against the remote-tracking ref "as last fetched", while the marketplace install resolves the live GitHub head, so a push by anyone else between fetch and install produces a different sha silently.
-**Fix:**
-```ts
-const under = firstPlugins.loaded.find((p) => p.name === obs.pluginName);
-const installed = under === undefined ? "UNKNOWN - verify — the init frame lists no plugin named " + obs.pluginName : installedPluginSha(under.path);
-const checkout = checkoutSha();
-if (installed !== checkout) anyFailure = true; // provenance is a pass condition, not a footnote
-```
-Write both values and the comparison verdict into the report.
-
-### CR-03: The D-07 equivalence comparator includes `at` and free-text `body`, so two independent live runs cannot be equivalent and the runner spends its full budget on a guaranteed `fail`
-
-**File:** `scripts/capture-live.ts:1444-1454` (calls `scripts/dual-path-equivalence.ts:41-63`)
-**Issue:** `equivalence()` reuses `projectTaskState` + `assertEquivalent`, which keep `at` (wall-clock note timestamp) and `body` (model-authored prose) in the projection and compare index-wise after sorting on them. Two nondeterministic `claude -p` sessions never produce identical timestamps or identical note bodies, so `diffs.length === 0` -- a pass condition at `:1587` -- is unsatisfiable by construction. `33-DIAGNOSIS.md:65` already records that "the comparator was built for a different question"; the source in scope still ships it, so a re-run at this code spends again with the same outcome. The runner also does not refuse to START on this basis.
-**Fix:** Either replace the projection for the live case with a structural fingerprint (note `kind`, author role key via `roleKey`, `verified_by`, count of refs, presence of `VERDICT_GREEN_MARKER`, task ids) compared as multisets, or have `capture()` refuse to spawn until D-07's comparator is defined for nondeterministic inputs. Whichever is chosen, add a precondition row naming the comparator in use so the readiness line, not a diagnosis after the spend, carries the fact.
-
-### CR-04: A failure after the live runs deletes the paid transcripts, even with `--keep-target`
-
-**File:** `scripts/capture-live.ts:1647` (with `:295-299`, `:1567`, `:1583`, `:1608`)
-**Issue:** `cleanupScratch(code === 0 && keepTarget)` removes every scratch directory on any non-zero exit, regardless of `--keep-target`. Hard rule 3 (`:37-39`) promises removal "unless --keep-target is passed". The raw transcripts of both runs live only in scratch (`join(build.target, transcriptName)`) until `writeArtifacts` at `:1608`, which is the last step. Any `fail()` or thrown error between run completion and that write -- a redaction survivor at `:1463`, a `readContext` throw inside `authorStamps`, an `equivalence` throw -- destroys the only copy of an artifact that cost real tokens, and does so on the one path where the operator needs it for diagnosis.
-**Fix:**
-```ts
-} finally {
-  cleanupScratch(keepTarget); // the flag's contract, not the exit code, decides
-}
-```
-and stream the transcript into a preserved location (the `--out` directory, or a scratch directory excluded from cleanup) so a post-run derivation failure never costs the capture. If unredacted bytes must not land in `--out`, keep them in a scratch directory that is preserved on failure and print its path.
-
-### CR-05: A failed plugin install does not stop the live spawn
-
-**File:** `scripts/capture-live.ts:1565` (with `:1132-1140`)
-**Issue:** `pluginInstall` returns a string beginning `UNKNOWN - verify` when `claude plugin install` exits non-zero or cannot be started; `capture()` appends that string to `installLines` and proceeds to `runPlatform` at `:1572`. The run then spends up to `CALL_BOUND_MS` per label with no plugin installed, which cannot satisfy A1 or CAP-03, and the failure surfaces only as `OUTCOME: fail` after the budget is gone. The plugin being installed is a phase-2 precondition of D-05 route 2, and the header's contract is that nothing spawns while a precondition is not MET.
-**Fix:**
-```ts
-function pluginInstall(...): string {
-  ...
-  if (r.error !== undefined || r.status !== 0) {
-    fail(`plugin install ${pluginName}@${marketplaceName} did not complete (exit ${String(r.status)}): ${detail}`);
-  }
-  return `installed ...`;
-}
-```
+Derive the grant BEFORE the spawn (`const grant = deriveGrant(build.target)` moved above `ops.runPlatform`) and fold a post-run re-derivation mismatch into `failed`. Scope the grant to what the request needs (`Write(<target>/**)`, `Edit(<target>/**)`, drop `Bash(node *)` — the deny probe needs only `Bash(helm upgrade *)`), and add a precondition row that names the grant scope so the readiness line, not a diagnosis after the spend, carries it. Digest the cache copy before the spawn as well (see WR-02) and record both digests.
 
 ## Warnings
 
-### WR-01: The per-spawn approval-key assertion misses a differently-cased key on Windows
+### WR-01: `noteRoute` counts only absolute-path `Write`/`Edit` blocks, so the route axis of the D-07 projection is evadable by a relative `file_path`, a `MultiEdit`, or a node-mediated write
 
-**File:** `scripts/capture-live.ts:265-274` (and `:254-262`, `:1005`)
-**Issue:** `childEnvironment` copies `process.env` into a plain object; `approvalKeyRefusals` then does `hasOwnProperty(env, "GRUGOPS_PROD_DEPLOY_APPROVED")`. On win32 environment names are case-insensitive: a shell that exported `grugops_prod_deploy_approved=1` is inherited by the child, `hooks/guard.ts` reads it through `process.env[APPROVAL]` (case-insensitive on win32), and the deny cannot fire -- while the copied object has no key of the exact spelling, so the per-spawn assertion passes. The parent-side row at `:1005` uses `process.env` directly and does catch it, so the live capture still refuses; but hard rule 4's claim that the key's absence "is asserted on that object before every spawn" is false on the platform this phase targets, and the dry run's probes and installs still spawn with the key set.
-**Fix:** Compare case-insensitively on every host: `Object.keys(env).some((k) => k.toUpperCase() === PROD_DEPLOY_REASON_SIGNATURE.toUpperCase())`, and refuse on a match. Add a test with a lower-cased key in the base.
+**File:** `scripts/capture-live.ts:909`, `:919-922`
+**Issue:** `contextMarker` is `/.grugops/context/` with a leading slash and the block filter admits only `Write` and `Edit`. Reproduced on the committed `.js`: `{name:"Write", input:{file_path:".grugops/context/T/notes/n.md"}}` → `directContextWrites: 0`; `{name:"MultiEdit", input:{file_path:"/tmp/t/.grugops/context/T/notes/n.md"}}` → `0`; a `Bash` block running `node -e "fs.writeFileSync('.grugops/context/…')"` → `0`. Claude Code accepts relative `file_path`s (resolved against cwd), so a real run can take the direct route and project as "0 direct writes". Because the projection compares A against B, two runs that both evade read as parity on this axis, and the KIT direction (b) recorded at 33-21 ("refuse non-sanctioned notes on read") will be evaluated against a route count that cannot see them.
+**Fix:** Match on the normalized path with the marker anchored either way, widen the tool set to every file-writing tool the platform publishes, and count `Bash` blocks whose command text names the context subpath as "unclassified writes":
+```ts
+const rel = toPosix(CONTEXT_SUBPATH);
+const p = toPosix(filePath);
+const direct = p.includes(`/${rel}/`) || p.startsWith(`${rel}/`);
+const WRITING_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
+```
+and pin each new arm with a converse in the `noteRoute` case at `capture-live.test.ts`.
 
-### WR-02: Redaction and its survivor check share one form set that omits the forward-slash and file-URL spellings of a Windows home
+### WR-02: Provenance is decided only after both runs, and the version-keyed plugin cache makes a stale copy a predictable `UNMET` after the full spend
 
-**File:** `scripts/capture-live.ts:838-846` (with `:859-871`, `:1456-1464`)
-**Issue:** `homeSpellingForms` produces `C:\Users\x` and its JSON-escaped form. A stream-json transcript from a Windows host can carry `C:/Users/x/...` (paths built with forward slashes by tools and plugins) and `file:///C:/Users/x/...` (file URLs in tool inputs). Neither is in the set, so `redactText` leaves it and `homeSpellingSurvivors` -- which consults the same set -- reports zero survivors. The fail-closed check is vacuous for exactly the forms it does not enumerate.
-**Fix:** Add `toPosixWith(h, win32.sep)` and `pathToFileURL(h).href` (and their JSON-escaped forms) to `homeSpellingForms`, and add a test that a `C:/Users/alice` spelling does not survive.
+**File:** `scripts/capture-live.ts:1553-1592` (`deriveProvenance`), `:2061` (called after both `runTarget`s), `:1424` (install happens before the spawn, so a pre-spawn digest is possible)
+**Issue:** `claude plugin install` caches by `<marketplace>/<plugin>/<version>` (`~/.claude/plugins/cache/grugops/grugops/2.1.0` on this host, which survives the round-1 uninstall and is now orphaned from `installed_plugins.json`). CLAUDE.md's own note is that users only get updates when `plugin.json`'s version is bumped. At an unbumped `2.1.0`, a round-3 install can reuse the cached copy from whichever sha last populated it; the digest then reads `UNMET`, `deriveOutcome` answers `fail`, and the answer arrives after up to 2 × `CALL_BOUND_MS` of spend. This is the same "spend on a guaranteed fail" shape as round-1 CR-03, one arm over: the readiness table has a pushed-sha row but no row that the copy the platform WILL load equals the checkout. Offline on this host today: checkout digest `406292d0…`, cache-copy digest `4cc4cea2…` (UNMET, as expected with HEAD 12 ahead of `origin/main`) — the mechanism is measurable at zero tokens, and nothing measures it before the spawn.
+**Fix:** In `runTarget`, after `ops.pluginInstall` and before `ops.runPlatform`, digest the freshly installed copy and refuse to spawn on anything but `MET`:
+```ts
+const installed = installedCopyPath(build.target, run.pluginName, run.marketplaceName); // from the platform's own installed_plugins.json row for scope=local, projectPath=build.target
+const pre = provenanceVerdict(checkoutDigest, installed === null ? null : contentDigest(installed, tracked));
+if (pre.state !== "MET") fail(`plugin provenance is ${pre.state} before the spawn — ${pre.detail}`);
+```
+Keep the post-hoc init-frame digest as the confirmation and report both. Also consider `claude plugin marketplace update grugops` (or uninstall + reinstall at user scope) as a documented pre-step when the version is unbumped.
 
-### WR-03: The negative D-04 claim row cites transcript line 1, a citation unrelated to the claim
+### WR-03: `MET` is over `git ls-files` only, while the installer copies the working tree — an untracked file under `agent-factory/` reaches path A and never enters the digest
 
-**File:** `scripts/capture-live.ts:1226-1230`
-**Issue:** When no deny fired, the row's `line` is `cite(0)` -- the first frame's line -- solely so the row is not withheld. Hard rule 7 exists so that every row is traceable to the line that supports it; a "no deny in N frames" claim is supported by the N `hook_response` frames, not by line 1. `--verify-artifacts` accepts it because the number is in range, so the re-check cannot tell a supported citation from a manufactured one.
-**Fix:** Cite the last `hook_response` frame examined (record its index in `DenyObservation`) and put the examined count in the value, or extend the citation grammar with `jsonl:<first>-<last>` for whole-transcript negative claims.
+**File:** `scripts/capture-live.ts:1553-1557` (`trackedFiles`), `:1507-1524` (`contentDigest`), `:1593` (report row wording "content digest over N tracked files"); `install/install.ts:1546` (`cpSync(join(GRUGOPS_SRC, "agent-factory"), …)`)
+**Issue:** Path A is built by `install/install.js`, which `cpSync`s `agent-factory/` from the checkout's working tree. Path B is the plugin cache copy. The digest compares the two over the tracked list, so a file that is untracked in the checkout (a new role or workflow not yet `git add`ed — 33-21 deviation 2 records two untracked entries at the time of the round) is present in target A, absent from the cache copy, and invisible to the digest: provenance reads `MET`, the two paths ran different kits, and the D-07 parity verdict is over two different subjects. The report calls it "the checkout by content" and the module (`:986`, `:1533`) "byte for byte the checkout under test". This is the round-1 WR-06 dirty-tree class; the digest closes the modified-tracked arm and leaves the untracked arm open.
+**Fix:** Add `git status --porcelain --untracked-files=all -- agent-factory .claude/agents install skills hooks` (the directories the installer and the plugin read) to `observePreconditions` and a row `working tree matches HEAD` that is `UNMET` on any output; or digest over `git ls-files -z --cached --others --exclude-standard` and name the set in the row.
 
-### WR-04: `git -C <path from the transcript>` contradicts the header's T-33-02 claim and validates nothing about the path
+### WR-04: `probe()` concatenates stderr into the data path, and the new `trackedFiles()` consumer digests whatever git printed there as a path
 
-**File:** `scripts/capture-live.ts:1151-1157` (with `:100-102`)
-**Issue:** The header states "No transcript field is ever interpolated into a path or a command (T-33-02)". `installedPluginSha` passes `system/init.plugins[].path` straight to `git -C`. It is an arg-array spawn, so there is no shell injection, but the path is not checked to exist, to be a directory, or to sit under the plugin cache root, and with CR-01 the model can author that frame. `git -C` also accepts a path beginning with `-`.
-**Fix:** Resolve the path with `realpathSync.native`, require it to be a directory under the cache root the platform reports (or under `homedir()/.claude/plugins`), and only then run `git`; otherwise record `UNKNOWN - verify` naming the refusal. Correct the header comment to describe the one exception.
+**File:** `scripts/capture-live.ts:1171-1175` (`probe`), `:1553-1557` (`trackedFiles`), `:1212-1215` (`localHead`/`remoteHead` through the same function)
+**Issue:** `probe` returns `${stdout}${stderr}`. `childEnvironment` copies the operator's whole environment, so `GIT_TRACE=1` (or any `warning:` git emits, e.g. a safe.directory or config-permission warning) reaches the child. Reproduced: with `GIT_TRACE=1`, `git ls-files -z` through the same concatenation yields 2447 entries whose last is `"14:28:19.407364 git.c:502 trace: built-in: git ls-files -z\n"`, and `git rev-parse HEAD` yields `"a4b149f4…\n14:28:19.415022 git.c:502 trace: built-in: git rev-parse HEAD"`. The trace text is joined as a relative path (`MISSING` on both sides, so the verdict does not move) but the report's "over N tracked files" is wrong, and `localHead !== remoteHead` reads `UNMET` on the pushed-sha row even when the shas are equal, with a detail that quotes two trace lines. The pushed-sha arm is pre-existing; the tracked-list arm is new in this round.
+**Fix:** Return stdout only from `probe` and carry stderr separately for the refusal text:
+```ts
+function probe(...): { out: string; err: string } | null {
+  ...
+  return { out: r.stdout, err: r.stderr ?? "" };
+}
+```
+and `trackedFiles()` parses `out` alone. Add a test that plants `GIT_TRACE=1` in the base environment and asserts the tracked count and the pushed-sha row are unchanged.
 
-### WR-05: Grant-derivation disagreement does not gate the spend
+### WR-05: The walk's start is now rung-1 `realpathSync.native`, but the home boundary is still spelled through rung-2 `realpathSync` and the env tier through bare `resolve` — one directory, three spellings, one tier apart
 
-**File:** `scripts/capture-live.ts:1556-1557` (with `:635-698`, `:911-982`)
-**Issue:** `capture()` fails only when `grantSource.coordinator === null`. `deriveGrant` also reports `reasons` for a census/grant mismatch, an unresolved granted name, or an ungranted adapter; those reasons are ignored here and surface only inside `capThreePredicate` after both runs. The readiness table (`evaluatePreconditions`) carries no row for the grant, although the header calls it "the ONE readiness derivation".
-**Fix:** Add a precondition observation `grantReasons: string[]` (derived over the checkout, or over target A before any platform call) and a row that is `UNMET` when non-empty.
+**File:** `scripts/context-io.ts:4889` (`spellings.add(resolve(realpathSync(named)))`), `:5308` (`return resolve(fromEnv.trim())`), `:5317` (the cwd tier, now `canonicalWorkingDirectory`)
+**Issue:** 33-16 canonicalised the cwd tier through `canonicalDirectoryPath` (rung 1 `.native`) and states "both are spelled by one authority" of tier 0 and the cwd. Two other sites in the same resolution still spell the same directory differently. (a) `homeBoundary()` adds the home's second spelling through the portable `realpathSync`, which is exactly the rung-2 authority that disagreed with rung 1 on windows-latest run 35579263776 (WINDOWS.md row 236: `runneradmin` vs `RUNNER~1`). If `USERPROFILE`/`HOME` carries an 8.3 component, `abovePaths`/`selfPaths` hold the short spelling while the walk climbs long-name directories; the path sets miss and only the dev:ino identity sets catch it — and those are dropped by the `degenerate` guard at `:4917-4923` on a filesystem that reports equal identities for parent and child (the guard exists because such hosts were seen). (b) The env tier returns `resolve(fromEnv)` without canonicalisation, so `CLAUDE_PROJECT_DIR=<link>/proj` answers the link spelling while the same directory as cwd now answers `<real>/proj` — on darwin today, not only on win32 — which is the two-answers-for-one-directory shape the 33-16 docblock says the module deletes.
+**Fix:** Route both through the one ladder: `spellings.add(canonicalDirectoryPath(named))` at `:4889` (keep `named` itself as the raw spelling), and `return canonicalDirectoryPath(fromEnv.trim())` at `:5308`, then extend Test W to drive the env tier and the home boundary on a link spelling in-child the way it drives the cwd tier.
 
-### WR-06: The pushed-sha precondition does not see a dirty working tree
+### WR-06: `runTarget` installs before the containment check and never uninstalls on a throw, so a refused or failed run leaves a local-scope plugin row in the operator's registry pointing at a scratch directory the cleanup deletes
 
-**File:** `scripts/capture-live.ts:954-972` (with `:1060-1082`)
-**Issue:** The installer runs from the working tree (`install/install.js` copies the checkout's kit), while the plugin comes from GitHub at the pushed sha. Uncommitted edits to `agent-factory/` or `.claude/agents/` make the two "paths" different code while `HEAD == origin/main` reads MET.
-**Fix:** Probe `git status --porcelain --untracked-files=no` and add a row `working tree clean` that is `UNMET` on any output.
-
-### WR-07: The live runs inherit the operator's user-scope plugins, hooks and settings
-
-**File:** `scripts/capture-live.ts:1106` (with `:1132-1134`)
-**Issue:** `spawn(PLATFORM_CMD, ...)` uses the operator's real `~/.claude` configuration. The committed capture shows `context7`, `playwright` and `superpowers` loaded (`33-CAPTURE-SUMMARY.md:70,125`) and 169 `hook_response` frames examined before the deny in run A. Other plugins' hooks, agents and settings participate in the capture, so the CAP-03 spawn evidence, the plugin-error row and the `--allowedTools` surface are not those of "a fresh install of THIS checkout onto the committed fixture project" (D-03). D-04 attribution survives (the signature is unique), but the target is not the isolated instrument the header describes.
-**Fix:** Run the platform with `CLAUDE_CONFIG_DIR` pointing at a scratch config directory seeded with only the marketplace row needed for route 2, or add a precondition row requiring `system/init.plugins[]` to name exactly the plugin under test and fold a violation into `anyFailure`.
-
-### WR-08: Residual-rule exemption anchors are substrings validated only for existence, so a short anchor blanket-exempts a file
-
-**File:** `scripts/check-flip-manifest.ts:706-714` (with `:957-965`)
-**Issue:** `checkResidual` skips any line where `line.includes(anchor)`. `checkLocators` refuses an anchor only when `countOccurrences(...) === 0`; an anchor that occurs many times (for example `GAP-D1`, or `- `) is accepted and then exempts every residual line in that file. This is a fail-open arm inside the rule whose entire purpose is to refuse survivors.
-**Fix:** Require `countOccurrences(text, anchor) === 1` in `checkLocators` and match the anchor against the whole trimmed line (or the exact line number declared) in `checkResidual`.
-
-### WR-09: The `archivedRecords` part is derived from the manifest's own declared set, so listing and derivation are one hand-typed set
-
-**File:** `scripts/check-flip-manifest.ts:458-460`
-**Issue:** `archivedRecords = declaredSet(m).filter(startsWith(".planning/milestones/"))`. The "derived" side is read from the manifest, then compared with the manifest's members table -- the two sides the module header says must never be "hand-typed against each other". An archived milestone record carrying `pending human` that the manifest does not name is invisible to the residual rule. The per-part vacuity floor still holds, but it floors a set that cannot grow past what the author typed.
-**Fix:** Derive from `gitLsFiles([".planning/milestones"])` with a rule (for example: files that carried the residual token or any deferral marker at the pre-capture commit, read via `git show <flip>^:<path>`), and keep the declared-set intersection only as the listing to compare against.
-
-### WR-10: FIFO construction returns a printed skip on ANY `mkfifo` failure, and the `FORCE_ABSENT` seam is honoured by every test site
-
-**File:** `scripts/check-platform-shapes.ts:459-475`, `:553-570`, `:98`; call sites in `hooks/guard.test.ts:1234`, `hooks/admission-guard.test.ts:436`, `scripts/context-io.test.ts` (nine sites), `scripts/nonblocking-reader-parity.test.ts`
-**Issue:** The FIFO `make()` returns `false` when `mkfifo` exits non-zero for any reason -- binary absent from `PATH`, `EACCES` on the scratch root, a wrong argument -- and every migrated test then `console.warn`s and returns green. Before this phase those cases threw. The cases in question are the ones that reproduced a real bypass (a hook that blocks on a FIFO produces no decision, which the host treats as allow). `stageShapeOrSkip` and `hostCapabilityOrSkip` also honour `GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT` first, so one environment variable in CI turns every FIFO, symlink and chmod case in the suite into a skip with the suite still green. `uat-gate-exit-contract.test.ts` compares the printed remainder with a remainder derived by the same constructor, so a broken `mkfifo` on ubuntu is self-consistent and undetected.
-**Fix:** Assert the remainder per CI leg where it is known: the ubuntu step in `ci.yml` should require `SKIPPED SHAPES (0):` (or the exact expected rows), so a skip on a host that can construct the shape is red. Make the test helpers ignore `FORCE_ABSENT` unless a second, test-only opt-in is present (or restrict the seam to `check-platform-shapes.test.ts`). Have `make()` distinguish "the platform has no `mkfifo`" (ENOENT on spawn) from a failed `mkfifo` that ran, and return `false` only for the former.
-
-### WR-11: `stageNameOrSkip` classifies any ENOENT/EINVAL from the caller's constructor as a platform refusal of the control byte
-
-**File:** `scripts/check-platform-shapes.ts:709-720`
-**Issue:** The helper does not verify that the path the constructor creates carries a byte below 0x20; it maps every `ENOENT` or `EINVAL` thrown by `construct()` to the skip entry. A missing parent directory (a caller bug) is reported as "this platform refuses a path component carrying a control byte" and the case turns green with a misleading row.
-**Fix:** Take the path as a parameter, require `/[\x00-\x1f]/.test(basename(path))` up front (throw otherwise), and confirm `existsSync(dirname(path))` before treating the error as a platform refusal.
-
-### WR-12: The live lane's `afterAll` removes a marketplace it never added and runs plugin operations in the repository root
-
-**File:** `scripts/e2e/uat-live.test.ts:280-312`
-**Issue:** `afterAll` runs `claude plugin marketplace remove grugops --scope local` and `claude plugin uninstall grugops --scope local` with `cwd: tmpRepo || ROOT`. The runner never adds a marketplace -- the user-scope `grugops` row is the D-05 route-2 PRECONDITION -- and it already uninstalls per target. If `tmpRepo` is still `""` (the runner case did not reach `mkdtempSync`), both commands run in the repository checkout. Depending on how the CLI treats `--scope local` for `marketplace remove`, this can remove the very row the next run's readiness depends on, or touch the repository's own local plugin state.
-**Fix:** Delete the marketplace-remove call; guard the uninstall with `if (tmpRepo === "") return;`; never use `ROOT` as the cwd for a mutating platform command.
-
-### WR-13: The `approvalKeyPresent` UNMET row is unreachable in production because `spawnEnv()` throws first
-
-**File:** `scripts/capture-live.ts:1004-1006` (with `:974-978`, `:276-281`)
-**Issue:** `observePreconditions` computes `approvalKeyPresent` and then calls `spawnEnv()`, which throws a `CaptureFailure` when the key is set. The table is never built; the dry run prints `CAPTURE NOT DERIVED` instead of the D-10 three-state table with an `UNMET` row. The behaviour is fail-closed, but the documented readiness contract (`:66-70`) is not what an operator sees, and the `UNMET` branch at `:976` is exercised only by the offline suite.
-**Fix:** Build the observation without spawning when the key is present (skip the probes, leave them `null`), evaluate the table, print the readiness line, and only then refuse in `capture()`; keep `spawnEnv()`'s refusal as the last line of defence.
+**File:** `scripts/capture-live.ts:1424-1434` (install, then the two `fail`s), `:1442-1448` (`readFrames`/`deriveGrant`/`authorStamps`/`deriveClaims` may throw; `ops.pluginUninstall` is the last statement, not a `finally`)
+**Issue:** `ops.pluginInstall` at `:1424` is a side effect on `~/.claude/plugins/installed_plugins.json`; the pure `isOutsideTargets` refusal comes after it, and every throw between the spawn and `:1448` (a `readContext` throw inside `authorStamps`, a `CaptureFailure` from `deriveClaims`) skips the uninstall. `cleanupScratch` then removes `build.target`, leaving a `scope: local` row whose `projectPath` no longer exists — state written outside any directory the runner created (hard rule 3), visible to the operator's next `claude plugin list`, and a second such row on every retry.
+**Fix:**
+```ts
+if (!isOutsideTargets(transcriptPath, [build.target, build.home, cwd])) fail(...); // before any platform call
+const installLine = `target ${build.label}: ${ops.pluginInstall(...)}`;
+try { ...spawn, derive... } finally { ops.pluginUninstall(build.target, run.pluginName); }
+```
+and record the uninstall's exit in the run table so a failed uninstall is named rather than swallowed.
 
 ## Info
 
-### IN-01: Local `toPosix` duplicates `scripts/posix-path.ts`
+### IN-01: `LIVE_OPS` is an exported mutable object
 
-**File:** `scripts/capture-live.ts:247`
-**Issue:** `posix-path.ts:23-26` names this site as one of the ten it deliberately leaves alone, so it is recorded rather than accidental; it is still a second copy of the one normalizer the phase introduced, in a file the phase created.
-**Fix:** `import { toPosix } from "./posix-path.js";`
+**File:** `scripts/capture-live.ts:1392`
+**Issue:** `runTarget`'s default parameter reads `LIVE_OPS` at call time; any importer can reassign `LIVE_OPS.runPlatform` and the entrypoint path would use the substitute. Not reachable from outside the process, but a seam this cheap to freeze should be frozen.
+**Fix:** `export const LIVE_OPS: Readonly<LiveOps> = Object.freeze({ pluginInstall, runPlatform, pluginUninstall });`
 
-### IN-02: Dead directory-name check
+### IN-02: The held-capture premise is keyed on an 8-character short sha
 
-**File:** `scripts/capture-live.ts:716`
-**Issue:** `readdirSync` never returns `.` or `..`, and `TASK_DIR_RE` already excludes a bare `.`; the `entry.name === "." || entry.name === ".."` clause cannot fire.
-**Fix:** Remove the clause.
+**File:** `scripts/capture-live.test.ts:516`
+**Issue:** `HELD_CAPTURE_SHA = "c7be6d0d"` will be refused by `git show` as ambiguous once another object shares the prefix; the case throws loudly, but for a reason unrelated to the capture.
+**Fix:** Use the full 40-character sha.
 
-### IN-03: Offline-suite temp directories are never removed
+### IN-03: Hand-typed counts bumped or added in this round
 
-**File:** `scripts/capture-live.test.ts:86-100` (every `contextRootWithNotes` caller)
-**Issue:** `contextRootWithNotes` creates `grugops-capture-live-test-ctx-*` under the OS temp directory on every call and no case removes it; the dry-run case's "no scratch directory survives" assertion excludes the `test-` prefix, so the leak is invisible to the suite.
-**Fix:** Collect the roots in an array and `rmSync` them in `afterAll`.
+**File:** `scripts/capture-live.test.ts:928` (`rev-parse` source-line count pinned at 3), `scripts/freshness.test.ts:603` (`cloneCount` 7 → 8), `scripts/check-platform-shapes.test.ts:997` and `:1009` (`toBeGreaterThan(5)` floors)
+**Issue:** The `rev-parse` pin is a count of source lines, which is the set-literal pattern the project's memory names (a comment mentioning `rev-parse` moves it). The clone-count pin is derived one step away (`clonesCreated.length`) and could be asserted against the fixture matrix's keys instead of an integer.
+**Fix:** Assert the relationship (`callsOf("rev-parse") ⊆ {observePreconditions, checkoutSha}` via the AST, as the platform-shapes CENSUS does) rather than the integer; derive the clone count from the `Fixtures` keys.
 
-### IN-04: `expectEndedBySigint` and its self-test are duplicated verbatim in two files
+### IN-04: `check-build-parity.ts` now builds `CHECK_ROOT` with THIS module's TypeScript, not the target tree's
 
-**File:** `scripts/board-watch.test.ts`, `scripts/board-dashboard.test.ts`
-**Issue:** The helper and its two-case `describe` are copied into both files.
-**Fix:** Move the helper to a shared test module and keep one self-test.
+**File:** `scripts/check-build-parity.ts:150`, `:156`
+**Issue:** `createRequire(import.meta.url).resolve("typescript/lib/tsc.js")` resolves from the module's own location, while `npx tsc` in `cwd: root` used the target's local `node_modules/.bin/tsc`. With `CHECK_ROOT` pointing at another checkout (Tests AF/AG), that tree is compiled with a compiler it does not declare. In production `root === ROOT` and nothing changes; the semantic shift is undocumented in the module header.
+**Fix:** State it in the docblock, or resolve through `createRequire(join(root, "package.json"))` first and fall back to the module's chain with the layer named.
 
-### IN-05: Hand-pinned counts bumped in this phase, plus a tautological negative
+### IN-05: The `plugin under test per system/init` row publishes a transcript-supplied path with only pipe/newline escaping
 
-**File:** `scripts/check-foundation-guards.test.ts` (`NON_TEST_MODULE_COUNT = 89`, `62`, `TRIPWIRE_MODULES = 72`, `targets: 11`), `scripts/check-claim-anchors.test.ts` (`toBe(17)` followed by `not.toBe(18)`), `scripts/check-banned-claims.test.ts` (`bannedClaimScanOverlap()` pinned to `2`)
-**Issue:** Each is the set-literal pattern the project's memory names; the `.not.toBe(18)` after `.toBe(17)` cannot fail independently.
-**Fix:** Where a count can be derived (git ls-files, the corpus array), assert the relationship rather than the integer; drop the redundant negative.
+**File:** `scripts/capture-live.ts:1571`, `:1648` (`cell`), `:1708` (row)
+**Issue:** `under.path` comes from the platform's init frame and lands in the summary through a `cell` that escapes `|` and line breaks only. A C0/C1 byte in that field would land in `33-CAPTURE-SUMMARY.md` verbatim; `verifyArtifacts` does not refuse it, and the tree's `check:nul-bytes` catches it only once the summary is committed (the P32.1 F-14 class).
+**Fix:** Route `under.path` through the same control-byte refusal `pluginCachePathAccepted` applies, or replace any `[\x00-\x1f\x7f-\x9f]` with `<control>` in `cell` and count the replacements as a refusal in `verifyArtifacts`.
 
-### IN-06: `--manifest` spelled with backslashes misroutes the summary path and fails the `status` row
+### IN-06: `mixedArrangementDepth` is a 2× heuristic beside a bisection that can measure the mixed boundary directly
 
-**File:** `scripts/check-flip-manifest.ts:646-647`, `:848`
-**Issue:** `manifestDir` is split on `/` only, and the `status` flip row compares `row.file` byte-for-byte with the CLI value. A Windows operator passing `.planning\phases\...\33-FLIP-MANIFEST.md` gets a summary path of `33-CAPTURE-SUMMARY.md` at the repo root and a false status-row refusal.
-**Fix:** `const manifestRel = toPosix(cli.manifest);` at the top of `main()`.
+**File:** `scripts/runnable-ref/uat-spec-integrity.test.ts:6742`
+**Issue:** `parseBoundaryFor(arrangement)` already measures the two-file boundary on the host; the mixed cases plant `2 * oneFile.overflow` instead, with the ubuntu mechanism marked `UNKNOWN - verify`. Tier-up can shrink parser frames by more than the shift the docblock reasons about; if it ever exceeds 2× the one-file boundary the mixed cases go green-vacuous again. Test AD's margin assertion (`≥ 2 * overflow`) is true by construction of the function it tests.
+**Fix:** Plant `max(2 * oneFile.overflow, mixed.overflow + k)` with `mixed = parseBoundaryFor(arrangement)`, and assert `depth > mixed.overflow` in AD so the margin is measured against the arrangement it runs in.
 
-### IN-07: `changedFiles` over a merge commit yields an empty set
+### IN-07: The MIRROR census sees only `hostCapabilityOrSkip` calls lexically inside an `it("MIRROR:…")` body
 
-**File:** `scripts/check-flip-manifest.ts:596-604`
-**Issue:** `git diff-tree --no-commit-id --name-only -r --root <commit>` prints nothing for a merge commit without `-m`/`-c`, so a flip that lands via a merge reports every declared file as "omitted". It fails closed, but with a message that points at the wrong cause.
-**Fix:** Use `["diff", "--name-only", "-z", `${c}^`, c]` for the single-commit form (or add `-m --first-parent` to `diff-tree`), and name merge commits in the refusal text.
-
-### IN-08: `--out` consumes a following flag as its value
-
-**File:** `scripts/capture-live.ts:319`
-**Issue:** `--out --dry-run` sets `opts.out = "--dry-run"` and leaves `dryRun` false, so a mistyped invocation runs the LIVE capture (subject to readiness) with an artifact directory literally named `--dry-run`.
-**Fix:** Refuse a value that starts with `--`.
+**File:** `scripts/check-platform-shapes.test.ts:957-1002`
+**Issue:** A future mirror case gated through a helper (`gatedMirror(kind)` calling `hostCapabilityOrSkip` internally) is invisible to `callsIn(node)`, so `gatedMirrorCases` under-counts while `toBe(MIRROR_CAPABILITY_GATES.length)` still holds if the table is not extended — the census reads equal while the coverage derivation is short one label on the next windows run.
+**Fix:** Also count `mirrorGate(` call sites (the table accessor) inside `MIRROR:` bodies and require every `MIRROR_CAPABILITY_GATES` row's `kind` to appear as a `mirrorGate("<kind>")` literal exactly once.
 
 ---
 
-_Reviewed: 2026-09-20T18:33:35Z_
+_Reviewed: 2026-09-21T11:27:10Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
