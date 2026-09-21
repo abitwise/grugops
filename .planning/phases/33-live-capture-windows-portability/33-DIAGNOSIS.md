@@ -1,4 +1,5 @@
 # 33-10 DIAGNOSIS — why the one authorized live capture reads `OUTCOME: fail`, established from the committed artifacts
+> Round-2 annotation (plan 33-21, 2026-09-21): the three files this note cites — `33-CAPTURE-SUMMARY.md`, `33-CAPTURE-A.jsonl`, `33-CAPTURE-B.jsonl` — were moved unedited into `round-1-held/` under this directory so the round-2 runner can write the manifest-keyed names at the phase root; commit `c7be6d0d` holds them byte-identical at the original paths, and every `A:<n>` / `B:<n>` citation below resolves inside `round-1-held/`.
 
 Plan 33-10, Task 3. Written in clear professional voice: this note bears on a safety invariant
 (the prod-deploy guard, the single-writer admission rule), and CLAUDE.md forbids the caveman
