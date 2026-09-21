@@ -42,6 +42,9 @@ afterAll(() => {
 // Import the compiled .js for the pure-function path. The committed .js must exist for this to
 // resolve — the test-first contract.
 const mod: typeof import("./trace-render.js") = await import(pathToFileURL(RENDER_JS).href);
+// The one exported seal (plan 33-25, KIT (b)): the reader `trace-render` goes through refuses a note
+// the writer did not compose, so the planter below seals its raw bytes through the module's export.
+const ctxio: typeof import("./context-io.js") = await import(pathToFileURL(join(ROOT, "scripts", "context-io.js")).href);
 
 // Plant a valid note file under <ctxRoot>/<task>/notes/<name>.md carrying the given refs.
 function plantNote(
@@ -54,8 +57,12 @@ function plantNote(
   const notesDir = join(ctxRoot, task, "notes");
   mkdirSync(notesDir, { recursive: true });
   const refsBlock = refs.map((r) => `  - ${r}`).join("\n");
-  const text =
-    "---\n" +
+  // RAW BYTES, SEALED (plan 33-25). Raw because this planter drives the trace renderer over a ref
+  // SHAPE (a pipe in a ref, a ticket id verbatim) and a fixed `id:` the assertions key on — the
+  // writer's id formula would replace both. The reader requires the writer's seal, so the unsealed
+  // text is composed, digested through the one exported `noteSeal`, and the line inserted where
+  // `composeNote` puts it: last inside the fence.
+  const fence =
     `id: ${name}\n` +
     "kind: artifact-ref\n" +
     "by: engineer\n" +
@@ -65,9 +72,9 @@ function plantNote(
     "refs:\n" +
     refsBlock +
     "\n" +
-    "supersedes: \n" +
-    "---\n\n" +
-    "an artifact-ref note carrying trace refs.\n";
+    "supersedes: \n";
+  const rest = "---\n\n" + "an artifact-ref note carrying trace refs.\n";
+  const text = "---\n" + fence + `${ctxio.NOTE_SEAL_KEY}: ${ctxio.noteSeal("---\n" + fence + rest)}\n` + rest;
   writeFileSync(join(notesDir, `${name}.md`), text, "utf8");
 }
 

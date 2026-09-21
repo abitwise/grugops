@@ -815,8 +815,13 @@ describe("compactor.js — CMP-01 two-tier separation + sole writer", () => {
       // Strip the random nonce from the filename and the note id-bearing `id:` line: compare the
       // note BODY+frontmatter bytes, which are produced solely by context-io's composeNote. The
       // `id:` line carries a per-note random nonce, so it differs between two independent writes of
-      // the same input — normalize it away, exactly as the filename nonce is stripped.
-      return readFileSync(join(d, `${id}.md`), "utf8").replace(/^id: .*$/m, "id: <id>");
+      // the same input — normalize it away, exactly as the filename nonce is stripped. The `seal:`
+      // line (plan 33-25) is a digest over bytes that include that nonce, so it differs the same
+      // way; it is normalized too, AFTER asserting each note carries a seal the one predicate
+      // accepts — so the normalization cannot hide a missing or wrong seal on either side.
+      const text = readFileSync(join(d, `${id}.md`), "utf8");
+      expect(ctxIo.sealVerdict(text), `${root}: the promoted note is not sealed by the writer`).toEqual({ ok: true });
+      return text.replace(/^id: .*$/m, "id: <id>").replace(/^seal: .*$/m, "seal: <seal>");
     };
     expect(readOne(rootA, idA)).toBe(readOne(rootB, idB));
   });
@@ -3096,5 +3101,136 @@ describe("31-22 — the narrowed origin rule holds at the compactor pass-through
     const dest = storeUnder(governanceRoot("c31-22-shaped-dest-"));
     expect(drive(proj, forged, dest, id)).toContain("DECLINED (origin-outside-trusted-store)");
     expect(existsSync(join(dest, TASK, "notes"))).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-25 — KIT (b): the compactor's promoted-tier walk is the SECOND reader in the tree, and it
+// asks the ONE exported `sealVerdict` rather than a copy.
+//
+// The carve-out reads two tiers. The RAW THREAD tier (threads/<agent>.md, composed by
+// `composeThreadNote`) is the agent's local scratch by contract (WF18) and is NEVER read as an
+// admitted note — it is exempt BY TIER, never by kind or author, and stays unsealed. The PROMOTED
+// tier is the shared verified context; a promoted note the sanctioned writer did not compose is a
+// `carve-out FAIL` naming the file and the word `unsealed`, fail closed (WR-01/WR-02's shape).
+// R4 proves the compactor ASKS the predicate: with its one call removed in a scratch copy of the
+// committed module, R3's FAIL disappears and nothing else moves.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33-25 — the compactor's promoted-tier walk asks the one seal predicate", () => {
+  const AT = "2026-09-21T10:00:00Z";
+  const soft = (over: Partial<Parameters<typeof ctxio.appendNote>[1]> = {}) =>
+    ({
+      kind: "observation",
+      by: "software-engineer",
+      at: AT,
+      verified_by: "",
+      confidence: "high",
+      refs: ["X"],
+      supersedes: null,
+      ...over,
+    }) as Parameters<typeof ctxio.appendNote>[1];
+
+  /** The raw-thread record's frozen id, read back from the file the writer produced. */
+  function threadIds(threadFile: string): string[] {
+    return ctxio
+      .splitNotes(readFileSync(threadFile, "utf8"))
+      .notes.map((t) => (ctxio.parseNote(t) as { scalars: Record<string, string> }).scalars.id);
+  }
+
+  /** A thread with ONE soft record; returns the thread dir and the record's id. */
+  function thread(prefix: string): { dir: string; threadDir: string; id: string; task: string } {
+    const dir = freshTmp(prefix);
+    const contextRoot = join(dir, "ctx");
+    const task = "task-33-25";
+    const threadFile = mod.writeThread(task, "software-engineer", "a soft body", contextRoot, soft());
+    const ids = threadIds(threadFile);
+    expect(ids, "PREMISE: the thread carries one record").toHaveLength(1);
+    return { dir, threadDir: join(contextRoot, task, "threads"), id: ids[0], task };
+  }
+
+  /** The promoted counterpart, byte-faithful in every load-bearing field, written by the WRITER. */
+  function promoteThroughWriter(dir: string, task: string, id: string): string {
+    const promotedRoot = join(dir, "promoted-ctx");
+    ctxio.appendNote(task, soft(), "a soft body", promotedRoot, id, freshTmp("cmp-33-25-lean-"));
+    return join(promotedRoot, task, "notes");
+  }
+
+  /** The same counterpart, composed BY HAND — the shape the held capture's path B wrote. */
+  function promoteByHand(dir: string, task: string, id: string): string {
+    const promotedDir = join(dir, "promoted-hand", task, "notes");
+    mkdirSync(promotedDir, { recursive: true });
+    writeFileSync(
+      join(promotedDir, `${id}.md`),
+      "---\n" +
+        `id: ${id}\nkind: observation\nby: software-engineer\nat: ${AT}\nverified_by: \nconfidence: high\n` +
+        "refs:\n  - X\nsupersedes: \n---\n\na soft body\n",
+    );
+    return promotedDir;
+  }
+
+  it("R3 (control): a promoted note the WRITER composed passes the carve-out — the raw thread record is never asked for a seal (exempt by tier)", () => {
+    const t = thread("cmp-33-25-r3-ctl-");
+    const promotedDir = promoteThroughWriter(t.dir, t.task, t.id);
+    // PREMISE: the raw record is unsealed (the thread tier is scratch by contract) and the promoted
+    // one is sealed — so a green here means the walk asked the seal of the promoted tier only.
+    const rawText = readFileSync(join(t.threadDir, "software-engineer.md"), "utf8");
+    expect(ctxio.sealVerdict(rawText).ok, "PREMISE: the thread record carries a seal").toBe(false);
+    expect(ctxio.sealVerdict(readFileSync(join(promotedDir, `${t.id}.md`), "utf8")), "PREMISE: the writer's note is not sealed").toEqual({ ok: true });
+    const r = runCheck(t.threadDir, promotedDir);
+    expect(r.status, `stderr: ${r.stderr}`).toBe(0);
+    expect(r.stderr).not.toContain("unsealed");
+  });
+
+  it("R3 (RED-first): a promoted note composed BY HAND — every load-bearing field byte-equal, no seal — is a carve-out FAIL naming the file and the word `unsealed`", () => {
+    const t = thread("cmp-33-25-r3-");
+    const promotedDir = promoteByHand(t.dir, t.task, t.id);
+    // PREMISE: the six byte-equal fields agree, so the ONLY thing that can refuse this promotion is
+    // the seal. On the dispatch base the carve-out reads `intact` at exit 0.
+    const r = runCheck(t.threadDir, promotedDir);
+    expect(r.status, "the carve-out admitted a promoted note the writer did not compose").toBe(1);
+    expect(r.stderr).toContain("carve-out FAIL");
+    expect(r.stderr).toContain(`${t.id}.md`);
+    expect(r.stderr).toContain("unsealed");
+    expect(r.stderr).toContain("absent");
+    // And the byte-equal loop still compared its six fields and nothing more — no field finding.
+    expect(r.stderr).not.toContain("load-bearing provenance field");
+  });
+
+  it("R3 (the thread tier stays raw): `composeThreadNote` emits no seal line, and a seal line planted INTO a thread record is not what the carve-out refuses", () => {
+    const t = thread("cmp-33-25-r3-tier-");
+    const rawText = readFileSync(join(t.threadDir, "software-engineer.md"), "utf8");
+    expect(rawText).not.toMatch(/^seal:/m);
+    // The tier exemption is stated in the module by TIER, not by kind or author.
+    const source = readFileSync(join(ROOT, "scripts", "compactor.ts"), "utf8");
+    expect(source).toContain("exempt BY TIER");
+    expect(source, "the compactor computes a digest of its own").not.toContain("createHash");
+  });
+
+  it("R4 (mutation on the second reader): with the compactor's ONE call to `sealVerdict` removed in a scratch copy of the committed module, R3's FAIL disappears", () => {
+    // The mirror: every committed scripts/*.js beside a compactor.js whose one predicate call is
+    // replaced by an unconditional `ok`. The anchor is asserted to occur EXACTLY once before the
+    // mutation, so a mutation that matched nothing cannot masquerade as a passing control.
+    const kit = freshTmp("cmp-33-25-r4-kit-");
+    mkdirSync(join(kit, "scripts"), { recursive: true });
+    for (const f of readdirSync(join(ROOT, "scripts"))) {
+      if (f.endsWith(".js")) writeFileSync(join(kit, "scripts", f), readFileSync(join(ROOT, "scripts", f)));
+    }
+    const target = join(kit, "scripts", "compactor.js");
+    let text = readFileSync(target, "utf8");
+    const anchor = "const seal = sealVerdict(fields.text);";
+    expect(text.split(anchor).length - 1, `PREMISE: the anchor ${JSON.stringify(anchor)} was not found exactly once in the committed compactor.js`).toBe(1);
+    text = text.replace(anchor, "const seal = { ok: true };");
+    writeFileSync(target, text);
+
+    const t = thread("cmp-33-25-r4-");
+    const promotedDir = promoteByHand(t.dir, t.task, t.id);
+    const committed = runCheck(t.threadDir, promotedDir);
+    expect(committed.status, "PREMISE: the committed module does not refuse the hand-composed promotion").toBe(1);
+    expect(committed.stderr).toContain("unsealed");
+    const mutated = spawnSync("node", [target, "check", t.threadDir, promotedDir], { cwd: ROOT, encoding: "utf8" });
+    expect(mutated.status, `the mutated module still refused: ${mutated.stderr}`).toBe(0);
+    expect(mutated.stderr).not.toContain("unsealed");
+    expect(mutated.stdout).toContain("carve-out intact");
   });
 });

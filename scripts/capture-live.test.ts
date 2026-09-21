@@ -28,6 +28,7 @@ import { join } from "node:path";
 import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
 import { admit, admittedGrantedNames } from "./canonical-frontmatter.js";
 import { listAgentAdapters } from "./kit-model.js";
+import { noteSeal, NOTE_SEAL_KEY } from "./context-io.js";
 import {
   approvalKeyRefusals,
   authorStamps,
@@ -125,17 +126,26 @@ function adapterCensus(): string[] {
 // fixture at scripts/fixtures/board-snapshot is the precedent), for the D-02 side-(b) cases.
 // `hour` moves every `at` stamp: two roots built with different hours carry the same notes at
 // different times, which is the one axis a path-invariant projection must ignore (33-12, CR-03).
-function contextRootWithNotes(notes: readonly { by: string; kind: string; body: string }[], hour = 10): string {
+// RAW BYTES, SEALED THROUGH THE EXPORTED `noteSeal` (plan 33-25, KIT (b)). The bytes stay raw on
+// purpose: this planter mirrors the shape of a note as it sits on disk — `by` values the writer's
+// admission root would adjudicate, an `at` with milliseconds, a literal `supersedes: null` — so the
+// author-stamp derivation is driven over the SHAPE and not over one writer configuration. What the
+// reader now requires of that shape is the writer's seal, last inside the fence, so the planter
+// composes the unsealed text, seals it through the one exported digest and inserts the line where
+// `composeNote` puts it. `sealed = false` plants the pre-33-25 form — the `Write`-tool note of the
+// held capture — which the reader must REFUSE (R2 below).
+function contextRootWithNotes(notes: readonly { by: string; kind: string; body: string }[], hour = 10, sealed = true): string {
   const root = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-ctx-`));
   const notesDir = join(root, "audit-current-architecture", "notes");
   mkdirSync(notesDir, { recursive: true });
   notes.forEach((n, i) => {
     const at = `2026-09-19T${String(hour).padStart(2, "0")}:0${i}:00.000Z`;
     const id = `${at.replace(/[-:]/g, "").replace(".000Z", "Z")}-${n.kind}-note${i}`;
-    writeFileSync(
-      join(notesDir, `${id}.md`),
-      ["---", `kind: ${n.kind}`, `by: ${n.by}`, `at: ${at}`, "verified_by: ", "confidence: medium", "refs:", "  - plans/tickets/AUDIT-1.md", "supersedes: null", "---", "", n.body, ""].join("\n"),
-    );
+    const fence = [`kind: ${n.kind}`, `by: ${n.by}`, `at: ${at}`, "verified_by: ", "confidence: medium", "refs:", "  - plans/tickets/AUDIT-1.md", "supersedes: null"];
+    const rest = ["---", "", n.body, ""].join("\n");
+    const unsealed = ["---", ...fence, rest].join("\n");
+    const text = sealed ? ["---", ...fence, `${NOTE_SEAL_KEY}: ${noteSeal(unsealed)}`, rest].join("\n") : unsealed;
+    writeFileSync(join(notesDir, `${id}.md`), text);
   });
   return root;
 }

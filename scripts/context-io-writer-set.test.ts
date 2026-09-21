@@ -1043,18 +1043,26 @@ function seedGreenVerdict(contextRoot: string, task: string, runId: string, at?:
  * sole emitter REFUSES to mint a verdict without a sha, so the shape that reaches the "recorded no
  * commit SHA" site is exactly a verdict minted before that change or hand-written onto disk. A
  * fixture that could be produced by the emitter would not reach the site at all.
+ *
+ * SEALED THROUGH THE ONE EXPORTED DIGEST (plan 33-25, KIT (b)). The reader now refuses a note the
+ * writer did not compose, so an unsealed sha-less verdict never reaches the S5 site either — it is
+ * refused one arm earlier as "no live green verdict" (S3), which is a different family. The raw
+ * bytes stay raw for the reason above; the seal is what makes them a verdict minted before the
+ * sha rule rather than a note the reader discards.
  */
 function seedShalessVerdict(contextRoot: string, task: string, runId: string): void {
   const id = "20260908T080000Z-§14-gate-finding-shaless01";
   const dir = join(contextRoot, task, "notes");
   mkdirSync(dir, { recursive: true });
+  const fence =
+    `id: ${id}\n` +
+    "kind: finding\nby: §14-gate\nat: 2026-09-08T08:00:00Z\nverified_by: \nconfidence: high\n" +
+    `refs:\n  - §14-gate#${runId}\n` +
+    "supersedes: \n";
+  const rest = "---\n\nREADY_FOR_HUMAN_REVIEW: the §14 quality gate run passed (all checks green).\n";
   writeFileSync(
     join(dir, `${id}.md`),
-    "---\n" +
-      `id: ${id}\n` +
-      "kind: finding\nby: §14-gate\nat: 2026-09-08T08:00:00Z\nverified_by: \nconfidence: high\n" +
-      `refs:\n  - §14-gate#${runId}\n` +
-      "supersedes: \n---\n\nREADY_FOR_HUMAN_REVIEW: the §14 quality gate run passed (all checks green).\n",
+    "---\n" + fence + `${mod.NOTE_SEAL_KEY}: ${mod.noteSeal("---\n" + fence + rest)}\n` + rest,
   );
 }
 

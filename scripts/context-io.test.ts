@@ -117,6 +117,20 @@ function goodNoteText(over: Partial<Record<string, string>> = {}): string {
   );
 }
 
+// ── sealed: raw note bytes, sealed through the module's ONE exported digest (plan 33-25, KIT (b)). ──
+// The reader refuses a note the sanctioned writer did not compose, so a case that plants raw bytes
+// and then READS them must seal those bytes the way `composeNote` does: digest the unsealed text
+// through `noteSeal` and insert the `seal:` line LAST inside the fence. Raw bytes stay raw where a
+// case needs a shape the writer would not produce (a fixed id, a forged author spelling, a pre-sha
+// verdict) — each such site says why in a comment. A case that plants raw bytes and expects the
+// reader to REFUSE them plants them unsealed, which is now what refusal means.
+function sealed(text: string): string {
+  const m = text.match(/^---\n([\s\S]*?)\n---\n/);
+  if (!m) throw new Error("sealed(): the text has no frontmatter fence");
+  const fenceEnd = 4 + m[1].length; // the "\n" before the closing "---"
+  return text.slice(0, fenceEnd) + `\n${mod.NOTE_SEAL_KEY}: ${mod.noteSeal(text)}` + text.slice(fenceEnd);
+}
+
 // Run the compiled CLI: `node context-io.js validate <noteFile>`.
 function runValidate(noteFile: string) {
   return spawnSync("node", [CONTEXT_IO_JS, "validate", noteFile], {
@@ -213,13 +227,15 @@ describe("context-io.js — deterministic render (SC-4 substrate)", () => {
     const notesDir = join(contextRoot, task, "notes");
     mkdirSync(notesDir, { recursive: true });
     // Two notes, written out of `at` order to prove the render sorts by at, not file order.
+    // Raw plants with fixed filenames (the sort under test keys on `at`, not on the writer's id
+    // formula), sealed so the reader returns them (plan 33-25).
     writeFileSync(
       join(notesDir, "20260617T150000Z-b-decision-zzzz.md"),
-      goodNoteText({ kind: "decision", by: "b", at: "2026-06-17T15:00:00Z" }),
+      sealed(goodNoteText({ kind: "decision", by: "b", at: "2026-06-17T15:00:00Z" })),
     );
     writeFileSync(
       join(notesDir, "20260617T140000Z-a-finding-aaaa.md"),
-      goodNoteText({ kind: "finding", by: "a", at: "2026-06-17T14:00:00Z" }),
+      sealed(goodNoteText({ kind: "finding", by: "a", at: "2026-06-17T14:00:00Z" })),
     );
 
     const r1 = runRender(task, contextRoot);
@@ -3918,20 +3934,25 @@ describe("30-11 — the green-verdict RECOGNIZER and the impersonation refusal d
       const refusedAsImpersonation =
         a.status !== 0 && (a.stderr + a.stdout).includes("reserved author identity");
 
-      // SIDE 2 — the read path. The plant is written straight to disk, which is the documented
-      // same-uid direct-filesystem residual; the only question here is whether the RECOGNIZER folds
-      // on an axis the impersonation rule does not.
+      // SIDE 2 — the read path. The plant is written straight to disk and SEALED through the one
+      // exported digest (plan 33-25): the writer refuses these spellings by construction, so raw
+      // bytes are the only way a note carrying one reaches the RECOGNIZER at all, and since 33-25
+      // an UNSEALED plant is refused one arm earlier (`unsealed`) and never reaches it — S1 in the
+      // 33-25 block measures that. The only question here is whether the recognizer folds on an
+      // axis the impersonation rule does not.
       const rd = freshTmp("ctx-div-b-");
       const ctx = join(rd, "ctx");
       mkdirSync(join(ctx, "t", "notes"), { recursive: true });
       writeFileSync(
         join(ctx, "t", "notes", "plant.md"),
-        note({
-          kind: "finding",
-          by,
-          refs: ["§14-gate#RUN-9"],
-          body: "READY_FOR_HUMAN_REVIEW: run RUN-9 passed",
-        }),
+        sealed(
+          note({
+            kind: "finding",
+            by,
+            refs: ["§14-gate#RUN-9"],
+            body: "READY_FOR_HUMAN_REVIEW: run RUN-9 passed",
+          }),
+        ),
       );
       const ff = join(rd, "f.md");
       writeFileSync(
@@ -4524,18 +4545,22 @@ describe("31-01 — admit() binds an artifact-ref to its gate run's SHA (D-03, U
     const legacyId = "20260907T080000Z-§14-gate-finding-legacy01";
     const notesDir = join(contextRoot, TASK, "notes");
     mkdirSync(notesDir, { recursive: true });
+    // Raw bytes because the emitter refuses to mint a sha-less verdict since 31-01; SEALED (33-25)
+    // because an unsealed one is refused by the reader before the absent-SHA arm is ever asked.
     writeFileSync(
       join(notesDir, `${legacyId}.md`),
-      "---\n" +
-        `id: ${legacyId}\n` +
-        "kind: finding\n" +
-        "by: §14-gate\n" +
-        "at: 2026-09-07T08:00:00Z\n" +
-        "verified_by: \n" +
-        "confidence: high\n" +
-        "refs:\n  - §14-gate#RUN-LEGACY\n" +
-        "supersedes: \n" +
-        "---\n\nREADY_FOR_HUMAN_REVIEW: the §14 quality gate run RUN-LEGACY passed (all checks green).\n",
+      sealed(
+        "---\n" +
+          `id: ${legacyId}\n` +
+          "kind: finding\n" +
+          "by: §14-gate\n" +
+          "at: 2026-09-07T08:00:00Z\n" +
+          "verified_by: \n" +
+          "confidence: high\n" +
+          "refs:\n  - §14-gate#RUN-LEGACY\n" +
+          "supersedes: \n" +
+          "---\n\nREADY_FOR_HUMAN_REVIEW: the §14 quality gate run RUN-LEGACY passed (all checks green).\n",
+      ),
     );
     const text = artifactRefText({ sha: P31_SHA_A, gate_run: "RUN-LEGACY" });
     const joined = mod.admit(TASK, text, contextRoot, repoRoot).join("\n");
@@ -4609,17 +4634,22 @@ describe("31-01 — a note that sets no provenance field composes byte-identical
       id,
     );
     const text = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
+    // Since plan 33-25 the composed form is the pre-change fence PLUS exactly one `seal:` line, last
+    // inside the fence, digested over the pre-change bytes — asserted as `sealed(<pre-change form>)`
+    // so the byte-stability claim still names every byte.
     expect(text).toBe(
-      "---\n" +
-        `id: ${id}\n` +
-        "kind: decision\n" +
-        "by: architect-design\n" +
-        "at: 2026-09-07T09:00:00Z\n" +
-        "verified_by: \n" +
-        "confidence: high\n" +
-        "refs:\n  - ADR-1\n" +
-        "supersedes: \n" +
-        "---\n\nWe chose the boring option.\n",
+      sealed(
+        "---\n" +
+          `id: ${id}\n` +
+          "kind: decision\n" +
+          "by: architect-design\n" +
+          "at: 2026-09-07T09:00:00Z\n" +
+          "verified_by: \n" +
+          "confidence: high\n" +
+          "refs:\n  - ADR-1\n" +
+          "supersedes: \n" +
+          "---\n\nWe chose the boring option.\n",
+      ),
     );
   });
 });
@@ -4836,7 +4866,8 @@ describe("31-01 — the five other kinds compose byte-identically (research assu
         id,
       );
       const text = readFileSync(join(contextRoot, task, "notes", `${id}.md`), "utf8");
-      expect(text).toBe(preChangeFence(f, "A body."));
+      // The pre-change fence plus its seal line (plan 33-25) — see the `decision` case above.
+      expect(text).toBe(sealed(preChangeFence(f, "A body.")));
       expect(text).not.toContain("sha:");
       expect(text).not.toContain("gate_run:");
       expect(text).not.toContain("content_hash:");
@@ -10913,7 +10944,11 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
     const id = seedBytes(origin);
     const dest = destStore("p31-22-c3-dest-");
     mkdirSync(join(dest, TASK, "notes"), { recursive: true });
-    const occupant = "---\nkind: claim\nby: qe\nat: 2026-09-09T01:00:00Z\nverified_by: \nconfidence: high\nrefs:\nsupersedes: \n---\n\nsomething else\n";
+    // The occupant is SEALED (plan 33-25): the destination-liveness read goes through the one walk,
+    // and an unsealed occupant is not live there — the route then falls through to the chokepoint's
+    // append-only refusal (still refused, still byte-unchanged), which is not what this control
+    // measures. The 33-25 R1 block drives that unsealed arm on this same route.
+    const occupant = sealed("---\nkind: claim\nby: qe\nat: 2026-09-09T01:00:00Z\nverified_by: \nconfidence: high\nrefs:\nsupersedes: \n---\n\nsomething else\n");
     writeFileSync(join(dest, TASK, "notes", `${id}.md`), occupant);
     const out = promote(origin, dest, id, proj);
     expect(out.threw).toContain("DECLINED (destination-id-occupied)");
@@ -13321,12 +13356,14 @@ describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repo
     const destRoot = govRoot("p31-29-c2-dest-");
     const dest = storeUnder(destRoot);
     mkdirSync(join(dest, TASK, "notes"), { recursive: true });
-    // The occupant must PARSE and carry the SAME id, or `readRawNotes` names it something else and
-    // the route never reaches its own clause — it falls through to the chokepoint's append-only
-    // refusal instead. That is defence in depth working, but it is not what this control measures.
-    const occupant =
+    // The occupant must PARSE, carry the SAME id AND be SEALED (plan 33-25), or `readRawNotes` names
+    // it something else — or refuses it as `unsealed` — and the route never reaches its own clause;
+    // it falls through to the chokepoint's append-only refusal instead. That is defence in depth
+    // working, but it is not what this control measures.
+    const occupant = sealed(
       `---\nid: ${id}\nkind: observation\nby: qe\nat: 2026-09-09T01:00:00Z\n` +
-      `verified_by: \nconfidence: high\nrefs:\nsupersedes: \n---\n\nnot the promoted note\n`;
+        `verified_by: \nconfidence: high\nrefs:\nsupersedes: \n---\n\nnot the promoted note\n`,
+    );
     writeFileSync(join(dest, TASK, "notes", `${id}.md`), occupant);
     expect(() =>
       mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot),
@@ -13707,14 +13744,18 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
     // MEASURED, WITH THE REASON IT MOVED (31-33): 3 -> 5. The published set was a SECOND literal
     // beside `READ_POSITION_CONDITIONS`, and the two disagreed while both read as complete. It now
     // spreads the authority's own constant, so the members below are the authority's three
-    // conditions plus the reader's own two, in render order. Every one of the five is PLANTED and
-    // driven in the `31-33 — CR-24` block below, which is what keeps "no arm is decoration" true.
+    // conditions plus the reader's own, in render order. Every one of the five 31-33 arms is PLANTED
+    // and driven in the `31-33 — CR-24` block below, which is what keeps "no arm is decoration" true.
+    // MEASURED AGAIN, WITH THE REASON IT MOVED (33-25): 5 -> 6. The sixth is the reader-owned
+    // `unsealed` — a note the sanctioned writer did not compose — planted and driven by S1-S4 and
+    // R1-R4 in the `33-25` blocks.
     expect([...mod.NOTE_SKIP_ARMS]).toEqual([
       "unparseable",
       "unopenable",
       "not-a-regular-file",
       "above-ceiling",
       "vanished",
+      "unsealed",
     ]);
   });
 });
@@ -14789,15 +14830,16 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
     for (const c of conditions) {
       expect(arms, `the authority raises "${c}" and no arm publishes it`).toContain(c);
     }
-    // DIRECTION 2 — every arm that is not a condition is one of the reader's own two.
+    // DIRECTION 2 — every arm that is not a condition is one of the reader's own three (the third,
+    // `unsealed`, is plan 33-25's: a note the sanctioned writer did not compose).
     const readerOwned = arms.filter((a) => !(conditions as string[]).includes(a));
     expect(
       readerOwned.sort(),
       "an arm exists that neither the authority raises nor the reader owns",
-    ).toEqual(["unparseable", "vanished"]);
+    ).toEqual(["unparseable", "unsealed", "vanished"]);
     // THE CARDINALITY, asserted separately: a RESIZED set and a REMEMBERED set are different events.
     expect(conditions).toHaveLength(3);
-    expect(arms).toHaveLength(5);
+    expect(arms).toHaveLength(6);
     expect(arms.length).toBe(conditions.length + readerOwned.length);
   });
 
@@ -14845,7 +14887,7 @@ describe("31-33 — CR-24: a skipped entry is named by the condition that is TRU
         .filter((m) => m !== "");
     };
     const before = deriveArms(source);
-    expect(before, "PREMISE: the derivation read no arms at all").toHaveLength(5);
+    expect(before, "PREMISE: the derivation read no arms at all").toHaveLength(6); // 5 + `unsealed` (33-25)
     const after = deriveArms(source.replace(anchor, `${anchor}"seeded-sixth-condition", `));
     expect(after).toHaveLength(before.length + 1);
     expect(after).toContain("seeded-sixth-condition");
