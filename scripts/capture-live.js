@@ -235,6 +235,14 @@ export function claimTableHeader(run, transcriptName) {
 export function observationTableHeader(run) {
     return `observation (run ${run})`;
 }
+/**
+ * The byte class no artifact cell and no filesystem argument may carry (IN-05; the same class
+ * `check:nul-bytes` and the P32.1 F-14 fix refuse): C0 controls, DEL and the C1 range. Global for
+ * the replace-and-count in `cell`; tested without the flag where a yes/no is asked.
+ */
+// eslint-disable-next-line no-control-regex
+const CONTROL_BYTE_RE_G = /[\x00-\x1f\x7f-\x9f]/g;
+const CONTROL_BYTE_RE = new RegExp(CONTROL_BYTE_RE_G.source);
 const CLAIM_HEADER_RE = /^claim \(run ([A-Z]), (\S+\.jsonl)\)$/;
 const OBSERVATION_HEADER_RE = /^observation \(run [A-Z]\)$/;
 const JSONL_CITATION_RE = /^jsonl:(\d+)$/;
@@ -327,6 +335,14 @@ export function approvalKeyRefusals(env) {
         ];
     }
     return [];
+}
+/**
+ * Both channels of a child, joined and trimmed — for REFUSAL and detail sentences only (the installer
+ * banner, the plugin install/uninstall detail), never for a value the runner PARSES: a parsed value
+ * comes from stdout alone (`probe`, WR-04). Kept as one helper so the joined spelling exists once.
+ */
+function refusalText(stdout, stderr) {
+    return `${stdout ?? ""}${stderr ?? ""}`.trim();
 }
 function spawnEnv(extra = {}) {
     const env = childEnvironment(process.env, extra);
@@ -1036,11 +1052,20 @@ export function evaluatePreconditions(obs) {
     const reasons = rows.filter((r) => r.state !== "MET").map((r) => `${r.name}: ${r.state} — ${r.detail}`);
     return { rows, readiness: reasons.length === 0 ? "ready" : "not-ready", reasons };
 }
-function probe(cmd, args, env, boundMs, cwd) {
+/**
+ * One bounded child, its stdout and its stderr returned SEPARATELY (33-REVIEW round-2 WR-04). The
+ * operator's environment reaches every child (`childEnvironment` copies it), so `GIT_TRACE=1` or a
+ * git `warning:` lands on stderr — and a probe that concatenated the two handed that text to the
+ * parsers: the tracked list gained a trace line as a path, the pushed-sha row read UNMET or UNKNOWN
+ * over trace text. Every consumer that PARSES reads `out` alone; `err` exists for a consumer that
+ * prints a refusal and wants the child's own words beside it. A non-zero exit or a spawn error is
+ * null — nothing was measured.
+ */
+export function probe(cmd, args, env, boundMs, cwd) {
     const r = spawnSync(cmd, [...args], { encoding: "utf8", input: "", timeout: boundMs, env, cwd, maxBuffer: 16 * 1024 * 1024 });
     if (r.error !== undefined || r.status !== 0 || typeof r.stdout !== "string")
         return null;
-    return `${r.stdout}${r.stderr ?? ""}`;
+    return { out: r.stdout, err: typeof r.stderr === "string" ? r.stderr : "" };
 }
 function readMarketplaceNames() {
     try {
@@ -1062,10 +1087,10 @@ function observePreconditions() {
     const approvalKeyPresent = Object.prototype.hasOwnProperty.call(process.env, PROD_DEPLOY_REASON_SIGNATURE);
     const env = spawnEnv();
     const names = readMarketplaceNames();
-    const version = probe(PLATFORM_CMD, ["--version"], env, PROBE_BOUND_MS);
-    const help = probe(PLATFORM_CMD, ["--help"], env, PROBE_BOUND_MS);
-    const marketplace = probe(PLATFORM_CMD, ["plugin", "marketplace", "list"], env, PROBE_BOUND_MS);
-    const plugins = probe(PLATFORM_CMD, ["plugin", "list"], env, PROBE_BOUND_MS);
+    const version = probe(PLATFORM_CMD, ["--version"], env, PROBE_BOUND_MS)?.out ?? null;
+    const help = probe(PLATFORM_CMD, ["--help"], env, PROBE_BOUND_MS)?.out ?? null;
+    const marketplace = probe(PLATFORM_CMD, ["plugin", "marketplace", "list"], env, PROBE_BOUND_MS)?.out ?? null;
+    const plugins = probe(PLATFORM_CMD, ["plugin", "list"], env, PROBE_BOUND_MS)?.out ?? null;
     let precheckExit = null;
     let precheckLastLine = null;
     if (existsSync(PRECHECK)) {
@@ -1076,14 +1101,6 @@ function observePreconditions() {
             precheckLastLine = lines.length > 0 ? lines[lines.length - 1] : null;
         }
     }
-    const localHead = probe(GIT_CMD, ["rev-parse", "HEAD"], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.trim() ?? null;
-    const symbolic = probe(GIT_CMD, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.trim() ?? null;
-    const remoteRef = symbolic !== null && symbolic.startsWith("refs/remotes/") ? symbolic.slice("refs/remotes/".length) : "origin/main";
-    const remoteHead = probe(GIT_CMD, ["rev-parse", remoteRef], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.trim() ?? null;
-    const aheadText = remoteHead === null ? null : probe(GIT_CMD, ["rev-list", "--count", `${remoteRef}..HEAD`], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.trim() ?? null;
-    const aheadCount = aheadText !== null && /^\d+$/.test(aheadText) ? Number(aheadText) : null;
-    // WR-03: the scoped status, through the probe like every other git observation.
-    const workingTreeStatus = probe(GIT_CMD, workingTreeStatusArgs(), env, PROBE_BOUND_MS, SCRIPT_ROOT);
     return {
         platformVersion: version === null ? null : version.trim(),
         helpText: help,
@@ -1093,13 +1110,25 @@ function observePreconditions() {
         pluginName: names.pluginName,
         precheckExit,
         precheckLastLine,
-        localHead,
-        remoteRef,
-        remoteHead,
-        aheadCount,
         approvalKeyPresent,
-        workingTreeStatus,
+        ...gitObservations(env),
     };
+}
+/**
+ * The five git observations of phase 1, over the checkout, through `probe` — each parsed from the
+ * child's STDOUT alone (WR-04), so a trace line or a warning on stderr moves none of them. Exported
+ * with the environment as a parameter so the offline suite can hand it a polluted one.
+ */
+export function gitObservations(env) {
+    const localHead = probe(GIT_CMD, ["rev-parse", "HEAD"], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.out.trim() ?? null;
+    const symbolic = probe(GIT_CMD, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.out.trim() ?? null;
+    const remoteRef = symbolic !== null && symbolic.startsWith("refs/remotes/") ? symbolic.slice("refs/remotes/".length) : "origin/main";
+    const remoteHead = probe(GIT_CMD, ["rev-parse", remoteRef], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.out.trim() ?? null;
+    const aheadText = remoteHead === null ? null : probe(GIT_CMD, ["rev-list", "--count", `${remoteRef}..HEAD`], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.out.trim() ?? null;
+    const aheadCount = aheadText !== null && /^\d+$/.test(aheadText) ? Number(aheadText) : null;
+    // WR-03: the scoped status, through the probe like every other git observation.
+    const workingTreeStatus = probe(GIT_CMD, workingTreeStatusArgs(), env, PROBE_BOUND_MS, SCRIPT_ROOT)?.out ?? null;
+    return { localHead, remoteRef, remoteHead, aheadCount, workingTreeStatus };
 }
 /**
  * True iff `path` is outside EVERY root. Containment is decided on `relative()` — the `isWithinRoot`
@@ -1140,7 +1169,7 @@ function buildTarget(label) {
     const r = spawnSync("node", [INSTALLER, "--target", target, "--yes"], { encoding: "utf8", input: "", timeout: INSTALL_BOUND_MS, env, maxBuffer: 16 * 1024 * 1024 });
     // TWO SIGNALS, EITHER ONE A REFUSAL (the coordinator-resolution precheck's rule): the exit status
     // and the INCOMPLETE banner are checked against the same run, and the message names which fired.
-    const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
+    const detail = refusalText(r.stdout, r.stderr);
     if (r.error !== undefined || r.status !== 0) {
         fail(`the install into target ${label} did not complete (exit ${String(r.status)}${r.status === 3 ? " = INCOMPLETE" : ""}). Installer output follows:\n${detail}`);
     }
@@ -1199,7 +1228,7 @@ function runPlatform(args, cwd, env, transcriptPath, boundMs) {
     return runCommandBuffered(PLATFORM_CMD, args, cwd, env, transcriptPath, boundMs);
 }
 export function installOutcome(r) {
-    const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
+    const detail = refusalText(r.stdout, r.stderr);
     if (r.error !== undefined || r.status !== 0) {
         return { ok: false, reason: `exit ${String(r.status)}${r.error ? ` (${r.error.message})` : ""}${detail === "" ? "" : `: ${detail}`}` };
     }
@@ -1228,7 +1257,7 @@ export function uninstallLine(u) {
 }
 function pluginUninstall(target, pluginName) {
     const r = spawnSync(PLATFORM_CMD, ["plugin", "uninstall", pluginName, "--scope", "local"], { cwd: target, encoding: "utf8", input: "", timeout: PLUGIN_OP_BOUND_MS, env: childEnvironment(process.env) });
-    const detail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
+    const detail = refusalText(r.stdout, r.stderr);
     return { status: r.status, error: r.error === undefined ? null : r.error.message, detail };
 }
 export const LIVE_OPS = Object.freeze({ pluginInstall, runPlatform, pluginUninstall });
@@ -1347,13 +1376,18 @@ export function pluginUnderTest(report, pluginName) {
 }
 /**
  * The one transcript field that reaches a filesystem call, validated before it does (WR-04): a
- * candidate beginning with `-` is refused (an option, not a path); the candidate is resolved with
+ * candidate carrying a control byte is refused on the byte class first (IN-05); a candidate
+ * beginning with `-` is refused (an option, not a path); the candidate is resolved with
  * `realpathSync.native` so a link that leaves the cache root is judged on where it lands; it must
  * be a directory; and it must sit STRICTLY inside the cache root by the same `relative()` rule
  * `isOutsideTargets` uses (the root itself is not a plugin directory). Returns the real path, or
  * null naming nothing — the caller records the refusal.
  */
 export function pluginCachePathAccepted(candidate, cacheRoot) {
+    // The byte class first (IN-05): a path carrying a C0/C1 byte is not a plugin directory, whatever
+    // exists at it, and it is refused before any filesystem call is asked about it.
+    if (CONTROL_BYTE_RE.test(candidate))
+        return null;
     if (candidate === "" || candidate.startsWith("-"))
         return null;
     let realRoot;
@@ -1416,12 +1450,16 @@ function pluginCacheRoot() {
 function pluginRegistryPath() {
     return join(pluginCacheRoot(), "installed_plugins.json");
 }
-/** The checkout's tracked files, through `git ls-files -z` in SCRIPT_ROOT, or null when unreadable. */
-function trackedFiles() {
-    const out = probe(GIT_CMD, ["ls-files", "-z"], spawnEnv(), PROBE_BOUND_MS, SCRIPT_ROOT);
-    if (out === null)
+/**
+ * The checkout's tracked files, through `git ls-files -z` in SCRIPT_ROOT — parsed from stdout alone
+ * (WR-04) — or null when unreadable. Exported with the environment as a parameter for the polluted
+ * offline case; the runner passes `spawnEnv()`.
+ */
+export function trackedFiles(env = spawnEnv()) {
+    const r = probe(GIT_CMD, ["ls-files", "-z"], env, PROBE_BOUND_MS, SCRIPT_ROOT);
+    if (r === null)
         return null;
-    const list = out.split("\0").filter((p) => p !== "");
+    const list = r.out.split("\0").filter((p) => p !== "");
     return list.length === 0 ? null : list;
 }
 function deriveCheckoutDigest() {
@@ -1566,7 +1604,22 @@ function deriveProvenance(plugins, pluginName, checkout) {
 export const PARITY_SECTION_HEADING = "## Dual-path parity (D-07) — path-invariant projection";
 export const REPLAY_SECTION_HEADING = "## Replay comparator (informational — task-id keyed, deterministic replay only)";
 export const PARITY_EQUAL_LINE = "- parity: the two projections are equal";
-const cell = (s) => s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+/**
+ * THE ONE cell escaper (IN-05): pipes are escaped, line breaks become a space, and every remaining
+ * byte of the control class becomes the literal `<control>` with the count stated at the end of the
+ * cell — so a transcript-supplied value cannot land a raw C0/C1 byte in a committed summary, and the
+ * reader can see that the value was altered and by how much. `verifyArtifacts` refuses any cell
+ * that still carries the raw class.
+ */
+const cell = (s) => {
+    const escaped = s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+    let replaced = 0;
+    const clean = escaped.replace(CONTROL_BYTE_RE_G, () => {
+        replaced += 1;
+        return "<control>";
+    });
+    return replaced === 0 ? clean : `${clean} (${replaced} control byte(s) replaced)`;
+};
 /** Build the claim rows a run's transcript supports. Every row cites the frame it came from. */
 export function deriveClaims(frames, grant, stamps) {
     const claims = [];
@@ -1777,6 +1830,12 @@ export function verifyArtifacts(dir, homes = homeSpellings()) {
         const body = cellsOf(line);
         if (body.length === 0)
             continue;
+        // IN-05: a raw control byte in any cell is refused, naming the row by its first cell; the
+        // spelled form `<control>` is what the renderer writes, so a raw byte means this runner did not
+        // write the cell or the file was altered afterwards.
+        if (CONTROL_BYTE_RE.test(line)) {
+            refusals.push(`line ${i + 1}: a table cell carries a raw control byte (the runner spells these <control>) in the row ${body[0].replace(CONTROL_BYTE_RE_G, "<control>")}`);
+        }
         const next = lines[i + 1] ?? "";
         if (isSeparator(next)) {
             const head = body[0];
@@ -1825,7 +1884,7 @@ export function verifyArtifacts(dir, homes = homeSpellings()) {
 // ---------------------------------------------------------------------------
 let keepTarget = false;
 function checkoutSha() {
-    return probe(GIT_CMD, ["rev-parse", "HEAD"], spawnEnv(), PROBE_BOUND_MS, SCRIPT_ROOT)?.trim() ?? "UNKNOWN - verify — `git rev-parse HEAD` could not be read";
+    return probe(GIT_CMD, ["rev-parse", "HEAD"], spawnEnv(), PROBE_BOUND_MS, SCRIPT_ROOT)?.out.trim() ?? "UNKNOWN - verify — `git rev-parse HEAD` could not be read";
 }
 function targetObservations(build, grant, stamps) {
     const rows = [];

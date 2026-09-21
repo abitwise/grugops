@@ -1440,7 +1440,8 @@ describe("WR-04 / IN-05: the probes' parsers read stdout alone, and a transcript
     const tracked = trackedFiles(polluted);
     expect(tracked, "the tracked list is readable under the polluted environment").not.toBeNull();
     expect((tracked as string[]).length, `the tracked count is the git ls-files -z entry count (${real.length}), not that plus the trace lines`).toBe(real.length);
-    expect((tracked as string[]).filter((p) => p.includes("\n") || p.includes("trace"))).toEqual([]);
+    // git prints `trace: built-in: …` with a timestamp and a newline; tracked paths may legitimately contain the word (traceability.md).
+    expect((tracked as string[]).filter((p) => p.includes("\n") || /\btrace: /.test(p))).toEqual([]);
     const g = gitObservations(polluted);
     expect(g.localHead).toMatch(/^[0-9a-f]{40}$/);
     expect(g.remoteRef, "the remote ref is a ref name, not a ref name plus a trace line").toMatch(/^[A-Za-z0-9._\/-]+$/);
@@ -1471,7 +1472,7 @@ describe("WR-04 / IN-05: the probes' parsers read stdout alone, and a transcript
     expect(consumers.length, "the census found probe consumers").toBeGreaterThanOrEqual(3);
     for (const c of consumers) {
       expect(c.text.includes(".out"), `${c.name} parses the stdout field`).toBe(true);
-      expect(c.text.includes(".err"), `${c.name} must not parse stderr — it is refusal text, never data`).toBe(false);
+      expect(/\.err\b/.test(c.text), `${c.name} must not parse stderr — it is refusal text, never data`).toBe(false);
     }
     expect(src.includes('${r.stderr ?? ""}`'), "no probe concatenates stderr into the returned data").toBe(false);
     // The ONE consumer that reports a refusal — the install decision — still includes the platform's stderr.
@@ -1498,8 +1499,11 @@ describe("WR-04 / IN-05: the probes' parsers read stdout alone, and a transcript
       // This filesystem does not admit the byte in a name; the non-existent arm above covers the refusal.
     }
     const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    // ONE spelling of the class in the module (an authority, not a second grammar), consulted inside
+    // pluginCachePathAccepted BEFORE the dash-prefix check.
+    expect((src.match(/\[\\x00-\\x1f\\x7f-\\x9f\]/g) ?? []).length, "the control-byte class is declared exactly once").toBe(1);
     const accepted = functionText(src, "export function pluginCachePathAccepted(");
-    const classAt = accepted.search(/\[\\x00-\\x1f\\x7f-\\x9f\]/);
+    const classAt = accepted.indexOf("CONTROL_BYTE_RE.test(candidate)");
     expect(classAt, "the control-byte class is consulted inside pluginCachePathAccepted").toBeGreaterThan(0);
     expect(classAt, "and before the dash-prefix check").toBeLessThan(accepted.indexOf('startsWith("-")'));
 
@@ -1511,8 +1515,9 @@ describe("WR-04 / IN-05: the probes' parsers read stdout alone, and a transcript
     model.provenance = { ...model.provenance, pluginLine: "grugops\x01 2.1.0 at /cache/grugops/2.1.0\x9f" };
     const rowC0 = renderReport(model).split("\n").find((l) => l.startsWith("| plugin under test per system/init |")) ?? "";
     expect(rowC0).toBe("| plugin under test per system/init | grugops<control> 2.1.0 at /cache/grugops/2.1.0<control> (2 control byte(s) replaced) |");
+    // Per LINE — the report's own line breaks are the one control byte the format needs.
     // eslint-disable-next-line no-control-regex
-    expect(/[\x00-\x1f\x7f-\x9f]/.test(renderReport(model)), "no raw control byte survives in the rendered report").toBe(false);
+    expect(renderReport(model).split("\n").filter((l) => /[\x00-\x1f\x7f-\x9f]/.test(l)), "no raw control byte survives in any line of the rendered report").toEqual([]);
     model.provenance = { ...model.provenance, pluginLine: "grugops 2.1.0 at /cache/grugops/2.1.0" };
     expect(renderReport(model)).toContain("| plugin under test per system/init | grugops 2.1.0 at /cache/grugops/2.1.0 |");
 
