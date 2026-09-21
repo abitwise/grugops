@@ -1979,11 +1979,12 @@ function sectionTwoCommands(): ReadonlyMap<string, string> {
 //   command substitution `$(…)`: B:434 (`wc -c $(find … ./.git …)`), B:469 (`echo "branch: $(git rev-parse …)"`)
 //   heredoc `<<'EOF'` body:      B:1504 ("A-05 zero git history" beside backticks), B:1740 ("`git status`",
 //                               and an apostrophe in the body unbalances the whole command)
-//   backslash-escaped word (the RA3-1 rule, `find`'s `\(` `\)`) beside a `.git` path the tool-name
-//   scan reads as `git`:         A:667, A:1493, A:1507, B:217 (B:217 also `helm present?` in a quoted echo)
+//   an escaped or spliced word (the RA3-1 rule: `find`'s `\(` `\)`, grep's `'…'"'"'…'` quoting)
+//   beside a `.git` path the tool-name scan reads as `git`:
+//                               A:667, A:1493, A:1507, B:217 (B:217 also `helm present?` in a quoted echo)
 const SECTION_2_READABLE_ALLOW = ["A:586", "A:1628", "B:35"] as const;
 const SECTION_2_TOOL_FREE_OPAQUE_ALLOW = ["A:458"] as const;
-const SECTION_2_STILL_DENIED: Readonly<Record<string, "expansion" | "command-substitution" | "heredoc" | "backslash">> = {
+const SECTION_2_STILL_DENIED: Readonly<Record<string, "expansion" | "command-substitution" | "heredoc" | "escaped-or-spliced">> = {
   "A:445": "expansion",
   "B:562": "expansion",
   "B:1527": "expansion",
@@ -1991,10 +1992,10 @@ const SECTION_2_STILL_DENIED: Readonly<Record<string, "expansion" | "command-sub
   "B:469": "command-substitution",
   "B:1504": "heredoc",
   "B:1740": "heredoc",
-  "A:667": "backslash",
-  "A:1493": "backslash",
-  "A:1507": "backslash",
-  "B:217": "backslash",
+  "A:667": "escaped-or-spliced",
+  "A:1493": "escaped-or-spliced",
+  "A:1507": "escaped-or-spliced",
+  "B:217": "escaped-or-spliced",
 };
 
 describe("33-27 G1 — the fifteen round-1 denies, replayed through the model from the held transcripts", () => {
@@ -2039,7 +2040,10 @@ describe("33-27 G1 — the fifteen round-1 denies, replayed through the model fr
       if (arm === "expansion") expect(named).toMatch(/\$[A-Za-z]/);
       if (arm === "command-substitution") expect(named).toMatch(/\$\(/);
       if (arm === "heredoc") expect(commands.get(id)).toContain("<<");
-      if (arm === "backslash") expect(named).toContain("\\");
+      if (arm === "escaped-or-spliced") {
+        expect(commands.get(id)).toMatch(/\\\(|'"'"'/);
+        expect(named).toMatch(/[\\'"]/);
+      }
     });
   }
 
@@ -2089,15 +2093,21 @@ describe("33-27 G2 — the grammar, one row per form, asserted against the ONE e
     });
   }
 
-  // NOT ADMITTED: each keeps today's opaque classification; the segment is opaque.
+  // NOT ADMITTED: each keeps today's classification — the grammar refuses the form, the segment that
+  // carries the operator is opaque, and no `redirection` word exists anywhere. A refused form that
+  // contains `&` still splits at the `&` exactly as before this plan (`pu2>&1sh` -> `pu2>` + `1sh`),
+  // which is the point: the split and the word agree, and a non-match changes nothing.
   const OPAQUE = ["<<EOF", "<<<x", "<(cmd)", ">(cmd)", "push>x", "pu2>&1sh", ">'a b'", ">&", "<&", ">&-", "&>&1", "main>&1", "2>&1sh"];
   for (const form of OPAQUE) {
-    it(`does not admit ${form}: opaque, the segment fails closed`, () => {
+    it(`does not admit ${form}: the grammar refuses it, the operator's segment is opaque, no redirection word`, () => {
+      expect(cp.REDIRECTION_RE.test(form)).toBe(false);
       const segs = cp.commandSegments(`echo ${form}`);
       expect(segs).not.toBeNull();
-      expect(segs!.every((s) => s.opaque)).toBe(true);
-      expect(segs!.some((s) => s.words.some((w) => w.kind === "opaque"))).toBe(true);
-      expect(segs!.flatMap((s) => s.words).some((w) => w.kind === "redirection" && w.value === form)).toBe(false);
+      const carrying = segs!.filter((s) => /[<>]/.test(s.raw));
+      expect(carrying.length).toBeGreaterThan(0);
+      expect(carrying.every((s) => s.opaque)).toBe(true);
+      expect(carrying.every((s) => s.words.some((w) => w.kind === "opaque"))).toBe(true);
+      expect(segs!.flatMap((s) => s.words).some((w) => w.kind === "redirection")).toBe(false);
     });
   }
 
@@ -2131,7 +2141,9 @@ describe("33-27 G2 — the grammar, one row per form, asserted against the ONE e
     // `$` and `(` are outside the canonical set: an attached target carrying them is not a redirection.
     for (const form of [">$f", "2>$f", "&>(x)", ">a(b"]) {
       expect(cp.REDIRECTION_RE.test(form), form).toBe(false);
-      expect(cp.commandSegments(`echo ${form}`)![0]!.opaque, form).toBe(true);
+      const segs = cp.commandSegments(`echo ${form}`)!;
+      expect(segs.filter((s) => /[<>]/.test(s.raw)).every((s) => s.opaque), form).toBe(true);
+      expect(segs.flatMap((s) => s.words).some((w) => w.kind === "redirection"), form).toBe(false);
     }
   });
 });

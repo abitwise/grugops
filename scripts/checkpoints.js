@@ -244,10 +244,54 @@ export function grantedBy(env, name) {
  * The characters a canonical unquoted word may contain.
  *
  * Anything outside this set — a quote in the middle of a word, a backslash, `$`, a brace, a
- * parenthesis, a redirection glyph — means the word's VALUE is not the text, and this model does not
- * guess at it. It refuses instead. That refusal is `WordKind.opaque` below.
+ * parenthesis — means the word's VALUE is not the text, and this model does not guess at it. It
+ * refuses instead. That refusal is `WordKind.opaque` below. A redirection glyph is the ONE exception,
+ * and only in the shapes `REDIRECTION_RE` below admits: a redirection is not a value at all.
+ *
+ * The class is spelled ONCE, as a string, so the word rule and the redirection rule are built from
+ * the same alphabet and cannot drift (the two-grammars-for-one-punctuation-set defect of plan 33-27).
  */
-const CANONICAL_WORD_RE = /^[A-Za-z0-9._/@:+=,~%^-]+$/;
+const CANONICAL_CHARS = "A-Za-z0-9._/@:+=,~%^-";
+const CANONICAL_WORD_RE = new RegExp(`^[${CANONICAL_CHARS}]+$`);
+/**
+ * THE REDIRECTION GRAMMAR — one anchored allow-list, asked at the split AND at the word (plan 33-27,
+ * 33-DIAGNOSIS.md § 2, WINDOWS.md row 257).
+ *
+ * Round 1's live capture refused fifteen commands that deploy nothing because `2>&1` was two things
+ * to this file: the segment splitter cut it at `&` (an `&` is a splitter) and the word `2>` that
+ * remained was opaque, so `git log --oneline -5 2>&1` denied on the tool name alone. A redirection is
+ * not a substitution: its VALUE is never a command word, and the shell grammar for it is small and
+ * closed. So it is admitted — by ONE regex, consulted by `commandSegments` before the `&` splitter
+ * and by `classifyWords` before the canonical rule, so the split and the word cannot disagree.
+ *
+ * ADMITTED (every form, nothing else):
+ *   - fd duplication, one operator and an attached `&`-digit target: `2>&1`, `1>&2`, `3>&2`, `>&2`,
+ *     `<&0`;
+ *   - an output, append or input operator with an optional fd digit run and an attached target of
+ *     canonical characters: `>f`, `>>f`, `<f`, `2>f`, `2>>f`, `>/dev/null`, `2>/dev/null`;
+ *   - the both-streams operators with an attached canonical target: `&>f`, `&>>f`;
+ *   - any of the above operators BARE (`>`, `>>`, `<`, `2>`, `&>`, `&>>`), in which case the NEXT
+ *     word is its target — that word is consumed into the redirection and is never read as a tool or
+ *     a verb (`git > push origin main` is not a push; `push` is a file name there). A bare operator
+ *     whose next word is quoted, escaped or otherwise not a single canonical run, or which has no
+ *     next word, stays OPAQUE.
+ *
+ * DELIBERATELY NOT ADMITTED (each stays opaque, the segment fails closed on the tool name alone):
+ *   - a heredoc `<<EOF` / `<<'EOF'` — its body lines are commands to this tokenizer, and a note
+ *     written through a heredoc is exactly the route the shared-context reader now refuses;
+ *   - a here-string `<<<x` and a process substitution `<(cmd)` / `>(cmd)` — `UNRESOLVABLE_SHELL_RE`
+ *     refuses them at the raw level as well;
+ *   - an operator glued to letters on either side — `push>x`, `pu2>&1sh`, `main>&1` — because an
+ *     anchored grammar reads the whole word or none of it (the RA3-1 rule);
+ *   - a bare `>&` / `<&` with no digit target, `>&-`, and `&>&1`;
+ *   - a quoted target (`>'a b'`, `> "$f"`) — a quoted run is not a canonical run.
+ *
+ * A bare `$var` expansion is NOT a redirection and stays opaque by decision: its value is unknowable
+ * at hook time. Readable by this grammar, or opaque — there is no third state.
+ */
+export const REDIRECTION_RE = new RegExp(`^(?:\\d*[<>]&\\d+|(?:\\d*(?:>>|>|<)|&>>|&>)(?:[${CANONICAL_CHARS}]+)?)$`);
+/** A redirection word is BARE — its target is the next word — exactly when it ends in its operator. */
+const BARE_REDIRECTION_RE = /[<>]$/;
 /**
  * Split one segment into words, quote-aware, and classify each.
  *
@@ -269,6 +313,14 @@ const CANONICAL_WORD_RE = /^[A-Za-z0-9._/@:+=,~%^-]+$/;
  * A wholly-quoted word's value may contain spaces (`'do not push to main'` is ONE word whose value is
  * that whole string). That is what stops a quoted commit message from contributing its words as verb
  * candidates, which is the mechanism behind five of the false denials reviewer 3 measured.
+ *
+ * THE THIRD KIND, AND THE LINE THAT DECIDES IT (plan 33-27). A single unquoted, unescaped run that
+ * `REDIRECTION_RE` fully describes is a `redirection`. A BARE operator (`>`, `2>`, `&>`, …) holds
+ * until the next word: when that word is a single unquoted canonical run it is consumed as the target
+ * and the pair becomes ONE redirection word; otherwise the operator is emitted OPAQUE and the next
+ * word is classified on its own. Readable by grammar, or opaque — there is no third state. A bare
+ * `$var` and a heredoc are opaque BY DECISION, not by omission: a variable's value is unknowable at
+ * hook time, and a heredoc's body lines are commands to this tokenizer.
  * ---------------------------------------------------------------------------------------------
  */
 export function classifyWords(segment) {
@@ -277,6 +329,24 @@ export function classifyWords(segment) {
     let cur = "";
     let quote = null;
     let sawBackslash = false;
+    /** A bare redirection operator waiting for its target word. */
+    let pending = null;
+    const emit = (w, plain) => {
+        if (pending !== null) {
+            const op = pending;
+            pending = null;
+            if (plain !== null && CANONICAL_WORD_RE.test(plain)) {
+                words.push({ kind: "redirection", value: `${op} ${plain}`, isFlag: false });
+                return;
+            }
+            words.push({ kind: "opaque", value: op, isFlag: false });
+        }
+        if (w.kind === "redirection" && BARE_REDIRECTION_RE.test(w.value)) {
+            pending = w.value;
+            return;
+        }
+        words.push(w);
+    };
     const flush = () => {
         if (runs.length === 0 && cur === "")
             return;
@@ -284,8 +354,13 @@ export function classifyWords(segment) {
             runs.push({ quoted: false, text: cur });
         cur = "";
         const joined = runs.map((r) => r.text).join("");
+        // The word's text when it is ONE unquoted, unescaped run — the only shape a redirection may take.
+        const plain = !sawBackslash && runs.length === 1 && !runs[0].quoted ? runs[0].text : null;
         let kind = "opaque";
-        if (!sawBackslash) {
+        if (plain !== null && REDIRECTION_RE.test(plain)) {
+            kind = "redirection";
+        }
+        else if (!sawBackslash) {
             if (runs.length === 1) {
                 kind = runs[0].quoted || CANONICAL_WORD_RE.test(runs[0].text) ? "canonical" : "opaque";
             }
@@ -297,8 +372,8 @@ export function classifyWords(segment) {
                 kind = "canonical";
             }
         }
-        const value = kind === "canonical" ? joined : joined;
-        words.push({ kind, value, isFlag: kind === "canonical" && value.startsWith("-") });
+        const value = joined;
+        emit({ kind, value, isFlag: kind === "canonical" && value.startsWith("-") }, plain);
         runs = [];
         sawBackslash = false;
     };
@@ -337,14 +412,25 @@ export function classifyWords(segment) {
     }
     if (quote !== null) {
         // An unbalanced quote: everything from the opening quote on is unreadable.
+        if (pending !== null)
+            words.push({ kind: "opaque", value: pending, isFlag: false });
         words.push({ kind: "opaque", value: cur, isFlag: false });
         return words;
     }
     flush();
+    // A bare operator with no word after it is an incomplete redirection: opaque, never silently dropped.
+    if (pending !== null)
+        words.push({ kind: "opaque", value: pending, isFlag: false });
     return words;
 }
 /** A shell metacharacter set that ENDS a segment. Split only outside quotes. */
 const SEGMENT_SPLIT_RE = /^(?:&&|\|\||;;|[;|&\n])/;
+/**
+ * The run of characters that may follow an `&` inside one word — everything up to whitespace, a
+ * splitter, a quote or a backslash. `commandSegments` joins the word so far, the `&` and this run and
+ * asks `REDIRECTION_RE` whether the whole is a redirection BEFORE the `&` is read as a splitter.
+ */
+const AFTER_AMPERSAND_RE = /^[^\s;|&'"\\]*/;
 /**
  * Substitution and expansion forms whose presence makes a segment unreadable at the RAW-TEXT level.
  * Kept as a raw-text test in addition to word classification, because a substitution can span words.
@@ -359,6 +445,10 @@ export function commandSegments(cmd, depth = 0) {
     const raws = [];
     let cur = "";
     let quote = null;
+    // The word being built: where it starts in `cur`, and whether it is still one unquoted, unescaped
+    // run — the only shape the redirection grammar reads. Reset at every unquoted whitespace and split.
+    let wordStart = 0;
+    let wordPlain = true;
     for (let i = 0; i < cmd.length; i++) {
         const c = cmd[i];
         if (quote !== null) {
@@ -368,12 +458,14 @@ export function commandSegments(cmd, depth = 0) {
             continue;
         }
         if (c === "\\") {
+            wordPlain = false;
             cur += c;
             if (i + 1 < cmd.length)
                 cur += cmd[++i];
             continue;
         }
         if (c === '"' || c === "'") {
+            wordPlain = false;
             quote = c;
             cur += c;
             continue;
@@ -386,14 +478,32 @@ export function commandSegments(cmd, depth = 0) {
             i = nl - 1;
             continue;
         }
+        // A REDIRECTION OPERATOR THAT CONTAINS `&` IS NOT A SPLITTER (plan 33-27). `2>&1`, `>&2`, `&>f`,
+        // `&>>f` were cut here at the `&`, leaving an opaque `2>` in one segment and a stray `1` in the
+        // next. The word so far, the `&` and the run after it are asked of the ONE grammar; a match is
+        // consumed into the word, anything else falls through to the splitter exactly as before.
+        if (c === "&" && wordPlain) {
+            const run = AFTER_AMPERSAND_RE.exec(cmd.slice(i + 1))[0];
+            if (REDIRECTION_RE.test(cur.slice(wordStart) + "&" + run)) {
+                cur += "&" + run;
+                i += run.length;
+                continue;
+            }
+        }
         const m = SEGMENT_SPLIT_RE.exec(cmd.slice(i));
         if (m) {
             raws.push(cur);
             cur = "";
+            wordStart = 0;
+            wordPlain = true;
             i += m[0].length - 1;
             continue;
         }
         cur += c;
+        if (/\s/.test(c)) {
+            wordStart = cur.length;
+            wordPlain = true;
+        }
     }
     if (quote !== null) {
         // Unbalanced quoting: one unreadable segment carrying the whole text, never a silent mis-parse.
@@ -500,6 +610,7 @@ export function normalizeToolWord(word) {
 function verbCandidates(words, from) {
     const out = [];
     let opaque = false;
+    const unreadable = [];
     // AN ALIAS VALUE IS READ WHOLE OR NOT AT ALL (plan 30-11 round 4, `RA5-3`).
     //
     // Round 3 read the value's FIRST TOKEN and then pushed the whole raw value as one more candidate.
@@ -520,11 +631,14 @@ function verbCandidates(words, from) {
         const value = m[1].trim();
         if (CANONICAL_WORD_RE.test(value))
             out.push(value);
-        else
+        else {
             opaque = true;
+            unreadable.push(raw);
+        }
     };
     for (let j = from; j < words.length; j++) {
         const w = words[j];
+        // A redirection word is skipped here as a matter of KIND: it is neither a verb nor a flag.
         if (w.kind !== "canonical")
             continue;
         if (w.isFlag) {
@@ -536,7 +650,7 @@ function verbCandidates(words, from) {
         readAlias(w.value);
         out.push(w.value);
     }
-    return { values: out, opaque };
+    return { values: out, opaque, unreadable };
 }
 /**
  * The first candidate after the tool, or `null` when a FLAG comes first.
@@ -565,6 +679,10 @@ function verbCandidates(words, from) {
 function adjacentWord(words, from) {
     for (let j = from; j < words.length; j++) {
         const w = words[j];
+        // A redirection is not part of the tool's argument list — `git 2>&1 commit` is `git commit` —
+        // so it neither decides nor intervenes (plan 33-27). An opaque word still ends the search.
+        if (w.kind === "redirection")
+            continue;
         if (w.kind !== "canonical")
             return null;
         if (w.isFlag)
@@ -599,6 +717,18 @@ function gitPushIsGoverned(candidates, words) {
     if (ref === "HEAD" || ref === "@")
         return true;
     return PROTECTED_REF_RE.test(ref);
+}
+/**
+ * The words that made a segment opaque, for the deny text. Opaque-kind words first; when the raw-level
+ * substitution test is what fired (a `$(…)` inside a wholly-quoted word this classifier read as one
+ * value), the words carrying that form; the whole segment only if neither names anything.
+ */
+function unreadableWords(seg) {
+    const opaque = seg.words.filter((w) => w.kind === "opaque").map((w) => w.value);
+    if (opaque.length > 0)
+        return opaque;
+    const carrying = seg.words.filter((w) => UNRESOLVABLE_SHELL_RE.test(w.value)).map((w) => w.value);
+    return carrying.length > 0 ? carrying : [seg.raw];
 }
 /**
  * The fail-closed answer for a segment this model will not read: which checkpoints does it touch,
@@ -639,14 +769,31 @@ function failClosedCheckpoints(text) {
  * matches.
  */
 export function matchCommandCheckpoints(cmd) {
-    const out = new Set();
+    const readable = new Set();
+    const failClosed = new Set();
+    const unreadable = [];
+    let untokenizable = false;
+    // The ONE fail-closed arm: the tool names of an unreadable text, and the words that made it so.
+    const refuse = (text, words) => {
+        untokenizable = true;
+        for (const id of failClosedCheckpoints(text))
+            failClosed.add(id);
+        for (const w of words)
+            if (!unreadable.includes(w))
+                unreadable.push(w);
+    };
+    const result = () => ({
+        checkpoints: new Set([...readable, ...failClosed]),
+        untokenizable,
+        readable,
+        failClosed,
+        unreadable,
+    });
     const segs = commandSegments(cmd);
     if (segs === null) {
-        for (const id of failClosedCheckpoints(cmd))
-            out.add(id);
-        return { checkpoints: out, untokenizable: true };
+        refuse(cmd, [cmd]);
+        return result();
     }
-    let untokenizable = false;
     const queue = [...segs];
     // NO SEGMENT CAP (plan 30-11 round 4, `RA5-1`).
     //
@@ -662,12 +809,19 @@ export function matchCommandCheckpoints(cmd) {
     // of segments is bounded by the input length. Reviewer 5 measured the worst case at 466 ms for a
     // 2 MB command, and reviewer 3 measured 5 MB at under 500 ms. A bound that silently drops evidence
     // is worse than the cost it was avoiding.
+    //
+    // OPAQUE IS DECIDED PER SEGMENT, AND A REDIRECTION IS NOT OPAQUE (plan 33-27). A segment is opaque
+    // whenever ANY of its words is — a `redirection` word is a third kind, read by `REDIRECTION_RE`, so
+    // a segment whose only punctuation was a redirection is now read by the model below; nothing else
+    // about this arm changes. Readable by grammar, or opaque: there is no third state. A bare `$var` and
+    // a heredoc are opaque BY DECISION — a variable's value is unknowable at hook time, and a heredoc's
+    // body lines are commands to this tokenizer — so the fence P30 built (an unreadable segment denies
+    // on the tool name alone, a backstop the triggering edit cannot defeat) is not re-opened one
+    // register over.
     while (queue.length > 0) {
         const seg = queue.shift();
         if (seg.opaque) {
-            untokenizable = true;
-            for (const id of failClosedCheckpoints(seg.raw))
-                out.add(id);
+            refuse(seg.raw, unreadableWords(seg));
             continue;
         }
         const words = seg.words;
@@ -695,11 +849,8 @@ export function matchCommandCheckpoints(cmd) {
             // command (`git commit -m 'git push origin main'`), which is recorded rather than parsed away.
             if (/\s/.test(w.value)) {
                 const nested = commandSegments(w.value, 1);
-                if (nested === null) {
-                    untokenizable = true;
-                    for (const id of failClosedCheckpoints(w.value))
-                        out.add(id);
-                }
+                if (nested === null)
+                    refuse(w.value, [w.value]);
                 else
                     queue.push(...nested);
             }
@@ -709,9 +860,7 @@ export function matchCommandCheckpoints(cmd) {
                     continue;
                 const cand = verbCandidates(words, i + 1);
                 if (cand.opaque) {
-                    untokenizable = true;
-                    for (const id of failClosedCheckpoints(seg.raw))
-                        out.add(id);
+                    refuse(seg.raw, cand.unreadable);
                     continue;
                 }
                 const candidates = cand.values;
@@ -723,18 +872,18 @@ export function matchCommandCheckpoints(cmd) {
                 if (r.tool === "git") {
                     const at = candidates.indexOf("update-ref");
                     if (at !== -1 && candidates.slice(at + 1).some((c) => PROTECTED_REF_RE.test(c))) {
-                        out.add(r.checkpoint);
+                        readable.add(r.checkpoint);
                     }
                     if (gitPushIsGoverned(candidates, words))
-                        out.add(r.checkpoint);
+                        readable.add(r.checkpoint);
                     continue;
                 }
                 if (candidates.some((c) => r.verbs.includes(c)))
-                    out.add(r.checkpoint);
+                    readable.add(r.checkpoint);
             }
         }
     }
-    return { checkpoints: out, untokenizable };
+    return result();
 }
 /**
  * Every checkpoint the table governs, derived. `hooks/guard.ts` asserts at startup that each is a
