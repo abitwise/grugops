@@ -16598,3 +16598,302 @@ describe("31-41 — the shared-install shape is MEASURED against the widened ref
     ).toContain("SHARED-INSTALL");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-25 — KIT (b), WINDOWS.md row 256: a note the sanctioned writer did not compose is REFUSED
+// on read.
+//
+// WHAT WAS WRONG, MEASURED ON THE HELD ROUND-1 CAPTURE (33-DIAGNOSIS.md § 1.3 (ii)). Path B's three
+// role agents wrote all nine of their notes with the `Write` tool straight into
+// `.grugops/context/<task>/notes/`, and `readContext` admitted every one: 9 records, author stamps
+// derived, the CAP-03 verdict held. Nothing mechanical distinguished a note the writer composed
+// from a note a hand typed, so the WF16 single-writer rule held on path A by tooling and on path B
+// by nothing.
+//
+// THE MECHANISM UNDER TEST. `composeNote` — the ONE composer every write route goes through — emits
+// a content-bound seal as the LAST line inside the fence; `sealVerdict` — the ONE predicate — locates
+// it, strips it, recomputes through `noteSeal`, and answers `absent` / `malformed` / `mismatch` / ok.
+// `readRawNotesWithSkips`, the ONE walk, asks the predicate after `parseNote` succeeds and files a
+// refused note under the reader-owned arm `unsealed`, which `render` counts like the other arms.
+//
+// THE FIXTURE IS THE REAL THING. S1 reads the nine `Write` tool-use inputs from the immutable
+// capture commit (c7be6d0d, D-11) and plants their `input.content` verbatim. On the dispatch base
+// the same body reads 9 records; after the change it reads 0 and reports 9 under `unsealed`.
+//
+// THE RESIDUAL, STATED HERE AS WELL AS IN THE MODULE. The seal is unkeyed — a file-based kit holds
+// no secret the subject cannot read — so it distinguishes hand-composed from writer-composed notes
+// and detects post-write edits; a process that reimplements the algorithm is one register over. The
+// un-forgeable tier (a point-of-effect deny of file-writing tools under the context root) is a kit
+// capability decision left to the human (33-CONTEXT: no new factory capability), not taken here.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33-25 — KIT (b): the reader refuses a note the sanctioned writer did not compose", () => {
+  const HELD_CAPTURE_SHA = "c7be6d0d";
+  const HELD_CAPTURE_DIR = ".planning/phases/33-live-capture-windows-portability";
+  // The last PUSHED sha before this round — the program whose own writer S4 drives (no grandfather
+  // clause is proven against the base's writer, not against a hand-typed pre-seal note).
+  const LAST_PUSHED_SHA = "9e1c1131cec8943e2ac96233ed7e624720ced14b";
+  // The nine `Write` tool-use frames of path B, by line, as 33-DIAGNOSIS.md § 1.3 (ii) cites them.
+  const PATH_B_WRITE_LINES = [774, 795, 817, 1542, 1607, 1638, 1757, 1779, 1802] as const;
+
+  /** `git show <sha>:<path>` — the capture is read from the immutable commit, never the tree. */
+  function gitShow(sha: string, path: string): string {
+    const r = spawnSync("git", ["show", `${sha}:${path}`], {
+      cwd: ROOT,
+      encoding: "utf8",
+      input: "",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (r.error !== undefined || r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+      throw new Error(
+        `git cannot show ${sha}:${path} (exit ${String(r.status)}) — the commit must be reachable ` +
+          `from this clone: ${(r.stderr ?? "").trim()}`,
+      );
+    }
+    return r.stdout;
+  }
+
+  interface HandWrittenNote {
+    readonly line: number;
+    readonly task: string;
+    readonly file: string;
+    readonly content: string;
+  }
+
+  /** The nine hand-written notes: task and basename from `input.file_path`, bytes from `input.content`. */
+  function pathBHandWrittenNotes(): HandWrittenNote[] {
+    const lines = gitShow(HELD_CAPTURE_SHA, `${HELD_CAPTURE_DIR}/33-CAPTURE-B.jsonl`).split("\n");
+    const out: HandWrittenNote[] = [];
+    for (const n of PATH_B_WRITE_LINES) {
+      const frame = JSON.parse(lines[n - 1]) as {
+        type: string;
+        message?: { content?: Array<{ type: string; name?: string; input?: { file_path?: string; content?: string } }> };
+      };
+      const writes = (frame.message?.content ?? []).filter((b) => b.type === "tool_use" && b.name === "Write");
+      expect(writes, `PREMISE: B:${n} carries no \`Write\` tool-use block`).toHaveLength(1);
+      const input = writes[0].input ?? {};
+      const fp = (input.file_path ?? "").replace(/\\/g, "/");
+      const m = fp.match(/\/\.grugops\/context\/([^/]+)\/notes\/([^/]+\.md)$/);
+      expect(m, `PREMISE: B:${n} file_path is not under a task's notes/ directory: ${fp}`).not.toBeNull();
+      expect(typeof input.content, `PREMISE: B:${n} carries no content`).toBe("string");
+      out.push({ line: n, task: (m as RegExpMatchArray)[1], file: (m as RegExpMatchArray)[2], content: input.content as string });
+    }
+    return out;
+  }
+
+  function store(prefix: string): string {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".grugops", "context"), { recursive: true });
+    return join(root, ".grugops", "context");
+  }
+  function plant(ctx: string, task: string, file: string, bytes: string): string {
+    mkdirSync(join(ctx, task, "notes"), { recursive: true });
+    const p = join(ctx, task, "notes", file);
+    writeFileSync(p, bytes);
+    return p;
+  }
+  const indexOf = (ctx: string, task: string): string => readFileSync(join(ctx, task, "index.md"), "utf8");
+  /** The rows the skip report filed under one arm, with their detail word. */
+  function skipRows(md: string, arm: string): Array<{ file: string; detail: string }> {
+    const section = md.indexOf("## Skipped entries") < 0 ? "" : md.slice(md.indexOf("## Skipped entries"));
+    return section
+      .split("\n")
+      .filter((l) => l.startsWith("| ") && l.includes(` | ${arm} | `))
+      .map((l) => {
+        const cells = l.split("|").map((c) => c.trim()).slice(1, -1);
+        return { file: cells[0], detail: cells[2] };
+      });
+  }
+  const leanNote = (over: Partial<Record<string, string>> = {}) =>
+    ({
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-21T00:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+      ...over,
+    }) as Parameters<typeof mod.appendNote>[1];
+  const SEAL_LINE_RE = /^seal: sha256:[0-9a-f]{64}$/;
+  /** The fence lines of a note's on-disk text (between the opening and closing `---`). */
+  function fenceLines(text: string): string[] {
+    const m = text.match(/^---\n([\s\S]*?)\n---\n/);
+    expect(m, "PREMISE: the note has no frontmatter fence").not.toBeNull();
+    return (m as RegExpMatchArray)[1].split("\n");
+  }
+
+  it("S1 — the nine hand-written notes of the held capture (path B, `Write` tool) are REFUSED by name: 0 records, 9 `unsealed`/`absent`", () => {
+    const notes = pathBHandWrittenNotes();
+    expect(notes, "PREMISE: fewer than nine frames decoded").toHaveLength(9);
+    // PREMISE, asserted in the same body: every one of the nine is structurally a note — that is the
+    // whole finding. A fixture the parser refused would prove nothing about the seal.
+    for (const n of notes) {
+      expect(mod.parseNote(n.content), `PREMISE: B:${n.line} does not parse as a note`).not.toBeNull();
+    }
+    const ctx = store("p33-25-s1-");
+    for (const n of notes) plant(ctx, n.task, n.file, n.content);
+    const tasks = [...new Set(notes.map((n) => n.task))].sort();
+    expect(tasks, "PREMISE: the nine notes do not span the three audit tasks").toHaveLength(3);
+    let records = 0;
+    const refused: Array<{ file: string; detail: string }> = [];
+    for (const task of tasks) {
+      records += mod.readContext(task, ctx).length;
+      mod.render(task, ctx);
+      refused.push(...skipRows(indexOf(ctx, task), "unsealed"));
+    }
+    // On the dispatch base this reads 9 — the number 33-DIAGNOSIS.md § 1.3 (ii) measured.
+    expect(records, "a hand-written note was returned as an admitted record").toBe(0);
+    expect(refused.map((r) => r.file).sort()).toEqual(notes.map((n) => n.file).sort());
+    expect(new Set(refused.map((r) => r.detail))).toEqual(new Set(["absent"]));
+  });
+
+  it("S2 — the writer's own note reads back: 1 record, 0 skipped, exactly one `seal:` line, LAST inside the fence, anchored sha256 form", () => {
+    const ctx = store("p33-25-s2-");
+    const T = "T-S2";
+    const id = mod.appendNote(T, leanNote(), "a body the writer composed\n", ctx, undefined, freshTmp("p33-25-s2-lean-"));
+    expect(mod.readContext(T, ctx).map((n) => n.id)).toEqual([id]);
+    mod.render(T, ctx);
+    expect(indexOf(ctx, T)).not.toContain("## Skipped entries");
+    const text = readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8");
+    const fence = fenceLines(text);
+    const sealLines = fence.filter((l) => l.startsWith("seal:"));
+    expect(sealLines, "the writer did not emit exactly one seal line").toHaveLength(1);
+    expect(sealLines[0]).toMatch(SEAL_LINE_RE);
+    expect(fence[fence.length - 1], "the seal is not the LAST line inside the fence").toBe(sealLines[0]);
+    // `id:` stays the frozen FIRST slot.
+    expect(fence[0]).toBe(`id: ${id}`);
+    // The predicate agrees with the walk.
+    expect(mod.sealVerdict(text)).toEqual({ ok: true });
+  });
+
+  it("S3 — mutations, one at a time, each named: (a) one body byte -> mismatch; (b) seal deleted -> absent; (c) X's seal on Y -> mismatch; (d) not sha256+64hex -> malformed; (e) two seal lines -> malformed", () => {
+    const ctx = store("p33-25-s3-");
+    const lean = freshTmp("p33-25-s3-lean-");
+    const T = "T-S3";
+    const idX = mod.appendNote(T, leanNote({ at: "2026-09-21T00:00:01Z" }), "body of X\n", ctx, undefined, lean);
+    const idY = mod.appendNote(T, leanNote({ at: "2026-09-21T00:00:02Z" }), "body of Y\n", ctx, undefined, lean);
+    const pathX = join(ctx, T, "notes", `${idX}.md`);
+    const pathY = join(ctx, T, "notes", `${idY}.md`);
+    const textX = readFileSync(pathX, "utf8");
+    const textY = readFileSync(pathY, "utf8");
+    const sealOf = (t: string): string => fenceLines(t).find((l) => l.startsWith("seal:")) as string;
+    expect(mod.readContext(T, ctx), "PREMISE: the two writer notes do not both read").toHaveLength(2);
+
+    const cases: Array<[string, string, string, string]> = [
+      // label, path, mutated bytes, expected detail
+      ["(a) one body byte changed", pathY, textY.replace("body of Y", "body of Z"), "mismatch"],
+      ["(b) the seal line deleted", pathY, textY.replace(sealOf(textY) + "\n", ""), "absent"],
+      ["(c) X's seal pasted onto Y", pathY, textY.replace(sealOf(textY), sealOf(textX)), "mismatch"],
+      ["(d) a seal value outside the anchored form", pathY, textY.replace(sealOf(textY), "seal: sha256:not-hex-at-all"), "malformed"],
+      ["(e) two seal lines", pathY, textY.replace(sealOf(textY) + "\n", sealOf(textY) + "\n" + sealOf(textY) + "\n"), "malformed"],
+    ];
+    for (const [label, path, mutated, detail] of cases) {
+      expect(mutated, `PREMISE: ${label} produced no change`).not.toBe(textY);
+      writeFileSync(path, mutated);
+      const v = mod.sealVerdict(mutated);
+      expect(v.ok, `${label}: the predicate still says ok`).toBe(false);
+      expect((v as { ok: false; reason: string }).reason, `${label}: wrong reason`).toBe(detail);
+      // The WALK gives the same answer: X still reads, Y is refused under `unsealed` with the detail.
+      expect(mod.readContext(T, ctx).map((n) => n.id), `${label}: the walk still returned Y`).toEqual([idX]);
+      mod.render(T, ctx);
+      expect(skipRows(indexOf(ctx, T), "unsealed"), `${label}: the skip report is wrong`).toEqual([
+        { file: `${idY}.md`, detail },
+      ]);
+      writeFileSync(path, textY); // restore for the next mutation
+    }
+    expect(mod.readContext(T, ctx), "restoring the bytes did not restore the read").toHaveLength(2);
+  });
+
+  it("S4 — NO GRANDFATHER CLAUSE: a note the last pushed sha's own writer composed is refused by HEAD's reader (0 records, 1 `unsealed`/`absent`), and read by the base's (1 record)", async () => {
+    // The base kit: EVERY committed `.js` under scripts/ and hooks/ at the last pushed sha, so the
+    // base module runs beside the siblings it was built with — the `preFixKit` idiom, sourced from
+    // the sha rather than the tree.
+    const kit = freshTmp("p33-25-s4-basekit-");
+    const listing = spawnSync("git", ["ls-tree", "-r", "--name-only", LAST_PUSHED_SHA, "scripts", "hooks"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      input: "",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    expect(listing.status, `PREMISE: git ls-tree failed: ${listing.stderr}`).toBe(0);
+    const jsFiles = listing.stdout.split("\n").filter((f) => f.endsWith(".js"));
+    expect(jsFiles.length, "PREMISE: the base sha lists no committed .js").toBeGreaterThan(10);
+    for (const f of jsFiles) {
+      mkdirSync(dirname(join(kit, f)), { recursive: true });
+      writeFileSync(join(kit, f), gitShow(LAST_PUSHED_SHA, f));
+    }
+    mkdirSync(join(kit, "agent-factory", "config"), { recursive: true });
+    writeFileSync(
+      join(kit, "agent-factory", "config", "factory.config.json"),
+      gitShow(LAST_PUSHED_SHA, "agent-factory/config/factory.config.json"),
+    );
+    // PREMISE: the base module has no seal (the case is about ITS notes being pre-seal).
+    const baseSource = readFileSync(join(kit, "scripts", "context-io.js"), "utf8");
+    expect(baseSource.includes("sealVerdict"), "PREMISE: the base module already carries the seal").toBe(false);
+    const base: typeof import("./context-io.js") = await import(pathToFileURL(join(kit, "scripts", "context-io.js")).href);
+
+    const ctx = store("p33-25-s4-");
+    const T = "T-S4";
+    const id = base.appendNote(T, leanNote(), "a legitimate pre-seal note\n", ctx, undefined, freshTmp("p33-25-s4-lean-"));
+    const text = readFileSync(join(ctx, T, "notes", `${id}.md`), "utf8");
+    expect(fenceLines(text).some((l) => l.startsWith("seal:")), "PREMISE: the base writer emitted a seal").toBe(false);
+    // The premise: the base reads its own note.
+    expect(base.readContext(T, ctx).map((n) => n.id), "PREMISE: the base module does not read its own note").toEqual([id]);
+    // The claim: HEAD refuses it — an age exemption is exactly the arm a hand-writer would take.
+    expect(mod.readContext(T, ctx), "HEAD's reader grandfathered a pre-seal note").toEqual([]);
+    mod.render(T, ctx);
+    expect(skipRows(indexOf(ctx, T), "unsealed")).toEqual([{ file: `${id}.md`, detail: "absent" }]);
+  });
+
+  it("S5 — ONE authority: exactly one function emits the seal key and exactly one computes the digest, derived from the module's AST", () => {
+    const source = ts.createSourceFile("context-io.ts", readFileSync(CONTEXT_IO_TS, "utf8"), ts.ScriptTarget.Latest, true);
+    const emitters: string[] = [];
+    const digesters: string[] = [];
+    for (const statement of source.statements) {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+      const name = statement.name.text;
+      let emits = false;
+      let digests = false;
+      const walk = (node: ts.Node): void => {
+        // The digest site: a call to `createHash`.
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "createHash") digests = true;
+        // The emission site: a template whose span interpolates `NOTE_SEAL_KEY` and continues with `:`,
+        // or any string/template literal spelling `seal:` outright (the shape a second emitter would take).
+        if (ts.isTemplateExpression(node)) {
+          for (const span of node.templateSpans) {
+            if (ts.isIdentifier(span.expression) && span.expression.text === "NOTE_SEAL_KEY" && span.literal.text.startsWith(":")) emits = true;
+          }
+          if (node.head.text.includes("seal:")) emits = true;
+        }
+        if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.text.includes("seal:")) emits = true;
+        ts.forEachChild(node, walk);
+      };
+      walk(statement.body);
+      if (emits) emitters.push(name);
+      if (digests) digesters.push(name);
+    }
+    expect(emitters, "the seal key is emitted from more than one site, or from none").toEqual(["composeNote"]);
+    expect(emitters).toHaveLength(1);
+    expect(digesters, "the digest is computed in more than one function, or in none").toEqual(["noteSeal"]);
+    expect(digesters).toHaveLength(1);
+    // `sealVerdict` recomputes THROUGH `noteSeal` rather than beside it.
+    const verdictDecl = source.statements.find(
+      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === "sealVerdict",
+    );
+    expect(verdictDecl, "sealVerdict is not a top-level function declaration").toBeDefined();
+    let callsNoteSeal = false;
+    const walkV = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "noteSeal") callsNoteSeal = true;
+      ts.forEachChild(node, walkV);
+    };
+    walkV((verdictDecl as ts.FunctionDeclaration).body as ts.Node);
+    expect(callsNoteSeal, "sealVerdict does not recompute through noteSeal").toBe(true);
+    // The reader-owned arm is declared, and the exported constants are the anchored form.
+    expect([...mod.NOTE_SKIP_ARMS]).toContain("unsealed");
+    expect(mod.NOTE_SEAL_KEY).toBe("seal");
+    expect(mod.noteSeal("x")).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(mod.noteSeal("x")).toBe(mod.noteSeal("x"));
+    expect(mod.noteSeal("x")).not.toBe(mod.noteSeal("y"));
+  });
+});
