@@ -4,10 +4,10 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
-status: "Phase 33 gap-closure round 2 of 4 EXECUTED 2026-09-21 (12 plans 33-12..33-23), awaiting verification: CR-01..05 fixed offline (33-12, 33-13); CAP-02 NOT MET on CI run 35579263776 (ubuntu success, windows failure on one 8.3-spelling class, WINDOWS.md row 236); live go HELD at 33-21 (ledger-and-hold, outcome word no-go, zero spend); GAP-D1 held again (manifest section 7); 33-23 appended 22 ledger rows (18 accepted-open review findings + 4 KIT items) and resolved 9 of 12 deferred items. CAP-01/02/03 all Pending. Standing rule: four-round gap-closure cap on every later phase; two rounds remain."
+status: "Phase 33 gap-closure round 2 of 4 EXECUTED and VERIFIED 2026-09-21 — gaps_found 0/3; next: /gsd-plan-phase 33 --gaps (round 3 of 4)"
 stopped_at: Completed 33-23-PLAN.md (round 2 of 4 executed; awaiting /gsd-verify-work 33)
-last_updated: "2026-09-21T11:12:14.856Z"
-state_head: 4ce038985f773f6f5b4ad2f4e07c732a3d3e9bb3
+last_updated: "2026-09-21T11:46:13.703Z"
+state_head: e8196d58b4aa58293416b8db034424e62a1b6218
 progress:
   total_phases: 11
   completed_phases: 32
@@ -1510,6 +1510,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-22 (round 2 hold): Task 1's one-way GAP-D1 flip checkpoint NOT presented — the round's outcome word is no-go (33-21 ledger-and-hold; no round-2 capture) and CAP-02 is NOT MET on run 35579263776 — so the hold is mechanical under D-20: manifest § 7 hold record + a second dated register note, every F/C row untouched, status pre-capture, gate 28/28 exit 0, no requirement marked complete, F14 literal not written; round 3 owns the KIT items, row 236 and a fresh go
 - [Phase 33]: 33-23: the 18 accepted-open review findings and the 4 KIT items are WINDOWS.md rows 237-258 through the tool (open 207 -> 229), left open not waived; no ledger row flipped on a run whose windows leg reads failure
 - [Phase 33]: 33-23: nine Phase 33 deferred items resolved only with the fix commit plus the CI leg that measured the class green on run 35579263776; the ten-context-io-reds item stays open (8 of 10 green, W-20/W-21 moved onto row 236); CAP-01/02/03 stay Pending, requirements.mark-complete deliberately not run
+- [Phase 33]: Round 2 verified gaps_found 0/3 (2026-09-21): CAP-02 genuine fail on ONE class (context-io 8.3 short-name spelling, row 236, run 35579263776 ubuntu green / windows 35 reds); CAP-01 HELD by human ledger-and-hold; CAP-03 held + round-2 review CR-01 (verdict inputs re-read from subject-writable disk after the run; LIVE_ALLOWED_TOOLS unscoped). Round 3 inputs on disk: row 236 authority, review CR-01+WR-01..06, KIT (a) carry propose_note in coordinator grant, KIT (b) refuse hand-written notes on read, manifest §7 two flip amendments, push-before-checkpoint sequencing.
 
 ### Pending Todos
 
