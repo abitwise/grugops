@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33-16-PLAN.md (W-21 + W-28 module closures, D-16 symlink routing, cell export; 7 task commits + docs 66015135). Next: 33-20 (wave 9)"
-last_updated: "2026-09-20T23:52:33.042Z"
-state_head: 66015135aea81bc7b360c7e498cd8eff7a107c56
+stopped_at: "Completed 33-20-PLAN.md (CAP-02 round-2 measurement: run 35579263776 ubuntu success / windows failure on one 8.3 class, row 236; local commits 4c72d8b0, 2e8bf64b + docs — NOT pushed). Next: 33-21 (wave 10) needs a human push first"
+last_updated: "2026-09-21T09:24:24.177Z"
+state_head: 2e8bf64b9f0b6af3c40eda257183217ab0a5e021
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 292
-  completed_plans: 288
+  completed_plans: 289
   percent: 99
 last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 9 of 23
+Plan: 10 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -546,6 +546,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P19 | 22 min | 3 tasks | 4 files |
 | Phase 33 P13 | 13 min | 2 tasks | 3 files |
 | Phase 33 P16 | 35 min | 3 tasks | 5 files |
+| Phase 33 P20 | 9h 2m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1500,6 +1501,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-16: the trusted-root walk's start is canonicalised where the cwd is READ (canonicalWorkingDirectory, rung 1) so a link-spelled cwd names the target on every host; the 31-15 mirror's two anchors stay byte-untouched
 - [Phase 33]: 33-16: a non-regular GOV-02 ledger position is classified by TYPE (one statSync, no new node:fs binding) before any open; the fstat guard stays as the race authority and both write-side arms carry 'refused rather than waited on'
 - [Phase 33]: 33-16: every directory-symlink fixture in context-io.test.ts is D-16-routed through stageSymlinkOrSkip (10 raw sites to 0, 13 helper sites; 35 counted rows under the seam); rebuilding context-io.js always requires npm run generate:hook-manifest
+- [Phase 33]: 33-20: CAP-02 NOT MET on run 35579263776 — ubuntu conclusion success (first green ubuntu leg; the 23-command gate chain reached), windows failure on ONE class in one file (35 reds in context-io.test.ts WR-15 block: 33-16's rung-1 realpathSync.native expands 8.3 names, the block's tmp15 fixtures preserve them); row 236 appended, rows 186/193/226-235 not flipped, no fix (D-11) — D-13: both legs must read success; a red leg is inventoried and handed to round 3, never fixed inside the measurement plan
 
 ### Pending Todos
 
@@ -1627,8 +1629,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-20T23:52:32.599Z
-Stopped at: Completed 33-16-PLAN.md (W-21 + W-28 module closures, D-16 symlink routing, cell export; 7 task commits + docs 66015135). Next: 33-20 (wave 9)
+Last session: 2026-09-21T09:24:23.746Z
+Stopped at: Completed 33-20-PLAN.md (CAP-02 round-2 measurement: run 35579263776 ubuntu success / windows failure on one 8.3 class, row 236; local commits 4c72d8b0, 2e8bf64b + docs — NOT pushed). Next: 33-21 (wave 10) needs a human push first
 Resume file: None
 
 ## Operator Next Steps
