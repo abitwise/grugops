@@ -4,7 +4,7 @@ milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
-status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
+status: "Phase 33 gap-closure round 2 of 4 EXECUTED 2026-09-21 (12 plans 33-12..33-23), awaiting verification: CR-01..05 fixed offline (33-12, 33-13); CAP-02 NOT MET on CI run 35579263776 (ubuntu success, windows failure on one 8.3-spelling class, WINDOWS.md row 236); live go HELD at 33-21 (ledger-and-hold, outcome word no-go, zero spend); GAP-D1 held again (manifest section 7); 33-23 appended 22 ledger rows (18 accepted-open review findings + 4 KIT items) and resolved 9 of 12 deferred items. CAP-01/02/03 all Pending. Standing rule: four-round gap-closure cap on every later phase; two rounds remain."
 stopped_at: "Completed 33-22-PLAN.md (hold branch: nothing flipped)"
 last_updated: "2026-09-21T10:45:17.387Z"
 state_head: 6b723f457c3c1b13cb987a2ca39431ea81e21147
@@ -14,9 +14,9 @@ progress:
   total_plans: 292
   completed_plans: 291
   percent: 100
-last_activity: 2026-09-20
+last_activity: 2026-09-21
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-last_activity_desc: "Planned Phase 33 gap-closure round 2 of 4: 12 additive plans (33-12..33-23) mapped one-to-one onto 33-VERIFICATION gaps[].missing and 33-REVIEW CR-01..05; plan checker VERIFICATION PASSED; decision coverage 20/20; requirement coverage CAP-01..03 3/3; round-1 plans byte-untouched."
+last_activity_desc: "Executed Phase 33 gap-closure round 2 of 4 (33-12..33-23): instrument fixes proven offline; CI run 35579263776 read from its own metadata (ubuntu success, windows failure, CAP-02 NOT MET); the round-2 go held by the human before any spend (no-go); GAP-D1 hold recorded in manifest section 7; ledgers closed by 33-23 (WINDOWS.md 236 -> 258 rows through the tool; deferred-items 12 -> 3 open with citations). Next: /gsd-verify-work 33, then round 3 (KIT (a)/(b), section 2, section 3, row 236)."
 ---
 
 # Project State
@@ -30,8 +30,9 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 33 (Live Capture & Windows Portability) — EXECUTING
+Phase: 33 (Live Capture & Windows Portability) — gap-closure round 2 of 4 EXECUTED 2026-09-21, awaiting verification
 Plan: 22 of 23
+Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
