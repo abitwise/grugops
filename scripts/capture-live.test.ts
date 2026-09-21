@@ -22,7 +22,7 @@
 
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
@@ -68,6 +68,7 @@ import {
   redactText,
   REDACTION_PLACEHOLDER,
   REQUIRED_FLAGS,
+  runCommandBuffered,
   runTarget,
   spawnObservations,
   TMP_PREFIX,
@@ -523,7 +524,7 @@ describe("precondition evaluation is a derived verdict distinct from the exit co
 // never from the working tree, so a later edit to the filed artifacts cannot move these cases. A
 // clone that cannot show the sha is a LOUD red naming it, not a skip.
 
-const HELD_CAPTURE_SHA = "c7be6d0d";
+const HELD_CAPTURE_SHA = "c7be6d0da19f0aa8d7554ac1591d5c4ce880b2ac";
 const HELD_CAPTURE_DIR = ".planning/phases/33-live-capture-windows-portability";
 
 function heldCapture(name: string): string {
@@ -693,7 +694,14 @@ function handBuiltTarget(label: "A" | "B"): TargetBuild {
   };
 }
 
-function recordingOps(streamText: string, onRun?: (transcriptPath: string, cwd: string) => void): LiveOps & { calls: { transcriptPath: string; cwd: string; args: readonly string[] }[] } {
+/**
+ * The run-seam recorder. `streamText` is what the stand-in WRITES to the transcript path (the
+ * operator's copy); `received` is what it RETURNS as the bytes the runner got on the child's stdout
+ * pipe (CR-01 round 2) — defaulting to the same text, so the honest case has the two agree and a
+ * case can make them disagree in either direction. `onRun` runs after the write and before the
+ * return: the window in which a subject could touch the file.
+ */
+function recordingOps(streamText: string, onRun?: (transcriptPath: string, cwd: string) => void, received: string = streamText): LiveOps & { calls: { transcriptPath: string; cwd: string; args: readonly string[] }[] } {
   const calls: { transcriptPath: string; cwd: string; args: readonly string[] }[] = [];
   return {
     calls,
@@ -703,9 +711,18 @@ function recordingOps(streamText: string, onRun?: (transcriptPath: string, cwd: 
       calls.push({ transcriptPath, cwd, args });
       writeFileSync(transcriptPath, streamText);
       onRun?.(transcriptPath, cwd);
-      return { status: 0, signal: null, timedOut: false, escalated: false, durationMs: 1, error: null, stderrTail: "" };
+      return { status: 0, signal: null, timedOut: false, escalated: false, durationMs: 1, error: null, stderrTail: "", transcriptText: received };
     },
   };
+}
+
+/** The writer-set idiom: a top-level function's text, from its declaration line to the first column-0 `}`. */
+function functionText(src: string, declaration: string): string {
+  const start = src.indexOf(`\n${declaration}`);
+  if (start < 0) throw new Error(`declaration not found in the source: ${declaration}`);
+  const end = src.indexOf("\n}\n", start);
+  if (end < 0) throw new Error(`no column-0 closing brace after: ${declaration}`);
+  return src.slice(start + 1, end + 2);
 }
 
 const RUN_SPEC = { request: "audit current architecture", allowedTools: ["Read"] as const, agent: null, pluginName: "grugops", marketplaceName: "grugops", boundMs: 1000 };
@@ -774,6 +791,120 @@ describe("CR-01: the scored transcript is streamed into a runner-owned scratch o
     const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
     expect(src.includes("join(build.target, transcriptName)"), "the in-target transcript location no longer exists in the source").toBe(false);
     expect(src.includes("join(build.transcriptDir, captureTranscriptName(")).toBe(true);
+  });
+});
+
+// ── CR-01 round 2 (33-REVIEW): the verdict is scored from the PIPE; the file is a copy ──────────
+//
+// Round 1 moved the transcript out of the subject's cwd; the round-2 review showed the subject still
+// held unscoped tools and that three verdict inputs were re-read from disk AFTER it ran — the file
+// among them, one `appendFileSync` away. The channel is now literally the bytes the runner received
+// on the child's stdout pipe: `runPlatform` buffers every chunk it also streams to the file and
+// resolves with `transcriptText`; `runTarget` scores `parseFrames(result.transcriptText)` and never
+// opens the transcript path again. The file is written for the operator and the diagnosis. The
+// cases below plant the review's attack at the NEW location (C1), prove the converse (C2), keep the
+// operator's copy honest (C3), drive the REAL buffering seam with a node child (C3b), and assert on
+// the source that no re-read survives inside `runTarget` (C4).
+
+describe("CR-01 round 2: the verdict is scored from the bytes the runner received on the pipe; the transcript file is a copy the subject cannot use", () => {
+  const withoutDenyText = (): string => FIXTURE_LINES.filter((l) => l !== PROD_DENY_LINE).join("\n") + "\n";
+
+  it("Test C1 (the review's attack at the NEW location): a forged prod-deploy deny frame appended to the transcript FILE during the run is blind — the D-04 row reads no and the received-bytes frame count is what is scored", async () => {
+    expect(PROD_DENY_LINE).toBeDefined();
+    const withoutDeny = withoutDenyText();
+    const received = parseFrames(withoutDeny);
+    expect(denyObservedInStream(received.frames), "control: the received stream carries no deny").toBe(false);
+    const build = handBuiltTarget("A");
+    const ops = recordingOps(withoutDeny, (transcriptPath) => {
+      // The subject, mid-run, appends the forged frame to the very file the runner streams into.
+      appendFileSync(transcriptPath, `${PROD_DENY_LINE as string}\n`);
+    });
+    const report = await runTarget(build, RUN_SPEC, ops);
+    const onDisk = parseFrames(readFileSync(report.transcriptPath, "utf8"));
+    expect(denyObservedInStream(onDisk.frames), "control: the FILE would score as a deny if it were read").toBe(true);
+    expect(onDisk.frames.length, "control: the file carries exactly one frame more than the pipe did").toBe(received.frames.length + 1);
+    expect(denyObservedInStream(report.frames.frames), "the forged frame in the file is not scored").toBe(false);
+    expect(report.frames.frames.length).toBe(received.frames.length);
+    expect(report.frames.frames.length).toBe(FIXTURE.frames.length - 1);
+    const d04 = report.claims.find((c) => c.label.startsWith("D-04 prod-deploy deny observed"));
+    expect(d04?.value.startsWith("no")).toBe(true);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C2 (converse — the pipe IS the channel): the same forged frame delivered IN the received bytes and absent from the file is scored — the D-04 row reads yes and cites the received line", async () => {
+    expect(PROD_DENY_LINE).toBeDefined();
+    const withoutDeny = withoutDenyText();
+    const receivedText = `${withoutDeny}${PROD_DENY_LINE as string}\n`;
+    const build = handBuiltTarget("A");
+    const ops = recordingOps(withoutDeny, undefined, receivedText);
+    const report = await runTarget(build, RUN_SPEC, ops);
+    expect(denyObservedInStream(parseFrames(readFileSync(report.transcriptPath, "utf8")).frames), "control: the file carries no deny").toBe(false);
+    expect(denyObservedInStream(report.frames.frames)).toBe(true);
+    const d04 = report.claims.find((c) => c.label.startsWith("D-04 prod-deploy deny observed"));
+    expect(d04?.value.startsWith("yes")).toBe(true);
+    expect(d04?.line, "the citation is the last line of the received bytes").toBe(parseFrames(receivedText).lineCount);
+    expect(report.transcriptText).toBe(receivedText);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C3: the operator's copy is faithful in the honest case (file == received bytes), and TargetRun.transcriptText is the received bytes even when the file diverges — never a re-read", async () => {
+    const honest = handBuiltTarget("A");
+    const honestOps = recordingOps(FIXTURE_TEXT);
+    const honestReport = await runTarget(honest, RUN_SPEC, honestOps);
+    expect(honestReport.transcriptText).toBe(FIXTURE_TEXT);
+    expect(readFileSync(honestReport.transcriptPath, "utf8")).toBe(honestReport.transcriptText);
+    for (const d of [honest.target, honest.home, honest.transcriptDir]) rmSync(d, { recursive: true, force: true });
+
+    const forgedLine = JSON.stringify({ type: "system", subtype: "forged", note: "planted in the file after the pipe closed" });
+    const divergent = handBuiltTarget("B");
+    const divergentOps = recordingOps(FIXTURE_TEXT, (transcriptPath) => appendFileSync(transcriptPath, `${forgedLine}\n`));
+    const divergentReport = await runTarget(divergent, RUN_SPEC, divergentOps);
+    expect(readFileSync(divergentReport.transcriptPath, "utf8"), "control: the file diverged").toBe(`${FIXTURE_TEXT}${forgedLine}\n`);
+    expect(divergentReport.transcriptText, "the report carries the received bytes, not the file").toBe(FIXTURE_TEXT);
+    expect(divergentReport.frames.frames.length).toBe(FIXTURE.frames.length);
+    expect(divergentReport.frames.frames.some((f) => f.subtype === "forged")).toBe(false);
+    for (const d of [divergent.target, divergent.home, divergent.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C3b (the REAL buffering seam, driven by a node child): transcriptText is the concatenation of every stdout chunk, byte-equal to the file; a run cut at the bound still carries the bytes received before the cut", async () => {
+    const dir = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-pipe-`));
+    const transcriptPath = join(dir, "33-CAPTURE-A.jsonl");
+    // Three chunks, written across two ticks, plus stderr noise: the pipe must reassemble them in order.
+    const lines = FIXTURE_LINES.slice(0, 3);
+    const script = [
+      `const L = ${JSON.stringify(lines)};`,
+      `process.stdout.write(L[0] + "\\n");`,
+      `process.stderr.write("noise\\n");`,
+      `setTimeout(() => { process.stdout.write(L[1] + "\\n"); setTimeout(() => { process.stdout.write(L[2] + "\\n"); }, 20); }, 20);`,
+    ].join("\n");
+    const r = await runCommandBuffered(process.execPath, ["-e", script], dir, childEnvironment(process.env), transcriptPath, 20_000);
+    expect(r.status).toBe(0);
+    expect(r.timedOut).toBe(false);
+    expect(r.transcriptText).toBe(`${lines.join("\n")}\n`);
+    expect(readFileSync(transcriptPath, "utf8")).toBe(r.transcriptText);
+    expect(parseFrames(r.transcriptText).frames.length).toBe(3);
+    expect(r.stderrTail).toContain("noise");
+
+    // Cut at the bound: two lines arrive, then the child sleeps past the bound and is stopped.
+    const cutPath = join(dir, "33-CAPTURE-B.jsonl");
+    const cutScript = `process.stdout.write(${JSON.stringify(lines[0])} + "\\n" + ${JSON.stringify(lines[1])} + "\\n"); setTimeout(() => {}, 60_000);`;
+    const cut = await runCommandBuffered(process.execPath, ["-e", cutScript], dir, childEnvironment(process.env), cutPath, 400);
+    expect(cut.timedOut).toBe(true);
+    expect(cut.status === 0, "a run stopped at the bound did not exit 0").toBe(false);
+    expect(cut.transcriptText).toBe(`${lines[0]}\n${lines[1]}\n`);
+    expect(readFileSync(cutPath, "utf8")).toBe(cut.transcriptText);
+    rmSync(dir, { recursive: true, force: true });
+  }, 30_000);
+
+  it("Test C4 (writer-set idiom): the body of runTarget contains no readFrames call and no readFileSync of the transcript path; the two legitimate file readers (dryRun over the fixture, verifyArtifacts over the artifact set) still read", () => {
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    const runTargetText = functionText(src, "export async function runTarget(");
+    expect(runTargetText.includes("readFrames("), "runTarget must not re-read the transcript through readFrames").toBe(false);
+    expect(runTargetText.includes("readFileSync(transcriptPath"), "runTarget must not re-read the transcript file").toBe(false);
+    expect(runTargetText.includes("parseFrames(result.transcriptText)"), "runTarget scores the received bytes").toBe(true);
+    expect(functionText(src, "async function dryRun(").includes("readFrames(FIXTURE_JSONL)"), "the dry run still reads the committed fixture").toBe(true);
+    expect(functionText(src, "export function verifyArtifacts(").includes("readFileSync("), "--verify-artifacts still reads the artifact set").toBe(true);
+    expect(src.includes("readFileSync(transcriptPath"), "no reader of the transcript path survives anywhere in the module").toBe(false);
   });
 });
 
