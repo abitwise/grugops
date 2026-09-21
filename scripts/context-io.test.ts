@@ -11714,6 +11714,160 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
     expect(viaCanonicalCwd).toBe(viaLinkSpelledCwd);
   });
 
+  it("W-ENV (33-24, WR-05 (b)): the env tier spells CLAUDE_PROJECT_DIR through the ONE ladder — a project addressed through a directory symlink answers the target's canonical spelling", () => {
+    // WHAT 33-REVIEW WR-05 (b) NAMED, drivable on darwin today. The env tier returned
+    // `resolve(fromEnv.trim())` — a bare LEXICAL spelling — so `CLAUDE_PROJECT_DIR=<link>/proj`
+    // answered the link spelling while the same directory reached as the cwd answered `<real>/proj`
+    // (33-16). Two answers for one directory, one tier apart: the shape the 33-16 docblock says the
+    // module deletes.
+    //
+    // D-33-R3-01 (recorded in STATE.md before this case was written): the module's ONE published
+    // spelling of a directory is rung 1 of `canonicalDirectoryPath`, exported as
+    // `canonicalWorkingDirectory`. The expected side of every comparison here is derived through
+    // that export, never through a `realpathSync` variant called in this file (D-15: one authority,
+    // both sides).
+    //
+    // RED on the dispatch base (1bd53b16), quoted in 33-24-SUMMARY.md: the env tier answered
+    // `<tree>/link/proj` where the authority answers `<tree>/real/proj`.
+    //
+    // THE 8.3 HALF IS UNMEASURED LOCALLY, BY CONSTRUCTION. darwin has no short names, so a directory
+    // symlink is the only second spelling this host can hand the tier. On win32 the same ladder also
+    // expands `RUNNER~1` to `runneradmin`; plan 33-31's pushed run is that measurement.
+    const tree = mod.canonicalWorkingDirectory(freshTmp("p33-24-wenv-"));
+    const real = join(tree, "real");
+    const proj = join(real, "proj");
+    mkdirSync(join(proj, ".git"), { recursive: true });
+    mkdirSync(join(proj, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(proj, ".grugops", "factory.config.json"),
+      JSON.stringify({ human_admission: "high-severity" }),
+    );
+    // A determined, marker-less home in the same tree (both names `os.homedir()` reads, 33-15), so
+    // the cwd-tier control below has a bounded walk.
+    const home = join(tree, "home");
+    mkdirSync(home, { recursive: true });
+    const link = join(tree, "link");
+    const skipped = stageSymlinkOrSkip(
+      real,
+      link,
+      "directory symlink to a project's parent",
+      "scripts/context-io.test.ts: W-ENV the env tier spells through the one ladder (33-24)",
+    );
+    if (skipped !== null) {
+      console.warn(
+        skipLine(skipped, "the fixed-point half of W-21 above, and the cwd-tier arm of Test W (33-16)"),
+      );
+      return;
+    }
+    const expected = mod.canonicalWorkingDirectory(proj);
+    // PREMISE: the authority resolves the link spelling to the target. Otherwise the assertions
+    // below would compare a link to itself and this case would be empty.
+    expect(mod.canonicalWorkingDirectory(join(link, "proj"))).toBe(expected);
+    expect(join(link, "proj")).not.toBe(expected);
+    // BOTH ambient names go through the ONE loop, so BOTH are driven — a second spelling arriving
+    // under the second name is this repository's recorded drift shape.
+    for (const name of mod.TRUSTED_ROOT_ENV_ORDER) {
+      const viaLink = inChild("m.trustedRepoRoot()", {
+        [name]: join(link, "proj"),
+        HOME: home,
+        USERPROFILE: home,
+      });
+      expect(
+        viaLink,
+        `${name}: the env tier published the LINK spelling; the value must go through ` +
+          "canonicalDirectoryPath the way the cwd tier and tier 0 do (WR-05 (b))",
+      ).toBe(expected);
+    }
+    // CONTROL: the cwd tier, handed the same link spelling, gives the SAME answer — so the two tiers
+    // are one authority and not two.
+    const viaCwd = inChild(
+      `(process.cwd = () => ${JSON.stringify(join(link, "proj"))}, m.trustedRepoRoot())`,
+      { HOME: home, USERPROFILE: home },
+    );
+    expect(viaCwd).toBe(expected);
+  });
+
+  it("W-HOME (33-24, WR-05 (a)): the home stop fires at the home's CANONICAL spelling — a home addressed through a directory symlink still bounds the walk, and a project directly under it resolves to itself", () => {
+    // WHAT 33-REVIEW WR-05 (a) NAMED. `homeBoundary()` added the home's second spelling through
+    // rung 2 `realpathSync`, the authority that disagreed with rung 1 on windows-latest run
+    // 35579263776 (WINDOWS.md row 236). The walk climbs rung-1 spellings (33-16), so a home whose
+    // `USERPROFILE` carries an 8.3 component would have `abovePaths`/`selfPaths` hold the SHORT
+    // spelling while the walk climbs LONG-name directories: the path sets miss, only the dev:ino
+    // sets catch it, and the `degenerate` guard drops those on a host that reports equal identities
+    // for parent and child. The second spelling now goes through `canonicalDirectoryPath`
+    // (D-33-R3-01), the same ladder the walk's start is spelled by.
+    //
+    // WHICH HALF THIS HOST MEASURES, SAID PLAINLY. The LINK half only: on darwin rung 2 already
+    // resolves a directory symlink, so this case is GREEN before and after the change. It is a
+    // PREMISE (the stop is reached through the canonical spelling) and a PROPERTY (moving the
+    // second spelling onto rung 1 does not move the stop), not this plan's RED — W-ENV is. The 8.3
+    // half — a home spelled with a short name — is unmeasured locally, by construction; plan 33-31's
+    // pushed run decides it, and the 35 titles of 33-CI-MEASUREMENT.md Part 3 § 3.3 are its rows.
+    const tree = mod.canonicalWorkingDirectory(freshTmp("p33-24-whome-"));
+    // An ancestor ABOVE the home carrying a repository marker AND a governing configuration: the
+    // thing the home stop exists to keep the walk from adopting.
+    mkdirSync(join(tree, ".git"), { recursive: true });
+    mkdirSync(join(tree, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(tree, ".grugops", "factory.config.json"),
+      JSON.stringify({ human_admission: "all" }),
+    );
+    const realHome = join(tree, "real-home");
+    // Marker-less and configuration-less: the walk must CLIMB from here, and the home is the only
+    // thing between it and the ancestor above.
+    const work = join(realHome, "work");
+    mkdirSync(work, { recursive: true });
+    // A project DIRECTLY under the home.
+    const proj = join(realHome, "proj");
+    mkdirSync(join(proj, ".git"), { recursive: true });
+    mkdirSync(join(proj, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(proj, ".grugops", "factory.config.json"),
+      JSON.stringify({ human_admission: "high-severity" }),
+    );
+    // PREMISE (non-vacuity): with the home planted at a SIBLING tree, the ancestor above IS adopted
+    // — so a refusal below is the home stop's doing and not the fixture's.
+    const elsewhere = mod.canonicalWorkingDirectory(freshTmp("p33-24-whome-elsewhere-"));
+    expect(
+      inChild(`(process.cwd = () => ${JSON.stringify(work)}, m.trustedRepoRoot())`, {
+        HOME: elsewhere,
+        USERPROFILE: elsewhere,
+      }),
+      "PREMISE: the ancestor above the home is not adoptable at all, so the stop below is untested",
+    ).toBe(tree);
+    const linkHome = join(tree, "link-home");
+    const skipped = stageSymlinkOrSkip(
+      realHome,
+      linkHome,
+      "directory symlink to the home directory",
+      "scripts/context-io.test.ts: W-HOME the home stop fires at the canonical spelling (33-24)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the non-vacuity premise of this same case above"));
+      return;
+    }
+    // (a) a project DIRECTLY under the link-spelled home resolves to ITSELF, in the one spelling.
+    expect(
+      inChild(`(process.cwd = () => ${JSON.stringify(proj)}, m.trustedRepoRoot())`, {
+        HOME: linkHome,
+        USERPROFILE: linkHome,
+      }),
+      "a project directly under a link-spelled home did not resolve to itself",
+    ).toBe(mod.canonicalWorkingDirectory(proj));
+    // (b) the ancestor ABOVE the link-spelled home is NEVER adopted: the walk from the marker-less
+    // directory stops at the home — reached through its canonical spelling — and falls to the kit.
+    const [answered, kit] = inChild(
+      `(process.cwd = () => ${JSON.stringify(work)}, [m.trustedRepoRoot(), m.GOVERNANCE_FALLBACK_BASE])`,
+      { HOME: linkHome, USERPROFILE: linkHome },
+    ) as [string, string];
+    expect(
+      answered,
+      "an ancestor above a link-spelled home was adopted: the home stop missed the canonical " +
+        "spelling the walk climbs through (WR-05 (a))",
+    ).not.toBe(tree);
+    expect(answered).toBe(kit);
+  });
+
   it("TRUSTED_ROOT_TIERS names FIVE steps and is frozen", () => {
     expect(Object.isFrozen(mod.TRUSTED_ROOT_TIERS)).toBe(true);
     expect(mod.TRUSTED_ROOT_TIERS).toHaveLength(5);
