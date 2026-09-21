@@ -48,6 +48,7 @@ import {
   evaluatePreconditions,
   FIXTURE_JSONL,
   frameKinds,
+  gitObservations,
   homeSpellingSurvivors,
   INSTALL_AND_PLUGIN_PATHS,
   installedPluginRow,
@@ -64,6 +65,7 @@ import {
   pluginCachePathAccepted,
   pluginLoadReport,
   pluginUnderTest,
+  probe,
   projectLivePath,
   provenanceVerdict,
   readFrames,
@@ -76,6 +78,7 @@ import {
   runTarget,
   spawnObservations,
   TMP_PREFIX,
+  trackedFiles,
   verifyArtifacts,
   workingTreeStatusArgs,
   type AuthorStamp,
@@ -1400,6 +1403,135 @@ describe("WR-02 / WR-03: plugin provenance is a pre-spawn gate from the platform
     expect(src.includes("workingTreeStatusArgs()"), "the observation derives its arguments from the one constant").toBe(true);
     rmSync(repo, { recursive: true, force: true });
   });
+});
+
+// ── WR-04 / IN-05 (33-REVIEW round 2): what the runner PARSES is what git printed on stdout ──────
+//
+// `probe` returned `${stdout}${stderr}`; `childEnvironment` copies the operator's whole environment,
+// so a `GIT_TRACE=1` (or any git `warning:`) reached the data path: the tracked list gained a trace
+// line as a path, and the pushed-sha inputs carried trace text. Reproduced on the base through the
+// dry run under GIT_TRACE=1: 2467 tracked files against a real 2466, the working-tree row UNMET on
+// a trace line, the pushed-sha row UNKNOWN with the trace inside `remoteRef`. Now `probe` returns
+// `{ out, err }` and every consumer that parses reads `out` alone. IN-05 is the sibling channel in
+// the other direction: a transcript-supplied path reached a summary cell with only pipe/newline
+// escaping, so a C0/C1 byte would land in a committed artifact (the P32.1 F-14 class).
+
+/** Every top-level function of the module that calls `probe(` — the consumer census, derived from the source. */
+function probeConsumers(src: string): { name: string; text: string }[] {
+  const out: { name: string; text: string }[] = [];
+  for (const m of src.matchAll(/^(?:export )?(?:async )?function (\w+)\(/gm)) {
+    const name = m[1];
+    if (name === "probe") continue;
+    const text = functionText(src, m[0].replace(/\($/, "("));
+    if (/\bprobe\(/.test(text)) out.push({ name, text });
+  }
+  return out;
+}
+
+describe("WR-04 / IN-05: the probes' parsers read stdout alone, and a transcript-supplied path cannot carry a control byte into a cell or a filesystem call", () => {
+  it("Test P5 (the polluted channel): with GIT_TRACE=1 in the base environment, trackedFiles() is exactly the git ls-files -z entry count with no trace entry, and the git observations' pushed-sha inputs are 40-hex shas whose row carries no trace text", () => {
+    const polluted = childEnvironment(process.env, { GIT_TRACE: "1" });
+    // Premise: the pollution really is on the child's stderr.
+    const r = spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8", input: "", env: polluted });
+    expect(r.status).toBe(0);
+    expect(r.stderr, "premise: GIT_TRACE=1 writes a trace line to stderr").toContain("trace:");
+    const real = spawnSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf8", input: "", env: childEnvironment(process.env), maxBuffer: 64 * 1024 * 1024 }).stdout.split("\0").filter((p) => p !== "");
+    expect(real.length).toBeGreaterThan(0);
+    const tracked = trackedFiles(polluted);
+    expect(tracked, "the tracked list is readable under the polluted environment").not.toBeNull();
+    expect((tracked as string[]).length, `the tracked count is the git ls-files -z entry count (${real.length}), not that plus the trace lines`).toBe(real.length);
+    expect((tracked as string[]).filter((p) => p.includes("\n") || p.includes("trace"))).toEqual([]);
+    const g = gitObservations(polluted);
+    expect(g.localHead).toMatch(/^[0-9a-f]{40}$/);
+    expect(g.remoteRef, "the remote ref is a ref name, not a ref name plus a trace line").toMatch(/^[A-Za-z0-9._\/-]+$/);
+    expect(g.remoteHead).toMatch(/^[0-9a-f]{40}$/);
+    expect(g.aheadCount, "the ahead count parses").not.toBeNull();
+    expect(g.workingTreeStatus, "the scoped status is readable").not.toBeNull();
+    expect(g.workingTreeStatus as string).not.toContain("trace:");
+    const table = evaluatePreconditions({ ...observation(), ...g });
+    const pushed = table.rows.find((row) => row.name.startsWith("pushed sha"));
+    expect(pushed?.detail).not.toContain("trace");
+    expect(pushed?.state, "the pushed-sha row is decided (MET or UNMET), never UNKNOWN because a trace line broke the ref").not.toBe("UNKNOWN - verify");
+    expect(table.rows.find((row) => row.name.startsWith("working tree"))?.detail).not.toContain("trace");
+    // The clean and the polluted environment observe the SAME shas.
+    const clean = gitObservations(childEnvironment(process.env));
+    expect(g.localHead).toBe(clean.localHead);
+    expect(g.remoteHead).toBe(clean.remoteHead);
+  });
+
+  it("Test P6 (stderr is kept for the refusal text): probe returns null on a non-zero exit, { out, err } on exit 0 with err carrying the child's stderr; every consumer that parses reads .out and none reads .err; the install refusal still quotes stderr", () => {
+    const env = childEnvironment(process.env);
+    const both = probe(process.execPath, ["-e", "process.stdout.write('data'); process.stderr.write('warning: noise')"], env, 20_000);
+    expect(both).toEqual({ out: "data", err: "warning: noise" });
+    expect(probe(process.execPath, ["-e", "process.stdout.write('data'); process.exit(3)"], env, 20_000), "a non-zero exit is null, as before").toBeNull();
+    expect(probe(process.execPath, ["-e", "process.stdout.write('only')"], env, 20_000)).toEqual({ out: "only", err: "" });
+    // The consumer census: derived from the module's source, not typed.
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    const consumers = probeConsumers(src);
+    expect(consumers.length, "the census found probe consumers").toBeGreaterThanOrEqual(3);
+    for (const c of consumers) {
+      expect(c.text.includes(".out"), `${c.name} parses the stdout field`).toBe(true);
+      expect(c.text.includes(".err"), `${c.name} must not parse stderr — it is refusal text, never data`).toBe(false);
+    }
+    expect(src.includes('${r.stderr ?? ""}`'), "no probe concatenates stderr into the returned data").toBe(false);
+    // The ONE consumer that reports a refusal — the install decision — still includes the platform's stderr.
+    const failed = installOutcome({ status: 1, error: undefined, stdout: "", stderr: "marketplace grugops not found" });
+    expect(failed.ok).toBe(false);
+    if (failed.ok) throw new Error("unreachable");
+    expect(failed.reason).toContain("marketplace grugops not found");
+  });
+
+  it("Test P7 (control bytes never reach a cell): pluginCachePathAccepted refuses a C1 and a C0 byte before anything else; the plugin-under-test row replaces every [\\x00-\\x1f\\x7f-\\x9f] byte with <control> and states the count; verifyArtifacts refuses a raw control byte in any cell naming the row", () => {
+    const cacheRoot = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-ctl-cache-`));
+    const inside = join(cacheRoot, "cache", "grugops", "grugops", "2.1.0");
+    mkdirSync(inside, { recursive: true });
+    expect(pluginCachePathAccepted(inside, cacheRoot), "control: the clean path is accepted").toBe(realpathSync.native(inside));
+    expect(pluginCachePathAccepted(`${inside}\x85`, cacheRoot), "a C1 byte (U+0085) is refused").toBeNull();
+    expect(pluginCachePathAccepted(`${inside}\x01`, cacheRoot), "a C0 byte (U+0001) is refused").toBeNull();
+    expect(pluginCachePathAccepted(`${inside}\x7f`, cacheRoot), "DEL is refused").toBeNull();
+    // An EXISTING directory whose name carries the byte is refused all the same — the refusal is on
+    // the byte class, before any filesystem call, so acceptance cannot depend on what exists.
+    try {
+      mkdirSync(`${inside}\x85`);
+      expect(pluginCachePathAccepted(`${inside}\x85`, cacheRoot), "an existing directory carrying the byte is still refused").toBeNull();
+    } catch {
+      // This filesystem does not admit the byte in a name; the non-existent arm above covers the refusal.
+    }
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    const accepted = functionText(src, "export function pluginCachePathAccepted(");
+    const classAt = accepted.search(/\[\\x00-\\x1f\\x7f-\\x9f\]/);
+    expect(classAt, "the control-byte class is consulted inside pluginCachePathAccepted").toBeGreaterThan(0);
+    expect(classAt, "and before the dash-prefix check").toBeLessThan(accepted.indexOf('startsWith("-")'));
+
+    // The row: the value is rendered through the one cell escaper, which replaces and counts.
+    const model = reportModelWith([]);
+    model.provenance = { ...model.provenance, pluginLine: "grugops 2.1.0 at /cache/gru\x85gops/2.1.0" };
+    const rowC1 = renderReport(model).split("\n").find((l) => l.startsWith("| plugin under test per system/init |")) ?? "";
+    expect(rowC1).toBe("| plugin under test per system/init | grugops 2.1.0 at /cache/gru<control>gops/2.1.0 (1 control byte(s) replaced) |");
+    model.provenance = { ...model.provenance, pluginLine: "grugops\x01 2.1.0 at /cache/grugops/2.1.0\x9f" };
+    const rowC0 = renderReport(model).split("\n").find((l) => l.startsWith("| plugin under test per system/init |")) ?? "";
+    expect(rowC0).toBe("| plugin under test per system/init | grugops<control> 2.1.0 at /cache/grugops/2.1.0<control> (2 control byte(s) replaced) |");
+    // eslint-disable-next-line no-control-regex
+    expect(/[\x00-\x1f\x7f-\x9f]/.test(renderReport(model)), "no raw control byte survives in the rendered report").toBe(false);
+    model.provenance = { ...model.provenance, pluginLine: "grugops 2.1.0 at /cache/grugops/2.1.0" };
+    expect(renderReport(model)).toContain("| plugin under test per system/init | grugops 2.1.0 at /cache/grugops/2.1.0 |");
+
+    // verifyArtifacts over a committed summary carrying a raw byte in a cell refuses, naming the row.
+    const out = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-ctl-out-`));
+    const r = spawnSync("node", [join(ROOT, "scripts", "capture-live.js"), "--dry-run", "--out", out], { cwd: ROOT, encoding: "utf8", input: "", timeout: 300_000, env: childEnvironment(process.env) });
+    expect(r.status).toBe(0);
+    const reportPath = join(out, DRY_RUN_REPORT_NAME);
+    const good = readFileSync(reportPath, "utf8");
+    expect(verifyArtifacts(out), "control: the untouched report is accepted").toEqual([]);
+    const marker = "| plugin under test per system/init | ";
+    expect(good).toContain(marker);
+    writeFileSync(reportPath, good.replace(marker, `${marker}\x85`));
+    const refusals = verifyArtifacts(out);
+    expect(refusals.some((x) => x.includes("raw control byte") && x.includes("plugin under test per system/init")), JSON.stringify(refusals)).toBe(true);
+    writeFileSync(reportPath, good.replace("| mode | dry-run |", "| mode | dry\x01-run |"));
+    expect(verifyArtifacts(out).some((x) => x.includes("raw control byte") && x.includes("mode"))).toBe(true);
+    for (const d of [cacheRoot, out]) rmSync(d, { recursive: true, force: true });
+  }, 300_000);
 });
 
 // ── CR-05: a failed plugin install stops the run BEFORE the paid spawn ─────────────────────────
