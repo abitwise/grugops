@@ -17106,3 +17106,258 @@ describe("33-25 — R1/R2: every reader route reaches the refusal", () => {
     ]);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-26, TASK 1 — KIT § 3 of 33-DIAGNOSIS.md (WINDOWS.md row 258): the writer interpolated
+// `${note.verified_by}` with no presence check and published the WORD `undefined` for a field the
+// caller never set. The fault is serialization, not the caller's spelling (an explicit `undefined`
+// and an absent key serialize identically), so the fix is at the ONE field guard every write route
+// already passes through: a scalar that is not a string is refused BY NAME before anything is
+// composed. Absence is refused; emptiness (`""`, `null` for `supersedes`) still writes as before.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33-26 — KIT § 3: an absent scalar is refused by name, never serialized as the word `undefined`", () => {
+  // The dispatch base of this plan — the commit whose committed `scripts/context-io.js` wrote the
+  // literal `verified_by: undefined` (reproduced offline before any edit; V1 re-reproduces it here as
+  // the PREMISE so the refusal is proven against the base's own writer, not narrated).
+  const DISPATCH_BASE_SHA = "941197e2022ba63f015fda17c1955f131593309c";
+
+  function gitShowAt(sha: string, path: string): string {
+    const r = spawnSync("git", ["show", `${sha}:${path}`], {
+      cwd: ROOT,
+      encoding: "utf8",
+      input: "",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (r.error !== undefined || r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+      throw new Error(`git cannot show ${sha}:${path} (exit ${String(r.status)}): ${(r.stderr ?? "").trim()}`);
+    }
+    return r.stdout;
+  }
+
+  // The base kit: every committed `.js` under scripts/ and hooks/ at the dispatch base, so the base
+  // module runs beside the siblings it was built with (the S4 idiom of 33-25). Built once per file.
+  let basePromise: Promise<typeof import("./context-io.js")> | null = null;
+  function baseModule(): Promise<typeof import("./context-io.js")> {
+    if (basePromise !== null) return basePromise;
+    basePromise = (async () => {
+      const kit = freshTmp("p33-26-basekit-");
+      const listing = spawnSync("git", ["ls-tree", "-r", "--name-only", DISPATCH_BASE_SHA, "scripts", "hooks"], {
+        cwd: ROOT,
+        encoding: "utf8",
+        input: "",
+        maxBuffer: 64 * 1024 * 1024,
+      });
+      expect(listing.status, `PREMISE: git ls-tree failed: ${listing.stderr}`).toBe(0);
+      const jsFiles = listing.stdout.split("\n").filter((f) => f.endsWith(".js"));
+      expect(jsFiles.length, "PREMISE: the base sha lists no committed .js").toBeGreaterThan(10);
+      for (const f of jsFiles) {
+        mkdirSync(dirname(join(kit, f)), { recursive: true });
+        writeFileSync(join(kit, f), gitShowAt(DISPATCH_BASE_SHA, f));
+      }
+      mkdirSync(join(kit, "agent-factory", "config"), { recursive: true });
+      writeFileSync(
+        join(kit, "agent-factory", "config", "factory.config.json"),
+        gitShowAt(DISPATCH_BASE_SHA, "agent-factory/config/factory.config.json"),
+      );
+      return (await import(pathToFileURL(join(kit, "scripts", "context-io.js")).href)) as typeof import("./context-io.js");
+    })();
+    return basePromise;
+  }
+
+  type Note = Parameters<typeof mod.appendNote>[1];
+  /** A complete lean note; `over` may set a field to `undefined` (the ABSENT shape under test). */
+  const note = (over: Record<string, unknown> = {}): Note =>
+    ({
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-21T00:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+      ...over,
+    }) as unknown as Note;
+  /** A lean note with the named key DELETED (absent, not explicitly undefined). */
+  function without(key: string): Note {
+    const n = note() as unknown as Record<string, unknown>;
+    delete n[key];
+    return n as unknown as Note;
+  }
+  function store(prefix: string): string {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".grugops", "context"), { recursive: true });
+    return join(root, ".grugops", "context");
+  }
+  function noteFilesUnder(ctx: string, task: string): string[] {
+    const d = join(ctx, task, "notes");
+    return existsSync(d) ? readdirSync(d).sort() : [];
+  }
+  const T = "T-33-26";
+
+  it("V1 — PREMISE on the base: `admitAndAppend` with NO `verified_by` key returned an id and the file carried the literal `verified_by: undefined`", async () => {
+    const base = await baseModule();
+    const ctx = store("p33-26-v1-base-");
+    const res = base.admitAndAppend(T, without("verified_by"), "the diagnosis's reproduction\n", ctx, freshTmp("p33-26-v1-base-repo-"));
+    expect(res.findings).toEqual([]);
+    const files = noteFilesUnder(ctx, T);
+    expect(files).toEqual([`${res.id}.md`]);
+    const text = readFileSync(join(ctx, T, "notes", files[0]), "utf8");
+    expect(text.split("\n")).toContain("verified_by: undefined");
+    // …and the base's own reader handed the word back as a non-empty stamp no gate and no human set.
+    expect(base.readContext(T, ctx).map((n) => n.verified_by)).toEqual(["undefined"]);
+  });
+
+  it("V1 — HEAD: `admitAndAppend` and `appendNote` with NO `verified_by` key REFUSE naming the field and the word `absent`; nothing is written", () => {
+    for (const [label, call] of [
+      ["admitAndAppend", (ctx: string) => mod.admitAndAppend(T, without("verified_by"), "b\n", ctx, freshTmp("p33-26-v1-repo-"))],
+      ["appendNote", (ctx: string) => mod.appendNote(T, without("verified_by"), "b\n", ctx, undefined, freshTmp("p33-26-v1-lean-"))],
+    ] as const) {
+      const ctx = store("p33-26-v1-head-");
+      let message = "";
+      try {
+        call(ctx);
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, `${label} accepted an absent verified_by`).not.toBe("");
+      expect(message, `${label}'s refusal does not name the field`).toContain('"verified_by"');
+      expect(message, `${label}'s refusal does not say the field is absent`).toMatch(/absent/);
+      expect(message).not.toMatch(/single-line/); // refused by TYPE, before the newline rule
+      expect(noteFilesUnder(ctx, T), `${label} wrote after refusing`).toEqual([]);
+      expect(existsSync(join(ctx, T)), `${label} created the task directory before refusing`).toBe(false);
+    }
+  });
+
+  it("V2 — the same guard, every field: `kind`/`by`/`at`/`confidence`/`verified_by` undefined, `supersedes` undefined (not null), a non-string `refs[]` entry — each refused naming that field, nothing written", () => {
+    const cases: Array<[string, Note, RegExp]> = [
+      ["kind", note({ kind: undefined }), /"kind".*absent/],
+      ["by", note({ by: undefined }), /"by".*absent/],
+      ["at", note({ at: undefined }), /"at".*absent/],
+      ["confidence", note({ confidence: undefined }), /"confidence".*absent/],
+      ["verified_by", note({ verified_by: undefined }), /"verified_by".*absent/],
+      ["supersedes (undefined is not null)", note({ supersedes: undefined }), /"supersedes".*absent/],
+      ["refs[] number", note({ refs: ["ok", 42] }), /"refs\[\]".*number/],
+      ["refs[] undefined", note({ refs: [undefined] }), /"refs\[\]".*absent/],
+      ["confidence number (wrong type, not absence)", note({ confidence: 3 }), /"confidence".*number/],
+      ["by null", note({ by: null }), /"by".*null/],
+    ];
+    for (const [label, n, re] of cases) {
+      const ctx = store("p33-26-v2-");
+      expect(() => mod.appendNote(T, n, "b\n", ctx, undefined, freshTmp("p33-26-v2-lean-")), `${label}: accepted`).toThrow(re);
+      expect(existsSync(join(ctx, T)), `${label}: wrote or created before refusing`).toBe(false);
+      // The reserved word never reaches a fence: no file anywhere under the store carries it.
+      const ctx2 = store("p33-26-v2-admit-");
+      expect(() => mod.admitAndAppend(T, n, "b\n", ctx2, freshTmp("p33-26-v2-repo-")), `${label}: admitAndAppend accepted`).toThrow(re);
+      expect(existsSync(join(ctx2, T)), `${label}: admitAndAppend wrote before refusing`).toBe(false);
+    }
+  });
+
+  it("V3 — the honest empty value still writes: `verified_by: \"\"` composes `verified_by: ` and reads back `\"\"`, `supersedes: null` composes the empty value — byte-identical to the base's bytes for the same inputs", async () => {
+    const base = await baseModule();
+    const id = "20260921T000000Z-qe-observation-33260000"; // one precomputed id, so both writers compose the SAME note
+    const ctxHead = store("p33-26-v3-head-");
+    const ctxBase = store("p33-26-v3-base-");
+    const written = mod.appendNote(T, note(), "an honestly empty stamp\n", ctxHead, id, freshTmp("p33-26-v3-lean-"));
+    expect(written).toBe(id);
+    base.appendNote(T, note(), "an honestly empty stamp\n", ctxBase, id, freshTmp("p33-26-v3-lean-base-"));
+    const headText = readFileSync(join(ctxHead, T, "notes", `${id}.md`), "utf8");
+    const baseText = readFileSync(join(ctxBase, T, "notes", `${id}.md`), "utf8");
+    expect(headText.split("\n")).toContain("verified_by: ");
+    expect(headText.split("\n")).toContain("supersedes: ");
+    expect(headText.split("\n")).not.toContain("verified_by: undefined");
+    // Byte-identical, seal included: the seal digests the composed bytes, so equal bytes ⇒ equal seal.
+    expect(headText).toBe(baseText);
+    expect(mod.sealVerdict(headText)).toEqual({ ok: true });
+    expect(mod.readContext(T, ctxHead).map((n) => [n.verified_by, n.supersedes])).toEqual([["", null]]);
+  });
+
+  it("V4 — ONE guard: exactly one function decides both the string-type rule and the single-line rule, it is exported, and every scalar composeNote interpolates passes through it in composeValidatedNote (derived from the AST)", () => {
+    const source = ts.createSourceFile("context-io.ts", readFileSync(CONTEXT_IO_TS, "utf8"), ts.ScriptTarget.Latest, true);
+    const decl = (name: string): ts.FunctionDeclaration => {
+      const d = source.statements.find(
+        (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === name,
+      );
+      expect(d, `PREMISE: ${name} is not a top-level function declaration`).toBeDefined();
+      return d as ts.FunctionDeclaration;
+    };
+    const walk = (node: ts.Node, visit: (n: ts.Node) => void): void => {
+      visit(node);
+      ts.forEachChild(node, (c) => walk(c, visit));
+    };
+    // (a) The functions spelling the NEWLINE rule (a regex literal over CR/LF applied with `.test`)
+    //     and the functions spelling the TYPE rule as a refusal (`if (typeof x !== "string") throw`).
+    const newlineRule: string[] = [];
+    const typeRule: string[] = [];
+    for (const statement of source.statements) {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !statement.body) continue;
+      let newline = false;
+      let type = false;
+      walk(statement.body, (n) => {
+        // The RULE's spelling is the CR/LF character class under `.test` — `/[\r\n]/` — not the
+        // `.replace(/\r\n/g, …)` line-ending normalisations the parser and the seal apply to text.
+        if (ts.isRegularExpressionLiteral(n) && /^\/\[\\[rn]\\[rn]\]\/[a-z]*$/.test(n.text)) newline = true;
+        if (
+          ts.isIfStatement(n) &&
+          ts.isBinaryExpression(n.expression) &&
+          n.expression.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken &&
+          ts.isTypeOfExpression(n.expression.left) &&
+          ts.isStringLiteral(n.expression.right) &&
+          n.expression.right.text === "string"
+        ) {
+          let throws = false;
+          walk(n.thenStatement, (t) => {
+            if (ts.isThrowStatement(t)) throws = true;
+          });
+          if (throws) type = true;
+        }
+      });
+      if (newline) newlineRule.push(statement.name.text);
+      if (type) typeRule.push(statement.name.text);
+    }
+    expect(newlineRule, "the single-line rule is spelled in more than one function, or in none").toEqual(["assertNoteScalar"]);
+    expect(typeRule, "the string-type refusal is spelled in more than one function, or in none").toEqual(["assertNoteScalar"]);
+    // (b) It is exported, and the type refusal PRECEDES the newline test in its body.
+    const guard = decl("assertNoteScalar");
+    expect((guard.modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword), "the guard is not exported").toBe(true);
+    expect(typeof mod.assertNoteScalar).toBe("function");
+    const bodyText = (guard.body as ts.Block).getText(source);
+    expect(bodyText.indexOf('typeof value !== "string"')).toBeGreaterThan(-1);
+    expect(bodyText.indexOf('typeof value !== "string"')).toBeLessThan(bodyText.indexOf(".test(value)"));
+    // (c) The interpolated set: every `note.<field>` composeNote (and provenanceBlock, which it calls)
+    //     reads — derived, not hand-listed.
+    const interpolated = new Set<string>();
+    for (const fn of ["composeNote", "provenanceBlock"]) {
+      walk(decl(fn).body as ts.Node, (n) => {
+        if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "note") interpolated.add(n.name.text);
+      });
+    }
+    // (d) The guarded set: every `assertNoteScalar("<name>", note.<field>)` in composeValidatedNote, plus
+    //     the `refs[]` loop over `note.refs`.
+    const guarded = new Set<string>();
+    let refsLoopGuarded = false;
+    walk(decl("composeValidatedNote").body as ts.Node, (n) => {
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "assertNoteScalar") {
+        const [nameArg, valueArg] = n.arguments;
+        if (valueArg && ts.isPropertyAccessExpression(valueArg) && ts.isIdentifier(valueArg.expression) && valueArg.expression.text === "note") {
+          guarded.add(valueArg.name.text);
+        }
+        if (nameArg && ts.isStringLiteral(nameArg) && nameArg.text === "refs[]") refsLoopGuarded = true;
+      }
+      if (ts.isForOfStatement(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.getText(source) === "note.refs") {
+        walk(n.statement, (inner) => {
+          if (ts.isCallExpression(inner) && ts.isIdentifier(inner.expression) && inner.expression.text === "assertNoteScalar") guarded.add("refs");
+        });
+      }
+    });
+    expect(refsLoopGuarded).toBe(true);
+    expect([...interpolated].sort()).toEqual(["at", "by", "confidence", "content_hash", "gate_run", "kind", "refs", "sha", "supersedes", "verified_by"]);
+    for (const f of interpolated) {
+      expect([...guarded], `composeNote interpolates note.${f} but composeValidatedNote does not pass it through the guard`).toContain(f);
+    }
+    expect(interpolated.size).toBe(10);
+    // (e) `supersedes` is guarded on the NON-NULL arm — `undefined` is not `null` and must reach the guard.
+    const cvn = (decl("composeValidatedNote").body as ts.Block).getText(source);
+    expect(cvn).toMatch(/if \(note\.supersedes !== null\) assertNoteScalar\("supersedes", note\.supersedes\)/);
+  });
+});
