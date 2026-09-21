@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 3 of 4 PLANNED 2026-09-21 — 11 plans (33-24..33-34, waves 13-23), checker passed 0/0; next: /gsd-execute-phase 33 --gaps-only"
-stopped_at: Completed 33-28-PLAN.md
-last_updated: "2026-09-21T19:27:10.916Z"
-state_head: 5a03fed66c4a885af7bb30027c4a34b60719102b
+stopped_at: Completed 33-29-PLAN.md
+last_updated: "2026-09-21T20:07:30.968Z"
+state_head: 7fd8f0c7759589c688033647e9752b496e102a05
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 303
-  completed_plans: 297
+  completed_plans: 298
   percent: 98
 last_activity: 2026-09-21
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 6 of 34
+Plan: 7 of 34
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -556,6 +556,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P26 | 34 min | 2 tasks | 13 files |
 | Phase 33 P27 | 42m | 2 tasks | 11 files |
 | Phase 33 P28 | 55 min | 3 tasks | 23 files |
+| Phase 33 P29 | 33 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1524,6 +1525,9 @@ Recent decisions affecting current work:
 - [Phase 33]: D-33-R3-02 (plan 33-28): the canonical plain-scalar alphabet admits underscore, exactly one character, because the platform's scoped MCP tool names (mcp__plugin_PLUGIN_SERVER__TOOL, round-1 init frame A:11) carry it and the coordinator's grant must carry that name for the sanctioned route to exist on the --agent path; underscore is not a YAML-significant byte; enumerate-the-good is preserved by a generated converse (K2: 42 cases, 0 admitted) and the 91-row corpus replay (K3: 0 moved)
 - [Phase 33]: The MODEL-01 adapter byte-baseline pin stays at the pre-29.1 commit; the one divergence (the coordinator's tools line plus the scoped admission tool) is derived from the held init frame A:11, never by moving the sha, so neither side of the comparison is produced by the generator under test (plan 33-28)
 - [Phase 33]: The admission-guard matcher is mcp__(plugin_grugops_)?grugops__.* - the platform's scoped spelling for the plugin's bundled server beside the bare server name (add-alongside); before plan 33-28 the bare-key matcher never fired in plugin form (code.claude.com/docs/en/plugins-reference)
+- [Phase 33]: 33-29: the live-capture verdict is scored from the bytes the runner received on the child's stdout pipe (runCommandBuffered/transcriptText); the transcript file is a copy for the operator and is never re-read for scoring
+- [Phase 33]: 33-29: Bash(node *) stays in the subject's grant by recorded reason (A:784 nested sessions get no plugin MCP tool; A:839/A:878/A:1408/A:1442 in-process writer route); the review's Write(TARGET/**) recipe is declined because the platform never matches a Write(path) rule — one Edit(//ABS/**) rule is granted
+- [Phase 33]: 33-29: the CAP-03 grant is derived before the spawn and asserted equal to capture()'s grantSource; a post-run re-derivation that differs is named by field and fails the run; the dry run walks the plugin-uninstall row with 'not run — no plugin was installed' rather than a fabricated exit
 
 ### Pending Todos
 
@@ -1651,8 +1655,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-21T19:26:52.594Z
-Stopped at: Completed 33-28-PLAN.md
+Last session: 2026-09-21T20:07:30.502Z
+Stopped at: Completed 33-29-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
