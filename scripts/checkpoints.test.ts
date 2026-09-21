@@ -20,6 +20,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -1902,5 +1903,355 @@ describe("30-11 the grant vocabulary's operator set (RA1-5)", () => {
     const src = readFileSync(join(import.meta.dirname, "..", "hooks", "guard.ts"), "utf8");
     expect(src).toMatch(/ASSIGNMENT_OPERATOR/);
     expect(src).toMatch(/COMPLETE set of assignment operators/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-27 — A REDIRECTION IS A REDIRECTION (33-DIAGNOSIS.md § 2, WINDOWS.md row 257).
+//
+// Round 1's live capture refused fifteen commands that deploy nothing: `2>&1` was split at `&` and
+// the `2>` left behind was opaque, so `git log --oneline -5 2>&1` denied on the tool name alone. The
+// fix is in the safe direction only: ONE anchored allow-list grammar (`REDIRECTION_RE`) at the split
+// and at the word; a bare `$var`, a heredoc, a process substitution and an operator glued to letters
+// all stay opaque, and the P30 fence (an unreadable segment denies on the tool name alone) is
+// untouched. The evidence is the held round-1 transcripts, read at their commit and never edited.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// The held capture is IMMUTABLE (D-11) and is read straight from its commit, the `heldCapture` idiom
+// of capture-live.test.ts: a later edit to the filed artifacts cannot move these cases.
+const HELD_CAPTURE_SHA = "c7be6d0d";
+const HELD_CAPTURE_DIR = ".planning/phases/33-live-capture-windows-portability";
+function heldCapture(name: string): string {
+  const r = spawnSync("git", ["show", `${HELD_CAPTURE_SHA}:${HELD_CAPTURE_DIR}/${name}`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: "",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (r.error !== undefined || r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+    throw new Error(
+      `git cannot show ${HELD_CAPTURE_SHA}:${HELD_CAPTURE_DIR}/${name} (exit ${String(r.status)}) — the held round-1 capture must be reachable from this clone: ${(r.stderr ?? "").trim()}`,
+    );
+  }
+  return r.stdout;
+}
+
+/** The fifteen § 2 denies, by transcript and the line of the `assistant` frame whose Bash tool-use the guard refused. */
+const SECTION_2_LINES: Readonly<Record<"A" | "B", readonly number[]>> = {
+  A: [445, 458, 586, 667, 1493, 1507, 1628],
+  B: [35, 217, 434, 469, 562, 1504, 1527, 1740],
+};
+
+/** The exact `input.command` the guard received at that line — the diagnosis's own fixture. */
+function sectionTwoCommands(): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  for (const run of ["A", "B"] as const) {
+    const lines = heldCapture(`33-CAPTURE-${run}.jsonl`).split("\n");
+    for (const n of SECTION_2_LINES[run]) {
+      const frame = JSON.parse(lines[n - 1] as string) as {
+        type: string;
+        message: { content: { type: string; name?: string; input?: { command?: string } }[] };
+      };
+      expect(frame.type, `${run}:${n} is an assistant frame`).toBe("assistant");
+      const uses = frame.message.content.filter((b) => b.type === "tool_use" && b.name === "Bash");
+      expect(uses.length, `${run}:${n} carries exactly one Bash tool-use`).toBe(1);
+      out.set(`${run}:${n}`, uses[0]!.input!.command as string);
+    }
+  }
+  expect(out.size).toBe(15);
+  return out;
+}
+
+// THE MEASURED PARTITION, stated by line id. Four ALLOW at the guard, eleven still DENY. Sizes are
+// asserted to sum to fifteen so no command can fall out of the table silently.
+//
+// ALLOW (3) — every unreadable word was a redirection; the model now reads the whole command:
+//   A:586  `ls -la … 2>&1`
+//   A:1628 `ls -la .gitignore 2>&1; git status --porcelain | head -20; git log --oneline -1 2>&1 | head -2`
+//   B:35   `cd …; cat … 2>&1; …; ls -R … 2>&1 | head -80; git log --oneline -5 2>&1`
+// ALLOW (1) — a `$var` in a TOOL-FREE segment: `cd $R` marks the command untokenizable, but the
+// fail-closed arm asks the tool name of THAT segment and finds none, so the checkpoint set is empty
+// and the guard allows. This is the diagnosis's own `cat AGENTS.md 2>&1 -> allow` row, unchanged:
+//   A:458  `R=…; cd $R; …; git log --oneline -5 2>&1; …`
+// DENY (11) — an opaque word beside a governed tool name, in four kept arms:
+//   expansion `$var`:           A:445 (`npm run $s 2>&1`), B:562 (`echo "===== npm run $s"`),
+//                               B:1527 (`ls $R/.git/hooks`)
+//   command substitution `$(…)`: B:434 (`wc -c $(find … ./.git …)`), B:469 (`echo "branch: $(git rev-parse …)"`)
+//   heredoc `<<'EOF'` body:      B:1504 ("A-05 zero git history" beside backticks), B:1740 ("`git status`",
+//                               and an apostrophe in the body unbalances the whole command)
+//   backslash-escaped word (the RA3-1 rule, `find`'s `\(` `\)`) beside a `.git` path the tool-name
+//   scan reads as `git`:         A:667, A:1493, A:1507, B:217 (B:217 also `helm present?` in a quoted echo)
+const SECTION_2_READABLE_ALLOW = ["A:586", "A:1628", "B:35"] as const;
+const SECTION_2_TOOL_FREE_OPAQUE_ALLOW = ["A:458"] as const;
+const SECTION_2_STILL_DENIED: Readonly<Record<string, "expansion" | "command-substitution" | "heredoc" | "backslash">> = {
+  "A:445": "expansion",
+  "B:562": "expansion",
+  "B:1527": "expansion",
+  "B:434": "command-substitution",
+  "B:469": "command-substitution",
+  "B:1504": "heredoc",
+  "B:1740": "heredoc",
+  "A:667": "backslash",
+  "A:1493": "backslash",
+  "A:1507": "backslash",
+  "B:217": "backslash",
+};
+
+describe("33-27 G1 — the fifteen round-1 denies, replayed through the model from the held transcripts", () => {
+  const commands = sectionTwoCommands();
+
+  it("the partition is stated by line id and its sizes sum to fifteen", () => {
+    const all = [...SECTION_2_READABLE_ALLOW, ...SECTION_2_TOOL_FREE_OPAQUE_ALLOW, ...Object.keys(SECTION_2_STILL_DENIED)];
+    expect(new Set(all).size).toBe(all.length);
+    expect(all.length).toBe(15);
+    expect(SECTION_2_READABLE_ALLOW.length + SECTION_2_TOOL_FREE_OPAQUE_ALLOW.length + Object.keys(SECTION_2_STILL_DENIED).length).toBe(15);
+    for (const id of all) expect(commands.has(id), `${id} is one of the fifteen`).toBe(true);
+  });
+
+  for (const id of SECTION_2_READABLE_ALLOW) {
+    it(`${id}: every unreadable word was a redirection — untokenizable: false, no checkpoint`, () => {
+      const m = cp.matchCommandCheckpoints(commands.get(id) as string);
+      expect(m.untokenizable, `${id} untokenizable`).toBe(false);
+      expect([...m.checkpoints], `${id} checkpoints`).toEqual([]);
+      expect(m.unreadable, `${id} names no unreadable word`).toEqual([]);
+    });
+  }
+
+  for (const id of SECTION_2_TOOL_FREE_OPAQUE_ALLOW) {
+    it(`${id}: a \`$var\` in a tool-free segment — untokenizable: true, but the checkpoint set is EMPTY (the guard allows)`, () => {
+      const m = cp.matchCommandCheckpoints(commands.get(id) as string);
+      expect(m.untokenizable).toBe(true);
+      expect([...m.checkpoints]).toEqual([]);
+      expect(m.unreadable).toEqual(["$R"]);
+    });
+  }
+
+  for (const [id, arm] of Object.entries(SECTION_2_STILL_DENIED)) {
+    it(`${id}: still refused by the ${arm} arm — untokenizable: true with the tool-name checkpoints, and the word is named`, () => {
+      const m = cp.matchCommandCheckpoints(commands.get(id) as string);
+      expect(m.untokenizable).toBe(true);
+      expect(m.checkpoints.size).toBeGreaterThan(0);
+      // Every checkpoint came from the fail-closed arm — the readable model matched nothing here.
+      expect([...m.failClosed].sort()).toEqual([...m.checkpoints].sort());
+      expect(m.readable.size).toBe(0);
+      expect(m.unreadable.length).toBeGreaterThan(0);
+      const named = m.unreadable.join("\n");
+      if (arm === "expansion") expect(named).toMatch(/\$[A-Za-z]/);
+      if (arm === "command-substitution") expect(named).toMatch(/\$\(/);
+      if (arm === "heredoc") expect(commands.get(id)).toContain("<<");
+      if (arm === "backslash") expect(named).toContain("\\");
+    });
+  }
+
+  it("PREMISE, on the committed artifact: no readable-arm match exists among the fifteen at all", () => {
+    for (const [id, cmd] of commands) {
+      expect(cp.matchCommandCheckpoints(cmd).readable.size, `${id} readable`).toBe(0);
+    }
+  });
+});
+
+describe("33-27 G2 — the grammar, one row per form, asserted against the ONE exported constant", () => {
+  it("REDIRECTION_RE is exported and is the anchored allow-list", () => {
+    expect(cp.REDIRECTION_RE).toBeInstanceOf(RegExp);
+    expect(cp.REDIRECTION_RE.source.startsWith("^")).toBe(true);
+    expect(cp.REDIRECTION_RE.source.endsWith("$")).toBe(true);
+  });
+
+  // ADMITTED: each yields ONE segment and ONE `redirection` word; a detached target is consumed.
+  const ATTACHED = [">f", ">>f", "<f", "2>f", "2>>f", "2>&1", "1>&2", "&>f", "&>>f", ">/dev/null", "2>/dev/null", "3>&2", ">&2", "<&0", "10>&1"];
+  for (const form of ATTACHED) {
+    it(`admits ${form}: one segment, one redirection word, no other word`, () => {
+      expect(cp.REDIRECTION_RE.test(form)).toBe(true);
+      const segs = cp.commandSegments(`echo ${form}`);
+      expect(segs).not.toBeNull();
+      expect(segs!.length).toBe(1);
+      const seg = segs![0]!;
+      expect(seg.opaque).toBe(false);
+      expect(seg.words.map((w) => w.kind)).toEqual(["canonical", "redirection"]);
+      expect(seg.words[1]!.value).toBe(form);
+    });
+  }
+  const BARE = [">", ">>", "<", "2>", "&>", "&>>"];
+  for (const op of BARE) {
+    it(`admits the bare operator ${op}: the NEXT word is consumed as its target and is never a word of its own`, () => {
+      expect(cp.REDIRECTION_RE.test(op)).toBe(true);
+      const segs = cp.commandSegments(`echo ${op} target after`);
+      expect(segs!.length).toBe(1);
+      const seg = segs![0]!;
+      expect(seg.opaque).toBe(false);
+      expect(seg.words.map((w) => w.kind)).toEqual(["canonical", "redirection", "canonical"]);
+      expect(seg.words.map((w) => w.value)).toEqual(["echo", `${op} target`, "after"]);
+    });
+    it(`a bare ${op} with NO next word is an incomplete redirection and stays opaque`, () => {
+      const segs = cp.commandSegments(`echo ${op}`);
+      expect(segs![0]!.opaque).toBe(true);
+      expect(segs![0]!.words.map((w) => w.kind)).toEqual(["canonical", "opaque"]);
+    });
+  }
+
+  // NOT ADMITTED: each keeps today's opaque classification; the segment is opaque.
+  const OPAQUE = ["<<EOF", "<<<x", "<(cmd)", ">(cmd)", "push>x", "pu2>&1sh", ">'a b'", ">&", "<&", ">&-", "&>&1", "main>&1", "2>&1sh"];
+  for (const form of OPAQUE) {
+    it(`does not admit ${form}: opaque, the segment fails closed`, () => {
+      const segs = cp.commandSegments(`echo ${form}`);
+      expect(segs).not.toBeNull();
+      expect(segs!.every((s) => s.opaque)).toBe(true);
+      expect(segs!.some((s) => s.words.some((w) => w.kind === "opaque"))).toBe(true);
+      expect(segs!.flatMap((s) => s.words).some((w) => w.kind === "redirection" && w.value === form)).toBe(false);
+    });
+  }
+
+  it("a bare operator whose next word is quoted, escaped or opaque does NOT consume it: the operator is opaque and the word is classified on its own", () => {
+    for (const cmd of ["echo > 'a b'", 'echo > "$f"', "echo > a\\ b", "echo > $f"]) {
+      const seg = cp.commandSegments(cmd)![0]!;
+      expect(seg.opaque, cmd).toBe(true);
+      expect(seg.words[1]!.kind, cmd).toBe("opaque");
+      expect(seg.words[1]!.value, cmd).toBe(">");
+      expect(seg.words.length, cmd).toBe(3);
+    }
+  });
+
+  it("the splitter does not cut inside >&, <&, &>, &>>, and still cuts at &, && and a background &", () => {
+    expect(cp.commandSegments("a 2>&1 | b")!.map((s) => s.raw.trim())).toEqual(["a 2>&1", "b"]);
+    expect(cp.commandSegments("a &>x; b")!.map((s) => s.raw.trim())).toEqual(["a &>x", "b"]);
+    expect(cp.commandSegments("a &>>x && b")!.map((s) => s.raw.trim())).toEqual(["a &>>x", "b"]);
+    expect(cp.commandSegments("a <&0 b")!.map((s) => s.raw.trim())).toEqual(["a <&0 b"]);
+    expect(cp.commandSegments("a & b")!.map((s) => s.raw.trim())).toEqual(["a", "b"]);
+    expect(cp.commandSegments("a && b")!.map((s) => s.raw.trim())).toEqual(["a", "b"]);
+    expect(cp.commandSegments("a&")!.map((s) => s.raw.trim())).toEqual(["a", ""]);
+    // An `&` glued to letters is still a splitter: the grammar reads the whole word or none of it.
+    expect(cp.commandSegments("git push&>x")!.map((s) => s.raw.trim())).toEqual(["git push", ">x"]);
+    expect(cp.commandSegments("x main>&1")!.map((s) => s.raw.trim())).toEqual(["x main>", "1"]);
+    // Inside quotes nothing is a redirection and nothing splits.
+    expect(cp.commandSegments("echo '2>&1 && x'")!.length).toBe(1);
+    expect(cp.commandSegments("echo '2>&1 && x'")![0]!.words.map((w) => w.kind)).toEqual(["canonical", "canonical"]);
+  });
+
+  it("the grammar's alphabet is the canonical word alphabet — a target character outside it is refused at both places", () => {
+    // `$` and `(` are outside the canonical set: an attached target carrying them is not a redirection.
+    for (const form of [">$f", "2>$f", "&>(x)", ">a(b"]) {
+      expect(cp.REDIRECTION_RE.test(form), form).toBe(false);
+      expect(cp.commandSegments(`echo ${form}`)![0]!.opaque, form).toBe(true);
+    }
+  });
+});
+
+describe("33-27 G3 — the safety converse, GENERATED from COMMAND_CHECKPOINT_RULES rather than typed", () => {
+  const has = (cmd: string, id: string): boolean => cp.matchCommandCheckpoints(cmd).checkpoints.has(id as never);
+  // A vacuity floor: every rule row has at least one governed spelling, so no row's converse is empty.
+  it("every rule row governs at least one plain TOOL VERB spelling (the floor the table below stands on)", () => {
+    for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+      expect(r.verbs.some((v) => has(`${r.tool} ${v}`, r.checkpoint)), `${r.tool}: some verb is governed`).toBe(true);
+    }
+    expect(cp.COMMAND_CHECKPOINT_RULES.length).toBeGreaterThan(0);
+  });
+
+  for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+    for (const v of r.verbs) {
+      const plain = has(`${r.tool} ${v}`, r.checkpoint);
+      // A redirection anywhere in the segment must not change the verdict of the plain spelling.
+      for (const spelled of [`${r.tool} ${v} 2>&1`, `${r.tool} 2>&1 ${v}`, `${r.tool} > x ${v}`, `${r.tool} ${v} >/dev/null`, `${r.tool} ${v} 2>/dev/null 1>&2`]) {
+        it(`${spelled} -> ${plain} (same as the plain spelling; readable, never fail-closed)`, () => {
+          const m = cp.matchCommandCheckpoints(spelled);
+          expect(m.checkpoints.has(r.checkpoint), spelled).toBe(plain);
+          expect(m.untokenizable, spelled).toBe(false);
+          expect(m.failClosed.size, spelled).toBe(0);
+        });
+      }
+      // The verb consumed as a bare operator's TARGET is a file name, never a verb.
+      it(`${r.tool} > ${v} -> none (the verb is the redirection's consumed target)`, () => {
+        const m = cp.matchCommandCheckpoints(`${r.tool} > ${v}`);
+        expect(m.checkpoints.size).toBe(0);
+        expect(m.untokenizable).toBe(false);
+      });
+      // An operator GLUED to the verb is opaque: the segment fails closed on the tool name as before.
+      it(`${r.tool} ${v}>x and ${r.tool} ${v}>&1 -> still ${r.checkpoint}, by the fail-closed arm`, () => {
+        for (const glued of [`${r.tool} ${v}>x`, `${r.tool} ${v}>&1`, `${r.tool} ${v}2>&1`]) {
+          const m = cp.matchCommandCheckpoints(glued);
+          expect(m.checkpoints.has(r.checkpoint), glued).toBe(true);
+          expect(m.untokenizable, glued).toBe(true);
+        }
+      });
+    }
+  }
+
+  it("git push with a redirection between the remote and the refspec is still governed on the refspec it names", () => {
+    expect(has("git push origin 2>&1 main", "protected_branch_merge")).toBe(true);
+    expect(has("git push origin main 2>&1", "protected_branch_merge")).toBe(true);
+    expect(has("git push 2>&1", "protected_branch_merge")).toBe(true);
+    expect(has("git push --force 2>&1 origin feature", "protected_branch_merge")).toBe(true);
+    expect(has("git push origin feature/x 2>&1", "protected_branch_merge")).toBe(false);
+    // A redirection that CONSUMES the refspec leaves a push that names no branch: governed.
+    expect(has("git push origin > feature/x", "protected_branch_merge")).toBe(true);
+  });
+
+  it("a redirection between the tool and a benign subcommand does not defeat the adjacency rule, nor grant it", () => {
+    expect(has("git 2>&1 commit -m push", "protected_branch_merge")).toBe(false);
+    expect(has("git > x commit -m 'push to main'", "protected_branch_merge")).toBe(false);
+    expect(has("git 2>&1 push", "protected_branch_merge")).toBe(true);
+    expect(has("kubectl 2>&1 get pods --namespace delete", "production_requires_human_confirmation")).toBe(false);
+    expect(has("kubectl 2>&1 -n prod apply -f x", "production_requires_human_confirmation")).toBe(true);
+  });
+
+  it("the disposition is asserted: a bare $var, a heredoc and a substitution are still untokenizable beside a tool name", () => {
+    for (const cmd of ['echo "npm run $s"', "npm run $s 2>&1", "cat <<EOF\ngit push\nEOF", "wc -c $(git ls-files)", "git push origin $b"]) {
+      const m = cp.matchCommandCheckpoints(cmd);
+      expect(m.untokenizable, cmd).toBe(true);
+      expect(m.checkpoints.size, cmd).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("33-27 G4 — mutation: with the redirection arm removed, every G1 allow flips back and every G3 case still denies", () => {
+  // A SCRATCH copy of the committed module with `REDIRECTION_RE` replaced by a never-matching regex.
+  // Because the split and the word ask the SAME constant, one substitution removes both arms.
+  const scratch = mkdtempSync(join(tmpdir(), "p33-27-mutant-"));
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+  const src = readFileSync(join(ROOT, "scripts", "checkpoints.js"), "utf8");
+  const NEEDLE = /export const REDIRECTION_RE = new RegExp\([^;]*\);/;
+  const mutated = src
+    .replace(NEEDLE, "export const REDIRECTION_RE = /(?!)/;")
+    .replace(/from "\.\/([^"]+)"/g, (_m, rel: string) => `from ${JSON.stringify(pathToFileURL(join(ROOT, "scripts", rel)).href)}`);
+  const mutantPath = join(scratch, "checkpoints-mutant.mjs");
+  writeFileSync(mutantPath, mutated);
+
+  it("the mutation is load-bearing: the constant was found exactly once and replaced", () => {
+    expect((src.match(NEEDLE) ?? []).length).toBe(1);
+    expect(mutated).toContain("REDIRECTION_RE = /(?!)/");
+    expect(mutated).not.toMatch(NEEDLE);
+  });
+
+  it("every G1 allow flips to a tool-name deny on the mutant; every still-denied case is unchanged", async () => {
+    const mut: typeof cp = await import(pathToFileURL(mutantPath).href);
+    const commands = sectionTwoCommands();
+    for (const id of SECTION_2_READABLE_ALLOW) {
+      const m = mut.matchCommandCheckpoints(commands.get(id) as string);
+      expect(m.untokenizable, `${id} on the mutant`).toBe(true);
+      expect(m.checkpoints.size, `${id} on the mutant`).toBeGreaterThan(0);
+    }
+    for (const id of SECTION_2_TOOL_FREE_OPAQUE_ALLOW) {
+      // A:458 carries `git log … 2>&1`: without the arm the `2>` is opaque beside `git` and the set fills.
+      const m = mut.matchCommandCheckpoints(commands.get(id) as string);
+      expect(m.checkpoints.size, `${id} on the mutant`).toBeGreaterThan(0);
+    }
+    for (const id of Object.keys(SECTION_2_STILL_DENIED)) {
+      const m = mut.matchCommandCheckpoints(commands.get(id) as string);
+      expect(m.untokenizable, `${id} on the mutant`).toBe(true);
+      expect(m.checkpoints.size, `${id} on the mutant`).toBeGreaterThan(0);
+    }
+  });
+
+  it("every G3 governed spelling still denies on the mutant — the arm is load-bearing in exactly one direction", async () => {
+    const mut: typeof cp = await import(pathToFileURL(mutantPath).href);
+    for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+      for (const v of r.verbs) {
+        if (!cp.matchCommandCheckpoints(`${r.tool} ${v}`).checkpoints.has(r.checkpoint)) continue;
+        for (const spelled of [`${r.tool} ${v} 2>&1`, `${r.tool} 2>&1 ${v}`, `${r.tool} ${v} >/dev/null`]) {
+          const m = mut.matchCommandCheckpoints(spelled);
+          expect(m.checkpoints.has(r.checkpoint), `${spelled} on the mutant`).toBe(true);
+          expect(m.untokenizable, `${spelled} on the mutant is fail-closed`).toBe(true);
+        }
+      }
+    }
   });
 });
