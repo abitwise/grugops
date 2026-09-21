@@ -159,6 +159,12 @@ export function handleProposeNote(args: Record<string, unknown>): ToolResult {
       isError: true,
     };
   }
+  // The empty-string defaults below are this boundary's own, and they are legitimate HERE and only
+  // here (plan 33-26): the propose_note argument schema declares `verified_by` (and the other
+  // scalars) optional, and the server is the boundary that owns that default. An in-process caller
+  // that passes `undefined` to `admitAndAppend` has made no such declaration, and the writer refuses
+  // it by name rather than inventing a value (context-io `assertNoteFields`). The two are different
+  // routes with different contracts, and the default is stated at the route that declares it.
   const note: NoteInput = {
     kind: canonicalKind as NoteKind,
     by: String(args.by ?? ""),

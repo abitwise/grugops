@@ -171,7 +171,7 @@ function isInvalidEvidencePhrase(value) {
 //
 //   1. TYPE (plan 33-26, 33-DIAGNOSIS § 3 / WINDOWS.md row 258). A value that is not a string is
 //      refused BY NAME before anything is composed. The fault this closes was serialization, not
-//      the caller's spelling: `${note.verified_by}` with the key absent — or explicitly `undefined` —
+//      the caller's spelling: interpolating `note.verified_by` with the key absent — or explicitly `undefined` —
 //      wrote the literal line `verified_by: undefined`, and because `"undefined"` is in no
 //      hollow-evidence list the note read back with a non-empty stamp no gate and no human set. The
 //      former guard could not see it: `/[\r\n]/.test(undefined)` coerces to the string `"undefined"`

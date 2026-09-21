@@ -55,6 +55,7 @@ import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import {
   appendNote,
+  assertNoteFields,
   promoteAdmitted as ctxPromoteAdmitted,
   admit,
   currentState,
@@ -614,7 +615,15 @@ export function writeThread(
 // as an admitted note, and a thread record carrying the writer's seal would read as one. The seal
 // belongs to the promoted tier, where `appendNote` emits it; checkCarveOut's gate (c) asks it of
 // promoted notes only. This composer computes no digest and imports none.
+// GUARDED BY THE SAME GUARD (plan 33-26, 33-DIAGNOSIS § 3 sibling arm): this composer interpolates
+// the same six scalars and the same `refs` list as context-io's `composeNote`, and until this plan it
+// guarded none of them — an absent `verified_by` reached a thread record as the word `undefined`
+// exactly as it reached a promoted note. It asks the ONE exported field list `assertNoteFields`
+// (which asks the ONE scalar guard `assertNoteScalar` per field, in the CR-01 order) BEFORE `noteId`
+// reads `note.at`, so an absent field is a refusal that names it and nothing is appended. No guard
+// body is spelled here; the V7 case in scripts/compactor.test.ts derives that from the sources.
 function composeThreadNote(note: NoteInput, body: string): string {
+  assertNoteFields(note);
   // IN-01: the frozen id comes from the single exported noteId() — the SAME formula a promoted
   // counterpart's id is produced by (context-io.appendNote/emitVerdict). A thread note's id therefore
   // cannot drift in shape from the promoted-side id the id-keyed carve-out match depends on.
@@ -637,7 +646,7 @@ function composeThreadNote(note: NoteInput, body: string): string {
 }
 
 // ── promote: the SOLE promotion path (D-02.3) — a thin pass-through to context-io.appendNote. ────
-// The compactor adds NO forked writer of the shared context. assertSingleLine / duplicate-key /
+// The compactor adds NO forked writer of the shared context. assertNoteFields / duplicate-key /
 // structural validation all fire automatically inside appendNote.
 export function promote(
   task: string,
