@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 207
+open_count: 229
 waived_count: 3
 fixed_count: 26
-total_count: 236
-last_updated: 2026-09-21T09:19:10.313Z
+total_count: 258
+last_updated: 2026-09-21T10:52:10.464Z
 ---
 
 # Broken Windows Ledger
@@ -251,6 +251,28 @@ last_updated: 2026-09-21T09:19:10.313Z
 | 234 | 33 | unrun-verify | scripts/context-io.test.ts | 14059 | 33-09 run 35499800942 windows: 2 context-io reds beyond row 226's ten, both in 33-05's class — CR-24 'every planted condition reports its OWN arm' moved from the unopenable arm (baseline) to the above-ceiling arm, where the row's detail carries the path JSON-escaped (doubled backslashes) and the authority's message the host spelling (same class as row 228); R-31-21-03's probe still reads not-waited-on=false (identical text to baseline; a retained-position fixture 33-05's FIFO routing did not reach — UNKNOWN - verify whether the fixture is a FIFO) | open |  | 2026-09-20T09:09:41.120Z |  |
 | 235 | 33 | unrun-verify | scripts/freshness.test.ts | 416 | 33-09 run 35499800942 windows: DISCRIMINATION PAIR survived (7 of 8 freshness reds closed by 33-06) — the pair's PRE-FIX arm clones the pre-fix tree 020905f9 and runs ITS gate, which still launches npx tsc without a shell and cannot start a compiler on windows (exit 1, 'did not compile cleanly', no stderr), so the vacuity the test preserves as evidence is unobservable there; the post-fix arm now runs the compiler and names the planted stale hooks/guard.js correctly | open |  | 2026-09-20T09:09:41.224Z |  |
 | 236 | 33 | unrun-verify | scripts/context-io.ts | 5317 | 33-20 run 35579263776 windows: 35 reds in ONE file (scripts/context-io.test.ts :6456-:8605, the 31-15 WR-15 block), ONE class — 33-16's canonicalWorkingDirectory(process.cwd()) (c1fca72b) takes rung 1 realpathSync.native, which EXPANDS 8.3 short names (RUNNER~1 -> runneradmin), while the block's fixtures are tmp15() = realpathSync(freshTmp()) (test :6226, rung 2, which PRESERVES them); every case comparing the walk's root to a tmp15 fixture reads expected 'C:\\Users\\runneradmin\\...' to be 'C:\\Users\\RUNNER~1\\...'. 33 cases green on run 35499800942 are NEW; W-20 and W-21 moved from their round-1 arms onto this one (incomplete fix). Same axis 33-15 derived for W-23..W-25 (green on this run); the fix belongs at one authority, not per fixture (D-15's shape). Ubuntu leg: success (all 33 § 3.1 rows green there). Owner: round 3 | open |  | 2026-09-21T09:19:10.313Z |  |
+| 237 | 33 | deviation | scripts/capture-live.ts | 265 | 33-REVIEW WR-01 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the per-spawn approval-key assertion does hasOwnProperty on the exact spelling GRUGOPS_PROD_DEPLOY_APPROVED, but win32 environment names are case-insensitive, so a lower-cased key inherited by the child disarms the deny while the assertion passes — compare every key case-insensitively and refuse on a match, with a lower-cased-key test; owner: a later round | open |  | 2026-09-21T10:52:08.523Z |  |
+| 238 | 33 | deviation | scripts/capture-live.ts | 838 | 33-REVIEW WR-02 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): homeSpellingForms produces the backslash home and its JSON-escaped form only, so a C:/Users/x or file:///C:/Users/x spelling is neither redacted nor counted by homeSpellingSurvivors (the fail-closed check is vacuous for the forms it does not enumerate) — add the forward-slash and file-URL forms plus their JSON-escaped twins to the one set, with a test that a C:/Users/alice spelling does not survive; owner: a later round | open |  | 2026-09-21T10:52:08.615Z |  |
+| 239 | 33 | deviation | scripts/capture-live.ts | 1226 | 33-REVIEW WR-03 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): when no deny fired the negative D-04 row cites transcript line 1 (cite(0)) solely so the row is not withheld, a citation unrelated to the claim that --verify-artifacts cannot tell from a supported one — cite the last hook_response frame examined (record its index in DenyObservation) with the examined count in the value, or extend the grammar with jsonl:<first>-<last> for whole-transcript negatives; owner: a later round | open |  | 2026-09-21T10:52:08.709Z |  |
+| 240 | 33 | deviation | scripts/capture-live.ts | 1556 | 33-REVIEW WR-05 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): capture() fails only when grantSource.coordinator is null; deriveGrant's reasons for a census/grant mismatch, an unresolved granted name or an ungranted adapter are ignored before the spend and surface only inside capThreePredicate after both runs, and the readiness table carries no grant row — add a grantReasons precondition observation and a row that is UNMET when non-empty; owner: a later round | open |  | 2026-09-21T10:52:08.802Z |  |
+| 241 | 33 | deviation | scripts/capture-live.ts | 954 | 33-REVIEW WR-06 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the pushed-sha precondition compares HEAD to origin/main but the installer copies the WORKING TREE's kit while the plugin comes from GitHub at the pushed sha, so uncommitted edits under agent-factory/ or .claude/agents/ make the two paths different code while the row reads MET — probe git status --porcelain --untracked-files=no and add a working-tree-clean row that is UNMET on any output; owner: a later round | open |  | 2026-09-21T10:52:08.896Z |  |
+| 242 | 33 | deviation | scripts/capture-live.ts | 1106 | 33-REVIEW WR-07 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the live runs spawn the platform with the operator's real ~/.claude configuration, so other user-scope plugins, hooks and settings (context7, playwright, superpowers in the round-1 init frames) participate in the capture and the target is not the isolated instrument D-03 describes — run with CLAUDE_CONFIG_DIR at a scratch config seeded with only the marketplace row route 2 needs, or add a precondition row requiring system/init.plugins[] to name exactly the plugin under test and fold a violation into anyFailure; owner: a later round | open |  | 2026-09-21T10:52:08.992Z |  |
+| 243 | 33 | deviation | scripts/check-flip-manifest.ts | 706 | 33-REVIEW WR-08 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): checkResidual skips any line where line.includes(anchor) and checkLocators refuses an anchor only when it occurs zero times, so a short anchor occurring many times (GAP-D1, or a dash-space) is accepted and then exempts every residual line in that file — a fail-open arm inside the rule whose purpose is to refuse survivors — require countOccurrences === 1 in checkLocators and match the anchor against the whole trimmed line or the declared line number in checkResidual; owner: a later round | open |  | 2026-09-21T10:52:09.082Z |  |
+| 244 | 33 | deviation | scripts/check-flip-manifest.ts | 458 | 33-REVIEW WR-09 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): archivedRecords is declaredSet(m) filtered on .planning/milestones/, so the derived side is read from the manifest and compared with the manifest's own members table — one hand-typed set on both sides, and an archived record carrying pending human that the manifest does not name is invisible to the residual rule — derive from git ls-files over .planning/milestones with a content rule read at the pre-capture commit, keeping the declared-set intersection only as the listing to compare against; owner: a later round | open |  | 2026-09-21T10:52:09.172Z |  |
+| 245 | 33 | deviation | scripts/check-platform-shapes.ts | 459 | 33-REVIEW WR-10 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the FIFO make() returns false on ANY non-zero mkfifo exit (binary absent, EACCES on the scratch root, a wrong argument) so every migrated FIFO case console.warns and returns green where it used to throw, and stageShapeOrSkip/hostCapabilityOrSkip honour GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT first, so one CI variable turns every FIFO, symlink and chmod case into a skip with the suite green — assert the remainder per CI leg where it is known (ubuntu requires SKIPPED SHAPES (0)), restrict the FORCE_ABSENT seam to the corpus's own test or behind a second opt-in, and have make() return false only for ENOENT on spawn; owner: a later round | open |  | 2026-09-21T10:52:09.275Z |  |
+| 246 | 33 | deviation | scripts/check-platform-shapes.ts | 709 | 33-REVIEW WR-11 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): stageNameOrSkip maps every ENOENT or EINVAL thrown by the caller's construct() to the control-byte platform-refusal skip without checking that the path carries a byte below 0x20, so a missing parent directory (a caller bug) is reported as a platform refusal and the case turns green with a misleading row — take the path as a parameter, require a control byte in its basename up front, and confirm the parent exists before treating the error as a platform refusal; owner: a later round | open |  | 2026-09-21T10:52:09.369Z |  |
+| 247 | 33 | deviation | scripts/e2e/uat-live.test.ts | 280 | 33-REVIEW WR-12 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): afterAll runs claude plugin marketplace remove grugops --scope local and claude plugin uninstall grugops --scope local with cwd tmpRepo-or-ROOT, but the runner never adds a marketplace (the user-scope grugops row is the D-05 route-2 PRECONDITION) and already uninstalls per target, and with tmpRepo still empty both mutating commands run in the repository checkout — delete the marketplace-remove call, guard the uninstall on tmpRepo being set, never use ROOT as the cwd for a mutating platform command; owner: a later round | open |  | 2026-09-21T10:52:09.463Z |  |
+| 248 | 33 | deviation | scripts/capture-live.ts | 1004 | 33-REVIEW WR-13 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): observePreconditions computes approvalKeyPresent and then calls spawnEnv(), which throws a CaptureFailure when the key is set, so the D-10 three-state table is never built and the operator sees CAPTURE NOT DERIVED instead of an UNMET row — fail-closed, but the documented readiness contract is not what is shown and the UNMET branch is exercised only by the offline suite — build the observation without spawning when the key is present, evaluate and print the table, then refuse in capture(), keeping spawnEnv's refusal as the last line of defence; owner: a later round | open |  | 2026-09-21T10:52:09.555Z |  |
+| 249 | 33 | deviation | scripts/capture-live.ts | 716 | 33-REVIEW IN-02 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): readdirSync never returns . or .. and TASK_DIR_RE already excludes a bare dot, so the entry.name equals-dot-or-dot-dot clause is dead code that cannot fire — remove the clause; owner: a later round | open |  | 2026-09-21T10:52:09.645Z |  |
+| 250 | 33 | deviation | scripts/capture-live.test.ts | 86 | 33-REVIEW IN-03 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): contextRootWithNotes creates a grugops-capture-live-test-ctx-* directory under the OS temp directory on every call and no case removes it; the dry-run case's no-scratch-survives assertion excludes the test- prefix so the leak is invisible to the suite — collect the roots in an array and rmSync them in afterAll; owner: a later round | open |  | 2026-09-21T10:52:09.736Z |  |
+| 251 | 33 | deviation | scripts/board-watch.test.ts |  | 33-REVIEW IN-04 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): expectEndedBySigint and its two-case self-test describe are copied verbatim into scripts/board-watch.test.ts and scripts/board-dashboard.test.ts — move the helper to a shared test module and keep one self-test; owner: a later round | open |  | 2026-09-21T10:52:09.828Z |  |
+| 252 | 33 | deviation | scripts/check-foundation-guards.test.ts |  | 33-REVIEW IN-05 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): hand-pinned counts bumped in this phase (NON_TEST_MODULE_COUNT = 89, 62, TRIPWIRE_MODULES = 72, targets: 11; check-claim-anchors.test.ts toBe(17) followed by a tautological not.toBe(18); check-banned-claims.test.ts bannedClaimScanOverlap() pinned to 2) are the set-literal pattern the project's memory names — where a count can be derived (git ls-files, the corpus array) assert the relationship rather than the integer, and drop the redundant negative; owner: a later round | open |  | 2026-09-21T10:52:09.919Z |  |
+| 253 | 33 | deviation | scripts/check-flip-manifest.ts | 646 | 33-REVIEW IN-06 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): manifestDir is split on / only and the status flip row compares row.file byte-for-byte with the CLI value, so a --manifest spelled with backslashes by a Windows operator yields a summary path of 33-CAPTURE-SUMMARY.md at the repo root and a false status-row refusal — const manifestRel = toPosix(cli.manifest) at the top of main(); owner: a later round | open |  | 2026-09-21T10:52:10.009Z |  |
+| 254 | 33 | deviation | scripts/check-flip-manifest.ts | 596 | 33-REVIEW IN-07 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): changedFiles runs git diff-tree --no-commit-id --name-only -r --root <commit>, which prints nothing for a merge commit without -m or -c, so a flip landing via a merge reports every declared file as omitted — fails closed with a message naming the wrong cause — use git diff --name-only -z <c>^ <c> for the single-commit form (or add -m --first-parent) and name merge commits in the refusal text; owner: a later round | open |  | 2026-09-21T10:52:10.100Z |  |
+| 255 | 33 | unrun-verify | .claude/agents/grugops-orchestrator.md | 5 | 33-DIAGNOSIS section 1.4 (a) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): on the --agent path the coordinator carries the installed adapter's seven-tool grant (.claude/agents/grugops-orchestrator.md:5 — Agent(sixteen roles), Read, Grep, Glob, Edit, Write, Bash; init frame B:11 lists exactly those seven), which does not include the plugin's MCP admission tool mcp__plugin_grugops_grugops__propose_note, so on that path the coordinator cannot propose notes through the sanctioned writer — deterministically, by construction of the grant (evidence section 1.3 (i), round-1-held/ B:11 vs A:11). DIRECTION, the human's words: carry the MCP admission tool (propose_note) in the --agent coordinator adapter's grant — touching the spawn-grant derivation, its census pins and the guard oracles; the alternative (telling role adapters where the sanctioned writer lives under the plugin cache) was not chosen. Owner: round 3 | open |  | 2026-09-21T10:52:10.191Z |  |
+| 256 | 33 | unrun-verify | scripts/context-io.ts |  | 33-DIAGNOSIS section 1.4 (b) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the reader (readContext, scripts/context-io.ts) admits notes written into .grugops/context by anything other than the sanctioned writer — path B's nine notes were written with the Write tool straight into the context root (round-1-held/ B:774, B:795, B:817, B:1542, B:1607, B:1638, B:1757, B:1779, B:1802) and read back as if admitted, so the WF16 single-writer rule held on path A by tooling and on path B by nothing (evidence section 1.3 (ii)). DIRECTION, the human's words: refuse non-sanctioned (hand-written, Write-tool) notes on read; the alternative (keep admitting them) was not chosen. Owner: round 3 | open |  | 2026-09-21T10:52:10.282Z |  |
+| 257 | 33 | deviation | hooks/guard.ts |  | 33-DIAGNOSIS section 2 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the guard (hooks/guard.ts + scripts/checkpoints.ts) classifies a 2>&1 redirection and an ordinary $var expansion as substitutions it will not reason about and refuses any such segment carrying git or npm anywhere in it, on tool name alone — fifteen over-matched denies across the two round-1 transcripts (A:454 … B:1750). Reproduced offline against the committed guard on stdin with no GRUGOPS_ variable set: git log --oneline -5 -> allow; git log --oneline -5 2>&1 -> deny (matched by the command model, the git push sentence printed for a git log); echo "npm run lint" -> allow; echo "npm run $s" -> deny (carries a shell substitution the guard will not reason about); matchCommandCheckpoints reports untokenizable: true for both. Fails closed — an availability defect, not a safety hole; no offline test covers the class (275 guard tests green). Correction named by the diagnosis: the tokenizer's redirection-vs-substitution classification, and the deny text. No further direction stated beyond accepted-open. Owner: round 3 | open |  | 2026-09-21T10:52:10.372Z |  |
+| 258 | 33 | deviation | scripts/context-io.ts | 1416 | 33-DIAGNOSIS section 3 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): admitAndAppend / composeNote (scripts/context-io.ts:1416) interpolates ${note.verified_by} with no presence check and writes the line verified_by: undefined — the string — for an absent field; undefined is not in the DeLM hollow-evidence list (context-io.ts:205), so the note reads back with a non-empty stamp no gate and no human set (path A notes [6]-[9]). Reproduced offline: admitAndAppend with no verified_by key returns findings: [] and the file carries verified_by: undefined; passing the key explicitly undefined serializes identically, so the fault is serialization, not the caller's spelling. Did not touch any verdict the round reads. No further direction stated beyond accepted-open. Owner: round 3 | open |  | 2026-09-21T10:52:10.464Z |  |
 
 ````json
 [
@@ -3143,6 +3165,292 @@ last_updated: 2026-09-21T09:19:10.313Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-21T09:19:10.313Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 237,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 265,
+    "description": "33-REVIEW WR-01 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the per-spawn approval-key assertion does hasOwnProperty on the exact spelling GRUGOPS_PROD_DEPLOY_APPROVED, but win32 environment names are case-insensitive, so a lower-cased key inherited by the child disarms the deny while the assertion passes — compare every key case-insensitively and refuse on a match, with a lower-cased-key test; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:08.523Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 238,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 838,
+    "description": "33-REVIEW WR-02 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): homeSpellingForms produces the backslash home and its JSON-escaped form only, so a C:/Users/x or file:///C:/Users/x spelling is neither redacted nor counted by homeSpellingSurvivors (the fail-closed check is vacuous for the forms it does not enumerate) — add the forward-slash and file-URL forms plus their JSON-escaped twins to the one set, with a test that a C:/Users/alice spelling does not survive; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:08.615Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 239,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 1226,
+    "description": "33-REVIEW WR-03 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): when no deny fired the negative D-04 row cites transcript line 1 (cite(0)) solely so the row is not withheld, a citation unrelated to the claim that --verify-artifacts cannot tell from a supported one — cite the last hook_response frame examined (record its index in DenyObservation) with the examined count in the value, or extend the grammar with jsonl:<first>-<last> for whole-transcript negatives; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:08.709Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 240,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 1556,
+    "description": "33-REVIEW WR-05 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): capture() fails only when grantSource.coordinator is null; deriveGrant's reasons for a census/grant mismatch, an unresolved granted name or an ungranted adapter are ignored before the spend and surface only inside capThreePredicate after both runs, and the readiness table carries no grant row — add a grantReasons precondition observation and a row that is UNMET when non-empty; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:08.802Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 241,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 954,
+    "description": "33-REVIEW WR-06 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the pushed-sha precondition compares HEAD to origin/main but the installer copies the WORKING TREE's kit while the plugin comes from GitHub at the pushed sha, so uncommitted edits under agent-factory/ or .claude/agents/ make the two paths different code while the row reads MET — probe git status --porcelain --untracked-files=no and add a working-tree-clean row that is UNMET on any output; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:08.896Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 242,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 1106,
+    "description": "33-REVIEW WR-07 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the live runs spawn the platform with the operator's real ~/.claude configuration, so other user-scope plugins, hooks and settings (context7, playwright, superpowers in the round-1 init frames) participate in the capture and the target is not the isolated instrument D-03 describes — run with CLAUDE_CONFIG_DIR at a scratch config seeded with only the marketplace row route 2 needs, or add a precondition row requiring system/init.plugins[] to name exactly the plugin under test and fold a violation into anyFailure; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:08.992Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 243,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-flip-manifest.ts",
+    "line": 706,
+    "description": "33-REVIEW WR-08 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): checkResidual skips any line where line.includes(anchor) and checkLocators refuses an anchor only when it occurs zero times, so a short anchor occurring many times (GAP-D1, or a dash-space) is accepted and then exempts every residual line in that file — a fail-open arm inside the rule whose purpose is to refuse survivors — require countOccurrences === 1 in checkLocators and match the anchor against the whole trimmed line or the declared line number in checkResidual; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.082Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 244,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-flip-manifest.ts",
+    "line": 458,
+    "description": "33-REVIEW WR-09 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): archivedRecords is declaredSet(m) filtered on .planning/milestones/, so the derived side is read from the manifest and compared with the manifest's own members table — one hand-typed set on both sides, and an archived record carrying pending human that the manifest does not name is invisible to the residual rule — derive from git ls-files over .planning/milestones with a content rule read at the pre-capture commit, keeping the declared-set intersection only as the listing to compare against; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.172Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 245,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-platform-shapes.ts",
+    "line": 459,
+    "description": "33-REVIEW WR-10 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): the FIFO make() returns false on ANY non-zero mkfifo exit (binary absent, EACCES on the scratch root, a wrong argument) so every migrated FIFO case console.warns and returns green where it used to throw, and stageShapeOrSkip/hostCapabilityOrSkip honour GRUGOPS_PLATFORM_SHAPES_FORCE_ABSENT first, so one CI variable turns every FIFO, symlink and chmod case into a skip with the suite green — assert the remainder per CI leg where it is known (ubuntu requires SKIPPED SHAPES (0)), restrict the FORCE_ABSENT seam to the corpus's own test or behind a second opt-in, and have make() return false only for ENOENT on spawn; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.275Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 246,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-platform-shapes.ts",
+    "line": 709,
+    "description": "33-REVIEW WR-11 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): stageNameOrSkip maps every ENOENT or EINVAL thrown by the caller's construct() to the control-byte platform-refusal skip without checking that the path carries a byte below 0x20, so a missing parent directory (a caller bug) is reported as a platform refusal and the case turns green with a misleading row — take the path as a parameter, require a control byte in its basename up front, and confirm the parent exists before treating the error as a platform refusal; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.369Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 247,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/e2e/uat-live.test.ts",
+    "line": 280,
+    "description": "33-REVIEW WR-12 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): afterAll runs claude plugin marketplace remove grugops --scope local and claude plugin uninstall grugops --scope local with cwd tmpRepo-or-ROOT, but the runner never adds a marketplace (the user-scope grugops row is the D-05 route-2 PRECONDITION) and already uninstalls per target, and with tmpRepo still empty both mutating commands run in the repository checkout — delete the marketplace-remove call, guard the uninstall on tmpRepo being set, never use ROOT as the cwd for a mutating platform command; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.463Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 248,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 1004,
+    "description": "33-REVIEW WR-13 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): observePreconditions computes approvalKeyPresent and then calls spawnEnv(), which throws a CaptureFailure when the key is set, so the D-10 three-state table is never built and the operator sees CAPTURE NOT DERIVED instead of an UNMET row — fail-closed, but the documented readiness contract is not what is shown and the UNMET branch is exercised only by the offline suite — build the observation without spawning when the key is present, evaluate and print the table, then refuse in capture(), keeping spawnEnv's refusal as the last line of defence; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.555Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 249,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 716,
+    "description": "33-REVIEW IN-02 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): readdirSync never returns . or .. and TASK_DIR_RE already excludes a bare dot, so the entry.name equals-dot-or-dot-dot clause is dead code that cannot fire — remove the clause; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.645Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 250,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.test.ts",
+    "line": 86,
+    "description": "33-REVIEW IN-03 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): contextRootWithNotes creates a grugops-capture-live-test-ctx-* directory under the OS temp directory on every call and no case removes it; the dry-run case's no-scratch-survives assertion excludes the test- prefix so the leak is invisible to the suite — collect the roots in an array and rmSync them in afterAll; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.736Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 251,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/board-watch.test.ts",
+    "line": null,
+    "description": "33-REVIEW IN-04 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): expectEndedBySigint and its two-case self-test describe are copied verbatim into scripts/board-watch.test.ts and scripts/board-dashboard.test.ts — move the helper to a shared test module and keep one self-test; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.828Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 252,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-foundation-guards.test.ts",
+    "line": null,
+    "description": "33-REVIEW IN-05 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): hand-pinned counts bumped in this phase (NON_TEST_MODULE_COUNT = 89, 62, TRIPWIRE_MODULES = 72, targets: 11; check-claim-anchors.test.ts toBe(17) followed by a tautological not.toBe(18); check-banned-claims.test.ts bannedClaimScanOverlap() pinned to 2) are the set-literal pattern the project's memory names — where a count can be derived (git ls-files, the corpus array) assert the relationship rather than the integer, and drop the redundant negative; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:09.919Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 253,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-flip-manifest.ts",
+    "line": 646,
+    "description": "33-REVIEW IN-06 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): manifestDir is split on / only and the status flip row compares row.file byte-for-byte with the CLI value, so a --manifest spelled with backslashes by a Windows operator yields a summary path of 33-CAPTURE-SUMMARY.md at the repo root and a false status-row refusal — const manifestRel = toPosix(cli.manifest) at the top of main(); owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:10.009Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 254,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-flip-manifest.ts",
+    "line": 596,
+    "description": "33-REVIEW IN-07 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): changedFiles runs git diff-tree --no-commit-id --name-only -r --root <commit>, which prints nothing for a merge commit without -m or -c, so a flip landing via a merge reports every declared file as omitted — fails closed with a message naming the wrong cause — use git diff --name-only -z <c>^ <c> for the single-commit form (or add -m --first-parent) and name merge commits in the refusal text; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:10.100Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 255,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": ".claude/agents/grugops-orchestrator.md",
+    "line": 5,
+    "description": "33-DIAGNOSIS section 1.4 (a) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): on the --agent path the coordinator carries the installed adapter's seven-tool grant (.claude/agents/grugops-orchestrator.md:5 — Agent(sixteen roles), Read, Grep, Glob, Edit, Write, Bash; init frame B:11 lists exactly those seven), which does not include the plugin's MCP admission tool mcp__plugin_grugops_grugops__propose_note, so on that path the coordinator cannot propose notes through the sanctioned writer — deterministically, by construction of the grant (evidence section 1.3 (i), round-1-held/ B:11 vs A:11). DIRECTION, the human's words: carry the MCP admission tool (propose_note) in the --agent coordinator adapter's grant — touching the spawn-grant derivation, its census pins and the guard oracles; the alternative (telling role adapters where the sanctioned writer lives under the plugin cache) was not chosen. Owner: round 3",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:10.191Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 256,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": null,
+    "description": "33-DIAGNOSIS section 1.4 (b) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the reader (readContext, scripts/context-io.ts) admits notes written into .grugops/context by anything other than the sanctioned writer — path B's nine notes were written with the Write tool straight into the context root (round-1-held/ B:774, B:795, B:817, B:1542, B:1607, B:1638, B:1757, B:1779, B:1802) and read back as if admitted, so the WF16 single-writer rule held on path A by tooling and on path B by nothing (evidence section 1.3 (ii)). DIRECTION, the human's words: refuse non-sanctioned (hand-written, Write-tool) notes on read; the alternative (keep admitting them) was not chosen. Owner: round 3",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:10.282Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 257,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "hooks/guard.ts",
+    "line": null,
+    "description": "33-DIAGNOSIS section 2 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the guard (hooks/guard.ts + scripts/checkpoints.ts) classifies a 2>&1 redirection and an ordinary $var expansion as substitutions it will not reason about and refuses any such segment carrying git or npm anywhere in it, on tool name alone — fifteen over-matched denies across the two round-1 transcripts (A:454 … B:1750). Reproduced offline against the committed guard on stdin with no GRUGOPS_ variable set: git log --oneline -5 -> allow; git log --oneline -5 2>&1 -> deny (matched by the command model, the git push sentence printed for a git log); echo \"npm run lint\" -> allow; echo \"npm run $s\" -> deny (carries a shell substitution the guard will not reason about); matchCommandCheckpoints reports untokenizable: true for both. Fails closed — an availability defect, not a safety hole; no offline test covers the class (275 guard tests green). Correction named by the diagnosis: the tokenizer's redirection-vs-substitution classification, and the deny text. No further direction stated beyond accepted-open. Owner: round 3",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:10.372Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 258,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": 1416,
+    "description": "33-DIAGNOSIS section 3 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): admitAndAppend / composeNote (scripts/context-io.ts:1416) interpolates ${note.verified_by} with no presence check and writes the line verified_by: undefined — the string — for an absent field; undefined is not in the DeLM hollow-evidence list (context-io.ts:205), so the note reads back with a non-empty stamp no gate and no human set (path A notes [6]-[9]). Reproduced offline: admitAndAppend with no verified_by key returns findings: [] and the file carries verified_by: undefined; passing the key explicitly undefined serializes identically, so the fault is serialization, not the caller's spelling. Did not touch any verdict the round reads. No further direction stated beyond accepted-open. Owner: round 3",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T10:52:10.464Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
