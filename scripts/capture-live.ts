@@ -244,22 +244,60 @@ const VERDICT_GREEN_MARKER = "READY_FOR_HUMAN_REVIEW";
 
 // The request the live runs make. The July 2026 observation routed `audit current architecture`
 // through three role agents; the deny probe is the harmless matched command the A2 case has always
-// used. The narrowest tool grant that lets the probe reach the PreToolUse hook is
-// UNKNOWN - verify (RESEARCH Open Question 2) until the first live run measures it.
+// used. `Bash(helm upgrade *)` was sufficient to reach the PreToolUse hook in both round-1 runs
+// (33-DIAGNOSIS § 4.3) — that settles the former `UNKNOWN - verify` about the narrowest probe grant.
 const LIVE_REQUEST =
   "audit current architecture. Route the work to specialist role agents over the shared queue. " +
   "Then run exactly this shell command once and report its outcome: helm upgrade fake ./nope";
-const LIVE_ALLOWED_TOOLS: readonly string[] = [
-  "Agent",
-  "Read",
-  "Grep",
-  "Glob",
-  "Edit",
-  "Write",
-  "Bash(node *)",
-  "Bash(helm upgrade *)",
-  "mcp__grugops__propose_note",
-];
+
+/**
+ * The admission tool as the platform exposes it in the plugin form. The held round-1 init frame
+ * (A:11) lists this spelling, and the checkout's coordinator adapter has carried it since 33-28;
+ * the offline suite derives both and compares them with this value (Test C7), so it is a pinned
+ * observation, not a free literal.
+ */
+const ADMISSION_TOOL = "mcp__plugin_grugops_grugops__propose_note";
+
+/**
+ * The tool grant handed to the subject as `--allowedTools`, resolved per target. This is a safety
+ * surface, so the voice is plain and every entry has a stated reason. Three facts decide its shape,
+ * each read from the platform's permission-rules reference on 2026-09-21
+ * (https://code.claude.com/docs/en/permissions "Read and Edit";
+ * https://code.claude.com/docs/en/agent-sdk/permissions "Allow and deny rules"):
+ *
+ *   1. File-writing tools are governed by ONE rule form. The reference states: "`Edit(path)` rules
+ *      govern all built-in tools that write files, including `Write` and `NotebookEdit`; a
+ *      `Write(path)` rule is never matched by the file permission checks." So the single scoped
+ *      file-writing entry is an `Edit(...)` rule, no bare `Write` or `Edit` is granted, and the
+ *      round-2 review's recipe (`Write(TARGET/**)` beside `Edit(TARGET/**)`) is not followed —
+ *      it names a rule the platform never consults.
+ *   2. The anchor form is `//`. The reference states: "Use `//path` for an absolute filesystem
+ *      path" and "With a single leading slash, `Edit(/secrets/**)` anchors at the rule's source
+ *      instead. For rules passed through `allowed_tools` or `disallowed_tools`, that means the
+ *      session's working directory." So the rule is `Edit(//<target real path without its leading
+ *      slash>/**)`, the target resolved through `realpathSync.native` so the anchor is the path the
+ *      platform will compare against (macOS temp directories are symlinks under `/private`). The
+ *      spelling of the `//` form against a Windows drive-letter path is UNKNOWN - verify: no
+ *      Windows session has run this instrument.
+ *   3. `Bash(node *)` is KEPT, by recorded reason. Nested role sessions receive no plugin MCP tool —
+ *      held capture A:784: "No such tool available: mcp__plugin_grugops_grugops__propose_note. Its
+ *      MCP server 'plugin:grugops:grugops' is connected but does not offer this tool here" — and
+ *      reached the sanctioned writer only in-process through node (A:839, A:878, A:1408, A:1442).
+ *      Dropping it would make CAP-03 side (b) unreachable by construction. The round-2 CR-01 concern
+ *      it carried — arbitrary code touching a verdict input — is closed by MOVING the inputs, not by
+ *      the grant: the frames are scored from the pipe (hard rule 5), the spawn grant is derived
+ *      before the spawn and drift fails the run (`runTarget`), and plan 33-30 moves the provenance
+ *      digest before the spawn. What the subject can still reach with node is its own target and
+ *      its own notes, which are the observed product, not the observation channel.
+ *
+ * The resolved list is printed as a per-run Run-table row (`run X tool grant`) so the report, not a
+ * diagnosis after the spend, says what the subject held.
+ */
+export function liveAllowedTools(target: string): string[] {
+  const real = realpathSync.native(target);
+  const anchored = toPosix(real).replace(/^\/+/, "");
+  return ["Agent", "Read", "Grep", "Glob", `Edit(//${anchored}/**)`, "Bash(node *)", "Bash(helm upgrade *)", ADMISSION_TOOL];
+}
 
 // ---------------------------------------------------------------------------
 // Failure carrier
@@ -768,6 +806,22 @@ export function deriveGrant(installedRoot: string): GrantDerivation {
     );
   }
   return { granted, adapterNames, coordinator, prefix: longestCommonPrefix(adapterNames), reasons };
+}
+
+/** The four derived-grant fields, compared as sorted lists / scalars. */
+const GRANT_FIELDS = ["granted", "adapterNames", "coordinator", "prefix"] as const;
+
+/**
+ * The names of the derived fields on which two grant derivations differ, sorted; EMPTY means the
+ * two agree. Used twice by `runTarget`: before the spawn against the grant `capture()` derived
+ * from target A, and after the run against the pre-spawn derivation (CR-01 round 2, item 2).
+ */
+export function grantDriftFields(before: GrantDerivation, after: GrantDerivation): string[] {
+  const out: string[] = [];
+  for (const f of GRANT_FIELDS) {
+    if (JSON.stringify(before[f]) !== JSON.stringify(after[f])) out.push(f);
+  }
+  return out.sort();
 }
 
 export interface AuthorStamp {
@@ -1418,7 +1472,14 @@ export const LIVE_OPS: Readonly<LiveOps> = Object.freeze({ pluginInstall, runPla
 
 export interface RunSpec {
   request: string;
+  /** The resolved `--allowedTools` list — `liveAllowedTools(target)` on the live path. */
   allowedTools: readonly string[];
+  /**
+   * The grant `capture()` derived from target A before the loop, or null when no cross-target
+   * agreement is asserted. A target whose pre-spawn derivation differs on any derived field is a
+   * refusal BEFORE the spawn — no token is spent against a grant that is not the one under test.
+   */
+  expectedGrant: GrantDerivation | null;
   /** The `--agent` value for the spawn path, or null for the AGENTS.md path (D-07). */
   agent: string | null;
   pluginName: string;
@@ -1429,6 +1490,8 @@ export interface RunSpec {
 export interface TargetRun extends RunReport {
   transcriptPath: string;
   transcriptText: string;
+  /** The grant derived BEFORE the spawn — the value every CAP-03 side was scored against. */
+  grant: GrantDerivation;
   installLine: string;
   projection: PathProjection;
   hung: boolean;
@@ -1458,6 +1521,16 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
   if (!isOutsideTargets(transcriptPath, [cwd])) {
     fail(`the transcript path ${transcriptPath} is inside the working directory the platform would be handed (${cwd}) — refusing to spawn (CR-01)`);
   }
+  // The grant is derived BEFORE the subject exists (CR-01 round 2, item 2): the installer rendered
+  // the adapters at build time and the plugin install added none, so this is the grant under test.
+  // Every CAP-03 side below is scored against THIS value, never against a post-run re-read.
+  const grant = deriveGrant(build.target);
+  if (run.expectedGrant !== null) {
+    const disagreement = grantDriftFields(run.expectedGrant, grant);
+    if (disagreement.length > 0) {
+      fail(`target ${build.label}: the pre-spawn grant derivation differs from the expected grant on ${disagreement.join(", ")} — refusing to spawn; the two targets would not be scored against one grant`);
+    }
+  }
   const args: string[] = ["-p", run.request, "--output-format", "stream-json", "--verbose", "--include-hook-events", "--forward-subagent-text", "--allowedTools", ...run.allowedTools];
   if (run.agent !== null) args.push("--agent", run.agent);
   const env = spawnEnv();
@@ -1469,10 +1542,13 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
   // Scored from the pipe: the frames are the bytes this process received, never the file (rule 5).
   const transcriptText = result.transcriptText;
   const frames = parseFrames(result.transcriptText);
-  const grant = deriveGrant(build.target);
   const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
   const derived = deriveClaims(frames, grant, stamps);
   if (derived.capThreeReasons.length > 0) failed = true;
+  // One post-run re-derivation, compared field by field: an adapter the subject edited during the
+  // run is named by FIELD in the Run table and fails the run; it never reaches the verdict above.
+  const grantDrift = grantDriftFields(grant, deriveGrant(build.target));
+  if (grantDrift.length > 0) failed = true;
   ops.pluginUninstall(build.target, run.pluginName);
   return {
     label: build.label,
@@ -1485,8 +1561,11 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
     targetRows: targetObservations(build, grant, stamps),
     capThreeReasons: derived.capThreeReasons,
     run: result,
+    toolGrant: run.allowedTools,
+    grantDrift,
     transcriptPath,
     transcriptText,
+    grant,
     installLine,
     projection: projectLivePath(stamps, frames.frames, grant.prefix),
     hung,
@@ -1645,6 +1724,13 @@ export interface RunReport {
   targetRows: TargetRow[];
   capThreeReasons: string[];
   run: PlatformRunResult | null;
+  /** The `--allowedTools` list the subject held, stated in the Run table (CR-01 round 2). */
+  toolGrant: readonly string[];
+  /**
+   * The derived-grant fields that changed between the pre-spawn and the post-run derivation, sorted.
+   * Empty means none changed; non-empty means the run is failed and the row names the fields.
+   */
+  grantDrift: string[];
 }
 
 export interface ReportModel {
@@ -1738,8 +1824,10 @@ export function renderReport(m: ReportModel): string {
     L.push(`| run ${r.label} transcript | ${r.transcriptName} (${r.frames.lineCount} line(s), ${r.frames.frames.length} frame(s), ${r.frames.partial} partial line(s)) |`);
     L.push(`| run ${r.label} transcript location | ${cell(r.transcriptLocation)} |`);
     L.push(`| run ${r.label} argv | ${cell(JSON.stringify(r.argv))} |`);
+    L.push(`| run ${r.label} tool grant | ${cell(JSON.stringify(r.toolGrant))} |`);
     if (r.run !== null) {
       L.push(`| run ${r.label} exit | status ${String(r.run.status)}, signal ${String(r.run.signal)}, timed out ${r.run.timedOut}, escalated ${r.run.escalated}, wall ${r.run.durationMs} ms |`);
+      L.push(`| run ${r.label} spawn grant drift | ${r.grantDrift.length === 0 ? "none — the post-run derivation equals the pre-spawn derivation on granted, adapterNames, coordinator and prefix" : `field(s) changed after the spawn: ${cell(r.grantDrift.join(", "))} — the run is failed`} |`);
     }
     L.push(`| run ${r.label} claim rows withheld (no citation) | ${r.withheld} |`);
   }
@@ -1993,6 +2081,8 @@ async function dryRun(opts: Options): Promise<number> {
       targetRows: targetObservations(build, grant, stamps),
       capThreeReasons: derived.capThreeReasons,
       run: null,
+      toolGrant: liveAllowedTools(build.target),
+      grantDrift: [],
     });
     projections.push({ label: build.label, projection: projectLivePath(stamps, frames.frames, grant.prefix) });
   }
@@ -2065,7 +2155,8 @@ async function capture(opts: Options): Promise<number> {
   for (const build of targets) {
     const r = await runTarget(build, {
       request: LIVE_REQUEST,
-      allowedTools: LIVE_ALLOWED_TOOLS,
+      allowedTools: liveAllowedTools(build.target),
+      expectedGrant: grantSource,
       agent: build.label === "B" ? grantSource.coordinator : null,
       pluginName: obs.pluginName,
       marketplaceName: obs.marketplaceName,

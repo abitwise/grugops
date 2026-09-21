@@ -729,7 +729,7 @@ function functionText(src: string, declaration: string): string {
   return src.slice(start + 1, end + 2);
 }
 
-const RUN_SPEC = { request: "audit current architecture", allowedTools: ["Read"] as const, agent: null, pluginName: "grugops", marketplaceName: "grugops", boundMs: 1000 };
+const RUN_SPEC = { request: "audit current architecture", allowedTools: ["Read"] as const, expectedGrant: null, agent: null, pluginName: "grugops", marketplaceName: "grugops", boundMs: 1000 };
 
 describe("CR-01: the scored transcript is streamed into a runner-owned scratch outside every target and outside the run's cwd", () => {
   it("isOutsideTargets decides containment on relative(), not on a string prefix: a sibling scratch is outside, an in-target path and a nested scratch are not", () => {
