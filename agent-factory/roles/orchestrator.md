@@ -1,7 +1,7 @@
 ---
 kind: role
 tier: core
-capabilities: read edit shell
+capabilities: read edit shell admit
 ---
 # Role: Orchestrator
 

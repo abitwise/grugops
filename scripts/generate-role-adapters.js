@@ -150,12 +150,27 @@ const fail = (m) => {
 // declaring `read shell` produce the identical `tools` line. Each tool is emitted once.
 // `AskUserQuestion` is deliberately absent: it is unconditionally removed from every sub-agent, so
 // no token may ever map to it.
+//
+// THE `admit` TOKEN (plan 33-28, WINDOWS.md row 255, 33-DIAGNOSIS § 1.3 (i)). On the `--agent`
+// path the coordinator's session tool list IS this adapter's `tools:` line — the round-1 init frame
+// B:11 listed exactly the seven tools the line then carried — so the plugin's MCP admission tool
+// was absent by construction of the grant, and the coordinator could not propose a note through the
+// sanctioned writer on the spawn path. The token exists so the coordinator's grant carries that
+// route, through this generator and never by a hand edit of the generated adapter. No other role
+// declares it: nested role sessions do not receive plugin MCP tools at all (A:784 — "No such tool
+// available ... does not offer this tool here") and reach the sanctioned writer in-process.
 const CAPABILITY_TOOLS = [
     { token: "read", tools: ["Read", "Grep", "Glob"] },
     { token: "edit", tools: ["Edit", "Write"] },
     { token: "shell", tools: ["Bash"] },
     { token: "web", tools: ["WebFetch", "WebSearch"] },
     { token: "plan", tools: ["TodoWrite"] },
+    // The spelling is the platform's SCOPED name for the plugin's bundled server — plugin `grugops`
+    // (.claude-plugin/plugin.json `name`), server key `grugops` (its `mcpServers.grugops`), tool
+    // `propose_note` — the one the round-1 init frame listed (A:11). The bare `mcp__grugops__propose_note`
+    // is the server's OWN name and is exposed only if a standalone `.mcp.json` server is ever shipped,
+    // which the kit does not do today. Emitted LAST: the built-ins keep the order the table above had.
+    { token: "admit", tools: ["mcp__plugin_grugops_grugops__propose_note"] },
 ];
 const VOCABULARY = CAPABILITY_TOOLS.map((c) => c.token);
 // ── First-sentence summary: split on ". " (period-SPACE), KEEP its period, never re-append ────

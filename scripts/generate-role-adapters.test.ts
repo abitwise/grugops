@@ -1732,9 +1732,16 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
     expect(derived.granted).toEqual(expectedGrant);
     expect(derived.coordinator).toBe("grugops-orchestrator");
     expect(derived.adapterNames).toHaveLength(derived.granted.length + 1);
-    // And the installed coordinator adapter is byte-identical to the committed one: the installer
-    // spawns the same generator, so a checkout and a target agree by construction.
-    expect(readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8")).toBe(live);
+    // And the installed coordinator adapter's GRANT is the committed one's: the installer spawns the
+    // same generator, so a checkout and a target agree on the `tools:` line by construction. (The
+    // body is not byte-identical — the installer restates the provenance banner and materializes
+    // the kit path — so the comparison is over the admitted grant value, which is what a session's
+    // tool list is built from.)
+    const installed = admit(readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8"));
+    expect(installed.ok, `the installed coordinator adapter is REFUSED: ${installed.ok ? "" : `[${installed.code}] ${installed.reason}`}`).toBe(true);
+    if (!installed.ok) return;
+    expect(admittedGrantValues(installed.value)).toEqual(values);
+    expect(admittedGrantedNames(installed.value)).toEqual(expectedGrant);
   });
 
   it("K6: the coordinator is the ONLY adapter carrying an MCP tool, and a full-corpus regeneration reproduces every live adapter byte for byte", () => {

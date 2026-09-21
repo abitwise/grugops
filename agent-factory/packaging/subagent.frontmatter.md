@@ -172,6 +172,7 @@ lives here and in role frontmatter; it never lives inside the generator as a per
 | `shell` | `Bash` | running the repo's own checks |
 | `web` | `WebFetch`, `WebSearch` | fetching external material (advisories, upstream docs) |
 | `plan` | `TodoWrite` | tracking a multi-step task list |
+| `admit` | `mcp__plugin_grugops_grugops__propose_note` | proposing a verified context note through the plugin's MCP admission tool, under the admission guard (coordinator only) |
 
 Two facts govern this table:
 
@@ -182,6 +183,14 @@ Two facts govern this table:
 2. **The interactive question tool is unconditionally removed from every sub-agent**, so it
    appears in no mapping and is reachable from no token. `AskUserQuestion` is named here once,
    as the thing that is excluded, precisely so nobody adds a token for it later.
+3. **`admit` names the platform's scoped spelling for the plugin's bundled MCP server**
+   (`mcp__plugin_<plugin>_<server>__<tool>`), which is the name a `--agent` main-thread session
+   receives when the plugin is installed. Only the coordinator declares it: on the spawn path the
+   session's tool list is exactly the adapter's `tools` line, so without the token the coordinator
+   cannot reach the sanctioned writer. Nested role sessions do not receive plugin MCP tools and
+   reach the writer in-process, so the token would resolve to nothing there. The bare
+   `mcp__grugops__propose_note` is the server's own name and is exposed only by a standalone
+   `.mcp.json` server, which the kit does not ship.
 
 A role must declare at least one token. An empty or list-shaped value parses as empty, which
 would emit an adapter whose `tools` resolve to nothing — and a sub-agent whose tool entries all

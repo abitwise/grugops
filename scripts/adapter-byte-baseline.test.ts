@@ -72,6 +72,79 @@ const ADAPTER_DIR = ".claude/agents";
 const PRE_PHASE_ADAPTER_BASELINE = "6f8411effe80b3f22d0d668e1fa40fa78e3a8088";
 
 /**
+ * THE ONE RECORDED DIVERGENCE FROM THE BASELINE (plan 33-28, WINDOWS.md row 255, decision
+ * D-33-R3-02) — DERIVED FROM A SECOND INDEPENDENT SOURCE, NEVER FROM THE GENERATOR.
+ *
+ * Plan 33-28 carries the plugin's MCP admission tool in the coordinator adapter's `tools:` grant, so
+ * on the `--agent` path the coordinator can reach the sanctioned writer (33-DIAGNOSIS § 1.3 (i):
+ * the session's tool list IS the adapter's tools line, B:11). That is a deliberate change to the
+ * bytes of exactly ONE adapter on exactly ONE line, and MODEL-01's question — is the zero-config
+ * MODEL LINE still byte-identical to the pre-29.1 tree — is unchanged by it. The pin therefore
+ * STAYS at the pre-phase commit, and the comparison below admits exactly this divergence and no
+ * other: the coordinator's `tools:` line may equal the baseline line with `, <scoped tool>`
+ * appended, where the scoped tool name is read out of the ROUND-1 INIT FRAME at its held commit
+ * (A:11, `git show c7be6d0d:...`) — the platform's own spelling, from a fixture the generator never
+ * produced. Every other byte of every adapter, including every `model:` line, is still compared
+ * byte for byte against the baseline.
+ *
+ * Why not re-pin to a newer commit: a pin moved to a tree that already carries the new grant would
+ * be a number bumped to make the gate green, and the second opinion would then have been produced
+ * by the generator under test. Two independent fixtures — the pre-phase tree and the held capture —
+ * are what keep this file an opinion the generator cannot move.
+ */
+const HELD_CAPTURE_SHA = "c7be6d0d";
+const HELD_CAPTURE_A = ".planning/phases/33-live-capture-windows-portability/33-CAPTURE-A.jsonl";
+const DIVERGING_ADAPTER = "grugops-orchestrator.md";
+const scopedAdmissionToolFromInitFrame = (): string => {
+  const shown = spawnSync("git", ["show", `${HELD_CAPTURE_SHA}:${HELD_CAPTURE_A}`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: "",
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 60_000,
+  });
+  if (shown.status !== 0 || !shown.stdout) {
+    throw new Error(
+      `git show failed for ${HELD_CAPTURE_SHA}:${HELD_CAPTURE_A} (status ${String(shown.status)}) — the held round-1 capture could not be read, so the one admitted divergence could not be derived: ${(shown.stderr ?? "").trim()}`,
+    );
+  }
+  const frame = JSON.parse((shown.stdout as string).split("\n")[10] as string) as {
+    type: string;
+    subtype?: string;
+    tools: string[];
+  };
+  if (frame.type !== "system" || frame.subtype !== "init") {
+    throw new Error(`A:11 is not the system/init frame (type=${frame.type}, subtype=${String(frame.subtype)})`);
+  }
+  const names = frame.tools.filter((t) => /^mcp__.*grugops.*propose_note$/.test(t));
+  if (names.length !== 1) {
+    throw new Error(
+      `A:11 lists ${String(names.length)} grugops propose_note tool name(s), expected exactly one: ${names.join(", ")}`,
+    );
+  }
+  return names[0] as string;
+};
+
+/**
+ * The bytes the baseline adapter is EXPECTED to have on the working tree: identical, except that
+ * the coordinator's `tools:` line carries the scoped admission tool appended after the last
+ * baseline tool. Applied to the baseline bytes as a single-line edit so the whole file — the
+ * `model:` line MODEL-01 is about, the body, the trailing newline — is still compared byte for byte.
+ */
+const expectedWorkingBytes = (name: string, baseline: Buffer, scoped: string): Buffer => {
+  if (name !== DIVERGING_ADAPTER) return baseline;
+  const text = baseline.toString("utf8");
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("tools: "));
+  if (at === -1) throw new Error(`${name} at the baseline carries no \`tools: \` line`);
+  if (lines.filter((l) => l.startsWith("tools: ")).length !== 1) {
+    throw new Error(`${name} at the baseline carries more than one \`tools: \` line`);
+  }
+  lines[at] = `${lines[at]}, ${scoped}`;
+  return Buffer.from(lines.join("\n"), "utf8");
+};
+
+/**
  * Derive the adapter filenames present at a revision, out of the git object store.
  *
  * `-r` so the listing is by full path beneath the adapter directory at any depth, matching the
@@ -133,9 +206,18 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
     expect(/^[0-9a-f]{40}$/.test(PRE_PHASE_ADAPTER_BASELINE)).toBe(true);
   });
 
-  it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE", () => {
+  it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE — except the ONE recorded grant divergence, derived from the held init frame (33-28)", () => {
     // ── THE PREMISE, BEFORE THE CLAIM. ───────────────────────────────────────────────────────
     const names = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
+    const scoped = scopedAdmissionToolFromInitFrame();
+    // The divergence must be REAL before it is admitted: the baseline coordinator must NOT already
+    // carry the scoped tool (else the edit below is a no-op that would hide a second, unrecorded
+    // difference), and the diverging adapter must be in the baseline set.
+    expect(names).toContain(DIVERGING_ADAPTER);
+    expect(
+      baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER).toString("utf8").includes(scoped),
+      "the pre-phase baseline already carries the scoped admission tool — the recorded divergence would be a no-op",
+    ).toBe(false);
     // The count is derived INDEPENDENTLY of the loop that consumes it: ROLE_COUNT is the kit
     // authority's two-sided cardinality, and this derivation never consulted it. A short listing is
     // therefore a named failure rather than a smaller clean run.
@@ -161,17 +243,34 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
         );
         continue;
       }
-      if (!baseline.equals(working)) {
+      const expected = expectedWorkingBytes(name, baseline, scoped);
+      if (!expected.equals(working)) {
         differing.push(
-          `${name} — baseline ${String(baseline.length)} bytes, working tree ${String(working.length)} bytes`,
+          `${name} — baseline ${String(baseline.length)} bytes (expected ${String(expected.length)} after the one recorded divergence), working tree ${String(working.length)} bytes`,
         );
       }
     }
 
     expect(
       differing,
-      `the adapter bytes moved against the pinned pre-phase baseline ${PRE_PHASE_ADAPTER_BASELINE}. MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator`,
+      `the adapter bytes moved against the pinned pre-phase baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the ONE recorded divergence (the coordinator's tools line carrying the scoped admission tool, plan 33-28). MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator`,
     ).toEqual([]);
+
+    // AND THE DIVERGENCE IS EXACTLY ONE LINE OF ONE FILE. Derived from the two fixtures, never from
+    // the generator: the coordinator's working bytes minus the baseline bytes is the appended
+    // `, <scoped>` and nothing else — one more line would have failed the equality above, and a
+    // shorter suffix here would mean the edit was not the one this file records.
+    const baselineCoord = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER);
+    const workingCoord = readFileSync(join(ROOT, ADAPTER_DIR, DIVERGING_ADAPTER));
+    expect(workingCoord.length - baselineCoord.length).toBe(Buffer.byteLength(`, ${scoped}`, "utf8"));
+    const baselineLines = baselineCoord.toString("utf8").split("\n");
+    const workingLines = workingCoord.toString("utf8").split("\n");
+    expect(workingLines.length).toBe(baselineLines.length);
+    const changedLines = baselineLines
+      .map((l, i) => (l === workingLines[i] ? null : i))
+      .filter((i): i is number => i !== null);
+    expect(changedLines).toHaveLength(1);
+    expect(baselineLines[changedLines[0] as number]?.startsWith("tools: ")).toBe(true);
   });
 
   it("the working adapter directory holds EXACTLY the baseline set — none added, none removed", () => {

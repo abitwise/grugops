@@ -2,7 +2,7 @@
 name: grugops-orchestrator
 description: "Decompose each request into subtasks and route each to the right role agent over the shared queue. Use when: Any incoming request — every `/grugops` starts here."
 coordinator: true
-tools: Agent(grugops-agents-md-scribe, grugops-architect-design, grugops-ba-pm, grugops-brownfield-mapper, grugops-compliance-officer, grugops-factory-coach, grugops-frontend-ui, grugops-greenfield-mapper, grugops-incident-responder, grugops-installer, grugops-qe-e2e, grugops-release-manager, grugops-security-nfr, grugops-software-engineer, grugops-system-analyst, grugops-uat-planner), Read, Grep, Glob, Edit, Write, Bash
+tools: Agent(grugops-agents-md-scribe, grugops-architect-design, grugops-ba-pm, grugops-brownfield-mapper, grugops-compliance-officer, grugops-factory-coach, grugops-frontend-ui, grugops-greenfield-mapper, grugops-incident-responder, grugops-installer, grugops-qe-e2e, grugops-release-manager, grugops-security-nfr, grugops-software-engineer, grugops-system-analyst, grugops-uat-planner), Read, Grep, Glob, Edit, Write, Bash, mcp__plugin_grugops_grugops__propose_note
 model: inherit
 ---
 <!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-role-adapters.js -->
