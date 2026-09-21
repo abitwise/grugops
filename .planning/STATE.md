@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 3 of 4 PLANNED 2026-09-21 — 11 plans (33-24..33-34, waves 13-23), checker passed 0/0; next: /gsd-execute-phase 33 --gaps-only"
-stopped_at: "Completed 33-24-PLAN.md (round 3 tracer: one spelling authority, D-33-R3-01)"
-last_updated: "2026-09-21T15:43:25.059Z"
-state_head: a59321ae99252a2b5bd4a06ec36affad7dac8a5b
+stopped_at: "Completed 33-25-PLAN.md (KIT (b): the writer seals, the reader refuses unsealed notes)"
+last_updated: "2026-09-21T16:46:32.894Z"
+state_head: 28d0cfa7e904fe70bc32ed26e7cd470db230ce31
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 303
-  completed_plans: 293
+  completed_plans: 294
   percent: 97
 last_activity: 2026-09-21
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 2 of 34
+Plan: 3 of 34
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -552,6 +552,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P22 | 4 min | 1 tasks | 2 files |
 | Phase 33 P23 | 9 min | 3 tasks | 4 files |
 | Phase 33 P24 | 30 min | 2 tasks | 8 files |
+| Phase 33 P25 | 57 min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -1513,6 +1514,8 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-23: nine Phase 33 deferred items resolved only with the fix commit plus the CI leg that measured the class green on run 35579263776; the ten-context-io-reds item stays open (8 of 10 green, W-20/W-21 moved onto row 236); CAP-01/02/03 stay Pending, requirements.mark-complete deliberately not run
 - [Phase 33]: Round 2 verified gaps_found 0/3 (2026-09-21): CAP-02 genuine fail on ONE class (context-io 8.3 short-name spelling, row 236, run 35579263776 ubuntu green / windows 35 reds); CAP-01 HELD by human ledger-and-hold; CAP-03 held + round-2 review CR-01 (verdict inputs re-read from subject-writable disk after the run; LIVE_ALLOWED_TOOLS unscoped). Round 3 inputs on disk: row 236 authority, review CR-01+WR-01..06, KIT (a) carry propose_note in coordinator grant, KIT (b) refuse hand-written notes on read, manifest §7 two flip amendments, push-before-checkpoint sequencing.
 - [Phase 33]: D-33-R3-01 (33-24, assumption_delta = promote): rung 1 of canonicalDirectoryPath (realpathSync.native, the kernel's final path — long names on win32) is the module's ONE published spelling of a directory on every host; rung 2 (realpathSync) stays a fallback INSIDE the ladder for a platform with no native variant and is never a published spelling on its own. Recorded BEFORE any code edit. — Evidence on disk: (1) the rung-identity property at scripts/context-io.test.ts:11615 proves rung 1 is idempotent over rung 2's output (realpathSync.native(realpathSync(r)) === realpathSync.native(r)) while the converse is disproved by the 8.3 class (RUNNER~1 vs runneradmin, WINDOWS.md row 236); (2) tier 0 (hostDeliveredRoot) already publishes rung 1 and 33-16 put the cwd tier on it; (3) 33-15 derived W-23..W-25 through rung 1 and all three read green on run 35579263776 (33-CI-MEASUREMENT.md Part 3 § 3.3). Defining rung 2 as the published spelling would put the cwd tier and tier 0 back onto a spelling the kernel does not answer, re-opening 33-16's W-21.
+- [Phase 33]: 33-25: no grandfather clause for the note seal — a note composed before the seal existed is refused on read like any other unsealed note, proven against the last pushed sha's own writer (S4 base 1 / HEAD 0); the two board-snapshot fixtures re-sealed, 35 + 10 derived reds dispositioned
+- [Phase 33]: 33-25: the seal is unkeyed by necessity and the un-forgeable point-of-effect tier (deny file-writing tools under the context root) is a human kit-capability decision not taken; stated in the module, the contract, the CHANGELOG, handed to 33-34's ledger close as two rows
 
 ### Pending Todos
 
@@ -1640,8 +1643,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-21T15:43:24.606Z
-Stopped at: Completed 33-24-PLAN.md (round 3 tracer: one spelling authority, D-33-R3-01)
+Last session: 2026-09-21T16:46:32.429Z
+Stopped at: Completed 33-25-PLAN.md (KIT (b): the writer seals, the reader refuses unsealed notes)
 Resume file: None
 
 ## Operator Next Steps
