@@ -49,6 +49,8 @@ import {
   FIXTURE_JSONL,
   frameKinds,
   homeSpellingSurvivors,
+  INSTALL_AND_PLUGIN_PATHS,
+  installedPluginRow,
   installOutcome,
   isOutsideTargets,
   LIVE_OPS,
@@ -75,10 +77,12 @@ import {
   spawnObservations,
   TMP_PREFIX,
   verifyArtifacts,
+  workingTreeStatusArgs,
   type AuthorStamp,
   type LiveOps,
   type PlatformRunResult,
   type PreconditionObservation,
+  type ProvenanceInputs,
   type ReportModel,
   type RunReport,
   type ScratchRegistry,
@@ -448,6 +452,7 @@ function observation(overrides: Partial<PreconditionObservation> = {}): Precondi
     remoteHead: "a".repeat(40),
     aheadCount: 0,
     approvalKeyPresent: false,
+    workingTreeStatus: "",
     ...overrides,
   };
 }
@@ -710,7 +715,12 @@ function recordingOps(streamText: string, onRun?: (transcriptPath: string, cwd: 
   const calls: { transcriptPath: string; cwd: string; args: readonly string[] }[] = [];
   return {
     calls,
-    pluginInstall: (_target, pluginName, marketplaceName) => `recorded: install ${pluginName}@${marketplaceName} (no platform call)`,
+    pluginInstall: (target, pluginName, marketplaceName) => {
+      // What the platform's install does that the runner reads back (WR-02): a local-scope registry
+      // row for THIS target, pointing at the copy the platform would load — here the honest copy.
+      PROVENANCE.install(target, PROVENANCE.honestCopy);
+      return `recorded: install ${pluginName}@${marketplaceName} (no platform call)`;
+    },
     pluginUninstall: (): UninstallOutcome => ({ status: 0, error: null, detail: "" }),
     runPlatform: async (args, cwd, _env, transcriptPath, _boundMs): Promise<PlatformRunResult> => {
       calls.push({ transcriptPath, cwd, args });
@@ -730,7 +740,64 @@ function functionText(src: string, declaration: string): string {
   return src.slice(start + 1, end + 2);
 }
 
-const RUN_SPEC = { request: "audit current architecture", allowedTools: ["Read"] as const, expectedGrant: null, agent: null, pluginName: "grugops", marketplaceName: "grugops", boundMs: 1000 };
+// ── WR-02: the provenance fixture — a scratch plugin cache root and registry, the checkout side over a SMALL tracked subset ──
+//
+// The live run digests the checkout's whole tracked list; the offline suite hands `runTarget` a
+// three-file subset of it (the checkout side is computed ONCE and handed down, exactly as
+// `capture()` does), so an honest copy is three files and a stale copy is one changed byte. The
+// registry fixture mirrors the platform's own `installed_plugins.json` shape (version 2; rows keyed
+// `NAME@MARKETPLACE` with scope, projectPath, installPath, version, installedAt, lastUpdated,
+// gitCommitSha) — asserted here from THIS fixture, never read from the operator's file.
+interface RegistryRow {
+  scope: "user" | "project" | "local";
+  projectPath?: string;
+  installPath: string;
+  version: string;
+  installedAt: string;
+  lastUpdated: string;
+  gitCommitSha: string;
+}
+const HONEST_SHA = "f".repeat(40);
+function provenanceFixture(): {
+  inputs: ProvenanceInputs;
+  cacheRoot: string;
+  registryPath: string;
+  tracked: string[];
+  honestCopy: string;
+  copyAt: (name: string, mutate?: (rel: string, bytes: Buffer) => Buffer) => string;
+  writeRows: (rows: RegistryRow[]) => void;
+  install: (target: string, installPath: string, extraRows?: RegistryRow[]) => void;
+} {
+  const scratch = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-provenance-`));
+  const cacheRoot = join(scratch, "plugins");
+  mkdirSync(join(cacheRoot, "cache", "grugops", "grugops"), { recursive: true });
+  const registryPath = join(cacheRoot, "installed_plugins.json");
+  const tracked = ["AGENTS.md", ".claude-plugin/plugin.json", "scripts/capture-live.js"];
+  for (const rel of tracked) if (!existsSync(join(ROOT, ...rel.split("/")))) throw new Error(`premise: ${rel} is not in the checkout`);
+  const copyAt = (name: string, mutate?: (rel: string, bytes: Buffer) => Buffer): string => {
+    const dir = join(cacheRoot, "cache", "grugops", "grugops", name);
+    for (const rel of tracked) {
+      const parts = rel.split("/");
+      mkdirSync(join(dir, ...parts.slice(0, -1)), { recursive: true });
+      const bytes = readFileSync(join(ROOT, ...parts));
+      writeFileSync(join(dir, ...parts), mutate === undefined ? bytes : mutate(rel, bytes));
+    }
+    return dir;
+  };
+  const writeRows = (rows: RegistryRow[]): void => {
+    writeFileSync(registryPath, JSON.stringify({ version: 2, plugins: { "grugops@grugops": rows } }, null, 2));
+  };
+  const install = (target: string, installPath: string, extraRows: RegistryRow[] = []): void => {
+    const at = "2026-09-21T00:00:00.000Z";
+    writeRows([...extraRows, { scope: "local", projectPath: target, installPath, version: "2.1.0", installedAt: at, lastUpdated: at, gitCommitSha: HONEST_SHA }]);
+  };
+  const honestCopy = copyAt("2.1.0");
+  const inputs: ProvenanceInputs = { registryPath, cacheRoot, checkout: { tracked, digest: contentDigest(ROOT, tracked) } };
+  return { inputs, cacheRoot, registryPath, tracked, honestCopy, copyAt, writeRows, install };
+}
+const PROVENANCE = provenanceFixture();
+
+const RUN_SPEC = { request: "audit current architecture", allowedTools: ["Read"] as const, expectedGrant: null, agent: null, pluginName: "grugops", marketplaceName: "grugops", boundMs: 1000, provenance: PROVENANCE.inputs };
 
 describe("CR-01: the scored transcript is streamed into a runner-owned scratch outside every target and outside the run's cwd", () => {
   it("isOutsideTargets decides containment on relative(), not on a string prefix: a sibling scratch is outside, an in-target path and a nested scratch are not", () => {
@@ -1087,8 +1154,9 @@ function countingOps(streamText: string, uninstallOutcome: UninstallOutcome = { 
   const ops = recordingOps(streamText);
   let installs = 0;
   let uninstalls = 0;
-  ops.pluginInstall = (_target, pluginName, marketplaceName) => {
+  ops.pluginInstall = (target, pluginName, marketplaceName) => {
     installs += 1;
+    PROVENANCE.install(target, PROVENANCE.honestCopy);
     return `recorded: install ${pluginName}@${marketplaceName} (no platform call)`;
   };
   ops.pluginUninstall = () => {
@@ -1181,6 +1249,159 @@ describe("WR-06: containment is refused before anything is installed, and the un
   });
 });
 
+// ── WR-02 / WR-03 (33-REVIEW round 2): provenance is decided BEFORE the spawn, from the platform's own registry row ──
+//
+// `claude plugin install` caches by `<marketplace>/<plugin>/<version>`; at an unbumped version a
+// fresh install can reuse whichever sha last populated the cache, and round 2 digested that copy
+// only AFTER both runs — the third post-run verdict input CR-01 named, and a guaranteed `UNMET`
+// after the full spend. Now `runTarget`, after `ops.pluginInstall` and before `ops.runPlatform`,
+// reads the platform's own registry row for the plugin at LOCAL scope in THIS target (by scope and
+// project path, never by index), validates its `installPath` under the cache root, digests it
+// against the checkout side handed down from `capture()`, and refuses to spawn on anything but
+// MET. The post-run init-frame digest stays as the confirmation; both are rows. WR-03 is the
+// untracked arm of the same class: the installer copies the WORKING TREE while the digest is over
+// `git ls-files`, so an untracked file under `agent-factory/` reached path A invisibly; a scoped
+// `git status --porcelain --untracked-files=all` row now refuses before the spend.
+
+/** A recorder whose install writes a registry row pointing at the given copy (the platform's install, one row over). */
+function installingOps(streamText: string, installPath: string, extraRows: RegistryRow[] = [], writeRow = true): ReturnType<typeof recordingOps> {
+  const ops = recordingOps(streamText);
+  ops.pluginInstall = (target, pluginName, marketplaceName) => {
+    if (writeRow) PROVENANCE.install(target, installPath, extraRows);
+    else PROVENANCE.writeRows(extraRows);
+    return `recorded: install ${pluginName}@${marketplaceName} (no platform call)`;
+  };
+  return ops;
+}
+
+describe("WR-02 / WR-03: plugin provenance is a pre-spawn gate from the platform's registry row, and an untracked file under the installer's directories is a readiness refusal", () => {
+  it("Test P1 (the stale cache): a registry row whose installPath holds the checkout's tracked files with ONE byte changed is refused BEFORE the spawn naming provenance and UNMET — the platform recorder was called 0 times", async () => {
+    const stale = PROVENANCE.copyAt("2.1.0-stale", (rel, bytes) => (rel === "AGENTS.md" ? Buffer.concat([bytes, Buffer.from("x")]) : bytes));
+    expect(contentDigest(stale, PROVENANCE.tracked), "premise: the stale copy digests differently").not.toBe(PROVENANCE.inputs.checkout.digest);
+    const build = handBuiltTarget("A");
+    const ops = installingOps(FIXTURE_TEXT, stale);
+    let message = "";
+    try {
+      await runTarget(build, RUN_SPEC, ops);
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    // The witness first: the recorder's count. On the base it is 1 — the spawn happened and the
+    // UNMET arrived after the run; now it is 0.
+    expect(ops.calls, "no platform child was launched against a copy that is not the checkout").toHaveLength(0);
+    expect(message).toMatch(/plugin provenance is UNMET before the spawn/);
+    // The refusal names both digests, the registry's sha and the remedy the review names.
+    expect(message).toContain(contentDigest(stale, PROVENANCE.tracked));
+    expect(message).toContain(PROVENANCE.inputs.checkout.digest as string);
+    expect(message).toContain(HONEST_SHA);
+    expect(message).toContain("plugin marketplace update grugops");
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test P2 (the honest copy spawns): a byte-identical copy is MET — the recorder is called once, and the report carries the pre-spawn row with the registry's gitCommitSha beside the digest AND the post-run init-frame confirmation row", async () => {
+    const build = handBuiltTarget("A");
+    const ops = installingOps(FIXTURE_TEXT, PROVENANCE.honestCopy);
+    const report = await runTarget(build, RUN_SPEC, ops);
+    expect(ops.calls).toHaveLength(1);
+    expect(report.provenanceBeforeSpawn.state).toBe("MET");
+    expect(report.provenanceBeforeSpawn.gitCommitSha).toBe(HONEST_SHA);
+    expect(report.provenanceBeforeSpawn.installedDigest).toBe(PROVENANCE.inputs.checkout.digest);
+    const rendered = renderReport(reportModelWith([report]));
+    const row = rendered.split("\n").find((l) => l.startsWith("| run A plugin provenance before the spawn | ")) ?? "";
+    expect(row.startsWith("| run A plugin provenance before the spawn | MET — "), row).toBe(true);
+    expect(row).toContain(PROVENANCE.inputs.checkout.digest as string);
+    expect(row).toContain(`gitCommitSha ${HONEST_SHA}`);
+    // The post-run confirmation row is still there, named as the AFTER-the-run derivation.
+    expect(rendered).toMatch(/\| installed plugin provenance after the run \(D-05, per system\/init, content digest over \d+ tracked files\) \| /);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test P3 (the row is found by scope and project, never by index): three rows resolve to the local-scope row for THIS target; no row for this target is UNKNOWN - verify naming the missing row and a refusal before the spawn", async () => {
+    const target = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-p3-target-`));
+    const other = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-p3-other-`));
+    const at = "2026-09-21T00:00:00.000Z";
+    const rows: RegistryRow[] = [
+      { scope: "user", installPath: join(PROVENANCE.cacheRoot, "cache", "grugops", "grugops", "user"), version: "2.1.0", installedAt: at, lastUpdated: at, gitCommitSha: "1".repeat(40) },
+      { scope: "local", projectPath: other, installPath: join(PROVENANCE.cacheRoot, "cache", "grugops", "grugops", "other"), version: "2.1.0", installedAt: at, lastUpdated: at, gitCommitSha: "2".repeat(40) },
+      { scope: "local", projectPath: target, installPath: join(PROVENANCE.cacheRoot, "cache", "grugops", "grugops", "this"), version: "2.1.0", installedAt: at, lastUpdated: at, gitCommitSha: "3".repeat(40) },
+    ];
+    const text = JSON.stringify({ version: 2, plugins: { "grugops@grugops": rows } });
+    expect(installedPluginRow(text, "grugops@grugops", target)).toEqual({ installPath: rows[2].installPath, gitCommitSha: "3".repeat(40), version: "2.1.0" });
+    // Reordered, the same row is found: the selection is by scope and project path, not position.
+    const reordered = JSON.stringify({ version: 2, plugins: { "grugops@grugops": [rows[2], rows[0], rows[1]] } });
+    expect(installedPluginRow(reordered, "grugops@grugops", target)?.gitCommitSha).toBe("3".repeat(40));
+    // The project path is compared on its real path, so a symlinked spelling of the target matches.
+    const link = join(mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-p3-link-`)), "target");
+    symlinkSync(target, link, "dir");
+    expect(installedPluginRow(text, "grugops@grugops", link)?.gitCommitSha).toBe("3".repeat(40));
+    // No row for this target: another project's local row and a user row do not stand in.
+    expect(installedPluginRow(text, "grugops@grugops", other)?.gitCommitSha).toBe("2".repeat(40));
+    expect(installedPluginRow(JSON.stringify({ version: 2, plugins: { "grugops@grugops": [rows[0], rows[1]] } }), "grugops@grugops", target)).toBeNull();
+    expect(installedPluginRow(text, "other@grugops", target), "another plugin key").toBeNull();
+    expect(installedPluginRow("not json", "grugops@grugops", target), "unparseable text is no row").toBeNull();
+    expect(installedPluginRow(JSON.stringify({ version: 2, plugins: { "grugops@grugops": "not an array" } }), "grugops@grugops", target)).toBeNull();
+    // Through the seam: an install that leaves no row for this target is refused before the spawn.
+    const build = handBuiltTarget("A");
+    const ops = installingOps(FIXTURE_TEXT, PROVENANCE.honestCopy, [rows[0], rows[1]], false);
+    await expect(runTarget(build, RUN_SPEC, ops)).rejects.toThrow(/plugin provenance is UNKNOWN - verify before the spawn.*no local-scope row/);
+    expect(ops.calls, "nothing was measured, so nothing spends").toHaveLength(0);
+    for (const d of [target, other, build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test P4 (the untracked file): the scoped working-tree row is UNMET naming the file, MET on empty output, UNKNOWN - verify when unreadable; the probe's argument list is scoped to the directories the installer and the plugin read, so a .planning/ entry never reaches it", () => {
+    const name = "working tree matches HEAD under the directories the installer and the plugin read";
+    const dirty = evaluatePreconditions(observation({ workingTreeStatus: "?? agent-factory/roles/new-role.md\n" }));
+    const dirtyRow = dirty.rows.find((r) => r.name === name);
+    expect(dirtyRow?.state).toBe("UNMET");
+    expect(dirtyRow?.detail).toContain("agent-factory/roles/new-role.md");
+    expect(dirty.readiness).toBe("not-ready");
+    expect(dirty.reasons.some((r) => r.includes("agent-factory/roles/new-role.md"))).toBe(true);
+    const clean = evaluatePreconditions(observation({ workingTreeStatus: "" }));
+    expect(clean.rows.find((r) => r.name === name)?.state).toBe("MET");
+    expect(clean.readiness).toBe("ready");
+    const unreadable = evaluatePreconditions(observation({ workingTreeStatus: null }));
+    expect(unreadable.rows.find((r) => r.name === name)?.state).toBe("UNKNOWN - verify");
+    expect(unreadable.readiness).toBe("not-ready");
+    expect(unreadable.rows.filter((r) => r.state === "UNMET"), "unreadable is never a claimed failure").toEqual([]);
+    // A modified tracked file is the same refusal (the round-1 WR-06 dirty-tree class, both arms).
+    expect(evaluatePreconditions(observation({ workingTreeStatus: " M .claude/agents/grugops-orchestrator.md\n" })).rows.find((r) => r.name === name)?.state).toBe("UNMET");
+    // The scope is the argument list itself: derived from ONE exported constant, over the directories
+    // the installer copies (agent-factory, .claude, AGENTS.md, install) and the plugin loads
+    // (.claude-plugin, skills, hooks, scripts).
+    expect(workingTreeStatusArgs()).toEqual(["status", "--porcelain", "--untracked-files=all", "--", ...INSTALL_AND_PLUGIN_PATHS]);
+    for (const dir of ["agent-factory", ".claude", ".claude-plugin", "install", "skills", "hooks", "scripts", "AGENTS.md"]) expect(INSTALL_AND_PLUGIN_PATHS, dir).toContain(dir);
+    expect(INSTALL_AND_PLUGIN_PATHS.includes(".planning")).toBe(false);
+    // Hermetic: a scratch repository with a committed agent-factory/ file, an untracked .planning/
+    // entry and then an untracked agent-factory/ entry — the scoped status is empty for the first
+    // and names the second, so the row's MET/UNMET follows the scope and nothing else.
+    const repo = mkdtempSync(join(tmpdir(), `${TMP_PREFIX}test-p4-repo-`));
+    const git = (...args: string[]): string => {
+      const r = spawnSync("git", args, { cwd: repo, encoding: "utf8", input: "", env: { ...childEnvironment(process.env), GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+      if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
+      return r.stdout;
+    };
+    git("init", "--quiet");
+    mkdirSync(join(repo, "agent-factory", "roles"), { recursive: true });
+    writeFileSync(join(repo, "agent-factory", "roles", "x.md"), "x\n");
+    git("add", "-A");
+    git("commit", "--quiet", "-m", "seed");
+    mkdirSync(join(repo, ".planning"), { recursive: true });
+    writeFileSync(join(repo, ".planning", "milestone.lock"), "lock\n");
+    const onlyPlanning = git(...workingTreeStatusArgs());
+    expect(git("status", "--porcelain", "--untracked-files=all"), "control: the unscoped status names the .planning entry").toContain(".planning/milestone.lock");
+    expect(onlyPlanning, "the scoped status does not").toBe("");
+    expect(evaluatePreconditions(observation({ workingTreeStatus: onlyPlanning })).rows.find((r) => r.name === name)?.state).toBe("MET");
+    writeFileSync(join(repo, "agent-factory", "roles", "new-role.md"), "new\n");
+    const withUntracked = git(...workingTreeStatusArgs());
+    expect(withUntracked).toContain("?? agent-factory/roles/new-role.md");
+    expect(evaluatePreconditions(observation({ workingTreeStatus: withUntracked })).rows.find((r) => r.name === name)?.detail).toContain("agent-factory/roles/new-role.md");
+    // And the runner's own observation calls the probe with exactly that argument list.
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    expect(src.includes("workingTreeStatusArgs()"), "the observation derives its arguments from the one constant").toBe(true);
+    rmSync(repo, { recursive: true, force: true });
+  });
+});
+
 // ── CR-05: a failed plugin install stops the run BEFORE the paid spawn ─────────────────────────
 //
 // Round 1's `pluginInstall` returned a string beginning `UNKNOWN - verify` on a non-zero exit and
@@ -1195,9 +1416,10 @@ describe("WR-06: containment is refused before anything is installed, and the un
 /** A recorder whose install is decided by the shipped `installOutcome` over a canned spawn result. */
 function installDecidingOps(streamText: string, spawnResult: { status: number | null; error: Error | undefined; stdout: string; stderr: string }): ReturnType<typeof recordingOps> {
   const ops = recordingOps(streamText);
-  ops.pluginInstall = (_target, pluginName, marketplaceName) => {
+  ops.pluginInstall = (target, pluginName, marketplaceName) => {
     const o = installOutcome(spawnResult);
     if (!o.ok) throw new Error(`plugin install ${pluginName}@${marketplaceName} did not complete (${o.reason})`);
+    PROVENANCE.install(target, PROVENANCE.honestCopy);
     return `installed ${pluginName}@${marketplaceName} at local scope: ${o.line}`;
   };
   return ops;
