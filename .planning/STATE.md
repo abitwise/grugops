@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 2 of 4 PLANNED 2026-09-20 (12 plans 33-12..33-23, waves 7-12, checker passed 0B/0W): CR-01..05 instrument fixes proven offline against the held round-1 transcripts, the CAP-02 red inventory (33 CI rows) root-caused without platform conditionals, one pushed CI run (33-20), one live go behind a blocking checkpoint (33-21), flip on parity (33-22), ledgers (33-23). Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33-21-PLAN.md (round-2 go HELD by human decision ledger-and-hold; (a) carry MCP tool, (b) refuse on read; outcome word no-go; no capture, no push, zero tokens; commits fe87c5ac, a22775bb + close-out, all LOCAL). Next: 33-22 (wave 11) takes its hold branch on the no-go; 33-23 (wave 12) appends the four KIT rows through the tool"
-last_updated: "2026-09-21T10:37:17.312Z"
-state_head: a22775bb0132485913f2431e09a591f93f9de3f3
+stopped_at: "Completed 33-22-PLAN.md (hold branch: nothing flipped)"
+last_updated: "2026-09-21T10:45:17.387Z"
+state_head: 6b723f457c3c1b13cb987a2ca39431ea81e21147
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 292
-  completed_plans: 290
-  percent: 99
+  completed_plans: 291
+  percent: 100
 last_activity: 2026-09-20
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Planned Phase 33 gap-closure round 2 of 4: 12 additive plans (33-12..33-23) mapped one-to-one onto 33-VERIFICATION gaps[].missing and 33-REVIEW CR-01..05; plan checker VERIFICATION PASSED; decision coverage 20/20; requirement coverage CAP-01..03 3/3; round-1 plans byte-untouched."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 21 of 23
+Plan: 22 of 23
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -548,6 +548,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P16 | 35 min | 3 tasks | 5 files |
 | Phase 33 P20 | 9h 2m | 3 tasks | 3 files |
 | Phase 33 P21 | 1h 6m | 2 tasks | 6 files |
+| Phase 33 P22 | 4 min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -1504,6 +1505,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-16: every directory-symlink fixture in context-io.test.ts is D-16-routed through stageSymlinkOrSkip (10 raw sites to 0, 13 helper sites; 35 counted rows under the seam); rebuilding context-io.js always requires npm run generate:hook-manifest
 - [Phase 33]: 33-20: CAP-02 NOT MET on run 35579263776 — ubuntu conclusion success (first green ubuntu leg; the 23-command gate chain reached), windows failure on ONE class in one file (35 reds in context-io.test.ts WR-15 block: 33-16's rung-1 realpathSync.native expands 8.3 names, the block's tmp15 fixtures preserve them); row 236 appended, rows 186/193/226-235 not flipped, no fix (D-11) — D-13: both legs must read success; a red leg is inventoried and handed to round 3, never fixed inside the measurement plan
 - [Phase 33]: 33-21 KIT decisions (human, 2026-09-21, blocking-human checkpoint): ledger-and-hold — all four 33-DIAGNOSIS.md KIT items (§ 1.4 (a), § 1.4 (b), § 2, § 3) accepted open for round 3; (a) round 3 carries the MCP admission tool propose_note in the --agent coordinator grant; (b) round 3 makes the reader REFUSE non-sanctioned hand-written notes on read. The round-2 go was HELD: Task 3 not presented, Task 4 not run, no capture, no push, zero tokens; outcome word no-go; nothing flips (D-20). The four WINDOWS.md rows are appended by 33-23 Task 1 through the tool, not by 33-21. — The diagnosis's divergence (i) is deterministic on the current kit, so a round-2 capture would diverge on the note-route axis for a KIT reason; the human chose not to spend the go (floor 11.75 USD, 31 min) on a predictable divergence. Round 3 lands (a)/(b) first, then asks for its own go (D-09).
+- [Phase 33]: 33-22 (round 2 hold): Task 1's one-way GAP-D1 flip checkpoint NOT presented — the round's outcome word is no-go (33-21 ledger-and-hold; no round-2 capture) and CAP-02 is NOT MET on run 35579263776 — so the hold is mechanical under D-20: manifest § 7 hold record + a second dated register note, every F/C row untouched, status pre-capture, gate 28/28 exit 0, no requirement marked complete, F14 literal not written; round 3 owns the KIT items, row 236 and a fresh go
 
 ### Pending Todos
 
@@ -1631,8 +1633,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-21T10:37:16.860Z
-Stopped at: Completed 33-21-PLAN.md (round-2 go HELD by human decision ledger-and-hold; (a) carry MCP tool, (b) refuse on read; outcome word no-go; no capture, no push, zero tokens; commits fe87c5ac, a22775bb + close-out, all LOCAL). Next: 33-22 (wave 11) takes its hold branch on the no-go; 33-23 (wave 12) appends the four KIT rows through the tool
+Last session: 2026-09-21T10:45:16.946Z
+Stopped at: Completed 33-22-PLAN.md (hold branch: nothing flipped)
 Resume file: None
 
 ## Operator Next Steps
