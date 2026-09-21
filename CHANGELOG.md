@@ -18,6 +18,13 @@ release.
 
 ### Changed
 
+- The coordinator adapter's `tools:` grant carries the plugin's MCP admission tool under the
+  platform's scoped name, `mcp__plugin_grugops_grugops__propose_note`, through a new `admit`
+  capability token in the role generator's closed vocabulary (declared only by
+  `agent-factory/roles/orchestrator.md`). On the `--agent` path the session's tool list is the
+  adapter's grant, so until now the coordinator could not reach the sanctioned writer there. The
+  canonical frontmatter alphabet admits `_` for this — one character, recorded as decision
+  D-33-R3-02; every YAML-significant byte stays refused.
 - Every note the sanctioned writer (`scripts/context-io.ts`) composes now carries a `seal` field —
   `sha256:` and 64 hex digits over the note's bytes without that line — as the last line inside the
   frontmatter fence. The contract (`agent-factory/contracts/context-note.md`) documents the field,
@@ -25,6 +32,14 @@ release.
 
 ### Security
 
+- The admission-guard hook's matcher now matches the plugin-scoped tool name
+  (`mcp__(plugin_grugops_)?grugops__.*`). Before this change the matcher was the bare server family
+  `mcp__grugops__.*`, and the platform's plugin reference states that for a plugin's bundled MCP
+  server "a matcher written against the bare server key never fires"
+  (https://code.claude.com/docs/en/plugins-reference), so in plugin form the hook did not fire on
+  `propose_note` calls and the `human:<name>` stamp was not mechanically gated on that path. The
+  bare spelling stays in the alternation for a standalone `.mcp.json` server, which the kit does
+  not ship.
 - The shared-context reader refuses a note the sanctioned writer did not compose. A note written
   into `.grugops/context/` by any other route (a file-writing tool, a heredoc, an editor) has no
   seal, is not returned by `readContext`, `render`, `currentState`, the compactor's promoted-tier

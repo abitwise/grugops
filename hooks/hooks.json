@@ -11,7 +11,7 @@
         ]
       },
       {
-        "matcher": "mcp__grugops__.*",
+        "matcher": "mcp__(plugin_grugops_)?grugops__.*",
         "hooks": [
           {
             "type": "command",

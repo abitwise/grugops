@@ -227,7 +227,7 @@ function isWellFormedDecision(stdout) {
 // <hook-manifest> GENERATED — do not edit by hand; run `npm run generate:hook-manifest`
 const DECIDER_MANIFEST = {
     "hooks/admission-guard.js": {
-        "hooks/admission-guard.js": "461ea83556564d30869a97dfd89145a68fcc16c24f87e2d1ce505fe5fae915c3",
+        "hooks/admission-guard.js": "e84d5594e43fecf67919f4bb0e517be10bdf98c18fae02f9f9094d003c2aa820",
         "scripts/audit-model.js": "c8998eb024bcb43c54f0357ac402441f566e28fef089d80b451bd9373f458fa2",
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "ac33078d59949033e57a365bc7174b440202bd456f6b75e22f6c47339a3998a3",

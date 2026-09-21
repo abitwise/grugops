@@ -133,7 +133,9 @@ refuse-self FAIL set. A `verified_by: §14-gate#<id>` stamp additionally cross-c
 gate verdict carrying that per-run id (Posture B): a stamp that matches no live green verdict is
 refused. A `human:<name>` stamp is accepted structurally; on Claude Code its un-forgeable human-set
 signal is delivered by the separate PER-CALL PreToolUse `admission-guard` hook that gates the
-STRUCTURED `mcp__grugops__propose_note` admission channel — a distinct process that reads the FRESH
+STRUCTURED `mcp__plugin_grugops_grugops__propose_note` admission channel (the platform's scoped name
+for the plugin's bundled server; the bare `mcp__grugops__propose_note` is the server's own name, and
+the hook's matcher covers both spellings) — a distinct process that reads the FRESH
 session variable per call (the variable the agent's own child env cannot reach) and validates the
 agent-supplied `human:<name>` stamp against it on every call (mirroring the prod-deploy guard). The
 hook reads the FINAL structured tool arguments, not a Bash command string, so there is no command

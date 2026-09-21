@@ -4,7 +4,8 @@
 // (plus the ONE shared classifier/config helpers from scripts/context-io). Wired by hooks/hooks.json
 // as a SECOND plugin-level PreToolUse matcher beside the byte-frozen prod-deploy guard — but unlike
 // the prod-deploy guard (a `Bash` matcher), THIS hook now matches the STRUCTURED admission tool
-// FAMILY `mcp__grugops__.*` (W3). The committed compiled output is hooks/admission-guard.js, which
+// FAMILY `mcp__(plugin_grugops_)?grugops__.*` (W3; both spellings since plan 33-28 — see the matcher
+// note above the stdin read). The committed compiled output is hooks/admission-guard.js, which
 // the host hook runs.
 //
 // WHY THE GATE MOVED TO THE STRUCTURED CHANNEL (D-01, round 6 — "move the gate to point-of-effect"):
@@ -181,8 +182,14 @@ const { isGatedNote, normalizeKind, readGovernanceConfig } = ioMod;
 // in scripts/checkpoints.ts, and both hooks read their own constant out of it.
 const APPROVAL = cpMod.ADMISSION_APPROVAL_ENV_VAR;
 // ── Read and parse the PreToolUse stdin payload. ──────────────────────────────────────────────────
-// The hooks.json matcher (mcp__grugops__.*) guarantees this hook is invoked ONLY for a grugops
-// structured admission tool call, so EVERY invocation is an admission attempt. A payload we cannot
+// The hooks.json matcher (`mcp__(plugin_grugops_)?grugops__.*`) guarantees this hook is invoked ONLY for
+// a grugops structured admission tool call, so EVERY invocation is an admission attempt. BOTH spellings
+// are in the family (plan 33-28): the platform exposes a plugin's bundled MCP server under the SCOPED
+// name `mcp__plugin_<plugin>_<server>__<tool>` — here `mcp__plugin_grugops_grugops__propose_note`, the
+// name the round-1 init frame listed — and its plugin reference states that a matcher written against
+// the bare server key never fires for those tools. The bare `mcp__grugops__.*` is the server's own name
+// and would be the live spelling only for a standalone `.mcp.json` server, which the kit does not ship;
+// it is kept in the alternation so that path is gated too if it ever exists. A payload we cannot
 // parse into a structured tool_input object is therefore a malformed admission — fail CLOSED (deny),
 // never crash-allow. This never throws past here.
 let raw = "";
