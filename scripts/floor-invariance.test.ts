@@ -47,6 +47,7 @@ import { createHash } from "node:crypto";
 import {
   MANIFEST_OPEN,
   MANIFEST_CLOSE,
+  deciderEntries,
   deriveManifest,
 } from "./generate-hook-manifest.js";
 import { tmpdir } from "node:os";
@@ -763,8 +764,36 @@ describe("W1 NON-VACUOUS (25-10) — exact near-miss code points classify high-s
   });
 });
 
-describe("W3 matcher breadth (25-10) — the mcp__grugops__.* family is gated, not one exact tool name", () => {
-  it("hooks.json wires the admission guard to the mcp__grugops__.* FAMILY (not an exact tool name)", () => {
+// ── 33-28 K7: the scoped tool name the platform actually calls, read from the ROUND-1 INIT FRAME ──
+// The platform's plugin reference (code.claude.com/docs/en/plugins-reference): "Hooks that target the
+// plugin's own bundled MCP server must use its scoped names. Tool matchers and `if` fields take the
+// scoped tool name `mcp__plugin_<plugin-name>_<server-name>__<tool>` ... A matcher written against
+// the bare server key never fires." Until plan 33-28 the admission matcher was the bare family
+// `mcp__grugops__.*`, so in plugin form the guard that makes `human:<name>` un-forgeable had not
+// been wired to the one tool name the plugin exposes. The name is read out of the held capture
+// (A:11, `git show c7be6d0d:…`) rather than typed: the spelling under test is the platform's own.
+const HELD_CAPTURE_SHA = "c7be6d0d";
+const HELD_CAPTURE_A = ".planning/phases/33-live-capture-windows-portability/33-CAPTURE-A.jsonl";
+function scopedAdmissionToolFromInitFrame(): string {
+  const r = spawnSync("git", ["show", `${HELD_CAPTURE_SHA}:${HELD_CAPTURE_A}`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: "",
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 60_000,
+  });
+  if (r.status !== 0 || !r.stdout) throw new Error(`git cannot show the held capture A: ${(r.stderr ?? "").trim()}`);
+  const init = JSON.parse(r.stdout.split("\n")[10] as string) as { type: string; subtype?: string; tools: string[] };
+  if (init.type !== "system" || init.subtype !== "init") {
+    throw new Error(`A:11 is not the system/init frame (type=${init.type} subtype=${String(init.subtype)})`);
+  }
+  const names = init.tools.filter((t) => /^mcp__.*grugops.*propose_note$/.test(t));
+  if (names.length !== 1) throw new Error(`A:11 lists ${names.length} grugops propose_note tool name(s), expected exactly 1`);
+  return names[0] as string;
+}
+
+describe("W3 matcher breadth (25-10) — the grugops admission FAMILY is gated, in both spellings, not one exact tool name", () => {
+  it("K7 (33-28): hooks.json wires the admission guard to a matcher that fires on the platform's SCOPED name (from the held init frame) AND the bare family, and not on another plugin's scoped tools", () => {
     const hooks = JSON.parse(readFileSync(join(ROOT, "hooks", "hooks.json"), "utf8")) as {
       hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
     };
@@ -772,14 +801,43 @@ describe("W3 matcher breadth (25-10) — the mcp__grugops__.* family is gated, n
       m.hooks.some((h) => h.command.includes("admission-guard.js")),
     );
     expect(admission, "an admission-guard PreToolUse matcher must exist").toBeDefined();
-    expect(admission!.matcher).toBe("mcp__grugops__.*");
+    const matcher = admission!.matcher;
+    // A matcher with regex characters is a regular expression to the platform; it must compile.
+    const loose = new RegExp(matcher);
+    // The platform's anchoring is not documented for the regex case, so every verdict below is
+    // asserted under BOTH readings: unanchored search and a fully anchored match.
+    const strict = new RegExp(`^(?:${matcher})$`);
+    const both = (name: string): boolean => loose.test(name) && strict.test(name);
+
+    const scoped = scopedAdmissionToolFromInitFrame();
+    expect(both(scoped), `the admission matcher \`${matcher}\` does not fire on the platform's scoped tool name ${scoped} (A:11) — in plugin form the guard is not wired`).toBe(true);
+    // The bare family is the server's own name (the prior pin's meaning, kept as a property).
+    expect(both("mcp__grugops__propose_note")).toBe(true);
+    expect(both("mcp__grugops__admit")).toBe(true);
+    // Another plugin's scoped tool, and a different plugin bundling a server that happens to be
+    // named grugops, are NOT ours.
+    expect(loose.test("mcp__plugin_context7_context7__resolve")).toBe(false);
+    expect(loose.test("mcp__plugin_other_grugops__propose_note")).toBe(false);
+    expect(loose.test("Bash")).toBe(false);
+
     // The prod-deploy guard's Bash matcher must remain untouched (D-02).
     const deploy = hooks.hooks.PreToolUse.find((m) =>
       m.hooks.some((h) => h.command.includes("guard.js") && !h.command.includes("admission-guard.js")),
     );
     expect(deploy, "the prod-deploy guard matcher must exist").toBeDefined();
     expect(deploy!.matcher).toBe("Bash");
+    expect(hooks.hooks.PreToolUse).toHaveLength(2);
   });
+
+  for (const toolName of [
+    "mcp__plugin_grugops_grugops__propose_note",
+    "mcp__plugin_grugops_grugops__admit",
+    "mcp__plugin_grugops_grugops__v2_admit",
+  ]) {
+    it(`K8 (33-28): the SCOPED admission tool ${toolName} is gated by the hook exactly as the bare family (DENY without env)`, () => {
+      expect(hookDecision(HI, projectWith({ dial: "high-severity" }), undefined, toolName)).toBe("deny");
+    });
+  }
 
   for (const toolName of ["mcp__grugops__admit", "mcp__grugops__propose_finding", "mcp__grugops__v2_admit"]) {
     it(`a renamed admission tool ${toolName} is still gated by the hook (DENY without env)`, () => {
@@ -919,6 +977,32 @@ describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", 
       expect(Object.keys(per).length, `${entry}'s closure looks short`).toBeGreaterThan(3);
     }
     expect(Object.keys(derived).length, "no deciders were derived at all").toBe(2);
+  });
+
+  it("K9 (33-28): after the matcher change the derived decider list still names exactly the two deciders, both routed through the entry, and the committed manifest equals a fresh derivation", () => {
+    // The deciders are DERIVED from hooks/hooks.json by the generator's own reader — a matcher
+    // change must not add, drop or rename a decider.
+    expect(deciderEntries(ROOT)).toEqual(["hooks/admission-guard.js", "hooks/guard.js"]);
+    const hooks = JSON.parse(readFileSync(join(ROOT, "hooks", "hooks.json"), "utf8")) as {
+      hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
+    };
+    for (const m of hooks.hooks.PreToolUse) {
+      for (const h of m.hooks) expect(h.command, `matcher ${m.matcher} does not route through the entry`).toContain("hooks/hook-entry.js");
+    }
+    // Equality, not containment: the committed manifest block parses back to exactly the fresh
+    // derivation, so a hash the region carries for a module no closure names is a red too.
+    const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
+    const a = src.indexOf(MANIFEST_OPEN);
+    const b = src.indexOf(MANIFEST_CLOSE);
+    const region = src.slice(a + MANIFEST_OPEN.length, b);
+    const eq = region.indexOf("=");
+    const semi = region.lastIndexOf(";");
+    expect(eq).toBeGreaterThan(-1);
+    expect(semi).toBeGreaterThan(eq);
+    const committed = JSON.parse(
+      region.slice(eq + 1, semi).replace(/,(\s*[}\]])/g, "$1"),
+    ) as Record<string, Record<string, string>>;
+    expect(committed).toEqual(deriveManifest(ROOT));
   });
 
   it("hooks/hook-entry.ts has no uncommitted modification, measured against HEAD", () => {

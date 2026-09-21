@@ -278,10 +278,19 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
   });
 
   // ── 6. W3 matcher breadth — a second/renamed grugops admission tool is still gated by the hook ─────
-  // The hooks.json matcher is the mcp__grugops__.* FAMILY (asserted in floor-invariance.test.ts), and the
+  // The hooks.json matcher is the grugops admission FAMILY in BOTH spellings — the bare server name
+  // `mcp__grugops__.*` and the platform's scoped name for the plugin's bundled server
+  // `mcp__plugin_grugops_grugops__.*` (plan 33-28 K8; asserted in floor-invariance.test.ts K7) — and the
   // hook itself keys on the note fields, not the exact tool name — so a renamed admission tool delivering
-  // the same structured fields is gated identically.
-  for (const toolName of ["mcp__grugops__admit", "mcp__grugops__propose_finding", "mcp__grugops__v2_admit"]) {
+  // the same structured fields is gated identically under either spelling.
+  for (const toolName of [
+    "mcp__grugops__admit",
+    "mcp__grugops__propose_finding",
+    "mcp__grugops__v2_admit",
+    "mcp__plugin_grugops_grugops__propose_note",
+    "mcp__plugin_grugops_grugops__admit",
+    "mcp__plugin_grugops_grugops__v2_admit",
+  ]) {
     it(`deny (W3): renamed admission tool ${toolName} with a high-severity finding and no env DENIES`, () => {
       expectDeny(payload({ ...HIGH, verified_by: "" }, toolName), {
         CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
