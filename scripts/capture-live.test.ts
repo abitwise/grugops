@@ -84,6 +84,7 @@ import {
   type ScratchRegistry,
   type StreamFrame,
   type TargetBuild,
+  type UninstallOutcome,
 } from "./capture-live.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -710,7 +711,7 @@ function recordingOps(streamText: string, onRun?: (transcriptPath: string, cwd: 
   return {
     calls,
     pluginInstall: (_target, pluginName, marketplaceName) => `recorded: install ${pluginName}@${marketplaceName} (no platform call)`,
-    pluginUninstall: () => undefined,
+    pluginUninstall: (): UninstallOutcome => ({ status: 0, error: null, detail: "" }),
     runPlatform: async (args, cwd, _env, transcriptPath, _boundMs): Promise<PlatformRunResult> => {
       calls.push({ transcriptPath, cwd, args });
       writeFileSync(transcriptPath, streamText);
@@ -1070,6 +1071,116 @@ describe("CR-01 round 2: the spawn grant is fixed before the subject exists, dri
   });
 });
 
+// ── WR-06: containment is refused before anything is installed; the uninstall runs on every exit ──
+//
+// `ops.pluginInstall` writes a local-scope row into the operator's plugin registry — state outside
+// any directory the runner created (hard rule 3). Round 2 called it FIRST and asserted containment
+// after; every throw between the spawn and the return skipped the uninstall, and `cleanupScratch`
+// then removed the target the row pointed at (deferred-items: two such `grugops@grugops` rows at
+// `0.1.0` outlive their temp targets today). Now the two pure `isOutsideTargets` refusals come
+// first, the install second, and the spawn and derivation run inside `try { } finally { uninstall }`.
+// The uninstall's exit is RETURNED and printed as a Run-table row, never swallowed: a cleanup that
+// failed is named beside the paid result it did not mask.
+
+/** A recorder whose install and uninstall are counted, and whose uninstall reports a canned outcome. */
+function countingOps(streamText: string, uninstallOutcome: UninstallOutcome = { status: 0, error: null, detail: "" }): ReturnType<typeof recordingOps> & { installs: () => number; uninstalls: () => number } {
+  const ops = recordingOps(streamText);
+  let installs = 0;
+  let uninstalls = 0;
+  ops.pluginInstall = (_target, pluginName, marketplaceName) => {
+    installs += 1;
+    return `recorded: install ${pluginName}@${marketplaceName} (no platform call)`;
+  };
+  ops.pluginUninstall = () => {
+    uninstalls += 1;
+    return uninstallOutcome;
+  };
+  return Object.assign(ops, { installs: () => installs, uninstalls: () => uninstalls });
+}
+
+describe("WR-06: containment is refused before anything is installed, and the uninstall runs on every exit path with its exit recorded", () => {
+  it("Test C9: a transcript directory planted INSIDE the target is refused by runTarget BEFORE ops.pluginInstall is called — the install recorder's count is 0", async () => {
+    const build = handBuiltTarget("A");
+    const planted: TargetBuild = { ...build, transcriptDir: mkdtempSync(join(build.target, `${TMP_PREFIX}transcript-A-`)) };
+    expect(isOutsideTargets(join(planted.transcriptDir, "33-CAPTURE-A.jsonl"), [planted.target]), "premise: the planted directory is inside the target").toBe(false);
+    const ops = countingOps(FIXTURE_TEXT);
+    await expect(runTarget(planted, RUN_SPEC, ops)).rejects.toThrow(/is inside target A or its kit home .* refusing to spawn/);
+    expect(ops.installs(), "nothing was installed for a run that was never going to spawn").toBe(0);
+    expect(ops.calls, "no platform child was launched").toHaveLength(0);
+    expect(ops.uninstalls(), "and nothing is uninstalled that was never installed").toBe(0);
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C10: a platform run that throws after the install, and a derivation that throws after the run, both reject runTarget AND uninstall exactly once", async () => {
+    // Arm 1: the platform stand-in throws after the install completed.
+    const a = handBuiltTarget("A");
+    const throwing = countingOps(FIXTURE_TEXT);
+    throwing.runPlatform = async () => {
+      throw new Error("the platform child could not be spawned (stand-in)");
+    };
+    await expect(runTarget(a, RUN_SPEC, throwing)).rejects.toThrow(/could not be spawned \(stand-in\)/);
+    expect(throwing.installs()).toBe(1);
+    expect(throwing.uninstalls(), "the uninstall ran although the spawn threw").toBe(1);
+    for (const d of [a.target, a.home, a.transcriptDir]) rmSync(d, { recursive: true, force: true });
+
+    // Arm 2: the derivation throws — the context root is planted as a regular FILE, so authorStamps
+    // cannot read it as a directory.
+    const b = handBuiltTarget("B");
+    mkdirSync(join(b.target, ".grugops"), { recursive: true });
+    writeFileSync(join(b.target, ".grugops", "context"), "not a directory");
+    const deriving = countingOps(FIXTURE_TEXT);
+    await expect(runTarget(b, RUN_SPEC, deriving)).rejects.toThrow(/ENOTDIR|not a directory/);
+    expect(deriving.calls, "the platform ran before the derivation threw").toHaveLength(1);
+    expect(deriving.uninstalls(), "the uninstall ran although the derivation threw").toBe(1);
+    for (const d of [b.target, b.home, b.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("Test C11: the uninstall's exit is recorded, never swallowed — `| run X plugin uninstall | exit 0 |` in the honest case, a non-zero exit or a spawn error named otherwise, and a failed uninstall never masks the run's own result", async () => {
+    const honest = handBuiltTarget("A");
+    const ok = countingOps(FIXTURE_TEXT);
+    const okReport = await runTarget(honest, RUN_SPEC, ok);
+    expect(ok.uninstalls()).toBe(1);
+    expect(okReport.uninstall).toEqual({ status: 0, error: null, detail: "" });
+    expect(renderReport(reportModelWith([okReport]))).toContain("| run A plugin uninstall | exit 0 |");
+    for (const d of [honest.target, honest.home, honest.transcriptDir]) rmSync(d, { recursive: true, force: true });
+
+    const nonZero = handBuiltTarget("B");
+    const failing = countingOps(FIXTURE_TEXT, { status: 1, error: null, detail: "Plugin grugops is not installed at local scope" });
+    const failingReport = await runTarget(nonZero, RUN_SPEC, failing);
+    expect(failingReport.uninstall?.status).toBe(1);
+    expect(failingReport.transcriptText, "the run's own result is still returned").toBe(FIXTURE_TEXT);
+    expect(renderReport(reportModelWith([failingReport]))).toContain("| run B plugin uninstall | exit 1 — Plugin grugops is not installed at local scope |");
+    for (const d of [nonZero.target, nonZero.home, nonZero.transcriptDir]) rmSync(d, { recursive: true, force: true });
+
+    const unstartable = handBuiltTarget("A");
+    const erroring = countingOps(FIXTURE_TEXT, { status: null, error: "spawn claude ENOENT", detail: "" });
+    const erroringReport = await runTarget(unstartable, RUN_SPEC, erroring);
+    expect(erroringReport.uninstall?.error).toBe("spawn claude ENOENT");
+    expect(renderReport(reportModelWith([erroringReport]))).toContain("| run A plugin uninstall | error: spawn claude ENOENT |");
+    for (const d of [unstartable.target, unstartable.home, unstartable.transcriptDir]) rmSync(d, { recursive: true, force: true });
+
+    // The real pluginUninstall returns its outcome (it is never invoked here — it would touch the
+    // operator's plugin registry); its text is asserted instead: it returns the platform's status
+    // and the spawn error's message, and no bare catch swallows the result into undefined.
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    const text = functionText(src, "function pluginUninstall(");
+    expect(text.startsWith("function pluginUninstall(target: string, pluginName: string): UninstallOutcome {")).toBe(true);
+    expect(text).toContain("return { status: r.status, error: r.error");
+    expect(text.includes("/* best-effort: cleanup failure never masks a result */"), "the swallowing catch is gone").toBe(false);
+    // And runTarget's order: the two containment refusals, then the install, then a finally.
+    const rt = functionText(src, "export async function runTarget(");
+    const at = (needle: string): number => rt.indexOf(needle);
+    const firstRefusal = at("isOutsideTargets(");
+    const secondRefusal = rt.indexOf("isOutsideTargets(", firstRefusal + 1);
+    expect(firstRefusal).toBeGreaterThan(0);
+    expect(secondRefusal).toBeGreaterThan(firstRefusal);
+    expect(at("ops.pluginInstall(")).toBeGreaterThan(secondRefusal);
+    expect(at("} finally {")).toBeGreaterThan(at("ops.pluginInstall("));
+    expect(rt.indexOf("ops.pluginUninstall("), "the uninstall is inside the finally").toBeGreaterThan(at("} finally {"));
+    expect(rt.includes("uninstall: null"), "a live run never records a null uninstall").toBe(false);
+  });
+});
+
 // ── CR-05: a failed plugin install stops the run BEFORE the paid spawn ─────────────────────────
 //
 // Round 1's `pluginInstall` returned a string beginning `UNKNOWN - verify` on a non-zero exit and
@@ -1324,6 +1435,8 @@ describe("--dry-run walks every phase against the committed fixture and makes no
       expect(list.filter((x) => /^Edit\(\/\/.+\/\*\*\)$/.test(x))).toHaveLength(1);
       expect(list.includes("Write") || list.includes("Edit")).toBe(false);
       expect(list).toContain("mcp__plugin_grugops_grugops__propose_note");
+      // WR-06: a dry run installs no plugin, so it records no uninstall exit — the row is a live-run row.
+      expect(report.includes(`| run ${run} plugin uninstall |`)).toBe(false);
     }
     // CR-02: the provenance rows replace the old sha row; over the fixture the state is UNKNOWN.
     expect(report).toMatch(/\| installed plugin provenance \(D-05, content digest over \d+ tracked files\) \| UNKNOWN - verify — /);
