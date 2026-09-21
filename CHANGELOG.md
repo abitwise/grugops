@@ -13,8 +13,29 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 
 ## [Unreleased]
 
-_Nothing yet. Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands
-in the next release._
+Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands in the next
+release.
+
+### Changed
+
+- Every note the sanctioned writer (`scripts/context-io.ts`) composes now carries a `seal` field —
+  `sha256:` and 64 hex digits over the note's bytes without that line — as the last line inside the
+  frontmatter fence. The contract (`agent-factory/contracts/context-note.md`) documents the field,
+  what it distinguishes, and what it does not.
+
+### Security
+
+- The shared-context reader refuses a note the sanctioned writer did not compose. A note written
+  into `.grugops/context/` by any other route (a file-writing tool, a heredoc, an editor) has no
+  seal, is not returned by `readContext`, `render`, `currentState`, the compactor's promoted-tier
+  carve-out, or any consumer of `readContext`, and is counted under the reader's `unsealed` skip
+  arm with its reason (`absent`, `malformed`, `mismatch`). The round-1 live capture of Phase 33 had
+  shown nine such notes admitted as memory; the same nine notes are the test fixture that now reads
+  as zero. There is no grandfather clause: notes composed by an earlier kit version are not read by
+  this one until they are re-admitted through the writer. The seal is unkeyed by necessity — a
+  file-based kit holds no secret the constrained process cannot read — so it distinguishes
+  hand-composed from writer-composed notes and detects post-write edits; it does not stop a process
+  that reimplements the algorithm. That un-forgeable tier is a human decision not taken here.
 
 ## [2.1.0] - 2026-09-18
 

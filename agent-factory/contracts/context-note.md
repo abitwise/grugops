@@ -81,9 +81,33 @@ Every note's frontmatter carries these provenance keys:
 | `confidence`  | string                     | The author's confidence (e.g. `high` / `medium` / `low` / `UNKNOWN - verify`). |
 | `refs`        | YAML list (may be empty)   | References this note points at — requirement ids, file paths, ticket refs. The trace-migration substrate (SCTX-04). |
 | `supersedes`  | note-id ref, or empty      | The id of an earlier note this one overrides. Empty when the note supersedes nothing. |
+| `seal`        | `sha256:` + 64 lowercase hex | Written only by the sanctioned writer (`scripts/context-io.ts`, `composeNote`), never by hand. A sha256 digest over the note's bytes without this line, always the LAST line inside the fence. A note whose seal is absent, malformed, or mismatched is returned by no reader. Every reader route refuses it: `readContext`, `render`, `currentState`, the compactor's promoted-tier carve-out, and every consumer of `readContext`. The reader counts it under the `unsealed` skip arm with the reason word (`absent`, `malformed`, `mismatch`). |
 
 Two note shapes carry further keys beyond this table: an `artifact-ref` that points at a committed
 UAT spec, and the `§14-gate` verdict. Both are described under *Evidence provenance* below.
+
+### The seal, and what it does and does not distinguish
+
+The seal exists because the round-1 live capture of Phase 33 showed nine notes written into
+`.grugops/context/<task>/notes/` with a file-writing tool, and the reader admitted every one: nothing
+in the bytes told a note the writer composed from a note a hand composed. The seal is that
+distinction, made mechanical. The writer emits it in one place; the reader verifies it through one
+exported predicate (`sealVerdict`); the compactor imports that predicate rather than computing a
+digest of its own. There is no grandfather clause: a note composed by a kit version that predates
+the seal is refused on read like any other unsealed note, because an age exemption is exactly the
+arm a hand-writer would take. Such a store is re-admitted through the writer, not read as it stands.
+
+The seal is **unkeyed**, and it is unkeyed by necessity: a file-based kit holds no secret that the
+process it constrains cannot also read, so a keyed digest would be a key stored beside the lock.
+What the seal therefore distinguishes is a note composed by the sanctioned writer from a note
+composed by hand, and it detects any edit made after the write. What it does **not** do is stop a
+process that reimplements the algorithm and writes a sealed note directly; that process is one
+register over, not blocked. The tier that would make a hand-written note unforgeable is a
+point-of-effect deny of file-writing tools under the context root. That tier is a kit capability
+decision left to a human and not taken in Phase 33.
+
+The four required fields below are the **validator's** rule and are unchanged by the seal; the seal
+is a **reader's** rule, asked after a note parses and before it is returned.
 
 ### Required-field rule (the validator contract)
 
