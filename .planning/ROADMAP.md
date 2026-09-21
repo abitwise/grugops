@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 26/34 plans executed — 11/11 round-1 plans executed (6 waves); 12/12 gap-closure round-2 plans executed (waves 7-12); 11 gap-closure round-3 plans (33-24..33-34, waves 13-23, `gap_closure: true`) planned 2026-09-21 after round-2 verification `gaps_found` 0/3 — round 3 of the four-round cap
+**Plans**: 27/34 plans executed — 11/11 round-1 plans executed (6 waves); 12/12 gap-closure round-2 plans executed (waves 7-12); 11 gap-closure round-3 plans (33-24..33-34, waves 13-23, `gap_closure: true`) planned 2026-09-21 after round-2 verification `gaps_found` 0/3 — round 3 of the four-round cap
 
 Plans:
 **Wave 1**
@@ -1394,7 +1394,7 @@ Plans:
 
 **Wave 16** *(blocked on Wave 15 completion)*
 
-- [ ] 33-27-PLAN.md — KIT § 2: the guard reads a redirection as a redirection (one anchored grammar at the split and the word), keeps `$var`/heredoc fail-closed by recorded disposition, names the mechanism in the deny; proven on the round-1 commands on stdin
+- [x] 33-27-PLAN.md — KIT § 2: the guard reads a redirection as a redirection (one anchored grammar at the split and the word), keeps `$var`/heredoc fail-closed by recorded disposition, names the mechanism in the deny; proven on the round-1 commands on stdin
 
 **Wave 17** *(blocked on Wave 16 completion)*
 
@@ -1480,7 +1480,7 @@ Plans:
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
-| 33. Live Capture & Windows Portability | v2.1 | 26/34 | In Progress|  |
+| 33. Live Capture & Windows Portability | v2.1 | 27/34 | In Progress|  |
 | 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).

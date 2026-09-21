@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 229
+open_count: 230
 waived_count: 3
 fixed_count: 26
-total_count: 258
-last_updated: 2026-09-21T10:52:10.464Z
+total_count: 259
+last_updated: 2026-09-21T17:58:01.468Z
 ---
 
 # Broken Windows Ledger
@@ -273,6 +273,7 @@ last_updated: 2026-09-21T10:52:10.464Z
 | 256 | 33 | unrun-verify | scripts/context-io.ts |  | 33-DIAGNOSIS section 1.4 (b) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the reader (readContext, scripts/context-io.ts) admits notes written into .grugops/context by anything other than the sanctioned writer — path B's nine notes were written with the Write tool straight into the context root (round-1-held/ B:774, B:795, B:817, B:1542, B:1607, B:1638, B:1757, B:1779, B:1802) and read back as if admitted, so the WF16 single-writer rule held on path A by tooling and on path B by nothing (evidence section 1.3 (ii)). DIRECTION, the human's words: refuse non-sanctioned (hand-written, Write-tool) notes on read; the alternative (keep admitting them) was not chosen. Owner: round 3 | open |  | 2026-09-21T10:52:10.282Z |  |
 | 257 | 33 | deviation | hooks/guard.ts |  | 33-DIAGNOSIS section 2 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the guard (hooks/guard.ts + scripts/checkpoints.ts) classifies a 2>&1 redirection and an ordinary $var expansion as substitutions it will not reason about and refuses any such segment carrying git or npm anywhere in it, on tool name alone — fifteen over-matched denies across the two round-1 transcripts (A:454 … B:1750). Reproduced offline against the committed guard on stdin with no GRUGOPS_ variable set: git log --oneline -5 -> allow; git log --oneline -5 2>&1 -> deny (matched by the command model, the git push sentence printed for a git log); echo "npm run lint" -> allow; echo "npm run $s" -> deny (carries a shell substitution the guard will not reason about); matchCommandCheckpoints reports untokenizable: true for both. Fails closed — an availability defect, not a safety hole; no offline test covers the class (275 guard tests green). Correction named by the diagnosis: the tokenizer's redirection-vs-substitution classification, and the deny text. No further direction stated beyond accepted-open. Owner: round 3 | open |  | 2026-09-21T10:52:10.372Z |  |
 | 258 | 33 | deviation | scripts/context-io.ts | 1416 | 33-DIAGNOSIS section 3 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): admitAndAppend / composeNote (scripts/context-io.ts:1416) interpolates ${note.verified_by} with no presence check and writes the line verified_by: undefined — the string — for an absent field; undefined is not in the DeLM hollow-evidence list (context-io.ts:205), so the note reads back with a non-empty stamp no gate and no human set (path A notes [6]-[9]). Reproduced offline: admitAndAppend with no verified_by key returns findings: [] and the file carries verified_by: undefined; passing the key explicitly undefined serializes identically, so the fault is serialization, not the caller's spelling. Did not touch any verdict the round reads. No further direction stated beyond accepted-open. Owner: round 3 | open |  | 2026-09-21T10:52:10.464Z |  |
+| 259 | 33 | deviation | scripts/checkpoints.ts |  | Found by plan 33-27's sibling-arm probe of the command model (2026-09-21), pre-existing on the dispatch base 3b00ea7b and unchanged by the redirection grammar: git -c alias.p=push p (git's own alias form of a BARE push, which pushes the current branch to its upstream) returns NO checkpoint from matchCommandCheckpoints on both the base and HEAD, and no literal pattern in hooks/guard.ts matches it (no 'git push' text), so the guard ALLOWS it with zero keys; git -c alias.p=push p origin allows the same way. Mechanism: verbCandidates pushes BOTH the alias value 'push' and the alias-definition word 'alias.p=push' into the candidate list, so gitPushIsGoverned counts the definition word as a refspec ('after' has length 2, ref = 'p', not protected) and the RA1-3 no-branch rule never fires; the RA3-6 corpus case (git -c alias.p=push p origin main) is governed only because it names main. Not fixed in 33-27 (outside the plan's redirection scope; an unplanned edit to a safety invariant is how a previous fix creates the next finding); the safe-direction fix is to exclude alias-definition words from the refspec count in gitPushIsGoverned, RED-first with the alias corpus. Owner: round 4 or the ledger row of plan 33-34 | open |  | 2026-09-21T17:58:01.468Z |  |
 
 ````json
 [
@@ -3451,6 +3452,19 @@ last_updated: 2026-09-21T10:52:10.464Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-21T10:52:10.464Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 259,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": null,
+    "description": "Found by plan 33-27's sibling-arm probe of the command model (2026-09-21), pre-existing on the dispatch base 3b00ea7b and unchanged by the redirection grammar: git -c alias.p=push p (git's own alias form of a BARE push, which pushes the current branch to its upstream) returns NO checkpoint from matchCommandCheckpoints on both the base and HEAD, and no literal pattern in hooks/guard.ts matches it (no 'git push' text), so the guard ALLOWS it with zero keys; git -c alias.p=push p origin allows the same way. Mechanism: verbCandidates pushes BOTH the alias value 'push' and the alias-definition word 'alias.p=push' into the candidate list, so gitPushIsGoverned counts the definition word as a refspec ('after' has length 2, ref = 'p', not protected) and the RA1-3 no-branch rule never fires; the RA3-6 corpus case (git -c alias.p=push p origin main) is governed only because it names main. Not fixed in 33-27 (outside the plan's redirection scope; an unplanned edit to a safety invariant is how a previous fix creates the next finding); the safe-direction fix is to exclude alias-definition words from the refspec count in gitPushIsGoverned, RED-first with the alias corpus. Owner: round 4 or the ledger row of plan 33-34",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-21T17:58:01.468Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

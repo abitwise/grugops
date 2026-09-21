@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 3 of 4 PLANNED 2026-09-21 — 11 plans (33-24..33-34, waves 13-23), checker passed 0/0; next: /gsd-execute-phase 33 --gaps-only"
-stopped_at: Completed 33-26-PLAN.md
-last_updated: "2026-09-21T17:30:16.661Z"
-state_head: 5da6218f4715fcc546d2fdc6e75244065aeea305
+stopped_at: Completed 33-27-PLAN.md
+last_updated: "2026-09-21T18:25:04.724Z"
+state_head: 85d03fcee9396ed1eb01b792dd7580610845ec0e
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 303
-  completed_plans: 295
-  percent: 97
+  completed_plans: 296
+  percent: 98
 last_activity: 2026-09-21
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Executed Phase 33 gap-closure round 2 of 4 (33-12..33-23): instrument fixes proven offline; CI run 35579263776 read from its own metadata (ubuntu success, windows failure, CAP-02 NOT MET); the round-2 go held by the human before any spend (no-go); GAP-D1 hold recorded in manifest section 7; ledgers closed by 33-23 (WINDOWS.md 236 -> 258 rows through the tool; deferred-items 12 -> 3 open with citations). Next: /gsd-verify-work 33, then round 3 (KIT (a)/(b), section 2, section 3, row 236)."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 4 of 34
+Plan: 5 of 34
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -554,6 +554,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P24 | 30 min | 2 tasks | 8 files |
 | Phase 33 P25 | 57 min | 3 tasks | 17 files |
 | Phase 33 P26 | 34 min | 2 tasks | 13 files |
+| Phase 33 P27 | 42m | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -1518,6 +1519,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-25: no grandfather clause for the note seal — a note composed before the seal existed is refused on read like any other unsealed note, proven against the last pushed sha's own writer (S4 base 1 / HEAD 0); the two board-snapshot fixtures re-sealed, 35 + 10 derived reds dispositioned
 - [Phase 33]: 33-25: the seal is unkeyed by necessity and the un-forgeable point-of-effect tier (deny file-writing tools under the context root) is a human kit-capability decision not taken; stated in the module, the contract, the CHANGELOG, handed to 33-34's ledger close as two rows
 - [Phase 33]: 33-26: the one field guard (assertNoteScalar/assertNoteRefs/assertNoteFields) refuses an absent or mistyped note scalar by name before anything is composed; asked inside composeNote and at the top of admitAndAppend and composeThreadNote; the MCP boundary keeps its own empty default
+- [Phase 33]: 33-27: a shell redirection is admitted by ONE anchored allow-list (REDIRECTION_RE) at both the segment split and the word; $var, heredocs, process substitutions and glued operators stay opaque by decision (P30 fence untouched); the deny names the mechanism that fired per group and the unreadable word(s) from the one classification. Measured on the held transcripts: 4 of the fifteen section-2 denies allow, 11 deny with the corrected sentence. hooks/guard.ts re-baselined (D-24) in the same commit. Found and RECORDED, not fixed: git -c alias.p=push p is a zero-key allow (WINDOWS.md row 259)
 
 ### Pending Todos
 
@@ -1645,8 +1647,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-21T17:30:16.187Z
-Stopped at: Completed 33-26-PLAN.md
+Last session: 2026-09-21T18:25:04.231Z
+Stopped at: Completed 33-27-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
