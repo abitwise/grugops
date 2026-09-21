@@ -51,6 +51,15 @@ import {
   resolvedPresetsIn,
   type ResolvedAssignment,
 } from "./model-tiers.js";
+// 33-28 K5 reads the regenerated coordinator adapter through the canonical-form reader and the
+// runner's own grant derivation — the consumers that actually decide a spawn verdict — rather than
+// through this file's convenience helpers.
+import {
+  admit,
+  admittedGrantedNames,
+  admittedGrantValues,
+} from "./canonical-frontmatter.js";
+import { deriveGrant } from "./capture-live.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-role-adapters.js");
@@ -1580,5 +1589,178 @@ describe("generate-role-adapters.js — the `models` configuration is resolved a
     // And the whole module takes no output flag and reads no environment variable at all.
     expect(src).not.toContain("process.argv");
     expect(src).not.toContain("process.env");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 33-28 K4/K5/K6 — the `admit` capability token: the coordinator's grant carries the sanctioned
+// admission route on the spawn path, through the generator, with every moved pin derived
+// ---------------------------------------------------------------------------
+//
+// 33-DIAGNOSIS § 1.3 (i): on the `--agent` path the session's tool list is exactly the adapter's
+// `tools:` line (round-1 init frame B:11 listed seven), so the plugin's MCP admission tool
+// `mcp__plugin_grugops_grugops__propose_note` (A:11) was absent by construction of the grant. The
+// human's direction (WINDOWS.md row 255) is to carry it in the grant. CLAUDE.md single-source: the
+// adapter is generated, so the grant flows from a capability token the ROLE declares through the
+// generator's closed vocabulary — never from a hand edit of the generated file.
+//
+// ON THE BASE (before the token existed) K4's scratch run refused:
+//   `orchestrator.md: capability token "admit" is outside the closed vocabulary (read, edit, shell,
+//    web, plan) — see agent-factory/packaging/subagent.frontmatter.md`
+// — that sentence is the RED this case was written against.
+
+// The platform's scoped name for the plugin's bundled server, read from the ROUND-1 INIT FRAME at
+// its held commit rather than typed: the spelling under test is the platform's, and a typed copy
+// would go on matching itself after the platform's moved. Bounded, as every spawn in this tree is.
+const HELD_SHA = "c7be6d0d";
+const HELD_A = ".planning/phases/33-live-capture-windows-portability/33-CAPTURE-A.jsonl";
+function scopedAdmissionToolFromInitFrame(): string {
+  const r = spawnSync("git", ["show", `${HELD_SHA}:${HELD_A}`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: "",
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 60_000,
+  });
+  if (r.status !== 0 || !r.stdout) {
+    throw new Error(`git cannot show the held capture A: ${(r.stderr ?? "").trim()}`);
+  }
+  const init = JSON.parse(r.stdout.split("\n")[10] as string) as { type: string; subtype?: string; tools: string[] };
+  if (init.type !== "system" || init.subtype !== "init") {
+    throw new Error(`A:11 is not the system/init frame (type=${init.type} subtype=${String(init.subtype)})`);
+  }
+  const names = init.tools.filter((t) => /^mcp__.*grugops.*propose_note$/.test(t));
+  if (names.length !== 1) {
+    throw new Error(`A:11 lists ${names.length} grugops propose_note tool name(s), expected exactly 1: ${names.join(", ")}`);
+  }
+  return names[0] as string;
+}
+
+// The plain (non-grant) tools on a `tools:` line: the scoped `Agent(...)` group removed, the rest
+// split on the comma the document wrote. Reads an ADMITTED value only.
+function plainTools(toolsValue: string): string[] {
+  return toolsValue
+    .replace(/\bAgent\([^)]*\),?\s*/, "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+}
+
+describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role through the generator into the coordinator's grant", () => {
+  it("K4: a role declaring `admit` renders the scoped MCP admission tool LAST, once, in vocabulary order — and `admit read` renders the same bytes as `read admit`", () => {
+    const scoped = scopedAdmissionToolFromInitFrame();
+
+    // (a) The coordinator declaring `read edit shell admit`.
+    const m = scratch(SAMPLE_ROLES);
+    const p = join(m, "agent-factory", "roles", "orchestrator.md");
+    const before = readFileSync(p, "utf8");
+    expect(before).toContain("capabilities: read edit shell");
+    writeFileSync(p, before.replace(/^capabilities: .*$/m, "capabilities: read edit shell admit"));
+    const r = runIn(m);
+    expect(r.status, `the generator refused a role declaring \`admit\`:\n${out(r)}`).toBe(0);
+    const text = readFileSync(join(agentsDir(m), "grugops-orchestrator.md"), "utf8");
+    const tools = fmValue(text, "tools") ?? "";
+    const plain = plainTools(tools);
+    // The built-ins first, in the table's order, then the admit token's tools — and nothing after.
+    expect(plain).toEqual(["Read", "Grep", "Glob", "Edit", "Write", "Bash", scoped]);
+    expect(tools.split(scoped).length - 1, "the scoped tool is emitted exactly once").toBe(1);
+    // The grant itself did not move: the spawn derivation reads only the Agent(...) list.
+    expect(grantNames(text)).toHaveLength(SAMPLE_ROLES.length - 1);
+
+    // (b) Declaration order cannot change the bytes: `admit read` == `read admit`.
+    const m2 = scratch(SAMPLE_ROLES);
+    const p2 = join(m2, "agent-factory", "roles", "orchestrator.md");
+    writeFileSync(p2, readFileSync(p2, "utf8").replace(/^capabilities: .*$/m, "capabilities: admit read"));
+    expect(runIn(m2).status).toBe(0);
+    const t2 = fmValue(readFileSync(join(agentsDir(m2), "grugops-orchestrator.md"), "utf8"), "tools") ?? "";
+    const m3 = scratch(SAMPLE_ROLES);
+    const p3 = join(m3, "agent-factory", "roles", "orchestrator.md");
+    writeFileSync(p3, readFileSync(p3, "utf8").replace(/^capabilities: .*$/m, "capabilities: read admit"));
+    expect(runIn(m3).status).toBe(0);
+    const t3 = fmValue(readFileSync(join(agentsDir(m3), "grugops-orchestrator.md"), "utf8"), "tools") ?? "";
+    expect(t2).toBe(t3);
+    expect(plainTools(t2)).toEqual(["Read", "Grep", "Glob", scoped]);
+
+    // (c) A non-coordinator declaring `admit` also renders it last — the token is not special-cased
+    // to the coordinator by the generator; the ROLE FILES are where only the coordinator declares it.
+    const m4 = scratch(SAMPLE_ROLES);
+    const p4 = join(m4, "agent-factory", "roles", "qe-e2e.md");
+    writeFileSync(p4, readFileSync(p4, "utf8").replace(/^capabilities: .*$/m, "capabilities: admit shell"));
+    expect(runIn(m4).status).toBe(0);
+    const t4 = fmValue(readFileSync(join(agentsDir(m4), "grugops-qe-e2e.md"), "utf8"), "tools") ?? "";
+    expect(t4).toBe(`Bash, ${scoped}`);
+  });
+
+  it("K5: the regenerated live coordinator adapter admits under the canonical form; its enumerated names are the sixteen roles; its plain tools end in the scoped MCP name; deriveGrant over a scratch install agrees and census = grant + 1", () => {
+    const scoped = scopedAdmissionToolFromInitFrame();
+    const live = readFileSync(join(LIVE_AGENTS, "grugops-orchestrator.md"), "utf8");
+    const a = admit(live);
+    expect(a.ok, `the live coordinator adapter is REFUSED by the canonical-form reader: ${a.ok ? "" : `[${a.code}] ${a.reason}`}`).toBe(true);
+    if (!a.ok) return;
+
+    // The sixteen names, DERIVED from the role corpus (every non-underscore role except the
+    // coordinator), never typed.
+    const expectedGrant = readdirSync(LIVE_ROLES)
+      .filter((f) => f.endsWith(".md") && !f.startsWith("_") && f !== "orchestrator.md")
+      .map((f) => `grugops-${f.replace(/\.md$/, "")}`)
+      .sort();
+    expect(expectedGrant).toHaveLength(16);
+    expect(admittedGrantedNames(a.value)).toEqual(expectedGrant);
+
+    const values = admittedGrantValues(a.value);
+    expect(values).toHaveLength(1);
+    const plain = plainTools(values[0] as string);
+    expect(plain[plain.length - 1]).toBe(scoped);
+    expect(plain.filter((t) => t === scoped)).toHaveLength(1);
+    expect(plain.slice(0, -1)).toEqual(["Read", "Grep", "Glob", "Edit", "Write", "Bash"]);
+
+    // The runner's own derivation over a SCRATCH INSTALL — the precheck's idiom: an isolated target
+    // and an isolated kit home, the committed installer, nothing outside them written.
+    const target = mkdtempSync(join(tmpdir(), "grugops-33-28-target-"));
+    const home = mkdtempSync(join(tmpdir(), "grugops-33-28-home-"));
+    tmpDirs.push(target, home);
+    const r = spawnSync("node", [join(ROOT, "install", "install.js"), "--target", target, "--yes"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      input: "",
+      timeout: 120_000,
+      env: { ...process.env, GRUGOPS_HOME: home },
+    });
+    expect(r.status, `the scratch install did not complete:\n${out(r)}`).toBe(0);
+    const derived = deriveGrant(target);
+    expect(derived.reasons).toEqual([]);
+    expect(derived.granted).toEqual(expectedGrant);
+    expect(derived.coordinator).toBe("grugops-orchestrator");
+    expect(derived.adapterNames).toHaveLength(derived.granted.length + 1);
+    // And the installed coordinator adapter is byte-identical to the committed one: the installer
+    // spawns the same generator, so a checkout and a target agree by construction.
+    expect(readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8")).toBe(live);
+  });
+
+  it("K6: the coordinator is the ONLY adapter carrying an MCP tool, and a full-corpus regeneration reproduces every live adapter byte for byte", () => {
+    const scoped = scopedAdmissionToolFromInitFrame();
+    const files = readdirSync(LIVE_AGENTS).filter((f) => f.endsWith(".md")).sort();
+    expect(files).toHaveLength(17);
+    const carriers = files.filter((f) => readFileSync(join(LIVE_AGENTS, f), "utf8").includes(scoped));
+    expect(carriers).toEqual(["grugops-orchestrator.md"]);
+    for (const f of files) {
+      if (f === "grugops-orchestrator.md") continue;
+      const tools = fmValue(readFileSync(join(LIVE_AGENTS, f), "utf8"), "tools") ?? "";
+      expect(tools, `${f} tools line carries an MCP tool`).not.toMatch(/\bmcp__/);
+    }
+
+    // Every live role into one scratch mirror; the generator's output there must equal the live
+    // adapter directory file for file — the adapters-freshness property, asserted in-process.
+    const allRoles = readdirSync(LIVE_ROLES).filter((f) => f.endsWith(".md") && !f.startsWith("_"));
+    expect(allRoles).toHaveLength(17);
+    const m = scratch(allRoles);
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    const regenerated = readdirSync(agentsDir(m)).filter((f) => f.endsWith(".md")).sort();
+    expect(regenerated).toEqual(files);
+    const differing = files.filter(
+      (f) => readFileSync(join(agentsDir(m), f), "utf8") !== readFileSync(join(LIVE_AGENTS, f), "utf8"),
+    );
+    expect(differing, "live adapter(s) differ from what the committed generator renders").toEqual([]);
   });
 });
