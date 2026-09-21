@@ -749,6 +749,17 @@ describe("WR-01: the note-route axis sees every route — anchored marker, every
     const indirect = noteRoute([...FIXTURE.frames, script, runIt]);
     expect(indirect.unclassifiedContextWrites, "the written script names the root: one unclassified write").toBe(base.unclassifiedContextWrites + 1);
     expect(indirect.directContextWrites).toBe(base.directContextWrites);
+    // The UNION of the arms (probe): one block is counted on exactly ONE arm — a direct write whose
+    // content also names the root is one direct write and zero unclassified; a path-shaped field that
+    // names the root UNANCHORED (not a path under it) is asked too, as unclassified; a camel-cased path
+    // key is path-shaped; an edit's new_string is a leaf.
+    const both = noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: under, content: "see .grugops/context/AUDIT-1" })]);
+    expect([both.directContextWrites, both.unclassifiedContextWrites]).toEqual([base.directContextWrites + 1, base.unclassifiedContextWrites]);
+    const unanchored = noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: "/tmp/target/notes-about-.grugops/context.md", content: "x" })]);
+    expect([unanchored.directContextWrites, unanchored.unclassifiedContextWrites]).toEqual([base.directContextWrites, base.unclassifiedContextWrites + 1]);
+    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { filePath: under, content: "x" })]).directContextWrites, "a camel-cased path key is path-shaped").toBe(base.directContextWrites + 1);
+    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Edit", { file_path: "/tmp/target/run.mjs", old_string: "a", new_string: "writeFileSync('.grugops/context/T/notes/n.md')" })]).unclassifiedContextWrites, "an edit's new_string naming the root").toBe(base.unclassifiedContextWrites + 1);
+    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Bash", { command: "node run.mjs", description: "append a note under .grugops/context" })]).unclassifiedContextWrites, "a Bash description naming the root is asked too").toBe(base.unclassifiedContextWrites + 1);
     // Converses: a Bash command, a written file and an Agent prompt that do NOT take a route move nothing;
     // an Agent prompt that DOES mention the root is prose to a nested session and enters no axis (CR-03).
     expect(noteRoute([...FIXTURE.frames, toolUseFrame("Bash", { command: "ls .grugops/queue/pending" })])).toEqual(base);

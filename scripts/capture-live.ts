@@ -1031,13 +1031,19 @@ const PROPOSE_NOTE_SUFFIX = "propose_note";
  */
 export const WRITING_TOOLS: ReadonlySet<string> = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
-/** A tool input's string leaves, split into path-shaped fields (`file_path`, `notebook_path`, `path`, …) and the rest. */
-function inputStrings(input: unknown): { paths: string[]; others: string[] } {
+/**
+ * A tool input's string leaves, ALL of them, with the path-shaped ones (`file_path`, `notebook_path`,
+ * `path`, a camel-cased `filePath` — any key ending in `path`) named so the caller can ask the
+ * anchored path question of those and the naming question of every leaf. Recursive, so
+ * `MultiEdit.edits[].new_string` is a leaf too.
+ */
+function inputStrings(input: unknown): { paths: string[]; all: string[] } {
   const paths: string[] = [];
-  const others: string[] = [];
+  const all: string[] = [];
   const walk = (value: unknown, key: string | null): void => {
     if (typeof value === "string") {
-      (key !== null && /(^|_)path$/i.test(key) ? paths : others).push(value);
+      all.push(value);
+      if (key !== null && /path$/i.test(key)) paths.push(value);
     } else if (Array.isArray(value)) {
       for (const v of value) walk(v, null);
     } else if (typeof value === "object" && value !== null) {
@@ -1045,7 +1051,7 @@ function inputStrings(input: unknown): { paths: string[]; others: string[] } {
     }
   };
   walk(input, null);
-  return { paths, others };
+  return { paths, all };
 }
 
 /**
@@ -1061,8 +1067,9 @@ function inputStrings(input: unknown): { paths: string[]; others: string[] } {
  *     The suffix is matched because the installed plugin exposes
  *     `mcp__plugin_grugops_grugops__propose_note` while the grant spells `mcp__grugops__propose_note`.
  *   - UNCLASSIFIED: a block that names the context root without being a direct write — a `Bash`
- *     block whose `command` names it (a node-mediated write, a heredoc, or merely an `ls`), or a
- *     file-writing block whose WRITTEN CONTENT names it while its path does not (the held capture's
+ *     block any of whose string inputs names it (the `command`: a node-mediated write, a heredoc, or
+ *     merely an `ls`), or a file-writing block any of whose string inputs names it while no
+ *     path-shaped field sits under it (the WRITTEN CONTENT, an edit's `new_string` — the held capture's
  *     `admit-notes.mjs` at A:1749 and A:1931: a script written under `.grugops/queue/` and then run
  *     by a `node` command that never spells the root). It is UNCLASSIFIED because the transcript
  *     cannot tell the sanctioned in-process writer (A:839, `context-io.js` reached through `node`)
@@ -1093,15 +1100,19 @@ export function noteRoute(frames: readonly StreamFrame[]): NoteRoute {
         proposeNoteCalls += 1;
         continue;
       }
-      const input = typeof block.input === "object" && block.input !== null ? (block.input as Record<string, unknown>) : {};
+      // The UNION of the arms is asked of every string leaf of the input, not of one named field:
+      // a Bash block is unclassified when ANY leaf names the root (the command, or a description that
+      // spells it); a writing block is direct when a path-shaped leaf sits under the root, otherwise
+      // unclassified when any leaf names it (content, an edit's new_string, an unanchored path field).
+      // One block is counted on exactly one arm.
+      const { paths, all } = inputStrings(block.input);
       if (block.name === "Bash") {
-        if (typeof input.command === "string" && namesRoot(input.command)) unclassifiedContextWrites += 1;
+        if (all.some(namesRoot)) unclassifiedContextWrites += 1;
         continue;
       }
       if (!WRITING_TOOLS.has(block.name)) continue;
-      const { paths, others } = inputStrings(input);
       if (paths.some(isDirectPath)) directContextWrites += 1;
-      else if (others.some(namesRoot)) unclassifiedContextWrites += 1;
+      else if (all.some(namesRoot)) unclassifiedContextWrites += 1;
     }
   }
   return { directContextWrites, proposeNoteCalls, unclassifiedContextWrites };
