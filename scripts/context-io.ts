@@ -4883,12 +4883,20 @@ function homeBoundary(): HomeBoundary | null {
   const named = namedHomeDirectory();
   if (named === null) return null;
 
-  // The same directory under every spelling this module can obtain for it.
+  // The same directory under every spelling this module can obtain for it: the RAW spelling the
+  // environment handed over, and the ONE spelling the module publishes for every directory —
+  // `canonicalDirectoryPath`, rung 1 `realpathSync.native` (plan 33-24, D-33-R3-01, closing
+  // 33-REVIEW WR-05 (a)). It used to be rung 2 `realpathSync`, a SECOND authority: the walk climbs
+  // rung-1 spellings (33-16), so on a host whose home carries an 8.3 component (`RUNNER~1`) the
+  // path sets held the short spelling while the walk climbed long-name directories
+  // (`runneradmin`), `abovePaths`/`selfPaths` missed, and only the dev:ino identity sets could
+  // catch it — and the `degenerate` guard below drops those on a host that reports equal identities
+  // for parent and child. The home's canonical spelling must be the one the walk climbs through.
   const spellings = new Set<string>([named]);
   try {
-    spellings.add(resolve(realpathSync(named)));
+    spellings.add(canonicalDirectoryPath(named));
   } catch {
-    // The resolved spelling is what there is. The identity sets below cover the rest.
+    // The raw spelling is what there is. The identity sets below cover the rest.
   }
 
   const selfPaths = new Set<string>();
@@ -5215,7 +5223,8 @@ export const TRUSTED_ROOT_TIERS: readonly string[] = Object.freeze([
     "PreToolUse wrapper and promoted under this name. The channel is one the agent cannot write " +
     "because the HOST builds that subprocess's environment and the wrapper is byte-frozen, not " +
     "because the name is a second variable.",
-  "1. CLAUDE_PROJECT_DIR when present and non-empty after trimming, made absolute.",
+  "1. CLAUDE_PROJECT_DIR when present and non-empty after trimming, made absolute and canonicalised " +
+    "through the one ladder.",
   "2. GRUGOPS_PROJECT_DIR — the documented installer-set variable — under the same predicate.",
   "3. The configuration that governs the process working directory: the repository root's own when " +
     "the walk reaches a repository boundary carrying one, else the nearest ancestor carrying a " +
@@ -5248,7 +5257,8 @@ export const TRUSTED_ROOT_TIERS: readonly string[] = Object.freeze([
  * Every consumer that needs "the root governance is read from" asks this, so there is one answer
  * rather than one per caller. It answers, in this order:
  *
- *   1. `CLAUDE_PROJECT_DIR` when present and non-empty after trimming, made absolute.
+ *   1. `CLAUDE_PROJECT_DIR` when present and non-empty after trimming, made absolute and canonicalised
+ *      through the one ladder (`canonicalDirectoryPath`, plan 33-24).
  *   2. `GRUGOPS_PROJECT_DIR` — the documented installer-set variable — under the same predicate.
  *   3. The configuration that governs the process working directory: the repository root's own
  *      when the walk reaches a repository boundary carrying one, else the nearest ancestor
@@ -5305,7 +5315,12 @@ export function trustedRepoRoot(): string {
   if (delivered !== null) return delivered;
   for (const name of TRUSTED_ROOT_ENV_ORDER) {
     const fromEnv = process.env[name];
-    if (typeof fromEnv === "string" && fromEnv.trim() !== "") return resolve(fromEnv.trim());
+    // THROUGH THE ONE LADDER, not a bare `resolve` (plan 33-24, D-33-R3-01, closing 33-REVIEW
+    // WR-05 (b)). A link-spelled or 8.3-spelled project directory handed over in this variable names
+    // the directory the cwd tier and tier 0 would name; a bare lexical spelling here was two answers
+    // for one directory, one tier apart. The loop header above is a monotonicity-mirror anchor and
+    // stays byte-identical; the change is on the RETURN line only.
+    if (typeof fromEnv === "string" && fromEnv.trim() !== "") return canonicalDirectoryPath(fromEnv.trim());
   }
   let cwd: string | null = null;
   try {

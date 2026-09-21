@@ -4029,12 +4029,13 @@ describe("30-11 RA2-1 — the admit verb does not take the governance root from 
       expect(mod.trustedRepoRoot(), "an empty value is not a supplied one").toBe(unset);
       process.env.CLAUDE_PROJECT_DIR = "   ";
       expect(mod.trustedRepoRoot(), "whitespace names nothing either").toBe(unset);
-      // The module answers `resolve(fromEnv.trim())`, so the expectation is the SAME host function
-      // over the SAME literal — never the literal itself (plan 33-15, D-15). The literal stays POSIX
-      // on purpose: on a POSIX host `resolve` is the identity and this line is unchanged; on win32
-      // both sides spell `<drive>:\tmp\some-project`, which is what the module publishes there.
+      // The module answers `canonicalDirectoryPath(fromEnv.trim())` (plan 33-24, D-33-R3-01 — it was
+      // a bare `resolve` until then), so the expectation is the module's SAME exported authority
+      // over the SAME literal — never the literal itself and never a second resolver (D-15). The
+      // literal stays POSIX on purpose: on darwin `/tmp` is a symlink to `/private/tmp` and both
+      // sides now say so; on win32 both sides spell `<drive>:\tmp\some-project` through rung 3.
       process.env.CLAUDE_PROJECT_DIR = "/tmp/some-project";
-      expect(mod.trustedRepoRoot()).toBe(resolve("/tmp/some-project"));
+      expect(mod.trustedRepoRoot()).toBe(mod.canonicalWorkingDirectory("/tmp/some-project"));
     } finally {
       if (before === undefined) delete process.env.CLAUDE_PROJECT_DIR;
       else process.env.CLAUDE_PROJECT_DIR = before;
@@ -4274,13 +4275,15 @@ describe("30-11 RA4-2 — a presence predicate publishes the value it tested", (
   it("trustedRepoRoot returns the TRIMMED value, as grantedBy does next door", () => {
     const before = process.env.CLAUDE_PROJECT_DIR;
     try {
-      // Expected through `resolve`, the function the module applies after trimming (plan 33-15,
-      // D-15): the property under test is the TRIM, and the spelling of the trimmed value is the
-      // host's — `/tmp/some-project` here, `<drive>:\tmp\some-project` on win32 — on both sides.
+      // Expected through the module's one exported authority, the function the module applies
+      // after trimming (plan 33-24, D-33-R3-01; it was `resolve` from 33-15 until then — D-15): the
+      // property under test is the TRIM, and the spelling of the trimmed value is the module's
+      // published one on both sides — `/private/tmp/some-project` on darwin, `<drive>:\tmp\some-project`
+      // on win32.
       process.env.CLAUDE_PROJECT_DIR = " /tmp/some-project ";
-      expect(mod.trustedRepoRoot()).toBe(resolve("/tmp/some-project"));
+      expect(mod.trustedRepoRoot()).toBe(mod.canonicalWorkingDirectory("/tmp/some-project"));
       process.env.CLAUDE_PROJECT_DIR = "/tmp/some-project\n";
-      expect(mod.trustedRepoRoot()).toBe(resolve("/tmp/some-project"));
+      expect(mod.trustedRepoRoot()).toBe(mod.canonicalWorkingDirectory("/tmp/some-project"));
     } finally {
       if (before === undefined) delete process.env.CLAUDE_PROJECT_DIR;
       else process.env.CLAUDE_PROJECT_DIR = before;
@@ -6218,13 +6221,23 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
 
 describe("31-15 — WR-15: the target repository's dial is read on every host", () => {
   /**
-   * Every temporary directory in this block is REALPATH-resolved at creation. On macOS `/var` is a
-   * symlink to `/private/var`, so a child process reports `process.cwd()` in the resolved form while
-   * `mkdtempSync` returns the unresolved one — the two are the same directory and comparing them
-   * verbatim measures the platform rather than the resolution order.
+   * ONE AUTHORITY FOR BOTH SIDES OF EVERY COMPARISON IN THIS BLOCK (plan 33-24, D-33-R3-01, closing
+   * WINDOWS.md row 236). Every fixture directory here is spelled by the module's own EXPORTED
+   * authority, `canonicalWorkingDirectory` — rung 1 of `canonicalDirectoryPath`, the spelling the
+   * walk's root, tier 0 and the env tier all publish — so a case that compares the walk's answer
+   * to a fixture compares two values spelled by ONE function (D-15: normalize once, in the module
+   * that publishes; the test derives from it). This helper used to call rung 2 `realpathSync`
+   * directly: a SECOND authority, which agreed with rung 1 on darwin and ubuntu and disagreed on
+   * windows-latest run 35579263776 (`RUNNER~1` kept here, `runneradmin` published by the module —
+   * 35 reds, one class). No `realpathSync` variant is called in this block; no platform is read.
+   *
+   * The second reason stands from 31-15: on macOS `/var` is a symlink to `/private/var`, so a
+   * child process reports `process.cwd()` in the resolved form while `mkdtempSync` returns the
+   * unresolved one — the two are the same directory and comparing them verbatim measures the
+   * platform rather than the resolution order.
    */
   function tmp15(prefix: string): string {
-    return realpathSync(freshTmp(prefix));
+    return mod.canonicalWorkingDirectory(freshTmp(prefix));
   }
 
   const WR15_TASK = "wr15-task";
@@ -11565,14 +11578,16 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
   it("with NOTHING delivered, trustedRepoRoot() is the program it was before (the 4-host control)", () => {
     // The four non-Claude-Code hosts deliver no such name. Driven case by case with the delivered
     // name ABSENT, each answer asserted against what the pre-tier-0 order would give for the same
-    // input — tier 1 for a set variable, the kit for nothing at all.
+    // input — tier 1 for a set variable, the kit for nothing at all. The tier-1 answer is spelled by
+    // the module's one exported authority (plan 33-24, D-33-R3-01), not by a second resolver here.
     const r = repo("p31-27-ctl-repo-");
-    expect(inChild("m.trustedRepoRoot()", { CLAUDE_PROJECT_DIR: r })).toBe(resolve(r));
-    expect(inChild("m.trustedRepoRoot()", { GRUGOPS_PROJECT_DIR: r })).toBe(resolve(r));
+    const spelled = mod.canonicalWorkingDirectory(r);
+    expect(inChild("m.trustedRepoRoot()", { CLAUDE_PROJECT_DIR: r })).toBe(spelled);
+    expect(inChild("m.trustedRepoRoot()", { GRUGOPS_PROJECT_DIR: r })).toBe(spelled);
     // Both set: tier 1 wins over tier 2, exactly as TRUSTED_ROOT_ENV_ORDER publishes.
     const other = repo("p31-27-ctl-other-");
     expect(inChild("m.trustedRepoRoot()", { CLAUDE_PROJECT_DIR: r, GRUGOPS_PROJECT_DIR: other })).toBe(
-      resolve(r),
+      spelled,
     );
     // And a delivered name that is present but UNUSABLE falls through to exactly the same answers.
     expect(
@@ -11581,7 +11596,7 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
         CLAUDE_PROJECT_DIR: r,
       }),
       "an unusable delivered value must deliver NOTHING, never a bad root",
-    ).toBe(resolve(r));
+    ).toBe(spelled);
   });
 
   it("tier 0 OUTRANKS tier 1, which is the only reason it is a tier at all", () => {
@@ -11612,6 +11627,7 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
     // `realpathSync.native(r)`) is disproved by the 8.3 short-name class — the portable resolver
     // keeps `RUNNER~1` where the kernel answers `runneradmin` — and both spell one directory
     // (plan 33-15, D-15).
+    // The ONLY direct rung-2 call left in this file: it is the evidence for D-33-R3-01 (33-24).
     expect(realpathSync.native(realpathSync(r))).toBe(realpathSync.native(r));
     // Rung 3 (deepest EXISTING ancestor, remainder re-joined) — a NON-EXISTENT leaf under an
     // existing, case-differently-spelled parent. This is the rung MODULE_OWN_CONFIG_POSITIONS
@@ -16495,18 +16511,20 @@ describe("31-41 — the shared-install shape is MEASURED against the widened ref
       anchoringConjunct: boolean;
       rebinding: string;
     };
+    // BOTH sides through the module's one exported authority (plan 33-24, D-15): a second spelling
+    // authority in this file is what WINDOWS.md row 236 was.
     expect(
-      realpathSync(answer.home),
+      mod.canonicalWorkingDirectory(answer.home),
       "PREMISE: the child's home directory is not the fixture's, so the walk's home stop is bounded " +
         "somewhere this reading says nothing about",
-    ).toBe(realpathSync(home));
+    ).toBe(mod.canonicalWorkingDirectory(home));
 
     // READING 1 — the resolver's answer for the kit-side store.
     expect(
-      answer.resolverAnswer === null ? null : realpathSync(answer.resolverAnswer),
+      answer.resolverAnswer === null ? null : mod.canonicalWorkingDirectory(answer.resolverAnswer),
       "the kit-side store does not resolve to a governed root — WR-42's reasoning would then be " +
         "correct, and the register entry must be re-worded to say so",
-    ).toBe(realpathSync(kitHome));
+    ).toBe(mod.canonicalWorkingDirectory(kitHome));
     // READING 2 — the root-anchoring conjunct for the kit directory.
     expect(answer.anchoringConjunct).toBe(true);
     // READING 3 — the re-binding route's answer for a promotion whose destination is that store.
