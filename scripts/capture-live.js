@@ -152,7 +152,7 @@ import { currentState, readContext } from "./context-io.js";
 import { listAgentAdapters } from "./kit-model.js";
 import { admit, admittedGrantedNames, admittedKeyHasValue, admittedValuesFor, } from "./canonical-frontmatter.js";
 import { isEntrypoint } from "./is-entry.js";
-import { toPosix } from "./posix-path.js";
+import { toPosix, toPosixWith } from "./posix-path.js";
 // ---------------------------------------------------------------------------
 // Fixed literals. None is ever taken from argv, env, or transcript content (ASVS V12).
 // ---------------------------------------------------------------------------
@@ -812,17 +812,76 @@ export function verdictMarkerObserved(stamps) {
 }
 const PROPOSE_NOTE_SUFFIX = "propose_note";
 /**
- * The route the notes took to disk, derived from TOOL-USE BLOCKS only. A `Write` or `Edit` whose
- * `file_path` contains `/.grugops/context/` is a direct write into the context root (path B's nine
- * notes, 33-DIAGNOSIS § 1.3 (ii)); a block whose name ends in `propose_note` is the sanctioned
- * writer. The suffix is matched because the installed plugin exposes
- * `mcp__plugin_grugops_grugops__propose_note` while the grant spells `mcp__grugops__propose_note`.
- * Nested subagent frames are ordinary frames here — the direct writes are by role agents.
+ * The file-writing tools the route axis counts (33-REVIEW round-2 WR-01). SOURCE: the held round-1
+ * capture's init frame, A:11 `tools[]` (commit c7be6d0d, CLI 2.1.278), which publishes `Write`,
+ * `Edit` and `NotebookEdit` among the built-ins — the tools the platform's permission reference
+ * groups under the `Edit(path)` rule ("all built-in tools that write files, including Write and
+ * NotebookEdit"). `MultiEdit` is NOT in that frame (measured 2026-09-21; the review's reproduction
+ * of a MultiEdit block was synthetic) and is kept as a superset entry: a tool that never appears
+ * counts 0 on both paths, so covering the name costs nothing and closes the route on a platform
+ * version that does publish it. The offline suite checks the set both ways against A:11 — every
+ * published built-in whose name reads Write or Edit is a member, and every member the platform
+ * publishes is there — so a renamed or added writing tool is a named red, not a silent zero.
+ */
+export const WRITING_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
+/** A tool input's string leaves, split into path-shaped fields (`file_path`, `notebook_path`, `path`, …) and the rest. */
+function inputStrings(input) {
+    const paths = [];
+    const others = [];
+    const walk = (value, key) => {
+        if (typeof value === "string") {
+            (key !== null && /(^|_)path$/i.test(key) ? paths : others).push(value);
+        }
+        else if (Array.isArray(value)) {
+            for (const v of value)
+                walk(v, null);
+        }
+        else if (typeof value === "object" && value !== null) {
+            for (const [k, v] of Object.entries(value))
+                walk(v, k);
+        }
+    };
+    walk(input, null);
+    return { paths, others };
+}
+/**
+ * The route the notes took to disk, derived from TOOL-USE BLOCKS only (WR-01, D-07/D-20):
+ *
+ *   - DIRECT: a block of a file-writing tool (`WRITING_TOOLS`) whose path field names the context
+ *     root. The marker is the POSIX form of `CONTEXT_SUBPATH` anchored EITHER way — `/.grugops/context/`
+ *     inside an absolute path or `.grugops/context/` at the start of a relative one (the platform
+ *     resolves a relative `file_path` against cwd, so the relative spelling is the same write) —
+ *     over every path-shaped field (`file_path`, `NotebookEdit`'s `notebook_path`), with both
+ *     separators normalized whatever the host, so a backslash spelling counts. Path B's nine notes (33-DIAGNOSIS § 1.3 (ii)) are this route.
+ *   - PROPOSE_NOTE: a block whose name ends in `propose_note` — the sanctioned MCP admission route.
+ *     The suffix is matched because the installed plugin exposes
+ *     `mcp__plugin_grugops_grugops__propose_note` while the grant spells `mcp__grugops__propose_note`.
+ *   - UNCLASSIFIED: a block that names the context root without being a direct write — a `Bash`
+ *     block whose `command` names it (a node-mediated write, a heredoc, or merely an `ls`), or a
+ *     file-writing block whose WRITTEN CONTENT names it while its path does not (the held capture's
+ *     `admit-notes.mjs` at A:1749 and A:1931: a script written under `.grugops/queue/` and then run
+ *     by a `node` command that never spells the root). It is UNCLASSIFIED because the transcript
+ *     cannot tell the sanctioned in-process writer (A:839, `context-io.js` reached through `node`)
+ *     from a hand write: the axis records the count and the reader's seal (plan 33-25) decides what
+ *     was admitted. Prose to a nested session (an `Agent` prompt) and read-only tools enter no axis:
+ *     the prompt is model-chosen text (the CR-03 class) and a read is not a route to disk.
+ *
+ * Every arm is a count compared A against B; adding one is a strengthening, never a softening
+ * (D-20). Nested subagent frames are ordinary frames here — the direct writes are by role agents.
  */
 export function noteRoute(frames) {
-    const contextMarker = `/${toPosix(CONTEXT_SUBPATH)}/`;
+    const rel = toPosix(CONTEXT_SUBPATH);
+    const relBackslash = rel.replace(/\//g, "\\");
+    const namesRoot = (text) => text.includes(rel) || text.includes(relBackslash);
+    // Both separators are normalized whatever the HOST is: a transcript path spelled with backslashes
+    // is the same write, and `toPosix` alone splits only on this host's separator.
+    const isDirectPath = (p) => {
+        const q = toPosixWith(toPosix(p), "\\");
+        return q.includes(`/${rel}/`) || q.startsWith(`${rel}/`);
+    };
     let directContextWrites = 0;
     let proposeNoteCalls = 0;
+    let unclassifiedContextWrites = 0;
     for (const frame of frames) {
         for (const block of contentBlocks(frame)) {
             if (block.type !== "tool_use" || typeof block.name !== "string")
@@ -831,15 +890,22 @@ export function noteRoute(frames) {
                 proposeNoteCalls += 1;
                 continue;
             }
-            if (block.name !== "Write" && block.name !== "Edit")
-                continue;
             const input = typeof block.input === "object" && block.input !== null ? block.input : {};
-            const filePath = typeof input.file_path === "string" ? toPosix(input.file_path) : "";
-            if (filePath.includes(contextMarker))
+            if (block.name === "Bash") {
+                if (typeof input.command === "string" && namesRoot(input.command))
+                    unclassifiedContextWrites += 1;
+                continue;
+            }
+            if (!WRITING_TOOLS.has(block.name))
+                continue;
+            const { paths, others } = inputStrings(input);
+            if (paths.some(isDirectPath))
                 directContextWrites += 1;
+            else if (others.some(namesRoot))
+                unclassifiedContextWrites += 1;
         }
     }
-    return { directContextWrites, proposeNoteCalls };
+    return { directContextWrites, proposeNoteCalls, unclassifiedContextWrites };
 }
 /**
  * Project one live path to the fields D-07 actually defines: per role (the `by` stamp with the
@@ -896,6 +962,9 @@ export function compareLivePaths(a, b) {
     }
     if (a.route.proposeNoteCalls !== b.route.proposeNoteCalls) {
         diffs.push(`note route: propose_note tool-use blocks differ: path A ${a.route.proposeNoteCalls}, path B ${b.route.proposeNoteCalls}`);
+    }
+    if (a.route.unclassifiedContextWrites !== b.route.unclassifiedContextWrites) {
+        diffs.push(`note route: unclassified writes naming the context root differ: path A ${a.route.unclassifiedContextWrites}, path B ${b.route.unclassifiedContextWrites}`);
     }
     return diffs;
 }
@@ -1746,6 +1815,7 @@ export function renderReport(m) {
         L.push(`| verdict marker ${VERDICT_GREEN_MARKER} | ${p.projection.verdictMarker ? "present" : "absent"} | |`);
         L.push(`| note route: direct writes into the context root | ${p.projection.route.directContextWrites} | |`);
         L.push(`| note route: propose_note tool-use blocks | ${p.projection.route.proposeNoteCalls} | |`);
+        L.push(`| note route: unclassified writes naming the context root | ${p.projection.route.unclassifiedContextWrites} | |`);
         L.push("");
     }
     if (m.parity.diffs.length === 0)

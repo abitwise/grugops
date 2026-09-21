@@ -666,7 +666,7 @@ describe("D-07 parity is a path-invariant projection: per role the note count, k
 
   it("note route is derived from tool-use blocks only: the fixture's counts match an independent grep, and an in-memory Write/Edit under the context root moves the count by exactly one", () => {
     const base = noteRoute(FIXTURE.frames);
-    expect(base).toEqual({ directContextWrites: 0, proposeNoteCalls: proposeNoteBlocksInText(FIXTURE_TEXT) });
+    expect(base).toEqual({ directContextWrites: 0, proposeNoteCalls: proposeNoteBlocksInText(FIXTURE_TEXT), unclassifiedContextWrites: unclassifiedByHand(FIXTURE.frames) });
     const under = "/tmp/target/.grugops/context/AUDIT-1/notes/20260920T115322Z-brownfield-mapper-observation-9ba9.md";
     expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: under, content: "---\nkind: observation\n---\n" })]).directContextWrites).toBe(base.directContextWrites + 1);
     expect(noteRoute([...FIXTURE.frames, toolUseFrame("Edit", { file_path: under, old_string: "a", new_string: "b" })]).directContextWrites).toBe(base.directContextWrites + 1);
@@ -759,9 +759,17 @@ describe("WR-01: the note-route axis sees every route — anchored marker, every
     // renamed tool is a named red here rather than a silent zero in the axis.
     const initA = JSON.parse(heldCapture("33-CAPTURE-A.jsonl").split("\n")[10]) as { type?: string; subtype?: string; tools?: string[] };
     expect(initA.type === "system" && initA.subtype === "init", "premise: A:11 is the init frame").toBe(true);
-    const published = new Set(initA.tools ?? []);
-    expect(published.size).toBeGreaterThan(20);
-    for (const tool of WRITING_TOOLS) expect(published.has(tool), `${tool} is a tool the platform publishes`).toBe(true);
+    const published = (initA.tools ?? []).filter((tool) => !tool.startsWith("mcp__"));
+    expect(published.length).toBeGreaterThan(20);
+    // Two-sided against the platform's own list: every published built-in whose name reads Write or
+    // Edit is in the set (an added or renamed writing tool is a named red here), and the members the
+    // platform publishes are exactly Write, Edit and NotebookEdit. MultiEdit is NOT published by CLI
+    // 2.1.278 (the plan's read_first claimed A:11 names it — disproven by the frame itself); it is
+    // kept as a superset entry, which costs nothing (0 on both paths) and covers a version that has it.
+    const writingByName = published.filter((tool) => /Write|Edit/.test(tool));
+    expect(writingByName.filter((tool) => !WRITING_TOOLS.has(tool)), "a published writing tool outside the set").toEqual([]);
+    expect(published.filter((tool) => WRITING_TOOLS.has(tool)).sort()).toEqual(["Edit", "NotebookEdit", "Write"]);
+    expect(published.includes("MultiEdit"), "premise recorded: A:11 does not publish MultiEdit").toBe(false);
     expect([...WRITING_TOOLS].sort()).toEqual(["Edit", "MultiEdit", "NotebookEdit", "Write"]);
     // The fixture's own (shorter) tool list intersects the set in exactly Edit and Write.
     const fixtureInit = FIXTURE.frames.find((f) => f.type === "system" && f.subtype === "init") as { tools?: string[] };
