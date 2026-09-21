@@ -28,7 +28,7 @@
 // allowlist (^[A-Za-z0-9._-]+$, rejecting .. / separators / absolute paths) before it is joined
 // under the context root. The context root itself is a fixed literal (.grugops/context) in
 // production; tests pass an explicit temp root.
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { isEntrypoint } from "./is-entry.js";
 import { writeFileSync, writeSync, 
 // `readFileSync` is DELIBERATELY ABSENT from this import list (31-21, CR-12 / D-24). Every read
@@ -1246,15 +1246,130 @@ function writeNoteFile(notesDir, id, text) {
     mkdirSync(notesDir, { recursive: true });
     atomicWrite(finalPath, text);
 }
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE NOTE SEAL — how the reader tells a note this module composed from a note a hand composed
+// (plan 33-25, KIT (b), WINDOWS.md row 256; 33-DIAGNOSIS.md § 1.3 (ii)).
+//
+// Measured on the held round-1 capture: path B's role agents wrote nine notes with the `Write` tool
+// straight into `.grugops/context/<task>/notes/`, and `readContext` admitted every one. Nothing in
+// the bytes distinguished them from the writer's own output, so the WF16 single-writer rule held on
+// path A by tooling and on path B by nothing. The seal is the mechanical distinguisher: `composeNote`
+// emits it as the LAST line inside the fence, and the one walk refuses a note whose seal is absent,
+// malformed, or does not match the bytes it accompanies.
+//
+// THE RESIDUAL, STATED PLAINLY. The seal is UNKEYED, and it is unkeyed by necessity: a file-based kit
+// holds no secret that the process it constrains cannot also read, so a keyed MAC would be a key
+// stored beside the lock. What the seal therefore distinguishes is a note composed by this writer
+// from a note composed by hand, and it detects any edit made after the write. What it does not do is
+// stop a process that reimplements this algorithm — that process is one register over, not blocked.
+// The un-forgeable tier is a point-of-effect deny of file-writing tools under the context root; that
+// is a kit capability decision left to the human (33-CONTEXT: no new factory capability in this
+// phase) and is not taken here.
+//
+// NO GRANDFATHER CLAUSE. A note composed before the seal existed is refused on read like any other
+// unsealed note. An age exemption is exactly the arm a hand-writer would take, so there is none; a
+// store written by an earlier kit version is re-admitted through the writer, not read as it stands.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+/** The frontmatter key the seal is written under. A fixed literal — never from argv, env or a note. */
+export const NOTE_SEAL_KEY = "seal";
+/**
+ * The domain-separation prefix hashed ahead of the note bytes, versioned so a future change to the
+ * sealed form cannot collide with this one. A fixed literal — never from argv, env or a note.
+ */
+const NOTE_SEAL_DOMAIN = "grugops-note-seal-v1";
+/** The anchored allowlist of a seal VALUE: `sha256:` followed by exactly 64 lowercase hex digits. */
+export const NOTE_SEAL_RE = /^sha256:[0-9a-f]{64}$/;
+/** The one line-ending normalisation the parser applies, applied to the sealed bytes as well. */
+function normalizeLineEndings(text) {
+    return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+/**
+ * THE ONE DIGEST SITE. `sha256` over the domain literal, a NUL byte, and the note's bytes WITHOUT
+ * its seal line, returned as `sha256:<64 hex>`.
+ *
+ * The bytes are hashed in the parser's line-ending form (CRLF and CR normalised to LF), so a note
+ * that a checkout or a transfer re-terminated still verifies — the parser already reads those forms
+ * as one note, and a seal stricter than the parser would refuse what the parser admits for a
+ * difference it does not see. A change to any character the parser DOES see moves the digest.
+ *
+ * The residual is stated at the head of this block: the seal is unkeyed, so it distinguishes
+ * hand-composed from writer-composed notes and detects post-write edits; it does not stop a process
+ * that reimplements this function. Nothing else in this module or in the tree computes a seal —
+ * `scripts/context-io.test.ts` (S5) derives the count of digest sites from this file's AST and the
+ * compactor imports `sealVerdict` rather than computing anything of its own.
+ */
+export function noteSeal(unsealedText) {
+    const h = createHash("sha256");
+    h.update(NOTE_SEAL_DOMAIN, "utf8");
+    h.update(Buffer.from([0]));
+    h.update(normalizeLineEndings(unsealedText), "utf8");
+    return `sha256:${h.digest("hex")}`;
+}
+/**
+ * THE ONE PREDICATE. Every reader in the tree asks this function and nothing else.
+ *
+ *   `absent`    — no column-0 `seal:` line inside the fence (a hand-written note, or a note composed
+ *                 by a kit version that predates the seal; there is no grandfather clause).
+ *   `malformed` — two or more `seal:` lines (the duplicate-key path must not read the first and
+ *                 ignore the second); a `seal:` line that is not the LAST line inside the fence
+ *                 (the writer emits it there and nowhere else, and a seal moved above a `refs:` block
+ *                 would change what the parser reads while the digest stayed valid); or a value
+ *                 outside the anchored `sha256:` + 64-hex allowlist.
+ *   `mismatch`  — one well-formed seal line, last in the fence, whose value is not `noteSeal` of the
+ *                 note with that line removed: an edited note, or another note's seal pasted on.
+ *
+ * The seal line is stripped by position — the bytes it accompanied are exactly the text the writer
+ * composed before sealing — and the digest is recomputed THROUGH `noteSeal`, never beside it.
+ */
+export function sealVerdict(text) {
+    const normalized = normalizeLineEndings(text);
+    const m = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    if (!m)
+        return { ok: false, reason: "absent" };
+    const fmLines = m[1].split("\n");
+    // A column-0 `<key>:` line. Spelled from the key and a character test rather than from a literal
+    // or a template, so the S5 derivation (which counts every spelling of the seal key's line shape)
+    // sees ONE emitter in this module and this reader is not it.
+    const isSealLine = (line) => line.startsWith(NOTE_SEAL_KEY) && line.charAt(NOTE_SEAL_KEY.length) === ":";
+    const sealIndexes = [];
+    for (let i = 0; i < fmLines.length; i++) {
+        if (isSealLine(fmLines[i]))
+            sealIndexes.push(i);
+    }
+    if (sealIndexes.length === 0)
+        return { ok: false, reason: "absent" };
+    if (sealIndexes.length > 1)
+        return { ok: false, reason: "malformed" };
+    const at = sealIndexes[0];
+    if (at !== fmLines.length - 1)
+        return { ok: false, reason: "malformed" };
+    const sealLine = fmLines[at];
+    const value = sealLine.slice(NOTE_SEAL_KEY.length + 1).trim();
+    if (!NOTE_SEAL_RE.test(value))
+        return { ok: false, reason: "malformed" };
+    // Strip the seal line by position: the fence body `m[1]` begins at offset 4 (after `---\n`), and
+    // the seal line is its last line, followed by `\n---`. Removing `<line>\n` there yields exactly the
+    // text `composeNote` sealed.
+    const start = 4 + (m[1].length - sealLine.length);
+    const unsealed = normalized.slice(0, start) + normalized.slice(start + sealLine.length + 1);
+    return noteSeal(unsealed) === value ? { ok: true } : { ok: false, reason: "mismatch" };
+}
 // ── Compose a note's frontmatter + body from a validated NoteInput. ─────────────────────────────
 // The frozen `id:` line is emitted FIRST inside the fence (a deterministic slot, before `kind:`) so
 // the on-disk frontmatter carries the same stable creation-time identity as the <id>.md filename.
 // The id is a load-bearing provenance field the compaction carve-out matches raw→promoted on and
 // byte-equal-checks — it is single-line-guarded exactly as the other provenance fields are.
+//
+// THE SEAL IS EMITTED HERE AND NOWHERE ELSE (plan 33-25, KIT (b)). The note is composed WITHOUT it,
+// `noteSeal` digests that text, and the `seal:` line is inserted as the LAST line inside the fence —
+// the position `sealVerdict` requires, so stripping it by position on read yields exactly the bytes
+// digested here. `id:` stays the frozen FIRST slot. `composeValidatedNote` validates the SEALED text,
+// so `validate` sees what the reader will see; `parseNote` reads an open scalar map and needs no
+// change for the new key. The S5 case in `scripts/context-io.test.ts` derives from this file's AST
+// that this is the one function spelling the seal key's line shape.
 function composeNote(note, body, id) {
     const refsBlock = note.refs.length === 0 ? "refs:\n" : "refs:\n" + note.refs.map((r) => `  - ${r}`).join("\n") + "\n";
-    return ("---\n" +
-        `id: ${id}\n` +
+    const fence = `id: ${id}\n` +
         `kind: ${note.kind}\n` +
         `by: ${note.by}\n` +
         `at: ${note.at}\n` +
@@ -1262,9 +1377,10 @@ function composeNote(note, body, id) {
         `confidence: ${note.confidence}\n` +
         provenanceBlock(note) +
         refsBlock +
-        `supersedes: ${note.supersedes ?? ""}\n` +
-        "---\n\n" +
-        (body.endsWith("\n") ? body : body + "\n"));
+        `supersedes: ${note.supersedes ?? ""}\n`;
+    const rest = "---\n\n" + (body.endsWith("\n") ? body : body + "\n");
+    const unsealed = "---\n" + fence + rest;
+    return "---\n" + fence + `${NOTE_SEAL_KEY}: ${noteSeal(unsealed)}\n` + rest;
 }
 // ── The evidence-provenance lines, emitted PER FIELD and ONLY when the field is set. ────────────
 //
@@ -1501,6 +1617,17 @@ ledgerOwner = actionOwnerRoot(contextRoot)) {
  *                    gone by the time it was opened — a concurrent delete — AND a DANGLING SYMLINK
  *                    at a note path, whose `open(2)` reports ENOENT for the TARGET, which this
  *                    module's one reader correctly answers as "nothing here".
+ *   `unsealed`     — READER-OWNED (plan 33-25, KIT (b), WINDOWS.md row 256). A file that IS a note by
+ *                    shape and that the sanctioned writer did not compose: `sealVerdict` answered
+ *                    `absent`, `malformed` or `mismatch`, and that word is the entry's detail. The
+ *                    rule is stated once, here: a note the sanctioned writer did not compose is not
+ *                    a note this store returns, whatever else it is — hand-written by the `Write`
+ *                    tool, composed by a kit version before the seal existed (no grandfather clause),
+ *                    or edited after the write. It is asked AFTER `parseNote` succeeds, so a file that
+ *                    is not a note at all stays `unparseable`, and it is asked in this walk and only
+ *                    here, so every reader route (`readContext`, `currentState`, `render`,
+ *                    `promoteAdmitted`'s destination read, and every consumer of `readContext`) gives
+ *                    the one answer.
  *
  * WHY THE SET IS DERIVED RATHER THAN TYPED OUT (31-33, CR-24 / D-34). The three arms `31-29`
  * published were a SECOND literal beside `READ_POSITION_CONDITIONS`, and the two disagreed while
@@ -1515,7 +1642,7 @@ ledgerOwner = actionOwnerRoot(contextRoot)) {
  *
  * `render` reports how many entries were skipped and under which arm, in this order.
  */
-export const NOTE_SKIP_ARMS = ["unparseable", ...READ_POSITION_CONDITIONS, "vanished"];
+export const NOTE_SKIP_ARMS = ["unparseable", ...READ_POSITION_CONDITIONS, "vanished", "unsealed"];
 /**
  * The walk, returning BOTH what it read and what it skipped (31-29, IN-14).
  *
@@ -1590,6 +1717,17 @@ function readRawNotesWithSkips(task, contextRoot) {
             // A file that is never a note — an editor backup, a stray `.md`. One malformed file must not
             // make a whole task's context unreadable, so it is skipped rather than thrown on.
             skipped.push({ file, arm: "unparseable", detail: "" });
+            continue;
+        }
+        // THE SEAL IS ASKED HERE, IN THE ONE WALK, AND ONLY HERE (plan 33-25, KIT (b)). A note the
+        // sanctioned writer did not compose — a hand-written note, a pre-seal note, an edited note — is
+        // refused by name and counted under `unsealed`, with the predicate's own word as the detail. The
+        // disposition is SKIP like the other arms: one planted file must not make a whole task's context
+        // unreadable, and the write side stays loud. Measured on the held round-1 capture before this
+        // change: nine `Write`-tool notes read as nine records; after it, nine `unsealed`/`absent` rows.
+        const seal = sealVerdict(text);
+        if (!seal.ok) {
+            skipped.push({ file, arm: "unsealed", detail: seal.reason });
             continue;
         }
         // Prefer the explicit frozen `id:` field; fall back to the filename-derived id when absent (a

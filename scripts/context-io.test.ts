@@ -16867,6 +16867,13 @@ describe("33-25 — KIT (b): the reader refuses a note the sanctioned writer did
           if (node.head.text.includes("seal:")) emits = true;
         }
         if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.text.includes("seal:")) emits = true;
+        // …or a `NOTE_SEAL_KEY + ":"`-shaped concatenation, the third spelling a second emitter could take.
+        if (
+          ts.isBinaryExpression(node) &&
+          node.operatorToken.kind === ts.SyntaxKind.PlusToken &&
+          ((ts.isIdentifier(node.left) && node.left.text === "NOTE_SEAL_KEY") ||
+            (ts.isIdentifier(node.right) && node.right.text === "NOTE_SEAL_KEY"))
+        ) emits = true;
         ts.forEachChild(node, walk);
       };
       walk(statement.body);
