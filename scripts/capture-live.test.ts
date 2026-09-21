@@ -1662,7 +1662,14 @@ describe("--dry-run walks every phase against the committed fixture and makes no
       expect(report.includes(`| run ${run} plugin uninstall | exit`)).toBe(false);
     }
     // CR-02: the provenance rows replace the old sha row; over the fixture the state is UNKNOWN.
-    expect(report).toMatch(/\| installed plugin provenance \(D-05, content digest over \d+ tracked files\) \| UNKNOWN - verify — /);
+    expect(report).toMatch(/\| installed plugin provenance after the run \(D-05, per system\/init, content digest over \d+ tracked files\) \| UNKNOWN - verify — /);
+    // WR-02: the pre-spawn row is walked in the dry run too — over the operator's real registry, for a
+    // target nothing was installed into, so it is truthfully UNKNOWN and says so.
+    for (const run of ["A", "B"]) {
+      const row = report.split("\n").find((l) => l.startsWith(`| run ${run} plugin provenance before the spawn | `)) ?? "";
+      expect(row, `the Run table carries the pre-spawn provenance row for run ${run}`).toContain("UNKNOWN - verify — ");
+      expect(row).toContain("nothing was installed for this run (dry run, D-10)");
+    }
     expect(report).toContain("| plugin under test per system/init | grugops 2.1.0 at ");
     expect(report).not.toContain("installed plugin sha (D-05, post hoc)");
     expect(existsSync(join(out, DRY_RUN_TRANSCRIPT_NAME))).toBe(true);

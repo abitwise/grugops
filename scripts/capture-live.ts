@@ -99,17 +99,31 @@
 // Neither `claude plugin install` nor `claude plugin marketplace add` accepts a sha, ref, tag or
 // version pin, so "install grugops at the exact sha under test" is not expressible as a command.
 //   CHOSEN — route 2: install from the existing user-scope marketplace row (`abitwise/grugops`,
-//     GitHub source) at LOCAL scope in the target, then verify the installed copy POST HOC by
-//     CONTENT: select the plugin BY NAME from `system/init.plugins[]` (never by index — the
-//     round-1 capture listed context7 first, 33-REVIEW CR-02), validate its `path` under the plugin
-//     cache root (`pluginCachePathAccepted`, WR-04), and compare a sha256 over the checkout's
-//     tracked files (`git ls-files`) between the cache copy and the checkout (`contentDigest`).
-//     The cache copy is not a git checkout (33-DIAGNOSIS § 4.2), so no git runs inside it. The
-//     verdict is three-state and feeds `deriveOutcome`: `pass` is unreachable unless it is MET.
-//     Zero extra tokens, and the evidence lands in the capture itself. Precondition: the sha under
-//     test is pushed (the pushed-sha row below), or the installed copy cannot equal the checkout.
-//     The install itself is a phase-2 precondition: a `plugin install` that does not complete stops
-//     the run through `fail` before any model call (`installOutcome`, 33-REVIEW CR-05).
+//     GitHub source) at LOCAL scope in the target, then verify the installed copy by CONTENT, TWICE:
+//     BEFORE THE SPAWN (the gate) from the platform's own record of what it installed — the
+//     local-scope row for the target in `~/.claude/plugins/installed_plugins.json`, selected by
+//     scope and project path and never by index (`installedPluginRow`), its `installPath` validated
+//     under the plugin cache root (`pluginCachePathAccepted`), digested against the checkout and
+//     refused through `fail` unless MET — so a stale version-keyed cache copy (the platform caches
+//     by `<marketplace>/<plugin>/<version>` and reuses the copy at an unbumped version) is a refusal
+//     at zero tokens, never an `UNMET` after the full spend (33-REVIEW round-2 WR-02). And AFTER
+//     THE RUN (the confirmation) from the init frame: select the plugin BY NAME from
+//     `system/init.plugins[]` (never by index — the round-1 capture listed context7 first, CR-02),
+//     validate its `path` the same way, digest it the same way. Both rows are reported; the gate
+//     makes an UNMET spawn unreachable and the confirmation shows that what the platform LOADED is
+//     what was digested. The digest is a sha256 over the checkout's tracked files (`git ls-files`)
+//     between the copy and the checkout (`contentDigest`); the cache copy is not a git checkout
+//     (33-DIAGNOSIS § 4.2), so no git runs inside it, and the registry's `gitCommitSha` is reported
+//     BESIDE the digest as a second, independent signal rather than replacing it. The verdict is
+//     three-state and feeds `deriveOutcome`: `pass` is unreachable unless it is MET. TWO
+//     PRECONDITIONS make "the installed copy equals the checkout" achievable at all, and both are
+//     readiness rows: the sha under test is pushed (the pushed-sha row — an unpushed head is not a
+//     sha a marketplace install can resolve), and the working tree matches HEAD under every
+//     directory the installer copies and the plugin loads (the working-tree row, WR-03 — the
+//     installer copies the WORKING TREE while the digest is over tracked files, so an untracked file
+//     would reach path A invisibly). The pre-spawn digest is what PROVES it. The install itself is a
+//     phase-2 precondition: a `plugin install` that does not complete stops the run through `fail`
+//     before any model call (`installOutcome`, 33-REVIEW CR-05).
 //   REJECTED — route 1: generate a throwaway marketplace catalog in a temp dir declaring a `github`
 //     source with a pinned sha and add it under a non-colliding name. Gives an exact cache copy, but
 //     costs a generated catalog file and a second marketplace row in user state, which the
@@ -171,6 +185,28 @@ export const FIXTURE_JSONL = join(SCRIPT_ROOT, "scripts", "e2e", "fixtures", "ca
 const FIXTURE_TARGET = join(SCRIPT_ROOT, "scripts", "e2e", "fixtures", "capture-target");
 const ADAPTER_DIR = ".claude/agents";
 const CONTEXT_SUBPATH = join(".grugops", "context");
+
+/**
+ * The paths of THIS checkout that reach a target or the platform, and so must match HEAD before a
+ * capture (33-REVIEW round-2 WR-03) — ONE constant, consumed by `workingTreeStatusArgs` alone:
+ *   - `agent-factory`      — the installer copies it into the kit home (install/install.ts `copyKit`)
+ *   - `.claude`            — the installer renders the adapters and skills from `.claude/agents`,
+ *                            `.claude/skills` (install/install.ts, the resolver-adapter pre-step)
+ *   - `AGENTS.md`          — the installer links or copies it into the target
+ *   - `install`            — the installer itself and its kit-source module
+ *   - `.claude-plugin`     — `plugin.json` / `marketplace.json`, read by the platform on install
+ *   - `skills`, `hooks`    — plugin-root component directories the platform loads by default
+ *   - `scripts`            — the MCP admission server `plugin.json` declares, and every hook body
+ * The list is scoped rather than tree-wide on purpose: `.planning/` and the other working files
+ * of this repository reach neither path, and a row that failed on them would refuse a capture for
+ * a difference no target can see.
+ */
+export const INSTALL_AND_PLUGIN_PATHS: readonly string[] = ["agent-factory", ".claude", ".claude-plugin", "install", "skills", "hooks", "scripts", "AGENTS.md"];
+
+/** The scoped status probe's argument list, derived from the one constant above. */
+export function workingTreeStatusArgs(): string[] {
+  return ["status", "--porcelain", "--untracked-files=all", "--", ...INSTALL_AND_PLUGIN_PATHS];
+}
 
 // The temp-directory prefix. A fixed literal so the test can list the OS temp directory for it.
 export const TMP_PREFIX = "grugops-capture-live-";
@@ -1148,6 +1184,12 @@ export interface PreconditionObservation {
   remoteHead: string | null;
   aheadCount: number | null;
   approvalKeyPresent: boolean;
+  /**
+   * `git status --porcelain --untracked-files=all -- <INSTALL_AND_PLUGIN_PATHS>` over the checkout
+   * (WR-03): empty when the working tree matches HEAD under every directory the installer copies
+   * and the plugin loads; one line per differing or untracked entry; null when it could not be read.
+   */
+  workingTreeStatus: string | null;
 }
 
 export interface PreconditionTable {
@@ -1219,6 +1261,25 @@ export function evaluatePreconditions(obs: PreconditionObservation): Preconditio
     });
   }
 
+  // WR-03: the installer copies the WORKING TREE into the target while the provenance digest is over
+  // `git ls-files`, so an untracked or modified entry under the scoped directories would make path A
+  // a kit the digest cannot see. Any output is a refusal; the row names every entry.
+  const treeName = "working tree matches HEAD under the directories the installer and the plugin read";
+  if (obs.workingTreeStatus === null) {
+    rows.push({ name: treeName, state: unknown, detail: `\`git ${workingTreeStatusArgs().join(" ")}\` could not be read; pending verification` });
+  } else {
+    const entries = obs.workingTreeStatus.split(/\r?\n/).filter((l) => l.trim() !== "");
+    if (entries.length === 0) {
+      rows.push({ name: treeName, state: "MET", detail: `git status --porcelain --untracked-files=all is empty under ${INSTALL_AND_PLUGIN_PATHS.join(", ")}` });
+    } else {
+      rows.push({
+        name: treeName,
+        state: "UNMET",
+        detail: `${entries.length} entry(ies) differ from HEAD under the scoped directories: ${entries.join("; ")} — the installer copies the working tree while the digest is over tracked files, so path A would not be the checkout by content (33-REVIEW WR-03)`,
+      });
+    }
+  }
+
   rows.push(
     obs.approvalKeyPresent
       ? { name: "prod-deploy approval key absent from the environment", state: "UNMET", detail: `the parent environment defines ${PROD_DEPLOY_REASON_SIGNATURE}; the deny under observation could not fire` }
@@ -1276,6 +1337,8 @@ function observePreconditions(): PreconditionObservation {
   const remoteHead = probe(GIT_CMD, ["rev-parse", remoteRef], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.trim() ?? null;
   const aheadText = remoteHead === null ? null : probe(GIT_CMD, ["rev-list", "--count", `${remoteRef}..HEAD`], env, PROBE_BOUND_MS, SCRIPT_ROOT)?.trim() ?? null;
   const aheadCount = aheadText !== null && /^\d+$/.test(aheadText) ? Number(aheadText) : null;
+  // WR-03: the scoped status, through the probe like every other git observation.
+  const workingTreeStatus = probe(GIT_CMD, workingTreeStatusArgs(), env, PROBE_BOUND_MS, SCRIPT_ROOT);
 
   return {
     platformVersion: version === null ? null : version.trim(),
@@ -1291,6 +1354,7 @@ function observePreconditions(): PreconditionObservation {
     remoteHead,
     aheadCount,
     approvalKeyPresent,
+    workingTreeStatus,
   };
 }
 
@@ -1502,6 +1566,8 @@ export interface RunSpec {
   pluginName: string;
   marketplaceName: string;
   boundMs: number;
+  /** The registry, the cache root and the checkout side of the pre-spawn provenance gate (WR-02). */
+  provenance: ProvenanceInputs;
 }
 
 export interface TargetRun extends RunReport {
@@ -1545,6 +1611,21 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
   let scored!: Omit<TargetRun, "uninstall">;
   let uninstall: UninstallOutcome;
   try {
+    // PROVENANCE BEFORE THE SPAWN (WR-02): the platform's own registry row for this install — the
+    // local-scope row for THIS target, by scope and project path — names the copy the platform will
+    // load. It is validated under the cache root, digested against the checkout side `capture()`
+    // computed once, and anything but MET is a refusal here, inside the try, so the uninstall in the
+    // finally still runs and no token is spent against a copy that is not the checkout.
+    const pluginKey = `${run.pluginName}@${run.marketplaceName}`;
+    const copy = installedCopyDigest(run.provenance, pluginKey, build.target);
+    const preVerdict = provenanceVerdict(run.provenance.checkout.digest, copy.installedDigest);
+    const provenanceBeforeSpawn = preSpawnProvenance(copy, preVerdict, run.provenance.checkout.digest);
+    if (provenanceBeforeSpawn.state !== "MET") {
+      fail(
+        `target ${build.label}: plugin provenance is ${provenanceBeforeSpawn.state} before the spawn — ${provenanceBeforeSpawn.detail}; registry gitCommitSha ${provenanceBeforeSpawn.gitCommitSha ?? "(none)"}; refusing to spawn. ` +
+          `When the plugin version is unbumped the platform reuses its cached copy: run \`${PLATFORM_CMD} plugin marketplace update ${run.marketplaceName}\` so the cache is refreshed from the pushed sha, or uninstall and reinstall at user scope, then run --dry-run again (33-REVIEW WR-02).`,
+      );
+    }
     // The grant is derived BEFORE the subject exists (CR-01 round 2, item 2): the installer rendered
     // the adapters at build time and the plugin install added none, so this is the grant under test.
     // Every CAP-03 side below is scored against THIS value, never against a post-run re-read.
@@ -1586,6 +1667,7 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
       run: result,
       toolGrant: run.allowedTools,
       grantDrift,
+      provenanceBeforeSpawn,
       transcriptPath,
       transcriptText,
       grant,
@@ -1604,7 +1686,8 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
 }
 
 // ---------------------------------------------------------------------------
-// D-05 post hoc — plugin provenance by name, by content, and in the outcome (33-12, CR-02, WR-04)
+// D-05 — plugin provenance: before the spawn from the registry row (WR-02), after the run from the
+// init frame (33-12, CR-02, WR-04), by content both times, and in the outcome
 // ---------------------------------------------------------------------------
 
 /** The plugin under test, selected from `system/init.plugins[]` by exact NAME — never by index. */
@@ -1685,6 +1768,11 @@ function pluginCacheRoot(): string {
   return join(homedir(), ".claude", "plugins");
 }
 
+/** The platform's install registry — the same fixed derivation from the operator's home. */
+function pluginRegistryPath(): string {
+  return join(pluginCacheRoot(), "installed_plugins.json");
+}
+
 /** The checkout's tracked files, through `git ls-files -z` in SCRIPT_ROOT, or null when unreadable. */
 function trackedFiles(): string[] | null {
   const out = probe(GIT_CMD, ["ls-files", "-z"], spawnEnv(), PROBE_BOUND_MS, SCRIPT_ROOT);
@@ -1693,10 +1781,153 @@ function trackedFiles(): string[] | null {
   return list.length === 0 ? null : list;
 }
 
-/** THE ONE provenance derivation, used by the live run and the dry run alike. */
-function deriveProvenance(plugins: PluginLoadReport, pluginName: string): ProvenanceReport {
+/** The checkout side of every provenance comparison: computed ONCE per run, before the target loop, and handed down. */
+export interface CheckoutDigest {
+  tracked: string[] | null;
+  digest: string | null;
+}
+
+function deriveCheckoutDigest(): CheckoutDigest {
   const tracked = trackedFiles();
-  const checkoutDigest = tracked === null ? null : contentDigest(SCRIPT_ROOT, tracked);
+  return { tracked, digest: tracked === null ? null : contentDigest(SCRIPT_ROOT, tracked) };
+}
+
+/** What the platform recorded for one install: the copy it will load and the sha it recorded. */
+export interface InstalledPluginRow {
+  installPath: string;
+  gitCommitSha: string | null;
+  version: string | null;
+}
+
+/** A path for comparison: its real path where it exists, its resolved spelling where it does not. */
+function canonicalPath(p: string): string {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    return resolve(p);
+  }
+}
+
+/**
+ * The platform's own record of the install under test (WR-02), read from the registry text
+ * (`installed_plugins.json`, `version: 2`): `plugins["NAME@MARKETPLACE"]` is an array of rows with
+ * `scope`, `installPath`, `version`, `installedAt`, `lastUpdated`, `gitCommitSha`, and — for
+ * project- and local-scope rows — the `projectPath` the install was scoped to. The row selected is
+ * the ONE local-scope row whose `projectPath` names `target` (both sides compared through their
+ * real path where they exist), never a row by index and never a user- or project-scope row: a
+ * user-scope install of the same plugin is a different copy, and another project's local row is
+ * another target's. No such row, more than one, or text that is not the registry's shape is null —
+ * nothing was measured, so the caller reports UNKNOWN and refuses. Pure over its text.
+ */
+export function installedPluginRow(registryText: string, pluginKey: string, target: string): InstalledPluginRow | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(registryText);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const plugins = (parsed as { plugins?: unknown }).plugins;
+  if (typeof plugins !== "object" || plugins === null) return null;
+  const rows = (plugins as Record<string, unknown>)[pluginKey];
+  if (!Array.isArray(rows)) return null;
+  const want = canonicalPath(target);
+  const matches: InstalledPluginRow[] = [];
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const r = row as { scope?: unknown; projectPath?: unknown; installPath?: unknown; gitCommitSha?: unknown; version?: unknown };
+    if (r.scope !== "local" || typeof r.projectPath !== "string" || typeof r.installPath !== "string") continue;
+    if (canonicalPath(r.projectPath) !== want) continue;
+    matches.push({
+      installPath: r.installPath,
+      gitCommitSha: typeof r.gitCommitSha === "string" ? r.gitCommitSha : null,
+      version: typeof r.version === "string" ? r.version : null,
+    });
+  }
+  return matches.length === 1 ? matches[0] : null;
+}
+
+/** The inputs of the pre-spawn gate: where the registry and the cache are, and the checkout side. */
+export interface ProvenanceInputs {
+  registryPath: string;
+  cacheRoot: string;
+  checkout: CheckoutDigest;
+}
+
+function liveProvenanceInputs(checkout: CheckoutDigest): ProvenanceInputs {
+  return { registryPath: pluginRegistryPath(), cacheRoot: pluginCacheRoot(), checkout };
+}
+
+/** The installed copy as the registry names it, validated and digested — or the refusal that stopped short. */
+export interface InstalledCopy {
+  installPath: string | null;
+  gitCommitSha: string | null;
+  version: string | null;
+  installedDigest: string | null;
+  refusal: string | null;
+}
+
+/**
+ * Read the registry, select the row for `target`, validate its `installPath` under the cache root
+ * (the same `pluginCachePathAccepted` rule the init-frame path passes through) and digest it over the
+ * checkout's tracked list. Every arm that stops short names why in `refusal` and leaves the digest
+ * null, so `provenanceVerdict` reads UNKNOWN — never MET by omission.
+ */
+export function installedCopyDigest(inputs: ProvenanceInputs, pluginKey: string, target: string): InstalledCopy {
+  let text: string;
+  try {
+    text = readFileSync(inputs.registryPath, "utf8");
+  } catch (e) {
+    return { installPath: null, gitCommitSha: null, version: null, installedDigest: null, refusal: `the plugin registry ${inputs.registryPath} could not be read — ${e instanceof Error ? e.message : String(e)}` };
+  }
+  const row = installedPluginRow(text, pluginKey, target);
+  if (row === null) {
+    return { installPath: null, gitCommitSha: null, version: null, installedDigest: null, refusal: `no local-scope row for this target in the plugin registry ${inputs.registryPath} (none, or more than one) — the platform recorded no single install of ${pluginKey} scoped to ${target}` };
+  }
+  const accepted = pluginCachePathAccepted(row.installPath, inputs.cacheRoot);
+  if (accepted === null) {
+    return { installPath: row.installPath, gitCommitSha: row.gitCommitSha, version: row.version, installedDigest: null, refusal: `the registry row's installPath was not accepted under the plugin cache root (it must be an existing directory strictly inside ${inputs.cacheRoot}, not dash-prefixed, judged on its real path)` };
+  }
+  const installedDigest = inputs.checkout.tracked === null ? null : contentDigest(accepted, inputs.checkout.tracked);
+  return { installPath: accepted, gitCommitSha: row.gitCommitSha, version: row.version, installedDigest, refusal: null };
+}
+
+/** The pre-spawn row's fields (WR-02): the verdict, both digests, the registry's sha and the copy's path. */
+export interface PreSpawnProvenance {
+  state: ProvenanceState;
+  detail: string;
+  checkoutDigest: string | null;
+  installedDigest: string | null;
+  gitCommitSha: string | null;
+  installPath: string | null;
+}
+
+/** Compose the pre-spawn row from the copy and its verdict. Pure. */
+export function preSpawnProvenance(copy: InstalledCopy, verdict: { state: ProvenanceState; detail: string }, checkoutDigest: string | null = null): PreSpawnProvenance {
+  return {
+    state: verdict.state,
+    detail: copy.refusal === null ? verdict.detail : `${verdict.detail}: ${copy.refusal}`,
+    checkoutDigest,
+    installedDigest: copy.installedDigest,
+    gitCommitSha: copy.gitCommitSha,
+    installPath: copy.installPath,
+  };
+}
+
+/** The pre-spawn row rendered: the state, the detail, the registry's sha and the copy's path beside it. */
+export function preSpawnProvenanceLine(p: PreSpawnProvenance): string {
+  return `${p.state} — ${p.detail}; registry gitCommitSha ${p.gitCommitSha ?? "(none)"}; install path ${p.installPath ?? "(none)"}`;
+}
+
+/**
+ * THE ONE post-run provenance derivation (the confirmation), used by the live run and the dry run
+ * alike, over the init frame the platform emitted and the checkout side handed down. It stays
+ * beside the pre-spawn gate because the two answer different questions: the gate says what the
+ * registry named will be loaded is the checkout; this says what the platform REPORTED loading is.
+ */
+function deriveProvenance(plugins: PluginLoadReport, pluginName: string, checkout: CheckoutDigest): ProvenanceReport {
+  const tracked = checkout.tracked;
+  const checkoutDigest = checkout.digest;
   const under = pluginUnderTest(plugins, pluginName);
   let installedDigest: string | null = null;
   let refusal: string | null = null;
@@ -1763,6 +1994,8 @@ export interface RunReport {
   grantDrift: string[];
   /** The plugin uninstall's recorded exit (WR-06); null only for a dry run, which installed nothing and says so in the row. */
   uninstall: UninstallOutcome | null;
+  /** The pre-spawn provenance verdict over the registry row for this target (WR-02) — the gate the spawn passed. */
+  provenanceBeforeSpawn: PreSpawnProvenance;
 }
 
 export interface ReportModel {
@@ -1773,7 +2006,7 @@ export interface ReportModel {
   boundMs: number;
   boundUsed: string;
   approvalKeyLine: string;
-  /** D-05 post hoc: the plugin under test by name, its content digest against the checkout (33-12). */
+  /** D-05 after the run (the confirmation): the plugin under test by name from the init frame, its content digest against the checkout (33-12). */
   provenance: ProvenanceReport;
   preconditions: PreconditionTable;
   targets: { label: RunLabel; installerLine: string }[];
@@ -1850,13 +2083,15 @@ export function renderReport(m: ReportModel): string {
   L.push(`| per-call bound (ms) | ${m.boundMs} |`);
   L.push(`| bound actually used | ${cell(m.boundUsed)} |`);
   L.push(`| approval key in child env | ${cell(m.approvalKeyLine)} |`);
-  L.push(`| installed plugin provenance (D-05, content digest over ${m.provenance.trackedCount} tracked files) | ${m.provenance.state} — ${cell(m.provenance.detail)} |`);
+  L.push(`| installed plugin provenance after the run (D-05, per system/init, content digest over ${m.provenance.trackedCount} tracked files) | ${m.provenance.state} — ${cell(m.provenance.detail)} |`);
   L.push(`| plugin under test per system/init | ${cell(m.provenance.pluginLine)} |`);
   for (const r of m.runs) {
     L.push(`| run ${r.label} transcript | ${r.transcriptName} (${r.frames.lineCount} line(s), ${r.frames.frames.length} frame(s), ${r.frames.partial} partial line(s)) |`);
     L.push(`| run ${r.label} transcript location | ${cell(r.transcriptLocation)} |`);
     L.push(`| run ${r.label} argv | ${cell(JSON.stringify(r.argv))} |`);
     L.push(`| run ${r.label} tool grant | ${cell(JSON.stringify(r.toolGrant))} |`);
+    // WR-02: the gate the spawn passed (or, in a dry run, what the registry says about a target nothing was installed into).
+    L.push(`| run ${r.label} plugin provenance before the spawn | ${cell(preSpawnProvenanceLine(r.provenanceBeforeSpawn))} |`);
     if (r.run !== null) {
       L.push(`| run ${r.label} exit | status ${String(r.run.status)}, signal ${String(r.run.signal)}, timed out ${r.run.timedOut}, escalated ${r.run.escalated}, wall ${r.run.durationMs} ms |`);
       L.push(`| run ${r.label} spawn grant drift | ${r.grantDrift.length === 0 ? "none — the post-run derivation equals the pre-spawn derivation on granted, adapterNames, coordinator and prefix" : `field(s) changed after the spawn: ${cell(r.grantDrift.join(", "))} — the run is failed`} |`);
@@ -2093,6 +2328,12 @@ async function dryRun(opts: Options): Promise<number> {
 
   const targets = RUN_LABELS.map((label) => buildTarget(label));
   console.log(`phase 2: ${targets.length} target(s) built and installed; stopping before any platform invocation`);
+  // The checkout side of every provenance comparison, once (WR-02); the dry run walks the registry
+  // reader over the operator's real registry for each target — nothing was installed into it, so the
+  // honest answer is UNKNOWN, and the row says why.
+  const checkout = deriveCheckoutDigest();
+  const provenanceInputs = liveProvenanceInputs(checkout);
+  const pluginKey = `${obs.pluginName}@${obs.marketplaceName}`;
 
   if (!existsSync(FIXTURE_JSONL)) fail(`the fixture transcript is missing at ${FIXTURE_JSONL}`);
   const frames = await readFrames(FIXTURE_JSONL);
@@ -2118,13 +2359,14 @@ async function dryRun(opts: Options): Promise<number> {
       toolGrant: liveAllowedTools(build.target),
       grantDrift: [],
       uninstall: null,
+      provenanceBeforeSpawn: dryRunProvenanceBeforeSpawn(provenanceInputs, pluginKey, build.target),
     });
     projections.push({ label: build.label, projection: projectLivePath(stamps, frames.frames, grant.prefix) });
   }
   console.log(`phase 3: ${frames.frames.length} fixture frame(s) derived over, once per target (${runs.length})`);
   const diffs = equivalence(targets);
   const parityDiffs = compareLivePaths(projections[0].projection, projections[1].projection);
-  const provenance = deriveProvenance(pluginLoadReport(frames.frames), obs.pluginName);
+  const provenance = deriveProvenance(pluginLoadReport(frames.frames), obs.pluginName, checkout);
   console.log(`phase 3: plugin provenance (D-05) over the fixture init frame: ${provenance.state}`);
 
   const model: ReportModel = {
@@ -2159,6 +2401,13 @@ async function dryRun(opts: Options): Promise<number> {
   return 0;
 }
 
+/** The dry run's pre-spawn row: the same reader over the same registry, with the reason nothing matched stated. */
+function dryRunProvenanceBeforeSpawn(inputs: ProvenanceInputs, pluginKey: string, target: string): PreSpawnProvenance {
+  const copy = installedCopyDigest(inputs, pluginKey, target);
+  const pre = preSpawnProvenance(copy, provenanceVerdict(inputs.checkout.digest, copy.installedDigest), inputs.checkout.digest);
+  return { ...pre, detail: `${pre.detail} — nothing was installed for this run (dry run, D-10); the live run refuses to spawn unless this row is MET` };
+}
+
 function makeScratchOut(): string {
   // The artifact directory is the run's product, so it is created and printed, never removed.
   return mkdtempSync(join(tmpdir(), `${TMP_PREFIX}out-`));
@@ -2180,6 +2429,10 @@ async function capture(opts: Options): Promise<number> {
   mkdirSync(outDir, { recursive: true });
   const grantSource = deriveGrant(targets[0].target);
   if (grantSource.coordinator === null) fail(`no coordinator adapter in the installed target: ${grantSource.reasons.join("; ")}`);
+  // The checkout side of the provenance gate, once, before the loop (WR-02): the tracked list and
+  // its digest are the same for both targets and are handed down, never re-derived per run.
+  const checkout = deriveCheckoutDigest();
+  const provenanceInputs = liveProvenanceInputs(checkout);
 
   const runs: RunReport[] = [];
   const rawTranscripts: { name: string; text: string }[] = [];
@@ -2196,6 +2449,7 @@ async function capture(opts: Options): Promise<number> {
       pluginName: obs.pluginName,
       marketplaceName: obs.marketplaceName,
       boundMs: CALL_BOUND_MS,
+      provenance: provenanceInputs,
     });
     installLines.push(r.installLine);
     if (r.hung) hang = true;
@@ -2210,9 +2464,11 @@ async function capture(opts: Options): Promise<number> {
   const parityDiffs = compareLivePaths(projections[0].projection, projections[1].projection);
   const denyFired = runs.some((r) => denyObservedInStream(r.frames.frames));
   if (!denyFired) anyFailure = true;
-  // D-05 provenance is read from run A's init frame (the same install route serves both runs) and
-  // is an outcome input: a pass over a plugin that is not the checkout is a fabricated proof.
-  const provenance = deriveProvenance(pluginLoadReport(runs[0].frames.frames), obs.pluginName);
+  // D-05 provenance AFTER the run is read from run A's init frame (the same install route serves both
+  // runs) and stays an outcome input: a pass over a plugin that is not the checkout is a fabricated
+  // proof. It is the confirmation; the gate ran inside each runTarget before its spawn, so an UNMET
+  // here can only mean the platform loaded something other than what its registry named.
+  const provenance = deriveProvenance(pluginLoadReport(runs[0].frames.frames), obs.pluginName, checkout);
   const outcome: ReportModel["outcome"] = deriveOutcome({ hang, anyFailure, parityDiffs, provenance: provenance.state });
   const outcomeReason = hang
     ? "a run reached the bound and was stopped (exit 143 or SIGINT at the bound)"
