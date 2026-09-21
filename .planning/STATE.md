@@ -6,8 +6,8 @@ current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 3 of 4 PLANNED 2026-09-21 — 11 plans (33-24..33-34, waves 13-23), checker passed 0/0; next: /gsd-execute-phase 33 --gaps-only"
 stopped_at: Completed 33-23-PLAN.md (round 2 of 4 executed; awaiting /gsd-verify-work 33)
-last_updated: "2026-09-21T14:06:08.364Z"
-state_head: b75bc67eb1a8b2c6fbbc024ca8da8261d5974415
+last_updated: "2026-09-21T15:12:58.994Z"
+state_head: 1bd53b164ed03135599dcc1cee18b7006547bb42
 progress:
   total_phases: 11
   completed_phases: 32
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 33 (Live Capture & Windows Portability) — gap-closure round 3 of 4 PLANNED 2026-09-21 (33-24..33-34, waves 13-23), READY TO EXECUTE
-Plan: 23 of 23
+Phase: 33 (Live Capture & Windows Portability) — EXECUTING
+Plan: 1 of 34
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -1511,6 +1511,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-23: the 18 accepted-open review findings and the 4 KIT items are WINDOWS.md rows 237-258 through the tool (open 207 -> 229), left open not waived; no ledger row flipped on a run whose windows leg reads failure
 - [Phase 33]: 33-23: nine Phase 33 deferred items resolved only with the fix commit plus the CI leg that measured the class green on run 35579263776; the ten-context-io-reds item stays open (8 of 10 green, W-20/W-21 moved onto row 236); CAP-01/02/03 stay Pending, requirements.mark-complete deliberately not run
 - [Phase 33]: Round 2 verified gaps_found 0/3 (2026-09-21): CAP-02 genuine fail on ONE class (context-io 8.3 short-name spelling, row 236, run 35579263776 ubuntu green / windows 35 reds); CAP-01 HELD by human ledger-and-hold; CAP-03 held + round-2 review CR-01 (verdict inputs re-read from subject-writable disk after the run; LIVE_ALLOWED_TOOLS unscoped). Round 3 inputs on disk: row 236 authority, review CR-01+WR-01..06, KIT (a) carry propose_note in coordinator grant, KIT (b) refuse hand-written notes on read, manifest §7 two flip amendments, push-before-checkpoint sequencing.
+- [Phase 33]: D-33-R3-01 (33-24, assumption_delta = promote): rung 1 of canonicalDirectoryPath (realpathSync.native, the kernel's final path — long names on win32) is the module's ONE published spelling of a directory on every host; rung 2 (realpathSync) stays a fallback INSIDE the ladder for a platform with no native variant and is never a published spelling on its own. Recorded BEFORE any code edit. — Evidence on disk: (1) the rung-identity property at scripts/context-io.test.ts:11615 proves rung 1 is idempotent over rung 2's output (realpathSync.native(realpathSync(r)) === realpathSync.native(r)) while the converse is disproved by the 8.3 class (RUNNER~1 vs runneradmin, WINDOWS.md row 236); (2) tier 0 (hostDeliveredRoot) already publishes rung 1 and 33-16 put the cwd tier on it; (3) 33-15 derived W-23..W-25 through rung 1 and all three read green on run 35579263776 (33-CI-MEASUREMENT.md Part 3 § 3.3). Defining rung 2 as the published spelling would put the cwd tier and tier 0 back onto a spelling the kernel does not answer, re-opening 33-16's W-21.
 
 ### Pending Todos
 
