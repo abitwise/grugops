@@ -1927,6 +1927,7 @@ function heldCapture(name: string): string {
     encoding: "utf8",
     input: "",
     maxBuffer: 64 * 1024 * 1024,
+    timeout: 20_000,
   });
   if (r.error !== undefined || r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
     throw new Error(
@@ -2215,21 +2216,23 @@ describe("33-27 G3 — the safety converse, GENERATED from COMMAND_CHECKPOINT_RU
 });
 
 describe("33-27 G4 — mutation: with the redirection arm removed, every G1 allow flips back and every G3 case still denies", () => {
-  // A SCRATCH copy of the committed module with `REDIRECTION_RE` replaced by a never-matching regex.
-  // Because the split and the word ask the SAME constant, one substitution removes both arms.
+  // A SCRATCH copy of the committed module with `REDIRECTION_RE` replaced by a never-matching regex
+  // (`[^\s\S]`, an empty class — a consuming atom, not a zero-width lookahead, which this
+  // repository's closed-lookahead class refuses under scripts/). Because the split and the word ask
+  // the SAME constant, one substitution removes both arms.
   const scratch = mkdtempSync(join(tmpdir(), "p33-27-mutant-"));
   afterAll(() => rmSync(scratch, { recursive: true, force: true }));
   const src = readFileSync(join(ROOT, "scripts", "checkpoints.js"), "utf8");
   const NEEDLE = /export const REDIRECTION_RE = new RegExp\([^;]*\);/;
   const mutated = src
-    .replace(NEEDLE, "export const REDIRECTION_RE = /(?!)/;")
+    .replace(NEEDLE, "export const REDIRECTION_RE = /[^\\s\\S]/;")
     .replace(/from "\.\/([^"]+)"/g, (_m, rel: string) => `from ${JSON.stringify(pathToFileURL(join(ROOT, "scripts", rel)).href)}`);
   const mutantPath = join(scratch, "checkpoints-mutant.mjs");
   writeFileSync(mutantPath, mutated);
 
   it("the mutation is load-bearing: the constant was found exactly once and replaced", () => {
     expect((src.match(NEEDLE) ?? []).length).toBe(1);
-    expect(mutated).toContain("REDIRECTION_RE = /(?!)/");
+    expect(mutated).toContain("REDIRECTION_RE = /[^\\s\\S]/");
     expect(mutated).not.toMatch(NEEDLE);
   });
 
