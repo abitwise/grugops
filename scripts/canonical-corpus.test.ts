@@ -608,3 +608,53 @@ describe("canonical-corpus: the replay is PROVEN ABLE TO FAIL", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// 33-28 K3 — the `_` widening (D-33-R3-02) keeps the sweep's premise and moves NO corpus row
+// ---------------------------------------------------------------------------
+//
+// Plan 33-28 adds ONE character, `_`, to the shipped plain-scalar alphabet so an adapter grant can
+// carry the platform's scoped MCP tool name. Two things must stay true afterwards, and both are
+// derived here rather than asserted: (1) the sweep above still measures a REAL widening — no
+// `WIDENINGS` row's sigil is `_`, so none of them became a no-op; (2) the corpus verdicts did not
+// move — every row is still refused with the code its source recorded. The base measurement,
+// taken through the proof-only entry point BEFORE the widening shipped: adding `_` alone moved
+// 0 of the 91 rows (the fifteen rows that spell `_` are all refused earlier, as `node-property`
+// or `unknown-key`, before the alphabet is ever consulted).
+describe("33-28 K3 — the `_` widening keeps the sweep honest and moves no corpus row (D-33-R3-02)", () => {
+  it("K3: `_` is in the shipped alphabet, is no widening's sigil, is no node-start sigil, and every corpus row keeps its recorded verdict", () => {
+    expect(
+      PLAIN_SCALAR_ALPHABET.has("_"),
+      "the shipped plain-scalar alphabet does not admit `_` — the coordinator adapter's scoped MCP tool name cannot be carried",
+    ).toBe(true);
+
+    // The sweep's premise: a widening's sigil must NOT already be in the alphabet. `_` is now in
+    // the alphabet, so if any row named it that row would silently measure nothing.
+    for (const w of WIDENINGS) {
+      expect(
+        w.sigils,
+        `widening \`${w.name}\` names \`_\`, which the shipped alphabet now admits — that row would be a no-op`,
+      ).not.toContain("_");
+    }
+    expect(REFUSED_NODE_SIGILS.has("_"), "`_` is in the node-start refusal table — the alphabet and the table disagree").toBe(false);
+
+    // Every row keeps the verdict its source recorded: derived per row, not counted.
+    const moved = CORPUS.filter((row) => {
+      const a = admit(row.text);
+      return a.ok || a.code !== row.expected;
+    }).map((row) => {
+      const a = admit(row.text);
+      return `${row.id} (${row.expected} -> ${a.ok ? "ADMITTED" : a.code})`;
+    });
+    expect(
+      moved,
+      `corpus row(s) changed verdict under the \`_\` widening: ${moved.join(", ")}`,
+    ).toEqual([]);
+
+    const spelling = CORPUS.filter((r) => r.text.includes("_")).length;
+    expect(spelling, "no corpus row spells `_` — the measurement above is vacuous").toBeGreaterThan(0);
+    log(
+      `canonical-corpus 33-28 K3: \`_\` admitted by the shipped alphabet; ${CORPUS.length} row(s) replayed, 0 moved, 0 admitted; ${spelling} row(s) spell \`_\` and every one is still refused before the alphabet is consulted; no WIDENINGS row names \`_\``,
+    );
+  });
+});

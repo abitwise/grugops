@@ -36,6 +36,7 @@ import {
   DOUBLE_QUOTED_KEYS,
   GRANT_KEYS,
   LINE_PRODUCTIONS,
+  PLAIN_SCALAR_ALPHABET,
   REFUSAL_CODES,
   type AdmittedDocument,
   type RefusalCode,
@@ -605,6 +606,178 @@ describe("canonical-frontmatter: the refusal vocabulary is complete, named and c
     // eslint-disable-next-line no-console
     console.log(
       `canonical-frontmatter: admission core scanned = ${scanned} non-space chars, ${called.length} refuse() literal site(s) + ${tabled.length} sigil-table site(s) = ${assigned.length} assignments over ${new Set(assigned).size} distinct codes, 1 \`ok: false\`, 0 default branches`,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 33-28 K1/K2 — the alphabet admits `_` (decision D-33-R3-02), and every byte it exists to refuse
+// is still refused, by GENERATED proof
+// ---------------------------------------------------------------------------
+//
+// THE ONE WIDENING OF P27'S CLOSED FORM, AND WHY. The platform exposes a plugin's bundled MCP server
+// under the scoped name `mcp__plugin_PLUGIN_SERVER__TOOL` (the round-1 init frame A:11 lists
+// `mcp__plugin_grugops_grugops__propose_note`), and an adapter `tools:` line carrying that name is
+// the only way the coordinator holds the sanctioned admission route on the `--agent` path
+// (33-DIAGNOSIS § 1.3 (i)). `_` is not a YAML-significant byte, so admitting it widens the alphabet
+// a spawn verdict is computed over by exactly one member that no YAML construct is spelled with.
+// The docblock on `PLAIN_SCALAR_ALPHABET` says widening is a deliberate, loud act; K1 is the loud
+// part and K2 is the proof that nothing else moved.
+//
+// ON THE BASE (before the widening) K1 refused with `plain-scalar-charset`:
+//   "line 3: the plain value of `tools` carries `_` (U+005F), which is outside the enumerated
+//    plain-scalar alphabet; the alphabet states what this module can vouch for, and every byte
+//    outside it is refused rather than interpreted"
+// — that sentence is the RED this case was written against.
+
+// The YAML-significant bytes the `PLAIN_SCALAR_ALPHABET` docblock enumerates as DELIBERATELY ABSENT,
+// in the docblock's own order. K2 is generated from this list — one case per member, never typed
+// per byte — and its count is asserted against the list's length so a member silently dropped from
+// the loop is a visible red rather than a quiet gap.
+const YAML_SIGNIFICANT_BYTES: readonly string[] = [
+  ":",
+  "#",
+  "&",
+  "*",
+  "!",
+  "|",
+  ">",
+  "[",
+  "]",
+  "{",
+  "}",
+  "'",
+  '"',
+  "%",
+  "@",
+  "`",
+  "?",
+  "\\",
+];
+
+// "Every whitespace character other than the single SPACE" — DERIVED from the runtime's own
+// whitespace class over the Basic Multilingual Plane, never typed: a hand-kept list of invisible
+// characters is the set-literal drift this repository has already paid for, and a literal invisible
+// byte in a test file is a byte `grep` classifies as binary.
+const NON_SPACE_WHITESPACE: readonly string[] = (() => {
+  const out: string[] = [];
+  for (let cp = 0; cp <= 0xffff; cp += 1) {
+    const c = String.fromCharCode(cp);
+    if (c !== " " && /^\s$/.test(c)) out.push(c);
+  }
+  return out;
+})();
+
+const label = (c: string): string =>
+  `U+${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+
+describe("33-28 K1/K2 — the plain-scalar alphabet admits `_` and nothing else new (D-33-R3-02)", () => {
+  it("K1: an adapter `tools:` line carrying the platform's scoped MCP tool name is ADMITTED, and the MCP token stays outside the spawn derivation", () => {
+    // The scoped spelling is the one the round-1 init frame listed (A:11), which is also the one
+    // the `admit` capability token renders — the generator's row and this literal must agree, and
+    // Task 2's K5 reads the regenerated adapter itself.
+    const text = doc(
+      "---",
+      "name: r",
+      "tools: Agent(grugops-installer, grugops-security-nfr), Read, Grep, Glob, Edit, Write, Bash, mcp__plugin_grugops_grugops__propose_note",
+      "---",
+    );
+    const a = admit(text);
+    expect(
+      a.ok,
+      `the widened alphabet REFUSED the scoped MCP tool name: ${a.ok ? "" : `[${a.code}] ${a.reason}`}`,
+    ).toBe(true);
+    if (!a.ok) return;
+    expect(PLAIN_SCALAR_ALPHABET.has("_")).toBe(true);
+    // The MCP token is a plain tool, not a scoped grant: the spawn derivation reads ONLY the
+    // `Agent(...)` list, so the two role names are the whole enumeration.
+    expect(admittedGrantedNames(a.value)).toEqual([
+      "grugops-installer",
+      "grugops-security-nfr",
+    ]);
+    expect(admittedHasSpawnGrant(a.value)).toBe(true);
+    expect(admittedGrantValues(a.value)).toEqual([
+      "Agent(grugops-installer, grugops-security-nfr), Read, Grep, Glob, Edit, Write, Bash, mcp__plugin_grugops_grugops__propose_note",
+    ]);
+    // eslint-disable-next-line no-console
+    console.log(
+      "canonical-frontmatter 33-28 K1: the scoped MCP tool name is ADMITTED on `tools:`; enumerated names = grugops-installer, grugops-security-nfr (the MCP token enters no spawn derivation)",
+    );
+  });
+
+  it("K2: every YAML-significant byte the docblock lists, and every non-SPACE whitespace character, is STILL refused in a plain scalar — generated, counted, and outside the alphabet", () => {
+    expect(YAML_SIGNIFICANT_BYTES.length).toBeGreaterThan(0);
+    expect(NON_SPACE_WHITESPACE.length).toBeGreaterThan(0);
+    // The runtime's whitespace class must contain the bytes the docblock names in words (TAB, the
+    // line terminators) — a derivation that quietly lost them would still be "non-empty".
+    for (const cp of [0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0xa0, 0x2028, 0x2029, 0x3000]) {
+      expect(
+        NON_SPACE_WHITESPACE,
+        `the derived whitespace class lost U+${cp.toString(16).toUpperCase().padStart(4, "0")}`,
+      ).toContain(String.fromCharCode(cp));
+    }
+
+    const bytes = [...YAML_SIGNIFICANT_BYTES, ...NON_SPACE_WHITESPACE];
+    // No duplicate between the two halves, so the count below is a count of DISTINCT bytes.
+    expect(new Set(bytes).size).toBe(bytes.length);
+
+    const admitted: string[] = [];
+    const inAlphabet: string[] = [];
+    const codes = new Map<string, number>();
+    let cases = 0;
+    for (const c of bytes) {
+      cases += 1;
+      if (PLAIN_SCALAR_ALPHABET.has(c)) inAlphabet.push(label(c));
+      // The byte sits INSIDE the value, never at its node start and never at its edges, so the
+      // node-start sigil table and the padding rule cannot be the reason it is refused — only the
+      // alphabet (or the control/tab rules that run before it) can be.
+      const a = admit(doc("---", `name: r${c}x`, "---"));
+      if (a.ok) {
+        admitted.push(label(c));
+        continue;
+      }
+      expect(
+        (REFUSAL_CODES as readonly string[]).includes(a.code),
+        `${label(c)} refused with a code outside REFUSAL_CODES: ${a.code}`,
+      ).toBe(true);
+      codes.set(a.code, (codes.get(a.code) ?? 0) + 1);
+    }
+
+    expect(
+      cases,
+      "the generated case count does not equal the length of the two lists it was generated from",
+    ).toBe(YAML_SIGNIFICANT_BYTES.length + NON_SPACE_WHITESPACE.length);
+    expect(
+      inAlphabet,
+      `YAML-significant or whitespace byte(s) ENTERED the plain-scalar alphabet: ${inAlphabet.join(", ")}`,
+    ).toEqual([]);
+    expect(
+      admitted,
+      `a plain scalar carrying a YAML-significant or whitespace byte was ADMITTED: ${admitted.join(", ")}`,
+    ).toEqual([]);
+
+    // AND THE WIDENING IS EXACTLY ONE MEMBER. The alphabet is the union of the two case classes
+    // (letters, digits), SPACE, the six measured punctuation marks, EM DASH, and `_` — nothing else.
+    const expected = new Set(
+      [
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "abcdefghijklmnopqrstuvwxyz",
+        "0123456789",
+        " ",
+        "(),-.;",
+        "\u2014",
+        "_",
+      ].join(""),
+    );
+    const extra = [...PLAIN_SCALAR_ALPHABET].filter((c) => !expected.has(c));
+    const missing = [...expected].filter((c) => !PLAIN_SCALAR_ALPHABET.has(c));
+    expect(extra.map(label), "member(s) beyond the one-character widening").toEqual([]);
+    expect(missing.map(label), "member(s) the alphabet lost").toEqual([]);
+    expect(PLAIN_SCALAR_ALPHABET.size).toBe(expected.size);
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `canonical-frontmatter 33-28 K2: ${cases} generated case(s) = ${YAML_SIGNIFICANT_BYTES.length} YAML-significant byte(s) + ${NON_SPACE_WHITESPACE.length} derived non-SPACE whitespace character(s); 0 admitted, 0 in the alphabet; refusal codes: ${[...codes].map(([k, v]) => `${k} ${v}`).join(", ")}; alphabet size ${PLAIN_SCALAR_ALPHABET.size} = 26 + 26 + 10 + 1 + 6 + 1 + 1`,
     );
   });
 });
