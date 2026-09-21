@@ -492,9 +492,31 @@ if (selfSet) {
 // One tokenizer, one tool->verb table, in scripts/checkpoints.ts. It runs ADDITIVELY: a command
 // matches a checkpoint if the literal patterns match it OR the model does. Keeping the literals is
 // load-bearing — a parser has a grammar an attacker can leave, so the model may only ever ADD
-// denials, never remove one. It fails CLOSED on a segment carrying a substitution it will not reason
-// about, returning every checkpoint whose tool name appears in that segment.
+// denials, never remove one. It fails CLOSED on a segment carrying a substitution or expansion it will
+// not reason about, returning every checkpoint whose tool name appears in that segment. A redirection
+// (`2>&1`, `>/dev/null`, `&>f`) is read by its own anchored grammar and is not such a segment (33-27).
 const modelled = matchCommandCheckpoints(cmd);
+/**
+ * The unreadable words, spelled for the deny text: at most three, each clipped, wrapped in backticks,
+ * with every byte outside printable ASCII (a control byte, a C1 byte, a backtick that would close the
+ * wrapper) spelled as `U+XXXX`. The words are agent-authored text; a deny that echoed a raw control
+ * byte would put it on the host's channel (plan 33-27; the project's spell-never-emit rule).
+ */
+function spellUnreadable(words) {
+    const MAX_WORDS = 3;
+    const MAX_CHARS = 48;
+    const spell = (w) => {
+        const clipped = w.length > MAX_CHARS ? `${w.slice(0, MAX_CHARS - 3)}...` : w;
+        const spelled = Array.from(clipped, (ch) => {
+            const cp = ch.codePointAt(0);
+            return cp >= 0x20 && cp <= 0x7e && ch !== "`" ? ch : `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+        }).join("");
+        return `\`${spelled}\``;
+    };
+    const shown = words.slice(0, MAX_WORDS).map(spell);
+    const more = words.length - shown.length;
+    return shown.join(", ") + (more > 0 ? ` and ${more} more` : "");
+}
 // Every checkpoint the TABLE governs must be a checkpoint the evaluation carries. Asserted at the
 // point of use, like the grant-vocabulary walk above: a row naming an id the roster does not carry
 // would govern nothing while reading as coverage — the set-literal-drift class pointed at a match set.
@@ -590,14 +612,27 @@ for (const group of CHECKPOINT_PATTERNS) {
     }
     // The refusal NAMES THE ESCAPE when the model is what matched, because a denial a user cannot act
     // on is a denial they disable the guard to get past — design rule 1's own caveat (round 2, RA1-3).
-    const escape = group.id === "protected_branch_merge" && !byPattern
-        ? ` This command was matched by the command model rather than by a literal pattern: a ` +
-            `\`git push\` that does not name a branch is treated as a push to the current branch, ` +
-            `which may be protected. Naming it — \`git push origin <branch>\` — is not refused when the ` +
-            `branch is not protected.`
-        : modelled.untokenizable
-            ? ` This command carries a shell substitution the guard will not reason about, so it is ` +
-                `matched on the tool name alone and refused rather than guessed at.`
+    //
+    // THE MECHANISM THAT FIRED IS ASKED FIRST (plan 33-27, 33-DIAGNOSIS.md § 2). Round 1's transcripts
+    // carried the push sentence on a refused `git log`: this ternary asked "protected-branch group and
+    // not a literal match?" before "did the model refuse to read this?", so a `git log` denied because
+    // a sibling word was unreadable was described as a push. Now `untokenizable` is asked first, and
+    // narrowed to THIS group by `failClosed` — the set the fail-closed arm filled — so a readable push
+    // beside an unreadable tool-free `cd $R` is still described as a push. The words named come from
+    // `modelled.unreadable`, derived from the one classification in scripts/checkpoints.ts; the guard
+    // does not re-scan the command to find them. The push sentence is printed only when the READABLE
+    // model matched this group and no literal pattern did.
+    const escape = modelled.untokenizable && modelled.failClosed.has(group.id)
+        ? ` This command carries a shell substitution or expansion the guard will not reason about ` +
+            `(the word(s) it would not read: ${spellUnreadable(modelled.unreadable)}), so it is matched ` +
+            `on the tool name alone and refused rather than guessed at. A \`$var\` expansion and a ` +
+            `heredoc are refused by decision — the value of one and the body of the other are unknowable ` +
+            `here; a redirection such as \`2>&1\` is read and does not refuse on its own.`
+        : group.id === "protected_branch_merge" && !byPattern && modelled.readable.has(group.id)
+            ? ` This command was matched by the command model rather than by a literal pattern: a ` +
+                `\`git push\` that does not name a branch is treated as a push to the current branch, ` +
+                `which may be protected. Naming it — \`git push origin <branch>\` — is not refused when the ` +
+                `branch is not protected.`
             : "";
     deny(`Production deploy blocked: humans decide, agents execute. ` +
         `This command matches a production-deploy pattern and ${APPROVAL} is not set. ` +

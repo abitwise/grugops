@@ -242,7 +242,7 @@ const DECIDER_MANIFEST = {
         "scripts/voice-model.js": "3a16c8761245eee5ef715616363c5d5e33686f6e3a7abacdcd44921fe4bd578f",
     },
     "hooks/guard.js": {
-        "hooks/guard.js": "13028ffa0ea821adcf55bf992ce41e886f9d1db1aefacd661449ec21b6d5c41f",
+        "hooks/guard.js": "e6948196fed58f2f98e75cc091816641552b4fdafafd1a179113aab29868eb35",
         "scripts/audit-model.js": "c8998eb024bcb43c54f0357ac402441f566e28fef089d80b451bd9373f458fa2",
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "ac33078d59949033e57a365bc7174b440202bd456f6b75e22f6c47339a3998a3",

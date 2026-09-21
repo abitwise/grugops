@@ -2220,7 +2220,11 @@ describe("33-27 G5 — an unreadable sibling word beside a governed tool is desc
     for (const [cmd, word] of [
       ['echo "npm run $s"', "`$s`"],
       ["wc -c $(git ls-files)", "`$(git`"],
-      ["cat <<'EOF'\ngit push\nEOF", "`<<EOF`"],
+      // A heredoc body line the model cannot read (backticks) beside a tool name: the heredoc's own
+      // opening word is what is named first. (A body line that IS a readable `git push` is matched by
+      // the readable model and described as a push — the body lines are commands to this tokenizer,
+      // which is the reason heredocs stay opaque by decision; see G6.)
+      ["cat <<'EOF'\nsee `git status`\nEOF", "`<<EOF`"],
       ["find . -path ./.git -prune -o \\( -name x \\) -print", "`\\(`"],
     ] as const) {
       const reason = denyReason(payload(cmd));
@@ -2253,6 +2257,12 @@ describe("33-27 G6 — the push sentence still fires where it should (RA1-3, unc
     expect(reason).not.toContain(ESCAPE_SENTENCE);
   });
 
+  it("a heredoc whose body line is a READABLE git push is described as a push — the body is a command to this tokenizer", () => {
+    const reason = denyReason(payload("cat <<'EOF'\ngit push\nEOF"));
+    expect(reason).toContain(PUSH_SENTENCE);
+    expect(reason).not.toContain(ESCAPE_SENTENCE);
+  });
+
   it("a literal-pattern match carries neither sentence", () => {
     const reason = denyReason(payload("git push origin main"));
     expect(reason).not.toContain(PUSH_SENTENCE);
@@ -2275,6 +2285,7 @@ describe("33-27 G7 — the fifteen § 2 commands replayed on stdin against the c
       encoding: "utf8",
       input: "",
       maxBuffer: 64 * 1024 * 1024,
+      timeout: SPAWN_TIMEOUT_MS,
     });
     if (r.status !== 0 || !r.stdout) throw new Error(`git cannot show the held capture ${run}: ${(r.stderr ?? "").trim()}`);
     const lines = r.stdout.split("\n");

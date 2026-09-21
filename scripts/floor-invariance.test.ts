@@ -242,7 +242,27 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 // because the accurate statement of the order lives in the reader that owns it
 // (`scripts/context-io.ts`, `trustedRepoRoot`) where every consumer reads it. The blob below is
 // unchanged from round 3's, and `hooks/guard.ts` at HEAD hashes to it again.
-const FROZEN_GUARD_BLOB = "669725bc1c616ab57123e22090d93d57eff1b001";
+//
+// RE-BASELINED BY PLAN 33-27 (D-24; Phase 33 gap-closure round 3, 33-DIAGNOSIS.md § 2, WINDOWS.md
+// row 257). The previous baseline `669725bc…b001` froze the round-3 guard (`ac4b2c67`; restored by
+// `e40a197d`) unchanged through Phases 31, 32, 32.1 and the first two rounds of 33.
+//
+// THE DENY TEXT NAMED THE WRONG MECHANISM. The live capture's transcripts carried the `git push`-
+// without-a-branch sentence on a refused `git log --oneline -5 2>&1`: the escape ternary asked
+// "protected-branch group and not a literal match?" BEFORE "did the model refuse to read this?", so
+// a `git log` denied because a sibling word was unreadable was described as a push. The guard now
+// asks the fail-closed question first, narrowed to the group at hand by `CommandMatch.failClosed`,
+// and names the word(s) the model would not read from `CommandMatch.unreadable` — derived from the
+// one classification in `scripts/checkpoints.ts`, never re-scanned here — with every byte outside
+// printable ASCII spelled `U+XXXX`. The push sentence is printed only for a READABLE git match with
+// no literal hit. The wording says "a shell substitution or expansion", because a bare `$var` and a
+// heredoc are refused by decision, and it says that a redirection such as `2>&1` is read.
+//
+// No decision input changed: the two-key rule, the zero-config banner, the literal pattern sets and
+// the fail-closed arm are byte-identical in behaviour; `scripts/autonomy-zero-config.test.ts` and the
+// whole P30 red-team corpus in `hooks/guard.test.ts` stayed green across the change, and the fifteen
+// § 2 transcript commands replayed on stdin give 4 allows and 11 denies with the corrected sentence.
+const FROZEN_GUARD_BLOB = "bfca7eccdad907f44efb9c2e9b908b521ebc83f5";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(
