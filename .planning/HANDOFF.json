@@ -1,45 +1,49 @@
 {
   "version": "1.0",
-  "timestamp": "2026-09-20T17:49:46.802Z",
+  "timestamp": "2026-09-22T17:32:55.105Z",
   "phase": "33",
   "phase_name": "Live Capture & Windows Portability",
   "phase_dir": ".planning/phases/33-live-capture-windows-portability",
-  "plan": 11,
-  "task": 1,
-  "total_tasks": 4,
+  "plan": 31,
+  "task": 3,
+  "total_tasks": 3,
   "status": "paused",
+  "run_mode": "/gsd-execute-phase 33 --gaps-only (gap-closure round 3 of a 4-round cap)",
   "completed_tasks": [
-    {"id": "33-01", "name": "Capture instrument tracer", "status": "done", "commit": "12cdfe53"},
-    {"id": "33-02", "name": "vitest bounds + .temp premise", "status": "done", "commit": "d8c80993"},
-    {"id": "33-03", "name": "posix-path at the publishing boundary", "status": "done", "commit": "6b33fb9e"},
-    {"id": "33-07", "name": "Flip manifest + check-flip-manifest gate", "status": "done", "commit": "a33a0b97"},
-    {"id": "33-08", "name": "Live lane as runner wrapper", "status": "done", "commit": "475190f7"},
-    {"id": "33-04", "name": "Unpublished-comparison separators + signal-aware child assertions", "status": "done", "commit": "f29bd739"},
-    {"id": "33-05", "name": "Named, counted platform skips", "status": "done", "commit": "ba52cd50"},
-    {"id": "33-06", "name": "Installer / freshness / precheck clusters", "status": "done", "commit": "e2f48fa3"},
-    {"id": "33-09", "name": "CI measurement on both legs (pushed d9bd4315; run 35499800942 red on both legs; CAP-02 NOT met)", "status": "done", "commit": "112470a6"},
-    {"id": "33-10", "name": "The one authorized live run (OUTCOME: fail on D-07; CAP-03 sides held; 11.75 USD)", "status": "done", "commit": "0ec8b41b"},
-    {"id": "33-11/1", "name": "Checkpoint — authorize the one-way GAP-D1 flip, or hold", "status": "in_progress", "progress": "Human answered: HOLD (2026-09-20). No executor dispatched yet for 33-11; Tasks 2-4 not started."}
+    {"id": "33-24", "name": "TRACER: one spelling authority for the trusted-root directory (D-33-R3-01)", "status": "done", "commit": "5bc161a6"},
+    {"id": "33-25", "name": "Note seal: writer seals, reader refuses unsealed notes (KIT b, row 256)", "status": "done", "commit": "941197e2"},
+    {"id": "33-26", "name": "Absent-scalar guard: no field serialized as the word undefined (KIT 3, row 258)", "status": "done", "commit": "3b00ea7b"},
+    {"id": "33-27", "name": "Guard redirection grammar + deny text (KIT 2, row 257); 4 of 15 transcript denies recovered", "status": "done", "commit": "a7a02b10"},
+    {"id": "33-28", "name": "admit capability token, scoped MCP admission matcher, alphabet admits _ (D-33-R3-02, KIT a, row 255)", "status": "done", "commit": "16a231db"},
+    {"id": "33-29", "name": "Instrument: pipe-scored verdict, pre-spawn grant, recorded uninstall (CR-01)", "status": "done", "commit": "e130c021"},
+    {"id": "33-30", "name": "Instrument: provenance before the spawn, stdout-only parsers, route axis sees every route (WR-01..04, IN-05)", "status": "done", "commit": "7361c4c4"},
+    {"id": "33-31.1", "name": "33-31 Task 1 — pre-push inventory, Part 4 section 4.1 of 33-CI-MEASUREMENT.md", "status": "done", "commit": "1af7e3f1"},
+    {"id": "33-31.2", "name": "33-31 Task 2 — blocking-human checkpoint: push the tested sha", "status": "done", "progress": "human answered 'push approved'; orchestrator ran git push origin main -> 9e1c1131..1af7e3f1; origin/main is now 1af7e3f1"},
+    {"id": "33-31.3", "name": "33-31 Task 3 — read both CI legs' conclusion, write Part 4 sections 4.2-4.4, dispose CAP-02 and WINDOWS rows", "status": "in_progress", "progress": "CI run 35760655144 for sha 1af7e3f1 was in_progress at pause (started 2026-09-22T17:26:04Z; the windows leg ran ~32 min last round). Nothing written, no SUMMARY, no disposition."}
   ],
   "remaining_tasks": [
-    {"id": "33-11/2-4", "name": "33-11 Tasks 2-4 with the HOLD branch: record the hold with the divergence, run check-flip-manifest, write SUMMARY", "status": "not_started"},
-    {"id": "phase-tail", "name": "execute-phase tail: aggregate_results -> code_review_gate -> regression_gate -> verify_phase_goal (expected gaps_found: CAP-02 not met, CAP-01/CAP-03 held)", "status": "not_started"}
+    {"id": "33-31", "name": "Task 3 only — read the run's own conclusion fields, write sections 4.2-4.4, SUMMARY, STATE, ROADMAP", "status": "in_progress"},
+    {"id": "33-32", "name": "The round's one live go (D-09) — human checkpoint, spends money; push already satisfied by 1af7e3f1", "status": "not_started"},
+    {"id": "33-33", "name": "The one-way GAP-D1 flip against 33-FLIP-MANIFEST.md, or the honest hold — human checkpoint", "status": "not_started"},
+    {"id": "33-34", "name": "Closing ledger: snapshot 33-REVIEW.md to 33-REVIEW-round2.md before any re-review, dispose every row", "status": "not_started"},
+    {"id": "phase-tail", "name": "aggregate_results -> code_review_gate -> regression_gate -> verify_phase_goal -> update_roadmap", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "CAP-02 not met: CI run 35499800942 red on both legs at vitest (ubuntu 2, windows 31 in 8 files). Inventory in 33-CI-MEASUREMENT.md Part 2; WINDOWS.md rows 226-235; deferred-items.md. Owner: CAP-02 gap-closure round (round 1 of 4 consumed).", "type": "technical", "workaround": "none in this round (no fix-and-rerun rule)"},
-    {"description": "Live capture OUTCOME: fail on D-07 dual-path equivalence (SUITE class: comparator asserts byte-identical prose). Kit riders in 33-DIAGNOSIS.md. GAP-D1 stays open (D-20).", "type": "technical", "workaround": "fix offline; next round's live run states the new floor 11.75 USD / 31 min"}
+    {"description": "CI run 35760655144 (sha 1af7e3f1) had not finished when work was paused — 33-31 Task 3 cannot be written until both legs report a conclusion", "type": "external", "workaround": "gh run view 35760655144 --json status,conclusion,jobs — the run keeps going across the pause; nothing to restart"}
   ],
   "async_jobs": [],
   "human_actions_pending": [
-    {"action": "None pending. HEAD is 3 docs-only commits ahead of origin/main (c7be6d0d, e1988cda, 0ec8b41b); pushing them is a human decision when/if wanted.", "context": "humans-decide rule; no plan requires that push", "blocking": false}
+    {"action": "Approve the live-capture go for plan 33-32", "context": "D-09 allows one live go per round; it spends real tokens (round-2 estimate floor ~4.33 USD, ~25 min). It is a separate checkpoint from the push already approved.", "blocking": true},
+    {"action": "Rate the one-way GAP-D1 flip in plan 33-33", "context": "The flip is one-way and touches a declared 14-file set plus two amendments; presented only if 33-32's outcome word is pass.", "blocking": true},
+    {"action": "Decide whether to push again", "context": "Standing policy is commits stay local; the single push of 1af7e3f1 was explicitly approved for the CAP-02 measurement and to satisfy 33-32's HEAD==origin/main precondition.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "push approved (55 commits, d9bd4315) for the CI measurement", "rationale": "CAP-02 can only be measured on a pushed run (D-13)", "phase": "33"},
-    {"decision": "push-and-run: pushed 33-09 closeout commits (112470a6) and 33-10 dry-run report commits (8f05ed42) so the runner's pushed-sha precondition read MET", "rationale": "capture-live.ts refuses to start unless HEAD equals origin/main; 33-10's Task 1 report commit re-breaks that equality by design", "phase": "33"},
-    {"decision": "go: one live run authorized and spent (11.75 USD, 31 min)", "rationale": "D-09 per-occasion go; result OUTCOME: fail on D-07, diagnosed at zero tokens", "phase": "33"},
-    {"decision": "HOLD on 33-11 (GAP-D1 flip) — do NOT flip, do NOT partial", "rationale": "D-20: the capture diverged between the two paths; nothing flips until parity holds", "phase": "33"}
+    {"decision": "D-33-R3-01 — rung 1 realpathSync.native is the module's one published directory spelling", "rationale": "Row 236's 35 reds were one class: the walk on rung 1, the fixture helper on rung 2. One authority on both sides plus every sibling arm WR-05 names.", "phase": "33"},
+    {"decision": "D-33-R3-02 — the canonical plain-scalar alphabet admits _ (U+005F)", "rationale": "The platform's scoped MCP tool name mcp__plugin_grugops_grugops__propose_note cannot be spelled without it. One character, mutation-proven, 91/91 corpus verdicts unchanged.", "phase": "33"},
+    {"decision": "The human approved exactly one push (1af7e3f1) at 33-31's blocking-human gate", "rationale": "CAP-02 is measured only by a pushed run's own conclusion on both legs; 33-32's runner also refuses unless HEAD equals origin/main.", "phase": "33"},
+    {"decision": "WINDOWS.md rows 236 and 255-258 left open through round 3's fix plans", "rationale": "A row is flipped only on the pushed run's own conclusion, never on a local green; the flips belong to 33-31 Task 3 and 33-34.", "phase": "33"}
   ],
   "uncommitted_files": ["?? .planning/milestone.lock", "?? .planning/phases/34-model-effort-dial-pi-support/"],
-  "next_action": "Re-run /gsd-execute-phase 33. Only 33-11 is incomplete. Dispatch its executor as a CONTINUATION with Task 1 already answered: decision = hold (do not re-ask). It runs Tasks 2-4 on the hold branch, writes 33-11-SUMMARY.md, then the orchestrator runs the phase tail (aggregate -> code review -> regression gate -> verifier).",
-  "context_notes": "Sequential-on-main execution (use_worktrees=false), executor model opus, one executor at a time, each given an explicit Read-list of the protocol files (not inlined). Every wave's post-merge gate was green (tsc --noEmit + npx vitest run --exclude '**/scripts/e2e/**'); the only orchestrator fix was a3139d22 (NUL byte in 33-01-SUMMARY). Never run npm test bare. The two untracked entries (.planning/milestone.lock, .planning/phases/34-*) predate the phase and are not ours."
+  "next_action": "Read the conclusion of CI run 35760655144 (sha 1af7e3f1) from its own metadata — gh run view 35760655144 --json status,conclusion,headSha,jobs — then re-dispatch a gsd-executor continuation for 33-31 Task 3 only (Tasks 1 and 2 are done; do not push again).",
+  "context_notes": "This is /gsd-execute-phase 33 --gaps-only, gap-closure round 3 of the phase's four-round cap. Every wave holds exactly one plan and each builds into the shared tree, so plans run strictly sequentially — never dispatch two at once. The project runs use_worktrees=false, so executors are sequential gsd-executor agents on main with the supplied-root pin embedded in the prompt. Seven fix plans landed clean (0 Self-Check FAILED, STATE.md longest line steady at 2524). The round's two remaining human gates are the live go (33-32) and the one-way flip (33-33); 33-34 closes the ledger and must snapshot 33-REVIEW.md to 33-REVIEW-round2.md before any round-3 re-review overwrites it."
 }
