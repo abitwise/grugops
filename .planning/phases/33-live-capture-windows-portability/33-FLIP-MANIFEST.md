@@ -530,3 +530,101 @@ same commit as the fourteen declared files, and the residual and commit-set rule
 over it. Two rounds remain under the cap; if it is reached with GAP-D1 still open, the phase closes
 by human override with the item open and the diagnosis filed, never by a softened predicate
 (D-20).
+
+---
+
+## 8. Hold record (round 3, plan 33-33, 2026-09-22)
+
+**Decision: hold. It is mechanical under D-20 and was not chosen at a checkpoint.** Plan 33-33's
+Task 1 is the one-way flip decision (`flip` / `hold-for-ci` / `hold`). It is gated on the round's
+outcome word and presented only when that word is `pass`. The word is `no-go`. The checkpoint was
+therefore NOT presented and no option id was selected. The holds in sections 6 and 7 were not
+re-asked. This record is the plan's hold branch (Task 3), executed as written. Nothing flips.
+
+**Evidence the hold rests on.** No round-3 capture exists. The phase root carries no
+`33-CAPTURE-A.jsonl`, `33-CAPTURE-B.jsonl` or `33-CAPTURE-SUMMARY.md` (`ls 33-CAPTURE-*` → 0 files;
+the round-1 set stays under `round-1-held/`). The human set the outcome word on 2026-09-22 at plan
+33-32's two `blocking-human` checkpoints:
+
+- Task 1, the push, was answered **no push**. HEAD (`ba8afafe`, the tree the dry run read) stayed
+  3 commits ahead of `origin/main` (`1af7e3f1`), all three documentation-only.
+- Task 3, the live go, was answered **held (no-go)**. The human's reason: the live capture moves to
+  round 4, because this plan cannot flip GAP-D1 while CAP-02 is NOT MET.
+
+Task 4 (the capture) therefore ran its no-go branch. `33-32-SUMMARY.md` § "The held go (Tasks 3
+and 4)" records the word `no-go` with that reason. `33-R3-DRYRUN-REPORT.md` line 264 carries the
+one outcome line the runner printed for the round, `OUTCOME: no-go`, under its `Completion` section
+(`Outcome reason: no model call was made — a dry run is not a capture (D-10, D-11)`). The same
+report's readiness line (line 152) reads `GO-READINESS: not-ready` on exactly one of twelve
+precondition rows. That row is the pushed sha (`HEAD ba8afafe4f52 is 3 commit(s) ahead of
+origin/main 1af7e3f137db`), left unmet by the human's no-push answer and not by the machinery.
+The report's `Dual-path parity (D-07) — path-invariant projection` section reads `parity: the two
+projections are equal`. It was computed over the committed fixture JSONL on both sides with zero
+live notes. A dry run is not a capture, and that line is not parity evidence for any flip.
+
+The second gate is independently unmet. The Phase-20 rows F38 through F42 cite the CI run, never
+the capture (section 4). The one-commit rule of section 2.1 requires `20-HUMAN-UAT.md` in the same
+commit as the other thirteen. `33-CI-MEASUREMENT.md` Part 4 § 4.3 reads, verbatim:
+**CAP-02 verdict on this run: NOT MET.** The run is `35760655144` (head `1af7e3f1`).
+`test (ubuntu-latest)` has conclusion `success`, green end to end with the gate chain for the
+second run in a row. `test (windows-latest)` has conclusion `failure` at step 11 on one case of
+5667: `scripts/capture-live.test.ts` Test C7, the win32 spelling of plan 33-29's scoped
+`Edit(//ABS/**)` grant (`.planning/WINDOWS.md` row 260, open). All 35 row-236 cases are green on
+windows-latest. So even a `pass` capture this round would have reached Task 1 with `hold-for-ci` as
+the only truthful option, and the flip could not have been performed as one commit over the
+declared set. That is the reason the human gave for holding the go.
+
+**What this record does and does not change.**
+
+- Every flip-class row in section 2.3 (F1 through F62) and every correction-class row in section 3
+  (C1 through C10) is untouched. Each pre-flip anchor still occurs in its file and each post-flip
+  marker is still absent. The parity table in `examples/03-ticket-to-pr.md` still has seven data
+  rows with their pre-flip labels and its `pending human` cells. The six ledger rows (F53-F58) are
+  still `open`. The runtime-evidence record (F43) still carries only the July 2026 human
+  observation. The gate re-run over this tree after this section was written reports the same
+  derivation as before it and as sections 6 and 7 recorded: `live-surface parts: publicDocs 12,
+  docsTree 7, planningLedgers 5, archivedRecords 4, runtimeEvidence 1; overlap 1; derived total 28,
+  pinned 28`; `62 flip row(s), 10 correction row(s), 2 exemption anchor(s)`; `declared set (14)`
+  with `.planning/PROJECT.md` first; status `pre-capture (residual rule and commit-set rule not in
+  force)`; `ALL CHECKS PASSED`, exit 0.
+- The status line at the top of this document still reads the first declared value. The residual
+  rule (section 1.4) and the commit-set rule (section 2.1) stay out of force. The second value is
+  written only in the commit that performs the flip, and no such commit exists.
+- The correction class (section 3) is held with the flip class, as in rounds 1 and 2. No
+  correction-class edit lands this round, so the one-commit rule is not split.
+- Both amendments stay owed. Row F14's marker literal is NOT amended, and the register note below
+  does not carry it, so F14 still reads as absent. `.planning/PROJECT.md` (F59-F62) stays in the
+  declared set and untouched. Both amendments are owed to whichever plan performs the flip, as
+  section 7 recorded.
+- `.planning/WINDOWS.md` receives no row from this record. Row 260, the one new class, was appended
+  by plan 33-31 through the tool section 1.6 names. `windows status` at this record reads
+  `open_count 231`, `waived_count 3`, `fixed_count 26`, `total_count 260`, unchanged by this plan.
+- `.planning/REQUIREMENTS.md` is not edited by this record. CAP-01 and CAP-03 stay `[ ]` / Pending,
+  CAP-02 stays Pending (NOT MET on run `35760655144`), and no requirement is marked complete.
+- `docs/audit/28-disposition-register.md` receives a third dated note under its
+  `examples/03-ticket-to-pr.md` entry, beneath the round-2 note. It states that the row-granularity
+  overlap is still not discharged and points here. That note does not carry the F14 marker literal.
+- Sections 6 and 7 stay as history. Nothing in them is rewritten. This section is appended below
+  them in the same shape, so a reader sees all three holds, their evidence and their dates in order.
+
+**The path back to the flip.** GAP-D1 stays open (since 2026-06-16). **Round 4 is the LAST round
+under the four-round cap.** It owns, in this order:
+
+1. Row 260: the win32 spelling of the scoped `Edit(//ABS/**)` grant. Which spelling the platform's
+   matcher accepts is `UNKNOWN - verify` (33-31). The goal is that a re-push reads CAP-02 MET on
+   both legs (D-13), with no platform conditional closing it (D-14/D-16).
+2. A push of the tested sha, then a fresh zero-token dry run reading ready with the pushed-sha row
+   MET (D-10).
+3. A fresh go under D-09. A go is per occasion, and nothing from rounds 1-3 carries forward. The
+   capture it authorizes also settles the two `UNKNOWN - verify` items 33-32 left open: the `--agent`
+   session's `system/init` tool list, and the post-run plugin listing.
+
+The flip happens only when a capture reads `OUTCOME: pass` AND the CI verdict reads MET. The pass
+must show `parity: the two projections are equal` over live notes, both provenance rows MET, both
+CAP-03 sides holding and the D-04 deny observed on the hook channel in both runs. Then plan 33-11's
+Tasks 2 through 4 are executed as written against this manifest, with the two amendments above
+(`.planning/PROJECT.md` in the commit; the F14 literal's plan number set to the performing plan).
+The status line flips to the second value in the same commit as the fourteen declared files, and
+the residual and commit-set rules come into force over it. If the cap is reached with GAP-D1 still
+open, the phase closes by human override with the item open and the diagnosis filed, never by a
+softened predicate (D-20).
