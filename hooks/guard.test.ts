@@ -2362,3 +2362,113 @@ describe("33-27 G7 — the fifteen § 2 commands replayed on stdin against the c
     expect(replay("helm upgrade fake ./nope").stdout).toContain('"permissionDecision":"deny"');
   });
 });
+
+describe("33-R3 CR-01 — a spliced TOOL word denies through the committed guard AND through the shipped wrapper", () => {
+  // The review reproduced these against the committed artifact with no CLAUDE_PROJECT_DIR and no
+  // GRUGOPS_ variable: every one returned `all checkpoints at default` and no decision. The sweep
+  // below is the same generator scripts/checkpoints.test.ts uses on the model (restated here — a test
+  // file cannot import another test file without registering its cases twice), driven over the tool
+  // set DERIVED from COMMAND_CHECKPOINT_RULES, through BOTH entry points hooks.json can route to.
+  const REPO = join(import.meta.dirname, "..");
+  const splices = (tool: string): readonly string[] => {
+    const out = new Set<string>();
+    for (let k = 0; k < tool.length; k++) out.add(`${tool.slice(0, k)}\\${tool.slice(k)}`);
+    for (let k = 0; k <= tool.length; k++) {
+      out.add(`${tool.slice(0, k)}""${tool.slice(k)}`);
+      out.add(`${tool.slice(0, k)}''${tool.slice(k)}`);
+    }
+    for (let k = 0; k < tool.length; k++) {
+      out.add(`${tool.slice(0, k)}"${tool[k]}"${tool.slice(k + 1)}`);
+      out.add(`${tool.slice(0, k)}'${tool[k]}'${tool.slice(k + 1)}`);
+    }
+    out.add(`=${tool}`);
+    return [...out];
+  };
+  const bare = (): Record<string, string> => {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
+      env[k] = v;
+    }
+    return env;
+  };
+  const reviewPayload = (command: string): string =>
+    JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command }, cwd: "/tmp" });
+
+  /** Spawn many hook runs at once (bounded), each on its own stdin; resolve with each stdout. */
+  async function runAll(argv: readonly string[], commands: readonly string[]): Promise<string[]> {
+    const { spawn } = await import("node:child_process");
+    const out: string[] = new Array(commands.length).fill("");
+    let next = 0;
+    const env = bare();
+    const worker = async (): Promise<void> => {
+      while (next < commands.length) {
+        const i = next++;
+        out[i] = await new Promise<string>((resolve) => {
+          const child = spawn("node", [...argv], { env, cwd: REPO });
+          let stdout = "";
+          const timer = setTimeout(() => child.kill("SIGKILL"), SPAWN_TIMEOUT_MS);
+          child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+          child.stderr.on("data", () => undefined);
+          child.on("close", () => {
+            clearTimeout(timer);
+            resolve(stdout);
+          });
+          child.stdin.end(reviewPayload(commands[i] as string));
+        });
+      }
+    };
+    await Promise.all(Array.from({ length: 8 }, worker));
+    return out;
+  }
+
+  const TOOLS = [...new Set(cp.COMMAND_CHECKPOINT_RULES.map((r) => r.tool))];
+  const cases: string[] = [];
+  for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+    const v = [...r.verbs, ...(r.flags ?? [])].find((x) =>
+      cp.matchCommandCheckpoints(`${r.tool} ${x}`).checkpoints.has(r.checkpoint),
+    );
+    for (const t of splices(r.tool)) cases.push(`${t} ${v}`);
+  }
+
+  it("the sweep is non-vacuous: 15 derived tools, every one contributes, and the count is the derivation's", () => {
+    expect(TOOLS.length).toBe(15);
+    const expected = cp.COMMAND_CHECKPOINT_RULES.reduce((n, r) => n + splices(r.tool).length, 0);
+    expect(cases.length).toBe(expected);
+    expect(cases.length).toBeGreaterThan(300);
+  });
+
+  for (const [label, argv] of [
+    ["hooks/guard.js", [GUARD_JS]],
+    ["hooks/hook-entry.js guard.js", [join(REPO, "hooks", "hook-entry.js"), "guard.js"]],
+  ] as const) {
+    it(`${label}: every splice of every governed tool DENIES`, async () => {
+      const outs = await runAll(argv, cases);
+      const allowed = cases.filter((_c, i) => !(outs[i] as string).includes('"permissionDecision":"deny"'));
+      expect(allowed).toEqual([]);
+    }, 600_000);
+
+    it(`${label}: the review's table and its controls`, async () => {
+      const deny = [
+        "git push origin main",
+        "kubectl -n prod apply -f x",
+        "g\\it push origin main",
+        '"g"it push --force origin main',
+        "k\\ubectl -n prod apply -f x",
+        "=kubectl -n prod apply -f x",
+        "ku''bectl -n prod apply -f x",
+        "h\\elm upgrade r ./c",
+        "g''it push origin main",
+        "n\\pm publish",
+        'terra""form apply',
+        "g\\h pr merge 12",
+        "=git -C . push origin main",
+        "=gh pr merge 12",
+      ];
+      const allow = ["ls -la", "git status", "=git status", "ls src/*", 'echo "$(date)"', "git log --oneline -5 2>&1"];
+      const outs = await runAll(argv, [...deny, ...allow]);
+      deny.forEach((c, i) => expect(outs[i], c).toContain('"permissionDecision":"deny"'));
+      allow.forEach((c, i) => expect(outs[deny.length + i], c).not.toContain("permissionDecision"));
+    }, 120_000);
+  }
+});

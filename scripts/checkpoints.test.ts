@@ -2153,8 +2153,9 @@ describe("33-27 G3 — the safety converse, GENERATED from COMMAND_CHECKPOINT_RU
   const has = (cmd: string, id: string): boolean => cp.matchCommandCheckpoints(cmd).checkpoints.has(id as never);
   // A vacuity floor: every rule row has at least one governed spelling, so no row's converse is empty.
   it("every rule row governs at least one plain TOOL VERB spelling (the floor the table below stands on)", () => {
+    // A FLAG-governed row (`vercel --prod`, added by the 33 round-3 CR-01 fix) stands on its flag.
     for (const r of cp.COMMAND_CHECKPOINT_RULES) {
-      expect(r.verbs.some((v) => has(`${r.tool} ${v}`, r.checkpoint)), `${r.tool}: some verb is governed`).toBe(true);
+      expect([...r.verbs, ...(r.flags ?? [])].some((v) => has(`${r.tool} ${v}`, r.checkpoint)), `${r.tool}: some verb is governed`).toBe(true);
     }
     expect(cp.COMMAND_CHECKPOINT_RULES.length).toBeGreaterThan(0);
   });
@@ -2268,5 +2269,191 @@ describe("33-27 G4 — mutation: with the redirection arm removed, every G1 allo
         }
       }
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33 round-3 review CR-01 — the TOOL word spliced with shell-neutral punctuation.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// `g\it push origin main`, `"g"it push --force origin main`, `k\ubectl -n prod apply -f x` and zsh's
+// `=kubectl -n prod apply -f x` all ALLOWED with zero keys on the round-3 artifact. The fail-closed arm
+// searched the RAW text for the tool name, which the splice had removed; the readable arm's
+// normalization did not drop a leading `=`. RA3-4 closed this for the VERB; nobody asked it of the TOOL.
+//
+// Everything below is DERIVED from `COMMAND_CHECKPOINT_RULES` — the tool set, the verbs, the splice
+// positions — and the tool count is pinned, so a row added to the table is swept without anyone
+// extending a list here, and a row that silently vanished turns this red.
+const CR01_SPLICES = (tool: string): readonly string[] => {
+  const out = new Set<string>();
+  for (let k = 0; k < tool.length; k++) out.add(`${tool.slice(0, k)}\\${tool.slice(k)}`); // `\` before each char
+  for (let k = 0; k <= tool.length; k++) {
+    out.add(`${tool.slice(0, k)}""${tool.slice(k)}`); // `""` at every boundary
+    out.add(`${tool.slice(0, k)}''${tool.slice(k)}`); // `''` at every boundary
+  }
+  for (let k = 0; k < tool.length; k++) {
+    out.add(`${tool.slice(0, k)}"${tool[k]}"${tool.slice(k + 1)}`); // one char double-quoted
+    out.add(`${tool.slice(0, k)}'${tool[k]}'${tool.slice(k + 1)}`); // one char single-quoted
+  }
+  out.add(`=${tool}`); // zsh EQUALS expansion
+  return [...out];
+};
+
+describe("33-R3 CR-01 — a tool word spliced with shell-neutral punctuation still names the tool it runs", () => {
+  const has = (cmd: string, id: string): boolean => cp.matchCommandCheckpoints(cmd).checkpoints.has(id as never);
+  const TOOLS = [...new Set(cp.COMMAND_CHECKPOINT_RULES.map((r) => r.tool))];
+
+  it("the governed tool set is DERIVED from the table and its count is pinned (15)", () => {
+    expect(TOOLS.length).toBe(15);
+    expect(TOOLS.length).toBe(cp.COMMAND_CHECKPOINT_RULES.length);
+  });
+
+  it("the converse: every tool a literal pattern in hooks/guard.ts anchors on is a model tool — no literal-only tool", () => {
+    // The literal sets are byte-frozen in hooks/guard.ts; their tool anchors are read out of the source,
+    // not retyped. A literal-only tool is a tool the fail-closed arm can never name, which is how
+    // `v\ercel --prod` stayed open while every model tool was being closed.
+    const src = readFileSync(join(ROOT, "hooks", "guard.ts"), "utf8");
+    const anchors = new Set<string>();
+    for (const name of ["PRODUCTION_DEPLOY_PATTERNS", "PROTECTED_BRANCH_PATTERNS"]) {
+      const start = src.indexOf(`const ${name}: RegExp[] = [`);
+      expect(start, name).toBeGreaterThan(-1);
+      const body = src.slice(start, src.indexOf("];", start));
+      for (const m of body.matchAll(/^\s*\/\\b\(?([a-z|]+)\)?/gm)) for (const t of (m[1] as string).split("|")) anchors.add(t);
+    }
+    // 14 literal anchors (`gh` has no literal pattern; the model alone governs it), all of them model tools.
+    expect(anchors.size).toBe(14);
+    for (const t of anchors) expect(TOOLS, `literal anchor ${t}`).toContain(t);
+  });
+
+  it("the review's table — every row DENIES on the model, and every control still denies", () => {
+    const P = "production_requires_human_confirmation";
+    const B = "protected_branch_merge";
+    const rows: readonly (readonly [string, string])[] = [
+      ["kubectl -n prod apply -f x", P],
+      ["k\\ubectl -n prod apply -f x", P],
+      ["ku''bectl -n prod apply -f x", P],
+      ["h\\elm upgrade r ./c", P],
+      ["git push origin main", B],
+      ["g\\it push origin main", B],
+      ['"g"it push --force origin main', B],
+      ["g''it push origin main", B],
+      ["n\\pm publish", P],
+      ['terra""form apply', P],
+      ["gh pr merge 12", B],
+      ["g\\h pr merge 12", B],
+      ["=kubectl -n prod apply -f x", P],
+      ["=git -C . push origin main", B],
+      ["=gh pr merge 12", B],
+      ["v\\ercel deploy --prod", P],
+    ];
+    for (const [cmd, id] of rows) expect(has(cmd, id), cmd).toBe(true);
+  });
+
+  it("spellings the review did not list, each measured executable under bash (stub binaries on PATH)", () => {
+    const B = "protected_branch_merge";
+    for (const cmd of [
+      "$'\\x67it' push origin main", // ANSI-C hex escape
+      "$'\\147it' push origin main", // ANSI-C octal escape
+      "g{i..i}t push origin main", // a one-element sequence brace
+      '{g""it,} push origin main', // an alternation brace whose other arm is empty
+      "/usr/bin/g[i]t push origin main", // a pathname bracket
+      "/usr/bin/g[[:alpha:]]t push origin main", // a POSIX class inside a bracket
+      '/usr/bin/g[""i]t push origin main', // a quote inside a bracket
+      "/usr/bin/gi? push origin main", // a pathname `?`
+      "${x:-git} push origin main", // a parameter default word
+      "g\\it$(true) push origin main", // a splice beside a substitution
+      "echo $(g\\it push origin main)", // a splice inside a substitution
+      "echo `g\\it push origin main`", // a splice inside backticks
+      "g\\\nit push origin main", // a line continuation inside the name
+      "g$(true)it push origin main", // an expansion strictly inside the name
+      "g${x}it push origin main", // a parameter strictly inside the name
+    ]) {
+      expect(has(cmd, B), JSON.stringify(cmd)).toBe(true);
+    }
+  });
+
+  // THE SWEEP, and the UNION of arms: every splice of every tool, through every shape the guard
+  // already reads — flags between the tool and the verb, an env prefix, a launcher, a group, a
+  // chain, a nested shell. A splice makes the segment unreadable, so the verdict must come from the
+  // tool name alone; the `=` spelling is readable and must reach the verb through the flags.
+  for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+    const governed = [...r.verbs, ...(r.flags ?? [])].filter((v) => has(`${r.tool} ${v}`, r.checkpoint));
+    it(`${r.tool}: at least one plain spelling is governed (the sweep's floor)`, () => {
+      expect(governed.length, r.tool).toBeGreaterThan(0);
+    });
+    for (const v of governed) {
+      it(`${r.tool} ${v}: every splice, in every shape, is ${r.checkpoint}`, () => {
+        const failures: string[] = [];
+        for (const t of CR01_SPLICES(r.tool)) {
+          const shapes = [
+            `${t} ${v}`,
+            `${t} -C dir ${v}`,
+            `${t} -n prod --flag ${v}`,
+            `FOO=1 ${t} ${v}`,
+            `FOO=1 BAR=2 ${t} -C dir ${v}`,
+            `sudo -u root ${t} ${v}`,
+            `(${t} ${v})`,
+            `true && ${t} ${v}`,
+            `echo x; ${t} ${v} 2>&1`,
+          ];
+          if (!t.includes("'")) shapes.push(`bash -c '${t} ${v}'`);
+          if (!t.includes('"')) shapes.push(`eval "${t} ${v}"`);
+          for (const cmd of shapes) if (!has(cmd, r.checkpoint)) failures.push(cmd);
+        }
+        expect(failures).toEqual([]);
+      });
+    }
+  }
+
+  it("ordinary commands the projection must NOT start refusing (the over-denial floor)", () => {
+    for (const cmd of [
+      "ls -la",
+      "ls src/*",
+      "rm -rf dist/*",
+      "ls *.md",
+      "echo {a,b}",
+      "for i in {1..3}; do echo $i; done",
+      "cat ~/.gitconfig",
+      'echo "$(date)"',
+      "ls $(pwd)",
+      "echo $HOME/.github",
+      "git log --oneline -5 2>&1",
+      "git status",
+      "=git status",
+      "=kubectl get pods",
+      "=npm run publish",
+      "echo \"it's fine\"",
+      "printf '%s\\n' a b",
+      "find . -name '*.ts' -print",
+      "node -e 'console.log(1)'",
+      "npm run build",
+      "npx vitest run --exclude '**/scripts/e2e/**'",
+      "git commit -m 'push to main'",
+      "grep -rn kubectl docs/",
+      "echo ${HOME}",
+      "test -f x && echo [ok]",
+      "vercel deploy",
+      "vercel ls",
+    ]) {
+      expect(cp.matchCommandCheckpoints(cmd).checkpoints.size, cmd).toBe(0);
+    }
+  });
+
+  it("the ONE authority: the readable arm and the fail-closed arm ask the same projection", () => {
+    // The readable arm's second grammar (`normalizeToolWord`) is gone; both arms call this.
+    expect((cp as Record<string, unknown>).normalizeToolWord).toBeUndefined();
+    const named = (w: string): string[] => [...cp.governedToolsNamedBy(w)].sort();
+    expect(named("git")).toEqual(["git"]);
+    expect(named("=kubectl")).toEqual(["kubectl"]);
+    expect(named("'=kubectl'")).toEqual([]); // a QUOTED `=` is not zsh's equals expansion
+    expect(named("g\\it")).toEqual(["git"]);
+    expect(named('"g"it')).toEqual(["git"]);
+    expect(named("GIT.EXE")).toEqual(["git"]);
+    expect(named("'C:\\Program Files\\Git\\bin\\git.exe'")).toEqual(["git"]);
+    expect(named("/usr/bin/g?")).toEqual(["gh"]);
+    // A word made of wildcards alone spells nothing: which file it selects is the filesystem's
+    // answer, the same class as a renamed binary, and refusing it would refuse `rm -rf dist/*`.
+    expect(named("dist/*")).toEqual([]);
+    expect(named("$K")).toEqual([]);
   });
 });

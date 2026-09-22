@@ -329,6 +329,8 @@ export function classifyWords(segment) {
     let cur = "";
     let quote = null;
     let sawBackslash = false;
+    /** Where the word being built starts in `segment` — its spelled text is `segment.slice(rawStart, …)`. */
+    let rawStart = -1;
     /** A bare redirection operator waiting for its target word. */
     let pending = null;
     const emit = (w, plain) => {
@@ -336,23 +338,25 @@ export function classifyWords(segment) {
             const op = pending;
             pending = null;
             if (plain !== null && CANONICAL_WORD_RE.test(plain)) {
-                words.push({ kind: "redirection", value: `${op} ${plain}`, isFlag: false });
+                words.push({ kind: "redirection", value: `${op.value} ${plain}`, raw: `${op.raw} ${w.raw}`, isFlag: false });
                 return;
             }
-            words.push({ kind: "opaque", value: op, isFlag: false });
+            words.push({ kind: "opaque", value: op.value, raw: op.raw, isFlag: false });
         }
         if (w.kind === "redirection" && BARE_REDIRECTION_RE.test(w.value)) {
-            pending = w.value;
+            pending = w;
             return;
         }
         words.push(w);
     };
-    const flush = () => {
+    const flush = (end) => {
         if (runs.length === 0 && cur === "")
             return;
         if (cur !== "")
             runs.push({ quoted: false, text: cur });
         cur = "";
+        const raw = segment.slice(rawStart, end);
+        rawStart = -1;
         const joined = runs.map((r) => r.text).join("");
         // The word's text when it is ONE unquoted, unescaped run — the only shape a redirection may take.
         const plain = !sawBackslash && runs.length === 1 && !runs[0].quoted ? runs[0].text : null;
@@ -373,7 +377,7 @@ export function classifyWords(segment) {
             }
         }
         const value = joined;
-        emit({ kind, value, isFlag: kind === "canonical" && value.startsWith("-") }, plain);
+        emit({ kind, value, raw, isFlag: kind === "canonical" && value.startsWith("-") }, plain);
         runs = [];
         sawBackslash = false;
     };
@@ -389,6 +393,12 @@ export function classifyWords(segment) {
                 cur += c;
             continue;
         }
+        if (/\s/.test(c)) {
+            flush(i);
+            continue;
+        }
+        if (rawStart < 0)
+            rawStart = i;
         if (c === "\\") {
             sawBackslash = true;
             cur += c;
@@ -404,23 +414,22 @@ export function classifyWords(segment) {
             quote = c;
             continue;
         }
-        if (/\s/.test(c)) {
-            flush();
-            continue;
-        }
         cur += c;
     }
     if (quote !== null) {
         // An unbalanced quote: everything from the opening quote on is unreadable.
-        if (pending !== null)
-            words.push({ kind: "opaque", value: pending, isFlag: false });
-        words.push({ kind: "opaque", value: cur, isFlag: false });
+        // `pending` is assigned inside `emit`, which the compiler's narrowing does not follow.
+        const held = pending;
+        if (held !== null)
+            words.push({ kind: "opaque", value: held.value, raw: held.raw, isFlag: false });
+        words.push({ kind: "opaque", value: cur, raw: segment.slice(rawStart), isFlag: false });
         return words;
     }
-    flush();
+    flush(segment.length);
     // A bare operator with no word after it is an incomplete redirection: opaque, never silently dropped.
-    if (pending !== null)
-        words.push({ kind: "opaque", value: pending, isFlag: false });
+    const last = pending;
+    if (last !== null)
+        words.push({ kind: "opaque", value: last.value, raw: last.raw, isFlag: false });
     return words;
 }
 /** A shell metacharacter set that ENDS a segment. Split only outside quotes. */
@@ -507,7 +516,7 @@ export function commandSegments(cmd, depth = 0) {
     }
     if (quote !== null) {
         // Unbalanced quoting: one unreadable segment carrying the whole text, never a silent mis-parse.
-        return [{ words: [{ kind: "opaque", value: cmd, isFlag: false }], raw: cmd, opaque: true }];
+        return [{ words: [{ kind: "opaque", value: cmd, raw: cmd, isFlag: false }], raw: cmd, opaque: true }];
     }
     raws.push(cur);
     return raws.map((raw) => {
@@ -554,6 +563,9 @@ export const COMMAND_CHECKPOINT_RULES = [
     { checkpoint: "production_requires_human_confirmation", tool: "sls", verbs: ["deploy"] },
     { checkpoint: "production_requires_human_confirmation", tool: "flyctl", verbs: ["deploy"] },
     { checkpoint: "production_requires_human_confirmation", tool: "fly", verbs: ["deploy"] },
+    // `vercel deploy` without `--prod` is a PREVIEW deploy and is not governed; the literal pattern and
+    // this row agree on that (plan 33 round-3 review, CR-01).
+    { checkpoint: "production_requires_human_confirmation", tool: "vercel", verbs: [], flags: ["--prod"] },
     {
         checkpoint: "production_requires_human_confirmation",
         tool: "npm",
@@ -594,18 +606,526 @@ export const COMMAND_CHECKPOINT_RULES = [
 ];
 /** The protected branch names. One list; the push rule and the update-ref rule both read it. */
 const PROTECTED_REF_RE = /^(?:refs\/heads\/)?(?:main|master)$|^(?:refs\/heads\/)?release\//;
-/**
- * Normalize a word to the tool name it invokes: basename, lower-cased, a leading `\` (the standard
- * alias-bypass spelling) removed, and a Windows executable extension removed.
- *
- * Windows is a supported host for this kit (`CLAUDE.md`: "including Windows, where POSIX shell cannot
- * run"), and `git.exe` is the ordinary spelling there. The extension list is the executable subset of
- * `PATHEXT`; being incomplete over-refuses nothing and under-refuses only a spelling nobody uses.
- */
+/** The governed tool names, derived from the table and nowhere else. */
+const GOVERNED_TOOLS = new Set(COMMAND_CHECKPOINT_RULES.map((r) => r.tool));
+/** The executable subset of Windows `PATHEXT` — `git.exe` is the ordinary spelling on a Windows host. */
 const WINDOWS_EXE_EXT_RE = /\.(?:exe|cmd|bat|com|ps1)$/;
-export function normalizeToolWord(word) {
-    const base = word.replace(/^\\+/, "").split(/[\\/]/).pop() ?? word;
-    return base.toLowerCase().replace(WINDOWS_EXE_EXT_RE, "");
+const WINDOWS_EXE_EXT_SRC = "(?:\\.(?:exe|cmd|bat|com|ps1))?";
+/** Unquoted characters that end a name: word separators and shell operators. */
+const NAME_CUT_RE = /[\s;&|()<>]/;
+/** Nesting deeper than this is not projected; the text is answered fail-closed (every governed tool). */
+const MAX_PROJECTION_DEPTH = 32;
+/** More name variants than this (brace alternations multiply) is answered fail-closed as well. */
+const MAX_NAME_VARIANTS = 256;
+const ANSI_C_SIMPLE = {
+    a: "\x07", b: "\b", e: "\x1b", E: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v",
+    "\\": "\\", "'": "'", '"': '"', "?": "?",
+};
+/** Decode a `$'…'` body starting at `i` (just past the opening quote). Returns the chars and the index past the close. */
+function decodeAnsiC(text, i) {
+    let out = "";
+    while (i < text.length) {
+        const c = text[i];
+        if (c === "'")
+            return { chars: out, end: i + 1 };
+        if (c !== "\\" || i + 1 >= text.length) {
+            out += c;
+            i++;
+            continue;
+        }
+        const d = text[i + 1];
+        const simple = ANSI_C_SIMPLE[d];
+        if (simple !== undefined) {
+            out += simple;
+            i += 2;
+            continue;
+        }
+        const num = (re, radix) => {
+            const m = re.exec(text.slice(i + 2));
+            if (!m || m[0] === "")
+                return false;
+            const cp = parseInt(m[0], radix);
+            if (cp <= 0x10ffff)
+                out += String.fromCodePoint(cp);
+            i += 2 + m[0].length;
+            return true;
+        };
+        if (/[0-7]/.test(d)) {
+            const m = /^[0-7]{1,3}/.exec(text.slice(i + 1));
+            out += String.fromCharCode(parseInt(m[0], 8) & 0xff);
+            i += 1 + m[0].length;
+            continue;
+        }
+        if (d === "x" && num(/^[0-9A-Fa-f]{1,2}/, 16))
+            continue;
+        if (d === "u" && num(/^[0-9A-Fa-f]{1,4}/, 16))
+            continue;
+        if (d === "U" && num(/^[0-9A-Fa-f]{1,8}/, 16))
+            continue;
+        if (d === "c" && i + 2 < text.length) {
+            out += String.fromCharCode((text.charCodeAt(i + 2) & 0x1f) >>> 0);
+            i += 3;
+            continue;
+        }
+        out += c + d;
+        i += 2;
+    }
+    return { chars: out, end: text.length };
+}
+/**
+ * The index of the `close` matching an already-consumed `open`, starting at `from`; quote- and
+ * escape-aware, nesting-aware. -1 when it never closes — the caller then treats the rest as the body.
+ */
+function matchingClose(text, from, open, close) {
+    let depth = 1;
+    for (let i = from; i < text.length; i++) {
+        const c = text[i];
+        if (c === "\\") {
+            i++;
+            continue;
+        }
+        if (c === "'") {
+            const j = text.indexOf("'", i + 1);
+            if (j === -1)
+                return -1;
+            i = j;
+            continue;
+        }
+        if (c === '"' || c === "`") {
+            let j = i + 1;
+            while (j < text.length && text[j] !== c)
+                j += text[j] === "\\" ? 2 : 1;
+            if (j >= text.length)
+                return -1;
+            i = j;
+            continue;
+        }
+        if (c === open)
+            depth++;
+        else if (c === close && --depth === 0)
+            return i;
+    }
+    return -1;
+}
+/**
+ * A `[…]` pathname bracket at `i`, as the regex source of ONE character, or null when the `[` is a
+ * literal (no closing `]` inside the word). A POSIX class or a quote inside the bracket is answered
+ * by the widest single character, `[^/]`, rather than parsed.
+ */
+function bracketAt(text, i) {
+    let j = i + 1;
+    let neg = false;
+    if (text[j] === "!" || text[j] === "^") {
+        neg = true;
+        j++;
+    }
+    const bodyStart = j;
+    if (text[j] === "]")
+        j++;
+    let wide = false;
+    while (j < text.length && text[j] !== "]") {
+        const c = text[j];
+        if (/\s/.test(c) || c === "/")
+            return null;
+        if (c === "'" || c === '"') {
+            const k = text.indexOf(c, j + 1);
+            if (k === -1)
+                return null;
+            wide = true;
+            j = k + 1;
+            continue;
+        }
+        if (c === "[" && text[j + 1] === ":") {
+            // A POSIX class (`[:alpha:]`) inside the bracket: skipped to its own `:]`, and answered wide.
+            const k = text.indexOf(":]", j + 2);
+            if (k === -1)
+                return null;
+            wide = true;
+            j = k + 2;
+            continue;
+        }
+        j += c === "\\" ? 2 : 1;
+    }
+    if (j >= text.length)
+        return null;
+    if (wide)
+        return { src: "[^/]", end: j + 1 };
+    const body = text.slice(bodyStart, j).replace(/\\(.)/g, "$1");
+    const src = `[${neg ? "^" : ""}${Array.from(body, (ch) => (/[\\\]\[^]/.test(ch) ? `\\${ch}` : ch)).join("")}]`;
+    try {
+        new RegExp(src);
+        return { src, end: j + 1 };
+    }
+    catch {
+        return { src: "[^/]", end: j + 1 };
+    }
+}
+/** A `{…}` brace expansion at `i`: the alternation or sequence it denotes, or null when it is a literal `{`. */
+function braceAt(text, i, depth, out, ctx) {
+    let level = 1;
+    const commas = [];
+    let j = i + 1;
+    for (; j < text.length; j++) {
+        const c = text[j];
+        if (c === "\\") {
+            j++;
+            continue;
+        }
+        if (c === "'" || c === '"') {
+            const k = text.indexOf(c, j + 1);
+            if (k === -1)
+                return null;
+            j = k;
+            continue;
+        }
+        if (/\s/.test(c))
+            return null;
+        if (c === "{")
+            level++;
+        else if (c === "}" && --level === 0)
+            break;
+        else if (c === "," && level === 1)
+            commas.push(j);
+    }
+    if (j >= text.length)
+        return null;
+    const body = text.slice(i + 1, j);
+    if (commas.length === 0) {
+        const seq = /^(-?\d+|[A-Za-z])\.\.(-?\d+|[A-Za-z])(?:\.\.-?\d+)?$/.exec(body);
+        if (!seq)
+            return null;
+        const [a, b] = [seq[1], seq[2]];
+        if (/^-?\d+$/.test(a) && /^-?\d+$/.test(b))
+            return { tok: { k: "class", src: "-?[0-9]+" }, end: j + 1 };
+        if (a.length === 1 && b.length === 1 && /[A-Za-z]/.test(a) && /[A-Za-z]/.test(b)) {
+            const [lo, hi] = a <= b ? [a, b] : [b, a];
+            // `{A..z}` spans the six ASCII punctuation bytes between the cases, as bash's does.
+            const src = `[${lo.replace(/[\\\]^]/, "\\$&")}-${hi.replace(/[\\\]^]/, "\\$&")}]`;
+            return { tok: { k: "class", src }, end: j + 1 };
+        }
+        return null;
+    }
+    const bounds = [i, ...commas, j];
+    const opts = [];
+    for (let n = 0; n + 1 < bounds.length; n++) {
+        const pieces = [];
+        lexNames(text.slice(bounds[n] + 1, bounds[n + 1]), pieces, depth + 1, ctx);
+        // An arm that itself contains a boundary (a substitution inside the braces) contributes its LAST
+        // piece to the name; its other pieces are names of their own.
+        for (let p = 0; p + 1 < pieces.length; p++)
+            out.push(pieces[p]);
+        opts.push(pieces.length > 0 ? pieces[pieces.length - 1] : []);
+    }
+    return { tok: { k: "alt", opts }, end: j + 1 };
+}
+/** Lex `text` as the shell would resolve it for NAME identity, appending one token list per name piece to `out`. */
+function lexNames(text, out, depth, ctx) {
+    if (depth > MAX_PROJECTION_DEPTH) {
+        ctx.failClosed = true;
+        return;
+    }
+    let cur = [];
+    let gapPending = false;
+    let wordStart = true;
+    const cut = () => {
+        if (cur.length > 0)
+            out.push(cur);
+        cur = [];
+        gapPending = false;
+        wordStart = true;
+    };
+    const push = (t) => {
+        if (gapPending && cur.length > 0)
+            cur.push({ k: "gap" });
+        gapPending = false;
+        wordStart = false;
+        cur.push(t);
+    };
+    const lits = (s) => {
+        for (const ch of s)
+            push({ k: "lit", c: ch });
+    };
+    /** An expansion: its body (if any) is projected on its own; in the word it is a gap or a cut. */
+    const expansion = (body) => {
+        if (body !== null)
+            lexNames(body, out, depth + 1, ctx);
+        gapPending = true;
+        wordStart = false;
+    };
+    /** A `$…` form at `i`. Returns the index past it, or -1 when the `$` is a literal. */
+    const dollar = (i) => {
+        const nx = text[i + 1];
+        if (nx === "(") {
+            const close = matchingClose(text, i + 2, "(", ")");
+            expansion(text.slice(i + 2, close === -1 ? text.length : close));
+            return close === -1 ? text.length : close + 1;
+        }
+        if (nx === "{") {
+            const close = matchingClose(text, i + 2, "{", "}");
+            const inner = text.slice(i + 2, close === -1 ? text.length : close);
+            // A parameter's WORD — the text after its name and operator (`${x:-git}`, `${x/a/git}`) — is
+            // what the expansion may produce. The name itself is not.
+            const word = inner
+                .replace(/^[#!]?(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[@*#?$!-])(?:\[[^\]]*\])?/, "")
+                .replace(/^(?::?[-=+?]|##?|%%?|\/{1,2}|\^{1,2}|,{1,2}|:|@)/, "");
+            expansion(word);
+            return close === -1 ? text.length : close + 1;
+        }
+        if (nx === "[") {
+            const close = matchingClose(text, i + 2, "[", "]");
+            expansion(text.slice(i + 2, close === -1 ? text.length : close));
+            return close === -1 ? text.length : close + 1;
+        }
+        const m = /^\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])/.exec(text.slice(i));
+        if (m) {
+            expansion(null);
+            return i + m[0].length;
+        }
+        return -1;
+    };
+    const backtick = (i) => {
+        let j = i + 1;
+        while (j < text.length && text[j] !== "`")
+            j += text[j] === "\\" ? 2 : 1;
+        expansion(text.slice(i + 1, Math.min(j, text.length)).replace(/\\([\\`$])/g, "$1"));
+        return Math.min(j + 1, text.length);
+    };
+    /** A `"…"` body starting at `i`; returns the index past the closing quote. */
+    const doubleQuoted = (i) => {
+        while (i < text.length) {
+            const c = text[i];
+            if (c === '"')
+                return i + 1;
+            if (c === "\\" && i + 1 < text.length) {
+                const d = text[i + 1];
+                if (d === "\n") {
+                    i += 2;
+                    continue;
+                }
+                if ("$`\"\\".includes(d)) {
+                    push({ k: "lit", c: d });
+                    i += 2;
+                    continue;
+                }
+            }
+            if (c === "$") {
+                const end = dollar(i);
+                if (end !== -1) {
+                    i = end;
+                    continue;
+                }
+            }
+            if (c === "`") {
+                i = backtick(i);
+                continue;
+            }
+            push({ k: "lit", c });
+            i++;
+        }
+        return text.length;
+    };
+    for (let i = 0; i < text.length;) {
+        const c = text[i];
+        if (c === "\\") {
+            if (i + 1 < text.length && text[i + 1] !== "\n")
+                push({ k: "lit", c: text[i + 1] });
+            i += 2;
+            continue;
+        }
+        if (c === "'") {
+            const j = text.indexOf("'", i + 1);
+            const end = j === -1 ? text.length : j;
+            lits(text.slice(i + 1, end));
+            if (end === i + 1)
+                wordStart = false;
+            i = end + 1;
+            continue;
+        }
+        if (c === "$" && text[i + 1] === "'") {
+            const { chars, end } = decodeAnsiC(text, i + 2);
+            lits(chars);
+            wordStart = false;
+            i = end;
+            continue;
+        }
+        if (c === "$" && text[i + 1] === '"') {
+            wordStart = false;
+            i = doubleQuoted(i + 2);
+            continue;
+        }
+        if (c === '"') {
+            wordStart = false;
+            i = doubleQuoted(i + 1);
+            continue;
+        }
+        if (c === "$") {
+            const end = dollar(i);
+            if (end !== -1) {
+                i = end;
+                continue;
+            }
+        }
+        if (c === "`") {
+            i = backtick(i);
+            continue;
+        }
+        if ((c === "<" || c === ">") && text[i + 1] === "(") {
+            cut();
+            const close = matchingClose(text, i + 2, "(", ")");
+            lexNames(text.slice(i + 2, close === -1 ? text.length : close), out, depth + 1, ctx);
+            i = close === -1 ? text.length : close + 1;
+            continue;
+        }
+        if (NAME_CUT_RE.test(c)) {
+            cut();
+            i++;
+            continue;
+        }
+        // zsh EQUALS expansion: an unquoted `=` opening a word is the path of the command that follows.
+        if (c === "=" && wordStart && cur.length === 0 && i + 1 < text.length && !NAME_CUT_RE.test(text[i + 1])) {
+            wordStart = false;
+            i++;
+            continue;
+        }
+        if (c === "*") {
+            push({ k: "star" });
+            i++;
+            continue;
+        }
+        if (c === "?") {
+            push({ k: "one" });
+            i++;
+            continue;
+        }
+        if (c === "[") {
+            const b = bracketAt(text, i);
+            if (b) {
+                push({ k: "class", src: b.src });
+                i = b.end;
+                continue;
+            }
+        }
+        if (c === "{") {
+            const b = braceAt(text, i, depth, out, ctx);
+            if (b) {
+                push(b.tok);
+                i = b.end;
+                continue;
+            }
+        }
+        push({ k: "lit", c });
+        i++;
+    }
+    cut();
+}
+/**
+ * The possible BASENAMES of one name piece: the tokens after its last path separator. A brace arm that
+ * carries a separator restarts the basename inside that arm; `restarted` says so, so the text before
+ * the brace is dropped for that arm only. `null` = more variants than `MAX_NAME_VARIANTS`.
+ */
+function basenameVariants(toks) {
+    let res = [{ toks: [], restarted: false }];
+    for (const t of toks) {
+        if (t.k === "lit" && (t.c === "/" || t.c === "\\")) {
+            res = [{ toks: [], restarted: true }];
+            continue;
+        }
+        if (t.k === "alt") {
+            const next = [];
+            for (const o of t.opts) {
+                const sub = basenameVariants(o);
+                if (sub === null)
+                    return null;
+                for (const s of sub) {
+                    if (s.restarted)
+                        next.push({ toks: [...s.toks], restarted: true });
+                    else
+                        for (const r of res)
+                            next.push({ toks: [...r.toks, ...s.toks], restarted: r.restarted });
+                }
+            }
+            if (next.length > MAX_NAME_VARIANTS)
+                return null;
+            res = next;
+            continue;
+        }
+        for (const r of res)
+            r.toks.push(t);
+    }
+    return res;
+}
+/** The longest literal basename worth comparing: the longest governed name plus a Windows extension. */
+const MAX_LITERAL_NAME = Math.max(...[...GOVERNED_TOOLS].map((t) => t.length)) + 4;
+/** Add to `into` every governed tool one basename variant can be. A variant of wildcards alone names nothing. */
+function namesOfVariant(toks, into) {
+    let literal = true;
+    let content = false;
+    for (const t of toks) {
+        if (t.k !== "lit")
+            literal = false;
+        if (t.k === "lit" || t.k === "class")
+            content = true;
+    }
+    if (!content)
+        return;
+    if (literal) {
+        if (toks.length > MAX_LITERAL_NAME)
+            return;
+        const s = toks
+            .map((t) => t.c)
+            .join("")
+            .toLowerCase()
+            .replace(WINDOWS_EXE_EXT_RE, "");
+        if (GOVERNED_TOOLS.has(s))
+            into.add(s);
+        return;
+    }
+    const src = toks
+        .map((t) => {
+        if (t.k === "lit")
+            return t.c.replace(/[.*+?^${}()|[\]\\/-]/g, "\\$&");
+        if (t.k === "star" || t.k === "gap")
+            return "[^/]*";
+        if (t.k === "one")
+            return "[^/]";
+        if (t.k === "class")
+            return t.src;
+        return "";
+    })
+        .join("");
+    let re;
+    try {
+        re = new RegExp(`^(?:${src})${WINDOWS_EXE_EXT_SRC}$`, "i");
+    }
+    catch {
+        for (const tool of GOVERNED_TOOLS)
+            into.add(tool); // a pattern this function cannot build is answered fail-closed
+        return;
+    }
+    for (const tool of GOVERNED_TOOLS)
+        if (re.test(tool))
+            into.add(tool);
+}
+/**
+ * Every governed tool `text` can run, as far as NAME identity goes — see the block above `NameTok`.
+ * Asked of one spelled word by the readable arm and of a whole unreadable segment by the fail-closed
+ * arm: one authority, two callers.
+ */
+export function governedToolsNamedBy(text) {
+    const pieces = [];
+    const ctx = { failClosed: false };
+    lexNames(text, pieces, 0, ctx);
+    if (ctx.failClosed)
+        return GOVERNED_TOOLS;
+    const out = new Set();
+    for (const p of pieces) {
+        const variants = basenameVariants(p);
+        if (variants === null)
+            return GOVERNED_TOOLS;
+        for (const v of variants)
+            namesOfVariant(v.toks, out);
+    }
+    return out;
 }
 function verbCandidates(words, from) {
     const out = [];
@@ -732,27 +1252,49 @@ function unreadableWords(seg) {
 }
 /**
  * The fail-closed answer for a segment this model will not read: which checkpoints does it touch,
- * judged on the raw text alone?
+ * judged on the TOOL NAMES it can run alone?
  *
  * ---------------------------------------------------------------------------------------------
  * THE VERB CONJUNCT IS GONE (round 3, `RA3-4`).
  *
  * Round 2 required BOTH `\btool\b` and `\bverb\b`. Measured: `kubectl -n prod ap$(echo ply) -f x`
  * and `git pu$(echo sh) origin main` are untokenizable AND unmatched, because the same edit that
- * made the segment unreadable removed the token the backstop searched for. "Untokenizable is a
- * fail-closed state" was not a state at all — it was a second, weaker pattern match over the same
- * attacker-controlled text.
+ * made the segment unreadable removed the token the backstop searched for. An unreadable segment
+ * denies on the TOOL NAME alone. The over-denial that buys — `git commit -m "push \"x\""` — is the
+ * round-2 recorded residual, unchanged in kind.
  *
- * An unreadable segment now denies on the TOOL NAME alone. The over-denial that buys — `git commit
- * -m "push \"x\""` — is the round-2 recorded residual, unchanged in kind and now the deliberate
- * price of a backstop that cannot be defeated by the edit that triggers it.
+ * THE TOOL NAME IS ASKED OF THE PROJECTION, NOT OF THE RAW TEXT (33 round-3 review, CR-01).
+ *
+ * Until this round the tool name was searched for in the RAW text, and the P30 docblock called that
+ * "a backstop that cannot be defeated by the edit that triggers it". It could be: splicing the TOOL
+ * with the same shell-neutral punctuation RA3-4 had closed for the verb — `g\it push origin main`,
+ * `"g"it push --force origin main`, `k\ubectl -n prod apply -f x`, `terra""form apply` — removed the
+ * substring the search needed, and all of them ALLOWED with zero keys. The name is now asked of
+ * `governedToolsNamedBy`, which reads the text as the shell resolves it (quote and backslash removal,
+ * ANSI-C quoting, zsh `=`, brace and pathname patterns, and the bodies of substitutions). The raw
+ * search is KEPT beside it, so every segment the raw search refused is still refused: the union can
+ * only add denials.
+ *
+ * WHAT IT STILL DOES NOT SEE — measured, and stated rather than implied closed:
+ *   - a name COMPUTED at run time: `$K push …` with `K=git`, `"$(echo git)" push …` (denied only
+ *     because the raw search sees `git` in the body), `${x}it push …` with `x=g` — the value of an
+ *     expansion at a word's edge is unknowable here (the env-indirection residual `hooks/guard.ts`
+ *     already discloses);
+ *   - a binary reached under ANOTHER name: a symlink, a copy, an alias or a function defined in an
+ *     earlier command, `d/* push …` over a directory holding only a `git` link;
+ *   - glob grammars this function does not model: zsh `(a|b)` grouping and bash `extglob`
+ *     (`@(…)`, `+(…)`), which are off by default in the shells a hook's command is run under;
+ *   - interpreters that are not the shell: `env -S`, `python -c`, `node -e` with the name assembled
+ *     inside the interpreter's own string syntax.
  * ---------------------------------------------------------------------------------------------
  */
 function failClosedCheckpoints(text) {
+    const named = governedToolsNamedBy(text);
     const out = [];
     for (const r of COMMAND_CHECKPOINT_RULES) {
-        if (new RegExp(`(?:^|[^A-Za-z0-9_-])${r.tool}(?:[^A-Za-z0-9_-]|$)`).test(text))
+        if (named.has(r.tool) || new RegExp(`(?:^|[^A-Za-z0-9_-])${r.tool}(?:[^A-Za-z0-9_-]|$)`).test(text)) {
             out.push(r.checkpoint);
+        }
     }
     return out;
 }
@@ -815,9 +1357,10 @@ export function matchCommandCheckpoints(cmd) {
     // a segment whose only punctuation was a redirection is now read by the model below; nothing else
     // about this arm changes. Readable by grammar, or opaque: there is no third state. A bare `$var` and
     // a heredoc are opaque BY DECISION — a variable's value is unknowable at hook time, and a heredoc's
-    // body lines are commands to this tokenizer — so the fence P30 built (an unreadable segment denies
-    // on the tool name alone, a backstop the triggering edit cannot defeat) is not re-opened one
-    // register over.
+    // body lines are commands to this tokenizer. An opaque segment denies on the tool NAMES it can run,
+    // asked of `governedToolsNamedBy` (33 round-3 review, CR-01). Round 3 wrote here that the P30 fence
+    // was "a backstop the triggering edit cannot defeat"; it was not — a splice of the TOOL word
+    // defeated it — and what it still does not see is listed at `failClosedCheckpoints`.
     while (queue.length > 0) {
         const seg = queue.shift();
         if (seg.opaque) {
@@ -854,9 +1397,11 @@ export function matchCommandCheckpoints(cmd) {
                 else
                     queue.push(...nested);
             }
-            const tool = normalizeToolWord(w.value);
+            // The tool this word runs is asked of the ONE projection the fail-closed arm also asks, over the
+            // word as SPELLED (33 round-3 review, CR-01) — so `=kubectl` is `kubectl` here too.
+            const named = governedToolsNamedBy(w.raw);
             for (const r of COMMAND_CHECKPOINT_RULES) {
-                if (tool !== r.tool)
+                if (!named.has(r.tool))
                     continue;
                 const cand = verbCandidates(words, i + 1);
                 if (cand.opaque) {
@@ -867,6 +1412,13 @@ export function matchCommandCheckpoints(cmd) {
                 // A benign subcommand suppresses ONLY from the position adjacent to the tool (`RA5-2`).
                 const adjacent = adjacentWord(words, i + 1);
                 if (adjacent !== null && (r.benign ?? []).includes(adjacent) && !r.verbs.includes(adjacent)) {
+                    continue;
+                }
+                // A FLAG-governed row (`vercel --prod`): the flag anywhere after the tool decides.
+                const flags = r.flags ?? [];
+                if (flags.length > 0 &&
+                    words.slice(i + 1).some((x) => x.kind === "canonical" && x.isFlag && flags.includes(x.value.split("=")[0]))) {
+                    readable.add(r.checkpoint);
                     continue;
                 }
                 if (r.tool === "git") {

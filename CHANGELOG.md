@@ -51,6 +51,18 @@ release.
   file-based kit holds no secret the constrained process cannot read — so it distinguishes
   hand-composed from writer-composed notes and detects post-write edits; it does not stop a process
   that reimplements the algorithm. That un-forgeable tier is a human decision not taken here.
+- The prod-deploy guard now recognizes a governed tool whose name is spelled with shell quoting or
+  escaping. Before this change `g\it push origin main`, `"g"it push --force origin main`,
+  `k\ubectl -n prod apply -f x`, `terra""form apply`, `n\pm publish` and zsh's
+  `=kubectl -n prod apply -f x` ran with no approval and no deny, because the command model searched
+  the typed text for the tool name and the quoting had removed it. Both arms of the command model
+  now ask one function (`governedToolsNamedBy` in `scripts/checkpoints.ts`) that reads a word the
+  way the shell resolves it: quote and backslash removal, `$'…'` escapes, zsh's leading `=`, brace
+  and pathname patterns, and the bodies of command substitutions. `vercel` joined the command model
+  so that a quoted `vercel --prod` is recognized too. The guard does not evaluate expansions: a tool
+  name computed at run time (`K=git; $K push`), a renamed or symlinked binary, an alias, and a name
+  assembled inside another interpreter's string are not recognized; `scripts/checkpoints.ts` lists
+  these beside `failClosedCheckpoints`.
 
 ## [2.1.0] - 2026-09-18
 
