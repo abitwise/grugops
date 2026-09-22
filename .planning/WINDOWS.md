@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 231
+open_count: 236
 waived_count: 3
-fixed_count: 26
-total_count: 260
-last_updated: 2026-09-22T18:04:28.865Z
+fixed_count: 32
+total_count: 271
+last_updated: 2026-09-22T18:29:52.911Z
 ---
 
 # Broken Windows Ledger
@@ -269,12 +269,23 @@ last_updated: 2026-09-22T18:04:28.865Z
 | 252 | 33 | deviation | scripts/check-foundation-guards.test.ts |  | 33-REVIEW IN-05 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): hand-pinned counts bumped in this phase (NON_TEST_MODULE_COUNT = 89, 62, TRIPWIRE_MODULES = 72, targets: 11; check-claim-anchors.test.ts toBe(17) followed by a tautological not.toBe(18); check-banned-claims.test.ts bannedClaimScanOverlap() pinned to 2) are the set-literal pattern the project's memory names — where a count can be derived (git ls-files, the corpus array) assert the relationship rather than the integer, and drop the redundant negative; owner: a later round | open |  | 2026-09-21T10:52:09.919Z |  |
 | 253 | 33 | deviation | scripts/check-flip-manifest.ts | 646 | 33-REVIEW IN-06 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): manifestDir is split on / only and the status flip row compares row.file byte-for-byte with the CLI value, so a --manifest spelled with backslashes by a Windows operator yields a summary path of 33-CAPTURE-SUMMARY.md at the repo root and a false status-row refusal — const manifestRel = toPosix(cli.manifest) at the top of main(); owner: a later round | open |  | 2026-09-21T10:52:10.009Z |  |
 | 254 | 33 | deviation | scripts/check-flip-manifest.ts | 596 | 33-REVIEW IN-07 accepted open (human scope decision 2026-09-20: round 2 = Criticals + CAP gaps only; line as reviewed): changedFiles runs git diff-tree --no-commit-id --name-only -r --root <commit>, which prints nothing for a merge commit without -m or -c, so a flip landing via a merge reports every declared file as omitted — fails closed with a message naming the wrong cause — use git diff --name-only -z <c>^ <c> for the single-commit form (or add -m --first-parent) and name merge commits in the refusal text; owner: a later round | open |  | 2026-09-21T10:52:10.100Z |  |
-| 255 | 33 | unrun-verify | .claude/agents/grugops-orchestrator.md | 5 | 33-DIAGNOSIS section 1.4 (a) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): on the --agent path the coordinator carries the installed adapter's seven-tool grant (.claude/agents/grugops-orchestrator.md:5 — Agent(sixteen roles), Read, Grep, Glob, Edit, Write, Bash; init frame B:11 lists exactly those seven), which does not include the plugin's MCP admission tool mcp__plugin_grugops_grugops__propose_note, so on that path the coordinator cannot propose notes through the sanctioned writer — deterministically, by construction of the grant (evidence section 1.3 (i), round-1-held/ B:11 vs A:11). DIRECTION, the human's words: carry the MCP admission tool (propose_note) in the --agent coordinator adapter's grant — touching the spawn-grant derivation, its census pins and the guard oracles; the alternative (telling role adapters where the sanctioned writer lives under the plugin cache) was not chosen. Owner: round 3 | open |  | 2026-09-21T10:52:10.191Z |  |
-| 256 | 33 | unrun-verify | scripts/context-io.ts |  | 33-DIAGNOSIS section 1.4 (b) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the reader (readContext, scripts/context-io.ts) admits notes written into .grugops/context by anything other than the sanctioned writer — path B's nine notes were written with the Write tool straight into the context root (round-1-held/ B:774, B:795, B:817, B:1542, B:1607, B:1638, B:1757, B:1779, B:1802) and read back as if admitted, so the WF16 single-writer rule held on path A by tooling and on path B by nothing (evidence section 1.3 (ii)). DIRECTION, the human's words: refuse non-sanctioned (hand-written, Write-tool) notes on read; the alternative (keep admitting them) was not chosen. Owner: round 3 | open |  | 2026-09-21T10:52:10.282Z |  |
-| 257 | 33 | deviation | hooks/guard.ts |  | 33-DIAGNOSIS section 2 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the guard (hooks/guard.ts + scripts/checkpoints.ts) classifies a 2>&1 redirection and an ordinary $var expansion as substitutions it will not reason about and refuses any such segment carrying git or npm anywhere in it, on tool name alone — fifteen over-matched denies across the two round-1 transcripts (A:454 … B:1750). Reproduced offline against the committed guard on stdin with no GRUGOPS_ variable set: git log --oneline -5 -> allow; git log --oneline -5 2>&1 -> deny (matched by the command model, the git push sentence printed for a git log); echo "npm run lint" -> allow; echo "npm run $s" -> deny (carries a shell substitution the guard will not reason about); matchCommandCheckpoints reports untokenizable: true for both. Fails closed — an availability defect, not a safety hole; no offline test covers the class (275 guard tests green). Correction named by the diagnosis: the tokenizer's redirection-vs-substitution classification, and the deny text. No further direction stated beyond accepted-open. Owner: round 3 | open |  | 2026-09-21T10:52:10.372Z |  |
-| 258 | 33 | deviation | scripts/context-io.ts | 1416 | 33-DIAGNOSIS section 3 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): admitAndAppend / composeNote (scripts/context-io.ts:1416) interpolates ${note.verified_by} with no presence check and writes the line verified_by: undefined — the string — for an absent field; undefined is not in the DeLM hollow-evidence list (context-io.ts:205), so the note reads back with a non-empty stamp no gate and no human set (path A notes [6]-[9]). Reproduced offline: admitAndAppend with no verified_by key returns findings: [] and the file carries verified_by: undefined; passing the key explicitly undefined serializes identically, so the fault is serialization, not the caller's spelling. Did not touch any verdict the round reads. No further direction stated beyond accepted-open. Owner: round 3 | open |  | 2026-09-21T10:52:10.464Z |  |
+| 255 | 33 | unrun-verify | .claude/agents/grugops-orchestrator.md | 5 | 33-DIAGNOSIS section 1.4 (a) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): on the --agent path the coordinator carries the installed adapter's seven-tool grant (.claude/agents/grugops-orchestrator.md:5 — Agent(sixteen roles), Read, Grep, Glob, Edit, Write, Bash; init frame B:11 lists exactly those seven), which does not include the plugin's MCP admission tool mcp__plugin_grugops_grugops__propose_note, so on that path the coordinator cannot propose notes through the sanctioned writer — deterministically, by construction of the grant (evidence section 1.3 (i), round-1-held/ B:11 vs A:11). DIRECTION, the human's words: carry the MCP admission tool (propose_note) in the --agent coordinator adapter's grant — touching the spawn-grant derivation, its census pins and the guard oracles; the alternative (telling role adapters where the sanctioned writer lives under the plugin cache) was not chosen. Owner: round 3 | fixed |  | 2026-09-21T10:52:10.191Z | 2026-09-22T18:29:52.457Z |
+| 256 | 33 | unrun-verify | scripts/context-io.ts |  | 33-DIAGNOSIS section 1.4 (b) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the reader (readContext, scripts/context-io.ts) admits notes written into .grugops/context by anything other than the sanctioned writer — path B's nine notes were written with the Write tool straight into the context root (round-1-held/ B:774, B:795, B:817, B:1542, B:1607, B:1638, B:1757, B:1779, B:1802) and read back as if admitted, so the WF16 single-writer rule held on path A by tooling and on path B by nothing (evidence section 1.3 (ii)). DIRECTION, the human's words: refuse non-sanctioned (hand-written, Write-tool) notes on read; the alternative (keep admitting them) was not chosen. Owner: round 3 | fixed |  | 2026-09-21T10:52:10.282Z | 2026-09-22T18:29:52.550Z |
+| 257 | 33 | deviation | hooks/guard.ts |  | 33-DIAGNOSIS section 2 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the guard (hooks/guard.ts + scripts/checkpoints.ts) classifies a 2>&1 redirection and an ordinary $var expansion as substitutions it will not reason about and refuses any such segment carrying git or npm anywhere in it, on tool name alone — fifteen over-matched denies across the two round-1 transcripts (A:454 … B:1750). Reproduced offline against the committed guard on stdin with no GRUGOPS_ variable set: git log --oneline -5 -> allow; git log --oneline -5 2>&1 -> deny (matched by the command model, the git push sentence printed for a git log); echo "npm run lint" -> allow; echo "npm run $s" -> deny (carries a shell substitution the guard will not reason about); matchCommandCheckpoints reports untokenizable: true for both. Fails closed — an availability defect, not a safety hole; no offline test covers the class (275 guard tests green). Correction named by the diagnosis: the tokenizer's redirection-vs-substitution classification, and the deny text. No further direction stated beyond accepted-open. Owner: round 3 | fixed |  | 2026-09-21T10:52:10.372Z | 2026-09-22T18:29:52.643Z |
+| 258 | 33 | deviation | scripts/context-io.ts | 1416 | 33-DIAGNOSIS section 3 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): admitAndAppend / composeNote (scripts/context-io.ts:1416) interpolates ${note.verified_by} with no presence check and writes the line verified_by: undefined — the string — for an absent field; undefined is not in the DeLM hollow-evidence list (context-io.ts:205), so the note reads back with a non-empty stamp no gate and no human set (path A notes [6]-[9]). Reproduced offline: admitAndAppend with no verified_by key returns findings: [] and the file carries verified_by: undefined; passing the key explicitly undefined serializes identically, so the fault is serialization, not the caller's spelling. Did not touch any verdict the round reads. No further direction stated beyond accepted-open. Owner: round 3 | fixed |  | 2026-09-21T10:52:10.464Z | 2026-09-22T18:29:52.732Z |
 | 259 | 33 | deviation | scripts/checkpoints.ts |  | Found by plan 33-27's sibling-arm probe of the command model (2026-09-21), pre-existing on the dispatch base 3b00ea7b and unchanged by the redirection grammar: git -c alias.p=push p (git's own alias form of a BARE push, which pushes the current branch to its upstream) returns NO checkpoint from matchCommandCheckpoints on both the base and HEAD, and no literal pattern in hooks/guard.ts matches it (no 'git push' text), so the guard ALLOWS it with zero keys; git -c alias.p=push p origin allows the same way. Mechanism: verbCandidates pushes BOTH the alias value 'push' and the alias-definition word 'alias.p=push' into the candidate list, so gitPushIsGoverned counts the definition word as a refspec ('after' has length 2, ref = 'p', not protected) and the RA1-3 no-branch rule never fires; the RA3-6 corpus case (git -c alias.p=push p origin main) is governed only because it names main. Not fixed in 33-27 (outside the plan's redirection scope; an unplanned edit to a safety invariant is how a previous fix creates the next finding); the safe-direction fix is to exclude alias-definition words from the refspec count in gitPushIsGoverned, RED-first with the alias corpus. Owner: round 4 or the ledger row of plan 33-34 | open |  | 2026-09-21T17:58:01.468Z |  |
 | 260 | 33 | unrun-verify | scripts/capture-live.ts | 342 | 33-31 run 35760655144 (head 1af7e3f1) windows: ONE red, ONE class, NEW this round - scripts/capture-live.test.ts Test C7 (:1235, assertion :1246) reads 'with the leading // removed, the rule names the target's REAL path: expected /C:/Users/runneradmin/AppData/Local/T... to be C:/Users/runneradmin/AppData/Local/Te...'. Both the case and the rule were added by 33-29 (5a01e7dd RED, 79a5ab9a GREEN): liveAllowedTools (scripts/capture-live.ts:340-343) spells the scoped grant Edit(//<realpathSync.native(target), POSIX separators, leading slashes stripped>/**), which on win32 is Edit(//C:/Users/.../**); the test re-adds ONE leading slash and compares to the POSIX-separated real path, a premise only true where an absolute path begins with /. The module's own docstring already marks the win32 spelling of the // form UNKNOWN - verify; the platform's permissions reference (code.claude.com/docs/en/permissions, Read and Edit) says win32 paths are normalized to POSIX form before matching, C:\\Users\\alice -> /c/Users/alice, i.e. //c/Users/... - a documentation claim, unmeasured by any Windows session. Ubuntu leg: success (capture-live 68/68). 33-31 section 4.1 called 33-29's class 'measurable here' - overstated by this one axis. No platform conditional may close it (D-14/D-16). Owner: round 4 (last under the cap) | open |  | 2026-09-22T18:04:28.865Z |  |
+| 261 | 33 | deviation | scripts/capture-live.test.ts | 1848 | 33-REVIEW-round2 IN-03 accepted open (round 3 of 4): hand-typed counts bumped or added in round 2 are still integers, not relationships — the rev-parse source-line pin (reviewed at capture-live.test.ts:928, now :1848, toBe(3)), freshness.test.ts:603 cloneCount toBe(8), check-platform-shapes.test.ts:997 and :1009 toBeGreaterThan(5) floors; no round-3 plan replaced a pin with the relationship — assert the rev-parse call sites as a subset of the named functions via the AST and derive the clone count from the Fixtures keys; owner: a later round | open |  | 2026-09-22T18:29:44.946Z |  |
+| 262 | 33 | deviation | scripts/check-build-parity.ts | 150 | 33-REVIEW-round2 IN-04 accepted open (round 3 of 4): check-build-parity.ts resolves typescript/lib/tsc.js through createRequire(import.meta.url), so a CHECK_ROOT pointing at another checkout (Tests AF/AG) is compiled with this module TypeScript, not the target tree one, and the module header does not say so — state it in the docblock, or resolve through createRequire(join(root, package.json)) first and fall back with the layer named; owner: a later round | open |  | 2026-09-22T18:29:45.040Z |  |
+| 263 | 33 | deviation | scripts/runnable-ref/uat-spec-integrity.test.ts | 6742 | 33-REVIEW-round2 IN-06 accepted open (round 3 of 4): mixedArrangementDepth plants 2 * oneFile.overflow beside a bisection (parseBoundaryFor) that can measure the mixed boundary directly, and Test AD margin assertion is true by construction of the function it tests; a tier-up shift above 2x the one-file boundary would make the mixed cases green-vacuous again — plant max(2 * oneFile.overflow, mixed.overflow + k) and assert depth > mixed.overflow in AD; owner: a later round | open |  | 2026-09-22T18:29:45.133Z |  |
+| 264 | 33 | deviation | scripts/check-platform-shapes.test.ts | 957 | 33-REVIEW-round2 IN-07 accepted open (round 3 of 4): the MIRROR census counts only hostCapabilityOrSkip calls lexically inside an it(MIRROR:...) body, so a mirror case gated through a helper is invisible and the count still equals MIRROR_CAPABILITY_GATES.length when the table is not extended — also count mirrorGate( call sites inside MIRROR bodies and require each gate kind as a mirrorGate literal exactly once; owner: a later round | open |  | 2026-09-22T18:29:45.225Z |  |
+| 265 | 33 | deviation | hooks/hooks.json | 14 | 33-34 round-3 finding (plan 33-28 hand-off): the admission-guard matcher was the bare server family mcp__grugops__.*; the platform plugins reference (code.claude.com/docs/en/plugins-reference) states that a matcher written against the bare server key never fires for a plugin bundled MCP server, so in plugin form the hook did not fire on propose_note and the human:<name> tier was not wired on the only path where the MCP tool exists (evidence: round-1 held capture A:289-293, the PreToolUse:mcp__plugin_grugops_grugops__propose_note frames carry an operator-level hook stdout — consistent with the guard not running, not proof of it). Fixed by plan 33-28 Task 3: RED 85046a51, GREEN 37974b66 — matcher mcp__(plugin_grugops_)?grugops__.*, K7 fixture-derived from A:11, K8 both spellings, K9 manifest derivation, CHANGELOG Security | fixed |  | 2026-09-22T18:29:45.316Z | 2026-09-22T18:29:52.822Z |
+| 266 | 33 | deviation | scripts/canonical-frontmatter.ts | 259 | 33-34 round-3 finding (plan 33-28 hand-off), decision D-33-R3-02: the canonical plain-scalar alphabet (the P27 closed form) did not admit underscore, so no adapter tools line could carry the platform scoped MCP tool name. Widened by exactly one character by plan 33-28 Task 1: RED b3971dbf (base refusal plain-scalar-charset on U+005F), GREEN 488f2d71 — K2 generated converse, 42 cases, 0 admitted; K3 corpus replay, 91/91 verdicts unchanged | fixed |  | 2026-09-22T18:29:45.415Z | 2026-09-22T18:29:52.911Z |
+| 267 | 33 | unrun-verify | scripts/context-io.ts | 1559 | 33-34 round-3 residual (plan 33-25 hand-off, T-33-118 accepted): the note seal (noteSeal / sealVerdict) is unkeyed by necessity — a file-based kit holds no secret the constrained process cannot read — so it distinguishes hand-composed from writer-composed notes and detects post-write edits, but a process that reimplements the algorithm, or a live-capture subject holding Bash(node *) (kept in the grant by plan 33-29, T-33-134 accepted) that calls the plugin cache copy of context-io.js, can compose a sealed note stamped by a granted role. The un-forgeable tier, a point-of-effect deny of file-writing tools under .grugops/context/, was NOT taken: a kit capability decision left to the human (33-CONTEXT: no new factory capability). Open; owner: the human | open |  | 2026-09-22T18:29:45.506Z |  |
+| 268 | 33 | deviation | scripts/context-io.ts | 1586 | 33-34 round-3 consequence (plan 33-25 hand-off, T-33-119 accepted): no grandfather clause — a store written by a kit version before the seal (any note composed before commit ba8ecc33) is not read by this reader until it is re-admitted through the writer, and every reader route reports those notes under unsealed/absent (S4: a note from the 9e1c1131 writer reads 1 through that module and 0 through HEAD). Documented in CHANGELOG.md [Unreleased] Security. Open as a documented consequence; owner: a later release note (the release that ships the seal carries the re-admission step) | open |  | 2026-09-22T18:29:45.596Z |  |
+| 269 | 33 | deviation | scripts/checkpoints.ts | 397 | 33-34 round-3 disposition (plan 33-27, the half of WINDOWS.md row 257 not closed): the arms the redirection grammar keeps opaque by decision — an availability residual that fails closed, never a safety hole — (1) a bare $var expansion, value unknowable at hook time (A:445; B:562, the mapper loop for s in lint typecheck test build, refused for the $s inside its quoted echo; B:1527); (2) a command substitution $(...) (B:434, B:469); (3) a heredoc, whose body lines are commands to the tokenizer (B:1504, B:1740); (4) a backslash-escaped or spliced-quote word beside a .git path the tool-name scan reads as git (A:667, A:1493, A:1507, B:217); a quoted redirection target is also not admitted. 4 of 15 round-1 denies recovered (48dfbe57, 85d03fce), 11 still deny. Open; owner: a later round, only if a measured availability cost warrants a narrower grammar | open |  | 2026-09-22T18:29:45.688Z |  |
+| 270 | 33 | unrun-verify | scripts/capture-live.ts | 303 | 33-34 round-3 residual (the half of WINDOWS.md row 255 no offline test settles; handed by plans 33-28, 33-29 and 33-30 to the live go, which 33-32 held as no-go at zero tokens): the live-session UNKNOWN - verify items — (1) whether the platform offers mcp__plugin_grugops_grugops__propose_note to the --agent main-thread session now that the coordinator adapter names it (the B-path system/init tool list, successor of B:11); (2) whether --allowedTools needs the scoped spelling (the runner passes it since 79a5ab9a); (3) whether Edit(//ABS/**) from --allowedTools is honoured live as the permissions reference states, and whether a target path carrying glob metacharacters needs escaping; (4) whether the platform hot-reloads .claude/settings files mid-session; (5) the local-scope registry row shape and projectPath spelling the pre-spawn provenance gate reads from installed_plugins.json; (6) whether the live init frame publishes a file-writing tool outside WRITING_TOOLS; (7) whether a plugin marketplace update is needed at an unbumped 2.1.0. The win32 spelling of the grant is row 260, not repeated here. Open; owner: round 4 (the last under the cap), settled only by the fresh go capture | open |  | 2026-09-22T18:29:45.782Z |  |
+| 271 | 33 | deviation | CHANGELOG.md |  | 33-34 round-3 finding (plan 33-26 hand-off, Next Phase Readiness): the writer now refuses an absent or non-string note scalar by name (assertNoteScalar / assertNoteFields; 8b82b4bc, 4fa7bd65; KIT section 3, row 258) where it used to write the word undefined, but CHANGELOG.md [Unreleased] carries no Security sentence for that refusal (CHANGELOG.md was outside the file lists of 33-26 and 33-34) — add one sentence beside the 33-25 seal entry; owner: round 4 or the phase closing document plan | open |  | 2026-09-22T18:29:45.874Z |  |
 
 ````json
 [
@@ -3411,10 +3422,10 @@ last_updated: 2026-09-22T18:04:28.865Z
     "file": ".claude/agents/grugops-orchestrator.md",
     "line": 5,
     "description": "33-DIAGNOSIS section 1.4 (a) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): on the --agent path the coordinator carries the installed adapter's seven-tool grant (.claude/agents/grugops-orchestrator.md:5 — Agent(sixteen roles), Read, Grep, Glob, Edit, Write, Bash; init frame B:11 lists exactly those seven), which does not include the plugin's MCP admission tool mcp__plugin_grugops_grugops__propose_note, so on that path the coordinator cannot propose notes through the sanctioned writer — deterministically, by construction of the grant (evidence section 1.3 (i), round-1-held/ B:11 vs A:11). DIRECTION, the human's words: carry the MCP admission tool (propose_note) in the --agent coordinator adapter's grant — touching the spawn-grant derivation, its census pins and the guard oracles; the alternative (telling role adapters where the sanctioned writer lives under the plugin cache) was not chosen. Owner: round 3",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-21T10:52:10.191Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-22T18:29:52.457Z",
     "milestone": "v2.1"
   },
   {
@@ -3424,10 +3435,10 @@ last_updated: 2026-09-22T18:04:28.865Z
     "file": "scripts/context-io.ts",
     "line": null,
     "description": "33-DIAGNOSIS section 1.4 (b) accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the reader (readContext, scripts/context-io.ts) admits notes written into .grugops/context by anything other than the sanctioned writer — path B's nine notes were written with the Write tool straight into the context root (round-1-held/ B:774, B:795, B:817, B:1542, B:1607, B:1638, B:1757, B:1779, B:1802) and read back as if admitted, so the WF16 single-writer rule held on path A by tooling and on path B by nothing (evidence section 1.3 (ii)). DIRECTION, the human's words: refuse non-sanctioned (hand-written, Write-tool) notes on read; the alternative (keep admitting them) was not chosen. Owner: round 3",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-21T10:52:10.282Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-22T18:29:52.550Z",
     "milestone": "v2.1"
   },
   {
@@ -3437,10 +3448,10 @@ last_updated: 2026-09-22T18:04:28.865Z
     "file": "hooks/guard.ts",
     "line": null,
     "description": "33-DIAGNOSIS section 2 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): the guard (hooks/guard.ts + scripts/checkpoints.ts) classifies a 2>&1 redirection and an ordinary $var expansion as substitutions it will not reason about and refuses any such segment carrying git or npm anywhere in it, on tool name alone — fifteen over-matched denies across the two round-1 transcripts (A:454 … B:1750). Reproduced offline against the committed guard on stdin with no GRUGOPS_ variable set: git log --oneline -5 -> allow; git log --oneline -5 2>&1 -> deny (matched by the command model, the git push sentence printed for a git log); echo \"npm run lint\" -> allow; echo \"npm run $s\" -> deny (carries a shell substitution the guard will not reason about); matchCommandCheckpoints reports untokenizable: true for both. Fails closed — an availability defect, not a safety hole; no offline test covers the class (275 guard tests green). Correction named by the diagnosis: the tokenizer's redirection-vs-substitution classification, and the deny text. No further direction stated beyond accepted-open. Owner: round 3",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-21T10:52:10.372Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-22T18:29:52.643Z",
     "milestone": "v2.1"
   },
   {
@@ -3450,10 +3461,10 @@ last_updated: 2026-09-22T18:04:28.865Z
     "file": "scripts/context-io.ts",
     "line": 1416,
     "description": "33-DIAGNOSIS section 3 accepted open for round 3 (human decision ledger-and-hold at plan 33-21 Task 2, 2026-09-21): admitAndAppend / composeNote (scripts/context-io.ts:1416) interpolates ${note.verified_by} with no presence check and writes the line verified_by: undefined — the string — for an absent field; undefined is not in the DeLM hollow-evidence list (context-io.ts:205), so the note reads back with a non-empty stamp no gate and no human set (path A notes [6]-[9]). Reproduced offline: admitAndAppend with no verified_by key returns findings: [] and the file carries verified_by: undefined; passing the key explicitly undefined serializes identically, so the fault is serialization, not the caller's spelling. Did not touch any verdict the round reads. No further direction stated beyond accepted-open. Owner: round 3",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-21T10:52:10.464Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-22T18:29:52.732Z",
     "milestone": "v2.1"
   },
   {
@@ -3479,6 +3490,149 @@ last_updated: 2026-09-22T18:04:28.865Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-22T18:04:28.865Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 261,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.test.ts",
+    "line": 1848,
+    "description": "33-REVIEW-round2 IN-03 accepted open (round 3 of 4): hand-typed counts bumped or added in round 2 are still integers, not relationships — the rev-parse source-line pin (reviewed at capture-live.test.ts:928, now :1848, toBe(3)), freshness.test.ts:603 cloneCount toBe(8), check-platform-shapes.test.ts:997 and :1009 toBeGreaterThan(5) floors; no round-3 plan replaced a pin with the relationship — assert the rev-parse call sites as a subset of the named functions via the AST and derive the clone count from the Fixtures keys; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:44.946Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 262,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-build-parity.ts",
+    "line": 150,
+    "description": "33-REVIEW-round2 IN-04 accepted open (round 3 of 4): check-build-parity.ts resolves typescript/lib/tsc.js through createRequire(import.meta.url), so a CHECK_ROOT pointing at another checkout (Tests AF/AG) is compiled with this module TypeScript, not the target tree one, and the module header does not say so — state it in the docblock, or resolve through createRequire(join(root, package.json)) first and fall back with the layer named; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.040Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 263,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/runnable-ref/uat-spec-integrity.test.ts",
+    "line": 6742,
+    "description": "33-REVIEW-round2 IN-06 accepted open (round 3 of 4): mixedArrangementDepth plants 2 * oneFile.overflow beside a bisection (parseBoundaryFor) that can measure the mixed boundary directly, and Test AD margin assertion is true by construction of the function it tests; a tier-up shift above 2x the one-file boundary would make the mixed cases green-vacuous again — plant max(2 * oneFile.overflow, mixed.overflow + k) and assert depth > mixed.overflow in AD; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.133Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 264,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/check-platform-shapes.test.ts",
+    "line": 957,
+    "description": "33-REVIEW-round2 IN-07 accepted open (round 3 of 4): the MIRROR census counts only hostCapabilityOrSkip calls lexically inside an it(MIRROR:...) body, so a mirror case gated through a helper is invisible and the count still equals MIRROR_CAPABILITY_GATES.length when the table is not extended — also count mirrorGate( call sites inside MIRROR bodies and require each gate kind as a mirrorGate literal exactly once; owner: a later round",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.225Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 265,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "hooks/hooks.json",
+    "line": 14,
+    "description": "33-34 round-3 finding (plan 33-28 hand-off): the admission-guard matcher was the bare server family mcp__grugops__.*; the platform plugins reference (code.claude.com/docs/en/plugins-reference) states that a matcher written against the bare server key never fires for a plugin bundled MCP server, so in plugin form the hook did not fire on propose_note and the human:<name> tier was not wired on the only path where the MCP tool exists (evidence: round-1 held capture A:289-293, the PreToolUse:mcp__plugin_grugops_grugops__propose_note frames carry an operator-level hook stdout — consistent with the guard not running, not proof of it). Fixed by plan 33-28 Task 3: RED 85046a51, GREEN 37974b66 — matcher mcp__(plugin_grugops_)?grugops__.*, K7 fixture-derived from A:11, K8 both spellings, K9 manifest derivation, CHANGELOG Security",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.316Z",
+    "resolved_at": "2026-09-22T18:29:52.822Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 266,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/canonical-frontmatter.ts",
+    "line": 259,
+    "description": "33-34 round-3 finding (plan 33-28 hand-off), decision D-33-R3-02: the canonical plain-scalar alphabet (the P27 closed form) did not admit underscore, so no adapter tools line could carry the platform scoped MCP tool name. Widened by exactly one character by plan 33-28 Task 1: RED b3971dbf (base refusal plain-scalar-charset on U+005F), GREEN 488f2d71 — K2 generated converse, 42 cases, 0 admitted; K3 corpus replay, 91/91 verdicts unchanged",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.415Z",
+    "resolved_at": "2026-09-22T18:29:52.911Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 267,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": 1559,
+    "description": "33-34 round-3 residual (plan 33-25 hand-off, T-33-118 accepted): the note seal (noteSeal / sealVerdict) is unkeyed by necessity — a file-based kit holds no secret the constrained process cannot read — so it distinguishes hand-composed from writer-composed notes and detects post-write edits, but a process that reimplements the algorithm, or a live-capture subject holding Bash(node *) (kept in the grant by plan 33-29, T-33-134 accepted) that calls the plugin cache copy of context-io.js, can compose a sealed note stamped by a granted role. The un-forgeable tier, a point-of-effect deny of file-writing tools under .grugops/context/, was NOT taken: a kit capability decision left to the human (33-CONTEXT: no new factory capability). Open; owner: the human",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.506Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 268,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": 1586,
+    "description": "33-34 round-3 consequence (plan 33-25 hand-off, T-33-119 accepted): no grandfather clause — a store written by a kit version before the seal (any note composed before commit ba8ecc33) is not read by this reader until it is re-admitted through the writer, and every reader route reports those notes under unsealed/absent (S4: a note from the 9e1c1131 writer reads 1 through that module and 0 through HEAD). Documented in CHANGELOG.md [Unreleased] Security. Open as a documented consequence; owner: a later release note (the release that ships the seal carries the re-admission step)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.596Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 269,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 397,
+    "description": "33-34 round-3 disposition (plan 33-27, the half of WINDOWS.md row 257 not closed): the arms the redirection grammar keeps opaque by decision — an availability residual that fails closed, never a safety hole — (1) a bare $var expansion, value unknowable at hook time (A:445; B:562, the mapper loop for s in lint typecheck test build, refused for the $s inside its quoted echo; B:1527); (2) a command substitution $(...) (B:434, B:469); (3) a heredoc, whose body lines are commands to the tokenizer (B:1504, B:1740); (4) a backslash-escaped or spliced-quote word beside a .git path the tool-name scan reads as git (A:667, A:1493, A:1507, B:217); a quoted redirection target is also not admitted. 4 of 15 round-1 denies recovered (48dfbe57, 85d03fce), 11 still deny. Open; owner: a later round, only if a measured availability cost warrants a narrower grammar",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.688Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 270,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 303,
+    "description": "33-34 round-3 residual (the half of WINDOWS.md row 255 no offline test settles; handed by plans 33-28, 33-29 and 33-30 to the live go, which 33-32 held as no-go at zero tokens): the live-session UNKNOWN - verify items — (1) whether the platform offers mcp__plugin_grugops_grugops__propose_note to the --agent main-thread session now that the coordinator adapter names it (the B-path system/init tool list, successor of B:11); (2) whether --allowedTools needs the scoped spelling (the runner passes it since 79a5ab9a); (3) whether Edit(//ABS/**) from --allowedTools is honoured live as the permissions reference states, and whether a target path carrying glob metacharacters needs escaping; (4) whether the platform hot-reloads .claude/settings files mid-session; (5) the local-scope registry row shape and projectPath spelling the pre-spawn provenance gate reads from installed_plugins.json; (6) whether the live init frame publishes a file-writing tool outside WRITING_TOOLS; (7) whether a plugin marketplace update is needed at an unbumped 2.1.0. The win32 spelling of the grant is row 260, not repeated here. Open; owner: round 4 (the last under the cap), settled only by the fresh go capture",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.782Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 271,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "CHANGELOG.md",
+    "line": null,
+    "description": "33-34 round-3 finding (plan 33-26 hand-off, Next Phase Readiness): the writer now refuses an absent or non-string note scalar by name (assertNoteScalar / assertNoteFields; 8b82b4bc, 4fa7bd65; KIT section 3, row 258) where it used to write the word undefined, but CHANGELOG.md [Unreleased] carries no Security sentence for that refusal (CHANGELOG.md was outside the file lists of 33-26 and 33-34) — add one sentence beside the 33-25 seal entry; owner: round 4 or the phase closing document plan",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-22T18:29:45.874Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
