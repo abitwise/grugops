@@ -1225,3 +1225,267 @@ carries only this document, so `git diff --stat 7361c4c4..HEAD -- scripts instal
 agent-factory .claude` is empty after it (quoted in the SUMMARY with the commit's sha). The push is
 not made by this task; it is behind Task 2's named human confirmation, and it is the FIRST of the
 two pushes the go path needs (plan 33-32's runner refuses unless HEAD equals `origin/main`).
+
+### 4.2 The push and the run (Task 3)
+
+The blocking checkpoint (Task 2, `gate="blocking-human"`) was answered by the human with "push
+approved"; the orchestrator then ran `git push origin main` → `9e1c1131..1af7e3f1` (fast-forward,
+67 commits). No executor pushed, and Task 3 pushed nothing. Verified at the start of this task:
+`git fetch origin` → `origin/main` = `1af7e3f137dbdfb583b5d372a3285354d01fbc59`. Local HEAD is
+`a5568a0b`, one local commit past it (`wip(33): pause round-3 execution …`, which changes only
+`.planning/HANDOFF.json` and this phase's `.continue-here.md`), so the tree under test is the pushed
+sha.
+
+**The pushed sha against § 4.1's recorded sha.** § 4.1 recorded `pre-push HEAD sha:
+7361c4c4…` (the dispatch base) and said its own commit would sit on top. The run's `headSha` is that
+commit, `1af7e3f1`, whose parent is `7361c4c4`. `git diff --stat 7361c4c4 1af7e3f1` lists exactly one
+path, `.planning/phases/33-live-capture-windows-portability/33-CI-MEASUREMENT.md` (252 insertions).
+`git diff --stat 7361c4c42bba400d2e16a15d7f862a49ed504f9f..HEAD -- scripts install hooks
+agent-factory .claude` is empty. So every source path the run exercised is byte-identical to the
+tree § 4.1 inventoried. The two shas differ by one documentation commit, and that commit is the one
+§ 4.1 said it would add.
+
+**The run, read from its own metadata.** Two reads. First, the orchestrator's dispatch command, run
+again here: `gh run view 35760655144 --json status,conclusion,headSha,jobs --jq
+'{status,conclusion,headSha,jobs:[.jobs[]|{name,conclusion,status}]}'`. It printed:
+
+```
+{"conclusion":"failure","headSha":"1af7e3f137dbdfb583b5d372a3285354d01fbc59","jobs":[{"conclusion":"failure","name":"test (windows-latest)","status":"completed"},{"conclusion":"success","name":"test (ubuntu-latest)","status":"completed"}],"status":"completed"}
+```
+
+Second, the plan's field list, `gh run view 35760655144 --json
+databaseId,headSha,status,conclusion,createdAt,updatedAt,jobs,workflowName,headBranch,event`, saved
+as `run.json` in the executor's scratch directory. Every word in the table below is copied from
+that JSON:
+
+| Field | Value |
+|---|---|
+| run id | `35760655144` (workflow `ci`, branch `main`, event `push`) |
+| head sha | `1af7e3f137dbdfb583b5d372a3285354d01fbc59` |
+| created / completed | 2026-09-22T17:26:04Z / 2026-09-22T18:00:37Z |
+| run `status` / `conclusion` | `completed` / **`failure`** |
+| job `test (ubuntu-latest)` | id `106857565760`, `conclusion: "success"`, 17:26:08Z → 17:42:49Z (**16 m 41 s**) |
+| job `test (windows-latest)` | id `106857564452`, `conclusion: "failure"`, 17:26:08Z → 18:00:37Z (**34 m 29 s**) |
+
+`gh run list --branch main --limit 5 --json databaseId,headSha,conclusion,createdAt` lists `35760655144` as
+the newest run on `main`, and it is the only run for `1af7e3f1`.
+
+Per-step conclusions, from the same `jobs[].steps[]` array. Steps carry the workflow's names,
+shortened here. A step reads `skipped` on the leg it is not scoped to.
+
+| # | Step | ubuntu | windows |
+|--:|---|---|---|
+| 4 | Install | success | success |
+| 5 | Freshness gate before any build | success (`All build outputs fresh: 69 committed .js file(s) match a rebuild of their sources.`) | (skipped, ubuntu only) |
+| 6 | Build and working-tree parity assertion | **success**: `PASS  Build parity: tracked build outputs that moved when the build ran: 0 findings over 69/69 elements` | (skipped, ubuntu only) |
+| 7 | Build (every other leg) | (skipped) | success |
+| 8 | Typecheck | success | success |
+| 9 | Platform shape corpus, exit-code contract, directory identity | success | success: `HOST CAPABILITIES (3)` all `ABSENT (skipped, see below)`, `DRIVEN (11)`, `SKIPPED SHAPES (5)`, `ALL CHECKS PASSED` |
+| 10 | Windows shape remainder is recorded, not silent | (skipped) | **success**: the same `HOST CAPABILITIES (3)` / `DRIVEN (11)` / `SKIPPED SHAPES (5)` / `ALL CHECKS PASSED`. This is § 4.1 row 7's expected 5-row remainder, unchanged by 33-26's probe-driver change |
+| 11 | **Vitest (e2e lane excluded)** | **success** (17:26:54Z → 17:41:57Z) | **failure** (17:27:08Z → 18:00:33Z) |
+| 12 | Freshness gates + repo gates | **success** (17:41:57Z → 17:42:45Z): 12 `ALL CHECKS PASSED` lines, headlines equal to § 4.1 rows 9.1–9.22: `17 adapter(s) … 0 byte difference(s)`, `7 twin(s)`, `2 decider(s), 26 module hash(es)`, `26 marker sites`, `AUDIT-02: 11 public document(s)`, `36 counted register row(s)`, `47 registry row(s)`, `banned claims: 0 findings over 120/120`, `LANG-01: 76 Technical Name(s)`, `diff disposition … 0 findings over 39/39`, `2467 tracked file(s) scanned as raw bytes, ZERO`, `residual citations: 5 path claim(s)`, `live-surface set: 28 document(s) … pinned at 28`, `62 flip row(s), 10 correction row(s), 2 exemption anchor(s)` | (skipped, ubuntu only) |
+
+**Suite totals**, read from each leg's own vitest summary block (`gh api
+repos/abitwise/grugops/actions/jobs/<job>/logs`, UTF-8 BOM, ANSI escapes and CR stripped). The
+`Test Files` / `Tests` / `Duration` lines are quoted verbatim, against the 5667 / 78 denominators
+§ 4.1 set:
+
+| Leg | Test Files | Tests | Duration | Timeouts |
+|---|---|---|---|---|
+| ubuntu-latest, run `35760655144` | **78 passed (78)** | **5666 passed \| 1 skipped (5667)** | 901.98s (tests 870.70s) | 0 `Test timed out`, 0 `Hook timed out`, 0 `RangeError` |
+| windows-latest, run `35760655144` | **1 failed** \| 77 passed (78) | **1 failed** \| 5663 passed \| 3 skipped (5667) | 2002.52s (tests 1956.01s) | 0 `Test timed out`, 0 `Hook timed out`, 0 `RangeError` |
+| ubuntu-latest, run `35579263776` (round 2) | 78 passed (78) | 5376 passed \| 1 skipped (5377) | 878.44 s | 0 / 0 / 0 |
+| windows-latest, run `35579263776` (round 2) | 1 failed \| 77 passed (78) | 35 failed \| 5339 passed \| 3 skipped (5377) | 1829.81 s | 0 / 0 / 0 |
+| this host, tree `7361c4c4` (§ 4.1 row 8) | 78 passed (78) | 5665 passed \| 2 skipped (5667) | 506.58 s | 0 / 0 / 0 |
+
+Both denominators equal § 4.1's 5667 / 78. Control-byte scan before quoting: after stripping, each
+job log has exactly two bytes below 0x20 other than TAB and LF, and zero C1 bytes. They are two NUL
+bytes in one passing test's own stdout, at character offsets 1 484 152 / 1 484 156 (windows) and
+1 419 743 / 1 419 747 (ubuntu). This is the same frontmatter-refusal fixture § 3.2 named. The windows
+`Failed Tests 1` section starts later in the log and has no control byte. None is quoted here.
+
+### 4.3 The verdict, and the re-derived inventory: this round's finding
+
+**CAP-02 verdict on this run: NOT MET.** D-13's bar is both legs' `conclusion` fields reading
+`success`. The ubuntu job's reads `"success"`. The windows job's reads `"failure"`, at step 11, from
+**one** failed case. The ubuntu leg is green end to end for the second run in a row, gate chain
+included. The windows leg went from 35 reds (round 2) to 1, and the remaining red is not one of the
+35.
+
+**§ 4.1's prediction, leg by leg:**
+
+| § 4.1 expectation | Measured | Delta |
+|---|---|---|
+| Ubuntu green on every step, vitest 5667 / 78 / 0 failed, the 23-command gate chain green | **Exactly that.** 78/78 files, 5666 passed / 1 skipped, step 12 green. `[33-17 boundary] one-file {safe: 677, overflow: 678} · mixed {safe: 678, overflow: 679} · shift 1 · node v22.23.2 linux/x64`, the same shift as round 2. | None. The prediction held. |
+| Windows green on every step: the 5-row remainder at step 10 exits 0, vitest 0 failed over 5667 / 78, **the 35 row-236 cases green**, W-ENV and W-HOME green, no residue | Steps 4–10 green as predicted (the 5-row remainder exited 0). `✓ scripts/context-io.test.ts (678 tests) 70576ms`: **all 678 cases of the file green, which includes all 35 row-236 titles and W-ENV / W-HOME** (§ 4.1 table rows N-1..N-34, W-20, W-21, plus W-ENV and W-HOME at `:11770` / `:11843`). Vitest red: **1 case in 1 file**, `scripts/capture-live.test.ts` (`68 tests \| 1 failed`). | **A finding, one class, outside the 35.** § 4.1's falsifier assigns it: "a red anywhere else is a round-3 rebuild that moved a windows arm, attributed to the plan by module". The module is `scripts/capture-live`, the case is 33-29's, and § 4.1's `measurable here` label for 33-29's class was overstated by one axis (below). |
+| CAP-02 MET only if both legs `success` | ubuntu `success`, windows `failure` | NOT MET, by one case. |
+
+**The 35 `unmeasured locally, by construction` rows. What the run decided:** every one is green on
+windows-latest. The reporter prints no per-test line for a passing file, so the reading is at file
+level: `✓ scripts/context-io.test.ts (678 tests) 70576ms`. The file holds exactly the 678 cases
+§ 4.1 counted, and the `Failed Tests 1` section names no `context-io` case. This is 33-24's
+mechanism (D-33-R3-01, one spelling authority through `canonicalDirectoryPath` on the fixture side
+and all three module spellers), measured on the axis this host cannot reach. W-21's
+directory-symlink fixture was staged, not skipped: the whole windows transcript has exactly one
+`SKIPPED:` line (`SKIPPED: FIFO@win32, unix socket@win32`, the platform-shape corpus's own
+remainder), and none comes from a `stageSymlinkOrSkip` site. The per-row closure column is **not**
+appended to § 4.1's table. The plan appends it only on a MET run. The evidence is recorded here for
+the round that disposes row 236.
+
+**Rows 226–235 (the round-1 classes), their files on this run:** `scripts/context-io.test.ts`
+678/678 (rows 226, 234), `scripts/runnable-ref/uat-spec-integrity.test.ts` 389/389 (rows 227, 230),
+`scripts/check-foundation-guards.test.ts` 300/300 (row 228),
+`scripts/check-public-docs-vocabulary.test.ts` 32/32 (row 229), `scripts/uat-gate-exit-contract.test.ts`
+35/35 (rows 231, 232), `scripts/check-platform-shapes.test.ts` 27/27 (row 233),
+`scripts/freshness.test.ts` 13/13 (row 235). Every file is green on both legs. Rows 229–235 are now
+green on two consecutive windows runs (`35579263776`, `35760655144`). Row 226's ten and row 234's
+two now read green too, because the whole of `context-io.test.ts` is green.
+
+**Round-3 rebuilt modules, both legs** (the § 4.1 per-plan table, read from each leg's `✓` file
+lines): `context-io` 678, `context-io-writer-set` 195, `compactor` 215, `trace-render` 6
+(33-25/33-26). `admission-server` 49, `check-platform-shapes` 27, `uat-gate-exit-contract` 35
+(33-26). `checkpoints` 348, `hooks/guard` 300, `floor-invariance` 140 (33-27).
+`canonical-frontmatter` 18, `canonical-corpus` 12, `generate-role-adapters` 51 (1 skipped), `adapter-byte-baseline` 3,
+`hooks/admission-guard` 79 (33-28). All green on both legs. `capture-live` (33-29/33-30) is
+green on ubuntu (68/68) and **68 with 1 failed** on windows.
+
+**Re-derived from the windows leg's own log** (`gh api
+repos/abitwise/grugops/actions/jobs/106857564452/logs`, BOM, ANSI and CR stripped, control bytes
+scanned before quoting: the section has none). The assertion text is as the log prints it, with
+vitest's own `…` truncation kept. Labels are § 2.4's four. This case is **new**: it did not exist on
+run `35579263776` (added by 33-29's RED commit `5a01e7dd`, after `9e1c1131`), and this round's
+changes created it.
+
+**Windows leg: 1 file, 1 case (round 2: 1 file, 35):**
+
+| # | Line | Case | Assertion text (from the log) | Label | Falsified mechanism |
+|--:|---|---|---|---|---|
+| R3-1 | `scripts/capture-live.test.ts:1235` (assertion `:1246:98`) | `CR-01 round 2: the spawn grant is fixed before the subject exists, drift fails the run, and the tool grant is scoped to the target in the platform's own rule form` › `Test C7 (the scoped grant, form-checked): no bare Write or Edit; exactly one Edit(//ABS/**) rule naming the target's real path; …` | `with the leading // removed, the rule names the target's REAL path: expected '/C:/Users/runneradmin/AppData/Local/T…' to be 'C:/Users/runneradmin/AppData/Local/Te…' // Object.is equality`. Untruncated in the same block: `Expected: "C:/Users/runneradmin/AppData/Local/Temp/grugops-capture-live-test-target-A-ABH86y"` / `Received: "/C:/Users/runneradmin/AppData/Local/Temp/grugops-capture-live-test-target-A-ABH86y"` | **new**: created by 33-29 (`5a01e7dd` test, `79a5ab9a` rule). Green on ubuntu and on this host. | **33-29**: the scoped `Edit(//ABS/**)` grant (`liveAllowedTools`). Not 33-30: `git log -S'Edit(//'` names only 33-29's two commits. |
+
+**The mechanism, read from the tree under test (`1af7e3f1`), not from the log alone:**
+
+- `scripts/capture-live.ts:340-343`, `liveAllowedTools(target)`: `const real =
+  realpathSync.native(target); const anchored = toPosix(real).replace(/^\/+/, "");` and the rule
+  `` `Edit(//${anchored}/**)` ``. On win32, `real` is `C:\Users\runneradmin\…`. `toPosix` gives
+  `C:/Users/…`, there is no leading slash to strip, and the rule is `Edit(//C:/Users/runneradmin/…/**)`.
+- `scripts/capture-live.test.ts:1244-1246`: the case takes `anchored` back out of the rule and
+  asserts `` `/${anchored}` `` equals `real.split(sep).join("/")`. The premise is that stripping the
+  rule's `//` and adding back ONE `/` gives the real path. That holds only where an absolute path
+  begins with `/`. On win32 the left side is `/C:/…` and the right side is `C:/…`.
+- The module already names this axis. Its docstring (`scripts/capture-live.ts`, the `liveAllowedTools`
+  block) reads: "The spelling of the `//` form against a Windows drive-letter path is UNKNOWN -
+  verify: no Windows session has run this instrument." The test did not carry that unknown. It
+  asserted the POSIX spelling unconditionally, and the windows leg is the first host to ask it.
+- Why ubuntu and darwin cannot see it: on POSIX hosts `real` begins with `/`, so `anchored` is `real`
+  without it and the round trip is exact. That is why the case is 68/68 on ubuntu and green in § 4.1
+  (`scripts/capture-live.test.ts 68 passed (68)`). **§ 4.1's `measurable here` label for 33-29
+  ("every arm is driven through the `LiveOps` seam at zero tokens on every host") was overstated by
+  this one axis.** The seam removes the spend. It does not remove the drive-letter spelling, and that
+  spelling is a windows-only axis. This is the same shape as § 3.3's W-21, whose measurability was
+  also overstated.
+- What the platform expects, as **documentation, unmeasured**: the Claude Code permissions reference
+  (code.claude.com/docs/en/permissions, "Read and Edit", read via Context7 on 2026-09-22) says: "On
+  Windows, paths are normalized to POSIX form before matching. `C:\Users\alice` becomes
+  `/c/Users/alice`, so use `//c/**/.env` to match `.env` files anywhere on that drive." Read literally,
+  the rule the platform would match is `Edit(//c/Users/runneradmin/…/**)`. That is neither the
+  module's `//C:/…` nor the test's `/C:/…` round trip. Whether a live Windows session matches
+  `//C:/…` at all is **`UNKNOWN - verify`**. No Windows session has run the instrument, and this run
+  measures the test's premise, not the platform's matcher. The documentation suggests that the
+  module's win32 spelling may name a rule the platform never matches, and that the test's comparator
+  would also need to change. Round 4 has to decide which spelling is published and derive both sides
+  from it.
+- What this does NOT affect: the live go in plan 33-32 runs on this host (darwin), where the rule is
+  `Edit(//private/var/…/**)` or similar and the case is green. The red is on the Windows spelling of
+  the instrument's grant, not on any safety surface. `hooks/guard`, `hooks/admission-guard`,
+  `checkpoints` and `floor-invariance` are green on both legs.
+- What the next round takes, stated as the class and not as a fix (D-11): the scoped grant's
+  absolute-path anchor needs ONE published spelling, and the test must derive its expectation from
+  it. The test must not hand-reassemble a POSIX path (D-15's "normalize once, in the module that
+  publishes"). A `process.platform` branch anywhere is prohibited (D-14/D-16). The documented
+  `/c/…` normalization is the candidate authority and stays `UNKNOWN - verify` until a Windows
+  session or the platform's own matcher is observed.
+
+**Row 186 (`scripts/board-watch-live.test.ts`), the fourth measurement:** `✓
+scripts/board-watch-live.test.ts (6 tests) 7728ms` on windows-latest and `✓ … (6 tests) 7289ms` on
+ubuntu-latest (round 2: 7706 / 7292 ms). There are now four green windows measurements by id:
+`35394268365`, `35499800942`, `35579263776`, `35760655144`. The row is not disposed here, because
+the plan disposes it only on a run whose legs are both green.
+
+**The slowest test on each leg, D-14's bound, recorded:**
+
+| Leg | Rank | Duration | Test | Outcome |
+|---|--:|--:|---|---|
+| windows | 1 | **110 881 ms** | `every gate-plantable corpus row moves the gate from exit 0 to exit 1, with the refusal TEXT read from the gate's own output` | PASSED (round 2: 79 122 ms) |
+| windows | 2 | 64 913 ms | `the watched corpus is not narrowed — the gate reports its own cardinality, unchanged at 40` | PASSED (round 2: 59 235 ms) |
+| windows | 3 | 61 457 ms | `GREEN 4: a directory tree as deep as this platform permits is derived without a throw` | PASSED (round 2: 55 176 ms) |
+| windows | 4 | 24 803 ms | `parseBoundaryFor: the one-file and the mixed-arrangement boundaries, measured on this host` | PASSED (`shift 0` on win32/x64) |
+| ubuntu | 1 | **40 512 ms** | `every gate-plantable corpus row moves the gate …` | PASSED (round 2: 38 987 ms) |
+| ubuntu | 2 | 18 938 ms | `parseBoundaryFor: …` | PASSED (`shift 1` on linux/x64) |
+
+The slowest test on the slower leg is 110 881 ms, which is 1.62× under the 180 000 ms `testTimeout`.
+Round 2's margin was 2.27×, and this run's windows wall-clock rose 1829.81 s → 2002.52 s. No test hit
+the bound and no hook timed out. The shrinking margin on the slowest case goes to round 4 as an
+observation, not a finding. Slowest files: windows `uat-spec-integrity` 416 946 ms,
+`check-foundation-guards` 342 566 ms, `check-diff-disposition` 160 971 ms. Ubuntu `uat-spec-integrity`
+279 883 ms, `check-foundation-guards` 118 853 ms, `freshness` 67 093 ms.
+
+**What this run did NOT do, by the plan's prohibitions:** no platform conditional was added, nothing
+was fixed, nothing was re-pushed, `npm test` was not run, and no WINDOWS.md row was flipped. Rows
+186, 193 and 226–236 stay `open`. Their files are green on this run, but the plan disposes them only
+on a run whose legs are both green. One row was appended (§ 4.4). **This is round 3's measurement. It
+is the input to round 4, the last round under the phase's four-round cap.**
+
+### 4.4 Ledger changes made in this task, through the tool
+
+No row was flipped. One row was appended with the ledger tool: one per finding class, and this round
+has one class. The three representations were checked to agree afterwards.
+
+```
+node ~/.claude/gsd-core/bin/gsd-tools.cjs windows append --kind unrun-verify --phase 33 --file scripts/capture-live.ts --line 342 --description "33-31 run 35760655144 (head 1af7e3f1) windows: ONE red, ONE class, NEW this round - scripts/capture-live.test.ts Test C7 (:1235, assertion :1246) reads 'with the leading // removed, the rule names the target's REAL path: expected /C:/Users/runneradmin/AppData/Local/T... to be C:/Users/runneradmin/AppData/Local/Te...'. Both the case and the rule were added by 33-29 (5a01e7dd RED, 79a5ab9a GREEN): liveAllowedTools (scripts/capture-live.ts:340-343) spells the scoped grant Edit(//<realpathSync.native(target), POSIX separators, leading slashes stripped>/**), which on win32 is Edit(//C:/Users/.../**); the test re-adds ONE leading slash and compares to the POSIX-separated real path, a premise only true where an absolute path begins with /. The module's own docstring already marks the win32 spelling of the // form UNKNOWN - verify; the platform's permissions reference (code.claude.com/docs/en/permissions, Read and Edit) says win32 paths are normalized to POSIX form before matching, C:\\Users\\alice -> /c/Users/alice, i.e. //c/Users/... - a documentation claim, unmeasured by any Windows session. Ubuntu leg: success (capture-live 68/68). 33-31 section 4.1 called 33-29's class 'measurable here' - overstated by this one axis. No platform conditional may close it (D-14/D-16). Owner: round 4 (last under the cap)"        # row 260
+node ~/.claude/gsd-core/bin/gsd-tools.cjs windows status
+```
+
+`windows status` afterwards: `open_count: 231`, `waived_count: 3`, `fixed_count: 26`,
+`total_count: 260`, `entries` length 260 (by status: 231 open, 26 fixed, 3 waived). The markdown table has 260 id rows
+(`grep -a -c -E '^\| [0-9]+ \| ' .planning/WINDOWS.md` → 260), and the JSON appendix has 260
+`"id":` entries. The three representations agree. `git diff .planning/WINDOWS.md` shows only the
+frontmatter counters, the new table row and the new JSON entry. Every other row is byte-unchanged.
+
+**Per-row disposition on this run** (none flipped; what the run's own evidence says about each):
+
+| Row | File / class | This run's evidence | Disposition here | Who can close it |
+|---|---|---|---|---|
+| 186 | `scripts/board-watch-live.test.ts`, Windows `fs.watch` timing | `✓ (6 tests) 7728ms` windows, `7289ms` ubuntu. Fourth green windows measurement | stays `open` (the rule is fixed only on a both-legs-green run) | the first run whose legs are both `success`, citing `35394268365`, `35499800942`, `35579263776`, `35760655144` and that run |
+| 193 | 32-35 WR-07, CI-topology half not taken | the shared step held the three live cases green on windows again | stays `open` (the waive belongs to the green branch) | the same run: `windows waive 193` with D-16's reason |
+| 226–235 | the round-1 classes (§ 2.4) | every named file green on both legs (list in § 4.3) | stay `open` | the same run: `windows fixed` per row, citing it and the closing plan |
+| 236 | row-236 8.3 spelling class (33-24, D-33-R3-01) | `✓ scripts/context-io.test.ts (678 tests)` on windows: all 35 titles plus W-ENV / W-HOME green | stays `open` | the same run: `windows fixed 236` citing it, 33-24 and D-33-R3-01 |
+| 255 | KIT (a), the `--agent` coordinator lacks the MCP admission tool | 33-28's modules green on both legs (`generate-role-adapters`, `admission-guard`, `canonical-*`, `adapter-byte-baseline`; `freshness:adapters` + `check-kit-refs` green in step 12) | stays `open`. CI measures the generator and matcher offline only | the live session (plan 33-32) and 33-34's closing ledger |
+| 256 | KIT (b), the reader admits unsealed notes | 33-25's modules green on both legs (`context-io`, `compactor`, `context-io-writer-set`, `trace-render`) | stays `open` | 33-32's live observation and 33-34 |
+| 257 | KIT 2, the guard's redirection grammar and deny text | 33-27's modules green on both legs (`checkpoints` 348, `hooks/guard` 300, `floor-invariance` 140) | stays `open` | 33-32 (the held transcripts' denies re-observed live) and 33-34 |
+| 258 | KIT 3, `verified_by: undefined` | 33-26's modules green on both legs (`context-io`, `compactor`, `admission-server`, `check-platform-shapes`) | stays `open` | 33-32 and 33-34 |
+| 259 | `git -c alias.p=push p`, a zero-key push-guard bypass (pre-existing) | none. No round-3 plan addressed it, and no case in either leg exercises the alias form | stays `open` | round 4 or 33-34's ledger row (a safety-invariant fix, RED-first with the alias corpus) |
+| 260 | NEW, the win32 spelling of the scoped `Edit(//ABS/**)` grant (33-29) | the one windows red, R3-1 | appended `open` | round 4 |
+
+**Counts:** 0 flipped, 0 waived, 1 appended (row 260). Of the 18 rows this plan names (186, 193,
+226–236, and 255–259 as asked), all stay `open`: 13 have green file-level evidence on both legs
+(186, 193, 226–236), 4 are measurable only by the live session and not by CI (255–258), and 1 has
+no evidence either way (259).
+
+**REQUIREMENTS.md:** the CAP-02 checkbox stays `[ ]`. The coverage-table row is updated to
+`Pending — NOT met: CI run 35760655144 …`, with this run's counts, `round 3 of 4`, and this part as
+the evidence. No other requirement row is touched.
+
+**No source file changed in this plan:** `git diff --stat
+7361c4c42bba400d2e16a15d7f862a49ed504f9f..HEAD -- scripts install hooks agent-factory .claude` is
+empty. The recorded `pre-push HEAD sha:` is `7361c4c4`, and HEAD is `a5568a0b` plus this task's
+commit. This task's commit carries only `.planning/` files.
+
+### 4.5 Transcripts
+
+The executor's scratch directory for this session holds the following. The two job logs
+(`gh api repos/abitwise/grugops/actions/jobs/106857565760/logs` for ubuntu,
+`…/106857564452/logs` for windows) as downloaded and as stripped (`*.clean.log`). The `run.json`
+file. The strip-and-scan script (`strip.cjs`). Every number above is copied from those files. The
+per-file results are the reporter's `✓` / `❯` file lines. The failing case and its assertion are
+the windows `Failed Tests 1` section, quoted from the log's own lines, with the untruncated
+`Expected:` / `Received:` pair from the same block.
