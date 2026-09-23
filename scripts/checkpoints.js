@@ -1407,6 +1407,50 @@ function gitPushIsGoverned(candidates, words) {
     return PROTECTED_REF_RE.test(ref);
 }
 /**
+ * XARGS: A COMMAND COMPLETED FROM STDIN (plan 33-36, T-33-167).
+ *
+ * ---------------------------------------------------------------------------------------------
+ * xargs appends the words it reads on stdin to its command and runs the result, so
+ * `echo publish | xargs npm` runs `npm publish` with no verb on the line (corpus rows LB-02..LB-04,
+ * each measured executable). Every word after an xargs word in a segment is part of that command,
+ * so a governed tool named there is decided with the stdin words UNKNOWN:
+ *   - it DENIES on the tool name alone (the fail-closed arm), unless
+ *   - the word adjacent to the tool is one of its `benign` subcommands (`xargs git log`): appended words
+ *     land after that subcommand and cannot change it — the same adjacency rule as everywhere else.
+ * A visible governed verb does not rescue it either: `xargs git push origin feature` pushes the refs
+ * stdin appends as well.
+ *
+ * WHY EVERY WORD AFTER XARGS, NOT ONLY XARGS'S OPERAND. The operand of `xargs env npm` is `env`, and
+ * `env npm publish` is what runs (measured). Telling a launcher operand from `xargs grep kubectl`
+ * needs a list of launchers — a set whose incompleteness under-refuses, which this file does not
+ * keep. So a governed NAME anywhere in xargs's command decides, and `xargs grep -l kubectl` denies:
+ * the recorded over-denial, the same one `grep -rn kubectl apply docs/` already carries at the top
+ * level.
+ *
+ * TWO READINGS CARRY THE FEED FURTHER.
+ *   - A nested body in xargs's command (`xargs sh -c 'npm "$@"' _`) receives the stdin words as its
+ *     positional parameters, so its segments are fed too and every word in them is decided this way.
+ *   - A REPLACE STRING (`-I`, `-i`, `--replace`, BSD `-J`) is rewritten in every word of the command,
+ *     the adjacent benign word included — `echo push | xargs -I status git status origin main` runs a
+ *     push (measured) — so under a replace flag an adjacent benign word no longer decides.
+ *
+ * WHAT NAMES XARGS. A canonical word whose basename, lower-cased and stripped of a leading `=` and a
+ * Windows executable extension, ends in `xargs`: `xargs`, `/usr/bin/xargs`, `'xargs'`, and GNU
+ * findutils' `gxargs` (installed under that name by Homebrew on the measuring host). Any other
+ * spelling of it is not canonical, so its segment is opaque and the fail-closed arm names the tool.
+ * ---------------------------------------------------------------------------------------------
+ */
+const XARGS_NAME_RE = /xargs$/;
+/** A flag that sets xargs's replace string: GNU `-I`, `-i`, `--replace`, BSD `-J` (in a short cluster too). */
+const XARGS_REPLACE_FLAG_RE = /^(?:-[^-]*[IiJ]|--replace(?:=|$))/;
+/** Does this word run xargs? See the block above. */
+function isXargsWord(w) {
+    if (w.kind !== "canonical" || w.isFlag)
+        return false;
+    const base = w.value.split(/[\\/]/).pop().toLowerCase().replace(/^=/, "").replace(WINDOWS_EXE_EXT_RE, "");
+    return XARGS_NAME_RE.test(base);
+}
+/**
  * The words that made a segment opaque, for the deny text. Opaque-kind words first; when the raw-level
  * substitution test is what fired (a `$(…)` inside a wholly-quoted word this classifier read as one
  * value), the words carrying that form; the whole segment only if neither names anything.
@@ -1492,6 +1536,15 @@ export function matchCommandCheckpoints(cmd) {
             if (!unreadable.includes(w))
                 unreadable.push(w);
     };
+    // A governed tool in a command xargs completes from stdin: decided on the tool name alone, the same
+    // fail-closed arm, naming the command it would not read (plan 33-36).
+    const completedFromStdin = (id, text) => {
+        untokenizable = true;
+        failClosed.add(id);
+        const t = text.trim();
+        if (!unreadable.includes(t))
+            unreadable.push(t);
+    };
     const result = () => ({
         checkpoints: new Set([...readable, ...failClosed]),
         untokenizable,
@@ -1504,7 +1557,7 @@ export function matchCommandCheckpoints(cmd) {
         refuse(cmd, [cmd]);
         return result();
     }
-    const queue = [...segs];
+    const queue = segs.map((seg) => ({ seg, fed: null }));
     // NO SEGMENT CAP (plan 30-11 round 4, `RA5-1`).
     //
     // Round 3 wrote `while (queue.length > 0 && depth < 64)`, where `depth` counted SEGMENTS CONSUMED
@@ -1530,12 +1583,24 @@ export function matchCommandCheckpoints(cmd) {
     // was "a backstop the triggering edit cannot defeat"; it was not — a splice of the TOOL word
     // defeated it — and what it still does not see is listed at `failClosedCheckpoints`.
     while (queue.length > 0) {
-        const seg = queue.shift();
+        const { seg, fed } = queue.shift();
         if (seg.opaque) {
             refuse(seg.raw, unreadableWords(seg));
             continue;
         }
         const words = seg.words;
+        // The stdin feed word `i` receives: the segment's own (a nested body under xargs), or an xargs word
+        // before it in this segment — with a replace string when a replace flag sits between them.
+        const xargsAt = words.findIndex(isXargsWord);
+        const feedAt = (i) => {
+            const local = xargsAt !== -1 && i > xargsAt;
+            if (fed === null && !local)
+                return null;
+            const replace = (fed?.replace ?? false) ||
+                (local &&
+                    words.slice(xargsAt + 1, i).some((x) => x.kind === "canonical" && x.isFlag && XARGS_REPLACE_FLAG_RE.test(x.value)));
+            return { replace };
+        };
         for (let i = 0; i < words.length; i++) {
             const w = words[i];
             if (w.kind !== "canonical" || w.isFlag)
@@ -1563,7 +1628,7 @@ export function matchCommandCheckpoints(cmd) {
                 if (nested === null)
                     refuse(w.value, [w.value]);
                 else
-                    queue.push(...nested);
+                    queue.push(...nested.map((n) => ({ seg: n, fed: feedAt(i) })));
             }
             // The tool this word runs is asked of the ONE projection the fail-closed arm also asks, over the
             // word as SPELLED (33 round-3 review, CR-01) — so `=kubectl` is `kubectl` here too.
@@ -1571,6 +1636,16 @@ export function matchCommandCheckpoints(cmd) {
             for (const r of COMMAND_CHECKPOINT_RULES) {
                 if (!named.has(r.tool))
                     continue;
+                // Under xargs the words after the tool are only the start of its argument list (see the block
+                // above `XARGS_NAME_RE`): only an adjacent benign subcommand, not rewritten by a replace
+                // string, decides; otherwise the tool name alone does.
+                const feed = feedAt(i);
+                if (feed !== null) {
+                    const adjacent = adjacentWord(words, i + 1);
+                    const decided = !feed.replace && adjacent !== null && (r.benign ?? []).includes(adjacent) && !r.verbs.includes(adjacent);
+                    if (!decided)
+                        completedFromStdin(r.checkpoint, seg.raw);
+                }
                 const cand = verbCandidates(words, i + 1);
                 if (cand.opaque) {
                     refuse(seg.raw, cand.unreadable);

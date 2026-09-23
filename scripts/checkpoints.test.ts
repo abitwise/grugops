@@ -2813,10 +2813,11 @@ describe("33-R4 CR-01 nested — the consolidated corpus, replayed against the c
     expect(list.length).toBe(17);
     for (const cmd of list) expect(byCommand.has(cmd), cmd).toBe(true);
     // The ten gap-4 rows are 33-35's class; the other seven were handed off, each with an owner, and an
-    // owner flips its row to `deny` in the commit that closes it. Plan 33-36 Task 1 closed LB-01.
+    // owner flips its row to `deny` in the commit that closes it. Plan 33-36 closed LB-01 (Task 1) and
+    // LB-02..LB-04 (Task 2); the three left are plan 33-43's ledger rows.
     const kinds = list.map((c) => (byCommand.get(c) as Cr01NestedRow).kind);
-    expect(kinds.filter((k) => k === "deny").length).toBe(11);
-    expect(kinds.filter((k) => k === "handed-off").length).toBe(6);
+    expect(kinds.filter((k) => k === "deny").length).toBe(14);
+    expect(kinds.filter((k) => k === "handed-off").length).toBe(3);
   });
 
   it("the round-3 review's CR-01 table and its controls are in the fixture, by reference", () => {

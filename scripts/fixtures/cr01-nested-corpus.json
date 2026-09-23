@@ -49,9 +49,9 @@
     { "id": "RES-02", "source": "computed at run time: the tool produced by a command substitution", "kind": "residual", "owner": "33-43", "command": "bash -c \"$(printf %s gi t) push origin main\"" },
 
     { "id": "LB-01", "source": "33-VERIFICATION live bypass: npm verb abbreviation (closed by plan 33-36 Task 1)", "kind": "deny", "command": "npm pub" },
-    { "id": "LB-02", "source": "33-VERIFICATION live bypass: verb on stdin via xargs", "kind": "handed-off", "owner": "33-36", "command": "echo push origin main | xargs git" },
-    { "id": "LB-03", "source": "33-VERIFICATION live bypass: verb on stdin via xargs", "kind": "handed-off", "owner": "33-36", "command": "echo publish | xargs npm" },
-    { "id": "LB-04", "source": "33-VERIFICATION live bypass: verb on stdin via xargs", "kind": "handed-off", "owner": "33-36", "command": "echo 'apply -f x' | xargs kubectl" },
+    { "id": "LB-02", "source": "33-VERIFICATION live bypass: verb on stdin via xargs (closed by plan 33-36 Task 2)", "kind": "deny", "command": "echo push origin main | xargs git" },
+    { "id": "LB-03", "source": "33-VERIFICATION live bypass: verb on stdin via xargs (closed by plan 33-36 Task 2)", "kind": "deny", "command": "echo publish | xargs npm" },
+    { "id": "LB-04", "source": "33-VERIFICATION live bypass: verb on stdin via xargs (closed by plan 33-36 Task 2)", "kind": "deny", "command": "echo 'apply -f x' | xargs kubectl" },
     { "id": "LB-05", "source": "33-VERIFICATION live bypass: git's dashed builtin binary", "kind": "handed-off", "owner": "33-43", "command": "/Library/Developer/CommandLineTools/usr/libexec/git-core/git-push origin main" },
     { "id": "LB-06", "source": "33-VERIFICATION live bypass: unmodelled push verb", "kind": "handed-off", "owner": "33-43", "command": "git send-pack origin main" },
     { "id": "LB-07", "source": "33-VERIFICATION live bypass: unmodelled merge endpoint", "kind": "handed-off", "owner": "33-43", "command": "gh api -X PUT repos/o/r/pulls/12/merge" },
