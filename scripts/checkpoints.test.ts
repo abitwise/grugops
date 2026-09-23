@@ -2742,3 +2742,120 @@ describe("33-R4 CR-01 nested — non-circularity: the fix removed, the families 
     }
   });
 });
+
+// ─── The consolidated replay: the whole 33-R4 corpus against the SHIPPED wrapper ───
+//
+// The self-reproduction a safety invariant requires ([[grugops-safety-invariant-green-suite-insufficient]]):
+// the executor drives the COMMITTED `hooks/hook-entry.js guard.js`, exactly as hooks.json routes a
+// PreToolUse Bash call, with no GRUGOPS_* variable and no CLAUDE_PROJECT_DIR — not the source, and not
+// the model alone. The verifier's own adversarial ALLOW list and the round-3 review's CR-01 table are
+// read BY REFERENCE, from the commit that recorded them, and every command in them must be a fixture row.
+const CR01_R4_EVIDENCE_SHA = "1013e893"; // docs(33): round-3 verification (33-VERIFICATION.md, 33-REVIEW.md as reviewed)
+const phaseDocAt = (name: string): string => {
+  const r = spawnSync("git", ["show", `${CR01_R4_EVIDENCE_SHA}:${HELD_CAPTURE_DIR}/${name}`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: "",
+    maxBuffer: 16 * 1024 * 1024,
+    timeout: 20_000,
+  });
+  if (r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+    throw new Error(`git cannot show ${CR01_R4_EVIDENCE_SHA}:${HELD_CAPTURE_DIR}/${name}`);
+  }
+  return r.stdout;
+};
+
+/** The verifier's live-bypass ALLOW list: gap 4's `reason` rows plus the adversarial table's examples (row 259 is `known`, not in it). */
+const verifierAllowList = (): readonly string[] => {
+  const v = phaseDocAt("33-VERIFICATION.md");
+  const a = v.indexOf("All ALLOW, exit 0: ");
+  const b = v.indexOf(" Controls:", a);
+  expect(a, "gap 4 reason opens its ALLOW list").toBeGreaterThan(-1);
+  // The YAML double-quoted scalar escapes a backslash and a double quote; undo exactly those.
+  const reason = [...v.slice(a, b).matchAll(/`([^`]+)`/g)].map((m) => (m[1] as string).replace(/\\(["\\])/g, "$1"));
+  const t0 = v.indexOf("**Live bypasses (ALLOW with zero keys, executable):**");
+  expect(t0, "the live-bypass table").toBeGreaterThan(-1);
+  const t1 = v.indexOf("\n\n", v.indexOf("|-------", t0));
+  const examples = v
+    .slice(t0, t1)
+    .split("\n")
+    .filter((l) => l.startsWith("| ") && !l.startsWith("| Class") && !l.includes("row 259"))
+    .flatMap((l) => [...(l.split(" | ")[1] as string).matchAll(/`([^`]+)`/g)].map((m) => (m[1] as string).replace(/\\\|/g, "|")));
+  return [...new Set([...reason, ...examples])];
+};
+
+/** The round-3 review's CR-01 table: its ALLOW rows, the `likewise` spellings, and its controls. */
+const reviewCr01Table = (): { readonly rows: readonly string[]; readonly controls: readonly string[] } => {
+  const r = phaseDocAt("33-REVIEW.md");
+  const c0 = r.indexOf("### CR-01");
+  const f0 = r.indexOf("```\n", c0);
+  const f1 = r.indexOf("```", f0 + 4);
+  const rows: string[] = [];
+  const controls: string[] = [];
+  for (const line of r.slice(f0 + 4, f1).split("\n")) {
+    const m = /^ALLOW\s+(.+?)(?:\s{2,}\((.*)\))?$/.exec(line);
+    if (!m) continue;
+    rows.push(m[1] as string);
+    const paren = m[2] ?? "";
+    const ctl = /^control: (.+) -> deny$/.exec(paren);
+    if (ctl) controls.push(ctl[1] as string);
+    const like = /; (.+) likewise$/.exec(paren);
+    if (like) rows.push(...(like[1] as string).split(", "));
+  }
+  return { rows, controls };
+};
+
+describe("33-R4 CR-01 nested — the consolidated corpus, replayed against the committed hooks/hook-entry.js guard.js", () => {
+  const byCommand = new Map(CR01_NESTED_CORPUS.map((r) => [r.command, r]));
+
+  it("the verifier's 17-ALLOW adversarial list is in the fixture, row for row, by reference", () => {
+    const list = verifierAllowList();
+    expect(list.length).toBe(17);
+    for (const cmd of list) expect(byCommand.has(cmd), cmd).toBe(true);
+    // The ten gap-4 rows are in this plan's class; the other seven are handed off, each with an owner.
+    const kinds = list.map((c) => (byCommand.get(c) as Cr01NestedRow).kind);
+    expect(kinds.filter((k) => k === "deny").length).toBe(10);
+    expect(kinds.filter((k) => k === "handed-off").length).toBe(7);
+  });
+
+  it("the round-3 review's CR-01 table and its controls are in the fixture, by reference", () => {
+    const { rows, controls } = reviewCr01Table();
+    expect(rows.length).toBe(12);
+    expect(controls.length).toBe(3);
+    for (const cmd of rows) expect(byCommand.get(cmd)?.kind, cmd).toBe("deny");
+    for (const cmd of controls) expect(byCommand.get(cmd)?.kind, cmd).toBe("deny-control");
+  });
+
+  it("every in-scope row DENIES, every allow-control ALLOWS, the residual ALLOWS and every handed-off row reads as its owner left it", () => {
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (k.startsWith("GRUGOPS_") || k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
+      env[k] = v;
+    }
+    const entry = join(ROOT, "hooks", "hook-entry.js");
+    const wrong: string[] = [];
+    for (const row of CR01_NESTED_CORPUS) {
+      const r = spawnSync("node", [entry, "guard.js"], {
+        cwd: ROOT,
+        env,
+        encoding: "utf8",
+        timeout: 20_000,
+        input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: row.command }, cwd: "/tmp" }),
+      });
+      const out = r.stdout ?? "";
+      const denied = out.includes('"permissionDecision":"deny"');
+      const decided = out.includes("permissionDecision");
+      if (r.status !== 0) wrong.push(`${row.id} exit ${String(r.status)}`);
+      else if ((row.kind === "deny" || row.kind === "deny-control") && !denied) wrong.push(`${row.id} should DENY: ${row.command}`);
+      else if (row.kind === "allow-control" && decided) wrong.push(`${row.id} should ALLOW: ${row.command}`);
+      // The disclosed residual: a name COMPUTED at run time. It stays ALLOW; plan 33-43 ledgers it.
+      else if (row.kind === "residual" && decided) wrong.push(`${row.id} residual (owner ${row.owner}) changed verdict: ${row.command}`);
+      // Handed off, not closed here: pinned at the verdict measured on 2026-09-23. The owning plan flips
+      // the row to kind `deny` in the same commit that closes it, so a silent change reddens here.
+      else if (row.kind === "handed-off" && decided) wrong.push(`${row.id} handed-off (owner ${row.owner}) changed verdict — re-label it: ${row.command}`);
+    }
+    expect(wrong).toEqual([]);
+    // Non-vacuous: the replay covered every kind the fixture declares.
+    expect(new Set(CR01_NESTED_CORPUS.map((r) => r.kind)).size).toBe(5);
+  }, 600_000);
+});
