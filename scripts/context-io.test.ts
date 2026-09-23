@@ -13004,6 +13004,11 @@ const siteKey = (s: CeilingSite): string => `${s.scope}:${s.via}:${s.text}`;
 const EXPECTED_CEILING_SITES: readonly string[] = Object.freeze([
   "appendAuditLedger:appendRegularFileLine#3:AUDIT_LEDGER_MAX_BYTES",
   "appendRegularFileLine:comparison:maxBytes",
+  // 33-38 (WR-01): the write side's two note-ceiling sites moved, unchanged, out of `writeNoteFile`
+  // into `decideNoteDestination`, which the chokepoint and both note-plus-ledger routes now ask.
+  // The count did not move: the extraction added callers of ONE decision, not a second read.
+  "decideNoteDestination:comparison:NOTE_FILE_MAX_BYTES",
+  "decideNoteDestination:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "ledgerRecordsId:readRegularFileOrNull#1:AUDIT_LEDGER_MAX_BYTES",
   "readCliNoteFileOrExit:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "readGovernanceConfigCandidate:readRegularFileOrNull#1:GOVERNANCE_CONFIG_MAX_BYTES",
@@ -13012,8 +13017,6 @@ const EXPECTED_CEILING_SITES: readonly string[] = Object.freeze([
   // not, because the split added a reader rather than a second read.
   "readRawNotesWithSkips:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "readRegularFileOrNull:comparison:maxBytes",
-  "writeNoteFile:comparison:NOTE_FILE_MAX_BYTES",
-  "writeNoteFile:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
 ]);
 
 /** The per-ceiling cardinalities, asserted SEPARATELY — a bound losing one side is its own event. */
@@ -13028,7 +13031,7 @@ describe("31-29 — every byte ceiling is ONE binding, read by both sides", () =
     const derived = deriveCeilingSites(CONTEXT_IO_TS);
     expect(derived.length, "PREMISE: ZERO ceiling sites were derived").toBeGreaterThan(0);
     expect(
-      derived.some((s) => s.scope === "writeNoteFile" && s.via === "comparison"),
+      derived.some((s) => s.scope === "decideNoteDestination" && s.via === "comparison"),
       "PREMISE: the WRITE side's own ceiling comparison was not seen — CR-19's whole fix",
     ).toBe(true);
     expect(
@@ -13128,7 +13131,7 @@ describe("31-29 — the ceiling-site axis is a control, not a coincidence", () =
     );
     const derived = deriveCeilingSites(path);
     expect(derived).toHaveLength(EXPECTED_CEILING_SITES.length - 1);
-    expect(derived.map(siteKey)).not.toContain("writeNoteFile:comparison:NOTE_FILE_MAX_BYTES");
+    expect(derived.map(siteKey)).not.toContain("decideNoteDestination:comparison:NOTE_FILE_MAX_BYTES");
     expect(derived.filter((s) => s.text === "NOTE_FILE_MAX_BYTES")).toHaveLength(
       EXPECTED_NOTE_CEILING_SITES - 1,
     );

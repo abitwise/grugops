@@ -1240,6 +1240,46 @@ export function readRegularFileOrNull(path, maxBytes, position) {
 // is never asked to replace an existing file on this path, so `atomicWrite`'s Windows
 // unlink-then-rename branch stays what its own comment says it is: the derived-artifact path only.
 function writeNoteFile(notesDir, id, text) {
+    const { finalPath, resolvedFinal, existing } = decideNoteDestination(notesDir, id, text);
+    if (existing !== null) {
+        if (existing === text)
+            return; // the decided idempotent case: nothing to write, nothing to lose
+        throw new Error(`context-io.writeNoteFile: refusing to write — the destination already holds a DIFFERENT ` +
+            `note under id "${id}". The shared verified context is APPEND-ONLY (SCTX-04): a ` +
+            `supersession is a NEW note carrying a supersedes: field, never a rewrite of an existing ` +
+            `one. No file was written, and the note already at "${resolvedFinal}" is untouched (CR-11).`);
+    }
+    mkdirSync(notesDir, { recursive: true });
+    atomicWrite(finalPath, text);
+}
+// ── decideNoteDestination: WHAT OCCUPIES A NOTE PATH, decided ONCE, for the chokepoint AND for the
+// two routes that must know it before they touch the audit ledger (33-38, WR-01). ─────────────
+//
+// WHAT WAS WRONG, MEASURED AGAINST THE COMMITTED `.js` (33-VERIFICATION.md gap 5, regressions
+// [WR-01]). Plan 33-25 sealed the one walk, so `readRawNotes` stopped returning a hand-written note.
+// `promoteAdmitted` asked that walk whether its destination id was occupied — so an UNSEALED occupant
+// became invisible to the `destination-id-occupied` clause. The route then appended a GOV-02
+// `re_bound: true` event for a human-disposed finding and ONLY THEN failed here, at the chokepoint,
+// because the destination held different bytes: dest ledger lines 1, the occupant byte-unchanged,
+// `readContext(dest)` = 0 notes. The audit trail recorded a disposition the store does not hold.
+//
+// OCCUPANCY IS A FACT ABOUT THE FILENAME, NOT ABOUT WHETHER THE READER WOULD RETURN THE NOTE. So
+// it is answered from the raw file at `{notesDir}/{id}.md`, through the ONE bounded reader, and never
+// through the seal-filtered walk. The seal is not weakened by this: the READER still refuses the
+// unsealed note; only the question "is something at this path" stopped being asked of the reader.
+//
+// ONE FUNCTION, SO THE PRE-LEDGER READ AND THE CHOKEPOINT'S READ CANNOT DISAGREE. The routes that
+// write a note AND a ledger event (`promoteAdmitted`, `admitAndAppend`'s gated branch) call this
+// before their ledger touch; `writeNoteFile` calls it before its write. Every refusal this function
+// raises — path containment, the candidate's own ceiling, a destination that is not a regular file
+// or is above the ceiling — is therefore raised at the SAME point for those routes as every other
+// clause of theirs: before anything is written, the ledger included. A second hand-written read
+// placed in each route would be a second implementation of one question, which is this module's
+// recorded drift shape.
+//
+// It writes nothing and creates nothing. `existing` is `null` when the path is absent, and the file's
+// text otherwise; the caller decides what a present occupant means for it.
+function decideNoteDestination(notesDir, id, text) {
     const finalPath = join(notesDir, `${id}.md`);
     const resolvedDir = resolve(notesDir);
     const resolvedFinal = resolve(finalPath);
@@ -1308,16 +1348,7 @@ function writeNoteFile(notesDir, id, text) {
                 `rather than waited on and rather than replaced. No file was written. Underlying reason: ` +
                 `${e.message}`);
     }
-    if (existing !== null) {
-        if (existing === text)
-            return; // the decided idempotent case: nothing to write, nothing to lose
-        throw new Error(`context-io.writeNoteFile: refusing to write — the destination already holds a DIFFERENT ` +
-            `note under id "${id}". The shared verified context is APPEND-ONLY (SCTX-04): a ` +
-            `supersession is a NEW note carrying a supersedes: field, never a rewrite of an existing ` +
-            `one. No file was written, and the note already at "${resolvedFinal}" is untouched (CR-11).`);
-    }
-    mkdirSync(notesDir, { recursive: true });
-    atomicWrite(finalPath, text);
+    return { finalPath, resolvedFinal, existing };
 }
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // THE NOTE SEAL — how the reader tells a note this module composed from a note a hand composed
@@ -2934,21 +2965,28 @@ export function promoteAdmitted(task, sourceId, note, body, from, to, repoRoot =
     if (candidateRecord.body !== originRecord.body) {
         throw declineRebinding("body-differs-from-origin", `The promoted body is not the body stored for "${sourceId}" at the origin.`);
     }
-    // ── THE DESTINATION IS PART OF THE PROOF (31-18, CR-11). ──────────────────────────────────────
-    // Read the DESTINATION through the SAME reader the proof's left operand already uses, so "what is
-    // already there" has one answer rather than a second walk beside `readRawNotes`. The clause sits
-    // HERE — before the write chokepoint is reached — for the positional reason every other clause in
-    // this register sits where it does: "nothing was written" is then true by construction rather than
-    // by cleanup. The chokepoint enforces the same invariant for every writer (see writeNoteFile);
-    // this clause exists so the refusal is LEGIBLE where a reader of the register looks, and so the
-    // route names its own decision rather than inheriting a message about a filesystem primitive.
+    // ── THE DESTINATION IS PART OF THE PROOF (31-18, CR-11), DECIDED FROM THE RAW FILE (33-38). ──
+    // The clause sits HERE — before the ledger is read or appended and before the write chokepoint is
+    // reached — for the positional reason every other clause in this register sits where it does:
+    // "nothing was written" is then true by construction rather than by cleanup, and "nothing" includes
+    // the GOV-02 ledger. The chokepoint enforces the same invariant for every writer (see
+    // writeNoteFile); this clause exists so the refusal is LEGIBLE where a reader of the register
+    // looks, and so the route names its own decision rather than inheriting a message about a
+    // filesystem primitive.
+    //
+    // WHY NOT `readRawNotes(task, to)`, WHICH IS WHAT STOOD HERE (33-38, WR-01). That walk is sealed
+    // (33-25) and skips anything that does not parse, so an unsealed or malformed occupant was
+    // INVISIBLE to it: the route then appended a `re_bound: true` event and failed one step later at
+    // the chokepoint — an over-record of a disposition the store does not hold, reproduced against the
+    // committed `.js`. Occupancy is a fact about the FILENAME, so it is asked of the one bounded
+    // single-file reader through `decideNoteDestination`, the same function the chokepoint asks. That
+    // function's own refusals (containment, the candidate's ceiling, a FIFO or a directory at the path)
+    // therefore also land here, before the ledger, never as a wedge (31-21, CR-12).
     //
     // Identical bytes are the DECIDED idempotent case and fall through to the write, which is itself a
-    // no-op there. A destination file that exists but does not PARSE is invisible to this reader — and
-    // is caught by the chokepoint, which compares bytes rather than records. Defense in depth, stated
-    // rather than assumed.
-    const destinationEntry = readRawNotes(task, to).find((raw) => raw.id === sourceId);
-    if (destinationEntry !== undefined && destinationEntry.text !== candidateText) {
+    // no-op there.
+    const destination = decideNoteDestination(join(to, task, "notes"), sourceId, candidateText);
+    if (destination.existing !== null && destination.existing !== candidateText) {
         throw declineRebinding("destination-id-occupied", `The destination already holds a DIFFERENT note under id "${sourceId}".`);
     }
     // EVERY CLAUSE HELD. Persist through the module-private pre-admitted route with the origin's frozen
