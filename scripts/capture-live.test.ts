@@ -1311,6 +1311,8 @@ describe("CR-01 round 2: the spawn grant is fixed before the subject exists, dri
     expect(() => editAnchor("C:foo\\bar", "\\")).toThrow(/editAnchor: refusing/);
     expect(() => editAnchor("\\\\?\\C:\\Users\\alice", "\\")).toThrow(/editAnchor: refusing/);
     expect(() => editAnchor("\\\\.\\C:\\Users\\alice", "\\")).toThrow(/editAnchor: refusing/);
+    // A UNC share is `//`-leading once separators are forward; the reference shows no anchor for it.
+    expect(() => editAnchor("\\\\server\\share\\dir", "\\")).toThrow(/editAnchor: refusing/);
   });
 
   it("Test C8 (the report says the grant): the Run table carries `| run X tool grant | RESOLVED_LIST |` per run, and the readiness table carries no row that could be MET without the target existing", async () => {

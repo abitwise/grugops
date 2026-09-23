@@ -283,8 +283,8 @@ const ADMISSION_TOOL = "mcp__plugin_grugops_grugops__propose_note";
  *      session's working directory." So the rule is `Edit(//<target real path without its leading
  *      slash>/**)`, the target resolved through `realpathSync.native` so the anchor is the path the
  *      platform will compare against (macOS temp directories are symlinks under `/private`). The
- *      spelling of the `//` form against a Windows drive-letter path is UNKNOWN - verify: no
- *      Windows session has run this instrument.
+ *      anchor text is decided by ONE authority, `editAnchor` below, which also carries the win32
+ *      drive-letter form (`//c/Users/...`) from the same reference; see its docblock.
  *   3. `Bash(node *)` is KEPT, by recorded reason. Nested role sessions receive no plugin MCP tool —
  *      held capture A:784: "No such tool available: mcp__plugin_grugops_grugops__propose_note. Its
  *      MCP server 'plugin:grugops:grugops' is connected but does not offer this tool here" — and
@@ -301,8 +301,56 @@ const ADMISSION_TOOL = "mcp__plugin_grugops_grugops__propose_note";
  */
 export function liveAllowedTools(target) {
     const real = realpathSync.native(target);
-    const anchored = toPosix(real).replace(/^\/+/, "");
-    return ["Agent", "Read", "Grep", "Glob", `Edit(//${anchored}/**)`, "Bash(node *)", "Bash(helm upgrade *)", ADMISSION_TOOL];
+    return ["Agent", "Read", "Grep", "Glob", `Edit(//${editAnchor(real)}/**)`, "Bash(node *)", "Bash(helm upgrade *)", ADMISSION_TOOL];
+}
+/** An absolute win32 drive-letter path: a letter, a colon, then a separator of either spelling. */
+const WIN32_DRIVE_ABSOLUTE_RE = /^([A-Za-z]):[\\/]/;
+/**
+ * The ONE authority for the text after `//` in the scoped `Edit(//<anchor>/**)` rule (33-37,
+ * WINDOWS.md row 260). `liveAllowedTools` spells the rule from this function and nothing else, and
+ * Test C7 derives its expectation through it, so the module and its test cannot disagree on the
+ * form. Input is an absolute real path (`realpathSync.native` output); output carries no leading
+ * slash.
+ *
+ * The form comes from the platform's permissions reference (https://code.claude.com/docs/en/permissions,
+ * "Read and Edit", re-read via Context7 on 2026-09-23): "On Windows, paths are normalized to POSIX
+ * form before matching. `C:\Users\alice` becomes `/c/Users/alice`". The same sentence goes on to
+ * show a `//c/` rule matching anywhere on that drive. So:
+ *
+ *   - POSIX absolute path (`/private/var/...`): separators made forward, leading slashes stripped.
+ *     This is the pre-33-37 spelling, byte for byte.
+ *   - win32 drive-letter path (`C:\Users\...` or `C:/Users/...`): the drive letter lower-cased, the
+ *     colon dropped, every backslash made a forward slash — `c/Users/...`, so the rule reads
+ *     `Edit(//c/Users/.../**)`. The pre-33-37 spelling was `Edit(//C:/Users/.../**)`, a form the
+ *     reference never shows.
+ *   - Anything else is refused, not guessed: a relative or drive-RELATIVE path (`C:foo`), and any
+ *     path that is `//`-leading once separators are forward — a UNC share (`\\server\share`) or a
+ *     win32 device/namespace prefix (`\\?\`, `\\.\`). The reference documents no anchor for those.
+ *
+ * The branch is on the PATH SHAPE (does it start with a drive letter), never on the host platform
+ * (D-14/D-16), so the win32 form is asserted on every host from a synthesised input (Test C7b).
+ * `separator` is the separator the path was spelled with, the host's by default, exactly as in
+ * `posix-path.ts`. It must not be applied as `\` to a POSIX path, where a backslash is a legal
+ * filename byte. The drive branch rewrites `\` whatever `separator` says, because a drive-letter
+ * path is a win32 spelling by shape.
+ *
+ * What is NOT measured: whether a live Windows session MATCHES `Edit(//c/Users/.../**)`. That is
+ * UNKNOWN - verify. The form is the reference's documented one, no Windows session has run this
+ * instrument, and plan 33-40's pushed CI run is the measurement of the offline suite's windows leg.
+ * That run measures the spelling the module publishes, not the platform's matcher.
+ */
+export function editAnchor(realPath, separator = sep) {
+    const drive = WIN32_DRIVE_ABSOLUTE_RE.exec(realPath);
+    if (drive !== null) {
+        const rest = toPosixWith(toPosixWith(realPath.slice(2), separator), "\\");
+        return `${drive[1].toLowerCase()}${rest}`;
+    }
+    const posix = toPosixWith(realPath, separator);
+    if (!posix.startsWith("/") || posix.startsWith("//")) {
+        throw new Error("capture-live.editAnchor: refusing a path that is neither POSIX-absolute nor win32 drive-absolute " +
+            "(a relative, drive-relative, UNC or device-namespace path) — the permissions reference documents no Edit anchor for it.");
+    }
+    return posix.replace(/^\/+/, "");
 }
 // ---------------------------------------------------------------------------
 // Failure carrier
