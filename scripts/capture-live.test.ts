@@ -667,7 +667,7 @@ describe("D-07 parity is a path-invariant projection: per role the note count, k
 
   it("note route is derived from tool-use blocks only: the fixture's counts match an independent grep, and an in-memory Write/Edit under the context root moves the count by exactly one", () => {
     const base = noteRoute(FIXTURE.frames);
-    expect(base).toEqual({ directContextWrites: 0, proposeNoteCalls: proposeNoteBlocksInText(FIXTURE_TEXT), unclassifiedContextWrites: unclassifiedByHand(FIXTURE.frames) });
+    expect(base).toEqual({ directContextWrites: 0, proposeNoteCalls: proposeNoteBlocksInText(FIXTURE_TEXT), indirectContextWrites: indirectByHand(FIXTURE.frames) });
     const under = "/tmp/target/.grugops/context/AUDIT-1/notes/20260920T115322Z-brownfield-mapper-observation-9ba9.md";
     expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: under, content: "---\nkind: observation\n---\n" })]).directContextWrites).toBe(base.directContextWrites + 1);
     expect(noteRoute([...FIXTURE.frames, toolUseFrame("Edit", { file_path: under, old_string: "a", new_string: "b" })]).directContextWrites).toBe(base.directContextWrites + 1);
@@ -701,9 +701,26 @@ describe("D-07 parity is a path-invariant projection: per role the note count, k
 // root, or a written file whose CONTENT names it (the held capture's `admit-notes.mjs` at A:1749 and
 // A:1931: a script written under `.grugops/queue/` and then run by a `node` command that never spells
 // the root) — is counted as exactly that, in a third route sentence. Strengthening only (D-20).
+//
+// WR-02 (33-REVIEW round 3): that third arm counted every `Bash` block whose string inputs named the
+// root (an `ls`, a `cat`, the `description` leaf) and every written file whose prose mentioned it, and
+// `compareLivePaths` compared the count A against B — so `pass` needed two nondeterministic sessions
+// to issue the same number of incidental READS. The parity input is now write-shaped only: a `Bash`
+// COMMAND that names the root AND carries a write-shaped token, or a written SCRIPT whose content names
+// it. Incidental reads and prose mentions enter no axis. A real write route still counts, so the axis
+// stays fail-safe: the change removes a false `fail`, never adds a false `pass`.
 
-/** An independent count of the third route over parsed frames — explicit keys, no shared helper with noteRoute. */
-function unclassifiedByHand(frames: readonly StreamFrame[]): number {
+/** The review's write-shaped command words, typed here by hand (the module's set is a superset). */
+const HAND_WRITE_WORDS = new Set(["tee", "node", "cp", "mv", "mkdir", "touch", "rm"]);
+/** The review's script extensions, typed here by hand (the module's list is a superset). */
+const HAND_SCRIPT_EXTENSIONS = [".mjs", ".js", ".sh", ".py"];
+
+/**
+ * An independent count of the write-shaped indirect route over parsed frames — explicit keys, a
+ * whitespace-and-punctuation TOKENIZER rather than the module's regex, no shared helper with noteRoute.
+ * A redirection counts unless it only targets /dev/null or duplicates a file descriptor.
+ */
+function indirectByHand(frames: readonly StreamFrame[]): number {
   let n = 0;
   for (const f of frames) {
     const content = (f.message as { content?: unknown } | undefined)?.content;
@@ -711,62 +728,90 @@ function unclassifiedByHand(frames: readonly StreamFrame[]): number {
     for (const b of content as { type?: unknown; name?: unknown; input?: Record<string, unknown> }[]) {
       if (b.type !== "tool_use" || typeof b.input !== "object" || b.input === null) continue;
       if (b.name === "Bash") {
-        if (typeof b.input.command === "string" && b.input.command.includes(".grugops/context")) n += 1;
+        const command = b.input.command;
+        if (typeof command !== "string" || !command.includes(".grugops/context")) continue;
+        const tokens = command.split(/[\s;&|()`'"]+/).filter((t) => t !== "");
+        const words = tokens.some((t) => HAND_WRITE_WORDS.has(t) || HAND_WRITE_WORDS.has(t.slice(t.lastIndexOf("/") + 1)));
+        const sedInPlace = tokens.some((t, i) => t === "sed" && tokens.slice(i + 1).some((u) => u === "-i" || u.startsWith("-i")));
+        let stripped = command;
+        for (const harmless of ["2>/dev/null", "&>/dev/null", ">/dev/null", "2>&1", ">&2"]) stripped = stripped.split(harmless).join("");
+        const redirect = stripped.includes(">");
+        if (words || sedInPlace || redirect) n += 1;
         continue;
       }
       if (b.name !== "Write" && b.name !== "Edit" && b.name !== "MultiEdit" && b.name !== "NotebookEdit") continue;
       const pathValue = typeof b.input.file_path === "string" ? b.input.file_path : typeof b.input.notebook_path === "string" ? b.input.notebook_path : "";
       if (pathValue.includes(".grugops/context/")) continue; // a direct write, counted on the first axis
       const rest = JSON.stringify({ ...b.input, file_path: undefined, notebook_path: undefined });
-      if (rest.includes(".grugops/context")) n += 1;
+      const isScript = HAND_SCRIPT_EXTENSIONS.some((ext) => pathValue.endsWith(ext)) || (typeof b.input.content === "string" && b.input.content.startsWith("#!"));
+      if (rest.includes(".grugops/context") && isScript) n += 1;
     }
   }
   return n;
 }
 
-describe("WR-01: the note-route axis sees every route — anchored marker, every file-writing tool, and node-mediated writes as unclassified", () => {
+describe("WR-01 / WR-02: the note-route axis sees every route to disk — anchored marker, every file-writing tool, and write-shaped indirect routes — and nothing that only reads", () => {
   const prefix = deriveGrant(ROOT).prefix;
   const base = noteRoute(FIXTURE.frames);
   const under = "/tmp/target/.grugops/context/AUDIT-1/notes/20260920T115322Z-brownfield-mapper-observation-9ba9.md";
+  const plusOne = (block: StreamFrame): ReturnType<typeof noteRoute> => noteRoute([...FIXTURE.frames, block]);
 
-  it("Test P8 (the three evasions, and the indirection): a RELATIVE Write path, a MultiEdit, a NotebookEdit each raise directContextWrites by 1; a Bash command naming the context root, and a script WRITTEN under queue/ whose content names it, each raise unclassifiedContextWrites by 1 and directContextWrites by 0", () => {
+  it("Test P8 (every real write route counts): a RELATIVE Write path, a MultiEdit, a NotebookEdit each raise directContextWrites by 1; a write-shaped Bash command naming the context root, and a SCRIPT written whose content names it, each raise indirectContextWrites by 1 and directContextWrites by 0", () => {
     // Evasion 1 — the relative spelling the platform resolves against cwd.
-    const relative = noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: ".grugops/context/AUDIT-1/notes/n.md", content: "---\nkind: observation\n---\n" })]);
+    const relative = plusOne(toolUseFrame("Write", { file_path: ".grugops/context/AUDIT-1/notes/n.md", content: "---\nkind: observation\n---\n" }));
     expect(relative.directContextWrites, "a relative file_path under the context root is a direct write").toBe(base.directContextWrites + 1);
     // Evasion 2 — MultiEdit, absolute path.
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("MultiEdit", { file_path: under, edits: [{ old_string: "a", new_string: "b" }] })]).directContextWrites).toBe(base.directContextWrites + 1);
+    expect(plusOne(toolUseFrame("MultiEdit", { file_path: under, edits: [{ old_string: "a", new_string: "b" }] })).directContextWrites).toBe(base.directContextWrites + 1);
     // Evasion 3 — NotebookEdit, whose path field is notebook_path.
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("NotebookEdit", { notebook_path: under.replace(/\.md$/, ".ipynb"), new_source: "x", cell_type: "code" })]).directContextWrites).toBe(base.directContextWrites + 1);
+    expect(plusOne(toolUseFrame("NotebookEdit", { notebook_path: under.replace(/\.md$/, ".ipynb"), new_source: "x", cell_type: "code" })).directContextWrites).toBe(base.directContextWrites + 1);
     // Windows spelling of the same path is the same route.
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: "C:\\t\\.grugops\\context\\AUDIT-1\\notes\\n.md", content: "x" })]).directContextWrites).toBe(base.directContextWrites + 1);
-    // Evasion 4 — a node-mediated write: the Bash command names the root; it is UNCLASSIFIED, not direct.
-    const viaNode = noteRoute([...FIXTURE.frames, toolUseFrame("Bash", { command: "node -e \"require('fs').writeFileSync('.grugops/context/AUDIT-1/notes/n.md', 'x')\"" })]);
-    expect(viaNode.unclassifiedContextWrites).toBe(base.unclassifiedContextWrites + 1);
+    expect(plusOne(toolUseFrame("Write", { file_path: "C:\\t\\.grugops\\context\\AUDIT-1\\notes\\n.md", content: "x" })).directContextWrites).toBe(base.directContextWrites + 1);
+    // Evasion 4 — a node-mediated write: the Bash command names the root and runs `node`; it is
+    // INDIRECT, not direct.
+    const viaNode = plusOne(toolUseFrame("Bash", { command: "node -e \"require('fs').writeFileSync('.grugops/context/AUDIT-1/notes/n.md', 'x')\"" }));
+    expect(viaNode.indirectContextWrites).toBe(base.indirectContextWrites + 1);
     expect(viaNode.directContextWrites).toBe(base.directContextWrites);
-    // Evasion 5 — the indirection the held capture actually took (A:1749): a script written under
+    // Every write-shaped token the review names (33-REVIEW round 3 WR-02), each in a command that
+    // names the root: one indirect write apiece. The held capture's own shapes are here too — the
+    // heredoc note write through a variable (B:1504, B:1740) and the mkdir of the notes folder (A:271).
+    for (const command of [
+      "cat > .grugops/context/T/notes/n.md <<'EOF'\n---\nkind: claim\n---\nEOF",
+      "echo x >> .grugops/context/T/index.jsonl",
+      "N=/tmp/target/.grugops/context/T/notes\ncat > \"$N/n.md\" <<'EOF'\nbody\nEOF",
+      "printf 'x' | tee .grugops/context/T/notes/n.md",
+      "cp /tmp/n.md .grugops/context/T/notes/n.md",
+      "mv /tmp/n.md .grugops/context/T/notes/n.md",
+      "mkdir -p .grugops/context/T/notes",
+      "touch .grugops/context/T/notes/n.md",
+      "rm .grugops/context/T/notes/n.md",
+      "sed -i '' 's/a/b/' .grugops/context/T/notes/n.md",
+      "sed -i.bak 's/a/b/' .grugops/context/T/notes/n.md",
+      "/bin/rm -f .grugops/context/T/notes/n.md",
+    ]) {
+      const r = plusOne(toolUseFrame("Bash", { command }));
+      expect(r.indirectContextWrites, `a write-shaped Bash command naming the root is one indirect write: ${command}`).toBe(base.indirectContextWrites + 1);
+      expect(r.directContextWrites, command).toBe(base.directContextWrites);
+    }
+    // Evasion 5 — the indirection the held capture actually took (A:1749): a SCRIPT written under
     // queue/ whose CONTENT names the root, then run by a command that does not spell it.
     const script = toolUseFrame("Write", { file_path: "/tmp/target/.grugops/queue/claimed/audit/admit-notes.mjs", content: "import { admitAndAppend } from './context-io.js'; admitAndAppend('/tmp/target/.grugops/context', ...)" });
     const runIt = toolUseFrame("Bash", { command: "node .grugops/queue/claimed/audit/admit-notes.mjs" });
     const indirect = noteRoute([...FIXTURE.frames, script, runIt]);
-    expect(indirect.unclassifiedContextWrites, "the written script names the root: one unclassified write").toBe(base.unclassifiedContextWrites + 1);
+    expect(indirect.indirectContextWrites, "the written script names the root: one indirect write").toBe(base.indirectContextWrites + 1);
     expect(indirect.directContextWrites).toBe(base.directContextWrites);
+    // Every script extension the review names, an edit's new_string into a script, and a script with
+    // no extension that announces itself with a shebang.
+    for (const path of ["/tmp/w.mjs", "/tmp/w.js", "/tmp/w.sh", "/tmp/w.py"]) {
+      expect(plusOne(toolUseFrame("Write", { file_path: path, content: "write('.grugops/context/T/notes/n.md')" })).indirectContextWrites, path).toBe(base.indirectContextWrites + 1);
+    }
+    expect(plusOne(toolUseFrame("Edit", { file_path: "/tmp/target/run.mjs", old_string: "a", new_string: "writeFileSync('.grugops/context/T/notes/n.md')" })).indirectContextWrites, "an edit's new_string into a script, naming the root").toBe(base.indirectContextWrites + 1);
+    expect(plusOne(toolUseFrame("Write", { file_path: "/tmp/target/bin/admit", content: "#!/usr/bin/env node\nwrite('.grugops/context/T/notes/n.md')" })).indirectContextWrites, "an extensionless script with a shebang").toBe(base.indirectContextWrites + 1);
     // The UNION of the arms (probe): one block is counted on exactly ONE arm — a direct write whose
-    // content also names the root is one direct write and zero unclassified; a path-shaped field that
-    // names the root UNANCHORED (not a path under it) is asked too, as unclassified; a camel-cased path
-    // key is path-shaped; an edit's new_string is a leaf.
-    const both = noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: under, content: "see .grugops/context/AUDIT-1" })]);
-    expect([both.directContextWrites, both.unclassifiedContextWrites]).toEqual([base.directContextWrites + 1, base.unclassifiedContextWrites]);
-    const unanchored = noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: "/tmp/target/notes-about-.grugops/context.md", content: "x" })]);
-    expect([unanchored.directContextWrites, unanchored.unclassifiedContextWrites]).toEqual([base.directContextWrites, base.unclassifiedContextWrites + 1]);
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { filePath: under, content: "x" })]).directContextWrites, "a camel-cased path key is path-shaped").toBe(base.directContextWrites + 1);
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Edit", { file_path: "/tmp/target/run.mjs", old_string: "a", new_string: "writeFileSync('.grugops/context/T/notes/n.md')" })]).unclassifiedContextWrites, "an edit's new_string naming the root").toBe(base.unclassifiedContextWrites + 1);
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Bash", { command: "node run.mjs", description: "append a note under .grugops/context" })]).unclassifiedContextWrites, "a Bash description naming the root is asked too").toBe(base.unclassifiedContextWrites + 1);
-    // Converses: a Bash command, a written file and an Agent prompt that do NOT take a route move nothing;
-    // an Agent prompt that DOES mention the root is prose to a nested session and enters no axis (CR-03).
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Bash", { command: "ls .grugops/queue/pending" })])).toEqual(base);
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Write", { file_path: "/tmp/target/src/index.mjs", content: "export const a = 1;" })])).toEqual(base);
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Agent", { subagent_type: "grugops-architect-design", prompt: "Write your notes under .grugops/context/AUDIT-1/notes/" })])).toEqual(base);
-    expect(noteRoute([...FIXTURE.frames, toolUseFrame("Read", { file_path: under })])).toEqual(base);
+    // content also names the root is one direct write and zero indirect; a camel-cased path key is
+    // path-shaped.
+    const both = plusOne(toolUseFrame("Write", { file_path: under, content: "see .grugops/context/AUDIT-1" }));
+    expect([both.directContextWrites, both.indirectContextWrites]).toEqual([base.directContextWrites + 1, base.indirectContextWrites]);
+    expect(plusOne(toolUseFrame("Write", { filePath: under, content: "x" })).directContextWrites, "a camel-cased path key is path-shaped").toBe(base.directContextWrites + 1);
     // The tool set is checked against the platform's OWN published list (held init frame A:11), so a
     // renamed tool is a named red here rather than a silent zero in the axis.
     const initA = JSON.parse(heldCapture("33-CAPTURE-A.jsonl").split("\n")[10]) as { type?: string; subtype?: string; tools?: string[] };
@@ -788,20 +833,53 @@ describe("WR-01: the note-route axis sees every route — anchored marker, every
     expect((fixtureInit.tools ?? []).filter((t) => WRITING_TOOLS.has(t)).sort()).toEqual(["Edit", "Write"]);
   });
 
-  it("Test P9 (the projection compares the third route): two projections equal in every field but unclassifiedContextWrites compare to exactly one sentence of the frozen shape; equal counts compare to no route sentence", () => {
+  it("Test P8b (an incidental read is not a route to disk — WR-02): a Bash `ls`/`cat`/`find`/`head` naming the root, a Bash whose DESCRIPTION alone names it, and a written non-script whose prose mentions it leave the whole route projection unchanged", () => {
+    for (const command of [
+      "ls .grugops/context",
+      "ls .grugops/context/ARCH-AUDIT-001/notes/ && head -12 .grugops/context/ARCH-AUDIT-001/notes/n.md",
+      "cat .grugops/context/t/index.md",
+      "ls -la .grugops/queue .grugops/context 2>&1",
+      "cat $R/.grugops/context/T/notes/*.md 2>/dev/null; echo",
+      "find .grugops/context -type f | sort",
+      "grep -rh '^kind:' .grugops/context/*/notes/*.md | sort | uniq -c",
+      "sed -n '1,14p' .grugops/context/T/notes/n.md",
+      "ls .grugops/queue/pending",
+    ]) {
+      expect(plusOne(toolUseFrame("Bash", { command })), `a read-only command is not a route: ${command}`).toEqual(base);
+    }
+    // A write-shaped command whose COMMAND does not name the root, and whose description does: the
+    // description is model-chosen prose, not a route (the CR-03 class).
+    expect(plusOne(toolUseFrame("Bash", { command: "node run.mjs", description: "append a note under .grugops/context" })), "a Bash description naming the root is not asked").toEqual(base);
+    expect(plusOne(toolUseFrame("Bash", { command: "ls", description: "list .grugops/context" }))).toEqual(base);
+    // Prose that mentions the root, written to a non-script (the held capture's memory-bank maps at
+    // A:759, A:1594, B:732), and an unanchored mention in a non-script path field.
+    expect(plusOne(toolUseFrame("Write", { file_path: "/tmp/x/notes.md", content: "see .grugops/context" })), "a prose mention in a written .md").toEqual(base);
+    expect(plusOne(toolUseFrame("Edit", { file_path: "/tmp/target/memory-bank/brownfield-map.md", old_string: "a", new_string: "notes live under .grugops/context/T/notes/" }))).toEqual(base);
+    expect(plusOne(toolUseFrame("Write", { file_path: "/tmp/target/notes-about-.grugops/context.md", content: "x" })), "an unanchored non-script path").toEqual(base);
+    // Converses carried over: a written file that names nothing, an Agent prompt (prose to a nested
+    // session, CR-03), and a read-only tool on a path under the root enter no axis.
+    expect(plusOne(toolUseFrame("Write", { file_path: "/tmp/target/src/index.mjs", content: "export const a = 1;" }))).toEqual(base);
+    expect(plusOne(toolUseFrame("Agent", { subagent_type: "grugops-architect-design", prompt: "Write your notes under .grugops/context/AUDIT-1/notes/" }))).toEqual(base);
+    expect(plusOne(toolUseFrame("Read", { file_path: under }))).toEqual(base);
+  });
+
+  it("Test P9 (the parity input is write-shaped only): two projections that differ ONLY in incidental reads of the root compare to no diff; two that differ in one write-shaped indirect route compare to exactly one sentence of the renamed shape, and the rendered row is named for what it counts", () => {
     const stamps = authorStamps(contextRootWithNotes([{ by: "security-nfr", kind: "observation", body: "x" }]));
-    const a = projectLivePath(stamps, [...FIXTURE.frames, toolUseFrame("Bash", { command: "cat .grugops/context/T/notes/a.md" }), toolUseFrame("Bash", { command: "ls .grugops/context/T/notes" })], prefix);
     const b = projectLivePath(stamps, FIXTURE.frames, prefix);
-    expect(a.route.unclassifiedContextWrites).toBe(b.route.unclassifiedContextWrites + 2);
-    expect(compareLivePaths(a, b)).toEqual([`note route: unclassified writes naming the context root differ: path A ${a.route.unclassifiedContextWrites}, path B ${b.route.unclassifiedContextWrites}`]);
+    const reads = projectLivePath(stamps, [...FIXTURE.frames, toolUseFrame("Bash", { command: "cat .grugops/context/T/notes/a.md" }), toolUseFrame("Bash", { command: "ls .grugops/context/T/notes" }), toolUseFrame("Write", { file_path: "/tmp/x/notes.md", content: "see .grugops/context" })], prefix);
+    expect(compareLivePaths(reads, b), "incidental reads and a prose mention do not enter parity").toEqual([]);
+    const a = projectLivePath(stamps, [...FIXTURE.frames, toolUseFrame("Bash", { command: "cat > .grugops/context/T/notes/a.md <<'EOF'\nx\nEOF" })], prefix);
+    expect(a.route.indirectContextWrites).toBe(b.route.indirectContextWrites + 1);
+    expect(compareLivePaths(a, b)).toEqual([`note route: indirect write-shaped blocks naming the context root differ: path A ${a.route.indirectContextWrites}, path B ${b.route.indirectContextWrites}`]);
     expect(compareLivePaths(b, b)).toEqual([]);
-    expect(compareLivePaths(b, b).filter((d) => d.startsWith("note route"))).toEqual([]);
-    // The rendered parity section prints the third count.
+    // The rendered parity section prints the write-shaped count under its own name; the old label,
+    // which called reads writes, is gone.
     const model = reportModelWith([]);
     model.parity = { projections: [{ label: "A", projection: a }, { label: "B", projection: b }], diffs: compareLivePaths(a, b) };
     const rendered = renderReport(model);
-    expect(rendered).toContain(`| note route: unclassified writes naming the context root | ${a.route.unclassifiedContextWrites} | |`);
-    expect(rendered).toContain(`| note route: unclassified writes naming the context root | ${b.route.unclassifiedContextWrites} | |`);
+    expect(rendered).toContain(`| note route: indirect write-shaped blocks naming the context root | ${a.route.indirectContextWrites} | |`);
+    expect(rendered).toContain(`| note route: indirect write-shaped blocks naming the context root | ${b.route.indirectContextWrites} | |`);
+    expect(rendered).not.toContain("unclassified writes naming the context root");
   });
 
   it("Test P10 (the held capture still reads its six sentences): over commit c7be6d0d the six divergence sentences are unchanged, and the third route's count per path is stated from the transcript and matches an independent count", () => {
@@ -822,17 +900,17 @@ describe("WR-01: the note-route axis sees every route — anchored marker, every
       expect(diffs, `still verbatim: ${want}`).toContain(want);
     }
     // The third route, MEASURED — never predicted — and cross-checked against an explicit-key count.
-    const handA = unclassifiedByHand(parseFrames(textA).frames);
-    const handB = unclassifiedByHand(parseFrames(textB).frames);
-    expect(a.route.unclassifiedContextWrites, "path A unclassified writes naming the context root").toBe(handA);
-    expect(b.route.unclassifiedContextWrites, "path B unclassified writes naming the context root").toBe(handB);
+    const handA = indirectByHand(parseFrames(textA).frames);
+    const handB = indirectByHand(parseFrames(textB).frames);
+    expect(a.route.indirectContextWrites, "path A indirect write-shaped blocks naming the context root").toBe(handA);
+    expect(b.route.indirectContextWrites, "path B indirect write-shaped blocks naming the context root").toBe(handB);
     expect(handA, "path A took the node-mediated route at least at A:1749 and A:1931").toBeGreaterThanOrEqual(2);
-    const third = diffs.filter((d) => d.startsWith("note route: unclassified"));
+    const third = diffs.filter((d) => d.startsWith("note route: indirect"));
     if (handA === handB) expect(third).toEqual([]);
-    else expect(third).toEqual([`note route: unclassified writes naming the context root differ: path A ${handA}, path B ${handB}`]);
+    else expect(third).toEqual([`note route: indirect write-shaped blocks naming the context root differ: path A ${handA}, path B ${handB}`]);
     expect(diffs.length, `the held capture's diff count: ${diffs.length} (six frozen + the third route when it differs)`).toBe(6 + third.length);
     // Stated for the summary: the measured numbers.
-    console.log(`held capture unclassified writes naming the context root: path A ${handA}, path B ${handB}`);
+    console.log(`held capture indirect write-shaped blocks naming the context root: path A ${handA}, path B ${handB}`);
   });
 });
 
