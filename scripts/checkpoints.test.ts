@@ -2299,6 +2299,38 @@ const CR01_SPLICES = (tool: string): readonly string[] => {
   return [...out];
 };
 
+// The over-denial floor of the round-3 CR-01 sweep, lifted to module scope (plan 33-35) so the
+// round-4 union floor asks the SAME list rather than a copy of it.
+const CR01_OVER_DENIAL_FLOOR: readonly string[] = [
+  "ls -la",
+  "ls src/*",
+  "rm -rf dist/*",
+  "ls *.md",
+  "echo {a,b}",
+  "for i in {1..3}; do echo $i; done",
+  "cat ~/.gitconfig",
+  'echo "$(date)"',
+  "ls $(pwd)",
+  "echo $HOME/.github",
+  "git log --oneline -5 2>&1",
+  "git status",
+  "=git status",
+  "=kubectl get pods",
+  "=npm run publish",
+  "echo \"it's fine\"",
+  "printf '%s\\n' a b",
+  "find . -name '*.ts' -print",
+  "node -e 'console.log(1)'",
+  "npm run build",
+  "npx vitest run --exclude '**/scripts/e2e/**'",
+  "git commit -m 'push to main'",
+  "grep -rn kubectl docs/",
+  "echo ${HOME}",
+  "test -f x && echo [ok]",
+  "vercel deploy",
+  "vercel ls",
+];
+
 describe("33-R3 CR-01 — a tool word spliced with shell-neutral punctuation still names the tool it runs", () => {
   const has = (cmd: string, id: string): boolean => cp.matchCommandCheckpoints(cmd).checkpoints.has(id as never);
   const TOOLS = [...new Set(cp.COMMAND_CHECKPOINT_RULES.map((r) => r.tool))];
@@ -2406,35 +2438,7 @@ describe("33-R3 CR-01 — a tool word spliced with shell-neutral punctuation sti
   }
 
   it("ordinary commands the projection must NOT start refusing (the over-denial floor)", () => {
-    for (const cmd of [
-      "ls -la",
-      "ls src/*",
-      "rm -rf dist/*",
-      "ls *.md",
-      "echo {a,b}",
-      "for i in {1..3}; do echo $i; done",
-      "cat ~/.gitconfig",
-      'echo "$(date)"',
-      "ls $(pwd)",
-      "echo $HOME/.github",
-      "git log --oneline -5 2>&1",
-      "git status",
-      "=git status",
-      "=kubectl get pods",
-      "=npm run publish",
-      "echo \"it's fine\"",
-      "printf '%s\\n' a b",
-      "find . -name '*.ts' -print",
-      "node -e 'console.log(1)'",
-      "npm run build",
-      "npx vitest run --exclude '**/scripts/e2e/**'",
-      "git commit -m 'push to main'",
-      "grep -rn kubectl docs/",
-      "echo ${HOME}",
-      "test -f x && echo [ok]",
-      "vercel deploy",
-      "vercel ls",
-    ]) {
+    for (const cmd of CR01_OVER_DENIAL_FLOOR) {
       expect(cp.matchCommandCheckpoints(cmd).checkpoints.size, cmd).toBe(0);
     }
   });
@@ -2508,6 +2512,233 @@ describe("33-R4 CR-01 nested — the one authority names the tool inside a quote
   it("the two deny controls of gap 4 still deny", () => {
     for (const id of ["V4-C1", "V4-C2"]) {
       expect(cp.matchCommandCheckpoints(nestedRow(id).command).checkpoints.has("protected_branch_merge"), id).toBe(true);
+    }
+  });
+});
+
+// ─── The nested families, DERIVED: COMMAND_CHECKPOINT_RULES x CR01_SPLICES x the fixture's wrappers ───
+//
+// Each family is a template in scripts/fixtures/cr01-nested-corpus.json whose `{{BODY}}` is the
+// single-quoted text `<spliced tool> <governed verb>`. A single quote inside a splice is spelled the
+// ordinary shell way (close, escaped quote, reopen), so EVERY splice of every tool is swept — none is
+// filtered out — and the case count is exactly splices x families per rule.
+interface Cr01NestedFamily {
+  readonly id: string;
+  readonly template: string;
+}
+const CR01_NESTED_FAMILIES: readonly Cr01NestedFamily[] = (
+  JSON.parse(readFileSync(join(ROOT, "scripts", "fixtures", "cr01-nested-corpus.json"), "utf8")) as {
+    families: Cr01NestedFamily[];
+  }
+).families;
+/** `'…'` with each embedded `'` spelled `'\''` — what a nested shell receives is exactly `s`. */
+const singleQuoted = (s: string): string => `'${s.replaceAll("'", "'\\''")}'`;
+/** The per-rule floor the round-3 sweep uses: the FIRST governed verb or flag of the rule. */
+const governedVerbOf = (r: (typeof cp.COMMAND_CHECKPOINT_RULES)[number]): string => {
+  const v = [...r.verbs, ...(r.flags ?? [])].find((x) =>
+    cp.matchCommandCheckpoints(`${r.tool} ${x}`).checkpoints.has(r.checkpoint),
+  );
+  if (v === undefined) throw new Error(`${r.tool}: no plain spelling is governed`);
+  return v;
+};
+interface NestedCase {
+  readonly cmd: string;
+  readonly tool: string;
+  readonly checkpoint: string;
+  readonly family: string;
+}
+const nestedFamilyCases = (): readonly NestedCase[] => {
+  const out: NestedCase[] = [];
+  for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+    const v = governedVerbOf(r);
+    for (const t of CR01_SPLICES(r.tool)) {
+      for (const f of CR01_NESTED_FAMILIES) {
+        out.push({ cmd: f.template.replace("{{BODY}}", singleQuoted(`${t} ${v}`)), tool: r.tool, checkpoint: r.checkpoint, family: f.id });
+      }
+    }
+  }
+  return out;
+};
+
+/** The round-3 committed command model (the dispatch base of plan 33-35), imported from git history. */
+const ROUND3_BUILD_SHA = "53888b9c";
+const round3Module = async (): Promise<typeof cp> => {
+  const r = spawnSync("git", ["show", `${ROUND3_BUILD_SHA}:scripts/checkpoints.js`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: "",
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 20_000,
+  });
+  if (r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+    throw new Error(`git cannot show ${ROUND3_BUILD_SHA}:scripts/checkpoints.js — the round-3 build must be reachable from this clone`);
+  }
+  const dir = freshTmp("p33-35-round3-");
+  const path = join(dir, "checkpoints-round3.mjs");
+  writeFileSync(
+    path,
+    r.stdout.replace(/from "\.\/([^"]+)"/g, (_m, rel: string) => `from ${JSON.stringify(pathToFileURL(join(ROOT, "scripts", rel)).href)}`),
+  );
+  return (await import(pathToFileURL(path).href)) as typeof cp;
+};
+
+/** A scratch copy of the COMMITTED module with one needle replaced; the needle must occur exactly once. */
+const mutantOf = async (label: string, needle: RegExp, replacement: string): Promise<{ mod: typeof cp; found: number }> => {
+  const src = readFileSync(join(ROOT, "scripts", "checkpoints.js"), "utf8");
+  const found = (src.match(new RegExp(needle.source, "g")) ?? []).length;
+  const mutated = src
+    .replace(needle, replacement)
+    .replace(/from "\.\/([^"]+)"/g, (_m, rel: string) => `from ${JSON.stringify(pathToFileURL(join(ROOT, "scripts", rel)).href)}`);
+  const dir = freshTmp(`p33-35-${label}-`);
+  const path = join(dir, `checkpoints-${label}.mjs`);
+  writeFileSync(path, mutated);
+  return { mod: (await import(pathToFileURL(path).href)) as typeof cp, found };
+};
+/** The fix: the one call that re-projects a piece's resolved text (D-33-R4-03). */
+const REPROJECTION_NEEDLE = /projectNames\(t, depth \+ 1, ctx, into\); \/\/ D-33-R4-03: the nested re-projection/;
+/** The boundary reading of a gap: the contiguous-run loop in namesOfPiece, cut off at its guard. */
+const BOUNDARY_NEEDLE = /if \(stretches\.length === 1\)\s*return true;/;
+
+describe("33-R4 CR-01 nested — the derived sweep: every splice of every tool, in every nested family, is its rule's checkpoint", () => {
+  const cases = nestedFamilyCases();
+
+  it("the families are the four gap 4 names, and the case count is the derivation's", () => {
+    expect(CR01_NESTED_FAMILIES.map((f) => f.id).sort()).toEqual(
+      ["bash-c-trailing-expansion", "eval-trailing-substitution", "here-string", "sh-c-trailing-expansion"],
+    );
+    for (const f of CR01_NESTED_FAMILIES) expect(f.template.split("{{BODY}}").length, f.id).toBe(2);
+    const derived = cp.COMMAND_CHECKPOINT_RULES.reduce(
+      (n, r) => n + CR01_SPLICES(r.tool).length * CR01_NESTED_FAMILIES.length,
+      0,
+    );
+    expect(cases.length).toBe(derived);
+    // Every rule contributes, so a row that vanished from the table moves the count.
+    expect(new Set(cases.map((c) => c.tool)).size).toBe(cp.COMMAND_CHECKPOINT_RULES.length);
+    expect(cases.length).toBeGreaterThan(1000);
+  });
+
+  for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+    it(`${r.tool}: every splice in every nested family is ${r.checkpoint}`, () => {
+      const failures = cases
+        .filter((c) => c.tool === r.tool)
+        .filter((c) => !cp.matchCommandCheckpoints(c.cmd).checkpoints.has(r.checkpoint))
+        .map((c) => c.cmd);
+      expect(failures).toEqual([]);
+    });
+  }
+
+  it("the two positional-parameter rows of the corpus: the verb supplied after the quoted body", () => {
+    expect(cp.matchCommandCheckpoints(nestedRow("R4-11").command).checkpoints.has("protected_branch_merge")).toBe(true);
+    expect(
+      cp.matchCommandCheckpoints(nestedRow("R4-12").command).checkpoints.has("production_requires_human_confirmation"),
+    ).toBe(true);
+  });
+});
+
+describe("33-R4 CR-01 nested — the union only adds denials", () => {
+  const allowControls = CR01_NESTED_CORPUS.filter((r) => r.kind === "allow-control");
+
+  it("the nested allow-controls still allow (and there are at least the four the plan names)", () => {
+    expect(allowControls.length).toBeGreaterThanOrEqual(4);
+    for (const r of allowControls) expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, r.id).toBe(0);
+  });
+
+  it("over the round-1 held capture's Bash inputs and the over-denial floor, no checkpoint set shrank versus the round-3 build", async () => {
+    const round3 = await round3Module();
+    const held: string[] = [];
+    for (const run of ["A", "B"] as const) {
+      for (const line of heldCapture(`33-CAPTURE-${run}.jsonl`).split("\n")) {
+        if (line === "") continue;
+        let frame: { type?: string; message?: { content?: { type: string; name?: string; input?: { command?: string } }[] } };
+        try {
+          frame = JSON.parse(line) as typeof frame;
+        } catch {
+          continue;
+        }
+        if (frame.type !== "assistant") continue;
+        for (const b of frame.message?.content ?? []) {
+          if (b.type === "tool_use" && b.name === "Bash" && typeof b.input?.command === "string") held.push(b.input.command);
+        }
+      }
+    }
+    // The held capture carries 153 Bash tool-uses (measured 2026-09-23); a short read is a broken floor.
+    expect(held.length).toBe(153);
+    const shrank: string[] = [];
+    let round3Denied = 0;
+    for (const cmd of [...held, ...CR01_OVER_DENIAL_FLOOR]) {
+      const before = round3.matchCommandCheckpoints(cmd).checkpoints;
+      const after = cp.matchCommandCheckpoints(cmd).checkpoints;
+      if (before.size > 0) round3Denied++;
+      for (const id of before) if (!after.has(id)) shrank.push(`${id}: ${cmd}`);
+    }
+    expect(shrank).toEqual([]);
+    // Non-vacuous: the capture holds commands the round-3 build denied, and every one still denies.
+    expect(round3Denied).toBeGreaterThan(0);
+    for (const cmd of CR01_OVER_DENIAL_FLOOR) expect(cp.matchCommandCheckpoints(cmd).checkpoints.size, cmd).toBe(0);
+  }, 60_000);
+});
+
+describe("33-R4 CR-01 nested — non-circularity: the fix removed, the families open again", () => {
+  const cases = nestedFamilyCases();
+  const inScope = CR01_NESTED_CORPUS.filter((r) => r.kind === "deny" && /^(V4|R4)-/.test(r.id));
+
+  it("with the nested re-projection removed, every family case answers exactly as the round-3 build did, and the round-3 ALLOWs are ALLOW again", async () => {
+    const { mod: mutant, found } = await mutantOf("no-reprojection", REPROJECTION_NEEDLE, "");
+    expect(found).toBe(1);
+    const round3 = await round3Module();
+    const decide = (m: typeof cp, c: NestedCase): boolean => m.matchCommandCheckpoints(c.cmd).checkpoints.has(c.checkpoint as never);
+    const differs = cases.filter((c) => decide(mutant, c) !== decide(round3, c)).map((c) => c.cmd);
+    expect(differs).toEqual([]);
+    const reopened = cases.filter((c) => !decide(mutant, c));
+    // The retained raw-name search still sees a splice at the name's edge (`\git`, `git''`), so not
+    // every case reopens; the ones that do are exactly the round-3 ALLOWs, and they are most of them.
+    expect(reopened.length).toBe(cases.filter((c) => !decide(round3, c)).length);
+    expect(reopened.length).toBeGreaterThan(cases.length / 2);
+    for (const c of reopened) expect(decide(cp, c), c.cmd).toBe(true);
+  }, 60_000);
+
+  it("with the nested re-projection removed, every in-scope corpus row is ALLOW again; the committed module denies them", async () => {
+    const { mod: mutant } = await mutantOf("no-reprojection-corpus", REPROJECTION_NEEDLE, "");
+    expect(inScope.length).toBe(28);
+    for (const r of inScope) {
+      expect(mutant.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} on the mutant`).toBe(0);
+      expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} committed`).toBeGreaterThan(0);
+    }
+  });
+
+  it("with a gap's boundary reading removed, exactly the two boundary rows reopen (R4-06, R4-18)", async () => {
+    const { mod: mutant, found } = await mutantOf("no-boundary", BOUNDARY_NEEDLE, "return true;");
+    expect(found).toBe(1);
+    const reopened = inScope.filter((r) => mutant.matchCommandCheckpoints(r.command).checkpoints.size === 0).map((r) => r.id);
+    expect(reopened).toEqual(["R4-06", "R4-18"]);
+  });
+
+  it("nesting deeper than the projection bound denies, fail-closed, within a bounded wall-clock; within the bound it names the tool exactly", () => {
+    // An `eval $'…'` chain: each layer ANSI-C-quotes the one below with `\x5c`/`\x27`, which grows
+    // linearly, and each layer is ONE re-projection. Every layer is valid, executable shell.
+    const layer = (s: string): string => `eval $'${s.replace(/\\/g, "\\x5c").replace(/'/g, "\\x27")}'`;
+    const chain = (k: number): string => {
+      let s = "g\\it push origin main";
+      for (let i = 0; i < k; i++) s = layer(s);
+      return s;
+    };
+    const governed = new Set(cp.COMMAND_CHECKPOINT_RULES.map((r) => r.tool));
+    expect([...cp.governedToolsNamedBy(chain(20))].sort()).toEqual(["git"]);
+    const t0 = Date.now();
+    const deep = chain(40);
+    const named = cp.governedToolsNamedBy(deep);
+    const m = cp.matchCommandCheckpoints(deep);
+    expect(Date.now() - t0).toBeLessThan(5000);
+    expect(named.size).toBe(governed.size);
+    for (const id of cp.COMMAND_RULE_CHECKPOINTS) expect(m.checkpoints.has(id), id).toBe(true);
+  });
+
+  it("the two computed-at-run-time residual rows stay ALLOW on the committed module — the ledgered residual (plan 33-43)", () => {
+    const residual = CR01_NESTED_CORPUS.filter((r) => r.kind === "residual");
+    expect(residual.map((r) => r.id)).toEqual(["RES-01", "RES-02"]);
+    for (const r of residual) {
+      expect(r.owner, r.id).toBe("33-43");
+      expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} ${r.command}`).toBe(0);
     }
   });
 });

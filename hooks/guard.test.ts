@@ -2533,3 +2533,38 @@ describe("33-R4 CR-01 nested — a governed command quoted for a nested shell de
     }, 120_000);
   }
 });
+
+describe("33-R4 CR-01 nested — a derived per-tool subset of the nested families denies through both entry points", () => {
+  // The families are the fixture's templates (the same ones scripts/checkpoints.test.ts expands over
+  // every splice); here each governed tool contributes ONE splice — a backslash before its second
+  // character, the gap-4 spelling — in every family. Derived from COMMAND_CHECKPOINT_RULES, never
+  // listed, and the subset's size is pinned to its derivation.
+  const families = (
+    JSON.parse(readFileSync(join(REPO, "scripts", "fixtures", "cr01-nested-corpus.json"), "utf8")) as {
+      families: { id: string; template: string }[];
+    }
+  ).families;
+  const singleQuoted = (s: string): string => `'${s.replaceAll("'", "'\\''")}'`;
+  const cases: string[] = [];
+  for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+    const v = [...r.verbs, ...(r.flags ?? [])].find((x) =>
+      cp.matchCommandCheckpoints(`${r.tool} ${x}`).checkpoints.has(r.checkpoint),
+    );
+    const splice = `${r.tool.slice(0, 1)}\\${r.tool.slice(1)}`;
+    for (const f of families) cases.push(f.template.replace("{{BODY}}", singleQuoted(`${splice} ${v}`)));
+  }
+
+  it("the subset is non-vacuous: every rule x every family, and the count is the derivation's", () => {
+    expect(families.length).toBeGreaterThan(0);
+    expect(cases.length).toBe(cp.COMMAND_CHECKPOINT_RULES.length * families.length);
+    expect(new Set(cases).size).toBe(cases.length);
+  });
+
+  for (const [label, argv] of ENTRY_POINTS) {
+    it(`${label}: every case DENIES with a scrubbed environment`, async () => {
+      const outs = await runAll(argv, cases);
+      const allowed = cases.filter((_c, i) => !(outs[i] as string).includes(DENY_DECISION));
+      expect(allowed).toEqual([]);
+    }, 600_000);
+  }
+});

@@ -1,5 +1,11 @@
 {
-  "about": "33-R4 nested corpus (plan 33-35). Labelled Bash commands the prod-deploy / protected-branch guard is replayed against, read by scripts/checkpoints.test.ts and hooks/guard.test.ts. kind=deny: an in-scope row that must DENY. kind=deny-control: a control that already denied on the round-3 build and must still deny. kind=allow-control: must ALLOW (the union only adds denials). kind=residual: computed at run time, stays ALLOW, ledgered by plan 33-43. kind=handed-off: a live bypass outside this plan's class, pinned at its measured verdict and owned by the plan named in owner. Backslashes in command are literal printable characters once JSON-decoded.",
+  "about": "33-R4 nested corpus (plan 33-35). Labelled Bash commands the prod-deploy / protected-branch guard is replayed against, read by scripts/checkpoints.test.ts and hooks/guard.test.ts. kind=deny: an in-scope row that must DENY. kind=deny-control: a control that already denied on the round-3 build and must still deny. kind=allow-control: must ALLOW (the union only adds denials). kind=residual: computed at run time, stays ALLOW, ledgered by plan 33-43. kind=handed-off: a live bypass outside this plan's class, pinned at its measured verdict and owned by the plan named in owner. Backslashes in command are literal printable characters once JSON-decoded. families: the nested wrapper shapes of 33-VERIFICATION gap 4 missing, each a template whose {{BODY}} is the single-quoted text <spliced tool> <governed verb> (an embedded single quote spelled as the four characters quote backslash quote quote); the tests expand each over COMMAND_CHECKPOINT_RULES x the CR-01 splice generator.",
+  "families": [
+    { "id": "bash-c-trailing-expansion", "template": "bash -c {{BODY}} $X" },
+    { "id": "sh-c-trailing-expansion", "template": "sh -c {{BODY}} $X" },
+    { "id": "eval-trailing-substitution", "template": "eval {{BODY}} $(true)" },
+    { "id": "here-string", "template": "bash <<< {{BODY}}" }
+  ],
   "rows": [
     { "id": "V4-01", "source": "33-VERIFICATION gap 4", "kind": "deny", "command": "bash -c 'g\\it push origin main' $X" },
     { "id": "V4-02", "source": "33-VERIFICATION gap 4", "kind": "deny", "command": "sh -c 'k\\ubectl -n prod apply -f x' $0" },
