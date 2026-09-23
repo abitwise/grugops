@@ -22,6 +22,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import {
   mkdtempSync,
   mkdirSync,
@@ -13515,6 +13516,152 @@ describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repo
     ).toThrow(/unreadable-audit-ledger/);
     expect(noteFiles(dest)).toEqual([]);
     rmSync(join(destRoot, ".grugops", "audit", "admissions.jsonl"), { force: true });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33-38 — WR-01 ON THE SIBLING ROUTE: admitAndAppend's GATED branch writes a note AND a GOV-02
+// event, ledger first (31-21), so an occupant at the minted id's path must be refused BEFORE the
+// append — or the trail records a human-disposed note the store does not hold.
+//
+// THE SEAM. The branch mints its id through `noteId`, whose nonce is `node:crypto`'s `randomUUID`.
+// The test pins that nonce by replacing `randomUUID` on the builtin and publishing the change to
+// every ESM importer with `syncBuiltinESMExports` — the documented Node mechanism for exactly this.
+// The seam's own PREMISE is asserted first (the module's `noteId` must answer the pinned nonce), so
+// a seam that silently failed to reach the module cannot turn this block into a vacuous pass.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33-38 — admitAndAppend's gated branch decides occupancy before its GOV-02 append", () => {
+  const TASK = "T-1";
+  const BODY = "the gated body";
+  const NONCE = "5eed3838";
+  const cjsCrypto = createRequire(import.meta.url)("node:crypto") as { randomUUID: () => string };
+
+  function withPinnedNonce<T>(fn: () => T): T {
+    const original = cjsCrypto.randomUUID;
+    cjsCrypto.randomUUID = () => `${NONCE}-0000-4000-8000-000000000000`;
+    syncBuiltinESMExports();
+    try {
+      return fn();
+    } finally {
+      cjsCrypto.randomUUID = original;
+      syncBuiltinESMExports();
+    }
+  }
+  function gatedNote(): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-23T03:00:00Z",
+      verified_by: "human:mallory",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+  function gatedRoot(prefix: string): { root: string; store: string } {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops", "context"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity", audit_retention: "retained" } }),
+    );
+    return { root, store: join(root, ".grugops", "context") };
+  }
+  function ledgerLines(root: string): number {
+    const p = join(root, ".grugops", "audit", "admissions.jsonl");
+    return existsSync(p)
+      ? readFileSync(p, "utf8").split("\n").filter((l) => l.trim() !== "").length
+      : 0;
+  }
+  function noteFiles(store: string): string[] {
+    const dir = join(store, TASK, "notes");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  }
+
+  it("PREMISE: the pinned nonce reaches the module's own noteId, and the note is GATED under this dial", () => {
+    const id = withPinnedNonce(() => mod.noteId(gatedNote()));
+    expect(id, "the nonce seam did not reach context-io.js — nothing below would collide").toBe(
+      `20260923T030000Z-security-nfr-finding-${NONCE}`,
+    );
+    const { root } = gatedRoot("p33-38-premise-");
+    expect(mod.isGatedNote("security-nfr", "finding", mod.readGovernanceConfig(root))).toBe(true);
+  });
+
+  it("RED-first: a DIFFERING occupant at the minted id is refused with ledger lines 0 and the occupant byte-unchanged", () => {
+    const { root, store } = gatedRoot("p33-38-occupied-");
+    const id = withPinnedNonce(() => mod.noteId(gatedNote()));
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    const occupant = "an unsealed hand-written occupant under the minted id\n";
+    writeFileSync(join(store, TASK, "notes", `${id}.md`), occupant);
+
+    let result: { id: string | null; findings: string[] } | null = null;
+    let threw: string | null = null;
+    try {
+      result = withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(
+      ledgerLines(root),
+      "a GOV-02 event was appended for a gated note that was never written — the WR-01 over-record",
+    ).toBe(0);
+    expect(threw, "the refusal must be the branch's findings contract, not a throw").toBeNull();
+    expect(result?.id).toBeNull();
+    expect(result?.findings.join("\n")).toContain("already holds a DIFFERENT note");
+    expect(result?.findings.join("\n")).toContain("no GOV-02 event was appended");
+    expect(readFileSync(join(store, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+  });
+
+  it("a FIFO at the minted id's path is a named refusal BEFORE the ledger, never a wedge (31-21 CR-12)", () => {
+    const { root, store } = gatedRoot("p33-38-fifo-");
+    const id = withPinnedNonce(() => mod.noteId(gatedNote()));
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    const notePath = join(store, TASK, "notes", `${id}.md`);
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      notePath,
+      "scripts/context-io.test.ts: a FIFO at admitAndAppend's gated destination (33-38)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the differing-occupant case above, which reaches the same pre-ledger decision with a regular file"));
+      return;
+    }
+    let threw: string | null = null;
+    try {
+      withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(ledgerLines(root), "a GOV-02 event was appended before the FIFO was refused").toBe(0);
+    expect(threw).toContain("not a regular file");
+    rmSync(notePath, { force: true });
+  });
+
+  it("LEGITIMATE INPUT: a fresh id still admits, writes one note and appends exactly one ledger line", () => {
+    const { root, store } = gatedRoot("p33-38-fresh-");
+    const result = mod.admitAndAppend(TASK, gatedNote(), BODY, store, root);
+    expect(result.findings).toEqual([]);
+    expect(result.id).toBeTruthy();
+    expect(noteFiles(store)).toEqual([`${result.id}.md`]);
+    expect(ledgerLines(root)).toBe(1);
+    expect(mod.readContext(TASK, store).map((n) => n.id)).toEqual([result.id]);
+  });
+
+  it("LEGITIMATE INPUT: under the lean retention value the gated branch still writes and appends nothing", () => {
+    const root = freshTmp("p33-38-lean-");
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops", "context"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity" } }),
+    );
+    const store = join(root, ".grugops", "context");
+    const result = mod.admitAndAppend(TASK, gatedNote(), BODY, store, root);
+    expect(result.findings).toEqual([]);
+    expect(noteFiles(store)).toEqual([`${result.id}.md`]);
+    expect(ledgerLines(root)).toBe(0);
   });
 });
 
