@@ -5720,18 +5720,20 @@ describe("31-09 — WR-10: one governance root for the writer and the hook", () 
     expect(result.message).toContain("human_admission: high-severity");
   });
 
-  // ── IN-04, RECORDED AS A DISCLOSED RESIDUAL WITH ITS DIRECTION — not closed here. ──────────────
+  // ── IN-04, CLOSED BY 33-38 — this case went red on purpose, as it was written to. ─────────────
   //
   // `admit()` appends the GOV-02 ledger line as its last act on the admitted path; `appendNote` then
-  // calls `writeNoteFile`, which can still refuse (the R6-1 containment chokepoint on a forged
-  // `precomputedId`). Under `audit_retention: retained` that leaves a ledger event recording an
-  // admission for a note that never landed.
+  // called `writeNoteFile`, which could still refuse (the R6-1 containment chokepoint on a forged
+  // `precomputedId`). Under `audit_retention: retained` that left a ledger event recording an
+  // admission for a note that never landed. This was carried as a disclosed residual (an EXTRA audit
+  // line, never a missing one) and pinned as a failing-on-change assertion.
   //
-  // DIRECTION: an EXTRA audit line, never a missing one. It is not closed in this round because
-  // moving the append would change the ledger's semantics for every caller in the same change as a
-  // safety fix — and the residual is recorded as a failing-on-change ASSERTION rather than a
-  // sentence, so the day it moves is a day this case goes red on purpose.
-  it("IN-04 DISCLOSED: a refused write leaves the admission's ledger event behind (extra line, never missing)", () => {
+  // WHAT MOVED IT. Plan 33-38 (WR-01) did not move the append. It asks the ONE destination decision
+  // — `decideNoteDestination`, the chokepoint's own containment, ceiling and occupancy read — BEFORE
+  // `admit()` runs, so every refusal the chokepoint would have raised one step later is raised before
+  // anything is recorded. The ledger's semantics for an admitted note are unchanged; what changed is
+  // that a write the chokepoint refuses is now refused before the admission is recorded.
+  it("IN-04 CLOSED (33-38): a write the chokepoint refuses is refused BEFORE the admission is recorded — no ledger line", () => {
     const repoRoot = freshTmp("p31-09-in04-repo-");
     mkdirSync(join(repoRoot, ".grugops"), { recursive: true });
     writeFileSync(
@@ -5761,10 +5763,13 @@ describe("31-09 — WR-10: one governance root for the writer and the hook", () 
     ).toThrow();
     // Nothing landed on disk…
     expect(existsSync(join(contextRoot, "in04-task", "notes", "../escape.md"))).toBe(false);
-    // …and the ledger nonetheless carries the admission record. Recorded, not fabricated away.
+    // …and the ledger carries NO admission record for it: the containment refusal is raised before
+    // `admit()` can append.
     const ledger = join(repoRoot, ".grugops", "audit", "admissions.jsonl");
-    expect(existsSync(ledger)).toBe(true);
-    expect(readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0)).toHaveLength(1);
+    const lines = existsSync(ledger)
+      ? readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l.length > 0)
+      : [];
+    expect(lines, "an admission was recorded for a note the chokepoint refused (IN-04)").toHaveLength(0);
   });
 });
 
@@ -13610,7 +13615,7 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
     expect(threw, "the refusal must be the branch's findings contract, not a throw").toBeNull();
     expect(result?.id).toBeNull();
     expect(result?.findings.join("\n")).toContain("already holds a DIFFERENT note");
-    expect(result?.findings.join("\n")).toContain("no GOV-02 event was appended");
+    expect(result?.findings.join("\n")).toContain("No GOV-02 event was appended");
     expect(readFileSync(join(store, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
   });
 
@@ -13628,14 +13633,17 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
       console.warn(skipLine(skipped, "the differing-occupant case above, which reaches the same pre-ledger decision with a regular file"));
       return;
     }
+    let result: { id: string | null; findings: string[] } | null = null;
     let threw: string | null = null;
     try {
-      withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
+      result = withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
     } catch (e) {
       threw = (e as Error).message;
     }
     expect(ledgerLines(root), "a GOV-02 event was appended before the FIFO was refused").toBe(0);
-    expect(threw).toContain("not a regular file");
+    expect(threw, "the refusal must be the branch's findings contract, not a throw").toBeNull();
+    expect(result?.id).toBeNull();
+    expect(result?.findings.join("\n")).toContain("not a regular file");
     rmSync(notePath, { force: true });
   });
 
@@ -13713,7 +13721,8 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
     // later reordering keeps as a comment while the call moves. DOMINATED, not merely "earlier in
     // the text": a decision in one branch does not cover a ledger touch in the other, so for every
     // ledger touch the walk climbs its enclosing blocks and requires an EARLIER statement in one of
-    // them to be `const … = decideNoteDestination(…)`.
+    // them to be `const … = decideNoteDestination(…)` (or `noteDestinationRefusal(…)`, its
+    // findings-contract form, which `admitAndAppend` consumes).
     const sf = ts.createSourceFile(
       "context-io.ts",
       readFileSync(CONTEXT_IO_TS, "utf8"),
@@ -13734,7 +13743,8 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
           d.initializer !== undefined &&
           ts.isCallExpression(d.initializer) &&
           ts.isIdentifier(d.initializer.expression) &&
-          d.initializer.expression.text === "decideNoteDestination",
+          (d.initializer.expression.text === "decideNoteDestination" ||
+            d.initializer.expression.text === "noteDestinationRefusal"),
       );
     const dominated = (call: ts.Node, fnBody: ts.Node): boolean => {
       let child: ts.Node = call;

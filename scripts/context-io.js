@@ -1244,13 +1244,44 @@ function writeNoteFile(notesDir, id, text) {
     if (existing !== null) {
         if (existing === text)
             return; // the decided idempotent case: nothing to write, nothing to lose
-        throw new Error(`context-io.writeNoteFile: refusing to write — the destination already holds a DIFFERENT ` +
-            `note under id "${id}". The shared verified context is APPEND-ONLY (SCTX-04): a ` +
-            `supersession is a NEW note carrying a supersedes: field, never a rewrite of an existing ` +
-            `one. No file was written, and the note already at "${resolvedFinal}" is untouched (CR-11).`);
+        throw differingOccupantRefusal(id, resolvedFinal);
     }
     mkdirSync(notesDir, { recursive: true });
     atomicWrite(finalPath, text);
+}
+// ── The append-only refusal, spelled ONCE (33-38). ─────────────────────────────────────────────
+// The chokepoint raises it, and `appendNote` raises the SAME error one step earlier — before its
+// `admit()` call can append a GOV-02 event — so a caller meets one message whichever position
+// decided it. `admitAndAppend` returns findings rather than throwing, so it reads the sentence.
+function differingOccupantSentence(id, resolvedFinal) {
+    return (`the destination already holds a DIFFERENT note under id "${id}". The shared verified context ` +
+        `is APPEND-ONLY (SCTX-04): a supersession is a NEW note carrying a supersedes: field, never a ` +
+        `rewrite of an existing one. No file was written, and the note already at "${resolvedFinal}" ` +
+        `is untouched (CR-11).`);
+}
+function differingOccupantRefusal(id, resolvedFinal) {
+    return new Error(`context-io.writeNoteFile: refusing to write — ${differingOccupantSentence(id, resolvedFinal)}`);
+}
+/**
+ * The destination decision in `admitAndAppend`'s findings contract: `null` means proceed (absent,
+ * or identical bytes — the idempotent case), a string is the refusal to return. That route returns
+ * findings rather than throwing, so every refusal `decideNoteDestination` raises (containment, a
+ * FIFO or a directory at the path, a destination above the ceiling) becomes a named finding here,
+ * raised before either of its branches can reach the GOV-02 ledger.
+ */
+function noteDestinationRefusal(notesDir, id, text) {
+    let destination;
+    try {
+        destination = decideNoteDestination(notesDir, id, text);
+    }
+    catch (e) {
+        return `admission REFUSED: ${e.message} No GOV-02 event was appended.`;
+    }
+    if (destination.existing !== null && destination.existing !== text) {
+        return (`admission REFUSED: ${differingOccupantSentence(id, destination.resolvedFinal)} No GOV-02 ` +
+            `event was appended.`);
+    }
+    return null;
 }
 // ── decideNoteDestination: WHAT OCCUPIES A NOTE PATH, decided ONCE, for the chokepoint AND for the
 // two routes that must know it before they touch the audit ledger (33-38, WR-01). ─────────────
@@ -1664,6 +1695,17 @@ ledgerOwner = actionOwnerRoot(contextRoot)) {
     // authority would conflate a decision about the note with a fact about the filesystem, and would
     // add a refusal family to an authority whose families are all about the note. The WRITER owns it,
     // fails CLOSED, and nothing is written: this call sits before the chokepoint.
+    // ── OCCUPANCY IS DECIDED BEFORE `admit()` CAN RECORD ANYTHING (33-38, WR-01's third arm). ────
+    // `admit()` appends the GOV-02 event under `audit_retention: retained`, and it runs BEFORE the
+    // write, so an occupied id — reachable outright here, because `precomputedId` is the caller's —
+    // used to leave a ledger line for a note the chokepoint then refused. The ONE destination decision
+    // is asked first: a differing occupant raises the chokepoint's own append-only refusal, and that
+    // function's other refusals (containment, a FIFO at the path) are raised here too. Identical bytes
+    // fall through, exactly as the chokepoint decides them.
+    const destination = decideNoteDestination(join(contextRoot, task, "notes"), id, text);
+    if (destination.existing !== null && destination.existing !== text) {
+        throw differingOccupantRefusal(id, destination.resolvedFinal);
+    }
     let admission;
     try {
         admission = admit(task, text, contextRoot, repoRoot, ledgerOwner);
@@ -5492,19 +5534,9 @@ repoRoot = trustedRepoRoot()) {
         // nothing written and no ledger line; that function's own refusals (containment, a FIFO or a
         // directory at the path) are raised here too, before the ledger, exactly as the chokepoint would
         // have raised them one step later. Identical bytes fall through to the write's no-op.
-        const destination = decideNoteDestination(join(contextRoot, task, "notes"), id, text);
-        if (destination.existing !== null && destination.existing !== text) {
-            return {
-                id: null,
-                findings: [
-                    `admission REFUSED: the destination already holds a DIFFERENT note under id "${id}". The ` +
-                        `shared verified context is APPEND-ONLY (SCTX-04): a supersession is a NEW note carrying ` +
-                        `a supersedes: field, never a rewrite of an existing one. No note was written and no ` +
-                        `GOV-02 event was appended; the note already at "${destination.resolvedFinal}" is ` +
-                        `untouched (CR-11).`,
-                ],
-            };
-        }
+        const occupied = noteDestinationRefusal(join(contextRoot, task, "notes"), id, text);
+        if (occupied !== null)
+            return { id: null, findings: [occupied] };
         if (configResult.config.audit_retention === "retained") {
             // THE POINT OF EFFECT, AND THE SAME DISPOSITION THE SIBLING ROUTE TAKES (31-39, CR-26 /
             // D-39). A record is about to be written, so this action genuinely has two halves; if the
@@ -5577,6 +5609,12 @@ repoRoot = trustedRepoRoot()) {
     // success. Posture-B is preserved (VFY-01).
     const id = noteId(note);
     const text = composeNote(note, body, id);
+    // OCCUPANCY BEFORE `admit()` HERE TOO (33-38, WR-01's fourth arm). `admit()` records the GOV-02
+    // event under `audit_retention: retained` before the write below, so this branch asks the ONE
+    // destination decision first, exactly as its gated sibling does above.
+    const occupied = noteDestinationRefusal(join(contextRoot, task, "notes"), id, text);
+    if (occupied !== null)
+        return { id: null, findings: [occupied] };
     // A GOV-02 ledger that cannot be written refuses here too (31-21). Same argument as `appendNote`'s:
     // the authority decides admissibility, the WRITER owns the recording failure, and this branch
     // returns findings rather than throwing because that is its contract.
