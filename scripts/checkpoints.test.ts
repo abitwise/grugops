@@ -2859,3 +2859,131 @@ describe("33-R4 CR-01 nested — the consolidated corpus, replayed against the c
     expect(new Set(CR01_NESTED_CORPUS.map((r) => r.kind)).size).toBe(5);
   }, 600_000);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33 round-4 (plan 33-36) — a governed verb the TOOL resolves from a unique prefix.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// 33-VERIFICATION.md "Adversarial guard probe", the npm-verb-abbreviation row (corpus row LB-01): npm
+// runs a unique prefix of one of its commands as that command (npm 11.7.0, measured with `--help` on
+// 2026-09-23; the one-character prefix is refused as unknown), so a publish spelled short ALLOWED with
+// zero keys. Every case here is DERIVED from the rule's own `verbs` and `benign` arrays — a prefix is
+// produced by slicing the verb, never typed — so no abbreviation literal appears in this file.
+type CommandRule = (typeof cp.COMMAND_CHECKPOINT_RULES)[number];
+/** The row field this plan adds; read through a widening cast so the file compiles before and after. */
+const resolvesVerbPrefix = (r: CommandRule): boolean =>
+  (r as { readonly resolvesVerbPrefix?: boolean }).resolvesVerbPrefix === true;
+/** Every word the rule knows: its governed verbs and its benign subcommands. */
+const knownWords = (r: CommandRule): readonly string[] => [...r.verbs, ...(r.benign ?? [])];
+interface PrefixEntry {
+  readonly p: string;
+  /** The known words `p` is a prefix of. */
+  readonly owners: readonly string[];
+  /** A prefix of exactly one known word, and that word a governed verb. */
+  readonly governs: boolean;
+}
+/** Every non-empty prefix of every known word of the rule, deduplicated, with its owners. */
+const prefixTable = (r: CommandRule): readonly PrefixEntry[] => {
+  const known = knownWords(r);
+  const seen = new Set<string>();
+  const out: PrefixEntry[] = [];
+  for (const w of known) {
+    for (let k = 1; k <= w.length; k++) {
+      const p = w.slice(0, k);
+      if (seen.has(p)) continue;
+      seen.add(p);
+      const owners = known.filter((x) => x.startsWith(p));
+      out.push({ p, owners, governs: owners.length === 1 && r.verbs.includes(owners[0] as string) });
+    }
+  }
+  return out;
+};
+/** The rows whose governed verb is `publish` — selected by the verb, not by a list of tools. */
+const publishRows = (): readonly CommandRule[] => cp.COMMAND_CHECKPOINT_RULES.filter((r) => r.verbs.includes("publish"));
+
+describe("33-36 npm unique prefix — a governed verb the tool resolves from a unique prefix is governed", () => {
+  const has = (cmd: string, id: string): boolean => cp.matchCommandCheckpoints(cmd).checkpoints.has(id as never);
+
+  it("the rows that resolve a verb prefix are exactly the rows whose governed verb is `publish`", () => {
+    const byVerb = publishRows().map((r) => r.tool).sort();
+    // Non-vacuous: the package-manager rows are in the table.
+    expect(byVerb.length).toBeGreaterThan(0);
+    expect(cp.COMMAND_CHECKPOINT_RULES.filter(resolvesVerbPrefix).map((r) => r.tool).sort()).toEqual(byVerb);
+  });
+
+  it("npm: every unique prefix of the governed verb is the production checkpoint, in every shape", () => {
+    const npm = cp.COMMAND_CHECKPOINT_RULES.find((r) => r.tool === "npm") as CommandRule;
+    const table = prefixTable(npm);
+    const unique = table.filter((e) => e.governs).map((e) => e.p);
+    const verb = npm.verbs[0] as string;
+    // Non-vacuous on both sides: at least one PROPER prefix governs, and at least one prefix of the verb
+    // is shared with a benign word (the ambiguous shortest prefix the tool itself refuses).
+    expect(unique.filter((p) => p !== verb).length).toBeGreaterThan(0);
+    expect(table.filter((e) => !e.governs && verb.startsWith(e.p)).length).toBeGreaterThan(0);
+    // The derived count: every prefix from the shortest unambiguous one up to the verb itself.
+    const shortest = Math.min(...unique.map((p) => p.length));
+    expect(unique.length).toBe(verb.length - shortest + 1);
+    const failures: string[] = [];
+    for (const p of unique) {
+      for (const cmd of [
+        `npm ${p}`,
+        `npm --access public ${p}`,
+        `sudo npm ${p}`,
+        `FOO=1 npm ${p} --tag next`,
+        `true && npm ${p}`,
+        `bash -c 'npm ${p}'`,
+      ]) {
+        if (!has(cmd, npm.checkpoint)) failures.push(cmd);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it("every `publish` row: each unique prefix of its governed verb is its checkpoint", () => {
+    const failures: string[] = [];
+    for (const r of publishRows()) {
+      for (const e of prefixTable(r)) if (e.governs && !has(`${r.tool} ${e.p}`, r.checkpoint)) failures.push(`${r.tool} ${e.p}`);
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it("a prefix that is not unique to a governed verb does not govern: every ambiguous prefix and every benign prefix allows", () => {
+    const wrong: string[] = [];
+    let asked = 0;
+    for (const r of publishRows()) {
+      for (const e of prefixTable(r)) {
+        if (e.governs) continue;
+        asked++;
+        if (cp.matchCommandCheckpoints(`${r.tool} ${e.p}`).checkpoints.size !== 0) wrong.push(`${r.tool} ${e.p} (owners ${e.owners.join(",")})`);
+      }
+    }
+    expect(asked).toBeGreaterThan(0);
+    expect(wrong).toEqual([]);
+  });
+
+  it("the plan's controls still allow: a package script named publish, a build, ci, pack, a bare install", () => {
+    for (const cmd of ["npm run publish", "npm run build", "npm ci", "npm pack", "npm i", "npm test", "npm run -s lint"]) {
+      expect(cp.matchCommandCheckpoints(cmd).checkpoints.size, cmd).toBe(0);
+    }
+  });
+
+  it("a tool whose row does not resolve prefixes is NOT governed by a unique prefix of its verb (no over-denial by analogy)", () => {
+    const wrong: string[] = [];
+    let asked = 0;
+    for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+      if (resolvesVerbPrefix(r) || r.verbs.includes("publish")) continue;
+      for (const e of prefixTable(r)) {
+        if (!e.governs || r.verbs.includes(e.p)) continue; // proper prefixes only
+        asked++;
+        if (has(`${r.tool} ${e.p}`, r.checkpoint)) wrong.push(`${r.tool} ${e.p}`);
+      }
+    }
+    expect(asked).toBeGreaterThan(0);
+    expect(wrong).toEqual([]);
+  });
+
+  it("the verifier's npm-abbreviation row (corpus LB-01) denies on the model", () => {
+    const row = nestedRow("LB-01");
+    expect(cp.matchCommandCheckpoints(row.command).checkpoints.has("production_requires_human_confirmation"), row.command).toBe(true);
+  });
+});
