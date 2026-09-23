@@ -5480,6 +5480,31 @@ repoRoot = trustedRepoRoot()) {
         // NO VALUE IS CARRIED BACKWARDS. `id` is frozen by `noteId(note)` above, composed into `text`,
         // and passed to `appendPreAdmittedNote` — which is what the branch's own comment already states
         // it is frozen FOR. So the event is keyed on `id` and the append simply moves up.
+        //
+        // ── OCCUPANCY IS DECIDED BEFORE THE LEDGER, FROM THE RAW FILE (33-38, WR-01). ────────────────
+        // Moving the append above the write (31-21) made the write chokepoint's append-only refusal land
+        // AFTER the GOV-02 event: an occupant at `{contextRoot}/{task}/notes/{id}.md` whose bytes differ
+        // from `text` left a ledger line for a human-disposed note that was never written. The id is
+        // minted with a fresh nonce here, so a collision is rare — but "rare" is a property of the
+        // nonce, not of the route, and `promoteAdmitted` (which takes its id from an argument) measured
+        // the consequence. So this branch asks the SAME `decideNoteDestination` the chokepoint and
+        // `promoteAdmitted` ask, before the retention guard: a differing occupant is refused here, with
+        // nothing written and no ledger line; that function's own refusals (containment, a FIFO or a
+        // directory at the path) are raised here too, before the ledger, exactly as the chokepoint would
+        // have raised them one step later. Identical bytes fall through to the write's no-op.
+        const destination = decideNoteDestination(join(contextRoot, task, "notes"), id, text);
+        if (destination.existing !== null && destination.existing !== text) {
+            return {
+                id: null,
+                findings: [
+                    `admission REFUSED: the destination already holds a DIFFERENT note under id "${id}". The ` +
+                        `shared verified context is APPEND-ONLY (SCTX-04): a supersession is a NEW note carrying ` +
+                        `a supersedes: field, never a rewrite of an existing one. No note was written and no ` +
+                        `GOV-02 event was appended; the note already at "${destination.resolvedFinal}" is ` +
+                        `untouched (CR-11).`,
+                ],
+            };
+        }
         if (configResult.config.audit_retention === "retained") {
             // THE POINT OF EFFECT, AND THE SAME DISPOSITION THE SIBLING ROUTE TAKES (31-39, CR-26 /
             // D-39). A record is about to be written, so this action genuinely has two halves; if the

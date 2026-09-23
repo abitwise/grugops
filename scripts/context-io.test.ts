@@ -13649,6 +13649,43 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
     expect(mod.readContext(TASK, store).map((n) => n.id)).toEqual([result.id]);
   });
 
+  it("ORDER, derived from the AST: on BOTH note-plus-ledger routes the occupancy decision precedes every ledger touch", () => {
+    // Asserted on the SOURCE because "the check is above the append" is exactly the kind of claim a
+    // later reordering keeps as a comment while the call moves.
+    const sf = ts.createSourceFile(
+      "context-io.ts",
+      readFileSync(CONTEXT_IO_TS, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const bodies = new Map<string, ts.Node>();
+    const find = (n: ts.Node): void => {
+      if (ts.isFunctionDeclaration(n) && n.name && n.body) bodies.set(n.name.text, n.body);
+      ts.forEachChild(n, find);
+    };
+    ts.forEachChild(sf, find);
+    for (const route of ["promoteAdmitted", "admitAndAppend"]) {
+      const body = bodies.get(route);
+      expect(body, `PREMISE: ${route} was not found, so nothing below measured it`).toBeDefined();
+      const firstAt = (names: readonly string[]): number => {
+        let at = Number.POSITIVE_INFINITY;
+        const walk = (n: ts.Node): void => {
+          if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && names.includes(n.expression.text)) {
+            at = Math.min(at, n.getStart(sf));
+          }
+          ts.forEachChild(n, walk);
+        };
+        walk(body as ts.Node);
+        return at;
+      };
+      const decideAt = firstAt(["decideNoteDestination"]);
+      const ledgerAt = firstAt(["ledgerRecordsId", "appendAuditLedger"]);
+      expect(Number.isFinite(decideAt), `PREMISE: ${route} never asks decideNoteDestination`).toBe(true);
+      expect(Number.isFinite(ledgerAt), `PREMISE: ${route} has no ledger touch to order against`).toBe(true);
+      expect(decideAt, `${route} touches the GOV-02 ledger before deciding occupancy (WR-01)`).toBeLessThan(ledgerAt);
+    }
+  });
+
   it("LEGITIMATE INPUT: under the lean retention value the gated branch still writes and appends nothing", () => {
     const root = freshTmp("p33-38-lean-");
     mkdirSync(join(root, ".git"), { recursive: true });
