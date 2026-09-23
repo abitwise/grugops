@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 4 of 4 PLANNED 2026-09-23 — 9 plans (33-35..33-43, waves 24-32), checker passed; next: /gsd-execute-phase 33 --gaps-only"
-stopped_at: Completed 33-37-PLAN.md
-last_updated: "2026-09-23T20:39:57.398Z"
-state_head: d96ea5ffd205e60c495ac3f888a1e2a7b4a9a510
+stopped_at: Completed 33-38-PLAN.md
+last_updated: "2026-09-23T21:04:56.126Z"
+state_head: 8899edb44d8d9d2b58d4fb25c9e478a1f0dab1f9
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 312
-  completed_plans: 306
+  completed_plans: 307
   percent: 98
 last_activity: 2026-09-23
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 38 of 43 (round 4: 33-35 executed 2026-09-23 — CR-01 nested class closed in the one projection; 33-36 executed 2026-09-23 — npm unique-prefix and xargs stdin verbs closed, residual docblocks rewritten, LB-01..04 deny; 33-37 executed 2026-09-23 — one Edit-anchor authority publishes the documented win32 //c/Users/... form, Test C7 derives through it, win32 axis measured by 33-40; next 33-38)
+Plan: 39 of 43 (round 4: 33-35 executed 2026-09-23 — CR-01 nested class closed in the one projection; 33-36 executed 2026-09-23 — npm unique-prefix and xargs stdin verbs closed, residual docblocks rewritten, LB-01..04 deny; 33-37 executed 2026-09-23 — one Edit-anchor authority publishes the documented win32 //c/Users/... form, Test C7 derives through it, win32 axis measured by 33-40; 33-38 executed 2026-09-24 — WR-01 closed: promoteAdmitted, admitAndAppend (both branches) and appendNote decide occupancy through decideNoteDestination before any GOV-02 ledger touch, IN-04 closed as a side effect; next 33-39)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) PLANNED 2026-09-23: 33-35/36 guard (opaque x nested-quoted CR-01 class, npm unique-prefix, xargs hidden verb; send-pack, gh api merge, dashed git-push, row 259, WR-03 ledger-only per D-33-R4-01/02); 33-37 row 260 win32 spelling; 33-38 WR-01; 33-39 WR-02; 33-40 push + CI; 33-41 push + go + capture; 33-42 flip or section 9 hold (D-20 at cap); 33-43 ledger close. Next: /gsd-execute-phase 33 --gaps-only.
@@ -566,6 +566,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P35 | 29 min | 3 tasks | 8 files |
 | Phase 33 P36 | 32 min | 3 tasks | 8 files |
 | Phase 33 P37 | 13 min | 2 tasks | 3 files |
+| Phase 33 P38 | 21min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1548,6 +1549,7 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-36: the npm unique-prefix rule is a per-row fact (resolvesVerbPrefix on the three publish rows) with the discriminator derived from each row's verbs and benign words; not applied to every row, because tools measured not to abbreviate would then refuse ordinary operands that begin a verb
 - [Phase 33]: 33-36: the xargs stdin feed covers every word after an xargs word (and nested bodies in that command), not only xargs's first operand, because a launcher operand (xargs env npm) ran publish and a launcher list under-refuses; a replace flag drops the benign adjacency; recorded over-denial: xargs grep -l kubectl
 - [Phase 33]: 33-37: the scoped Edit grant's anchor is decided by one authority, editAnchor, in scripts/capture-live.ts. POSIX paths are unchanged. A win32 drive path becomes the documented //c/Users/... form from code.claude.com/docs/en/permissions. Undocumented shapes (relative, drive-relative, UNC, device namespace) are refused. The branch is on path shape, not the platform. The live win32 matcher stays UNKNOWN - verify, and 33-40's windows leg measures the suite.
+- [Phase 33]: 33-38: promoteAdmitted, admitAndAppend (both branches) and appendNote decide destination occupancy through decideNoteDestination (the chokepoint's bounded raw-file read) before any GOV-02 ledger read/append; occupancy is a fact about the filename, never asked of the sealed reader. IN-04 closed as a side effect.
 
 ### Pending Todos
 
@@ -1675,8 +1677,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-23T20:39:56.887Z
-Stopped at: Completed 33-37-PLAN.md
+Last session: 2026-09-23T21:04:55.631Z
+Stopped at: Completed 33-38-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
