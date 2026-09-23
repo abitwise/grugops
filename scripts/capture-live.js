@@ -900,7 +900,48 @@ function inputStrings(input) {
     return { paths, all };
 }
 /**
- * The route the notes took to disk, derived from TOOL-USE BLOCKS only (WR-01, D-07/D-20):
+ * The command words that make a `Bash` block WRITE-SHAPED (33-REVIEW round 3 WR-02). The first seven
+ * are the review's list (`tee`, `node`, `cp`, `mv`, `mkdir`, `touch`, `rm`); the rest are a superset:
+ * interpreters that can write anything they are handed (`python`, `sh`, `npx`, ...) and other writers
+ * (`ln`, `dd`, `rsync`, `tar`, ...). Adding a word can only WIDEN the parity input, which can make a
+ * false `fail` more reachable and never a false `pass` (D-20): the fail-safe direction. Removing a word
+ * is the direction that needs a reason. Redirections (`>`, `>>`) and in-place edits (`sed -i`,
+ * `awk -i`, `find -delete`, the writing `git` subcommands) are matched by `isWriteShapedCommand`.
+ */
+export const WRITE_SHAPED_COMMAND_WORDS = [
+    "tee", "node", "cp", "mv", "mkdir", "touch", "rm",
+    "python", "python3", "perl", "ruby", "deno", "bun", "npx", "tsx", "sh", "bash", "zsh",
+    "ln", "install", "dd", "rsync", "truncate", "tar", "unzip", "patch",
+];
+/**
+ * The extensions of a written file that make it a SCRIPT (WR-02): the review's `.mjs`, `.js`, `.sh`,
+ * `.py`, and a superset of the same kinds (`.cjs`, `.ts`, `.mts`, `.cts`, `.bash`, `.zsh`, `.pl`,
+ * `.rb`). A written file that starts with a shebang (`#!`) is a script whatever its name.
+ */
+export const SCRIPT_EXTENSIONS = [".mjs", ".js", ".sh", ".py", ".cjs", ".ts", ".mts", ".cts", ".bash", ".zsh", ".pl", ".rb"];
+// A command word is a whole shell word: preceded by the start, whitespace, shell punctuation, a quote
+// or a `/` (so `/bin/rm` counts), and followed by the end, whitespace, shell punctuation or a quote
+// (so `node_modules` and `nodes` do not).
+const WRITE_WORD_RE = new RegExp(`(?:^|[\\s;&|()\`'"/=])(?:${WRITE_SHAPED_COMMAND_WORDS.join("|")})(?=$|[\\s;&|()\`'"])`);
+// Redirections that cannot write a file: to /dev/null (or stdout/stderr), and file-descriptor
+// duplications (`2>&1`, `>&2`, `>&-`). They are removed before the `>` question is asked.
+const HARMLESS_REDIRECT_RE = /(?:\d*|&)>>?\s*\/dev\/(?:null|stdout|stderr)\b|\d*>&\s*(?:\d+|-)/g;
+const IN_PLACE_RE = /(?:^|[\s;&|()`'"/])(?:sed|awk)\s(?:[^;&|\n]*\s)?(?:-[A-Za-z]*i|--in-place)|(?:^|\s)-delete(?=$|[\s;&|)])|(?:^|[\s;&|()`'"/])git\s+(?:mv|rm|checkout|restore|apply|am|reset|stash|clean|pull|merge|rebase|cherry-pick|revert)(?=$|[\s;&|)])/;
+/**
+ * Is a `Bash` command write-shaped? True when it carries a redirection that can write a file, a
+ * `WRITE_SHAPED_COMMAND_WORDS` word, or an in-place edit. The question is asked of the WHOLE command,
+ * not of each simple command: the held capture writes notes through a variable set in one statement
+ * and redirected into in the next (B:1504, B:1740), so a per-statement test would miss a real write.
+ * A read that shares a command with a write-shaped word (A:1820's `rm` of a queue file beside a `find`
+ * of the root) counts — the over-count is the fail-safe direction.
+ */
+export function isWriteShapedCommand(command) {
+    if (command.replace(HARMLESS_REDIRECT_RE, " ").includes(">"))
+        return true;
+    return WRITE_WORD_RE.test(command) || IN_PLACE_RE.test(command);
+}
+/**
+ * The route the notes took to disk, derived from TOOL-USE BLOCKS only (WR-01, WR-02, D-07/D-20):
  *
  *   - DIRECT: a block of a file-writing tool (`WRITING_TOOLS`) whose path field names the context
  *     root. The marker is the POSIX form of `CONTEXT_SUBPATH` anchored EITHER way — `/.grugops/context/`
@@ -911,19 +952,25 @@ function inputStrings(input) {
  *   - PROPOSE_NOTE: a block whose name ends in `propose_note` — the sanctioned MCP admission route.
  *     The suffix is matched because the installed plugin exposes
  *     `mcp__plugin_grugops_grugops__propose_note` while the grant spells `mcp__grugops__propose_note`.
- *   - UNCLASSIFIED: a block that names the context root without being a direct write — a `Bash`
- *     block any of whose string inputs names it (the `command`: a node-mediated write, a heredoc, or
- *     merely an `ls`), or a file-writing block any of whose string inputs names it while no
- *     path-shaped field sits under it (the WRITTEN CONTENT, an edit's `new_string` — the held capture's
- *     `admit-notes.mjs` at A:1749 and A:1931: a script written under `.grugops/queue/` and then run
- *     by a `node` command that never spells the root). It is UNCLASSIFIED because the transcript
- *     cannot tell the sanctioned in-process writer (A:839, `context-io.js` reached through `node`)
- *     from a hand write: the axis records the count and the reader's seal (plan 33-25) decides what
- *     was admitted. Prose to a nested session (an `Agent` prompt) and read-only tools enter no axis:
- *     the prompt is model-chosen text (the CR-03 class) and a read is not a route to disk.
+ *   - INDIRECT: a WRITE-SHAPED block that names the context root without being a direct write — a
+ *     `Bash` block whose `command` names it and is write-shaped (`isWriteShapedCommand`: a node-mediated
+ *     write, a heredoc redirected into a note, a `mkdir` of the notes folder), or a file-writing block
+ *     that writes a SCRIPT (`SCRIPT_EXTENSIONS`, or a shebang) any of whose string inputs names the
+ *     root while no path-shaped field sits under it (the held capture's `admit-notes.mjs` at A:1749
+ *     and A:1931: a script written under `.grugops/queue/` and then run by a `node` command that never
+ *     spells the root). The transcript cannot tell the sanctioned in-process writer (A:839,
+ *     `context-io.js` reached through `node`) from a hand write: the axis records the count and the
+ *     reader's seal (plan 33-25) decides what was admitted.
  *
- * Every arm is a count compared A against B; adding one is a strengthening, never a softening
- * (D-20). Nested subagent frames are ordinary frames here — the direct writes are by role agents.
+ * NOT a route, and in no axis (WR-02): a `Bash` command that names the root only to read it (`ls`,
+ * `cat`, `find`, `head`), a `Bash` `description` or any other non-command leaf, a prose mention of the
+ * root written into a non-script (a memory-bank map), prose to a nested session (an `Agent` prompt),
+ * and read-only tools. Each of those is model-chosen text (the CR-03 class); counting it made `pass`
+ * need two nondeterministic sessions to issue the same number of incidental reads.
+ *
+ * Every arm is a count compared A against B. Every write route still counts, so removing the reads
+ * cannot make a false `pass` reachable (D-20). Nested subagent frames are ordinary frames here — the
+ * direct writes are by role agents.
  */
 export function noteRoute(frames) {
     const rel = toPosix(CONTEXT_SUBPATH);
@@ -935,9 +982,13 @@ export function noteRoute(frames) {
         const q = toPosixWith(toPosix(p), "\\");
         return q.includes(`/${rel}/`) || q.startsWith(`${rel}/`);
     };
+    const isScriptPath = (p) => {
+        const lower = p.toLowerCase();
+        return SCRIPT_EXTENSIONS.some((ext) => lower.endsWith(ext));
+    };
     let directContextWrites = 0;
     let proposeNoteCalls = 0;
-    let unclassifiedContextWrites = 0;
+    let indirectContextWrites = 0;
     for (const frame of frames) {
         for (const block of contentBlocks(frame)) {
             if (block.type !== "tool_use" || typeof block.name !== "string")
@@ -946,26 +997,29 @@ export function noteRoute(frames) {
                 proposeNoteCalls += 1;
                 continue;
             }
-            // The UNION of the arms is asked of every string leaf of the input, not of one named field:
-            // a Bash block is unclassified when ANY leaf names the root (the command, or a description that
-            // spells it); a writing block is direct when a path-shaped leaf sits under the root, otherwise
-            // unclassified when any leaf names it (content, an edit's new_string, an unanchored path field).
-            // One block is counted on exactly one arm.
-            const { paths, all } = inputStrings(block.input);
+            // A Bash block is asked of its `command` only: the `description` and every other leaf are
+            // model-chosen prose. A writing block is direct when a path-shaped leaf sits under the root;
+            // otherwise indirect when it writes a script and any leaf names the root. One block is counted
+            // on at most one arm.
             if (block.name === "Bash") {
-                if (all.some(namesRoot))
-                    unclassifiedContextWrites += 1;
+                const command = block.input?.command;
+                if (typeof command === "string" && namesRoot(command) && isWriteShapedCommand(command))
+                    indirectContextWrites += 1;
                 continue;
             }
             if (!WRITING_TOOLS.has(block.name))
                 continue;
-            if (paths.some(isDirectPath))
+            const { paths, all } = inputStrings(block.input);
+            if (paths.some(isDirectPath)) {
                 directContextWrites += 1;
-            else if (all.some(namesRoot))
-                unclassifiedContextWrites += 1;
+                continue;
+            }
+            const isScript = paths.some(isScriptPath) || all.some((s) => s.startsWith("#!"));
+            if (isScript && all.some(namesRoot))
+                indirectContextWrites += 1;
         }
     }
-    return { directContextWrites, proposeNoteCalls, unclassifiedContextWrites };
+    return { directContextWrites, proposeNoteCalls, indirectContextWrites };
 }
 /**
  * Project one live path to the fields D-07 actually defines: per role (the `by` stamp with the
@@ -1023,8 +1077,10 @@ export function compareLivePaths(a, b) {
     if (a.route.proposeNoteCalls !== b.route.proposeNoteCalls) {
         diffs.push(`note route: propose_note tool-use blocks differ: path A ${a.route.proposeNoteCalls}, path B ${b.route.proposeNoteCalls}`);
     }
-    if (a.route.unclassifiedContextWrites !== b.route.unclassifiedContextWrites) {
-        diffs.push(`note route: unclassified writes naming the context root differ: path A ${a.route.unclassifiedContextWrites}, path B ${b.route.unclassifiedContextWrites}`);
+    // The third route compares the WRITE-SHAPED count only (WR-02): an incidental read of the root is
+    // in no count, so it cannot decide parity.
+    if (a.route.indirectContextWrites !== b.route.indirectContextWrites) {
+        diffs.push(`note route: indirect write-shaped blocks naming the context root differ: path A ${a.route.indirectContextWrites}, path B ${b.route.indirectContextWrites}`);
     }
     return diffs;
 }
@@ -1875,7 +1931,7 @@ export function renderReport(m) {
         L.push(`| verdict marker ${VERDICT_GREEN_MARKER} | ${p.projection.verdictMarker ? "present" : "absent"} | |`);
         L.push(`| note route: direct writes into the context root | ${p.projection.route.directContextWrites} | |`);
         L.push(`| note route: propose_note tool-use blocks | ${p.projection.route.proposeNoteCalls} | |`);
-        L.push(`| note route: unclassified writes naming the context root | ${p.projection.route.unclassifiedContextWrites} | |`);
+        L.push(`| note route: indirect write-shaped blocks naming the context root | ${p.projection.route.indirectContextWrites} | |`);
         L.push("");
     }
     if (m.parity.diffs.length === 0)

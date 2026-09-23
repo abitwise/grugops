@@ -732,7 +732,12 @@ function indirectByHand(frames: readonly StreamFrame[]): number {
         if (typeof command !== "string" || !command.includes(".grugops/context")) continue;
         const tokens = command.split(/[\s;&|()`'"]+/).filter((t) => t !== "");
         const words = tokens.some((t) => HAND_WRITE_WORDS.has(t) || HAND_WRITE_WORDS.has(t.slice(t.lastIndexOf("/") + 1)));
-        const sedInPlace = tokens.some((t, i) => t === "sed" && tokens.slice(i + 1).some((u) => u === "-i" || u.startsWith("-i")));
+        // `sed -i` is asked per STATEMENT, so a later `grep -i` in the same command is not read as sed's flag.
+        const sedInPlace = command.split(/[;|&\n]+/).some((statement) => {
+          const words = statement.split(/\s+/).filter((t) => t !== "");
+          const at = words.indexOf("sed");
+          return at >= 0 && words.slice(at + 1).some((u) => u.startsWith("-i"));
+        });
         let stripped = command;
         for (const harmless of ["2>/dev/null", "&>/dev/null", ">/dev/null", "2>&1", ">&2"]) stripped = stripped.split(harmless).join("");
         const redirect = stripped.includes(">");
