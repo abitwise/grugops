@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 237
+open_count: 238
 waived_count: 3
 fixed_count: 32
-total_count: 272
-last_updated: 2026-09-23T21:03:27.484Z
+total_count: 273
+last_updated: 2026-09-23T21:25:22.310Z
 ---
 
 # Broken Windows Ledger
@@ -287,6 +287,7 @@ last_updated: 2026-09-23T21:03:27.484Z
 | 270 | 33 | unrun-verify | scripts/capture-live.ts | 303 | 33-34 round-3 residual (the half of WINDOWS.md row 255 no offline test settles; handed by plans 33-28, 33-29 and 33-30 to the live go, which 33-32 held as no-go at zero tokens): the live-session UNKNOWN - verify items — (1) whether the platform offers mcp__plugin_grugops_grugops__propose_note to the --agent main-thread session now that the coordinator adapter names it (the B-path system/init tool list, successor of B:11); (2) whether --allowedTools needs the scoped spelling (the runner passes it since 79a5ab9a); (3) whether Edit(//ABS/**) from --allowedTools is honoured live as the permissions reference states, and whether a target path carrying glob metacharacters needs escaping; (4) whether the platform hot-reloads .claude/settings files mid-session; (5) the local-scope registry row shape and projectPath spelling the pre-spawn provenance gate reads from installed_plugins.json; (6) whether the live init frame publishes a file-writing tool outside WRITING_TOOLS; (7) whether a plugin marketplace update is needed at an unbumped 2.1.0. The win32 spelling of the grant is row 260, not repeated here. Open; owner: round 4 (the last under the cap), settled only by the fresh go capture | open |  | 2026-09-22T18:29:45.782Z |  |
 | 271 | 33 | deviation | CHANGELOG.md |  | 33-34 round-3 finding (plan 33-26 hand-off, Next Phase Readiness): the writer now refuses an absent or non-string note scalar by name (assertNoteScalar / assertNoteFields; 8b82b4bc, 4fa7bd65; KIT section 3, row 258) where it used to write the word undefined, but CHANGELOG.md [Unreleased] carries no Security sentence for that refusal (CHANGELOG.md was outside the file lists of 33-26 and 33-34) — add one sentence beside the 33-25 seal entry; owner: round 4 or the phase closing document plan | open |  | 2026-09-22T18:29:45.874Z |  |
 | 272 | 33 | deviation | scripts/context-io.ts |  | 33-38 widened WR-01 past the plan's two routes: the plan named promoteAdmitted and admitAndAppend's gated branch, and measurement found the same ledger-then-note over-record on appendNote with a caller-chosen precomputedId (ledger lines 1 on an occupied id) and on admitAndAppend's non-gated branch. Both were closed in the same files, RED-first (commits 45c7514b and a9c1331b). A side effect closed IN-04, whose failing-on-change test now asserts the closure. Recorded so the scope expansion shows up in the ledger and does not have to be read out of the diff. | open |  | 2026-09-23T21:03:27.484Z |  |
+| 273 | 33 | deviation | scripts/capture-live.ts |  | 33-39 WR-02 residual (fail-safe claim bounded): the parity input now counts a non-direct writing-tool block only when it writes a SCRIPT (SCRIPT_EXTENSIONS or a leading shebang). The pre-33-39 broad count also took a non-script file whose content names .grugops/context; such a file later executed by a command that does not name the root (e.g. bash notes.md) is no longer on any route axis. A false pass still needs BOTH paths equal on every role count, kind multiset, verdict marker, direct and propose_note count, so it is contrived, but the axis is not strictly monotone. Separately, the Bash test is command-level co-occurrence, so a write to a queue file beside a read of the root counts (A:1820, B:840, B:1824): residual false-fail noise, the fail-safe direction. Owner: the human, at the paid-run read-out (33-40/33-41). | open |  | 2026-09-23T21:25:22.310Z |  |
 
 ````json
 [
@@ -3647,6 +3648,19 @@ last_updated: 2026-09-23T21:03:27.484Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-23T21:03:27.484Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 273,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": null,
+    "description": "33-39 WR-02 residual (fail-safe claim bounded): the parity input now counts a non-direct writing-tool block only when it writes a SCRIPT (SCRIPT_EXTENSIONS or a leading shebang). The pre-33-39 broad count also took a non-script file whose content names .grugops/context; such a file later executed by a command that does not name the root (e.g. bash notes.md) is no longer on any route axis. A false pass still needs BOTH paths equal on every role count, kind multiset, verdict marker, direct and propose_note count, so it is contrived, but the axis is not strictly monotone. Separately, the Bash test is command-level co-occurrence, so a write to a queue file beside a read of the root counts (A:1820, B:840, B:1824): residual false-fail noise, the fail-safe direction. Owner: the human, at the paid-run read-out (33-40/33-41).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-23T21:25:22.310Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
