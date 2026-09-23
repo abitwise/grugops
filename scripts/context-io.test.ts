@@ -13649,9 +13649,71 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
     expect(mod.readContext(TASK, store).map((n) => n.id)).toEqual([result.id]);
   });
 
-  it("ORDER, derived from the AST: on BOTH note-plus-ledger routes the occupancy decision precedes every ledger touch", () => {
+  it("SIBLING ARM (appendNote, caller-chosen precomputedId): an occupied id is refused before admit() appends — ledger lines 0", () => {
+    // `appendNote` accepts an id from its caller and reaches the ledger through `admit()` BEFORE its
+    // write, so it is the third route with the ledger-then-note order — and the only one of the three
+    // whose id a caller names outright.
+    const { root, store } = gatedRoot("p33-38-appendnote-");
+    const id = "20260923T030000Z-qe-observation-aaaaaaaa";
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    const occupant = "an occupant under a caller-chosen id\n";
+    writeFileSync(join(store, TASK, "notes", `${id}.md`), occupant);
+    const soft = {
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-23T03:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+    let threw: string | null = null;
+    try {
+      mod.appendNote(TASK, soft, BODY, store, id, root);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(ledgerLines(root), "admit() recorded an admission for a note that was never written").toBe(0);
+    expect(threw).toContain("already holds a DIFFERENT note");
+    expect(readFileSync(join(store, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+  });
+
+  it("SIBLING ARM (admitAndAppend's NON-gated branch): an occupied minted id is refused before admit() appends — ledger lines 0", () => {
+    const { root, store } = gatedRoot("p33-38-nongated-");
+    const soft = {
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-23T03:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+    expect(mod.isGatedNote(soft.by, soft.kind, mod.readGovernanceConfig(root)), "PREMISE: not the non-gated branch").toBe(false);
+    const id = withPinnedNonce(() => mod.noteId(soft));
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    const occupant = "an occupant under the minted non-gated id\n";
+    writeFileSync(join(store, TASK, "notes", `${id}.md`), occupant);
+    let result: { id: string | null; findings: string[] } | null = null;
+    let threw: string | null = null;
+    try {
+      result = withPinnedNonce(() => mod.admitAndAppend(TASK, soft, BODY, store, root));
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(ledgerLines(root), "admit() recorded an admission for a note that was never written").toBe(0);
+    expect(threw, "the refusal must be the branch's findings contract, not a throw").toBeNull();
+    expect(result?.id).toBeNull();
+    expect(result?.findings.join("\n")).toContain("already holds a DIFFERENT note");
+    expect(readFileSync(join(store, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+  });
+
+  it("ORDER, derived from the AST: every ledger touch on a note-writing route is DOMINATED by an occupancy decision", () => {
     // Asserted on the SOURCE because "the check is above the append" is exactly the kind of claim a
-    // later reordering keeps as a comment while the call moves.
+    // later reordering keeps as a comment while the call moves. DOMINATED, not merely "earlier in
+    // the text": a decision in one branch does not cover a ledger touch in the other, so for every
+    // ledger touch the walk climbs its enclosing blocks and requires an EARLIER statement in one of
+    // them to be `const … = decideNoteDestination(…)`.
     const sf = ts.createSourceFile(
       "context-io.ts",
       readFileSync(CONTEXT_IO_TS, "utf8"),
@@ -13664,26 +13726,50 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
       ts.forEachChild(n, find);
     };
     ts.forEachChild(sf, find);
-    for (const route of ["promoteAdmitted", "admitAndAppend"]) {
+    const LEDGER_TOUCH = new Set(["ledgerRecordsId", "appendAuditLedger", "admit"]);
+    const isDecision = (st: ts.Statement): boolean =>
+      ts.isVariableStatement(st) &&
+      st.declarationList.declarations.some(
+        (d) =>
+          d.initializer !== undefined &&
+          ts.isCallExpression(d.initializer) &&
+          ts.isIdentifier(d.initializer.expression) &&
+          d.initializer.expression.text === "decideNoteDestination",
+      );
+    const dominated = (call: ts.Node, fnBody: ts.Node): boolean => {
+      let child: ts.Node = call;
+      let parent: ts.Node | undefined = call.parent;
+      while (parent !== undefined) {
+        if (ts.isBlock(parent)) {
+          const idx = parent.statements.indexOf(child as ts.Statement);
+          if (idx > 0 && parent.statements.slice(0, idx).some(isDecision)) return true;
+        }
+        if (parent === fnBody) return false;
+        child = parent;
+        parent = parent.parent;
+      }
+      return false;
+    };
+    let touches = 0;
+    for (const route of ["promoteAdmitted", "admitAndAppend", "appendNote"]) {
       const body = bodies.get(route);
       expect(body, `PREMISE: ${route} was not found, so nothing below measured it`).toBeDefined();
-      const firstAt = (names: readonly string[]): number => {
-        let at = Number.POSITIVE_INFINITY;
-        const walk = (n: ts.Node): void => {
-          if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && names.includes(n.expression.text)) {
-            at = Math.min(at, n.getStart(sf));
+      const undominated: string[] = [];
+      const walk = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && LEDGER_TOUCH.has(n.expression.text)) {
+          touches += 1;
+          if (!dominated(n, body as ts.Node)) {
+            undominated.push(`${n.expression.text} at line ${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`);
           }
-          ts.forEachChild(n, walk);
-        };
-        walk(body as ts.Node);
-        return at;
+        }
+        ts.forEachChild(n, walk);
       };
-      const decideAt = firstAt(["decideNoteDestination"]);
-      const ledgerAt = firstAt(["ledgerRecordsId", "appendAuditLedger"]);
-      expect(Number.isFinite(decideAt), `PREMISE: ${route} never asks decideNoteDestination`).toBe(true);
-      expect(Number.isFinite(ledgerAt), `PREMISE: ${route} has no ledger touch to order against`).toBe(true);
-      expect(decideAt, `${route} touches the GOV-02 ledger before deciding occupancy (WR-01)`).toBeLessThan(ledgerAt);
+      walk(body as ts.Node);
+      expect(undominated, `${route} touches the GOV-02 ledger with no occupancy decision above it (WR-01)`).toEqual([]);
     }
+    // promoteAdmitted: ledgerRecordsId + appendAuditLedger; admitAndAppend: appendAuditLedger + admit;
+    // appendNote: admit. A walk that found fewer measured less than it claims.
+    expect(touches, "PREMISE: the ledger-touch census is not the five sites the three routes hold").toBe(5);
   });
 
   it("LEGITIMATE INPUT: under the lean retention value the gated branch still writes and appends nothing", () => {
