@@ -887,35 +887,98 @@ describe("WR-01 / WR-02: the note-route axis sees every route to disk — anchor
     expect(rendered).not.toContain("unclassified writes naming the context root");
   });
 
-  it("Test P10 (the held capture still reads its six sentences): over commit c7be6d0d the six divergence sentences are unchanged, and the third route's count per path is stated from the transcript and matches an independent count", () => {
+  it("Test P10 (the held capture re-derived under write-shaped counting): over commit c7be6d0d the six divergence sentences are unchanged, and the third route counts exactly the write-shaped blocks — stated by transcript line, cross-checked against an independent count", () => {
     const summary = heldCapture("33-CAPTURE-SUMMARY.md");
     const textA = heldCapture("33-CAPTURE-A.jsonl");
     const textB = heldCapture("33-CAPTURE-B.jsonl");
     const a = projectLivePath(stampsFromSummary(summary, "A").stamps, parseFrames(textA).frames, prefix);
     const b = projectLivePath(stampsFromSummary(summary, "B").stamps, parseFrames(textB).frames, prefix);
     const diffs = compareLivePaths(a, b);
-    for (const want of [
+    // None of the six rests on the third route: four are author stamps on disk, two are the direct and
+    // propose_note routes. WR-02 changes none of them (D-20).
+    const six = [
       "brownfield-mapper: note count differs: path A has 5, path B has 3",
       "architect-design: note count differs: path A has 4, path B has 3",
       "security-nfr: note count differs: path A has 4, path B has 3",
       "orchestrator: present only in path A (2 note(s))",
       "note route: direct writes into the context root differ: path A 0, path B 9",
       "note route: propose_note tool-use blocks differ: path A 3, path B 0",
-    ]) {
-      expect(diffs, `still verbatim: ${want}`).toContain(want);
+    ];
+    for (const want of six) expect(diffs, `still verbatim: ${want}`).toContain(want);
+    // The third route, re-derived by LINE. Each line was read from the transcript (33-39-SUMMARY lists
+    // them): A:271 mkdir + heredoc of the queue files, A:967 the mapper's publish .mjs, A:1749 and
+    // A:1931 the admit-notes.mjs scripts, A:1820 and A:1972 an rm (of a queue script) beside a read of
+    // the root, A:2038 a node sweep; B:319 and B:1448 mkdir of the notes folders, B:1504 and B:1740 a
+    // heredoc redirected into a note through a variable, B:840 and B:1824 an mv (of a queue file)
+    // beside a read of the root.
+    const linesCounted = (text: string): number[] => text.split("\n").flatMap((line, i) => (line.trim() !== "" && noteRoute(parseFrames(line).frames).indirectContextWrites > 0 ? [i + 1] : []));
+    expect(linesCounted(textA), "path A: the write-shaped indirect blocks, by transcript line").toEqual([271, 967, 1749, 1820, 1931, 1972, 2038]);
+    expect(linesCounted(textB), "path B: the write-shaped indirect blocks, by transcript line").toEqual([319, 840, 1448, 1504, 1740, 1824]);
+    // The blocks the pre-WR-02 count also took, and that are GONE: every one is a read of the root
+    // (ls/cat/find/grep/head/sed -n) or a prose mention written into a memory-bank .md (A:759, A:1594,
+    // B:732). Each moves the route projection by nothing now, and the independent count agrees.
+    const removed = { A: [127, 364, 759, 1008, 1229, 1295, 1594, 2001], B: [165, 217, 231, 394, 732, 950, 1077, 1527, 1595, 1660, 1872] };
+    for (const [run, text] of [["A", textA], ["B", textB]] as const) {
+      const lines = text.split("\n");
+      for (const n of removed[run]) {
+        const frames = parseFrames(lines[n - 1]).frames;
+        expect(JSON.stringify(frames).includes(".grugops/context"), `${run}:${n} names the root (the old count took it)`).toBe(true);
+        expect(noteRoute(frames), `${run}:${n} is not a route to disk`).toEqual({ directContextWrites: 0, proposeNoteCalls: 0, indirectContextWrites: 0 });
+        expect(indirectByHand(frames), `${run}:${n} independent count`).toBe(0);
+      }
     }
-    // The third route, MEASURED — never predicted — and cross-checked against an explicit-key count.
     const handA = indirectByHand(parseFrames(textA).frames);
     const handB = indirectByHand(parseFrames(textB).frames);
-    expect(a.route.indirectContextWrites, "path A indirect write-shaped blocks naming the context root").toBe(handA);
-    expect(b.route.indirectContextWrites, "path B indirect write-shaped blocks naming the context root").toBe(handB);
-    expect(handA, "path A took the node-mediated route at least at A:1749 and A:1931").toBeGreaterThanOrEqual(2);
-    const third = diffs.filter((d) => d.startsWith("note route: indirect"));
-    if (handA === handB) expect(third).toEqual([]);
-    else expect(third).toEqual([`note route: indirect write-shaped blocks naming the context root differ: path A ${handA}, path B ${handB}`]);
-    expect(diffs.length, `the held capture's diff count: ${diffs.length} (six frozen + the third route when it differs)`).toBe(6 + third.length);
-    // Stated for the summary: the measured numbers.
-    console.log(`held capture indirect write-shaped blocks naming the context root: path A ${handA}, path B ${handB}`);
+    expect([a.route.indirectContextWrites, b.route.indirectContextWrites], "module count A, B").toEqual([handA, handB]);
+    expect([handA, handB], "independent count A, B").toEqual([7, 6]);
+    // The seventh sentence survives, now on write routes only: before WR-02 it read
+    // "unclassified writes naming the context root differ: path A 15, path B 17".
+    const seventh = "note route: indirect write-shaped blocks naming the context root differ: path A 7, path B 6";
+    expect([...diffs].sort(), "the held capture's whole diff list: the six frozen + the write-shaped third route").toEqual([...six, seventh].sort());
+  });
+
+  it("Test P11 (fail-safe, both directions — T-33-175/T-33-176): a pair differing ONLY in incidental reads is not `fail` on that account; a pair differing in ONE write-shaped route is `fail`, for every write shape the axis knows", () => {
+    const stamps = authorStamps(contextRootWithNotes([{ by: "security-nfr", kind: "observation", body: "x" }]));
+    const outcome = (x: ReturnType<typeof projectLivePath>, y: ReturnType<typeof projectLivePath>): string => deriveOutcome({ hang: false, anyFailure: false, parityDiffs: compareLivePaths(x, y), provenance: "MET" });
+    const base = projectLivePath(stamps, FIXTURE.frames, prefix);
+    // Direction 1: incidental reads cannot force `fail`. Path A reads the root six ways; path B not at all.
+    const reads = projectLivePath(stamps, [
+      ...FIXTURE.frames,
+      toolUseFrame("Bash", { command: "ls .grugops/context/T/notes" }),
+      toolUseFrame("Bash", { command: "cat .grugops/context/T/notes/*.md 2>/dev/null" }),
+      toolUseFrame("Bash", { command: "find .grugops/context -type f | sort" }),
+      toolUseFrame("Bash", { command: "node run.mjs", description: "append a note under .grugops/context" }),
+      toolUseFrame("Write", { file_path: "/tmp/target/memory-bank/map.md", content: "notes live under .grugops/context/T/notes/" }),
+      toolUseFrame("Agent", { subagent_type: "grugops-architect-design", prompt: "read .grugops/context/T" }),
+    ], prefix);
+    expect(compareLivePaths(reads, base)).toEqual([]);
+    expect(outcome(reads, base), "incidental reads alone read pass when everything else holds").toBe("pass");
+    // Direction 2: a write-shaped route IS in the parity input. Were any of these dropped from it, the
+    // divergent pair would read `pass` — so each divergent pair must read `fail`.
+    const writes: StreamFrame[] = [
+      toolUseFrame("Bash", { command: "node -e \"require('fs').writeFileSync('.grugops/context/T/notes/n.md', 'x')\"" }),
+      toolUseFrame("Bash", { command: "cat > .grugops/context/T/notes/n.md <<'EOF'\nx\nEOF" }),
+      toolUseFrame("Bash", { command: "N=/t/.grugops/context/T/notes\ncat > \"$N/n.md\" <<'EOF'\nx\nEOF" }),
+      toolUseFrame("Bash", { command: "mkdir -p .grugops/context/T/notes" }),
+      toolUseFrame("Bash", { command: "cp /tmp/n.md .grugops/context/T/notes/" }),
+      toolUseFrame("Bash", { command: "sed -i '' 's/a/b/' .grugops/context/T/notes/n.md" }),
+      toolUseFrame("Write", { file_path: "/tmp/target/.grugops/queue/claimed/t/admit-notes.mjs", content: "admitAndAppend('/tmp/target/.grugops/context', x)" }),
+      toolUseFrame("Write", { file_path: "/tmp/target/bin/admit", content: "#!/usr/bin/env node\nwrite('.grugops/context/T/n.md')" }),
+      toolUseFrame("Write", { file_path: ".grugops/context/T/notes/n.md", content: "x" }),
+      toolUseFrame("mcp__plugin_grugops_grugops__propose_note", { task: "T", kind: "claim", by: "x" }),
+    ];
+    for (const w of writes) {
+      const divergent = projectLivePath(stamps, [...FIXTURE.frames, w], prefix);
+      expect(compareLivePaths(divergent, base), JSON.stringify(w.message)).toHaveLength(1);
+      expect(outcome(divergent, base), `a write-shaped divergence is fail: ${JSON.stringify(w.message)}`).toBe("fail");
+      expect(outcome(base, divergent), "and in the other order").toBe("fail");
+      // Reads added on top of a real divergence do not mask it.
+      const divergentWithReads = projectLivePath(stamps, [...FIXTURE.frames, w, toolUseFrame("Bash", { command: "ls .grugops/context" })], prefix);
+      expect(outcome(divergentWithReads, base)).toBe("fail");
+    }
+    // Equal write routes on both sides and the SAME reads difference: parity holds, as it should.
+    const w = writes[0];
+    expect(outcome(projectLivePath(stamps, [...FIXTURE.frames, w, toolUseFrame("Bash", { command: "ls .grugops/context" })], prefix), projectLivePath(stamps, [...FIXTURE.frames, w], prefix))).toBe("pass");
   });
 });
 
