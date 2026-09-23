@@ -24,7 +24,7 @@ import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
 import { admit, admittedGrantedNames } from "./canonical-frontmatter.js";
 import { listAgentAdapters } from "./kit-model.js";
@@ -45,6 +45,7 @@ import {
   DRY_RUN_COMPLETE,
   DRY_RUN_REPORT_NAME,
   DRY_RUN_TRANSCRIPT_NAME,
+  editAnchor,
   evaluatePreconditions,
   FIXTURE_JSONL,
   frameKinds,
@@ -1241,9 +1242,14 @@ describe("CR-01 round 2: the spawn grant is fixed before the subject exists, dri
     expect(grant.some((x) => /^Write\(/.test(x)), "a Write(path) rule is never matched by the platform, so none is written").toBe(false);
     const scoped = grant.filter((x) => /^Edit\(\/\/.+\/\*\*\)$/.test(x));
     expect(scoped).toHaveLength(1);
+    // 33-37: the expectation is DERIVED through the module's one anchor authority, never
+    // re-assembled here. The former round trip (`/${anchored}` against the POSIX-separated real
+    // path) held only where an absolute path begins with `/`, and read `/C:/…` against `C:/…` on
+    // windows-latest (WINDOWS.md row 260). Whatever form the authority decides, the test and the
+    // module cannot disagree on it.
     const real = realpathSync.native(build.target);
-    const anchored = scoped[0].slice("Edit(//".length, -"/**)".length);
-    expect(`/${anchored}`, "with the leading // removed, the rule names the target's REAL path").toBe(real.split(sep).join("/"));
+    expect(typeof editAnchor, "the Edit-anchor authority is exported from the module that publishes the rule").toBe("function");
+    expect(scoped[0], "the one scoped rule is spelled from the anchor authority applied to the target's REAL path").toBe(`Edit(//${editAnchor(real)}/**)`);
     expect(grant).toContain("Bash(node *)");
     expect(grant).toContain("Bash(helm upgrade *)");
     const mcp = grant.filter((x) => x.startsWith("mcp__"));
@@ -1272,6 +1278,39 @@ describe("CR-01 round 2: the spawn grant is fixed before the subject exists, dri
     expect(functionText(src, "async function capture(").includes("allowedTools: liveAllowedTools(build.target),"), "capture() resolves the grant per target").toBe(true);
     expect(src.includes("const LIVE_ALLOWED_TOOLS"), "the unscoped literal list is gone").toBe(false);
     for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
+  // 33-37 (WINDOWS.md row 260): the Edit-anchor authority, stated on ANY host. The win32 inputs are
+  // synthesised drive-letter strings transformed by the function, not by the host, so the win32 form
+  // is asserted on darwin and linux too. The decided form is the permissions reference's own
+  // example: "On Windows, paths are normalized to POSIX form before matching. `C:\Users\alice`
+  // becomes `/c/Users/alice`" — lower-cased drive letter, colon dropped, forward slashes. Whether a
+  // live Windows session MATCHES that rule is not measured here (plan 33-40's windows leg is the
+  // measurement); what is asserted is that the module publishes the documented spelling.
+  it("Test C7b (the Edit-anchor authority): POSIX paths keep today's spelling; a win32 drive-letter path becomes the documented //c/Users/... form; a shape the reference does not document is refused, never guessed", () => {
+    expect(typeof editAnchor, "the Edit-anchor authority is exported").toBe("function");
+    // POSIX: leading slashes stripped, nothing else — byte-identical to the pre-33-37 spelling.
+    expect(editAnchor("/private/var/folders/ab/T/grugops-A", "/")).toBe("private/var/folders/ab/T/grugops-A");
+    expect(`Edit(//${editAnchor("/tmp/grugops-A", "/")}/**)`).toBe("Edit(//tmp/grugops-A/**)");
+    // A backslash is a legal POSIX filename byte: with the POSIX separator it is NOT rewritten.
+    expect(editAnchor("/tmp/a\\b", "/")).toBe("tmp/a\\b");
+    // win32, the reference's own example: C:\Users\alice -> /c/Users/alice.
+    expect(`/${editAnchor("C:\\Users\\alice", "\\")}`).toBe("/c/Users/alice");
+    // win32, the runner's shape (the path row 260 quotes): the rule reads //c/Users/runneradmin/...
+    expect(`Edit(//${editAnchor("C:\\Users\\runneradmin\\AppData\\Local\\Temp\\grugops-A", "\\")}/**)`).toBe("Edit(//c/Users/runneradmin/AppData/Local/Temp/grugops-A/**)");
+    // The drive branch is decided by the PATH SHAPE, not the host separator: the same string gives
+    // the same anchor whichever separator the caller names.
+    expect(editAnchor("C:\\Users\\alice", "/")).toBe("c/Users/alice");
+    // Forward-slash and mixed drive spellings collapse to the same form; an already-lower letter stays lower.
+    expect(editAnchor("D:/a/b", "\\")).toBe("d/a/b");
+    expect(editAnchor("E:\\x/y\\z", "\\")).toBe("e/x/y/z");
+    expect(editAnchor("c:\\Users\\alice", "\\")).toBe("c/Users/alice");
+    // Refused, never guessed: a relative path, a drive-RELATIVE path, and the win32 device/namespace
+    // prefixes (`\\?\`, `\\.\`) — the reference documents none of them as an anchor.
+    expect(() => editAnchor("relative/dir", "/")).toThrow(/editAnchor: refusing/);
+    expect(() => editAnchor("C:foo\\bar", "\\")).toThrow(/editAnchor: refusing/);
+    expect(() => editAnchor("\\\\?\\C:\\Users\\alice", "\\")).toThrow(/editAnchor: refusing/);
+    expect(() => editAnchor("\\\\.\\C:\\Users\\alice", "\\")).toThrow(/editAnchor: refusing/);
   });
 
   it("Test C8 (the report says the grant): the Run table carries `| run X tool grant | RESOLVED_LIST |` per run, and the readiness table carries no row that could be MET without the target existing", async () => {
