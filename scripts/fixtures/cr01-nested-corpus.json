@@ -31,6 +31,7 @@
     { "id": "R4-15", "source": "33-R4 beyond the list: process substitution trailing word", "kind": "deny", "command": "bash -c 'g\\it push origin main' <(true)" },
     { "id": "R4-16", "source": "33-R4 beyond the list: two nested shells", "kind": "deny", "command": "bash -c \"bash -c 'g\\it push origin main'\" $X" },
     { "id": "R4-17", "source": "33-R4 beyond the list: the flag-governed row nested", "kind": "deny", "command": "bash -c 'v\\ercel deploy --prod' $X" },
+    { "id": "R4-18", "source": "33-R4 beyond the list: an expansion as a word boundary at the top level, under eval (X=';')", "kind": "deny", "command": "eval echo$X'g\\it' push origin main" },
 
     { "id": "AC-01", "source": "nested allow-control: echo under bash -c with a trailing expansion", "kind": "allow-control", "command": "bash -c 'echo hi' $X" },
     { "id": "AC-02", "source": "nested allow-control: echo through a here-string", "kind": "allow-control", "command": "bash <<< 'echo hi'" },

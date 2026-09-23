@@ -835,6 +835,12 @@ function lexNames(text, out, depth, ctx) {
         wordStart = true;
     };
     const push = (t) => {
+        // A re-projected expansion (see `projectNames`) is an expansion at this level too, wherever it sits.
+        if (t.k === "lit" && t.c === GAP_SENTINEL) {
+            gapPending = true;
+            wordStart = false;
+            return;
+        }
         if (gapPending && cur.length > 0)
             cur.push({ k: "gap" });
         gapPending = false;
@@ -1106,26 +1112,167 @@ function namesOfVariant(toks, into) {
         if (re.test(tool))
             into.add(tool);
 }
+/** The top-level lits after a piece's last top-level path separator, or -1 when an alternation follows it. */
+function tailLiteralCount(toks) {
+    let n = 0;
+    for (const t of toks) {
+        if (t.k === "lit" && (t.c === "/" || t.c === "\\"))
+            n = 0;
+        else if (t.k === "lit")
+            n++;
+        else if (t.k === "alt")
+            return -1;
+    }
+    return n;
+}
 /**
- * Every governed tool `text` can run, as far as NAME identity goes — see the block above `NameTok`.
- * Asked of one spelled word by the readable arm and of a whole unreadable segment by the fail-closed
- * arm: one authority, two callers.
+ * Add to `into` every governed tool one name piece can be, reading each of its gaps (an expansion
+ * with literal text on both sides) BOTH as empty — `g${x}it` — and as a word boundary —
+ * `echo${x}git` with `x=';'` (33 round 4, D-33-R4-03). The whole piece, gaps as `[^/]*`, is the
+ * empty reading; every contiguous run of gap-delimited stretches is a boundary reading. A run whose
+ * mandatory literals after its last separator already outnumber the longest governed name cannot
+ * name one, and nor can any longer run from the same start (a later separator restarts the basename,
+ * and that restart is the run starting at the stretch holding it). `false` = more variants than
+ * `MAX_NAME_VARIANTS`, answered fail-closed by the caller.
+ */
+function namesOfPiece(piece, into) {
+    const whole = basenameVariants(piece);
+    if (whole === null)
+        return false;
+    for (const v of whole)
+        namesOfVariant(v.toks, into);
+    const stretches = [[]];
+    for (const t of piece) {
+        if (t.k === "gap")
+            stretches.push([]);
+        else
+            stretches[stretches.length - 1].push(t);
+    }
+    if (stretches.length === 1)
+        return true;
+    for (let i = 0; i < stretches.length; i++) {
+        let run = [];
+        for (let j = i; j < stretches.length; j++) {
+            if (i === 0 && j === stretches.length - 1)
+                break; // the whole piece, already read above
+            run = j > i ? [...run, { k: "gap" }, ...stretches[j]] : [...stretches[j]];
+            const variants = basenameVariants(run);
+            if (variants === null)
+                return false;
+            for (const v of variants)
+                namesOfVariant(v.toks, into);
+            if (tailLiteralCount(run) > MAX_LITERAL_NAME)
+                break;
+        }
+    }
+    return true;
+}
+/**
+ * The private-use character a re-projected text carries where an expansion stood. `lexNames` reads it
+ * as an expansion wherever it sits, so the nested reading keeps the gap's two readings (empty and
+ * boundary) rather than guessing one. A command that spells it itself only gains a gap: more names.
+ */
+const GAP_SENTINEL = "\uE000";
+/** Characters whose presence means a nested shell would read a text differently from its literal value. */
+const NESTED_SIGNIFICANT_RE = /[\s;&|()<>'"\\$`{}*?[\]=]/;
+/** Does a piece carry a literal a nested shell would read as syntax? Only such a piece is re-projected. */
+function pieceIsSignificant(toks) {
+    for (const t of toks) {
+        if (t.k === "lit" && NESTED_SIGNIFICANT_RE.test(t.c))
+            return true;
+        if (t.k === "alt" && t.opts.some((o) => pieceIsSignificant(o)))
+            return true;
+    }
+    return false;
+}
+/**
+ * The texts a piece RESOLVES to — one per brace alternative — as a nested shell would receive them:
+ * a literal is itself, a gap is `GAP_SENTINEL`, a pathname pattern is its own glob character. `null`
+ * = more alternatives than `MAX_NAME_VARIANTS`.
+ */
+function resolvedTexts(toks) {
+    let res = [""];
+    for (const t of toks) {
+        if (t.k === "alt") {
+            const next = [];
+            for (const o of t.opts) {
+                const sub = resolvedTexts(o);
+                if (sub === null)
+                    return null;
+                for (const r of res)
+                    for (const s of sub)
+                        next.push(r + s);
+            }
+            if (next.length > MAX_NAME_VARIANTS)
+                return null;
+            res = next;
+            continue;
+        }
+        const ch = t.k === "lit" ? t.c : t.k === "gap" ? GAP_SENTINEL : t.k === "star" ? "*" : "?";
+        res = res.map((r) => r + ch);
+    }
+    return res;
+}
+/** Work allowed per character of the asked text, across every re-projection. Beyond it: fail-closed. */
+const PROJECTION_WORK_PER_CHAR = MAX_PROJECTION_DEPTH;
+const PROJECTION_WORK_FLOOR = 65_536;
+/**
+ * Lex `text` at `depth`, add every governed name its pieces can be, and RE-PROJECT each piece whose
+ * shell-resolved text a nested shell would read differently (33 round 4, D-33-R4-03).
+ *
+ * WHY A PIECE IS PROJECTED AGAIN. A quoted word is data to THIS shell and a command to the next one:
+ * `bash -c 'g\it push origin main' $X`, `eval 'g\it' push origin main`, `bash <<< 'n\pm publish'`.
+ * One layer of quote removal leaves `g\it push origin main` — a splice the next shell removes. So the
+ * resolved text of every piece is lexed again as shell text, recursively, until it stops changing,
+ * bounded by `MAX_PROJECTION_DEPTH` and a work budget, and answered with every governed tool beyond
+ * either bound. This is the one projection both arms ask; no arm keeps a nested-command queue of its
+ * own for it.
+ */
+function projectNames(text, depth, ctx, into) {
+    ctx.work += text.length + 1;
+    if (ctx.work > ctx.budget) {
+        ctx.failClosed = true;
+        return;
+    }
+    const pieces = [];
+    lexNames(text, pieces, depth, ctx);
+    if (ctx.failClosed)
+        return;
+    for (const p of pieces) {
+        if (!namesOfPiece(p, into)) {
+            ctx.failClosed = true;
+            return;
+        }
+        if (!pieceIsSignificant(p))
+            continue;
+        const texts = resolvedTexts(p);
+        if (texts === null) {
+            ctx.failClosed = true;
+            return;
+        }
+        for (const t of texts) {
+            if (t === text)
+                continue;
+            projectNames(t, depth + 1, ctx, into); // D-33-R4-03: the nested re-projection
+            if (ctx.failClosed)
+                return;
+        }
+    }
+}
+/**
+ * Every governed tool `text` can run, as far as NAME identity goes — see the block above `NameTok`
+ * and `projectNames`. Asked of one spelled word by the readable arm and of a whole unreadable segment
+ * by the fail-closed arm: one authority, two callers.
  */
 export function governedToolsNamedBy(text) {
-    const pieces = [];
-    const ctx = { failClosed: false };
-    lexNames(text, pieces, 0, ctx);
-    if (ctx.failClosed)
-        return GOVERNED_TOOLS;
     const out = new Set();
-    for (const p of pieces) {
-        const variants = basenameVariants(p);
-        if (variants === null)
-            return GOVERNED_TOOLS;
-        for (const v of variants)
-            namesOfVariant(v.toks, out);
-    }
-    return out;
+    const ctx = {
+        failClosed: false,
+        work: 0,
+        budget: PROJECTION_WORK_PER_CHAR * text.length + PROJECTION_WORK_FLOOR,
+    };
+    projectNames(text, 0, ctx, out);
+    return ctx.failClosed ? GOVERNED_TOOLS : out;
 }
 function verbCandidates(words, from) {
     const out = [];

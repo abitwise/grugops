@@ -2445,7 +2445,11 @@ describe("33-R3 CR-01 — a tool word spliced with shell-neutral punctuation sti
     const named = (w: string): string[] => [...cp.governedToolsNamedBy(w)].sort();
     expect(named("git")).toEqual(["git"]);
     expect(named("=kubectl")).toEqual(["kubectl"]);
-    expect(named("'=kubectl'")).toEqual([]); // a QUOTED `=` is not zsh's equals expansion
+    // A QUOTED `=` is not zsh's equals expansion in THIS shell, but it is in the next one: under zsh,
+    // `eval '=kubectl' -n prod apply -f x` runs kubectl (33-R4 corpus row R4-13, measured with a stub
+    // binary). Round 4's recursive projection (D-33-R4-03) reads the quoted text as the nested shell
+    // would, so the one authority now names the tool here — this row read `[]` through round 3.
+    expect(named("'=kubectl'")).toEqual(["kubectl"]);
     expect(named("g\\it")).toEqual(["git"]);
     expect(named('"g"it')).toEqual(["git"]);
     expect(named("GIT.EXE")).toEqual(["git"]);
