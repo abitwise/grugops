@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 4 of 4 PLANNED 2026-09-23 — 9 plans (33-35..33-43, waves 24-32), checker passed; next: /gsd-execute-phase 33 --gaps-only"
-stopped_at: Completed 33-35-PLAN.md
-last_updated: "2026-09-23T19:50:21.356Z"
-state_head: e075de857e85bf4c7f4c6865a6cd4f471334331d
+stopped_at: Completed 33-36-PLAN.md
+last_updated: "2026-09-23T20:23:51.969Z"
+state_head: 326356ccd24be2694dee2d32df94e6168fafa0c7
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 312
-  completed_plans: 304
-  percent: 97
+  completed_plans: 305
+  percent: 98
 last_activity: 2026-09-23
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Executed Phase 33 gap-closure round 3 of 4 (33-24..33-34): KIT (a)/(b), section 2, section 3 and the review fixes landed offline; CI run 35760655144 ubuntu success, windows failure on one case (row 260), CAP-02 NOT MET; no push, go held (no-go); GAP-D1 held (manifest section 8); ledgers closed by 33-34 (review snapshot 33-REVIEW-round2.md; WINDOWS.md 260 -> 271 rows, 6 fixed; deferred-items 5 open with Round 3 notes). Round 4 is the last under the cap."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 36 of 43 (round 4: 33-35 executed 2026-09-23 — CR-01 nested class closed in the one projection; next 33-36)
+Plan: 37 of 43 (round 4: 33-35 executed 2026-09-23 — CR-01 nested class closed in the one projection; 33-36 executed 2026-09-23 — npm unique-prefix and xargs stdin verbs closed, residual docblocks rewritten, LB-01..04 deny; next 33-37)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) PLANNED 2026-09-23: 33-35/36 guard (opaque x nested-quoted CR-01 class, npm unique-prefix, xargs hidden verb; send-pack, gh api merge, dashed git-push, row 259, WR-03 ledger-only per D-33-R4-01/02); 33-37 row 260 win32 spelling; 33-38 WR-01; 33-39 WR-02; 33-40 push + CI; 33-41 push + go + capture; 33-42 flip or section 9 hold (D-20 at cap); 33-43 ledger close. Next: /gsd-execute-phase 33 --gaps-only.
@@ -564,6 +564,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P32 | 3m | 2 tasks | 2 files |
 | Phase 33 P33 | 4m | 1 tasks | 3 files |
 | Phase 33 P35 | 29 min | 3 tasks | 8 files |
+| Phase 33 P36 | 32 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1543,6 +1544,8 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-33: GAP-D1 HELD a third time, mechanical under D-20 on the outcome word no-go (Task 1 not presented, Task 2 not run); manifest section 8 + a third dated register note; gate derivation identical, pre-capture; both amendments still owed; round 4 is the last under the cap
 - [Phase 33]: D-33-R4-01 (human, 2026-09-23): the round-4 guard scope is cheap two plus ledger. Code closes (a) the CR-01 opaque-quoted-nested class, every row the verifier listed; (b) npm unique-prefix abbreviations of publish, derived from the verb; (c) a governed tool under xargs whose verb is not on the command line. The ledger, not code, takes git send-pack, the gh api merge endpoint, the dashed git-core push binary, the WINDOWS.md row 259 alias form, and the out-of-table deploy verbs.
 - [Phase 33]: D-33-R4-03 (planner, 2026-09-23 measurement; plan 33-35): the CR-01 class is closed in the one projection governedToolsNamedBy, for both arms, by re-projecting each name piece's shell-resolved text as nested shell text, recursively, bounded by the module's projection-depth limit and fail-closed beyond it. The verifier's opaque-arm-only re-tokenization was measured insufficient; the 33-R4 nested corpus fixture records which rows survive it.
+- [Phase 33]: 33-36: the npm unique-prefix rule is a per-row fact (resolvesVerbPrefix on the three publish rows) with the discriminator derived from each row's verbs and benign words; not applied to every row, because tools measured not to abbreviate would then refuse ordinary operands that begin a verb
+- [Phase 33]: 33-36: the xargs stdin feed covers every word after an xargs word (and nested bodies in that command), not only xargs's first operand, because a launcher operand (xargs env npm) ran publish and a launcher list under-refuses; a replace flag drops the benign adjacency; recorded over-denial: xargs grep -l kubectl
 
 ### Pending Todos
 
@@ -1670,8 +1673,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-23T19:50:20.857Z
-Stopped at: Completed 33-35-PLAN.md
+Last session: 2026-09-23T20:23:31.953Z
+Stopped at: Completed 33-36-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
