@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 4 of 4 PLANNED 2026-09-23 — 9 plans (33-35..33-43, waves 24-32), checker passed; next: /gsd-execute-phase 33 --gaps-only"
-stopped_at: Planned round 4 (33-35..33-43)
-last_updated: "2026-09-23T19:20:18.457Z"
-state_head: 53888b9cdea0dda960c04008ea2db09c96ca6175
+stopped_at: Completed 33-35-PLAN.md
+last_updated: "2026-09-23T19:50:21.356Z"
+state_head: e075de857e85bf4c7f4c6865a6cd4f471334331d
 progress:
   total_phases: 11
   completed_phases: 32
   total_plans: 312
-  completed_plans: 303
+  completed_plans: 304
   percent: 97
 last_activity: 2026-09-23
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33 (Live Capture & Windows Portability) — EXECUTING
-Plan: 1 of 43
+Plan: 36 of 43 (round 4: 33-35 executed 2026-09-23 — CR-01 nested class closed in the one projection; next 33-36)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) PLANNED 2026-09-23: 33-35/36 guard (opaque x nested-quoted CR-01 class, npm unique-prefix, xargs hidden verb; send-pack, gh api merge, dashed git-push, row 259, WR-03 ledger-only per D-33-R4-01/02); 33-37 row 260 win32 spelling; 33-38 WR-01; 33-39 WR-02; 33-40 push + CI; 33-41 push + go + capture; 33-42 flip or section 9 hold (D-20 at cap); 33-43 ledger close. Next: /gsd-execute-phase 33 --gaps-only.
@@ -563,6 +563,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P31 | 21h wall (Task 3 14m) | 3 tasks | 3 files |
 | Phase 33 P32 | 3m | 2 tasks | 2 files |
 | Phase 33 P33 | 4m | 1 tasks | 3 files |
+| Phase 33 P35 | 29 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -1669,8 +1670,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-22T18:23:39.343Z
-Stopped at: Completed 33-33-PLAN.md
+Last session: 2026-09-23T19:50:20.857Z
+Stopped at: Completed 33-35-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
