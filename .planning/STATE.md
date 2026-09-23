@@ -6,8 +6,8 @@ current_phase: 33
 current_phase_name: Live Capture & Windows Portability
 status: "Phase 33 gap-closure round 4 of 4 PLANNED 2026-09-23 — 9 plans (33-35..33-43, waves 24-32), checker passed; next: /gsd-execute-phase 33 --gaps-only"
 stopped_at: Planned round 4 (33-35..33-43)
-last_updated: "2026-09-23T19:07:23.781Z"
-state_head: f31fa4578af80534477b54fd58ee57aa685db3fc
+last_updated: "2026-09-23T19:20:18.457Z"
+state_head: 53888b9cdea0dda960c04008ea2db09c96ca6175
 progress:
   total_phases: 11
   completed_phases: 32
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 33 (Live Capture & Windows Portability) — gap-closure round 4 of 4 PLANNED 2026-09-23, READY TO EXECUTE
-Plan: 34 of 43 (round 3 = 33-24..33-34, all executed; round 4 = 33-35..33-43 planned)
+Phase: 33 (Live Capture & Windows Portability) — EXECUTING
+Plan: 1 of 43
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) PLANNED 2026-09-23: 33-35/36 guard (opaque x nested-quoted CR-01 class, npm unique-prefix, xargs hidden verb; send-pack, gh api merge, dashed git-push, row 259, WR-03 ledger-only per D-33-R4-01/02); 33-37 row 260 win32 spelling; 33-38 WR-01; 33-39 WR-02; 33-40 push + CI; 33-41 push + go + capture; 33-42 flip or section 9 hold (D-20 at cap); 33-43 ledger close. Next: /gsd-execute-phase 33 --gaps-only.
@@ -1540,6 +1540,8 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-31: CAP-02 NOT MET on CI run 35760655144 (head 1af7e3f1) — ubuntu success, windows failure on ONE case (capture-live.test.ts Test C7, the win32 spelling of 33-29's scoped Edit(//ABS/**) grant); all 35 row-236 cases green on windows; WINDOWS row 260 appended, nothing flipped; 33-33's F38-F42 gate cannot be met this round
 - [Phase 33]: 33-32 (human, 2026-09-22): no push; live go HELD, outcome word no-go — the capture moves to round 4 because 33-33 cannot flip GAP-D1 while CAP-02 is NOT MET (run 35760655144); round-3 dry run filed not-ready on the pushed-sha row alone (11/12 MET), zero tokens
 - [Phase 33]: 33-33: GAP-D1 HELD a third time, mechanical under D-20 on the outcome word no-go (Task 1 not presented, Task 2 not run); manifest section 8 + a third dated register note; gate derivation identical, pre-capture; both amendments still owed; round 4 is the last under the cap
+- [Phase 33]: D-33-R4-01 (human, 2026-09-23): the round-4 guard scope is cheap two plus ledger. Code closes (a) the CR-01 opaque-quoted-nested class, every row the verifier listed; (b) npm unique-prefix abbreviations of publish, derived from the verb; (c) a governed tool under xargs whose verb is not on the command line. The ledger, not code, takes git send-pack, the gh api merge endpoint, the dashed git-core push binary, the WINDOWS.md row 259 alias form, and the out-of-table deploy verbs.
+- [Phase 33]: D-33-R4-03 (planner, 2026-09-23 measurement; plan 33-35): the CR-01 class is closed in the one projection governedToolsNamedBy, for both arms, by re-projecting each name piece's shell-resolved text as nested shell text, recursively, bounded by the module's projection-depth limit and fail-closed beyond it. The verifier's opaque-arm-only re-tokenization was measured insufficient; the 33-R4 nested corpus fixture records which rows survive it.
 
 ### Pending Todos
 

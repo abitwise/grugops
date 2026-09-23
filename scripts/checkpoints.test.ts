@@ -2457,3 +2457,53 @@ describe("33-R3 CR-01 — a tool word spliced with shell-neutral punctuation sti
     expect(named("$K")).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33 round-4 (plan 33-35) — CR-01 one register over: the governed command QUOTED for a nested shell.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// 33-VERIFICATION.md gap 4. The projection stripped ONE quoting layer, so a governed command quoted
+// for `bash -c`, `eval` or a here-string kept its splice one layer down, and an opaque word beside it
+// sent the segment to a fail-closed arm that then named nothing. D-33-R4-03: the fix lives in the ONE
+// projection both arms ask — `governedToolsNamedBy` re-projects the shell-resolved text of every name
+// piece as text a nested shell would run. The rows are read from one committed fixture.
+interface Cr01NestedRow {
+  readonly id: string;
+  readonly source: string;
+  readonly kind: "deny" | "deny-control" | "allow-control" | "residual" | "handed-off";
+  readonly owner?: string;
+  readonly command: string;
+}
+const CR01_NESTED_CORPUS: readonly Cr01NestedRow[] = (
+  JSON.parse(readFileSync(join(ROOT, "scripts", "fixtures", "cr01-nested-corpus.json"), "utf8")) as {
+    rows: Cr01NestedRow[];
+  }
+).rows;
+const nestedRow = (id: string): Cr01NestedRow => {
+  const row = CR01_NESTED_CORPUS.find((r) => r.id === id);
+  if (row === undefined) throw new Error(`cr01-nested-corpus.json has no row ${id}`);
+  return row;
+};
+
+describe("33-R4 CR-01 nested — the one authority names the tool inside a quoted nested command", () => {
+  const named = (w: string): string[] => [...cp.governedToolsNamedBy(w)].sort();
+
+  it("the tracer's quoted body names the tool; a quoted echo body names nothing", () => {
+    // The single-quoted body of row V4-01, exactly as spelled in the command.
+    expect(named("'g\\it push origin main'")).toEqual(["git"]);
+    expect(named("'echo hi'")).toEqual([]);
+  });
+
+  it("the tracer shape is matched by the command model; its allow control is not", () => {
+    const tracer = cp.matchCommandCheckpoints(nestedRow("V4-01").command);
+    expect(tracer.checkpoints.size).toBeGreaterThan(0);
+    expect(tracer.checkpoints.has("protected_branch_merge")).toBe(true);
+    expect(cp.matchCommandCheckpoints(nestedRow("AC-01").command).checkpoints.size).toBe(0);
+  });
+
+  it("the two deny controls of gap 4 still deny", () => {
+    for (const id of ["V4-C1", "V4-C2"]) {
+      expect(cp.matchCommandCheckpoints(nestedRow(id).command).checkpoints.has("protected_branch_merge"), id).toBe(true);
+    }
+  });
+});

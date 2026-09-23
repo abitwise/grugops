@@ -2363,13 +2363,55 @@ describe("33-27 G7 — the fifteen § 2 commands replayed on stdin against the c
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The CR-01 spawn harness, shared by the round-3 and round-4 CR-01 describes (plan 33-35 lifted it out
+// of the round-3 describe with its bodies unchanged, so both rounds replay through ONE harness).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+const REPO = join(import.meta.dirname, "..");
+const bare = (): Record<string, string> => {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k.startsWith("GRUGOPS_") || k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
+    env[k] = v;
+  }
+  return env;
+};
+const reviewPayload = (command: string): string =>
+  JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command }, cwd: "/tmp" });
+
+/** Spawn many hook runs at once (bounded), each on its own stdin; resolve with each stdout. */
+async function runAll(argv: readonly string[], commands: readonly string[]): Promise<string[]> {
+  const { spawn } = await import("node:child_process");
+  const out: string[] = new Array(commands.length).fill("");
+  let next = 0;
+  const env = bare();
+  const worker = async (): Promise<void> => {
+    while (next < commands.length) {
+      const i = next++;
+      out[i] = await new Promise<string>((resolve) => {
+        const child = spawn("node", [...argv], { env, cwd: REPO });
+        let stdout = "";
+        const timer = setTimeout(() => child.kill("SIGKILL"), SPAWN_TIMEOUT_MS);
+        child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+        child.stderr.on("data", () => undefined);
+        child.on("close", () => {
+          clearTimeout(timer);
+          resolve(stdout);
+        });
+        child.stdin.end(reviewPayload(commands[i] as string));
+      });
+    }
+  };
+  await Promise.all(Array.from({ length: 8 }, worker));
+  return out;
+}
+
 describe("33-R3 CR-01 — a spliced TOOL word denies through the committed guard AND through the shipped wrapper", () => {
   // The review reproduced these against the committed artifact with no CLAUDE_PROJECT_DIR and no
   // GRUGOPS_ variable: every one returned `all checkpoints at default` and no decision. The sweep
   // below is the same generator scripts/checkpoints.test.ts uses on the model (restated here — a test
   // file cannot import another test file without registering its cases twice), driven over the tool
   // set DERIVED from COMMAND_CHECKPOINT_RULES, through BOTH entry points hooks.json can route to.
-  const REPO = join(import.meta.dirname, "..");
   const splices = (tool: string): readonly string[] => {
     const out = new Set<string>();
     for (let k = 0; k < tool.length; k++) out.add(`${tool.slice(0, k)}\\${tool.slice(k)}`);
@@ -2384,44 +2426,6 @@ describe("33-R3 CR-01 — a spliced TOOL word denies through the committed guard
     out.add(`=${tool}`);
     return [...out];
   };
-  const bare = (): Record<string, string> => {
-    const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.env)) {
-      if (k.startsWith("GRUGOPS_") || k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
-      env[k] = v;
-    }
-    return env;
-  };
-  const reviewPayload = (command: string): string =>
-    JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command }, cwd: "/tmp" });
-
-  /** Spawn many hook runs at once (bounded), each on its own stdin; resolve with each stdout. */
-  async function runAll(argv: readonly string[], commands: readonly string[]): Promise<string[]> {
-    const { spawn } = await import("node:child_process");
-    const out: string[] = new Array(commands.length).fill("");
-    let next = 0;
-    const env = bare();
-    const worker = async (): Promise<void> => {
-      while (next < commands.length) {
-        const i = next++;
-        out[i] = await new Promise<string>((resolve) => {
-          const child = spawn("node", [...argv], { env, cwd: REPO });
-          let stdout = "";
-          const timer = setTimeout(() => child.kill("SIGKILL"), SPAWN_TIMEOUT_MS);
-          child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-          child.stderr.on("data", () => undefined);
-          child.on("close", () => {
-            clearTimeout(timer);
-            resolve(stdout);
-          });
-          child.stdin.end(reviewPayload(commands[i] as string));
-        });
-      }
-    };
-    await Promise.all(Array.from({ length: 8 }, worker));
-    return out;
-  }
-
   const TOOLS = [...new Set(cp.COMMAND_CHECKPOINT_RULES.map((r) => r.tool))];
   const cases: string[] = [];
   for (const r of cp.COMMAND_CHECKPOINT_RULES) {
@@ -2469,6 +2473,63 @@ describe("33-R3 CR-01 — a spliced TOOL word denies through the committed guard
       const outs = await runAll(argv, [...deny, ...allow]);
       deny.forEach((c, i) => expect(outs[i], c).toContain('"permissionDecision":"deny"'));
       allow.forEach((c, i) => expect(outs[deny.length + i], c).not.toContain("permissionDecision"));
+    }, 120_000);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33 round-4 (plan 33-35) — CR-01 one register over: a spliced governed command QUOTED for a nested
+// shell, beside an opaque word or through a here-string.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// 33-VERIFICATION.md gap 4: `bash -c 'g\it push origin main' $X` and nine siblings ALLOWED with zero
+// keys on the round-3 build, each executable. The fail-closed arm asked `governedToolsNamedBy` of the
+// raw segment, whose projection stripped ONE quoting layer and left the splice one layer down. The
+// rows live in ONE committed fixture, `scripts/fixtures/cr01-nested-corpus.json`, read by this file
+// and by scripts/checkpoints.test.ts, so a row is never restated as a literal here.
+interface Cr01NestedRow {
+  readonly id: string;
+  readonly source: string;
+  readonly kind: "deny" | "deny-control" | "allow-control" | "residual" | "handed-off";
+  readonly owner?: string;
+  readonly command: string;
+}
+const CR01_NESTED_CORPUS: readonly Cr01NestedRow[] = (
+  JSON.parse(readFileSync(join(REPO, "scripts", "fixtures", "cr01-nested-corpus.json"), "utf8")) as {
+    rows: Cr01NestedRow[];
+  }
+).rows;
+const nestedRow = (id: string): Cr01NestedRow => {
+  const row = CR01_NESTED_CORPUS.find((r) => r.id === id);
+  if (row === undefined) throw new Error(`cr01-nested-corpus.json has no row ${id}`);
+  return row;
+};
+const ENTRY_POINTS = [
+  ["hooks/guard.js", [GUARD_JS]],
+  ["hooks/hook-entry.js guard.js", [join(REPO, "hooks", "hook-entry.js"), "guard.js"]],
+] as const;
+const DENY_DECISION = '"permissionDecision":"deny"';
+
+describe("33-R4 CR-01 nested — a governed command quoted for a nested shell denies through both entry points", () => {
+  // THE TRACER: the first row of gap 4's `reason`, plus its two deny controls and one allow control.
+  const tracer = nestedRow("V4-01");
+  const denyControls = [nestedRow("V4-C1"), nestedRow("V4-C2")];
+  const allowControl = nestedRow("AC-01");
+
+  it("the tracer and its controls are the rows the fixture labels them as", () => {
+    expect(tracer.kind).toBe("deny");
+    expect(denyControls.map((r) => r.kind)).toEqual(["deny-control", "deny-control"]);
+    expect(allowControl.kind).toBe("allow-control");
+  });
+
+  for (const [label, argv] of ENTRY_POINTS) {
+    it(`${label}: the tracer DENIES, both deny controls deny, the allow control allows (scrubbed env)`, async () => {
+      const cmds = [tracer, ...denyControls, allowControl].map((r) => r.command);
+      const outs = await runAll(argv, cmds);
+      expect(outs[0], tracer.command).toContain(DENY_DECISION);
+      expect(outs[1], denyControls[0]!.command).toContain(DENY_DECISION);
+      expect(outs[2], denyControls[1]!.command).toContain(DENY_DECISION);
+      expect(outs[3], allowControl.command).not.toContain("permissionDecision");
     }, 120_000);
   }
 });
