@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 236
+open_count: 237
 waived_count: 3
 fixed_count: 32
-total_count: 271
-last_updated: 2026-09-22T18:29:52.911Z
+total_count: 272
+last_updated: 2026-09-23T21:03:27.484Z
 ---
 
 # Broken Windows Ledger
@@ -286,6 +286,7 @@ last_updated: 2026-09-22T18:29:52.911Z
 | 269 | 33 | deviation | scripts/checkpoints.ts | 397 | 33-34 round-3 disposition (plan 33-27, the half of WINDOWS.md row 257 not closed): the arms the redirection grammar keeps opaque by decision — an availability residual that fails closed, never a safety hole — (1) a bare $var expansion, value unknowable at hook time (A:445; B:562, the mapper loop for s in lint typecheck test build, refused for the $s inside its quoted echo; B:1527); (2) a command substitution $(...) (B:434, B:469); (3) a heredoc, whose body lines are commands to the tokenizer (B:1504, B:1740); (4) a backslash-escaped or spliced-quote word beside a .git path the tool-name scan reads as git (A:667, A:1493, A:1507, B:217); a quoted redirection target is also not admitted. 4 of 15 round-1 denies recovered (48dfbe57, 85d03fce), 11 still deny. Open; owner: a later round, only if a measured availability cost warrants a narrower grammar | open |  | 2026-09-22T18:29:45.688Z |  |
 | 270 | 33 | unrun-verify | scripts/capture-live.ts | 303 | 33-34 round-3 residual (the half of WINDOWS.md row 255 no offline test settles; handed by plans 33-28, 33-29 and 33-30 to the live go, which 33-32 held as no-go at zero tokens): the live-session UNKNOWN - verify items — (1) whether the platform offers mcp__plugin_grugops_grugops__propose_note to the --agent main-thread session now that the coordinator adapter names it (the B-path system/init tool list, successor of B:11); (2) whether --allowedTools needs the scoped spelling (the runner passes it since 79a5ab9a); (3) whether Edit(//ABS/**) from --allowedTools is honoured live as the permissions reference states, and whether a target path carrying glob metacharacters needs escaping; (4) whether the platform hot-reloads .claude/settings files mid-session; (5) the local-scope registry row shape and projectPath spelling the pre-spawn provenance gate reads from installed_plugins.json; (6) whether the live init frame publishes a file-writing tool outside WRITING_TOOLS; (7) whether a plugin marketplace update is needed at an unbumped 2.1.0. The win32 spelling of the grant is row 260, not repeated here. Open; owner: round 4 (the last under the cap), settled only by the fresh go capture | open |  | 2026-09-22T18:29:45.782Z |  |
 | 271 | 33 | deviation | CHANGELOG.md |  | 33-34 round-3 finding (plan 33-26 hand-off, Next Phase Readiness): the writer now refuses an absent or non-string note scalar by name (assertNoteScalar / assertNoteFields; 8b82b4bc, 4fa7bd65; KIT section 3, row 258) where it used to write the word undefined, but CHANGELOG.md [Unreleased] carries no Security sentence for that refusal (CHANGELOG.md was outside the file lists of 33-26 and 33-34) — add one sentence beside the 33-25 seal entry; owner: round 4 or the phase closing document plan | open |  | 2026-09-22T18:29:45.874Z |  |
+| 272 | 33 | deviation | scripts/context-io.ts |  | 33-38 widened WR-01 past the plan's two routes: the plan named promoteAdmitted and admitAndAppend's gated branch, and measurement found the same ledger-then-note over-record on appendNote with a caller-chosen precomputedId (ledger lines 1 on an occupied id) and on admitAndAppend's non-gated branch. Both were closed in the same files, RED-first (commits 45c7514b and a9c1331b). A side effect closed IN-04, whose failing-on-change test now asserts the closure. Recorded so the scope expansion shows up in the ledger and does not have to be read out of the diff. | open |  | 2026-09-23T21:03:27.484Z |  |
 
 ````json
 [
@@ -3633,6 +3634,19 @@ last_updated: 2026-09-22T18:29:52.911Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-22T18:29:45.874Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 272,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": null,
+    "description": "33-38 widened WR-01 past the plan's two routes: the plan named promoteAdmitted and admitAndAppend's gated branch, and measurement found the same ledger-then-note over-record on appendNote with a caller-chosen precomputedId (ledger lines 1 on an occupied id) and on admitAndAppend's non-gated branch. Both were closed in the same files, RED-first (commits 45c7514b and a9c1331b). A side effect closed IN-04, whose failing-on-change test now asserts the closure. Recorded so the scope expansion shows up in the ledger and does not have to be read out of the diff.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-23T21:03:27.484Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

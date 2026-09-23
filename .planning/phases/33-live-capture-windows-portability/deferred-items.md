@@ -148,3 +148,9 @@ explicit `status: resolved`.
   **Found during:** plan 33-36 Task 2 (2026-09-23). `echo publish | parallel npm` returns no checkpoint. The `parallel` on the measuring host is moreutils' (it takes `command -- args` and does not read stdin), so the stdin form was NOT measured executable; GNU parallel is documented to read arguments from stdin like xargs.
   **What:** plan 33-36 keys the stdin feed on a word whose basename ends in `xargs` (xargs, gxargs); another launcher that reads its arguments from stdin would carry the same class.
   **Why deferred:** not measured on this host, and a list of launchers is the set whose incompleteness under-refuses. Owner: plan 33-43's ledger; verify on a host with GNU parallel.
+
+- `docs/audit/31-round4-residuals.md` row B8 still reads IN-04 (ledger event ordering) as "carried, open by choice"
+  status: open
+  **Found during:** plan 33-38 (2026-09-24). Plan 33-38 closed IN-04 as a side effect of the WR-01 fix: `appendNote` now asks `decideNoteDestination` before `admit()` records anything, so a write the chokepoint refuses (a traversal `precomputedId`, an occupied id, a FIFO at the note path) leaves no GOV-02 line. The pinned test in `scripts/context-io.test.ts` ("IN-04 CLOSED (33-38)") went red on purpose and now asserts the closure.
+  **What:** the round-4 residuals document for Phase 31 is a historical audit record. Its B8 row describes the state at that time and was not edited by this plan.
+  **Why deferred:** outside 33-38's `files_modified`. Editing a closed phase's audit document is a scope decision. Owner: plan 33-43's ledger, which can annotate the row (without rewriting it) to say it was closed by 33-38.
