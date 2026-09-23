@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 34/34 plans executed — 11/11 round-1 plans executed (6 waves); 12/12 gap-closure round-2 plans executed (waves 7-12); 11 gap-closure round-3 plans (33-24..33-34, waves 13-23, `gap_closure: true`) planned 2026-09-21 after round-2 verification `gaps_found` 0/3 — round 3 of the four-round cap
+**Plans**: 43 plans — 34/34 executed (round 1 + rounds 2-3); 9 gap-closure round-4 plans (33-35..33-43, waves 24-32, `gap_closure: true`) planned 2026-09-23 after round-3 verification `gaps_found` 0/3 — round 4 of the four-round cap, the LAST round (D-20: at the cap with GAP-D1 open the phase closes by human override, ROADMAP not marked complete)
 
 Plans:
 **Wave 1**
@@ -1423,6 +1423,44 @@ Plans:
 **Wave 23** *(blocked on Wave 22 completion)*
 
 - [x] 33-34-PLAN.md — ledger close: `33-REVIEW.md` snapshotted as `33-REVIEW-round2.md` first; rows 255-258 disposed; round-2 review findings fixed-by-name or accepted-open rows; the round's own findings as rows; deferred-items citations; REQUIREMENTS/STATE agreement
+
+**Gap-closure round 4 of 4 (the LAST round under the cap)** *(planned 2026-09-23; scope = the CR-01 opaque×nested guard bypass, the npm-prefix and xargs classes, the CAP-02 row-260 win32 anchor, the WR-01 ledger over-record and the WR-02 parity noise, then push→CI→dry-run→go→capture→flip-or-hold→ledger-close; one live go behind a blocking-human checkpoint; WR-03 and the send-pack/gh-api-merge/dashed-git-push/row-259-alias/out-of-table-deploy classes are ledger, not code, per human decision D-33-R4-01)*
+
+**Wave 24**
+
+- [ ] 33-35-PLAN.md — TRACER: the CR-01 opaque×quoted-nested-command class closed in the ONE projection `governedToolsNamedBy` (recursive, bounded, both arms), RED-first at model and entry-point levels, derived count-pinned sweep; the two computed-at-run-time rows named as the residual
+
+**Wave 25** *(blocked on Wave 24)*
+
+- [ ] 33-36-PLAN.md — npm/yarn/pnpm unique-prefix publish (derived from the verb) + a governed tool under xargs with no on-line verb, both fail-closed; the two residual docblocks rewritten once over the final model
+
+**Wave 26** *(blocked on Wave 25)*
+
+- [ ] 33-37-PLAN.md — CAP-02 row 260: one win32 anchor authority in capture-live.ts (`//c/Users/...` from the platform reference, no platform conditional); Test C7 derived through it
+
+**Wave 27** *(blocked on Wave 26)*
+
+- [ ] 33-38-PLAN.md — WR-01: promoteAdmitted + admitAndAppend decide destination occupancy from the raw file before any ledger touch; CONTROL 2b asserts `ledgerLines 0`; every caller re-run with a legitimate input
+
+**Wave 28** *(blocked on Wave 27)*
+
+- [ ] 33-39-PLAN.md — WR-02: capture-live parity counts write-shaped routes only so an incidental read cannot force `fail`; fail-safe proven both ways; held-capture sentences re-derived
+
+**Wave 29** *(blocked on Wave 28)*
+
+- [ ] 33-40-PLAN.md — CAP-02 measured on ONE pushed run (all round-4 source commits + the CR-01 fix run on CI for the first time), both legs' conclusions quoted (blocking-human push — push one of two); row 260 + 226-236 + 186/193 disposed only on green; a red leg is the cap-reached finding
+
+**Wave 30** *(blocked on Wave 29)*
+
+- [ ] 33-41-PLAN.md — push two of two (blocking-human), readiness against the pushed sha at zero tokens (report untracked until after the run), the one live go (D-09, floor 11.75 USD / 31 min), the capture with artifacts committed after; zero-token diagnosis on red; the two `UNKNOWN - verify` items settled
+
+**Wave 31** *(blocked on Wave 30)*
+
+- [ ] 33-42-PLAN.md — the one-way GAP-D1 flip over exactly the 14 declared files with the two owed amendments (`.planning/PROJECT.md` in the commit; F14 literal = 33-42) — decision checkpoint only on OUTCOME: pass + CAP-02 MET — or the § 9 hold record stating the cap-reached closure by human override with GAP-D1 open (D-20)
+
+**Wave 32** *(blocked on Wave 31)*
+
+- [ ] 33-43-PLAN.md — ledger close: `33-REVIEW.md` snapshotted as `33-REVIEW-round3.md` first; round-4 findings fixed-by-name or rows; WR-03 + the ledgered classes + the two guard residuals as rows with owners; deferred-items citations; REQUIREMENTS/STATE agreement; ROADMAP checkbox NOT flipped on hold (D-20)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
