@@ -2988,3 +2988,116 @@ describe("33-36 npm unique prefix — a governed verb the tool resolves from a u
     expect(cp.matchCommandCheckpoints(row.command).checkpoints.has("production_requires_human_confirmation"), row.command).toBe(true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33 round-4 (plan 33-36) — a governed tool under xargs, its verb supplied on stdin.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// 33-VERIFICATION.md "Adversarial guard probe", the xargs row (corpus rows LB-02..LB-04): xargs appends
+// the words it reads on stdin to its command, so `… | xargs <tool>` runs the tool with a verb the
+// guard never sees. Every case is derived from COMMAND_CHECKPOINT_RULES; the shapes are xargs's own.
+describe("33-36 xargs — a governed tool under xargs with no on-line verb fails closed", () => {
+  const has = (cmd: string, id: string): boolean => cp.matchCommandCheckpoints(cmd).checkpoints.has(id as never);
+  /** xargs shapes that hand stdin to `tool` — the operand plain, after flags, after a replace string, and fed to a nested shell. */
+  const shapes = (tool: string): readonly string[] => [
+    `echo x | xargs ${tool}`,
+    `echo x | xargs -n 1 ${tool}`,
+    `echo x | xargs -0 -r ${tool}`,
+    `echo x | xargs -t -- ${tool}`,
+    `echo x | xargs -I X ${tool} X`,
+    `echo x | xargs --max-args=1 ${tool} --verbose`,
+    `echo x | xargs sh -c '${tool} "$@"' _`,
+    `echo x | xargs bash -c '${tool} "$0"'`,
+    `xargs -a list.txt ${tool}`,
+  ];
+
+  it("the verifier's three xargs rows (corpus LB-02..LB-04) deny on the model", () => {
+    for (const id of ["LB-02", "LB-03", "LB-04"]) {
+      const row = nestedRow(id);
+      expect(cp.matchCommandCheckpoints(row.command).checkpoints.size, `${id} ${row.command}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("every governed tool, as xargs's command in every xargs shape, is its rule's checkpoint", () => {
+    const failures: string[] = [];
+    let asked = 0;
+    for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+      for (const cmd of shapes(r.tool)) {
+        asked++;
+        if (!has(cmd, r.checkpoint)) failures.push(cmd);
+      }
+    }
+    expect(asked).toBe(cp.COMMAND_CHECKPOINT_RULES.length * shapes("t").length);
+    expect(failures).toEqual([]);
+  });
+
+  it("a visible verb that the readable arm lets through is still refused under xargs: the appended words can name a protected ref", () => {
+    // `git push origin feature` is not governed on its own; under xargs, stdin appends more refspecs.
+    expect(has("git push origin feature", "protected_branch_merge")).toBe(false);
+    expect(has("echo main | xargs git push origin feature", "protected_branch_merge")).toBe(true);
+  });
+
+  it("an adjacent benign subcommand still decides under xargs: the appended words cannot change it", () => {
+    const wrong: string[] = [];
+    let asked = 0;
+    for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+      for (const b of r.benign ?? []) {
+        if (r.verbs.includes(b)) continue;
+        asked++;
+        const cmd = `echo x | xargs ${r.tool} ${b}`;
+        if (cp.matchCommandCheckpoints(cmd).checkpoints.size !== 0) wrong.push(cmd);
+      }
+    }
+    expect(asked).toBeGreaterThan(0);
+    expect(wrong).toEqual([]);
+  });
+
+  it("the siblings, each measured executable with stub binaries: a launcher between xargs and the tool, another spelling of xargs, a replace string over a benign word", () => {
+    const failures: string[] = [];
+    for (const r of cp.COMMAND_CHECKPOINT_RULES) {
+      for (const cmd of [
+        `echo x | xargs env ${r.tool}`,
+        `echo x | xargs nice -n 5 ${r.tool}`,
+        `echo x | xargs timeout 5 ${r.tool}`,
+        `echo x | xargs sudo -u root ${r.tool}`,
+        `echo x | gxargs ${r.tool}`,
+        `echo x | /usr/bin/xargs ${r.tool}`,
+        `echo x | 'xargs' ${r.tool}`,
+        `echo x | XARGS.EXE ${r.tool}`,
+      ]) {
+        if (!has(cmd, r.checkpoint)) failures.push(cmd);
+      }
+      // A replace string rewrites ANY word of xargs's command, the adjacent benign one included, so under
+      // a replace flag an adjacent benign word no longer decides.
+      for (const b of (r.benign ?? []).slice(0, 3)) {
+        for (const cmd of [`echo x | xargs -I ${b} ${r.tool} ${b} y`, `echo x | xargs -I ${b} sh -c '${r.tool} ${b} y'`]) {
+          if (!has(cmd, r.checkpoint)) failures.push(cmd);
+        }
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it("THE RECORDED OVER-DENIAL: a governed tool NAME in xargs's command denies even when it is only an operand", () => {
+    // Every canonical word is a candidate tool in this model — `grep -rn kubectl apply docs/` already
+    // denies at the top level — and under xargs the verb may be on stdin, so the name alone decides.
+    // Recorded rather than parsed away: telling `xargs grep kubectl` from `xargs env kubectl` needs a
+    // list of launchers, and a launcher list is the set whose incompleteness under-refuses.
+    expect(has("grep -rn kubectl apply docs/", "production_requires_human_confirmation")).toBe(true);
+    expect(has("find . -name '*.md' | xargs grep -l kubectl", "production_requires_human_confirmation")).toBe(true);
+  });
+
+  it("an ordinary xargs over a command that names no governed tool still allows", () => {
+    for (const cmd of [
+      "find . -name '*.ts' | xargs grep -n TODO",
+      "find . -name '*.ts' -print0 | xargs -0 grep -l describe",
+      "ls | xargs -n 1 echo",
+      "find dist -type f | xargs rm -f",
+      "git ls-files | xargs wc -l",
+      "echo a b | xargs sh -c 'echo \"$@\"' _",
+      "xargs -a list.txt cat",
+    ]) {
+      expect(cp.matchCommandCheckpoints(cmd).checkpoints.size, cmd).toBe(0);
+    }
+  });
+});
