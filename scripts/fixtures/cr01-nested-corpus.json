@@ -48,7 +48,7 @@
     { "id": "RES-01", "source": "computed at run time: the tool assembled from a shell variable", "kind": "residual", "owner": "33-43", "command": "K=git; bash -c \"$K push origin main\"" },
     { "id": "RES-02", "source": "computed at run time: the tool produced by a command substitution", "kind": "residual", "owner": "33-43", "command": "bash -c \"$(printf %s gi t) push origin main\"" },
 
-    { "id": "LB-01", "source": "33-VERIFICATION live bypass: npm verb abbreviation", "kind": "handed-off", "owner": "33-36", "command": "npm pub" },
+    { "id": "LB-01", "source": "33-VERIFICATION live bypass: npm verb abbreviation (closed by plan 33-36 Task 1)", "kind": "deny", "command": "npm pub" },
     { "id": "LB-02", "source": "33-VERIFICATION live bypass: verb on stdin via xargs", "kind": "handed-off", "owner": "33-36", "command": "echo push origin main | xargs git" },
     { "id": "LB-03", "source": "33-VERIFICATION live bypass: verb on stdin via xargs", "kind": "handed-off", "owner": "33-36", "command": "echo publish | xargs npm" },
     { "id": "LB-04", "source": "33-VERIFICATION live bypass: verb on stdin via xargs", "kind": "handed-off", "owner": "33-36", "command": "echo 'apply -f x' | xargs kubectl" },

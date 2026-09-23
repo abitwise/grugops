@@ -689,6 +689,31 @@ export const COMMAND_CHECKPOINT_RULES: readonly {
    */
   readonly flags?: readonly string[];
   readonly benign?: readonly string[];
+  /**
+   * The tool runs a UNIQUE PREFIX of one of its commands as that command (plan 33-36, T-33-166).
+   * npm does: on npm 11.7.0 (measured 2026-09-23 with `--help`) every prefix of `publish` from two
+   * characters up prints "Publish a package", and the one-character prefix is refused as unknown. A
+   * publish spelled short was therefore a registry publish the verb match never saw — corpus row LB-01,
+   * ALLOW with zero keys.
+   *
+   * On a row that carries it, a candidate spells a governed verb when it is a prefix of EXACTLY ONE
+   * word of `verbs` ∪ `benign` and that word is a governed verb (`spelledVerb`). Nothing lists the
+   * short spellings: the rule is derived from the row's own arrays, so a prefix shared with a benign
+   * word is ambiguous and does not govern.
+   *
+   * WHICH ROWS CARRY IT. The three package-manager rows — the rows whose governed verb is `publish`,
+   * which the test asserts. npm is measured. pnpm is measured NOT to: it runs an unknown word as a
+   * package script. yarn is not installed on the measuring host (`UNKNOWN - verify`). Both carry it as
+   * a superset guard: on a tool that does not resolve prefixes the rule can only over-refuse. Measured
+   * NOT to resolve a prefix on the same host: kubectl, gh, flyctl and vercel each reject a truncated
+   * verb. helm, terraform, gcloud, aws, serverless and fly were not installed there (`UNKNOWN - verify`).
+   * The flag is not put on every row because a row whose tool does not abbreviate would then refuse
+   * ordinary operands that happen to begin a verb (a one-letter plan output file, a one-letter
+   * namespace) and buy nothing for it. git resolves a DIFFERENT class — a near-miss spelling under
+   * `help.autocorrect` — which this rule does not model; it is a residual, listed at
+   * `failClosedCheckpoints`.
+   */
+  readonly resolvesVerbPrefix?: boolean;
 }[] = [
   {
     checkpoint: "production_requires_human_confirmation",
@@ -711,6 +736,7 @@ export const COMMAND_CHECKPOINT_RULES: readonly {
     checkpoint: "production_requires_human_confirmation",
     tool: "npm",
     verbs: ["publish"],
+    resolvesVerbPrefix: true,
     // `npm run publish` is an ordinary package-script invocation, not a registry publish
     // (plan 30-11 round 4, reviewer 5's three NEW false denials).
     benign: ["run", "install", "ci", "test", "exec", "init", "ls", "audit", "pack", "version", "link", "view", "why", "outdated", "start", "update", "dedupe"],
@@ -719,6 +745,7 @@ export const COMMAND_CHECKPOINT_RULES: readonly {
     checkpoint: "production_requires_human_confirmation",
     tool: "yarn",
     verbs: ["publish"],
+    resolvesVerbPrefix: true,
     // `yarn run publish` is an ordinary package-script invocation, not a registry publish
     // (plan 30-11 round 4, reviewer 5's three NEW false denials).
     benign: ["run", "install", "ci", "test", "exec", "init", "ls", "audit", "pack", "version", "link", "view", "why", "outdated", "start", "update", "dedupe"],
@@ -727,6 +754,7 @@ export const COMMAND_CHECKPOINT_RULES: readonly {
     checkpoint: "production_requires_human_confirmation",
     tool: "pnpm",
     verbs: ["publish"],
+    resolvesVerbPrefix: true,
     // `pnpm run publish` is an ordinary package-script invocation, not a registry publish
     // (plan 30-11 round 4, reviewer 5's three NEW false denials).
     benign: ["run", "install", "ci", "test", "exec", "init", "ls", "audit", "pack", "version", "link", "view", "why", "outdated", "start", "update", "dedupe"],
@@ -745,6 +773,25 @@ export const COMMAND_CHECKPOINT_RULES: readonly {
     ],
   },
 ];
+
+type CommandCheckpointRule = (typeof COMMAND_CHECKPOINT_RULES)[number];
+
+/**
+ * The governed verb `candidate` spells for rule `r`, or `null` (plan 33-36).
+ *
+ * The verb itself spells itself. On a row that `resolvesVerbPrefix`, a candidate also spells a verb
+ * when it is a prefix of exactly one word of the row's `verbs` ∪ `benign` and that word is a governed
+ * verb — the discriminator is derived from the row's own arrays, and no short spelling is listed
+ * anywhere. An empty candidate (a wholly-quoted `''`) prefixes every word, so it is ambiguous on
+ * every row that carries the flag (each has benign words beside its verb).
+ */
+function spelledVerb(r: CommandCheckpointRule, candidate: string): string | null {
+  if (r.verbs.includes(candidate)) return candidate;
+  if (r.resolvesVerbPrefix !== true) return null;
+  const owners = [...r.verbs, ...(r.benign ?? [])].filter((w) => w.startsWith(candidate));
+  const only = owners.length === 1 ? (owners[0] as string) : null;
+  return only !== null && r.verbs.includes(only) ? only : null;
+}
 
 /** The protected branch names. One list; the push rule and the update-ref rule both read it. */
 const PROTECTED_REF_RE = /^(?:refs\/heads\/)?(?:main|master)$|^(?:refs\/heads\/)?release\//;
@@ -1758,7 +1805,9 @@ export function matchCommandCheckpoints(cmd: string): CommandMatch {
           if (gitPushIsGoverned(candidates, words)) readable.add(r.checkpoint);
           continue;
         }
-        if (candidates.some((c) => r.verbs.includes(c))) readable.add(r.checkpoint);
+        // A candidate is asked what verb it SPELLS, so a unique prefix the tool itself resolves is the
+        // verb it resolves to (plan 33-36); on every other row this is exactly `r.verbs.includes(c)`.
+        if (candidates.some((c) => spelledVerb(r, c) !== null)) readable.add(r.checkpoint);
       }
     }
   }
