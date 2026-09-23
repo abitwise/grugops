@@ -2733,9 +2733,10 @@ describe("33-R4 CR-01 nested — non-circularity: the fix removed, the families 
     for (const id of cp.COMMAND_RULE_CHECKPOINTS) expect(m.checkpoints.has(id), id).toBe(true);
   });
 
-  it("the two computed-at-run-time residual rows stay ALLOW on the committed module — the ledgered residual (plan 33-43)", () => {
+  it("the computed-at-run-time residual rows stay ALLOW on the committed module — the ledgered residual (plan 33-43)", () => {
     const residual = CR01_NESTED_CORPUS.filter((r) => r.kind === "residual");
-    expect(residual.map((r) => r.id)).toEqual(["RES-01", "RES-02"]);
+    // RES-03 (plan 33-36): the same class reached through an xargs replace string.
+    expect(residual.map((r) => r.id)).toEqual(["RES-01", "RES-02", "RES-03"]);
     for (const r of residual) {
       expect(r.owner, r.id).toBe("33-43");
       expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} ${r.command}`).toBe(0);

@@ -130,3 +130,21 @@ explicit `status: resolved`.
   status: open
   **Found during:** plan 33-35 (2026-09-23), the sibling probe of the nested corpus. It ALLOWS on `53888b9c` and on HEAD. It is the same class as corpus row RES-01 (`K=git; bash -c "$K push origin main"`, which allows unspliced): a name COMPUTED at run time from a variable.
   **Why deferred:** it is the computed-at-run-time residual the plan names, and plan 33-43 ledgers it. Owner: plan 33-43.
+
+- git's `help.autocorrect` runs a near-miss spelling of `push` as a push — ALLOWS with zero keys (corpus row LB-08, pinned ALLOW)
+  status: open
+  **Found during:** plan 33-36 Task 1 (2026-09-23), probing which governed tools resolve a verb from a non-exact spelling. Measured against a scratch bare remote on git 2.55.0: `git -c help.autocorrect=immediate psuh origin main` printed "Continuing under the assumption that you meant 'push'" and pushed `main`; the bare form `git psuh origin main` did the same, because the measuring host's global `~/.gitconfig` sets `help.autocorrect=1`. Both return no checkpoint from `matchCommandCheckpoints` and no decision from `hooks/guard.js` or `hooks/hook-entry.js guard.js` (scrubbed env).
+  **What:** the verb match compares exact words; plan 33-36's unique-prefix rule is a prefix-only class and does not model git's edit-distance autocorrect. A fix would model git's similarity rule for the `push` / `update-ref` verbs, or fail closed when `help.autocorrect` is set on the line.
+  **Why deferred:** outside the round-4 scope the human set (D-33-R4-01: the two cheap classes plus the ledger). Named in the `failClosedCheckpoints` residual list. Owner: plan 33-43's ledger.
+
+- An xargs replace string that assembles the TOOL NAME at run time ALLOWS (corpus row RES-03, pinned ALLOW)
+  status: open
+  **Found during:** plan 33-36 Task 2 (2026-09-23). `echo pm | xargs -I Q nQ publish` and `echo pm | xargs -I Q sh -c 'nQ publish'` name no governed tool on the line; xargs rewrites `Q` from stdin and runs the result.
+  **What:** the computed-at-run-time class (corpus RES-01/RES-02), reached through xargs's replace string instead of a shell variable. Plan 33-36 closed the replace string over a BENIGN word beside a named tool; a name assembled from the replace string is not knowable here.
+  **Why deferred:** the residual class the phase ledgers rather than closes. Owner: plan 33-43.
+
+- A stdin-to-argument launcher other than xargs (GNU parallel) is not modelled — `UNKNOWN - verify`
+  status: open
+  **Found during:** plan 33-36 Task 2 (2026-09-23). `echo publish | parallel npm` returns no checkpoint. The `parallel` on the measuring host is moreutils' (it takes `command -- args` and does not read stdin), so the stdin form was NOT measured executable; GNU parallel is documented to read arguments from stdin like xargs.
+  **What:** plan 33-36 keys the stdin feed on a word whose basename ends in `xargs` (xargs, gxargs); another launcher that reads its arguments from stdin would carry the same class.
+  **Why deferred:** not measured on this host, and a list of launchers is the set whose incompleteness under-refuses. Owner: plan 33-43's ledger; verify on a host with GNU parallel.

@@ -2568,3 +2568,29 @@ describe("33-R4 CR-01 nested — a derived per-tool subset of the nested familie
     }, 600_000);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33 round-4 (plan 33-36) — the two cheap classes of 33-VERIFICATION.md "Adversarial guard probe":
+// a governed verb spelled as a unique prefix the tool resolves (corpus LB-01), and a governed tool in a
+// command xargs completes from stdin (corpus LB-02..LB-04). Each row is read from the fixture by id,
+// driven through BOTH entry points with a scrubbed environment through the shared `runAll`.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("33-36 — an abbreviated publish and a governed tool under xargs deny through both entry points", () => {
+  const prefixRow = nestedRow("LB-01");
+  const xargsRows = ["LB-02", "LB-03", "LB-04"].map(nestedRow);
+  // Controls the plan names: a package script called publish, and an ordinary xargs over grep.
+  const allow = ["npm run publish", "find . -name '*.ts' | xargs grep -n TODO"];
+
+  it("the rows are the ones the fixture labels as closed by this plan", () => {
+    for (const r of [prefixRow, ...xargsRows]) expect(r.kind, r.id).toBe("deny");
+  });
+
+  for (const [label, argv] of ENTRY_POINTS) {
+    it(`${label}: the abbreviated publish and every xargs row DENY; the controls allow (scrubbed env)`, async () => {
+      const deny = [prefixRow, ...xargsRows].map((r) => r.command);
+      const outs = await runAll(argv, [...deny, ...allow]);
+      deny.forEach((c, i) => expect(outs[i], c).toContain(DENY_DECISION));
+      allow.forEach((c, i) => expect(outs[deny.length + i], c).not.toContain("permissionDecision"));
+    }, 120_000);
+  }
+});

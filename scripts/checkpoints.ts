@@ -797,47 +797,46 @@ function spelledVerb(r: CommandCheckpointRule, candidate: string): string | null
 const PROTECTED_REF_RE = /^(?:refs\/heads\/)?(?:main|master)$|^(?:refs\/heads\/)?release\//;
 
 /**
- * THE ONE ANSWER TO "WHICH GOVERNED TOOL CAN THIS TEXT RUN?" (33 round-3 review, CR-01).
+ * THE ONE ANSWER TO "WHICH GOVERNED TOOL CAN THIS TEXT RUN?" — asked by both arms of
+ * `matchCommandCheckpoints` (the readable arm of one spelled word, the fail-closed arm of a whole
+ * unreadable segment). As of round 4 (plans 33-35 and 33-36), this is what it does.
  *
  * ---------------------------------------------------------------------------------------------
- * WHY THIS REPLACED `normalizeToolWord` AND THE RAW-TEXT SEARCH.
- *
- * Two arms decided a tool's identity, and each missed half of one spelling class:
- *   - the READABLE arm asked `normalizeToolWord(value)`, which did not drop zsh's leading `=` — so
- *     `=kubectl -n prod apply -f x` named no tool;
- *   - the FAIL-CLOSED arm searched the RAW segment text for `<tool>` as a whole word — so
- *     `g\it push origin main`, `"g"it push --force origin main`, `k\ubectl -n prod apply -f x`,
- *     `terra""form apply` and `n\pm publish` named no tool either. The splice that made the segment
- *     unreadable had also removed the substring the backstop searched for.
- * All of them execute (measured under bash and zsh with stub binaries on `PATH`), and all of them
- * ALLOWED with zero keys. RA3-4 closed exactly this for the VERB by dropping the verb conjunct; the
- * same edit applied to the TOOL was never probed.
- *
- * The fix is not one more spelling. Both arms now ask THIS function, which asks its question of the
- * text the SHELL would resolve, not of the text as typed:
+ * IT READS THE TEXT THE SHELL WOULD RESOLVE, NOT THE TEXT AS TYPED:
  *   - quote removal: `'…'`, `"…"` (with its own four backslash escapes), `$'…'` (ANSI-C escapes,
- *     decoded — `$'\x67it'` is `git`) and `$"…"`;
+ *     decoded) and `$"…"`;
  *   - backslash removal, including a line continuation;
  *   - zsh's leading `=` (EQUALS expansion: `=cmd` is the path of `cmd`);
  *   - brace expansion — `{a,b}` alternation and `{x..y}` sequences — and pathname expansion
- *     (`*`, `?`, `[…]`), as PATTERNS matched against each governed name, because which file a glob
- *     selects is not knowable here but whether it COULD select `git` is;
+ *     (`*`, `?`, `[…]`), as PATTERNS matched against each governed name: which file a glob selects is
+ *     not knowable here, but whether it COULD select a governed name is;
  *   - a substitution or expansion (`$(…)`, `` `…` ``, `${…}`, `$name`, `<(…)`) is not evaluated. Its
- *     BODY is projected as text of its own (it is a command the shell runs, or a parameter's default
- *     word), and the expansion itself is a GAP when literal text sits on both sides of it
- *     (`g${x}it`, `g$(true)it` — the name is spliced around it) and a CUT when it sits at a word's
- *     edge. A word that is NOTHING BUT an expansion (`$K apply`) names nothing: its value is
- *     unknowable at hook time, which is the env-indirection residual `hooks/guard.ts` discloses.
- * The projected text is then cut at the shell's word and operator boundaries, reduced to its
- * basename, lower-cased, stripped of a Windows executable extension, and compared.
+ *     BODY is projected as text of its own. The expansion itself is a GAP when literal text sits on
+ *     both sides of it, and a gap is read BOTH as empty (the name spliced around it) and as a word
+ *     boundary (an expansion whose value is a separator) — `namesOfPiece`. At a word's edge it is a
+ *     CUT. A word that is nothing but an expansion names nothing: its value is unknowable here.
+ *
+ * IT READS IT AGAIN AS THE NEXT SHELL WILL (plan 33-35, D-33-R4-03). The resolved text of every piece
+ * that still carries shell syntax is lexed again, recursively, so a governed command quoted for
+ * `bash -c`, `sh -c`, `eval` or a here-string — spliced one layer down, beside an unreadable word or
+ * not — names its tool (corpus rows V4-01..V4-10 and R4-01..R4-18, replayed through the shipped
+ * wrapper).
+ * The recursion is bounded by `MAX_PROJECTION_DEPTH` and a work budget proportional to the input;
+ * beyond either bound, or beyond `MAX_NAME_VARIANTS` brace alternatives, the answer is EVERY governed
+ * tool — fail-closed, never a silent stop.
+ *
+ * Each name is then cut at the shell's word and operator boundaries, reduced to its basename,
+ * lower-cased, stripped of a Windows executable extension, and compared with the table's tools.
  *
  * A pattern made of wildcards alone (`dist/*`, `???`) names nothing: which file it selects is the
- * filesystem's answer, the same class as a renamed or symlinked binary, which no name-based guard can
- * see. Refusing it would refuse `rm -rf dist/*`.
+ * filesystem's answer, the same class as a renamed or symlinked binary. Refusing it would refuse
+ * `rm -rf dist/*`.
  *
  * WHAT THIS IS NOT. It is not a second grammar beside the classifier: the classifier still decides
- * READABLE vs OPAQUE and this function reads no verbs. It answers one question for both arms. It is
- * also not total, and does not claim to be — see the residual list at `failClosedCheckpoints`.
+ * READABLE vs OPAQUE. It reads no verbs — a verb the tool resolves from a unique prefix, and a verb
+ * xargs supplies on stdin, are decided in `matchCommandCheckpoints` (plan 33-36). It is not total, and
+ * does not claim to be: what it and the arms around it still do not see is listed, measured, at
+ * `failClosedCheckpoints`.
  * ---------------------------------------------------------------------------------------------
  */
 type NameTok =
@@ -1691,29 +1690,56 @@ function unreadableWords(seg: CommandSegment): readonly string[] {
  * denies on the TOOL NAME alone. The over-denial that buys — `git commit -m "push \"x\""` — is the
  * round-2 recorded residual, unchanged in kind.
  *
- * THE TOOL NAME IS ASKED OF THE PROJECTION, NOT OF THE RAW TEXT (33 round-3 review, CR-01).
+ * THE TOOL NAME IS ASKED OF THE PROJECTION, AND OF THE RAW TEXT BESIDE IT (33 round-3 review, CR-01).
  *
- * Until this round the tool name was searched for in the RAW text, and the P30 docblock called that
- * "a backstop that cannot be defeated by the edit that triggers it". It could be: splicing the TOOL
- * with the same shell-neutral punctuation RA3-4 had closed for the verb — `g\it push origin main`,
- * `"g"it push --force origin main`, `k\ubectl -n prod apply -f x`, `terra""form apply` — removed the
- * substring the search needed, and all of them ALLOWED with zero keys. The name is now asked of
- * `governedToolsNamedBy`, which reads the text as the shell resolves it (quote and backslash removal,
- * ANSI-C quoting, zsh `=`, brace and pathname patterns, and the bodies of substitutions). The raw
- * search is KEPT beside it, so every segment the raw search refused is still refused: the union can
- * only add denials.
+ * The name is asked of `governedToolsNamedBy`, which reads the text as the shell — and, recursively,
+ * the next shell — resolves it. The raw whole-word search for each tool is KEPT beside it, so every
+ * segment the raw search refused is still refused: the union can only add denials. A splice of the
+ * TOOL word (a backslash, an empty quote pair, a quoted letter, zsh's `=`) therefore names its tool,
+ * at the top level and inside a quoted nested command.
  *
- * WHAT IT STILL DOES NOT SEE — measured, and stated rather than implied closed:
- *   - a name COMPUTED at run time: `$K push …` with `K=git`, `"$(echo git)" push …` (denied only
- *     because the raw search sees `git` in the body), `${x}it push …` with `x=g` — the value of an
- *     expansion at a word's edge is unknowable here (the env-indirection residual `hooks/guard.ts`
- *     already discloses);
+ * WHAT THE ROUND-4 TESTS SHOW CLOSED (each ALLOWED with zero keys on the round-3 build, each measured
+ * executable, each now denied through the shipped wrapper — corpus `scripts/fixtures/cr01-nested-corpus.json`):
+ *   - a governed command quoted for a nested shell (`bash -c`, `sh -c`, `eval`, a here-string), with
+ *     the tool spliced one layer down, beside an unreadable word or not (plan 33-35; rows V4-*, R4-*);
+ *   - a governed verb spelled as a unique prefix the tool itself resolves (plan 33-36; row LB-01) —
+ *     `resolvesVerbPrefix`, derived from the row's own verbs and benign words;
+ *   - a governed tool in a command xargs completes from stdin, including a launcher between xargs and
+ *     the tool, a nested body fed the stdin words, and a replace string over a benign word (plan 33-36;
+ *     rows LB-02..LB-04) — see the block above `XARGS_NAME_RE`.
+ *
+ * WHAT IT STILL DOES NOT SEE — each measured ALLOW on the round-4 build, stated rather than implied
+ * closed:
+ *   - a name COMPUTED at run time. The two corpus residual rows (RES-01, RES-02): a tool assembled
+ *     from a shell variable and passed to a nested shell, and a nested body produced by a command
+ *     substitution. The same class: a variable at a word's edge at the top level, a variable assigned
+ *     inside a nested body, text a formatter assembles and pipes to a shell, and a tool name an xargs
+ *     replace string assembles. The value of an expansion at a word's edge is unknowable here — the
+ *     env-indirection residual `hooks/guard.ts` already discloses;
  *   - a binary reached under ANOTHER name: a symlink, a copy, an alias or a function defined in an
- *     earlier command, `d/* push …` over a directory holding only a `git` link;
- *   - glob grammars this function does not model: zsh `(a|b)` grouping and bash `extglob`
- *     (`@(…)`, `+(…)`), which are off by default in the shells a hook's command is run under;
- *   - interpreters that are not the shell: `env -S`, `python -c`, `node -e` with the name assembled
- *     inside the interpreter's own string syntax.
+ *     earlier command, a wildcard-only path over a directory holding only a governed binary;
+ *   - glob grammars this function does not model: zsh `(a|b)` grouping and bash `extglob`, which are
+ *     off by default in the shells a hook's command is run under;
+ *   - interpreters that are not the shell (`python -c`, `node -e`, `env -S`) with the name assembled in
+ *     the interpreter's own string syntax;
+ *   - a stdin-to-argument launcher other than xargs. GNU parallel reads its arguments from stdin the
+ *     same way; it was not installed on the measuring host (`UNKNOWN - verify`), and the parallel that
+ *     was (moreutils) does not read stdin, so no row pins it;
+ *   - git's `help.autocorrect`: with it on — it is on in the measuring host's global config, and
+ *     `-c help.autocorrect=immediate` turns it on for one command — git runs a near-miss spelling of
+ *     `push` as a push (measured against a scratch bare remote). The verb match compares exact words
+ *     and the unique-prefix rule is a different, prefix-only class;
+ *   - the classes the phase LEDGER carries rather than this code (plan 33-43): git's `send-pack`, the
+ *     `gh api` pull-request merge endpoint, git-core's dashed push binary under its libexec path, the
+ *     `-c alias.<x>=push` form of a bare push (WINDOWS.md row 259), and deploy verbs outside
+ *     `COMMAND_CHECKPOINT_RULES` (a scope decision of the table, not a spelling).
+ *
+ * WHAT IT REFUSES THAT IT NEED NOT — the recorded over-denials this posture buys: a quoted message
+ * carrying an escaped quote beside a governed tool name; a governed tool NAME used as an operand under
+ * xargs (a search for the word `kubectl` over files xargs lists; a commit message naming a governed
+ * tool, committed under xargs; `gh pr view` under xargs, whose two-level subcommand has no adjacent
+ * benign word); and, on the rows that resolve a prefix, a short operand that happens to begin their
+ * governed verb. Each is refused on the name alone, never allowed on a guess.
  * ---------------------------------------------------------------------------------------------
  */
 function failClosedCheckpoints(text: string): readonly Checkpoint[] {
