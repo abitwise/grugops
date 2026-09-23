@@ -1489,3 +1489,246 @@ file. The strip-and-scan script (`strip.cjs`). Every number above is copied from
 per-file results are the reporter's `✓` / `❯` file lines. The failing case and its assertion are
 the windows `Failed Tests 1` section, quoted from the log's own lines, with the untruncated
 `Expected:` / `Received:` pair from the same block.
+
+## Part 5 — round 4: the pre-push inventory (Task 1)
+
+Gap-closure round 4 of the phase's four-round cap (plan 33-40), the LAST round. Round 3's
+measurement (Part 4, run `35760655144`) left ONE red class: WINDOWS.md row 260, the win32 spelling
+of the scoped `Edit(//ABS/**)` grant (§ 4.3, R3-1). Five fix plans landed since. 33-37 closes that
+class with one anchor authority (`editAnchor`). 33-35, 33-36, 33-38 and 33-39 rebuild modules both
+CI legs exercise: the guard's nested-quoted projection, the npm-prefix and xargs verbs, note
+occupancy before the GOV-02 ledger, and the write-shaped parity input. This part has Part 4's
+shape. Every workflow command is run locally in the workflow's order with its exit status. The
+row-260 case gets its own row with the measurability column. Each round-4 source plan gets one row.
+The expectation the run will decide is written before the push, with its falsifier. Nothing here
+is a CI conclusion for the round-4 head. § 5.2 (Task 3) gives that conclusion.
+
+### 5.1 The pre-push inventory
+
+**Tree under measurement:** `fe30945f90011f68c7f8634467df902610ea0f88`, the dispatch base of this
+plan (`docs(33-39): record plan 33-39 in STATE.md and ROADMAP.md …`). This document sits on top of
+it, added by this task's commit. `git fetch origin` at 21:28 UTC → `origin/main` =
+`f92574a5632e9efc1fbd6651e7fa926b5a654c2d`. `git merge-base --is-ancestor origin/main HEAD` → true,
+so the push is a fast-forward.
+
+pre-push HEAD sha: fe30945f90011f68c7f8634467df902610ea0f88
+
+`git log --oneline origin/main..HEAD | wc -l` → **20** commits carried. Source-bearing: `947d02ab`
+(`docs(33-36)`, which rewrites the two residual docblocks in `scripts/checkpoints.ts` and adds 3
+entry-point cases to `hooks/guard.test.ts`), 33-37's `2991df16` and `d885c7b7`, 33-38's six
+(`04f6b498` … `a9c1331b`), and 33-39's three (`d55dec5b`, `29e09fb4`, `ec891a41`). Documentation
+only: the `docs(33-36)`, `docs(33-37)`, `docs(33-38)` and `docs(33-39)` summary and STATE records
+(8). This task's own commit is the 21st. Two untracked paths (`.planning/milestone.lock`,
+`.planning/phases/34-model-effort-dial-pi-support/`) are not this plan's, and no commit carries
+them. `.github/workflows/ci.yml` is byte-unchanged since `1af7e3f1` (`git log 1af7e3f1..HEAD --
+.github/workflows/ci.yml` is empty), so the step list below is the one run `35760655144` ran.
+
+**Correction to the plan's premise: this push is NOT the first CI run of round-4 source.** The plan
+says this push "carries EVERY round-4 SOURCE commit" and that the CR-01 fix (`7d0aea72`) "runs on CI
+for the first time". Both were true when the plan was written and are no longer true. A push from
+this checkout during 33-36's execution moved `origin/main` from `1af7e3f1` to `f92574a5` (29
+commits). `git reflog show origin/main` records it as `f92574a5
+refs/remotes/origin/main@{2026-09-23 23:08:10 +0300}: update by push`. No executor of this plan made
+it, and no planning file records who did. `git merge-base --is-ancestor 7d0aea72 origin/main` → true.
+That push triggered run `35913922871`. It is read here from its own metadata as an INPUT to the
+prediction, not as this plan's measurement. Its head lacks `947d02ab` and all of 33-37, 33-38 and
+33-39, so it cannot decide CAP-02 for the round-4 head. This part therefore carries no verdict
+line for it.
+
+`gh run view 35913922871 --json databaseId,headSha,status,conclusion,createdAt,updatedAt,event,headBranch,jobs`:
+
+| Field | Value |
+|---|---|
+| run id | `35913922871` (branch `main`, event `push`) |
+| head sha | `f92574a5632e9efc1fbd6651e7fa926b5a654c2d` (`feat(33-36): GREEN — a governed tool in a command xargs completes from stdin fails closed (T-33-167)`) |
+| created / updated | 2026-09-23T20:08:13Z / 2026-09-23T20:39:51Z |
+| run `status` / `conclusion` | `completed` / `failure` |
+| job `test (ubuntu-latest)` | id `107360460189`, `conclusion: "success"`; steps 4, 5, 6, 8, 9, 11, 12 `success` |
+| job `test (windows-latest)` | id `107360460262`, `conclusion: "failure"`; steps 4, 7, 8, 9, 10 `success`, step 11 (Vitest) `failure` |
+
+Suite totals from each leg's own log (`gh api repos/abitwise/grugops/actions/jobs/<id>/logs`, BOM,
+ANSI and CR stripped). Control-byte scan before quoting: two NUL bytes per log, at character
+offsets 1 482 298 / 1 482 302 (windows) and 1 419 441 / 1 419 445 (ubuntu). These are the same
+passing frontmatter-refusal fixture § 3.2 and § 4.2 named. Neither is in a quoted line.
+
+| Leg, run `35913922871` | Test Files | Tests | Duration |
+|---|---|---|---|
+| ubuntu-latest | 78 passed (78) | 5761 passed \| 1 skipped (5762) | 936.21s |
+| windows-latest | 2 failed \| 76 passed (78) | 2 failed \| 5757 passed \| 3 skipped (5762) | 1815.30s |
+
+The windows `Failed Tests 2` section names two cases:
+
+| # | Case | Assertion text (from the log) | What it means for this push |
+|--:|---|---|---|
+| I-1 | `scripts/capture-live.test.ts` › `Test C7 (the scoped grant, form-checked) …`, assertion `:1246:98` | `expected '/C:/Users/runneradmin/AppData/Local/T…' to be 'C:/Users/runneradmin/AppData/Local/Te…'` | Row 260, the same red as R3-1. It is expected here, because 33-37's fix is not in `f92574a5`. The line `:1246` is the old round-trip assertion that 33-37 deleted. |
+| I-2 | `scripts/board-watch-live.test.ts` › `board-dashboard live — the DEBOUNCE, over a burst of real writes (DASH-04)` › `coalesces 5 atomic-rename writes into FEWER documents, and at least one` | `Error: EPERM: operation not permitted, rename 'C:\Users\RUNNER~1\AppData\Local\Temp\grugops-watch-live-aVl40X\plans\board.md.tmp-3848-1790195934787-7' -> 'C:\Users\RUNNER~1\AppData\Local\Temp\grugops-watch-live-aVl40X\plans\board.md'` at `atomicEdit scripts/board-watch-live.test.ts:362:3` (`renameSync(temp, board)`), called from `:671:11` | **A red this phase has not seen before, in row 186's file.** That file was green on windows-latest on all four prior runs (`35394268365`, `35499800942`, `35579263776`, `35760655144`). The file has been byte-unchanged since `1004f537` (32-35). No round-4 plan touched it or the dashboard it drives, so this red is not a round-4 change. It is the test's OWN writer failing to rename over `board.md`. Row 186's text names a different mechanism: "three of its five cases depend on the platform delivering directory events". This red is a rename refused with EPERM, not a missed event. Which handle held the destination (the spawned dashboard's read, the runner's indexer or antivirus, or something else) is `UNKNOWN - verify`. The log does not say. |
+
+On the same run, round-4 source that IS in `f92574a5` was measured on both legs for the first
+time. Windows `✓` file lines: `scripts/checkpoints.test.ts (432 tests)`,
+`hooks/guard.test.ts (311 tests)`, `scripts/floor-invariance.test.ts (140 tests)`,
+`scripts/context-io.test.ts (678 tests)`, `scripts/context-io-writer-set.test.ts (195 tests)`,
+`scripts/compactor.test.ts (215 tests)`. Ubuntu shows the same six plus `capture-live (68 tests)`
+and `board-watch-live (6 tests)`. So 33-35 and 33-36 Tasks 1–2 (`b3acece3` … `f92574a5`) are
+already green on both legs. The windows step 10 remainder read `SKIPPED SHAPES (5)`, as on every
+prior run.
+
+**Host:** darwin/arm64, node v24.12.0, npm 11.7.0. The CI matrix runs node 22 on `ubuntu-latest`
+and `windows-latest`. **Date:** 2026-09-23, 21:29–21:39 UTC. **Prohibition honoured:** `npm test`
+was not run. The vitest command below is the workflow's own, with the `scripts/e2e` exclusion.
+
+**Every workflow command, in the workflow's order, with its local exit status.** Headline numbers
+are copied from each transcript, `p40/steps/<n>.log` in the executor's scratch directory. Exit
+codes come from `p40/steps/exits.txt`.
+
+| # | Workflow step | Leg | Command (as the workflow runs it) | Local exit | Headline numbers |
+|--:|---|---|---|--:|---|
+| 1 | Install | both | `npm ci` | 0 | `added 48 packages, and audited 49 packages in 1s`; `4 vulnerabilities (2 moderate, 2 high)` in dev-only deps (informational, as in § 4.1) |
+| 2 | Freshness gate before any build | ubuntu | `npm run freshness` | 0 | `All build outputs fresh: 69 committed .js file(s) match a rebuild of their sources.` |
+| 3 | Build and working-tree parity assertion | ubuntu | `node scripts/check-build-parity.js` | 0 | `PASS  Build parity: tracked build outputs that moved when the build ran: 0 findings over 69/69 elements` |
+| 4 | Build | windows | `npm run build` | 0 | `tsc` exit 0; `git status --short -- '*.js'` empty afterwards |
+| 5 | Typecheck | both | `npm run typecheck` | 0 | three targets (`tsc --noEmit`, `tsconfig.tests.json`, `tsconfig.fixtures.json`), each exit 0 |
+| 6 | Platform shape corpus, exit-code contract, directory identity | both | `node scripts/check-platform-shapes.js` | 0 | `HOST CAPABILITIES (3)`: `chmod 000 enforcement present`, `signal-terminated child present`, `control byte in a path component present`; `DRIVEN (13)`; `SKIPPED SHAPES (0)`; `ALL CHECKS PASSED` |
+| 7 | Windows shape remainder is recorded, not silent | windows | `GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS=1 node scripts/check-platform-shapes.js` | **1** | `SKIPPED SHAPES (0):` then `FAIL  GRUGOPS_PLATFORM_SHAPES_REQUIRE_SKIPS is set and the skip list is EMPTY.` This is the designed answer on a host that constructs every shape (§ 1.1, § 3.1 and § 4.1, row 7 in each). On windows-latest this step exited 0 with a 5-row remainder on every prior run, `35913922871` included. No round-4 plan touched `scripts/check-platform-shapes.ts`. |
+| 8 | Vitest (e2e lane excluded) | both | `npx vitest run --exclude '**/scripts/e2e/**'` | 0 | `Test Files  78 passed (78)` · `Tests  5777 passed \| 2 skipped (5779)` · `Duration  521.00s` (tests 507.13s); 0 `Test timed out`, 0 `Hook timed out`, 0 `RangeError`, 0 `×` lines; the stripped transcript has 0 control bytes |
+| 9 | Freshness gates + repo gates (one step, stops at the first non-zero) | ubuntu | the 22 rows below | 0 | every command exit 0 |
+
+The ubuntu-only step, command by command, in the workflow's order, after the vitest run finished:
+
+| # | Command | Local exit | Headline |
+|--:|---|--:|---|
+| 9.1 | `npm run freshness` | 0 | `All build outputs fresh: 69 committed .js file(s) match a rebuild of their sources.` |
+| 9.2 | `npm run freshness:catalog` | 0 | `Catalog fresh: docs/catalog/README.md matches a fresh regeneration.` |
+| 9.3 | `npm run freshness:context` | 0 | `Context fresh: no .grugops/context/ tree exists yet — nothing committed to drift (vacuous pass).` |
+| 9.4 | `npm run freshness:adapters` | 0 | `Adapters fresh: 17 adapter(s) compared in .claude/agents, 0 byte difference(s), directory listings set-equal.` |
+| 9.5 | `npm run freshness:skill-twins` | 0 | `Skill twins fresh: 7 twin(s) compared in .claude/skills, 0 byte difference(s), directory listings set-equal.` |
+| 9.6 | `npm run freshness:guarantees` | 0 | `Guarantees fresh: docs/GUARANTEES.md matches a fresh regeneration.` |
+| 9.7 | `npm run freshness:hook-manifest` | 0 | `Hook manifest fresh: 2 decider(s), 26 module hash(es) match a fresh derivation.` (33-35, 33-36 and 33-38 each re-derived it when a hashed module moved) |
+| 9.8 | `npm run generate:adapters` | 0 | none |
+| 9.9 | `git status --porcelain -- .claude/agents/` | 0 | empty |
+| 9.10 | `test -z "$(git status --porcelain -- .claude/agents/)"` | 0 | none |
+| 9.11 | `node scripts/check-foundation-guards.js` | 0 | `ALL CHECKS PASSED` |
+| 9.12 | `node scripts/check-kit-refs.js` | 0 | `invariant marker present at all 26 marker sites (2 named + 24 derived adapters)`; `ALL CHECKS PASSED` |
+| 9.13 | `node scripts/check-public-docs-vocabulary.js` | 0 | `AUDIT-02: 11 public document(s) carry zero retired vocabulary — root 4, examples 5, kitReadme 1, guarantees 1; 1 exempted by name (CHANGELOG.md …)` |
+| 9.14 | `node scripts/check-audit-register.js` | 0 | `AUDIT-01 completeness: equality one holds — 36 counted register row(s) set-equal in both directions to 36 derived file(s) (17 roles + 19 workflows)` |
+| 9.15 | `node scripts/check-claim-anchors.js` | 0 | `47 registry row(s) parsed from 47 claim-heading-shaped line(s)` |
+| 9.16 | `node scripts/check-banned-claims.js` | 0 | `no single physical line of the 120 derived document(s) this gate scans carries any of the 22 pinned claim literal(s)`; `ALL CHECKS PASSED` |
+| 9.17 | `node scripts/check-imperative-lexicon.js` | 0 | `LANG-01: 76 Technical Name(s) DERIVED from the kit, never listed — roleDisplayNames 17, workflowDisplayNames 19, configKeys 21, noteKinds 6, boardColumns 13` |
+| 9.18 | `node scripts/check-diff-disposition.js` | 0 | `PASS  diff disposition — changed watched file(s): 0 findings over 39/39 elements` |
+| 9.19 | `node scripts/check-nul-bytes.js` | 0 | `2487 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte` (2467 at § 4.1) |
+| 9.20 | `node scripts/check-residual-citations.js` | 0 | `residual citations: 5 path claim(s) across 2 published row(s), every one a tracked file` |
+| 9.21 | `node scripts/check-flip-manifest.js` | 0 | `every declared locator resolves in the pre-capture state: 62 flip row(s), 10 correction row(s), 2 exemption anchor(s)` |
+| 9.22 | `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` | 0 | `ALL CHECKS PASSED` |
+
+After every command, `git status --short` shows only the two untracked paths named above. The
+plan's own verify chains are run again after this document is written, and their results are
+quoted in the SUMMARY.
+
+**Suite totals beside the previous readings:**
+
+| Leg / host | Test files | Tests | Duration | Source |
+|---|---|---|---|---|
+| ubuntu-latest, run `35760655144` (round 3, `1af7e3f1`) | 78 passed (78) | **0 failed** / 5666 passed / 1 skipped (5667) | 901.98s | § 4.2 |
+| windows-latest, run `35760655144` (round 3) | 1 failed / 77 passed (78) | **1 failed** / 5663 passed / 3 skipped (5667) | 2002.52s | § 4.2 |
+| ubuntu-latest, run `35913922871` (`f92574a5`, partial round 4) | 78 passed (78) | **0 failed** / 5761 passed / 1 skipped (5762) | 936.21s | above |
+| windows-latest, run `35913922871` (partial round 4) | 2 failed / 76 passed (78) | **2 failed** / 5757 passed / 3 skipped (5762) | 1815.30s | above |
+| this host (darwin/arm64, node 24), tree `fe30945f` | 78 passed (78) | **0 failed** / 5777 passed / 2 skipped (5779) | 521.00s | row 8 above |
+
+The denominator moved from 5667 to 5779, +112 cases, with the file count unchanged at 78. The
+per-plan steps are exact, each from the plan's SUMMARY: 33-35 +81 (5748), 33-36 +17 (5765, of which
+3 are `947d02ab`'s entry-point cases; hence 5762 at `f92574a5`), 33-37 +1 (5766), 33-38 +11 (5777),
+33-39 +2 (5779). The pushed run's totals are read against **5779 / 78**.
+
+**The row-260 case: the closing plan, the mechanism, the local result, and whether the windows
+outcome is measurable here.** Each local result below comes from one invocation of `npx vitest run
+--exclude '**/scripts/e2e/**' scripts/capture-live.test.ts -t "<title prefix>"`, quoted from that
+invocation's own `Tests` line. The file now holds 71 cases.
+
+| Row | Case | Closing plan | Mechanism (one clause) | This host (`fe30945f`) | Windows outcome measurable here? |
+|---|---|---|---|---|---|
+| 260 (R3-1) | `scripts/capture-live.test.ts` › `Test C7 (the scoped grant, form-checked) …` (`:1382`) | 33-37 (`2991df16` RED, `d885c7b7` GREEN) | one anchor authority: `liveAllowedTools` spells `Edit(//${editAnchor(real)}/**)` (`scripts/capture-live.ts:342`), and C7 derives its expectation through the same exported `editAnchor` applied to `realpathSync.native(build.target)`. The POSIX round trip that R3-1 caught is deleted. | exit 0 · `Tests  1 passed \| 70 skipped (71)` | **unmeasured locally, by construction.** Darwin has no drive-letter path: `realpathSync.native` never returns `C:\…` here, so C7 asks only `editAnchor`'s POSIX branch on this host. The drive branch (`WIN32_DRIVE_ABSOLUTE_RE`, lower-cased letter, colon dropped, backslashes to `/`) is reached by a real path only on windows-latest. |
+| 260, companion | same file › `Test C7b (the Edit-anchor authority) …` (`:1436`) | 33-37 | host-independent: every `editAnchor` call passes an explicit separator (`"/"` or `"\\"`) and a synthesised input, for example `C:\Users\runneradmin\AppData\Local\Temp\grugops-A` → `Edit(//c/Users/runneradmin/AppData/Local/Temp/grugops-A/**)` | exit 0 · `Tests  1 passed \| 70 skipped (71)` | **measurable here.** It has no host input, so windows is expected to agree. This proves the spelling the module PUBLISHES. It does not prove what the platform's live matcher accepts. That stays `UNKNOWN - verify` in the `editAnchor` docblock (`scripts/capture-live.ts:377-380`), and no CI leg measures it. |
+
+Site count on `fe30945f`: `process.platform` lines added under `scripts/` or `hooks/` since
+`1af7e3f1` → **0** (`git diff 1af7e3f1..HEAD -- scripts hooks`, added lines). No platform
+conditional (D-14/D-16).
+
+**One row per round-4 source plan.** The local suite result is this task's per-file reading on
+`fe30945f`. It comes from one vitest invocation over the eight files with `--reporter=json`
+(`p40/modules.json` in the scratch directory): `2062 passed`, 0 failed, 0 skipped, exit 0.
+
+| Plan | Module(s) rebuilt (`.ts` + committed `.js`) | Class measurable here? | Local suite result (this task, `fe30945f`) | Plan's own post-wave total | Already on CI? |
+|---|---|---|---|---|---|
+| 33-35 | `scripts/checkpoints` (`governedToolsNamedBy` re-projects each name piece as nested shell text, D-33-R4-03), `scripts/fixtures/cr01-nested-corpus.json`; `hooks/hook-entry` manifest | **measurable here.** A tokenizer over command text, with no windows-only axis | `scripts/checkpoints.test.ts` 432 passed · `hooks/guard.test.ts` 314 passed · `scripts/floor-invariance.test.ts` 140 passed | `5746 passed \| 2 skipped (5748)` | **yes**: run `35913922871`, both legs green on `checkpoints` (432), `hooks/guard` (311) and `floor-invariance` (140) |
+| 33-36 | `scripts/checkpoints` (`resolvesVerbPrefix` + `spelledVerb` on the npm/yarn/pnpm rows; the xargs stdin feed), the corpus rows LB-01..LB-04; `947d02ab` rewrites the two residual docblocks and adds 3 entry-point cases in `hooks/guard.test.ts`; `hooks/hook-entry` manifest | **measurable here.** As 33-35 | as 33-35 (the same three files) | `5763 passed \| 2 skipped (5765)` | Tasks 1–2 **yes** (run `35913922871`, both legs green). `947d02ab` **no**: this push carries it, a docblock change plus 3 cases (`hooks/guard.test.ts` 311 → 314) |
+| 33-37 | `scripts/capture-live` (`editAnchor`, `liveAllowedTools`) | **the drive-letter axis is unmeasured locally, by construction** (row 260, above). The other capture-live arms are measurable here | `scripts/capture-live.test.ts` 71 passed | `5764 passed \| 2 skipped (5766)` | **no**. Run `35913922871` ran the PRE-33-37 C7 and read it red (I-1). That red is what 33-37 exists to close. |
+| 33-38 | `scripts/context-io` (`decideNoteDestination`, occupancy before the GOV-02 ledger on `promoteAdmitted`, both `admitAndAppend` branches and `appendNote`; `noteDestinationRefusal`); `hooks/hook-entry` manifest | **measurable here**, with one recorded remainder: the two new FIFO-occupant cases (CONTROL 2e, and the gated-destination FIFO) go through `stageShapeOrSkip("FIFO", …)`. Windows has no FIFO primitive, so they print a `SKIPPED` line and pass on that leg. That is a recorded skip, not a red. The regular-file occupancy cases (2b/2c/2d) reach the same pre-ledger decision on every host. | `scripts/context-io.test.ts` 689 passed · `scripts/context-io-writer-set.test.ts` 195 passed · `scripts/compactor.test.ts` 215 passed | `5774 passed \| 2 skipped` plus 1 failed before its commit (`floor-invariance` "no uncommitted modification", green after `a9c1331b`), i.e. 5777 | **no** |
+| 33-39 | `scripts/capture-live` (`isWriteShapedCommand`, `WRITE_SHAPED_COMMAND_WORDS` / `SCRIPT_EXTENSIONS`, `NoteRoute.indirectContextWrites`) | **measurable here.** A string classification of the Bash `command` leaf and of script extensions or shebangs, with no host path spelled | `scripts/capture-live.test.ts` 71 passed | `5777 passed \| 2 skipped (5779)` | **no** |
+
+**Also unmeasured locally, by construction, beyond row 260** (carried from § 4.1, with what changed):
+
+- `scripts/board-watch-live.test.ts` (WINDOWS.md row 186): `6 passed` here (per-file reading), and
+  the DEBOUNCE case passed alone (`Tests  1 passed | 5 skipped (6)`). Darwin never refused the
+  rename. **The windows record is no longer four greens.** It is four greens and one red: I-2, run
+  `35913922871`, EPERM on the test's own `renameSync`. Nothing in round 4 changed the file or the
+  dashboard. Whether the pushed run's windows leg repeats that red is not decided by any code in
+  this push. It is decided by whatever holds `board.md` open on the runner at the instant of the
+  rename. That is `UNKNOWN - verify`, and it is the one row in this inventory where a red would
+  not attribute to a round-4 plan.
+- The D-14 bounds. The slowest windows test on run `35760655144` was 110 881 ms, 1.62× under the
+  180 000 ms `testTimeout`. Round 4 changed no bound. 33-35 and 33-36 added cases to
+  `hooks/guard.test.ts`, a file that already ran 134 544 ms on windows at `f92574a5` (run
+  `35913922871`), and that did not time out.
+- The windows `SKIPPED SHAPES` remainder under `REQUIRE_SKIPS` (row 7). The same 5 rows are
+  expected, as on run `35913922871`. No round-4 plan touched the corpus or the probes.
+- The runner's `SeCreateSymbolicLink` privilege, and the FIFO primitive for 33-38's two cases.
+  Every such fixture is routed through `stageSymlinkOrSkip` or `stageShapeOrSkip`, so a missing
+  primitive prints SKIPPED rows, never a red.
+
+**What the pushed run will decide, stated before the push:**
+
+1. **Ubuntu leg:** expected green on every step, as on runs `35760655144` and `35913922871`:
+   install, freshness, parity, typecheck, platform shapes, vitest (**5779 / 78, 0 failed**), and the
+   gate chain. Falsifier: any red step. A red in vitest is a round-4 rebuild that moved a POSIX
+   arm. Attribute it to the plan by module: `checkpoints` / `hooks/guard` / `floor-invariance` →
+   33-35 or 33-36 (the `947d02ab` cases → 33-36); `context-io` / `context-io-writer-set` /
+   `compactor` → 33-38; `capture-live` C7/C7b → 33-37, and the other `capture-live` cases → 33-39
+   by describe block (P-series → 33-39). A red in the gate chain means a node-22 fresh checkout
+   reads a regenerated input differently from this host. Either one is this round's finding.
+2. **Windows leg:** expected green on every step, with the 5-row remainder at step 10 exiting 0 and
+   vitest **0 failed** over 5779 / 78. Specifically, **the row-260 case (Test C7) is expected green
+   under the 33-37 authority**: `realpathSync.native` of the target returns
+   `C:\Users\runneradmin\…`, `editAnchor` takes its drive branch, and the rule and the expectation
+   are the same function's output. Falsifier: any red.
+   - **A red on C7 means 33-37 decided the win32 form wrong** or the drive branch is not the one
+     reached. For example, `realpathSync.native` returns a `\\?\` device-namespace or UNC spelling
+     on the runner. `editAnchor` then REFUSES (throws), and both C7 and `liveAllowedTools` go red.
+   - **A red on C7b** would mean the authority is host-dependent despite its explicit separators.
+     33-37 is then wrong again.
+   - **A red elsewhere in a round-4 file** is a round-4 rebuild that moved a windows arm. Attribute
+     it by module as in item 1. It may also be a class this round created, labelled `new`.
+   - **A repeat of I-2** (the DEBOUNCE case, EPERM on `renameSync`) is **not a round-4 plan's**. It
+     is pre-existing, in a file no round-4 plan touched. It is labelled `not addressed` against row
+     186's file and `new` as a mechanism (EPERM on rename, not a missed event), and it is
+     ledgered through the tool in Task 3, one row for the class.
+   - None of these is answered with a platform conditional (D-14/D-16), and none is fixed inside
+     this plan. Because round 4 is the last round under the cap, any red is the **cap-reached
+     outcome**, not a hand-off.
+3. **CAP-02 verdict:** MET only if BOTH legs' `conclusion` fields read `success` (D-13). Then and
+   only then are the plan's green-branch dispositions applied. One of them now carries evidence
+   the plan did not have when it was written: **row 186 has one windows red on record (I-2, run
+   `35913922871`) against four greens.** The plan's rule disposes row 186 `fixed` "citing the green
+   windows measurements by run id". On a green run, Task 3 has to cite `35913922871`'s red next to
+   the greens, and it has to decide whether `fixed` holds for an intermittent class or the
+   intermittency needs its own row. The disposition is still made through the tool. This part
+   states the evidence and does not pre-decide it. Any red on either leg is NOT MET: the
+   inventory is re-derived from that leg's own log in § 4.3's shape, the CAP-02 coverage row reads
+   `Pending — NOT met` with `round 4 of 4 (last under the cap)`, and no ledger row is flipped.
+
+**No source file is changed by this task.** The sha before this task is
+`fe30945f90011f68c7f8634467df902610ea0f88` (the `pre-push HEAD sha:` line above). This task's
+commit carries only this document, so `git diff --stat fe30945f..HEAD -- scripts install hooks
+agent-factory .claude` is empty after it. The run's `headSha` is therefore expected to be this
+task's commit (or a later documentation-only commit), not `fe30945f`. § 4.2 handled the same shape:
+it verified that the two shas differ only under `.planning/`. The push is not made by this task.
+It sits behind Task 2's named human confirmation, and it is the first of the two pushes the go
+path needs, because plan 33-41's runner refuses unless HEAD equals `origin/main`.
