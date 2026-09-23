@@ -13373,7 +13373,14 @@ describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repo
     expect(readFileSync(join(dest, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
   });
 
-  it("CONTROL 2b (33-25, the promoteAdmitted route): an UNSEALED occupant at the destination id is not live there — the route falls through to the chokepoint's append-only refusal, and the occupant's bytes are unchanged", () => {
+  it("CONTROL 2b (33-38, WR-01 — the promoteAdmitted route): an UNSEALED occupant at the destination id declines `destination-id-occupied` BEFORE the ledger is touched — dest ledger lines 0, occupant bytes unchanged", () => {
+    // WHAT 33-VERIFICATION.md REPRODUCED AGAINST THE COMMITTED `.js` (gap 5, regressions[WR-01]).
+    // Plan 33-25 sealed the one walk, so `readRawNotes(task, to)` stopped returning this hand-written
+    // occupant, and the route's occupancy clause went blind to it. The route then appended a GOV-02
+    // `re_bound: true` event and ONLY THEN failed at the chokepoint: dest ledger lines 1, the occupant
+    // byte-unchanged, `readContext(dest)` = 0 notes. The audit trail recorded a human-disposed finding
+    // the store does not hold. Occupancy is a fact about the FILENAME, so it is decided from the raw
+    // file, before any ledger read or append.
     const origin = govRoot("p31-29-c2b-origin-");
     const originStore = storeUnder(origin);
     const id = seedOrigin(originStore);
@@ -13384,9 +13391,6 @@ describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repo
       `---\nid: ${id}\nkind: observation\nby: qe\nat: 2026-09-09T01:00:00Z\n` +
       `verified_by: \nconfidence: high\nrefs:\nsupersedes: \n---\n\nnot the promoted note\n`;
     writeFileSync(join(dest, TASK, "notes", `${id}.md`), occupant);
-    // The destination-liveness read goes through the one walk: the hand-written occupant is NOT a
-    // live note, so this route's own clause is not reached — and the write is still refused, by the
-    // chokepoint, with the occupant byte-unchanged. Nothing read the hand-written note as admitted.
     let threw: string | null = null;
     try {
       mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot);
@@ -13394,10 +13398,84 @@ describe("31-29 — CR-20: a promotion's note and its GOV-02 event name ONE repo
       threw = (e as Error).message;
     }
     expect(threw, "the promotion wrote over an unsealed occupant").not.toBeNull();
-    expect(threw).not.toContain("destination-id-occupied");
-    expect(threw).toContain("context-io.writeNoteFile: refusing to write");
+    expect(
+      ledgerLines(destRoot),
+      "a GOV-02 event was appended for a note the store does not hold — the over-record WR-01 measured",
+    ).toBe(0);
+    expect(threw).toContain("destination-id-occupied");
+    expect(threw).toContain("Nothing was written");
     expect(readFileSync(join(dest, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+    // The seal is NOT weakened: the reader still refuses the hand-written occupant.
     expect(mod.readContext(TASK, dest), "the unsealed occupant was returned as a note").toEqual([]);
+  });
+
+  it("CONTROL 2c (33-38): a MALFORMED occupant (does not parse) declines by name before the ledger — lines 0, bytes unchanged", () => {
+    const origin = govRoot("p31-29-c2c-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const destRoot = govRoot("p31-29-c2c-dest-");
+    const dest = storeUnder(destRoot);
+    mkdirSync(join(dest, TASK, "notes"), { recursive: true });
+    const occupant = "no frontmatter at all, just bytes under the id\n";
+    writeFileSync(join(dest, TASK, "notes", `${id}.md`), occupant);
+    let threw: string | null = null;
+    try {
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw, "the promotion wrote over a malformed occupant").not.toBeNull();
+    expect(ledgerLines(destRoot), "a GOV-02 event was appended before the occupancy decision").toBe(0);
+    expect(threw).toContain("destination-id-occupied");
+    expect(readFileSync(join(dest, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+  });
+
+  it("CONTROL 2d (33-38, legitimate input): an IDENTICAL-bytes occupant still falls through — the idempotent re-promotion writes nothing new and is recorded once", () => {
+    const origin = govRoot("p31-29-c2d-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const destRoot = govRoot("p31-29-c2d-dest-");
+    const dest = storeUnder(destRoot);
+    mkdirSync(join(dest, TASK, "notes"), { recursive: true });
+    // The origin's own bytes ARE the composed candidate: the same note, body and frozen id.
+    const originBytes = readFileSync(join(originStore, TASK, "notes", `${id}.md`), "utf8");
+    writeFileSync(join(dest, TASK, "notes", `${id}.md`), originBytes);
+    expect(mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot)).toBe(id);
+    expect(noteFiles(dest)).toEqual([`${id}.md`]);
+    expect(readFileSync(join(dest, TASK, "notes", `${id}.md`), "utf8")).toBe(originBytes);
+    expect(ledgerLines(destRoot)).toBe(1);
+    // A second, identical re-promotion is still a no-op and appends nothing (D-19 (4)).
+    expect(mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot)).toBe(id);
+    expect(ledgerLines(destRoot)).toBe(1);
+  });
+
+  it("CONTROL 2e (33-38, 31-21 CR-12 bound): a FIFO at the destination note path is a NAMED refusal before the ledger, never a wedge", () => {
+    const origin = govRoot("p31-29-c2e-origin-");
+    const originStore = storeUnder(origin);
+    const id = seedOrigin(originStore);
+    const destRoot = govRoot("p31-29-c2e-dest-");
+    const dest = storeUnder(destRoot);
+    mkdirSync(join(dest, TASK, "notes"), { recursive: true });
+    const notePath = join(dest, TASK, "notes", `${id}.md`);
+    const skipped = stageShapeOrSkip(
+      "FIFO",
+      notePath,
+      "scripts/context-io.test.ts: a FIFO at the promoteAdmitted destination note path (33-38 CONTROL 2e)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "CONTROL 2b and CONTROL 2c, which reach the same pre-ledger occupancy decision with a regular file"));
+      return;
+    }
+    let threw: string | null = null;
+    try {
+      mod.promoteAdmitted(TASK, id, disposed(), BODY, originStore, dest, destRoot);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw, "a FIFO at the note path was written through").not.toBeNull();
+    expect(ledgerLines(destRoot), "a GOV-02 event was appended before the FIFO was refused").toBe(0);
+    expect(threw).toContain("not a regular file");
+    rmSync(notePath, { force: true });
   });
 
   it("CONTROL 3 (CR-08 unmoved): the legitimate promotion still writes, `to` and the root agreeing", () => {
