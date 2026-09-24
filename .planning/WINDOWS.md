@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 239
+open_count: 259
 waived_count: 3
-fixed_count: 32
-total_count: 274
-last_updated: 2026-09-24T18:02:50.122Z
+fixed_count: 38
+total_count: 300
+last_updated: 2026-09-24T19:47:36.116Z
 ---
 
 # Broken Windows Ledger
@@ -286,9 +286,35 @@ last_updated: 2026-09-24T18:02:50.122Z
 | 269 | 33 | deviation | scripts/checkpoints.ts | 397 | 33-34 round-3 disposition (plan 33-27, the half of WINDOWS.md row 257 not closed): the arms the redirection grammar keeps opaque by decision — an availability residual that fails closed, never a safety hole — (1) a bare $var expansion, value unknowable at hook time (A:445; B:562, the mapper loop for s in lint typecheck test build, refused for the $s inside its quoted echo; B:1527); (2) a command substitution $(...) (B:434, B:469); (3) a heredoc, whose body lines are commands to the tokenizer (B:1504, B:1740); (4) a backslash-escaped or spliced-quote word beside a .git path the tool-name scan reads as git (A:667, A:1493, A:1507, B:217); a quoted redirection target is also not admitted. 4 of 15 round-1 denies recovered (48dfbe57, 85d03fce), 11 still deny. Open; owner: a later round, only if a measured availability cost warrants a narrower grammar | open |  | 2026-09-22T18:29:45.688Z |  |
 | 270 | 33 | unrun-verify | scripts/capture-live.ts | 303 | 33-34 round-3 residual (the half of WINDOWS.md row 255 no offline test settles; handed by plans 33-28, 33-29 and 33-30 to the live go, which 33-32 held as no-go at zero tokens): the live-session UNKNOWN - verify items — (1) whether the platform offers mcp__plugin_grugops_grugops__propose_note to the --agent main-thread session now that the coordinator adapter names it (the B-path system/init tool list, successor of B:11); (2) whether --allowedTools needs the scoped spelling (the runner passes it since 79a5ab9a); (3) whether Edit(//ABS/**) from --allowedTools is honoured live as the permissions reference states, and whether a target path carrying glob metacharacters needs escaping; (4) whether the platform hot-reloads .claude/settings files mid-session; (5) the local-scope registry row shape and projectPath spelling the pre-spawn provenance gate reads from installed_plugins.json; (6) whether the live init frame publishes a file-writing tool outside WRITING_TOOLS; (7) whether a plugin marketplace update is needed at an unbumped 2.1.0. The win32 spelling of the grant is row 260, not repeated here. Open; owner: round 4 (the last under the cap), settled only by the fresh go capture | open |  | 2026-09-22T18:29:45.782Z |  |
 | 271 | 33 | deviation | CHANGELOG.md |  | 33-34 round-3 finding (plan 33-26 hand-off, Next Phase Readiness): the writer now refuses an absent or non-string note scalar by name (assertNoteScalar / assertNoteFields; 8b82b4bc, 4fa7bd65; KIT section 3, row 258) where it used to write the word undefined, but CHANGELOG.md [Unreleased] carries no Security sentence for that refusal (CHANGELOG.md was outside the file lists of 33-26 and 33-34) — add one sentence beside the 33-25 seal entry; owner: round 4 or the phase closing document plan | open |  | 2026-09-22T18:29:45.874Z |  |
-| 272 | 33 | deviation | scripts/context-io.ts |  | 33-38 widened WR-01 past the plan's two routes: the plan named promoteAdmitted and admitAndAppend's gated branch, and measurement found the same ledger-then-note over-record on appendNote with a caller-chosen precomputedId (ledger lines 1 on an occupied id) and on admitAndAppend's non-gated branch. Both were closed in the same files, RED-first (commits 45c7514b and a9c1331b). A side effect closed IN-04, whose failing-on-change test now asserts the closure. Recorded so the scope expansion shows up in the ledger and does not have to be read out of the diff. | open |  | 2026-09-23T21:03:27.484Z |  |
+| 272 | 33 | deviation | scripts/context-io.ts |  | 33-38 widened WR-01 past the plan's two routes: the plan named promoteAdmitted and admitAndAppend's gated branch, and measurement found the same ledger-then-note over-record on appendNote with a caller-chosen precomputedId (ledger lines 1 on an occupied id) and on admitAndAppend's non-gated branch. Both were closed in the same files, RED-first (commits 45c7514b and a9c1331b). A side effect closed IN-04, whose failing-on-change test now asserts the closure. Recorded so the scope expansion shows up in the ledger and does not have to be read out of the diff. | fixed |  | 2026-09-23T21:03:27.484Z | 2026-09-24T19:47:35.555Z |
 | 273 | 33 | deviation | scripts/capture-live.ts |  | 33-39 WR-02 residual (fail-safe claim bounded): the parity input now counts a non-direct writing-tool block only when it writes a SCRIPT (SCRIPT_EXTENSIONS or a leading shebang). The pre-33-39 broad count also took a non-script file whose content names .grugops/context; such a file later executed by a command that does not name the root (e.g. bash notes.md) is no longer on any route axis. A false pass still needs BOTH paths equal on every role count, kind multiset, verdict marker, direct and propose_note count, so it is contrived, but the axis is not strictly monotone. Separately, the Bash test is command-level co-occurrence, so a write to a queue file beside a read of the root counts (A:1820, B:840, B:1824): residual false-fail noise, the fail-safe direction. Owner: the human, at the paid-run read-out (33-40/33-41). | open |  | 2026-09-23T21:25:22.310Z |  |
 | 274 | 33 | unrun-verify | scripts/board-watch-live.test.ts | 362 | 33-40 run 36035067112 (head e45202a1) windows: ONE red, ONE class, the only red of round 4's measurement - scripts/board-watch-live.test.ts, the DEBOUNCE describe (DASH-04), case 'coalesces 5 atomic-rename writes into FEWER documents, and at least one': Error: EPERM: operation not permitted, rename '<tmp>\\\\plans\\\\board.md.tmp-...' -> '<tmp>\\\\plans\\\\board.md' at atomicEdit (:362:3, renameSync(temp, board)) called from :671:11. The same case and the same EPERM on the prior run 35913922871 (head f92574a5, Part 5 I-2). The test's import closure (board-watch-live.test.ts, board-dashboard, board-model, board-read, kit-model, is-entry) is byte-unchanged since 1af7e3f1, whose run 35760655144 read the file green on windows; no round-4 plan touched it. Label: not addressed against row 186's file, new as a mechanism (the test's OWN writer refused a rename over board.md, not a missed directory event; row 186's three event-delivery cases were green on this run). Correlation, not cause: all four green windows runs (35394268365, 35499800942, 35579263776, 35760655144) ran runner image windows-2025-vs2026 20260907.229.1; both red runs ran 20260922.246.2. Which handle held board.md (the spawned dashboard's read, the runner indexer or antivirus, other) is UNKNOWN - verify. No platform conditional may close it (D-14/D-16). Round 4 was the last under the cap: this is the cap-reached finding, owned by whatever the human decides next | open |  | 2026-09-24T18:02:50.122Z |  |
+| 275 | 33 | deviation | scripts/checkpoints.ts | 1467 | 33-43 round-4 disposition, 33-REVIEW-round3 CR-01 one register over (33-VERIFICATION gap 2, the round-3 verifier opaque-segment x quoted-nested-command probe: 17 of 23 spellings ALLOW with zero keys, e.g. bash -c with a backslash-spliced git push body followed by an expansion, and a here-string carrying a backslash-spliced npm publish). The CR-01 review table itself was fixed at 7d0aea72 (round-3 gsd-code-fixer; the round-3 verifier measured every review row DENY). FIXED by plan 33-35 (decision D-33-R4-03): Task 1 RED b3acece3, GREEN 312fafa8 (governedToolsNamedBy re-projects each name piece as nested shell text, bounded by depth 32 and a work budget, fail-closed beyond either; both arms ask it); Task 2 5d1ceeb3 (derived sweep, 1640 cases, 1240 ALLOW on the round-3 build); Task 3 03847360 (corpus replay). All 28 in-scope rows of scripts/fixtures/cr01-nested-corpus.json deny through hooks/guard.js and hooks/hook-entry.js guard.js. The computed-at-run-time residuals RES-01..RES-03 are separate open rows. | fixed |  | 2026-09-24T19:47:18.927Z | 2026-09-24T19:47:35.657Z |
+| 276 | 33 | deviation | scripts/checkpoints.ts | 680 | 33-43 round-4 disposition, 33-VERIFICATION live bypass (corpus row LB-01): npm resolves a unique prefix of publish (npm 11.7.0 answers pu, pub, publ, publi and publis with Publish a package), so npm pub ran a publish with zero keys. FIXED by plan 33-36 Task 1: RED 4c57076a, GREEN 4812e5cc (resolvesVerbPrefix on the npm, yarn and pnpm rows; spelledVerb accepts a prefix of exactly one word in verbs plus benign when that word is governed, derived from each row own arrays). LB-01 flipped to kind deny in the corpus in the same commit; npm p (ambiguous with pack) and every benign prefix still allow. | fixed |  | 2026-09-24T19:47:19.166Z | 2026-09-24T19:47:35.753Z |
+| 277 | 33 | deviation | scripts/checkpoints.ts | 1745 | 33-43 round-4 disposition, 33-VERIFICATION live bypass (corpus rows LB-02..LB-04): a governed verb supplied on stdin through xargs (echo push origin main piped into xargs git; echo publish piped into xargs npm; echo apply -f x piped into xargs kubectl) ran with zero keys. FIXED by plan 33-36 Task 2: RED 4481fbc6, GREEN f92574a5 (every word after an xargs word, and nested bodies in that command, is decided with its trailing arguments unknown: a governed tool there denies on its name unless its adjacent word is a benign subcommand; a replace flag drops the adjacency; gxargs is xargs); docblocks 947d02ab. Recorded over-denial: xargs grep -l kubectl. The replace-string residual RES-03 and the non-xargs stdin launcher are separate open rows. | fixed |  | 2026-09-24T19:47:19.308Z | 2026-09-24T19:47:35.852Z |
+| 278 | 33 | deviation | scripts/context-io.ts | 3230 | 33-REVIEW-round3 WR-01 (33-VERIFICATION gap 3): promoteAdmitted decided destination-id-occupied through the seal-filtered readRawNotes, so an unsealed occupant was invisible and the route appended a GOV-02 ledger event (dest ledger lines 1) before writeNoteFile refused the write. FIXED by plan 33-38: Task 1 RED 04f6b498, GREEN 49f50aac (decideNoteDestination, the write chokepoint own bounded raw-file decision, asked before any ledger read or append; CONTROL 2b now asserts dest ledger lines 0); Task 2 RED ded41caf, GREEN 96ccb4b5 (admitAndAppend gated branch). The two sibling arms 33-38 widened to (appendNote with a caller-chosen id, the non-gated branch) are row 272. | fixed |  | 2026-09-24T19:47:19.429Z | 2026-09-24T19:47:35.994Z |
+| 279 | 33 | deviation | scripts/capture-live.ts | 1187 | 33-REVIEW-round3 WR-02 (33-VERIFICATION gap 4): unclassifiedContextWrites counted read-only commands, a Bash description and prose mentions of .grugops/context as writes, and compareLivePaths turned any difference into a parity fail. FIXED by plan 33-39: Task 1 RED d55dec5b, GREEN 29e09fb4 (isWriteShapedCommand; the field renamed indirectContextWrites and made write-shaped only; the broad count dropped, option (a)); Task 2 ec891a41 (Test P11 fail-safe both directions; Test P10 re-derives the held round-1 capture from A 15 / B 17 to A 7 / B 6 with the six frozen divergence sentences unchanged). The bounded fail-safe exception stays open as row 273 (human decision). | fixed |  | 2026-09-24T19:47:19.539Z | 2026-09-24T19:47:36.116Z |
+| 280 | 33 | deviation | hooks/guard.ts | 704 | 33-REVIEW-round3 WR-03 accepted open (round 4, ledgered by decision): the deny text names the wrong mechanism when a literal pattern also matched. hooks/guard.ts:704 asks modelled.untokenizable and modelled.failClosed before byPattern, so git push origin main --tags=$T (re-probed 2026-09-24 against the committed hooks/guard.js, scrubbed env: DENY) is told it is matched on the tool name alone and refused rather than guessed at, although the literal protected-branch pattern and the readable arm (checkpoints [protected_branch_merge]) deny it with no expansion. Human decision 2 of the round-4 scope (D-33-R4-01): ledger, not code; hooks/guard.ts stayed byte-unchanged through round 4. Fix as reviewed: ask byPattern first, or say both fired. Owner: a later round (a later phase; phase 33 is at its four-round cap). | open |  | 2026-09-24T19:47:19.666Z |  |
+| 281 | 33 | deviation | scripts/admission-server.ts | 4 | 33-REVIEW-round3 IN-01 accepted open (round 4 of 4, the last under the cap; no round-4 plan touched it): shipped docblocks still state the bare mcp__grugops__ spelling as the live name. Re-grepped 2026-09-24: scripts/admission-server.ts:4, :12, :56 and hooks/admission-guard.ts:16 still spell mcp__grugops__propose_note or mcp__grugops__.* as what roles call and what the hook matches, while the platform exposes the plugin tool as mcp__plugin_grugops_grugops__propose_note (settled live by plan 33-41, B:12). Same class as the deferred-items bare-server-name entry. Fix: comment-only edit to the scoped spelling, the bare name described as the server own name. Owner: a later phase. | open |  | 2026-09-24T19:47:19.792Z |  |
+| 282 | 33 | deviation | scripts/adapter-byte-baseline.test.ts | 95 | 33-REVIEW-round3 IN-02 accepted open (round 4 of 4; no round-4 plan touched it): the held-capture sha is pinned as the 8-character prefix c7be6d0d in six test readers (re-grepped 2026-09-24: adapter-byte-baseline.test.ts:95, floor-invariance.test.ts:775, checkpoints.test.ts:1922, generate-role-adapters.test.ts:1615, context-io.test.ts:17063, hooks/guard.test.ts:2275), which git show refuses as ambiguous once another object shares the prefix, failing MODEL-01 and K7 for an unrelated reason. Fix: one exported full-length constant imported at every reader. Owner: a later phase. | open |  | 2026-09-24T19:47:19.908Z |  |
+| 283 | 33 | deviation | scripts/board-read.ts |  | 33-REVIEW-round3 IN-03 accepted open (round 4 of 4; scripts/board-read.ts and agent-factory/contracts/context-note.md have no commit since the round-3 review 1fbd0879): the board counts notes from index.jsonl, which the seal does not govern, while context-note.md:84 says an unsealed note is returned by no reader; after an upgrade the board reports pre-seal notes of which readContext returns zero. Fix: narrow the contract sentence to note readers, or have the release note carrying row 268 say render must be re-run. Owner: a later phase or the release note that ships the seal. | open |  | 2026-09-24T19:47:20.012Z |  |
+| 284 | 33 | deviation | CHANGELOG.md |  | 33-REVIEW-round3 IN-04 accepted open (round 4 of 4; this is NOT the Phase 31 IN-04 that plan 33-38 closed, which is docs/audit/31-round4-residuals.md row B8): CHANGELOG.md does not record that plan 33-27 redirection grammar made the prod-deploy guard allow commands it used to deny (git log --oneline -5 2>&1 went from deny to allow). The only CHANGELOG commit since the review, 7d0aea72, added the CR-01 splice sentence, not this one. Fix: one Changed bullet naming the redirection grammar and the forms kept opaque by decision (row 269). Owner: the release that ships the round-3 grammar (with row 271). | open |  | 2026-09-24T19:47:20.109Z |  |
+| 285 | 33 | deviation | scripts/capture-live.ts | 208 | 33-REVIEW-round3 IN-05 accepted open (round 4 of 4; no round-4 plan touched it): workingTreeStatusArgs (scripts/capture-live.ts:208) runs git status --porcelain --untracked-files=all, which omits ignored paths, so a gitignored file under the scoped directories (node_modules, .grugops/context threads) reaches target A through the installer cpSync without failing the working-tree row the round-4 go read MET. Fix: add --ignored=matching and filter what the installer excludes, or qualify the row text. Owner: a later phase. | open |  | 2026-09-24T19:47:20.208Z |  |
+| 286 | 33 | deviation | scripts/context-io.ts | 3411 | 33-REVIEW-round3 IN-06 accepted open (round 4 of 4; no round-4 plan touched it): promoteAdmitted declines a pre-seal origin note that exists on disk as no-such-origin-note (scripts/context-io.ts:3411), because readRawNotes(task, from) skips unsealed notes, so an operator following the row 268 re-admission path is told the file does not exist. Fix: consult readRawNotesWithSkips(task, from).skipped and decline with a clause naming the seal reason. Owner: a later phase. | open |  | 2026-09-24T19:47:20.302Z |  |
+| 287 | 33 | deviation | scripts/checkpoints.ts | 1711 | 33-43 ledgered class (33-VERIFICATION live bypass, corpus row LB-05, pinned ALLOW; scope decision D-33-R4-01: ledger, not code): git dashed builtin binary /Library/Developer/CommandLineTools/usr/libexec/git-core/git-push origin main runs a push the command model does not see (re-probed 2026-09-24 against the committed scripts/checkpoints.js, hooks/guard.js and hooks/hook-entry.js guard.js, scrubbed env: checkpoints [], ALLOW, ALLOW). Same family as a binary reached under another name (failClosedCheckpoints residual list, scripts/checkpoints.ts:1711). Owner: round 5+ / a later phase (phase 33 is at its four-round cap). | open |  | 2026-09-24T19:47:20.411Z |  |
+| 288 | 33 | deviation | scripts/checkpoints.ts | 1580 | 33-43 ledgered class (33-VERIFICATION live bypass, corpus row LB-06, pinned ALLOW; scope decision D-33-R4-01: ledger, not code): git send-pack origin main is an unmodelled push verb; gitPushIsGoverned (scripts/checkpoints.ts:1580) keys on push only (re-probed 2026-09-24, scrubbed env: checkpoints [], ALLOW at hooks/guard.js and at hooks/hook-entry.js guard.js). Owner: round 5+ / a later phase (phase 33 is at its four-round cap). | open |  | 2026-09-24T19:47:20.512Z |  |
+| 289 | 33 | deviation | scripts/checkpoints.ts | 680 | 33-43 ledgered class (33-VERIFICATION live bypass, corpus row LB-07, pinned ALLOW; scope decision D-33-R4-01: ledger, not code): gh api -X PUT repos/o/r/pulls/12/merge, the REST pull-request merge endpoint, is outside the gh row (which governs pr merge) (re-probed 2026-09-24, scrubbed env: checkpoints [], ALLOW at both entry points). Owner: round 5+ / a later phase (phase 33 is at its four-round cap). | open |  | 2026-09-24T19:47:20.620Z |  |
+| 290 | 33 | deviation | scripts/checkpoints.ts | 1728 | 33-43 ledgered class (plan 33-36 hand-off, corpus row LB-08, pinned ALLOW; outside D-33-R4-01): git help.autocorrect runs a near-miss spelling of push as a push. Plan 33-36 measured git -c help.autocorrect=immediate psuh origin main push main to a scratch bare remote (git 2.55.0), and bare git psuh origin main did the same because the measuring host global ~/.gitconfig sets help.autocorrect=1; the host-config form is not visible on the line. Re-probed 2026-09-24, scrubbed env: both checkpoints [], ALLOW at both entry points. Fix direction: model git similarity rule for push and update-ref, or fail closed when help.autocorrect is set on the line. Owner: round 5+ / a later phase (phase 33 is at its four-round cap). | open |  | 2026-09-24T19:47:20.722Z |  |
+| 291 | 33 | deviation | scripts/checkpoints.ts | 680 | 33-43 ledgered class (33-VERIFICATION note: a scope decision of COMMAND_CHECKPOINT_RULES, not a splice): deploy verbs outside the table allow. Re-probed 2026-09-24 against the committed build, scrubbed env, each checkpoints [] and ALLOW at hooks/guard.js and hooks/hook-entry.js guard.js: kubectl replace, create, patch, scale, set and edit; helm rollback and uninstall; terraform destroy; tofu apply; aws s3 cp. Whether each is a production deploy is a table-scope decision for the human. Owner: round 5+ / a later phase (phase 33 is at its four-round cap). | open |  | 2026-09-24T19:47:20.822Z |  |
+| 292 | 33 | unrun-verify | scripts/checkpoints.ts | 1711 | 33-43 disclosed guard residual (plan 33-35 hand-off, corpus row RES-01, pinned ALLOW): a governed tool name computed at run time from a shell variable is not knowable at hook time. K=git; bash -c "$K push origin main" and the 33-35 sibling (a nested bash -c body that assigns a backslash-spliced git to x, then runs $x push origin main) were both re-probed 2026-09-24 against the committed build, scrubbed env: the model marks the segment untokenizable with no fail-closed checkpoint, ALLOW at hooks/guard.js and hooks/hook-entry.js guard.js. Accepted open as the disclosed residual of the round-4 projection (failClosedCheckpoints residual list). Owner: the human. | open |  | 2026-09-24T19:47:20.972Z |  |
+| 293 | 33 | unrun-verify | scripts/checkpoints.ts | 1711 | 33-43 disclosed guard residual (plan 33-35 hand-off, corpus row RES-02, pinned ALLOW): a body produced by a command substitution is not knowable at hook time. bash -c "$(printf %s gi t) push origin main" re-probed 2026-09-24 against the committed build, scrubbed env: untokenizable, no fail-closed checkpoint, ALLOW at hooks/guard.js and hooks/hook-entry.js guard.js. Accepted open as the disclosed residual of the round-4 projection. Owner: the human. | open |  | 2026-09-24T19:47:21.199Z |  |
+| 294 | 33 | unrun-verify | scripts/checkpoints.ts | 1711 | 33-43 disclosed guard residual (plan 33-36 hand-off, corpus row RES-03, pinned ALLOW): a tool name assembled at run time by an xargs replace string. echo pm piped into xargs -I Q nQ publish (and the sh -c form) names no governed tool on the line; xargs rewrites Q from stdin and runs npm publish. Re-probed 2026-09-24, scrubbed env: checkpoints [], ALLOW at both entry points. The computed-at-run-time class of RES-01/RES-02 reached through xargs. Owner: the human. | open |  | 2026-09-24T19:47:21.412Z |  |
+| 295 | 33 | unrun-verify | scripts/checkpoints.ts | 1745 | 33-43 ledgered class (plan 33-36 hand-off): a stdin-to-argument launcher other than xargs is not modelled; the stdin feed keys on a word whose basename ends in xargs. echo publish piped into parallel npm returns checkpoints [] and ALLOW at both entry points (re-probed 2026-09-24). The parallel on the measuring host is moreutils (it does not read stdin), so the executable form was NOT measured; GNU parallel reading its arguments from stdin is UNKNOWN - verify. Owner: a later phase, verified on a host with GNU parallel. | open |  | 2026-09-24T19:47:21.581Z |  |
+| 296 | 33 | deviation | scripts/checkpoints.ts | 1286 | 33-43 ledgered over-denial (plan 33-35 deferred item): namesOfVariant (scripts/checkpoints.ts:1286) throws Invalid regular expression on a gap-dense name piece too large for the regex engine (an echo carrying 20 000 repetitions of x${a}; 33-35 re-projection extends the same throw into quoted bodies). The guard answers with its fail-closed deny, so it is an over-denial, not a bypass; pre-existing on 53888b9c. Removing the throw turns a deny into an allow and belongs to a plan that REDs it. Owner: a later milestone. | open |  | 2026-09-24T19:47:21.769Z |  |
+| 297 | 33 | unrun-verify | scripts/capture-live.ts | 998 | 33-R4-DIAGNOSIS section 1 and section 5 decision 1 (human): on round-4 run A the default session spawned the coordinator adapter as a subagent (A:80), which spawned role agents (A:313, A:711), nesting observed on Claude Code 2.1.281, and the runner every-spawn-is-a-member clause (scripts/capture-live.ts:998) failed CAP-03 side (a) on it, which set OUTCOME: fail. The D-02 (a) bar of two evidenced granted roles was met on path A (mapper, architect-design). Cause class SUITE with a platform/KIT rider. Whether D-02 (a) should forbid the coordinator-as-subagent route, or the clause relax to D-02, is the human decision; not decided here. Owner: the human. | open |  | 2026-09-24T19:47:21.990Z |  |
+| 298 | 33 | unrun-verify | scripts/capture-live.ts | 1868 | 33-R4-DIAGNOSIS section 3.1 and section 5 decision 2 (human): both round-4 sessions ran permissionMode auto inherited from the operator settings (A:12, B:12); the runner pins no permission mode (spawn args at scripts/capture-live.ts:1868), and role agents used the Write tool on 7 paths outside the target (A:569, A:611, A:919, A:960, B:508, B:857, B:920) though the grant names no Write; the checkout was not touched. Class HOST with a SUITE rider. Whether the capture should pin a permission mode is the human decision; whether --permission-mode default would deny these writes in -p mode is UNKNOWN - verify. Owner: the human. | open |  | 2026-09-24T19:47:22.161Z |  |
+| 299 | 33 | deviation | scripts/capture-live.ts | 2724 | 33-R4-DIAGNOSIS section 3.3 and section 5 decision 4 (human): the per-run D-04 row does not key on the probe tool use; run B row reads yes on the deny of an ordinary find command (B:365, deny frame B:374) though path B never issued the probe. The outcome word is unaffected: denyFired is runs.some at scripts/capture-live.ts:2724 and run A probe deny (A:85, A:101) satisfies it. Whether the row should join the deny to the probe tool use through the tool result is the human decision. Owner: the human. | open |  | 2026-09-24T19:47:22.334Z |  |
+| 300 | 33 | deviation | docs/audit/31-round4-residuals.md | 599 | 33-43 ledger note (plan 33-38 deferred item): docs/audit/31-round4-residuals.md row B8 (line 599) still reads the Phase 31 IN-04 (ledger event ordering) as carried, open by choice; plan 33-38 closed it as a side effect of its WR-01 fix (a9c1331b; the pinned test in scripts/context-io.test.ts now asserts the closure). The document is outside plan 33-43 files_modified, so it is not annotated here; an annotation beside the historical row, never a rewrite of it, is owed. Owner: a later docs plan (the human scope decision). | open |  | 2026-09-24T19:47:22.551Z |  |
 
 ````json
 [
@@ -3646,10 +3672,10 @@ last_updated: 2026-09-24T18:02:50.122Z
     "file": "scripts/context-io.ts",
     "line": null,
     "description": "33-38 widened WR-01 past the plan's two routes: the plan named promoteAdmitted and admitAndAppend's gated branch, and measurement found the same ledger-then-note over-record on appendNote with a caller-chosen precomputedId (ledger lines 1 on an occupied id) and on admitAndAppend's non-gated branch. Both were closed in the same files, RED-first (commits 45c7514b and a9c1331b). A side effect closed IN-04, whose failing-on-change test now asserts the closure. Recorded so the scope expansion shows up in the ledger and does not have to be read out of the diff.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-23T21:03:27.484Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-24T19:47:35.555Z",
     "milestone": "v2.1"
   },
   {
@@ -3675,6 +3701,344 @@ last_updated: 2026-09-24T18:02:50.122Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-24T18:02:50.122Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 275,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1467,
+    "description": "33-43 round-4 disposition, 33-REVIEW-round3 CR-01 one register over (33-VERIFICATION gap 2, the round-3 verifier opaque-segment x quoted-nested-command probe: 17 of 23 spellings ALLOW with zero keys, e.g. bash -c with a backslash-spliced git push body followed by an expansion, and a here-string carrying a backslash-spliced npm publish). The CR-01 review table itself was fixed at 7d0aea72 (round-3 gsd-code-fixer; the round-3 verifier measured every review row DENY). FIXED by plan 33-35 (decision D-33-R4-03): Task 1 RED b3acece3, GREEN 312fafa8 (governedToolsNamedBy re-projects each name piece as nested shell text, bounded by depth 32 and a work budget, fail-closed beyond either; both arms ask it); Task 2 5d1ceeb3 (derived sweep, 1640 cases, 1240 ALLOW on the round-3 build); Task 3 03847360 (corpus replay). All 28 in-scope rows of scripts/fixtures/cr01-nested-corpus.json deny through hooks/guard.js and hooks/hook-entry.js guard.js. The computed-at-run-time residuals RES-01..RES-03 are separate open rows.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:18.927Z",
+    "resolved_at": "2026-09-24T19:47:35.657Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 276,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 680,
+    "description": "33-43 round-4 disposition, 33-VERIFICATION live bypass (corpus row LB-01): npm resolves a unique prefix of publish (npm 11.7.0 answers pu, pub, publ, publi and publis with Publish a package), so npm pub ran a publish with zero keys. FIXED by plan 33-36 Task 1: RED 4c57076a, GREEN 4812e5cc (resolvesVerbPrefix on the npm, yarn and pnpm rows; spelledVerb accepts a prefix of exactly one word in verbs plus benign when that word is governed, derived from each row own arrays). LB-01 flipped to kind deny in the corpus in the same commit; npm p (ambiguous with pack) and every benign prefix still allow.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:19.166Z",
+    "resolved_at": "2026-09-24T19:47:35.753Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 277,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1745,
+    "description": "33-43 round-4 disposition, 33-VERIFICATION live bypass (corpus rows LB-02..LB-04): a governed verb supplied on stdin through xargs (echo push origin main piped into xargs git; echo publish piped into xargs npm; echo apply -f x piped into xargs kubectl) ran with zero keys. FIXED by plan 33-36 Task 2: RED 4481fbc6, GREEN f92574a5 (every word after an xargs word, and nested bodies in that command, is decided with its trailing arguments unknown: a governed tool there denies on its name unless its adjacent word is a benign subcommand; a replace flag drops the adjacency; gxargs is xargs); docblocks 947d02ab. Recorded over-denial: xargs grep -l kubectl. The replace-string residual RES-03 and the non-xargs stdin launcher are separate open rows.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:19.308Z",
+    "resolved_at": "2026-09-24T19:47:35.852Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 278,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": 3230,
+    "description": "33-REVIEW-round3 WR-01 (33-VERIFICATION gap 3): promoteAdmitted decided destination-id-occupied through the seal-filtered readRawNotes, so an unsealed occupant was invisible and the route appended a GOV-02 ledger event (dest ledger lines 1) before writeNoteFile refused the write. FIXED by plan 33-38: Task 1 RED 04f6b498, GREEN 49f50aac (decideNoteDestination, the write chokepoint own bounded raw-file decision, asked before any ledger read or append; CONTROL 2b now asserts dest ledger lines 0); Task 2 RED ded41caf, GREEN 96ccb4b5 (admitAndAppend gated branch). The two sibling arms 33-38 widened to (appendNote with a caller-chosen id, the non-gated branch) are row 272.",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:19.429Z",
+    "resolved_at": "2026-09-24T19:47:35.994Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 279,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 1187,
+    "description": "33-REVIEW-round3 WR-02 (33-VERIFICATION gap 4): unclassifiedContextWrites counted read-only commands, a Bash description and prose mentions of .grugops/context as writes, and compareLivePaths turned any difference into a parity fail. FIXED by plan 33-39: Task 1 RED d55dec5b, GREEN 29e09fb4 (isWriteShapedCommand; the field renamed indirectContextWrites and made write-shaped only; the broad count dropped, option (a)); Task 2 ec891a41 (Test P11 fail-safe both directions; Test P10 re-derives the held round-1 capture from A 15 / B 17 to A 7 / B 6 with the six frozen divergence sentences unchanged). The bounded fail-safe exception stays open as row 273 (human decision).",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:19.539Z",
+    "resolved_at": "2026-09-24T19:47:36.116Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 280,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "hooks/guard.ts",
+    "line": 704,
+    "description": "33-REVIEW-round3 WR-03 accepted open (round 4, ledgered by decision): the deny text names the wrong mechanism when a literal pattern also matched. hooks/guard.ts:704 asks modelled.untokenizable and modelled.failClosed before byPattern, so git push origin main --tags=$T (re-probed 2026-09-24 against the committed hooks/guard.js, scrubbed env: DENY) is told it is matched on the tool name alone and refused rather than guessed at, although the literal protected-branch pattern and the readable arm (checkpoints [protected_branch_merge]) deny it with no expansion. Human decision 2 of the round-4 scope (D-33-R4-01): ledger, not code; hooks/guard.ts stayed byte-unchanged through round 4. Fix as reviewed: ask byPattern first, or say both fired. Owner: a later round (a later phase; phase 33 is at its four-round cap).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:19.666Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 281,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/admission-server.ts",
+    "line": 4,
+    "description": "33-REVIEW-round3 IN-01 accepted open (round 4 of 4, the last under the cap; no round-4 plan touched it): shipped docblocks still state the bare mcp__grugops__ spelling as the live name. Re-grepped 2026-09-24: scripts/admission-server.ts:4, :12, :56 and hooks/admission-guard.ts:16 still spell mcp__grugops__propose_note or mcp__grugops__.* as what roles call and what the hook matches, while the platform exposes the plugin tool as mcp__plugin_grugops_grugops__propose_note (settled live by plan 33-41, B:12). Same class as the deferred-items bare-server-name entry. Fix: comment-only edit to the scoped spelling, the bare name described as the server own name. Owner: a later phase.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:19.792Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 282,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/adapter-byte-baseline.test.ts",
+    "line": 95,
+    "description": "33-REVIEW-round3 IN-02 accepted open (round 4 of 4; no round-4 plan touched it): the held-capture sha is pinned as the 8-character prefix c7be6d0d in six test readers (re-grepped 2026-09-24: adapter-byte-baseline.test.ts:95, floor-invariance.test.ts:775, checkpoints.test.ts:1922, generate-role-adapters.test.ts:1615, context-io.test.ts:17063, hooks/guard.test.ts:2275), which git show refuses as ambiguous once another object shares the prefix, failing MODEL-01 and K7 for an unrelated reason. Fix: one exported full-length constant imported at every reader. Owner: a later phase.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:19.908Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 283,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/board-read.ts",
+    "line": null,
+    "description": "33-REVIEW-round3 IN-03 accepted open (round 4 of 4; scripts/board-read.ts and agent-factory/contracts/context-note.md have no commit since the round-3 review 1fbd0879): the board counts notes from index.jsonl, which the seal does not govern, while context-note.md:84 says an unsealed note is returned by no reader; after an upgrade the board reports pre-seal notes of which readContext returns zero. Fix: narrow the contract sentence to note readers, or have the release note carrying row 268 say render must be re-run. Owner: a later phase or the release note that ships the seal.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.012Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 284,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "CHANGELOG.md",
+    "line": null,
+    "description": "33-REVIEW-round3 IN-04 accepted open (round 4 of 4; this is NOT the Phase 31 IN-04 that plan 33-38 closed, which is docs/audit/31-round4-residuals.md row B8): CHANGELOG.md does not record that plan 33-27 redirection grammar made the prod-deploy guard allow commands it used to deny (git log --oneline -5 2>&1 went from deny to allow). The only CHANGELOG commit since the review, 7d0aea72, added the CR-01 splice sentence, not this one. Fix: one Changed bullet naming the redirection grammar and the forms kept opaque by decision (row 269). Owner: the release that ships the round-3 grammar (with row 271).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.109Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 285,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 208,
+    "description": "33-REVIEW-round3 IN-05 accepted open (round 4 of 4; no round-4 plan touched it): workingTreeStatusArgs (scripts/capture-live.ts:208) runs git status --porcelain --untracked-files=all, which omits ignored paths, so a gitignored file under the scoped directories (node_modules, .grugops/context threads) reaches target A through the installer cpSync without failing the working-tree row the round-4 go read MET. Fix: add --ignored=matching and filter what the installer excludes, or qualify the row text. Owner: a later phase.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.208Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 286,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/context-io.ts",
+    "line": 3411,
+    "description": "33-REVIEW-round3 IN-06 accepted open (round 4 of 4; no round-4 plan touched it): promoteAdmitted declines a pre-seal origin note that exists on disk as no-such-origin-note (scripts/context-io.ts:3411), because readRawNotes(task, from) skips unsealed notes, so an operator following the row 268 re-admission path is told the file does not exist. Fix: consult readRawNotesWithSkips(task, from).skipped and decline with a clause naming the seal reason. Owner: a later phase.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.302Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 287,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1711,
+    "description": "33-43 ledgered class (33-VERIFICATION live bypass, corpus row LB-05, pinned ALLOW; scope decision D-33-R4-01: ledger, not code): git dashed builtin binary /Library/Developer/CommandLineTools/usr/libexec/git-core/git-push origin main runs a push the command model does not see (re-probed 2026-09-24 against the committed scripts/checkpoints.js, hooks/guard.js and hooks/hook-entry.js guard.js, scrubbed env: checkpoints [], ALLOW, ALLOW). Same family as a binary reached under another name (failClosedCheckpoints residual list, scripts/checkpoints.ts:1711). Owner: round 5+ / a later phase (phase 33 is at its four-round cap).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.411Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 288,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1580,
+    "description": "33-43 ledgered class (33-VERIFICATION live bypass, corpus row LB-06, pinned ALLOW; scope decision D-33-R4-01: ledger, not code): git send-pack origin main is an unmodelled push verb; gitPushIsGoverned (scripts/checkpoints.ts:1580) keys on push only (re-probed 2026-09-24, scrubbed env: checkpoints [], ALLOW at hooks/guard.js and at hooks/hook-entry.js guard.js). Owner: round 5+ / a later phase (phase 33 is at its four-round cap).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.512Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 289,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 680,
+    "description": "33-43 ledgered class (33-VERIFICATION live bypass, corpus row LB-07, pinned ALLOW; scope decision D-33-R4-01: ledger, not code): gh api -X PUT repos/o/r/pulls/12/merge, the REST pull-request merge endpoint, is outside the gh row (which governs pr merge) (re-probed 2026-09-24, scrubbed env: checkpoints [], ALLOW at both entry points). Owner: round 5+ / a later phase (phase 33 is at its four-round cap).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.620Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 290,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1728,
+    "description": "33-43 ledgered class (plan 33-36 hand-off, corpus row LB-08, pinned ALLOW; outside D-33-R4-01): git help.autocorrect runs a near-miss spelling of push as a push. Plan 33-36 measured git -c help.autocorrect=immediate psuh origin main push main to a scratch bare remote (git 2.55.0), and bare git psuh origin main did the same because the measuring host global ~/.gitconfig sets help.autocorrect=1; the host-config form is not visible on the line. Re-probed 2026-09-24, scrubbed env: both checkpoints [], ALLOW at both entry points. Fix direction: model git similarity rule for push and update-ref, or fail closed when help.autocorrect is set on the line. Owner: round 5+ / a later phase (phase 33 is at its four-round cap).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.722Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 291,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 680,
+    "description": "33-43 ledgered class (33-VERIFICATION note: a scope decision of COMMAND_CHECKPOINT_RULES, not a splice): deploy verbs outside the table allow. Re-probed 2026-09-24 against the committed build, scrubbed env, each checkpoints [] and ALLOW at hooks/guard.js and hooks/hook-entry.js guard.js: kubectl replace, create, patch, scale, set and edit; helm rollback and uninstall; terraform destroy; tofu apply; aws s3 cp. Whether each is a production deploy is a table-scope decision for the human. Owner: round 5+ / a later phase (phase 33 is at its four-round cap).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.822Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 292,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1711,
+    "description": "33-43 disclosed guard residual (plan 33-35 hand-off, corpus row RES-01, pinned ALLOW): a governed tool name computed at run time from a shell variable is not knowable at hook time. K=git; bash -c \"$K push origin main\" and the 33-35 sibling (a nested bash -c body that assigns a backslash-spliced git to x, then runs $x push origin main) were both re-probed 2026-09-24 against the committed build, scrubbed env: the model marks the segment untokenizable with no fail-closed checkpoint, ALLOW at hooks/guard.js and hooks/hook-entry.js guard.js. Accepted open as the disclosed residual of the round-4 projection (failClosedCheckpoints residual list). Owner: the human.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:20.972Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 293,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1711,
+    "description": "33-43 disclosed guard residual (plan 33-35 hand-off, corpus row RES-02, pinned ALLOW): a body produced by a command substitution is not knowable at hook time. bash -c \"$(printf %s gi t) push origin main\" re-probed 2026-09-24 against the committed build, scrubbed env: untokenizable, no fail-closed checkpoint, ALLOW at hooks/guard.js and hooks/hook-entry.js guard.js. Accepted open as the disclosed residual of the round-4 projection. Owner: the human.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:21.199Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 294,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1711,
+    "description": "33-43 disclosed guard residual (plan 33-36 hand-off, corpus row RES-03, pinned ALLOW): a tool name assembled at run time by an xargs replace string. echo pm piped into xargs -I Q nQ publish (and the sh -c form) names no governed tool on the line; xargs rewrites Q from stdin and runs npm publish. Re-probed 2026-09-24, scrubbed env: checkpoints [], ALLOW at both entry points. The computed-at-run-time class of RES-01/RES-02 reached through xargs. Owner: the human.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:21.412Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 295,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1745,
+    "description": "33-43 ledgered class (plan 33-36 hand-off): a stdin-to-argument launcher other than xargs is not modelled; the stdin feed keys on a word whose basename ends in xargs. echo publish piped into parallel npm returns checkpoints [] and ALLOW at both entry points (re-probed 2026-09-24). The parallel on the measuring host is moreutils (it does not read stdin), so the executable form was NOT measured; GNU parallel reading its arguments from stdin is UNKNOWN - verify. Owner: a later phase, verified on a host with GNU parallel.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:21.581Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 296,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/checkpoints.ts",
+    "line": 1286,
+    "description": "33-43 ledgered over-denial (plan 33-35 deferred item): namesOfVariant (scripts/checkpoints.ts:1286) throws Invalid regular expression on a gap-dense name piece too large for the regex engine (an echo carrying 20 000 repetitions of x${a}; 33-35 re-projection extends the same throw into quoted bodies). The guard answers with its fail-closed deny, so it is an over-denial, not a bypass; pre-existing on 53888b9c. Removing the throw turns a deny into an allow and belongs to a plan that REDs it. Owner: a later milestone.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:21.769Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 297,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 998,
+    "description": "33-R4-DIAGNOSIS section 1 and section 5 decision 1 (human): on round-4 run A the default session spawned the coordinator adapter as a subagent (A:80), which spawned role agents (A:313, A:711), nesting observed on Claude Code 2.1.281, and the runner every-spawn-is-a-member clause (scripts/capture-live.ts:998) failed CAP-03 side (a) on it, which set OUTCOME: fail. The D-02 (a) bar of two evidenced granted roles was met on path A (mapper, architect-design). Cause class SUITE with a platform/KIT rider. Whether D-02 (a) should forbid the coordinator-as-subagent route, or the clause relax to D-02, is the human decision; not decided here. Owner: the human.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:21.990Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 298,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 1868,
+    "description": "33-R4-DIAGNOSIS section 3.1 and section 5 decision 2 (human): both round-4 sessions ran permissionMode auto inherited from the operator settings (A:12, B:12); the runner pins no permission mode (spawn args at scripts/capture-live.ts:1868), and role agents used the Write tool on 7 paths outside the target (A:569, A:611, A:919, A:960, B:508, B:857, B:920) though the grant names no Write; the checkout was not touched. Class HOST with a SUITE rider. Whether the capture should pin a permission mode is the human decision; whether --permission-mode default would deny these writes in -p mode is UNKNOWN - verify. Owner: the human.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:22.161Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 299,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "scripts/capture-live.ts",
+    "line": 2724,
+    "description": "33-R4-DIAGNOSIS section 3.3 and section 5 decision 4 (human): the per-run D-04 row does not key on the probe tool use; run B row reads yes on the deny of an ordinary find command (B:365, deny frame B:374) though path B never issued the probe. The outcome word is unaffected: denyFired is runs.some at scripts/capture-live.ts:2724 and run A probe deny (A:85, A:101) satisfies it. Whether the row should join the deny to the probe tool use through the tool result is the human decision. Owner: the human.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:22.334Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 300,
+    "kind": "deviation",
+    "phase": "33",
+    "file": "docs/audit/31-round4-residuals.md",
+    "line": 599,
+    "description": "33-43 ledger note (plan 33-38 deferred item): docs/audit/31-round4-residuals.md row B8 (line 599) still reads the Phase 31 IN-04 (ledger event ordering) as carried, open by choice; plan 33-38 closed it as a side effect of its WR-01 fix (a9c1331b; the pinned test in scripts/context-io.test.ts now asserts the closure). The document is outside plan 33-43 files_modified, so it is not annotated here; an annotation beside the historical row, never a rewrite of it, is owed. Owner: a later docs plan (the human scope decision).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T19:47:22.551Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
