@@ -1314,7 +1314,7 @@ Plans:
   2. That capture (date + verdict) discharges GAP-D1: A3/DOG-02 flips together with the coupled `examples/03-ticket-to-pr.md` cleanup, in one edit — and a loud skip is never accepted as the capture. (CAP-01)
   3. The `windows-latest` CI leg exits 0 — path-assertion normalization, symlink-fixture privilege guard, buildable old-layout migrate fixture, temp-dir `tsc` mirror rebuild — which also turns the dashboard's Windows `fs.watch` surface from assumed into proven, and flips the Phase-20 human item on green. (CAP-02)
 
-**Plans**: 42/43 plans executed — 34/34 executed (round 1 + rounds 2-3); 9 gap-closure round-4 plans (33-35..33-43, waves 24-32, `gap_closure: true`) planned 2026-09-23 after round-3 verification `gaps_found` 0/3 — round 4 of the four-round cap, the LAST round (D-20: at the cap with GAP-D1 open the phase closes by human override, ROADMAP not marked complete)
+**Plans**: 43/43 plans executed — 34/34 executed (round 1 + rounds 2-3); 9 gap-closure round-4 plans (33-35..33-43, waves 24-32, `gap_closure: true`) planned 2026-09-23 after round-3 verification `gaps_found` 0/3 — round 4 of the four-round cap, the LAST round (D-20: at the cap with GAP-D1 open the phase closes by human override, ROADMAP not marked complete)
 
 Plans:
 **Wave 1**
@@ -1460,7 +1460,7 @@ Plans:
 
 **Wave 32** *(blocked on Wave 31)*
 
-- [ ] 33-43-PLAN.md — ledger close: `33-REVIEW.md` snapshotted as `33-REVIEW-round3.md` first; round-4 findings fixed-by-name or rows; WR-03 + the ledgered classes + the two guard residuals as rows with owners; deferred-items citations; REQUIREMENTS/STATE agreement; ROADMAP checkbox NOT flipped on hold (D-20)
+- [x] 33-43-PLAN.md — ledger close: `33-REVIEW.md` snapshotted as `33-REVIEW-round3.md` first; round-4 findings fixed-by-name or rows; WR-03 + the ledgered classes + the two guard residuals as rows with owners; deferred-items citations; REQUIREMENTS/STATE agreement; ROADMAP checkbox NOT flipped on hold (D-20)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
@@ -1518,7 +1518,7 @@ Plans:
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
-| 33. Live Capture & Windows Portability | v2.1 | 42/43 | In Progress|  |
+| 33. Live Capture & Windows Portability | v2.1 | 43/43 | In Progress|  |
 | 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
