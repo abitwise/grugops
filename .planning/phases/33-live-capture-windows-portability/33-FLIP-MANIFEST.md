@@ -628,3 +628,118 @@ The status line flips to the second value in the same commit as the fourteen dec
 the residual and commit-set rules come into force over it. If the cap is reached with GAP-D1 still
 open, the phase closes by human override with the item open and the diagnosis filed, never by a
 softened predicate (D-20).
+
+---
+
+## 9. Hold record (round 4, plan 33-42, 2026-09-24)
+
+**Decision: hold. It is mechanical under D-20 and was not chosen at a checkpoint.** Plan 33-42's
+Task 1 is the one-way flip decision (`flip` / `hold-for-ci` / `hold`). It is gated on the round's
+outcome word and presented only when that word is `pass`. The word is `fail`. The checkpoint was
+therefore NOT presented and no option id was selected. The holds in sections 6, 7 and 8 were not
+re-asked. Task 2 (the flip) did not run: its precondition is a `pass` outcome AND a MET CI
+verdict, and neither holds. This record is the plan's hold branch (Task 3), executed as written.
+Nothing flips.
+
+**Evidence the hold rests on.** Unlike rounds 2 and 3, a round-4 capture exists. Plan 33-41 ran the
+one authorized live run on 2026-09-24 against the pushed sha `6a2dca38` (HEAD equal to
+`origin/main`, ahead count 0). The capture set is committed at `3ed05944`: `33-CAPTURE-A.jsonl`,
+`33-CAPTURE-B.jsonl` and `33-CAPTURE-SUMMARY.md` in the phase root. The summary carries exactly one
+outcome line under its `Completion` section, and it reads `OUTCOME: fail`, with `Outcome reason: a
+run exited non-zero, a CAP-03 side failed, or the deny was not observed — see the sections above`.
+
+- **What set the word.** Both runs exited 0 (`Run` section: run A `status 0, signal null, timed out
+  false`, wall 621098 ms; run B the same, wall 436179 ms). The deny was observed in both runs (the
+  `D-04 prod-deploy deny observed in a hook_response.stdout` rows read `yes`, at `jsonl:101` for A
+  and `jsonl:374` for B). The one condition that set the word is the `CAP-03 verdict (D-02) — run
+  A` section, which reads, verbatim: `side (a): role grugops-orchestrator
+  (toolu_01PW5KQrMewcEhH4bqXoFZxs) is not a member of the derived grant`. The `CAP-03 verdict
+  (D-02) — run B` section reads `both sides hold: no named reason remains`.
+- **Parity also fails on its own.** The `Dual-path parity (D-07) — path-invariant projection`
+  section returns five named differences, verbatim:
+  - `architect-design: kind multiset differs: path A has [claim, claim, decision, observation,
+    observation, observation], path B has [claim, claim, claim, claim, observation, observation]`
+  - `brownfield-mapper: note count differs: path A has 12, path B has 5`
+  - `orchestrator: present only in path A (1 note(s))`
+  - `note route: propose_note tool-use blocks differ: path A 1, path B 0`
+  - `note route: indirect write-shaped blocks naming the context root differ: path A 9, path B 8`
+
+  The section does not read `parity: the two projections are equal`, so the capture would not
+  support the flip even if the CAP-03 side had held.
+- **What held.** Plugin provenance before the spawn reads MET on both paths, and after the run it
+  reads MET too. The installed copy's content digest
+  `c56b547011388061dba225c1210dc5db270f1a0e32dd6329eee94d6fe82a4383` equals the checkout's, and
+  the registry `gitCommitSha` is `6a2dca38…`. `spawn grant drift` reads `none` on both paths.
+- **The diagnosis.** `33-R4-DIAGNOSIS.md` (commit `d385295f`) classes the CAP-03 red as SUITE: the
+  runner's rule that every spawn must be a member of the grant is stricter than D-02 (a), whose
+  bar of two evidenced granted roles is met on path A. It adds a platform/KIT rider: the default
+  session spawned the coordinator adapter as a subagent (A:80), and that subagent spawned the role
+  agents (A:313, A:711). The parity differences are classed SUITE (model-chosen quantity and
+  batching) and KIT (the optional coordinator note). Its § 3.3 records a further finding: path B's
+  D-04 row cites a deny (B:374) that is not the probe. Its § 5 hands four decisions to the human.
+  None of them is decided here.
+
+The second gate is independently unmet. The Phase-20 rows F38 through F42 cite the CI run, never
+the capture (section 4). The one-commit rule of section 2.1 requires `20-HUMAN-UAT.md` in the same
+commit as the other thirteen. `33-CI-MEASUREMENT.md` Part 5 § 5.3 reads, verbatim:
+**CAP-02 verdict on this run: NOT MET.** The run is `36035067112` (head `e45202a1`).
+`test (ubuntu-latest)` reads `success`, green end to end for the third run in a row.
+`test (windows-latest)` reads `failure` at step 11, from one case in one file:
+`scripts/board-watch-live.test.ts`, the DEBOUNCE burst's own rename refused with `EPERM`
+(`.planning/WINDOWS.md` row 274, open). The row-260 case is green on windows-latest
+(`✓ scripts/capture-live.test.ts (71 tests)`). So even a `pass` capture this round would have
+reached Task 1 with `hold-for-ci` as the only truthful option. The flip could not have been
+performed as one commit over the declared set.
+
+**What this record does and does not change.**
+
+- Every flip-class row in section 2.3 (F1 through F62) and every correction-class row in section 3
+  (C1 through C10) is untouched. Each pre-flip anchor still occurs in its file and each post-flip
+  marker is still absent. The parity table in `examples/03-ticket-to-pr.md` still has seven data
+  rows with their pre-flip labels and its `pending human` cells. The six ledger rows (F53-F58) are
+  still `open`. The runtime-evidence record (F43) still carries only the July 2026 human
+  observation. The gate re-run over this tree after this section was written reports the same
+  derivation as before it and as sections 6, 7 and 8 recorded: `live-surface parts: publicDocs
+  12, docsTree 7, planningLedgers 5, archivedRecords 4, runtimeEvidence 1; overlap 1; derived total
+  28, pinned 28`; `62 flip row(s), 10 correction row(s), 2 exemption anchor(s)`; `declared set
+  (14)` with `.planning/PROJECT.md` first; status `pre-capture (residual rule and commit-set rule
+  not in force)`; `ALL CHECKS PASSED`, exit 0.
+- The status line at the top of this document still reads the first declared value. The residual
+  rule (section 1.4) and the commit-set rule (section 2.1) stay out of force. The second value is
+  written only in the commit that performs the flip, and no such commit exists.
+- The correction class (section 3) is held with the flip class, as in rounds 1 to 3. No
+  correction-class edit lands this round, so the one-commit rule is not split.
+- Both amendments stay owed. Row F14's marker literal is NOT amended, and the register note below
+  does not carry it, so F14 still reads as absent. `.planning/PROJECT.md` (F59-F62) stays in the
+  declared set and untouched. Both amendments are owed to whichever plan performs the flip, as
+  sections 7 and 8 recorded. No plan under this phase's cap will perform it.
+- `.planning/WINDOWS.md` receives no row from this record. Row 274, the one new CI class of the
+  round, was appended by plan 33-40 through the tool section 1.6 names. `windows status` at this
+  record reads `open_count 239`, `waived_count 3`, `fixed_count 32`, `total_count 274`, unchanged
+  by this plan.
+- `.planning/REQUIREMENTS.md` is not edited by this record. CAP-01 and CAP-03 stay `[ ]` / Pending,
+  CAP-02 stays Pending (NOT MET on run `36035067112`), and no requirement is marked complete.
+- `docs/audit/28-disposition-register.md` receives a fourth dated note under its
+  `examples/03-ticket-to-pr.md` entry, beneath the round-3 note. It states that the row-granularity
+  overlap is still not discharged and points here. That note does not carry the F14 marker literal.
+- Sections 6, 7 and 8 stay as history. Nothing in them is rewritten. This section is appended below
+  them in the same shape, so a reader sees all four holds, their evidence and their dates in order.
+
+**The closure: the cap is reached with GAP-D1 open.** GAP-D1 stays open (since 2026-06-16).
+**Round 4 was the LAST round under the four-round cap, and there is no round 5.** This hold is
+therefore not a step on a path back to the flip inside this phase. It is the phase's closure on
+this item: Phase 33 closes by human override with GAP-D1 open and the round-4 diagnosis filed
+(`33-R4-DIAGNOSIS.md`), never by a softened predicate (D-20). The D-07 predicate, the CAP-03
+membership clause and the CAP-02 both-legs bar all stand as written. None of them was relaxed to
+make this capture, or this CI run, read as a pass. The override itself is the human's to record,
+and plan 33-43 records the round and the cap-reached closure.
+
+What a later flip would need, recorded so it is not re-derived: a capture reading `OUTCOME: pass`
+with `parity: the two projections are equal` over live notes, both provenance rows MET, both CAP-03
+sides holding and the D-04 deny observed on the hook channel in both runs; a CI verdict reading
+MET on both legs; a fresh go under D-09 (nothing from rounds 1-4 carries forward); and the four
+human decisions of `33-R4-DIAGNOSIS.md` § 5 taken first, because two of them (the coordinator-as-
+subagent route under D-02 (a), and whether the D-04 row keys on the probe) change what the
+instrument measures. Then plan 33-11's Tasks 2 through 4 are executed as written against this
+manifest with the two owed amendments, in one commit over the fourteen declared files. That work
+belongs to a later phase, not to this one.
