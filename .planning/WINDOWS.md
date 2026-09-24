@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 238
+open_count: 239
 waived_count: 3
 fixed_count: 32
-total_count: 273
-last_updated: 2026-09-23T21:25:22.310Z
+total_count: 274
+last_updated: 2026-09-24T18:02:50.122Z
 ---
 
 # Broken Windows Ledger
@@ -288,6 +288,7 @@ last_updated: 2026-09-23T21:25:22.310Z
 | 271 | 33 | deviation | CHANGELOG.md |  | 33-34 round-3 finding (plan 33-26 hand-off, Next Phase Readiness): the writer now refuses an absent or non-string note scalar by name (assertNoteScalar / assertNoteFields; 8b82b4bc, 4fa7bd65; KIT section 3, row 258) where it used to write the word undefined, but CHANGELOG.md [Unreleased] carries no Security sentence for that refusal (CHANGELOG.md was outside the file lists of 33-26 and 33-34) — add one sentence beside the 33-25 seal entry; owner: round 4 or the phase closing document plan | open |  | 2026-09-22T18:29:45.874Z |  |
 | 272 | 33 | deviation | scripts/context-io.ts |  | 33-38 widened WR-01 past the plan's two routes: the plan named promoteAdmitted and admitAndAppend's gated branch, and measurement found the same ledger-then-note over-record on appendNote with a caller-chosen precomputedId (ledger lines 1 on an occupied id) and on admitAndAppend's non-gated branch. Both were closed in the same files, RED-first (commits 45c7514b and a9c1331b). A side effect closed IN-04, whose failing-on-change test now asserts the closure. Recorded so the scope expansion shows up in the ledger and does not have to be read out of the diff. | open |  | 2026-09-23T21:03:27.484Z |  |
 | 273 | 33 | deviation | scripts/capture-live.ts |  | 33-39 WR-02 residual (fail-safe claim bounded): the parity input now counts a non-direct writing-tool block only when it writes a SCRIPT (SCRIPT_EXTENSIONS or a leading shebang). The pre-33-39 broad count also took a non-script file whose content names .grugops/context; such a file later executed by a command that does not name the root (e.g. bash notes.md) is no longer on any route axis. A false pass still needs BOTH paths equal on every role count, kind multiset, verdict marker, direct and propose_note count, so it is contrived, but the axis is not strictly monotone. Separately, the Bash test is command-level co-occurrence, so a write to a queue file beside a read of the root counts (A:1820, B:840, B:1824): residual false-fail noise, the fail-safe direction. Owner: the human, at the paid-run read-out (33-40/33-41). | open |  | 2026-09-23T21:25:22.310Z |  |
+| 274 | 33 | unrun-verify | scripts/board-watch-live.test.ts | 362 | 33-40 run 36035067112 (head e45202a1) windows: ONE red, ONE class, the only red of round 4's measurement - scripts/board-watch-live.test.ts, the DEBOUNCE describe (DASH-04), case 'coalesces 5 atomic-rename writes into FEWER documents, and at least one': Error: EPERM: operation not permitted, rename '<tmp>\\\\plans\\\\board.md.tmp-...' -> '<tmp>\\\\plans\\\\board.md' at atomicEdit (:362:3, renameSync(temp, board)) called from :671:11. The same case and the same EPERM on the prior run 35913922871 (head f92574a5, Part 5 I-2). The test's import closure (board-watch-live.test.ts, board-dashboard, board-model, board-read, kit-model, is-entry) is byte-unchanged since 1af7e3f1, whose run 35760655144 read the file green on windows; no round-4 plan touched it. Label: not addressed against row 186's file, new as a mechanism (the test's OWN writer refused a rename over board.md, not a missed directory event; row 186's three event-delivery cases were green on this run). Correlation, not cause: all four green windows runs (35394268365, 35499800942, 35579263776, 35760655144) ran runner image windows-2025-vs2026 20260907.229.1; both red runs ran 20260922.246.2. Which handle held board.md (the spawned dashboard's read, the runner indexer or antivirus, other) is UNKNOWN - verify. No platform conditional may close it (D-14/D-16). Round 4 was the last under the cap: this is the cap-reached finding, owned by whatever the human decides next | open |  | 2026-09-24T18:02:50.122Z |  |
 
 ````json
 [
@@ -3661,6 +3662,19 @@ last_updated: 2026-09-23T21:25:22.310Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-23T21:25:22.310Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 274,
+    "kind": "unrun-verify",
+    "phase": "33",
+    "file": "scripts/board-watch-live.test.ts",
+    "line": 362,
+    "description": "33-40 run 36035067112 (head e45202a1) windows: ONE red, ONE class, the only red of round 4's measurement - scripts/board-watch-live.test.ts, the DEBOUNCE describe (DASH-04), case 'coalesces 5 atomic-rename writes into FEWER documents, and at least one': Error: EPERM: operation not permitted, rename '<tmp>\\\\plans\\\\board.md.tmp-...' -> '<tmp>\\\\plans\\\\board.md' at atomicEdit (:362:3, renameSync(temp, board)) called from :671:11. The same case and the same EPERM on the prior run 35913922871 (head f92574a5, Part 5 I-2). The test's import closure (board-watch-live.test.ts, board-dashboard, board-model, board-read, kit-model, is-entry) is byte-unchanged since 1af7e3f1, whose run 35760655144 read the file green on windows; no round-4 plan touched it. Label: not addressed against row 186's file, new as a mechanism (the test's OWN writer refused a rename over board.md, not a missed directory event; row 186's three event-delivery cases were green on this run). Correlation, not cause: all four green windows runs (35394268365, 35499800942, 35579263776, 35760655144) ran runner image windows-2025-vs2026 20260907.229.1; both red runs ran 20260922.246.2. Which handle held board.md (the spawned dashboard's read, the runner indexer or antivirus, other) is UNKNOWN - verify. No platform conditional may close it (D-14/D-16). Round 4 was the last under the cap: this is the cap-reached finding, owned by whatever the human decides next",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-24T18:02:50.122Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

@@ -1732,3 +1732,244 @@ task's commit (or a later documentation-only commit), not `fe30945f`. § 4.2 han
 it verified that the two shas differ only under `.planning/`. The push is not made by this task.
 It sits behind Task 2's named human confirmation, and it is the first of the two pushes the go
 path needs, because plan 33-41's runner refuses unless HEAD equals `origin/main`.
+
+### 5.2 The push and the run (Task 3)
+
+The blocking checkpoint (Task 2, `gate="blocking-human"`) was answered by the human with "pushed".
+No executor pushed, and Task 3 pushed nothing. The orchestrator verified the push: after `git
+fetch`, `git rev-parse HEAD` = `git rev-parse origin/main` =
+`e45202a196abf0908e50118a667ef09ab57376c5`. This task re-read it: `git log --oneline -3` →
+`e45202a1`, `6bb9274c`, `fe30945f`.
+
+**The pushed sha against § 5.1's recorded sha.** § 5.1 recorded `pre-push HEAD sha:
+fe30945f…` and said this task's own commit would sit on top. That line is not rewritten here. The
+run's `headSha` is `e45202a1`, two commits past it:
+
+- `6bb9274c` (`docs(33-40): Part 5 …`), Task 1's commit, changing only this document.
+- `e45202a1` (`chore: ignore the per-session GSD milestone.lock; track the Phase 34 directory
+  placeholder`). **This commit is not this plan's.** The orchestrator added it at the human's
+  request, after Task 1 and before the push. It changes `.gitignore` (3 lines) and adds
+  `.planning/phases/34-model-effort-dial-pi-support/.gitkeep` (1 line). These are the two untracked
+  paths § 5.1 named. The orchestrator reports that the 8 test files that read `.gitignore` were run
+  locally before the push: 1356/1356 passed. This task did not re-run them. The run below is the
+  measurement of that file on both legs.
+
+`git diff --stat fe30945f90011f68c7f8634467df902610ea0f88 e45202a196abf0908e50118a667ef09ab57376c5`
+lists exactly three paths: `.gitignore` (3 +), `33-CI-MEASUREMENT.md` (243 +) and the Phase 34
+`.gitkeep` (1 +). `git diff --stat fe30945f..e45202a1 -- scripts install hooks agent-factory
+.claude` is empty. So every source path the run exercised is byte-identical to the tree § 5.1
+inventoried. `.gitignore` is the one non-`.planning/` path that moved, and it is not a source file.
+
+**The run, read from its own metadata.** The orchestrator named the run id, `36035067112`, in
+this task's dispatch. Two reads. First, `gh run list --branch main --limit 5 --json
+databaseId,headSha,conclusion,createdAt` lists `36035067112` (head `e45202a1…`, created
+2026-09-24T17:32:54Z) as the newest run on `main`, and it is the only run for `e45202a1`. The four
+below it are `35913922871` (`f92574a5`), `35760655144` (`1af7e3f1`), `35579263776` (`9e1c1131`)
+and `35507901650` (`8f05ed42`). Every one reads `failure`. Second, the plan's field list: `gh run
+view 36035067112 --json
+databaseId,headSha,status,conclusion,createdAt,updatedAt,jobs,workflowName,headBranch,event`,
+saved as `p40t3/run.json` in the executor's scratch directory. Every word in the table below is
+copied from that JSON:
+
+| Field | Value |
+|---|---|
+| run id | `36035067112` (workflow `ci`, branch `main`, event `push`) |
+| head sha | `e45202a196abf0908e50118a667ef09ab57376c5` |
+| created / updated | 2026-09-24T17:32:54Z / 2026-09-24T18:00:10Z |
+| run `status` / `conclusion` | `completed` / **`failure`** |
+| job `test (ubuntu-latest)` | id `107752973593`, `conclusion: "success"`, 17:32:56Z → 17:50:09Z (**17 m 13 s**) |
+| job `test (windows-latest)` | id `107752973059`, `conclusion: "failure"`, 17:32:57Z → 18:00:09Z (**27 m 12 s**) |
+
+Per-step conclusions, from the same `jobs[].steps[]` array. Steps carry the workflow's names,
+shortened here. A step reads `skipped` on the leg it is not scoped to.
+
+| # | Step | ubuntu | windows |
+|--:|---|---|---|
+| 4 | Install | success | success |
+| 5 | Freshness gate before any build | success (`All build outputs fresh: 69 committed .js file(s) match a rebuild of their sources.`) | skipped |
+| 6 | Build and working-tree parity assertion | success: `PASS  Build parity: tracked build outputs that moved when the build ran: 0 findings over 69/69 elements` | skipped |
+| 7 | Build (every other leg) | skipped | success |
+| 8 | Typecheck | success | success |
+| 9 | Platform shape corpus, exit-code contract, directory identity | success: `HOST CAPABILITIES (3)`, `DRIVEN (13)`, `SKIPPED SHAPES (0)`, `ALL CHECKS PASSED` | success: `HOST CAPABILITIES (3)`, `DRIVEN (11)`, `SKIPPED SHAPES (5)`, `ALL CHECKS PASSED` |
+| 10 | Windows shape remainder is recorded, not silent | skipped | **success**: the same `DRIVEN (11)` / `SKIPPED SHAPES (5)` / `ALL CHECKS PASSED`. This is § 5.1's expected 5-row remainder. |
+| 11 | **Vitest (e2e lane excluded)** | **success** (17:33:36Z → 17:49:18Z) | **failure** (17:33:51Z → 18:00:05Z) |
+| 12 | Freshness gates + repo gates | **success** (17:49:18Z → 17:50:07Z). Headlines include `Adapters fresh: 17 adapter(s) compared in .claude/agents, 0 byte difference(s)`, `banned claims: 0 findings over 120/120 elements`, `diff disposition — changed watched file(s): 0 findings over 39/39 elements`, `2488 tracked file(s) scanned as raw bytes, ZERO carrying a forbidden control byte`, `62 flip row(s), 10 correction row(s), 2 exemption anchor(s)` | skipped |
+
+The nul-byte scan reads `2488` here against § 5.1's `2487`. The one extra tracked file is
+`e45202a1`'s `.gitkeep`.
+
+**Suite totals**, read from each leg's own vitest summary block (`gh api
+repos/abitwise/grugops/actions/jobs/<job id>/logs`, UTF-8 BOM, ANSI escapes and CR stripped by
+`p40t3/strip.cjs`). The `Test Files` / `Tests` / `Duration` lines are quoted verbatim, against the
+**5779 / 78** denominators § 5.1 set:
+
+| Leg | Test Files | Tests | Duration | Timeouts |
+|---|---|---|---|---|
+| ubuntu-latest, run `36035067112` | **78 passed (78)** | **5778 passed \| 1 skipped (5779)** | 941.28s (tests 909.39s) | 0 `Test timed out`, 0 `Hook timed out`, 0 `RangeError` |
+| windows-latest, run `36035067112` | **1 failed** \| 77 passed (78) | **1 failed** \| 5775 passed \| 3 skipped (5779) | 1572.66s (tests 1535.59s) | 0 / 0 / 0 |
+| windows-latest, run `35913922871` (§ 5.1, `f92574a5`) | 2 failed \| 76 passed (78) | 2 failed \| 5757 passed \| 3 skipped (5762) | 1815.30s | — |
+| windows-latest, run `35760655144` (round 3) | 1 failed \| 77 passed (78) | 1 failed \| 5663 passed \| 3 skipped (5667) | 2002.52s | 0 / 0 / 0 |
+| this host, tree `fe30945f` (§ 5.1 row 8) | 78 passed (78) | 5777 passed \| 2 skipped (5779) | 521.00s | 0 / 0 / 0 |
+
+Both denominators equal § 5.1's 5779 / 78. Control-byte scan before quoting: after stripping, each
+job log has exactly two bytes below 0x20 other than TAB and LF, and zero C1 bytes. They are two NUL
+bytes on one line of one passing test's own stdout: stripped-log character offsets 1 470 386 /
+1 470 390 (windows, line 5456) and 1 418 991 / 1 418 995 (ubuntu, line 5249). This is the same
+frontmatter-refusal fixture § 3.2, § 4.2 and § 5.1 named. The windows `Failed Tests 1` section
+starts at offset 1 555 607, after both bytes, and has no control byte. None is quoted here.
+
+### 5.3 The verdict, and the re-derived inventory: the cap-reached finding
+
+**CAP-02 verdict on this run: NOT MET.** D-13's bar is both legs' `conclusion` fields reading
+`success`. The ubuntu job's reads `"success"`. The windows job's reads `"failure"`, at step 11,
+from **one** failed case. **The one red is not a round-4 plan's.** It is the I-2 red § 5.1 read on
+the intermediate run `35913922871`, repeated: the same case, the same `EPERM` on the same line.
+
+**§ 5.1's prediction, leg by leg:**
+
+| § 5.1 expectation | Measured | Delta |
+|---|---|---|
+| Ubuntu green on every step, vitest 5779 / 78 / 0 failed, the gate chain green | **Exactly that.** 78/78 files, 5778 passed / 1 skipped, step 12 green. `[33-17 boundary] one-file {safe: 677, overflow: 678} · mixed {safe: 678, overflow: 679} · shift 1 · node v22.23.2 linux/x64`, the same shift as rounds 2 and 3. | None. The prediction held for the third run in a row. |
+| Windows green on every step, step 10's 5-row remainder exiting 0, vitest 0 failed over 5779 / 78, **the row-260 case (Test C7) green under the 33-37 authority** | Steps 4–10 green as predicted. **`✓ scripts/capture-live.test.ts (71 tests) 7655ms`**: all 71 cases of the file are green on windows-latest, which includes C7 and C7b. The `Failed Tests 1` section names no `capture-live` case. Vitest red: **1 case in 1 file**, `scripts/board-watch-live.test.ts` (`6 tests \| 1 failed`). | **The row-260 prediction held.** The one red is the § 5.1 item-2 branch "a repeat of I-2", which § 5.1 labelled in advance as not a round-4 plan's. |
+| CAP-02 MET only if both legs `success` | ubuntu `success`, windows `failure` | NOT MET, by one case. |
+
+**Row 260 (R3-1), what the run decided:** 33-37's anchor authority is green on the axis this host
+cannot reach. The reporter prints no per-test line for a passing file, so the reading is at file
+level: `✓ scripts/capture-live.test.ts (71 tests) 7655ms`, which is exactly the 71 cases § 5.1
+counted. On round 3's run the same file read `68 tests | 1 failed` with C7's `/C:/…` versus `C:/…`
+assertion. On `35913922871`, before 33-37, it read red again (I-1). The run does not print which
+branch of `editAnchor` C7 reached. Measured: the rule and the expectation agreed on a windows host.
+Not measured by any CI leg: whether the platform's live matcher accepts `Edit(//c/…/**)`. That stays
+`UNKNOWN - verify` in the `editAnchor` docblock. Row 260 is **not** disposed here. The plan disposes
+it only on a run whose legs are both green (§ 5.4).
+
+**Round-4 rebuilt modules, both legs** (the § 5.1 per-plan table, read from each leg's `✓` file
+lines, windows then ubuntu): `checkpoints` 432 / 432, `hooks/guard` 314 / 314, `floor-invariance`
+140 / 140 (33-35, 33-36, `947d02ab`'s 3 cases included). `context-io` 689 / 689,
+`context-io-writer-set` 195 / 195, `compactor` 215 / 215 (33-38). `capture-live` 71 / 71 (33-37,
+33-39). All green on both legs. **Every round-4 source plan is green on both legs.** 33-38's two
+FIFO-occupant cases printed their recorded skips on windows, as § 5.1 predicted:
+`SKIPPED shape="FIFO" position="scripts/context-io.test.ts: a FIFO at the promoteAdmitted
+destination note path (33-38 CONTROL 2e)" platform=win32: …` and `… a FIFO at admitAndAppend's
+gated destination (33-38)" platform=win32: …`.
+
+**Rows 226–236, their files on this run:** `scripts/context-io.test.ts` 689/689 (rows 226, 234,
+236), `scripts/runnable-ref/uat-spec-integrity.test.ts` 389/389 (rows 227, 230),
+`scripts/check-foundation-guards.test.ts` 300/300 (row 228),
+`scripts/check-public-docs-vocabulary.test.ts` 32/32 (row 229),
+`scripts/uat-gate-exit-contract.test.ts` 35/35 (rows 231, 232),
+`scripts/check-platform-shapes.test.ts` 27/27 (row 233), `scripts/freshness.test.ts` 13/13 (row
+235). Every file is green on both legs, for the third windows run in a row on rows 229–235.
+
+**Re-derived from the windows leg's own log** (`gh api
+repos/abitwise/grugops/actions/jobs/107752973059/logs`, BOM, ANSI and CR stripped, control bytes
+scanned before quoting: the section has none). The assertion text is as the log prints it. Labels
+are § 2.4's four.
+
+**Windows leg: 1 file, 1 case** (`35913922871`: 2 files, 2 cases; round 3: 1 file, 1 case):
+
+| # | Line | Case | Assertion text (from the log) | Label | Falsified mechanism |
+|--:|---|---|---|---|---|
+| R4-1 | `scripts/board-watch-live.test.ts:362:3` (`atomicEdit`, `renameSync(temp, board)`), called from `:671:11` | `board-dashboard live — the DEBOUNCE, over a burst of real writes (DASH-04)` › `coalesces 5 atomic-rename writes into FEWER documents, and at least one` (× in 1124ms) | `Error: EPERM: operation not permitted, rename 'C:\Users\RUNNER~1\AppData\Local\Temp\grugops-watch-live-8W7XJF\plans\board.md.tmp-2540-1790272758871-8' -> 'C:\Users\RUNNER~1\AppData\Local\Temp\grugops-watch-live-8W7XJF\plans\board.md'`, and `Serialized Error: { errno: -4048, code: 'EPERM', syscall: 'rename', … }` | **not addressed** against row 186's file (the same red as I-2 on `35913922871`, which no round-4 plan took), and **new as a mechanism**: the test's own writer is refused a rename over `board.md`. It is not a missed directory event. | **No round-4 plan's.** The test's import closure (`board-watch-live.test.ts`, `board-dashboard`, `board-model`, `board-read`, `kit-model`, `is-entry`, each module as `.ts` and committed `.js`) is byte-unchanged since `1af7e3f1` (`git diff --stat 1af7e3f1..e45202a1` over those 11 paths is empty), and run `35760655144` read the file green on windows at `1af7e3f1`. It falsifies the test's own premise that an atomic rename over a file the spawned dashboard is watching succeeds on win32. |
+
+**What the log does and does not say about R4-1:**
+
+- The other five cases of the file are green on windows-latest, each printed by the reporter
+  because the file failed: `emits a first parseable document …`, `keeps the event-path deadline
+  strictly below the poll period …`, `delivers an atomic-rename edit in less than one poll period,
+  and no faster than the debounce 1386ms`, `still brings a real edit onto the screen within the
+  poll period plus slack 2119ms`, and `publishes the failed directory's record, then DROPS it when
+  the next poll tick re-arms 2113ms`. Row 186's text says "three of its five cases depend on the
+  platform delivering directory events" and does not name them. This task does not assign that
+  label to particular cases. What the log shows: every case that waits for a document after a
+  single edit is green, and the red is a refused rename, not a missed or late document.
+- The single-rename cases pass. The burst case fails. It renames five times in a loop with no delay
+  between writes (`:668-671`). The failing rename is one of the burst's. The log does not print
+  which iteration.
+- **A correlation, measured, not a cause.** The windows runner image differs between the greens and
+  the reds. From each windows job log's `Runner Image` block: the four green windows runs
+  (`35394268365`, `35499800942`, `35579263776`, `35760655144`) ran `windows-2025-vs2026` version
+  `20260907.229.1`. Both red runs (`35913922871`, `36035067112`) ran version `20260922.246.2`. The
+  runner version (`2.337.0`) and node (`v22.23.2`) are the same on all six. With the test's code
+  byte-identical, that is the only difference this task found between the green and red windows
+  runs. Six runs do not establish a cause. Which handle held `board.md` at the instant of the
+  rename is **`UNKNOWN - verify`**. Candidates are the spawned dashboard's own read, a runner
+  indexer or antivirus scan on the new image, or something else. The log does not say.
+- What this does NOT affect: every safety surface (`hooks/guard`, `hooks/admission-guard`,
+  `checkpoints`, `floor-invariance`) and every round-4 module is green on both legs. The red is in
+  a test's fixture writer, on one platform, in the dashboard's debounce measurement.
+
+**The slowest test on each leg, D-14's bound, recorded:** windows `every gate-plantable corpus row
+moves the gate from exit 0 to exit 1, …` **71 784 ms** (round 3: 110 881 ms), then `GREEN 4: a
+directory tree as deep as this platform permits …` 70 029 ms. Ubuntu, the same corpus case, 40 188
+ms. The slowest case on the slower leg is 2.51× under the 180 000 ms `testTimeout`. Round 3's
+margin was 1.62×. The windows wall-clock fell from 2002.52 s to 1572.66 s. No test hit the bound.
+This is an observation, not a finding.
+
+**Round 4 is the last round under the phase's four-round cap. This is the cap-reached outcome, not
+a hand-off to a fifth round.** CAP-02 is NOT met after four gap-closure rounds. The windows leg went
+31 → 35 → 1 → 1 red over the four measured rounds (runs `35499800942`, `35579263776`,
+`35760655144`, `36035067112`). The ubuntu leg has been green end to end on the last three runs.
+The one remaining red is in a file whose code no round-4 plan changed. It is recorded as ledger row
+274 (§ 5.4) for the human's decision. D-14/D-16 forbid closing it with a
+platform conditional. Nothing was fixed and nothing was re-pushed inside this plan.
+
+**What this run did NOT do, by the plan's prohibitions:** no platform conditional was added,
+nothing was fixed, nothing was re-pushed, `npm test` was not run, and no WINDOWS.md row was
+flipped.
+
+### 5.4 Ledger changes made in this task, through the tool
+
+No row was flipped. One row was appended with the ledger tool, one per new class, and this round
+has one class. The three representations were checked to agree afterwards.
+
+```
+node ~/.claude/gsd-core/bin/gsd-tools.cjs windows append --kind unrun-verify --phase 33 --file scripts/board-watch-live.test.ts --line 362 --description "33-40 run 36035067112 (head e45202a1) windows: ONE red, ONE class, the only red of round 4's measurement - scripts/board-watch-live.test.ts, the DEBOUNCE describe (DASH-04), case 'coalesces 5 atomic-rename writes into FEWER documents, and at least one': Error: EPERM: operation not permitted, rename '<tmp>\\\\plans\\\\board.md.tmp-...' -> '<tmp>\\\\plans\\\\board.md' at atomicEdit (:362:3, renameSync(temp, board)) called from :671:11. The same case and the same EPERM on the prior run 35913922871 (head f92574a5, Part 5 I-2). […] Correlation, not cause: all four green windows runs (35394268365, 35499800942, 35579263776, 35760655144) ran runner image windows-2025-vs2026 20260907.229.1; both red runs ran 20260922.246.2. Which handle held board.md (the spawned dashboard's read, the runner indexer or antivirus, other) is UNKNOWN - verify. No platform conditional may close it (D-14/D-16). Round 4 was the last under the cap: this is the cap-reached finding, owned by whatever the human decides next"        # row 274
+node ~/.claude/gsd-core/bin/gsd-tools.cjs windows status
+```
+
+(The description is elided with `[…]` in this quote only. The full text is row 274 in
+`.planning/WINDOWS.md`.)
+
+`windows status` afterwards: `open_count: 239`, `waived_count: 3`, `fixed_count: 32`,
+`total_count: 274`, `entries` length 274 (by status: 239 open, 32 fixed, 3 waived). The markdown
+table has 274 id rows (`grep -a -c -E '^\| [0-9]+ \| ' .planning/WINDOWS.md` → 274), and the JSON
+appendix has 274 `"id":` entries. The three representations agree. `git diff --stat
+.planning/WINDOWS.md` → 17 insertions, 3 deletions: the frontmatter counters, the new table row and
+the new JSON entry. Every other row is byte-unchanged.
+
+**Per-row disposition on this run** (none flipped):
+
+| Row | File / class | This run's evidence | Disposition here |
+|---|---|---|---|
+| 186 | `scripts/board-watch-live.test.ts`, Windows `fs.watch` event delivery | five of the file's six cases green on windows. The file is red on windows through R4-1, a refused rename rather than a missed event | stays `open`. Its file is not green on this run, and the rule fixes it only on a both-legs-green run |
+| 193 | 32-35 WR-07, CI-topology half not taken | R4-1 is a watcher-file red in the shared step. D-16's revisit condition ("a Windows watcher red proves undiagnosable inside the shared step") is now under test, and this run does not settle it | stays `open` (the waive belongs to the green branch) |
+| 226–235 | the round-1 classes | every named file green on both legs (list in § 5.3) | stay `open` |
+| 236 | row-236 8.3 spelling class (33-24) | `✓ scripts/context-io.test.ts (689 tests)` on windows | stays `open` |
+| 260 | win32 spelling of the scoped `Edit(//ABS/**)` grant (33-37) | `✓ scripts/capture-live.test.ts (71 tests)` on windows. The C7 red of round 3 (R3-1) and of `35913922871` (I-1) is gone | stays `open` |
+| 274 | NEW, EPERM on the DEBOUNCE burst's own rename (R4-1) | the one windows red | appended `open` |
+
+**Counts:** 0 flipped, 0 waived, 1 appended (row 274). Of the 14 rows the plan's green branch names
+(186, 193, 226–236, 260), 12 have green file-level evidence on both legs on this run (226–236 and
+260). Row 186's file is red through R4-1, and row 193's waive depends on whether R4-1 proves
+diagnosable.
+
+**REQUIREMENTS.md:** the CAP-02 checkbox stays `[ ]`. The coverage-table row is updated to
+`Pending — NOT met: CI run 36035067112 …`, with this run's counts, `round 4 of 4 (last under the
+cap)`, and this part as the evidence. No other requirement row is touched.
+
+**No source file changed in this plan:** `git diff --stat
+fe30945f90011f68c7f8634467df902610ea0f88..HEAD -- scripts install hooks agent-factory .claude` is
+empty. The recorded `pre-push HEAD sha:` is `fe30945f`. HEAD is `e45202a1` plus this task's commit,
+which carries only `.planning/` files.
+
+### 5.5 Transcripts
+
+The executor's scratch directory for this session (`p40t3/`) holds the following. The two job logs
+(`gh api repos/abitwise/grugops/actions/jobs/107752973593/logs` for ubuntu,
+`…/107752973059/logs` for windows) as downloaded and as stripped (`*.clean.log`). The `run.json`
+file. The strip-and-scan script (`strip.cjs`). The three earlier windows job logs read for the
+runner-image comparison (`106857564452`, `107360460262`, plus `106268089020`, `106049412324` and
+`105759397857` read directly). Every number above is copied from those files. The per-file results
+are the reporter's `✓` / `❯` file lines. The failing case and its error are the windows `Failed
+Tests 1` section, quoted from the log's own lines.
