@@ -66,19 +66,41 @@ const GUARD_JS = join(import.meta.dirname, "guard.js");
  */
 const SPAWN_TIMEOUT_MS = 20_000;
 
+/**
+ * THE SYNCHRONOUS fd-3 CAPTURE (33.1-01, WR-04). Spawn a DIRECT decider with fd 3 opened as a pipe —
+ * the private allow channel `hooks/hook-entry.ts` opens — and report what the run actually did: exit
+ * status, terminating signal (a `spawnSync` timeout kills with SIGTERM and reports it here), stdout,
+ * stderr and the fd-3 bytes. Every synchronous spawner of a decider in this file is built on it, so
+ * every allow control can be PROVED by `expectAllowed` rather than inferred from an empty stdout.
+ */
+interface SyncRun {
+  readonly status: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly fd3: string;
+}
+function spawnDecider(artifact: string, input: string, env: NodeJS.ProcessEnv): SyncRun {
+  const r = spawnSync("node", [artifact], {
+    input,
+    encoding: "utf8",
+    env,
+    timeout: SPAWN_TIMEOUT_MS,
+    stdio: ["pipe", "pipe", "pipe", "pipe"],
+  });
+  return {
+    status: r.status,
+    signal: r.signal,
+    stdout: r.stdout ?? "",
+    stderr: r.stderr ?? "",
+    fd3: String(r.output?.[3] ?? ""),
+  };
+}
+
 // sh analog (guard.test.sh:30-36):  printf '%s' "$1" | env "$2" node "$GUARD"
 // The env-assignment 2nd arg becomes a Record merged onto process.env.
-function runGuard(
-  json: string,
-  env: Record<string, string> = {},
-): { status: number | null; stdout: string; stderr: string } {
-  const r = spawnSync("node", [GUARD_JS], {
-    input: json,
-    encoding: "utf8",
-    env: { ...process.env, ...env },
-    timeout: SPAWN_TIMEOUT_MS,
-  });
-  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+function runGuard(json: string, env: Record<string, string> = {}): SyncRun {
+  return spawnDecider(GUARD_JS, json, { ...process.env, ...env });
 }
 
 function expectDeny(json: string, env: Record<string, string> = {}): void {
@@ -86,9 +108,41 @@ function expectDeny(json: string, env: Record<string, string> = {}): void {
   expect(stdout).toContain('"permissionDecision":"deny"');
 }
 
-function expectAllow(json: string, env: Record<string, string> = {}): void {
-  const { stdout } = runGuard(json, env);
-  expect(stdout).not.toContain('"deny"');
+/**
+ * WHAT ONE HOOK SPAWN ACTUALLY DID (33.1-01, WR-04, WINDOWS.md row 306, D-05(a)).
+ *
+ * `runAll` used to resolve with stdout ALONE, and its timeout path kills with SIGKILL. A decider that
+ * crashed, or one that hung past the bound, therefore resolved `""` — and every allow control of the
+ * form "stdout carries no deny" passed on it. A crash read as an allow. The run now carries the exit
+ * code, the terminating signal and, on a DIRECT decider run, the bytes the decider wrote on fd 3 (its
+ * private allow channel), so an allow can be PROVED rather than inferred from silence.
+ *
+ * `fd3` is `null` for a run through `hooks/hook-entry.js`: the wrapper opens its decider's fd 3 itself
+ * and consumes the token there (`hooks/hook-entry.ts`, the "SILENCE IS NOT AN ALLOW" branch), so the
+ * wrapper's own exit 0 + empty stdout already IS that check. On a direct run fd 3 is opened as a pipe
+ * by the spawn below, so `fd3` is always a string there.
+ */
+interface HookRun {
+  readonly stdout: string;
+  readonly code: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly fd3: string | null;
+}
+
+/** The decider's allow token — the literal both deciders write on fd 3 and the wrapper compares. */
+const ALLOW_TOKEN = "grugops-hook-allow";
+
+/**
+ * THE ONE ALLOW PROOF (WR-04). It holds the wrapper's own bar, `hooks/hook-entry.ts`: a signal is not
+ * an allow, a non-zero exit is not an allow, and an empty stdout is an allow only when the decider
+ * ASSERTED it on fd 3. No weaker bar is invented here: a crash or a timeout fails every line below.
+ */
+function expectAllowed(r: HookRun | SyncRun, label = ""): void {
+  const code = "code" in r ? r.code : r.status;
+  expect(r.signal, `${label}: a run terminated by a signal is not an allow`).toBeNull();
+  expect(code, `${label}: a non-zero exit is not an allow`).toBe(0);
+  expect(r.stdout, `${label}: an allow writes nothing on stdout`).toBe("");
+  if (r.fd3 !== null) expect(r.fd3.trim(), `${label}: a direct decider run must ASSERT its allow on fd 3`).toBe(ALLOW_TOKEN);
 }
 
 // Build a PreToolUse payload for a given Bash command.
@@ -102,7 +156,7 @@ describe("guard.js (SAFE-02 prod-deploy guard) — parity oracle for guard.test.
   });
 
   it(`allow: matched deploy with human-set ${APPROVAL}`, () => {
-    expectAllow(payload("kubectl apply -f deploy.yaml"), { [APPROVAL]: "1" });
+    expectAllowed(runGuard(payload("kubectl apply -f deploy.yaml"), { [APPROVAL]: "1" }));
   });
 
   it(`refuse-self-set: inline export of ${APPROVAL} (denied even with the var in env)`, () => {
@@ -118,7 +172,7 @@ describe("guard.js (SAFE-02 prod-deploy guard) — parity oracle for guard.test.
   });
 
   it("allow: non-deploy command (ls)", () => {
-    expectAllow(payload("ls -la"));
+    expectAllowed(runGuard(payload("ls -la")));
   });
 
   // ── Default deploy-pattern set coverage (deny absent approval) ────────────────
@@ -185,19 +239,19 @@ describe("guard.js (SAFE-02 prod-deploy guard) — parity oracle for guard.test.
 
   // ── WR-02: benign reads that merely MENTION "deploy" must ALLOW (4) ───────────
   it("allow: aws s3 ls + path component named deploy (not a deploy)", () => {
-    expectAllow(payload("aws s3 ls && cat ./deploy/notes.txt"));
+    expectAllowed(runGuard(payload("aws s3 ls && cat ./deploy/notes.txt")));
   });
 
   it("allow: gcloud config list with deploy in a comment", () => {
-    expectAllow(payload("gcloud config list # see deploy docs"));
+    expectAllowed(runGuard(payload("gcloud config list # see deploy docs")));
   });
 
   it("allow: git push to a feature branch (not protected, not forced)", () => {
-    expectAllow(payload("git push origin feature/my-branch"));
+    expectAllowed(runGuard(payload("git push origin feature/my-branch")));
   });
 
   it("allow: kubectl get (read-only)", () => {
-    expectAllow(payload("kubectl get pods"));
+    expectAllowed(runGuard(payload("kubectl get pods")));
   });
 
   // ── Fail-closed: malformed / empty stdin never crash-allows (2) ───────────────
@@ -277,19 +331,14 @@ function runAt(
   projectDir: string,
   json: string,
   extra: Record<string, string> = {},
-): { status: number | null; stdout: string; stderr: string; reason: string } {
+): SyncRun & { reason: string } {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (k.startsWith("GRUGOPS_") || v === undefined) continue;
     env[k] = v;
   }
-  const r = spawnSync("node", [GUARD_JS], {
-    input: json,
-    encoding: "utf8",
-    env: { ...env, CLAUDE_PROJECT_DIR: projectDir, ...extra },
-    timeout: SPAWN_TIMEOUT_MS,
-  });
-  const stdout = r.stdout ?? "";
+  const r = spawnDecider(GUARD_JS, json, { ...env, CLAUDE_PROJECT_DIR: projectDir, ...extra });
+  const stdout = r.stdout;
   let reason = "";
   try {
     reason =
@@ -298,7 +347,7 @@ function runAt(
   } catch {
     reason = "";
   }
-  return { status: r.status, stdout, stderr: r.stderr ?? "", reason };
+  return { ...r, reason };
 }
 
 const LOWERED_OFF = '{"checkpoints":{"protected_branch_merge":"off"}}';
@@ -414,9 +463,9 @@ describe("guard.js — AUTO-03 the agent may never set its own floor grant (D-09
     // Over-broad refusals train users to disable the guard. Reading, printing or grepping the name
     // is not an attempt to set it.
     const root = projectWithConfig(LOWERED_OFF);
-    expect(runAt(root, payload(`echo ${FLOOR_VAR}`)).stdout).not.toContain("deny");
-    expect(runAt(root, payload(`grep -r ${FLOOR_VAR} docs/`)).stdout).not.toContain("deny");
-    expect(runAt(root, payload(`echo "$${FLOOR_VAR}"`)).stdout).not.toContain("deny");
+    expectAllowed(runAt(root, payload(`echo ${FLOOR_VAR}`)));
+    expectAllowed(runAt(root, payload(`grep -r ${FLOOR_VAR} docs/`)));
+    expectAllowed(runAt(root, payload(`echo "$${FLOOR_VAR}"`)));
   });
 });
 
@@ -514,7 +563,7 @@ describe("guard.js — D-11 the notify tier allows, RECORDS and announces", () =
   it("`off` WITH the grant allows SILENTLY: zero notes, because `off` is what a human chose to hear nothing", () => {
     const root = projectWithConfig(LOWERED_OFF);
     const { run: r, added } = runWithTrace(root, PUSH, { [FLOOR_VAR]: "a-named-human" });
-    expect(r.stdout).toBe("");
+    expectAllowed(r);
     expect(added, `\`off\` must write nothing, got ${added.length} note(s)`).toHaveLength(0);
   });
 
@@ -528,7 +577,7 @@ describe("guard.js — D-11 the notify tier allows, RECORDS and announces", () =
   it("an ALLOWED non-matching command writes no note (only a matched checkpoint is recorded)", () => {
     const root = projectWithConfig(LOWERED_NOTIFY);
     const { run: r, added } = runWithTrace(root, payload("ls -la"), { [FLOOR_VAR]: "someone" });
-    expect(r.stdout).toBe("");
+    expectAllowed(r);
     expect(added).toHaveLength(0);
   });
 
@@ -663,7 +712,7 @@ describe("guard.js — D-19 exactly one banner, and it agrees with the decision"
     expect(banner).toBe(
       `checkpoints not at default: protected_branch_merge=notify authorized by ${FLOOR_VAR}=a-named-human`,
     );
-    expect(r.stdout).toBe("");
+    expectAllowed(r);
   });
 
   it("the agreement check's own premise: the two signals are read from ONE spawn", () => {
@@ -695,7 +744,7 @@ describe("guard.js — the RESIDUAL this phase discloses rather than closes (RES
   // are plan 30-09's; they narrow the vector and do not close it.
   it("KNOWN RESIDUAL: an env-supplied grant is indistinguishable from a human export", () => {
     const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: "provenance-unknown" });
-    expect(r.stdout).toBe(""); // allowed
+    expectAllowed(r); // allowed
     expect(r.stderr).toContain(`authorized by ${FLOOR_VAR}=provenance-unknown`);
     // The honest reading: the guard reports WHO the grant names, never WHERE it came from.
     expect(r.stderr).not.toContain("human-verified");
@@ -817,8 +866,8 @@ describe("30-11 A-1 — the self-set refusal covers the WHOLE grant vocabulary, 
   });
 
   it("a name that merely LOOKS like a grant is not refused (the refusal is not a prefix sweep)", () => {
-    expect(runGuard(payload("GRUGOPS_UNRELATED=1 ls")).stdout).not.toContain("deny");
-    expect(runGuard(payload("MY_GRUGOPS_FLOOR_OPEN_PR=1 ls")).stdout).not.toContain("deny");
+    expectAllowed(runGuard(payload("GRUGOPS_UNRELATED=1 ls")));
+    expectAllowed(runGuard(payload("MY_GRUGOPS_FLOOR_OPEN_PR=1 ls")));
   });
 
   it("neither hook SOURCE spells a grant name as a string literal (the drift guard)", () => {
@@ -922,7 +971,7 @@ describe("30-11 A-3 — the record states the outcome the run REACHED", () => {
   it("an unauthorized lowering that the ACTION approval then allowed records ALLOWED, not REFUSED", () => {
     const root = projectWithConfig(LOWERED_OFF);
     const r = runAt(root, PUSH, { [APPROVAL]: "a-named-human" });
-    expect(r.stdout).toBe(""); // the action was allowed
+    expectAllowed(r); // the action was allowed
     const notes = noteBodies(root);
     expect(notes.length).toBe(1);
     expect(notes[0]).toContain("CHECKPOINT ALLOWED");
@@ -970,7 +1019,7 @@ describe("30-11 A-4 — a grant that names nobody is not a grant", () => {
 
   it("a real name still authorizes, and the published name is the trimmed name (non-vacuous)", () => {
     const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: "  Olger Oeselg  " });
-    expect(r.stdout).toBe("");
+    expectAllowed(r);
     expect(r.stderr).toContain(`authorized by ${FLOOR_VAR}=Olger Oeselg`);
   });
 
@@ -1098,7 +1147,7 @@ describe("30-11 RA1-1 — one global flag no longer defeats every deploy pattern
     "sh -c 'ls -la'",
   ]) {
     it(`still allows: ${cmd}`, () => {
-      expectAllow(payload(cmd));
+      expectAllowed(runGuard(payload(cmd)));
     });
   }
 
@@ -1106,8 +1155,8 @@ describe("30-11 RA1-1 — one global flag no longer defeats every deploy pattern
     // Design rule 2 names this case by hand: a benign read-only command that merely mentions
     // "deploy" in a comment must not be denied. Collecting every non-flag word picked `deploy` out
     // of the comment until the tokenizer learned to strip them.
-    expectAllow(payload("gcloud config list # see deploy docs"));
-    expectAllow(payload("helm list # upgrade later"));
+    expectAllowed(runGuard(payload("gcloud config list # see deploy docs")));
+    expectAllowed(runGuard(payload("helm list # upgrade later")));
   });
 
   it("a nested shell does not launder a bypass, and does not deny a benign nested command", () => {
@@ -1115,8 +1164,8 @@ describe("30-11 RA1-1 — one global flag no longer defeats every deploy pattern
     expectDeny(payload("bash -c 'git -C /r push origin main'"));
     expectDeny(payload('bash -lc "terraform -chdir=p apply"'));
     expectDeny(payload("sh -c \"sh -c 'kubectl -n p apply'\""));
-    expectAllow(payload('sh -c "ls -la"'));
-    expectAllow(payload("bash -c 'git push origin feature/x'"));
+    expectAllowed(runGuard(payload('sh -c "ls -la"')));
+    expectAllowed(runGuard(payload("bash -c 'git push origin feature/x'")));
   });
 
   it("text outside the grammar is fail-CLOSED on the TOOL NAME ALONE (round 3, RA3-4)", () => {
@@ -1132,7 +1181,7 @@ describe("30-11 RA1-1 — one global flag no longer defeats every deploy pattern
     expectDeny(payload('git commit -m "say \\"hi\\" now"'));
     // …and a segment with no governed tool named is still not denied, which is what keeps the
     // fail-closed scan from being a blanket refusal.
-    expectAllow(payload('echo "a \\"b\\""'));
+    expectAllowed(runGuard(payload('echo "a \\"b\\""')));
   });
 });
 
@@ -1146,8 +1195,8 @@ describe("30-11 RA1-3 — a git push that does not name a branch is governed", (
   }
 
   it("naming a non-protected branch is NOT denied — the escape the refusal advertises", () => {
-    expectAllow(payload("git push origin feature/x"));
-    expectAllow(payload("git push -u origin feature/my-work"));
+    expectAllowed(runGuard(payload("git push origin feature/x")));
+    expectAllowed(runGuard(payload("git push -u origin feature/my-work")));
   });
 
   it("the refusal NAMES the escape, so the fix costs a word rather than a disabled guard", () => {
@@ -1169,7 +1218,7 @@ describe("30-11 RA1-4 — protected_branch_merge governs merge forms that name t
   });
 
   it("git update-ref against a NON-protected ref is not denied (it names its target)", () => {
-    expectAllow(payload("git update-ref refs/heads/feature-x abc123"));
+    expectAllowed(runGuard(payload("git update-ref refs/heads/feature-x abc123")));
   });
 
   it("RECORDED RESIDUAL, asserted so it cannot be mistaken for coverage: `git merge` is NOT matched", () => {
@@ -1178,8 +1227,8 @@ describe("30-11 RA1-4 — protected_branch_merge governs merge forms that name t
     // target is always the current branch — so denying the ambiguous form would deny the operation
     // entirely. This case pins the residual so a future reader meets it as a decision rather than as
     // an oversight, and so that closing it later is a deliberate change with a red test.
-    expectAllow(payload("git merge feature"));
-    expectAllow(payload("git checkout main && git merge feature"));
+    expectAllowed(runGuard(payload("git merge feature")));
+    expectAllowed(runGuard(payload("git checkout main && git merge feature")));
   });
 });
 
@@ -1197,8 +1246,8 @@ describe("30-11 RA1-5 — the assignment operator set is `=` and `+=`", () => {
   }
 
   it("a lookalike is still not refused (the operator widening did not widen the NAME set)", () => {
-    expectAllow(payload("MY_GRUGOPS_FLOOR_OPEN_PR+=1 ls"));
-    expectAllow(payload("GRUGOPS_UNRELATED+=1 ls"));
+    expectAllowed(runGuard(payload("MY_GRUGOPS_FLOOR_OPEN_PR+=1 ls")));
+    expectAllowed(runGuard(payload("GRUGOPS_UNRELATED+=1 ls")));
   });
 });
 
@@ -1286,7 +1335,7 @@ describe("30-11 RA1-2 — the process has no exit that decides nothing", () => {
     // The config IS read: it declares a lowering, so the banner reports it rather than `all default`.
     const r = runAt(root, PUSH, { [FLOOR_VAR]: "a-named-human" });
     expect(r.stderr).toContain("protected_branch_merge=off");
-    expect(r.stdout).toBe("");
+    expectAllowed(r);
   });
 
   for (const [label, body] of [
@@ -1359,9 +1408,9 @@ describe("30-11 RA3-1 — a word this model cannot READ is refused, not read", (
   });
 
   it("the `--flag='value'` shape is NOT splicing and is not refused", () => {
-    expectAllow(payload("git log --grep='push origin main'"));
-    expectAllow(payload("gh pr create --body='do not push to main'"));
-    expectAllow(payload("git commit -m'wip'"));
+    expectAllowed(runGuard(payload("git log --grep='push origin main'")));
+    expectAllowed(runGuard(payload("gh pr create --body='do not push to main'")));
+    expectAllowed(runGuard(payload("git commit -m'wip'")));
   });
 });
 
@@ -1420,8 +1469,8 @@ describe("30-11 RA3-4 — untokenizable is a STATE, decided on the tool name alo
   }
 
   it("an ordinary substitution with NO governed tool named is not denied", () => {
-    expectAllow(payload('echo "$(date)"'));
-    expectAllow(payload("ls $(pwd)"));
+    expectAllowed(runGuard(payload('echo "$(date)"')));
+    expectAllowed(runGuard(payload("ls $(pwd)")));
   });
 });
 
@@ -1453,7 +1502,7 @@ describe("30-11 round 3 — the five NEW false denials reviewer 3 measured are g
     "git commit -m 'chore: update-ref refs/heads/main docs'",
   ]) {
     it(`allows: ${cmd}`, () => {
-      expectAllow(payload(cmd));
+      expectAllowed(runGuard(payload(cmd)));
     });
   }
 
@@ -1568,7 +1617,7 @@ describe("30-11 RA4-4 — the grant VALUE cannot forge a second banner line", ()
     const r = runAt(projectWithConfig(LOWERED_OFF), PUSH, { [FLOOR_VAR]: "Olger Oeselg" });
     expect(bannerLines(r).length).toBe(1);
     expect(r.stderr).toContain(`authorized by ${FLOOR_VAR}=Olger Oeselg`);
-    expect(r.stdout).toBe(""); // the lowering still takes effect
+    expectAllowed(r); // the lowering still takes effect
   });
 });
 
@@ -2304,14 +2353,13 @@ describe("33-27 G7 — the fifteen § 2 commands replayed on stdin against the c
   // The diagnosis's replay shape: a PreToolUse / Bash payload on stdin, no GRUGOPS_ variable in the environment.
   const diagnosisPayload = (command: string): string =>
     JSON.stringify({ tool_name: "Bash", tool_input: { command }, hook_event_name: "PreToolUse", cwd: "." });
-  function replay(command: string): { status: number | null; stdout: string } {
+  function replay(command: string): SyncRun {
     const env: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) {
       if (k.startsWith("GRUGOPS_") || v === undefined) continue;
       env[k] = v;
     }
-    const r = spawnSync("node", [GUARD_JS], { input: diagnosisPayload(command), encoding: "utf8", env, timeout: SPAWN_TIMEOUT_MS });
-    return { status: r.status, stdout: r.stdout ?? "" };
+    return spawnDecider(GUARD_JS, diagnosisPayload(command), env);
   }
 
   it("the partition sums to fifteen and names each of the fifteen once", () => {
@@ -2354,11 +2402,11 @@ describe("33-27 G7 — the fifteen § 2 commands replayed on stdin against the c
   });
 
   it("the diagnosis's six-line table, replayed: the two redirection rows now allow, the rest are unchanged", () => {
-    expect(replay("git log --oneline -5").stdout).not.toContain("permissionDecision");
-    expect(replay("git log --oneline -5 2>&1").stdout).not.toContain("permissionDecision");
-    expect(replay('echo "npm run lint"').stdout).not.toContain("permissionDecision");
+    expectAllowed(replay("git log --oneline -5"), "git log --oneline -5");
+    expectAllowed(replay("git log --oneline -5 2>&1"), "git log --oneline -5 2>&1");
+    expectAllowed(replay('echo "npm run lint"'), 'echo "npm run lint"');
     expect(replay('echo "npm run $s"').stdout).toContain('"permissionDecision":"deny"');
-    expect(replay("cat AGENTS.md 2>&1").stdout).not.toContain("permissionDecision");
+    expectAllowed(replay("cat AGENTS.md 2>&1"), "cat AGENTS.md 2>&1");
     expect(replay("helm upgrade fake ./nope").stdout).toContain('"permissionDecision":"deny"');
   });
 });
@@ -2378,42 +2426,6 @@ const bare = (): Record<string, string> => {
 };
 const reviewPayload = (command: string): string =>
   JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command }, cwd: "/tmp" });
-
-/**
- * WHAT ONE HOOK SPAWN ACTUALLY DID (33.1-01, WR-04, WINDOWS.md row 306, D-05(a)).
- *
- * `runAll` used to resolve with stdout ALONE, and its timeout path kills with SIGKILL. A decider that
- * crashed, or one that hung past the bound, therefore resolved `""` — and every allow control of the
- * form "stdout carries no deny" passed on it. A crash read as an allow. The run now carries the exit
- * code, the terminating signal and, on a DIRECT decider run, the bytes the decider wrote on fd 3 (its
- * private allow channel), so an allow can be PROVED rather than inferred from silence.
- *
- * `fd3` is `null` for a run through `hooks/hook-entry.js`: the wrapper opens its decider's fd 3 itself
- * and consumes the token there (`hooks/hook-entry.ts`, the "SILENCE IS NOT AN ALLOW" branch), so the
- * wrapper's own exit 0 + empty stdout already IS that check. On a direct run fd 3 is opened as a pipe
- * by the spawn below, so `fd3` is always a string there.
- */
-interface HookRun {
-  readonly stdout: string;
-  readonly code: number | null;
-  readonly signal: NodeJS.Signals | null;
-  readonly fd3: string | null;
-}
-
-/** The decider's allow token — the literal both deciders write on fd 3 and the wrapper compares. */
-const ALLOW_TOKEN = "grugops-hook-allow";
-
-/**
- * THE ONE ALLOW PROOF (WR-04). It holds the wrapper's own bar, `hooks/hook-entry.ts`: a signal is not
- * an allow, a non-zero exit is not an allow, and an empty stdout is an allow only when the decider
- * ASSERTED it on fd 3. No weaker bar is invented here: a crash or a timeout fails every line below.
- */
-function expectAllowed(r: HookRun, label = ""): void {
-  expect(r.signal, `${label}: a run terminated by a signal is not an allow`).toBeNull();
-  expect(r.code, `${label}: a non-zero exit is not an allow`).toBe(0);
-  expect(r.stdout, `${label}: an allow writes nothing on stdout`).toBe("");
-  if (r.fd3 !== null) expect(r.fd3.trim(), `${label}: a direct decider run must ASSERT its allow on fd 3`).toBe(ALLOW_TOKEN);
-}
 
 /**
  * Spawn many hook runs at once (bounded), each on its own stdin; resolve with each run's whole outcome.
@@ -2518,7 +2530,7 @@ describe("33-R3 CR-01 — a spliced TOOL word denies through the committed guard
       const allow = ["ls -la", "git status", "=git status", "ls src/*", 'echo "$(date)"', "git log --oneline -5 2>&1"];
       const outs = await runAll(argv, [...deny, ...allow]);
       deny.forEach((c, i) => expect(outs[i]!.stdout, c).toContain('"permissionDecision":"deny"'));
-      allow.forEach((c, i) => expect(outs[deny.length + i]!.stdout, c).not.toContain("permissionDecision"));
+      allow.forEach((c, i) => expectAllowed(outs[deny.length + i]!, c));
     }, 120_000);
   }
 });
@@ -2575,7 +2587,7 @@ describe("33-R4 CR-01 nested — a governed command quoted for a nested shell de
       expect(outs[0]!.stdout, tracer.command).toContain(DENY_DECISION);
       expect(outs[1]!.stdout, denyControls[0]!.command).toContain(DENY_DECISION);
       expect(outs[2]!.stdout, denyControls[1]!.command).toContain(DENY_DECISION);
-      expect(outs[3]!.stdout, allowControl.command).not.toContain("permissionDecision");
+      expectAllowed(outs[3]!, allowControl.command);
     }, 120_000);
   }
 });
@@ -2636,7 +2648,7 @@ describe("33-36 — an abbreviated publish and a governed tool under xargs deny 
       const deny = [prefixRow, ...xargsRows].map((r) => r.command);
       const outs = await runAll(argv, [...deny, ...allow]);
       deny.forEach((c, i) => expect(outs[i]!.stdout, c).toContain(DENY_DECISION));
-      allow.forEach((c, i) => expect(outs[deny.length + i]!.stdout, c).not.toContain("permissionDecision"));
+      allow.forEach((c, i) => expectAllowed(outs[deny.length + i]!, c));
     }, 120_000);
   }
 });
@@ -2698,11 +2710,103 @@ describe("33.1-01 tracer — a whitespace-free nested body denies through both e
       const root = stubbedKit(stub);
       const [direct] = await runAll([join(root, "hooks", "guard.js")], [allowControl.command]);
       const [wrapped] = await runAll([join(root, "hooks", "hook-entry.js"), "guard.js"], [allowControl.command]);
-      // The weakness, reproduced: the direct run is silent, and silence used to read as an allow.
-      expect(direct!.stdout).not.toContain("permissionDecision");
+      // The weakness, reproduced: the direct run is silent, and the retired stdout-only predicate
+      // ("no deny on stdout") reads that silence as an allow.
+      const stdoutOnlyBar = (r: HookRun): boolean => !r.stdout.includes('"deny"');
+      expect(stdoutOnlyBar(direct!), "WR-04: the retired bar passes a decider that never decided").toBe(true);
+      // PREMISE: the stub itself was reached — exit 3 for the crash, a kill signal for the hang — so the
+      // red below is the stub's, not a link error's or a manifest refusal's.
+      expect(stub.includes("reallyExit") ? direct!.code === 3 : direct!.signal !== null, "the stub was reached").toBe(true);
       expect(() => expectAllowed(direct!, "direct"), "a crash or a hang must fail the allow proof").toThrow();
       expect(() => expectAllowed(wrapped!, "wrapped"), "the wrapper's fail-closed deny must fail it").toThrow();
       expect(wrapped!.stdout).toContain(DENY_DECISION);
     }, 120_000);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33.1-01 Task 2 — WR-04 COMPLETENESS: every allow control in this file goes through the ONE allow
+// proof, the site set is DERIVED, and its count is asserted (derive the set, assert the count).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// THE DERIVATION, stated once (it is the same predicate the plan summary records as its grep):
+// a line is a STDOUT-ONLY ALLOW SITE when it matches `STDOUT_ONLY_ALLOW_RE` — a helper call of the
+// retired stdout-only kind, a `.not.toContain(...)` of a deny marker, or `stdout).toBe("")` — and no
+// exit-status, signal or code assertion sits on it or in the ten lines above it (such a site already
+// fails on a crash or a hang, and is left alone). Comment lines are not code. Before this plan the
+// predicate found 46 lines here (the helper's own assertion, its 25 call sites and 20 inline sites);
+// every one now calls `expectAllowed`, so the derivation over this file must come back EMPTY.
+const STDOUT_ONLY_ALLOW_RE =
+  /\.not\.toContain\((?:'"deny"'|"deny"|"permissionDecision"|DENY_DECISION)\)|stdout\)\.toBe\(""\)|\bexpectAllow\(/;
+const EXIT_PROVED_RE = /\b(?:status|signal|code)\b[^\n]*\.(?:toBe|toBeNull)\(/;
+const isCommentLine = (l: string): boolean => /^\s*(?:\/\/|\*|\/\*)/.test(l);
+function unroutedAllowSites(src: string): string[] {
+  const lines = src.split("\n");
+  const out: string[] = [];
+  lines.forEach((l, i) => {
+    if (isCommentLine(l) || !STDOUT_ONLY_ALLOW_RE.test(l)) return;
+    if (lines.slice(Math.max(0, i - 10), i + 1).some((x) => EXIT_PROVED_RE.test(x))) return;
+    out.push(`${i + 1}: ${l.trim()}`);
+  });
+  return out;
+}
+/** Call sites of the one allow proof (its own declaration excluded). */
+const allowProofCalls = (src: string): number =>
+  src.split("\n").filter((l) => !isCommentLine(l) && !/\bfunction expectAllowed\(/.test(l))
+    .reduce((n, l) => n + (l.match(/\bexpectAllowed\(/g) ?? []).length, 0);
+
+describe("33.1-01 WR-04 — every allow control is routed through the one allow proof, and the set is derived", () => {
+  const SELF = readFileSync(join(import.meta.dirname, "guard.test.ts"), "utf8");
+
+  it("the derivation is not vacuous: it flags every retired shape and passes an exit-proved site", () => {
+    // The samples spell `(` and `)` as `\u0028` / `\u0029` so that THIS file's own source does not
+    // carry the retired shapes it tests for (the derivation below scans this file); at run time each
+    // sample is the retired shape byte for byte.
+    for (const shape of [
+      'expect(r.stdout\u0029.toBe(""\u0029;',
+      'expect(runGuard(payload("ls"\u0029).stdout).not.toContain\u0028"deny"\u0029;',
+      'expect(outs[0]!.stdout, c).not.toContain\u0028"permissionDecision"\u0029;',
+      "  expect(stdout).not.toContain\u0028'\"deny\"'\u0029;",
+    ]) {
+      expect(unroutedAllowSites(shape), shape).toHaveLength(1);
+    }
+    expect(unroutedAllowSites('expect(r.status).toBe(0);\nexpect(r.stdout).toBe("");')).toEqual([]);
+  });
+
+  it("the derivation over this file is EMPTY: no allow control is left on the stdout-only bar", () => {
+    expect(unroutedAllowSites(SELF)).toEqual([]);
+  });
+
+  it("the allow proof's call-site count is pinned (a new allow control moves this number on purpose)", () => {
+    // 46 derived sites collapse to 45 calls (the retired helper's own assertion is not a call site:
+    // 25 helper call sites + 20 inline sites), plus the tracer's allow control and its two mutation
+    // rows (3), plus the synchronous control and the looped synchronous stub row below (2). A site
+    // deleted rather than routed makes this number fall.
+    expect(allowProofCalls(SELF)).toBe(45 + 3 + 2);
+  });
+
+  // THE SYNCHRONOUS PATH, MUTATION-PROVED. Every `runGuard`/`runAt`/`replay` site is a `spawnDecider`
+  // run; a decider that crashes or hangs must fail `expectAllowed` there too — `spawnSync`'s timeout
+  // reports SIGTERM, a crash reports its status.
+  const stubbedDirect = (stub: string | null): string => {
+    const root = mirrorKit("hooks/guard.js");
+    if (stub !== null) writeFileSync(join(root, "scripts", "checkpoints.js"), stub);
+    return join(root, "hooks", "guard.js");
+  };
+  it("CONTROL: an untouched direct run is a proved allow (exit 0, no signal, empty stdout, fd-3 token)", () => {
+    const r = spawnDecider(stubbedDirect(null), payload("ls -la"), bare());
+    expectAllowed(r, "control");
+    expect(r.fd3).toBe(ALLOW_TOKEN);
+  });
+  for (const [stubLabel, stub] of [
+    ["a CRASH (exit 3, no stdout)", "process.reallyExit(3);\n"],
+    ["a HANG past the spawn bound", "while(true){}\n"],
+  ] as const) {
+    it(`a decider that is ${stubLabel} fails the allow proof on the synchronous path`, () => {
+      const r = spawnDecider(stubbedDirect(stub), payload("ls -la"), bare());
+      expect(r.stdout, "silent — the retired bar would have read this as an allow").toBe("");
+      expect(stub.includes("reallyExit") ? r.status === 3 : r.signal !== null, "the stub was reached").toBe(true);
+      expect(() => expectAllowed(r, stubLabel)).toThrow();
+    }, 60_000);
   }
 });

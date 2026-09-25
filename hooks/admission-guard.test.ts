@@ -29,11 +29,12 @@
 
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { copyFileSync, mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { skipLine, stageShapeOrSkip } from "../scripts/check-platform-shapes.js";
+import { closureTargets } from "../scripts/js-import-closure.js";
 
 // The COMMITTED checkpoints artifact — the same module the spawned hook imports its grant name from.
 const cp: typeof import("../scripts/checkpoints.js") = await import(
@@ -45,10 +46,32 @@ const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
 // Targets the COMMITTED admission-guard.js (the artifact the host hook runs), never the .ts.
 const GUARD_JS = join(import.meta.dirname, "admission-guard.js");
 
-function runGuard(
-  payload: string,
-  env: Record<string, string> = {},
-): { status: number | null; stdout: string; stderr: string } {
+/**
+ * What one DIRECT decider run actually did (33.1-01, WR-04, WINDOWS.md row 306): exit status, the
+ * terminating signal (a `spawnSync` timeout kills with SIGTERM and reports it here), stdout, stderr and
+ * the bytes on fd 3 — the private allow channel `hooks/hook-entry.ts` opens, opened here as a pipe too.
+ * Restated from `hooks/guard.test.ts` rather than imported: a test file that imports another registers
+ * that file's cases twice.
+ */
+interface SyncRun {
+  readonly status: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly fd3: string;
+}
+function spawnDecider(artifact: string, input: string, env: NodeJS.ProcessEnv): SyncRun {
+  const r = spawnSync("node", [artifact], {
+    timeout: 20_000, // a hang must redden this case, not stop the suite (round 2, RA1-2)
+    input,
+    encoding: "utf8",
+    env,
+    stdio: ["pipe", "pipe", "pipe", "pipe"],
+  });
+  return { status: r.status, signal: r.signal, stdout: r.stdout ?? "", stderr: r.stderr ?? "", fd3: String(r.output?.[3] ?? "") };
+}
+
+function runGuard(payload: string, env: Record<string, string> = {}): SyncRun {
   // Build a clean env: never inherit a stray GRUGOPS_ADMISSION_APPROVED_BY from the caller's shell, or
   // the deny cases would silently pass for the wrong reason. Strip it, then apply per-case overrides.
   const baseEnv: Record<string, string> = {};
@@ -56,13 +79,7 @@ function runGuard(
     if (k === APPROVAL) continue;
     if (v !== undefined) baseEnv[k] = v;
   }
-  const r = spawnSync("node", [GUARD_JS], {
-    timeout: 20_000, // a hang must redden this case, not stop the suite (round 2, RA1-2)
-    input: payload,
-    encoding: "utf8",
-    env: { ...baseEnv, ...env },
-  });
-  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  return spawnDecider(GUARD_JS, payload, { ...baseEnv, ...env });
 }
 
 function expectDeny(payload: string, env: Record<string, string> = {}): void {
@@ -70,9 +87,20 @@ function expectDeny(payload: string, env: Record<string, string> = {}): void {
   expect(stdout).toContain('"permissionDecision":"deny"');
 }
 
-function expectAllow(payload: string, env: Record<string, string> = {}): void {
-  const { stdout } = runGuard(payload, env);
-  expect(stdout).not.toContain('"deny"');
+/** The decider's allow token — the literal the admission guard writes on fd 3 and the wrapper compares. */
+const ALLOW_TOKEN = "grugops-hook-allow";
+
+/**
+ * THE ONE ALLOW PROOF (WR-04), restated from `hooks/guard.test.ts`. It holds the wrapper's own bar
+ * (`hooks/hook-entry.ts`): a signal is not an allow, a non-zero exit is not an allow, and an empty stdout
+ * is an allow only when the decider ASSERTED it on fd 3. The retired helper checked stdout alone, so a
+ * crash or a timeout — both silent — read as an allow.
+ */
+function expectAllowed(r: SyncRun, label = ""): void {
+  expect(r.signal, `${label}: a run terminated by a signal is not an allow`).toBeNull();
+  expect(r.status, `${label}: a non-zero exit is not an allow`).toBe(0);
+  expect(r.stdout, `${label}: an allow writes nothing on stdout`).toBe("");
+  expect(r.fd3.trim(), `${label}: a direct decider run must ASSERT its allow on fd 3`).toBe(ALLOW_TOKEN);
 }
 
 // Build a STRUCTURED PreToolUse payload for a grugops admission tool call. The note's provenance fields
@@ -153,35 +181,35 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
 
   // ── 2. Clean direction (ALLOW) — the per-call positive + the not-gated cases ──────────────────────
   it("allow: high-severity finding with env=alice AND verified_by=human:alice (per-call stamp-binding, the GREEN positive)", () => {
-    expectAllow(payload({ ...HIGH, verified_by: "human:alice" }), {
+    expectAllowed(runGuard(payload({ ...HIGH, verified_by: "human:alice" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
       [APPROVAL]: "alice",
-    });
+    }));
   });
 
   it("allow: routine finding (by: software-engineer) under high-severity is not gated", () => {
-    expectAllow(payload({ ...ROUTINE, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }) });
+    expectAllowed(runGuard(payload({ ...ROUTINE, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }) }));
   });
 
   it("allow: routine finding under `all` WITH env=alice AND human:alice", () => {
-    expectAllow(payload({ ...ROUTINE, verified_by: "human:alice" }), {
+    expectAllowed(runGuard(payload({ ...ROUTINE, verified_by: "human:alice" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "all" }),
       [APPROVAL]: "alice",
-    });
+    }));
   });
 
   it("allow: high-severity finding under `off` (lean default, no human stop)", () => {
-    expectAllow(payload({ ...HIGH, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "off" }) });
+    expectAllowed(runGuard(payload({ ...HIGH, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "off" }) }));
   });
 
   it("allow: high-severity finding when config is genuinely absent (defaults to off)", () => {
-    expectAllow(payload({ ...HIGH, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ absent: true }) });
+    expectAllowed(runGuard(payload({ ...HIGH, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ absent: true }) }));
   });
 
   it("allow: a soft kind (observation) under `all` with NO env (soft kinds carry no stamp, D-08)", () => {
-    expectAllow(payload({ by: "security-nfr", kind: "observation", verified_by: "" }), {
+    expectAllowed(runGuard(payload({ by: "security-nfr", kind: "observation", verified_by: "" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "all" }),
-    });
+    }));
   });
 
   // ── 3. SC3 floor carried to the structured channel — every dial value gate-or-stricter ────────────
@@ -192,7 +220,7 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
   }
 
   it("allow: canonical `off` still allows a high-severity finding (the only off-equivalent value)", () => {
-    expectAllow(payload({ ...HIGH, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "off" }) });
+    expectAllowed(runGuard(payload({ ...HIGH, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "off" }) }));
   });
 
   for (const raw of ["true", "1", "null", '["all"]', "{}"]) {
@@ -206,7 +234,7 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
   });
 
   it("allow: a genuinely ABSENT config allows a routine finding (zero-config lean preserved, SC2)", () => {
-    expectAllow(payload({ ...ROUTINE, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ absent: true }) });
+    expectAllowed(runGuard(payload({ ...ROUTINE, verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ absent: true }) }));
   });
 
   // ── 4. W1 NON-VACUOUS adversarial sweep — exact near-miss code points classify high-severity ──────
@@ -237,9 +265,9 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
   // Sanity: a genuinely routine role under high-severity is NOT over-classified (the W1 sweep is not
   // gating everything — it specifically folds the high-severity literals).
   it("allow (W1 control): a routine role with a trailing nbsp under high-severity is NOT gated", () => {
-    expectAllow(payload({ by: `software-engineer${NBSP}`, kind: "finding", verified_by: "" }), {
+    expectAllowed(runGuard(payload({ by: `software-engineer${NBSP}`, kind: "finding", verified_by: "" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
-    });
+    }));
   });
 
   // ── 5. Fail-closed on missing/wrong/malformed structured args ─────────────────────────────────────
@@ -268,7 +296,7 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
   });
 
   it("allow: a note with NO `kind` under `off` is lean (nothing to gate)", () => {
-    expectAllow(payload({ by: "security-nfr", verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "off" }) });
+    expectAllowed(runGuard(payload({ by: "security-nfr", verified_by: "" }), { CLAUDE_PROJECT_DIR: makeProject({ dial: "off" }) }));
   });
 
   it("deny: malformed payload does not crash (exit 0, deny JSON, no error)", () => {
@@ -297,10 +325,10 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
       });
     });
     it(`allow (W3): renamed admission tool ${toolName} with env=alice + human:alice ALLOWS`, () => {
-      expectAllow(payload({ ...HIGH, verified_by: "human:alice" }, toolName), {
+      expectAllowed(runGuard(payload({ ...HIGH, verified_by: "human:alice" }, toolName), {
         CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
         [APPROVAL]: "alice",
-      });
+      }));
     });
   }
 
@@ -338,26 +366,26 @@ describe("admission-guard.js (GOV-01 per-call structured gate) — child-spawn d
 
   // No over-block: a padded SOFT kind stays not-gated (the normalization does not over-gate soft kinds).
   it("allow (GAP-R7-1 Lever-1 control): a padded soft kind (observation ) under `all` is NOT gated", () => {
-    expectAllow(payload({ by: "security-nfr", kind: "observation ", verified_by: "" }), {
+    expectAllowed(runGuard(payload({ by: "security-nfr", kind: "observation ", verified_by: "" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "all" }),
-    });
+    }));
   });
 
   // No over-block: a padded routine finding under high-severity stays not-gated (kind normalizes to a
   // finding, but the routine `by` keeps it non-high-severity → ALLOW).
   it("allow (GAP-R7-1 Lever-1 control): a padded routine finding under high-severity is NOT gated", () => {
-    expectAllow(payload({ by: "software-engineer", kind: "finding ", verified_by: "§14-gate#x" }), {
+    expectAllowed(runGuard(payload({ by: "software-engineer", kind: "finding ", verified_by: "§14-gate#x" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
-    });
+    }));
   });
 
   // The combined-lever GREEN positive at the hook tier: a padded kind + a real human env+stamp ALLOWS
   // (the normalization gates it, then the per-call env+stamp authorizes it).
   it("allow (GAP-R7-1 Lever-1 positive): padded kind + env=alice + human:alice ALLOWS", () => {
-    expectAllow(payload({ by: "security-nfr", kind: "finding ", verified_by: "human:alice" }), {
+    expectAllowed(runGuard(payload({ by: "security-nfr", kind: "finding ", verified_by: "human:alice" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
       [APPROVAL]: "alice",
-    });
+    }));
   });
 
   // ── 7. Cleanup ────────────────────────────────────────────────────────────────────────────────────
@@ -404,10 +432,10 @@ describe("30-11 A-4 — an approver that names nobody is not an approver", () =>
   }
 
   it("a padded but REAL name still admits, matched against the trimmed name (non-vacuous)", () => {
-    expectAllow(payload({ ...HI, verified_by: "human:alice" }), {
+    expectAllowed(runGuard(payload({ ...HI, verified_by: "human:alice" }), {
       CLAUDE_PROJECT_DIR: makeProject({ dial: "high-severity" }),
       [APPROVAL]: "  alice  ",
-    });
+    }));
   });
 
   it("and the trimmed name is what the stamp must match — a padded stamp does NOT", () => {
@@ -466,4 +494,91 @@ describe("30-11 RA1-2 (round 2) — the admission guard has no exit that decides
     const unset = runGuard(payload({ by: "security-nfr", kind: "finding", verified_by: "" }));
     expect(empty.stdout).toBe(unset.stdout);
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33.1-01 — WR-04 COMPLETENESS for this harness: the allow-site set is DERIVED, its count asserted,
+// and a decider that never decided fails every allow control.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// THE DERIVATION (the same predicate `hooks/guard.test.ts` states, restated here — no cross-test
+// import): a STDOUT-ONLY ALLOW SITE is a non-comment line matching `STDOUT_ONLY_ALLOW_RE` with no
+// exit-status, signal or code assertion on it or in the ten lines above. Before plan 33.1-01 it found
+// 16 lines here: the retired helper's own assertion and its 15 call sites. All 15 now call
+// `expectAllowed`, so the derivation over this file must come back EMPTY.
+const STDOUT_ONLY_ALLOW_RE =
+  /\.not\.toContain\((?:'"deny"'|"deny"|"permissionDecision"|DENY_DECISION)\)|stdout\)\.toBe\(""\)|\bexpectAllow\(/;
+const EXIT_PROVED_RE = /\b(?:status|signal|code)\b[^\n]*\.(?:toBe|toBeNull)\(/;
+const isCommentLine = (l: string): boolean => /^\s*(?:\/\/|\*|\/\*)/.test(l);
+function unroutedAllowSites(src: string): string[] {
+  const lines = src.split("\n");
+  const out: string[] = [];
+  lines.forEach((l, i) => {
+    if (isCommentLine(l) || !STDOUT_ONLY_ALLOW_RE.test(l)) return;
+    if (lines.slice(Math.max(0, i - 10), i + 1).some((x) => EXIT_PROVED_RE.test(x))) return;
+    out.push(`${i + 1}: ${l.trim()}`);
+  });
+  return out;
+}
+const allowProofCalls = (src: string): number =>
+  src.split("\n").filter((l) => !isCommentLine(l) && !/\bfunction expectAllowed\(/.test(l))
+    .reduce((n, l) => n + (l.match(/\bexpectAllowed\(/g) ?? []).length, 0);
+
+describe("33.1-01 WR-04 — every admission allow control is a PROVED allow, and the set is derived", () => {
+  const SELF = readFileSync(join(import.meta.dirname, "admission-guard.test.ts"), "utf8");
+
+  it("the derivation is not vacuous: it flags the retired helper shapes and passes an exit-proved site", () => {
+    // `(` and `)` are spelled `\u0028` / `\u0029` so this file's own source does not carry the shapes
+    // the derivation below scans it for; at run time each sample is the retired shape byte for byte.
+    for (const shape of ["expectAllow\u0028payload({}\u0029\u0029;", "  expect(stdout).not.toContain\u0028'\"deny\"'\u0029;"]) {
+      expect(unroutedAllowSites(shape), shape).toHaveLength(1);
+    }
+    expect(unroutedAllowSites('expect(r.status).toBe(0);\nexpect(r.stdout).toBe("");')).toEqual([]);
+  });
+
+  it("the derivation over this file is EMPTY, and the allow proof's call-site count is pinned", () => {
+    expect(unroutedAllowSites(SELF)).toEqual([]);
+    // 15 routed call sites, plus the control and the looped stub row below (2). A site deleted rather
+    // than routed makes this number fall; a new allow control moves it on purpose.
+    expect(allowProofCalls(SELF)).toBe(15 + 2);
+  });
+
+  // A mirror of the admission guard's derived import closure whose `scripts/checkpoints.js` runs `prefix`
+  // FIRST. The module keeps every export (a replaced module fails ESM linking, which the guard already
+  // turns into a named deny — a different branch), so evaluation reaches the stub.
+  const stubbedAdmission = (prefix: string | null): string => {
+    const root = mkdtempSync(join(tmpdir(), "adm-wr04-"));
+    tmpDirs.push(root);
+    for (const t of closureTargets(join(import.meta.dirname, ".."), "hooks/admission-guard.js", root)) {
+      mkdirSync(dirname(t.to), { recursive: true });
+      copyFileSync(t.from, t.to);
+    }
+    const cpPath = join(root, "scripts", "checkpoints.js");
+    if (prefix !== null) writeFileSync(cpPath, prefix + readFileSync(cpPath, "utf8"));
+    return join(root, "hooks", "admission-guard.js");
+  };
+  const allowCase = (): { input: string; env: NodeJS.ProcessEnv } => {
+    const env: NodeJS.ProcessEnv = { ...process.env, CLAUDE_PROJECT_DIR: makeProject({ dial: "off" }) };
+    delete env[APPROVAL];
+    return { input: payload({ ...HIGH, verified_by: "" }), env };
+  };
+
+  it("CONTROL: an untouched mirror is a proved allow (exit 0, no signal, empty stdout, fd-3 token)", () => {
+    const { input, env } = allowCase();
+    expectAllowed(spawnDecider(stubbedAdmission(null), input, env), "control");
+  });
+
+  for (const [stubLabel, stub] of [
+    ["a CRASH (exit 3, no stdout)", "process.reallyExit(3);\n"],
+    ["a HANG past the spawn bound", "while(true){}\n"],
+  ] as const) {
+    it(`a decider that is ${stubLabel} fails the allow proof`, () => {
+      const { input, env } = allowCase();
+      const r = spawnDecider(stubbedAdmission(stub), input, env);
+      expect(r.stdout, "silent — the retired stdout-only helper would have read this as an allow").toBe("");
+      // PREMISE: the stub itself was reached — exit 3 for the crash, a kill signal for the hang.
+      expect(stub.includes("reallyExit") ? r.status === 3 : r.signal !== null, "the stub was reached").toBe(true);
+      expect(() => expectAllowed(r, stubLabel)).toThrow();
+    }, 60_000);
+  }
 });
