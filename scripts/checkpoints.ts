@@ -359,6 +359,75 @@ const CANONICAL_CHARS = "A-Za-z0-9._/@:+=,~%^-";
 const CANONICAL_WORD_RE = new RegExp(`^[${CANONICAL_CHARS}]+$`);
 
 /**
+ * The characters that stay ACTIVE inside double quotes: `$` (a parameter, arithmetic or command
+ * expansion), a backtick (a command substitution) and a backslash (an escape of the next one). A
+ * double-quoted run holding any of them has a value the shell computes at run time, so it is not a
+ * literal word (33.1-02, rule C1).
+ */
+const DOUBLE_QUOTE_ACTIVE_RE = /[$`\\]/;
+
+/** How one run of a word was quoted. */
+export type QuoteKind = "none" | "single" | "double";
+
+/** One run of a word: unquoted text, a `'…'` run or a `"…"` run, with its quotes removed. */
+export interface WordRun {
+  readonly quote: QuoteKind;
+  readonly text: string;
+}
+
+/** Rule C1, per run: is this run literal text exactly as spelled? See `canonicalWordValue`. */
+function runIsLiteral(r: WordRun): boolean {
+  if (r.quote === "single") return true;
+  if (r.quote === "double") return !DOUBLE_QUOTE_ACTIVE_RE.test(r.text); // C1: a double-quoted run is literal only when nothing in it is active
+  return CANONICAL_WORD_RE.test(r.text);
+}
+
+/**
+ * RULE C1 OF THE D-01 CANONICAL-FORM CUTOVER — THE ONE AUTHORITY FOR "IS THIS WORD A LITERAL?"
+ * (33.1-02; 33 round-4 review CR-02, WINDOWS.md row 302).
+ *
+ * A word built from `runs` is CANONICAL, and its value is the runs' text joined, exactly when it is:
+ *   (a) ONE unquoted run of `CANONICAL_WORD_RE` characters;
+ *   (b) ONE single-quoted run, whatever it holds — nothing is active inside single quotes;
+ *   (c) ONE double-quoted run holding no `$`, backtick or backslash (`DOUBLE_QUOTE_ACTIVE_RE`);
+ *   (d) an unquoted prefix of `CANONICAL_WORD_RE` characters that starts with `-` or ends with `=`,
+ *       followed by ONE quoted run that is itself (b) or (c) — the `--grep='x y'` / `-m"msg"` /
+ *       `--body='…'` / `x='…'` shape, which is ordinary and must not be refused.
+ * Every other word is OPAQUE, and this returns `null`. There is no third answer.
+ *
+ * This is an ALLOW-LIST, not a list of bad shapes. The round-4 build admitted a single quoted run
+ * whatever it held, so a positional parameter in double quotes was the literal text dollar-digit to
+ * this model: a nested body whose governed verb arrived as a positional argument — in permuted order,
+ * with a trailing unused argument, or with a benign word as the adjacent positional — ALLOWED with
+ * zero keys at both hook entry points and ran (corpus rows C1-01..C1-08). The review's fix was one
+ * more refused shape (a double-quoted `$`); C1 states the same closure as MEMBERSHIP, so a spelling
+ * nobody listed is refused by default rather than read by a guess.
+ *
+ * `classifyWords` asks this of every word it builds; the nested re-read (rule C2) is asked only of
+ * words this admitted; and the command-word test (rule C3) asks it too. No second classifier exists.
+ */
+export function canonicalWordValue(runs: readonly WordRun[]): string | null {
+  if (runs.length === 1) {
+    const only = runs[0] as WordRun;
+    return runIsLiteral(only) ? only.text : null;
+  }
+  if (runs.length === 2) {
+    const prefix = runs[0] as WordRun;
+    const quoted = runs[1] as WordRun;
+    if (
+      prefix.quote === "none" &&
+      quoted.quote !== "none" &&
+      (prefix.text.startsWith("-") || prefix.text.endsWith("=")) &&
+      runIsLiteral(prefix) &&
+      runIsLiteral(quoted)
+    ) {
+      return prefix.text + quoted.text;
+    }
+  }
+  return null;
+}
+
+/**
  * THE REDIRECTION GRAMMAR — one anchored allow-list, asked at the split AND at the word (plan 33-27,
  * 33-DIAGNOSIS.md § 2, WINDOWS.md row 257).
  *
@@ -427,17 +496,21 @@ export interface CommandWord {
  * ---------------------------------------------------------------------------------------------
  * THE CANONICAL FORM, AND THE TWO SHAPES THAT ARE NOT SPLICING.
  *
- * A word is built from RUNS: unquoted text, `'…'` and `"…"`. A word is CANONICAL when it is
+ * A word is built from RUNS: unquoted text, `'…'` and `"…"`, each recorded with its quote kind. A
+ * word is CANONICAL exactly when rule C1 — `canonicalWordValue`, the one authority — admits its runs:
  *   (a) a single unquoted run of `CANONICAL_WORD_RE` characters, or
- *   (b) a single wholly-quoted run — `'apply'` is the word `apply`, which is how a quoted subcommand
- *       legitimately reaches a tool, or
- *   (c) an unquoted prefix that starts with `-` or ends with `=`, followed by ONE quoted run —
- *       the `--grep='x y'` / `-m'msg'` / `--body='…'` shape, which is ordinary and must not be
- *       refused.
+ *   (b) a single single-quoted run, whatever it holds — `'apply'` is the word `apply`, which is how a
+ *       quoted subcommand legitimately reaches a tool, or
+ *   (c) a single double-quoted run holding no `$`, backtick or backslash (33.1-02) — `"push"` is the
+ *       word `push`, and `"$1"` is NOT a word this model can read: its value is computed at run time, or
+ *   (d) an unquoted prefix that starts with `-` or ends with `=`, followed by ONE quoted run that is
+ *       itself (b) or (c) — the `--grep='x y'` / `-m'msg'` / `--body='…'` shape, which is ordinary and
+ *       must not be refused.
  *
  * Everything else is OPAQUE: `app""ly`, `""apply`, `"ap""ply"`, `ma'in'`, `$'apply'`, `app\ly`,
- * `ap$(echo ply)`, an unbalanced quote. Those are exactly the spellings `RA3-1` and `RA3-4` used, and
- * they are refused BY RULE — the model does not learn to read one more of them.
+ * `ap$(echo ply)`, `"$1"`, `-m"$msg"`, an unbalanced quote. Those are exactly the spellings `RA3-1`,
+ * `RA3-4` and CR-02 used, and they are refused BY RULE — the model does not learn to read one more of
+ * them.
  *
  * A wholly-quoted word's value may contain spaces (`'do not push to main'` is ONE word whose value is
  * that whole string). That is what stops a quoted commit message from contributing its words as verb
@@ -454,11 +527,11 @@ export interface CommandWord {
  */
 export function classifyWords(segment: string): readonly CommandWord[] {
   const words: CommandWord[] = [];
-  type Run = { quoted: boolean; text: string };
-  let runs: Run[] = [];
+  // Each run records WHICH quote it was spelled in (33.1-02): rule C1 reads a single-quoted run and a
+  // double-quoted run differently, so the kind is kept here rather than re-scanned from the segment.
+  let runs: WordRun[] = [];
   let cur = "";
   let quote: string | null = null;
-  let sawBackslash = false;
   /** Where the word being built starts in `segment` — its spelled text is `segment.slice(rawStart, …)`. */
   let rawStart = -1;
   /** A bare redirection operator waiting for its target word. */
@@ -467,7 +540,7 @@ export function classifyWords(segment: string): readonly CommandWord[] {
     if (pending !== null) {
       const op = pending;
       pending = null;
-      if (plain !== null && CANONICAL_WORD_RE.test(plain)) {
+      if (plain !== null && canonicalWordValue([{ quote: "none", text: plain }]) !== null) {
         words.push({ kind: "redirection", value: `${op.value} ${plain}`, raw: `${op.raw} ${w.raw}`, isFlag: false });
         return;
       }
@@ -481,39 +554,35 @@ export function classifyWords(segment: string): readonly CommandWord[] {
   };
   const flush = (end: number): void => {
     if (runs.length === 0 && cur === "") return;
-    if (cur !== "") runs.push({ quoted: false, text: cur });
+    if (cur !== "") runs.push({ quote: "none", text: cur });
     cur = "";
     const raw = segment.slice(rawStart, end);
     rawStart = -1;
     const joined = runs.map((r) => r.text).join("");
-    // The word's text when it is ONE unquoted, unescaped run — the only shape a redirection may take.
-    const plain = !sawBackslash && runs.length === 1 && !runs[0]!.quoted ? runs[0]!.text : null;
+    // The word's text when it is ONE unquoted run — the only shape a redirection may take. An escape
+    // stays in the run's text (the backslash is kept), and no redirection or canonical character class
+    // admits a backslash, so an escaped word is neither.
+    const plain = runs.length === 1 && runs[0]!.quote === "none" ? runs[0]!.text : null;
     let kind: WordKind = "opaque";
+    let value = joined;
     if (plain !== null && REDIRECTION_RE.test(plain)) {
       kind = "redirection";
-    } else if (!sawBackslash) {
-      if (runs.length === 1) {
-        kind = runs[0]!.quoted || CANONICAL_WORD_RE.test(runs[0]!.text) ? "canonical" : "opaque";
-      } else if (
-        runs.length === 2 &&
-        !runs[0]!.quoted &&
-        runs[1]!.quoted &&
-        (runs[0]!.text.startsWith("-") || runs[0]!.text.endsWith("=")) &&
-        CANONICAL_WORD_RE.test(runs[0]!.text)
-      ) {
+    } else {
+      // Rule C1: the one authority decides canonical versus opaque, and gives the canonical value.
+      const literal = canonicalWordValue(runs);
+      if (literal !== null) {
         kind = "canonical";
+        value = literal;
       }
     }
-    const value = joined;
     emit({ kind, value, raw, isFlag: kind === "canonical" && value.startsWith("-") }, plain);
     runs = [];
-    sawBackslash = false;
   };
   for (let i = 0; i < segment.length; i++) {
     const c = segment[i] as string;
     if (quote !== null) {
       if (c === quote) {
-        runs.push({ quoted: true, text: cur });
+        runs.push({ quote: quote === "'" ? "single" : "double", text: cur });
         cur = "";
         quote = null;
       } else cur += c;
@@ -525,14 +594,13 @@ export function classifyWords(segment: string): readonly CommandWord[] {
     }
     if (rawStart < 0) rawStart = i;
     if (c === "\\") {
-      sawBackslash = true;
       cur += c;
       if (i + 1 < segment.length) cur += segment[++i] as string;
       continue;
     }
     if (c === '"' || c === "'") {
       if (cur !== "") {
-        runs.push({ quoted: false, text: cur });
+        runs.push({ quote: "none", text: cur });
         cur = "";
       }
       quote = c;
@@ -1879,6 +1947,11 @@ export function matchCommandCheckpoints(cmd: string): CommandMatch {
       // stripped, so a re-read value is STRICTLY SHORTER than the word it came from and the queue
       // terminates. Without it a bare `git` re-reads to `git` forever. A word spelled with no quoting
       // is read in this segment already; there is no next-shell reading to ask about.
+      //
+      // C2 IS ASKED ONLY OF WORDS RULE C1 ADMITTED (33.1-02). This loop skips every word whose kind is
+      // not `canonical`, and `canonical` is exactly `canonicalWordValue` answering non-null, so `w.value`
+      // here is C1's value. A double-quoted body holding an expansion never reaches this re-read: C1
+      // made it opaque, and its segment went to the fail-closed arm above on the tool names it can run.
       if (/\s/.test(w.value) || (w.value !== w.raw && governedToolsNamedBy(w.value).size > 0)) {
         const nested = commandSegments(w.value, 1);
         if (nested === null) refuse(w.value, [w.value]);

@@ -2267,7 +2267,10 @@ describe("33-27 G5 — an unreadable sibling word beside a governed tool is desc
 
   it("the word named is the one the classification refused — each kept arm names its own word", () => {
     for (const [cmd, word] of [
-      ['echo "npm run $s"', "`$s`"],
+      // Rule C1 (33.1-02): the double-quoted run holds an expansion, so the WHOLE word is what the
+      // classification refuses — its value is named. Before C1 the word was read as a literal, its
+      // value re-read as a nested command, and the inner `$s` was the word named.
+      ['echo "npm run $s"', "`npm run $s`"],
       ["wc -c $(git ls-files)", "`$(git`"],
       // A heredoc body line the model cannot read (backticks) beside a tool name: the heredoc's own
       // opening word is what is named first. (A body line that IS a readable `git push` is matched by

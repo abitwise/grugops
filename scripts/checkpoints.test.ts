@@ -2596,6 +2596,22 @@ const mutantOf = async (label: string, needle: RegExp, replacement: string): Pro
   writeFileSync(path, mutated);
   return { mod: (await import(pathToFileURL(path).href)) as typeof cp, found };
 };
+/**
+ * A scratch copy of the COMMITTED module with SEVERAL needles replaced, each by its own replacement;
+ * every needle must occur exactly once (asserted here, so a combined mutant cannot silently miss one).
+ */
+const mutantOfAll = async (label: string, pairs: readonly (readonly [RegExp, string])[]): Promise<typeof cp> => {
+  let src = readFileSync(join(ROOT, "scripts", "checkpoints.js"), "utf8");
+  for (const [needle, replacement] of pairs) {
+    expect((src.match(new RegExp(needle.source, "g")) ?? []).length, `${label}: ${needle.source}`).toBe(1);
+    src = src.replace(needle, replacement);
+  }
+  src = src.replace(/from "\.\/([^"]+)"/g, (_m, rel: string) => `from ${JSON.stringify(pathToFileURL(join(ROOT, "scripts", rel)).href)}`);
+  const dir = freshTmp(`p33.1-${label}-`);
+  const path = join(dir, `checkpoints-${label}.mjs`);
+  writeFileSync(path, src);
+  return (await import(pathToFileURL(path).href)) as typeof cp;
+};
 /** The fix: the one call that re-projects a piece's resolved text (D-33-R4-03). */
 const REPROJECTION_NEEDLE = /projectNames\(t, depth \+ 1, ctx, into\); \/\/ D-33-R4-03: the nested re-projection/;
 /** The boundary reading of a gap: the contiguous-run loop in namesOfPiece, cut off at its guard. */
@@ -2705,21 +2721,28 @@ describe("33-R4 CR-01 nested — non-circularity: the fix removed, the families 
   }, 60_000);
 
   it("with the nested re-projection removed, every in-scope corpus row is ALLOW again; the committed module denies them", async () => {
-    // The round-3 build had NEITHER the re-projection NOR rule C2 (33.1-01), so the mutant that
-    // reopens the round-3 ALLOWs removes both. With the re-projection alone removed, exactly one row
-    // is still held — R4-09, an eval word concatenation whose quoted run C2 re-reads on its own. That
-    // is defence in depth, pinned by name so a second row held elsewhere cannot hide here.
-    const { mod: mutant } = await mutantOf("no-reprojection-corpus", REPROJECTION_NEEDLE, "");
-    const src = readFileSync(join(ROOT, "scripts", "checkpoints.js"), "utf8");
-    expect((src.match(new RegExp(C2_NEEDLE.source, "g")) ?? []).length).toBe(1);
-    const both = await mutantOf("no-reprojection-no-c2-corpus", new RegExp(`${REPROJECTION_NEEDLE.source}|${C2_NEEDLE.source}`, "g"), "");
+    // The round-3 build had NONE of the re-projection, rule C2 (33.1-01) or rule C1 (33.1-02), so the
+    // mutant that reopens the round-3 ALLOWs removes all three. With the re-projection alone removed,
+    // exactly three rows are still held, each by ONE later rule on its own — defence in depth, pinned by
+    // name and attributed by removing each rule in turn, so a row held elsewhere cannot hide here:
+    //   - R4-09, an eval word concatenation whose quoted run C2 re-reads;
+    //   - R4-11 and R4-12, positional bodies whose double-quoted positional word C1 makes opaque.
+    const reprojection = [REPROJECTION_NEEDLE, ""] as const;
+    const noC2 = [C2_NEEDLE, ""] as const;
+    const noC1 = [C1_NEEDLE, "return true;"] as const;
+    const round3Like = await mutantOfAll("no-reprojection-no-c2-no-c1-corpus", [reprojection, noC2, noC1]);
     expect(inScope.length).toBe(28);
     for (const r of inScope) {
-      expect(both.mod.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} on the mutant`).toBe(0);
+      expect(round3Like.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} on the mutant`).toBe(0);
       expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} committed`).toBeGreaterThan(0);
     }
-    const heldByC2 = inScope.filter((r) => mutant.matchCommandCheckpoints(r.command).checkpoints.size > 0).map((r) => r.id);
-    expect(heldByC2).toEqual(["R4-09"]);
+    const held = async (label: string, pairs: readonly (readonly [RegExp, string])[]): Promise<string[]> => {
+      const m = await mutantOfAll(label, pairs);
+      return inScope.filter((r) => m.matchCommandCheckpoints(r.command).checkpoints.size > 0).map((r) => r.id);
+    };
+    expect(await held("no-reprojection-corpus", [reprojection])).toEqual(["R4-09", "R4-11", "R4-12"]);
+    expect(await held("no-reprojection-no-c1-corpus", [reprojection, noC1])).toEqual(["R4-09"]); // held by C2 alone
+    expect(await held("no-reprojection-no-c2-corpus", [reprojection, noC2])).toEqual(["R4-11", "R4-12"]); // held by C1 alone
   });
 
   it("with rule C2 removed (the whitespace-only re-read trigger restored), C2-01 is ALLOW again and it is the ONLY corpus row that moves", async () => {
@@ -2904,6 +2927,61 @@ describe("33-R4 CR-01 nested — the consolidated corpus, replayed against the c
 // a single-quoted run of anything, or a double-quoted run with no `$`, backtick or backslash in it
 // (and the flag / assignment prefix followed by one such quoted run). The rows are read from the
 // fixture by rule, never restated here.
+
+/** Rule C1's double-quote content test (33.1-02). Replacing it with `return true;` restores the round-4 reading. */
+const C1_NEEDLE = /return !DOUBLE_QUOTE_ACTIVE_RE\.test\(r\.text\);/;
+/** The last committed command model BEFORE rule C1 (33.1-01's GREEN: rule C2 in, C1 not). */
+const PRE_C1_BUILD_SHA = "d92cfc55";
+/** The round-4 live capture (33-41), the other half of the 236 captured Bash commands. */
+const ROUND4_CAPTURE_SHA = "3ed05944";
+const preC1Module = async (): Promise<typeof cp> => {
+  const r = spawnSync("git", ["show", `${PRE_C1_BUILD_SHA}:scripts/checkpoints.js`], {
+    cwd: ROOT,
+    encoding: "utf8",
+    input: "",
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 20_000,
+  });
+  if (r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") {
+    throw new Error(`git cannot show ${PRE_C1_BUILD_SHA}:scripts/checkpoints.js — the pre-C1 build must be reachable from this clone`);
+  }
+  const dir = freshTmp("p33.1-02-pre-c1-");
+  const path = join(dir, "checkpoints-pre-c1.mjs");
+  writeFileSync(
+    path,
+    r.stdout.replace(/from "\.\/([^"]+)"/g, (_m, rel: string) => `from ${JSON.stringify(pathToFileURL(join(ROOT, "scripts", rel)).href)}`),
+  );
+  return (await import(pathToFileURL(path).href)) as typeof cp;
+};
+/** Every Bash tool-use command in both capture transcripts (paths A and B) filed at `sha`. */
+const capturedBashCommands = (sha: string): readonly string[] => {
+  const out: string[] = [];
+  for (const run of ["A", "B"] as const) {
+    const r = spawnSync("git", ["show", `${sha}:${HELD_CAPTURE_DIR}/33-CAPTURE-${run}.jsonl`], {
+      cwd: ROOT,
+      encoding: "utf8",
+      input: "",
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: 20_000,
+    });
+    if (r.status !== 0 || typeof r.stdout !== "string" || r.stdout === "") throw new Error(`git cannot show the ${run} capture at ${sha}`);
+    for (const line of r.stdout.split("\n")) {
+      if (line === "") continue;
+      let frame: { type?: string; message?: { content?: { type: string; name?: string; input?: { command?: string } }[] } };
+      try {
+        frame = JSON.parse(line) as typeof frame;
+      } catch {
+        continue;
+      }
+      if (frame.type !== "assistant") continue;
+      for (const b of frame.message?.content ?? []) {
+        if (b.type === "tool_use" && b.name === "Bash" && typeof b.input?.command === "string") out.push(b.input.command);
+      }
+    }
+  }
+  return out;
+};
+
 describe("33.1-02 C1 — a double-quoted run holding an expansion is opaque, and the CR-02 positional rows DENY", () => {
   const c1Rows = CR01_NESTED_CORPUS.filter((r) => r.rule === "C1" && r.kind === "deny");
   const c1Controls = CR01_NESTED_CORPUS.filter((r) => /^C1-C\d+$/.test(r.id));
@@ -2963,6 +3041,33 @@ describe("33.1-02 C1 — a double-quoted run holding an expansion is opaque, and
     expect(f([{ quote: "none", text: "ap" }, { quote: "single", text: "ply" }])).toBeNull();
     expect(f([{ quote: "single", text: "ap" }, { quote: "single", text: "ply" }])).toBeNull();
   });
+
+  it("MUTATION: with a double-quoted run read as literal whatever it holds, EXACTLY the C1 deny rows reopen, and nothing else in the corpus moves", async () => {
+    const { mod: mutant, found } = await mutantOf("no-c1", C1_NEEDLE, "return true;");
+    expect(found).toBe(1);
+    const verdict = (m: typeof cp, cmd: string): string => [...m.matchCommandCheckpoints(cmd).checkpoints].sort().join(",");
+    const moved = CR01_NESTED_CORPUS.filter((r) => verdict(mutant, r.command) !== verdict(cp, r.command)).map((r) => r.id);
+    // C1-04 moves on the MODEL too: the round-4 model read nothing there, and only the literal pattern in
+    // hooks/guard.ts held it at the hook.
+    expect(moved).toEqual(c1Rows.map((r) => r.id));
+    for (const r of c1Rows) expect(mutant.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} on the mutant`).toBe(0);
+    // The classifier half of the mutation: the positional word is canonical again.
+    expect((mutant.classifyWords('"$1"')[0] as { kind: string }).kind).toBe("canonical");
+  });
+
+  it("availability: over the 236 captured Bash commands (round 1 and round 4, paths A and B), C1 changes no verdict", async () => {
+    const pre = await preC1Module();
+    const commands = [...capturedBashCommands(HELD_CAPTURE_SHA), ...capturedBashCommands(ROUND4_CAPTURE_SHA)];
+    expect(commands.length).toBe(236);
+    const verdict = (m: typeof cp, cmd: string): string => [...m.matchCommandCheckpoints(cmd).checkpoints].sort().join(",");
+    const changed = commands.filter((c) => verdict(pre, c) !== verdict(cp, c));
+    expect(changed).toEqual([]);
+    // Non-vacuous: C1 reclassifies words in these commands (a double-quoted run holding an expansion)…
+    const touched = commands.filter((c) => (cp.commandSegments(c) ?? []).some((s) => s.words.some((w) => w.kind === "opaque" && /"[^"]*[$`\\]/.test(w.raw))));
+    expect(touched.length).toBeGreaterThan(0);
+    // …and some of the commands were already denied on the pre-C1 build, and still are.
+    expect(commands.filter((c) => verdict(pre, c) !== "").length).toBeGreaterThan(0);
+  }, 60_000);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
