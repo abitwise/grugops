@@ -3326,8 +3326,13 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
 /** Nine entry artifacts carry a closure a gate depends on. A tenth is a decision, recorded above. */
 const CLOSURE_BASELINE_COUNT = 9;
 
-/** The number of `.ts` modules that import the shared walker, MEASURED at the time of the cutover. */
-const WALKER_IMPORTER_COUNT = 12;
+/**
+ * The number of `.ts` modules that import the shared walker, MEASURED at the time of the cutover.
+ * Moved 12 -> 13 on purpose by plan 33.1-01: `hooks/admission-guard.test.ts` now mirrors the admission
+ * guard's closure for its WR-04 crash/hang stubs. Its entry artifact, `hooks/admission-guard.js`, is
+ * already a `CLOSURE_BASELINES` row, so the new caller builds a mirror that row pins.
+ */
+const WALKER_IMPORTER_COUNT = 13;
 
 /**
  * How many of those importers are PRODUCTION modules — i.e. not `*.test.ts` (Phase 32.1, plan
