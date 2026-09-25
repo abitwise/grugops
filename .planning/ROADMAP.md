@@ -1482,7 +1482,7 @@ Plans:
 **Goal:** Take over what Phase 33 carried at its human-override close (D-33-R4-08), guard first. Wave 1 closes the live prod-deploy guard bypasses by a canonical-form cutover: CR-01 (a whitespace-free nested body such as `bash -c '{git,push,origin,main}'` is ALLOWED today; WINDOWS.md row 301), CR-02 (positional-parameter bodies in permuted order; row 302), and the two zero-key ALLOW forms in Phase 33 deferred-items.md (`git -c alias.p=push p`; `bash -c 'x=g\it; $x push origin main'`), plus IN-02 (row 308) and WR-04 (row 306). The D-33-R4-06 over-denial narrowing (row 269) lands in a later guard wave or is deferred. A blocking human checkpoint follows, and the guard never closes by override. Then: D-33-R4-04 (row 297), D-33-R4-05 (the `--permission-mode default` pin, after its zero-token check; row 298), D-33-R4-07 (row 299), rows 303-305 and 307, the CLAUDE.md nesting correction (row 309), and the open non-windows deferred items. Last: exactly one live capture go toward GAP-D1 (CAP-01/CAP-03). Row 274 and the windows reds are out of this phase, so CAP-02 cannot be met here.
 **Requirements**: TBD
 **Depends on:** Phase 33
-**Plans:** 1/11 plans executed
+**Plans:** 2/11 plans executed
 
 Plans:
 **Wave 1**
@@ -1491,7 +1491,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 33.1-02-PLAN.md — C1 literal allow-list + CR-02 positional closure + derived mechanism × family × arm corpus
+- [x] 33.1-02-PLAN.md — C1 literal allow-list + CR-02 positional closure + derived mechanism × family × arm corpus — **PARTIAL (1 of 2 tasks):** C1 + CR-02 done; Task 2 (the derived corpus matrix) left OPEN by human decision 2026-09-25 and carried to 33.1-05 and the D-07 ledger
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
