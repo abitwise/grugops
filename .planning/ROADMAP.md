@@ -1485,17 +1485,48 @@ Plans:
 **Plans:** 11 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 33.1-01-PLAN.md — guard tracer: one CR-01 bypass closed end-to-end with a real allow-proof; WR-04 harness (Wave 0) first
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 33.1-02-PLAN.md — C1 literal allow-list + CR-02 positional closure + derived mechanism × family × arm corpus
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 33.1-03-PLAN.md — C3 command-position expansion (D-02(b)/RES-01) + reword the four public residual sites
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 33.1-04-PLAN.md — C4 git config injection (D-02(a)) + C5 stdin-feed exemption removal (IN-02); option-(ii) decision
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 33.1-05-PLAN.md — corpus replay report + two independent red-teams + D-07 blocking checkpoint (guard never closes by override); dispose D-04/row 296/guard ledger
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 33.1-06-PLAN.md — runner: `--permission-mode default` pin + committed evidence (D-33-R4-05); coordinator membership exemption (D-33-R4-04)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 33.1-07-PLAN.md — runner: probe-keyed prod-deploy deny (D-33-R4-07) + WR-03 parity docblock and extensions
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 33.1-08-PLAN.md — shared context: WR-01 ledger short-circuit, WR-02 exclusive-create race, IN-01 refusal framing
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
 - [ ] 33.1-09-PLAN.md — CLAUDE.md nesting correction (D-14/row 309), admission-server docblocks, B8 annotation, stale-plugin checkpoint, deferred triage
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
 - [ ] 33.1-10-PLAN.md — the one live capture go (CAP-01/CAP-03): push checkpoint → ready dry run → go → capture; zero-token diagnosis on red
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
 - [ ] 33.1-11-PLAN.md — GAP-D1 flip-or-hold (D-13) + ledger close; CAP-02 recorded unmet (D-15)
 
 ### Phase 34: Model Effort Dial & Pi Support
