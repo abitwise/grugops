@@ -1482,11 +1482,21 @@ Plans:
 **Goal:** Take over what Phase 33 carried at its human-override close (D-33-R4-08), guard first. Wave 1 closes the live prod-deploy guard bypasses by a canonical-form cutover: CR-01 (a whitespace-free nested body such as `bash -c '{git,push,origin,main}'` is ALLOWED today; WINDOWS.md row 301), CR-02 (positional-parameter bodies in permuted order; row 302), and the two zero-key ALLOW forms in Phase 33 deferred-items.md (`git -c alias.p=push p`; `bash -c 'x=g\it; $x push origin main'`), plus IN-02 (row 308) and WR-04 (row 306). The D-33-R4-06 over-denial narrowing (row 269) lands in a later guard wave or is deferred. A blocking human checkpoint follows, and the guard never closes by override. Then: D-33-R4-04 (row 297), D-33-R4-05 (the `--permission-mode default` pin, after its zero-token check; row 298), D-33-R4-07 (row 299), rows 303-305 and 307, the CLAUDE.md nesting correction (row 309), and the open non-windows deferred items. Last: exactly one live capture go toward GAP-D1 (CAP-01/CAP-03). Row 274 and the windows reds are out of this phase, so CAP-02 cannot be met here.
 **Requirements**: TBD
 **Depends on:** Phase 33
-**Plans:** 0 plans
+**Plans:** 11 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 33.1 to break down)
+- [ ] 33.1-01-PLAN.md — guard tracer: one CR-01 bypass closed end-to-end with a real allow-proof; WR-04 harness (Wave 0) first
+- [ ] 33.1-02-PLAN.md — C1 literal allow-list + CR-02 positional closure + derived mechanism × family × arm corpus
+- [ ] 33.1-03-PLAN.md — C3 command-position expansion (D-02(b)/RES-01) + reword the four public residual sites
+- [ ] 33.1-04-PLAN.md — C4 git config injection (D-02(a)) + C5 stdin-feed exemption removal (IN-02); option-(ii) decision
+- [ ] 33.1-05-PLAN.md — corpus replay report + two independent red-teams + D-07 blocking checkpoint (guard never closes by override); dispose D-04/row 296/guard ledger
+- [ ] 33.1-06-PLAN.md — runner: `--permission-mode default` pin + committed evidence (D-33-R4-05); coordinator membership exemption (D-33-R4-04)
+- [ ] 33.1-07-PLAN.md — runner: probe-keyed prod-deploy deny (D-33-R4-07) + WR-03 parity docblock and extensions
+- [ ] 33.1-08-PLAN.md — shared context: WR-01 ledger short-circuit, WR-02 exclusive-create race, IN-01 refusal framing
+- [ ] 33.1-09-PLAN.md — CLAUDE.md nesting correction (D-14/row 309), admission-server docblocks, B8 annotation, stale-plugin checkpoint, deferred triage
+- [ ] 33.1-10-PLAN.md — the one live capture go (CAP-01/CAP-03): push checkpoint → ready dry run → go → capture; zero-token diagnosis on red
+- [ ] 33.1-11-PLAN.md — GAP-D1 flip-or-hold (D-13) + ledger close; CAP-02 recorded unmet (D-15)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
