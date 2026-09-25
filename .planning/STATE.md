@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
 current_phase: "33.1"
-current_phase_name: "Phase 33 Leftovers: Guard Bypasses First"
+current_phase_name: "Phase 33 Leftovers: Guard Bypasses First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Phase 33.1 context gathered
-last_updated: "2026-09-25T12:43:53.830Z"
-state_head: 23abca58ae056a83930434cc92b5cb6b2ab0a7b6
+stopped_at: Completed 33.1-01-PLAN.md
+last_updated: "2026-09-25T14:24:55.144Z"
+state_head: 5a42be9638fe09c05a81ba969d407e0b739476c3
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 323
-  completed_plans: 312
+  completed_plans: 313
   percent: 97
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -26,12 +26,12 @@ last_activity_desc: "Phase 33 CLOSED by human override D-33-R4-08 after round-4 
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 34 — Model Effort Dial & Pi Support (not yet planned). Before it: a new inserted phase for the Phase 33 carry is recommended (`/gsd-phase insert`), with the round-4 review CR-01/CR-02 guard bypasses first.
+**Current focus:** Phase 33.1 — Phase 33 Leftovers: Guard Bypasses First (INSERTED)
 
 ## Current Position
 
-Phase: 33.1 (Phase 33 Leftovers: Guard Bypasses First) — READY TO EXECUTE
-Plan: Not started (Phase 33.1 unplanned; Phase 34 follows). Phase 33 record below, rounds 2-4:
+Phase: 33.1 (Phase 33 Leftovers: Guard Bypasses First (INSERTED)) — EXECUTING
+Plan: 2 of 11
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -572,6 +572,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33 P40 | ~17h wall (Task 3 30m) | 3 tasks | 3 files |
 | Phase 33 P41 | 26min continuation (run 17m57s) | 4 tasks | 6 files |
 | Phase 33 P42 | 2min | 1 tasks | 2 files |
+| Phase 33.1 P01 | 43 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -1565,6 +1566,8 @@ Recent decisions affecting current work:
 - [Phase 33]: D-33-R4-06 (human, 2026-09-25; question 3): the guard refusal of unreadable words ($var, heredoc, subshell) is REDESIGNED, not quick-fixed: keep refusing when the unreadable word could make the command run a governed tool, stop refusing when no governed tool is reachable. Coupled with round-4 review CR-01/CR-02 (bypasses the other way, WINDOWS.md rows 301-302), which the redesign closes first without widening any allow path. Next-phase work. Rows 269 (open) and 257 annotated.
 - [Phase 33]: D-33-R4-07 (human, 2026-09-25; question 4): the per-run D-04 row keys on the probe own tool use, joining the deny through the tool result to the probe command. Small runner fix, next phase. Row 299 annotated, open.
 - [Phase 33]: D-33-R4-08 (human, 2026-09-25; option B under D-20): Phase 33 CLOSED BY HUMAN OVERRIDE at the four-round cap. 33-VERIFICATION.md (aba4f1d3) stands at gaps_found 0/3, annotated not rewritten; GAP-D1 OPEN; CAP-01/CAP-02/CAP-03 NOT met, checkboxes unchecked, coverage rows read closed by human override, not met. Round-4 review 33-REVIEW.md (f20f1af5) ledgered: CR-01/CR-02 live prod-deploy guard bypasses accepted open, not fixed, FIRST in the next phase (rows 301-302; CR-01 independently reproduced by the verifier through both hook entry points); WR-01..WR-04 and IN-01..IN-02 rows 303-308. Every open item carried to the next phase; Phase 34 (Model Effort Dial & Pi Support) is not re-scoped, and a new inserted phase (e.g. 33.1) is recommended to own the carry before Phase 34.
+- [Phase 33.1]: 33.1-01: the C2 re-read trigger fires only when a word's value differs from its spelling (progress condition); the plan's literal wording loops forever on a bare git
+- [Phase 33.1]: 33.1-01: the allow proof is the wrapper's own bar (signal null, exit 0, empty stdout, fd-3 token on a direct run); each guard harness self-derives its stdout-only allow sites (must be empty) and pins its expectAllowed call count (guard 50, admission 17)
 
 ### Pending Todos
 
@@ -1695,9 +1698,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-25T10:44:57.836Z
-Stopped at: Phase 33.1 context gathered
-Resume file: .planning/phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-CONTEXT.md
+Last session: 2026-09-25T14:24:38.570Z
+Stopped at: Completed 33.1-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
