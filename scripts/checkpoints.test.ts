@@ -2598,6 +2598,11 @@ const mutantOf = async (label: string, needle: RegExp, replacement: string): Pro
 const REPROJECTION_NEEDLE = /projectNames\(t, depth \+ 1, ctx, into\); \/\/ D-33-R4-03: the nested re-projection/;
 /** The boundary reading of a gap: the contiguous-run loop in namesOfPiece, cut off at its guard. */
 const BOUNDARY_NEEDLE = /if \(stretches\.length === 1\)\s*return true;/;
+/**
+ * Rule C2 (33.1-01): the clause that re-reads a quoted value whose next-shell reading names a governed
+ * tool. Removing it restores the whitespace-only re-read trigger of the round-4 build.
+ */
+const C2_NEEDLE = / \|\| \(w\.value !== w\.raw && governedToolsNamedBy\(w\.value\)\.size > 0\)/;
 
 describe("33-R4 CR-01 nested — the derived sweep: every splice of every tool, in every nested family, is its rule's checkpoint", () => {
   const cases = nestedFamilyCases();
@@ -2698,12 +2703,33 @@ describe("33-R4 CR-01 nested — non-circularity: the fix removed, the families 
   }, 60_000);
 
   it("with the nested re-projection removed, every in-scope corpus row is ALLOW again; the committed module denies them", async () => {
+    // The round-3 build had NEITHER the re-projection NOR rule C2 (33.1-01), so the mutant that
+    // reopens the round-3 ALLOWs removes both. With the re-projection alone removed, exactly one row
+    // is still held — R4-09, an eval word concatenation whose quoted run C2 re-reads on its own. That
+    // is defence in depth, pinned by name so a second row held elsewhere cannot hide here.
     const { mod: mutant } = await mutantOf("no-reprojection-corpus", REPROJECTION_NEEDLE, "");
+    const src = readFileSync(join(ROOT, "scripts", "checkpoints.js"), "utf8");
+    expect((src.match(new RegExp(C2_NEEDLE.source, "g")) ?? []).length).toBe(1);
+    const both = await mutantOf("no-reprojection-no-c2-corpus", new RegExp(`${REPROJECTION_NEEDLE.source}|${C2_NEEDLE.source}`, "g"), "");
     expect(inScope.length).toBe(28);
     for (const r of inScope) {
-      expect(mutant.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} on the mutant`).toBe(0);
+      expect(both.mod.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} on the mutant`).toBe(0);
       expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, `${r.id} committed`).toBeGreaterThan(0);
     }
+    const heldByC2 = inScope.filter((r) => mutant.matchCommandCheckpoints(r.command).checkpoints.size > 0).map((r) => r.id);
+    expect(heldByC2).toEqual(["R4-09"]);
+  });
+
+  it("with rule C2 removed (the whitespace-only re-read trigger restored), C2-01 is ALLOW again and it is the ONLY corpus row that moves", async () => {
+    // The 33.1-01 mutation proof of the CR-01 closure, asked of the whole committed fixture.
+    const { mod: mutant, found } = await mutantOf("no-c2", C2_NEEDLE, "");
+    expect(found).toBe(1);
+    const moved = CR01_NESTED_CORPUS.filter(
+      (r) => mutant.matchCommandCheckpoints(r.command).checkpoints.size !== cp.matchCommandCheckpoints(r.command).checkpoints.size,
+    ).map((r) => r.id);
+    expect(moved).toEqual(["C2-01"]);
+    expect(mutant.matchCommandCheckpoints(nestedRow("C2-01").command).checkpoints.size).toBe(0);
+    expect(cp.matchCommandCheckpoints(nestedRow("C2-01").command).checkpoints.has("protected_branch_merge")).toBe(true);
   });
 
   it("with a gap's boundary reading removed, exactly the two boundary rows reopen (R4-06, R4-18)", async () => {

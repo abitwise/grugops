@@ -1863,7 +1863,23 @@ export function matchCommandCheckpoints(cmd: string): CommandMatch {
       // when the quoted content names a tool — which is what `eval 'kubectl …'` does and what a
       // commit message does not. The residual cost is a message that contains a whole governed
       // command (`git commit -m 'git push origin main'`), which is recorded rather than parsed away.
-      if (/\s/.test(w.value)) {
+      //
+      // …AND ANY QUOTED VALUE WHOSE NEXT-SHELL READING NAMES A GOVERNED TOOL (33.1-01, rule C2 of the
+      // D-01 canonical-form cutover; 33 round-4 review CR-01, WINDOWS.md row 301). Whitespace was a
+      // proxy for "this value is a command", and a nested shell needs none: a brace list or an `$IFS`
+      // join is one whitespace-free word to this tokenizer and a full governed command to the shell
+      // that re-reads it. Measured on the committed build: such a body ALLOWED at both entry points
+      // with zero keys, and executed. The trigger therefore also fires when `governedToolsNamedBy` —
+      // the ONE projection the fail-closed arm asks — names a tool in the VALUE. The re-read goes
+      // through the same `commandSegments` and the same queue, so a body the grammar cannot read
+      // becomes an opaque nested segment and is refused on the tool name.
+      //
+      // THE PROGRESS CONDITION IS LOAD-BEARING. It fires only when the value differs from the spelling
+      // (a quote or an escape was removed). A canonical word's value is its spelling with quoting
+      // stripped, so a re-read value is STRICTLY SHORTER than the word it came from and the queue
+      // terminates. Without it a bare `git` re-reads to `git` forever. A word spelled with no quoting
+      // is read in this segment already; there is no next-shell reading to ask about.
+      if (/\s/.test(w.value) || (w.value !== w.raw && governedToolsNamedBy(w.value).size > 0)) {
         const nested = commandSegments(w.value, 1);
         if (nested === null) refuse(w.value, [w.value]);
         else queue.push(...nested.map((n) => ({ seg: n, fed: feedAt(i) })));
