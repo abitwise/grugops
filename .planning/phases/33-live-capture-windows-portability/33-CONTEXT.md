@@ -165,6 +165,72 @@ red was diagnosed at zero tokens as a suite-expectation defect, not a kit defect
   open, the phase closes by human override with the item open and the diagnosis filed, never by a
   softened predicate.
 
+### Phase close (decided by Olger Oeselg, 2026-09-25, after gap-closure round 4 of 4)
+
+These decisions use clear professional voice: they bear on the prod-deploy guard, a safety surface.
+The human was shown D-20 and the four questions in `33-R4-DIAGNOSIS.md` § 5 and answered, in the
+session of 2026-09-25: "B, go with your recommendations on 1-4". D-33-R4-04 to D-33-R4-07 are the
+answers to questions 1 to 4. D-33-R4-08 is option B, the closure. The id sequence continues from
+D-33-R4-01 and D-33-R4-03 (STATE.md decision log, 2026-09-23). No record anywhere assigns
+D-33-R4-02, so it is left unused rather than reused. None of these decisions edits a source file,
+a predicate or CLAUDE.md inside Phase 33. Each names work the next phase owes.
+
+- **D-33-R4-04: The coordinator-as-subagent route is allowed.** Diagnosis § 1. D-02 (a) stands as
+  written: at least two granted roles, each with own-session evidence. Path A of the round-4 capture
+  met that bar (brownfield-mapper and architect-design). The runner's stricter clause in
+  `capThreePredicate` (`scripts/capture-live.ts`, about lines 990-1000), which records a reason for
+  every `Agent` spawn whose role is not a grant member, is to be dropped **for the coordinator spawn
+  only**. That change is made by a recorded decision in the next phase, not by editing the predicate
+  now: D-20 forbids softening a predicate inside this phase. Also recorded: on Claude Code 2.1.281 a
+  subagent spawned subagents (A:313, A:711, both children of the A:80 coordinator spawn). That
+  contradicts CLAUDE.md's statement that subagents cannot spawn subagents. Whether the platform
+  guarantees this behaviour is `UNKNOWN - verify`. CLAUDE.md is NOT edited now. The correction is an
+  owed follow-up, WINDOWS.md row 309. Disposes row 297 (annotated, still open).
+- **D-33-R4-05: The capture pins the permission mode to default.** Diagnosis § 3.1. The capture must
+  pass `--permission-mode default` instead of inheriting the operator's `auto` mode, under which role
+  agents wrote with the `Write` tool to seven paths outside the target. The first step in the next
+  phase is a zero-token check of whether that mode actually denies an out-of-target `Write` in `-p`
+  mode. That behaviour is `UNKNOWN - verify` today, and the pin is not claimed to bound anything
+  until the check has measured it. Disposes row 298 (annotated, still open).
+- **D-33-R4-06: The guard's refusal of unreadable words is redesigned, not relaxed by a quick fix.**
+  Diagnosis § 3.2. The guard keeps refusing when an unreadable word (a `$var` expansion, a heredoc,
+  a subshell group) could make the command run a governed tool. It stops refusing when no governed
+  tool is reachable from the command. This is coupled with the round-4 review's CR-01 and CR-02
+  (`33-REVIEW.md`, WINDOWS.md rows 301 and 302). Those are bypasses in the other direction: commands
+  the guard allows although they run a governed tool. The redesign closes CR-01 and CR-02 first and
+  must not widen any allow path while narrowing the over-denial. This is next-phase design work, not
+  a quick fix. Disposes the § 3.2 pointer, rows 269 and 257 (annotated; 269 still open, 257 already
+  fixed for its first half).
+- **D-33-R4-07: The per-run D-04 row keys on the probe's own tool use.** Diagnosis § 3.3. The runner
+  joins a deny through its tool result to the tool use whose command is the probe, so a run that
+  never issued the probe cannot read `yes` on the deny of an ordinary command. A small runner fix in
+  the next phase. The outcome word was not affected in round 4, because run A's genuine probe deny
+  satisfied `denyFired`. Disposes row 299 (annotated, still open).
+- **D-33-R4-08: Phase 33 closes by human override with every requirement NOT met.** This is option B
+  under D-20, and it is recorded as an override of a `gaps_found` verdict, not as a pass.
+  **What is left standing.** `33-VERIFICATION.md` (commit `aba4f1d3`) reads `gaps_found`, 0/3. Its
+  findings and status are not rewritten; it gains a human-override annotation only. GAP-D1 stays
+  OPEN (open since 2026-06-16). Nothing in `33-FLIP-MANIFEST.md`'s flip set moves, and its status
+  stays `pre-capture`. CAP-01, CAP-02 and CAP-03 stay unchecked (`- [ ]`) in REQUIREMENTS.md, and
+  their coverage rows read "closed by human override, not met".
+  **What is carried open, with an owner.** Every open item moves to the next phase:
+  the round-4 review's CR-01 and CR-02 (rows 301-302, live prod-deploy guard bypasses, FIRST in the
+  next phase), WR-01 to WR-04 and IN-01 to IN-02 (rows 303-308), the CLAUDE.md nesting follow-up
+  (row 309), the work D-33-R4-04 to D-33-R4-07 name (rows 297-299 and 269), the windows red on row 274
+  (CAP-02), the GAP-D1 capture itself (CAP-01 and CAP-03), and the 11 open entries in this phase's
+  `deferred-items.md`. The earlier Phase 33 rows that name "a later round" or "a later phase" as owner
+  are unchanged and are read as the next phase.
+  **Where the next phase is.** Phase 34 in ROADMAP.md is "Model Effort Dial & Pi Support". The
+  carried items do not belong there, and Phase 34 is not re-scoped by this decision. Phase 34's own
+  dependency line assumes a green Windows leg before a sixth adapter lands, which is not true. The
+  recommendation is a new inserted phase (for example 33.1) that owns the carried items, with CR-01
+  and CR-02 first, planned before Phase 34 starts. Inserting it is the human's act
+  (`/gsd-phase insert`), and this decision does not perform it.
+  **Why close rather than run a round 5.** The four-round cap adopted with D-44 (Phase 31) makes the
+  fourth round's verification terminal. D-20 names this exact closure: at the cap with GAP-D1 open,
+  the phase closes by human override with the item open and the diagnosis filed, never by a softened
+  predicate.
+
 ### Claude's Discretion
 
 - The exact vitest `testTimeout` bound (D-14) and the fixture project's contents (D-03), provided

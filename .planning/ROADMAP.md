@@ -100,14 +100,14 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 31: Autonomous Manual Testing** *(CLOSED 2026-09-13 by user override D-44; round-9 verification stands at `gaps_found` 4/6, CR-28…CR-31 + WR-43…WR-47 ACCEPTED OPEN, UATX-01/UATX-06 unchecked)* — browser-driven UAT where the committed Playwright spec is the evidence and the agent's narration never is
 - [x] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard (completed 2026-09-17)
 - [x] **Phase 32.1: Board Dashboard Deferred Residuals** (INSERTED) — the 16 residuals Phase 32 deferred at its four-round cap (F-14..F-21 + carried ledger rows) closed by canonical form, plus triage of round-4 review WR-01..WR-04 *(completed 2026-09-18 by human override: verification 16/17 with the row-212 prod-deploy safety item routed to human; UAT 1 pass / 3 skipped, the WINDOWS-anchored tests deferred by the human; rows 211-213 and 222-224 ACCEPTED OPEN)*
-- [ ] **Phase 33: Live Capture & Windows Portability** — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
+- [x] **Phase 33: Live Capture & Windows Portability** *(CLOSED 2026-09-25 by human override D-33-R4-08; round-4 verification stands at `gaps_found` 0/3, GAP-D1 OPEN, CAP-01/CAP-02/CAP-03 unchecked and NOT met, round-4 review CR-01/CR-02 guard bypasses ACCEPTED OPEN as WINDOWS.md rows 301-302; all open items carried to the next phase)* — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
 
 **Standing obligations from v2.0, and where each lands:**
 
 | # | Obligation | Phase |
 |---|------------|-------|
-| 1 | **GAP-D1** — one captured live dual-path run → flip A3/DOG-02 + the coupled `examples/03-ticket-to-pr.md` edit | 33 (CAP-01) |
-| 2 | **Windows-portability pass** — `windows-latest` leg green, then flip the Phase-20 human item | 33 (CAP-02) |
+| 1 | **GAP-D1** — one captured live dual-path run → flip A3/DOG-02 + the coupled `examples/03-ticket-to-pr.md` edit | 33 (CAP-01) — NOT discharged: Phase 33 closed by human override D-33-R4-08 with GAP-D1 open; carried to the next phase |
+| 2 | **Windows-portability pass** — `windows-latest` leg green, then flip the Phase-20 human item | 33 (CAP-02) — NOT met: closed by override D-33-R4-08, windows red on WINDOWS.md row 274; carried to the next phase |
 | 3 | **`orchestrator.md` size** — 7562B against a 7570B hard FAIL ceiling; trim *before* adding spawn text | 27 (SPAWN-06) |
 | 4 | **Fail-safe residuals** — all fail-closed, none silent | 28 (AUDIT-01 disposition) |
 | 5 | **Hygiene** — delete `agent-factory/handoffs/.gitkeep`; reconcile `CLAUDE.md` | 28 (AUDIT-01/02) |
@@ -1305,6 +1305,20 @@ Plans:
 
 ### Phase 33: Live Capture & Windows Portability
 
+> **CLOSED 2026-09-25 BY HUMAN OVERRIDE — not by a passing verification.** `33-VERIFICATION.md` (round 4,
+> commit `aba4f1d3`) returned `gaps_found` **0/3**, and that verdict is left standing, unedited except for a
+> human-override annotation. CAP-03 fails on the round-4 capture's `OUTCOME: fail` (run A's membership clause),
+> CAP-01 fails because nothing flipped (GAP-D1 stays OPEN, open since 2026-06-16), and CAP-02 fails on the one
+> windows-latest red (WINDOWS.md row 274). Olger Oeselg closed the phase at its four-round cap under **D-20** as
+> **D-33-R4-08** (`33-CONTEXT.md`), after deciding the four `33-R4-DIAGNOSIS.md` § 5 questions as
+> **D-33-R4-04 … D-33-R4-07**: the coordinator-as-subagent route is allowed; the capture pins
+> `--permission-mode default` after a zero-token check; the guard's unreadable-word refusal is redesigned; the
+> D-04 row keys on the probe. The round-4 code review's **CR-01 and CR-02 are live prod-deploy guard bypasses,
+> accepted open, not fixed** (WINDOWS.md rows 301-302), and come FIRST in the next phase; WR-01…WR-04 and
+> IN-01…IN-02 are rows 303-308. **Owner of every carried item: the next phase.** Phase 34 is not re-scoped;
+> its dependency on a green Windows leg is unmet, so a new inserted phase (for example 33.1) is recommended to
+> own the carry before Phase 34 starts. Inserting it is the human's act.
+
 **Goal**: The milestone's headline claims are proven by capture rather than by a green suite — one live run shows role agents executing in their own sessions, which is also the evidence the project's oldest open item has waited for since v1.0.
 **Depends on**: Phase 27 (spawning must genuinely work before it can be captured) and Phase 32 (the Windows `fs.watch` surface this phase turns green)
 **Requirements**: CAP-01, CAP-02, CAP-03
@@ -1518,7 +1532,7 @@ Plans:
 | 31. Autonomous Manual Testing | v2.1 | 44/44 | In Progress|  |
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
-| 33. Live Capture & Windows Portability | v2.1 | 43/43 | In Progress|  |
+| 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
 | 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).

@@ -2,21 +2,21 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: 33
-current_phase_name: Live Capture & Windows Portability
-status: "Phase 33 gap-closure round 4 of 4 (LAST) EXECUTED 2026-09-24 - 33-35..33-43 done; CAP-02 NOT MET, capture OUTCOME: fail, GAP-D1 HELD at the cap; awaiting verification; the phase closes by human override (D-20); next: /gsd-verify-work 33"
-stopped_at: Completed 33-43-PLAN.md (round-4 ledger close; cap reached with GAP-D1 open); next /gsd-verify-work 33
-last_updated: "2026-09-24T19:52:24.000Z"
-state_head: a957b111c4244c6dfae2b73ba91b5c662bbf5ac9
+current_phase: 34
+current_phase_name: Model Effort Dial & Pi Support
+status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 34 per ROADMAP, not yet planned; a new inserted phase (e.g. 33.1) owning the Phase 33 carry is recommended before it. Standing rule: four-round gap-closure cap on every later phase."
+stopped_at: Phase 33 closed by human override D-33-R4-08; Phase 34 not started (inserting a phase for the Phase 33 carry is recommended first)
+last_updated: "2026-09-25T09:12:29.134Z"
+state_head: 266e8df24f8ecd264c523e0983d922c0fecead86
 progress:
   total_phases: 11
-  completed_phases: 32
+  completed_phases: 33
   total_plans: 312
   completed_plans: 312
   percent: 100
-last_activity: 2026-09-24
+last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
-last_activity_desc: "Executed Phase 33 gap-closure round 4 of 4, the last under the cap (33-35..33-43): guard CR-01 nested, npm-prefix and xargs classes closed; row 260 win32 anchor; WR-01 and WR-02 closed; CI run 36035067112 ubuntu success, windows failure on one case (row 274), CAP-02 NOT MET; live capture OUTCOME: fail (33-R4-DIAGNOSIS.md); GAP-D1 held (manifest section 9); ledgers closed by 33-43 (review snapshot 33-REVIEW-round3.md; WINDOWS.md 274 -> 300 rows, 6 fixed; deferred-items 11 open with Round 4 notes). The phase closes by human override with GAP-D1 open (D-20)."
+last_activity_desc: "Phase 33 CLOSED by human override D-33-R4-08 after round-4 verification gaps_found 0/3 (aba4f1d3). The human decided the four 33-R4-DIAGNOSIS section 5 questions as D-33-R4-04..07 (coordinator-as-subagent route allowed; capture pins --permission-mode default after a zero-token check; guard unreadable-word refusal redesigned; D-04 row keyed on the probe). Round-4 review ledgered: WINDOWS.md rows 301-309 appended (CR-01/CR-02 live guard bypasses first), rows 257/269/274/297-299 annotated; open 259 -> 268 of 309. GAP-D1 open; CAP-01/02/03 not met; all carried to the next phase."
 ---
 
 # Project State
@@ -26,12 +26,12 @@ last_activity_desc: "Executed Phase 33 gap-closure round 4 of 4, the last under 
 See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 33 — Live Capture & Windows Portability
+**Current focus:** Phase 34 — Model Effort Dial & Pi Support (not yet planned). Before it: a new inserted phase for the Phase 33 carry is recommended (`/gsd-phase insert`), with the round-4 review CR-01/CR-02 guard bypasses first.
 
 ## Current Position
 
-Phase: 33 (Live Capture & Windows Portability) — gap-closure round 4 of 4 (LAST) EXECUTED 2026-09-24, awaiting verification
-Plan: 43 of 43 (round 4: fixes 33-35 CR-01 nested class, 33-36 npm unique-prefix + xargs stdin, 33-37 row 260 win32 Edit anchor, 33-38 WR-01 (+ the Phase 31 IN-04), 33-39 WR-02; 33-40 CI run 36035067112 (head e45202a1) ubuntu success / windows failure, 1 red (board-watch-live DEBOUNCE EPERM, row 274), CAP-02 NOT MET; 33-41 capture on pushed sha 6a2dca38 OUTCOME: fail (run A CAP-03 side (a), class SUITE; parity 5 diffs), 33-R4-DIAGNOSIS.md with 4 human decisions; 33-42 hold, manifest section 9; 33-43 ledger close: review snapshot 33-REVIEW-round3.md, WINDOWS.md 274 -> 300 rows (6 fixed), 11 deferred items open with Round 4 notes. Round 4 was the last under the cap: the phase closes by human override with GAP-D1 open (D-20); the ROADMAP phase is not marked complete.)
+Phase: 34 (Model Effort Dial & Pi Support) — NOT STARTED. Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (see ROADMAP Phase 33 note and 33-CONTEXT.md Phase close section): verification gaps_found 0/3 left standing, GAP-D1 open, CAP-01/02/03 not met, every open item carried to the next phase.
+Plan: Not started (Phase 34 unplanned). Phase 33 record below, rounds 2-4:
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -103,7 +103,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 309
+- Total plans completed: 352
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -141,6 +141,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 29.2 | 6 | - | - |
 | 32 | 34 | - | - |
 | 32.1 | 15 | - | - |
+| 33 | 43 | - | - |
 
 **Recent Trend:**
 
@@ -1558,6 +1559,11 @@ Recent decisions affecting current work:
 - [Phase 33]: 33-40: CAP-02 NOT MET on run 36035067112 (head e45202a1) — ubuntu success, windows 1 red of 5779: board-watch-live DEBOUNCE burst EPERM on the test's own rename (row 274), not a round-4 plan's; row-260 case and every round-4 module green on both legs; round 4 of 4, cap reached, no row flipped
 - [Phase 33]: 33-41: round-4 live capture OUTCOME: fail on pushed sha 6a2dca38 (A 621098 ms, B 436179 ms, both exit 0; ~4.40 USD). anyFailure set by run A CAP-03 side (a): the default session spawned grugops-orchestrator as a subagent, which then spawned the role agents (nesting on 2.1.281); classed SUITE (runner membership clause stricter than D-02 (a)). Parity 5 diffs (model-chosen counts/kinds). Host: permissionMode auto let Write reach /tmp outside the target. 33-28 UNKNOWN settled (propose_note in B init tools). Nothing flips; no round 5.
 - [Phase 33]: 33-42: hold branch, mechanical under D-20 (round-4 OUTCOME fail; CAP-02 NOT MET on run 36035067112); Task 1 checkpoint not presented, Task 2 flip not run; manifest section 9 records the cap-reached closure by human override with GAP-D1 open, predicates unsoftened
+- [Phase 33]: D-33-R4-04 (human, 2026-09-25; 33-R4-DIAGNOSIS section 5 question 1): the coordinator-as-subagent route is ALLOWED. D-02 (a) stands as written (at least two granted roles, each with own-session evidence). The runner every-spawn-is-a-grant-member clause in capThreePredicate (scripts/capture-live.ts about 990-1000) is to be dropped for the coordinator spawn by a recorded decision in the NEXT phase, not edited now (D-20 forbids softening inside Phase 33). On Claude Code 2.1.281 a subagent spawned subagents (A:313, A:711), contradicting the CLAUDE.md no-nesting statement; the platform guarantee is UNKNOWN - verify; CLAUDE.md is NOT edited now, correction owed (WINDOWS.md row 309). Row 297 annotated, open.
+- [Phase 33]: D-33-R4-05 (human, 2026-09-25; question 2): the capture must pin --permission-mode default rather than inherit the operator auto mode. The first step in the next phase is a zero-token check of whether that mode actually denies an out-of-target Write in -p mode (UNKNOWN - verify). Row 298 annotated, open.
+- [Phase 33]: D-33-R4-06 (human, 2026-09-25; question 3): the guard refusal of unreadable words ($var, heredoc, subshell) is REDESIGNED, not quick-fixed: keep refusing when the unreadable word could make the command run a governed tool, stop refusing when no governed tool is reachable. Coupled with round-4 review CR-01/CR-02 (bypasses the other way, WINDOWS.md rows 301-302), which the redesign closes first without widening any allow path. Next-phase work. Rows 269 (open) and 257 annotated.
+- [Phase 33]: D-33-R4-07 (human, 2026-09-25; question 4): the per-run D-04 row keys on the probe own tool use, joining the deny through the tool result to the probe command. Small runner fix, next phase. Row 299 annotated, open.
+- [Phase 33]: D-33-R4-08 (human, 2026-09-25; option B under D-20): Phase 33 CLOSED BY HUMAN OVERRIDE at the four-round cap. 33-VERIFICATION.md (aba4f1d3) stands at gaps_found 0/3, annotated not rewritten; GAP-D1 OPEN; CAP-01/CAP-02/CAP-03 NOT met, checkboxes unchecked, coverage rows read closed by human override, not met. Round-4 review 33-REVIEW.md (f20f1af5) ledgered: CR-01/CR-02 live prod-deploy guard bypasses accepted open, not fixed, FIRST in the next phase (rows 301-302; CR-01 independently reproduced by the verifier through both hook entry points); WR-01..WR-04 and IN-01..IN-02 rows 303-308. Every open item carried to the next phase; Phase 34 (Model Effort Dial & Pi Support) is not re-scoped, and a new inserted phase (e.g. 33.1) is recommended to own the carry before Phase 34.
 
 ### Pending Todos
 
@@ -1623,6 +1629,7 @@ None yet.
 - DASH-06 guard is green (exit 0, 89/89) over a writer imported through an absolute-path specifier (F-04) and over process.report.writeReport reached through a binding after one recorded member path (F-08); both open with reproductions in 32-23-ADVERSARIAL-REVIEW.md
 - [Phase 32] 16 open items deferred to Phase 32.1 by Option C (2026-09-17): F-14 (C1 byte in a ticket id quoted then deleted, no correcting field), F-15 (split-reader census sees named imports only; a namespace import or two-hop re-export is a working second reader), F-16..F-21, plus check:diff-disposition RED (pre-existing, 78 findings), live e2e lane UNKNOWN - verify, the production-file census exemption, the runtime-assembled key spelling, board-tracer.test.ts as 9th registry exemption, and the wrong F-15 commit hash in 32-40-ADVERSARIAL-REVIEW.md (7aea94f0; real one 7a3ae592). Round-4 code review WR-01..WR-04 (32-REVIEW.md, e385498d) are NOT in that ledger yet; triage them into Phase 32.1 at planning.
 - Phase 32.1 plan 10: the live claude-CLI end-to-end lane ran once and FAILED — A1 (D-31) empty capture, A2-live (SAFE-02/V14, a safety case) deny marker absent, A3-live (DOG-02/D-05) no verdict convergence. Evidence in 32.1-10-LIVE-TRANSCRIPT.txt; disposition is plan 32.1-11 to decide. Also: uat-live.test.ts docblock falsely claims npm test excludes the live lane.
+- [Phase 33] prod-deploy guard: round-4 review CR-01 and CR-02 are LIVE bypasses accepted open at the Phase 33 close (D-33-R4-08), not fixed; WINDOWS.md rows 301-302; first in the next phase, ahead of every other carried item (D-33-R4-06 redesign is coupled).
 
 ### Quick Tasks Completed
 
@@ -1681,12 +1688,14 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 **GAP-D1 — standing deferral (human-accepted 2026-07-02, re-confirmed at 26-UAT Test 4 on 2026-07-24):** the A3/DOG-02 retirement flip and its coupled `examples/03-ticket-to-pr.md` cleanup wait on ONE captured live dual-path run on an authed box (an authed Tier-2 `npm run test:e2e` A3-live case, or a completed `docs/dogfood-human-runbook.md` run with date + verdict). A loud-skip is never a capture (D-01/D-02); cost never gates it (D-11). Non-blocking for milestone close — Phase 26 verified the gating *behavior* held correctly: nothing flipped without evidence.
 
+**GAP-D1 at the Phase 33 close (2026-09-25):** NOT discharged. Phase 33 closed by human override D-33-R4-08 at its four-round cap with the item open; the round-4 capture read OUTCOME: fail and nothing flipped (33-FLIP-MANIFEST.md section 9, status pre-capture). Carried to the next phase.
+
 **Other v2.0 tech debt** (from the audit, not open-artifact rows): `guard_role_size` WARN proximity on six roles (`orchestrator.md` at 7562B against a 7165B threshold, growing every phase); the Phase 22 WR-03 fail-safe usability false-positive and the `---\n--- \n…` byte-round-trip adjacency (both fail-closed, never silent-absorb); the Phase 25 `floor-invariance.test.ts` spawn-heavy timeout needing an explicit larger `testTimeout`; the documented irreducible same-uid/no-hook direct-FS forgery residual (backstopped by `autonomy=pr`); `agent-factory/handoffs/` surviving as an empty dir with a tracked `.gitkeep`.
 
 ## Session Continuity
 
-Last session: 2026-09-24T19:39:35.769Z
-Stopped at: Completed 33-42-PLAN.md (hold branch; section 9 cap-reached closure, GAP-D1 open); next 33-43
+Last session: 2026-09-25T09:15:00.000Z
+Stopped at: Phase 33 closed by human override D-33-R4-08; Phase 34 not started
 Resume file: None
 
 ## Operator Next Steps

@@ -169,6 +169,7 @@ gaps:
       - "A both-legs-green CI run — the cap on gap-closure rounds inside this phase is reached, so this needs either a human-directed fix outside the 4-round budget or an accepted-open disposition of row 274"
 artifacts_ok: true
 key_links_ok: true
+human_override: "2026-09-25: Olger Oeselg closed Phase 33 by human override D-33-R4-08 under D-20 (33-CONTEXT.md). This report's status gaps_found 0/3 and every finding stand as written; CAP-01/CAP-02/CAP-03 are NOT met, GAP-D1 stays open, and review CR-01/CR-02 are accepted open as WINDOWS.md rows 301-302. See the Human Override section at the end."
 ---
 
 # Phase 33: Live Capture & Windows Portability Verification Report
@@ -300,3 +301,30 @@ Beyond the three roadmap truths, this verification independently reproduced a **
 
 _Verified: 2026-09-25_
 _Verifier: Claude (gsd-verifier)_
+
+## Human Override (2026-09-25)
+
+This section was added after the report. It is an annotation. The findings and the `gaps_found` status
+above are not changed.
+
+Olger Oeselg was shown D-20 and the four questions in `33-R4-DIAGNOSIS.md` § 5, and answered: "B, go with
+your recommendations on 1-4". The decisions are recorded in `33-CONTEXT.md` (Phase close section) and in
+the STATE.md decision log:
+
+- **D-33-R4-04:** the coordinator-as-subagent route is allowed. D-02 (a) stands. The runner's
+  every-spawn-is-a-member clause is to be dropped for the coordinator spawn by a next-phase decision, not
+  inside this phase. The nesting observed on Claude Code 2.1.281 contradicts CLAUDE.md. The platform
+  guarantee is `UNKNOWN - verify`, and the CLAUDE.md correction is owed (WINDOWS.md row 309).
+- **D-33-R4-05:** the capture pins `--permission-mode default`. First, a zero-token check of whether that
+  mode denies an out-of-target `Write` in `-p` mode (`UNKNOWN - verify`).
+- **D-33-R4-06:** the guard's unreadable-word refusal is redesigned. It keeps refusing where a governed
+  tool is reachable and stops refusing where none is. This is coupled with review CR-01/CR-02.
+- **D-33-R4-07:** the per-run D-04 row keys on the probe's own tool use.
+- **D-33-R4-08:** Phase 33 closes by human override with CAP-01, CAP-02 and CAP-03 NOT met and GAP-D1
+  OPEN. Every open item is carried to the next phase.
+
+This report's item 5 under "Human Verification Required" (CR-01/CR-02 disposition) is answered as
+follows. The two findings are ledgered as accepted-open safety residuals, WINDOWS.md rows 301 (CR-01,
+independently reproduced by this report) and 302 (CR-02). They are not fixed, and they come first in the
+next phase. Item 4 (row 274) received no disposition. The row stays open and is carried. Nothing in this
+override closes a gap, flips a requirement or discharges GAP-D1.
