@@ -2,14 +2,14 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live Board
-current_phase: 34
-current_phase_name: Model Effort Dial & Pi Support
-status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 34 per ROADMAP, not yet planned; a new inserted phase (e.g. 33.1) owning the Phase 33 carry is recommended before it. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Phase 33 closed by human override D-33-R4-08; Phase 34 not started (inserting a phase for the Phase 33 carry is recommended first)
-last_updated: "2026-09-25T09:12:29.134Z"
-state_head: 266e8df24f8ecd264c523e0983d922c0fecead86
+current_phase: "33.1"
+current_phase_name: "Phase 33 Leftovers: Guard Bypasses First"
+status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
+stopped_at: Phase 33.1 inserted 2026-09-25 to own the Phase 33 carry (CR-01/CR-02 first); not planned — next /gsd-discuss-phase 33.1 or /gsd-plan-phase 33.1
+last_updated: "2026-09-25T09:28:49.275Z"
+state_head: 0700e6f9e58d8366e5375941476cfd5bf9a507d7
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 33
   total_plans: 312
   completed_plans: 312
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 
 ## Current Position
 
-Phase: 34 (Model Effort Dial & Pi Support) — NOT STARTED. Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (see ROADMAP Phase 33 note and 33-CONTEXT.md Phase close section): verification gaps_found 0/3 left standing, GAP-D1 open, CAP-01/02/03 not met, every open item carried to the next phase.
-Plan: Not started (Phase 34 unplanned). Phase 33 record below, rounds 2-4:
+Phase: 33.1 (Phase 33 Leftovers: Guard Bypasses First) — INSERTED 2026-09-25, NOT PLANNED. Owns the Phase 33 carry (D-33-R4-08): CR-01/CR-02 live prod-deploy guard bypasses (WINDOWS.md rows 301-302) first, then D-33-R4-04..07, row 274, rows 303-309, GAP-D1. Phase 34 follows.
+Plan: Not started (Phase 33.1 unplanned; Phase 34 follows). Phase 33 record below, rounds 2-4:
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -592,6 +592,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 - Phase 19 added (2026-06-16): Factory Auto-UAT Harness — Tier 1 deterministic oracles + Tier 2 `claude --print` headless E2E to honestly automate the deferred live-runtime human UATs (A1 plugin-cache pointer resolution / D-31, A2 live hook firing / SAFE-02, A3 sub-agent dual-path parity / DOG-02) + B3 WR-05 wording cross-check. Tier 3 (B1/B2 persona/prose judgment, Phase 11) is explicitly OUT of scope — stays human sign-off. Reopened v1.2 (was milestone_complete but never archived). Rationale captured in quick task [260616-faw](./quick/260616-faw-automate-remaining-human-uats-feasibilit/260616-faw-PLAN.md).
 - Phase 29.1 inserted after Phase 29: Per-Role Model Assignment — config-dial model tiers per role (opt-in preset, aliases only, zero-config unchanged)
 - Phase 32.1 inserted after Phase 32: Board Dashboard Deferred Residuals — the 16 open items Phase 32's Option C close deferred (F-14..F-21 + carried ledger rows; see 32-41-SUMMARY.md and deferred-items.md) (URGENT)
+- Phase 33.1 inserted after Phase 33: Phase 33 Leftovers: Guard Bypasses First — owns the Phase 33 override carry, CR-01/CR-02 first (URGENT)
 
 ### Decisions
 

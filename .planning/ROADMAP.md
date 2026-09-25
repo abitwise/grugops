@@ -101,6 +101,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 32: Board Projector & CLI Dashboard** — one board-grammar authority emitting a typed snapshot, rendered live by a read-only terminal dashboard (completed 2026-09-17)
 - [x] **Phase 32.1: Board Dashboard Deferred Residuals** (INSERTED) — the 16 residuals Phase 32 deferred at its four-round cap (F-14..F-21 + carried ledger rows) closed by canonical form, plus triage of round-4 review WR-01..WR-04 *(completed 2026-09-18 by human override: verification 16/17 with the row-212 prod-deploy safety item routed to human; UAT 1 pass / 3 skipped, the WINDOWS-anchored tests deferred by the human; rows 211-213 and 222-224 ACCEPTED OPEN)*
 - [x] **Phase 33: Live Capture & Windows Portability** *(CLOSED 2026-09-25 by human override D-33-R4-08; round-4 verification stands at `gaps_found` 0/3, GAP-D1 OPEN, CAP-01/CAP-02/CAP-03 unchecked and NOT met, round-4 review CR-01/CR-02 guard bypasses ACCEPTED OPEN as WINDOWS.md rows 301-302; all open items carried to the next phase)* — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
+- [ ] **Phase 33.1: Phase 33 Leftovers: Guard Bypasses First** (INSERTED) — the items Phase 33 carried at its override close (D-33-R4-08): the live prod-deploy guard bypasses CR-01/CR-02 (WINDOWS.md rows 301-302) first, then the D-33-R4-04..07 follow-ups, row 274, rows 303-309 and GAP-D1
 
 **Standing obligations from v2.0, and where each lands:**
 
@@ -1475,6 +1476,17 @@ Plans:
 **Wave 32** *(blocked on Wave 31)*
 
 - [x] 33-43-PLAN.md — ledger close: `33-REVIEW.md` snapshotted as `33-REVIEW-round3.md` first; round-4 findings fixed-by-name or rows; WR-03 + the ledgered classes + the two guard residuals as rows with owners; deferred-items citations; REQUIREMENTS/STATE agreement; ROADMAP checkbox NOT flipped on hold (D-20)
+
+### Phase 33.1: Phase 33 Leftovers: Guard Bypasses First (INSERTED)
+
+**Goal:** Take over everything Phase 33 carried at its human-override close (D-33-R4-08). First, the two live prod-deploy guard bypasses from the round-4 review: CR-01 (whitespace-free nested body, e.g. `bash -c '{git,push,origin,main}'`, ALLOW; WINDOWS.md row 301) and CR-02 (positional-parameter bodies in permuted order; row 302), coupled with the D-33-R4-06 redesign of the unreadable-word refusal. Then: D-33-R4-04 (drop every-spawn-is-a-member for the coordinator spawn; CLAUDE.md nesting correction, row 309), D-33-R4-05 (`--permission-mode default` pin after its zero-token check), D-33-R4-07 (D-04 row keyed on the probe's own tool use), row 274 (windows leg red), rows 303-308, and a re-attempt at the capture that discharges GAP-D1 (CAP-01/CAP-02/CAP-03).
+**Requirements**: TBD
+**Depends on:** Phase 33
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 33.1 to break down)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
