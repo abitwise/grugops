@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Bypasses First"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Phase 33.1 inserted 2026-09-25 to own the Phase 33 carry (CR-01/CR-02 first); not planned — next /gsd-discuss-phase 33.1 or /gsd-plan-phase 33.1
-last_updated: "2026-09-25T09:28:49.275Z"
-state_head: 0700e6f9e58d8366e5375941476cfd5bf9a507d7
+stopped_at: Phase 33.1 context gathered
+last_updated: "2026-09-25T10:44:58.823Z"
+state_head: 111a6d5885eb5099785da8c1f1a39da79094e649
 progress:
   total_phases: 12
   completed_phases: 33
@@ -1695,9 +1695,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-25T09:15:00.000Z
-Stopped at: Phase 33 closed by human override D-33-R4-08; Phase 34 not started
-Resume file: None
+Last session: 2026-09-25T10:44:57.836Z
+Stopped at: Phase 33.1 context gathered
+Resume file: .planning/phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-CONTEXT.md
 
 ## Operator Next Steps
 
