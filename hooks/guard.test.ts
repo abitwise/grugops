@@ -2550,6 +2550,8 @@ interface Cr01NestedRow {
   readonly source: string;
   readonly kind: "deny" | "deny-control" | "allow-control" | "residual" | "handed-off";
   readonly owner?: string;
+  /** The canonical-form rule (D-01) that closes this row, when one does: `C1` … `C5`. */
+  readonly rule?: string;
   readonly command: string;
 }
 const CR01_NESTED_CORPUS: readonly Cr01NestedRow[] = (
@@ -2725,6 +2727,38 @@ describe("33.1-01 tracer — a whitespace-free nested body denies through both e
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33.1-02 — RULE C1 (CR-02, WINDOWS.md row 302): a positional body denies through BOTH entry points.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// The rows are the fixture's `rule: "C1"` rows, read by rule and never restated here: a positional
+// parameter in double quotes inside a nested body, in permuted order, with a trailing unused
+// argument, set at the top level, or with a benign word as the adjacent positional. The classifier
+// read a double-quoted run as a literal word whatever it held, so each ALLOWED with zero keys (exit 0
+// and the fd-3 token on the committed build). The allow controls are commands from the held capture
+// whose double-quoted word C1 now makes opaque, each proved by `expectAllowed`.
+describe("33.1-02 C1 — the CR-02 positional rows deny through both entry points, with a real allow proof", () => {
+  const denyRows = CR01_NESTED_CORPUS.filter((r) => r.rule === "C1" && r.kind === "deny");
+  const allowRows = CR01_NESTED_CORPUS.filter((r) => r.rule === "C1" && r.kind === "allow-control");
+
+  it("the rows are non-vacuous: eight C1 deny rows and at least one captured allow control", () => {
+    expect(denyRows.length).toBe(8);
+    expect(allowRows.length).toBeGreaterThan(0);
+  });
+
+  for (const [label, argv] of ENTRY_POINTS) {
+    it(`${label}: every C1 row DENIES, exit 0 with a decision; every C1 allow control is a PROVED allow (scrubbed env)`, async () => {
+      const outs = await runAll(argv, [...denyRows, ...allowRows].map((r) => r.command));
+      denyRows.forEach((r, i) => {
+        expect(outs[i]!.code, `${r.id} exits 0 with a decision`).toBe(0);
+        expect(outs[i]!.signal, r.id).toBeNull();
+        expect(outs[i]!.stdout, r.id).toContain(DENY_DECISION);
+      });
+      allowRows.forEach((r, i) => expectAllowed(outs[denyRows.length + i]!, `${label} ${r.id}`));
+    }, 120_000);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
 // 33.1-01 Task 2 — WR-04 COMPLETENESS: every allow control in this file goes through the ONE allow
 // proof, the site set is DERIVED, and its count is asserted (derive the set, assert the count).
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -2780,9 +2814,9 @@ describe("33.1-01 WR-04 — every allow control is routed through the one allow 
   it("the allow proof's call-site count is pinned (a new allow control moves this number on purpose)", () => {
     // 46 derived sites collapse to 45 calls (the retired helper's own assertion is not a call site:
     // 25 helper call sites + 20 inline sites), plus the tracer's allow control and its two mutation
-    // rows (3), plus the synchronous control and the looped synchronous stub row below (2). A site
-    // deleted rather than routed makes this number fall.
-    expect(allowProofCalls(SELF)).toBe(45 + 3 + 2);
+    // rows (3), plus the synchronous control and the looped synchronous stub row below (2), plus the
+    // 33.1-02 C1 replay's allow controls (1). A site deleted rather than routed makes this number fall.
+    expect(allowProofCalls(SELF)).toBe(45 + 3 + 2 + 1);
   });
 
   // THE SYNCHRONOUS PATH, MUTATION-PROVED. Every `runGuard`/`runAt`/`replay` site is a `spawnDecider`

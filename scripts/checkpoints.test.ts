@@ -2480,6 +2480,8 @@ interface Cr01NestedRow {
   readonly source: string;
   readonly kind: "deny" | "deny-control" | "allow-control" | "residual" | "handed-off";
   readonly owner?: string;
+  /** The canonical-form rule (D-01) that closes this row, when one does: `C1` … `C5`. */
+  readonly rule?: string;
   readonly command: string;
 }
 const CR01_NESTED_CORPUS: readonly Cr01NestedRow[] = (
@@ -2887,6 +2889,80 @@ describe("33-R4 CR-01 nested — the consolidated corpus, replayed against the c
     // Non-vacuous: the replay covered every kind the fixture declares.
     expect(new Set(CR01_NESTED_CORPUS.map((r) => r.kind)).size).toBe(5);
   }, 600_000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33.1-02 — RULE C1 of the D-01 canonical-form cutover: a literal word is one of a CLOSED set of
+// spellings, decided by ONE exported function; everything else is opaque (CR-02, WINDOWS.md row 302).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// The classifier read a double-quoted run as a literal word WHATEVER it held, so a positional
+// parameter in double quotes was the literal text dollar-digit to this model and the governed verb
+// supplied after the nested body was never seen: the permuted, the trailing-argument and the
+// benign-word-as-adjacent-positional bodies ALLOWED with zero keys at both entry points (RESEARCH
+// R-19..R-26). C1 states the canonical form as MEMBERSHIP: an unquoted run of the one character class,
+// a single-quoted run of anything, or a double-quoted run with no `$`, backtick or backslash in it
+// (and the flag / assignment prefix followed by one such quoted run). The rows are read from the
+// fixture by rule, never restated here.
+describe("33.1-02 C1 — a double-quoted run holding an expansion is opaque, and the CR-02 positional rows DENY", () => {
+  const c1Rows = CR01_NESTED_CORPUS.filter((r) => r.rule === "C1" && r.kind === "deny");
+  const c1Controls = CR01_NESTED_CORPUS.filter((r) => /^C1-C\d+$/.test(r.id));
+  const c1Allow = CR01_NESTED_CORPUS.filter((r) => r.rule === "C1" && r.kind === "allow-control");
+  const kindOf = (word: string): string => {
+    const ws = cp.classifyWords(word);
+    expect(ws.length, word).toBe(1);
+    return (ws[0] as { kind: string }).kind;
+  };
+
+  it("the C1 rows are the eight deny rows the fixture labels, the three controls deny-control, and C1's allow controls allow", () => {
+    expect(c1Rows.map((r) => r.id)).toEqual(["C1-01", "C1-02", "C1-03", "C1-04", "C1-05", "C1-06", "C1-07", "C1-08"]);
+    expect(CR01_NESTED_CORPUS.filter((r) => r.rule === "C1").length).toBe(c1Rows.length + c1Allow.length);
+    expect(c1Controls.map((r) => r.kind)).toEqual(["deny-control", "deny-control", "deny-control"]);
+    expect(c1Allow.map((r) => r.id)).toEqual(["AC-06", "AC-07"]);
+    for (const r of c1Allow) expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, r.id).toBe(0);
+  });
+
+  it("every C1 row DENIES on the model (its checkpoint is the one its tool governs)", () => {
+    const P = "production_requires_human_confirmation";
+    const B = "protected_branch_merge";
+    const want: Readonly<Record<string, string>> = {
+      "C1-01": B, "C1-02": B, "C1-03": B, "C1-04": B, "C1-05": B, "C1-06": P, "C1-07": P, "C1-08": B,
+    };
+    for (const r of c1Rows) expect(cp.matchCommandCheckpoints(r.command).checkpoints.has(want[r.id] as never), r.id).toBe(true);
+  });
+
+  it("the three positional controls still deny", () => {
+    for (const r of c1Controls) expect(cp.matchCommandCheckpoints(r.command).checkpoints.size, r.id).toBeGreaterThan(0);
+  });
+
+  it("the classifier: a double-quoted run holding an expansion, a backtick or a backslash is OPAQUE", () => {
+    for (const w of ['"$1"', '"$@"', '"a$b"', '"`true`"', '"a\\b"', '-m"$x"', '--x="$y"', 'x="$y"']) expect(kindOf(w), w).toBe("opaque");
+  });
+
+  it("the classifier: single-quoted anything, a plain double-quoted run and the prefix shape stay CANONICAL", () => {
+    for (const w of ["'$1'", "'a b'", '"push"', '"do not push to main"', "-m'msg'", '-m"msg"', "--grep='x y'", "x='$y'", "''", '""']) {
+      expect(kindOf(w), w).toBe("canonical");
+    }
+  });
+
+  it("C1 is ONE exported function, and classifyWords agrees with it run for run", () => {
+    const c1 = (cp as Record<string, unknown>).canonicalWordValue as
+      | ((runs: readonly { readonly quote: "none" | "single" | "double"; readonly text: string }[]) => string | null)
+      | undefined;
+    expect(typeof c1).toBe("function");
+    const f = c1 as NonNullable<typeof c1>;
+    expect(f([{ quote: "double", text: "$1" }])).toBeNull();
+    expect(f([{ quote: "double", text: "a`b" }])).toBeNull();
+    expect(f([{ quote: "double", text: "a\\b" }])).toBeNull();
+    expect(f([{ quote: "single", text: "$1" }])).toBe("$1");
+    expect(f([{ quote: "double", text: "push" }])).toBe("push");
+    expect(f([{ quote: "none", text: "push" }])).toBe("push");
+    expect(f([{ quote: "none", text: "a$b" }])).toBeNull();
+    expect(f([{ quote: "none", text: "-m" }, { quote: "double", text: "$x" }])).toBeNull();
+    expect(f([{ quote: "none", text: "-m" }, { quote: "single", text: "$x" }])).toBe("-m$x");
+    expect(f([{ quote: "none", text: "ap" }, { quote: "single", text: "ply" }])).toBeNull();
+    expect(f([{ quote: "single", text: "ap" }, { quote: "single", text: "ply" }])).toBeNull();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
