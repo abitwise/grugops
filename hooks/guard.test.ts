@@ -38,7 +38,7 @@ import {
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { closureTargets } from "../scripts/js-import-closure.js";
 import { skipEntry, skipLine, stageShapeOrSkip } from "../scripts/check-platform-shapes.js";
@@ -2379,26 +2379,72 @@ const bare = (): Record<string, string> => {
 const reviewPayload = (command: string): string =>
   JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command }, cwd: "/tmp" });
 
-/** Spawn many hook runs at once (bounded), each on its own stdin; resolve with each stdout. */
-async function runAll(argv: readonly string[], commands: readonly string[]): Promise<string[]> {
+/**
+ * WHAT ONE HOOK SPAWN ACTUALLY DID (33.1-01, WR-04, WINDOWS.md row 306, D-05(a)).
+ *
+ * `runAll` used to resolve with stdout ALONE, and its timeout path kills with SIGKILL. A decider that
+ * crashed, or one that hung past the bound, therefore resolved `""` — and every allow control of the
+ * form "stdout carries no deny" passed on it. A crash read as an allow. The run now carries the exit
+ * code, the terminating signal and, on a DIRECT decider run, the bytes the decider wrote on fd 3 (its
+ * private allow channel), so an allow can be PROVED rather than inferred from silence.
+ *
+ * `fd3` is `null` for a run through `hooks/hook-entry.js`: the wrapper opens its decider's fd 3 itself
+ * and consumes the token there (`hooks/hook-entry.ts`, the "SILENCE IS NOT AN ALLOW" branch), so the
+ * wrapper's own exit 0 + empty stdout already IS that check. On a direct run fd 3 is opened as a pipe
+ * by the spawn below, so `fd3` is always a string there.
+ */
+interface HookRun {
+  readonly stdout: string;
+  readonly code: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly fd3: string | null;
+}
+
+/** The decider's allow token — the literal both deciders write on fd 3 and the wrapper compares. */
+const ALLOW_TOKEN = "grugops-hook-allow";
+
+/**
+ * THE ONE ALLOW PROOF (WR-04). It holds the wrapper's own bar, `hooks/hook-entry.ts`: a signal is not
+ * an allow, a non-zero exit is not an allow, and an empty stdout is an allow only when the decider
+ * ASSERTED it on fd 3. No weaker bar is invented here: a crash or a timeout fails every line below.
+ */
+function expectAllowed(r: HookRun, label = ""): void {
+  expect(r.signal, `${label}: a run terminated by a signal is not an allow`).toBeNull();
+  expect(r.code, `${label}: a non-zero exit is not an allow`).toBe(0);
+  expect(r.stdout, `${label}: an allow writes nothing on stdout`).toBe("");
+  if (r.fd3 !== null) expect(r.fd3.trim(), `${label}: a direct decider run must ASSERT its allow on fd 3`).toBe(ALLOW_TOKEN);
+}
+
+/**
+ * Spawn many hook runs at once (bounded), each on its own stdin; resolve with each run's whole outcome.
+ *
+ * fd 3 is opened as a pipe on EVERY spawn (the fd-3 capture): the child's `stdio[3]` is read to the
+ * end. Whether the bytes are REPORTED is decided by what was spawned — a direct decider reports them, a
+ * wrapper run reports `null` (see `HookRun`). The artifact is named by its basename so a kit copy's
+ * `hooks/guard.js` is a direct run exactly as the committed one is.
+ */
+async function runAll(argv: readonly string[], commands: readonly string[]): Promise<HookRun[]> {
   const { spawn } = await import("node:child_process");
-  const out: string[] = new Array(commands.length).fill("");
+  const out: HookRun[] = new Array<HookRun>(commands.length);
+  const wrapper = basename(argv[0] as string) === "hook-entry.js";
   let next = 0;
   const env = bare();
   const worker = async (): Promise<void> => {
     while (next < commands.length) {
       const i = next++;
-      out[i] = await new Promise<string>((resolve) => {
-        const child = spawn("node", [...argv], { env, cwd: REPO });
+      out[i] = await new Promise<HookRun>((resolve) => {
+        const child = spawn("node", [...argv], { env, cwd: REPO, stdio: ["pipe", "pipe", "pipe", "pipe"] });
         let stdout = "";
+        let fd3 = "";
         const timer = setTimeout(() => child.kill("SIGKILL"), SPAWN_TIMEOUT_MS);
-        child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-        child.stderr.on("data", () => undefined);
-        child.on("close", () => {
+        child.stdout!.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+        child.stderr!.on("data", () => undefined);
+        (child.stdio[3] as NodeJS.ReadableStream).on("data", (d: Buffer) => (fd3 += d.toString("utf8")));
+        child.on("close", (code, signal) => {
           clearTimeout(timer);
-          resolve(stdout);
+          resolve({ stdout, code, signal, fd3: wrapper ? null : fd3 });
         });
-        child.stdin.end(reviewPayload(commands[i] as string));
+        child.stdin!.end(reviewPayload(commands[i] as string));
       });
     }
   };
@@ -2448,7 +2494,7 @@ describe("33-R3 CR-01 — a spliced TOOL word denies through the committed guard
   ] as const) {
     it(`${label}: every splice of every governed tool DENIES`, async () => {
       const outs = await runAll(argv, cases);
-      const allowed = cases.filter((_c, i) => !(outs[i] as string).includes('"permissionDecision":"deny"'));
+      const allowed = cases.filter((_c, i) => !(outs[i] as HookRun).stdout.includes('"permissionDecision":"deny"'));
       expect(allowed).toEqual([]);
     }, 600_000);
 
@@ -2471,8 +2517,8 @@ describe("33-R3 CR-01 — a spliced TOOL word denies through the committed guard
       ];
       const allow = ["ls -la", "git status", "=git status", "ls src/*", 'echo "$(date)"', "git log --oneline -5 2>&1"];
       const outs = await runAll(argv, [...deny, ...allow]);
-      deny.forEach((c, i) => expect(outs[i], c).toContain('"permissionDecision":"deny"'));
-      allow.forEach((c, i) => expect(outs[deny.length + i], c).not.toContain("permissionDecision"));
+      deny.forEach((c, i) => expect(outs[i]!.stdout, c).toContain('"permissionDecision":"deny"'));
+      allow.forEach((c, i) => expect(outs[deny.length + i]!.stdout, c).not.toContain("permissionDecision"));
     }, 120_000);
   }
 });
@@ -2526,10 +2572,10 @@ describe("33-R4 CR-01 nested — a governed command quoted for a nested shell de
     it(`${label}: the tracer DENIES, both deny controls deny, the allow control allows (scrubbed env)`, async () => {
       const cmds = [tracer, ...denyControls, allowControl].map((r) => r.command);
       const outs = await runAll(argv, cmds);
-      expect(outs[0], tracer.command).toContain(DENY_DECISION);
-      expect(outs[1], denyControls[0]!.command).toContain(DENY_DECISION);
-      expect(outs[2], denyControls[1]!.command).toContain(DENY_DECISION);
-      expect(outs[3], allowControl.command).not.toContain("permissionDecision");
+      expect(outs[0]!.stdout, tracer.command).toContain(DENY_DECISION);
+      expect(outs[1]!.stdout, denyControls[0]!.command).toContain(DENY_DECISION);
+      expect(outs[2]!.stdout, denyControls[1]!.command).toContain(DENY_DECISION);
+      expect(outs[3]!.stdout, allowControl.command).not.toContain("permissionDecision");
     }, 120_000);
   }
 });
@@ -2563,7 +2609,7 @@ describe("33-R4 CR-01 nested — a derived per-tool subset of the nested familie
   for (const [label, argv] of ENTRY_POINTS) {
     it(`${label}: every case DENIES with a scrubbed environment`, async () => {
       const outs = await runAll(argv, cases);
-      const allowed = cases.filter((_c, i) => !(outs[i] as string).includes(DENY_DECISION));
+      const allowed = cases.filter((_c, i) => !(outs[i] as HookRun).stdout.includes(DENY_DECISION));
       expect(allowed).toEqual([]);
     }, 600_000);
   }
@@ -2589,8 +2635,74 @@ describe("33-36 — an abbreviated publish and a governed tool under xargs deny 
     it(`${label}: the abbreviated publish and every xargs row DENY; the controls allow (scrubbed env)`, async () => {
       const deny = [prefixRow, ...xargsRows].map((r) => r.command);
       const outs = await runAll(argv, [...deny, ...allow]);
-      deny.forEach((c, i) => expect(outs[i], c).toContain(DENY_DECISION));
-      allow.forEach((c, i) => expect(outs[deny.length + i], c).not.toContain("permissionDecision"));
+      deny.forEach((c, i) => expect(outs[i]!.stdout, c).toContain(DENY_DECISION));
+      allow.forEach((c, i) => expect(outs[deny.length + i]!.stdout, c).not.toContain("permissionDecision"));
+    }, 120_000);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 33.1-01 — THE TRACER. One CR-01 mechanism closed end-to-end, proved by an allow control that
+// cannot pass on a crash or a timeout (WR-04, D-05(a); CR-01, WINDOWS.md row 301; D-01 rule C2).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// The row is the corpus row C2-01, read by id and never restated here: a quoted body with NO
+// whitespace, so the readable arm's nested re-read (which fired only on whitespace) never looked
+// inside it and the guard allowed with zero keys. Rule C2 re-reads a quoted value whose next-shell
+// reading names a governed tool, so the body becomes an opaque nested segment refused on the name.
+describe("33.1-01 tracer — a whitespace-free nested body denies through both entry points, with a real allow proof", () => {
+  const row = nestedRow("C2-01");
+  const allowControl = nestedRow("AC-01");
+
+  it("the tracer and its allow control are the rows the fixture labels them as", () => {
+    expect(row.kind).toBe("deny");
+    expect(allowControl.kind).toBe("allow-control");
+  });
+
+  for (const [label, argv] of ENTRY_POINTS) {
+    it(`${label}: the C2 row DENIES and the allow control is a PROVED allow (scrubbed env)`, async () => {
+      const [denied, allowed] = await runAll(argv, [row.command, allowControl.command]);
+      expect(denied!.code, `${row.id} exits 0 with a decision`).toBe(0);
+      expect(denied!.signal).toBeNull();
+      expect(denied!.stdout, row.id).toContain(DENY_DECISION);
+      expectAllowed(allowed!, `${label} ${allowControl.id}`);
+    }, 120_000);
+  }
+
+  /**
+   * A decider kit whose `scripts/checkpoints.js` is replaced by `stub`, RE-SEALED so the wrapper's code
+   * check passes and the branch under test is the one reached (see `resealAgainstMirror`: without it the
+   * manifest check fires first and a case passes for the wrong reason).
+   */
+  const stubbedKit = (stub: string): string => {
+    const root = mirrorKit("hooks/hook-entry.js");
+    for (const rel of closureTargets(REPO, "hooks/guard.js", root)) {
+      mkdirSync(dirname(rel.to), { recursive: true });
+      copyFileSync(rel.from, rel.to);
+    }
+    writeFileSync(join(root, "scripts", "checkpoints.js"), stub);
+    resealAgainstMirror(root, "scripts/checkpoints.js");
+    return root;
+  };
+
+  // THE MUTATION PROOF OF THE HARNESS ITSELF. Each stub is a decider that never decided. The old bar
+  // ("stdout carries no deny") PASSES on the direct run — that is WR-04 — and `expectAllowed` must
+  // turn it RED on both entry points.
+  for (const [stubLabel, stub] of [
+    // `process.reallyExit` skips the `exit` event, so the decider's own undecided-exit refusal never
+    // runs: a non-zero exit with zero bytes on stdout, the crash shape WR-04 names.
+    ["a CRASH (exit 3, no stdout)", "process.reallyExit(3);\n"],
+    ["a HANG past the spawn bound", "while(true){}\n"],
+  ] as const) {
+    it(`a decider that is ${stubLabel} turns the allow control RED on both entry points`, async () => {
+      const root = stubbedKit(stub);
+      const [direct] = await runAll([join(root, "hooks", "guard.js")], [allowControl.command]);
+      const [wrapped] = await runAll([join(root, "hooks", "hook-entry.js"), "guard.js"], [allowControl.command]);
+      // The weakness, reproduced: the direct run is silent, and silence used to read as an allow.
+      expect(direct!.stdout).not.toContain("permissionDecision");
+      expect(() => expectAllowed(direct!, "direct"), "a crash or a hang must fail the allow proof").toThrow();
+      expect(() => expectAllowed(wrapped!, "wrapped"), "the wrapper's fail-closed deny must fail it").toThrow();
+      expect(wrapped!.stdout).toContain(DENY_DECISION);
     }, 120_000);
   }
 });

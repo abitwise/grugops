@@ -72,6 +72,8 @@
     { "id": "RV-12", "source": "33-REVIEW CR-01 table (zsh equals, likewise)", "kind": "deny", "command": "=gh pr merge 12" },
     { "id": "RV-C1", "source": "33-REVIEW CR-01 control", "kind": "deny-control", "command": "kubectl -n prod apply -f x" },
     { "id": "RV-C2", "source": "33-REVIEW CR-01 control", "kind": "deny-control", "command": "git push origin main" },
-    { "id": "RV-C3", "source": "33-REVIEW CR-01 control", "kind": "deny-control", "command": "gh pr merge 12" }
+    { "id": "RV-C3", "source": "33-REVIEW CR-01 control", "kind": "deny-control", "command": "gh pr merge 12" },
+
+    { "id": "C2-01", "source": "33.1-RESEARCH R-01 (33-REVIEW round 4 CR-01, WINDOWS.md row 301): whitespace-free quoted body, readable arm; closed by the C2 re-read trigger (plan 33.1-01)", "kind": "deny", "command": "bash -c '{git,push,origin,main}'" }
   ]
 }
