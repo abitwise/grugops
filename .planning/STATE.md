@@ -5,9 +5,9 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Bypasses First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33.1-02-PLAN.md (PARTIAL: Task 2 open by human decision)"
-last_updated: "2026-09-26T18:59:06.477Z"
-state_head: d8539f552e65ea585e6e4203a22c20ab0fffa879
+stopped_at: "Phase 33.1 context updated 2026-09-26: guard retirement (D-17); replan needed"
+last_updated: "2026-09-26T19:22:28.428Z"
+state_head: 09749d027fcfeb650be7bd4ea6d2eb1be48b75c8
 progress:
   total_phases: 12
   completed_phases: 33
@@ -1702,9 +1702,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-25T19:38:24.414Z
-Stopped at: Completed 33.1-02-PLAN.md (PARTIAL: Task 2 open by human decision)
-Resume file: None
+Last session: 2026-09-26T19:22:27.721Z
+Stopped at: Phase 33.1 context updated 2026-09-26: guard retirement (D-17); replan needed
+Resume file: .planning/phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-CONTEXT.md
 
 ## Operator Next Steps
 
