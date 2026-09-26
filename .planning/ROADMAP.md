@@ -1479,55 +1479,72 @@ Plans:
 
 ### Phase 33.1: Phase 33 Leftovers: Guard Retirement First (INSERTED)
 
-**Goal:** Take over what Phase 33 carried at its human-override close (D-33-R4-08), guard first — REVISED 2026-09-26 (33.1 D-17): the canonical-form cutover is abandoned and the Bash command-parsing prod-deploy/merge guard is RETIRED. Wave 1 deletes the Bash PreToolUse matcher, `hooks/guard.*`, the command model in `scripts/checkpoints.ts` and its grant keys; the installer translates the checkpoints config into Claude Code `permissions.ask` rules (a speed bump, documented as such); git-host branch protection and deployment environments are the hard floor, with a setup checklist and a read-only `gh api` check in the gate and release roles; CLAUDE.md "Safety (hard)" is rewritten by recorded decision (D-21). CR-01, CR-02, the two zero-key deferred ALLOW forms, IN-02, WR-04 and row 269 close as dissolved by retirement. A blocking human checkpoint (D-20) follows. Then: D-33-R4-04 (row 297), D-33-R4-05 (the `--permission-mode default` pin, after its zero-token check; row 298), rows 303-305 and 307, the CLAUDE.md nesting correction (row 309), and the open non-windows deferred items; D-33-R4-07 (row 299) is moot. Last: exactly one live capture go toward GAP-D1 (CAP-01/CAP-03) with no prod-deploy probe case. Row 274 and the windows reds are out of this phase, so CAP-02 cannot be met here. Plans 03-05, 07 and 10 below predate D-17 and are to be replanned.
+**Goal:** Take over what Phase 33 carried at its human-override close (D-33-R4-08), guard first — REVISED 2026-09-26 (33.1 D-17): the canonical-form cutover is abandoned and the Bash command-parsing prod-deploy/merge guard is RETIRED. Wave 1 deletes the Bash PreToolUse matcher, `hooks/guard.*`, the command model in `scripts/checkpoints.ts` and its grant keys; the installer translates the checkpoints config into Claude Code `permissions.ask` rules (a speed bump, documented as such); git-host branch protection and deployment environments are the hard floor, with a setup checklist and a read-only `gh api` check in the gate and release roles; CLAUDE.md "Safety (hard)" is rewritten by recorded decision (D-21). CR-01, CR-02, the two zero-key deferred ALLOW forms, IN-02, WR-04 and row 269 close as dissolved by retirement. A blocking human checkpoint (D-20) follows. Then: D-33-R4-04 (row 297), D-33-R4-05 (the `--permission-mode default` pin, after its zero-token check; row 298), rows 303-305 and 307, the CLAUDE.md nesting correction (row 309), and the open non-windows deferred items; D-33-R4-07 (row 299) is moot. Last: exactly one live capture go toward GAP-D1 (CAP-01/CAP-03) with no prod-deploy probe case. Row 274 and the windows reds are out of this phase, so CAP-02 cannot be met here. Replanned 2026-09-26: plans 03-16 below supersede the pre-D-17 set.
 **Requirements**: TBD
 **Depends on:** Phase 33
-**Plans:** 2/11 plans executed
+**Plans:** 2/16 plans executed (01-02 executed against the superseded canonical-form design; their code is deleted by D-23; 03-16 replanned 2026-09-26 for the retirement)
 
 Plans:
-**Wave 1**
+**Executed before the replan (history)**
 
 - [x] 33.1-01-PLAN.md — guard tracer: one CR-01 bypass closed end-to-end with a real allow-proof; WR-04 harness (Wave 0) first
+- [x] 33.1-02-PLAN.md — C1 literal allow-list + CR-02 positional closure — **PARTIAL (1 of 2 tasks)** by human decision 2026-09-25; superseded by D-17
+
+**Wave 1**
+
+- [ ] 33.1-03-PLAN.md — TRACER: installer writes Claude Code ask rules from the checkpoints config (D-18, D-29), reversible by ledger; zero-token `-p` evidence (D-20(c), D-20(d))
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [x] 33.1-02-PLAN.md — C1 literal allow-list + CR-02 positional closure + derived mechanism × family × arm corpus — **PARTIAL (1 of 2 tasks):** C1 + CR-02 done; Task 2 (the derived corpus matrix) left OPEN by human decision 2026-09-25 and carried to 33.1-05 and the D-07 ledger
+- [ ] 33.1-04-PLAN.md — git-host floor: read-only `host-protection` check materialized by the installer; workflows 05/12 run it (D-19); run banner step retired (D-26)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 33.1-03-PLAN.md — C3 command-position expansion (D-02(b)/RES-01) + reword the four public residual sites
+- [ ] 33.1-05-PLAN.md — THE RETIREMENT COMMIT: Bash matcher unwired + CLAUDE.md/PROJECT.md Safety (hard) rewrite (D-17, D-21); oracle A2 retired (D-28); guard files deleted (D-23); guard-byte-frozen dissolved
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 33.1-04-PLAN.md — C4 git config injection (D-02(a)) + C5 stdin-feed exemption removal (IN-02); option-(ii) decision
+- [ ] 33.1-06-PLAN.md — command model, deploy grant and the whole two-key floor family removed from `scripts/checkpoints.ts` (D-17, D-26); admission grant unchanged (D-24)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 33.1-05-PLAN.md — corpus replay report + two independent red-teams + D-07 blocking checkpoint (guard never closes by override); dispose D-04/row 296/guard ledger
+- [ ] 33.1-07-PLAN.md — capture probe case and deny matcher removed (D-22); checkpoint-note writer removed from context-io (D-26)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 33.1-06-PLAN.md — runner: `--permission-mode default` pin + committed evidence (D-33-R4-05); coordinator membership exemption (D-33-R4-04)
+- [ ] 33.1-08-PLAN.md — GUARANTEES "Where each floor is enforced"; install/README §5 tiers + git-host checklist + per-tool docs; kit docs and CLAUDE.md stack block (D-20(b), D-19, D-18, D-21)
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 33.1-07-PLAN.md — runner: probe-keyed prod-deploy deny (D-33-R4-07) + WR-03 parity docblock and extensions
+- [ ] 33.1-09-PLAN.md — flip-manifest amendment retiring F9/F26/F56/F62 (D-22, D-28); runbook Check 2 retired; CHANGELOG; audit inputs re-scoped
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 33.1-08-PLAN.md — shared context: WR-01 ledger short-circuit, WR-02 exclusive-create race, IN-01 refusal framing
+- [ ] 33.1-10-PLAN.md — D-20 proof bar: permanent grep-to-zero test + zero-token re-measure → BLOCKING HUMAN retirement go (D-20)
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 33.1-09-PLAN.md — CLAUDE.md nesting correction (D-14/row 309), admission-server docblocks, B8 annotation, stale-plugin checkpoint, deferred triage
+- [ ] 33.1-11-PLAN.md — 24 WINDOWS.md rows waived as dissolved (D-25, D-27); guard-class deferred entries resolved (D-09)
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
-- [ ] 33.1-10-PLAN.md — the one live capture go (CAP-01/CAP-03): push checkpoint → ready dry run → go → capture; zero-token diagnosis on red
+- [ ] 33.1-12-PLAN.md — shared context: WR-01 ledger short-circuit, IN-01 framing, WR-02 exclusive publish (rows 303, 304, 307)
 
 **Wave 11** *(blocked on Wave 10 completion)*
 
-- [ ] 33.1-11-PLAN.md — GAP-D1 flip-or-hold (D-13) + ledger close; CAP-02 recorded unmet (D-15)
+- [ ] 33.1-13-PLAN.md — runner: coordinator exemption (D-33-R4-04), measured `--permission-mode default` pin (D-33-R4-05), WR-03 (rows 297, 298, 305)
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
+- [ ] 33.1-14-PLAN.md — nesting correction from the primary source (D-14, row 309); admission-server docblock; B8 annotation (row 300); stale-plugin decision (D-09)
+
+**Wave 13** *(blocked on Wave 12 completion)*
+
+- [ ] 33.1-15-PLAN.md — the one live capture go (D-10, D-11, D-12): round 4 preserved → zero-token readiness → push + go → capture; diagnosis on red
+
+**Wave 14** *(blocked on Wave 13 completion)*
+
+- [ ] 33.1-16-PLAN.md — GAP-D1 flip-or-hold (D-13) with CAP-02 stated unmet (D-15); phase outcome recorded under the cap (D-06)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
