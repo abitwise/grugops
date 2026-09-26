@@ -6,8 +6,8 @@ current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Bypasses First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
 stopped_at: "Completed 33.1-02-PLAN.md (PARTIAL: Task 2 open by human decision)"
-last_updated: "2026-09-25T19:38:24.915Z"
-state_head: e63eda51c37865420624bbb3d1594bb3dc8e3412
+last_updated: "2026-09-26T18:59:06.477Z"
+state_head: d8539f552e65ea585e6e4203a22c20ab0fffa879
 progress:
   total_phases: 12
   completed_phases: 33
@@ -1571,6 +1571,7 @@ Recent decisions affecting current work:
 - [Phase 33.1]: 33.1-01: the allow proof is the wrapper's own bar (signal null, exit 0, empty stdout, fd-3 token on a direct run); each guard harness self-derives its stdout-only allow sites (must be empty) and pins its expectAllowed call count (guard 50, admission 17)
 - [Phase 33.1]: [33.1-02] Plan 02 closed PARTIAL (1 of 2 tasks) by human decision 2026-09-25: Task 1 C1 literal allow-list done (canonicalWordValue one authority; CR-02 rows C1-01..C1-08 deny at both entries; fe7df92b, 2b448e9f). Task 2 (derived mechanism x family x arm corpus matrix, count-asserted sweep, family-pin replacement) NOT DONE after three classifier-stopped attempts; a human will author the matrix; carried to 33.1-05 red-team and the D-07 checkpoint ledger; T-33.1-05 open; four-name family pin unchanged. Plans 03/04 must add their own C3-C5 rows.
 - [Phase 33.1]: [33.1-02] C1 makes a whole double-quoted word opaque, so deny text names that word: 229/236 captures byte-identical on guard stdout, 7 deny->deny with different named words, no verdict moved; does NOT meet the plan's byte-identical deny-wording line.
+- [Phase 33.1]: 33.1-02 Task 2 (derived corpus matrix) DROPPED by human decision 2026-09-26; T-33.1-05 accepted, not mitigated; guard corpus rows for plans 03-05 authored manually by the human
 
 ### Pending Todos
 
