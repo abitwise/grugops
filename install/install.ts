@@ -2268,6 +2268,7 @@ const RUNNABLES: Array<[string, string]> = [
   ["scripts/runnable-ref/reference-check.js", "tools/grugops/reference-check.js"],
   ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
   ["scripts/runnable-ref/uat-spec-integrity.js", "tools/grugops/uat-spec-integrity.js"],
+  ["scripts/runnable-ref/host-protection.js", "tools/grugops/host-protection.js"],
 ];
 
 function materializeRunnable(): void {

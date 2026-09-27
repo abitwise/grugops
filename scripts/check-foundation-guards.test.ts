@@ -2126,8 +2126,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     grant and renders no spawn verdict. Its committed `.js` twin landed in the same commit.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 90 with this module tracked.
+ *
+ * 90 -> 91 (plan 33.1-04, task 1, D-19), ONE KIT-SHIPPED RUNNABLE:
+ *   - `scripts/runnable-ref/host-protection.ts` — the read-only git-host protection check the
+ *     installer materializes at `tools/grugops/host-protection.js`. It imports node: builtins only,
+ *     declares no function named for the frontmatter parser, builds no section bound with
+ *     `new RegExp`, reads no grant and renders no spawn verdict (checked, not assumed). Its
+ *     committed `.js` twin lands in the same commit. Its test stub `fixtures/gh-stub.mjs` is not a
+ *     `.ts` module and does not move this number.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 91 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 90;
+const NON_TEST_MODULE_COUNT = 91;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

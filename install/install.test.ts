@@ -3835,6 +3835,89 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).toContain("FORBIDDEN");
   });
 
+  // ── D-19 (Phase 33.1) — the read-only git-host check is materialized like every runnable ────
+  // tools/grugops/host-protection.js is what workflows 05 and 12 invoke, so the case that matters
+  // runs the MATERIALIZED copy, not the kit source: an install that wrote a stale or truncated file
+  // would pass a source-only test. The copy is driven through its --gh-script test seam by the Node
+  // gh stub, so no real `gh` and no network are touched.
+  const HOST_CHECK_REL = join("tools", "grugops", "host-protection.js");
+  const HOST_CHECK_SRC = join(REPO_ROOT, "scripts", "runnable-ref", "host-protection.js");
+  const GH_STUB = join(REPO_ROOT, "scripts", "runnable-ref", "fixtures", "gh-stub.mjs");
+
+  it("D-19 host check: install materializes tools/grugops/host-protection.js byte-identical to its source", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readFileSync(join(target, HOST_CHECK_REL))).toEqual(readFileSync(HOST_CHECK_SRC));
+  });
+
+  it("D-19 host check: a second install leaves it unchanged, and a user-edited copy is never overwritten", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const first = readFileSync(join(target, HOST_CHECK_REL));
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readFileSync(join(target, HOST_CHECK_REL))).toEqual(first);
+
+    const edited = makeFixture();
+    mkdirSync(join(edited, "tools", "grugops"), { recursive: true });
+    writeFileSync(join(edited, HOST_CHECK_REL), "// USER-EDITED HOST CHECK\n");
+    expect(runInstall(edited, mkTmp()).status).toBe(0);
+    expect(readFileSync(join(edited, HOST_CHECK_REL), "utf8")).toBe("// USER-EDITED HOST CHECK\n");
+  });
+
+  it("D-19 host check: uninstall removes the byte-identical copy it installed", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(existsSync(join(target, HOST_CHECK_REL))).toBe(true);
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+    expect(existsSync(join(target, HOST_CHECK_REL))).toBe(false);
+    expect(r.stdout).toContain("tools/grugops/host-protection.js (grugops runnable, byte-identical to source)");
+  });
+
+  it("D-19 host check: the MATERIALIZED copy reports the default branch protected from ruleset evidence and exits 0", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const scratch = mkTmp();
+    const fixture = join(scratch, "fixture.json");
+    const api = (path: string): string => `api --method GET -i ${path}`;
+    writeFileSync(
+      fixture,
+      JSON.stringify({
+        "auth status": { exit: 0 },
+        [api("repos/{owner}/{repo}")]: { status: 200, body: { default_branch: "main" } },
+        [api("repos/{owner}/{repo}/rules/branches/main?per_page=100")]: {
+          status: 200,
+          body: [{ type: "pull_request" }, { type: "non_fast_forward" }],
+        },
+        [api("repos/{owner}/{repo}/branches/master")]: { status: 404, body: { message: "Branch not found" } },
+        [api("repos/{owner}/{repo}/environments?per_page=100")]: {
+          status: 200,
+          body: {
+            total_count: 1,
+            environments: [
+              {
+                name: "prod",
+                protection_rules: [{ type: "required_reviewers", reviewers: [{ type: "User", reviewer: { login: "a" } }] }],
+              },
+            ],
+          },
+        },
+      }),
+    );
+    const r = spawnSync("node", [join(target, HOST_CHECK_REL), "--gh-script", GH_STUB], {
+      encoding: "utf8",
+      cwd: target,
+      env: { ...process.env, GH_STUB_FIXTURE: fixture, GH_STUB_LOG: join(scratch, "calls.log") },
+    });
+    expect(r.stdout).toContain("branch main: protected");
+    expect(r.stdout).toMatch(/^HOST-PROTECTION: \d+ protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.status).toBe(0);
+  });
+
   // ── KIT-02 (Plan 27-02) — the derived install/uninstall sets ─────────────────────────────────
   // install.ts and uninstall.ts derive their adapter and skill sets by readdirSync of $GRUGOPS_SRC
   // (D-18) and route materialize-vs-copy by the resolver slot line in the source body (D-06). Both
@@ -4936,17 +5019,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   it("runnable removal: the installer's RUNNABLES and the uninstaller's RUNNABLES_MIRROR are the same mapping", () => {
     const mirror = mappingDests("uninstall.ts", "RUNNABLES_MIRROR");
     expect(mirror).toEqual(RUNNABLE_RELS);
-    // The integer, so a pair that shrinks together still fails. Three kit-shipped runnables:
-    // reference-check, test-skip-integrity and uat-spec-integrity (Phase 31, D-13).
-    expect(RUNNABLE_RELS.length).toBe(3);
-    expect(mirror.length).toBe(3);
+    // The integer, so a pair that shrinks together still fails. Four kit-shipped runnables:
+    // reference-check, test-skip-integrity, uat-spec-integrity (Phase 31, D-13) and
+    // host-protection, the read-only git-host check (Phase 33.1, D-19).
+    expect(RUNNABLE_RELS.length).toBe(4);
+    expect(mirror.length).toBe(4);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
     // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
     // this half can no longer come back short while its own integer still passes.
     const srcSideInstall = mappingSources("install.ts", "RUNNABLES");
     const srcSideUninstall = mappingSources("uninstall.ts", "RUNNABLES_MIRROR");
     expect(srcSideUninstall).toEqual(srcSideInstall);
-    expect(srcSideInstall.length).toBe(3);
+    expect(srcSideInstall.length).toBe(4);
     // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
     // explicit assertions so routing both halves through one parser lost none of what it checked:
     // every source lives under the runnable reference directory and every dest under the one
