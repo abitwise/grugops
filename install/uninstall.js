@@ -20,6 +20,9 @@
 //     array; the file and any other keys are preserved; the file is deleted only if grugops
 //     created it and it is now back to its empty-default shape)
 //   - the .github/copilot-instructions.md sentinel block (only that block)
+//   - the Claude Code ask rules it added to .claude/settings.json permissions.ask (exactly the rules
+//     in the install ledger that are still present; a user's own identical rule is never removed,
+//     and the file is deleted only if install created it and nothing else is left in it)
 //   - the .grugops/install.json marker (the one grugops-owned file under .grugops/ — D-06)
 //
 // It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state
@@ -43,6 +46,10 @@ import { join, resolve, isAbsolute } from "node:path";
 // srcNestedAdapterFiles() is not one of them. Node stdlib only, sibling module inside install/, so
 // this binary still runs on a host with nothing installed.
 import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.js";
+// D-18: the one declaration of the Claude Code ask rules, shared with install.ts. Used here only to
+// NAME a present rule the user holds (a grugops-shaped rule that is not in the install ledger); the
+// removal set itself comes from the ledger, never from this list and never from string presence.
+import { allAskRules } from "./checkpoint-ask-rules.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -437,6 +444,133 @@ function unmergeGemini() {
     }
     report("removed", ".gemini/settings.json AGENTS.md entry (Node JSON edit; grugops-created file removed if now empty)");
 }
+// removeAskRules (D-18): reverse install.ts writeAskRules() BY PROVENANCE, not by presence.
+//
+// The ledger is the claudeAskRules field of .grugops/install.json, so this runs BEFORE
+// removeMarker(). It removes exactly (ledger ∩ present) from permissions.ask. A user may hold a rule
+// identical to one of ours; presence alone cannot say who added it, so a present rule that is not in
+// the ledger is LEFT and reported (this is the opposite of unmergeGemini's removal-by-presence, which
+// is deliberately not copied). A container is removed only when install created it (the ledger's
+// created* flags) and it is empty again: the `ask` array, then the `permissions` object, then the
+// file. Nothing is written when nothing changes, so a file this pass does not need to touch keeps
+// its bytes.
+//
+// Fail closed: an unreadable marker, a malformed ledger, or a settings file that does not parse or
+// has the wrong shape is a `verify` finding and NOTHING is removed. A marker without the field
+// (an install that predates the ask rules) is a `skipped` line and nothing is removed.
+function removeAskRules() {
+    const rel = ".claude/settings.json";
+    const f = `${TARGET}/.claude/settings.json`;
+    if (isProtected(f))
+        return;
+    const markerPath = `${TARGET}/.grugops/install.json`;
+    if (!pathExists(markerPath)) {
+        report("skipped", `${rel} ask rules (no install marker, so no ledger of added rules — nothing removed)`);
+        return;
+    }
+    let marker;
+    try {
+        marker = JSON.parse(readFileSync(markerPath, "utf8"));
+    }
+    catch {
+        verify(`${rel} ask rules — .grugops/install.json could not be read as JSON, so the ledger of rules grugops ` +
+            `added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.`);
+        return;
+    }
+    const raw = marker !== null && typeof marker === "object" && !Array.isArray(marker)
+        ? marker.claudeAskRules
+        : undefined;
+    if (raw === undefined) {
+        report("skipped", `${rel} ask rules (the install marker has no ask-rule ledger — the install predates the ask rules; nothing removed)`);
+        return;
+    }
+    const led = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : null;
+    if (!led ||
+        !Array.isArray(led.added) ||
+        !led.added.every((x) => typeof x === "string") ||
+        typeof led.createdFile !== "boolean" ||
+        typeof led.createdPermissions !== "boolean" ||
+        typeof led.createdAsk !== "boolean") {
+        verify(`${rel} ask rules — the ask-rule ledger in .grugops/install.json is malformed, so NO ask rule was ` +
+            `removed. Remove the grugops ask rules by hand.`);
+        return;
+    }
+    const ledger = new Set(led.added);
+    if (!pathExists(f)) {
+        report("skipped", `${rel} (not present — the ${ledger.size} ask rule(s) in the install ledger are already gone)`);
+        return;
+    }
+    let json;
+    try {
+        const parsed = JSON.parse(readFileSync(f, "utf8"));
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+            throw new Error("not an object");
+        json = parsed;
+    }
+    catch {
+        verify(`${rel} is not a JSON object — left untouched; the ${ledger.size} ask rule(s) grugops added were NOT ` +
+            `removed. Fix the file, then re-run the uninstaller or remove them by hand.`);
+        return;
+    }
+    const hasPermissions = Object.prototype.hasOwnProperty.call(json, "permissions");
+    const perms = json.permissions;
+    if (hasPermissions && (perms === null || typeof perms !== "object" || Array.isArray(perms))) {
+        verify(`${rel} has a "permissions" value that is not an object — left untouched; no ask rule was removed.`);
+        return;
+    }
+    const permissions = hasPermissions ? perms : null;
+    const hasAsk = permissions !== null && Object.prototype.hasOwnProperty.call(permissions, "ask");
+    if (hasAsk && !Array.isArray(permissions.ask)) {
+        verify(`${rel} has a "permissions.ask" value that is not an array — left untouched; no ask rule was removed.`);
+        return;
+    }
+    const ask = hasAsk ? permissions.ask : [];
+    const isLedgerRule = (x) => typeof x === "string" && ledger.has(x);
+    const removing = ask.filter(isLedgerRule);
+    const presentSet = new Set(ask.filter((x) => typeof x === "string"));
+    for (const r of [...ledger].sort()) {
+        if (!presentSet.has(r))
+            report("skipped", `${r} (in the install ledger but not present in ${rel} — already removed)`);
+    }
+    const ours = new Set(allAskRules());
+    for (const r of presentSet) {
+        if (ours.has(r) && !ledger.has(r)) {
+            report("left", `${r} (present in ${rel} but not in the install ledger — the user's own rule, left in place)`);
+        }
+    }
+    // Compute the result without touching the parsed object, so a dry run and a no-op write nothing.
+    const keptAsk = ask.filter((x) => !isLedgerRule(x));
+    let nextPermissions = permissions;
+    if (permissions !== null && hasAsk) {
+        nextPermissions = { ...permissions, ask: keptAsk };
+        if (led.createdAsk && keptAsk.length === 0)
+            delete nextPermissions.ask;
+    }
+    const next = { ...json };
+    if (nextPermissions !== null) {
+        next.permissions = nextPermissions;
+        if (led.createdPermissions && Object.keys(nextPermissions).length === 0)
+            delete next.permissions;
+    }
+    const deleteFile = led.createdFile && Object.keys(next).length === 0;
+    const changed = removing.length > 0 || JSON.stringify(next) !== JSON.stringify(json);
+    if (!changed && !deleteFile) {
+        report("skipped", `${rel} (no ask rule from the install ledger is present — nothing to remove)`);
+        return;
+    }
+    if (DRY_RUN) {
+        report("would-remove", `${rel} (${removing.length} ask rule(s) grugops added${deleteFile ? "; the file grugops created would be deleted" : ""})`);
+        return;
+    }
+    if (deleteFile) {
+        unlinkSync(f);
+        report("removed", `${rel} (${removing.length} ask rule(s) grugops added; grugops created the file and it is now empty)`);
+        rmdirIfEmpty(`${TARGET}/.claude`);
+        return;
+    }
+    writeFileSync(f, JSON.stringify(next, null, 2) + "\n");
+    report("removed", `${rel} (${removing.length} ask rule(s) grugops added; every other entry and key preserved)`);
+}
 // remove_marker: remove ONLY the grugops-owned install marker .grugops/install.json (D-06). This
 // is the single narrow exception to the .grugops/ protection in isProtected: the marker is the one
 // grugops-owned file under .grugops/, while everything ELSE there (factory.config.json and
@@ -622,6 +756,10 @@ removeSentinelBlock(`${TARGET}/CLAUDE.md`, CLAUDE_OPEN, CLAUDE_CLOSE, "CLAUDE.md
 // 5. Gemini settings entry.
 unmergeGemini();
 rmdirIfEmpty(`${TARGET}/.gemini`);
+// 5b. Claude Code ask rules (D-18), removed by the install ledger. MUST run before removeMarker():
+//     the ledger lives in .grugops/install.json.
+console.log("\n-- removing grugops Claude Code ask rules (only what install.js added) --");
+removeAskRules();
 // 6. Copilot pointer block (and remove the file if grugops created it and it is now empty). Uses
 //    the Copilot-specific sentinel (WR-05), not the CLAUDE.md one.
 removeSentinelBlock(`${TARGET}/${COPILOT_REL}`, COPILOT_OPEN, COPILOT_CLOSE, `${COPILOT_REL} pointer`);
