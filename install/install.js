@@ -23,7 +23,10 @@
 //   - DRY_RUN=1   — prints the plan and changes NOTHING on the filesystem
 //   - reversible  — install/uninstall.ts removes exactly what this added (and only that)
 //   - D-30 symlink-with-copy-fallback (symlinkSync → copyFileSync on failure)
-//   - NEVER sets the production deploy-approval env var; NEVER touches agent-factory/, plans/, user data
+//   - NEVER touches agent-factory/, plans/, or user data
+//   - writes Claude Code ask rules for the governed command spellings (D-18) — a speed bump that is
+//     not a security boundary; the git host (branch protection, deployment environments) is the
+//     hard floor, and only a human merges to a protected branch or approves a production deploy
 //
 // Usage:
 //   node install/install.js --target /path/to/repo
@@ -61,7 +64,7 @@ import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers
 // checkpoints configuration. A pure sibling module inside install/ (the kit-source.ts precedent), so
 // install/ still imports nothing from scripts/. The rules are a speed bump, not a security boundary;
 // the git host is the hard floor (see the module header).
-import { askRulesFor, checkpointsToWrite } from "./checkpoint-ask-rules.js";
+import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpoint-ask-rules.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -530,8 +533,8 @@ const GRUGOPS_BACKUP_SUFFIX = /\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}
 // ---------------------------------------------------------------------------
 // Doctor (INSTALL-05) — a verifier that MUTATES NOTHING INSIDE THE TARGET. It never writes, links,
 // seeds or marks any path under TARGET: it never calls copyKit, seedState or writeMarker, it never
-// opens a file in the target for writing, and it never reads or writes the prod deploy-approval env
-// var (carried prohibition from INSTALL-02 / SAFE-02).
+// opens a file in the target for writing. It reads the Claude Code ask-rule ledger and settings
+// file only to report which rules are present; it never repairs them.
 //
 // THAT SENTENCE USED TO SAY SOMETHING WIDER, AND PHASE 29.2 MADE THE WIDER VERSION FALSE. The
 // staleness verdict below (D-09) RENDERS this checkout's adapters into a temp tree the render
@@ -559,6 +562,26 @@ const docWarn = (msg) => {
     docReport("WARN", msg);
     DOC_WARNS += 1;
 };
+// readAskLedger: fail-closed read of the marker's claudeAskRules field. Anything that is not the
+// exact ledger shape reads as null (no ledger), never as a partial ledger. A function declaration,
+// so the doctor (which runs before the install sequence) can call it without a TDZ error.
+function readAskLedger(marker) {
+    const raw = marker ? marker.claudeAskRules : undefined;
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+        return null;
+    const r = raw;
+    if (!Array.isArray(r.added) || !r.added.every((x) => typeof x === "string"))
+        return null;
+    if (typeof r.createdFile !== "boolean" || typeof r.createdPermissions !== "boolean" || typeof r.createdAsk !== "boolean") {
+        return null;
+    }
+    return {
+        added: [...r.added].sort(),
+        createdFile: r.createdFile,
+        createdPermissions: r.createdPermissions,
+        createdAsk: r.createdAsk,
+    };
+}
 // readMarker: fail-closed read of the byte-stable .grugops/install.json the installer wrote
 // (writeMarker schema). JSON.parse in try/catch — an absent/garbled marker returns null (never
 // throws), source (b) of D-03. A non-object parse result (JSON.parse("null") returns null without
@@ -906,6 +929,42 @@ function doctor() {
                         `run from the checkout: node install/install.js --target ${TARGET}`);
                 }
             });
+        }
+    }
+    // --- Claude Code ask rules (D-18): report each ledger rule present or absent; never repair ---
+    // The rules are a speed bump, not a security boundary; the git host is the hard floor. A missing
+    // rule is a WARN (someone removed it), not a FAIL, and the doctor writes nothing either way.
+    const askLedger = readAskLedger(marker);
+    if (!askLedger) {
+        docReport("info", "no ask-rule ledger in the marker — this install predates the Claude Code ask rules; re-run the installer to write them");
+    }
+    else {
+        let presentAsk = null;
+        const askFile = join(TARGET, ".claude", "settings.json");
+        try {
+            const parsed = JSON.parse(readFileSync(askFile, "utf8"));
+            const perms = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+                ? parsed.permissions
+                : undefined;
+            const ask = perms !== null && typeof perms === "object" && !Array.isArray(perms)
+                ? perms.ask
+                : undefined;
+            presentAsk = Array.isArray(ask) ? ask.filter((x) => typeof x === "string") : [];
+        }
+        catch {
+            presentAsk = null;
+        }
+        if (presentAsk === null && askLedger.added.length > 0) {
+            docWarn(`.claude/settings.json could not be read as JSON — the ${askLedger.added.length} ask rule(s) in the ` +
+                `install ledger could not be checked`);
+        }
+        else {
+            for (const rule of askLedger.added) {
+                if ((presentAsk ?? []).includes(rule))
+                    docReport("ok", `ask rule present: ${rule}`);
+                else
+                    docWarn(`ask rule absent from .claude/settings.json: ${rule} (re-run the installer to restore it)`);
+            }
         }
     }
     // --- exit-code matrix (SC2) ----------------------------------------------------------------
@@ -1994,8 +2053,8 @@ function seedState() {
 // Shape (mirrors seedFile, additive/idempotent/never-overwrite — T-15-05-Tamper): skip if the
 // source is missing; skip-if-identical (a re-run is a no-op); NEVER `>`-truncate an existing host
 // file (a user-edited materialized routine is preserved verbatim); honor DRY_RUN (report only, no
-// write). It writes ONLY under tools/grugops/ — it never touches a protected dir and never sets
-// the deploy-approval var (T-15-05-EoP). Report strings are CLEAR PROFESSIONAL VOICE.
+// write). It writes ONLY under tools/grugops/ — it never touches a protected dir (T-15-05-EoP).
+// Report strings are CLEAR PROFESSIONAL VOICE.
 //
 // RUNNABLES: each entry is [source-relative-to-GRUGOPS_SRC, dest-relative-to-TARGET]. The
 // reference routine is the only kit-shipped runnable today; Phase 16's checker appends here.
@@ -2036,9 +2095,11 @@ function materializeRunnable() {
         report("created", destRel);
     }
 }
-// writeMarker: write .grugops/install.json. Exactly four stable fields in fixed order; the
-// install-time timestamp is deliberately OMITTED (RESOLVED Q1, Option b) — overwrite
-// unconditionally, idempotent.
+// writeMarker: write .grugops/install.json. Four stable fields in fixed order, then the
+// claudeAskRules ledger (D-18) when writeAskRules() produced one; the install-time timestamp is
+// deliberately OMITTED (RESOLVED Q1, Option b) — overwrite unconditionally, idempotent. The ledger is
+// computed BEFORE this call and carried forward from the previous marker (see writeAskRules), so the
+// unconditional overwrite cannot orphan rules an earlier run added.
 function writeMarker() {
     let ver = "";
     if (existsSync(join(KIT_ROOT, "VERSION"))) {
@@ -2058,6 +2119,14 @@ function writeMarker() {
         kitRoot: KIT_ROOT,
         installMode: INSTALL_MODE,
     };
+    if (ASK_LEDGER !== null) {
+        marker.claudeAskRules = {
+            added: ASK_LEDGER.added,
+            createdFile: ASK_LEDGER.createdFile,
+            createdPermissions: ASK_LEDGER.createdPermissions,
+            createdAsk: ASK_LEDGER.createdAsk,
+        };
+    }
     writeFileSync(join(TARGET, ".grugops", "install.json"), JSON.stringify(marker, null, 2) + "\n");
     report("created", ".grugops/install.json (marker)");
 }
@@ -2572,14 +2641,26 @@ function reportRetiredConfigKeys() {
 // writeAskRules (D-18, D-29) — translate the checkpoints configuration into Claude Code
 // `permissions.ask` rules in the target's .claude/settings.json.
 //
-// These rules are a SPEED BUMP that covers the command spellings an agent usually produces; Claude
-// Code documents that a Bash ask rule is not a security boundary. The git host is the hard floor.
+// WHAT THE RULES ARE. A speed bump that covers the command spellings an agent usually produces for a
+// production deploy, a package publish, a push or a pull-request merge. Claude Code documents that a
+// Bash ask rule is not a security boundary. The git host is the hard floor (install/README.md §5).
 //
-// The configuration is read from .grugops/factory.config.json, else agent-factory/config/
-// factory.config.json (the first existing file wins whole). An unparseable file is treated as
-// absent, and an absent configuration writes every rule (fail closed). The merge is additive: only
-// rules not already present (exact string) are appended, and every other key keeps its value and
-// order.
+// CONFIGURATION. Read from .grugops/factory.config.json, else agent-factory/config/
+// factory.config.json; the first existing file wins whole. An unparseable file is treated as absent,
+// and an absent configuration writes every rule (fail closed). Only an exact `notify` or `off` lowers
+// a checkpoint, and each lowered checkpoint is reported.
+//
+// CONTRACT. Additive: only rules not already present (exact string) are appended, and every other
+// key keeps its value and order. A settings file that does not parse, or whose root, `permissions`
+// or `ask` has the wrong type, is left byte-identical and becomes a `verify` finding (exit 3). The
+// install never removes a rule, including one for a checkpoint that was later lowered. DRY_RUN
+// writes nothing.
+//
+// THE LEDGER (reversibility). ASK_LEDGER is computed here and written by writeMarker(). It is
+// (previous ledger ∩ rules present now) ∪ rules added by this run, with each created* flag carried
+// forward from the previous marker while the thing it names still exists. A second install finds
+// every rule already present and adds nothing; without the carry-forward it would write an empty
+// ledger and uninstall could no longer remove the rules.
 // ---------------------------------------------------------------------------
 const ASK_CONFIG_CANDIDATES = [
     [".grugops", "factory.config.json"],
@@ -2599,34 +2680,115 @@ function readCheckpointConfig() {
     }
     return undefined;
 }
+let ASK_LEDGER = null;
 function writeAskRules() {
     const rel = ".claude/settings.json";
     const file = join(TARGET, ".claude", "settings.json");
+    const previous = readAskLedger(readMarker(join(TARGET, ".grugops", "install.json")));
+    report("note", "these ask rules are a speed bump for the usual command spellings, not a security boundary; " +
+        "the git host is the hard floor (install/README.md §5)");
+    const config = readCheckpointConfig();
+    const toWrite = checkpointsToWrite(config);
     const rules = [];
-    for (const checkpoint of checkpointsToWrite(readCheckpointConfig()))
-        rules.push(...askRulesFor(checkpoint));
-    if (!existsSync(file)) {
-        if (DRY_RUN) {
-            report("would-add", `${rel} (${rules.length} ask rule(s))`);
+    for (const checkpoint of ASK_RULE_CHECKPOINTS) {
+        if (toWrite.includes(checkpoint)) {
+            rules.push(...askRulesFor(checkpoint));
+            continue;
+        }
+        const cps = config !== null && typeof config === "object" && !Array.isArray(config)
+            ? config.checkpoints
+            : undefined;
+        const value = cps !== null && typeof cps === "object" ? cps[checkpoint] : undefined;
+        report("skipped", `${checkpoint} is set to ${String(value)} in the factory configuration — no ask rule was written for it`);
+    }
+    // Parse and type-check the existing file. Nothing is written unless every level has the right type.
+    let json = {};
+    let permissions = null;
+    let ask = null;
+    const exists = existsSync(file);
+    if (exists) {
+        let parsed;
+        try {
+            parsed = JSON.parse(readFileSync(file, "utf8"));
+        }
+        catch {
+            verify(`${rel} is not valid JSON — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
+            ASK_LEDGER = previous;
             return;
         }
-        mkdirp(join(TARGET, ".claude"));
-        writeFileSync(file, JSON.stringify({ permissions: { ask: rules } }, null, 2) + "\n");
-        report("created", `${rel} (${rules.length} ask rule(s) added)`);
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+            verify(`${rel} is not a JSON object — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
+            ASK_LEDGER = previous;
+            return;
+        }
+        json = parsed;
+        if (Object.prototype.hasOwnProperty.call(json, "permissions")) {
+            const p = json.permissions;
+            if (p === null || typeof p !== "object" || Array.isArray(p)) {
+                verify(`${rel} has a "permissions" value that is not an object — left untouched; no ask rule was written.`);
+                ASK_LEDGER = previous;
+                return;
+            }
+            permissions = p;
+            if (Object.prototype.hasOwnProperty.call(permissions, "ask")) {
+                if (!Array.isArray(permissions.ask)) {
+                    verify(`${rel} has a "permissions.ask" value that is not an array — left untouched; no ask rule was written.`);
+                    ASK_LEDGER = previous;
+                    return;
+                }
+                ask = permissions.ask;
+            }
+        }
+    }
+    const present = new Set((ask ?? []).filter((x) => typeof x === "string"));
+    const toAdd = rules.filter((r) => !present.has(r));
+    const prevAdded = new Set(previous ? previous.added : []);
+    // Rules already present that no earlier run of this installer added are the user's own.
+    for (const r of rules) {
+        if (present.has(r) && !prevAdded.has(r)) {
+            report("skipped", `${r} (already present in ${rel} — kept as the user's own rule; uninstall will not remove it)`);
+        }
+    }
+    const carried = rules.filter((r) => present.has(r) && prevAdded.has(r)).length;
+    if (carried > 0)
+        report("skipped", `${rel} (${carried} ask rule(s) from an earlier install already present)`);
+    // Rules an earlier run added for a checkpoint that is now lowered stay: install never removes.
+    for (const checkpoint of ASK_RULE_CHECKPOINTS) {
+        if (toWrite.includes(checkpoint))
+            continue;
+        const left = askRulesFor(checkpoint).filter((r) => present.has(r) && prevAdded.has(r)).length;
+        if (left > 0) {
+            report("left", `${left} ask rule(s) an earlier install added for ${checkpoint} remain in ${rel}; the installer never ` +
+                `removes a rule — delete them by hand, or run install/uninstall.js, which removes every rule it added`);
+        }
+    }
+    const willCreateFile = !exists && toAdd.length > 0;
+    const willCreatePermissions = permissions === null && toAdd.length > 0;
+    const willCreateAsk = ask === null && toAdd.length > 0;
+    const addedNow = new Set([...[...prevAdded].filter((r) => present.has(r)), ...toAdd]);
+    ASK_LEDGER = {
+        added: [...addedNow].sort(),
+        createdFile: willCreateFile || (exists && previous !== null && previous.createdFile),
+        createdPermissions: willCreatePermissions || (permissions !== null && previous !== null && previous.createdPermissions),
+        createdAsk: willCreateAsk || (ask !== null && previous !== null && previous.createdAsk),
+    };
+    if (toAdd.length === 0) {
+        if (rules.length === 0)
+            report("skipped", `${rel} (no checkpoint is at block — no ask rule to write)`);
         return;
     }
-    const json = JSON.parse(readFileSync(file, "utf8"));
-    const permissions = (json.permissions ?? {});
-    const ask = (permissions.ask ?? []);
-    const added = rules.filter((r) => !ask.includes(r));
     if (DRY_RUN) {
-        report("would-add", `${rel} (${added.length} ask rule(s))`);
+        report("would-add", `${rel} (${toAdd.length} ask rule(s) to permissions.ask)`);
         return;
     }
-    permissions.ask = [...ask, ...added];
-    json.permissions = permissions;
+    if (permissions === null) {
+        permissions = {};
+        json.permissions = permissions;
+    }
+    permissions.ask = [...(ask ?? []), ...toAdd];
+    mkdirp(join(TARGET, ".claude"));
     writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
-    report("created", `${rel} (${added.length} ask rule(s) added)`);
+    report("created", `${rel} (${toAdd.length} ask rule(s) added to permissions.ask${willCreateFile ? "; file created" : ""})`);
 }
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
 console.log("\n-- state seed --");
@@ -2649,9 +2811,13 @@ console.log("\n-- notes --");
 console.log("  Claude Code plugin form (colon commands /grugops:plan) installs separately:");
 console.log("    /plugin marketplace add abitwise/grugops  (UNKNOWN - verify against current tool docs)");
 console.log("    /plugin install grugops@grugops           (UNKNOWN - verify against current tool docs)");
-console.log("  Safety: the mechanical prod-deploy guard is Claude-Code-only (plugin hooks/hooks.json).");
-console.log("          The other four tools read the checkpoints matrix procedurally. See install/README.md.");
-console.log("  This installer NEVER sets the deploy-approval env var — only a human may approve a deploy.");
+console.log("  Safety: the git host is the hard floor — branch protection or rulesets on protected branches,");
+console.log("          and deployment environments with required reviewers for production (install/README.md §5).");
+console.log("          This installer wrote Claude Code ask rules for the governed command spellings into");
+console.log("          .claude/settings.json. They are a speed bump, not a security boundary: other spellings");
+console.log("          of the same command are not matched. The Claude Code plugin form cannot carry permission");
+console.log("          rules, so a plugin-only install gets none. The other four CLIs get documentation only.");
+console.log("  Only a human merges to a protected branch or approves a production deploy.");
 // THE CLOSING CLAIM IS CONDITIONAL (27-13, T-27-59). A run that could not read a source directory,
 // or that refused a nested adapter, has NOT completed — it installed nothing for that class. Saying
 // "complete" over that is the repudiation failure this plan closes, so the banner reports the real

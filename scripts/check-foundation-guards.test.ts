@@ -2116,8 +2116,18 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     renders no spawn verdict. Its committed `.js` twin lands in the same commit.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 89 with this module tracked.
+ *
+ * 89 -> 90 (plan 33.1-03, task 1, D-18/D-29), ONE INSTALLER LIBRARY MODULE:
+ *   - `install/checkpoint-ask-rules.ts` — the one declaration of the Claude Code ask rules the
+ *     installer derives from the checkpoints configuration (a sibling of `install/kit-source.ts`,
+ *     imported by `install/install.ts`). Pure data and pure functions: no import at all, no I/O.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict. Its committed `.js` twin landed in the same commit.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 90 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 89;
+const NON_TEST_MODULE_COUNT = 90;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
