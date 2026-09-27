@@ -121,20 +121,31 @@ describe("VFY-04: bounded self_fix_attempts loop and honest escape hatch", () =>
   });
 
   it("05-pr-quality-gate.md states the TIER of the integrity argument rather than overstating it", () => {
-    // D-15 requires the hook-enforced vs in-process split to be stated. A workflow that described
-    // the refusal without its tier would read as a guarantee the mechanism cannot make.
+    // D-15 requires the tier of the integrity argument to be stated. A workflow that described the
+    // refusal without its tier would read as a guarantee the mechanism cannot make. Phase 33.1
+    // (D-17, D-19) retired the checkpoint hook this text used to be compared with: the tiers are now
+    // the git host (hard floor), the Claude Code ask rules (speed bump) and prose.
     const text = readFileSync(WF05, "utf8");
-    expect(text).toContain("a different tier from the checkpoint hook");
+    expect(text).toContain("the argument sits in the prose tier");
+    expect(text).toContain("The hard floor is the git host, and the Claude Code ask rules are a speed bump.");
     expect(text).toContain("does not stop a caller from stating `clean`");
+    expect(text).not.toContain("a different tier from the checkpoint hook");
   });
 
-  it("05-pr-quality-gate.md prints the run banner as the gate run's header (D-19)", () => {
+  it("05-pr-quality-gate.md step 3 runs the read-only git-host check, not the retired run banner (33.1 D-19, D-26)", () => {
+    // D-26 retired the two-key floor family, and with it the run banner step 3 used to emit. Step 3
+    // keeps its number and now reads the hard floor's status instead.
     const text = readFileSync(WF05, "utf8");
-    expect(text).toContain("Emit the run banner as this gate run's header line, before any check output.");
-    // Banner/exit-status agreement: a header claiming all-default over a run that stopped at a
-    // checkpoint is its own named failure, not a quietly inconsistent pair of signals.
-    expect(text).toContain("The banner and the terminal result agree");
-    expect(text).toContain("all checkpoints at default");
+    expect(text).toContain("3. Run the read-only git-host check first: `node tools/grugops/host-protection.js`.");
+    // The three exit branches, and the one that must never read as a pass.
+    expect(text).toContain("`0` → record an `observation` note naming each protected branch and the production environment.");
+    expect(text).toContain("`1` → record an `observation` note naming each `unprotected` target.");
+    expect(text).toContain("`2` → record `UNKNOWN - verify` with the reason the check printed. Exit `2` is never read as a pass.");
+    expect(text).toContain("No note claims the floor exists without a `protected` line.");
+    // The retired banner is gone, by every name it went by.
+    expect(text).not.toContain("run banner");
+    expect(text).not.toContain("renderCheckpointBanner");
+    expect(text).not.toContain("all checkpoints at default");
   });
 
   it("16-context-read-write.md references the bounded loop (05-pr-quality-gate or self_fix_attempts)", () => {
