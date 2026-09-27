@@ -65,9 +65,21 @@ describe("host-protection.js — branch verdicts", () => {
       "auth status": { exit: 0 },
       [api("repos/{owner}/{repo}")]: { status: 200, body: { default_branch: "main" } },
       [api("repos/{owner}/{repo}/rules/branches/main?per_page=100")]: { status: 200, body: RULESET_PROTECTED },
+      // Task 2 widened the targets: `master` is probed (absent here) and the production
+      // environment is always inspected (protected here), so the run can still be all-protected.
+      [api("repos/{owner}/{repo}/branches/master")]: { status: 404, body: { message: "Branch not found" } },
+      [api("repos/{owner}/{repo}/environments?per_page=100")]: {
+        status: 200,
+        body: {
+          total_count: 1,
+          environments: [
+            { name: "production", protection_rules: [{ type: "required_reviewers", reviewers: [{ type: "User" }] }] },
+          ],
+        },
+      },
     });
     expect(r.stdout).toContain("branch main: protected — an active ruleset requires a pull request and blocks force pushes");
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 1 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
     expect(r.status).toBe(0);
   });
 });
@@ -255,6 +267,25 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
     expect(r.status).toBe(0);
   });
 
+  it("a renamed-branch answer (branches/master answers 200 describing `main`) does not add master", () => {
+    // Measured against a real repository whose master was renamed to main: the old name answers
+    // 200 with the new branch's record. That is not evidence that `master` exists.
+    const r = runCheck(base({ [BRANCH("master")]: { status: 200, body: { name: "main", protected: false } } }));
+    expect(verdictOf(r.stdout, "branch", "master")).toBeUndefined();
+    expect(r.status).toBe(0);
+  });
+
+  it("404 `Not Found` where the branch endpoint answers about a DIFFERENT branch → UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: { status: 404, body: { message: "Not Found" } },
+        [BRANCH("main")]: { status: 200, body: { name: "trunk", protected: false } },
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+  });
+
   it("an extra branch whose existence cannot be read is reported UNKNOWN - verify, not dropped", () => {
     const r = runCheck(base({ [BRANCH("master")]: { status: 500, body: { message: "Server Error" } } }));
     expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
@@ -379,6 +410,12 @@ describe("host-protection.js — when the host cannot be asked, and the result c
     for (const l of lines) expect(TARGET_LINE.exec(l)?.[3]).toBe("UNKNOWN - verify");
     expect(r.stdout).not.toMatch(/: (protected|unprotected) — /);
     expect(r.status).toBe(2);
+  });
+
+  it("a run through the --gh-script test seam says so on stderr, every time", () => {
+    const r = runCheck(base());
+    expect(r.stderr).toContain("--gh-script test seam in use");
+    expect(r.stderr).toContain("these verdicts do not come from gh");
   });
 
   it("--json adds { ok, targets: [{ kind, name, verdict, reason }], calls } after the human lines", () => {
