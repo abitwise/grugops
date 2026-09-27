@@ -57,6 +57,11 @@ import { spawnSync } from "node:child_process";
 // still does NOT import scripts/kit-model.ts. Node stdlib only, so both binaries still run on a host
 // with nothing installed. Every call passes the source root explicitly (D-22).
 import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers, } from "./kit-source.js";
+// D-18 / D-29: the ONE declaration of the Claude Code ask rules the installer derives from the
+// checkpoints configuration. A pure sibling module inside install/ (the kit-source.ts precedent), so
+// install/ still imports nothing from scripts/. The rules are a speed bump, not a security boundary;
+// the git host is the hard floor (see the module header).
+import { askRulesFor, checkpointsToWrite } from "./checkpoint-ask-rules.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -2563,6 +2568,66 @@ function reportRetiredConfigKeys() {
         report("retired-key", `  This installer left the file untouched. Edit it yourself.`);
     }
 }
+// ---------------------------------------------------------------------------
+// writeAskRules (D-18, D-29) — translate the checkpoints configuration into Claude Code
+// `permissions.ask` rules in the target's .claude/settings.json.
+//
+// These rules are a SPEED BUMP that covers the command spellings an agent usually produces; Claude
+// Code documents that a Bash ask rule is not a security boundary. The git host is the hard floor.
+//
+// The configuration is read from .grugops/factory.config.json, else agent-factory/config/
+// factory.config.json (the first existing file wins whole). An unparseable file is treated as
+// absent, and an absent configuration writes every rule (fail closed). The merge is additive: only
+// rules not already present (exact string) are appended, and every other key keeps its value and
+// order.
+// ---------------------------------------------------------------------------
+const ASK_CONFIG_CANDIDATES = [
+    [".grugops", "factory.config.json"],
+    ["agent-factory", "config", "factory.config.json"],
+];
+function readCheckpointConfig() {
+    for (const parts of ASK_CONFIG_CANDIDATES) {
+        const p = join(TARGET, ...parts);
+        if (!existsSync(p))
+            continue;
+        try {
+            return JSON.parse(readFileSync(p, "utf8"));
+        }
+        catch {
+            return undefined;
+        }
+    }
+    return undefined;
+}
+function writeAskRules() {
+    const rel = ".claude/settings.json";
+    const file = join(TARGET, ".claude", "settings.json");
+    const rules = [];
+    for (const checkpoint of checkpointsToWrite(readCheckpointConfig()))
+        rules.push(...askRulesFor(checkpoint));
+    if (!existsSync(file)) {
+        if (DRY_RUN) {
+            report("would-add", `${rel} (${rules.length} ask rule(s))`);
+            return;
+        }
+        mkdirp(join(TARGET, ".claude"));
+        writeFileSync(file, JSON.stringify({ permissions: { ask: rules } }, null, 2) + "\n");
+        report("created", `${rel} (${rules.length} ask rule(s) added)`);
+        return;
+    }
+    const json = JSON.parse(readFileSync(file, "utf8"));
+    const permissions = (json.permissions ?? {});
+    const ask = (permissions.ask ?? []);
+    const added = rules.filter((r) => !ask.includes(r));
+    if (DRY_RUN) {
+        report("would-add", `${rel} (${added.length} ask rule(s))`);
+        return;
+    }
+    permissions.ask = [...ask, ...added];
+    json.permissions = permissions;
+    writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
+    report("created", `${rel} (${added.length} ask rule(s) added)`);
+}
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
 console.log("\n-- state seed --");
 seedState();
@@ -2574,6 +2639,10 @@ console.log("\n-- runnables --");
 materializeRunnable();
 // 7b. Report a retired configuration key in the target — read-only, never a rewrite (D-05).
 reportRetiredConfigKeys();
+// 7c. Claude Code ask rules for the governed command spellings (D-18). After seedState(), so a
+// first install reads the seeded configuration; before writeMarker().
+console.log("\n-- permission rules --");
+writeAskRules();
 // 8. Write the install marker (grugops-owned; overwritten unconditionally).
 writeMarker();
 console.log("\n-- notes --");
