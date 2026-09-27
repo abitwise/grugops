@@ -115,6 +115,15 @@ import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarke
 import { toPosix } from "../scripts/posix-path.js";
 import { stageSymlinkOrSkip, skipLine, type SkipEntry } from "../scripts/check-platform-shapes.js";
 
+// THE DISPOSITION CANONICALIZER, IMPORTED HERE UNDER THE SAME TEST-ONLY EXCEPTION (plan 33.1-03,
+// D-18). install/checkpoint-ask-rules.ts restates scripts/checkpoints.ts canonicalizeDisposition
+// rather than importing it, because install/ imports nothing from scripts/. Two implementations of
+// one predicate are only safe while something proves them equal: the `ask rules: canonicalizer
+// cross-check` case below feeds both the same derived input set, asserts equal outputs AND the input
+// count. install.ts itself still imports nothing from scripts/ (the spawn-not-import case pins it).
+import { canonicalizeDisposition } from "../scripts/checkpoints.js";
+import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./checkpoint-ask-rules.js";
+
 // The repo root (install/ is one level under it) and the committed compiled installer/uninstaller.
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -5240,5 +5249,207 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.status).toBe(0);
     expect(snapshot(target)).toBe(before);
     expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("Nothing was ever installed here.");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CLAUDE CODE ASK RULES (plan 33.1-03, D-18 / D-29 / D-20 part (c)).
+//
+// The installer translates the checkpoints configuration into `permissions.ask` rules in the
+// target's .claude/settings.json. These rules are a speed bump that covers the usual command
+// spellings, not a security boundary; the git host is the hard floor. What these cases pin is the
+// installer contract around the write: additive, idempotent (settings file AND marker), dry-run-safe,
+// fail-closed on configuration, never touching a settings file it cannot read, and reversible by a
+// ledger carried forward across re-installs. Every case drives the COMMITTED installer.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+const settingsFile = (t: string): string => join(t, ".claude", "settings.json");
+const readAsk = (t: string): string[] => JSON.parse(readFileSync(settingsFile(t), "utf8")).permissions.ask;
+const readAskLedger = (t: string): { added: string[]; createdFile: boolean; createdPermissions: boolean; createdAsk: boolean } =>
+  JSON.parse(readFileSync(join(t, ".grugops", "install.json"), "utf8")).claudeAskRules;
+function writeCheckpointConfig(t: string, checkpoints: Record<string, unknown>): void {
+  mkdirSync(join(t, ".grugops"), { recursive: true });
+  writeFileSync(join(t, ".grugops", "factory.config.json"), JSON.stringify({ checkpoints }, null, 2) + "\n");
+}
+const MERGE_RULES = askRulesFor("protected_branch_merge");
+const USER_SETTINGS =
+  '{"model":"x","permissions":{"ask":["Bash(git push *)","Bash(rm -rf *)"],"deny":["Read(.env)"]}}';
+
+describe("ask rules: install side (D-18)", () => {
+  it("ask rules: canonicalizer cross-check — the installer's canonicalizer equals scripts/checkpoints.js over a derived input set", () => {
+    const inputs: unknown[] = ["block", "notify", "off", "OFF", "Block", true, false, 1, 0, null, [], {}, undefined, ""];
+    // The input count as a NUMBER, so a shrunken input set cannot pass the equality below vacuously.
+    expect(inputs.length).toBe(14);
+    const installerSide = inputs.map((v) => canonicalizeCheckpointDisposition(v));
+    const authoritySide = inputs.map((v) => canonicalizeDisposition(v));
+    expect(installerSide).toEqual(authoritySide);
+    // Both sides actually exercise all three outputs, so the equality is not over a constant.
+    expect(new Set(authoritySide)).toEqual(new Set(["block", "notify", "off"]));
+  });
+
+  it("ask rules: a fresh install writes all 55 rules and a sorted ledger of 55 with createdFile", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    expect(readAsk(target)).toEqual(allAskRules());
+    expect(readAsk(target).length).toBe(55);
+    const ledger = readAskLedger(target);
+    expect(ledger.added.length).toBe(55);
+    expect(ledger.added).toEqual([...allAskRules()].sort());
+    expect(ledger.createdFile).toBe(true);
+    expect(ledger.createdPermissions).toBe(true);
+    expect(ledger.createdAsk).toBe(true);
+    // The marker keeps a fixed field order with the ledger after installMode.
+    const markerKeys = Object.keys(JSON.parse(readFileSync(join(target, ".grugops", "install.json"), "utf8")));
+    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules"]);
+    expect(r.stdout).toContain("-- permission rules --");
+    expect(r.stdout).toContain("speed bump");
+    expect(r.stdout).toContain("not a security boundary");
+  });
+
+  it("ask rules: install twice — the target snapshot (settings file and marker included) is identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const s1 = readFileSync(settingsFile(target));
+    const m1 = readFileSync(join(target, ".grugops", "install.json"));
+    const t1 = snapshot(target);
+    expect(runInstall(target, home).status).toBe(0);
+    expect(snapshot(target)).toBe(t1);
+    expect(readFileSync(settingsFile(target)).equals(s1)).toBe(true);
+    // The pitfall this pins: a second run finds every rule present, adds nothing, and must NOT
+    // overwrite the ledger with an empty list.
+    expect(readFileSync(join(target, ".grugops", "install.json")).equals(m1)).toBe(true);
+    expect(readAskLedger(target).added.length).toBe(55);
+  });
+
+  it("ask rules: pre-existing user rules, keys and order survive; the ledger omits the user's identical rule", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".claude"), { recursive: true });
+    writeFileSync(settingsFile(target), USER_SETTINGS);
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    const json = JSON.parse(readFileSync(settingsFile(target), "utf8"));
+    expect(Object.keys(json)).toEqual(["model", "permissions"]);
+    expect(json.model).toBe("x");
+    expect(Object.keys(json.permissions)).toEqual(["ask", "deny"]);
+    expect(json.permissions.deny).toEqual(["Read(.env)"]);
+    expect(json.permissions.ask.slice(0, 2)).toEqual(["Bash(git push *)", "Bash(rm -rf *)"]);
+    expect(json.permissions.ask.length).toBe(56);
+    expect(json.permissions.ask.filter((x: string) => x === "Bash(git push *)").length).toBe(1);
+    const ledger = readAskLedger(target);
+    expect(ledger.added).not.toContain("Bash(git push *)");
+    expect(ledger.added.length).toBe(54);
+    expect(ledger.createdFile).toBe(false);
+    expect(ledger.createdPermissions).toBe(false);
+    expect(ledger.createdAsk).toBe(false);
+    expect(r.stdout).toMatch(/Bash\(git push \*\) \(already present/);
+  });
+
+  it("ask rules: protected_branch_merge set to off writes no merge rule and says so", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    writeCheckpointConfig(target, { protected_branch_merge: "off" });
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    const ask = readAsk(target);
+    expect(ask.length).toBe(49);
+    for (const rule of MERGE_RULES) expect(ask).not.toContain(rule);
+    expect(r.stdout).toMatch(/protected_branch_merge is set to off in the factory configuration — no ask rule was written for it/);
+  });
+
+  it("ask rules: OFF, true and null are not a lowering — the merge rules are written (fail closed)", () => {
+    for (const value of ["OFF", true, null]) {
+      const target = makeFixture();
+      const home = mkTmp();
+      writeCheckpointConfig(target, { protected_branch_merge: value });
+      const r = runInstall(target, home);
+      expect(r.status).toBe(0);
+      const ask = readAsk(target);
+      expect(`${String(value)}: ${ask.length}`).toBe(`${String(value)}: 55`);
+      for (const rule of MERGE_RULES) expect(ask).toContain(rule);
+      expect(r.stdout).not.toContain("no ask rule was written for it");
+    }
+  });
+
+  it("ask rules: an unparseable or wrongly typed settings file is left byte-identical, a verify line, exit 3", () => {
+    for (const body of ["{not json", "[]", '{"permissions":"x"}', '{"permissions":{"ask":{}}}']) {
+      const target = makeFixture();
+      const home = mkTmp();
+      mkdirSync(join(target, ".claude"), { recursive: true });
+      writeFileSync(settingsFile(target), body);
+      const pre = readFileSync(settingsFile(target));
+      const r = runInstall(target, home);
+      expect(`${body}: ${r.status}`).toBe(`${body}: 3`);
+      expect(readFileSync(settingsFile(target)).equals(pre)).toBe(true);
+      expect(r.stdout).toMatch(/verify\s+\.claude\/settings\.json/);
+      expect(r.stdout).toContain("install INCOMPLETE");
+    }
+  });
+
+  it("ask rules: DRY_RUN=1 writes no settings file and no marker, and names the rule count", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status).toBe(0);
+    expect(existsSync(settingsFile(target))).toBe(false);
+    expect(existsSync(join(target, ".grugops", "install.json"))).toBe(false);
+    expect(r.stdout).toMatch(/would-add\s+\.claude\/settings\.json \(55 ask rule\(s\)/);
+  });
+
+  it("ask rules: re-install after lowering to off keeps the earlier rules and their ledger, and says uninstall removes them", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    writeCheckpointConfig(target, { protected_branch_merge: "off" });
+    const r = runInstall(target, home);
+    expect(r.status).toBe(0);
+    const ask = readAsk(target);
+    for (const rule of MERGE_RULES) expect(ask).toContain(rule);
+    expect(readAskLedger(target).added.length).toBe(55);
+    expect(r.stdout).toMatch(/6 ask rule\(s\) an earlier install added for protected_branch_merge remain/);
+    expect(r.stdout).toContain("uninstall");
+  });
+
+  it("ask rules: --check reports each ledger rule present or absent and writes nothing", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const env = { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT };
+    const before = snapshot(target);
+    const doc = spawnSync("node", [INSTALL_JS, "--check"], { encoding: "utf8", env });
+    expect(doc.status).toBe(0);
+    expect(snapshot(target)).toBe(before);
+    expect(doc.stdout.split("\n").filter((l) => l.includes("ask rule present:")).length).toBe(55);
+
+    // Remove one grugops rule by hand: the doctor names it absent and does not repair it.
+    const json = JSON.parse(readFileSync(settingsFile(target), "utf8"));
+    json.permissions.ask = json.permissions.ask.filter((x: string) => x !== "Bash(git push *)");
+    writeFileSync(settingsFile(target), JSON.stringify(json, null, 2) + "\n");
+    const edited = snapshot(target);
+    const doc2 = spawnSync("node", [INSTALL_JS, "--check"], { encoding: "utf8", env });
+    expect(snapshot(target)).toBe(edited);
+    expect(doc2.stdout.split("\n").filter((l) => l.includes("ask rule present:")).length).toBe(54);
+    expect(doc2.stdout).toMatch(/WARN\s+ask rule absent from \.claude\/settings\.json: Bash\(git push \*\)/);
+  });
+
+  it("ask rules: --check on a marker without the ledger says the install predates the ask rules", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const markerPath = join(target, ".grugops", "install.json");
+    const marker = JSON.parse(readFileSync(markerPath, "utf8"));
+    delete marker.claudeAskRules;
+    writeFileSync(markerPath, JSON.stringify(marker, null, 2) + "\n");
+    const doc = spawnSync("node", [INSTALL_JS, "--check"], {
+      encoding: "utf8",
+      env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT },
+    });
+    expect(doc.stdout).toContain("predates the Claude Code ask rules");
+    expect(doc.stdout).not.toContain("ask rule present:");
   });
 });
