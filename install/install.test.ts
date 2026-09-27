@@ -5453,3 +5453,119 @@ describe("ask rules: install side (D-18)", () => {
     expect(doc.stdout).not.toContain("ask rule present:");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CLAUDE CODE ASK RULES — THE REVERSAL (plan 33.1-03, D-18 / D-20 part (c)).
+//
+// Uninstall removes exactly (ledger ∩ present) from permissions.ask, and removes a container (the
+// ask array, the permissions object, the file) only when install created it and it is empty again.
+// It never decides removal by string presence alone: a user may hold a rule identical to ours.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("ask rules: uninstall side (D-18)", () => {
+  // A user settings file in the installer's own output formatting (2-space JSON, trailing newline),
+  // so the install → uninstall round trip can be compared as raw bytes. A file in another formatting
+  // keeps every value and key order across the round trip, but is re-serialized by the merge.
+  const USER_SETTINGS_FORMATTED = JSON.stringify(JSON.parse(USER_SETTINGS), null, 2) + "\n";
+  const grugopsRulesIn = (t: string): string[] => {
+    if (!existsSync(settingsFile(t))) return [];
+    const ours = new Set(allAskRules());
+    return readAsk(t).filter((r) => ours.has(r));
+  };
+
+  it("ask rules reversal: install then uninstall on a fresh target removes the created settings file", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(existsSync(settingsFile(target))).toBe(true);
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+    expect(existsSync(settingsFile(target))).toBe(false);
+    expect(existsSync(join(target, ".claude"))).toBe(false);
+    expect(r.stdout).toMatch(/removed\s+\.claude\/settings\.json/);
+  });
+
+  it("ask rules reversal: pre-existing user rules and keys — the settings file is byte-identical after install then uninstall", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".claude"), { recursive: true });
+    writeFileSync(settingsFile(target), USER_SETTINGS_FORMATTED);
+    const pre = readFileSync(settingsFile(target));
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readFileSync(settingsFile(target)).equals(pre)).toBe(false); // the install did write
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+    expect(readFileSync(settingsFile(target)).equals(pre)).toBe(true);
+    expect(r.stdout).toMatch(/left\s+Bash\(git push \*\) \(present in \.claude\/settings\.json but not in the install ledger/);
+  });
+
+  it("ask rules reversal: a user edit after install is respected — the user's key stays, a removed rule is not recreated", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const json = JSON.parse(readFileSync(settingsFile(target), "utf8"));
+    json.permissions.ask = json.permissions.ask.filter((x: string) => x !== "Bash(npm publish *)");
+    json.theme = "dark";
+    writeFileSync(settingsFile(target), JSON.stringify(json, null, 2) + "\n");
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(0);
+    // Every other ledger rule is gone, the containers install created are gone, the user's key stays.
+    expect(JSON.parse(readFileSync(settingsFile(target), "utf8"))).toEqual({ theme: "dark" });
+    expect(r.stdout).toMatch(/Bash\(npm publish \*\) \(in the install ledger but not present/);
+  });
+
+  it("ask rules reversal: install, install, uninstall leaves zero grugops rules", () => {
+    for (const withUserFile of [false, true]) {
+      const target = makeFixture();
+      const home = mkTmp();
+      if (withUserFile) {
+        mkdirSync(join(target, ".claude"), { recursive: true });
+        writeFileSync(settingsFile(target), USER_SETTINGS_FORMATTED);
+      }
+      expect(runInstall(target, home).status).toBe(0);
+      expect(runInstall(target, home).status).toBe(0);
+      expect(runUninstall(target, home).status).toBe(0);
+      // With the user file, the one rule left is the user's own identical rule, and nothing else of ours.
+      expect(`${withUserFile}: ${JSON.stringify(grugopsRulesIn(target))}`).toBe(
+        `${withUserFile}: ${JSON.stringify(withUserFile ? ["Bash(git push *)"] : [])}`,
+      );
+    }
+  });
+
+  it("ask rules reversal: an unparseable settings file is untouched with a verify line; a marker without the ledger removes nothing", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    writeFileSync(settingsFile(target), "{not json");
+    const r = runUninstall(target, home);
+    expect(r.status).toBe(3);
+    expect(readFileSync(settingsFile(target), "utf8")).toBe("{not json");
+    expect(r.stdout).toMatch(/verify\s+\.claude\/settings\.json/);
+
+    const target2 = makeFixture();
+    const home2 = mkTmp();
+    expect(runInstall(target2, home2).status).toBe(0);
+    const markerPath = join(target2, ".grugops", "install.json");
+    const marker = JSON.parse(readFileSync(markerPath, "utf8"));
+    delete marker.claudeAskRules;
+    writeFileSync(markerPath, JSON.stringify(marker, null, 2) + "\n");
+    const pre = readFileSync(settingsFile(target2));
+    const r2 = runUninstall(target2, home2);
+    expect(r2.status).toBe(0);
+    expect(readFileSync(settingsFile(target2)).equals(pre)).toBe(true);
+    expect(r2.stdout).toMatch(/skipped\s+\.claude\/settings\.json ask rules \(the install marker has no ask-rule ledger/);
+  });
+
+  it("ask rules reversal: DRY_RUN=1 uninstall names what it would remove and changes no byte", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const pre = readFileSync(settingsFile(target));
+    const r = spawnSync("node", [UNINSTALL_JS], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status).toBe(0);
+    expect(readFileSync(settingsFile(target)).equals(pre)).toBe(true);
+    expect(r.stdout).toMatch(/would-remove\s+\.claude\/settings\.json \(55 ask rule\(s\)/);
+  });
+});
