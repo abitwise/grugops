@@ -60,7 +60,12 @@
 // MAX_RULESET_READS per branch (the rest show nothing). The rule binds only when that read is a
 // 200 about the same ruleset reporting `current_user_can_bypass: "never"`; `always`,
 // `pull_requests_only` and `exempt` are read as bypassable; any other answer is not readable. So
-// an item is `held` on the ruleset arm when at least one binding rule shows it. The last row of
+// an item is `held` on the ruleset arm when at least one binding rule shows it. Classic arm: the
+// body binds only with `enforce_admins.enabled === true` (`false` is read as bypassable, since a
+// 200 from the protection endpoint shows the account reads it as an administrator; anything else
+// is not readable), and for the pull-request and approval items only with
+// `bypass_pull_request_allowances` absent or listing no user, team or app (a non-empty list is not
+// readable: the check cannot tell whether the account is listed). The last row of
 // the table, `no_bypass`, is the qualifier: `held` when every item is held (each item already
 // counts only binding sources), `failed` when an item fails and a source that would show it was
 // read as bypassable, `unknown` otherwise; its evidence names each bypassable or unreadable source.
@@ -400,10 +405,43 @@ function ruleBinding(rule, bindings) {
     }
     return bindings.get(id) ?? { state: "unknown", evidence: `ruleset ${id} was not read` };
 }
-// The classic arm's binding for one item. Filled in by the enforce_admins and pull request
-// bypass allowance readings.
-function classicBinding(_body, _row) {
-    return { state: "binds", evidence: "" };
+// The classic arm's binding for one item. Classic protection binds only when it applies to
+// administrators (`enforce_admins.enabled === true`): a 200 from the protection endpoint is itself
+// evidence that the account reads it as an administrator (a non-administrator reads 404
+// `Not Found`, 33.1-RESEARCH.md Q4), so `false` means this account can bypass it. For the pull
+// request and approval items it also needs `bypass_pull_request_allowances` absent, or listing no
+// user, team or app; a non-empty list is `unknown`, because the check cannot tell whether this
+// account is on it. Evidence counts listed actors and never names them (T-33.1-193).
+function classicBinding(body, row) {
+    const ea = body.enforce_admins;
+    if (isObject(ea) && ea.enabled === false) {
+        return {
+            state: "bypassable",
+            evidence: "classic protection does not apply to administrators (enforce_admins.enabled is false), and a 200 from the protection endpoint shows this account reads it as an administrator",
+        };
+    }
+    if (!isObject(ea) || ea.enabled !== true) {
+        return { state: "unknown", evidence: "classic protection carries no readable enforce_admins.enabled" };
+    }
+    const applies = "classic protection applies to administrators";
+    if (!row.reviewItem)
+        return { state: "binds", evidence: applies };
+    const rpr = body.required_pull_request_reviews;
+    const allowances = isObject(rpr) ? rpr.bypass_pull_request_allowances : undefined;
+    if (allowances === undefined)
+        return { state: "binds", evidence: `${applies} and grants no pull request bypass allowance` };
+    const lists = isObject(allowances) ? [allowances.users, allowances.teams, allowances.apps] : [];
+    if (lists.length === 0 || !lists.every(Array.isArray)) {
+        return { state: "unknown", evidence: "classic bypass_pull_request_allowances has an unexpected shape" };
+    }
+    const listed = lists.reduce((n, l) => n + l.length, 0);
+    if (listed > 0) {
+        return {
+            state: "unknown",
+            evidence: `classic protection lets ${listed} actor(s) bypass required pull requests, and the check cannot tell whether this account is one of them`,
+        };
+    }
+    return { state: "binds", evidence: `${applies} and grants no pull request bypass allowance` };
 }
 function plain(state, evidence) {
     return { state, evidence, bypassed: [], unbound: [] };
@@ -421,8 +459,8 @@ function bindSources(sources) {
     const bypassed = [];
     const unbound = [];
     for (const { shown, binding } of sources) {
-        const both = binding.evidence === "" ? shown.evidence : `${shown.evidence}, and ${binding.evidence}`;
-        const but = binding.evidence === "" ? shown.evidence : `${shown.evidence}, but ${binding.evidence}`;
+        const both = `${shown.evidence}, and ${binding.evidence}`;
+        const but = `${shown.evidence}, but ${binding.evidence}`;
         if (shown.state !== "failed" && binding.state === "bypassable")
             bypassed.push(binding.evidence);
         if (shown.state !== "failed" && binding.state === "unknown")

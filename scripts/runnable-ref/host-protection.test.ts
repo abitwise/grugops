@@ -126,6 +126,7 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
         [PROTECTION("main")]: {
           status: 200,
           body: {
+            enforce_admins: { enabled: true },
             required_pull_request_reviews: { required_approving_review_count: 1 },
             allow_force_pushes: { enabled: false },
             allow_deletions: { enabled: false },
@@ -308,9 +309,12 @@ const RULE = (type: string, parameters?: Record<string, unknown>): Record<string
 });
 const PR_RULE = (count: unknown): Record<string, unknown> => RULE("pull_request", { required_approving_review_count: count });
 const rulesOf = (...list: unknown[]): unknown => ({ status: 200, body: list });
-// Classic protection that shows every floor row.
+// Classic protection that shows every floor row: it applies to administrators and grants no pull
+// request bypass allowance (D-30).
+const NO_ALLOWANCES = { users: [], teams: [], apps: [] };
 const CLASSIC_STRONG = {
-  required_pull_request_reviews: { required_approving_review_count: 1 },
+  enforce_admins: { enabled: true },
+  required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: NO_ALLOWANCES },
   allow_force_pushes: { enabled: false },
   allow_deletions: { enabled: false },
 };
@@ -447,7 +451,7 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
     const r = runCheck(
       base({
         [RULES("main")]: rulesOf(PR_RULE(1)),
-        [PROTECTION("main")]: classicOf({ allow_force_pushes: { enabled: false }, allow_deletions: { enabled: false } }),
+        [PROTECTION("main")]: classicOf({ enforce_admins: { enabled: true }, allow_force_pushes: { enabled: false }, allow_deletions: { enabled: false } }),
       }),
     );
     expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
@@ -556,7 +560,7 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
   const WEAKEN_BRANCH: Record<string, Fixture> = {
     "requires a pull request before merging": {
       [RULES("main")]: rulesOf(RULE("non_fast_forward"), RULE("deletion")),
-      [PROTECTION("main")]: classicOf({ allow_force_pushes: { enabled: false }, allow_deletions: { enabled: false } }),
+      [PROTECTION("main")]: classicOf({ enforce_admins: { enabled: true }, allow_force_pushes: { enabled: false }, allow_deletions: { enabled: false } }),
     },
     "requires at least one approving review": {
       [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
@@ -575,7 +579,7 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
     },
     [NO_BYPASS]: {
       [RULESET(1)]: rulesetAnswer(1, "always"),
-      [PROTECTION("main")]: NOT_PROTECTED_404,
+      [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, enforce_admins: { enabled: false } }),
     },
   };
 
@@ -759,6 +763,180 @@ describe("host-protection.js — ruleset bypass (CR-01, D-30)", () => {
   });
 });
 
+// ── CR-01 (plan 33.1-19, D-30): classic protection must bind administrators ─────────────────────
+describe("host-protection.js — classic protection bypass (CR-01, D-30)", () => {
+  it("classic protection meeting every item but enforce_admins.enabled false, no rules → unprotected, naming administrators", () => {
+    const r = runCheck(
+      base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, enforce_admins: { enabled: false } }) }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(branchLine(r.stdout)).toContain("classic protection does not apply to administrators");
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("failed");
+    for (const requirement of jsonBlock(r.stdout).floor.branch) {
+      expect(factOf(r.stdout, "main", requirement), requirement).toBe("failed");
+    }
+    expect(r.status).toBe(1);
+  });
+
+  const UNREADABLE_ADMINS: Record<string, unknown> = {
+    "enforce_admins absent": undefined,
+    "enforce_admins.enabled a string": { enabled: "true" },
+    "enforce_admins.enabled absent": {},
+    "enforce_admins a bare boolean": true,
+    "enforce_admins null": null,
+  };
+  for (const [name, value] of Object.entries(UNREADABLE_ADMINS)) {
+    it(`classic protection with ${name} → UNKNOWN - verify`, () => {
+      const body: Record<string, unknown> = { ...CLASSIC_STRONG };
+      if (value === undefined) delete body.enforce_admins;
+      else body.enforce_admins = value;
+      const r = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf(body) }), ["--json"]);
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  const withAllowances = (allowances: unknown): Record<string, unknown> => ({
+    ...CLASSIC_STRONG,
+    required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: allowances },
+  });
+  const LISTED: Record<string, unknown> = {
+    "a listed user": { users: [{ login: "octo-agent" }], teams: [], apps: [] },
+    "a listed team": { users: [], teams: [{ slug: "octo-team" }], apps: [] },
+    "a listed app": { users: [], teams: [], apps: [{ slug: "octo-app" }] },
+    "an allowance object missing `apps`": { users: [], teams: [] },
+    "an allowance list that is not an array": { users: "octo-agent", teams: [], apps: [] },
+    "an allowance that is an array": [],
+    "an allowance that is null": null,
+  };
+  for (const [name, allowances] of Object.entries(LISTED)) {
+    it(`classic protection with ${name} in bypass_pull_request_allowances → UNKNOWN - verify, printing no actor name`, () => {
+      const r = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf(withAllowances(allowances)) }), ["--json"]);
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      expect(factOf(r.stdout, "main", "requires a pull request before merging")).toBe("unknown");
+      expect(factOf(r.stdout, "main", "requires at least one approving review")).toBe("unknown");
+      expect(factOf(r.stdout, "main", "blocks force pushes")).toBe("held");
+      expect(r.stdout).not.toMatch(/octo-(agent|team|app)/);
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it("classic protection whose bypass allowance lists are all empty → protected", () => {
+    const r = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf(withAllowances(NO_ALLOWANCES)) }));
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("classic protection with no bypass_pull_request_allowances key → protected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, required_pull_request_reviews: { required_approving_review_count: 1 } }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("a listed allowance counts actors in the evidence, never names them", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: classicOf(withAllowances({ users: [{ login: "octo-agent" }, { login: "octo-two" }], teams: [], apps: [] })),
+      }),
+    );
+    expect(branchLine(r.stdout)).toContain("2 actor(s)");
+    expect(r.stdout).not.toContain("octo-");
+  });
+});
+
+// The union with bypass taken into account, in both directions (D-30).
+describe("host-protection.js — the union matrix with bypass (CR-01, D-30)", () => {
+  const CLASSIC_404_NOT_FOUND = { status: 404, body: { message: "Not Found" } };
+
+  it("(a) a binding ruleset shows the pull request and approval, classic (admins enforced) blocks force pushes and deletions → protected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(1)),
+        [PROTECTION("main")]: classicOf({ enforce_admins: { enabled: true }, allow_force_pushes: { enabled: false }, allow_deletions: { enabled: false } }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("(b) a bypassable ruleset showing every item never weakens classic protection that binds → protected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(...ALL_ROWS_IN(1)),
+        [RULESET(1)]: rulesetAnswer(1, "always"),
+        [PROTECTION("main")]: classicOf(CLASSIC_STRONG),
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("held");
+    expect(r.status).toBe(0);
+  });
+
+  it("(c) a binding ruleset showing every item → protected, and the classic protection endpoint is never called", () => {
+    const r = runCheck(base({ [RULES("main")]: rulesOf(...ALL_ROWS_IN(1)) }));
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    for (const c of r.calls) expect(c.join(" ")).not.toContain("/protection");
+    expect(r.status).toBe(0);
+  });
+
+  it("(d) a bypassable ruleset showing every item, classic 404 `Branch not protected` → unprotected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(...ALL_ROWS_IN(1)),
+        [RULESET(1)]: rulesetAnswer(1, "always"),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(r.status).toBe(1);
+  });
+
+  it("(e) a binding ruleset with 0 approvals, classic with 1 approval but enforce_admins.enabled false → unprotected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
+        [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, enforce_admins: { enabled: false } }),
+      }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", "requires at least one approving review")).toBe("failed");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(r.status).toBe(1);
+  });
+
+  it("(f) a binding ruleset with 0 approvals, classic 404 `Not Found` and the branch reporting protected → UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
+        [PROTECTION("main")]: CLASSIC_404_NOT_FOUND,
+        [BRANCH("main")]: { status: 200, body: { name: "main", protected: true } },
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("(g) a paginated list whose first page binds every item but deletion, classic 404 `Branch not protected` → UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: { status: 200, body: [PR_RULE(1), RULE("non_fast_forward")], link: '<https://api.github.com/x?page=2>; rel="next"' },
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+});
+
 describe("host-protection.js — the production environment (D-19)", () => {
   it("an environment with a required-reviewers rule naming a reviewer → protected", () => {
     const r = runCheck(base());
@@ -914,5 +1092,29 @@ describe("host-protection.js — read-only by construction", () => {
       }
       if (isGet) expect(argv[4].startsWith("repos/{owner}/{repo}")).toBe(true);
     }
+  });
+
+  // The closed list of endpoint shapes (T-33.1-191, T-33.1-194): every GET path, with any
+  // `?per_page=100` removed, matches exactly one shape, and each shape is used at least once.
+  it("every recorded GET path matches exactly one of six endpoint shapes, and each shape is used", () => {
+    const BR = "[^?]+"; // a branch name as it appears in a path; `/` is kept literal
+    const SHAPES: Record<string, RegExp> = {
+      repository: /^repos\/\{owner\}\/\{repo\}$/,
+      rules: new RegExp(`^repos/\\{owner\\}/\\{repo\\}/rules/branches/${BR}$`),
+      branch: new RegExp(`^repos/\\{owner\\}/\\{repo\\}/branches/(?!${BR}/protection$)${BR}$`),
+      protection: new RegExp(`^repos/\\{owner\\}/\\{repo\\}/branches/${BR}/protection$`),
+      ruleset: /^repos\/\{owner\}\/\{repo\}\/rulesets\/[0-9]+$/,
+      environments: /^repos\/\{owner\}\/\{repo\}\/environments$/,
+    };
+    const used = new Set<string>();
+    const gets = ALL_CALLS.filter((a) => a[0] === "api");
+    expect(gets.length).toBeGreaterThan(50);
+    for (const argv of gets) {
+      const path = argv[4].replace(/\?per_page=100$/, "");
+      const hits = Object.entries(SHAPES).filter(([, re]) => re.test(path));
+      expect(hits.map(([n]) => n), `path ${JSON.stringify(argv[4])}`).toHaveLength(1);
+      used.add(hits[0][0]);
+    }
+    expect([...used].sort()).toEqual(Object.keys(SHAPES).sort());
   });
 });
