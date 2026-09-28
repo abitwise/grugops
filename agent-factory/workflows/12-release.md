@@ -6,7 +6,7 @@ tier: enterprise
 # Workflow: Release
 
 ## When to use
-Run this when a ticket reaches `Ready to Release` and a release must be cut. Release is an enterprise workflow — it runs whenever `mode=enterprise`, and is optional in lean. grug cut release, not corner — but grug never push the big red button alone. The flow: `Ready to Release -> Release Manager -> approval gate -> deploy plan -> (human-confirmed) deploy -> Done`. The deploy gate here is prose. It states who must approve and that the production action is human-confirmed. The mechanical enforcement is a later phase, so this workflow stays neutral about how a given tool dispatches it.
+Run this when a ticket reaches `Ready to Release` and a release must be cut. Release is an enterprise workflow — it runs whenever `mode=enterprise`, and is optional in lean. grug cut release, not corner — but grug never push the big red button alone. The flow: `Ready to Release -> Release Manager -> approval gate -> deploy plan -> (human-confirmed) deploy -> Done`. The deploy gate here is prose. It states who must approve and that the production action is human-confirmed. The mechanical tiers sit outside this workflow. The git host's production deployment environment, with a required reviewer, is the hard floor. The installer's Claude Code ask rules are a speed bump in front of it. Step 6 checks the host read-only.
 
 ## Agents involved
 - Release Manager — sets the version, compiles the changelog and release notes, and confirms the deploy/rollback/DR plans. Release Manager attaches the evidence, works the readiness checklist, records the named approval, and writes the release record. The Release Manager prepares the release and requires approval; it never deploys prod itself.
