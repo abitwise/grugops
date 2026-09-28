@@ -750,7 +750,8 @@ export function authorStamps(contextRoot) {
 }
 /**
  * D-02: the two-sided CAP-03 predicate. Returns named reasons; EMPTY means satisfied. Side (a):
- * at least two DISTINCT granted roles each with non-zero own-session evidence. Side (b): at least
+ * at least two DISTINCT granted roles each with non-zero own-session evidence, and every other
+ * spawn a grant member — except the coordinator's own spawn (D-33-R4-04). Side (b): at least
  * one on-disk note whose author stamp is a granted role rather than the coordinator.
  */
 export function capThreePredicate(input) {
@@ -773,6 +774,14 @@ export function capThreePredicate(input) {
             reasons.push(`side (a): an Agent tool-use block (${o.toolUseId}) names no subagent_type`);
             continue;
         }
+        // Recorded relaxation D-33-R4-04 (human, 2026-09-25): the coordinator adapter may run as a
+        // subagent; it is neither required to be a grant member nor counted toward the two-role bar. A
+        // spawned subagent's `Agent(...)` type list is ignored by the platform
+        // (code.claude.com/docs/en/sub-agents), so this clause stays the only membership check on nested
+        // spawns. The exemption needs a DERIVED coordinator (a non-null key) equal to this spawn's key,
+        // and it skips `evidenced.add` too, so the coordinator never satisfies the bar on its own behalf.
+        if (coordinatorKey !== null && key === coordinatorKey)
+            continue;
         if (!grantedKeys.has(key)) {
             reasons.push(`side (a): role ${o.role} (${o.toolUseId}) is not a member of the derived grant`);
             continue;
