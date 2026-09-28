@@ -2123,8 +2123,14 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   - the Bash command guard's source module, unwired by the 33.1 retirement commit and deleted
  *     with its compiled twin and its test. Re-derived rather than decremented: `git ls-files '*.ts'`
  *     minus the `.test.ts` and `.d.ts` members reports 90 with it gone.
+ *
+ * 90 -> 89 (plan 33.1-07, task 1, D-22), ONE MODULE DELETED:
+ *   - the prod-deploy deny matcher module, whose only consumers after 33.1 D-22 were the capture
+ *     runner's probe paths and the e2e lane's A2-live case; deleted with its compiled twin and its
+ *     test. Re-derived rather than decremented: `git ls-files '*.ts'` minus the `.test.ts` and
+ *     `.d.ts` members reports 89 with it gone.
  */
-const NON_TEST_MODULE_COUNT = 90;
+const NON_TEST_MODULE_COUNT = 89;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2671,7 +2677,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // imports `./frontmatter.js` (two declarative symbols), so it contributes one real comparison
     // the two readers must agree on. Re-derived: the scoped walk over `scripts/` minus tests
     // reports 62 with the module tracked.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(62);
+    // 62 → 61 (plan 33.1-07, task 1, D-22): the prod-deploy deny matcher module, deleted. It imported
+    // none of the three specs compared below, so the agreement loses three empty comparisons and no
+    // real one. Re-derived: the scoped walk over `scripts/` minus tests reports 61 with it gone.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(61);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2699,7 +2708,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 59 → 60 (plan 33-01, task 1): `capture-live.ts`, three specs per module as ever.
     // 60 → 61 (plan 33-03, task 1): `posix-path.ts`, three specs per module as ever.
     // 61 → 62 (plan 33-07, task 2): `check-flip-manifest.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(62 * 3);
+    // 62 → 61 (plan 33.1-07, task 1): the prod-deploy deny matcher module, deleted; three specs per
+    // module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(61 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2905,7 +2916,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // and both pins move in this plan's task-1 commit for the same reason.
       // 61 → 62 (plan 33-07, task 2): `check-flip-manifest.ts`, the same module the flat reader
       // gained, and both pins move in this plan's task-2 commit for the same reason.
-    ).toBe(62);
+      // 62 → 61 (plan 33.1-07, task 1): the prod-deploy deny matcher module, the same module the
+      // flat reader lost; both pins move in one commit for the same reason.
+    ).toBe(61);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9582,7 +9595,11 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // pin moved because a module left, not to make a red go away. Re-derived rather than decremented:
 // `ls scripts/*.test.ts | wc -l` reports 71 on this tree, and the move lands in the SAME commit as
 // the deletion.
-const TRIPWIRE_MODULES = 71;
+//
+// 71 -> 70 (plan 33.1-07, task 1): ONE test module DELETED, the prod-deploy deny matcher's own suite,
+// deleted with the matcher (33.1 D-22). The pin moved because a module left, not to make a red go
+// away. Re-derived rather than decremented: `ls scripts/*.test.ts | wc -l` reports 70 on this tree.
+const TRIPWIRE_MODULES = 70;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
