@@ -68,7 +68,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpo
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs } from "./install-marker.js";
+import { readInstallMarker, readCreatedDirs, readAskRuleLedger } from "./install-marker.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -586,40 +586,17 @@ const docWarn = (msg) => {
     docReport("WARN", msg);
     DOC_WARNS += 1;
 };
-// readAskLedger: fail-closed read of the marker's claudeAskRules field. Anything that is not the
-// exact ledger shape reads as null (no ledger), never as a partial ledger. A function declaration,
-// so the doctor (which runs before the install sequence) can call it without a TDZ error.
-function readAskLedger(marker) {
-    const raw = marker ? marker.claudeAskRules : undefined;
-    if (raw === null || typeof raw !== "object" || Array.isArray(raw))
-        return null;
-    const r = raw;
-    if (!Array.isArray(r.added) || !r.added.every((x) => typeof x === "string"))
-        return null;
-    if (typeof r.createdFile !== "boolean" || typeof r.createdPermissions !== "boolean" || typeof r.createdAsk !== "boolean") {
-        return null;
-    }
-    return {
-        added: [...r.added].sort(),
-        createdFile: r.createdFile,
-        createdPermissions: r.createdPermissions,
-        createdAsk: r.createdAsk,
-    };
-}
+// AskRuleLedger (D-18) and its reader live in ./install-marker.ts, shared with uninstall.ts (WR-05):
+// a local reader here used to read a malformed ledger as "no ledger" while uninstall refused on it.
 // readMarker: fail-closed read of the byte-stable .grugops/install.json the installer wrote
-// (writeMarker schema). JSON.parse in try/catch — an absent/garbled marker returns null (never
-// throws), source (b) of D-03. A non-object parse result (JSON.parse("null") returns null without
-// throwing) is treated as null too — fail-closed before any dereference.
+// (writeMarker schema), for the callers that need only "a usable marker or none" (the doctor's
+// version and kit checks, old-layout detection) — source (b) of D-03. It delegates to the shared
+// reader in ./install-marker.ts, so the marker is parsed one way in both binaries: an absent,
+// garbled or non-object marker returns null (never throws). The ledger callers use the tri-state
+// directly, because for them "unreadable" and "absent" must not be the same answer (WR-05).
 function readMarker(markerFile) {
-    try {
-        const parsed = JSON.parse(readFileSync(markerFile, "utf8"));
-        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-            return null;
-        return parsed;
-    }
-    catch {
-        return null;
-    }
+    const read = readInstallMarker(markerFile);
+    return read.state === "ok" ? read.marker : null;
 }
 // readAdapterKit: extract the materialized KIT="…" line from the grugops:materialized-kit
 // sentinel block (source (c) of D-03). Split on "\n", track inblk between MAT_OPEN/MAT_CLOSE,
@@ -958,8 +935,18 @@ function doctor() {
     // --- Claude Code ask rules (D-18): report each ledger rule present or absent; never repair ---
     // The rules are a speed bump, not a security boundary; the git host is the hard floor. A missing
     // rule is a WARN (someone removed it), not a FAIL, and the doctor writes nothing either way.
-    const askLedger = readAskLedger(marker);
-    if (!askLedger) {
+    // One reader, three states (WR-05): a malformed ledger is a WARN naming it, never "predates".
+    const askMarker = readInstallMarker(markerFile);
+    const askRead = readAskRuleLedger(askMarker.state === "ok" ? askMarker.marker : null);
+    const askLedger = askRead.ledger;
+    if (askMarker.state === "unreadable") {
+        docWarn(".grugops/install.json could not be read as a JSON object — the ask-rule ledger is unknown, so the ask rules were not checked");
+    }
+    else if (askRead.state === "malformed") {
+        docWarn("the ask-rule ledger (claudeAskRules) in .grugops/install.json is malformed — the ask rules were not checked, " +
+            "and neither the installer nor the uninstaller will change them until the field is fixed");
+    }
+    else if (!askLedger) {
         docReport("info", "no ask-rule ledger in the marker — this install predates the Claude Code ask rules; re-run the installer to write them");
     }
     else {
@@ -2135,6 +2122,12 @@ function materializeRunnable() {
 function writeMarker() {
     const markerRel = ".grugops/install.json";
     const previousMarker = readInstallMarker(join(TARGET, ".grugops", "install.json"));
+    // WR-05: a marker that exists but cannot be read holds ledgers this run cannot see. Overwriting it
+    // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
+    if (previousMarker.state === "unreadable") {
+        report("skipped", `${markerRel} (left unchanged — it could not be read; see the verify line above)`);
+        return;
+    }
     const previousDirs = readCreatedDirs(previousMarker.state === "ok" ? previousMarker.marker : null);
     if (previousDirs.state === "malformed") {
         verify(`${markerRel} — the directory ledger (createdDirs) is malformed, so it was written back unchanged and ` +
@@ -2159,7 +2152,11 @@ function writeMarker() {
         kitRoot: KIT_ROOT,
         installMode: INSTALL_MODE,
     };
-    if (ASK_LEDGER !== null) {
+    if (ASK_LEDGER_KEEP_RAW) {
+        // WR-05: a malformed ask-rule ledger is written back exactly as it was found.
+        marker.claudeAskRules = ASK_LEDGER_KEEP_RAW.raw;
+    }
+    else if (ASK_LEDGER !== null) {
         marker.claudeAskRules = {
             added: ASK_LEDGER.added,
             createdFile: ASK_LEDGER.createdFile,
@@ -2738,12 +2735,32 @@ function readCheckpointConfig() {
     return undefined;
 }
 let ASK_LEDGER = null;
+// Set when the previous ledger is present but malformed (WR-05): writeMarker() writes `raw` back
+// unchanged instead of ASK_LEDGER.
+let ASK_LEDGER_KEEP_RAW = null;
 function writeAskRules() {
     const rel = ".claude/settings.json";
     const file = join(TARGET, ".claude", "settings.json");
-    const previous = readAskLedger(readMarker(join(TARGET, ".grugops", "install.json")));
     report("note", "these ask rules are a speed bump for the usual command spellings, not a security boundary; " +
         "the git host is the hard floor (install/README.md §5)");
+    // FAIL CLOSED ON THE LEDGER (WR-05), exactly as uninstall does. Without a readable ledger this run
+    // cannot tell a rule an earlier install added from the user's own identical rule, so it adds no
+    // rule, relabels none, and leaves the ledger as it found it. A marker with no ledger field (an
+    // install that predates the ask rules, or no marker at all) is not a defect: nothing was recorded.
+    const previousMarker = readInstallMarker(join(TARGET, ".grugops", "install.json"));
+    if (previousMarker.state === "unreadable") {
+        verify(`.grugops/install.json could not be read as a JSON object, so the ask-rule ledger is unknown — no ask rule ` +
+            `was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.`);
+        return;
+    }
+    const previousRead = readAskRuleLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
+    if (previousRead.state === "malformed") {
+        verify(`${rel} — the ask-rule ledger (claudeAskRules) in .grugops/install.json is malformed, so no ask rule was ` +
+            `added and the ledger was written back unchanged. Fix the field, then re-run the installer.`);
+        ASK_LEDGER_KEEP_RAW = { raw: previousRead.raw };
+        return;
+    }
+    const previous = previousRead.ledger;
     const config = readCheckpointConfig();
     const toWrite = checkpointsToWrite(config);
     const rules = [];

@@ -54,7 +54,7 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { readInstallMarker, readCreatedDirs } from "./install-marker.js";
+import { readInstallMarker, readCreatedDirs, readAskRuleLedger, } from "./install-marker.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -506,44 +506,38 @@ function unmergeGemini() {
 //
 // Fail closed: an unreadable marker, a malformed ledger, or a settings file that does not parse or
 // has the wrong shape is a `verify` finding and NOTHING is removed. A marker without the field
-// (an install that predates the ask rules) is a `skipped` line and nothing is removed.
+// (an install that predates the ask rules) is a `skipped` line and nothing is removed. The marker
+// and the ledger are read through ./install-marker.ts, the reader install.ts uses (WR-05); the
+// marker itself was read once at the top of the removal sequence (MARKER).
+//
+// ONE OCCURRENCE PER LEDGER RULE (IN-02). The ledger records that install added a rule once. A
+// further copy of the same rule in permissions.ask was added by someone else later, so only the
+// first occurrence of each ledger rule is removed; every later copy is kept and reported `left`.
 function removeAskRules() {
     const rel = ".claude/settings.json";
     const f = `${TARGET}/.claude/settings.json`;
     if (isProtected(f))
         return;
-    const markerPath = `${TARGET}/.grugops/install.json`;
-    if (!pathExists(markerPath)) {
+    if (MARKER.state === "absent") {
         report("skipped", `${rel} ask rules (no install marker, so no ledger of added rules — nothing removed)`);
         return;
     }
-    let marker;
-    try {
-        marker = JSON.parse(readFileSync(markerPath, "utf8"));
-    }
-    catch {
+    if (MARKER.state === "unreadable") {
         verify(`${rel} ask rules — .grugops/install.json could not be read as JSON, so the ledger of rules grugops ` +
             `added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.`);
         return;
     }
-    const raw = marker !== null && typeof marker === "object" && !Array.isArray(marker)
-        ? marker.claudeAskRules
-        : undefined;
-    if (raw === undefined) {
+    const askRead = readAskRuleLedger(MARKER.marker);
+    if (askRead.state === "absent") {
         report("skipped", `${rel} ask rules (the install marker has no ask-rule ledger — the install predates the ask rules; nothing removed)`);
         return;
     }
-    const led = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : null;
-    if (!led ||
-        !Array.isArray(led.added) ||
-        !led.added.every((x) => typeof x === "string") ||
-        typeof led.createdFile !== "boolean" ||
-        typeof led.createdPermissions !== "boolean" ||
-        typeof led.createdAsk !== "boolean") {
+    if (askRead.state === "malformed" || askRead.ledger === null) {
         verify(`${rel} ask rules — the ask-rule ledger in .grugops/install.json is malformed, so NO ask rule was ` +
             `removed. Remove the grugops ask rules by hand.`);
         return;
     }
+    const led = askRead.ledger;
     const ledger = new Set(led.added);
     if (!pathExists(f)) {
         report("skipped", `${rel} (not present — the ${ledger.size} ask rule(s) in the install ledger are already gone)`);
@@ -574,8 +568,21 @@ function removeAskRules() {
         return;
     }
     const ask = hasAsk ? permissions.ask : [];
-    const isLedgerRule = (x) => typeof x === "string" && ledger.has(x);
-    const removing = ask.filter(isLedgerRule);
+    // IN-02: walk permissions.ask in order and take only the FIRST occurrence of each ledger rule.
+    const toRemove = new Set(ledger);
+    const removing = [];
+    const keptAsk = [];
+    const userCopies = [];
+    for (const x of ask) {
+        if (typeof x === "string" && toRemove.has(x)) {
+            toRemove.delete(x);
+            removing.push(x);
+            continue;
+        }
+        if (typeof x === "string" && ledger.has(x))
+            userCopies.push(x);
+        keptAsk.push(x);
+    }
     const presentSet = new Set(ask.filter((x) => typeof x === "string"));
     for (const r of [...ledger].sort()) {
         if (!presentSet.has(r))
@@ -587,8 +594,10 @@ function removeAskRules() {
             report("left", `${r} (present in ${rel} but not in the install ledger — the user's own rule, left in place)`);
         }
     }
+    for (const r of userCopies) {
+        report("left", `${r} (a further copy in ${rel} beyond the one install added — the user's own copy, left in place)`);
+    }
     // Compute the result without touching the parsed object, so a dry run and a no-op write nothing.
-    const keptAsk = ask.filter((x) => !isLedgerRule(x));
     let nextPermissions = permissions;
     if (permissions !== null && hasAsk) {
         nextPermissions = { ...permissions, ask: keptAsk };
