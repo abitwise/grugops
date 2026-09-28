@@ -805,3 +805,116 @@ the residual rule and the commit-set rule stay out of force. No capture exists a
 GAP-D1 stays open. The live-surface set is unchanged: 28 documents over five parts. What a later
 flip needs is still what section 9 lists, except that the D-04 deny on the hook channel is no
 longer part of it. That was the probe's evidence, and both the probe and its oracle are retired.
+
+---
+
+## 11. Hold record (phase 33.1, plan 33.1-16, 2026-09-28)
+
+**Decision: hold. The hold is mechanical under 33.1 D-12 and D-13, and nobody chose it at a
+checkpoint.** Plan 33.1-16's Task 2 is the one-way flip decision (`flip-without-cap02` / `hold`). It
+is presented only when the capture's outcome word is `pass`. The word is `fail`. The checkpoint was
+therefore NOT presented and no option id was selected. No amendment moved F38-F42 out of section
+2.3, and no flip commit exists. This record is the plan's hold branch (Task 3), executed as written.
+Nothing flips.
+
+**Evidence the hold rests on.** Plan 33.1-15 made the one authorized phase-33.1 live capture
+(33.1 D-10) on 2026-09-28, against the pushed sha `7bb21b0d` (HEAD equal to `origin/main`, ahead
+count 0), on platform `2.1.283 (Claude Code)`, with no prod-deploy probe (33.1 D-22). The capture
+set is committed at `b35d4aed` under the manifest-keyed names in the phase root. The round-4 set is
+preserved unedited under `round-4-held/` (`7bb21b0d`). `33-CAPTURE-SUMMARY.md` has exactly one
+outcome line under `Completion`, and it reads `OUTCOME: fail`, with `Outcome reason: a run exited
+non-zero or a CAP-03 side failed — see the sections above`.
+
+- **What set the word.** Both runs exited 0 (`Run` section: run A `status 0, signal null, timed out
+  false`, wall 155397 ms; run B the same, wall 128902 ms). The CAP-03 sections set the word. They
+  read, verbatim:
+  - Run A: `side (a): 1 distinct granted role(s) carry own-session evidence; at least two are
+    required (seen: brownfield-mapper)`.
+  - Run A: `side (b): no note under the target's context root is stamped by a granted role agent;
+    author stamps seen: orchestrator`.
+  - Run B: the same side (b) sentence. Run B's side (a) holds: `grugops-brownfield-mapper` and
+    `grugops-security-nfr` both carry own-session evidence.
+- **Parity also fails on its own.** The `Dual-path parity (D-07) — path-invariant projection` section
+  names three differences, verbatim:
+  - `orchestrator: note count differs: path A has 2, path B has 3`
+  - `note route: propose_note tool-use blocks differ: path A 2, path B 3`
+  - `note route: indirect write-shaped blocks naming the context root differ: path A 1, path B 0`
+
+  The section does not read `parity: the two projections are equal`.
+- **What held.** Plugin provenance reads MET on both paths before the spawn and after the run. The
+  installed copy's content digest `8805be0e2c89b1152f8043996d948924493909f7b8d298f06fa1d536db3c25db`
+  equals the checkout's, and the registry `gitCommitSha` is `7bb21b0d…`. `spawn grant drift` reads
+  `none` on both paths. The live init frames report `permissionMode: default` (A:12, B:12, B:517).
+  No `Write` or `Edit` outside the target appears in either transcript.
+- **The diagnosis.** `33-R5-DIAGNOSIS.md` (commit `14d6fd04`, zero tokens) finds that no role agent
+  on either path had a granted write route into the shared context, and classes this KIT plus SUITE.
+  - The copy-mode kit home ships no `scripts/` directory.
+  - The role adapters do not list `propose_note`.
+  - The pinned `default` mode, with the grant `Bash(node *)`, denies the `mkdir` claim and the
+    discovery commands that round 4 used under `auto`.
+
+  It adds a platform rider: path B's role agents had every Bash call denied as `asyncAgent`.
+
+  Its § 5 hands three decisions to the human. Plan 33.1-16 recorded them as `.planning/WINDOWS.md`
+  rows 310 (KIT), 311 (SUITE) and 312 (platform) through the tool section 1.6 names, in commit
+  `da7ec9e0`. None is decided here.
+
+**The second gate is independently unmet (33.1 D-15).**
+- CAP-02 is not met in phase 33.1. WINDOWS.md row 274 and the windows reds are out of this phase.
+- The latest CI verdict is still `33-CI-MEASUREMENT.md` Part 5 § 5.3: **CAP-02 verdict on this run:
+  NOT MET.** That is run `36035067112`: `test (windows-latest)` reads `failure`, and row 274 is still
+  `open`.
+- Rows F38 through F42 cite the CI run and never the capture (section 4). So even a `pass` capture
+  could not flip them truthfully. It would have reached the checkpoint with `flip-without-cap02` as
+  the only flip option, and that option needs an amendment that moves F38-F42 out first.
+
+**What this record does and does not change.**
+
+- **The flip-class and correction-class rows are untouched.** Every flip-class row in section 2.3
+  (58 rows) and every correction-class row in section 3 (C1 through C10) is as it was:
+  - Each pre-flip anchor still occurs in its file, and each post-flip marker is still absent.
+  - The parity table in `examples/03-ticket-to-pr.md` still has six data rows, with their pre-flip
+    labels and their `pending human` cells.
+  - The five ledger rows (F53, F54, F55, F57 and F58: ids 1, 183, 211, 213 and 214) are still `open`.
+  - The runtime-evidence record (F43) still carries only the July 2026 human observation.
+- **The gate reads the same derivation before and after this section.** It was run before this
+  section was written (plan 33.1-16 Task 1) and re-run after it. Both runs read:
+  - `live-surface parts: publicDocs 12, docsTree 7, planningLedgers 5, archivedRecords 4,
+    runtimeEvidence 1; overlap 1; derived total 28, pinned 28`
+  - `58 flip row(s), 10 correction row(s), 3 exemption anchor(s)`
+  - `declared set (14)`, with `.planning/PROJECT.md` first
+  - status `pre-capture (residual rule and commit-set rule not in force)`
+  - `ALL CHECKS PASSED`, exit 0
+- **The status line is unchanged.** It still reads the first declared value. The residual rule
+  (section 1.4) and the commit-set rule (section 2.1) stay out of force.
+- **The two amendments are still owed.**
+  - `.planning/PROJECT.md` (F59-F61) belongs in the flip commit.
+  - Row F14's marker literal should name the plan that performs the flip.
+
+  Neither is paid, and both are owed to whichever plan performs the flip.
+- **`.planning/WINDOWS.md` gains only rows 310-312** (above). No flip-class ledger row changes.
+- **`.planning/REQUIREMENTS.md`: checkbox lines untouched.** The CAP-01, CAP-02 and CAP-03 checkbox
+  lines are manifest anchors (F44, F45), so this plan leaves them alone. Its separate follow-up commit
+  appends one phase-33.1 sentence to each of their traceability rows. None is marked complete.
+- **`docs/audit/28-disposition-register.md` gets no note this round.** Its round-4 note is still the
+  latest, and it is still true: the overlap is not discharged.
+- **Sections 6 to 10 stay as history.** This section is appended below them.
+
+**The phase's position under its cap (33.1 D-06).** This was phase 33.1's execution round 1, under its
+one four-round gap-closure cap. Any gap closure counts against that cap. D-12 allows no second
+capture without a new human decision. GAP-D1 stays open (since 2026-06-16).
+
+What a later flip would need, recorded so it is not re-derived:
+
+1. **The human decisions.** The human decides rows 310, 311 and 312 first. Row 310 is a KIT defect
+   (an installer or adapter contract change), so it is a code change owed before any further
+   capture.
+2. **A new go.** A new plan and a new human go under D-12. Nothing from this round carries forward.
+3. **A passing capture** on that go that reads `OUTCOME: pass`, with `parity: the two projections are
+   equal` over live notes, both provenance rows MET, and both CAP-03 sides holding on both paths.
+4. **For F38-F42, one of two things:**
+   - a CI verdict that reads MET on both legs (CAP-02), or
+   - the human's recorded choice to flip without CAP-02. That choice needs its own amendment, which
+     moves F38-F42 out of section 2.3 before the flip commit (33.1 D-13, D-15).
+5. **The flip itself.** Plan 33-11's Tasks 2 through 4 (as re-stated in plan 33.1-16's Task 3), run
+   against this manifest with the two owed amendments, in one commit over the declared set.
