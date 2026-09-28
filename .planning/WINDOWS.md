@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 235
+open_count: 238
 waived_count: 27
 fixed_count: 47
-total_count: 309
-last_updated: 2026-09-28T14:49:56.306Z
+total_count: 312
+last_updated: 2026-09-28T16:54:01.583Z
 ---
 
 # Broken Windows Ledger
@@ -324,6 +324,9 @@ last_updated: 2026-09-28T14:49:56.306Z
 | 307 | 33 | deviation | scripts/context-io.ts | 1926 | 33-close round-4 review (33-REVIEW.md, commit f20f1af5) IN-01, accepted OPEN at the phase close (D-33-R4-08): the pre-check appendNote now runs (decideNoteDestination, :1926) raises errors spelled context-io.writeNoteFile (messages at :1501-1566) before admit() and outside appendNote's own wrapping, so the message names a function that was not called; admitAndAppend does wrap them, so the siblings are inconsistent. Fix direction: wrap the pre-check in appendNote's own refusal framing, or drop the function prefix from the shared messages. Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | fixed |  | 2026-09-25T09:08:14.096Z | 2026-09-28T12:01:46.552Z |
 | 308 | 33 | deviation | scripts/checkpoints.ts | 1880 | 33-close round-4 review (33-REVIEW.md, commit f20f1af5) IN-02, accepted OPEN at the phase close (D-33-R4-08): under xargs an adjacent benign word decides (:1880-1891), and several benign words LAUNCH other commands whose arguments then come from stdin (npm, yarn and pnpm exec; git submodule foreach; git bisect run; git rebase -x). Reachable today only when the stdin text is invisible on the line, which is the ledgered formatter-assembles-and-pipes class; the docblock at :1596-1631 does not name it. Fix direction: remove launcher-shaped words from the adjacency exemption under a stdin feed, or add the class to the failClosedCheckpoints residual list. Handle with the CR-01/CR-02 guard work (D-33-R4-06). Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | waived | dissolved — guard retired (D-17), 1b240a14 | 2026-09-25T09:08:14.184Z | 2026-09-28T11:12:21.954Z |
 | 309 | 33 | deviation | CLAUDE.md | 89 | 33-close owed follow-up recorded by human decision D-33-R4-04 (2026-09-25): CLAUDE.md states that subagents cannot spawn subagents (no nesting), but on Claude Code 2.1.281 the round-4 capture shows a subagent spawning subagents: the coordinator adapter spawned as a subagent (A:80) spawned grugops-brownfield-mapper (A:313) and grugops-architect-design (A:711), each with own-session evidence (33-R4-DIAGNOSIS.md section 1). Whether the platform GUARANTEES nesting is UNKNOWN - verify. CLAUDE.md was deliberately NOT edited at the Phase 33 close. The correction is owed once the platform behaviour is verified from a primary source, and the kit texts that rely on the no-nesting premise (the Orchestrator-as-main-thread design) are re-checked with it. Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | fixed |  | 2026-09-25T09:08:14.273Z | 2026-09-28T12:45:29.999Z |
+| 310 | 33.1 | deviation | install/install.ts | 155 | 33-R5-DIAGNOSIS section 1.2 and section 5 decision 1 (human), recorded by plan 33.1-16: on an installed kit, role agents have no granted write route into the shared context. The copy-mode install ships only agent-factory/ into the kit home (install/install.ts:155, KIT_ROOT), so scripts/claim.js (WF17 claimTask) and scripts/context-io.js (WF16, the only sanctioned writer) are absent; the role adapters do not list propose_note (.claude/agents/grugops-brownfield-mapper.md:4, grugops-security-nfr.md:4); a plain Write is forbidden by WF16. Round-5 capture (33.1-15, b35d4aed) CAP-03 side (b) failed on both paths for this reason (A:185 to A:190, B:169 to B:174 'No files found'). Class KIT. Options (ship scripts/ with their import closure into the kit home; grant propose_note to role adapters; point WF16/WF17 at CLAUDE_PLUGIN_ROOT/scripts) each change an installer or adapter contract, so none is chosen here. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:53:49.224Z |  |
+| 311 | 33.1 | deviation | agent-factory/workflows/17-task-claim.md | 26 | 33-R5-DIAGNOSIS section 1.2 and section 5 decision 2 (human), recorded by plan 33.1-16: the capture grant and the WF17 claim protocol do not fit together. WF17 claims by an atomic mkdir (agent-factory/workflows/17-task-claim.md:26); the round-5 capture pins --permission-mode default with the grant Bash(node *) (scripts/capture-live.ts:333, :1848, D-33-R4-05), under which mkdir and the ls/test/find discovery commands need approval that -p mode cannot give (A:476, A:491, A:552; A:84, A:365, B:29). Round 4 reached the plugin-cache scripts only under permissionMode auto (R4-A:173, R4-A:213). A node-driven claim (node <kit>/scripts/claim.js) would fit inside the grant only if the script ships (the KIT row above). Class SUITE. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:54:01.485Z |  |
+| 312 | 33.1 | unrun-verify | scripts/capture-live.ts | 1848 | 33-R5-DIAGNOSIS section 1.3 and section 5 decision 3 (human), recorded by plan 33.1-16: on round-5 path B (--agent grugops-orchestrator) every Bash call by a role agent was denied with decision_reason_type asyncAgent, 'Permission prompts are not available in this context' (B:384, B:451), though the Agent calls at B:358 and B:386 do not set run_in_background; B carries system/background_tasks_changed frames from B:363. Whether --agent makes the coordinator's spawns asynchronous is UNKNOWN - verify. On this evidence a path-B role agent cannot run even the granted Bash(node *), so a path-B pass needs a non-Bash write route (the propose_note option of the KIT row) or a measured answer on how --agent spawns behave. Class platform. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:54:01.583Z |  |
 
 ````json
 [
@@ -4166,6 +4169,45 @@ last_updated: 2026-09-28T14:49:56.306Z
     "reason": "",
     "recorded_at": "2026-09-25T09:08:14.273Z",
     "resolved_at": "2026-09-28T12:45:29.999Z",
+    "milestone": "v2.1"
+  },
+  {
+    "id": 310,
+    "kind": "deviation",
+    "phase": "33.1",
+    "file": "install/install.ts",
+    "line": 155,
+    "description": "33-R5-DIAGNOSIS section 1.2 and section 5 decision 1 (human), recorded by plan 33.1-16: on an installed kit, role agents have no granted write route into the shared context. The copy-mode install ships only agent-factory/ into the kit home (install/install.ts:155, KIT_ROOT), so scripts/claim.js (WF17 claimTask) and scripts/context-io.js (WF16, the only sanctioned writer) are absent; the role adapters do not list propose_note (.claude/agents/grugops-brownfield-mapper.md:4, grugops-security-nfr.md:4); a plain Write is forbidden by WF16. Round-5 capture (33.1-15, b35d4aed) CAP-03 side (b) failed on both paths for this reason (A:185 to A:190, B:169 to B:174 'No files found'). Class KIT. Options (ship scripts/ with their import closure into the kit home; grant propose_note to role adapters; point WF16/WF17 at CLAUDE_PLUGIN_ROOT/scripts) each change an installer or adapter contract, so none is chosen here. Owner: the human, then a new plan and a new go (D-12).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-28T16:53:49.224Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 311,
+    "kind": "deviation",
+    "phase": "33.1",
+    "file": "agent-factory/workflows/17-task-claim.md",
+    "line": 26,
+    "description": "33-R5-DIAGNOSIS section 1.2 and section 5 decision 2 (human), recorded by plan 33.1-16: the capture grant and the WF17 claim protocol do not fit together. WF17 claims by an atomic mkdir (agent-factory/workflows/17-task-claim.md:26); the round-5 capture pins --permission-mode default with the grant Bash(node *) (scripts/capture-live.ts:333, :1848, D-33-R4-05), under which mkdir and the ls/test/find discovery commands need approval that -p mode cannot give (A:476, A:491, A:552; A:84, A:365, B:29). Round 4 reached the plugin-cache scripts only under permissionMode auto (R4-A:173, R4-A:213). A node-driven claim (node <kit>/scripts/claim.js) would fit inside the grant only if the script ships (the KIT row above). Class SUITE. Owner: the human, then a new plan and a new go (D-12).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-28T16:54:01.485Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 312,
+    "kind": "unrun-verify",
+    "phase": "33.1",
+    "file": "scripts/capture-live.ts",
+    "line": 1848,
+    "description": "33-R5-DIAGNOSIS section 1.3 and section 5 decision 3 (human), recorded by plan 33.1-16: on round-5 path B (--agent grugops-orchestrator) every Bash call by a role agent was denied with decision_reason_type asyncAgent, 'Permission prompts are not available in this context' (B:384, B:451), though the Agent calls at B:358 and B:386 do not set run_in_background; B carries system/background_tasks_changed frames from B:363. Whether --agent makes the coordinator's spawns asynchronous is UNKNOWN - verify. On this evidence a path-B role agent cannot run even the granted Bash(node *), so a path-B pass needs a non-Bash write route (the propose_note option of the KIT row) or a measured answer on how --agent spawns behave. Class platform. Owner: the human, then a new plan and a new go (D-12).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-28T16:54:01.583Z",
+    "resolved_at": null,
     "milestone": "v2.1"
   }
 ]
