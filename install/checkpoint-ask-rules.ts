@@ -24,7 +24,7 @@
 // WHY THIS MODULE EXISTS HERE (D-18, D-29).
 //
 // The rows below are transcribed from the retired command table that lived in scripts/checkpoints.ts
-// (COMMAND_CHECKPOINT_RULES) before the Bash command-parsing guard was retired (D-17). Only the
+// until the Bash command-parsing guard was retired (D-17); git history holds it. Only the
 // tool, the governed verbs and the one governing flag were carried over; the command-model
 // concepts of that table (benign words, verb-prefix resolution) were retired with the guard and are
 // deliberately absent. Per D-29 the set covers only what the retired table named: the deploy tools,
