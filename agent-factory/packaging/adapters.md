@@ -14,9 +14,9 @@ tool how to reach it.
 
 The single thing that changes from tool to tool is *which entry file the host reads* to reach
 the Orchestrator. The dispatch model itself does NOT change: rather than **spawn** sub-agents
-(not available across every host CLI, and sub-agents cannot nest), grugops uses one uniform
-single-window sequential role-load — the Orchestrator **loads** each role file into one context
-in turn. **Only the entry file differs, never the dispatch model and never the content.** Same
+(not available across every host CLI; on Claude Code sub-agents can nest to the documented
+depth, see below), grugops uses one uniform single-window sequential role-load — the
+Orchestrator **loads** each role file into one context in turn. **Only the entry file differs, never the dispatch model and never the content.** Same
 roles, same shared context, same gates.
 
 > **Note on this document vs. `agent-factory/README.md`.** The README carries an earlier

@@ -86,7 +86,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - **`disallowedTools`** (optional): subtract from the inherited set (e.g. inherit everything except Write/Edit).
 - **File locations + precedence (highest→lowest):** managed settings → `--agents` CLI flag → `.claude/agents/` (project, check into git) → `~/.claude/agents/` (user) → plugin `agents/` (lowest). Scanned recursively; identity comes only from frontmatter `name` (keep names unique).
 - **Plugin-agent restriction:** plugin-shipped agents IGNORE `hooks`, `mcpServers`, `permissionMode` for security. If grugops needs those, ship them in standalone `.claude/agents/` or via settings, not the plugin.
-- **Subagent vs single-agent sequential load — the key architectural fact:** Each subagent runs in its **own context window** with its own system prompt; the parent gets back only a summary. BUT **subagents cannot spawn subagents (no nesting).** So the grugops Orchestrator, when run as a Claude Code subagent, cannot itself spawn role subagents. Two valid designs:
+- **Subagent vs single-agent sequential load — the key architectural fact:** Each subagent runs in its **own context window** with its own system prompt; the parent gets back only a summary. **Subagents can nest:** "By default, a subagent can spawn subagents of its own, up to three layers below the main conversation" (code.claude.com/docs/en/sub-agents, fetched 2026-09-28); `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` sets the depth and `1` turns nesting off; v2.1.219 raised the default to three (v2.1.217-v2.1.218 defaulted to one). For grugops: the Orchestrator is designed to run as the main thread and spawn role agents; the platform also lets a subagent spawn subagents up to the depth limit, and the round-4 capture on 2.1.281 observed the coordinator adapter running as a subagent that spawned role agents, a route the human accepted (D-33-R4-04). Two valid designs:
 ### 4. Slash command — two forms
 - Command frontmatter fields (all optional): `description`, `argument-hint`, `allowed-tools`, `disallowed-tools`, `model`, `disable-model-invocation`, `user-invocable`, `arguments`.
 - **Skills equivalence:** `.claude/skills/grug/SKILL.md` also yields `/grug` and supports the same frontmatter plus supporting files. For a destructive action you never want Claude to auto-trigger (e.g. `/grug-release`), set `disable-model-invocation: true`.
@@ -132,7 +132,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - Keep `grugops` as the repo / marketplace / package name regardless (brand §5.2).
 - Because: plugins always namespace `/<plugin>:<command>`; `/grug:plan` is the acceptable branded shape.
 - Orchestrator = main thread via plugin `settings.json` `{ "agent": "grug-orchestrator" }`; it spawns role subagents with the `Agent` tool.
-- Because: subagents cannot nest, so the Orchestrator must be the main thread to spawn others.
+- Because: running the Orchestrator as the main thread is the designed dispatch path; nesting (a subagent spawning subagents, up to `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`) is allowed by the platform but not relied on.
 - Single-agent sequential role-load model (Orchestrator loads each role file into its own context in turn).
 - Because: these tools read AGENTS.md and don't have Claude's spawnable-subagent model; this is the portable baseline anyway.
 - Configure git-host protection (the hard floor) and keep the installer's ask rules (a speed bump); see install/README.md §5.
@@ -154,7 +154,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - code.claude.com/docs/en/plugins — plugin creation, commands-merged-into-skills, structure rules (HIGH)
 - code.claude.com/docs/en/plugins-reference — full plugin.json schema, `${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_PLUGIN_DATA}`, version management, scopes, caching (HIGH)
 - code.claude.com/docs/en/plugin-marketplaces — marketplace.json schema, sources, `/plugin marketplace add` + `/plugin install` (HIGH)
-- code.claude.com/docs/en/sub-agents — subagent frontmatter (name/description/tools/model:inherit), file locations + precedence, no-nesting rule, `Agent` (ex-`Task`) tool (HIGH)
+- code.claude.com/docs/en/sub-agents — subagent frontmatter (name/description/tools/model:inherit), file locations + precedence, nesting depth (three layers below the main conversation by default since v2.1.219, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `1` turns nesting off), `Agent` (ex-`Task`) tool (HIGH)
 - code.claude.com/docs/en/skills — commands-merged-into-skills, frontmatter, `$ARGUMENTS`/`$N`/`$name`, command-name-from-location table, `disable-model-invocation` (HIGH)
 - code.claude.com/docs/en/hooks — PreToolUse/PostToolUse, `matcher` + `if:` permission-rule syntax, exit-2 vs JSON deny, exec/shell form (HIGH)
 - code.claude.com/docs/en/permissions — `permissions.ask` rules, evaluation order, what a Bash rule does not match ("isn't a security boundary around the program") (HIGH)
