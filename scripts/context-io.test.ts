@@ -13589,7 +13589,9 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
       ts.forEachChild(n, find);
     };
     ts.forEachChild(sf, find);
-    const LEDGER_TOUCH = new Set(["ledgerRecordsId", "appendAuditLedger", "admit"]);
+    // 33.1-12 (WR-01): `storedNoteAlreadyRecorded` is the fail-closed wrapper of `ledgerRecordsId`
+    // the gated branch of `admitAndAppend` now calls, so it is a ledger touch like its callee.
+    const LEDGER_TOUCH = new Set(["ledgerRecordsId", "storedNoteAlreadyRecorded", "appendAuditLedger", "admit"]);
     const isDecision = (st: ts.Statement): boolean =>
       ts.isVariableStatement(st) &&
       st.declarationList.declarations.some(
@@ -13631,9 +13633,10 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
       walk(body as ts.Node);
       expect(undominated, `${route} touches the GOV-02 ledger with no occupancy decision above it (WR-01)`).toEqual([]);
     }
-    // promoteAdmitted: ledgerRecordsId + appendAuditLedger; admitAndAppend: appendAuditLedger + admit;
-    // appendNote: admit. A walk that found fewer measured less than it claims.
-    expect(touches, "PREMISE: the ledger-touch census is not the five sites the three routes hold").toBe(5);
+    // promoteAdmitted: ledgerRecordsId + appendAuditLedger; admitAndAppend: storedNoteAlreadyRecorded
+    // + appendAuditLedger + admit; appendNote: admit. A walk that found fewer measured less than it
+    // claims. 5 -> 6 (33.1-12, WR-01): the gated branch's ledger look, re-derived from the source.
+    expect(touches, "PREMISE: the ledger-touch census is not the six sites the three routes hold").toBe(6);
   });
 
   it("LEGITIMATE INPUT: under the lean retention value the gated branch still writes and appends nothing", () => {
@@ -13906,6 +13909,18 @@ describe("33.1-12 — WR-01 in admitAndAppend, and IN-01 in appendNote", () => {
     expect(threw).toContain("APPEND-ONLY (SCTX-04)");
     expect(linesFor(root, id)).toBe(0);
     expect(readFileSync(join(store, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+  });
+
+  it("IN-01: appendNote's other pre-check refusals (containment) also name appendNote", () => {
+    const { root, store } = repo("p33.1-12-in01-contain-");
+    let threw: string | null = null;
+    try {
+      mod.appendNote(TASK, softNote(), BODY, store, "../escape", root);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw).toMatch(/^context-io\.appendNote: refusing to write — note id "\.\.\/escape" resolves OUTSIDE/);
+    expect(existsSync(ledgerPathOf(root))).toBe(false);
   });
 
   it("IN-01 (admitAndAppend wording unchanged): a differing occupant still returns the admission-REFUSED finding", () => {

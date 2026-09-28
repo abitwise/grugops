@@ -1401,9 +1401,11 @@ function writeNoteFile(notesDir: string, id: string, text: string): void {
 }
 
 // ── The append-only refusal, spelled ONCE (33-38). ─────────────────────────────────────────────
-// The chokepoint raises it, and `appendNote` raises the SAME error one step earlier — before its
-// `admit()` call can append a GOV-02 event — so a caller meets one message whichever position
-// decided it. `admitAndAppend` returns findings rather than throwing, so it reads the sentence.
+// The chokepoint raises it under its own name. `appendNote` raises the SAME sentence one step
+// earlier — before its `admit()` call can append a GOV-02 event — framed under ITS name, because
+// that is the function its caller called (33.1-12, IN-01: it used to raise the chokepoint's error
+// and so named a function that had not run). `admitAndAppend` returns findings rather than
+// throwing, so it reads the sentence into its own framing too.
 function differingOccupantSentence(id: string, resolvedFinal: string): string {
   return (
     `the destination already holds a DIFFERENT note under id "${id}". The shared verified context ` +
@@ -1418,26 +1420,33 @@ function differingOccupantRefusal(id: string, resolvedFinal: string): Error {
   );
 }
 /**
- * The destination decision in `admitAndAppend`'s findings contract: `null` means proceed (absent,
- * or identical bytes — the idempotent case), a string is the refusal to return. That route returns
- * findings rather than throwing, so every refusal `decideNoteDestination` raises (containment, a
- * FIFO or a directory at the path, a destination above the ceiling) becomes a named finding here,
- * raised before either of its branches can reach the GOV-02 ledger.
+ * The destination decision in `admitAndAppend`'s findings contract: a non-null `refusal` is the
+ * finding to return; a null one means proceed, and `stored` then says which kind of proceed —
+ * `false` for an absent path, `true` for IDENTICAL bytes already there (the idempotent case, whose
+ * admission may already be in the ledger: 33.1-12, WR-01). That route returns findings rather than
+ * throwing, so every refusal `decideNoteDestination` raises (containment, a FIFO or a directory at
+ * the path, a destination above the ceiling) becomes a named finding here, raised before either of
+ * its branches can reach the GOV-02 ledger.
  */
-function noteDestinationRefusal(notesDir: string, id: string, text: string): string | null {
+function noteDestinationRefusal(
+  notesDir: string,
+  id: string,
+  text: string,
+): { readonly refusal: string } | { readonly refusal: null; readonly stored: boolean } {
   let destination: { resolvedFinal: string; existing: string | null };
   try {
     destination = decideNoteDestination(notesDir, id, text);
   } catch (e) {
-    return `admission REFUSED: ${(e as Error).message} No GOV-02 event was appended.`;
+    return { refusal: `admission REFUSED: ${(e as Error).message} No GOV-02 event was appended.` };
   }
   if (destination.existing !== null && destination.existing !== text) {
-    return (
-      `admission REFUSED: ${differingOccupantSentence(id, destination.resolvedFinal)} No GOV-02 ` +
-      `event was appended.`
-    );
+    return {
+      refusal:
+        `admission REFUSED: ${differingOccupantSentence(id, destination.resolvedFinal)} No GOV-02 ` +
+        `event was appended.`,
+    };
   }
-  return null;
+  return { refusal: null, stored: destination.existing !== null };
 }
 
 // ── decideNoteDestination: WHAT OCCUPIES A NOTE PATH, decided ONCE, for the chokepoint AND for the
@@ -1467,10 +1476,15 @@ function noteDestinationRefusal(notesDir: string, id: string, text: string): str
 //
 // It writes nothing and creates nothing. `existing` is `null` when the path is absent, and the file's
 // text otherwise; the caller decides what a present occupant means for it.
+//
+// `who` NAMES THE FUNCTION THE REFUSAL IS RAISED UNDER (33.1-12, IN-01). The chokepoint and the
+// routes that frame refusals as findings keep the default; `appendNote` passes its own name, because
+// it raises these refusals directly to its caller before the chokepoint has run.
 function decideNoteDestination(
   notesDir: string,
   id: string,
   text: string,
+  who: "writeNoteFile" | "appendNote" = "writeNoteFile",
 ): { finalPath: string; resolvedFinal: string; existing: string | null } {
   const finalPath = join(notesDir, `${id}.md`);
   const resolvedDir = resolve(notesDir);
@@ -1479,7 +1493,7 @@ function decideNoteDestination(
   // (Equality is NOT allowed — the final path is always a file strictly inside the dir.)
   if (!resolvedFinal.startsWith(resolvedDir + sep)) {
     throw new Error(
-      `context-io.writeNoteFile: refusing to write — note id "${id}" resolves OUTSIDE the task ` +
+      `context-io.${who}: refusing to write — note id "${id}" resolves OUTSIDE the task ` +
         `notes directory (path containment violated: "${resolvedFinal}" is not strictly inside ` +
         `"${resolvedDir}"). No file was written. This is a path-traversal attempt (GAP-R6-1).`,
     );
@@ -1518,7 +1532,7 @@ function decideNoteDestination(
   const candidateBytes = Buffer.byteLength(text, "utf8");
   if (candidateBytes > NOTE_FILE_MAX_BYTES) {
     throw new Error(
-      `context-io.writeNoteFile: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the composed ` +
+      `context-io.${who}: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the composed ` +
         `note under id "${id}" is ${candidateBytes} bytes, above the ${NOTE_FILE_MAX_BYTES}-byte ` +
         `ceiling every reader of this store enforces. Writing it would create a note this module's ` +
         `own readers are required to refuse, which is silent loss rather than storage. No file was ` +
@@ -1536,11 +1550,11 @@ function decideNoteDestination(
       e instanceof ReadPositionRefusal && e.condition === "above-ceiling";
     throw new Error(
       aboveCeiling
-        ? `context-io.writeNoteFile: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the note ` +
+        ? `context-io.${who}: refusing to write (${NOTE_ABOVE_CEILING_CLAUSE}) — the note ` +
             `destination "${resolvedFinal}" IS a regular file, and it is above the ` +
             `${NOTE_FILE_MAX_BYTES}-byte ceiling, so this write can neither read it to compare nor ` +
             `replace it. No file was written. Underlying reason: ${(e as Error).message}`
-        : `context-io.writeNoteFile: refusing to write (${NOTE_PATH_NOT_REGULAR_FILE_CLAUSE}) — the ` +
+        : `context-io.${who}: refusing to write (${NOTE_PATH_NOT_REGULAR_FILE_CLAUSE}) — the ` +
             `note destination "${resolvedFinal}" is not ${CANONICAL_READ_POSITION}, so it is REFUSED ` +
             `rather than waited on and rather than replaced. No file was written. Underlying reason: ` +
             `${(e as Error).message}`,
@@ -1902,9 +1916,16 @@ export function appendNote(
   // is asked first: a differing occupant raises the chokepoint's own append-only refusal, and that
   // function's other refusals (containment, a FIFO at the path) are raised here too. Identical bytes
   // fall through, exactly as the chokepoint decides them.
-  const destination = decideNoteDestination(join(contextRoot, task, "notes"), id, text);
+  //
+  // IN-01 (33.1-12): every refusal of this pre-check names THIS function, because the decision is
+  // asked under the name of the function the caller called; it used to name the chokepoint, which
+  // had not run.
+  const destination = decideNoteDestination(join(contextRoot, task, "notes"), id, text, "appendNote");
   if (destination.existing !== null && destination.existing !== text) {
-    throw differingOccupantRefusal(id, destination.resolvedFinal);
+    throw new Error(
+      `context-io.appendNote: refusing to write — ` +
+        `${differingOccupantSentence(id, destination.resolvedFinal)}`,
+    );
   }
   let admission: string[];
   try {
@@ -6112,7 +6133,7 @@ export function admitAndAppend(
     // directory at the path) are raised here too, before the ledger, exactly as the chokepoint would
     // have raised them one step later. Identical bytes fall through to the write's no-op.
     const occupied = noteDestinationRefusal(join(contextRoot, task, "notes"), id, text);
-    if (occupied !== null) return { id: null, findings: [occupied] };
+    if (occupied.refusal !== null) return { id: null, findings: [occupied.refusal] };
     if (configResult.config.audit_retention === "retained") {
       // THE POINT OF EFFECT, AND THE SAME DISPOSITION THE SIBLING ROUTE TAKES (31-39, CR-26 /
       // D-39). A record is about to be written, so this action genuinely has two halves; if the
@@ -6123,6 +6144,21 @@ export function admitAndAppend(
       // measurement that decided the scope.
       if (!actionOwner.answered) {
         return { id: null, findings: [unnameableOwnerRefusal(actionOwner.store)] };
+      }
+      // WR-01 (33.1-12) / D-19 (4): identical bytes already stored, and their admission already in
+      // the ledger this branch appends to, are not recorded twice. The look keys on the SAME
+      // `actionOwner.root` as the append below (never mix roots: CR-20 / CR-22), and an unreadable
+      // ledger is a named refusal in this branch's findings contract.
+      let alreadyRecorded = false;
+      if (occupied.stored) {
+        try {
+          alreadyRecorded = storedNoteAlreadyRecorded(actionOwner.root, id);
+        } catch (e) {
+          return {
+            id: null,
+            findings: [`admission REFUSED: ${(e as Error).message} No note was written.`],
+          };
+        }
       }
       const scalars: Record<string, string> = {
         id,
@@ -6144,7 +6180,9 @@ export function admitAndAppend(
         // round 7 measured the consequence: the note went to `contextRoot`'s store and the event
         // went to `repoRoot`'s ledger, in two different repositories. `repoRoot` still answers the
         // governance-dial read above; it no longer answers WHERE the record lands.
-        appendAuditLedger(actionOwner.root, scalars, isHighSeverityRole(note.by), vb);
+        if (!alreadyRecorded) {
+          appendAuditLedger(actionOwner.root, scalars, isHighSeverityRole(note.by), vb);
+        }
       } catch (e) {
         return {
           id: null,
@@ -6191,7 +6229,7 @@ export function admitAndAppend(
   // event under `audit_retention: retained` before the write below, so this branch asks the ONE
   // destination decision first, exactly as its gated sibling does above.
   const occupied = noteDestinationRefusal(join(contextRoot, task, "notes"), id, text);
-  if (occupied !== null) return { id: null, findings: [occupied] };
+  if (occupied.refusal !== null) return { id: null, findings: [occupied.refusal] };
   // A GOV-02 ledger that cannot be written refuses here too (31-21). Same argument as `appendNote`'s:
   // the authority decides admissibility, the WRITER owns the recording failure, and this branch
   // returns findings rather than throwing because that is its contract.
@@ -6204,7 +6242,9 @@ export function admitAndAppend(
     // `R-31-33-01` published. `admit()` is now deliberately unfrozen (`R-31-39-01`) and takes a
     // ledger owner distinct from its dial root, so the SAME `actionOwner` the gated branch consumes
     // is handed here and the union of the two branches answers one way.
-    findings = admit(task, text, contextRoot, repoRoot, actionOwner);
+    // `occupied.stored` (33.1-12, WR-01): identical bytes already at the id path, so the
+    // authority asks the ledger before its append, keyed on the same `actionOwner`.
+    findings = admit(task, text, contextRoot, repoRoot, actionOwner, occupied.stored);
   } catch (e) {
     return {
       id: null,
