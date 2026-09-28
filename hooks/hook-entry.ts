@@ -252,7 +252,7 @@ function isWellFormedDecision(stdout: string): boolean {
 const DECIDER_MANIFEST: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "hooks/admission-guard.js": {
     "hooks/admission-guard.js": "6e4d33292809280bf63c1485c220cb7c5e51e2e8ff93f180b1b796f9d7dc626c",
-    "scripts/audit-model.js": "d2c7f6e033d5fd1f7c8c30e5294599f0d022ca04987e0b13ff183cbd8cf95fa6",
+    "scripts/audit-model.js": "58ccf85d687c55ada74ebbed48c5a983725c5349e21802be508c4810cceab5a1",
     "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
     "scripts/check-diff-disposition.js": "ac33078d59949033e57a365bc7174b440202bd456f6b75e22f6c47339a3998a3",
     "scripts/checkpoints.js": "42e6e4de5cab8be40843e5c4d02b7cd9f29630a9fb80a86e31846d389a932b5a",

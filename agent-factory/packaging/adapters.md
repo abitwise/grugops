@@ -96,9 +96,9 @@ The hard safety rule is plain: **never merge a protected branch, never deploy to
 production without named human confirmation.** Where that rule is held differs by tier, and by
 tool. There are three tiers:
 
-- **Hard floor — the git host.** Branch protection or rulesets on protected branches (pull
-  request and approving review required, force pushes blocked, deletions restricted), and a
-  production deployment environment with required reviewers. It is the only tier that sees every
+- **Hard floor — the git host.** Branch protection or rulesets on protected branches, and a
+  production deployment environment, each meeting every item of the git-host setup checklist in
+  `install/README.md` §5. It is the only tier that sees every
   push and merge, and every deployment that runs through its environments, whatever command
   started it. grugops never configures it; `tools/grugops/host-protection.js` reports read-only
   whether it is configured.

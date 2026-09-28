@@ -362,6 +362,9 @@ describe("audit-model: the closed sets", () => {
       const f = SAFETY_FLOORS.find((x) => x.id === id)!;
       expect(f.enforcement.hardFloor, id).toMatch(/^The git host: /);
       expect(f.enforcement.hardFloor, id).toContain("tools/grugops/host-protection.js");
+      // One enumeration of the floor (plan 33.1-20): the hard floor points at the checklist
+      // instead of restating a partial list of its items.
+      expect(f.enforcement.hardFloor, id).toContain("git-host setup checklist in `install/README.md` §5");
       expect(f.enforcement.speedBump, id).toContain("standalone install only; not a security boundary");
     }
   });

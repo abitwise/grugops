@@ -43,8 +43,8 @@ that tier.
 |---|---|---|---|
 | `open_pr` | none | none | The roles stop at a pull request instead of carrying the change further. No mechanism enforces it (33.1 D-26). |
 | `test_integrity` | none | none | The gate's test-integrity step surfaces weakened or skipped tests. No mechanism enforces it (33.1 D-26). |
-| `production_requires_human_confirmation` | The git host: a production deployment environment with at least one required reviewer. Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary). | Workflow 12 requires a named human to confirm the production action. |
-| `protected_branch_merge` | The git host: branch protection or a ruleset on each protected branch (pull request and approving review required, force pushes blocked, deletions restricted). Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for `git push` and `gh pr merge`, written by the installer (standalone install only; not a security boundary). | The roles stop at the pull request; a human holds the merge. |
+| `production_requires_human_confirmation` | The git host: a production deployment environment meeting every production item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary). | Workflow 12 requires a named human to confirm the production action. |
+| `protected_branch_merge` | The git host: branch protection or a ruleset on each protected branch meeting every branch item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for `git push` and `gh pr merge`, written by the installer (standalone install only; not a security boundary). | The roles stop at the pull request; a human holds the merge. |
 
 ## Which public sentences rest on which floor
 

@@ -242,9 +242,9 @@ export const SAFETY_FLOORS = [
     {
         id: "production_requires_human_confirmation",
         configPath: "checkpoints.production_requires_human_confirmation",
-        why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy. The hard floor is the git host: a production deployment environment with required reviewers, reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for the deploy and publish tools are a speed bump in front of it (D-18). The config cell decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
+        why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy. The hard floor is the git host: a production deployment environment meeting every production item of the git-host setup checklist in `install/README.md` §5, reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for the deploy and publish tools are a speed bump in front of it (D-18). The config cell decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
         enforcement: {
-            hardFloor: "The git host: a production deployment environment with at least one required reviewer. Reported read-only by `tools/grugops/host-protection.js`.",
+            hardFloor: "The git host: a production deployment environment meeting every production item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`.",
             speedBump: "Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary).",
             prose: "Workflow 12 requires a named human to confirm the production action.",
         },
@@ -252,9 +252,9 @@ export const SAFETY_FLOORS = [
     {
         id: "protected_branch_merge",
         configPath: "checkpoints.protected_branch_merge",
-        why: "Agents never merge a protected branch. The hard floor is the git host: branch protection or a ruleset on the protected branch (pull request and review required, no force push), reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for `git push` and `gh pr merge` are a speed bump in front of it (D-18). The config cell (`checkpoints.protected_branch_merge`, default `block`) decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
+        why: "Agents never merge a protected branch. The hard floor is the git host: branch protection or a ruleset on each protected branch meeting every branch item of the git-host setup checklist in `install/README.md` §5, reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for `git push` and `gh pr merge` are a speed bump in front of it (D-18). The config cell (`checkpoints.protected_branch_merge`, default `block`) decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
         enforcement: {
-            hardFloor: "The git host: branch protection or a ruleset on each protected branch (pull request and approving review required, force pushes blocked, deletions restricted). Reported read-only by `tools/grugops/host-protection.js`.",
+            hardFloor: "The git host: branch protection or a ruleset on each protected branch meeting every branch item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`.",
             speedBump: "Claude Code ask rules for `git push` and `gh pr merge`, written by the installer (standalone install only; not a security boundary).",
             prose: "The roles stop at the pull request; a human holds the merge.",
         },
