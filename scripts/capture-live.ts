@@ -1063,10 +1063,23 @@ function inputStrings(input: unknown): { paths: string[]; all: string[] } {
  * The command words that make a `Bash` block WRITE-SHAPED (33-REVIEW round 3 WR-02). The first seven
  * are the review's list (`tee`, `node`, `cp`, `mv`, `mkdir`, `touch`, `rm`); the rest are a superset:
  * interpreters that can write anything they are handed (`python`, `sh`, `npx`, ...) and other writers
- * (`ln`, `dd`, `rsync`, `tar`, ...). Adding a word can only WIDEN the parity input, which can make a
- * false `fail` more reachable and never a false `pass` (D-20): the fail-safe direction. Removing a word
- * is the direction that needs a reason. Redirections (`>`, `>>`) and in-place edits (`sed -i`,
- * `awk -i`, `find -delete`, the writing `git` subcommands) are matched by `isWriteShapedCommand`.
+ * (`ln`, `dd`, `rsync`, `tar`, ...). Redirections (`>`, `>>`) and in-place edits (`sed -i`, `awk -i`,
+ * `find -delete`, the writing `git` subcommands) are matched by `isWriteShapedCommand`.
+ *
+ * What this set does to the verdict (33-close round-4 review WR-03, WINDOWS.md row 305). The route
+ * axis is compared by EQUALITY: `compareLivePaths` reports a diff when path A's count differs from
+ * path B's. So changing the counted set, by adding a word or by removing one, can turn an unequal pair
+ * equal as well as an equal pair unequal. Neither direction is safe by construction. Over-counting
+ * (a read that shares a command with a write word) and under-counting (a write route the set does
+ * not name) can each mask a real difference between the two paths. The axis is an approximation of
+ * "the two paths took the same routes to disk", not a proof of it. Routes still NOT counted include:
+ *   - a written non-script file (a `.txt` or `.md`) that is later run by an interpreter;
+ *   - writers outside this list, such as `sponge` and the output flags of download tools
+ *     (`curl -o`, `wget -O`);
+ *   - an interpreter spelled any way the word rule does not match (an alias, a variable, a path
+ *     through a symlink with another name).
+ * A route one path took and the other did not is invisible to the axis when it is in none of the
+ * counted classes.
  */
 export const WRITE_SHAPED_COMMAND_WORDS: readonly string[] = [
   "tee", "node", "cp", "mv", "mkdir", "touch", "rm",
@@ -1075,16 +1088,28 @@ export const WRITE_SHAPED_COMMAND_WORDS: readonly string[] = [
 ];
 
 /**
+ * The interpreter words (a subset of `WRITE_SHAPED_COMMAND_WORDS`) that are commonly installed under a
+ * versioned name (`python3.12`, `node22`, `bash5.2`, `perl5.36`). The write-word rule admits a version
+ * suffix of digits and dots after these words only (WR-03). Other words do not get the suffix, so
+ * `rm2` is not read as `rm`.
+ */
+export const VERSIONED_INTERPRETER_WORDS: readonly string[] = ["node", "python", "python3", "perl", "ruby", "deno", "bun", "sh", "bash", "zsh"];
+
+/**
  * The extensions of a written file that make it a SCRIPT (WR-02): the review's `.mjs`, `.js`, `.sh`,
  * `.py`, and a superset of the same kinds (`.cjs`, `.ts`, `.mts`, `.cts`, `.bash`, `.zsh`, `.pl`,
- * `.rb`). A written file that starts with a shebang (`#!`) is a script whatever its name.
+ * `.rb`), plus the Windows script kinds (`.ps1`, `.psm1`, `.cmd`, `.bat`; 33-close round-4 review
+ * WR-03). A written file that starts with a shebang (`#!`) is a script whatever its name. The match is
+ * case-insensitive.
  */
-export const SCRIPT_EXTENSIONS: readonly string[] = [".mjs", ".js", ".sh", ".py", ".cjs", ".ts", ".mts", ".cts", ".bash", ".zsh", ".pl", ".rb"];
+export const SCRIPT_EXTENSIONS: readonly string[] = [".mjs", ".js", ".sh", ".py", ".cjs", ".ts", ".mts", ".cts", ".bash", ".zsh", ".pl", ".rb", ".ps1", ".psm1", ".cmd", ".bat"];
 
 // A command word is a whole shell word: preceded by the start, whitespace, shell punctuation, a quote
 // or a `/` (so `/bin/rm` counts), and followed by the end, whitespace, shell punctuation or a quote
-// (so `node_modules` and `nodes` do not).
-const WRITE_WORD_RE = new RegExp(`(?:^|[\\s;&|()\`'"/=])(?:${WRITE_SHAPED_COMMAND_WORDS.join("|")})(?=$|[\\s;&|()\`'"])`);
+// (so `node_modules` and `nodes` do not). An interpreter word may carry a version suffix of digits and
+// dots before that boundary (`python3.12`, `node22`; WR-03), so `pythonic` and `python3x` still do not.
+const WRITE_WORD_ALTERNATIVES = [...WRITE_SHAPED_COMMAND_WORDS, ...VERSIONED_INTERPRETER_WORDS.map((w) => `${w}\\d+(?:\\.\\d+)*`)];
+const WRITE_WORD_RE = new RegExp(`(?:^|[\\s;&|()\`'"/=])(?:${WRITE_WORD_ALTERNATIVES.join("|")})(?=$|[\\s;&|()\`'"])`);
 // Redirections that cannot write a file: to /dev/null (or stdout/stderr), and file-descriptor
 // duplications (`2>&1`, `>&2`, `>&-`). They are removed before the `>` question is asked.
 const HARMLESS_REDIRECT_RE = /(?:\d*|&)>>?\s*\/dev\/(?:null|stdout|stderr)\b|\d*>&\s*(?:\d+|-)/g;
@@ -1096,7 +1121,9 @@ const IN_PLACE_RE = /(?:^|[\s;&|()`'"/])(?:sed|awk)\s(?:[^;&|\n]*\s)?(?:-[A-Za-z
  * not of each simple command: the held capture writes notes through a variable set in one statement
  * and redirected into in the next (B:1504, B:1740), so a per-statement test would miss a real write.
  * A read that shares a command with a write-shaped word (A:1820's `rm` of a queue file beside a `find`
- * of the root) counts — the over-count is the fail-safe direction.
+ * of the root) counts. That is an over-count, and because the axis compares counts for equality an
+ * over-count can mask a difference as easily as it can create one (WR-03; see the docblock on
+ * `WRITE_SHAPED_COMMAND_WORDS`).
  */
 export function isWriteShapedCommand(command: string): boolean {
   if (command.replace(HARMLESS_REDIRECT_RE, " ").includes(">")) return true;
@@ -1131,8 +1158,12 @@ export function isWriteShapedCommand(command: string): boolean {
  * and read-only tools. Each of those is model-chosen text (the CR-03 class); counting it made `pass`
  * need two nondeterministic sessions to issue the same number of incidental reads.
  *
- * Every arm is a count compared A against B. Every write route still counts, so removing the reads
- * cannot make a false `pass` reachable (D-20). Nested subagent frames are ordinary frames here — the
+ * Every arm is a count compared A against B for equality. Leaving the reads out removed a source of
+ * false `fail` (two sessions rarely issue the same number of incidental reads). It does not make the
+ * axis exact: a write route the classes above do not name is in no count on either path, so a
+ * difference in such a route cannot show here, and any change to the counted set can move a pair
+ * across the equality in either direction (33-close round-4 review WR-03; the uncounted routes are
+ * listed on `WRITE_SHAPED_COMMAND_WORDS`). Nested subagent frames are ordinary frames here — the
  * direct writes are by role agents.
  */
 export function noteRoute(frames: readonly StreamFrame[]): NoteRoute {
@@ -1234,7 +1265,8 @@ export function compareLivePaths(a: PathProjection, b: PathProjection): string[]
     diffs.push(`note route: propose_note tool-use blocks differ: path A ${a.route.proposeNoteCalls}, path B ${b.route.proposeNoteCalls}`);
   }
   // The third route compares the WRITE-SHAPED count only (WR-02): an incidental read of the root is
-  // in no count, so it cannot decide parity.
+  // in no count, so a difference in reads alone does not decide parity. The count is an approximation
+  // (WR-03): a write route outside the counted classes is invisible here on both paths.
   if (a.route.indirectContextWrites !== b.route.indirectContextWrites) {
     diffs.push(`note route: indirect write-shaped blocks naming the context root differ: path A ${a.route.indirectContextWrites}, path B ${b.route.indirectContextWrites}`);
   }

@@ -76,8 +76,10 @@ import {
   spawnObservations,
   TMP_PREFIX,
   trackedFiles,
+  VERSIONED_INTERPRETER_WORDS,
   verifyArtifacts,
   workingTreeStatusArgs,
+  WRITE_SHAPED_COMMAND_WORDS,
   WRITING_TOOLS,
   type AuthorStamp,
   type LiveOps,
@@ -714,8 +716,9 @@ describe("D-07 parity is a path-invariant projection: per role the note count, k
 // `compareLivePaths` compared the count A against B — so `pass` needed two nondeterministic sessions
 // to issue the same number of incidental READS. The parity input is now write-shaped only: a `Bash`
 // COMMAND that names the root AND carries a write-shaped token, or a written SCRIPT whose content names
-// it. Incidental reads and prose mentions enter no axis. A real write route still counts, so the axis
-// stays fail-safe: the change removes a false `fail`, never adds a false `pass`.
+// it. Incidental reads and prose mentions enter no axis. That removed a source of false `fail`. It did
+// not make the axis exact: the counts are compared for equality, so a write route outside the counted
+// classes can hide a difference on both paths (33-close round-4 review WR-03, the WR-03 block below).
 
 /** The review's write-shaped command words, typed here by hand (the module's set is a superset). */
 const HAND_WRITE_WORDS = new Set(["tee", "node", "cp", "mv", "mkdir", "touch", "rm"]);
@@ -1021,9 +1024,11 @@ describe("WR-03: the parity axis is described as the approximation it is, and co
     for (const command of ["python x.py", "python3 x.py", "node x.mjs", "bash run.sh"]) {
       expect(isWriteShapedCommand(command), `the unversioned name still matches: ${command}`).toBe(true);
     }
-    for (const command of ["pythonic x", "nodes x", "node_modules/.bin/foo", "bashful x", "python3x y", "ls .grugops/context"]) {
+    for (const command of ["pythonic x", "nodes x", "node_modules/.bin/foo", "bashful x", "python3x y", "rm2 x", "ls .grugops/context"]) {
       expect(isWriteShapedCommand(command), `not an interpreter word: ${command}`).toBe(false);
     }
+    // The suffix is granted to interpreter words only, and each of them is a counted word.
+    expect(VERSIONED_INTERPRETER_WORDS.filter((w) => !WRITE_SHAPED_COMMAND_WORDS.includes(w)), "every versioned interpreter word is a counted word").toEqual([]);
     // Through the route axis: a versioned interpreter run naming the root is one indirect write.
     expect(plusOne(toolUseFrame("Bash", { command: "python3.12 admit.py .grugops/context/T/notes/n.md" })).indirectContextWrites).toBe(base.indirectContextWrites + 1);
   });
