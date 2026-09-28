@@ -1,23 +1,28 @@
 // admission-server.ts — grugops structured admission channel (Plan 25-09, D-01 point-of-effect move).
 //
-// A zero-dependency Node 22 stdio MCP server exposing ONE tool, propose_note (full name
-// mcp__grugops__propose_note). A role agent on Claude Code admits a verified context note by calling
-// this STRUCTURED tool: the harness delivers the note's fields as final JSON arguments, with NO shell
-// expansion. There is no agent-authored command string to obfuscate, so the entire shell-expansion
-// bypass family (glob / brace / param-and-command substitution / word-split / extglob fragmentation /
-// line-continuation / launcher-rename) disappears BY CONSTRUCTION — not by recognizing more spellings,
-// but because the proxy the spellings attacked (a parsed Bash string) is gone.
+// A zero-dependency Node 22 stdio MCP server exposing ONE tool, propose_note. Its full name has two
+// spellings: mcp__grugops__propose_note is the server's own (bare) name, and
+// mcp__plugin_grugops_grugops__propose_note is the platform's plugin-scoped name for the plugin's
+// bundled server, the one a Claude Code session sees. A role agent on Claude Code admits a verified
+// context note by calling this STRUCTURED tool: the harness delivers the note's fields as final
+// JSON arguments, with NO shell expansion. There is no agent-authored command string to obfuscate,
+// so the entire shell-expansion bypass family (glob / brace / param-and-command substitution /
+// word-split / extglob fragmentation / line-continuation / launcher-rename) disappears BY
+// CONSTRUCTION — not by recognizing more spellings, but because the proxy the spellings attacked (a
+// parsed Bash string) is gone.
 //
 // THE SERVER IS NOT THE GATE. Two facts (RESEARCH round 6) make this load-bearing:
-//   1. The un-forgeable Claude Code gate is the PER-CALL PreToolUse hook on mcp__grugops__.* (Plan
-//      25-10), which runs FRESH per call and reads the CURRENT human-set session env. An MCP server's
-//      process.env is FROZEN at launch and cannot see a mid-session export, so the GATE must live in the
-//      per-call hook, NOT in this server: only the per-call re-read lets a mid-session set/unset of the
-//      grant take effect. The grant is honestly scoped as SESSION-SCOPED and per-note CAPABLE (D-07,
-//      GAP-R6-3): a standing grant authorizes high-severity admissions under that name until unset — it
-//      is not a mechanically-enforced per-note nonce, and the GOV-02 disposed_by accordingly means
-//      "admitted under <name>'s session grant," not "individually reviewed each entry." So this server
-//      reads NO approval env; it only forwards the structured args.
+//   1. The un-forgeable Claude Code gate is the PER-CALL PreToolUse hook whose matcher is the
+//      family mcp__(plugin_grugops_)?grugops__.* in hooks/hooks.json (Plan 25-10; widened to the
+//      scoped spelling by plan 33-28), which runs FRESH per call and reads the CURRENT human-set
+//      session env. An MCP server's process.env is FROZEN at launch and cannot see a mid-session
+//      export, so the GATE must live in the per-call hook, NOT in this server: only the per-call
+//      re-read lets a mid-session set/unset of the grant take effect. The grant is honestly scoped
+//      as SESSION-SCOPED and per-note CAPABLE (D-07, GAP-R6-3): a standing grant authorizes
+//      high-severity admissions under that name until unset — it is not a mechanically-enforced
+//      per-note nonce, and the GOV-02 disposed_by accordingly means "admitted under <name>'s
+//      session grant," not "individually reviewed each entry." So this server reads NO approval
+//      env; it only forwards the structured args.
 //   2. The single sanctioned writer stays context-io.appendNote. This server forks NO writer and parses
 //      NO shell string: it builds a NoteInput from the structured args and calls
 //      context-io.admitAndAppend, which decides admission then persists ONLY via appendNote.
@@ -43,8 +48,12 @@ import { createInterface } from "node:readline";
 import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import { admitAndAppend, normalizeKind, NOTE_KINDS, trustedRepoRoot, } from "./context-io.js";
-// The MCP server name. The full tool name a hook/agent sees is mcp__<server>__<tool>, so this name must
-// match the mcpServers key in .claude-plugin/plugin.json → mcp__grugops__propose_note.
+// The MCP server name. It must match the mcpServers key in .claude-plugin/plugin.json. Which full tool
+// name a hook/agent sees depends on the install form: the plugin form (the server bundled through
+// plugin.json's mcpServers) produces the scoped mcp__plugin_grugops_grugops__propose_note
+// (mcp__plugin_<plugin>_<server>__<tool>); a standalone .mcp.json server named "grugops" would produce
+// the bare mcp__grugops__propose_note (mcp__<server>__<tool>), a form the kit does not ship. The hook
+// matcher covers both spellings.
 export const SERVER_NAME = "grugops";
 const SERVER_VERSION = "0.1.0";
 // The MCP protocol version we implement; we mirror a client's requested version when it sends one.
