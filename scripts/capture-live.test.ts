@@ -85,6 +85,7 @@ import {
   type ReportModel,
   type RunReport,
   type ScratchRegistry,
+  type SpawnObservation,
   type StreamFrame,
   type TargetBuild,
   type UninstallOutcome,
@@ -289,6 +290,70 @@ describe("the coordinator grant is derived from two independent sources and thei
     const reasons = capThreePredicate({ observations: spawnObservations(FIXTURE.frames), grant: derived, stamps: [] });
     expect(reasons.some((r) => r.includes("vacuity floor"))).toBe(true);
     rmSync(bare, { recursive: true, force: true });
+  });
+});
+
+// ── D-33-R4-04 (row 297): the coordinator spawned as a subagent is exempt from the membership ──
+// clause, and nothing else is. The round-4 run-A shape (33-R4-DIAGNOSIS § 1): the default session
+// spawned the coordinator adapter as a subagent, which spawned two granted role agents, each with
+// own-session evidence. The recorded relaxation lets that shape pass side (a); it does not let any
+// other non-member through, does not count the coordinator toward the two-role bar, and does not
+// apply when no coordinator was derived.
+
+describe("D-33-R4-04: the coordinator spawn is exempt from the grant-membership clause, nothing else is", () => {
+  const COORDINATOR = "grugops-orchestrator";
+  const MAPPER = "grugops-brownfield-mapper";
+  const ARCHITECT = "grugops-architect-design";
+  const spawn = (role: string, id: string): SpawnObservation => ({
+    role,
+    toolUseId: id,
+    evidence: "nested-frames",
+    frameCount: 3,
+    frameIndex: 0,
+    evidenceFrameIndex: 1,
+  });
+  const sideB = (): AuthorStamp[] => authorStamps(contextRootWithNotes([{ by: "architect-design", kind: "observation", body: "Design review." }]));
+  const grantFacts = (): ReturnType<typeof deriveGrant> => {
+    const grant = deriveGrant(ROOT);
+    // Premises of every case below, asserted rather than assumed.
+    expect(grant.reasons).toEqual([]);
+    expect(grant.coordinator).toBe(COORDINATOR);
+    expect(grant.granted).not.toContain(COORDINATOR);
+    expect(grant.granted).toContain(MAPPER);
+    expect(grant.granted).toContain(ARCHITECT);
+    return grant;
+  };
+
+  it("D-33-R4-04 run-A shape: the coordinator spawned as a subagent plus two evidenced granted roles satisfies side (a)", () => {
+    const grant = grantFacts();
+    const observations = [spawn(COORDINATOR, "toolu_coord"), spawn(MAPPER, "toolu_mapper"), spawn(ARCHITECT, "toolu_arch")];
+    expect(capThreePredicate({ observations, grant, stamps: sideB() })).toEqual([]);
+  });
+
+  it("D-33-R4-04 mutation: a non-coordinator spawn outside the grant still fails side (a) by name", () => {
+    const grant = grantFacts();
+    const observations = [
+      spawn(COORDINATOR, "toolu_coord"),
+      spawn(MAPPER, "toolu_mapper"),
+      spawn(ARCHITECT, "toolu_arch"),
+      spawn("grugops-not-a-role", "toolu_stranger"),
+    ];
+    const reasons = capThreePredicate({ observations, grant, stamps: sideB() });
+    expect(reasons).toEqual(["side (a): role grugops-not-a-role (toolu_stranger) is not a member of the derived grant"]);
+  });
+
+  it("D-33-R4-04 mutation: the coordinator plus exactly one evidenced member fails the two-role bar (the coordinator is never counted)", () => {
+    const grant = grantFacts();
+    const observations = [spawn(COORDINATOR, "toolu_coord"), spawn(ARCHITECT, "toolu_arch")];
+    const reasons = capThreePredicate({ observations, grant, stamps: sideB() });
+    expect(reasons).toEqual(["side (a): 1 distinct granted role(s) carry own-session evidence; at least two are required (seen: architect-design)"]);
+  });
+
+  it("D-33-R4-04 mutation: with no derived coordinator (null) a spawn outside the grant gets no exemption", () => {
+    const grant = { ...grantFacts(), coordinator: null };
+    const observations = [spawn(COORDINATOR, "toolu_coord"), spawn(MAPPER, "toolu_mapper"), spawn(ARCHITECT, "toolu_arch")];
+    const reasons = capThreePredicate({ observations, grant, stamps: sideB() });
+    expect(reasons).toEqual([`side (a): role ${COORDINATOR} (toolu_coord) is not a member of the derived grant`]);
   });
 });
 
