@@ -1,6 +1,6 @@
 // check-uat-oracles.test.ts — Phase 19 Tier-1 fail-proof harness for scripts/check-uat-oracles.js.
 //
-// Proves the three Tier-1 oracles both PASS and FAIL — the no-fabrication contract (a gate that can
+// Proves the Tier-1 oracles both PASS and FAIL — the no-fabrication contract (a gate that can
 // only ever pass is fabricated green). For EACH oracle it plants exactly one real violation into a
 // hermetic throwaway mirror of the inputs, runs the COMPILED aggregator (.js) against that mirror via
 // the CHECK_ROOT override, and asserts it fails red (nonzero exit AND the finding names the defect).
@@ -28,7 +28,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { jsImportClosure } from "./js-import-closure.js";
 // Plan 33-03's one normalizer, for the walked-path comparison below (test-internal: the `where`
 // strings are compared against a POSIX literal in this file and never published by the gate).
 import { toPosix } from "./posix-path.js";
@@ -46,16 +45,14 @@ const GUARD_JS = join(ROOT, "scripts", "check-uat-oracles.js");
 
 // The complete set of input files the file-reading oracles consume (repo-relative). A mirror carries
 // byte-faithful copies of all of these; one file is then mutated to plant a violation. The four
-// WR05_SCAN docs + hooks.json + the committed guard.js (the A2 oracle spawns it) + the two 5-tool
-// tables. (DOGF-01: oracleDualPathEquivalence self-seeds hermetic temp dirs and reads NONE of these,
-// so examples/03-ticket-to-pr.md — the former parity-grep oracle's input — is no longer a guard input.)
+// WR05_SCAN docs + the two 5-tool tables. (33.1 D-28: hooks.json and the Bash guard left this set
+// with the A2 wiring oracle that read and spawned them.) (DOGF-01: oracleDualPathEquivalence
+// self-seeds hermetic temp dirs and reads NONE of these, so examples/03-ticket-to-pr.md — the former parity-grep oracle's input — is no longer a guard input.)
 const GUARD_INPUTS = [
   ".planning/PROJECT.md",
   ".planning/STATE.md",
   ".planning/v1.2-SDLC-COVERAGE-AUDIT.md",
   ".planning/RETROSPECTIVE.md",
-  "hooks/hooks.json",
-  "hooks/guard.js",
   // Phase 23 (D-19 / Pitfall 3): the oracle now scans the 5-tool tables for asymmetric-flip drift.
   "agent-factory/packaging/adapters.md",
   "agent-factory/README.md",
@@ -63,20 +60,11 @@ const GUARD_INPUTS = [
 
 const tmpDirs: string[] = [];
 
-// The committed .js that hooks/guard.js needs in order to RUN, DERIVED from its imports rather than
-// listed (plan 30-01). oracleHooksWiring spawns the MIRRORED guard.js, so the mirror must carry the
-// guard's whole module graph. It carried nothing but the guard itself for as long as the guard
-// imported only node builtins; when Phase 30 gave it a checkpoint roster and a config reader to
-// consult, the mirrored guard died with ERR_MODULE_NOT_FOUND and this harness reported the crash as
-// a wiring failure. A hand-listed dependency set would go stale again on the next import; this one
-// cannot, because it is read from the bytes of the files in the graph.
-const GUARD_JS_CLOSURE = jsImportClosure(ROOT, "hooks/guard.js");
-
 // Build a temp mirror carrying byte-faithful copies of every aggregator input. Returns the mirror dir.
 function mirror(): string {
   const m = mkdtempSync(join(tmpdir(), "grugops-uat-"));
   tmpDirs.push(m);
-  for (const rel of [...GUARD_INPUTS, ...GUARD_JS_CLOSURE]) {
+  for (const rel of GUARD_INPUTS) {
     mkdirSync(join(m, dirname(rel)), { recursive: true });
     cpSync(join(ROOT, rel), join(m, rel));
   }
@@ -246,29 +234,6 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/found 2 table row\(s\)/);
     expect(out(r)).toContain("Codex CLI");
-  });
-
-  // ── oracleHooksWiring — break the matcher (NOT guard.js logic); the aggregator must go red. ──────
-  it("wiring: hooks.json matcher mutated away from Bash → nonzero + wiring defect", () => {
-    const m = mirror();
-    const file = join(m, "hooks/hooks.json");
-    const cfg = JSON.parse(readFileSync(file, "utf8"));
-    cfg.hooks.PreToolUse[0].matcher = "NotBash";
-    writeFileSync(file, JSON.stringify(cfg, null, 2));
-    const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/matcher is not "Bash"/);
-  });
-
-  it("wiring: hooks.json command no longer references guard.js → nonzero + wiring defect", () => {
-    const m = mirror();
-    const file = join(m, "hooks/hooks.json");
-    const cfg = JSON.parse(readFileSync(file, "utf8"));
-    cfg.hooks.PreToolUse[0].hooks[0].command = "node some-other-hook.js";
-    writeFileSync(file, JSON.stringify(cfg, null, 2));
-    const r = runIn(m);
-    expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/does not reference guard\.js/);
   });
 
   // ── oracleDualPathEquivalence (DOGF-01) — replaces the two structural parity-grep tests. ─────────

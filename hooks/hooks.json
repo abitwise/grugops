@@ -2,15 +2,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hook-entry.js\" guard.js"
-          }
-        ]
-      },
-      {
         "matcher": "mcp__(plugin_grugops_)?grugops__.*",
         "hooks": [
           {

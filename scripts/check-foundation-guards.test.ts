@@ -313,14 +313,14 @@ const GUARD_INPUTS = [
   "agent-factory/checklists/security-nfr-checklist.md",
   // (Phase 24) agent-factory/handoffs/security-nfr-handoff.md was DROPPED from SEC_VOICE_FILES — the
   // 17 static handoff templates were deleted, so the deleted handoff is no longer a guard input.
-  // Phase 19 Tier-1 oracle inputs (UAT-AUTO-05): the aggregator now invokes the three oracles, which
+  // Phase 19 Tier-1 oracle inputs (UAT-AUTO-05): the aggregator invokes the Tier-1 oracles, which
   // read these. Mirror them so the hermetic plant case below can break one and prove the aggregator
   // fails closed. (The oracle bodies live single-source in check-uat-oracles.ts.)
   ".planning/PROJECT.md",
   ".planning/STATE.md",
   ".planning/v1.2-SDLC-COVERAGE-AUDIT.md",
   ".planning/RETROSPECTIVE.md",
-  "hooks/hooks.json",
+  // (33.1 D-28) hooks/hooks.json dropped: its only reader here was the retired A2 wiring oracle.
   "hooks/guard.js",
   // (DOGF-01) examples/03-ticket-to-pr.md dropped: the A3 oracle is now oracleDualPathEquivalence,
   // which self-seeds hermetic temp dirs and reads no repo input — the former parity example is dead.
@@ -7987,18 +7987,22 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // Break a single Tier-1 input in the mirror and prove the aggregator goes red — i.e. `node
   // scripts/check-foundation-guards.js` exits non-zero when any one Tier-1 oracle fails, proving it
   // folds uatOracleFails(). (DOGF-01: the A3 oracle is now oracleDualPathEquivalence, which self-seeds
-  // hermetic temp dirs and reads NO mirror input, so it cannot be broken via the mirror. We break the
-  // A2 hooks-wiring oracle instead — mutating hooks.json's matcher away from "Bash" is a crisp
+  // hermetic temp dirs and reads NO mirror input, so it cannot be broken via the mirror. The A2
+  // hooks-wiring oracle this case used to break was retired by 33.1 D-28, so we break the B3 wording
+  // oracle instead — stripping the Phase-10 guard_wr05 beat from one mirrored scan doc is a crisp
   // deterministic Tier-1 failure that the aggregator must inherit.)
   it("tier-1 wiring: a broken Tier-1 oracle input → aggregator nonzero + names the Tier-1 failure", () => {
     const m = mirror();
-    const file = join(m, "hooks/hooks.json");
-    const cfg = JSON.parse(readFileSync(file, "utf8"));
-    cfg.hooks.PreToolUse[0].matcher = "NotBash";
-    writeFileSync(file, JSON.stringify(cfg, null, 2));
+    const file = join(m, ".planning/STATE.md");
+    const kept = readFileSync(file, "utf8")
+      .split("\n")
+      .filter((l) => !(/guard_wr05/.test(l) && /\bPhase[ -]?10\b/i.test(l)))
+      .join("\n");
+    writeFileSync(file, kept);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toMatch(/matcher is not "Bash"/);
+    expect(out(r)).toMatch(/wording-consistency violation/i);
+    expect(out(r)).toContain("STATE.md");
   });
 
   // ── guard_context_writes — SC-5: planted raw context write fires; legitimate prose stays GREEN. ──

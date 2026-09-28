@@ -264,21 +264,6 @@ const DECIDER_MANIFEST: Readonly<Record<string, Readonly<Record<string, string>>
     "scripts/vacuity.js": "eba304f76da868672d269b94cdf907b6c6638ec8d0d2707a36841ad5d7fe7bf6",
     "scripts/voice-model.js": "3a16c8761245eee5ef715616363c5d5e33686f6e3a7abacdcd44921fe4bd578f",
   },
-  "hooks/guard.js": {
-    "hooks/guard.js": "e6948196fed58f2f98e75cc091816641552b4fdafafd1a179113aab29868eb35",
-    "scripts/audit-model.js": "c8998eb024bcb43c54f0357ac402441f566e28fef089d80b451bd9373f458fa2",
-    "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
-    "scripts/check-diff-disposition.js": "ac33078d59949033e57a365bc7174b440202bd456f6b75e22f6c47339a3998a3",
-    "scripts/checkpoints.js": "f9ab7ee2bf2655f5446f207d40b5cc526a42cb6addc3bb0cdeb5c1aac1a23384",
-    "scripts/context-io.js": "78d589e1d913ef858b2bac06fb99c4369939b3351d22351a82ac731ed885105d",
-    "scripts/dead-vocabulary.js": "f815b1d656248848702a358def8c3c88dc37f089f59aa671a444edd3731b8154",
-    "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
-    "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
-    "scripts/is-entry.js": "4bea950408906acfb2978e8996b1506a7558ebaf645f43d26dcf8ed413d17c2b",
-    "scripts/kit-model.js": "ce2a012ffe2dda2f56a8f3989cf3d94e69eda3a2ed0574c3cdb23c418ec18a2c",
-    "scripts/vacuity.js": "eba304f76da868672d269b94cdf907b6c6638ec8d0d2707a36841ad5d7fe7bf6",
-    "scripts/voice-model.js": "3a16c8761245eee5ef715616363c5d5e33686f6e3a7abacdcd44921fe4bd578f",
-  },
 };
 // </hook-manifest>
 

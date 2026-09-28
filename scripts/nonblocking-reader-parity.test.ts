@@ -703,7 +703,11 @@ function classifyWrapper(mirrorRoot: string, position: string): DecisionClass {
   const hooks = JSON.parse(readFileSync(join(ROOT, "hooks", "hooks.json"), "utf8")) as {
     hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
   };
-  const raw = hooks.hooks.PreToolUse.find((m) => m.matcher === "Bash")?.hooks[0]?.command ?? "";
+  // The route is looked up by the MCP admission matcher, the only PreToolUse route since 33.1 D-17
+  // retired the Bash command guard — never by index.
+  const raw =
+    hooks.hooks.PreToolUse.find((m) => m.matcher === "mcp__(plugin_grugops_)?grugops__.*")?.hooks[0]
+      ?.command ?? "";
   if (!raw.includes("hooks/hook-entry.js")) {
     throw new Error(`the PreToolUse command bypasses the wrapper: ${raw}`);
   }
@@ -724,7 +728,10 @@ function classifyWrapper(mirrorRoot: string, position: string): DecisionClass {
     env[k] = v;
   }
   const r = spawnSync(argv[0] as string, argv.slice(1), {
-    input: JSON.stringify({ tool_input: { command: "git push --force origin main" } }),
+    input: JSON.stringify({
+      tool_name: "mcp__grugops__propose_note",
+      tool_input: { kind: "claim" },
+    }),
     encoding: "utf8",
     env,
     timeout: 20_000,
@@ -756,7 +763,7 @@ describe("31-27 — one shared file-shape corpus, the SAME decision required of 
       mkdirSync(dirname(t.to), { recursive: true });
       copyFileSync(t.from, t.to);
     }
-    for (const t of closureTargets(ROOT, "hooks/guard.js", root)) {
+    for (const t of closureTargets(ROOT, "hooks/admission-guard.js", root)) {
       mkdirSync(dirname(t.to), { recursive: true });
       copyFileSync(t.from, t.to);
     }

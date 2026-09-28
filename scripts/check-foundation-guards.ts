@@ -261,13 +261,13 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, basename, resolve } from "node:path";
 // Phase 19 (UAT-AUTO-05 / BLOCKER 1 / LOCKED CONTEXT.md decision / ROADMAP SC3): the run-all block
-// invokes the three Tier-1 auto-UAT oracles so this aggregator fails closed when any one fails. The
+// invokes the Tier-1 auto-UAT oracles so this aggregator fails closed when any one fails (two since
+// A2 was retired by 33.1 D-28). The
 // oracle BODIES live single-source in check-uat-oracles.ts — here we only INVOKE them and fold their
 // accumulated fail count into FAILS. The oracle module honors the SAME CHECK_ROOT override, so the
 // fail-proof harness's hermetic mirror plant exercises them through this aggregator too.
 import {
   oracleWr05Wording,
-  oracleHooksWiring,
   oracleDualPathEquivalence,
   uatOracleFails,
 } from "./check-uat-oracles.js";
@@ -3996,14 +3996,13 @@ guardPlaywrightMcpPin();
 // ---------------------------------------------------------------------------
 // Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05 / BLOCKER 1).
 //
-// Invoke the three deterministic oracles defined single-source in check-uat-oracles.ts (B3 wording,
-// A2 wiring, A3 dual-path equivalence), then fold their accumulated fail count into this aggregator's FAILS so the
+// Invoke the deterministic oracles defined single-source in check-uat-oracles.ts (B3 wording, A3
+// dual-path equivalence; A2 was retired by 33.1 D-28), then fold their accumulated fail count into this aggregator's FAILS so the
 // existing exit tail goes non-zero if any one Tier-1 oracle fails — the aggregator FAILS CLOSED.
 // The oracle bodies are NOT restated here (single-source).
 // ---------------------------------------------------------------------------
 process.stdout.write("\n== Phase 19 auto-UAT Tier-1 oracles (UAT-AUTO-05) ==\n");
 oracleWr05Wording();
-oracleHooksWiring();
 oracleDualPathEquivalence();
 FAILS += uatOracleFails();
 

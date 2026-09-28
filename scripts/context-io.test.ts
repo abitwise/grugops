@@ -12082,7 +12082,10 @@ describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set 
     const extra: Record<string, string> =
       candidate === undefined ? {} : { CLAUDE_PROJECT_DIR: candidate };
     const r = spawnSync(argv[0] as string, argv.slice(1), {
-      input: JSON.stringify({ tool_input: { command: "git push --force origin main" } }),
+      input: JSON.stringify({
+        tool_name: "mcp__grugops__propose_note",
+        tool_input: { kind: "claim" },
+      }),
       encoding: "utf8",
       env: { ...scrubbedEnv(), ...extra },
       timeout: 20_000,
@@ -12170,13 +12173,18 @@ describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set 
   /**
    * EVERY ROUTE THAT DELIVERS A ROOT, DERIVED FROM `hooks/hooks.json` RATHER THAN LISTED.
    *
-   * A hand-typed route list is the set-literal drift this phase keeps recording. The count is
-   * asserted against the file, so a third PreToolUse entry cannot arrive unprobed.
+   * A hand-typed route list is the set-literal drift this phase keeps recording. Each route's
+   * decider is read from the command's own last argument, so a new PreToolUse entry cannot arrive
+   * unprobed. Since 33.1 D-17 retired the Bash command guard, the one route is the MCP admission
+   * route.
    */
-  const ROUTES: ReadonlyArray<readonly [number, string]> = Object.freeze([
-    [0, "hooks/guard.js"],
-    [1, "hooks/admission-guard.js"],
-  ]);
+  const ROUTES: ReadonlyArray<readonly [number, string]> = Object.freeze(
+    HOOKS.hooks.PreToolUse.map((m, i) => {
+      const command = m.hooks[0]?.command ?? "";
+      const decider = command.trim().split(/\s+/).pop() ?? "";
+      return [i, `hooks/${decider}`] as const;
+    }),
+  );
 
   it("the probed route set IS the hooks.json route set — no route delivers a root unprobed", () => {
     expect(HOOKS.hooks.PreToolUse.length, "hooks.json publishes no PreToolUse route at all")
@@ -12185,6 +12193,7 @@ describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set 
       ROUTES.length,
       "hooks.json carries a PreToolUse route this case never drives a corpus through",
     ).toBe(HOOKS.hooks.PreToolUse.length);
+    expect(ROUTES.map(([, decider]) => decider)).toEqual(["hooks/admission-guard.js"]);
     for (const [i, decider] of ROUTES) {
       expect(HOOKS.hooks.PreToolUse[i]?.hooks[0]?.command).toContain(decider.split("/")[1] as string);
     }
@@ -12275,7 +12284,7 @@ describe("31-37 WR-36 — one shared candidate corpus, the wrapper's accept set 
   });
 
   it("the delivered name is set at exactly ONE site, before exactly ONE spawn", () => {
-    // Both hooks.json routes traverse the same wrapper. That is only true while the wrapper has one
+    // Every hooks.json route traverses the same wrapper. That is only true while the wrapper has one
     // place it composes the decider's environment and one place it spawns.
     const src = readFileSync(join(ROOT, "hooks", "hook-entry.ts"), "utf8");
     expect([...src.matchAll(/deciderEnv\[HOST_DELIVERED_ROOT_ENV\] = /g)].length).toBe(1);

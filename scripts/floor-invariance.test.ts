@@ -820,13 +820,9 @@ describe("W3 matcher breadth (25-10) — the grugops admission FAMILY is gated, 
     expect(loose.test("mcp__plugin_other_grugops__propose_note")).toBe(false);
     expect(loose.test("Bash")).toBe(false);
 
-    // The prod-deploy guard's Bash matcher must remain untouched (D-02).
-    const deploy = hooks.hooks.PreToolUse.find((m) =>
-      m.hooks.some((h) => h.command.includes("guard.js") && !h.command.includes("admission-guard.js")),
-    );
-    expect(deploy, "the prod-deploy guard matcher must exist").toBeDefined();
-    expect(deploy!.matcher).toBe("Bash");
-    expect(hooks.hooks.PreToolUse).toHaveLength(2);
+    // The admission matcher is the ONLY PreToolUse route: the Bash command guard's matcher was
+    // retired by 33.1 D-17, so no other route may reappear beside it.
+    expect(hooks.hooks.PreToolUse).toHaveLength(1);
   });
 
   for (const toolName of [
@@ -976,13 +972,15 @@ describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", 
       }
       expect(Object.keys(per).length, `${entry}'s closure looks short`).toBeGreaterThan(3);
     }
-    expect(Object.keys(derived).length, "no deciders were derived at all").toBe(2);
+    expect(Object.keys(derived).length, "no deciders were derived at all").toBeGreaterThan(0);
+    expect(Object.keys(derived).length).toBe(deciderEntries(ROOT).length);
   });
 
-  it("K9 (33-28): after the matcher change the derived decider list still names exactly the two deciders, both routed through the entry, and the committed manifest equals a fresh derivation", () => {
+  it("K9 (33-28): the derived decider list names exactly the admission decider, routed through the entry, and the committed manifest equals a fresh derivation", () => {
     // The deciders are DERIVED from hooks/hooks.json by the generator's own reader — a matcher
-    // change must not add, drop or rename a decider.
-    expect(deciderEntries(ROOT)).toEqual(["hooks/admission-guard.js", "hooks/guard.js"]);
+    // change must not add, drop or rename a decider. Since 33.1 D-17 retired the Bash command guard
+    // the admission decider is the only one.
+    expect(deciderEntries(ROOT)).toEqual(["hooks/admission-guard.js"]);
     const hooks = JSON.parse(readFileSync(join(ROOT, "hooks", "hooks.json"), "utf8")) as {
       hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
     };
@@ -1011,19 +1009,18 @@ describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", 
     ).not.toThrow();
   });
 
-  it("hooks.json routes BOTH hooks through the wrapper, naming the decider", () => {
-    // The freeze is worth nothing if the host runs something else. Both matchers must name the
+  it("hooks.json routes its one hook through the wrapper, naming the decider", () => {
+    // The freeze is worth nothing if the host runs something else. The matcher must name the
     // wrapper, and the wrapper must be handed a decider — a matcher pointing straight at a decider
     // would restore every termination class RA3-7 closed.
     const hooks = JSON.parse(readFileSync(join(ROOT, "hooks", "hooks.json"), "utf8")) as {
       hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ command: string }> }> };
     };
     const commands = hooks.hooks.PreToolUse.flatMap((m) => m.hooks.map((h) => h.command));
-    expect(commands.length).toBe(2);
+    expect(commands.length).toBe(1);
     for (const c of commands) {
       expect(c, `a PreToolUse command bypasses the wrapper: ${c}`).toContain("hooks/hook-entry.js");
     }
-    expect(commands.join(" ")).toContain("guard.js");
     expect(commands.join(" ")).toContain("admission-guard.js");
   });
 

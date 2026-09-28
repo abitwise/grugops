@@ -1,18 +1,14 @@
 // check-uat-oracles.ts — Phase 19 Tier-1 deterministic auto-UAT oracles (UAT-AUTO-01/03/05).
 //
-// The honest, no-LLM half of the auto-UAT harness: three fail-red, never-fabricate oracles that
-// resolve the DETERMINISTIC portions of the deferred live-runtime UATs with pure greps, a JSON
-// parse, and a single child-process assertion — no agent grading its own homework (Constraint #6).
+// The honest, no-LLM half of the auto-UAT harness: two fail-red, never-fabricate oracles that
+// resolve the DETERMINISTIC portions of the deferred live-runtime UATs with pure greps and an
+// on-disk substrate replay — no agent grading its own homework (Constraint #6).
 //
 //   oracleWr05Wording (B3 / UAT-AUTO-01) — asserts the three WR-05 closure beats (Phase 8 dropped /
 //                       Phase 10 guard_wr05 / Phase 11 re-verified GREEN) are present in ALL FOUR
 //                       .planning tracking docs. Fails red if any beat is missing in any file, and
 //                       fails red (CR-01) if any scan file is absent.
-//   oracleHooksWiring (A2 / UAT-AUTO-02) — reads hooks/hooks.json, confirms the PreToolUse matcher
-//                       is "Bash" and the command routes to the committed guard.js, then spawns
-//                       guard.js with a matched kubectl-apply payload and asserts the deny-JSON.
-//                       This is the WIRING contract only — guard.test.ts covers guard logic (26/26);
-//                       re-testing it here would be scope creep.
+//   A2 (UAT-AUTO-02) retired by 33.1 D-28 with the prod-deploy probe; see 33-FLIP-MANIFEST rows F9, F26, F56, F62
 //   oracleDualPathEquivalence (A3 / UAT-AUTO-03, DOGF-01) — replays ONE seeded decomposition two ways
 //                       (parallel-spawn simulation vs sequential drain) in hermetic temp roots, driving
 //                       the committed claim.js/context-io.js, then asserts the two paths converge on the
@@ -25,26 +21,24 @@
 //                       gate/emitVerdict/admit call; deterministic and no-LLM.
 //
 // This module is STANDALONE — its own run-all block + exit tail (mirroring the catalog-freshness.ts
-// standalone-not-folded precedent, D-07). It is wired as its own lane AND its three oracle functions
+// standalone-not-folded precedent, D-07). It is wired as its own lane AND its two oracle functions
 // are EXPORTED so the foundation-guards aggregator (Plan 03 / UAT-AUTO-05) can import and invoke them
 // and inherit their fail signal. The run-all block is guarded by an `import.meta`-vs-argv entry check
-// so a direct `node scripts/check-uat-oracles.js` runs all three and exits 0/1, while importing the
+// so a direct `node scripts/check-uat-oracles.js` runs both and exits 0/1, while importing the
 // module for its functions does NOT double-run the exit tail.
 //
-// Strictly READ-ONLY except the A2 child-process spawn (which runs the committed guard.js with a
-// synthetic PreToolUse payload and reads its stdout — it never deploys anything and NEVER sets the
-// approval env var). Node stdlib ONLY — node:fs + node:path + node:child_process. Zero npm deps.
+// Read-only against the repo: the A3 replay writes only inside hermetic temp roots. Node stdlib
+// ONLY — node:fs + node:path + node:os. Zero npm deps.
 //
 // Findings are written to stdout in CLEAR PROFESSIONAL VOICE (CLAUDE.md hard rule — this is a
 // quality/safety/trace surface, never caveman voice).
 //
 //   node scripts/check-uat-oracles.js
-// Exit 0 = all three oracles GREEN (ALL CHECKS PASSED); exit 1 = at least one FAIL.
+// Exit 0 = both oracles GREEN (ALL CHECKS PASSED); exit 1 = at least one FAIL.
 import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync, } from "node:fs";
 import { join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
 import { tmpdir } from "node:os";
-import { spawnSync } from "node:child_process";
 // Substrate primitives (committed .js twins) + the single-source equivalence comparator. The Tier-1
 // oracleDualPathEquivalence drives these directly to replay one seed two ways on disk (DOGF-01).
 import { appendNote } from "./context-io.js";
@@ -69,7 +63,7 @@ const fail = (m) => {
 };
 // Exported accessor so an importing aggregator can read the accumulated fail count after invoking
 // the oracles (Plan 03 / UAT-AUTO-05). Each oracle increments the shared FAILS on a defect, so an
-// importer that calls all three then reads this value inherits the fail signal.
+// importer that calls both then reads this value inherits the fail signal.
 export const uatOracleFails = () => FAILS;
 // grep -rnE over an explicit file list: return the `path:lineno:line` hits (1-based line numbers,
 // mirroring `grep -n`). Missing files are silently skipped here — callers must do their own CR-01
@@ -361,78 +355,6 @@ export function oracleWr05Wording() {
     }
 }
 // ---------------------------------------------------------------------------
-// oracleHooksWiring (A2 / UAT-AUTO-02) — hooks.json → guard.js wiring contract.
-//
-// Asserts the PreToolUse hook is WIRED correctly (matcher "Bash"; command routes to guard.js) and
-// that the committed guard.js actually DENIES a matched deploy via the deny-JSON. This is the wiring
-// half of SAFE-02; guard.test.ts already covers guard LOGIC 26/26, so this oracle never adds
-// deny/allow/refuse-self-set cases (that would be scope creep). It NEVER sets the approval env var.
-// ---------------------------------------------------------------------------
-export function oracleHooksWiring() {
-    process.stdout.write("\n[oracleHooksWiring] hooks.json routes a Bash PreToolUse matcher to guard.js, which denies a matched deploy (A2 / UAT-AUTO-02)\n");
-    // CR-01 missing-file fail-red for both fixed inputs the oracle reads.
-    if (!fileExists("hooks/hooks.json")) {
-        fail("hooks/hooks.json missing (required for the PreToolUse wiring check)");
-        return;
-    }
-    if (!fileExists("hooks/guard.js")) {
-        fail("hooks/guard.js missing (required to assert the deny contract)");
-        return;
-    }
-    // Fail-closed JSON parse (ASVS V5): a malformed hooks.json must fail red, never throw past us.
-    let cfg;
-    try {
-        cfg = JSON.parse(readText("hooks/hooks.json"));
-    }
-    catch (e) {
-        fail(`hooks/hooks.json is not valid JSON — fail-closed (${e.message})`);
-        return;
-    }
-    // Defensive structural navigation — any missing/wrong-shaped node is a wiring defect, not a crash.
-    const pre = cfg?.hooks?.PreToolUse;
-    if (!Array.isArray(pre) || pre.length === 0) {
-        fail("hooks.json has no PreToolUse hook array (wiring defect)");
-        return;
-    }
-    const entry = pre[0];
-    if (entry?.matcher !== "Bash") {
-        fail(`hooks.json PreToolUse[0].matcher is not "Bash" (got ${JSON.stringify(entry?.matcher)}) — the guard would not see Bash commands`);
-        return;
-    }
-    const inner = entry.hooks;
-    if (!Array.isArray(inner) || inner.length === 0) {
-        fail("hooks.json PreToolUse[0].hooks is empty (no command wired)");
-        return;
-    }
-    const command = inner[0].command;
-    // Assert the command REFERENCES guard.js (the wiring) — do NOT string-equal the whole
-    // `${CLAUDE_PLUGIN_ROOT}` wrapper (that path is environment-dependent and not the contract).
-    if (typeof command !== "string" || !/guard\.js/.test(command)) {
-        fail(`hooks.json PreToolUse[0].hooks[0].command does not reference guard.js (got ${JSON.stringify(command)})`);
-        return;
-    }
-    // Spawn the COMMITTED guard.js with a matched kubectl-apply payload and assert the deny-JSON.
-    // Arg-array spawn (never shell:true on the data path — ASVS V5 / command-injection). The approval
-    // env var is NEVER set (V14 — humans hold deploy; the harness must never self-approve).
-    const payload = JSON.stringify({
-        tool_input: { command: "kubectl apply -f deploy.yaml" },
-    });
-    const r = spawnSync("node", [abs("hooks/guard.js")], {
-        input: payload,
-        encoding: "utf8",
-    });
-    if (r.status !== 0) {
-        fail(`guard.js exited nonzero (${r.status}) on a matched deploy payload — expected exit 0 + deny-JSON`);
-        return;
-    }
-    const stdout = r.stdout ?? "";
-    if (!stdout.includes('"permissionDecision":"deny"')) {
-        fail(`guard.js did not emit the deny decision for a matched deploy (stdout: ${stdout.slice(0, 200)})`);
-        return;
-    }
-    pass('hooks.json → guard.js wiring intact: "Bash" matcher routes to guard.js, which denies a matched deploy');
-}
-// ---------------------------------------------------------------------------
 // oracleDualPathEquivalence (A3 / UAT-AUTO-03, DOGF-01) — real on-disk dual-path convergence proof.
 //
 // REPLACES the former structural-grep oracleParity. Instead of reading a doc's parity table, it drives
@@ -653,7 +575,6 @@ export function oracleDualPathEquivalence() {
 function runAll() {
     process.stdout.write("== Phase 19 Tier-1 auto-UAT oracles (UAT-AUTO-01/03) ==\n");
     oracleWr05Wording();
-    oracleHooksWiring();
     oracleDualPathEquivalence();
     process.stdout.write("\n== Result ==\n");
     if (FAILS === 0) {

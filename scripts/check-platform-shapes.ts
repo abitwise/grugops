@@ -220,7 +220,8 @@ function asOutcome(reported: string | undefined): PlatformShapeOutcome | null {
  * `hooks/hook-entry.js` exits 0 whether it passed the decider's decision through or refused with its
  * own fail-closed deny — so `exit 0` alone cannot distinguish "the position produced its ordinary
  * outcome" from "the wrapper refused to run the decider at all". Every fail-closed refusal in the
- * wrapper and in the guard opens with this marker and the decider's own decisions do not, so it is
+ * wrapper opens with this marker and the admission decider's own decisions do not (its denials open
+ * with "Admission blocked"), so it is
  * the discriminant. The premise that it OCCURS in the committed artifact is asserted in `main`
  * below, because a discriminant absent from what it classifies can only ever report one class.
  */
@@ -969,10 +970,14 @@ function driveContextIo(driver: string, base: string, noteId: string): Driven {
   };
 }
 
-/** Mirror `hooks/hook-entry.js`'s whole import closure so a manifest position can be planted. */
+/**
+ * Mirror the import closures of `hooks/hook-entry.js` and of the decider it runs, so a manifest
+ * position can be planted. The decider is the MCP admission gate, the only one `hooks/hooks.json`
+ * wires since 33.1 D-17 retired the Bash command guard.
+ */
 function hookMirror(): string {
   const root = tmpRoot("grugops-shape-hook-");
-  for (const entry of ["hooks/hook-entry.js", "hooks/guard.js"]) {
+  for (const entry of ["hooks/hook-entry.js", "hooks/admission-guard.js"]) {
     for (const t of closureTargets(ROOT, entry, root)) {
       mkdirSync(dirname(t.to), { recursive: true });
       const r = spawnSync(process.execPath, ["-e", "require('fs').copyFileSync(process.argv[1], process.argv[2])", t.from, t.to]);
@@ -989,8 +994,13 @@ function driveHookEntry(mirrorRoot: string): Driven {
     if (k.startsWith("GRUGOPS_") || k.startsWith("CLAUDE_") || v === undefined) continue;
     env[k] = v;
   }
-  const r = spawnSync(process.execPath, [join(mirrorRoot, HOOK_ENTRY_REL), "guard.js"], {
-    input: JSON.stringify({ tool_input: { command: "git push --force origin main" } }),
+  // A structured MCP admission call with a minimal soft-kind note: the admission decider answers it
+  // on its own terms, so the ordinary outcome at this position is the decider's decision.
+  const r = spawnSync(process.execPath, [join(mirrorRoot, HOOK_ENTRY_REL), "admission-guard.js"], {
+    input: JSON.stringify({
+      tool_name: "mcp__grugops__propose_note",
+      tool_input: { kind: "claim" },
+    }),
     encoding: "utf8",
     env,
     timeout: DRIVE_TIMEOUT_MS,
