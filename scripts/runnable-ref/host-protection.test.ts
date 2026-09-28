@@ -316,6 +316,30 @@ const CLASSIC_STRONG = {
 };
 const classicOf = (body: Record<string, unknown>): unknown => ({ status: 200, body });
 const NOT_PROTECTED_404 = { status: 404, body: { message: "Branch not protected" } };
+// The qualifier row of the branch floor (D-30), last in the table.
+const NO_BYPASS = "does not let administrators or the account the agent works under bypass it";
+// `GET repos/{owner}/{repo}/rulesets/<id>` and a 200 answer carrying `current_user_can_bypass`.
+const RULESET = (id: number | string): string => api(`repos/{owner}/{repo}/rulesets/${id}`);
+const rulesetAnswer = (id: number, bypass?: unknown): unknown => ({
+  status: 200,
+  body: { id, ...(bypass === undefined ? {} : { current_user_can_bypass: bypass }) },
+});
+// A rule from a named ruleset (or with a raw `ruleset_id` value, including a hostile one).
+const RULE_IN = (id: unknown, type: string, parameters?: Record<string, unknown>): Record<string, unknown> => ({
+  type,
+  ...(parameters === undefined ? {} : { parameters }),
+  ruleset_source_type: "Repository",
+  ruleset_source: "octo/repo",
+  ...(id === undefined ? {} : { ruleset_id: id }),
+});
+// Every branch floor item from one ruleset.
+const ALL_ROWS_IN = (id: unknown): Record<string, unknown>[] => [
+  RULE_IN(id, "pull_request", { required_approving_review_count: 1 }),
+  RULE_IN(id, "non_fast_forward"),
+  RULE_IN(id, "deletion"),
+];
+const rulesetCalls = (calls: string[][]): string[] =>
+  calls.map((c) => c.join(" ")).filter((c) => c.includes("rulesets/"));
 const branchLine = (stdout: string, name = "main"): string =>
   targetLines(stdout).find((l) => l.startsWith(`branch ${name}:`)) ?? "";
 
@@ -485,13 +509,14 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
       "requires at least one approving review",
       "blocks force pushes",
       "restricts deletions",
+      NO_BYPASS,
     ]);
     const branches = block.targets.filter((t) => t.kind === "branch");
     expect(branches.map((t) => t.name).sort()).toEqual(["main", "master"]);
     for (const t of branches) {
       expect(t.facts, `facts on branch ${t.name}`).toBeDefined();
       expect(t.facts!.map((f) => f.requirement)).toEqual(block.floor.branch);
-      expect(t.facts!.map((f) => f.id)).toEqual(["pull_request", "approving_review", "no_force_push", "no_deletion"]);
+      expect(t.facts!.map((f) => f.id)).toEqual(["pull_request", "approving_review", "no_force_push", "no_deletion", "no_bypass"]);
       for (const f of t.facts!) {
         expect(["held", "failed", "unknown"]).toContain(f.state);
         expect(typeof f.evidence).toBe("string");
@@ -548,6 +573,10 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
       [RULES("main")]: rulesOf(PR_RULE(1), RULE("non_fast_forward")),
       [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, allow_deletions: { enabled: true } }),
     },
+    [NO_BYPASS]: {
+      [RULESET(1)]: rulesetAnswer(1, "always"),
+      [PROTECTION("main")]: NOT_PROTECTED_404,
+    },
   };
 
   it("WEAKEN_BRANCH: the both-arms-strong baseline is protected (the weakenings start from a passing state)", () => {
@@ -564,6 +593,169 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
       expect(verdictOf(r.stdout, "branch", "main"), `weakened: ${requirement}`).not.toBe("protected");
       expect(factOf(r.stdout, "main", requirement), `fact for weakened row: ${requirement}`).not.toBe("held");
     }
+  });
+});
+
+// ── CR-01 (plan 33.1-19, D-30): a rule the checked account can bypass shows no row ─────────────
+describe("host-protection.js — ruleset bypass (CR-01, D-30)", () => {
+  it("the strong fixture reads ruleset 1 once, finds current_user_can_bypass \"never\" → protected, exit 0", () => {
+    const r = runCheck(base(), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(rulesetCalls(r.calls)).toEqual([RULESET(1)]);
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("held");
+    expect(r.status).toBe(0);
+  });
+
+  for (const value of ["always", "pull_requests_only", "exempt"]) {
+    it(`a ruleset showing every row with current_user_can_bypass "${value}", no classic protection → unprotected, quoting the value`, () => {
+      const r = runCheck(
+        base({
+          [RULES("main")]: rulesOf(...ALL_ROWS_IN(1)),
+          [RULESET(1)]: rulesetAnswer(1, value),
+          [PROTECTION("main")]: NOT_PROTECTED_404,
+        }),
+        ["--json"],
+      );
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+      expect(branchLine(r.stdout)).toContain(NO_BYPASS);
+      expect(branchLine(r.stdout)).toContain(`"${value}"`);
+      expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("failed");
+      expect(factOf(r.stdout, "main", "requires a pull request before merging")).toBe("failed");
+      expect(r.status).toBe(1);
+    });
+  }
+
+  const UNREADABLE_BYPASS: Record<string, unknown> = {
+    "the ruleset read answering 404": { status: 404, body: { message: "Not Found" } },
+    "a 200 without current_user_can_bypass": rulesetAnswer(1),
+    "a 200 with an unrecognized current_user_can_bypass": rulesetAnswer(1, "sometimes"),
+    "a 200 with a non-string current_user_can_bypass": rulesetAnswer(1, false),
+    "a 200 describing a different ruleset": rulesetAnswer(2, "never"),
+    "a 200 that is not an object": { status: 200, body: ["never"] },
+  };
+  for (const [name, answer] of Object.entries(UNREADABLE_BYPASS)) {
+    it(`${name} → UNKNOWN - verify, never protected`, () => {
+      const r = runCheck(
+        base({
+          [RULES("main")]: rulesOf(...ALL_ROWS_IN(1)),
+          [RULESET(1)]: answer,
+          [PROTECTION("main")]: NOT_PROTECTED_404,
+        }),
+        ["--json"],
+      );
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  const BAD_IDS: Record<string, unknown> = {
+    "no ruleset_id": undefined,
+    'ruleset_id "1/../x"': "1/../x",
+    'ruleset_id "1" (a string)': "1",
+    "ruleset_id 0": 0,
+    "ruleset_id -1": -1,
+    "ruleset_id 1.5": 1.5,
+    "ruleset_id 9007199254740993 (not a safe integer)": 9007199254740993,
+    "ruleset_id null": null,
+  };
+  for (const [name, id] of Object.entries(BAD_IDS)) {
+    it(`a rule with ${name} shows no row and never becomes a request path`, () => {
+      const r = runCheck(
+        base({
+          [RULES("main")]: rulesOf(...ALL_ROWS_IN(id)),
+          [PROTECTION("main")]: NOT_PROTECTED_404,
+        }),
+        ["--json"],
+      );
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      for (const requirement of jsonBlock(r.stdout).floor.branch) {
+        expect(factOf(r.stdout, "main", requirement), requirement).toBe("unknown");
+      }
+      expect(rulesetCalls(r.calls)).toEqual([]);
+      for (const c of r.calls) expect(c.join(" ")).not.toMatch(/rulesets\/(?![0-9]+$)/);
+      expect(r.status).toBe(2);
+    });
+  }
+
+  for (const order of [
+    [1, 2],
+    [2, 1],
+  ]) {
+    it(`two rulesets with a pull_request rule requiring 1 approval, ${order[0]} first, one "always" and one "never" → the unbypassable one binds`, () => {
+      const r = runCheck(
+        base({
+          [RULES("main")]: rulesOf(
+            RULE_IN(order[0], "pull_request", { required_approving_review_count: 1 }),
+            RULE_IN(order[1], "pull_request", { required_approving_review_count: 1 }),
+            RULE_IN(2, "non_fast_forward"),
+            RULE_IN(2, "deletion"),
+          ),
+          [RULESET(1)]: rulesetAnswer(1, "always"),
+          [RULESET(2)]: rulesetAnswer(2, "never"),
+          [PROTECTION("main")]: NOT_PROTECTED_404,
+        }),
+        ["--json"],
+      );
+      expect(factOf(r.stdout, "main", "requires a pull request before merging")).toBe("held");
+      expect(factOf(r.stdout, "main", "requires at least one approving review")).toBe("held");
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+      expect(r.status).toBe(0);
+    });
+  }
+
+  it("a binding ruleset requiring 0 approvals and a bypassable one requiring 1 → the approval row fails", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(
+          RULE_IN(2, "pull_request", { required_approving_review_count: 0 }),
+          RULE_IN(1, "pull_request", { required_approving_review_count: 1 }),
+          RULE_IN(2, "non_fast_forward"),
+          RULE_IN(2, "deletion"),
+        ),
+        [RULESET(1)]: rulesetAnswer(1, "always"),
+        [RULESET(2)]: rulesetAnswer(2, "never"),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", "requires at least one approving review")).toBe("failed");
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("failed");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+  });
+
+  it("more than 20 distinct rulesets: at most 20 are read, and a row shown only by an unread one is unknown", () => {
+    const fx: Fixture = {};
+    const rules: Record<string, unknown>[] = [RULE_IN(1, "pull_request", { required_approving_review_count: 1 })];
+    for (let id = 1; id <= 25; id++) {
+      rules.push(RULE_IN(id, "non_fast_forward"));
+      fx[RULESET(id)] = rulesetAnswer(id, "never");
+    }
+    rules.push(RULE_IN(25, "deletion")); // shown only by the 25th ruleset, beyond the cap
+    const r = runCheck(base({ ...fx, [RULES("main")]: rulesOf(...rules), [PROTECTION("main")]: NOT_PROTECTED_404 }), ["--json"]);
+    expect(rulesetCalls(r.calls).length).toBe(20);
+    expect(rulesetCalls(r.calls)).not.toContain(RULESET(21));
+    expect(factOf(r.stdout, "main", "blocks force pushes")).toBe("held");
+    expect(factOf(r.stdout, "main", "restricts deletions")).toBe("unknown");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("a ruleset shared by two branches is read once per run", () => {
+    const r = runCheck(
+      base({ [RULES("release")]: { status: 200, body: RULESET_PROTECTED } }),
+      ["--branch", "release"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("protected");
+    expect(rulesetCalls(r.calls)).toEqual([RULESET(1)]);
+  });
+
+  it("floor.branch ends with the qualifier row, and the README checklist names it", () => {
+    const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.branch;
+    expect(floor[floor.length - 1]).toBe(NO_BYPASS);
+    const readme = readFileSync(join(HERE, "..", "..", "install", "README.md"), "utf8");
+    expect(readme).toContain(`- [ ] ${NO_BYPASS}.`);
   });
 });
 

@@ -52,6 +52,18 @@
 // pull-request and approval rows: whether GitHub omits the key when reviews are off is observed
 // behaviour, not documented, and `failed` is fail-safe because neither `failed` nor `unknown` is
 // ever `held`.
+// BYPASS (plan 33.1-19, D-30). The floor must hold against the account the check runs under,
+// which is usually the account the agent works under. A source shows an item only when that
+// account cannot bypass it. Ruleset arm: each rule that could show an item names its ruleset by
+// `ruleset_id`; an id that is not a safe positive integer is never put in a path and the rule
+// shows nothing. Each distinct id is read once per run through `rulesets/<id>`, at most
+// MAX_RULESET_READS per branch (the rest show nothing). The rule binds only when that read is a
+// 200 about the same ruleset reporting `current_user_can_bypass: "never"`; `always`,
+// `pull_requests_only` and `exempt` are read as bypassable; any other answer is not readable. So
+// an item is `held` on the ruleset arm when at least one binding rule shows it. The last row of
+// the table, `no_bypass`, is the qualifier: `held` when every item is held (each item already
+// counts only binding sources), `failed` when an item fails and a source that would show it was
+// read as bypassable, `unknown` otherwise; its evidence names each bypassable or unreadable source.
 // THE VERDICT: every row `held` → protected; any row `failed` → unprotected; otherwise
 // UNKNOWN - verify. The reason names each row that is not held with the evidence from both arms;
 // a protected reason names which arm showed each row. `--json` publishes the table
@@ -109,11 +121,6 @@ type Verdict = "protected" | "unprotected" | "UNKNOWN - verify";
 // One row's state on one arm, or combined across both: positively shown, read and not shown, or
 // not readable.
 type FactState = "held" | "failed" | "unknown";
-
-interface ArmReading {
-  state: FactState;
-  evidence: string;
-}
 
 interface Fact {
   id: string;
@@ -270,38 +277,66 @@ type ClassicArm =
   | { kind: "none"; evidence: string }
   | { kind: "unreadable"; evidence: string };
 
-interface FloorRow {
+// What one source (one ruleset rule, or the classic protection body) says about one item, before
+// asking whether it binds the account the check runs under.
+interface Shown {
+  state: FactState;
+  evidence: string;
+}
+
+// Whether a source binds the account the check runs under (D-30): `binds` (that account cannot
+// bypass it), `bypassable` (read, and that account can bypass it) or `unknown` (not readable).
+interface Binding {
+  state: "binds" | "bypassable" | "unknown";
+  evidence: string;
+}
+
+// An item of the branch floor: shown by a ruleset rule of `ruleType`, or by the classic body.
+interface FloorItem {
+  kind: "item";
   id: string;
   requirement: string;
-  // Over the rules read: `held` when shown, `failed` when not shown on them, `unknown` when a
-  // qualifying rule is there but its field cannot be read. rulesetReading() turns `failed` into
-  // `unknown` when the list was not read in full.
-  fromRuleset: (rules: Record<string, unknown>[]) => ArmReading;
+  ruleType: string;
+  // Over one rule of `ruleType`: `held` when it shows the item, `failed` when it does not,
+  // `unknown` when its field cannot be read.
+  fromRule: (rule: Record<string, unknown>) => Shown;
   // Over a classic protection 200 body.
-  fromClassic: (body: Record<string, unknown>) => ArmReading;
+  fromClassic: (body: Record<string, unknown>) => Shown;
+  // The classic arm also needs an empty pull request bypass allowance for this item.
+  reviewItem: boolean;
 }
+
+// The qualifier row: read from the items' sources, never from a source of its own.
+interface FloorQualifier {
+  kind: "qualifier";
+  id: string;
+  requirement: string;
+}
+
+type FloorRow = FloorItem | FloorQualifier;
 
 function rulesOfType(rules: Record<string, unknown>[], type: string): Record<string, unknown>[] {
   return rules.filter((r) => r.type === type);
 }
 
+// A `ruleset_id` this check will put in a REST path: a safe positive integer, nothing else
+// (T-33.1-191). A string, a fraction, 0, a negative or an unsafe integer never reaches a path.
+function usableRulesetId(v: unknown): v is number {
+  return typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+}
+
 // Which ruleset a rule came from, for the evidence line.
 function rulesetOf(rule: Record<string, unknown>): string {
-  const id = rule.ruleset_id;
-  return typeof id === "number" || typeof id === "string" ? `ruleset ${printable(String(id))}` : "an active ruleset";
+  return usableRulesetId(rule.ruleset_id) ? `ruleset ${rule.ruleset_id}` : "an active ruleset";
 }
 
-// A rule of `type` on the ruleset arm shows the row by being present.
-function rulePresent(type: string): (rules: Record<string, unknown>[]) => ArmReading {
-  return (rules) => {
-    const found = rulesOfType(rules, type);
-    if (found.length > 0) return { state: "held", evidence: `${rulesetOf(found[0])} has a ${type} rule` };
-    return { state: "failed", evidence: `no active ruleset has a ${type} rule` };
-  };
+// A rule of the item's type shows it by being present.
+function ruleShows(rule: Record<string, unknown>): Shown {
+  return { state: "held", evidence: `${rulesetOf(rule)} has a ${String(rule.type)} rule` };
 }
 
-// A classic `{ enabled }` object shows the row only when `enabled === false`.
-function classicDisabled(key: string): (body: Record<string, unknown>) => ArmReading {
+// A classic `{ enabled }` object shows the item only when `enabled === false`.
+function classicDisabled(key: string): (body: Record<string, unknown>) => Shown {
   return (body) => {
     const v = body[key];
     if (isObject(v) && v.enabled === false) return { state: "held", evidence: `classic ${key}.enabled is false` };
@@ -310,7 +345,7 @@ function classicDisabled(key: string): (body: Record<string, unknown>) => ArmRea
   };
 }
 
-// An approval count shows the approval row only as an integer >= 1.
+// An approval count shows the approval item only as an integer >= 1.
 function approvalCount(count: unknown): FactState {
   if (!Number.isInteger(count)) return "unknown";
   return (count as number) >= 1 ? "held" : "failed";
@@ -321,31 +356,31 @@ function approvalCount(count: unknown): FactState {
 // fixture per row. Nothing outside this table decides whether a branch is `protected`.
 const BRANCH_FLOOR: readonly FloorRow[] = [
   {
+    kind: "item",
     id: "pull_request",
     requirement: "requires a pull request before merging",
-    fromRuleset: rulePresent("pull_request"),
+    ruleType: "pull_request",
+    fromRule: ruleShows,
     fromClassic: (body) => {
       const rpr = body.required_pull_request_reviews;
       if (isObject(rpr)) return { state: "held", evidence: "classic protection requires pull request reviews" };
       if (rpr === undefined) return { state: "failed", evidence: "classic protection does not require pull request reviews" };
       return { state: "unknown", evidence: "classic required_pull_request_reviews has an unexpected shape" };
     },
+    reviewItem: true,
   },
   {
+    kind: "item",
     id: "approving_review",
     requirement: "requires at least one approving review",
-    fromRuleset: (rules) => {
-      const prs = rulesOfType(rules, "pull_request");
-      if (prs.length === 0) return { state: "failed", evidence: "no active ruleset has a pull_request rule" };
-      const counts = prs.map((r) => (isObject(r.parameters) ? r.parameters.required_approving_review_count : undefined));
-      const at = counts.findIndex((c) => approvalCount(c) === "held");
-      if (at >= 0) {
-        return { state: "held", evidence: `a pull_request rule in ${rulesetOf(prs[at])} requires ${String(counts[at])} approving review(s)` };
+    ruleType: "pull_request",
+    fromRule: (rule) => {
+      const count = isObject(rule.parameters) ? rule.parameters.required_approving_review_count : undefined;
+      const state = approvalCount(count);
+      if (state === "unknown") {
+        return { state, evidence: `a pull_request rule in ${rulesetOf(rule)} carries no integer required_approving_review_count` };
       }
-      if (counts.some((c) => approvalCount(c) === "unknown")) {
-        return { state: "unknown", evidence: "a pull_request rule carries no integer required_approving_review_count" };
-      }
-      return { state: "failed", evidence: `every pull_request rule requires ${counts.map(String).join(", ")} approving reviews` };
+      return { state, evidence: `a pull_request rule in ${rulesetOf(rule)} requires ${String(count)} approving review(s)` };
     },
     fromClassic: (body) => {
       const rpr = body.required_pull_request_reviews;
@@ -358,41 +393,207 @@ const BRANCH_FLOOR: readonly FloorRow[] = [
       }
       return { state, evidence: `classic protection requires ${String(count)} approving review(s)` };
     },
+    reviewItem: true,
   },
   {
+    kind: "item",
     id: "no_force_push",
     requirement: "blocks force pushes",
-    fromRuleset: rulePresent("non_fast_forward"),
+    ruleType: "non_fast_forward",
+    fromRule: ruleShows,
     fromClassic: classicDisabled("allow_force_pushes"),
+    reviewItem: false,
   },
   {
+    kind: "item",
     id: "no_deletion",
     requirement: "restricts deletions",
-    fromRuleset: rulePresent("deletion"),
+    ruleType: "deletion",
+    fromRule: ruleShows,
     fromClassic: classicDisabled("allow_deletions"),
+    reviewItem: false,
+  },
+  {
+    kind: "qualifier",
+    id: "no_bypass",
+    requirement: "does not let administrators or the account the agent works under bypass it",
   },
 ];
 
-function rulesetReading(row: FloorRow, arm: RulesetArm): ArmReading {
-  if (arm.read === "none") return { state: "unknown", evidence: arm.why };
-  const r = row.fromRuleset(arm.rules);
+const FLOOR_ITEMS: readonly FloorItem[] = BRANCH_FLOOR.filter((row): row is FloorItem => row.kind === "item");
+
+// --- binding: can the account the check runs under bypass a source? (D-30) --------------------
+// At most this many distinct rulesets are read per branch (T-33.1-192: each read is a gh spawn
+// with a 20 s timeout). A rule from a ruleset beyond the bound shows nothing: its binding is
+// `unknown`.
+const MAX_RULESET_READS = 20;
+// One read per ruleset per run, whichever branch asks first.
+const rulesetBindingCache = new Map<number, Binding>();
+
+// `GET rulesets/<id>`: GitHub documents `current_user_can_bypass` as one of `always`,
+// `pull_requests_only`, `never` and `exempt`. Only `never` binds. The answer counts only when it
+// is about the ruleset that was asked for. `bypass_actors` is never read (T-33.1-193).
+function readRulesetBinding(id: number): Binding {
+  const cached = rulesetBindingCache.get(id);
+  if (cached !== undefined) return cached;
+  const res = apiGet(`repos/{owner}/{repo}/rulesets/${id}`);
+  let b: Binding;
+  if (res.status === 200 && isObject(res.body) && res.body.id === id) {
+    const v = res.body.current_user_can_bypass;
+    if (v === "never") b = { state: "binds", evidence: `ruleset ${id} reports current_user_can_bypass "never"` };
+    else if (v === "always" || v === "pull_requests_only" || v === "exempt") {
+      b = { state: "bypassable", evidence: `ruleset ${id} reports current_user_can_bypass "${v}"` };
+    } else if (v === undefined) {
+      b = { state: "unknown", evidence: `ruleset ${id} carries no current_user_can_bypass` };
+    } else {
+      b = {
+        state: "unknown",
+        evidence: `ruleset ${id} reports a current_user_can_bypass this check does not recognize (${printable(String(JSON.stringify(v)))})`,
+      };
+    }
+  } else if (res.status === 200 && isObject(res.body)) {
+    b = { state: "unknown", evidence: `the read of ruleset ${id} answered about a different ruleset` };
+  } else {
+    b = { state: "unknown", evidence: `the read of ruleset ${id} answered ${answered(res)}` };
+  }
+  rulesetBindingCache.set(id, b);
+  return b;
+}
+
+// The binding of every distinct ruleset whose rules could show an item on this branch, in the
+// order the rules name them; the first MAX_RULESET_READS are read, the rest are `unknown`.
+function rulesetBindings(arm: RulesetArm): Map<number, Binding> {
+  const types = new Set(FLOOR_ITEMS.map((row) => row.ruleType));
+  const ids: number[] = [];
+  for (const rule of arm.rules) {
+    const id = rule.ruleset_id;
+    if (types.has(String(rule.type)) && usableRulesetId(id) && !ids.includes(id)) ids.push(id);
+  }
+  const out = new Map<number, Binding>();
+  ids.forEach((id, i) => {
+    out.set(
+      id,
+      i < MAX_RULESET_READS
+        ? readRulesetBinding(id)
+        : { state: "unknown", evidence: `ruleset ${id} was not read (the check reads at most ${MAX_RULESET_READS} rulesets per branch)` },
+    );
+  });
+  return out;
+}
+
+function ruleBinding(rule: Record<string, unknown>, bindings: Map<number, Binding>): Binding {
+  const id = rule.ruleset_id;
+  if (!usableRulesetId(id)) {
+    return { state: "unknown", evidence: `a ${String(rule.type)} rule carries no usable ruleset_id, so its ruleset cannot be asked about bypass` };
+  }
+  return bindings.get(id) ?? { state: "unknown", evidence: `ruleset ${id} was not read` };
+}
+
+// The classic arm's binding for one item. Filled in by the enforce_admins and pull request
+// bypass allowance readings.
+function classicBinding(_body: Record<string, unknown>, _row: FloorItem): Binding {
+  return { state: "binds", evidence: "" };
+}
+
+// --- one item on one arm ------------------------------------------------------------------------
+// One arm's reading of one item: its state, the evidence, and the sources that would show the
+// item but were read as bypassable (`bypassed`) or whose binding could not be read (`unbound`).
+interface ArmReading {
+  state: FactState;
+  evidence: string;
+  bypassed: string[];
+  unbound: string[];
+}
+
+function plain(state: FactState, evidence: string): ArmReading {
+  return { state, evidence, bypassed: [], unbound: [] };
+}
+
+function unique(list: string[]): string[] {
+  return [...new Set(list)];
+}
+
+// A source shows an item only when it shows it AND binds the account. `held` when at least one
+// source does; `unknown` when none does and some source cannot be read; `failed` otherwise (every
+// source was read and either does not show the item or can be bypassed).
+function bindSources(sources: Array<{ shown: Shown; binding: Binding }>): ArmReading {
+  const held: string[] = [];
+  const unknown: string[] = [];
+  const failed: string[] = [];
+  const bypassed: string[] = [];
+  const unbound: string[] = [];
+  for (const { shown, binding } of sources) {
+    const both = binding.evidence === "" ? shown.evidence : `${shown.evidence}, and ${binding.evidence}`;
+    const but = binding.evidence === "" ? shown.evidence : `${shown.evidence}, but ${binding.evidence}`;
+    if (shown.state !== "failed" && binding.state === "bypassable") bypassed.push(binding.evidence);
+    if (shown.state !== "failed" && binding.state === "unknown") unbound.push(binding.evidence);
+    if (shown.state === "failed") failed.push(shown.evidence);
+    else if (binding.state === "bypassable") failed.push(but);
+    else if (shown.state === "held" && binding.state === "binds") held.push(both);
+    else unknown.push(binding.state === "unknown" ? but : shown.evidence);
+  }
+  const extra = { bypassed: unique(bypassed), unbound: unique(unbound) };
+  if (held.length > 0) return { state: "held", evidence: held[0], ...extra };
+  if (unknown.length > 0) return { state: "unknown", evidence: unique(unknown).join("; "), ...extra };
+  return { state: "failed", evidence: unique(failed).join("; "), ...extra };
+}
+
+function rulesetReading(row: FloorItem, arm: RulesetArm, bindings: Map<number, Binding>): ArmReading {
+  if (arm.read === "none") return plain("unknown", arm.why);
+  const found = rulesOfType(arm.rules, row.ruleType);
+  const r =
+    found.length === 0
+      ? plain("failed", `no active ruleset has a ${row.ruleType} rule`)
+      : bindSources(found.map((rule) => ({ shown: row.fromRule(rule), binding: ruleBinding(rule, bindings) })));
   if (r.state === "failed" && arm.read === "partial") {
-    return { state: "unknown", evidence: `${r.evidence} on the first page, but ${arm.why}` };
+    return { ...r, state: "unknown", evidence: `${r.evidence} on the first page, but ${arm.why}` };
   }
   return r;
 }
 
-function classicReading(row: FloorRow, arm: ClassicArm): ArmReading {
-  if (arm.kind === "body") return row.fromClassic(arm.body);
-  return { state: arm.kind === "none" ? "failed" : "unknown", evidence: arm.evidence };
+function classicReading(row: FloorItem, arm: ClassicArm): ArmReading {
+  if (arm.kind === "body") return bindSources([{ shown: row.fromClassic(arm.body), binding: classicBinding(arm.body, row) }]);
+  return plain(arm.kind === "none" ? "failed" : "unknown", arm.evidence);
 }
 
-// THE UNION RULE: held when either arm shows the row, failed only when both arms read it and
+// THE UNION RULE: held when either arm shows the item, failed only when both arms read it and
 // neither shows it, unknown otherwise.
 function combineArms(a: FactState, b: FactState): FactState {
   if (a === "held" || b === "held") return "held";
   if (a === "failed" && b === "failed") return "failed";
   return "unknown";
+}
+
+// THE QUALIFIER (D-30). Every item is already counted only from sources that bind the account,
+// so the qualifier is `held` exactly when every item is; `failed` when some item fails and a
+// source that would show it was read as bypassable (on arms that were both read); `unknown`
+// otherwise. Its evidence names each bypassable or unreadable source.
+function qualifierFact(
+  row: FloorQualifier,
+  items: Array<{ fact: Fact; fromRules: ArmReading; fromClassic: ArmReading }>,
+): Fact {
+  const bypassed = unique(items.flatMap((i) => [...i.fromRules.bypassed, ...i.fromClassic.bypassed]));
+  const unbound = unique(items.flatMap((i) => [...i.fromRules.unbound, ...i.fromClassic.unbound]));
+  const base = { id: row.id, requirement: row.requirement };
+  if (items.every((i) => i.fact.state === "held")) {
+    const also = bypassed.length > 0 ? `; read as bypassable and not counted: ${bypassed.join("; ")}` : "";
+    return { ...base, state: "held", evidence: `every item above is shown by a source this account cannot bypass${also}` };
+  }
+  const bypassFailed = items.filter(
+    (i) => i.fact.state === "failed" && i.fromRules.bypassed.length + i.fromClassic.bypassed.length > 0,
+  );
+  if (bypassFailed.length > 0) {
+    return {
+      ...base,
+      state: "failed",
+      evidence: `this account can bypass what would show ${bypassFailed.map((i) => i.fact.requirement).join(", ")}: ${bypassed.join("; ")}`,
+    };
+  }
+  const parts: string[] = [];
+  if (bypassed.length > 0) parts.push(`read as bypassable: ${bypassed.join("; ")}`);
+  if (unbound.length > 0) parts.push(`not readable: ${unbound.join("; ")}`);
+  if (parts.length === 0) parts.push("not every item above is shown, so there is no protection to judge for bypass");
+  return { ...base, state: "unknown", evidence: parts.join("; ") };
 }
 
 // Every row `unknown`, for a branch target the check could not read at all.
@@ -445,30 +646,42 @@ function branchVerdict(name: string): Target {
   const bp = branchPath(name);
 
   const rulesetArm = readRulesetArm(bp);
-  const fromRules = BRANCH_FLOOR.map((row) => rulesetReading(row, rulesetArm));
-  // The classic arm is read only when the ruleset arm leaves some row not shown.
+  const bindings = rulesetBindings(rulesetArm);
+  const fromRules = FLOOR_ITEMS.map((row) => rulesetReading(row, rulesetArm, bindings));
+  // The classic arm is read only when the ruleset arm leaves some item not shown.
   const classicArm: ClassicArm | undefined = fromRules.every((r) => r.state === "held") ? undefined : readClassicArm(name, bp);
-  const fromClassic = BRANCH_FLOOR.map((row): ArmReading =>
-    classicArm === undefined
-      ? { state: "unknown", evidence: "not read (the ruleset arm shows every item)" }
-      : classicReading(row, classicArm),
+  const fromClassic = FLOOR_ITEMS.map((row): ArmReading =>
+    classicArm === undefined ? plain("unknown", "not read (the ruleset arm shows every item)") : classicReading(row, classicArm),
   );
 
-  const facts: Fact[] = BRANCH_FLOOR.map((row, i) => ({
-    id: row.id,
-    requirement: row.requirement,
-    state: combineArms(fromRules[i].state, fromClassic[i].state),
-    evidence: `ruleset: ${fromRules[i].evidence}; classic: ${fromClassic[i].evidence}`,
+  const items = FLOOR_ITEMS.map((row, i) => ({
+    fact: {
+      id: row.id,
+      requirement: row.requirement,
+      state: combineArms(fromRules[i].state, fromClassic[i].state),
+      evidence: `ruleset: ${fromRules[i].evidence}; classic: ${fromClassic[i].evidence}`,
+    } satisfies Fact,
+    fromRules: fromRules[i],
+    fromClassic: fromClassic[i],
   }));
+  const facts: Fact[] = BRANCH_FLOOR.map((row) =>
+    row.kind === "item" ? items.find((i) => i.fact.id === row.id)!.fact : qualifierFact(row, items),
+  );
 
   if (facts.every((f) => f.state === "held")) {
-    const shownBy = facts.map((f, i) => {
-      const r = fromRules[i].state === "held";
-      const c = fromClassic[i].state === "held";
-      const arm = r && c ? "ruleset and classic protection" : r ? "ruleset" : "classic protection";
-      return `${f.requirement} (${arm})`;
+    const shownBy = items.map(({ fact, fromRules: r, fromClassic: c }) => {
+      const arm =
+        r.state === "held" && c.state === "held" ? "ruleset and classic protection" : r.state === "held" ? "ruleset" : "classic protection";
+      return `${fact.requirement} (${arm})`;
     });
-    return { kind: "branch", name, verdict: "protected", reason: `every branch floor item is shown: ${shownBy.join(", ")}`, facts };
+    const qualifier = facts.filter((f) => !items.some((i) => i.fact.id === f.id)).map((f) => `${f.requirement} (${f.evidence})`);
+    return {
+      kind: "branch",
+      name,
+      verdict: "protected",
+      reason: `every branch floor item is shown: ${[...shownBy, ...qualifier].join(", ")}`,
+      facts,
+    };
   }
   const verdict: Verdict = facts.some((f) => f.state === "failed") ? "unprotected" : "UNKNOWN - verify";
   const reason = facts

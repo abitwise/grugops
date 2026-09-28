@@ -416,7 +416,18 @@ use), add a branch protection rule or a ruleset that:
 - [ ] requires a pull request before merging;
 - [ ] requires at least one approving review;
 - [ ] blocks force pushes;
-- [ ] restricts deletions.
+- [ ] restricts deletions;
+- [ ] does not let administrators or the account the agent works under bypass it.
+
+To meet the last line with classic branch protection, turn on "Do not allow bypassing the above
+settings" (include administrators) and list no one under "Allow specified actors to bypass required
+pull requests". With a ruleset, keep the account your agent works under (and any role or team it
+belongs to) off the ruleset's bypass list. The check reads this from the host: a ruleset counts only
+when GitHub reports that the checked account can never bypass it. On a repository with one human
+identity this has a real cost. A required approval that nobody can bypass means you cannot merge
+your own pull requests, because GitHub does not let the author of a pull request approve it. If you
+add yourself to a bypass list to get around that, the check reports `unprotected`, because an agent
+working under your account could bypass the rule in the same way.
 
 For production:
 
