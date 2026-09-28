@@ -57,37 +57,29 @@ function runCheck(
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", calls };
 }
 
-const RULESET_PROTECTED = [{ type: "pull_request" }, { type: "non_fast_forward" }];
+// THE ONE ALL-PROTECTED FIXTURE (plan 33.1-17). Shared with install/install.test.ts, whose
+// materialized-copy case reads the same file, so the kit source and the installed copy are judged
+// against one definition of "every target protected": default branch `main` covered by one active
+// ruleset whose rules show every BRANCH_FLOOR row (`pull_request` with one required approval,
+// `non_fast_forward`, `deletion`), no `master`, and a `production` environment with a named
+// reviewer (its self-review, admin-bypass and branch-policy fields are read from plan 33.1-20 on).
+const STRONG_FIXTURE = join(HERE, "fixtures", "host-strong.fixture.json");
+const STRONG = JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture;
+const STRONG_RULES_KEY = api("repos/{owner}/{repo}/rules/branches/main?per_page=100");
+const RULESET_PROTECTED = (STRONG[STRONG_RULES_KEY] as { body: unknown[] }).body;
 
 describe("host-protection.js — branch verdicts", () => {
-  it("ruleset evidence: an active ruleset with pull_request and non_fast_forward → protected", () => {
-    const r = runCheck({
-      "auth status": { exit: 0 },
-      [api("repos/{owner}/{repo}")]: { status: 200, body: { default_branch: "main" } },
-      [api("repos/{owner}/{repo}/rules/branches/main?per_page=100")]: { status: 200, body: RULESET_PROTECTED },
-      // Task 2 widened the targets: `master` is probed (absent here) and the production
-      // environment is always inspected (protected here), so the run can still be all-protected.
-      [api("repos/{owner}/{repo}/branches/master")]: { status: 404, body: { message: "Branch not found" } },
-      [api("repos/{owner}/{repo}/environments?per_page=100")]: {
-        status: 200,
-        body: {
-          total_count: 1,
-          environments: [
-            { name: "production", protection_rules: [{ type: "required_reviewers", reviewers: [{ type: "User" }] }] },
-          ],
-        },
-      },
-    });
-    expect(r.stdout).toContain("branch main: protected — an active ruleset requires a pull request and blocks force pushes");
+  it("the strong fixture: one active ruleset shows every floor row → protected, and the run exits 0", () => {
+    const r = runCheck(STRONG);
+    expect(r.stdout).toMatch(/^branch main: protected — every branch floor item is shown: /m);
     expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
     expect(r.status).toBe(0);
   });
 });
 
 // ── Task 2 fixtures ─────────────────────────────────────────────────────────────────────────────
-// base() is a repository whose default branch `main` is protected by a ruleset, whose `master`
-// does not exist, and whose `production` environment requires a named reviewer — every target
-// `protected`. Each case overrides only the keys its behaviour is about.
+// base() is the shared strong fixture (host-strong.fixture.json): every target `protected`. Each
+// case overrides only the keys its behaviour is about.
 const REPO = api("repos/{owner}/{repo}");
 const RULES = (b: string): string => api(`repos/{owner}/{repo}/rules/branches/${b}?per_page=100`);
 const PROTECTION = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}/protection`);
@@ -98,14 +90,8 @@ function envs(...list: Array<{ name: string; protection_rules?: unknown[] }>): u
   return { status: 200, body: { total_count: list.length, environments: list } };
 }
 function base(over: Fixture = {}): Fixture {
-  return {
-    "auth status": { exit: 0 },
-    [REPO]: { status: 200, body: { default_branch: "main" } },
-    [RULES("main")]: { status: 200, body: RULESET_PROTECTED },
-    [BRANCH("master")]: { status: 404, body: { message: "Branch not found" } },
-    [ENVS]: envs({ name: "production", protection_rules: [{ type: "required_reviewers", reviewers: REVIEWERS }] }),
-    ...over,
-  };
+  // A fresh parse per call, so no case can mutate what another case reads.
+  return { ...(JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture), ...over };
 }
 // A branch with no qualifying ruleset: rules 200 and empty, so the classic endpoints decide.
 const NO_RULES = { status: 200, body: [] };
@@ -133,13 +119,17 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
     expect(r.status).toBe(0);
   });
 
-  it("classic protection with required reviews and force pushes disabled → protected", () => {
+  it("classic protection with one required approval, force pushes and deletions disabled → protected", () => {
     const r = runCheck(
       base({
         [RULES("main")]: NO_RULES,
         [PROTECTION("main")]: {
           status: 200,
-          body: { required_pull_request_reviews: { required_approving_review_count: 1 }, allow_force_pushes: { enabled: false } },
+          body: {
+            required_pull_request_reviews: { required_approving_review_count: 1 },
+            allow_force_pushes: { enabled: false },
+            allow_deletions: { enabled: false },
+          },
         },
       }),
     );
@@ -304,6 +294,276 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
     expect(verdictOf(r.stdout, "branch", "release/1.0")).toBe("protected");
     expect(verdictOf(r.stdout, "branch", "hotfix")).toBe("unprotected");
     expect(r.status).toBe(1);
+  });
+});
+
+// ── CR-01 (plan 33.1-17): one canonical branch floor decides the verdict ────────────────────────
+// Rules in the shape `GET rules/branches/<b>` returns (type, parameters, ruleset source, ruleset id).
+const RULE = (type: string, parameters?: Record<string, unknown>): Record<string, unknown> => ({
+  type,
+  ...(parameters === undefined ? {} : { parameters }),
+  ruleset_source_type: "Repository",
+  ruleset_source: "octo/repo",
+  ruleset_id: 1,
+});
+const PR_RULE = (count: unknown): Record<string, unknown> => RULE("pull_request", { required_approving_review_count: count });
+const rulesOf = (...list: unknown[]): unknown => ({ status: 200, body: list });
+// Classic protection that shows every floor row.
+const CLASSIC_STRONG = {
+  required_pull_request_reviews: { required_approving_review_count: 1 },
+  allow_force_pushes: { enabled: false },
+  allow_deletions: { enabled: false },
+};
+const classicOf = (body: Record<string, unknown>): unknown => ({ status: 200, body });
+const NOT_PROTECTED_404 = { status: 404, body: { message: "Branch not protected" } };
+const branchLine = (stdout: string, name = "main"): string =>
+  targetLines(stdout).find((l) => l.startsWith(`branch ${name}:`)) ?? "";
+
+type JsonBlock = {
+  ok: boolean;
+  floor: { branch: string[] };
+  targets: Array<{
+    kind: string;
+    name: string;
+    verdict: string;
+    reason: string;
+    facts?: Array<{ id: string; requirement: string; state: string; evidence: string }>;
+  }>;
+  calls: string[][];
+};
+function jsonBlock(stdout: string): JsonBlock {
+  const lines = stdout.trim().split("\n");
+  const at = lines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
+  return JSON.parse(lines.slice(at + 1).join("\n")) as JsonBlock;
+}
+function factOf(stdout: string, branch: string, requirement: string): string | undefined {
+  const t = jsonBlock(stdout).targets.find((x) => x.kind === "branch" && x.name === branch);
+  return t?.facts?.find((f) => f.requirement === requirement)?.state;
+}
+
+describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
+  it("weak ruleset: a pull_request rule with 0 required approvals, list read in full, no classic protection → unprotected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(branchLine(r.stdout)).toContain("requires at least one approving review");
+    expect(r.status).toBe(1);
+  });
+
+  it("missing ruleset count: a pull_request rule without required_approving_review_count → UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(RULE("pull_request", {}), RULE("non_fast_forward"), RULE("deletion")),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("missing ruleset count: a pull_request rule carrying the count as a string → UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE("1"), RULE("non_fast_forward"), RULE("deletion")),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+  });
+
+  it("classic count 0: no qualifying rules, classic protection requiring 0 approvals → unprotected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: classicOf({
+          ...CLASSIC_STRONG,
+          required_pull_request_reviews: { required_approving_review_count: 0 },
+        }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(branchLine(r.stdout)).toContain("requires at least one approving review");
+  });
+
+  it("classic deletions allowed: allow_deletions.enabled true → unprotected, naming restricts deletions", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, allow_deletions: { enabled: true } }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(branchLine(r.stdout)).toContain("restricts deletions");
+  });
+
+  it("classic deletions absent: a classic body with no allow_deletions key → UNKNOWN - verify", () => {
+    const noDeletionsKey: Record<string, unknown> = { ...CLASSIC_STRONG };
+    delete noDeletionsKey.allow_deletions;
+    const r = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf(noDeletionsKey) }));
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("ruleset without deletion: list read in full, no classic protection → unprotected, naming restricts deletions", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(1), RULE("non_fast_forward")),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(branchLine(r.stdout)).toContain("restricts deletions");
+  });
+
+  it("union, strong across arms: the ruleset shows the pull request and approval, classic blocks force pushes and deletions → protected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(1)),
+        [PROTECTION("main")]: classicOf({ allow_force_pushes: { enabled: false }, allow_deletions: { enabled: false } }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("union, a weak arm does not weaken a strong one: ruleset count 0, classic count 1 → protected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
+        [PROTECTION("main")]: classicOf(CLASSIC_STRONG),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("union, both arms at count 0 → unprotected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
+        [PROTECTION("main")]: classicOf({
+          ...CLASSIC_STRONG,
+          required_pull_request_reviews: { required_approving_review_count: 0 },
+        }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(branchLine(r.stdout)).toContain("requires at least one approving review");
+  });
+
+  it("a ruleset that shows every row → protected, and the classic protection endpoint is never called", () => {
+    const r = runCheck(base());
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.calls.length).toBeGreaterThan(0);
+    for (const c of r.calls) expect(c.join(" ")).not.toContain("branches/main/protection");
+  });
+
+  it("a paginated rule list whose first page lacks `deletion`, no classic protection → UNKNOWN - verify, never unprotected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: {
+          status: 200,
+          body: [PR_RULE(1), RULE("non_fast_forward")],
+          link: '<https://api.github.com/x?page=2>; rel="next"',
+        },
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("--json publishes floor.branch in table order and one facts entry per row on every branch target", () => {
+    const r = runCheck(base({ [BRANCH("master")]: { status: 500, body: { message: "Server Error" } } }), ["--json"]);
+    const block = jsonBlock(r.stdout);
+    expect(block.floor.branch).toEqual([
+      "requires a pull request before merging",
+      "requires at least one approving review",
+      "blocks force pushes",
+      "restricts deletions",
+    ]);
+    const branches = block.targets.filter((t) => t.kind === "branch");
+    expect(branches.map((t) => t.name).sort()).toEqual(["main", "master"]);
+    for (const t of branches) {
+      expect(t.facts, `facts on branch ${t.name}`).toBeDefined();
+      expect(t.facts!.map((f) => f.requirement)).toEqual(block.floor.branch);
+      expect(t.facts!.map((f) => f.id)).toEqual(["pull_request", "approving_review", "no_force_push", "no_deletion"]);
+      for (const f of t.facts!) {
+        expect(["held", "failed", "unknown"]).toContain(f.state);
+        expect(typeof f.evidence).toBe("string");
+        expect(f.evidence.length).toBeGreaterThan(0);
+      }
+    }
+    // main is protected: every row held. master could not be read: no row held.
+    expect(branches.find((t) => t.name === "main")!.facts!.every((f) => f.state === "held")).toBe(true);
+    expect(branches.find((t) => t.name === "master")!.facts!.every((f) => f.state === "unknown")).toBe(true);
+  });
+
+  it("README drift: the first checklist list under `#### Git-host setup checklist` equals --json floor.branch, both ways", () => {
+    const readme = readFileSync(join(HERE, "..", "..", "install", "README.md"), "utf8").split(/\r?\n/);
+    const heading = readme.findIndex((l) => l === "#### Git-host setup checklist");
+    expect(heading, "the checklist heading exists").toBeGreaterThan(-1);
+    const first = readme.findIndex((l, i) => i > heading && l.startsWith("- [ ] "));
+    expect(first, "a checklist list follows the heading").toBeGreaterThan(heading);
+    const items: string[] = [];
+    for (let i = first; i < readme.length && readme[i].startsWith("- [ ] "); i++) {
+      items.push(readme[i].slice("- [ ] ".length).replace(/[;.]$/, ""));
+    }
+    const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.branch;
+    expect(items.length).toBeGreaterThan(0);
+    expect(items).toEqual(floor);
+    expect(floor).toEqual(items);
+  });
+
+  // Each entry weakens ONE floor row on BOTH arms (the ruleset list is read in full and classic
+  // protection is otherwise strong, so neither arm can cover for the other). The pull-request row
+  // cannot be removed without also removing the approval it carries; the case asserts only on the
+  // weakened row, so that coupling does not hide a mutation.
+  const STRONG_BOTH_ARMS = (): Fixture =>
+    base({
+      [RULES("main")]: rulesOf(PR_RULE(1), RULE("non_fast_forward"), RULE("deletion")),
+      [PROTECTION("main")]: classicOf(CLASSIC_STRONG),
+    });
+  const WEAKEN_BRANCH: Record<string, Fixture> = {
+    "requires a pull request before merging": {
+      [RULES("main")]: rulesOf(RULE("non_fast_forward"), RULE("deletion")),
+      [PROTECTION("main")]: classicOf({ allow_force_pushes: { enabled: false }, allow_deletions: { enabled: false } }),
+    },
+    "requires at least one approving review": {
+      [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
+      [PROTECTION("main")]: classicOf({
+        ...CLASSIC_STRONG,
+        required_pull_request_reviews: { required_approving_review_count: 0 },
+      }),
+    },
+    "blocks force pushes": {
+      [RULES("main")]: rulesOf(PR_RULE(1), RULE("deletion")),
+      [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, allow_force_pushes: { enabled: true } }),
+    },
+    "restricts deletions": {
+      [RULES("main")]: rulesOf(PR_RULE(1), RULE("non_fast_forward")),
+      [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, allow_deletions: { enabled: true } }),
+    },
+  };
+
+  it("WEAKEN_BRANCH: the both-arms-strong baseline is protected (the weakenings start from a passing state)", () => {
+    const r = runCheck(STRONG_BOTH_ARMS(), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+  });
+
+  it("WEAKEN_BRANCH: its keys are exactly floor.branch, and weakening any one row turns main away from protected", () => {
+    const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.branch;
+    expect(Object.keys(WEAKEN_BRANCH).sort()).toEqual([...floor].sort());
+    expect(floor.length).toBe(Object.keys(WEAKEN_BRANCH).length);
+    for (const requirement of floor) {
+      const r = runCheck({ ...STRONG_BOTH_ARMS(), ...WEAKEN_BRANCH[requirement] }, ["--json"]);
+      expect(verdictOf(r.stdout, "branch", "main"), `weakened: ${requirement}`).not.toBe("protected");
+      expect(factOf(r.stdout, "main", requirement), `fact for weakened row: ${requirement}`).not.toBe("held");
+    }
   });
 });
 

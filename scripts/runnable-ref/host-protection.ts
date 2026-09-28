@@ -20,19 +20,42 @@
 // omits them, any other answer reports them as `UNKNOWN - verify`); each `--branch <name>`
 // (repeatable); and one production deployment environment.
 //
-// BRANCH EVIDENCE, in order (measured endpoint behaviour: 33.1-RESEARCH.md § Q4):
-//   1. `rules/branches/<b>` 200 naming both `pull_request` and `non_fast_forward` → protected.
-//   2. `branches/<b>/protection` 200: each requirement (a pull request before merge, force pushes
-//      blocked) must be shown by the ruleset or by classic protection. Both shown → protected.
-//      One missing → unprotected, naming it, but only when the rule list was read in full;
-//      otherwise a ruleset might still cover it → UNKNOWN - verify.
-//   3. `/protection` 404 with body message `Branch not protected` (visible to admins) →
-//      unprotected when the rule list was read in full, else UNKNOWN - verify.
-//   4. `/protection` 404 with body message `Not Found` (what a non-admin sees, protected or not)
-//      → ask `branches/<b>`: `.protected === true` → UNKNOWN - verify (classic protection exists
-//      but its rules are not readable with this token); `.protected === false` with the rule list
-//      read in full → unprotected.
-//   5. Any other status, spawn error or unparseable output → UNKNOWN - verify, quoting the status.
+// BRANCH EVIDENCE: ONE CANONICAL TABLE (plan 33.1-17, CR-01). `BRANCH_FLOOR` below is the branch
+// floor, one row per item of the branch checklist in install/README.md §5 ("Git-host setup
+// checklist"), whose requirement strings it carries byte for byte (a test binds the two). A branch
+// is `protected` only when EVERY row is positively shown; no code path outside the table produces
+// `protected` for a branch. Each row is read from two arms, each read at most once per branch:
+//   - the ruleset arm, `rules/branches/<b>` (the active rules from every ruleset that applies).
+//     Read in full (200, a JSON array, no `Link: rel="next"`), read partially (a further page
+//     exists), or not read (any other answer, which is quoted).
+//   - the classic arm, `branches/<b>/protection`, asked only when the ruleset arm leaves some row
+//     not shown. 200 → its body is read field by field. 404 `Branch not protected` (what an admin
+//     sees) → the host shows no classic protection. 404 `Not Found` (what a non-admin sees,
+//     protected or not) → ask `branches/<b>`: `.protected === false` about the branch asked for →
+//     no classic protection; `.protected === true` → classic protection exists but its rules are
+//     not readable with this token. Anything else → not readable, quoting the status.
+//     (Measured endpoint behaviour: 33.1-RESEARCH.md § Q4.)
+// Each arm gives each row one of three states: `held` (positively shown), `failed` (read, and not
+// shown) or `unknown` (not readable). THE UNION RULE: GitHub enforces rulesets and classic branch
+// protection together, and when rules are aggregated "the most restrictive version of the rule
+// applies" (docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/
+// managing-rulesets/about-rulesets). So a row is `held` when EITHER arm shows it, `failed` only
+// when BOTH arms were read and neither shows it, and `unknown` otherwise. A weak arm never weakens
+// a strong one, and a row neither arm can read never counts as shown. On the ruleset arm a row not
+// shown is `failed` only when the rule list was read in full (a later page may carry the rule).
+// THE ABSENT-FIELD MAPPING: a field that is missing or of an unexpected type is never read as its
+// safe default. An approval count must be an integer (`Number.isInteger`) >= 1 to show the
+// approval row; an integer 0 does not show it; a missing or non-integer count is `unknown`. On a
+// classic 200 body, `allow_force_pushes` / `allow_deletions` must be objects with
+// `enabled === false` to show their row (`enabled === true` → `failed`, anything else →
+// `unknown`). A classic 200 body with no `required_pull_request_reviews` key is `failed` for the
+// pull-request and approval rows: whether GitHub omits the key when reviews are off is observed
+// behaviour, not documented, and `failed` is fail-safe because neither `failed` nor `unknown` is
+// ever `held`.
+// THE VERDICT: every row `held` → protected; any row `failed` → unprotected; otherwise
+// UNKNOWN - verify. The reason names each row that is not held with the evidence from both arms;
+// a protected reason names which arm showed each row. `--json` publishes the table
+// (`floor.branch`) and, per branch target, one `facts` entry per row.
 //
 // ENVIRONMENT EVIDENCE. `environments` 200: the named environment with a `required_reviewers`
 // rule whose `reviewers` list is non-empty → protected; present without one → unprotected;
@@ -52,9 +75,11 @@
 //     exit 2 → none `unprotected`, but at least one `UNKNOWN - verify`, or the check could not run.
 //              Exit 2 is never a pass.
 //     stdout → human-readable lines in CLEAR PROFESSIONAL VOICE (the audit trail)
-//     stdout → with --json, a { ok, targets: [{ kind, name, verdict, reason }], calls } block
-//              after the human lines; `calls` is the argv of every gh call, so a recorded note
-//              shows how each verdict was reached
+//     stdout → with --json, a { ok, floor: { branch }, targets: [{ kind, name, verdict, reason,
+//              facts? }], calls } block after the human lines; `floor.branch` is the BRANCH_FLOOR
+//              requirement strings in table order, every branch target carries `facts` (one
+//              { id, requirement, state, evidence } per row), and `calls` is the argv of every gh
+//              call, so a recorded note shows how each verdict was reached
 //
 // TEST SEAM. `--gh-script <path>` runs `node <path> <args…>` in place of `gh`. It exists so the
 // test suite can drive a Node stub instead of the network; the gate and release workflows never
@@ -73,18 +98,36 @@ import { join } from "node:path";
 
 // An unexpected failure must never surface as exit 1, which the contract reserves for "at least
 // one target is unprotected". Anything thrown is the "could not run" answer: exit 2.
+// The message is printed through printable() (IN-04): it may carry host text.
 process.on("uncaughtException", (err) => {
-  console.log(`HOST-PROTECTION: the check could not run (${err instanceof Error ? err.message : String(err)}) — UNKNOWN - verify`);
+  console.log(`HOST-PROTECTION: the check could not run (${printable(err instanceof Error ? err.message : String(err))}) — UNKNOWN - verify`);
   process.exit(2);
 });
 
 type Verdict = "protected" | "unprotected" | "UNKNOWN - verify";
+
+// One row's state on one arm, or combined across both: positively shown, read and not shown, or
+// not readable.
+type FactState = "held" | "failed" | "unknown";
+
+interface ArmReading {
+  state: FactState;
+  evidence: string;
+}
+
+interface Fact {
+  id: string;
+  requirement: string;
+  state: FactState;
+  evidence: string;
+}
 
 interface Target {
   kind: "branch" | "environment";
   name: string;
   verdict: Verdict;
   reason: string;
+  facts?: Fact[]; // present on every branch target
 }
 
 interface ApiResult {
@@ -184,15 +227,19 @@ function isObject(v: unknown): v is Record<string, unknown> {
 // How a call answered, for an UNKNOWN - verify reason: the problem, or the status and message.
 function answered(res: ApiResult): string {
   if (res.problem !== undefined) return res.problem;
-  const message = isObject(res.body) && typeof res.body.message === "string" ? ` (${res.body.message})` : "";
+  const message = isObject(res.body) && typeof res.body.message === "string" ? ` (${printable(res.body.message)})` : "";
   return `HTTP ${res.status}${message}`;
 }
 
 // Untrusted text (branch names, host messages) is printed with control characters replaced and
-// its length bounded, so a hostile value cannot rewrite the audit line it appears in.
-function printable(s: string): string {
+// its length bounded, so a hostile value cannot rewrite the audit line it appears in. A single host
+// value is bounded at 200 characters; a composed reason or fact evidence (our own text around host
+// values that were each bounded already) at REASON_MAX, since a branch reason names up to four
+// floor rows with the evidence from both arms.
+const REASON_MAX = 2000;
+function printable(s: string, max = 200): string {
   const clean = s.replace(/[\u0000-\u001f\u007f-\u009f]/g, "?");
-  return clean.length > 200 ? `${clean.slice(0, 200)}…` : clean;
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
 // A branch name this check will put in a REST path: git's own rules refuse the rest, and refusing
@@ -208,89 +255,227 @@ function branchPath(name: string): string {
   return name.split("/").map(encodeURIComponent).join("/");
 }
 
+// --- the branch floor -------------------------------------------------------------------------
+// The rules the ruleset arm read, and whether that was the whole list.
+interface RulesetArm {
+  read: "full" | "partial" | "none";
+  rules: Record<string, unknown>[]; // every rule object with a string `type` on the page read
+  why: string; // why the list was not read in full ("" when it was)
+}
+
+// What the classic arm read: a protection body, positive evidence that there is no classic
+// protection, or nothing readable.
+type ClassicArm =
+  | { kind: "body"; body: Record<string, unknown> }
+  | { kind: "none"; evidence: string }
+  | { kind: "unreadable"; evidence: string };
+
+interface FloorRow {
+  id: string;
+  requirement: string;
+  // Over the rules read: `held` when shown, `failed` when not shown on them, `unknown` when a
+  // qualifying rule is there but its field cannot be read. rulesetReading() turns `failed` into
+  // `unknown` when the list was not read in full.
+  fromRuleset: (rules: Record<string, unknown>[]) => ArmReading;
+  // Over a classic protection 200 body.
+  fromClassic: (body: Record<string, unknown>) => ArmReading;
+}
+
+function rulesOfType(rules: Record<string, unknown>[], type: string): Record<string, unknown>[] {
+  return rules.filter((r) => r.type === type);
+}
+
+// Which ruleset a rule came from, for the evidence line.
+function rulesetOf(rule: Record<string, unknown>): string {
+  const id = rule.ruleset_id;
+  return typeof id === "number" || typeof id === "string" ? `ruleset ${printable(String(id))}` : "an active ruleset";
+}
+
+// A rule of `type` on the ruleset arm shows the row by being present.
+function rulePresent(type: string): (rules: Record<string, unknown>[]) => ArmReading {
+  return (rules) => {
+    const found = rulesOfType(rules, type);
+    if (found.length > 0) return { state: "held", evidence: `${rulesetOf(found[0])} has a ${type} rule` };
+    return { state: "failed", evidence: `no active ruleset has a ${type} rule` };
+  };
+}
+
+// A classic `{ enabled }` object shows the row only when `enabled === false`.
+function classicDisabled(key: string): (body: Record<string, unknown>) => ArmReading {
+  return (body) => {
+    const v = body[key];
+    if (isObject(v) && v.enabled === false) return { state: "held", evidence: `classic ${key}.enabled is false` };
+    if (isObject(v) && v.enabled === true) return { state: "failed", evidence: `classic ${key}.enabled is true` };
+    return { state: "unknown", evidence: `classic protection carries no readable ${key}.enabled` };
+  };
+}
+
+// An approval count shows the approval row only as an integer >= 1.
+function approvalCount(count: unknown): FactState {
+  if (!Number.isInteger(count)) return "unknown";
+  return (count as number) >= 1 ? "held" : "failed";
+}
+
+// THE CANONICAL BRANCH FLOOR. Each `requirement` is byte-equal to a line of the branch checklist
+// in install/README.md §5; host-protection.test.ts binds the two both ways and holds a weakening
+// fixture per row. Nothing outside this table decides whether a branch is `protected`.
+const BRANCH_FLOOR: readonly FloorRow[] = [
+  {
+    id: "pull_request",
+    requirement: "requires a pull request before merging",
+    fromRuleset: rulePresent("pull_request"),
+    fromClassic: (body) => {
+      const rpr = body.required_pull_request_reviews;
+      if (isObject(rpr)) return { state: "held", evidence: "classic protection requires pull request reviews" };
+      if (rpr === undefined) return { state: "failed", evidence: "classic protection does not require pull request reviews" };
+      return { state: "unknown", evidence: "classic required_pull_request_reviews has an unexpected shape" };
+    },
+  },
+  {
+    id: "approving_review",
+    requirement: "requires at least one approving review",
+    fromRuleset: (rules) => {
+      const prs = rulesOfType(rules, "pull_request");
+      if (prs.length === 0) return { state: "failed", evidence: "no active ruleset has a pull_request rule" };
+      const counts = prs.map((r) => (isObject(r.parameters) ? r.parameters.required_approving_review_count : undefined));
+      const at = counts.findIndex((c) => approvalCount(c) === "held");
+      if (at >= 0) {
+        return { state: "held", evidence: `a pull_request rule in ${rulesetOf(prs[at])} requires ${String(counts[at])} approving review(s)` };
+      }
+      if (counts.some((c) => approvalCount(c) === "unknown")) {
+        return { state: "unknown", evidence: "a pull_request rule carries no integer required_approving_review_count" };
+      }
+      return { state: "failed", evidence: `every pull_request rule requires ${counts.map(String).join(", ")} approving reviews` };
+    },
+    fromClassic: (body) => {
+      const rpr = body.required_pull_request_reviews;
+      if (rpr === undefined) return { state: "failed", evidence: "classic protection does not require pull request reviews" };
+      if (!isObject(rpr)) return { state: "unknown", evidence: "classic required_pull_request_reviews has an unexpected shape" };
+      const count = rpr.required_approving_review_count;
+      const state = approvalCount(count);
+      if (state === "unknown") {
+        return { state, evidence: "classic protection carries no integer required_approving_review_count" };
+      }
+      return { state, evidence: `classic protection requires ${String(count)} approving review(s)` };
+    },
+  },
+  {
+    id: "no_force_push",
+    requirement: "blocks force pushes",
+    fromRuleset: rulePresent("non_fast_forward"),
+    fromClassic: classicDisabled("allow_force_pushes"),
+  },
+  {
+    id: "no_deletion",
+    requirement: "restricts deletions",
+    fromRuleset: rulePresent("deletion"),
+    fromClassic: classicDisabled("allow_deletions"),
+  },
+];
+
+function rulesetReading(row: FloorRow, arm: RulesetArm): ArmReading {
+  if (arm.read === "none") return { state: "unknown", evidence: arm.why };
+  const r = row.fromRuleset(arm.rules);
+  if (r.state === "failed" && arm.read === "partial") {
+    return { state: "unknown", evidence: `${r.evidence} on the first page, but ${arm.why}` };
+  }
+  return r;
+}
+
+function classicReading(row: FloorRow, arm: ClassicArm): ArmReading {
+  if (arm.kind === "body") return row.fromClassic(arm.body);
+  return { state: arm.kind === "none" ? "failed" : "unknown", evidence: arm.evidence };
+}
+
+// THE UNION RULE: held when either arm shows the row, failed only when both arms read it and
+// neither shows it, unknown otherwise.
+function combineArms(a: FactState, b: FactState): FactState {
+  if (a === "held" || b === "held") return "held";
+  if (a === "failed" && b === "failed") return "failed";
+  return "unknown";
+}
+
+// Every row `unknown`, for a branch target the check could not read at all.
+function unreadFacts(why: string): Fact[] {
+  return BRANCH_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, state: "unknown", evidence: why }));
+}
+
+function branchUnknown(name: string, reason: string): Target {
+  return { kind: "branch", name, verdict: "UNKNOWN - verify", reason, facts: unreadFacts(reason) };
+}
+
+function readRulesetArm(bp: string): RulesetArm {
+  const res = apiGet(`repos/{owner}/{repo}/rules/branches/${bp}?per_page=100`);
+  if (res.status === 200 && Array.isArray(res.body)) {
+    const rules = res.body.filter((r): r is Record<string, unknown> => isObject(r) && typeof r.type === "string");
+    return res.next
+      ? { read: "partial", rules, why: "the rule list runs past one page" }
+      : { read: "full", rules, why: "" };
+  }
+  return { read: "none", rules: [], why: `the rules endpoint answered ${answered(res)}` };
+}
+
+function readClassicArm(name: string, bp: string): ClassicArm {
+  const prot = apiGet(`repos/{owner}/{repo}/branches/${bp}/protection`);
+  if (prot.status === 200 && isObject(prot.body)) return { kind: "body", body: prot.body };
+  if (prot.status === 404 && isObject(prot.body) && prot.body.message === "Branch not protected") {
+    return { kind: "none", evidence: "the host reports no classic branch protection" };
+  }
+  if (prot.status === 404 && isObject(prot.body) && prot.body.message === "Not Found") {
+    const br = apiGet(`repos/{owner}/{repo}/branches/${bp}`);
+    // Only an answer about the branch that was asked for counts (a renamed branch's old name
+    // answers with the new branch's record).
+    if (br.status === 200 && isObject(br.body) && br.body.name === name) {
+      if (br.body.protected === true) {
+        return { kind: "unreadable", evidence: "classic protection present; its rules are not readable with this token" };
+      }
+      if (br.body.protected === false) return { kind: "none", evidence: "the branch reports no classic protection" };
+    }
+    return {
+      kind: "unreadable",
+      evidence: `the protection endpoint answered HTTP 404 (Not Found) and the branch endpoint answered ${answered(br)}`,
+    };
+  }
+  return { kind: "unreadable", evidence: `the protection endpoint answered ${answered(prot)}` };
+}
+
 // --- branch verdict ---------------------------------------------------------------------------
 function branchVerdict(name: string): Target {
-  const unknown = (reason: string): Target => ({ kind: "branch", name, verdict: "UNKNOWN - verify", reason });
-  if (!usableBranch(name)) return unknown("this is not a branch name the check can ask the host about");
+  if (!usableBranch(name)) return branchUnknown(name, "this is not a branch name the check can ask the host about");
   const bp = branchPath(name);
 
-  const rules = apiGet(`repos/{owner}/{repo}/rules/branches/${bp}?per_page=100`);
-  const types = new Set<string>();
-  let rulesRead = false; // the full list of active rules was read
-  if (rules.status === 200 && Array.isArray(rules.body)) {
-    for (const r of rules.body) if (isObject(r) && typeof r.type === "string") types.add(r.type);
-    rulesRead = !rules.next;
-  }
-  const rulePr = types.has("pull_request");
-  const ruleNoForce = types.has("non_fast_forward");
-  if (rulePr && ruleNoForce) {
-    return { kind: "branch", name, verdict: "protected", reason: "an active ruleset requires a pull request and blocks force pushes" };
-  }
-  const rulesUnread = rules.status === 200 ? "the rule list runs past one page" : `the rules endpoint answered ${answered(rules)}`;
+  const rulesetArm = readRulesetArm(bp);
+  const fromRules = BRANCH_FLOOR.map((row) => rulesetReading(row, rulesetArm));
+  // The classic arm is read only when the ruleset arm leaves some row not shown.
+  const classicArm: ClassicArm | undefined = fromRules.every((r) => r.state === "held") ? undefined : readClassicArm(name, bp);
+  const fromClassic = BRANCH_FLOOR.map((row): ArmReading =>
+    classicArm === undefined
+      ? { state: "unknown", evidence: "not read (the ruleset arm shows every item)" }
+      : classicReading(row, classicArm),
+  );
 
-  const prot = apiGet(`repos/{owner}/{repo}/branches/${bp}/protection`);
-  if (prot.status === 200 && isObject(prot.body)) {
-    const classicPr = isObject(prot.body.required_pull_request_reviews);
-    const force = prot.body.allow_force_pushes;
-    const classicNoForce = isObject(force) && force.enabled === false;
-    const pr = rulePr || classicPr;
-    const noForce = ruleNoForce || classicNoForce;
-    if (pr && noForce) {
-      return {
-        kind: "branch",
-        name,
-        verdict: "protected",
-        reason:
-          classicPr && classicNoForce
-            ? "classic branch protection requires pull request reviews and disables force pushes"
-            : "classic branch protection and an active ruleset together require a pull request and block force pushes",
-      };
-    }
-    const missing: string[] = [];
-    if (!pr) missing.push("a pull request review before merge is not required");
-    if (!noForce) missing.push("force pushes are not blocked");
-    if (rulesRead) return { kind: "branch", name, verdict: "unprotected", reason: missing.join(" and ") };
-    return unknown(`${missing.join(" and ")} by classic protection, but ${rulesUnread}, so a ruleset may still cover it`);
-  }
+  const facts: Fact[] = BRANCH_FLOOR.map((row, i) => ({
+    id: row.id,
+    requirement: row.requirement,
+    state: combineArms(fromRules[i].state, fromClassic[i].state),
+    evidence: `ruleset: ${fromRules[i].evidence}; classic: ${fromClassic[i].evidence}`,
+  }));
 
-  if (prot.status === 404 && isObject(prot.body)) {
-    const missingFromRules = [
-      ...(rulePr ? [] : ["requires a pull request"]),
-      ...(ruleNoForce ? [] : ["blocks force pushes"]),
-    ].join(" or ");
-    if (prot.body.message === "Branch not protected") {
-      if (rulesRead) {
-        return {
-          kind: "branch",
-          name,
-          verdict: "unprotected",
-          reason: `the host reports no classic branch protection, and no active ruleset ${missingFromRules}`,
-        };
-      }
-      return unknown(`the host reports no classic branch protection, but ${rulesUnread}`);
-    }
-    if (prot.body.message === "Not Found") {
-      const br = apiGet(`repos/{owner}/{repo}/branches/${bp}`);
-      if (br.status === 200 && isObject(br.body) && br.body.name === name) {
-        if (br.body.protected === true) {
-          return unknown("classic protection present; its rules are not readable with this token");
-        }
-        if (br.body.protected === false) {
-          if (rulesRead) {
-            return {
-              kind: "branch",
-              name,
-              verdict: "unprotected",
-              reason: `the branch reports no classic protection, and no active ruleset ${missingFromRules}`,
-            };
-          }
-          return unknown(`the branch reports no classic protection, but ${rulesUnread}`);
-        }
-      }
-      return unknown(`the protection endpoint answered HTTP 404 (Not Found) and the branch endpoint answered ${answered(br)}`);
-    }
+  if (facts.every((f) => f.state === "held")) {
+    const shownBy = facts.map((f, i) => {
+      const r = fromRules[i].state === "held";
+      const c = fromClassic[i].state === "held";
+      const arm = r && c ? "ruleset and classic protection" : r ? "ruleset" : "classic protection";
+      return `${f.requirement} (${arm})`;
+    });
+    return { kind: "branch", name, verdict: "protected", reason: `every branch floor item is shown: ${shownBy.join(", ")}`, facts };
   }
-  return unknown(`the protection endpoint answered ${answered(prot)}`);
+  const verdict: Verdict = facts.some((f) => f.state === "failed") ? "unprotected" : "UNKNOWN - verify";
+  const reason = facts
+    .filter((f) => f.state !== "held")
+    .map((f) => `${f.requirement}: ${f.state === "failed" ? "not shown" : "not readable"} (${f.evidence})`)
+    .join("; ");
+  return { kind: "branch", name, verdict, reason, facts };
 }
 
 // --- environment verdict ----------------------------------------------------------------------
@@ -375,7 +560,7 @@ if (ghScript !== undefined && !existsSync(ghScript)) {
 
 if (cannotAsk !== undefined) {
   for (const name of ["(default branch)", ...extraBranches]) {
-    targets.push({ kind: "branch", name, verdict: "UNKNOWN - verify", reason: cannotAsk });
+    targets.push(branchUnknown(name, cannotAsk));
   }
   targets.push({
     kind: "environment",
@@ -389,12 +574,7 @@ if (cannotAsk !== undefined) {
   if (repo.status === 200 && isObject(repo.body) && typeof repo.body.default_branch === "string") {
     names.push(repo.body.default_branch);
   } else {
-    targets.push({
-      kind: "branch",
-      name: "(default branch)",
-      verdict: "UNKNOWN - verify",
-      reason: `the repository endpoint answered ${answered(repo)}; the default branch is unknown`,
-    });
+    targets.push(branchUnknown("(default branch)", `the repository endpoint answered ${answered(repo)}; the default branch is unknown`));
   }
   for (const b of ["main", "master"]) {
     if (names.includes(b)) continue;
@@ -405,12 +585,7 @@ if (cannotAsk !== undefined) {
     if (res.status === 200 && isObject(res.body) && res.body.name === b) names.push(b);
     else if (res.status === 200 && isObject(res.body) && typeof res.body.name === "string") continue;
     else if (res.status !== 404) {
-      targets.push({
-        kind: "branch",
-        name: b,
-        verdict: "UNKNOWN - verify",
-        reason: `could not tell whether the branch exists: the branch endpoint answered ${answered(res)}`,
-      });
+      targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${answered(res)}`));
     }
   }
   for (const b of extraBranches) if (!names.includes(b)) names.push(b);
@@ -426,7 +601,7 @@ for (const t of targets) {
   if (t.verdict === "protected") p++;
   else if (t.verdict === "unprotected") u++;
   else k++;
-  console.log(`${t.kind} ${printable(t.name)}: ${t.verdict} — ${printable(t.reason)}`);
+  console.log(`${t.kind} ${printable(t.name)}: ${t.verdict} — ${printable(t.reason, REASON_MAX)}`);
 }
 console.log(`HOST-PROTECTION: ${p} protected, ${u} unprotected, ${k} UNKNOWN - verify`);
 const exitCode = u > 0 ? 1 : k > 0 ? 2 : 0;
@@ -435,7 +610,23 @@ if (wantJson) {
     JSON.stringify(
       {
         ok: exitCode === 0,
-        targets: targets.map((t) => ({ kind: t.kind, name: printable(t.name), verdict: t.verdict, reason: printable(t.reason) })),
+        floor: { branch: BRANCH_FLOOR.map((row) => row.requirement) },
+        targets: targets.map((t) => ({
+          kind: t.kind,
+          name: printable(t.name),
+          verdict: t.verdict,
+          reason: printable(t.reason, REASON_MAX),
+          ...(t.facts === undefined
+            ? {}
+            : {
+                facts: t.facts.map((f) => ({
+                  id: f.id,
+                  requirement: f.requirement,
+                  state: f.state,
+                  evidence: printable(f.evidence, REASON_MAX),
+                })),
+              }),
+        })),
         calls,
       },
       null,

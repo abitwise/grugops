@@ -3877,38 +3877,20 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).toContain("tools/grugops/host-protection.js (grugops runnable, byte-identical to source)");
   });
 
+  // The stub answers from the ONE all-protected fixture host-protection.test.ts also uses
+  // (plan 33.1-17), so the installed copy is judged against the same branch floor as the source.
+  const HOST_STRONG_FIXTURE = join(REPO_ROOT, "scripts", "runnable-ref", "fixtures", "host-strong.fixture.json");
+
   it("D-19 host check: the MATERIALIZED copy reports the default branch protected from ruleset evidence and exits 0", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const scratch = mkTmp();
     const fixture = join(scratch, "fixture.json");
-    const api = (path: string): string => `api --method GET -i ${path}`;
-    writeFileSync(
-      fixture,
-      JSON.stringify({
-        "auth status": { exit: 0 },
-        [api("repos/{owner}/{repo}")]: { status: 200, body: { default_branch: "main" } },
-        [api("repos/{owner}/{repo}/rules/branches/main?per_page=100")]: {
-          status: 200,
-          body: [{ type: "pull_request" }, { type: "non_fast_forward" }],
-        },
-        [api("repos/{owner}/{repo}/branches/master")]: { status: 404, body: { message: "Branch not found" } },
-        [api("repos/{owner}/{repo}/environments?per_page=100")]: {
-          status: 200,
-          body: {
-            total_count: 1,
-            environments: [
-              {
-                name: "prod",
-                protection_rules: [{ type: "required_reviewers", reviewers: [{ type: "User", reviewer: { login: "a" } }] }],
-              },
-            ],
-          },
-        },
-      }),
-    );
-    const r = spawnSync("node", [join(target, HOST_CHECK_REL), "--gh-script", GH_STUB], {
+    writeFileSync(fixture, readFileSync(HOST_STRONG_FIXTURE, "utf8"));
+    // The shared fixture's environment is `production`; the installed kit config's last
+    // `environments` entry is `prod`, so the environment is named explicitly.
+    const r = spawnSync("node", [join(target, HOST_CHECK_REL), "--gh-script", GH_STUB, "--env", "production"], {
       encoding: "utf8",
       cwd: target,
       env: { ...process.env, GH_STUB_FIXTURE: fixture, GH_STUB_LOG: join(scratch, "calls.log") },
