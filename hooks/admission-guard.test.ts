@@ -1,7 +1,7 @@
 // admission-guard.test.ts — GOV-01 per-call structured-channel deny/allow oracle (D-01, round 6).
 //
 // This is the HIGH-severity deny/allow oracle for the retargeted grugops admission guard. It mirrors
-// hooks/guard.test.ts: every case spawns the COMMITTED compiled admission-guard.js (never the .ts) as a
+// the retired Bash command guard's test (33.1 D-17): every case spawns the COMMITTED compiled admission-guard.js (never the .ts) as a
 // child process, pipes a STRUCTURED PreToolUse stdin JSON ({tool_name, tool_input:{by,kind,verified_by,
 // task,...}}), and asserts on the emitted deny JSON. A prompt cannot override a PreToolUse hook deny, so
 // this harness proves the mechanism actually blocks rather than trusting prose.
