@@ -429,13 +429,22 @@ your own pull requests, because GitHub does not let the author of a pull request
 add yourself to a bypass list to get around that, the check reports `unprotected`, because an agent
 working under your account could bypass the rule in the same way.
 
-For production:
+For production, keep a deployment environment that:
 
-- [ ] create a deployment environment with the name your deploy jobs use. The check below uses
-  `--env <name>` if you pass it, else the last entry of `environments` in
-  `.grugops/factory.config.json` (then the kit's default config), else `production`;
-- [ ] require at least one reviewer on that environment;
-- [ ] set a deployment branch policy, so only your protected branches can deploy to it.
+- [ ] has the name your deploy jobs use;
+- [ ] requires at least one reviewer;
+- [ ] prevents self-review;
+- [ ] does not let administrators bypass its protection rules;
+- [ ] allows deployments only from protected branches.
+
+On GitHub these are the environment's "Required reviewers" (with at least one reviewer named),
+"Prevent self-review", "Allow administrators to bypass configured protection rules" turned off, and a
+deployment branch policy of "Protected branches only". A custom branch policy is not read, so the
+check reports it as `UNKNOWN - verify`. The check finds the environment name in this order: the
+`--env <name>` flag; else the last entry of `environments` in `.grugops/factory.config.json`; else
+the last entry of `environments` in `agent-factory/config/factory.config.json`; else `production`.
+Both files are read relative to the directory the check runs in. A file that cannot be parsed, or
+whose `environments` is not a list ending in a name, is skipped.
 
 #### Check it
 

@@ -645,46 +645,143 @@ function environmentName() {
     }
     return { name: "production", source: 'the documented default (no --env flag and no usable "environments" list)' };
 }
+const NO_ENVIRONMENT = { state: "unknown", evidence: "there is no environment of that name to read" };
+// The environment's `required_reviewers` rules, or undefined when `protection_rules` is not an
+// array (an unexpected shape, never read as "no rules").
+function reviewerRules(env) {
+    if (!Array.isArray(env.protection_rules))
+        return undefined;
+    return env.protection_rules.filter((r) => isObject(r) && r.type === "required_reviewers");
+}
+// The reviewer rule whose fields the self-review row reads: the one naming a reviewer, else the
+// first `required_reviewers` rule.
+function reviewerRule(rules) {
+    return rules.find((r) => Array.isArray(r.reviewers) && r.reviewers.length > 0) ?? rules[0];
+}
+const ENVIRONMENT_FLOOR = [
+    {
+        id: "environment_exists",
+        requirement: "has the name your deploy jobs use",
+        // Not found is `unknown`, never `failed`: grugops cannot tell how production deploys run.
+        read: (env) => env === undefined
+            ? { state: "unknown", evidence: "the host lists no environment of that name" }
+            : { state: "held", evidence: "the host lists an environment of that name" },
+    },
+    {
+        id: "required_reviewer",
+        requirement: "requires at least one reviewer",
+        read: (env) => {
+            if (env === undefined)
+                return NO_ENVIRONMENT;
+            const rules = reviewerRules(env);
+            if (rules === undefined)
+                return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
+            const naming = rules.find((r) => Array.isArray(r.reviewers) && r.reviewers.length > 0);
+            if (naming !== undefined) {
+                const n = naming.reviewers.length;
+                return { state: "held", evidence: `a required_reviewers rule names ${n} reviewer${n === 1 ? "" : "s"}` };
+            }
+            if (rules.some((r) => !Array.isArray(r.reviewers))) {
+                return { state: "unknown", evidence: "a required_reviewers rule carries no readable reviewers list" };
+            }
+            return { state: "failed", evidence: "the environment has no required_reviewers rule that names a reviewer" };
+        },
+    },
+    {
+        id: "no_self_review",
+        requirement: "prevents self-review",
+        read: (env) => {
+            if (env === undefined)
+                return NO_ENVIRONMENT;
+            const rules = reviewerRules(env);
+            if (rules === undefined)
+                return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
+            const rule = reviewerRule(rules);
+            if (rule === undefined)
+                return { state: "failed", evidence: "the environment has no required_reviewers rule, so nothing prevents self-review" };
+            if (rule.prevent_self_review === true)
+                return { state: "held", evidence: "the required_reviewers rule has prevent_self_review true" };
+            if (rule.prevent_self_review === false)
+                return { state: "failed", evidence: "the required_reviewers rule has prevent_self_review false" };
+            return { state: "unknown", evidence: "the required_reviewers rule carries no boolean prevent_self_review" };
+        },
+    },
+    {
+        id: "no_admin_bypass",
+        requirement: "does not let administrators bypass its protection rules",
+        read: (env) => {
+            if (env === undefined)
+                return NO_ENVIRONMENT;
+            if (env.can_admins_bypass === false)
+                return { state: "held", evidence: "can_admins_bypass is false" };
+            if (env.can_admins_bypass === true)
+                return { state: "failed", evidence: "can_admins_bypass is true" };
+            return { state: "unknown", evidence: "the environment carries no boolean can_admins_bypass" };
+        },
+    },
+    {
+        id: "branch_policy",
+        requirement: "allows deployments only from protected branches",
+        read: (env) => {
+            if (env === undefined)
+                return NO_ENVIRONMENT;
+            const policy = env.deployment_branch_policy;
+            if (policy === null)
+                return { state: "failed", evidence: "deployment_branch_policy is null, so any branch can deploy" };
+            if (isObject(policy) && policy.protected_branches === true) {
+                return { state: "held", evidence: "deployment_branch_policy.protected_branches is true" };
+            }
+            if (isObject(policy) && policy.custom_branch_policies === true) {
+                return {
+                    state: "unknown",
+                    evidence: "the environment uses a custom deployment branch policy, and the check does not read which branches it allows",
+                };
+            }
+            return { state: "unknown", evidence: "the environment carries no readable deployment_branch_policy" };
+        },
+    },
+];
+// Every production floor row `unknown`, for an environment the check could not read at all.
+function unreadEnvironmentFacts(why) {
+    return ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, state: "unknown", evidence: why }));
+}
 function environmentVerdict(name, source) {
     const at = `; environment name from ${source}`;
     const res = apiGet("repos/{owner}/{repo}/environments?per_page=100");
-    if (res.status === 200 && isObject(res.body) && Array.isArray(res.body.environments)) {
-        const env = res.body.environments.find((e) => isObject(e) && e.name === name);
-        if (!isObject(env)) {
-            const why = res.next
-                ? `no environment named ${name} on the first page of a longer list`
-                : `no environment named ${name}`;
-            return {
-                kind: "environment",
-                name,
-                verdict: "UNKNOWN - verify",
-                reason: `${why}; grugops cannot tell how production deploys run${at}`,
-            };
-        }
-        const rules = Array.isArray(env.protection_rules) ? env.protection_rules : [];
-        const reviewers = rules.find((r) => isObject(r) && r.type === "required_reviewers" && Array.isArray(r.reviewers) && r.reviewers.length > 0);
-        if (isObject(reviewers) && Array.isArray(reviewers.reviewers)) {
-            const n = reviewers.reviewers.length;
-            return {
-                kind: "environment",
-                name,
-                verdict: "protected",
-                reason: `a required-reviewers rule names ${n} reviewer${n === 1 ? "" : "s"}${at}`,
-            };
-        }
+    if (!(res.status === 200 && isObject(res.body) && Array.isArray(res.body.environments))) {
+        const reason = `the environments endpoint answered ${answered(res)}`;
+        return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
+    }
+    const found = res.body.environments.find((e) => isObject(e) && e.name === name);
+    const env = isObject(found) ? found : undefined;
+    const facts = ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, ...row.read(env) }));
+    if (env === undefined) {
+        const why = res.next ? `no environment named ${name} on the first page of a longer list` : `no environment named ${name}`;
+        const reason = `${why}; grugops cannot tell how production deploys run`;
         return {
             kind: "environment",
             name,
-            verdict: "unprotected",
-            reason: `the environment has no required-reviewers rule that names a reviewer${at}`,
+            verdict: "UNKNOWN - verify",
+            reason: `${reason}${at}`,
+            // The environment_exists row keeps its own evidence; the rest name the reason.
+            facts: facts.map((f) => (f.id === "environment_exists" ? { ...f, evidence: reason } : f)),
         };
     }
-    return {
-        kind: "environment",
-        name,
-        verdict: "UNKNOWN - verify",
-        reason: `the environments endpoint answered ${answered(res)}${at}`,
-    };
+    if (facts.every((f) => f.state === "held")) {
+        return {
+            kind: "environment",
+            name,
+            verdict: "protected",
+            reason: `every production floor item is shown: ${facts.map((f) => `${f.requirement} (${f.evidence})`).join(", ")}${at}`,
+            facts,
+        };
+    }
+    const verdict = facts.some((f) => f.state === "failed") ? "unprotected" : "UNKNOWN - verify";
+    const reason = facts
+        .filter((f) => f.state !== "held")
+        .map((f) => `${f.requirement}: ${f.state === "failed" ? "not shown" : "not readable"} (${f.evidence})`)
+        .join("; ");
+    return { kind: "environment", name, verdict, reason: `${reason}${at}`, facts };
 }
 // --- the check --------------------------------------------------------------------------------
 const targets = [];
@@ -710,6 +807,7 @@ if (cannotAsk !== undefined) {
         name: env.name,
         verdict: "UNKNOWN - verify",
         reason: `${cannotAsk}; environment name from ${env.source}`,
+        facts: unreadEnvironmentFacts(cannotAsk),
     });
 }
 else {
@@ -761,7 +859,10 @@ const exitCode = u > 0 ? 1 : k > 0 ? 2 : 0;
 if (wantJson) {
     console.log(JSON.stringify({
         ok: exitCode === 0,
-        floor: { branch: BRANCH_FLOOR.map((row) => row.requirement) },
+        floor: {
+            branch: BRANCH_FLOOR.map((row) => row.requirement),
+            environment: ENVIRONMENT_FLOOR.map((row) => row.requirement),
+        },
         targets: targets.map((t) => ({
             kind: t.kind,
             name: printable(t.name),

@@ -86,13 +86,27 @@ const PROTECTION = (b: string): string => api(`repos/{owner}/{repo}/branches/${b
 const BRANCH = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}`);
 const ENVS = api("repos/{owner}/{repo}/environments?per_page=100");
 const REVIEWERS = [{ type: "User", reviewer: { login: "release-owner" } }];
-function envs(...list: Array<{ name: string; protection_rules?: unknown[] }>): unknown {
-  return { status: 200, body: { total_count: list.length, environments: list } };
-}
 function base(over: Fixture = {}): Fixture {
   // A fresh parse per call, so no case can mutate what another case reads.
   return { ...(JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture), ...over };
 }
+// The strong fixture's `production` environment (plan 33.1-20): a named reviewer, self-review
+// prevented, no administrator bypass, deployments only from protected branches.
+function strongEnv(): Record<string, unknown> {
+  return (base()[ENVS] as { body: { environments: Record<string, unknown>[] } }).body.environments[0];
+}
+// Each environment is built from the strong `production` shape unless a case overrides a field; an
+// override of `undefined` removes the key (JSON drops it), so a case can make a field absent.
+function envs(...list: Array<Record<string, unknown> & { name: string }>): unknown {
+  return { status: 200, body: { total_count: list.length, environments: list.map((e) => ({ ...strongEnv(), ...e })) } };
+}
+// A `required_reviewers` rule in the shape `GET environments` returns, strong unless overridden.
+const REVIEWER_RULE = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  type: "required_reviewers",
+  prevent_self_review: true,
+  reviewers: REVIEWERS,
+  ...over,
+});
 // A branch with no qualifying ruleset: rules 200 and empty, so the classic endpoints decide.
 const NO_RULES = { status: 200, body: [] };
 const TARGET_LINE = /^(branch|environment) (.+): (protected|unprotected|UNKNOWN - verify) — (.+)$/;
@@ -349,7 +363,7 @@ const branchLine = (stdout: string, name = "main"): string =>
 
 type JsonBlock = {
   ok: boolean;
-  floor: { branch: string[] };
+  floor: { branch: string[]; environment: string[] };
   targets: Array<{
     kind: string;
     name: string;
@@ -359,6 +373,30 @@ type JsonBlock = {
   }>;
   calls: string[][];
 };
+// Every `- [ ] ` list between `#### Git-host setup checklist` and the next heading, each item with
+// its `- [ ] ` prefix and one trailing `;` or `.` removed. install/README.md §5 is the one published
+// enumeration of the floor (plan 33.1-20): the first list is the branch floor, the second the
+// production floor. An item wrapped onto a second line would be cut short here and fail equality.
+function checklistLists(): string[][] {
+  const readme = readFileSync(join(HERE, "..", "..", "install", "README.md"), "utf8").split(/\r?\n/);
+  const heading = readme.findIndex((l) => l === "#### Git-host setup checklist");
+  expect(heading, "the checklist heading exists").toBeGreaterThan(-1);
+  const lists: string[][] = [];
+  let current: string[] | undefined;
+  for (let i = heading + 1; i < readme.length && !readme[i].startsWith("#"); i++) {
+    if (readme[i].startsWith("- [ ] ")) {
+      if (current === undefined) {
+        current = [];
+        lists.push(current);
+      }
+      current.push(readme[i].slice("- [ ] ".length).replace(/[;.]$/, ""));
+    } else {
+      current = undefined;
+    }
+  }
+  expect(lists.length, "the checklist has exactly two lists: branches, then production").toBe(2);
+  return lists;
+}
 function jsonBlock(stdout: string): JsonBlock {
   const lines = stdout.trim().split("\n");
   const at = lines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
@@ -368,6 +406,18 @@ function factOf(stdout: string, branch: string, requirement: string): string | u
   const t = jsonBlock(stdout).targets.find((x) => x.kind === "branch" && x.name === branch);
   return t?.facts?.find((f) => f.requirement === requirement)?.state;
 }
+// The first row of the production floor (plan 33.1-20).
+const ENV_EXISTS = "has the name your deploy jobs use";
+function envFacts(stdout: string, name: string): Array<{ id: string; requirement: string; state: string; evidence: string }> {
+  const t = jsonBlock(stdout).targets.find((x) => x.kind === "environment" && x.name === name);
+  expect(t?.facts, `facts on environment ${name}`).toBeDefined();
+  return t!.facts!;
+}
+function envFactOf(stdout: string, name: string, requirement: string): string | undefined {
+  return envFacts(stdout, name).find((f) => f.requirement === requirement)?.state;
+}
+const envLine = (stdout: string, name = "production"): string =>
+  targetLines(stdout).find((l) => l.startsWith(`environment ${name}:`)) ?? "";
 
 describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
   it("weak ruleset: a pull_request rule with 0 required approvals, list read in full, no classic protection → unprotected", () => {
@@ -533,19 +583,11 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
   });
 
   it("README drift: the first checklist list under `#### Git-host setup checklist` equals --json floor.branch, both ways", () => {
-    const readme = readFileSync(join(HERE, "..", "..", "install", "README.md"), "utf8").split(/\r?\n/);
-    const heading = readme.findIndex((l) => l === "#### Git-host setup checklist");
-    expect(heading, "the checklist heading exists").toBeGreaterThan(-1);
-    const first = readme.findIndex((l, i) => i > heading && l.startsWith("- [ ] "));
-    expect(first, "a checklist list follows the heading").toBeGreaterThan(heading);
-    const items: string[] = [];
-    for (let i = first; i < readme.length && readme[i].startsWith("- [ ] "); i++) {
-      items.push(readme[i].slice("- [ ] ".length).replace(/[;.]$/, ""));
-    }
+    const lists = checklistLists();
     const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.branch;
-    expect(items.length).toBeGreaterThan(0);
-    expect(items).toEqual(floor);
-    expect(floor).toEqual(items);
+    expect(lists[0].length).toBeGreaterThan(0);
+    expect(lists[0]).toEqual(floor);
+    expect(floor).toEqual(lists[0]);
   });
 
   // Each entry weakens ONE floor row on BOTH arms (the ruleset list is read in full and classic
@@ -938,15 +980,17 @@ describe("host-protection.js — the union matrix with bypass (CR-01, D-30)", ()
 });
 
 describe("host-protection.js — the production environment (D-19)", () => {
-  it("an environment with a required-reviewers rule naming a reviewer → protected", () => {
-    const r = runCheck(base());
+  it("the strong fixture's production (reviewer, self-review prevented, no admin bypass, protected-branch policy) → protected", () => {
+    const r = runCheck(base(), ["--json"]);
     expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(envFacts(r.stdout, "production").every((f) => f.state === "held")).toBe(true);
+    expect(r.status).toBe(0);
   });
 
   it("an environment without a reviewer-naming rule → unprotected, exit 1", () => {
     const r = runCheck(
       base({
-        [ENVS]: envs({ name: "production", protection_rules: [{ type: "wait_timer", wait_timer: 5 }, { type: "required_reviewers", reviewers: [] }] }),
+        [ENVS]: envs({ name: "production", protection_rules: [{ type: "wait_timer", wait_timer: 5 }, REVIEWER_RULE({ reviewers: [] })] }),
       }),
     );
     expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
@@ -954,34 +998,131 @@ describe("host-protection.js — the production environment (D-19)", () => {
   });
 
   it("no environment of that name → UNKNOWN - verify, saying grugops cannot tell how production deploys run", () => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "staging" }) }));
+    const r = runCheck(base({ [ENVS]: envs({ name: "staging" }) }), ["--json"]);
     expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
     expect(r.stdout).toContain("no environment named production; grugops cannot tell how production deploys run");
+    // An absent environment is not readable, never read-and-not-met.
+    expect(envFactOf(r.stdout, "production", ENV_EXISTS)).toBe("unknown");
+    expect(envFacts(r.stdout, "production").every((f) => f.state === "unknown")).toBe(true);
     expect(r.status).toBe(2);
   });
 
-  it("an environments call that is not a 200 → UNKNOWN - verify", () => {
-    const r = runCheck(base({ [ENVS]: { status: 404, body: { message: "Not Found" } } }));
+  it("an environments call that is not a 200 → UNKNOWN - verify, every environment fact unknown", () => {
+    const r = runCheck(base({ [ENVS]: { status: 404, body: { message: "Not Found" } } }), ["--json"]);
     expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(envFacts(r.stdout, "production").every((f) => f.state === "unknown")).toBe(true);
     expect(r.status).toBe(2);
+  });
+
+  // One row at a time, from the strong environment: [case, override, verdict, requirement named].
+  const ENV_CASES: Array<[string, Record<string, unknown>, string, string]> = [
+    ["prevent_self_review false", { protection_rules: [REVIEWER_RULE({ prevent_self_review: false })] }, "unprotected", "prevents self-review"],
+    ["prevent_self_review absent", { protection_rules: [REVIEWER_RULE({ prevent_self_review: undefined })] }, "UNKNOWN - verify", "prevents self-review"],
+    ['prevent_self_review "true" (a string)', { protection_rules: [REVIEWER_RULE({ prevent_self_review: "true" })] }, "UNKNOWN - verify", "prevents self-review"],
+    ["can_admins_bypass true", { can_admins_bypass: true }, "unprotected", "does not let administrators bypass its protection rules"],
+    ["can_admins_bypass absent", { can_admins_bypass: undefined }, "UNKNOWN - verify", "does not let administrators bypass its protection rules"],
+    ["can_admins_bypass null", { can_admins_bypass: null }, "UNKNOWN - verify", "does not let administrators bypass its protection rules"],
+    ["deployment_branch_policy null", { deployment_branch_policy: null }, "unprotected", "allows deployments only from protected branches"],
+    [
+      "a custom deployment branch policy",
+      { deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } },
+      "UNKNOWN - verify",
+      "allows deployments only from protected branches",
+    ],
+    ["deployment_branch_policy absent", { deployment_branch_policy: undefined }, "UNKNOWN - verify", "allows deployments only from protected branches"],
+    [
+      "deployment_branch_policy.protected_branches a string",
+      { deployment_branch_policy: { protected_branches: "true", custom_branch_policies: false } },
+      "UNKNOWN - verify",
+      "allows deployments only from protected branches",
+    ],
+    ["protection_rules empty", { protection_rules: [] }, "unprotected", "requires at least one reviewer"],
+    ["protection_rules absent", { protection_rules: undefined }, "UNKNOWN - verify", "requires at least one reviewer"],
+    ["protection_rules not an array", { protection_rules: { type: "required_reviewers" } }, "UNKNOWN - verify", "requires at least one reviewer"],
+    ["a required_reviewers rule with reviewers []", { protection_rules: [REVIEWER_RULE({ reviewers: [] })] }, "unprotected", "requires at least one reviewer"],
+    ["a required_reviewers rule with reviewers absent", { protection_rules: [REVIEWER_RULE({ reviewers: undefined })] }, "UNKNOWN - verify", "requires at least one reviewer"],
+  ];
+  for (const [name, over, verdict, requirement] of ENV_CASES) {
+    it(`${name} → ${verdict}, naming "${requirement}"`, () => {
+      const r = runCheck(base({ [ENVS]: envs({ name: "production", ...over }) }), ["--json"]);
+      expect(verdictOf(r.stdout, "environment", "production")).toBe(verdict);
+      expect(envLine(r.stdout)).toContain(requirement);
+      expect(envFactOf(r.stdout, "production", requirement)).toBe(verdict === "unprotected" ? "failed" : "unknown");
+      expect(r.status).toBe(verdict === "unprotected" ? 1 : 2);
+    });
+  }
+
+  it("no reviewer rule at all → the self-review row is read and not met (failed), never held", () => {
+    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [{ type: "wait_timer", wait_timer: 5 }] }) }), ["--json"]);
+    expect(envFactOf(r.stdout, "production", "prevents self-review")).toBe("failed");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+  });
+
+  it("reviewer identities are never printed: the evidence counts reviewers", () => {
+    const r = runCheck(base(), ["--json"]);
+    expect(r.stdout).not.toContain("release-owner");
+    expect(envLine(r.stdout)).toContain("1 reviewer");
+  });
+
+  it("--json publishes floor.environment in table order and one facts entry per row on the environment target", () => {
+    const block = jsonBlock(runCheck(base(), ["--json"]).stdout);
+    expect(block.floor.environment).toEqual([
+      ENV_EXISTS,
+      "requires at least one reviewer",
+      "prevents self-review",
+      "does not let administrators bypass its protection rules",
+      "allows deployments only from protected branches",
+    ]);
+    const t = block.targets.find((x) => x.kind === "environment")!;
+    expect(t.facts!.map((f) => f.requirement)).toEqual(block.floor.environment);
+    expect(t.facts!.map((f) => f.id)).toEqual(["environment_exists", "required_reviewer", "no_self_review", "no_admin_bypass", "branch_policy"]);
+    for (const f of t.facts!) expect(f.evidence.length).toBeGreaterThan(0);
+  });
+
+  it("README drift: the second checklist list under `#### Git-host setup checklist` equals --json floor.environment, both ways", () => {
+    const lists = checklistLists();
+    const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.environment;
+    expect(lists[1].length).toBeGreaterThan(0);
+    expect(lists[1]).toEqual(floor);
+    expect(floor).toEqual(lists[1]);
+  });
+
+  // One weakening per ENVIRONMENT_FLOOR row, each from the strong environment.
+  const WEAKEN_ENV: Record<string, Fixture> = {
+    [ENV_EXISTS]: { [ENVS]: envs({ name: "staging" }) },
+    "requires at least one reviewer": { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers: [] })] }) },
+    "prevents self-review": { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ prevent_self_review: false })] }) },
+    "does not let administrators bypass its protection rules": { [ENVS]: envs({ name: "production", can_admins_bypass: true }) },
+    "allows deployments only from protected branches": { [ENVS]: envs({ name: "production", deployment_branch_policy: null }) },
+  };
+
+  it("WEAKEN_ENV: its keys are exactly floor.environment, and weakening any one row turns production away from protected", () => {
+    const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.environment;
+    expect(Object.keys(WEAKEN_ENV).sort()).toEqual([...floor].sort());
+    expect(floor.length).toBe(Object.keys(WEAKEN_ENV).length);
+    for (const requirement of floor) {
+      const r = runCheck(base(WEAKEN_ENV[requirement]), ["--json"]);
+      expect(verdictOf(r.stdout, "environment", "production"), `weakened: ${requirement}`).not.toBe("protected");
+      expect(envFactOf(r.stdout, "production", requirement), `fact for weakened row: ${requirement}`).not.toBe("held");
+    }
   });
 
   it("environment name: --env wins over the config and the default, and the line names the source", () => {
     const cwd = mkTmp();
     mkdirSync(join(cwd, ".grugops"), { recursive: true });
     writeFileSync(join(cwd, ".grugops", "factory.config.json"), JSON.stringify({ environments: ["dev", "prod"] }));
-    const r = runCheck(base({ [ENVS]: envs({ name: "live", protection_rules: [{ type: "required_reviewers", reviewers: REVIEWERS }] }) }), ["--env", "live"], { cwd });
+    const r = runCheck(base({ [ENVS]: envs({ name: "live" }) }), ["--env", "live"], { cwd });
     expect(verdictOf(r.stdout, "environment", "live")).toBe("protected");
     expect(targetLines(r.stdout).find((l) => l.startsWith("environment live:"))).toContain("--env");
   });
 
-  it("environment name: the last `environments` entry of .grugops/factory.config.json, before the kit config", () => {
+  it("environment name: the last `environments` entry of .grugops/factory.config.json, before agent-factory/config/factory.config.json", () => {
     const cwd = mkTmp();
     mkdirSync(join(cwd, ".grugops"), { recursive: true });
     mkdirSync(join(cwd, "agent-factory", "config"), { recursive: true });
     writeFileSync(join(cwd, ".grugops", "factory.config.json"), JSON.stringify({ environments: ["dev", "staging", "prod"] }));
     writeFileSync(join(cwd, "agent-factory", "config", "factory.config.json"), JSON.stringify({ environments: ["kit-env"] }));
-    const r = runCheck(base({ [ENVS]: envs({ name: "prod", protection_rules: [{ type: "required_reviewers", reviewers: REVIEWERS }] }) }), [], { cwd });
+    const r = runCheck(base({ [ENVS]: envs({ name: "prod" }) }), [], { cwd });
     expect(verdictOf(r.stdout, "environment", "prod")).toBe("protected");
     expect(targetLines(r.stdout).find((l) => l.startsWith("environment prod:"))).toContain(".grugops/factory.config.json");
   });
@@ -992,7 +1133,7 @@ describe("host-protection.js — the production environment (D-19)", () => {
     mkdirSync(join(cwd, "agent-factory", "config"), { recursive: true });
     writeFileSync(join(cwd, ".grugops", "factory.config.json"), "{ not json");
     writeFileSync(join(cwd, "agent-factory", "config", "factory.config.json"), JSON.stringify({ environments: ["dev", "prod"] }));
-    const r = runCheck(base({ [ENVS]: envs({ name: "prod" }) }), [], { cwd });
+    const r = runCheck(base({ [ENVS]: envs({ name: "prod", protection_rules: [] }) }), [], { cwd });
     expect(verdictOf(r.stdout, "environment", "prod")).toBe("unprotected");
     expect(targetLines(r.stdout).find((l) => l.startsWith("environment prod:"))).toContain("agent-factory/config/factory.config.json");
   });
@@ -1023,6 +1164,15 @@ describe("host-protection.js — when the host cannot be asked, and the result c
     expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
     for (const l of targetLines(r.stdout)) expect(TARGET_LINE.exec(l)?.[3]).toBe("UNKNOWN - verify");
     expect(r.stdout).toMatch(/^HOST-PROTECTION: 0 protected, 0 unprotected, \d+ UNKNOWN - verify$/m);
+    expect(r.status).toBe(2);
+  });
+
+  it("`gh auth status` failing → the environment target still carries one unknown fact per floor row", () => {
+    const r = runCheck(base({ "auth status": { exit: 1 } }), ["--json"]);
+    const block = jsonBlock(r.stdout);
+    const facts = envFacts(r.stdout, "production");
+    expect(facts.map((f) => f.requirement)).toEqual(block.floor.environment);
+    expect(facts.every((f) => f.state === "unknown")).toBe(true);
     expect(r.status).toBe(2);
   });
 
@@ -1067,7 +1217,7 @@ describe("host-protection.js — when the host cannot be asked, and the result c
     expect(block.calls).toEqual(r.calls);
     expect(r.status).toBe(0);
 
-    const bad = runCheck(base({ [ENVS]: envs({ name: "production" }) }), ["--json"]);
+    const bad = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [] }) }), ["--json"]);
     const badLines = bad.stdout.trim().split("\n");
     const at = badLines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
     expect((JSON.parse(badLines.slice(at + 1).join("\n")) as { ok: boolean }).ok).toBe(false);
