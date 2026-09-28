@@ -49,6 +49,7 @@ import {
   installedPluginRow,
   installOutcome,
   isOutsideTargets,
+  isWriteShapedCommand,
   LIVE_OPS,
   liveAllowedTools,
   makeScratch,
@@ -71,6 +72,7 @@ import {
   REQUIRED_FLAGS,
   runCommandBuffered,
   runTarget,
+  SCRIPT_EXTENSIONS,
   spawnObservations,
   TMP_PREFIX,
   trackedFiles,
@@ -984,6 +986,59 @@ describe("WR-01 / WR-02: the note-route axis sees every route to disk — anchor
     // Equal write routes on both sides and the SAME reads difference: parity holds, as it should.
     const w = writes[0];
     expect(outcome(projectLivePath(stamps, [...FIXTURE.frames, w, toolUseFrame("Bash", { command: "ls .grugops/context" })], prefix), projectLivePath(stamps, [...FIXTURE.frames, w], prefix))).toBe("pass");
+  });
+});
+
+// ── WR-03 (33-close round-4 review, WINDOWS.md row 305): the parity docblock states the real ──────
+// property, and the counted write routes widen before the one live capture.
+//
+// `compareLivePaths` compares path A's count to path B's for EQUALITY. Adding or removing a counted
+// route can therefore turn an unequal pair equal in either direction, so the old claim ("adding a
+// word can only WIDEN the parity input ... never a false `pass`") was false. The counted set still
+// matters: a route one path took and the other did not is invisible to the axis unless it is counted.
+// These cases widen the set by the review's two concrete classes (Windows script extensions and
+// versioned interpreter names) and forbid the monotonicity sentences in the module source.
+
+describe("WR-03: the parity axis is described as the approximation it is, and counts Windows script routes and versioned interpreters", () => {
+  const base = noteRoute(FIXTURE.frames);
+  const plusOne = (block: StreamFrame): ReturnType<typeof noteRoute> => noteRoute([...FIXTURE.frames, block]);
+
+  it("WR-03 Windows scripts: a written .ps1, .psm1, .cmd or .bat whose content names the context root is one indirect write-shaped route", () => {
+    for (const ext of [".ps1", ".psm1", ".cmd", ".bat"]) {
+      expect(SCRIPT_EXTENSIONS, `SCRIPT_EXTENSIONS names ${ext}`).toContain(ext);
+      const r = plusOne(toolUseFrame("Write", { file_path: `C:\\t\\x${ext}`, content: "Set-Content .grugops\\context\\T\\notes\\n.md 'x'" }));
+      expect(r.indirectContextWrites, `a written ${ext} naming the root is counted`).toBe(base.indirectContextWrites + 1);
+      expect(r.directContextWrites, ext).toBe(base.directContextWrites);
+      // Upper-case extensions are the same file on the platforms that run them.
+      expect(plusOne(toolUseFrame("Write", { file_path: `/tmp/X${ext.toUpperCase()}`, content: "write .grugops/context/T/notes/n.md" })).indirectContextWrites, `${ext.toUpperCase()}`).toBe(base.indirectContextWrites + 1);
+    }
+  });
+
+  it("WR-03 versioned interpreters: python3.12, node22 and bash5.2 match the write-word rule; the unversioned names still match; a word that only starts with an interpreter name does not", () => {
+    for (const command of ["python3.12 x.py .grugops/context", "/usr/bin/python3.12 x.py", "node22 x.mjs", "bash5.2 run.sh", "ruby3.3 w.rb", "perl5.36 w.pl"]) {
+      expect(isWriteShapedCommand(command), `a versioned interpreter is write-shaped: ${command}`).toBe(true);
+    }
+    for (const command of ["python x.py", "python3 x.py", "node x.mjs", "bash run.sh"]) {
+      expect(isWriteShapedCommand(command), `the unversioned name still matches: ${command}`).toBe(true);
+    }
+    for (const command of ["pythonic x", "nodes x", "node_modules/.bin/foo", "bashful x", "python3x y", "ls .grugops/context"]) {
+      expect(isWriteShapedCommand(command), `not an interpreter word: ${command}`).toBe(false);
+    }
+    // Through the route axis: a versioned interpreter run naming the root is one indirect write.
+    expect(plusOne(toolUseFrame("Bash", { command: "python3.12 admit.py .grugops/context/T/notes/n.md" })).indirectContextWrites).toBe(base.indirectContextWrites + 1);
+  });
+
+  it("WR-03 docblock: no comment in the module claims that changing the counted set can only widen parity or cannot make a false pass reachable, and the equality property is stated", () => {
+    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
+    for (const claim of ["can only WIDEN", "never a false `pass`", "cannot make a false `pass` reachable", "the fail-safe direction", "over-count is the fail-safe"]) {
+      expect(src.includes(claim), `the monotonicity claim survives: "${claim}"`).toBe(false);
+    }
+    const at = src.indexOf("export const WRITE_SHAPED_COMMAND_WORDS");
+    expect(at, "premise: the word list is still exported").toBeGreaterThan(0);
+    const docblock = src.slice(src.lastIndexOf("/**", at), at);
+    expect(docblock, "the docblock names the equality comparison").toMatch(/equality/i);
+    expect(docblock, "the docblock calls the axis an approximation").toMatch(/approximation/i);
+    expect(docblock, "the docblock names a route still not counted").toMatch(/curl -o|wget -O/);
   });
 });
 
