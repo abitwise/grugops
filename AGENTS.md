@@ -101,6 +101,7 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 - Do not run destructive commands.
 - Never merge a protected branch. Never deploy prod without human confirmation.
 - Do not change dependencies without reason. No unrelated refactors. No fake results.
+- Enforcement: the git host (branch protection, deployment environments) is the hard floor; the installer's Claude Code ask rules are a speed bump; see `install/README.md` §5.
 
 <!-- generated: guarantees-pointer -->
 Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](docs/GUARANTEES.md).

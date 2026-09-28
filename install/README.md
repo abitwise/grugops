@@ -136,6 +136,11 @@ In the **target repo**:
   existing content is preserved)
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"` (read-modify-write; other
   keys are preserved, never clobbered)
+- `.claude/settings.json` — the Claude Code ask rules described in §5 are added to
+  `permissions.ask` (additive; your own rules and keys are kept, and the added rules are recorded
+  so uninstall removes exactly those)
+- `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
+  `tools/grugops/host-protection.js` (§5)
 - an optional `.github/copilot-instructions.md` pointer
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
@@ -165,7 +170,13 @@ checkout, add **`--allow-self`** (or `--force`), the same override the installer
 `uninstall.js` removes **only** the grugops-owned wiring it added to the target: the skills, the
 Orchestrator wrapper, the materialized resolver adapters, the sentinel-delimited `CLAUDE.md` and
 Copilot pointer blocks (the rest of those files stays exactly as it was), the `AGENTS.md` entry
-it added to the Gemini settings, and the `.grugops/install.json` marker.
+it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule you had before
+install stays), the runnable checks under `tools/grugops/` that are still byte-identical to what it
+wrote, and the `.grugops/install.json` marker.
+
+One known exception to "a preview changes nothing": `DRY_RUN=1 node install/uninstall.js` can
+remove a grugops directory that is already empty (for example an empty `.claude/skills/`). It
+never removes a file or a non-empty directory. This is recorded and not yet fixed.
 
 It deliberately does **not** touch:
 
@@ -349,8 +360,9 @@ grugops-owned wiring + the install marker while the shared kit, the seeded state
 ## 3. The Claude Code plugin path (versioned, shareable)
 
 Claude Code can also install grugops as a plugin, which gives you the colon-namespaced
-commands (`/grugops:plan`, `/grugops:ticket`, …) and ships the mechanical deploy guard. In
-Claude Code:
+commands (`/grugops:plan`, `/grugops:ticket`, …). The plugin form cannot carry Claude Code
+permission rules, so it adds no ask-rule speed bump; only the scripted installer writes those (§5).
+In Claude Code:
 
 ```
 /plugin marketplace add abitwise/grugops   # UNKNOWN - verify against current tool docs
@@ -381,55 +393,146 @@ contract as the scripts above, driven by the agent instead of your shell.
 
 ---
 
-## 5. Safety: the production-deploy guard (please read this in plain English)
+## 5. Safety: where each rule is enforced (please read this in plain English)
 
 The hard rule never changes: **grugops never merges a protected branch and never deploys to
 production without named human confirmation. Humans decide; agents execute.** How that rule is
-*enforced* differs by tool, and it is important to be honest about the difference.
+*enforced* is a separate question, and this section answers it honestly. There are three tiers.
+Only the first one holds whatever command an agent types.
 
-- **Claude Code — mechanical.** The plugin ships a `PreToolUse` hook (`hooks/hooks.json` →
-  `hooks/guard.js`) that **denies** any command matching a production-deploy pattern unless a
-  human has exported the approval environment variable in the shell that launched Claude. The
-  guard also **refuses** any command that tries to set that variable inline, so the agent
-  cannot approve itself, and it **fails closed**. This pairs with the config flag
-  `production_requires_human_confirmation: true`. A prompt cannot talk its way past a
-  `PreToolUse` deny — that is the point.
+### (a) Hard floor — the git host
 
-- **Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI — procedural fallback.** These four
-  tools have no equivalent pre-tool hook, so there is **no mechanical guard** on them. They
-  rely on the **`checkpoints` matrix** read procedurally — `checkpoints.open_pr` and
-  `checkpoints.production_requires_human_confirmation`, both at their `block` default: the
-  Orchestrator and Release Manager stop at a pull request, and a named human performs the
-  merge and the production deploy. This is the same rule, enforced by procedure and by the
-  prompt-level safety rule rather than by code.
+Your git host's protection (branch protection or rulesets, and deployment environments) is the only
+tier that sees every push and merge, and every deployment that runs through its deployment
+environments, whatever command started it. It is the guarantee; the two tiers below sit in front of
+it. **grugops never configures your git host for you.** You set it up with the checklist below, and
+grugops checks it read-only.
 
-Be clear with yourself about this asymmetry: **the mechanical guard protects Claude Code only.**
-On the other four tools, production safety rests on the procedurally-read `checkpoints` matrix
-and your own discipline. Do not assume the guard is watching where it is not.
+#### Git-host setup checklist
 
-**Known limitation — the guard only sees Bash commands.** The hook's matcher is `"Bash"`, so the
-guard inspects the command of a `Bash` tool call and nothing else. A deploy command that does not
-transit the Bash tool is not seen by it. Two concrete gaps to be honest about:
+For each protected branch (your default branch, `main`, `master`, and any release branches you
+use), add a branch protection rule or a ruleset that:
 
-- An agent that writes a deploy command into a script with the `Write`/`Edit` tool and then runs
-  it through some non-Bash mechanism is outside the matcher's view.
-- Trivial shell indirection such as `K=kubectl; $K apply -f x` defeats the literal tool-name
-  patterns — the guard does not expand variables. This is documented as out of scope, not fixed.
+- [ ] requires a pull request before merging;
+- [ ] requires at least one approving review;
+- [ ] blocks force pushes;
+- [ ] restricts deletions.
 
-So the mechanical guard is a strong, prompt-proof backstop **for deploys that run through the Bash
-tool**, not a complete sandbox. The real, tool-independent backstop is the **`checkpoints` matrix**
-at its `block` defaults: the agent stops at a pull request and a named human performs the merge and
-the production deploy. On Claude Code, lowering a floor-tier cell additionally takes a human-set
-`GRUGOPS_FLOOR_<ID>` session variable, so an agent editing configuration alone changes nothing.
-Treat the Bash guard as defense-in-depth on top of that matrix, never as the only thing standing
-between an agent and production.
+For production:
 
-The installer **never** sets the approval environment variable — only a human may. And the
-`grugops-release` skill ships with `disable-model-invocation: true`, so the agent can never
-auto-fire a release on any tool.
+- [ ] create a deployment environment with the name your deploy jobs use. The check below uses
+  `--env <name>` if you pass it, else the last entry of `environments` in
+  `.grugops/factory.config.json` (then the kit's default config), else `production`;
+- [ ] require at least one reviewer on that environment;
+- [ ] set a deployment branch policy, so only your protected branches can deploy to it.
 
-Verify the hook schema and the per-tool checkpoint behavior against current tool docs
-(`code.claude.com/docs/en/hooks`) before you depend on them.
+#### Check it
+
+```sh
+node tools/grugops/host-protection.js
+```
+
+The installer places this script in your repository. It asks the git host, through read-only
+`gh api` GET requests, whether the default branch, `main`/`master`, any branch you name with
+`--branch <name>` (repeatable) and the production environment are protected. It prints one line per
+target with one of three words:
+
+- `protected` — the host showed positive evidence: a ruleset, classic branch protection, or required
+  reviewers on the environment.
+- `unprotected` — the host answered, and the protection is missing.
+- `UNKNOWN - verify` — the check could not tell: no `gh`, not authenticated, no permission to read
+  the setting, or an ambiguous answer. Treat it as not verified. It never counts as protected.
+
+Exit codes: `0` every target is protected; `1` at least one target is unprotected; `2` otherwise,
+including when the check could not run. `--json` adds the full record of every call it made. The
+check is read-only and needs an authenticated `gh` (`gh auth status`). The PR quality gate
+(workflow 05) and the release (workflow 12) run it and record the result; the release still needs
+the named human confirmation whatever the check reports.
+
+### (b) Speed bump — Claude Code ask rules (standalone install only)
+
+The scripted installer (§2) reads `checkpoints.protected_branch_merge` and
+`checkpoints.production_requires_human_confirmation` from `.grugops/factory.config.json` (or, when
+that file is absent, from the kit's default config) and adds Claude Code ask rules to
+`permissions.ask` in your repository's `.claude/settings.json`:
+
+- `protected_branch_merge` → rules for `git push` and `gh pr merge`;
+- `production_requires_human_confirmation` → rules for the deploy and publish tools (kubectl, helm,
+  terraform, gcloud, aws, serverless, fly, `vercel --prod`, and the npm, yarn and pnpm publish
+  forms).
+
+At `block` (the default), and at any value the installer does not recognise, the rules are
+written. At `notify` or `off`, no rules are written. Lowering a checkpoint later does not remove
+rules an earlier install wrote: the installer reports how many remain, and uninstall removes them.
+The writes follow the installer contract. They are additive (your own rules and keys stay),
+idempotent, skipped under `DRY_RUN=1`, and recorded in `.grugops/install.json`, so `uninstall.js`
+removes exactly the rules install added and nothing else. `--check` reports whether each recorded
+rule is still present. If `.claude/settings.json` cannot be parsed, the installer leaves it
+untouched and exits `3`. One formatting note: when the installer adds rules to an existing
+`.claude/settings.json`, it writes the file back as 2-space JSON. Your values and key order are
+kept; your original whitespace is not.
+
+**What an ask rule does.** Claude Code asks you before it runs a matching command. In a
+non-interactive `claude -p` run, where nobody can answer, a matching command is denied. This was
+measured on Claude Code 2.1.283 in six permission configurations, including when the command was
+also allow-listed; the evidence and the harness are committed under
+`.planning/phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-ASK-P-MODE-EVIDENCE.md`.
+
+**Why it is a speed bump and not a guarantee.** The rules cover the command spellings an agent
+usually produces. The Claude Code documentation says that such a Bash rule "covers the invocation
+Claude usually produces and isn't a security boundary around the program"
+([code.claude.com/docs/en/permissions](https://code.claude.com/docs/en/permissions)). Other
+spellings of the same command are not matched. The ask rules are not a security boundary: treat them
+as a prompt in front of the git host, not as the thing that stops a merge or a deploy.
+
+**The plugin form has no speed bump.** A Claude Code plugin cannot carry permission rules, so a
+plugin-only install (§3) writes no ask rules. Only the scripted installer does. With the plugin
+form alone, the git host is your only mechanical tier.
+
+### (c) Prose — the role and workflow rules
+
+Everything else is written rules that the roles read. The Orchestrator and the Release Manager stop
+at a pull request, and a named human performs the merge and the production deploy (workflow 12).
+Two checkpoints are prose only, and no mechanism enforces them (33.1 D-26):
+
+- `checkpoints.open_pr` — the agent stops at a pull request instead of carrying the change further;
+- `checkpoints.test_integrity` — weakened or skipped tests are surfaced at the gate.
+
+Lowering either one in configuration is a decision recorded in git history; nothing blocks it. The
+`grugops-release` skill ships with `disable-model-invocation: true`, so Claude Code does not start a
+release on its own; a human invokes it.
+
+### What changed: the Bash command guard is retired
+
+Earlier releases shipped a Claude Code hook that tried to recognise production deploys from the
+text of a Bash command. It was retired by 33.1 D-17, because no parser of shell text could be
+closed: each round of fixes left other ways to write the same command. Mechanical enforcement now
+means the git host plus the ask rules above, and grugops makes no promise that depends on reading
+shell text. The one hook grugops still ships is the MCP admission gate for the shared verified
+context, which checks structured tool calls, not shell text.
+
+### Other tools (documentation only)
+
+grugops generates no approval configuration for Codex CLI, Gemini CLI, OpenCode or GitHub Copilot
+CLI. Each has its own approval mode, which you configure yourself. The notes below come from each
+tool's documentation and are **not verified by grugops**; confirm them against the current docs
+before you rely on them. On every tool, the git host is the hard floor.
+
+- **OpenCode** — `permission.bash` in `opencode.json` takes command patterns mapped to `allow`,
+  `ask` or `deny`, and the last matching rule wins (opencode.ai/docs/permissions). Not verified by
+  grugops.
+- **GitHub Copilot CLI** — `--deny-tool` denies a tool or a shell command pattern (for example
+  `--deny-tool='shell(git push)'`), and deny rules take precedence over allow rules
+  (docs.github.com/en/copilot/how-tos/copilot-cli/allowing-tools). Not verified by grugops.
+- **Gemini CLI** — the policy engine reads TOML policies (`~/.gemini/policies/*.toml`) that match a
+  `commandPrefix` and can decide `ask_user`; in non-interactive mode `ask_user` is treated as `deny`
+  (geminicli.com/docs/reference/policy-engine). Not verified by grugops.
+- **Codex CLI** — approval policies and sandbox modes decide when Codex asks before it runs a
+  command. The syntax for a rule that matches a specific command is `UNKNOWN - verify`; check the
+  current Codex documentation before relying on it.
+
+Verify the Claude Code permission behaviour against current tool docs
+(`code.claude.com/docs/en/permissions`, `code.claude.com/docs/en/settings`) before you depend on it.
 
 ---
 
@@ -482,6 +585,10 @@ The installer writes **no main-thread wiring into your repository** — no `.cla
 - Such an entry would make **every** session in that repository run as the grugops coordinator,
   including a session you opened only to fix a typo in a readme.
 - Settings files are **your** content, and grugops is additive: it never overwrites what you own.
+
+The one thing the installer does add to `.claude/settings.json` is the ask rules of §5, in
+`permissions.ask`. That write is additive (your own rules and keys stay), recorded in
+`.grugops/install.json`, and reversed by `uninstall.js`, which removes only the rules install added.
 
 So the flag is the full-capability path this kit documents, and you type it in the sessions where
 you want it. What is deliberately **not** claimed here: the platform documents the
