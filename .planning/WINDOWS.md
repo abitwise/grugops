@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 237
+open_count: 236
 waived_count: 27
-fixed_count: 45
+fixed_count: 46
 total_count: 309
-last_updated: 2026-09-28T12:38:29.734Z
+last_updated: 2026-09-28T12:45:29.999Z
 ---
 
 # Broken Windows Ledger
@@ -323,7 +323,7 @@ last_updated: 2026-09-28T12:38:29.734Z
 | 306 | 33 | deviation | hooks/guard.test.ts | 2382 | 33-close round-4 review (33-REVIEW.md, commit f20f1af5) WR-04, accepted OPEN at the phase close (D-33-R4-08): the allow-control assertions in the spawn harness pass on a crash or a timeout. runAll (:2382-2407) resolves with whatever stdout arrived; after a SIGKILL on timeout, or a child that throws before writing, it resolves with an empty string, and the allow controls (:2536-2538, :2593-2594) assert only that no permissionDecision appears, which an empty stdout satisfies. So a guard that crashes on those inputs still passes the allows half; the exit status is never recorded. Deny assertions are unaffected. Fix direction: resolve with stdout, exit code and signal, and for allow controls also assert code 0 and signal null. Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | waived | dissolved — guard retired (D-17), 1b240a14 | 2026-09-25T09:08:14.007Z | 2026-09-28T11:12:21.867Z |
 | 307 | 33 | deviation | scripts/context-io.ts | 1926 | 33-close round-4 review (33-REVIEW.md, commit f20f1af5) IN-01, accepted OPEN at the phase close (D-33-R4-08): the pre-check appendNote now runs (decideNoteDestination, :1926) raises errors spelled context-io.writeNoteFile (messages at :1501-1566) before admit() and outside appendNote's own wrapping, so the message names a function that was not called; admitAndAppend does wrap them, so the siblings are inconsistent. Fix direction: wrap the pre-check in appendNote's own refusal framing, or drop the function prefix from the shared messages. Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | fixed |  | 2026-09-25T09:08:14.096Z | 2026-09-28T12:01:46.552Z |
 | 308 | 33 | deviation | scripts/checkpoints.ts | 1880 | 33-close round-4 review (33-REVIEW.md, commit f20f1af5) IN-02, accepted OPEN at the phase close (D-33-R4-08): under xargs an adjacent benign word decides (:1880-1891), and several benign words LAUNCH other commands whose arguments then come from stdin (npm, yarn and pnpm exec; git submodule foreach; git bisect run; git rebase -x). Reachable today only when the stdin text is invisible on the line, which is the ledgered formatter-assembles-and-pipes class; the docblock at :1596-1631 does not name it. Fix direction: remove launcher-shaped words from the adjacency exemption under a stdin feed, or add the class to the failClosedCheckpoints residual list. Handle with the CR-01/CR-02 guard work (D-33-R4-06). Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | waived | dissolved — guard retired (D-17), 1b240a14 | 2026-09-25T09:08:14.184Z | 2026-09-28T11:12:21.954Z |
-| 309 | 33 | deviation | CLAUDE.md | 89 | 33-close owed follow-up recorded by human decision D-33-R4-04 (2026-09-25): CLAUDE.md states that subagents cannot spawn subagents (no nesting), but on Claude Code 2.1.281 the round-4 capture shows a subagent spawning subagents: the coordinator adapter spawned as a subagent (A:80) spawned grugops-brownfield-mapper (A:313) and grugops-architect-design (A:711), each with own-session evidence (33-R4-DIAGNOSIS.md section 1). Whether the platform GUARANTEES nesting is UNKNOWN - verify. CLAUDE.md was deliberately NOT edited at the Phase 33 close. The correction is owed once the platform behaviour is verified from a primary source, and the kit texts that rely on the no-nesting premise (the Orchestrator-as-main-thread design) are re-checked with it. Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | open |  | 2026-09-25T09:08:14.273Z |  |
+| 309 | 33 | deviation | CLAUDE.md | 89 | 33-close owed follow-up recorded by human decision D-33-R4-04 (2026-09-25): CLAUDE.md states that subagents cannot spawn subagents (no nesting), but on Claude Code 2.1.281 the round-4 capture shows a subagent spawning subagents: the coordinator adapter spawned as a subagent (A:80) spawned grugops-brownfield-mapper (A:313) and grugops-architect-design (A:711), each with own-session evidence (33-R4-DIAGNOSIS.md section 1). Whether the platform GUARANTEES nesting is UNKNOWN - verify. CLAUDE.md was deliberately NOT edited at the Phase 33 close. The correction is owed once the platform behaviour is verified from a primary source, and the kit texts that rely on the no-nesting premise (the Orchestrator-as-main-thread design) are re-checked with it. Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row). | fixed |  | 2026-09-25T09:08:14.273Z | 2026-09-28T12:45:29.999Z |
 
 ````json
 [
@@ -4162,10 +4162,10 @@ last_updated: 2026-09-28T12:38:29.734Z
     "file": "CLAUDE.md",
     "line": 89,
     "description": "33-close owed follow-up recorded by human decision D-33-R4-04 (2026-09-25): CLAUDE.md states that subagents cannot spawn subagents (no nesting), but on Claude Code 2.1.281 the round-4 capture shows a subagent spawning subagents: the coordinator adapter spawned as a subagent (A:80) spawned grugops-brownfield-mapper (A:313) and grugops-architect-design (A:711), each with own-session evidence (33-R4-DIAGNOSIS.md section 1). Whether the platform GUARANTEES nesting is UNKNOWN - verify. CLAUDE.md was deliberately NOT edited at the Phase 33 close. The correction is owed once the platform behaviour is verified from a primary source, and the kit texts that rely on the no-nesting premise (the Orchestrator-as-main-thread design) are re-checked with it. Owner: the next phase (a new inserted phase is recommended to carry Phase 33 open items; Phase 34 is not re-scoped by this row).",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-25T09:08:14.273Z",
-    "resolved_at": null,
+    "resolved_at": "2026-09-28T12:45:29.999Z",
     "milestone": "v2.1"
   }
 ]
