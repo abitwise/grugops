@@ -13637,6 +13637,122 @@ describe("33-38 — admitAndAppend's gated branch decides occupancy before its G
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33.1-12 — WR-01 (WINDOWS.md row 303): an IDENTICAL re-append records ONE GOV-02 line.
+//
+// 33-38 decided occupancy before the ledger, and let identical bytes "fall through, exactly as the
+// chokepoint decides them". On that path `admit()` still appended a GOV-02 event under
+// `audit_retention: retained`, and then the write was a no-op — so a re-run with the same
+// `precomputedId` left a SECOND ledger line keyed by one id. `promoteAdmitted` already asks
+// `ledgerRecordsId` before its append (D-19 (4)); these cases pin the same rule on `appendNote`,
+// and pin that the rule skips ONLY the append: admission validation still runs, and an unreadable
+// ledger still refuses.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33.1-12 — WR-01: appendNote records an identical re-append once", () => {
+  const TASK = "T-1";
+  const BODY = "the re-appended body";
+  const ID = "20260928T010000Z-qe-observation-wr01aaaa";
+
+  function repo(prefix: string, context: Record<string, unknown>): { root: string; store: string } {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops", "context"), { recursive: true });
+    writeFileSync(join(root, ".grugops", "factory.config.json"), JSON.stringify({ context }));
+    return { root, store: join(root, ".grugops", "context") };
+  }
+  function ledgerPathOf(root: string): string {
+    return join(root, ".grugops", "audit", "admissions.jsonl");
+  }
+  function linesFor(root: string, id: string): number {
+    const p = ledgerPathOf(root);
+    if (!existsSync(p)) return 0;
+    return readFileSync(p, "utf8")
+      .split("\n")
+      .filter((l) => l.trim() !== "")
+      .filter((l) => (JSON.parse(l) as { id?: string }).id === id).length;
+  }
+  function soft(): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-28T01:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+
+  it("WR-01: two appendNote calls with the same precomputedId and identical text leave exactly ONE ledger line for that id", () => {
+    const { root, store } = repo("p33.1-12-wr01-twice-", { human_admission: "off", audit_retention: "retained" });
+    expect(mod.appendNote(TASK, soft(), BODY, store, ID, root)).toBe(ID);
+    expect(linesFor(root, ID), "PREMISE: the first admission did not record").toBe(1);
+    const first = readFileSync(join(store, TASK, "notes", `${ID}.md`), "utf8");
+    // The identical re-append is the decided idempotent case: it returns the id…
+    expect(mod.appendNote(TASK, soft(), BODY, store, ID, root)).toBe(ID);
+    // …and the note is unchanged…
+    expect(readFileSync(join(store, TASK, "notes", `${ID}.md`), "utf8")).toBe(first);
+    // …and the trail records the admission ONCE (D-19 (4), now on the sibling route).
+    expect(linesFor(root, ID), "a second GOV-02 line was keyed by one id (WR-01)").toBe(1);
+  });
+
+  it("WR-01: identical bytes PLANTED at the id path do not skip admission — a note admit() refuses is still refused", () => {
+    // The bytes are produced by the module itself under a LEAN dial, so they are exactly the bytes
+    // the call below composes; the target repository's dial then refuses the same note (D-04: a
+    // high-severity finding with a self-authored human stamp is refused at this tier).
+    const finding = {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-28T01:00:00Z",
+      verified_by: "human:eve",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+    const lean = repo("p33.1-12-wr01-lean-", { human_admission: "off" });
+    const fid = "20260928T010000Z-security-nfr-finding-wr01bbbb";
+    mod.appendNote(TASK, finding, BODY, lean.store, fid, lean.root);
+    const planted = readFileSync(join(lean.store, TASK, "notes", `${fid}.md`), "utf8");
+
+    const { root, store } = repo("p33.1-12-wr01-planted-", {
+      human_admission: "high-severity",
+      audit_retention: "retained",
+    });
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    writeFileSync(join(store, TASK, "notes", `${fid}.md`), planted);
+    let threw: string | null = null;
+    try {
+      mod.appendNote(TASK, finding, BODY, store, fid, root);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw, "the identical-bytes path returned an id for a note the authority refuses").not.toBeNull();
+    expect(threw).toContain("did not accept");
+    expect(linesFor(root, fid), "a refused admission was recorded").toBe(0);
+    expect(readFileSync(join(store, TASK, "notes", `${fid}.md`), "utf8")).toBe(planted);
+  });
+
+  it("WR-01: a present-but-unreadable ledger on the identical-bytes path refuses with the named unreadable-audit-ledger decline (fail closed)", () => {
+    const { root, store } = repo("p33.1-12-wr01-unreadable-", { human_admission: "off", audit_retention: "retained" });
+    expect(mod.appendNote(TASK, soft(), BODY, store, ID, root)).toBe(ID);
+    const first = readFileSync(join(store, TASK, "notes", `${ID}.md`), "utf8");
+    // A DIRECTORY at the ledger path: present, and not a regular file, on every platform.
+    rmSync(ledgerPathOf(root), { force: true });
+    mkdirSync(ledgerPathOf(root));
+    let threw: string | null = null;
+    try {
+      mod.appendNote(TASK, soft(), BODY, store, ID, root);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw, "an unreadable ledger was answered as 'not recorded' or ignored").not.toBeNull();
+    expect(threw).toMatch(/^context-io\.appendNote: refusing to write/);
+    expect(threw).toContain("unreadable-audit-ledger");
+    expect(readFileSync(join(store, TASK, "notes", `${ID}.md`), "utf8")).toBe(first);
+  });
+});
+
 describe("31-29 — WR-28: the forged-origin price is measured PER POSITION, and the three agree", () => {
   const TASK = "T-1";
   const BODY = "the disposed body";
