@@ -13936,6 +13936,129 @@ describe("33.1-12 — WR-01 in admitAndAppend, and IN-01 in appendNote", () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33.1-12 — WR-02 (WINDOWS.md row 304): a note is published EXCLUSIVELY.
+//
+// The destination decision and the publish were two steps, and the publish was a replacing
+// `rename`: an occupant that appeared between them was silently overwritten. The publish is now a
+// hard link from a temp file, which fails if anything is at the final path. These cases drive the
+// primitive directly, because the race it closes is the window between two steps no in-process
+// caller can open on demand.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33.1-12 — WR-02: publishNoteExclusive never replaces an occupant", () => {
+  function dirWithTemp(prefix: string, bytes: string): { dir: string; tmp: string; final: string } {
+    const dir = freshTmp(prefix);
+    const tmp = join(dir, "n.md.tmp-test");
+    writeFileSync(tmp, bytes);
+    return { dir, tmp, final: join(dir, "n.md") };
+  }
+  const publish = (tmp: string, final: string): void =>
+    (mod as unknown as { publishNoteExclusive: (t: string, f: string) => void }).publishNoteExclusive(tmp, final);
+
+  it("WR-02: publishNoteExclusive is exported", () => {
+    expect(typeof (mod as unknown as { publishNoteExclusive?: unknown }).publishNoteExclusive).toBe("function");
+  });
+
+  it("WR-02: with no occupant, the final path holds the temp's bytes and the temp is gone", () => {
+    const { tmp, final } = dirWithTemp("p33.1-12-wr02-fresh-", "the note bytes\n");
+    publish(tmp, final);
+    expect(readFileSync(final, "utf8")).toBe("the note bytes\n");
+    expect(existsSync(tmp)).toBe(false);
+  });
+
+  it("WR-02: an occupant with DIFFERENT bytes is refused by name, left byte-identical, and the temp is removed", () => {
+    const { tmp, final } = dirWithTemp("p33.1-12-wr02-differ-", "the new note\n");
+    writeFileSync(final, "the occupant that appeared first\n");
+    let threw: string | null = null;
+    try {
+      publish(tmp, final);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw, "a differing occupant was replaced").not.toBeNull();
+    expect(threw).toMatch(/^context-io\.publishNoteExclusive: refusing to publish/);
+    expect(threw).toContain("DIFFERENT");
+    expect(readFileSync(final, "utf8")).toBe("the occupant that appeared first\n");
+    expect(existsSync(tmp)).toBe(false);
+  });
+
+  it("WR-02: an occupant with IDENTICAL bytes is the idempotent case — no error, no second write", () => {
+    const { tmp, final } = dirWithTemp("p33.1-12-wr02-same-", "the same note\n");
+    writeFileSync(final, "the same note\n");
+    const before = statSync(final);
+    publish(tmp, final);
+    const after = statSync(final);
+    expect(readFileSync(final, "utf8")).toBe("the same note\n");
+    expect(after.ino, "the occupant was replaced by a different file").toBe(before.ino);
+    expect(after.nlink, "the occupant gained a link, so something was written over it").toBe(before.nlink);
+    expect(existsSync(tmp)).toBe(false);
+  });
+
+  it("WR-02: a link failure other than an occupant (missing parent) is a named refusal, and the temp is removed", () => {
+    const { dir, tmp } = dirWithTemp("p33.1-12-wr02-noparent-", "orphan bytes\n");
+    const final = join(dir, "missing-parent", "n.md");
+    let threw: string | null = null;
+    try {
+      publish(tmp, final);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw).toMatch(/^context-io\.publishNoteExclusive: refusing to publish/);
+    expect(threw).toContain("ENOENT");
+    expect(existsSync(final)).toBe(false);
+    expect(existsSync(tmp)).toBe(false);
+  });
+
+  it("WR-02: no rename fallback — a link refused where a rename WOULD succeed (a directory temp) leaves the final path absent", () => {
+    // link(2) refuses a directory (EPERM on macOS and Linux) while rename(2) would move it, so a
+    // replacing-rename fallback is the one thing that could make the final path appear here.
+    const dir = freshTmp("p33.1-12-wr02-norename-");
+    const tmp = join(dir, "n.md.tmp-dir");
+    mkdirSync(tmp);
+    const final = join(dir, "n.md");
+    let threw: string | null = null;
+    try {
+      publish(tmp, final);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw).toMatch(/^context-io\.publishNoteExclusive: refusing to publish/);
+    expect(existsSync(final), "the temp was published by a rename after the link was refused").toBe(false);
+  });
+
+  it("WR-02: every note write publishes through publishNoteExclusive — no note path is published by a replacing rename", () => {
+    const sf = ts.createSourceFile(
+      "context-io.ts",
+      readFileSync(CONTEXT_IO_TS, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const calls = new Map<string, Set<string>>();
+    for (const st of sf.statements) {
+      if (!ts.isFunctionDeclaration(st) || !st.name || !st.body) continue;
+      const called = new Set<string>();
+      const walk = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) called.add(n.expression.text);
+        ts.forEachChild(n, walk);
+      };
+      walk(st.body);
+      calls.set(st.name.text, called);
+    }
+    const chokepoint = calls.get("writeNoteFile");
+    expect(chokepoint, "PREMISE: writeNoteFile was not found").toBeDefined();
+    expect(chokepoint?.has("publishNoteExclusive")).toBe(true);
+    expect(chokepoint?.has("atomicWrite")).toBe(false);
+    expect(chokepoint?.has("renameSync")).toBe(false);
+    // The replacing rename lives in exactly one function, and no note writer reaches it.
+    const renamers = [...calls].filter(([, c]) => c.has("renameSync")).map(([n]) => n);
+    expect(renamers).toEqual(["atomicWrite"]);
+    const atomicCallers = [...calls].filter(([, c]) => c.has("atomicWrite")).map(([n]) => n).sort();
+    expect(atomicCallers, "a function that publishes a note reaches the replacing rename").not.toContain("writeNoteFile");
+    expect(calls.get("publishNoteExclusive")?.has("renameSync")).toBe(false);
+  });
+});
+
 describe("31-29 — WR-28: the forged-origin price is measured PER POSITION, and the three agree", () => {
   const TASK = "T-1";
   const BODY = "the disposed body";
