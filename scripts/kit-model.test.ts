@@ -1486,7 +1486,7 @@ describe("kit-model plugin-manifest component schema (D-46: derived, counted two
     expect(PLUGIN_COMPONENT_EXEMPT[0].manifestKey).toBe("hooks");
     // The reason and the bound are recorded IN SOURCE, in the DISTRIBUTION_PAIR_EXEMPT shape. An
     // exemption without both is a hole with a comment.
-    expect(PLUGIN_COMPONENT_EXEMPT[0].reason).toMatch(/prod-deploy guard/);
+    expect(PLUGIN_COMPONENT_EXEMPT[0].reason).toMatch(/MCP admission gate/);
     expect(PLUGIN_COMPONENT_EXEMPT[0].bound).toMatch(/SPAWN_GRANT_SCAN/);
     expect(PLUGIN_COMPONENT_EXEMPT[0].bound).toMatch(/ZERO markdown adapters/);
     // ONE exempt member. Two hand-listed members is a list, and this repository's own record says a
@@ -1735,8 +1735,8 @@ describe("kit-model listPluginExemptComponentFiles (the `hooks/` exemption's two
     // terminate — `process.reallyExit(0)` was a silent ALLOW and `abort()`/self-`SIGKILL` left no
     // decision. The pin caught the addition, which is what a two-sided cardinality is for.
     //
-    // 9 -> 6 (plan 33.1-05): `hooks/guard.ts`, its compiled `.js` and `hooks/guard.test.ts` were
-    // deleted with the Bash command guard (33.1 D-17/D-23).
+    // 9 -> 6 (plan 33.1-05): the Bash command guard's source, compiled `.js` and test were deleted
+    // with it (33.1 D-17/D-23).
     expect(
       hooks.markdownFiles,
       `hooks/ holds ${hooks.files.length} file(s): ${hooks.files.join(", ")}`,

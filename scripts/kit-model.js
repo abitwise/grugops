@@ -341,8 +341,8 @@ export const PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT = 1;
 export const PLUGIN_COMPONENT_EXEMPT = [
     {
         manifestKey: "hooks",
-        reason: "hooks/ exists on the live tree and holds the PreToolUse prod-deploy guard; CLAUDE.md makes " +
-            "that mechanical guard a hard safety constraint, so relocating it to satisfy a guard rule " +
+        reason: "hooks/ exists on the live tree and holds the PreToolUse MCP admission gate and its fail-closed " +
+            "wrapper; that gate is the mechanical admission floor, so relocating it to satisfy a guard rule " +
             "would be the guard bending the product",
         bound: "every markdown (frontmatter-bearing) member of hooks/ must be inside SPAWN_GRANT_SCAN, AND " +
             "hooks/ must carry ZERO markdown adapters — the first is vacuous today (0 markdown members, a " +

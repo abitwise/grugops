@@ -1079,8 +1079,9 @@ function guardWr05() {
     }
     // THE EXEMPT DIRECTORY'S TWO BOUNDS (plan 27-37, D-46 point 3). `hooks/` is a plugin-root component
     // surface the platform loads and it is NOT forbidden, because it exists on the live tree holding the
-    // PreToolUse prod-deploy guard that CLAUDE.md makes a hard safety constraint. Relocating a mandated
-    // safety surface to satisfy a guard rule would be the guard bending the product.
+    // PreToolUse MCP admission gate and its fail-closed wrapper (the Bash command guard beside them was
+    // retired by 33.1 D-17). Relocating a mechanical safety surface to satisfy a guard rule would be the
+    // guard bending the product.
     //
     // SO IT IS BOUNDED INSTEAD, AND THE BOUNDS ARE THE EXEMPTION. Without them it is a hole with a
     // comment — which is precisely what it was until this plan, and what let `hooks/rogue.md` print
@@ -1114,7 +1115,7 @@ function guardWr05() {
                 wr05Fail += `\n${unscannedMarkdown.length} markdown (frontmatter-bearing) file(s) under the EXEMPT plugin-root component directory \`${ex.subpath}/\` sit OUTSIDE the spawn-grant scan: ${unscannedMarkdown.join(", ")}. The exemption forgoes ONLY the "must be absent" rule; it never admits a loadable adapter surface no guard reads. Exemption reason on record: ${ex.reason}`;
             }
             if (ex.markdownFiles.length > 0) {
-                wr05Fail += `\nthe EXEMPT plugin-root component directory \`${ex.subpath}/\` carries ${ex.markdownFiles.length} markdown adapter(s): ${ex.markdownFiles.join(", ")}. Zero markdown adapters is the bound that makes this exemption fail closed — the directory is exempted because it holds the mechanical prod-deploy guard, NOT because it may hold adapters. Bound on record: ${ex.bound}`;
+                wr05Fail += `\nthe EXEMPT plugin-root component directory \`${ex.subpath}/\` carries ${ex.markdownFiles.length} markdown adapter(s): ${ex.markdownFiles.join(", ")}. Zero markdown adapters is the bound that makes this exemption fail closed — the directory is exempted because it holds the mechanical MCP admission gate, NOT because it may hold adapters. Bound on record: ${ex.bound}`;
             }
         }
     }

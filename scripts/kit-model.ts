@@ -466,11 +466,11 @@ export const PLUGIN_COMPONENT_COVERED_ELSEWHERE_COUNT = 1;
 // as a second exemption idiom: this repository already records exactly one legitimate divergence by
 // name, with its reason and with a bound that keeps the exempted surface inside the spawn-grant scan.
 //
-// WHY `hooks/` IS BOUNDED RATHER THAN FORBIDDEN. It EXISTS on the live tree today, it holds the
-// `PreToolUse` prod-deploy guard, and CLAUDE.md makes that mechanical guard a HARD safety constraint
-// ("prefer enforcing this *mechanically* … not just by prompt"). Relocating a CLAUDE.md-mandated
-// safety surface in order to satisfy a guard rule would be the guard bending the product, which is
-// the wrong direction for a guard to bend anything.
+// WHY `hooks/` IS BOUNDED RATHER THAN FORBIDDEN. It EXISTS on the live tree today and holds the
+// `PreToolUse` MCP admission gate and its fail-closed wrapper — the mechanical half of the admission
+// floor (the Bash command guard it used to hold beside them was retired by 33.1 D-17). Relocating a
+// mechanical safety surface in order to satisfy a guard rule would be the guard bending the product,
+// which is the wrong direction for a guard to bend anything.
 //
 // THE EXEMPTION IS ITS TWO BOUNDS. Without them it is a hole with a comment. They are asserted live in
 // guard_wr05, on MEASURED numbers the gate prints, and they are deliberately overlapping rather than
@@ -494,8 +494,8 @@ export const PLUGIN_COMPONENT_EXEMPT: readonly PluginComponentExemption[] = [
   {
     manifestKey: "hooks",
     reason:
-      "hooks/ exists on the live tree and holds the PreToolUse prod-deploy guard; CLAUDE.md makes " +
-      "that mechanical guard a hard safety constraint, so relocating it to satisfy a guard rule " +
+      "hooks/ exists on the live tree and holds the PreToolUse MCP admission gate and its fail-closed " +
+      "wrapper; that gate is the mechanical admission floor, so relocating it to satisfy a guard rule " +
       "would be the guard bending the product",
     bound:
       "every markdown (frontmatter-bearing) member of hooks/ must be inside SPAWN_GRANT_SCAN, AND " +

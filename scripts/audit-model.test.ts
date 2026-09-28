@@ -304,8 +304,9 @@ describe("audit-model: the closed sets", () => {
   // key, because naming one would have implied a dial existed. Phase 30 gave it one
   // (`checkpoints.protected_branch_merge`, default `block`), so the old assertion is not weakened
   // here, it is REPLACED by the claim that is now true: the cell exists, it resolves against the
-  // live config, and the cell ALONE cannot lower the floor — that second half is enforced by the
-  // two-key rule in hooks/guard.ts and asserted there, by spawning the committed guard.js.
+  // live config, and the cell ALONE cannot lower the floor — that second half was enforced by the
+  // two-key rule in the Bash command guard retired by 33.1 D-17; the rule itself is retired by plan
+  // 33.1-06 (D-26).
   it("protected_branch_merge names its Phase-30 config cell and that cell resolves live", () => {
     const floor = SAFETY_FLOORS.find((f) => f.id === "protected_branch_merge");
     expect(floor).toBeDefined();

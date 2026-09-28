@@ -3,7 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // WHY A SECOND PROCESS EXISTS, AND WHY THE INVARIANT COULD NOT BE ESTABLISHED WITHOUT ONE.
 //
-// `hooks/guard.ts` publishes this invariant: *"this file has no exit path that is neither an
+// The Bash command guard (retired by 33.1 D-17) published this invariant, and every decider this
+// wrapper runs holds it: *"this file has no exit path that is neither an
 // explicit allow nor an explicit deny."* Round 1 established it for THROWS (`A-2`). Round 2
 // established it for a never-settling top-level await and for a dependency's own `process.exit(0)`,
 // by naming two exits and adding an `exit` handler that converts any third into a refusal
@@ -227,7 +228,7 @@ function isWellFormedDecision(stdout) {
 // <hook-manifest> GENERATED — do not edit by hand; run `npm run generate:hook-manifest`
 const DECIDER_MANIFEST = {
     "hooks/admission-guard.js": {
-        "hooks/admission-guard.js": "e84d5594e43fecf67919f4bb0e517be10bdf98c18fae02f9f9094d003c2aa820",
+        "hooks/admission-guard.js": "6e4d33292809280bf63c1485c220cb7c5e51e2e8ff93f180b1b796f9d7dc626c",
         "scripts/audit-model.js": "d6da813ffaba69222e892851943f4fe9a2960c28a6bc396543c07153e16b7f9e",
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "ac33078d59949033e57a365bc7174b440202bd456f6b75e22f6c47339a3998a3",
@@ -237,7 +238,7 @@ const DECIDER_MANIFEST = {
         "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
         "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
         "scripts/is-entry.js": "4bea950408906acfb2978e8996b1506a7558ebaf645f43d26dcf8ed413d17c2b",
-        "scripts/kit-model.js": "ce2a012ffe2dda2f56a8f3989cf3d94e69eda3a2ed0574c3cdb23c418ec18a2c",
+        "scripts/kit-model.js": "06bf2a857e277e914f5d51fa8c5673d7d3bc8096f4ddc41d034d77a14327af97",
         "scripts/vacuity.js": "eba304f76da868672d269b94cdf907b6c6638ec8d0d2707a36841ad5d7fe7bf6",
         "scripts/voice-model.js": "3a16c8761245eee5ef715616363c5d5e33686f6e3a7abacdcd44921fe4bd578f",
     },
@@ -459,14 +460,14 @@ const child = spawnSync(process.execPath, [decider], {
     // zero bytes on both streams; only the harness's SIGKILL ended it.
     //
     // THE DELETION IS THE FIX, AND IT IS NOT A SECOND GUARD. A read the wrapper does not perform
-    // cannot be a read the wrapper waits on. Both deciders already read fd 0 themselves, so inheriting
+    // cannot be a read the wrapper waits on. The decider already reads fd 0 itself, so inheriting
     // it moves that read INTO the child — the one process `DECIDER_TIMEOUT_MS` already bounds. A stall
     // on the host's stdin now arrives as SIGTERM on the child, and the existing `child.signal !== null`
     // branch below turns it into the fail-closed deny with no new code path: the bound adds a value,
-    // not a branch. `hooks/guard.ts` is NOT touched by any of this.
+    // not a branch. The decider is NOT touched by any of this.
     //
-    // stderr is inherited so the run banner (D-20) reaches the transcript from the decider itself,
-    // unchanged and un-buffered by this wrapper. The wrapper adds no line of its own on a clean run.
+    // stderr is inherited so whatever the decider writes there reaches the transcript from the decider
+    // itself, unchanged and un-buffered by this wrapper. The wrapper adds no line of its own on a clean run.
     // fd 3 is the decider's private ALLOW channel. The host never sees it; the wrapper reads it to
     // tell "the decider allowed" from "the decider stopped", which exit 0 + empty stdout cannot.
     stdio: [0, "pipe", "inherit", "pipe"],

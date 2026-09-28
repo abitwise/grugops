@@ -48,7 +48,7 @@
 // Read-only by construction (T-06-02): every path is join(KIT_ROOT|STATE_ROOT, <fixed literal
 // rel>); no write path is ever derived from file content. Every read/JSON.parse is wrapped in
 // try/catch so a missing or garbled file becomes a finding, never an unhandled throw
-// (T-06-01/T-06-03, mirrors hooks/guard.ts + install.ts fail-closed posture).
+// (T-06-01/T-06-03, mirrors the MCP admission gate's and install.ts's fail-closed posture).
 
 import { readFileSync, existsSync, readdirSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";

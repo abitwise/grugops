@@ -21,7 +21,7 @@
 // PER D-12: a GREEN suite is NECESSARY BUT NOT SUFFICIENT. The INDEPENDENT opus-grade red-team
 // (Task 25-11-03) is the closure gate, not this suite.
 //
-// Match shapes (identical to guard.test.ts):
+// Match shapes (the ones the retired Bash command guard's test used, 33.1 D-17):
 //   deny  => stdout contains `"permissionDecision":"deny"`
 //   allow => stdout does NOT contain `"deny"`
 //
@@ -50,8 +50,8 @@ const GUARD_JS = join(import.meta.dirname, "admission-guard.js");
  * What one DIRECT decider run actually did (33.1-01, WR-04, WINDOWS.md row 306): exit status, the
  * terminating signal (a `spawnSync` timeout kills with SIGTERM and reports it here), stdout, stderr and
  * the bytes on fd 3 — the private allow channel `hooks/hook-entry.ts` opens, opened here as a pipe too.
- * Restated from `hooks/guard.test.ts` rather than imported: a test file that imports another registers
- * that file's cases twice.
+ * First stated in the Bash command guard's test (retired by 33.1 D-17) and restated here rather than
+ * imported: a test file that imports another registers that file's cases twice.
  */
 interface SyncRun {
   readonly status: number | null;
@@ -91,7 +91,7 @@ function expectDeny(payload: string, env: Record<string, string> = {}): void {
 const ALLOW_TOKEN = "grugops-hook-allow";
 
 /**
- * THE ONE ALLOW PROOF (WR-04), restated from `hooks/guard.test.ts`. It holds the wrapper's own bar
+ * THE ONE ALLOW PROOF (WR-04), first stated for the Bash command guard retired by 33.1 D-17. It holds the wrapper's own bar
  * (`hooks/hook-entry.ts`): a signal is not an allow, a non-zero exit is not an allow, and an empty stdout
  * is an allow only when the decider ASSERTED it on fd 3. The retired helper checked stdout alone, so a
  * crash or a timeout — both silent — read as an allow.
@@ -469,14 +469,15 @@ describe("30-11 RA1-2 (round 2) — the admission guard has no exit that decides
     // 0 (MSYS ships one) and left nothing Node could open, so the guard answered about an absent
     // config and this case asserted over a fixture that was never there. A host that cannot stage
     // the shape now prints the remainder row and returns; the predicate — a non-regular config path
-    // is a bounded DENY — is still pinned by the DIRECTORY case in `hooks/guard.test.ts` (RA1-2).
+    // is unreadable, and unreadable fails closed here — is still pinned at the shared reader by the
+    // DIRECTORY case in `scripts/context-io.test.ts` ("a DIRECTORY at the config path is unreadable too").
     const skipped = stageShapeOrSkip(
       "FIFO",
       join(dir, ".grugops", "factory.config.json"),
       "hooks/admission-guard.test.ts: a FIFO at the config path",
     );
     if (skipped !== null) {
-      console.warn(skipLine(skipped, "the DIRECTORY-at-the-config-path case in hooks/guard.test.ts (same fstat rule)"));
+      console.warn(skipLine(skipped, "the DIRECTORY-at-the-config-path case in scripts/context-io.test.ts (same fstat rule)"));
       return;
     }
     const { status, stdout } = runGuard(
@@ -501,8 +502,8 @@ describe("30-11 RA1-2 (round 2) — the admission guard has no exit that decides
 // and a decider that never decided fails every allow control.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //
-// THE DERIVATION (the same predicate `hooks/guard.test.ts` states, restated here — no cross-test
-// import): a STDOUT-ONLY ALLOW SITE is a non-comment line matching `STDOUT_ONLY_ALLOW_RE` with no
+// THE DERIVATION (the same predicate the retired Bash command guard's test stated, 33.1 D-17 —
+// restated here, no cross-test import): a STDOUT-ONLY ALLOW SITE is a non-comment line matching `STDOUT_ONLY_ALLOW_RE` with no
 // exit-status, signal or code assertion on it or in the ten lines above. Before plan 33.1-01 it found
 // 16 lines here: the retired helper's own assertion and its 15 call sites. All 15 now call
 // `expectAllowed`, so the derivation over this file must come back EMPTY.

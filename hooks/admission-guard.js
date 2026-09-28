@@ -2,10 +2,10 @@
 //
 // Pure-Node Claude Code PreToolUse hook: no `jq`, no host npm dependency, Node stdlib only
 // (plus the ONE shared classifier/config helpers from scripts/context-io). Wired by hooks/hooks.json
-// as a SECOND plugin-level PreToolUse matcher beside the byte-frozen prod-deploy guard — but unlike
-// the prod-deploy guard (a `Bash` matcher), THIS hook now matches the STRUCTURED admission tool
-// FAMILY `mcp__(plugin_grugops_)?grugops__.*` (W3; both spellings since plan 33-28 — see the matcher
-// note above the stdin read). The committed compiled output is hooks/admission-guard.js, which
+// as the plugin's only PreToolUse matcher (the `Bash` matcher of the command guard that stood beside
+// it was retired by 33.1 D-17). THIS hook matches the STRUCTURED admission tool FAMILY
+// `mcp__(plugin_grugops_)?grugops__.*` (W3; both spellings since plan 33-28 — see the matcher note
+// above the stdin read). The committed compiled output is hooks/admission-guard.js, which
 // the host hook runs.
 //
 // WHY THE GATE MOVED TO THE STRUCTURED CHANNEL (D-01, round 6 — "move the gate to point-of-effect"):
@@ -63,13 +63,13 @@
 //     and "the hook allowed it" are the same event and this file must never reach that state.
 //
 // Block mechanism: exit 0 + JSON `hookSpecificOutput.permissionDecision: "deny"` with a
-// `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no output. This mirrors
-// the prod-deploy guard's posture exactly.
+// `permissionDecisionReason` (gives the agent a clear message). Allow = exit 0, no output. This was
+// the retired Bash command guard's posture too (33.1 D-17).
 import { readFileSync, writeSync } from "node:fs";
 // ── The two answers, declared BEFORE anything that can fail. ─────────────────────────────────────
 //
 // EXACTLY TWO WAYS OUT, AND A HANDLER THAT REFUSES A THIRD (plan 30-11 round 2, finding `RA1-2`).
-// Identical in form to hooks/guard.ts, and for the identical reason: round 1 bounded THROWS, and
+// First built for the Bash command guard retired by 33.1 D-17, for this reason: round 1 bounded THROWS, and
 // three non-throw exits survived — a dependency whose top-level `await` never settles (Node exits
 // 13, zero bytes, 22 ms), a dependency calling `process.exit(0)` at module scope, and a blocking
 // read of a non-regular config path that never returned at all (measured: this hook answered a
@@ -179,7 +179,7 @@ const { isGatedNote, normalizeKind, readGovernanceConfig } = ioMod;
 // here and appeared in no other file — so the prod-deploy guard's self-set refusal, which enumerates
 // the grant vocabulary, did not contain it, and an agent's `export GRUGOPS_ADMISSION_APPROVED_BY=…`
 // was allowed where the same command for a floor grant was refused. The vocabulary now lives once,
-// in scripts/checkpoints.ts, and both hooks read their own constant out of it.
+// in scripts/checkpoints.ts, and this hook reads its constant out of it.
 const APPROVAL = cpMod.ADMISSION_APPROVAL_ENV_VAR;
 // ── Read and parse the PreToolUse stdin payload. ──────────────────────────────────────────────────
 // The hooks.json matcher (`mcp__(plugin_grugops_)?grugops__.*`) guarantees this hook is invoked ONLY for

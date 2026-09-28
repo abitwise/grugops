@@ -2,7 +2,7 @@
 //
 // Proves the COMBINER's persist-arbiter behavior through the MCP server's call path (the un-forgeable
 // per-call HOOK gate is proven separately in Plan 25-10). It drives the COMMITTED server two ways,
-// mirroring the repo's spawn-the-committed-.js discipline (floor-invariance.test.ts / hooks/guard.test.ts):
+// mirroring the repo's spawn-the-committed-.js discipline (floor-invariance.test.ts / hooks/admission-guard.test.ts):
 //   - imports the committed scripts/admission-server.js and calls its exported handleProposeNote (the
 //     server's tools/call path) with STRUCTURED JSON args into temp contextRoot/repoRoot, and
 //   - spawns the committed server over real stdio JSON-RPC to prove the channel end-to-end AND that the

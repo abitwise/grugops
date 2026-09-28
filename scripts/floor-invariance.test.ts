@@ -655,7 +655,8 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
 // the command derived from `hooks/hooks.json`: `timeout 12` -> EXIT=124, zero bytes on BOTH streams.
 // The fix routes every manifest read through an inline non-blocking regular-file reader and DELETES
 // the wrapper's own fd-0 read (fd 0 is inherited by the child `DECIDER_TIMEOUT_MS` already bounds).
-// The baseline MOVES with the artifact; it is not relaxed, and `hooks/guard.ts` is untouched.
+// The baseline MOVES with the artifact; it is not relaxed, and the Bash command guard (retired by
+// 33.1 D-17) was untouched.
 //
 // Re-taken a SECOND time within plan 31-27, by its Task 3 (S1): the wrapper now also reads its own
 // host-built `CLAUDE_PROJECT_DIR`, shape-checks it, and sets `GRUGOPS_HOST_DELIVERED_ROOT` on the one
@@ -668,8 +669,8 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
 // directory nested inside a repository, and the kit's own root. The wrapper now applies the marker
 // condition and the not-the-kit-root condition, spelled from `node:` builtins, and the two sides are
 // bound by one shared corpus in `scripts/context-io.test.ts`. A FREEZE IS CHANGE CONTROL AND NEVER A
-// REASON TO LEAVE A GAP: the baseline MOVES with the artifact and is never relaxed, and
-// `hooks/guard.ts` is untouched.
+// REASON TO LEAVE A GAP: the baseline MOVES with the artifact and is never relaxed, and the Bash
+// command guard (retired by 33.1 D-17) was untouched.
 //
 // THE NON-VACUITY FLOOR, MEASURED BEFORE THE DIGEST WAS READ, at this plan's commit:
 //   total bytes 32182, normalised bytes 29357, REMOVED 2825 — non-zero, and past the 100-byte floor
@@ -678,8 +679,10 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
 //   pre-31-27:      5bfd5ba85a716dcd4383e819480edaf32bfeba58cadb3479089fd22e94777d9e
 //   31-27 Task 1:   b0629f092d6929ae4394741f4c4e6a335acb7f3bb15d642ba61c81571e34ff54  (CR-17)
 //   31-27 Task 3:   e1ed0dc053f321dc54fa6a657cac6fdddf0816e839766f3e0c68ec5e3375cabc  (S1)
-//   31-37 Task 1:   006cdb0f45d017f050f78c1424f636f700fc72b378723799cee4e1820904330d  (this baseline, WR-36)
-const FROZEN_HOOK_ENTRY_LOGIC_SHA = "006cdb0f45d017f050f78c1424f636f700fc72b378723799cee4e1820904330d";
+//   31-37 Task 1:   006cdb0f45d017f050f78c1424f636f700fc72b378723799cee4e1820904330d  (WR-36)
+//   33.1-05 Task 3: 888d28a68534bb3f996f2915b495620429de6cc253850b64895dc00145fadd5c  (this baseline)
+// Re-frozen 2026-09-26 by plan 33.1-05 for comment-only edits naming the retired Bash guard (33.1 D-17); logic unchanged.
+const FROZEN_HOOK_ENTRY_LOGIC_SHA = "888d28a68534bb3f996f2915b495620429de6cc253850b64895dc00145fadd5c";
 
 describe("30-11 round 3 — the hook ENTRY is frozen, and hooks.json names it", () => {
   it("hooks/hook-entry.ts's LOGIC matches its frozen hash (manifest region normalised out)", () => {

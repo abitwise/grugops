@@ -2120,7 +2120,7 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   members reports 91 with this module tracked.
  *
  * 91 -> 90 (plan 33.1-05, task 2, D-17/D-23), ONE MODULE DELETED:
- *   - `hooks/guard.ts` — the Bash command guard, unwired by the 33.1 retirement commit and deleted
+ *   - the Bash command guard's source module, unwired by the 33.1 retirement commit and deleted
  *     with its compiled twin and its test. Re-derived rather than decremented: `git ls-files '*.ts'`
  *     minus the `.test.ts` and `.d.ts` members reports 90 with it gone.
  */
@@ -5487,8 +5487,8 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // production probe rather than restated, so a shrunken directory fails the case instead of
     // quietly satisfying it. 7 → 9 (plan 30-11 round 3): `hooks/hook-entry.ts` and its compiled
     // `.js`, the hook entry-point wrapper `RA3-7` introduced. Still zero markdown adapters, which is
-    // the bound this exemption actually rests on. 9 → 6 (plan 33.1-05): `hooks/guard.ts`, its
-    // compiled `.js` and its test left with the Bash command guard (33.1 D-17/D-23).
+    // the bound this exemption actually rests on. 9 → 6 (plan 33.1-05): the Bash command guard's
+    // source, compiled `.js` and test were deleted with it (33.1 D-17/D-23).
     const hooks = listPluginExemptComponentFiles(ROOT)[0];
     expect(hooks.files.length).toBe(6);
     expect(hooks.markdownFiles.length).toBe(0);

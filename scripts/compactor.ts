@@ -37,7 +37,7 @@
 // faked pass.
 //
 // On any dropped carve-out element: refuse, process.exit(1), and NAME the dropped element — the
-// same fail-closed, name-the-fault posture as context-io.ts's appendNote and hooks/guard.ts.
+// same fail-closed, name-the-fault posture as context-io.ts's appendNote and the MCP admission gate.
 //
 // Build model (D-13): authored in TypeScript, compiled with `tsc` to a committed scripts/compactor.js
 // that hosts and CI run with bare Node; the freshness.ts gate (OUTPUT_DIRS includes scripts/)

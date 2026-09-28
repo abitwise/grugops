@@ -7,8 +7,8 @@
 // artifact's IMPORTS, or the child process dies with ERR_MODULE_NOT_FOUND — and a gate that cannot
 // start looks, from the outside, exactly like a gate that ran and refused.
 //
-// UNTIL PHASE 30 THE LISTS WERE HAND-MAINTAINED, AND THEY WERE CORRECT ONLY BY LUCK. `hooks/guard.js`
-// happened to import nothing but `node:fs`, and `scripts/context-io.js` happened to import nothing
+// UNTIL PHASE 30 THE LISTS WERE HAND-MAINTAINED, AND THEY WERE CORRECT ONLY BY LUCK. The Bash command
+// guard (retired by 33.1 D-17) happened to import nothing but `node:fs`, and `scripts/context-io.js` happened to import nothing
 // but node builtins, so a mirror that copied one file was complete. Plan 30-01 gave the guard a
 // checkpoint roster and a config reader to consult, four hand-written lists went stale at once, and
 // 92 cases across seven files failed — not because the guard was wrong, but because four copies of
