@@ -437,10 +437,15 @@ For production, keep a deployment environment that:
 - [ ] does not let administrators bypass its protection rules;
 - [ ] allows deployments only from protected branches.
 
-On GitHub these are the environment's "Required reviewers" (with at least one reviewer named),
-"Prevent self-review", "Allow administrators to bypass configured protection rules" turned off, and a
-deployment branch policy of "Protected branches only". A custom branch policy is not read, so the
-check reports it as `UNKNOWN - verify`. The check finds the environment name in this order: the
+On GitHub these are the environment's "Required reviewers" setting with at least one reviewer named
+and the option to prevent self-reviews turned on, "Allow administrators to bypass configured
+protection rules" turned off, and deployment branches set to "Protected branches only". A custom
+branch policy ("Selected branches and tags") is not read, so the check reports it as
+`UNKNOWN - verify`. GitHub documents that "Protected branches only" lets every branch deploy when no
+branch in the repository has branch protection, so the last line depends on the branch list above.
+GitHub also documents that on the Free, Pro and Team plans required reviewers are available only for
+public repositories; on a private repository under those plans the check cannot report the
+production environment as `protected`. The check finds the environment name in this order: the
 `--env <name>` flag; else the last entry of `environments` in `.grugops/factory.config.json`; else
 the last entry of `environments` in `agent-factory/config/factory.config.json`; else `production`.
 Both files are read relative to the directory the check runs in. A file that cannot be parsed, or
