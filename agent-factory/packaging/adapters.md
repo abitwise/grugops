@@ -90,46 +90,36 @@ Doc links cite `code.claude.com/docs/en/*` (the current host) — for example
 `code.claude.com/docs/en/hooks`, `code.claude.com/docs/en/sub-agents`. Always cite the
 `code.claude.com` host — the older documentation host now 301-redirects, so do not use it.
 
-## Mechanical prod-deploy guard — Claude Code only
+## Safety enforcement — where each rule is held
 
 The hard safety rule is plain: **never merge a protected branch, never deploy to
-production without named human confirmation.** grugops makes that rule *mechanical* where
-the host tool allows it.
+production without named human confirmation.** Where that rule is held differs by tier, and by
+tool. There are three tiers:
 
-- **Claude Code (mechanical):** a plugin-level `hooks/hooks.json` `PreToolUse` Bash matcher
-  runs a pure-Node guard that **denies** any configured production-deploy command unless a
-  human has set the approval session environment variable, and **refuses** any command that
-  tries to inline-set that variable (so the agent cannot self-approve). The guard **fails
-  closed**. This pairs with config `production_requires_human_confirmation: true`. The guard
-  lives **only** in plugin-level `hooks/hooks.json` — plugin sub-agent frontmatter
-  `hooks` / `mcpServers` / `permissionMode` are silently ignored, so a guard placed there
-  does nothing.
-- **The other four tools (procedural fallback):** Codex CLI, Gemini CLI, OpenCode, and
-  GitHub Copilot CLI have no equivalent pre-tool hook system, so they rely on the
-  **`checkpoints` matrix** read procedurally — `checkpoints.open_pr` and
-  `checkpoints.production_requires_human_confirmation`, both at their `block` default — so the
-  Orchestrator and Release Manager stop at a pull request and require a named human to
-  perform the merge and the production deploy. This is the procedural rendering of the same
-  rule the Claude Code hook enforces mechanically. Be precise about what "procedural" means
-  here: on those four tools nothing outside the prompt refuses the command.
+- **Hard floor — the git host.** Branch protection or rulesets on protected branches (pull
+  request and approving review required, force pushes blocked, deletions restricted), and a
+  production deployment environment with required reviewers. It is the only tier that sees every
+  push and merge, and every deployment that runs through its environments, whatever command
+  started it. grugops never configures it; `tools/grugops/host-protection.js` reports read-only
+  whether it is configured.
+- **Speed bump — host CLI approval prompts.** They cover the usual command spellings and are
+  not a security boundary.
+- **Prose — the role and workflow rules.** The Orchestrator and Release Manager stop at a pull
+  request, and a named human performs the merge and the production deploy. `checkpoints.open_pr`
+  and `checkpoints.test_integrity` are prose only; no mechanism enforces them (33.1 D-26).
 
-**Known limitation (clear voice): the Claude Code guard only inspects `Bash` commands.** Its
-`hooks.json` matcher is `"Bash"`, so it evaluates the command of a `Bash` tool call and nothing
-else. A deploy that does not transit the Bash tool — for example a command written into a script
-via the `Write`/`Edit` tool and then triggered through a non-Bash mechanism — is outside the
-matcher's view. Trivial shell indirection such as `K=kubectl; $K apply -f x` also defeats the
-literal tool-name patterns, because the guard does not expand variables; that case is out of
-scope by design, not a bug to be fixed in the default pattern set. The mechanical guard is a
-strong, prompt-proof backstop for deploys that run through the Bash tool, not a complete sandbox.
-The tool-independent backstop on every tool is the `checkpoints` matrix at its `block`
-defaults (stop at a pull request; a named human merges and deploys). On Claude Code a
-floor-tier cell additionally takes the two keys — the configuration cell plus the human-set
-`GRUGOPS_FLOOR_<ID>` session variable — before a lowering has any effect, so an agent editing
-configuration alone changes nothing. On the other four tools that backstop is procedural.
+Per tool:
 
-Both facts must stay documented together: the mechanical guard is Claude-Code-only and
-Bash-scoped; the procedurally-read `checkpoints` matrix is what protects production everywhere
-else. Verify the hook schema and the per-tool checkpoint behavior against current tool docs.
+| Tool / install form | Hard floor | Speed bump | Prose |
+|---|---|---|---|
+| Claude Code, standalone install | git host | Claude Code ask rules the installer writes to `permissions.ask` in `.claude/settings.json`, from `checkpoints.protected_branch_merge` and `checkpoints.production_requires_human_confirmation` | role and workflow rules |
+| Claude Code, plugin form only | git host | none: a plugin cannot carry permission rules | role and workflow rules |
+| Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI | git host | the tool's own approval mode, which you configure; grugops generates no config and documents each mode in `install/README.md` §5 | role and workflow rules |
+
+grugops ships no Bash hook. The Bash command guard earlier releases shipped was retired by
+33.1 D-17, because no parser of shell text could be closed; the plugin's one hook is the MCP
+admission gate for the shared verified context, which checks a structured tool call. Verify the
+permission behaviour against current tool docs (`code.claude.com/docs/en/permissions`).
 
 ## What this file is not
 

@@ -94,7 +94,8 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
   one-line self-heal is the fallback below it.
 - **`disable-model-invocation: true` belongs on `grugops-release`** — the destructive,
   deploy-touching command — so the model can never auto-trigger it; only a human invokes it.
-  This pairs with the mechanical prod-deploy guard (see `adapters.md`).
+  This pairs with the git-host floor and the installer's Claude Code ask rules (see
+  `install/README.md` §5 and `adapters.md` § Safety enforcement), not with a command guard.
 - **No spawn tool in a skill's `allowed-tools`.** A slash-command skill never spawns — spawning
   is coordinator-only and lives on the orchestrator sub-agent adapter, not on a command skill.
   On the four non-spawning host CLIs grugops activates each role via single-window sequential

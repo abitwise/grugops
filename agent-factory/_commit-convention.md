@@ -67,15 +67,15 @@ This is enforced by two complementary layers:
 - **The commit side (this convention).** The branch guard above REDIRECTS a commit away
   from a protected branch onto a `grugops/<workflow>-<id>` working branch. A convention
   can redirect; that is why the commit-side safety lives here.
-- **The push side (the mechanical hook).** The PreToolUse guard `hooks/guard.js` DENIES
-  any `git push` that names a protected branch (`main`, `master`, `release/…`) and any
-  force push, plus the config-matched production-deploy commands. A deny-hook can only
-  block, not redirect.
+- **The push side (the git host).** Branch protection or rulesets on the protected branches
+  (`main`, `master`, `release/…`) refuse a direct push, a force push and a merge without an
+  approving review; that is the hard floor. The installer's Claude Code `git push` ask rule is
+  a speed bump in front of it: it covers the usual spellings and is not a security boundary.
+  Neither can redirect a commit onto a safe branch; both can only stop it.
 
-**Hook decision (why `git commit` is NOT hook-gated):** the guard intentionally does not
-gate `git commit`, and it should not. A deny-hook can only block — it cannot switch the
-agent onto a safe branch. The correct behavior for a commit attempted on a protected
-branch is to SWITCH to a working branch and proceed, which only this convention can do; a
-blanket `git commit` deny would stall the agent with no path forward. So the commit-side
-safety lives in this convention's branch guard, and the push-side safety stays in the
-hook. `hooks/hooks.json` and `hooks/guard.js` are unchanged by this convention.
+**Hook decision (why `git commit` is governed by this convention alone):** grugops ships no
+Bash hook at all; the Bash command guard earlier releases shipped was retired by 33.1 D-17. So
+nothing mechanical gates `git commit`, and nothing should: a gate can only block, and the correct
+behavior for a commit attempted on a protected branch is to SWITCH to a working branch and
+proceed, which only this convention can do. The commit side lives in this convention's branch
+guard, and the push side lives with the git host.

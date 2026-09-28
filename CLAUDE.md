@@ -34,7 +34,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | **AGENTS.md open standard** | LF-stewarded, plain markdown (no schema) | The single portable substrate every tool reads | "Just standard Markdown. Use any headings you like." 60k+ projects, 20+ tools, Agentic AI Foundation (Linux Foundation) governance. Closest-file-wins nesting. This is the linchpin of "write once, run everywhere." |
 | **Claude Code plugin manifest** | `.claude-plugin/plugin.json`, schema as of CC v2.1.x (2026) | Versioned, shareable distribution form | Only `name` is required. Components live at plugin **root** (`agents/`, `commands/` or `skills/`, `hooks/`), never inside `.claude-plugin/`. |
 | **Claude Code marketplace catalog** | `.claude-plugin/marketplace.json` | Single-plugin catalog users add with `/plugin marketplace add` | Required fields: `name`, `owner` (object, `name` required), `plugins` (array). Each plugin entry needs `name` + `source`. |
-| **TypeScript (tooling layer, ratified 2026-06-13 — D-13)** | `install.ts`, `uninstall.ts`, `scripts/*.ts`, `hooks/guard.ts`, compiled with `tsc` to committed `.js`; `tsconfig.json` target ~ES2022, `newLine: lf` | The single source of truth for every tooling script (installer, validator, ASVS generator, foundation guards, prod-deploy hook) | Replaces the former dual POSIX `install.sh` + Node `install.mjs` pair. `tsc`-compiling to committed `.js` buys compile-time type-checking and a runnable artifact that needs **no toolchain on host machines**. A freshness check rebuilds to a temp dir and fails red on any drift, so the committed `.js` is provably a faithful build of its `.ts`. The dual sh/Node byte-parity install contract is retired (D-07/D-08): there is one installer, one source of truth. |
+| **TypeScript (tooling layer, ratified 2026-06-13 — D-13)** | `install.ts`, `uninstall.ts`, `scripts/*.ts`, `hooks/admission-guard.ts`, compiled with `tsc` to committed `.js`; `tsconfig.json` target ~ES2022, `newLine: lf` | The single source of truth for every tooling script (installer, validator, ASVS generator, foundation guards, the MCP admission hook) | Replaces the former dual POSIX `install.sh` + Node `install.mjs` pair. `tsc`-compiling to committed `.js` buys compile-time type-checking and a runnable artifact that needs **no toolchain on host machines**. A freshness check rebuilds to a temp dir and fails red on any drift, so the committed `.js` is provably a faithful build of its `.ts`. The dual sh/Node byte-parity install contract is retired (D-07/D-08): there is one installer, one source of truth. |
 | **Node.js runtime (host prerequisite)** | Node **22+ LTS** (drops EOL Node 18); the host runs the committed `.js` directly | Cross-platform execution of the compiled tooling, including Windows where POSIX shell cannot run | Hosts and CI never run a build — they run the committed `.js` with `node`. Node 22+ is a documented hard install prerequisite for the scripted install path (the minimal markdown-copy path in `install/README.md` §1 still needs nothing). Dev/build deps are `{typescript, vitest}` (+ type-only `@types/node`) and a committed lockfile, all dev/CI-only and never shipped to hosts. |
 | **SemVer 2.0.0** | 2.0.0 | Version scheme for `VERSION`, `plugin.json`, release IDs | `MAJOR.MINOR.PATCH`. Note: grugops itself is pre-1.0 territory; if you ship as `2.0.0` (matching the spec's VERSION) you accept SemVer's "MAJOR bump on breaking change" contract from day one. |
 | **Keep a Changelog 1.1.0** | 1.1.0 | `CHANGELOG.md` format; Release Manager role output | Sections: Added / Changed / Deprecated / Removed / Fixed / Security, plus an `Unreleased` block. "Changelogs are for humans." |
@@ -45,7 +45,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | **`${CLAUDE_PLUGIN_DATA}`** | CC v2.1.x | Persistent per-plugin state dir (survives updates) | Only if grugops ever bundles installed deps; not needed for a markdown kit. |
 | **`${CLAUDE_PROJECT_DIR}`** | CC v2.1.x | Project root, also passed to hook subprocesses | Reference project-local scripts from standalone (non-plugin) hooks. |
 | **`$ARGUMENTS` / `$0` `$1` / `$name`** | CC v2.1.x | Pass the user request into the `/grug` command | `$ARGUMENTS` = full request string; `$ARGUMENTS[N]`/`$N` = indexed (shell-quoted); `$name` = named via `arguments:` frontmatter. |
-| **`jq`** | any | Parse hook stdin JSON inside the prod-deploy guard | `jq -r '.tool_input.command'` to read the Bash command in a PreToolUse hook. Document as a guard dependency (or do the check in Node). |
+| **`jq`** | any | Not used by grugops | grugops ships no Bash hook. Its one hook, the MCP admission gate, reads its stdin JSON in Node (`JSON.parse`), so no `jq` dependency exists. |
 | **Gemini `settings.json` `context.fileName`** | Gemini CLI 2026 | Make Gemini CLI read AGENTS.md directly | `{ "context": { "fileName": ["AGENTS.md", "GEMINI.md"] } }` — cleaner than a `GEMINI.md` pointer. |
 ### Development Tools
 | Tool | Purpose | Notes |
@@ -90,11 +90,11 @@ It is lean by default and scales to enterprise governance on a single config fla
 ### 4. Slash command — two forms
 - Command frontmatter fields (all optional): `description`, `argument-hint`, `allowed-tools`, `disallowed-tools`, `model`, `disable-model-invocation`, `user-invocable`, `arguments`.
 - **Skills equivalence:** `.claude/skills/grug/SKILL.md` also yields `/grug` and supports the same frontmatter plus supporting files. For a destructive action you never want Claude to auto-trigger (e.g. `/grug-release`), set `disable-model-invocation: true`.
-### 5. Hooks — the mechanical prod-deploy guard
-#!/usr/bin/env bash
+### 5. Hooks — the MCP admission gate (the Bash prod-deploy guard was retired by 33.1 D-17)
+- grugops ships one hook: the MCP admission gate (`hooks/hooks.json` matches the admission tool, a structured call). It matches no `Bash` call, because deciding from shell text what a command does could not be closed (33.1 D-17). The platform facts below still hold.
 - **`PreToolUse` can block; `PostToolUse` cannot** (the tool already ran — use it for lint/log only).
 - **Two block methods:** exit code **2** (stderr message, simple) OR exit 0 + JSON `permissionDecision: "deny"` with a reason (recommended — gives the agent a message). Any other non-zero code is non-blocking.
-- **`matcher`** filters by tool name (`"Bash"`, `"Edit|Write"`, or regex). **`if`** narrows further using permission-rule syntax — `if: "Bash(kubectl apply*)"` runs the hook only when the command matches. This pairing is the clean, deterministic guard.
+- **`matcher`** filters by tool name (`"Bash"`, `"Edit|Write"`, `mcp__<server>__.*`, or regex). **`if`** narrows further using permission-rule syntax.
 - **Exec form vs shell form:** with `args` = exec form (no shell, no quoting needed for `${CLAUDE_PLUGIN_ROOT}`); without `args` = shell form (wrap `"${CLAUDE_PLUGIN_ROOT}"` in quotes). Prefer exec form for bundled scripts.
 - Hook input on stdin includes `tool_name`, `tool_input.command`, `cwd`, `permission_mode`, `hook_event_name`. (Hooks-in-own-session behavior: CC v2.1.139+.)
 ### 6. AGENTS.md + per-tool entry files
@@ -113,7 +113,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | `version` pinned in `plugin.json`, bumped per release | Omit `version` (git SHA = version) | Omit only for a fast internal dev loop where every commit-as-release is acceptable. For a public, shareable kit, pin and bump — predictable updates. |
 | Set `version: "2.0.0"` to match spec | Start at `0.x` / `1.0.0` | Consider `0.x` if you want SemVer's "anything may change" latitude during dogfooding. The spec says `2.0.0` (continuity with the v2 spec); if you adopt it you commit to MAJOR-bump-on-break immediately. Flag for the human to decide. |
 | Symlink role files in standalone install | Copy role files | Copy when targeting Windows without symlink privilege, or when shipping the **plugin** (plugins are copied to cache — symlinks to `../agent-factory/` will break). See "What NOT to use." |
-| `jq` in the deploy-guard hook | Pure-Node guard script | Use Node if you don't want a `jq` dependency; read stdin and `JSON.parse`. Either is fine; document the dependency. |
+| Git-host protection (hard floor) plus the installer's Claude Code ask rules (speed bump) | A Bash command-parsing hook | Never for merge or deploy safety: the command-parsing hook was retired by 33.1 D-17 because no parser of shell text could be closed. The git host sees every push, merge and deploy that goes through it; the ask rules cover the usual spellings and are not a security boundary. |
 ## What NOT to Use
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
@@ -135,8 +135,8 @@ It is lean by default and scales to enterprise governance on a single config fla
 - Because: subagents cannot nest, so the Orchestrator must be the main thread to spawn others.
 - Single-agent sequential role-load model (Orchestrator loads each role file into its own context in turn).
 - Because: these tools read AGENTS.md and don't have Claude's spawnable-subagent model; this is the portable baseline anyway.
-- Add the PreToolUse deploy-guard hook (plugin `hooks/hooks.json`); enforce the `production_requires_human_confirmation` config flag mechanically.
-- Because: regulated teams need the guard to be code, not prose.
+- Configure git-host protection (the hard floor) and keep the installer's ask rules (a speed bump); see install/README.md §5.
+- Because: only the git host sees every push, merge and deploy (33.1 D-17, D-21).
 ## Version Compatibility
 | Item | Compatible With | Notes |
 |------|-----------------|-------|
@@ -157,6 +157,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - code.claude.com/docs/en/sub-agents — subagent frontmatter (name/description/tools/model:inherit), file locations + precedence, no-nesting rule, `Agent` (ex-`Task`) tool (HIGH)
 - code.claude.com/docs/en/skills — commands-merged-into-skills, frontmatter, `$ARGUMENTS`/`$N`/`$name`, command-name-from-location table, `disable-model-invocation` (HIGH)
 - code.claude.com/docs/en/hooks — PreToolUse/PostToolUse, `matcher` + `if:` permission-rule syntax, exit-2 vs JSON deny, exec/shell form (HIGH)
+- code.claude.com/docs/en/permissions — `permissions.ask` rules, evaluation order, what a Bash rule does not match ("isn't a security boundary around the program") (HIGH)
 - agents.md — open standard, plain-markdown/no-schema, 60k+ projects, 20+ tools, Linux Foundation governance, closest-wins nesting (HIGH)
 - developers.openai.com/codex/guides/agents-md — global `~/.codex/AGENTS.md`, root→cwd concatenation, closer-overrides, 32 KiB cap (HIGH)
 - geminicli.com/docs/cli/gemini-md + google-gemini/gemini-cli docs — GEMINI.md default, `context.fileName` to read AGENTS.md, `@file.md` imports (HIGH)

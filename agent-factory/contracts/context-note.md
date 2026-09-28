@@ -137,7 +137,7 @@ STRUCTURED `mcp__plugin_grugops_grugops__propose_note` admission channel (the pl
 for the plugin's bundled server; the bare `mcp__grugops__propose_note` is the server's own name, and
 the hook's matcher covers both spellings) — a distinct process that reads the FRESH
 session variable per call (the variable the agent's own child env cannot reach) and validates the
-agent-supplied `human:<name>` stamp against it on every call (mirroring the prod-deploy guard). The
+agent-supplied `human:<name>` stamp against it on every call. The
 hook reads the FINAL structured tool arguments, not a Bash command string, so there is no command
 text to obfuscate. The grant is session-scoped and per-note capable (D-07): once a named human
 exports the approval variable, it authorizes high-severity admissions under that name for the rest of
