@@ -1926,7 +1926,13 @@ describe("31-10 — the converse: a clean note of every kind still writes", () =
 // EXPRESSION rather than to the declaration, which is the part these two mutations actually need
 // and the part that does not move when the statement around it changes. The one-occurrence PREMISE
 // below is what caught the drift rather than a case silently measuring the live module.
-const AUTHORITY_CALL = "admission = admit(task, text, contextRoot, repoRoot, ledgerOwner);";
+//
+// 33.1-12 (WR-01): the call gained a sixth argument, `destination.existing !== null`, which tells
+// the authority that the destination already holds exactly this note, so its GOV-02 append asks the
+// ledger first. The anchor is re-pinned to the new call expression; the one-occurrence PREMISE
+// caught the move, as it is built to.
+const AUTHORITY_CALL =
+  "admission = admit(task, text, contextRoot, repoRoot, ledgerOwner, destination.existing !== null);";
 
 /**
  * The mutation that RE-INTRODUCES the deleted kind axis (31-09).

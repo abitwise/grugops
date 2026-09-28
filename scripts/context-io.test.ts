@@ -2389,19 +2389,34 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
 // exists to pin. A freeze that can be emptied by a brace is not a freeze. Both halves are fixed:
 // the module uses a named constructor so no brace enters the parameter list, and the extraction
 // below skips the parameter list explicitly and ASSERTS that what it extracted is the body.
-describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39)", () => {
-  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 31-39 (D-39) for
-  // the deliberate dial/record unfreeze described above — the SIXTH re-base. admit() must hash to
-  // this exactly; the FIVE prior baselines, newest first, were:
+//
+// PLAN 33.1-12 DELIBERATE UNFREEZE + RE-BASELINE (WR-01, WINDOWS.md row 303) — the SEVENTH re-base.
+// The review measured a second GOV-02 line keyed by one id when `appendNote` re-appended identical
+// bytes under `audit_retention: retained`: the destination decision let identical bytes fall
+// through, `admit()` appended its event, and the write was then a no-op. The append lives inside
+// this function, so the fix cannot be made outside it without either a second reading of the
+// retention dial in the writer (one question decided twice) or reading the authority's refusal text
+// back as a signal. The span change is ONE guarded call at the one appending site: when the caller
+// says its destination already holds exactly this note (a new trailing parameter whose default,
+// `false`, keeps every existing caller byte-behaviour-unchanged), the append first asks
+// `ledgerRecordsId` — through a fail-closed wrapper — and is skipped when the id is already recorded.
+// Every refusal family above the retention guard is untouched, which the planted-identical-bytes
+// case in the 33.1-12 block asserts. The freeze RE-LOCKS at the new baseline.
+describe("context-io.ts — W-B admit() mechanical byte-freeze (Plan 25-09; re-baselined 25-13, 30-03, 31-01, 31-39, 33.1-12)", () => {
+  // The pinned baseline: sha256 of admit()'s function span. RE-BASELINED BY PLAN 33.1-12 (WR-01) for
+  // the deliberate ledger-look unfreeze described above — the SEVENTH re-base. admit() must hash to
+  // this exactly; the prior baselines, newest first, were:
+  //   bb920698…81cd  (31-39, D-39's dial/record split — the sixth re-base)
   //   08df9e5c…09e9  (31-01, the red-team round-1 ambiguity arm)
   //   ee418ce3…f06f  (31-01, D-03's artifact-ref commit binding)
   //   760319ff…2876  (30-03, D-12's reader rename)
   //   ae159bb3…5551  (30-03, D-14's unreadable-config refusal)
   //   dbf66ac7…ebf7  (25-13)
   //   b7998cbd…be3d  (pre-25-13, the original pin)
-  // — which is six VALUES and therefore five transitions, so the value below is the sixth.
+  // — the list above ending at 31-39 is the record 31-39 wrote; 33.1-12 adds its predecessor on top
+  // and the value below is the seventh re-base.
   const ADMIT_FROZEN_SHA256 =
-    "bb920698c1e4e321805209f7be0ccfee663ca851733c4ae369fd0781faef81cd";
+    "1bc759a516e5cd076cb318898ad1620166d8d406018d6a562eab01f5dc8b813f";
 
 
   // Extract the span `export function admit(` … matching `}` by brace-counting. HARDENED BY PLAN

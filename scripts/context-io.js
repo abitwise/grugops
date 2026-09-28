@@ -1688,7 +1688,9 @@ ledgerOwner = actionOwnerRoot(contextRoot)) {
     }
     let admission;
     try {
-        admission = admit(task, text, contextRoot, repoRoot, ledgerOwner);
+        // `destination.existing` is non-null here only for IDENTICAL bytes (a differing occupant was
+        // refused above), which is the one case whose admission may already be recorded (WR-01).
+        admission = admit(task, text, contextRoot, repoRoot, ledgerOwner, destination.existing !== null);
     }
     catch (e) {
         throw new Error(`context-io.appendNote: refusing to write — the admission could not be decided or could not ` +
@@ -3314,7 +3316,13 @@ export function admit(task, text, contextRoot = DEFAULT_CONTEXT_ROOT, repoRoot =
 // A CALLER MAY AIM THIS AND MAY NOT AIM THE DIAL. Routing the dial through a caller-supplied
 // destination reverses `D-31` and `WR-10` and would need its own dated human decision; D-39
 // RESTORES the trusted dial answer rather than reversing it.
-ledgerOwner = answeredOwner(repoRoot)) {
+ledgerOwner = answeredOwner(repoRoot), 
+// ── THE CALLER'S DESTINATION ALREADY HOLDS EXACTLY THIS NOTE (33.1-12, WR-01 / D-19 (4)). ──────
+// `true` only from a writer whose ONE destination decision found identical bytes at the id path.
+// It changes nothing above the retention guard: every refusal family still runs. At the append it
+// asks the ledger first, and a line already keyed by this id is not appended a second time. The
+// default keeps every existing caller byte-behaviour-unchanged.
+stored = false) {
     assertSafeTask(task);
     // Structural gate first: a structurally invalid note is never admitted (D-11 strict-reject).
     const findings = validate(text);
@@ -3503,7 +3511,11 @@ ledgerOwner = answeredOwner(repoRoot)) {
         if (!ledgerOwner.answered) {
             return [unnameableOwnerRefusal(ledgerOwner.store)];
         }
-        appendAuditLedger(ledgerOwner.root, scalars, isHighSeverity, vb);
+        // WR-01 (33.1-12) / D-19 (4): a note already stored under this id whose admission the ledger
+        // already records is not recorded twice; an unreadable ledger throws, and the writer refuses.
+        if (!(stored && storedNoteAlreadyRecorded(ledgerOwner.root, scalars.id ?? ""))) {
+            appendAuditLedger(ledgerOwner.root, scalars, isHighSeverity, vb);
+        }
     }
     return [];
 }
@@ -3604,6 +3616,36 @@ function ledgerRecordsId(repoRoot, id) {
         }
     }
     return false;
+}
+/**
+ * THE LEDGER LOOK FOR A NOTE ALREADY STORED, SHARED BY THE ROUTES THAT CAN MEET ONE (33.1-12, WR-01).
+ *
+ * 33-38 moved the destination decision above the ledger and let identical bytes fall through, as
+ * the chokepoint decides them. On that path the GOV-02 append still ran and the write was then a
+ * no-op, so a re-run with the same id left a SECOND ledger line keyed by one id. `promoteAdmitted`
+ * already asked `ledgerRecordsId` before its append (D-19 (4)); `appendNote` (through `admit()`) and
+ * both branches of `admitAndAppend` did not, which is the one-arm-fixed shape the review named.
+ *
+ * The look runs ONLY when the destination already holds exactly the note being admitted: a fresh
+ * write is recorded as before. It is FAIL-CLOSED for the reason `ledgerRecordsId` gives: a present
+ * ledger that cannot be read is refused, never answered "not recorded", because the answer to "not
+ * recorded" is to append. The clause name is the one `promoteAdmitted` declines with, so a reader
+ * meets one name for one condition whichever route raised it.
+ */
+function unreadableLedgerLookSentence(id, e) {
+    return (`the GOV-02 audit ledger look for id "${id}" failed (unreadable-audit-ledger), so this route ` +
+        `cannot tell whether the admission of the note already stored under that id is recorded. A ` +
+        `ledger that is present and cannot be read is refused rather than guessed about: answering "not ` +
+        `recorded" would append a second event keyed on one id, the duplicate D-19 (4) exists to ` +
+        `prevent. Underlying reason: ${e.message}`);
+}
+function storedNoteAlreadyRecorded(repoRoot, id) {
+    try {
+        return ledgerRecordsId(repoRoot, id);
+    }
+    catch (e) {
+        throw new Error(unreadableLedgerLookSentence(id, e));
+    }
 }
 // ── cell(): escape free-text before it enters a pipe-delimited markdown table cell (T-20-02). ───
 // Cloned from generate-catalog.ts: backslash first, then pipe, then flatten newlines to a space.
