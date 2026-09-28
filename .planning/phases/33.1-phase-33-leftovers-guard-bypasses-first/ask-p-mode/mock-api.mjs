@@ -2,15 +2,30 @@
 // measurement of plan 33.1-03 (D-20 part (d)). No model is called: this process answers every
 // request itself, on 127.0.0.1 only.
 //
-// Usage: node mock-api.mjs <port> <toolName> <inputJson> <logPath>
+// Usage: node mock-api.mjs <port> <toolName> <inputJson> <logPath> [<firstToolJson>]
 //
-// Behaviour:
+// Behaviour (four arguments, plan 33.1-03 — unchanged):
 //   - The FIRST POST to /v1/messages whose `tools` includes <toolName> and whose messages carry no
 //     `tool_result` is answered with one streamed `tool_use` of <toolName> with <inputJson> as input.
 //   - Every later Messages request is answered with a streamed `end_turn` text ("done").
 //   - Any other path (count_tokens, /api/hello, anything else) is answered with {"input_tokens":1}.
 //   - One line per request is appended to <logPath>: `<method> <url> toolResult=<bool>`.
 //   - When listening, the process prints `listening <port>` on stdout so the driver can start.
+//
+// Two-step subagent script (optional fifth argument, plan 33.1-13, D-33-R4-05):
+//   <firstToolJson> is `{"name": "<first tool>", "input": {...}}`, normally an `Agent` tool use
+//   carrying a short prompt. Then:
+//   - the FIRST Messages request that offers <first tool> and carries no `tool_result` is answered
+//     with that tool use (id `toolu_mock_first`) — the main thread spawning a subagent;
+//   - <toolName> is issued (id `toolu_mock`) on the first LATER request that offers <toolName>,
+//     carries no `tool_result`, and does not carry the id `toolu_mock_first` anywhere. The main
+//     thread's own continuation always carries that id (its assistant turn holds the first tool use),
+//     so the request this matches is the subagent's own conversation. (The plan's first sketch keyed
+//     this on "does not offer the Agent tool"; on a platform that lets subagents nest, a subagent's
+//     request may offer Agent too, so the id is the discriminator that does not depend on nesting.)
+//   - every other Messages request is answered with `end_turn`;
+//   - each issued tool use also appends `issued <name> <id>` to <logPath> (a line that never starts
+//     with `POST`, so a driver counting `POST /v1/messages` lines is unaffected).
 //
 // Node stdlib only. It lives in the phase directory, not the suite, for the reason
 // .planning/phases/32.1-board-dashboard-deferred-residuals/32.1-ledger-check.mjs states: a suite case
@@ -19,13 +34,20 @@
 import { createServer } from "node:http";
 import { appendFileSync } from "node:fs";
 
-const [, , portArg, toolName, inputJson, logPath] = process.argv;
+const [, , portArg, toolName, inputJson, logPath, firstToolJson] = process.argv;
 if (!portArg || !toolName || !inputJson || !logPath) {
-  process.stderr.write("usage: node mock-api.mjs <port> <toolName> <inputJson> <logPath>\n");
+  process.stderr.write("usage: node mock-api.mjs <port> <toolName> <inputJson> <logPath> [<firstToolJson>]\n");
   process.exit(2);
 }
 const input = JSON.parse(inputJson);
+const firstTool = firstToolJson ? JSON.parse(firstToolJson) : null;
+if (firstTool !== null && (typeof firstTool.name !== "string" || typeof firstTool.input !== "object")) {
+  process.stderr.write('mock-api.mjs: <firstToolJson> must be {"name": "<tool>", "input": {...}}\n');
+  process.exit(2);
+}
+const FIRST_ID = "toolu_mock_first";
 let issued = false;
+let firstIssued = false;
 
 const messageStart = {
   type: "message_start",
@@ -62,8 +84,21 @@ const server = createServer((req, res) => {
       return;
     }
 
-    const useTool = !issued && tools.includes(toolName) && !hasResult;
-    if (useTool) issued = true;
+    // Which tool use (if any) this request is answered with.
+    let issue = null;
+    if (firstTool === null) {
+      if (!issued && tools.includes(toolName) && !hasResult) issue = { id: "toolu_mock", name: toolName, input };
+    } else if (!firstIssued) {
+      if (tools.includes(firstTool.name) && !hasResult) issue = { id: FIRST_ID, name: firstTool.name, input: firstTool.input };
+    } else if (!issued && tools.includes(toolName) && !hasResult && !body.includes(FIRST_ID)) {
+      issue = { id: "toolu_mock", name: toolName, input };
+    }
+    if (issue !== null) {
+      if (issue.id === FIRST_ID) firstIssued = true;
+      else issued = true;
+      if (firstTool !== null) appendFileSync(logPath, `issued ${issue.name} ${issue.id}\n`);
+    }
+    const useTool = issue !== null;
     const blocks = useTool
       ? [
           [
@@ -71,7 +106,7 @@ const server = createServer((req, res) => {
             {
               type: "content_block_start",
               index: 0,
-              content_block: { type: "tool_use", id: "toolu_mock", name: toolName, input: {} },
+              content_block: { type: "tool_use", id: issue.id, name: issue.name, input: {} },
             },
           ],
           [
@@ -79,7 +114,7 @@ const server = createServer((req, res) => {
             {
               type: "content_block_delta",
               index: 0,
-              delta: { type: "input_json_delta", partial_json: JSON.stringify(input) },
+              delta: { type: "input_json_delta", partial_json: JSON.stringify(issue.input) },
             },
           ],
         ]
