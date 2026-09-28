@@ -13768,6 +13768,159 @@ describe("33.1-12 — WR-01: appendNote records an identical re-append once", ()
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// PLAN 33.1-12 — WR-01 ON THE SIBLING ROUTE, AND IN-01 (WINDOWS.md rows 303, 307).
+//
+// `admitAndAppend` mints its id with a random nonce, so an identical occupant is reached only by a
+// nonce collision; the nonce seam 33-38 built pins it (its PREMISE is re-asserted here). Both
+// branches reach the ledger — the gated one through `appendAuditLedger` directly, the non-gated one
+// through `admit()` — so both are driven. IN-01: `appendNote`'s pre-check refusal must name
+// `appendNote`, the function the caller called, not the chokepoint it has not reached.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("33.1-12 — WR-01 in admitAndAppend, and IN-01 in appendNote", () => {
+  const TASK = "T-1";
+  const BODY = "the sibling body";
+  const NONCE = "5eed1212";
+  const cjsCrypto = createRequire(import.meta.url)("node:crypto") as { randomUUID: () => string };
+
+  function withPinnedNonce<T>(fn: () => T): T {
+    const original = cjsCrypto.randomUUID;
+    cjsCrypto.randomUUID = () => `${NONCE}-0000-4000-8000-000000000000`;
+    syncBuiltinESMExports();
+    try {
+      return fn();
+    } finally {
+      cjsCrypto.randomUUID = original;
+      syncBuiltinESMExports();
+    }
+  }
+  function repo(prefix: string): { root: string; store: string } {
+    const root = freshTmp(prefix);
+    mkdirSync(join(root, ".git"), { recursive: true });
+    mkdirSync(join(root, ".grugops", "context"), { recursive: true });
+    writeFileSync(
+      join(root, ".grugops", "factory.config.json"),
+      JSON.stringify({ context: { human_admission: "high-severity", audit_retention: "retained" } }),
+    );
+    return { root, store: join(root, ".grugops", "context") };
+  }
+  function ledgerPathOf(root: string): string {
+    return join(root, ".grugops", "audit", "admissions.jsonl");
+  }
+  function linesFor(root: string, id: string): number {
+    const p = ledgerPathOf(root);
+    if (!existsSync(p)) return 0;
+    return readFileSync(p, "utf8")
+      .split("\n")
+      .filter((l) => l.trim() !== "")
+      .filter((l) => (JSON.parse(l) as { id?: string }).id === id).length;
+  }
+  function gatedNote(): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "finding",
+      by: "security-nfr",
+      at: "2026-09-28T02:00:00Z",
+      verified_by: "human:mallory",
+      confidence: "high",
+      refs: ["REQ-SEC-01"],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+  function softNote(): Parameters<typeof mod.appendNote>[1] {
+    return {
+      kind: "observation",
+      by: "qe",
+      at: "2026-09-28T02:00:00Z",
+      verified_by: "",
+      confidence: "high",
+      refs: [],
+      supersedes: null,
+    } as Parameters<typeof mod.appendNote>[1];
+  }
+
+  it("PREMISE: the pinned nonce reaches the module, and the two notes take the two branches", () => {
+    expect(withPinnedNonce(() => mod.noteId(softNote()))).toBe(`20260928T020000Z-qe-observation-${NONCE}`);
+    const { root } = repo("p33.1-12-sib-premise-");
+    const cfg = mod.readGovernanceConfig(root);
+    expect(mod.isGatedNote(gatedNote().by, gatedNote().kind, cfg)).toBe(true);
+    expect(mod.isGatedNote(softNote().by, softNote().kind, cfg)).toBe(false);
+  });
+
+  it("WR-01 (admitAndAppend, gated branch): two identical calls on one id leave exactly ONE ledger line", () => {
+    const { root, store } = repo("p33.1-12-sib-gated-");
+    const first = withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
+    expect(first.findings).toEqual([]);
+    const id = first.id as string;
+    expect(linesFor(root, id), "PREMISE: the first gated admission did not record").toBe(1);
+    const second = withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
+    expect(second).toEqual({ id, findings: [] });
+    expect(linesFor(root, id), "the gated branch keyed a second GOV-02 line by one id (WR-01)").toBe(1);
+  });
+
+  it("WR-01 (admitAndAppend, non-gated branch): two identical calls on one id leave exactly ONE ledger line", () => {
+    const { root, store } = repo("p33.1-12-sib-nongated-");
+    const first = withPinnedNonce(() => mod.admitAndAppend(TASK, softNote(), BODY, store, root));
+    expect(first.findings).toEqual([]);
+    const id = first.id as string;
+    expect(linesFor(root, id), "PREMISE: the first non-gated admission did not record").toBe(1);
+    const second = withPinnedNonce(() => mod.admitAndAppend(TASK, softNote(), BODY, store, root));
+    expect(second).toEqual({ id, findings: [] });
+    expect(linesFor(root, id), "the non-gated branch keyed a second GOV-02 line by one id (WR-01)").toBe(1);
+  });
+
+  it("WR-01 (admitAndAppend, gated branch): an unreadable ledger on the identical-bytes path is a named refusal, not a throw", () => {
+    const { root, store } = repo("p33.1-12-sib-unreadable-");
+    const first = withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
+    expect(first.findings).toEqual([]);
+    rmSync(ledgerPathOf(root), { force: true });
+    mkdirSync(ledgerPathOf(root));
+    let result: { id: string | null; findings: string[] } | null = null;
+    let threw: string | null = null;
+    try {
+      result = withPinnedNonce(() => mod.admitAndAppend(TASK, gatedNote(), BODY, store, root));
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw, "the refusal must be the branch's findings contract, not a throw").toBeNull();
+    expect(result?.id).toBeNull();
+    expect(result?.findings.join("\n")).toContain("unreadable-audit-ledger");
+  });
+
+  it("IN-01: appendNote's differing-occupant refusal names appendNote, not writeNoteFile", () => {
+    const { root, store } = repo("p33.1-12-in01-");
+    const id = "20260928T020000Z-qe-observation-in01aaaa";
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    const occupant = "an occupant under a caller-chosen id\n";
+    writeFileSync(join(store, TASK, "notes", `${id}.md`), occupant);
+    let threw: string | null = null;
+    try {
+      mod.appendNote(TASK, softNote(), BODY, store, id, root);
+    } catch (e) {
+      threw = (e as Error).message;
+    }
+    expect(threw).not.toBeNull();
+    expect(threw).toMatch(/^context-io\.appendNote: refusing to write — /);
+    expect(threw).not.toMatch(/^context-io\.writeNoteFile:/);
+    expect(threw).toContain("already holds a DIFFERENT note");
+    expect(threw).toContain("APPEND-ONLY (SCTX-04)");
+    expect(linesFor(root, id)).toBe(0);
+    expect(readFileSync(join(store, TASK, "notes", `${id}.md`), "utf8")).toBe(occupant);
+  });
+
+  it("IN-01 (admitAndAppend wording unchanged): a differing occupant still returns the admission-REFUSED finding", () => {
+    const { root, store } = repo("p33.1-12-in01-sib-");
+    const id = withPinnedNonce(() => mod.noteId(softNote()));
+    mkdirSync(join(store, TASK, "notes"), { recursive: true });
+    writeFileSync(join(store, TASK, "notes", `${id}.md`), "a differing occupant\n");
+    const result = withPinnedNonce(() => mod.admitAndAppend(TASK, softNote(), BODY, store, root));
+    expect(result.id).toBeNull();
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]).toMatch(/^admission REFUSED: the destination already holds a DIFFERENT note/);
+    expect(result.findings[0]).toContain("No GOV-02 event was appended.");
+  });
+});
+
 describe("31-29 — WR-28: the forged-origin price is measured PER POSITION, and the three agree", () => {
   const TASK = "T-1";
   const BODY = "the disposed body";
