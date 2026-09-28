@@ -72,6 +72,7 @@ import {
   guaranteesJoin,
   renderGuarantees,
   declaredResidualRows,
+  enforcementSection,
 } from "./generate-guarantees.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -444,6 +445,69 @@ describe("generate-guarantees — the dropped status and the generated disclosur
     expect(fn.length).toBeGreaterThan(0);
     expect(fn).not.toContain("readRegistry");
     expect(fn).not.toContain("guaranteesJoin");
+  });
+});
+
+describe("generate-guarantees — where each floor is enforced (33.1 D-20 part (b))", () => {
+  it("the rendered page carries the section once, with exactly one row per SAFETY_FLOORS member", () => {
+    const text = renderGuarantees(ROOT);
+    const lines = text.split("\n");
+    expect(lines.filter((l) => l === "## Where each floor is enforced").length).toBe(1);
+    const start = lines.indexOf("## Where each floor is enforced");
+    const header = lines.indexOf("| floor | hard floor | speed bump | prose |", start);
+    expect(header).toBeGreaterThan(start);
+    const rows: string[] = [];
+    for (let i = header + 2; i < lines.length && lines[i]!.startsWith("| "); i++) rows.push(lines[i]!);
+    // The denominator is the imported floor list, not a transcribed number.
+    expect(rows.length).toBe(SAFETY_FLOORS.length);
+    const ids = rows.map((r) => /^\| `([a-z_]+)` \|/.exec(r)?.[1]).sort();
+    expect(ids).toEqual(SAFETY_FLOORS.map((f) => f.id).sort());
+    // The section sits after "Where the checkpoints are held" and before the claim table.
+    expect(start).toBeGreaterThan(lines.indexOf("## Where the checkpoints are held"));
+    expect(start).toBeLessThan(lines.indexOf("## Which public sentences rest on which floor"));
+    // The two prose-only floors print `none` in both mechanical tiers.
+    for (const id of ["open_pr", "test_integrity"]) {
+      const row = rows.find((r) => r.startsWith(`| \`${id}\` |`))!;
+      expect(row, id).toMatch(/^\| `[a-z_]+` \| none \| none \| /);
+    }
+    expect(text).toContain("not a\nsecurity boundary");
+    expect(text).toContain("retired by 33.1 D-17");
+  });
+
+  it("a planted floor with an EMPTY prose tier makes the generator throw, naming the floor", () => {
+    const planted = SAFETY_FLOORS.map((f) =>
+      f.id === "test_integrity" ? { ...f, enforcement: { ...f.enforcement, prose: "" } } : f,
+    );
+    expect(() => enforcementSection(planted)).toThrow(/`test_integrity` has an empty prose tier/);
+    const blank = SAFETY_FLOORS.map((f) =>
+      f.id === "open_pr" ? { ...f, enforcement: { ...f.enforcement, prose: "   " } } : f,
+    );
+    expect(() => enforcementSection(blank)).toThrow(/`open_pr` has an empty prose tier/);
+    // The live list renders: the refusal is the planted input's, not a render that always throws.
+    expect(() => enforcementSection(SAFETY_FLOORS)).not.toThrow();
+  });
+
+  it("an unclassified floor, an empty-string tier, or a table-breaking cell also refuses by name", () => {
+    const missing = SAFETY_FLOORS.map((f) =>
+      f.id === "open_pr" ? ({ ...f, enforcement: undefined } as unknown as typeof f) : f,
+    );
+    expect(() => enforcementSection(missing)).toThrow(/`open_pr` carries no enforcement/);
+    const emptyTier = SAFETY_FLOORS.map((f) =>
+      f.id === "protected_branch_merge"
+        ? { ...f, enforcement: { ...f.enforcement, speedBump: "" } }
+        : f,
+    );
+    expect(() => enforcementSection(emptyTier)).toThrow(
+      /`protected_branch_merge` has an empty speed bump classification/,
+    );
+    const pipe = SAFETY_FLOORS.map((f) =>
+      f.id === "production_requires_human_confirmation"
+        ? { ...f, enforcement: { ...f.enforcement, hardFloor: "a | b" } }
+        : f,
+    );
+    expect(() => enforcementSection(pipe)).toThrow(
+      /`production_requires_human_confirmation` has a hard floor classification containing a pipe/,
+    );
   });
 });
 

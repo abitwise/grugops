@@ -335,6 +335,37 @@ describe("audit-model: the closed sets", () => {
     }
   });
 
+  it("every SAFETY_FLOORS member carries an enforcement classification; only merge and deploy have a hard floor (33.1 D-20(b))", () => {
+    // The denominator is the imported list: a fifth floor with no classification is red here, and
+    // the generator refuses to render it (scripts/generate-guarantees.test.ts).
+    expect(SAFETY_FLOORS.length).toBe(4);
+    for (const f of SAFETY_FLOORS) {
+      expect(f.enforcement, f.id).toBeDefined();
+      expect(typeof f.enforcement.prose, f.id).toBe("string");
+      expect(f.enforcement.prose.trim().length, f.id).toBeGreaterThan(0);
+      // `null` means "no mechanism in this tier"; an empty string would be an unclassified tier.
+      for (const tier of [f.enforcement.hardFloor, f.enforcement.speedBump]) {
+        if (tier !== null) expect(tier.trim().length, f.id).toBeGreaterThan(0);
+      }
+    }
+    const withHardFloor = SAFETY_FLOORS.filter((f) => f.enforcement.hardFloor !== null)
+      .map((f) => f.id)
+      .sort();
+    expect(withHardFloor).toEqual(["production_requires_human_confirmation", "protected_branch_merge"]);
+    // The speed bump is the installer's ask rules for exactly the same two floors (D-18), and it is
+    // described as what it is.
+    const withSpeedBump = SAFETY_FLOORS.filter((f) => f.enforcement.speedBump !== null)
+      .map((f) => f.id)
+      .sort();
+    expect(withSpeedBump).toEqual(withHardFloor);
+    for (const id of withHardFloor) {
+      const f = SAFETY_FLOORS.find((x) => x.id === id)!;
+      expect(f.enforcement.hardFloor, id).toMatch(/^The git host: /);
+      expect(f.enforcement.hardFloor, id).toContain("tools/grugops/host-protection.js");
+      expect(f.enforcement.speedBump, id).toContain("standalone install only; not a security boundary");
+    }
+  });
+
   it("safetyFloorLiveValue still reports null for a floor that declares no config key", () => {
     // No SAFETY_FLOORS member declares `configPath: null` after Phase 30, so the null arm would be
     // unexercised — and an unexercised arm is one nobody would notice breaking. Drive it directly:
@@ -343,6 +374,7 @@ describe("audit-model: the closed sets", () => {
       id: "synthetic_hard_limit",
       configPath: null,
       why: "A floor held by code alone, used here only to exercise the null arm.",
+      enforcement: { hardFloor: null, speedBump: null, prose: "Synthetic, never rendered." },
     } as const;
     expect(safetyFloorLiveValue(synthetic, REPO_ROOT)).toBeNull();
   });

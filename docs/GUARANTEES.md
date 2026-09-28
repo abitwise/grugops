@@ -27,6 +27,25 @@ rows would be the defect it exists to catch.
 no floor below is lowered and every row in the table holds at the status the registry
 measured. A repository that configures nothing lands here: nothing is lowered by omission.
 
+## Where each floor is enforced
+
+Each safety floor is held in up to three tiers. The **hard floor** is the git host: it is the
+only tier that sees every push and merge, and every deployment that runs through its deployment
+environments, whatever command spelled it. `tools/grugops/host-protection.js` reports read-only
+whether it is configured; grugops never configures it. The **speed bump** is the Claude Code ask
+rules the standalone installer writes: they cover the usual command spellings and are not a
+security boundary. **Prose** is the role and workflow text an agent reads; it is a written rule
+and nothing more. The Bash command guard earlier releases shipped was retired by 33.1 D-17,
+because no parser of shell text could be closed. `none` means the floor has no mechanism in
+that tier.
+
+| floor | hard floor | speed bump | prose |
+|---|---|---|---|
+| `open_pr` | none | none | The roles stop at a pull request instead of carrying the change further. No mechanism enforces it (33.1 D-26). |
+| `test_integrity` | none | none | The gate's test-integrity step surfaces weakened or skipped tests. No mechanism enforces it (33.1 D-26). |
+| `production_requires_human_confirmation` | The git host: a production deployment environment with at least one required reviewer. Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary). | Workflow 12 requires a named human to confirm the production action. |
+| `protected_branch_merge` | The git host: branch protection or a ruleset on each protected branch (pull request and approving review required, force pushes blocked, deletions restricted). Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for `git push` and `gh pr merge`, written by the installer (standalone install only; not a security boundary). | The roles stop at the pull request; a human holds the merge. |
+
 ## Which public sentences rest on which floor
 
 | claim | file | measured status | floors, and where each is held | standing |

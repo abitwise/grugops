@@ -223,21 +223,41 @@ export const SAFETY_FLOORS = [
         id: "open_pr",
         configPath: "checkpoints.open_pr",
         why: "Whether an agent must stop at a pull request instead of carrying the change further itself. Lowering it is what would falsify every claim that a human holds the merge — the claim four of the six `kind: safety` registry rows assert. It replaces the retired `autonomy` scalar, which was documentary and enforced by nothing. It is prose-tier: the roles read the cell and stop at the pull request, and no mechanism enforces it after 33.1 D-26, so lowering it is a configuration decision recorded in git history. The merge itself still meets the git host's branch protection, which no configuration value lowers.",
+        enforcement: {
+            hardFloor: null,
+            speedBump: null,
+            prose: "The roles stop at a pull request instead of carrying the change further. No mechanism enforces it (33.1 D-26).",
+        },
     },
     {
         id: "test_integrity",
         configPath: "checkpoints.test_integrity",
         why: "Whether weakened or skipped tests are surfaced. It is NEVER off — a claim that the trace is the proof rests on it. TINT-03 carries into the matrix as a per-id restriction: the legacy `warn` maps to `notify` and `block` stays `block`, and `off` is refused for this id alone rather than removed from the ternary for every other checkpoint. It is prose-tier: the roles read the cell at the gate's test-integrity step, and no mechanism enforces it after 33.1 D-26.",
+        enforcement: {
+            hardFloor: null,
+            speedBump: null,
+            prose: "The gate's test-integrity step surfaces weakened or skipped tests. No mechanism enforces it (33.1 D-26).",
+        },
     },
     {
         id: "production_requires_human_confirmation",
         configPath: "checkpoints.production_requires_human_confirmation",
         why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy. The hard floor is the git host: a production deployment environment with required reviewers, reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for the deploy and publish tools are a speed bump in front of it (D-18). The config cell decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
+        enforcement: {
+            hardFloor: "The git host: a production deployment environment with at least one required reviewer. Reported read-only by `tools/grugops/host-protection.js`.",
+            speedBump: "Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary).",
+            prose: "Workflow 12 requires a named human to confirm the production action.",
+        },
     },
     {
         id: "protected_branch_merge",
         configPath: "checkpoints.protected_branch_merge",
         why: "Agents never merge a protected branch. The hard floor is the git host: branch protection or a ruleset on the protected branch (pull request and review required, no force push), reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for `git push` and `gh pr merge` are a speed bump in front of it (D-18). The config cell (`checkpoints.protected_branch_merge`, default `block`) decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
+        enforcement: {
+            hardFloor: "The git host: branch protection or a ruleset on each protected branch (pull request and approving review required, force pushes blocked, deletions restricted). Reported read-only by `tools/grugops/host-protection.js`.",
+            speedBump: "Claude Code ask rules for `git push` and `gh pr merge`, written by the installer (standalone install only; not a security boundary).",
+            prose: "The roles stop at the pull request; a human holds the merge.",
+        },
     },
 ];
 // ── D-04: THE PROPERTIES THAT ARE OUTSIDE THE MATRIX ON PURPOSE. ───────────────────────────────

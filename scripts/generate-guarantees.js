@@ -618,6 +618,71 @@ function matrixDepartures(root) {
     return { lowered, tightened };
 }
 /**
+ * The "Where each floor is enforced" section (33.1 D-20 part (b)): one row per safety floor, three
+ * tiers per row, sourced from `SafetyFloor.enforcement` in scripts/audit-model.ts rather than from
+ * strings written here, so the tier a page states and the tier the model records cannot differ.
+ *
+ * TOTALITY, REFUSED BY NAME. A floor with no written rule (`prose` empty) is a floor the page would
+ * publish with nothing in its row, and a tier cell that is an empty string rather than `null` is an
+ * unclassified tier that would print as blank. Both refuse, naming the floor. So does a cell that
+ * would break the table (a pipe or a line break). The rendered data-row count is then compared with
+ * the floor list's own length, so a floor that falls out of the loop cannot publish a short table.
+ *
+ * Exported so a test can drive it with a planted floor list; `renderGuarantees` passes the live one.
+ */
+export function enforcementSection(floors = SAFETY_FLOORS) {
+    const cell = (floorId, tier, value) => {
+        if (value === null)
+            return "none";
+        if (value.trim() === "") {
+            throw new Error(`generate-guarantees: safety floor \`${floorId}\` has an empty ${tier} classification. ` +
+                `Use \`null\` when the floor has no mechanism in that tier, and name the rule when it has ` +
+                `one. Refusing to render a "Where each floor is enforced" row with a blank tier.`);
+        }
+        if (/[|\r\n]/.test(value)) {
+            throw new Error(`generate-guarantees: safety floor \`${floorId}\` has a ${tier} classification containing a ` +
+                `pipe or a line break, which would break the "Where each floor is enforced" table. Refusing ` +
+                `to render.`);
+        }
+        return value;
+    };
+    const rows = floors.map((f) => {
+        const e = f.enforcement;
+        if (e === undefined || e === null) {
+            throw new Error(`generate-guarantees: safety floor \`${f.id}\` carries no enforcement classification. ` +
+                `Every floor must state its hard floor, speed bump and prose tier before the page renders.`);
+        }
+        if (typeof e.prose !== "string" || e.prose.trim() === "") {
+            throw new Error(`generate-guarantees: safety floor \`${f.id}\` has an empty prose tier. Every floor is at ` +
+                `least a written rule; a floor with none would publish an empty row. Refusing to render.`);
+        }
+        return (`| \`${f.id}\` | ${cell(f.id, "hard floor", e.hardFloor)} | ` +
+            `${cell(f.id, "speed bump", e.speedBump)} | ${cell(f.id, "prose", e.prose)} |`);
+    });
+    if (rows.length !== floors.length) {
+        throw new Error(`generate-guarantees: the "Where each floor is enforced" table has ${rows.length} row(s) for ` +
+            `${floors.length} safety floor(s). Refusing to publish a short table.`);
+    }
+    return [
+        "## Where each floor is enforced",
+        "",
+        "Each safety floor is held in up to three tiers. The **hard floor** is the git host: it is the",
+        "only tier that sees every push and merge, and every deployment that runs through its deployment",
+        "environments, whatever command spelled it. `tools/grugops/host-protection.js` reports read-only",
+        "whether it is configured; grugops never configures it. The **speed bump** is the Claude Code ask",
+        "rules the standalone installer writes: they cover the usual command spellings and are not a",
+        "security boundary. **Prose** is the role and workflow text an agent reads; it is a written rule",
+        "and nothing more. The Bash command guard earlier releases shipped was retired by 33.1 D-17,",
+        "because no parser of shell text could be closed. `none` means the floor has no mechanism in",
+        "that tier.",
+        "",
+        "| floor | hard floor | speed bump | prose |",
+        "|---|---|---|---|",
+        ...rows,
+        "",
+    ];
+}
+/**
  * Render the guarantees document. Throws a NAMED refusal on an EMPTY join and a DIFFERENT named
  * refusal on a SHORT one — see the header for why both, and why one of them is not enough.
  */
@@ -732,7 +797,7 @@ export function renderGuarantees(root = DEFAULT_ROOT) {
     else {
         lines.push(`**LOWERED: ${lowered.length} checkpoint(s) sit below their documented default on this tree.**`, "A lowered floor must never be discoverable only by reading configuration, so it is named", "here, with the value it is held at. No grant authorizes a lowering: since Phase 33.1 (D-26)", "lowering a checkpoint is a configuration decision, recorded in git history.", "", "| checkpoint | held at | default |", "|---|---|---|", ...lowered.map((l) => `| \`${l.id}\` | \`${l.held}\` | \`${CHECKPOINT_DEFAULTS[l.id]}\` |`), "", "Every row of the table below whose floors include one of these is marked **LOWERED**. That", "mark is the whole point of this page: the sentence it names is one a reader of the shipped", "documents would otherwise still believe.", "");
     }
-    lines.push("## Which public sentences rest on which floor", "", "| claim | file | measured status | floors, and where each is held | standing |", "|---|---|---|---|---|", ...rows.map((r) => {
+    lines.push(...enforcementSection(), "## Which public sentences rest on which floor", "", "| claim | file | measured status | floors, and where each is held | standing |", "|---|---|---|---|---|", ...rows.map((r) => {
         const floors = r.floors
             .map((f) => `\`${f.id}\` at \`${f.held}\``)
             .join("; ");
