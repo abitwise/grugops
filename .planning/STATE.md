@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Retirement First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 33.1-17-PLAN.md
-last_updated: "2026-09-28T21:23:45.852Z"
-state_head: e7156066a0416f6cf18a61bda0a6f3ff2a78a5b8
+stopped_at: Completed 33.1-18-PLAN.md
+last_updated: "2026-09-28T21:43:11.952Z"
+state_head: 8dfedcfc158a135d39b936f2fdc785de9f9aae63
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 333
-  completed_plans: 329
+  completed_plans: 330
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33.1 (Phase 33 Leftovers: Guard Retirement First (INSERTED)) — READY TO EXECUTE (gap-closure round 1: plans 17-21)
-Plan: 17 of 21
+Plan: 18 of 21
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -589,6 +589,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33.1 P15 | continuation ~14min (runner 5min01s) | 3 tasks | 6 files |
 | Phase 33.1 P16 | 20 min | 3 tasks | 6 files |
 | Phase 33.1 P17 | 2h52m | 3 tasks | 6 files |
+| Phase 33.1 P18 | 20min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1617,6 +1618,8 @@ Recent decisions affecting current work:
 - [Phase 33.1]: 33.1-15 diagnosis: KIT+SUITE: kit home ships no scripts/ (claim.js, context-io.js) and role adapters lack propose_note, so role agents have no write route; the default-mode pin with Bash(node *) denies the mkdir claim; init frames report permissionMode=default
 - [Phase 33.1]: 33.1-16: GAP-D1 held a fifth time, mechanically. OUTCOME: fail, so the flip checkpoint was not presented (D-12, D-13). Manifest section 11 records the hold, and the status stays pre-capture. CAP-01, CAP-02 and CAP-03 are not met in 33.1 (CAP-02 is out by D-15). The round-5 diagnosis decisions are WINDOWS.md rows 310-312.
 - [Phase 33.1]: D-30 (33.1-17, 2026-09-29): canonical git-host floor is floor-full — branch: four published items plus no admin/agent-account bypass; production: environment, >=1 reviewer, prevent_self_review, can_admins_bypass false, deployment branch policy. One-way.
+- [Phase 33.1]: 33.1-18: rmdirIfEmpty decides emptiness with readdirSync; DRY_RUN narrates would-rmdir and makes no fs call (CR-02 DRY_RUN half)
+- [Phase 33.1]: 33.1-18: installer fs census refuses any require/createRequire/getBuiltinModule mention and fs module strings outside imports
 
 ### Pending Todos
 
@@ -1747,8 +1750,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-28T21:23:45.343Z
-Stopped at: Completed 33.1-17-PLAN.md
+Last session: 2026-09-28T21:43:11.475Z
+Stopped at: Completed 33.1-18-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
