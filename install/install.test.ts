@@ -5367,7 +5367,7 @@ describe("ask rules: install side (D-18)", () => {
     expect(ledger.createdAsk).toBe(true);
     // The marker keeps a fixed field order with the ledger after installMode.
     const markerKeys = Object.keys(JSON.parse(readFileSync(join(target, ".grugops", "install.json"), "utf8")));
-    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules"]);
+    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs"]);
     expect(r.stdout).toContain("-- permission rules --");
     expect(r.stdout).toContain("speed bump");
     expect(r.stdout).toContain("not a security boundary");
@@ -5633,5 +5633,156 @@ describe("ask rules: uninstall side (D-18)", () => {
     expect(r.status).toBe(0);
     expect(readFileSync(settingsFile(target)).equals(pre)).toBe(true);
     expect(r.stdout).toMatch(/would-remove\s+\.claude\/settings\.json \(55 ask rule\(s\)/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// DIRECTORY OWNERSHIP (plan 33.1-21, CR-02 ownership half / D-18 / D-20 part (c)).
+//
+// Uninstall removes an empty directory only when grugops owns it: its path is in the install
+// marker's `createdDirs` ledger (a directory install itself created), or its own name begins with
+// `grugops` (the kit namespace). An empty `.github/`, `.gemini/`, `.claude/` or `.claude/agents/`
+// the user made survives and is reported `left`. The expected removals below are DERIVED from the
+// marker's `createdDirs` and the uninstaller's fixed candidate shape, never hard-coded as a list.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("directory ownership (CR-02, plan 33.1-21)", () => {
+  const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
+  const readMarkerJson = (t: string): Record<string, unknown> => JSON.parse(readFileSync(markerPathOf(t), "utf8"));
+  const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
+    writeFileSync(markerPathOf(t), JSON.stringify(m, null, 2) + "\n");
+  // The paths a run printed under one report label (label padded to 14 columns after two spaces).
+  const linesUnder = (stdout: string, label: string): string[] =>
+    stdout
+      .split("\n")
+      .map((l) => /^ {2}(\S+)\s+(.+)$/.exec(l))
+      .filter((m): m is RegExpExecArray => m !== null && m[1] === label)
+      .map((m) => m[2]);
+  const leftFor = (stdout: string, target: string, rel: string): string[] =>
+    linesUnder(stdout, "left").filter((l) =>
+      l.replace(/\\/g, "/").startsWith(`${join(target, ...rel.split("/")).replace(/\\/g, "/")} (`),
+    );
+  // The uninstaller's rmdir candidates, by SHAPE: the fixed shared-name set plus every
+  // `.claude/skills/<name>` skill directory and `tools/grugops`.
+  const SHARED_NAME_DIRS = [".claude", ".claude/skills", ".claude/agents", ".gemini", ".github"];
+  const isRmdirCandidate = (rel: string): boolean =>
+    SHARED_NAME_DIRS.includes(rel) || rel === "tools/grugops" || /^\.claude\/skills\/[^/]+$/.test(rel);
+  const isEmptyDir = (p: string): boolean => existsSync(p) && lstatSync(p).isDirectory() && readdirSync(p).length === 0;
+
+  it("directory ownership: a user's empty .github/, .gemini/ and .claude/agents/ survive a real uninstall and are reported left", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const USER_DIRS = [".github", ".gemini", ".claude/agents"];
+    for (const rel of USER_DIRS) mkdirSync(join(target, ...rel.split("/")), { recursive: true });
+    expect(runInstall(target, home).status).toBe(0);
+    // A marker without the field counts as "created nothing" here, so this case reads the ownership
+    // behaviour, not the ledger's presence (that is the next case).
+    const created = (readMarkerJson(target).createdDirs ?? []) as string[];
+    for (const rel of [...USER_DIRS, ".claude"]) expect(created, `install did not create ${rel}`).not.toContain(rel);
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of USER_DIRS) {
+      const p = join(target, ...rel.split("/"));
+      expect(existsSync(p), `${rel} (user-created) was removed`).toBe(true);
+      if (isEmptyDir(p)) expect(leftFor(r.stdout, target, rel).length, `no left line for ${rel}`).toBe(1);
+    }
+    expect(isEmptyDir(join(target, ".github"))).toBe(true); // non-vacuous: the grugops file inside was removed
+  });
+
+  it("directory ownership: every directory install created and recorded is removed once empty; tools/ is left", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const marker = readMarkerJson(target);
+    const created = marker.createdDirs as string[];
+    expect(Array.isArray(created)).toBe(true);
+    expect(created).toEqual([...created].sort());
+    for (const rel of created) expect(lstatSync(join(target, ...rel.split("/"))).isDirectory(), rel).toBe(true);
+    const expectedRemoved = created.filter(isRmdirCandidate);
+    // non-vacuous: every shared-name directory, at least one skill directory and tools/grugops
+    for (const rel of [...SHARED_NAME_DIRS, "tools/grugops", "tools"]) expect(created, rel).toContain(rel);
+    expect(expectedRemoved.some((rel) => rel.startsWith(".claude/skills/grugops"))).toBe(true);
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of expectedRemoved) expect(existsSync(join(target, ...rel.split("/"))), `${rel} still exists`).toBe(false);
+    expect(existsSync(join(target, "tools"))).toBe(true);
+    expect(r.stdout).toMatch(/left\s+tools\/ \(/);
+  });
+
+  it("directory ownership: a legacy marker (no createdDirs) removes only grugops-named directories and says why the rest are left", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const marker = readMarkerJson(target);
+    // Derived from the tree, not from the ledger this case deletes.
+    const skillDirs = readdirSync(join(target, ".claude", "skills"))
+      .filter((n) => n.startsWith("grugops"))
+      .map((n) => `.claude/skills/${n}`);
+    expect(skillDirs.length).toBeGreaterThan(0);
+    delete marker.createdDirs;
+    writeMarkerJson(target, marker);
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of [...skillDirs, "tools/grugops"]) expect(existsSync(join(target, ...rel.split("/"))), rel).toBe(false);
+    for (const rel of SHARED_NAME_DIRS) {
+      const p = join(target, ...rel.split("/"));
+      expect(existsSync(p), `${rel} was removed without ledger evidence`).toBe(true);
+      if (isEmptyDir(p)) {
+        const lines = leftFor(r.stdout, target, rel);
+        expect(lines.length, `no left line for ${rel}`).toBe(1);
+        expect(lines[0]).toMatch(/predates the directory ledger/);
+      }
+    }
+  });
+
+  it("directory ownership: a malformed createdDirs is a verify finding on both sides; install writes it back verbatim and uninstall removes no shared-name directory", () => {
+    const MALFORMED: unknown[] = ["x", [1], ["../outside"], ["/abs"], ["a//b"], ["a\\b"], ["c:x"], ["."], [""], null, {}];
+    for (const bad of MALFORMED) {
+      const target = makeFixture();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      const marker = readMarkerJson(target);
+      marker.createdDirs = bad;
+      writeMarkerJson(target, marker);
+
+      const ri = runInstall(target, home);
+      const tag = JSON.stringify(bad);
+      expect(ri.status, `${tag}: install ${ri.stdout}`).toBe(3);
+      expect(linesUnder(ri.stdout, "verify").filter((l) => /directory ledger/.test(l)).length, tag).toBe(1);
+      expect(readMarkerJson(target).createdDirs, tag).toEqual(bad);
+
+      const ru = runUninstall(target, home);
+      expect(ru.status, `${tag}: uninstall ${ru.stdout}`).toBe(3);
+      expect(linesUnder(ru.stdout, "verify").filter((l) => /directory ledger/.test(l)).length, tag).toBe(1);
+      for (const rel of SHARED_NAME_DIRS) expect(existsSync(join(target, ...rel.split("/"))), `${tag}: ${rel}`).toBe(true);
+    }
+  });
+
+  it("directory ownership: the marker keeps a fixed key order, always writes createdDirs, and a second install is byte-identical", () => {
+    const first = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(first, home).status).toBe(0);
+    expect(Object.keys(readMarkerJson(first))).toEqual([
+      "kitVersion",
+      "grugopsHome",
+      "kitRoot",
+      "installMode",
+      "claudeAskRules",
+      "createdDirs",
+    ]);
+    const m1 = readFileSync(markerPathOf(first));
+    expect(runInstall(first, home).status).toBe(0);
+    expect(readFileSync(markerPathOf(first)).equals(m1)).toBe(true);
+
+    // A target that already holds every directory the first install created: install creates none,
+    // and still writes the field, as an empty array.
+    const second = makeFixture();
+    for (const rel of JSON.parse(m1.toString("utf8")).createdDirs as string[]) {
+      mkdirSync(join(second, ...rel.split("/")), { recursive: true });
+    }
+    expect(runInstall(second, home).status).toBe(0);
+    expect(readMarkerJson(second).createdDirs).toEqual([]);
   });
 });
