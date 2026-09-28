@@ -8,10 +8,14 @@
 // instead of assuming it.
 //
 // WHAT IT REPORTS. One line per inspected target, each carrying exactly one of three words:
-//   `protected`         — positive evidence from the host that the rule is enforced
-//   `unprotected`       — positive evidence from the host that it is not
+//   `protected`         — every row of the canonical table for that target (`BRANCH_FLOOR` for a
+//                         branch, `ENVIRONMENT_FLOOR` for the production environment) is positively
+//                         shown by the host, from rules the checked account cannot bypass
+//   `unprotected`       — the host answered, and at least one row is read and not met
 //   `UNKNOWN - verify`  — anything else: no `gh`, no auth, no permission, an unmeasured status,
 //                         an ambiguous answer, or output this check cannot parse
+// The two tables are the git-host setup checklist in install/README.md §5, one row per checklist
+// line, byte for byte (a test binds each table to its list, both ways).
 // and one summary line, `HOST-PROTECTION: <p> protected, <u> unprotected, <k> UNKNOWN - verify`.
 // The check NEVER answers `protected` without positive evidence. When in doubt the answer is
 // `UNKNOWN - verify` (project rule: never fabricate a passing gate).
@@ -74,12 +78,21 @@
 // a protected reason names which arm showed each row. `--json` publishes the table
 // (`floor.branch`) and, per branch target, one `facts` entry per row.
 //
-// ENVIRONMENT EVIDENCE. `environments` 200: the named environment with a `required_reviewers`
-// rule whose `reviewers` list is non-empty → protected; present without one → unprotected;
-// absent → UNKNOWN - verify (grugops cannot tell how production deploys run). The name is
-// `--env <name>`, else the last entry of `environments` in `.grugops/factory.config.json`, then
-// `agent-factory/config/factory.config.json` (relative to the working directory; an unparseable
-// file or a non-array value falls through), else `production`. The line names the source.
+// ENVIRONMENT EVIDENCE: ONE CANONICAL TABLE (plan 33.1-20, CR-01, D-30 `floor-full`).
+// `ENVIRONMENT_FLOOR` is the production floor, one row per item of the production checklist in
+// install/README.md §5, read from the environment `GET environments?per_page=100` lists under the
+// configured name: the environment exists; a `required_reviewers` rule names at least one reviewer;
+// that rule has `prevent_self_review === true`; `can_admins_bypass === false`; and
+// `deployment_branch_policy.protected_branches === true`. A field that is missing or of an
+// unexpected type is `unknown`, never its safe default; `protection_rules` that is not an array is
+// `unknown`; a `null` branch policy is `failed`; a custom branch policy is `unknown` (the check does
+// not read which branches it allows). No environment of that name is `unknown` for every row, and
+// the verdict says grugops cannot tell how production deploys run. Same verdict rule as branches.
+// Reviewer identities are never printed; the evidence counts them. The name is `--env <name>`,
+// else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
+// `agent-factory/config/factory.config.json` (both relative to the working directory; an
+// unparseable file or a non-array value falls through), else `production`. The line names the
+// source.
 //
 // READ-ONLY BY CONSTRUCTION. Every call goes through runGh(), and there are exactly two argv
 // shapes: `gh auth status` and `gh api --method GET -i <path>`. No field flag is ever passed
@@ -92,11 +105,12 @@
 //     exit 2 → none `unprotected`, but at least one `UNKNOWN - verify`, or the check could not run.
 //              Exit 2 is never a pass.
 //     stdout → human-readable lines in CLEAR PROFESSIONAL VOICE (the audit trail)
-//     stdout → with --json, a { ok, floor: { branch }, targets: [{ kind, name, verdict, reason,
-//              facts? }], calls } block after the human lines; `floor.branch` is the BRANCH_FLOOR
-//              requirement strings in table order, every branch target carries `facts` (one
-//              { id, requirement, state, evidence } per row), and `calls` is the argv of every gh
-//              call, so a recorded note shows how each verdict was reached
+//     stdout → with --json, a { ok, floor: { branch, environment }, targets: [{ kind, name,
+//              verdict, reason, facts }], calls } block after the human lines; `floor.branch` and
+//              `floor.environment` are the BRANCH_FLOOR and ENVIRONMENT_FLOOR requirement strings
+//              in table order, every target carries `facts` (one { id, requirement, state,
+//              evidence } per row of its table), and `calls` is the argv of every gh call, so a
+//              recorded note shows how each verdict was reached
 //
 // TEST SEAM. `--gh-script <path>` runs `node <path> <args…>` in place of `gh`. It exists so the
 // test suite can drive a Node stub instead of the network; the gate and release workflows never

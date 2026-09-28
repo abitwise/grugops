@@ -72,6 +72,16 @@ release, together with Phase 33.1, which retires the Bash command guard.
   before a matched command, they do not match every way of writing one, and the plugin form carries
   none. Configure host protection with the checklist in `install/README.md` §5, and confirm it
   with the read-only host check. Prose rules remain prose.
+- The read-only git-host check (`tools/grugops/host-protection.js`) now answers `protected` only
+  when the host positively shows every item of the git-host setup checklist in `install/README.md`
+  §5. For a branch that includes a required pull request with at least one approving review,
+  blocked force pushes, restricted deletions, and rules that the checked account cannot bypass. For
+  production it includes a deployment environment under the configured name that requires a
+  reviewer, prevents self-review, does not let administrators bypass its protection rules, and
+  allows deployments only from protected branches. A missing or unreadable setting is reported as
+  `UNKNOWN - verify`, never as protected. Earlier builds could answer `protected` on weaker
+  evidence, such as a single required reviewer on an environment that allowed self-review or
+  administrator bypass. Re-run the check to confirm your host (33.1 gap round 1, CR-01).
 - The admission-guard hook's matcher now matches the plugin-scoped tool name
   (`mcp__(plugin_grugops_)?grugops__.*`). Before this change the matcher was the bare server family
   `mcp__grugops__.*`, and the platform's plugin reference states that for a plugin's bundled MCP

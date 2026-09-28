@@ -457,9 +457,11 @@ The installer places this script in your repository. It asks the git host, throu
 `--branch <name>` (repeatable) and the production environment are protected. It prints one line per
 target with one of three words:
 
-- `protected` — the host showed positive evidence: a ruleset, classic branch protection, or required
-  reviewers on the environment.
-- `unprotected` — the host answered, and the protection is missing.
+- `protected` — the host showed positive evidence for every item of the checklist above that
+  applies to the target (the branch list for a branch, the production list for the environment),
+  from rules the account the check runs under cannot bypass.
+- `unprotected` — the host answered, and at least one item is missing or can be bypassed by that
+  account.
 - `UNKNOWN - verify` — the check could not tell: no `gh`, not authenticated, no permission to read
   the setting, or an ambiguous answer. Treat it as not verified. It never counts as protected.
 
@@ -472,9 +474,10 @@ the named human confirmation whatever the check reports.
 ### (b) Speed bump — Claude Code ask rules (standalone install only)
 
 The scripted installer (§2) reads `checkpoints.protected_branch_merge` and
-`checkpoints.production_requires_human_confirmation` from `.grugops/factory.config.json` (or, when
-that file is absent, from the kit's default config) and adds Claude Code ask rules to
-`permissions.ask` in your repository's `.claude/settings.json`:
+`checkpoints.production_requires_human_confirmation` from the first of
+`.grugops/factory.config.json` and `agent-factory/config/factory.config.json` that exists in your
+repository. When neither exists, or the one it finds cannot be read or parsed, it writes every rule. It adds
+Claude Code ask rules to `permissions.ask` in your repository's `.claude/settings.json`:
 
 - `protected_branch_merge` → rules for `git push` and `gh pr merge`;
 - `production_requires_human_confirmation` → rules for the deploy and publish tools (kubectl, helm,
