@@ -9599,7 +9599,14 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // 71 -> 70 (plan 33.1-07, task 1): ONE test module DELETED, the prod-deploy deny matcher's own suite,
 // deleted with the matcher (33.1 D-22). The pin moved because a module left, not to make a red go
 // away. Re-derived rather than decremented: `ls scripts/*.test.ts | wc -l` reports 70 on this tree.
-const TRIPWIRE_MODULES = 70;
+//
+// 70 -> 71 (plan 33.1-10, task 1): ONE test module, `scripts/guard-retired.test.ts` — the D-20 (a)
+// grep-to-zero over `git ls-files` minus a pinned seven-entry exclusion list, fed only from
+// scripts/dead-vocabulary.ts, with a hooks.json shape case and a mutation case per retired family.
+// The pin moved because a module landed, not to make a red go away. Re-derived rather than
+// incremented: `ls scripts/*.test.ts | wc -l` reports 71 on this tree, and the bump lands in the
+// SAME commit as the module.
+const TRIPWIRE_MODULES = 71;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

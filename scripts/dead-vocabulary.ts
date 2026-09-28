@@ -75,3 +75,91 @@ export const RETIRED_PROSE_FORMS: readonly string[] = [
   "handoff packet",
   "the handoff is the only memory",
 ];
+
+// ---------------------------------------------------------------------------------------------
+// THE 33.1 RETIREMENT: the Bash command-parsing guard (D-17, amended by D-26; D-22, D-28).
+//
+// Decision D-17 retired the guard that tried to decide, by parsing a shell command, whether an
+// agent was about to merge a protected branch or deploy to production. Round after round of review
+// found new spellings of the same command that the parser did not refuse, so the hard floor moved to the git
+// host (branch protection, deployment environments) and the speed bump moved to the host CLI's own
+// permission rules, which the installer writes. D-26 widened the retirement to the whole two-key
+// floor-grant family, because the guard was the only runtime reader of it. D-22 and D-28 retired
+// the live probe case and the UAT oracle that asserted the guard's deny.
+//
+// The survivor is NOT listed here and must never be: the MCP shared-context admission gate
+// (hooks/admission-guard.*, D-24) is a different gate that stays. The file pattern below is written
+// so that the admission gate's own file names never match it (a hyphen or word character before the
+// retired base name excludes the match).
+//
+// These lists feed ONE predicate, scripts/guard-retired.test.ts: zero hits across every tracked
+// file outside a pinned, seven-entry exclusion list of history and self paths. A retired name that
+// comes back into the live tree turns the suite red. The families mirror the derived consumer
+// scan filed with phase 33.1, so the test makes that one-time derivation permanent.
+//
+// The rule from the header applies here too: if going green would require deleting correct text,
+// the literal does not belong in this file. Every member below names code that no longer exists.
+// And, again: THIS MODULE MUST NEVER BE ADDED TO ANY GUARD'S SCAN SET. It contains every literal
+// it defines, which is why guard-retired.test.ts pins it (and its compiled .js) in its exclusions.
+// ---------------------------------------------------------------------------------------------
+
+// F1: the deleted guard's file names (the hook source, its compiled twin and its test). This is a
+// RegExp SOURCE, not a word list: the lookbehind refuses a preceding hyphen or word character, so
+// the surviving admission gate's files are never reported.
+export const RETIRED_GUARD_FILE_PATTERN: string = String.raw`(?<![-\w])guard\.(?:js|ts|test\.ts)\b`;
+
+// F2-F7: whole-word identifiers. The consumer matches each member as a whole word.
+export const RETIRED_GUARD_IDENTIFIERS: Readonly<Record<string, readonly string[]>> = {
+  // F2: the command model — the rule table and the parser helpers that split a shell command into
+  // words and matched them against the governed checkpoints (D-17).
+  F2: [
+    "COMMAND_CHECKPOINT_RULES",
+    "governedToolsNamedBy",
+    "classifyWords",
+    "failClosedCheckpoints",
+    "matchCommandCheckpoints",
+    "commandSegments",
+    "canonicalWordValue",
+    "COMMAND_RULE_CHECKPOINTS",
+    "CommandMatch",
+  ],
+  // F3: the production-deploy grant — the environment key a human set to approve one deploy (D-17).
+  F3: ["GRUGOPS_PROD_DEPLOY_APPROVED", "PROD_DEPLOY_APPROVAL_ENV_VAR"],
+  // F4: the two-key floor-grant family; its variable prefix is in RETIRED_GUARD_PREFIXES (D-26).
+  F4: ["FLOOR_ENV_VAR_PREFIX", "floorEnvVarName"],
+  // F5: the deny matcher module and the guard's bypass corpus module (D-17).
+  F5: ["prod-deploy-deny-match", "cr01-nested-corpus"],
+  // F6: the run banner and the two-key evaluator, whose only runtime caller was the guard (D-26).
+  F6: [
+    "evaluateMatrix",
+    "composeBanner",
+    "renderCheckpointBanner",
+    "isCheckpointBannerLine",
+    "BANNER_ALL_DEFAULT",
+    "BANNER_NON_DEFAULT_PREFIX",
+    "CONFIG_REFUSAL_PREFIX",
+    "resolveCheckpoint",
+    "FLOOR_CHECKPOINTS",
+    "isFloorCheckpoint",
+    "deriveFloorCheckpoints",
+    "NAMED_GRANT_ENV_VARS",
+    "GRANT_ENV_VAR_PATTERN_SOURCE",
+    "isGrantEnvVarName",
+  ],
+  // F7: the UAT and capture oracles that asserted the guard's deny (D-22, D-28), the checkpoint-note
+  // writer whose only production caller was the guard, and the frozen guard blob.
+  F7: [
+    "oracleHooksWiring",
+    "prodDeployDenyFired",
+    "PROD_DEPLOY_REASON_SIGNATURE",
+    "approvalKeyRefusals",
+    "denyObservedInStream",
+    "emitCheckpointNote",
+    "FROZEN_GUARD_BLOB",
+    "denyObservation",
+  ],
+};
+
+// The floor-grant variable prefix (F4, D-26). The consumer matches it at a word start, so any
+// variable in the retired family is reported whatever its suffix.
+export const RETIRED_GUARD_PREFIXES: readonly string[] = ["GRUGOPS_FLOOR_"];
