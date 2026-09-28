@@ -3604,6 +3604,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(rp.stdout).toMatch(/would-remove/); // the prune plan is narrated
     expect(snapshot(pTarget)).toBe(ptPre); // nothing deleted in the target
     expect(snapshot(pHome)).toBe(phPre); // nothing deleted in the kit home
+    // The planted backups are EMPTY directories, which snapshot() records no row for, so the two
+    // lines above cannot see them vanish (noted by plan 33.1-18). Ask for each one directly.
+    expect(existsSync(join(pTarget, `agent-factory.bak.${"2026-06-15T00-00-00.000Z"}`))).toBe(true);
+    expect(existsSync(join(pHome, `agent-factory.bak.${"2026-06-15T00-00-00.000Z"}`))).toBe(true);
   });
 
   // SC3: uninstall-after-migrate + the DOCUMENTED manual .bak rename restores the pre-migrate state.
