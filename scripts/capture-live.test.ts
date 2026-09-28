@@ -1421,6 +1421,29 @@ describe("CR-01 round 2: the spawn grant is fixed before the subject exists, dri
     for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
   });
 
+  // D-33-R4-05 (row 298), D-11 part (a): the pin lands only on the committed zero-token measurement
+  // (.planning/phases/33.1-.../33.1-WRITE-DENY-EVIDENCE.md: on 2.1.283 `-p --permission-mode default`
+  // denied an out-of-target Write on the main thread and inside a subagent). Without the pin the
+  // child inherits the operator's defaultMode (round 4 ran `auto`, 33-R4-DIAGNOSIS § 3.1).
+  it("D-33-R4-05: the spawn argv pins --permission-mode default immediately before --allowedTools, the flag is probed in --help, and the C7 slice after --allowedTools is still exactly the grant", async () => {
+    const build = handBuiltTarget("A");
+    const grant = liveAllowedTools(build.target);
+    const ops = recordingOps(FIXTURE_TEXT);
+    await runTarget(build, { ...RUN_SPEC, allowedTools: grant }, ops);
+    const args = ops.calls[0].args;
+    const at = args.indexOf("--allowedTools");
+    const pm = args.indexOf("--permission-mode");
+    expect(pm, "the argv carries --permission-mode").toBeGreaterThan(0);
+    expect(args.filter((a) => a === "--permission-mode"), "exactly once").toHaveLength(1);
+    expect(args[pm + 1]).toBe("default");
+    expect(pm + 2, "the pair sits immediately before --allowedTools").toBe(at);
+    const after = args.slice(at + 1);
+    const stop = after.indexOf("--agent");
+    expect(stop === -1 ? after : after.slice(0, stop), "the grant slice is unchanged by the pin").toEqual(grant);
+    expect(REQUIRED_FLAGS, "the pinned flag is probed in --help like every flag the invocation depends on").toContain("--permission-mode");
+    for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
+  });
+
   // 33-37 (WINDOWS.md row 260): the Edit-anchor authority, stated on ANY host. The win32 inputs are
   // synthesised drive-letter strings transformed by the function, not by the host, so the win32 form
   // is asserted on darwin and linux too. The decided form is the permissions reference's own

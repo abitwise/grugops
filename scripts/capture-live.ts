@@ -223,6 +223,9 @@ export const REQUIRED_FLAGS: readonly string[] = [
   "--plugin-dir",
   "--output-format",
   "--forward-subagent-text",
+  // Pinned in the spawn argv by D-33-R4-05; probed so a missing flag is a readiness refusal before
+  // any spend, not a failed paid run.
+  "--permission-mode",
 ];
 
 // The one placeholder every redacted value becomes (D-06).
@@ -1804,7 +1807,13 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
         fail(`target ${build.label}: the pre-spawn grant derivation differs from the expected grant on ${disagreement.join(", ")} — refusing to spawn; the two targets would not be scored against one grant`);
       }
     }
-    const args: string[] = ["-p", run.request, "--output-format", "stream-json", "--verbose", "--include-hook-events", "--forward-subagent-text", "--allowedTools", ...run.allowedTools];
+    // D-33-R4-05 (row 298), D-11 part (a): the permission mode is PINNED, not inherited. Round 4 ran
+    // under the operator's `defaultMode: auto` and role agents wrote outside the target with a
+    // grant that names no Write (33-R4-DIAGNOSIS § 3.1). The pin landed only on the committed
+    // zero-token measurement 33.1-WRITE-DENY-EVIDENCE.md: on 2.1.283, `-p --permission-mode default`
+    // with this grant denied an out-of-target Write on the main thread and inside a subagent, and an
+    // in-target Write still ran. Re-run that harness on the version present at the go.
+    const args: string[] = ["-p", run.request, "--output-format", "stream-json", "--verbose", "--include-hook-events", "--forward-subagent-text", "--permission-mode", "default", "--allowedTools", ...run.allowedTools];
     if (run.agent !== null) args.push("--agent", run.agent);
     const env = spawnEnv();
     console.log(`run ${build.label}: starting under a ${run.boundMs} ms bound; transcript streamed to ${transcriptPath}`);
