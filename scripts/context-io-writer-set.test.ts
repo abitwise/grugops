@@ -74,23 +74,27 @@ const mod: typeof import("./context-io.js") = await import(pathToFileURL(CONTEXT
  * Every EXPORTED function of scripts/context-io.ts whose call closure reaches writeNoteFile.
  *
  * MEASURED, WITH THE REASON IT MOVED (31-14): 4 -> 5. The derivation was re-run against the
- * post-31-14 source and its output READ — `["admitAndAppend","appendNote","emitCheckpointNote",
- * "emitVerdict","promoteAdmitted"]` — rather than the constant being adjusted until the case passed.
- * The new member is the proof-gated re-binding route: it is exported, and it reaches the note-file
- * write chokepoint on BOTH of its paths (through `appendPreAdmittedNote` when its proof holds, and
- * through `appendNote` when the note is outside its entry set). So it is a note writer, and the
- * (writer x refusal-family) matrix below gains a whole COLUMN with it.
+ * post-31-14 source and its output READ — five members, the checkpoint-note writer among them —
+ * rather than the constant being adjusted until the case passed. The new member was the proof-gated
+ * re-binding route: it is exported, and it reaches the note-file write chokepoint on BOTH of its
+ * paths (through `appendPreAdmittedNote` when its proof holds, and through `appendNote` when the note
+ * is outside its entry set). So it is a note writer, and the (writer x refusal-family) matrix below
+ * gained a whole COLUMN with it.
+ *
+ * MEASURED, WITH THE REASON IT MOVED (33.1-07): 5 -> 4. The derivation was re-run against the
+ * post-33.1-07 source and its output READ — `["admitAndAppend","appendNote","emitVerdict",
+ * "promoteAdmitted"]`. The removed member is the checkpoint-note writer: its only production caller
+ * was the Bash command guard retired by 33.1 D-17, and 33.1 D-26 deleted it with the guard.
  */
 const EXPECTED_NOTE_WRITERS = Object.freeze([
   "admitAndAppend",
   "appendNote",
-  "emitCheckpointNote",
   "emitVerdict",
   "promoteAdmitted",
 ]);
 
-/** The cardinality of that set. A sixth writer is a decision, never a bumped constant. */
-const EXPECTED_NOTE_WRITER_COUNT = 5;
+/** The cardinality of that set. A fifth writer is a decision, never a bumped constant. */
+const EXPECTED_NOTE_WRITER_COUNT = 4;
 
 /**
  * The DISCLOSED residual: an exported function that writes to the filesystem, takes its destination
@@ -1509,7 +1513,6 @@ function neverReachesAuthority(composedKind: string): CellDisposition {
 
 const WRITER_WIDE_DISPOSITIONS: Readonly<Record<string, CellDisposition>> = Object.freeze({
   emitVerdict: neverReachesAuthority("finding"),
-  emitCheckpointNote: neverReachesAuthority("finding"),
 });
 
 /** The site-wide disposition: nothing can reach this site, so no writer can be driven at it. */
@@ -3441,18 +3444,6 @@ function plantExistingNote(dest: string, repoRoot: string): { id: string; text: 
   return { id, text: readFileSync(join(dest, LIVENESS_TASK, "notes", `${id}.md`), "utf8") };
 }
 
-const LIVENESS_CHECKPOINT_INPUT = {
-  checkpoint: "protected_branch_merge",
-  declared: "block",
-  effective: "block",
-  authorizedBy: null,
-  envVarName: "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE",
-  outcome: "refused",
-  actionApproval: null,
-  actor: "tool=Bash session=s1",
-  command: "git push origin main",
-} as const;
-
 /**
  * ONE BINDING PER DERIVED NOTE WRITER. Every member states what it does at a destination that
  * already holds a note, and every member is DRIVEN there — never described.
@@ -3485,15 +3476,6 @@ const DESTINATION_LIVENESS: Readonly<Record<string, DestinationLivenessBinding>>
         return (e as Error).message;
       }
       return "";
-    },
-  },
-  emitCheckpointNote: {
-    idSource: "derived",
-    reason:
-      "Derives its id through noteId inside the reserved-identity emitter; its inputs carry no id " +
-      "at all, so it can only ever ADD a file. Still subject to the append-only chokepoint.",
-    driveBesideExisting: (dest, task) => {
-      expect(mod.emitCheckpointNote({ ...LIVENESS_CHECKPOINT_INPUT }, dest, "2026-09-08T04:00:00Z", task)).toBeTruthy();
     },
   },
   emitVerdict: {

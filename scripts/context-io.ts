@@ -56,7 +56,6 @@ import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import {
   CHECKPOINTS,
   CHECKPOINT_DEFAULTS,
-  DISPOSITIONS,
   STRICTEST_MATRIX,
   canonicalizeDisposition,
   type Checkpoint,
@@ -130,33 +129,22 @@ function assertSafeTask(task: string): void {
 
 // ── The reserved §14-gate author identity (D-02/D-04) ───────────────────────────────────────────
 // `§14-gate` is a reserved author identity: the §14 quality gate is the root of the verification
-// chain, and the ONLY emitter allowed to author a `by: §14-gate` verdict note (mirroring how the
-// prod-deploy hook trusts the human-set env var as ITS root, hooks/guard.ts). Any OTHER note
+// chain, and the ONLY emitter allowed to author a `by: §14-gate` verdict note. Any OTHER note
 // authored `by: §14-gate` is an impersonation flag — a structural FAIL on the plain validate path.
 // The one carve-out (D-04): the gate's own verdict emission goes through emitVerdict(), which sets
 // an internal trusted flag so the reserved-identity rule does not reject it.
 const GATE_IDENTITY = "§14-gate";
 
-// ── The SECOND reserved machine identity: the PreToolUse checkpoint guard (D-10/D-11, plan 30-08) ─
+// ── The SECOND reserved machine identity: `§checkpoint-guard` (D-10/D-11, plan 30-08) ──────────
 //
-// WHY A SECOND ONE EXISTS AT ALL, STATED BEFORE THE MECHANISM. D-11 requires that a checkpoint
-// lowered to `notify` records a `kind: finding` note naming the checkpoint, the actor and the
-// command, and D-10 requires the same of an UNAUTHORIZED lowering. A `finding` needs a `verified_by`
-// stamp under one of the two accepted grammars, and neither grammar can be satisfied honestly by
-// this writer: there is no §14 gate run behind a hook decision, and in the unauthorized case there
-// is NO human at all — that absence is the whole fact being recorded. The two ways out that were
-// NOT taken: emitting a `§14-gate#<id>` stamp with no verdict behind it (a forged stamp), or
-// interpolating the floor grant's value into a `human:<name>` stamp (a name the grammar's charset
-// would mangle, and a claim the guard cannot make in the unauthorized branch at all).
-//
-// WHAT THIS IDENTITY IS, AND WHAT IT IS NOT. It is the SAME shape as the §14-gate carve-out one
-// screen up: the guard is a separate operating-system process that the agent under it cannot
-// invoke, cannot pass content to and cannot silence, so — exactly like the gate — it is a root of
-// the verification chain and its record stamps nothing above it. It is NOT a widening of the
-// refuse-self floor on any agent-reachable path: adding it here makes `validate()` STRICTER
-// everywhere else, because a note authored by this identity through appendNote / admitAndAppend /
-// the CLI / the compaction carve-out oracle is now an impersonation FAIL that was previously an
-// ordinary author string. The only path that may author it is emitCheckpointNote() below.
+// WHY IT IS STILL RESERVED WHEN NOTHING AUTHORS IT. This identity was authored only by the
+// checkpoint-note writer that the Bash command guard called. That guard was retired by 33.1 D-17 and
+// its writer was deleted with it by 33.1 D-26, so no emitter in this module claims the identity any
+// more. It stays in RESERVED_IDENTITIES on purpose: removing it would turn it back into an ordinary
+// author string that appendNote / admitAndAppend / the CLI / the compaction carve-out oracle would
+// accept, and a note written under it before the retirement would then be indistinguishable from an
+// agent's. Kept reserved with no sanctioned emitter, a note authored by it is an impersonation FAIL
+// on every write path.
 //
 // THE RESIDUAL, NAMED RATHER THAN CLAIMED AWAY. A process running as the same uid can write a note
 // file directly and spell this identity itself. That is the pre-existing same-uid direct-FS residual
@@ -252,8 +240,8 @@ function isInvalidEvidencePhrase(value: string): boolean {
 //      wrote the literal line `verified_by: undefined`, and because `"undefined"` is in no
 //      hollow-evidence list the note read back with a non-empty stamp no gate and no human set. The
 //      former guard could not see it: `/[\r\n]/.test(undefined)` coerces to the string `"undefined"`
-//      and passes (the same blindness `emitCheckpointNote` closed for its body fields in 30-11
-//      round 4 with a loop of its own; that loop now asks this guard). A writer does not invent a
+//      and passes (the same blindness the checkpoint-note writer closed for its body fields in 30-11
+//      round 4 with a loop of its own; that writer was deleted by 33.1 D-26). A writer does not invent a
 //      value the caller did not give — absence is a refusal, never a silent `""` and never a word.
 //      Emptiness is NOT absence: `""` is a string and still writes as the honest empty value.
 //   2. SINGLE-LINE (CR-01). An embedded newline would inject additional `key: value` lines; because
@@ -776,8 +764,8 @@ export function splitNotes(text: string): { notes: string[]; trailingMalformed: 
 // `trustedEmitter` is the D-04 carve-out, generalized by plan 30-08 from a BOOLEAN to the reserved
 // identity the emission CLAIMS. A boolean said "somebody trusted is writing"; the identity says WHICH
 // one, so the carve-out cannot be borrowed across emitters — emitVerdict() may author `§14-gate` and
-// nothing else, emitCheckpointNote() may author `§checkpoint-guard` and nothing else, and each is
-// still an impersonation FAIL in the other's name. The plain CLI `validate <file>` verb, the compaction
+// nothing else, and `§checkpoint-guard` has had no sanctioned emitter since 33.1 D-26, so it is an
+// impersonation FAIL on every path. The plain CLI `validate <file>` verb, the compaction
 // carve-out oracle and every appendNote write path pass `null`, so an agent impersonating EITHER
 // reserved identity always FAILs.
 export function validate(text: string, trustedEmitter: ReservedIdentity | null = null): string[] {
@@ -902,9 +890,9 @@ export function validate(text: string, trustedEmitter: ReservedIdentity | null =
 
   // ── D-02 reserved-identity rule (applies to ANY note, not only findings) ──────────────────────
   // A note authored by a RESERVED machine identity is an impersonation flag, EXCEPT that identity's
-  // OWN sanctioned emitter — emitVerdict() for `§14-gate` (D-04), emitCheckpointNote() for
-  // `§checkpoint-guard` (D-10/D-11) — each of which names itself here. The comparison is against the
-  // claimed identity, not against a boolean, so one emitter's carve-out never covers the other's name.
+  // OWN sanctioned emitter — emitVerdict() for `§14-gate` (D-04), which names itself here;
+  // `§checkpoint-guard` has no sanctioned emitter since 33.1 D-26. The comparison is against the
+  // claimed identity, not against a boolean, so one emitter's carve-out never covers another name.
   if (
     (RESERVED_IDENTITIES as readonly string[]).includes(scalars.by ?? "") &&
     scalars.by !== trustedEmitter
@@ -920,20 +908,11 @@ export function validate(text: string, trustedEmitter: ReservedIdentity | null =
   // Still text-only: inspects scalars.verified_by / scalars.by only.
   //
   // WHY THE SUPPRESSION EXISTS, SAID ABOUT THE IDENTITY RATHER THAN ABOUT ONE CALLER (plan 30-11
-  // round 2, finding `RA2-2`). Both reserved emitters author a `finding` that carries no
-  // `verified_by` of its own, and the reason is the same for both and is a property of the identity:
-  // **a root of trust stamps nothing above itself, because nothing verifies it.** That is the whole
-  // justification, and it is true of `§14-gate` and `§checkpoint-guard` alike.
-  //
-  // This comment previously justified the checkpoint arm differently — "it is written by a separate
-  // process the agent under it cannot invoke, pass content to or silence" — and that sentence is
-  // false. `emitCheckpointNote` is an exported function; any importer calls it with any content, and
-  // the record it writes is byte-indistinguishable from a hook-written one. Measured: an in-process
-  // call produced `CHECKPOINT ALLOWED … command: "git push --force origin main"` under
-  // `by: §checkpoint-guard` with no guard running, no grant and nothing pushed. The clause was not
-  // decoration — it was the stated reason a human auditing `checkpoint-trace` may read a record as a
-  // hook fact, so it is replaced rather than softened. What DOES distinguish the tiers is named at
-  // `emitCheckpointNote`'s own header, in the same terms `emitVerdict` uses.
+  // round 2, finding `RA2-2`). A reserved emitter authors a `finding` that carries no `verified_by`
+  // of its own, and the reason is a property of the identity: **a root of trust stamps nothing above
+  // itself, because nothing verifies it.** Since 33.1 D-26 the only emitter that reaches this
+  // suppression is emitVerdict() for `§14-gate`; the checkpoint-note writer that also reached it was
+  // deleted with the retired Bash command guard.
   //
   // The suppression is reached ONLY with a claimed reserved identity, which the reserved-identity
   // rule above has already matched against the note's own author.
@@ -1009,11 +988,11 @@ export function atomicWrite(finalPath: string, data: string): void {
 // `writeNoteFile`, the module's single note-write chokepoint. The placement was right; the primitive
 // was not. `readFileSync` on a path that is not a regular file BLOCKS at `open(2)` with no timeout,
 // so ONE `mkfifo` at a note path wedged EVERY writer in this module — `appendNote`,
-// `appendPreAdmittedNote`, `admitAndAppend`, `promoteAdmitted`, `emitTrusted`, `emitVerdict` and
-// `emitCheckpointNote` all end here. Reproduced against the committed `scripts/context-io.js` before
-// any source change: `timeout 10 node <probe>` → EXIT=124, zero bytes of stdout, zero bytes of
-// stderr. A guard hook that emits a checkpoint note then hangs the tool call, and a PreToolUse hook
-// that never answers is, in this project's own measured words, the same event as an allow.
+// `appendPreAdmittedNote`, `admitAndAppend`, `promoteAdmitted`, `emitTrusted` and `emitVerdict` all
+// end here (a checkpoint-note writer also did until 33.1 D-26 deleted it). Reproduced against the
+// committed `scripts/context-io.js` before any source change: `timeout 10 node <probe>` → EXIT=124,
+// zero bytes of stdout, zero bytes of stderr. A hook that reaches a note writer then hangs the tool
+// call, and a PreToolUse hook that never answers is, in this project's own measured words, the same event as an allow.
 //
 // WHY THIS IS AN EXTRACTION AND NOT A SECOND HABIT. The discipline below is not new: it is the body
 // of `readGovernanceConfigCandidate`, written 2,400 lines further down after plan 30-11 round 2
@@ -1054,8 +1033,8 @@ export function atomicWrite(finalPath: string, data: string): void {
 // member of a derived note-then-ledger writer set (`promoteAdmitted` and `admitAndAppend`), and the
 // ledger look fails CLOSED, because an over-record is the safe asymmetry and a note with no ledger
 // line is a repudiation; (3) the corrected workflow prose NAMES the routes it covers and a case
-// binds it to that derived set. D-24 does NOT re-base `ADMIT_FROZEN_SHA256` and does NOT touch
-// `hooks/guard.ts` or `FROZEN_GUARD_BLOB`. Four residuals are named there, including R-31-21-03:
+// binds it to that derived set. D-24 does NOT re-base `ADMIT_FROZEN_SHA256` and does NOT touch the
+// Bash command guard or its frozen blob (both retired since by 33.1 D-17). Four residuals are named there, including R-31-21-03:
 // this plan's own stated premise about `appendFileSync` was MEASURED false and is closed here
 // rather than recorded as a disposition.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1836,7 +1815,7 @@ export function appendNote(
   contextRoot: string = DEFAULT_CONTEXT_ROOT,
   precomputedId?: string,
   // TEST SEAM (31-09, review finding WR-10). Production callers pass NOTHING: the governance root is
-  // the ONE trusted answer — the same reader `hooks/guard.ts`, `hooks/admission-guard.ts`,
+  // the ONE trusted answer — the same reader `hooks/admission-guard.ts`,
   // `scripts/admission-server.ts` and the CLI `admit` verb ask. A caller-chosen default of `ROOT`
   // meant the hook refused on the host repository's dial while this writer consulted the kit's, which
   // under the shipped shared-install model (`~/.grugops` kit + per-repo state) are different
@@ -1854,7 +1833,7 @@ export function appendNote(
   // SO THE TWO QUESTIONS NOW HAVE TWO PARAMETERS, and this one answers only the first.
   // `repoRoot` ANSWERS THE GOVERNANCE DIAL AND NOTHING ELSE: it decides whether this note may land
   // at all, and therefore decides where NOTHING lands. It stays the ONE trusted answer every tier
-  // asks (WR-10) — the same reader `hooks/guard.ts`, `hooks/admission-guard.ts`,
+  // asks (WR-10) — the same reader `hooks/admission-guard.ts`,
   // `scripts/admission-server.ts` and the CLI `admit` verb consult. It is still a TEST SEAM
   // (31-09, WR-10): production callers pass NOTHING. A caller-chosen default of `ROOT` meant the
   // hook refused on the host repository's dial while this writer consulted the kit's, which under
@@ -1906,7 +1885,7 @@ export function appendNote(
   // RECURSION, CHECKED NOT ASSUMED (plan 31-09 assumption A1, RE-MEASURED on this tree rather than
   // inherited from 31-05, because `admit()` has changed since): `admit()` calls no note writer —
   // 0 occurrences of appendNote/appendPreAdmittedNote/emitTrusted/writeNoteFile/emitVerdict/
-  // emitCheckpointNote/admitAndAppend in its body — so this call cannot re-enter.
+  // admitAndAppend in its body — so this call cannot re-enter.
   //
   // A GOV-02 LEDGER THAT CANNOT BE WRITTEN REFUSES THE WRITE (31-21, CR-12's class at the write
   // side). `admit()` appends the ledger event under `audit_retention: retained` and the append was
@@ -3641,10 +3620,10 @@ const TEST_INTEGRITY_CLEAN = "clean";
 // file read and no log read of its own to obtain that result: a second parser inside a safety path
 // is a second thing to drift, and the workflow already holds the checker's exit code.
 //
-// THE TIER, STATED RATHER THAN PAPERED OVER. The hook-enforced checkpoints are decided by a
-// SEPARATE process (hooks/guard.js) reading its own environment, which the agent under the hook
-// cannot set for itself. This one is decided IN-PROCESS from an argument the gate procedure
-// supplies. Those are different tiers and this file will not claim otherwise. What the mechanism
+// THE TIER, STATED RATHER THAN PAPERED OVER. No separate process decides this floor. The Bash
+// command guard, retired by 33.1 D-17, once decided the hook-enforced checkpoints from its own
+// environment; this one is decided IN-PROCESS from an argument the gate procedure supplies, and this
+// file will not claim a stronger tier for it. What the mechanism
 // does buy is that a malformed, misspelled, wrong-typed, empty or absent result FAILS CLOSED —
 // nothing is written and nothing is partially written — so the only way to reach a green verdict
 // is to state `clean` outright. The residual is that a caller determined to lie can state it; that
@@ -3760,240 +3739,6 @@ function emitTrusted(
   // appendNote. Every emitter reaches the chokepoint through this one line.
   writeNoteFile(join(contextRoot, task, "notes"), id, text);
   return id;
-}
-
-// ── The checkpoint trace (D-10 / D-11, plan 30-08) ───────────────────────────────────────────────
-
-/**
- * The fixed task the PreToolUse checkpoint guard records under.
- *
- * A PreToolUse payload carries no task name — the hook is a per-tool-call process, not a step in a
- * ticket — so the task is a FIXED constant rather than something derived from a payload field an
- * agent controls. It satisfies the TASK_NAME_RE allowlist by construction, and it is one greppable
- * place a human or an auditor reads the checkpoint trace from.
- */
-export const CHECKPOINT_TRACE_TASK = "checkpoint-trace";
-
-/** What one checkpoint decision records. Every field is stated by the guard, none by the agent. */
-export interface CheckpointNoteInput {
-  /** The roster id whose pattern group the command matched. */
-  readonly checkpoint: string;
-  /** The disposition the config DECLARED (what the banner reports). */
-  readonly declared: string;
-  /** The disposition actually ENFORCED. */
-  readonly effective: string;
-  /** The name key two carries, or `null` when the lowering was never authorized. */
-  readonly authorizedBy: string | null;
-  /** The name of key two for this checkpoint, or `null` for a non-floor member. */
-  readonly envVarName: string | null;
-  /** What the guard did about this command. */
-  readonly outcome: "allowed" | "refused";
-  /**
-   * The name of the ACTION-approval variable when that variable — not the checkpoint's own key two —
-   * is what let the command proceed; `null` otherwise (plan 30-11, finding A-3).
-   *
-   * It exists because `outcome: "allowed"` and `effective: "block"` are a legal and initially
-   * puzzling combination: the lowering was NOT authorized (so the checkpoint is enforced at its
-   * default) while the action itself was separately approved by a human at that un-lowered posture.
-   * Without this field a reader of the record would have to guess which of the two keys applied, and
-   * the obvious guess — that the two-key rule was bypassed — is the wrong one.
-   */
-  readonly actionApproval: string | null;
-  /** The actor, as far as a PreToolUse payload can identify one. */
-  readonly actor: string;
-  /** The command the decision was about. */
-  readonly command: string;
-}
-
-/**
- * Write ONE checkpoint record into the shared verified context (D-10, D-11).
- *
- * TWO CASES, ONE WRITER. A lowering that WAS authorized allows the action and records that it did
- * (D-11); a lowering that was NOT authorized is refused and records the unauthorized declaration
- * (D-10). Both go through here, because "an agent that edits config alone is ineffective" and "…and
- * visible" are one promise, and a second writer for the second half is how the halves come apart.
- *
- * WHY THE BODY CARRIES THE NAMES AND THE FRONTMATTER DOES NOT. `authorizedBy` is a human name typed
- * into a shell — it may carry spaces, and the `human:<name>` stamp grammar does not admit them. A
- * stamp is therefore not where it goes: the note is a trusted emission (verified_by is empty, as the
- * gate's own verdict is), and the name appears VERBATIM in the body, unmangled, beside the variable
- * that carried it. Recording a mangled name in a provenance field would be worse than recording none.
- *
- * It THROWS on any failure — an unwritable directory, a field carrying a newline, a note the
- * validator refuses, or a field outside the vocabularies checked at the top of the body. It does not
- * swallow. The caller decides what a failure to record means, and the guard's answer is that an
- * unrecordable lowering is not a lowering (see hooks/guard.ts).
- *
- * ---------------------------------------------------------------------------------------------
- * THE TIER, STATED RATHER THAN PAPERED OVER (plan 30-11 round 2, `RA2-2`) — the paragraph
- * `emitVerdict` has carried since plan 30-05, owed here for the same reason.
- *
- * A `§checkpoint-guard` record written BY THE HOOK is written by a separate process whose
- * environment and invocation an agent's tool call cannot reach. That is what makes the hook's record
- * a fact about a decision a human's key did or did not authorize.
- *
- * This function is not that process. It is an exported function, and an importer may call it with
- * any content: an in-process caller can write `CHECKPOINT ALLOWED … command: "git push --force
- * origin main"` under the reserved identity with no guard running and nothing pushed, and the
- * resulting file is byte-indistinguishable from a real one. So the distinction between the tiers is
- * the CALLER, not the identity, and no reader should take the identity alone as evidence of a hook
- * run. The residual is that an in-process caller determined to lie can — named here rather than
- * claimed away, exactly as `emitVerdict` names its own.
- *
- * What the vocabulary checks below DO buy: a record under this identity always names a real
- * checkpoint, a real disposition and one of the two defined outcomes, so a forged record is
- * constrained to statements the design defines even when its content is false.
- * ---------------------------------------------------------------------------------------------
- */
-/**
- * The ONE way an untrusted value reaches a checkpoint record's body (plan 30-11 round 3, `RA4-1`).
- *
- * ---------------------------------------------------------------------------------------------
- * WHY THE FIELD LOOP WAS THE WRONG AXIS.
- *
- * Round 2's refuse-before-compose block type-checked `actor` and `command` — the two fields that were
- * ALREADY passed through `JSON.stringify` — and left `envVarName` and `actionApproval`, the two
- * interpolated RAW, with no check of any kind. Measured on the round-2 artifact: a newline in
- * `envVarName` carrying a complete frontmatter block made the single written record parse, through
- * this module's own splitter, as **two notes** — the second authored `by: security-nfr` with a
- * `verified_by: human:alice` stamp. A record under the reserved identity was therefore NOT
- * "constrained to statements the design defines", which is the bound the tier paragraph publishes;
- * and the second note it carried was authored by a NON-reserved identity that no tier paragraph in
- * this module covers.
- *
- * The axis is not "which fields did someone remember to check". It is **how a value reaches the
- * body**: every value interpolated into the body goes through this function, and
- * `scripts/context-io.test.ts` asserts that this function's source contains no other `${input.`
- * interpolation site — so a field added later is covered by the rule rather than by a memory.
- * ---------------------------------------------------------------------------------------------
- */
-function bodyValue(v: unknown): string {
-  return JSON.stringify(String(v));
-}
-
-/** The two outcomes a checkpoint record may state. Derived from the input type's own union. */
-const CHECKPOINT_OUTCOMES: readonly CheckpointNoteInput["outcome"][] = ["allowed", "refused"];
-
-export function emitCheckpointNote(
-  input: CheckpointNoteInput,
-  contextRoot: string = DEFAULT_CONTEXT_ROOT,
-  at: string = new Date().toISOString(),
-  task: string = CHECKPOINT_TRACE_TASK,
-): string {
-  assertSafeTask(task);
-  // ── REFUSE BEFORE COMPOSE, against the vocabularies that already exist (round 2, `RA2-3`). ──────
-  //
-  // This emitter validated the note's STRUCTURE and none of its content. Measured on the committed
-  // artifact, every one of these was WRITTEN under the reserved identity and none was refused:
-  // an off-roster checkpoint id published as a checkpoint; `outcome: "approved"` minted
-  // `CHECKPOINT APPROVED`, a verdict word the design does not define; non-canonical `declared`
-  // /`effective` values (`yes`, `maybe`); an empty checkpoint id; and a misspelled field name put the
-  // literal string `undefined` into `refs`, which is a load-bearing provenance field the compaction
-  // carve-out matches on.
-  //
-  // The TypeScript unions that were supposed to prevent this are ERASED in the compiled `.js`, and
-  // the compiled `.js` is what a host runs — the artifact rule this whole surface is audited against.
-  // So the check is at runtime, above the first line that builds any part of the note, exactly as
-  // `emitVerdict` does it 150 lines above: the sibling emitter refuses the complement of one exact
-  // string by rule and composes nothing before it decides, while this one composed everything and
-  // decided nothing.
-  //
-  // Every accept set is DERIVED — `CHECKPOINTS` is the roster table, the disposition set is the
-  // canonicalizer's own three values, and the outcome set comes off the input type's union — so none
-  // of them is a second list beside the authority it mirrors.
-  if (!(CHECKPOINTS as readonly string[]).includes(input.checkpoint)) {
-    throw new Error(
-      `context-io.emitCheckpointNote: refusing to emit — "${input.checkpoint}" is not a checkpoint ` +
-        `on the roster. A record under the reserved identity may only name a checkpoint that exists.`,
-    );
-  }
-  for (const [field, value] of [
-    ["declared", input.declared],
-    ["effective", input.effective],
-  ] as const) {
-    if (!(DISPOSITIONS as readonly string[]).includes(value)) {
-      throw new Error(
-        `context-io.emitCheckpointNote: refusing to emit — ${field} is "${value}", which is not one ` +
-          `of ${DISPOSITIONS.join("|")}. A record under the reserved identity may only state a ` +
-          `disposition the canonicalizer admits.`,
-      );
-    }
-  }
-  if (!(CHECKPOINT_OUTCOMES as readonly string[]).includes(input.outcome)) {
-    throw new Error(
-      `context-io.emitCheckpointNote: refusing to emit — outcome is "${input.outcome}", which is ` +
-        `not one of ${CHECKPOINT_OUTCOMES.join("|")}. A record under the reserved identity may not ` +
-        `mint a verdict word the design does not define.`,
-    );
-  }
-  // ── ONE RULE FOR EVERY BODY FIELD (plan 30-11 round 4, `RA6-4`). ────────────────────────────
-  //
-  // Round 3 closed `RA2-3` with a TYPE refusal over `actor`/`command`/`authorizedBy`, and closed
-  // `RA4-1` with a SINGLE-LINE refusal over `envVarName`/`actionApproval`. Two fixes, each covering
-  // one field-set on one axis — and the remaining cell was open: the single-line guard of the time
-  // did not refuse a non-string, because `/[\r\n]/.test(undefined)` coerces to the string
-  // `"undefined"` and passes. Measured: `actionApproval: undefined` WROTE the record, minting the
-  // sentence `- action approved by: undefined was set by a human` under the reserved identity. That
-  // line is the record's assertion that a human set an approval; a missing field minted it rather
-  // than refusing, and no reader or test can tell the forged line from a real one.
-  //
-  // The axis is "is this a field of the record", not "which fields did which round remember". One
-  // loop, both rules, and the nullable set is DERIVED from the input type's own optionality rather
-  // than hand-listed — `scripts/context-io.test.ts` asserts the loop covers exactly the fields the
-  // body interpolates.
-  //
-  // BOTH RULES NOW LIVE IN THE ONE GUARD (plan 33-26). The type refusal this loop carried since
-  // round 4 was the module's second spelling of "a non-string is not a field value"; the provenance
-  // scalars in composeValidatedNote had none, and that blindness wrote `verified_by: undefined` into
-  // a real capture (33-DIAGNOSIS § 3). `assertNoteScalar` now refuses a non-string by name before
-  // its newline test, so this loop asks it and spells nothing of its own.
-  const NULLABLE_BODY_FIELDS = new Set(["envVarName", "actionApproval", "authorizedBy"]);
-  for (const field of ["envVarName", "actionApproval", "authorizedBy", "actor", "command"] as const) {
-    const value = (input as unknown as Record<string, unknown>)[field];
-    if (value === null && NULLABLE_BODY_FIELDS.has(field)) continue;
-    assertNoteScalar(field, value);
-  }
-  const note: NoteInput = {
-    kind: "finding",
-    by: CHECKPOINT_GUARD_IDENTITY,
-    at,
-    // The guard is a root of trust exactly as the §14 gate is (see CHECKPOINT_GUARD_IDENTITY):
-    // its record stamps nothing above it, so it carries no verified_by of its own.
-    verified_by: "",
-    confidence: "high",
-    refs: [input.checkpoint],
-    supersedes: null,
-  };
-  // THE THREE UNTRUSTED VALUES ARE QUOTED, NOT INTERPOLATED RAW. `command` is agent-authored text
-  // and `actor` comes off the same payload; `authorizedBy` is whatever a human typed into a shell.
-  // Any of them may carry a newline, and a newline in a note BODY can spell a `---` fence line — the
-  // shape that makes one file read as two notes to anything that splits a stream. JSON.stringify
-  // renders each on ONE line with its newlines escaped and its quotes visible, so the recorded value
-  // is exactly the value, and the record's own structure is not something the command can rewrite.
-  const authorization =
-    input.authorizedBy === null
-      ? input.envVarName === null
-        ? "not applicable (this checkpoint is not floor-tier and needs no second key)"
-        : `NONE — ${input.envVarName} is absent, so the declaration authorized nothing`
-      : `${input.envVarName}=${bodyValue(input.authorizedBy)}`;
-  const body =
-    `CHECKPOINT ${input.outcome.toUpperCase()}: the checkpoint "${input.checkpoint}" was declared ` +
-    `\`${input.declared}\` and enforced as \`${input.effective}\`.\n\n` +
-    `- checkpoint: ${input.checkpoint}\n` +
-    `- declared: ${input.declared}\n` +
-    `- effective: ${input.effective}\n` +
-    `- authorized by: ${authorization}\n` +
-    (input.actionApproval === null
-      ? ""
-      : `- action approved by: ${input.actionApproval} was set by a human, which approves THIS ` +
-        `action at the enforced posture — it does not authorize the declared lowering\n`) +
-    `- actor: ${bodyValue(input.actor)}\n` +
-    `- command: ${bodyValue(input.command)}\n`;
-  assertNoteFields(note);
-  const id = noteId(note);
-  assertNoteScalar("id", id);
-  const text = composeNote(note, body, id);
-  return emitTrusted(CHECKPOINT_GUARD_IDENTITY, "emitCheckpointNote", task, note, text, id, contextRoot);
 }
 
 // ── Governance high-severity roles (D-06) ───────────────────────────────────────────────────────
@@ -4711,9 +4456,8 @@ function readCheckpointMatrix(parsed: unknown): CheckpointMatrixRead {
       // this function that comes from the config file rather than from the roster, and a config file
       // is agent-writable. JSON permits a key carrying a newline, so a raw interpolation would let
       // that key spell additional LINES in whatever prints this refusal — including a line shaped
-      // like the run banner the guard emits on the next line down. `emitCheckpointNote` in this same
-      // module already states the rule for untrusted values ("quoted, not interpolated raw"); this
-      // site was the one that had not applied it. Quoting renders the key on one line, with its
+      // like a report line printed after it. The module's rule for untrusted values is "quoted, not
+      // interpolated raw"; this site was the one that had not applied it. Quoting renders the key on one line, with its
       // escapes visible, so the reported value is exactly the value and the report's own structure
       // is not something the config can rewrite.
       refusals.push(
@@ -5959,10 +5703,11 @@ const GOVERNANCE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
  * ---------------------------------------------------------------------------------------------
  * WHY THIS IS NOT `existsSync` + `readFileSync` (plan 30-11 round 2, finding `RA1-2`).
  *
- * `readFileSync` on a path that is not a regular file BLOCKS. Measured on the committed
- * `hooks/guard.js` and `hooks/admission-guard.js`, spawned as processes: with a FIFO at
- * `<project>/.grugops/factory.config.json` — created by a plain `mkfifo`, which the guard itself
- * ALLOWS — both hooks produced **no exit, zero bytes of stdout and zero bytes of stderr at 20
+ * `readFileSync` on a path that is not a regular file BLOCKS. Measured in plan 30-11 on the two
+ * committed PreToolUse hooks of the time (the Bash command guard, retired since by 33.1 D-17, and
+ * `hooks/admission-guard.js`), spawned as processes: with a FIFO at
+ * `<project>/.grugops/factory.config.json` — created by a plain `mkfifo`, which the Bash command
+ * guard ALLOWED — both hooks produced **no exit, zero bytes of stdout and zero bytes of stderr at 20
  * seconds**, against controls answering in 31 ms and 43 ms. A symlink to `/dev/zero` did the same.
  * A PreToolUse hook that never answers produces no `permissionDecision`, which the host treats as
  * non-blocking: the same event as an allow. One allowed `mkfifo` turned BOTH guards off for every
