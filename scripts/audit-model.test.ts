@@ -303,10 +303,9 @@ describe("audit-model: the closed sets", () => {
   // This case previously asserted the OPPOSITE — that `protected_branch_merge` declared NO config
   // key, because naming one would have implied a dial existed. Phase 30 gave it one
   // (`checkpoints.protected_branch_merge`, default `block`), so the old assertion is not weakened
-  // here, it is REPLACED by the claim that is now true: the cell exists, it resolves against the
-  // live config, and the cell ALONE cannot lower the floor — that second half was enforced by the
-  // two-key rule in the Bash command guard retired by 33.1 D-17; the rule itself is retired by plan
-  // 33.1-06 (D-26).
+  // here, it is REPLACED by the claim that is now true: the cell exists and it resolves against the
+  // live config. Its `why` names its enforcement tier after 33.1 (D-17, D-26): the git host is the
+  // hard floor, the installer's ask rules are a speed bump, and nothing at run time reads the cell.
   it("protected_branch_merge names its Phase-30 config cell and that cell resolves live", () => {
     const floor = SAFETY_FLOORS.find((f) => f.id === "protected_branch_merge");
     expect(floor).toBeDefined();
@@ -315,7 +314,25 @@ describe("audit-model: the closed sets", () => {
     // The `why` text must not still claim the floor has no config key — that sentence became false
     // the moment the matrix gave it a cell, and a stale rationale is how a register starts lying.
     expect(floor!.why).not.toMatch(/NO config key/);
-    expect(floor!.why).toMatch(/two keys|cell alone|GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE/i);
+    // A phrase only the post-33.1 text carries. The pre-33.1 text ("the cell ALONE cannot lower
+    // it", a session grant the hook reads) fails both assertions below.
+    expect(floor!.why).toMatch(/The hard floor is the git host/);
+    expect(floor!.why).toMatch(/nothing at run time reads it \(33\.1 D-17, D-26\)/);
+  });
+
+  it("every SAFETY_FLOORS `why` names its enforcement tier and no retired session grant (33.1 D-26)", () => {
+    const tier: Record<string, RegExp> = {
+      protected_branch_merge: /The hard floor is the git host/,
+      production_requires_human_confirmation: /The hard floor is the git host/,
+      open_pr: /It is prose-tier/,
+      test_integrity: /It is prose-tier/,
+    };
+    // The denominator is the imported list, so a fifth floor with no tier sentence is red here.
+    expect(SAFETY_FLOORS.map((f) => f.id).sort()).toEqual(Object.keys(tier).sort());
+    for (const f of SAFETY_FLOORS) {
+      expect(f.why, f.id).toMatch(tier[f.id]!);
+      expect(f.why, f.id).not.toMatch(/GRUGOPS_[A-Z_]+|session the hook|two keys|cell ALONE/);
+    }
   });
 
   it("safetyFloorLiveValue still reports null for a floor that declares no config key", () => {

@@ -235,12 +235,17 @@ export interface SafetyFloor {
 //
 // ── PHASE 30 (plan 30-02, D-04 / D-05 / D-06): THE `autonomy` FLOOR IS RETIRED. ────────────────
 //
-// THIS LIST IS THE CANONICAL FLOOR SET (D-04). scripts/checkpoints.ts imports it and DERIVES
-// `FLOOR_CHECKPOINTS` from it; it declares no floor id of its own. So the ids below are consumed by
-// four downstream surfaces at once — the `checkpoints.<id>` config keys, the `GRUGOPS_FLOOR_<ID>`
-// env var names, the registry's `depends_on` vocabulary, and the guarantees join — and they cannot
-// disagree for even one commit, because `readRegistry()` refuses a `depends_on` value that is not a
-// member here.
+// THIS LIST IS THE CANONICAL FLOOR SET (D-04). scripts/checkpoints.ts imports it as the floor arm of
+// its roster derivation; it declares no floor id of its own. So the ids below are consumed by three
+// downstream surfaces at once — the `checkpoints.<id>` config keys, the registry's `depends_on`
+// vocabulary, and the guarantees join — and they cannot disagree for even one commit, because
+// `readRegistry()` refuses a `depends_on` value that is not a member here. (Until Phase 33.1 a fourth
+// surface, a per-floor session grant name, was derived from these ids too. It was retired with the
+// Bash command guard and the two-key rule, 33.1 D-17 / D-26.)
+//
+// WHERE EACH FLOOR IS ENFORCED, AFTER 33.1. Each `why` below names its tier: the git host is the
+// hard floor for merge and deploy, the installer's Claude Code ask rules are a speed bump in front of
+// it, and `open_pr` and `test_integrity` are prose-tier rules the roles read.
 //
 // WHAT CHANGED AND WHY. `autonomy` was a DOCUMENTARY scalar (`diff | branch | pr`) that no hook
 // enforced. Phase 30 replaces it with the enforced ternary matrix, so a floor id naming it would
@@ -266,22 +271,22 @@ export const SAFETY_FLOORS: readonly SafetyFloor[] = [
   {
     id: "open_pr",
     configPath: "checkpoints.open_pr",
-    why: "Whether an agent must stop at a pull request instead of carrying the change further itself. Lowering it is what would falsify every claim that a human holds the merge — the claim four of the six `kind: safety` registry rows assert. It replaces the retired `autonomy` scalar, which was documentary and enforced by nothing.",
+    why: "Whether an agent must stop at a pull request instead of carrying the change further itself. Lowering it is what would falsify every claim that a human holds the merge — the claim four of the six `kind: safety` registry rows assert. It replaces the retired `autonomy` scalar, which was documentary and enforced by nothing. It is prose-tier: the roles read the cell and stop at the pull request, and no mechanism enforces it after 33.1 D-26, so lowering it is a configuration decision recorded in git history. The merge itself still meets the git host's branch protection, which no configuration value lowers.",
   },
   {
     id: "test_integrity",
     configPath: "checkpoints.test_integrity",
-    why: "Whether weakened or skipped tests are surfaced. It is NEVER off — a claim that the trace is the proof rests on it. TINT-03 carries into the matrix as a per-id restriction: the legacy `warn` maps to `notify` and `block` stays `block`, and `off` is refused for this id alone rather than removed from the ternary for every other checkpoint.",
+    why: "Whether weakened or skipped tests are surfaced. It is NEVER off — a claim that the trace is the proof rests on it. TINT-03 carries into the matrix as a per-id restriction: the legacy `warn` maps to `notify` and `block` stays `block`, and `off` is refused for this id alone rather than removed from the ternary for every other checkpoint. It is prose-tier: the roles read the cell at the gate's test-integrity step, and no mechanism enforces it after 33.1 D-26.",
   },
   {
     id: "production_requires_human_confirmation",
     configPath: "checkpoints.production_requires_human_confirmation",
-    why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy.",
+    why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy. The hard floor is the git host: a production deployment environment with required reviewers, reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for the deploy and publish tools are a speed bump in front of it (D-18). The config cell decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
   },
   {
     id: "protected_branch_merge",
     configPath: "checkpoints.protected_branch_merge",
-    why: "Agents never merge a protected branch. Phase 30 gives it a config cell (`checkpoints.protected_branch_merge`, default `block`), and the cell ALONE cannot lower it: a declared `notify`/`off` takes effect only when a human has also set GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE in the session the hook reads. An agent editing config alone changes nothing, and the denial says so by name.",
+    why: "Agents never merge a protected branch. The hard floor is the git host: branch protection or a ruleset on the protected branch (pull request and review required, no force push), reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for `git push` and `gh pr merge` are a speed bump in front of it (D-18). The config cell (`checkpoints.protected_branch_merge`, default `block`) decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
   },
 ];
 

@@ -333,12 +333,12 @@ describe("check-claim-anchors: a DROPPED claim is replaced in place (D-18)", () 
 
   it("RED when the disclosure at the anchor is HAND-WRITTEN, however plausible", () => {
     // RED-FIRST, and the plausibility is the point. This substitute says the same thing a reader
-    // would say — it names the checkpoint, the value and the grant — and it is still refused,
+    // would say — it names the checkpoint, the value and the default — and it is still refused,
     // because the mechanism's text is generated and a paraphrase of it is not it.
     const { root, disclosure } = droppedMirror({
       docText:
-        "This guarantee is lowered in this repo: `test_integrity=notify`, authorized by " +
-        "`GRUGOPS_FLOOR_TEST_INTEGRITY`.",
+        "This guarantee is lowered in this repo: `test_integrity=notify`, below its default " +
+        "`block`.",
     });
     const r = run(root);
     expect(r.status).toBe(1);

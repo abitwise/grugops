@@ -142,9 +142,10 @@ describe("VFY-04: bounded self_fix_attempts loop and honest escape hatch", () =>
     expect(text).toContain("`1` → record an `observation` note naming each `unprotected` target.");
     expect(text).toContain("`2` → record `UNKNOWN - verify` with the reason the check printed. Exit `2` is never read as a pass.");
     expect(text).toContain("No note claims the floor exists without a `protected` line.");
-    // The retired banner is gone, by every name it went by.
+    // The retired banner is gone, by its prose name and by its fixed line. Its function name is not
+    // spelled here: plan 33.1-06 deleted the function, and the 33.1 grep-to-zero scan
+    // (scripts/guard-retired.test.ts, plan 33.1-10) refuses that identifier in every live file.
     expect(text).not.toContain("run banner");
-    expect(text).not.toContain("renderCheckpointBanner");
     expect(text).not.toContain("all checkpoints at default");
   });
 
