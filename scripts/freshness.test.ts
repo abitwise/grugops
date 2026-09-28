@@ -74,7 +74,7 @@ const PRE_FIX_SHA = "020905f9499b1c1b92a7f56cb982cc6974589bf3";
 const POST_FIX_REF = process.env.FRESHNESS_POSTFIX_REF ?? "HEAD";
 
 /** The committed build output every stale-committed plant is applied to. */
-const PLANT_REL = "hooks/guard.js";
+const PLANT_REL = "hooks/admission-guard.js";
 /** The source whose working-tree modification selects the working arm. */
 const WORKING_SOURCE_REL = "scripts/freshness.ts";
 /** The output that source emits, and therefore the path the working arm reports. */

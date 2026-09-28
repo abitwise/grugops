@@ -6290,8 +6290,6 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
 
   const WR15_TASK = "wr15-task";
   const APPROVAL_VAR = "GRUGOPS_ADMISSION_APPROVED_BY";
-  const FLOOR_VAR_15 = "GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE";
-  const LOWERED = '{"checkpoints":{"protected_branch_merge":"off"}}';
 
   /**
    * A TEMPORARY KIT: the committed `.js` of `scripts/` and `hooks/`, copied into a temp directory so
@@ -6841,29 +6839,6 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
         const denied = (r.stdout ?? "").includes('"permissionDecision":"deny"');
         expect(denied, r.stdout ?? "").toBe(step.answersDialRoot);
       });
-
-      it("hooks/guard.js agrees with the one function", () => {
-        // The command guard reads the CHECKPOINT matrix rather than `human_admission`, so its probe
-        // is a checkpoint lowering plus its floor grant: the lowering takes effect only if the guard
-        // read the root carrying it. That is a fact about which key this consumer reads, not a
-        // second spelling of which root it reads.
-        const dialRoot = tmp15("p31-15-guard-");
-        mkdirSync(join(dialRoot, ".grugops"), { recursive: true });
-        writeFileSync(join(dialRoot, ".grugops", "factory.config.json"), LOWERED);
-        const r = spawnSync("node", [join(KIT, "hooks", "guard.js")], {
-          cwd: step.cwd(dialRoot),
-          env: cleanEnv({ ...step.env(dialRoot), [FLOOR_VAR_15]: "Olger Oeselg" }),
-          input: JSON.stringify({
-            tool_name: "Bash",
-            tool_input: { command: "git push origin main" },
-          }),
-          encoding: "utf8",
-          timeout: 30_000,
-        });
-        const denied = (r.stdout ?? "").includes('"permissionDecision":"deny"');
-        // The lowering applies where the guard resolved the configured root; at the kit it does not.
-        expect(denied, (r.stdout ?? "") + (r.stderr ?? "")).toBe(!step.answersDialRoot);
-      });
     });
   }
 
@@ -7017,7 +6992,6 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
    */
   const DRIVEN_CONSUMER_FILES = [
     "hooks/admission-guard.ts",
-    "hooks/guard.ts",
     "scripts/admission-server.ts",
     "scripts/context-io.ts",
   ];

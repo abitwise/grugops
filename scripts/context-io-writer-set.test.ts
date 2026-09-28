@@ -4849,14 +4849,14 @@ function deriveConstReaders(constName: string, moduleSuffix: string): string[] {
  *   `scripts/compactor.ts` — it never asks the trusted root at all; every root it uses arrives as
  *   an argument from its own caller.
  *
- * Both hook members are `::<module>` because both hooks resolve the root at MODULE SCOPE — through
- * a dynamically bound namespace (`ioMod`), which is why this axis resolves that binding rather than
- * only static named imports.
+ * The hook member is `::<module>` because the admission hook resolves the root at MODULE SCOPE —
+ * through a dynamically bound namespace (`ioMod`), which is why this axis resolves that binding
+ * rather than only static named imports. (The Bash command guard, the second hook member, was
+ * retired by 33.1 D-17.)
  */
 const EXPECTED_RESOLUTION_SURFACE: Readonly<Record<string, readonly string[]>> = Object.freeze({
   trustedRepoRoot: Object.freeze([
     "hooks/admission-guard.ts::<module>",
-    "hooks/guard.ts::<module>",
     "scripts/admission-server.ts::handleProposeNote",
     "scripts/context-io.ts::<module>",
     "scripts/context-io.ts::admitAndAppend",

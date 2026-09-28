@@ -33,7 +33,6 @@ import {
 import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
 import ts from "typescript";
-import { jsImportClosure } from "./js-import-closure.js";
 
 // (27-65 task 3) The gate-level sweep plants rows from plan 27-63's corpus BY ID, and adjudicates
 // which rows are graftable with the same admission reader the gate now uses — so the module-level
@@ -320,8 +319,8 @@ const GUARD_INPUTS = [
   ".planning/STATE.md",
   ".planning/v1.2-SDLC-COVERAGE-AUDIT.md",
   ".planning/RETROSPECTIVE.md",
-  // (33.1 D-28) hooks/hooks.json dropped: its only reader here was the retired A2 wiring oracle.
-  "hooks/guard.js",
+  // (33.1 D-28) hooks/hooks.json and the Bash command guard dropped: their only reader here was the
+  // retired A2 wiring oracle, and the guard itself was deleted by 33.1 D-17/D-23.
   // (DOGF-01) examples/03-ticket-to-pr.md dropped: the A3 oracle is now oracleDualPathEquivalence,
   // which self-seeds hermetic temp dirs and reads no repo input — the former parity example is dead.
   // Phase 20 guard_context_writes SCAN set (SCTX-05): the 16 shipped workflows (the 17 roles are
@@ -521,28 +520,11 @@ function normalizeMirroredRole(text: string, rel: string): string {
 
 const MIRRORED_ROLE_PREFIX = `${ROLE_DIR_REL}/`;
 
-// The committed .js that hooks/guard.js needs in order to RUN, DERIVED from its imports rather than
-// listed (plan 30-01). The aggregator spawns the MIRRORED guard.js, so the mirror must carry the
-// guard's whole module graph. GUARD_INPUTS carried the guard alone for as long as the guard imported
-// only node builtins; Phase 30 gave it a checkpoint roster and a config reader to consult and the
-// mirrored guard died with ERR_MODULE_NOT_FOUND, which this harness read as a guard failure. The
-// closure is walked from the bytes so the next import updates it without an edit here.
-//
-// It is kept OUT of GUARD_INPUTS deliberately: GUARD_INPUTS is pinned two-sided against a derived
-// cardinality elsewhere in this file, and those pins are about the guard's INPUT set — the documents
-// it reads and a plant can break. A module the guard needs in order to start is a different kind of
-// thing, and folding it into that set would silently move a number those cases exist to hold.
-const GUARD_JS_CLOSURE = jsImportClosure(ROOT, "hooks/guard.js");
-
 // Build a temp mirror carrying copies of every guard input — byte-faithful for every input except
 // the 17 role files, which are normalized as argued above. Returns the mirror dir.
 function mirror(): string {
   const m = mkdtempSync(join(tmpdir(), "grugops-fg-"));
   tmpDirs.push(m);
-  for (const rel of GUARD_JS_CLOSURE) {
-    mkdirSync(join(m, dirname(rel)), { recursive: true });
-    cpSync(join(ROOT, rel), join(m, rel));
-  }
   for (const rel of GUARD_INPUTS) {
     mkdirSync(join(m, dirname(rel)), { recursive: true });
     if (rel.startsWith(MIRRORED_ROLE_PREFIX)) {
@@ -2136,8 +2118,13 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     `.ts` module and does not move this number.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 91 with this module tracked.
+ *
+ * 91 -> 90 (plan 33.1-05, task 2, D-17/D-23), ONE MODULE DELETED:
+ *   - `hooks/guard.ts` — the Bash command guard, unwired by the 33.1 retirement commit and deleted
+ *     with its compiled twin and its test. Re-derived rather than decremented: `git ls-files '*.ts'`
+ *     minus the `.test.ts` and `.d.ts` members reports 90 with it gone.
  */
-const NON_TEST_MODULE_COUNT = 91;
+const NON_TEST_MODULE_COUNT = 90;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2883,7 +2870,7 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     expect(walked).toEqual([...walked].sort());
     // The nested and out-of-`scripts/` members the old read could not see, named rather than counted.
     for (const outside of [
-      "hooks/guard.ts",
+      "hooks/admission-guard.ts",
       "install/install.ts",
       "scripts/runnable-ref/reference-check.ts",
       "vitest.config.ts",
@@ -5456,6 +5443,9 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     // The bound that makes the exemption fail closed. Before this plan the identical plant printed
     // ALL CHECKS PASSED at exit 0 and never named the file.
     const m = mirror();
+    // The mirror carries no `hooks/` of its own since the Bash command guard left its inputs (33.1
+    // D-17/D-23), so the plant creates the directory it lands in.
+    mkdirSync(join(m, "hooks"), { recursive: true });
     writeFileSync(join(m, "hooks/rogue.md"), ROGUE_COMPONENT);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
@@ -5471,8 +5461,9 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   it("a NON-markdown file in the EXEMPT `hooks/` leaves the gate green — bounded, not absent", () => {
     // The other direction, and it is the half that keeps the exemption honest: if ANY plant in
     // `hooks/` went red, the directory would be forbidden in effect and the CLAUDE.md-mandated
-    // prod-deploy guard could not live there. The exemption exempts exactly what it says it exempts.
+    // hook files could not live there. The exemption exempts exactly what it says it exempts.
     const m = mirror();
+    mkdirSync(join(m, "hooks"), { recursive: true });
     writeFileSync(join(m, "hooks/rogue.js"), 'console.log("planted");\n');
     const r = runIn(m);
     expect(out(r)).toContain("ALL CHECKS PASSED");
@@ -5492,13 +5483,14 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
     expect(o).toContain(
       "plugin-default component directories: agents/ ABSENT, commands/ ABSENT",
     );
-    // The exempt directory's MEASURED counts — today 9 files, 0 markdown adapters. Read from the
+    // The exempt directory's MEASURED counts — today 6 files, 0 markdown adapters. Read from the
     // production probe rather than restated, so a shrunken directory fails the case instead of
     // quietly satisfying it. 7 → 9 (plan 30-11 round 3): `hooks/hook-entry.ts` and its compiled
     // `.js`, the hook entry-point wrapper `RA3-7` introduced. Still zero markdown adapters, which is
-    // the bound this exemption actually rests on.
+    // the bound this exemption actually rests on. 9 → 6 (plan 33.1-05): `hooks/guard.ts`, its
+    // compiled `.js` and its test left with the Bash command guard (33.1 D-17/D-23).
     const hooks = listPluginExemptComponentFiles(ROOT)[0];
-    expect(hooks.files.length).toBe(9);
+    expect(hooks.files.length).toBe(6);
     expect(hooks.markdownFiles.length).toBe(0);
     expect(o).toContain(
       `hooks/ EXEMPT-BY-NAME, PRESENT with ${hooks.files.length} file(s) and ${hooks.markdownFiles.length} markdown adapter(s), 0 of those inside the spawn-grant scan`,
@@ -9584,7 +9576,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // live-surface set; an uncited flipped cell) written RED before the rules existed. Every case is
 // platform-independent. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
 // 72 on this tree, agreeing with the live census, and the bump lands in the SAME commit as the module.
-const TRIPWIRE_MODULES = 72;
+//
+// 72 -> 71 (plan 33.1-05, task 2): ONE test module DELETED, `scripts/autonomy-zero-config.test.ts` —
+// a whole-run differential of the Bash command guard, deleted with that guard (33.1 D-17/D-23). The
+// pin moved because a module left, not to make a red go away. Re-derived rather than decremented:
+// `ls scripts/*.test.ts | wc -l` reports 71 on this tree, and the move lands in the SAME commit as
+// the deletion.
+const TRIPWIRE_MODULES = 71;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

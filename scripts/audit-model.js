@@ -235,13 +235,16 @@ export const SAFETY_FLOORS = [
         why: "Agents never merge a protected branch. Phase 30 gives it a config cell (`checkpoints.protected_branch_merge`, default `block`), and the cell ALONE cannot lower it: a declared `notify`/`off` takes effect only when a human has also set GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE in the session the hook reads. An agent editing config alone changes nothing, and the denial says so by name.",
     },
 ];
-// ── D-04: THE THREE PROPERTIES THAT ARE OUTSIDE THE MATRIX ON PURPOSE. ─────────────────────────
+// ── D-04: THE PROPERTIES THAT ARE OUTSIDE THE MATRIX ON PURPOSE. ───────────────────────────────
 //
-// scripts/floor-invariance.test.ts sweeps FOUR invariants. One of them — test-integrity — IS a
+// scripts/floor-invariance.test.ts sweeps THREE invariants. One of them — test-integrity — IS a
 // checkpoint: it is a `SAFETY_FLOORS` member with a `checkpoints.test_integrity` cell, and it is a
-// dial precisely because the legacy config already gave it two legal values. The other three are
+// dial precisely because the legacy config already gave it two legal values. The other two are
 // NOT dials and must never become checkpoints, so D-04 records them HERE, beside the floor list, in
 // a form a test can read.
+//
+// `guard-byte-frozen` was DISSOLVED by 33.1 D-17 on 2026-09-26: the file it froze was retired with
+// the Bash command guard, so there is nothing left to freeze.
 //
 // WHY RECORD A NEGATIVE AT ALL. This repository's founding defect class is the hand-maintained set
 // that rots while every gate over it stays green. A property that is "obviously not a checkpoint"
@@ -251,11 +254,11 @@ export const SAFETY_FLOORS = [
 // scripts/checkpoints.test.ts asserts this set and `CHECKPOINTS` are disjoint in BOTH directions:
 // no member here may appear in the roster, and no roster member may appear here.
 //
-// WHAT MAKES THESE THREE DIFFERENT FROM A CHECKPOINT. A checkpoint is a HUMAN STOP: a place where
-// the ternary decides whether a human must be present. These three are properties of the machinery
-// that measures human stops. Giving any of them a `notify` or `off` cell would mean offering to
-// turn off the ability to detect a forged stamp, a rewritten note, or an edited guard — which is
-// not a lowered posture, it is a blinded one. There is no legitimate repository that wants them
+// WHAT MAKES THESE DIFFERENT FROM A CHECKPOINT. A checkpoint is a HUMAN STOP: a place where the
+// ternary decides whether a human must be present. These are properties of the machinery that
+// measures human stops. Giving either of them a `notify` or `off` cell would mean offering to turn
+// off the ability to detect a forged stamp or a rewritten note — which is not a lowered posture, it
+// is a blinded one. There is no legitimate repository that wants them
 // off, so there is no dial.
 export const NON_DIALABLE_INVARIANTS = [
     {
@@ -267,11 +270,6 @@ export const NON_DIALABLE_INVARIANTS = [
         id: "no-fabrication",
         what: "admit() never silently rewrites a note to make it pass; a hollow-evidence stamp still refuses and the note text is unchanged on refusal.",
         why: "It is the no-fabrication floor the whole trace rests on. A checkpoint cell for it would be an offer to let the machinery edit the evidence it is judging, so the ternary has nothing meaningful to say about it.",
-    },
-    {
-        id: "guard-byte-frozen",
-        what: "hooks/guard.ts is byte-unchanged against its recorded baseline (D-02).",
-        why: "It is a build-integrity check over the enforcement code itself, asserted by hash in the test suite. It has no runtime decision point a human could stand at, so it cannot be a checkpoint; a dialable freeze is not a freeze.",
     },
 ];
 /**

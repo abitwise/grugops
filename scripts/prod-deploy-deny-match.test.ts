@@ -26,11 +26,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import {
-  prodDeployDenyFired,
-  PROD_DEPLOY_DENY_KEY,
-  PROD_DEPLOY_DENY_VALUE,
-} from "./prod-deploy-deny-match.js";
+import { prodDeployDenyFired } from "./prod-deploy-deny-match.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -135,47 +131,9 @@ describe("prod-deploy-deny matcher (SAFE-02 / T-26-A2) — offline non-vacuity R
     expect(prodDeployDenyFired(MARKDOWN_NARRATED_DENY)).toBe(true);
   });
 
-  // ── Anchor integrity: the matcher's frozen marker is genuinely what the guard emits ──────────────
-  it("anchor integrity: the matcher's frozen structured marker const is present verbatim in hooks/guard.ts", () => {
-    const guardSrc = readFileSync(join(ROOT, "hooks", "guard.ts"), "utf8");
-    // The frozen key + value the matcher anchors on are present verbatim in the guard source, so the
-    // matcher can never silently drift from the guard's contract.
-    expect(guardSrc.includes(PROD_DEPLOY_DENY_KEY)).toBe(true);
-    expect(guardSrc.includes(`"${PROD_DEPLOY_DENY_VALUE}"`)).toBe(true);
-  });
-
-  // ── Anchor integrity at the POINT OF EFFECT — the real guard's bytes, not a source-text lookalike ──
-  it("anchor integrity (point-of-effect): the REAL committed guard, executed on a matched deploy with no approval in env, emits a transcript prodDeployDenyFired scores TRUE", () => {
-    // Running the actual hook is the only anti-drift check that cannot be satisfied by text that merely
-    // LOOKS like the marker. Asserting the predicate against hooks/guard.ts SOURCE is what previously
-    // forced the matcher to tolerate the object-literal grammar and reopened the doc-quotation vector.
-    // Offline and token-free: node executing a committed .js on a synthetic stdin payload.
-    const env = { ...process.env };
-    delete env.GRUGOPS_PROD_DEPLOY_APPROVED; // never let a stray approval vacuously turn deny into allow
-
-    const r = spawnSync(process.execPath, [join(ROOT, "hooks", "guard.js")], {
-      input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "kubectl apply -f x" } }),
-      encoding: "utf8",
-      env,
-    });
-
-    expect(r.status).toBe(0); // exit 0 + JSON deny = blocked, with a message for the agent
-    expect(prodDeployDenyFired(r.stdout)).toBe(true);
-  });
-
-  // ── The guard is the ONLY thing that can make the matcher TRUE: no deny, no match ─────────────────
-  it("point-of-effect non-vacuity: the same guard, on a command that matches NO deploy pattern, emits nothing the matcher scores TRUE", () => {
-    const env = { ...process.env };
-    delete env.GRUGOPS_PROD_DEPLOY_APPROVED;
-
-    const r = spawnSync(process.execPath, [join(ROOT, "hooks", "guard.js")], {
-      input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "echo hello" } }),
-      encoding: "utf8",
-      env,
-    });
-
-    expect(prodDeployDenyFired(r.stdout ?? "")).toBe(false);
-  });
+  // (33.1-05) The three cases that read or executed the Bash command guard — source anchor, point-of-
+  // effect deny, and point-of-effect non-vacuity — were removed with that guard (33.1 D-17/D-23).
+  // This module and its matcher are deleted by plan 33.1-07.
 
   // ── SCOPE: a DIFFERENT PreToolUse hook's deny must NOT read as a prod-deploy deny ─────────────────
   // hooks/hooks.json wires TWO PreToolUse hooks: guard.js (Bash) and admission-guard.js (mcp__grugops__.*).

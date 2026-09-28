@@ -4,17 +4,15 @@
 // admission: each step up ADDS a named-human / durable-record requirement to more entries. There is
 // NO dial value — lean, paranoid, or outright garbage — that SUBTRACTS a safety floor. This test is
 // the structural proof scaffold: it sweeps EVERY dial value (including bogus/garbage strings) and
-// asserts all FOUR un-dialable floor invariants still REFUSE, plus the structural dials-only-tighten
-// guarantee.
+// asserts all THREE un-dialable floor invariants still REFUSE, plus the structural dials-only-tighten
+// guarantee. (A fourth, "guard byte-frozen", froze a file retired by 33.1 D-17 and was dissolved.)
 //
-// THE FOUR FLOOR INVARIANTS (un-dialable at every governance value):
+// THE THREE FLOOR INVARIANTS (un-dialable at every governance value):
 //   1. refuse-self     — a self-stamped finding (verified_by === by) is a structural FAIL.
 //   2. no-fabrication  — admit() never silently rewrites a note to make it pass; a hollow-evidence
 //                        stamp still refuses and the note text is unchanged on refusal.
 //   3. test-integrity  — quality.test_integrity has NO `off` value in any mode (TINT-03); the
 //                        allowed set is {warn, block}. The governance dials cannot add `off`.
-//   4. guard byte-frozen — the prod-deploy guard hooks/guard.ts is byte-unchanged (D-02); humans
-//                        hold merge/deploy via the unchanged guard.
 //
 // THE STRUCTURAL GUARANTEE (the heart of SC3): a garbage / unknown human_admission value is treated
 // conservatively (never as `off`-equivalent that opens a hole). The dials ADD a refusal branch; no
@@ -23,7 +21,7 @@
 //
 // COMPOSITION: this test composes the two existing analogs rather than reimplementing a parser/guard —
 //   - the config-load + repo-root resolution shape from config-queue-consistency.test.ts:23-30, and
-//   - the spawn-the-COMMITTED-.js discipline from hooks/guard.test.ts (target the artifact, never .ts).
+//   - the spawn-the-COMMITTED-.js discipline (target the artifact, never .ts).
 // It imports the COMMITTED scripts/context-io.js for the pure-function floor checks (validate/admit).
 //
 // D-12 / [[grugops-safety-invariant-green-suite-insufficient]]: a GREEN sweep is NECESSARY BUT NOT
@@ -101,169 +99,6 @@ const GUARD_JS = join(ROOT, "hooks", "admission-guard.js");
 const TWIN_MD = join(ROOT, "agent-factory/config/factory.config.md");
 const KIT_JSON = join(ROOT, "agent-factory/config/factory.config.json");
 const APPROVAL = "GRUGOPS_ADMISSION_APPROVED_BY";
-
-// The frozen prod-deploy-guard source blob (D-02). hooks/guard.ts must hash to this at every dial
-// value — GOVERNANCE-ADMISSION work must never touch the deploy guard.
-//
-// RE-BASELINED BY PLAN 30-01 (D-24). The previous baseline
-// `3501810e21308e4b7e219679a6ca30dace9b5d66` froze the Phase-5 guard, which consulted no config at
-// all. Phase 30 makes the guard consult the per-checkpoint autonomy matrix and enforce the two-key
-// rule on a floor lowering, so the guard is DELIBERATELY unfrozen and re-frozen at the new blob —
-// in the SAME commit that changes it, under the D-04 companion rule.
-//
-// WHAT THIS FREEZE STILL BUYS, WHICH IS THE POINT OF RE-BASELINING RATHER THAN DELETING IT. The
-// two assertions below are not one check but two: `git hash-object` reads the WORKING TREE, and
-// `git diff --quiet` reads the INDEX against HEAD. Together they refuse a hash-only change (someone
-// updates this constant without changing the guard) AND a code-only change (someone changes the
-// guard without updating this constant, or leaves it uncommitted). Either half alone is defeatable
-// by the other kind of edit.
-//
-// EXECUTOR NOTE (RESEARCH F-8 / Pitfall 5): the suite CANNOT be green between the edit and the
-// commit. Updating this constant makes the blob comparison pass immediately, but
-// `git diff --quiet hooks/guard.ts` throws until the file is committed. A red naming
-// `git diff --quiet` mid-edit is the mechanism working, not a broken change — commit, then re-run.
-//
-// RE-BASELINED AGAIN BY PLAN 30-03 (D-24, the phase's SECOND guard commit). The previous baseline
-// `de37e4fb…8464` froze the 30-01 guard, which imported the governance reader under its pre-collapse
-// name. Plan 30-03 deletes the second reader and renames the survivor, and the rename reaches the
-// frozen file's import. THIS CHANGE IS A RENAME ONLY: one identifier at the import and one at the
-// matrix read, with no decision branch, no message, no env read and no deny path touched — the diff
-// is four lines across `guard.ts` and its compiled `guard.js`, and every guard test is unchanged and
-// green. That is why the reproduction burden here is the freeze rule itself (source + artifact +
-// constant in ONE commit) rather than a new bypass surface: there is no new surface to reproduce.
-//
-// RE-BASELINED AGAIN BY PLAN 30-08 TASK 1 (D-24, this phase's THIRD guard commit). The previous
-// baseline `d91c2006…6b66` froze the 30-03 guard, which decided only the blocking tier: a matched
-// command at a lowered checkpoint was allowed with no record at all. This change adds the two
-// RECORDING branches D-10 and D-11 require — an authorized `notify` allows AND writes one finding,
-// an unauthorized declaration is refused AND writes one finding — plus the actor fields read off the
-// same payload. It adds no write of its own: both records go through the sanctioned emitter in
-// scripts/context-io.ts, and hooks/guard.test.ts asserts that the guard source and artifact contain
-// no filesystem write token. The zero-config decision and wording are byte-unchanged.
-//
-// RE-BASELINED AGAIN BY PLAN 30-08 TASK 2 (D-24, this phase's FOURTH guard commit). The previous
-// baseline `88456e2c…af02` froze a guard that resolved each matched checkpoint a SECOND time, beside
-// the resolution the banner had already made — two independent evaluations of one rule, which is the
-// surface a banner and a decision drift apart on. The guard now holds ONE evaluation of the whole
-// roster and passes it to both the banner composer and the decision loop, so there is no second value
-// to disagree with. No message, no pattern and no env read changed.
-//
-// RE-BASELINED AGAIN BY PLAN 30-11 (D-24, this phase's FIFTH and last guard commit). The previous
-// baseline `63c659c1…a9e3` froze a guard that FAILED OPEN on any failure it had not thought of.
-// Red-team surface A round 1 reproduced this on the committed `hooks/guard.js`, spawned as a
-// process: with `scripts/checkpoints.js` overwritten by one line of garbage,
-// `git push --force origin main` produced exit 1, zero bytes of stdout, and therefore ALLOW — a
-// PreToolUse hook that exits non-zero is NON-BLOCKING at the host, so a crashed guard and an
-// allowing guard are the same event. One agent-reachable file write turned the two-key rule off with
-// no grant, no config declaration and no human.
-//
-// This change makes the fail-closed posture a property of the PROCESS rather than of the branches
-// the author happened to foresee: the dependency load is a guarded dynamic import (a static import
-// is hoisted above `deny` itself and cannot be caught), and two last-resort handlers convert any
-// remaining throw into the deny JSON. It also folds three other round-1 findings — the self-set
-// refusal is rebuilt from the PUBLISHED grant vocabulary so `GRUGOPS_ADMISSION_APPROVED_BY` stops
-// escaping it (A-1); the D-10 record states the outcome the run REACHED instead of the one its
-// position implied (A-3); a grant that names nobody stops authorizing (A-4) — and publishes the
-// governance reader's dropped-entry refusals, closing `V-30-10-01`. Every one is a strictly stricter
-// decision or a more honest record; the zero-config decision and wording are byte-unchanged, which
-// scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
-//
-// RE-BASELINED AGAIN BY PLAN 30-11 ROUND 2 (D-24, this phase's SIXTH guard commit). The previous
-// baseline `12ea942f…f363` froze the round-1 guard, whose two independent reviews both returned
-// findings. Five of them are in this file's subject:
-//
-//   RA1-1 — every deploy pattern anchored its verb ADJACENT to the tool name, so ONE global flag
-//   defeated all of them at once (`kubectl -n prod apply`, `git -C /repo push origin main`,
-//   `terraform -chdir=infra/prod apply`, eleven more, all measured ALLOW with zero keys). The guard
-//   now consults a tokenizer and a tool->verb table BESIDE the literal patterns — additively, so no
-//   existing denial can regress and a parser bug can only miss, never admit.
-//   RA1-2 — three exits that decide nothing survived round 1's fix, which bounded THROWS: a FIFO at
-//   the agent-writable config path made the process hang forever with zero bytes on both streams; a
-//   never-settling dependency exited 13; a dependency's own `process.exit(0)` exited 0. There are
-//   now exactly two named exits and an `exit` handler that converts any third into a refusal — and
-//   it corrects the exit CODE, because a deny JSON on a non-zero exit is non-blocking at the host.
-//   RA1-3/RA1-4 — `git push` naming no branch, and the merge forms that name their target.
-//   RA1-5 — `NAME+=value` is an assignment and the refusal only knew `=`.
-//
-// The zero-config decision and wording are byte-unchanged, which
-// scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
-//
-// RE-BASELINED AGAIN BY PLAN 30-11 ROUND 3 (D-24, this phase's SEVENTH guard commit). The previous
-// baseline `995ae7cc…f766` froze the round-2 guard, whose two independent reviews returned thirteen
-// findings — twelve of them created by round-2 fixes, and seven of them in this file's subject.
-//
-// THE COMMAND MODEL WAS REWRITTEN RATHER THAN REPAIRED. Round 2 closed a real zero-key bypass by
-// adding a tokenizer to a safety path and named its own new freedom: a parser has a grammar an
-// attacker can leave. One round later that grammar had SIX executable holes — word-internal quoting
-// (`kubectl ""apply`), grouping tokens adopted as the tool (`( kubectl … )`), a hand-maintained
-// wrapper set that missed `nice`/`timeout`/`doas` and could not survive `sudo -u root`, a
-// fail-closed backstop defeated by the same edit that triggered it, `sh -cx`, and `git.exe`. The
-// rewrite DELETES the wrapper set, the tool-identification step and the backstop's verb conjunct;
-// words are now CLASSIFIED and a word this model cannot read is refused rather than read.
-//
-// AND THE PROCESS INVARIANT MOVED OUT OF THE PROCESS. `process.reallyExit(0)` in a dependency was a
-// SILENT ALLOW and `abort()`/self-`SIGKILL` left no decision at all; no care inside a process
-// establishes a property about a process a dependency can terminate. `hooks/hook-entry.ts` is now
-// the hook entry point and answers for the decider, and an ALLOW is asserted on fd 3 rather than
-// inferred from silence.
-//
-// The zero-config decision and wording are byte-unchanged, which
-// scripts/autonomy-zero-config.test.ts asserts as a whole-run differential.
-//
-// NOT RE-BASELINED IN ROUND 4 — AND THAT IS WORTH SAYING OUT LOUD. Round 4 closed six findings in
-// this file's subject and `hooks/guard.ts` did not change by one byte: every one of them lives in
-// `scripts/checkpoints.ts` (the command model) or `hooks/hook-entry.ts` (the wrapper). The blob below
-// is still round 3's. A freeze that had moved here would have been a signal nobody could read.
-//
-// The six, each a DELETION rather than an addition:
-//   RA5-1 the 64-SEGMENT cap that stopped silently — deleted, not made fail-closed; it bounded the
-//         wrong thing, and nesting was already bounded at 3.
-//   RA5-2 `benign` suppression decided by a FLAG'S ARGUMENT (`git -C log push origin main` executed a
-//         real push to main) — the POSITION is removed: benign may only suppress adjacent to the tool.
-//   RA5-3 the `-c alias` half-read that fed `gitPushIsGoverned` a list the command does not have and
-//         allowed a real FORCE PUSH TO MAIN — the `.split()[0]` read is deleted; a multi-word alias
-//         value is OPAQUE.
-//   RA5-4 `NESTED_SHELLS`, a hand-maintained set whose incompleteness UNDER-refuses (`eval '…'`) —
-//         deleted the way WRAPPERS was: any canonical word carrying whitespace is a nested command.
-//   the FORCE ARM, found by this plan's own corpus: the model never implemented the literal set's
-//         "a force push on any branch" rule, so `git -C log push --force origin feature` matched
-//         neither authority.
-// The zero-config decision and wording are byte-unchanged (scripts/autonomy-zero-config.test.ts).
-//
-// NOT RE-BASELINED BY PLAN 31-15 EITHER — AND THIS PARAGRAPH IS WHY THE FILE MOVED ANYWAY. 31-15
-// changes `trustedRepoRoot()`'s resolution order in `scripts/context-io.ts`, which the guard reads
-// through. In the course of that work two COMMENTS in `hooks/guard.ts` — the two describing the kit
-// as the immediate answer when `CLAUDE_PROJECT_DIR` names nothing — were narrowed to match the new
-// order, and committed. That is a byte change to a byte-frozen file, and the two assertions below
-// caught it: the blob comparison went red, and the D-24 companion assertion named the split commit.
-//
-// The change was REVERTED rather than re-baselined, in the commit that carries this paragraph. The
-// guard's prose is now one case wider than the reader it calls, which is a real if small imprecision;
-// it is left standing because re-freezing a deploy guard to correct a comment is the wrong trade, and
-// because the accurate statement of the order lives in the reader that owns it
-// (`scripts/context-io.ts`, `trustedRepoRoot`) where every consumer reads it. The blob below is
-// unchanged from round 3's, and `hooks/guard.ts` at HEAD hashes to it again.
-//
-// RE-BASELINED BY PLAN 33-27 (D-24; Phase 33 gap-closure round 3, 33-DIAGNOSIS.md § 2, WINDOWS.md
-// row 257). The previous baseline `669725bc…b001` froze the round-3 guard (`ac4b2c67`; restored by
-// `e40a197d`) unchanged through Phases 31, 32, 32.1 and the first two rounds of 33.
-//
-// THE DENY TEXT NAMED THE WRONG MECHANISM. The live capture's transcripts carried the `git push`-
-// without-a-branch sentence on a refused `git log --oneline -5 2>&1`: the escape ternary asked
-// "protected-branch group and not a literal match?" BEFORE "did the model refuse to read this?", so
-// a `git log` denied because a sibling word was unreadable was described as a push. The guard now
-// asks the fail-closed question first, narrowed to the group at hand by `CommandMatch.failClosed`,
-// and names the word(s) the model would not read from `CommandMatch.unreadable` — derived from the
-// one classification in `scripts/checkpoints.ts`, never re-scanned here — with every byte outside
-// printable ASCII spelled `U+XXXX`. The push sentence is printed only for a READABLE git match with
-// no literal hit. The wording says "a shell substitution or expansion", because a bare `$var` and a
-// heredoc are refused by decision, and it says that a redirection such as `2>&1` is read.
-//
-// No decision input changed: the two-key rule, the zero-config banner, the literal pattern sets and
-// the fail-closed arm are byte-identical in behaviour; `scripts/autonomy-zero-config.test.ts` and the
-// whole P30 red-team corpus in `hooks/guard.test.ts` stayed green across the change, and the fifteen
-// § 2 transcript commands replayed on stdin give 4 allows and 11 denies with the corrected sentence.
-const FROZEN_GUARD_BLOB = "bfca7eccdad907f44efb9c2e9b908b521ebc83f5";
 
 // Import the COMMITTED .js for the pure-function floor checks (validate / admit). Never the .ts.
 const mod: typeof import("../scripts/context-io.js") = await import(
@@ -402,109 +237,6 @@ describe("SC3 floor-invariance — every governance dial value (incl. garbage) s
     });
   });
 
-  // ── Floor invariant 4: the prod-deploy guard hooks/guard.ts is byte-frozen (D-02) ────────────────
-  // Humans hold merge/deploy via the guard, and the guard only ever changes DELIBERATELY: a change
-  // must move the source AND this baseline AND land both in one commit. Governance admission work
-  // must never touch it. Re-baselined once, by plan 30-01 (D-24) — see FROZEN_GUARD_BLOB above.
-  describe("invariant 4 — hooks/guard.ts matches its frozen baseline (D-02)", () => {
-    it("the committed hooks/guard.ts blob matches the frozen D-02 hash", () => {
-      // git hash-object computes the blob SHA exactly as git stored it; compare to the frozen blob.
-      const blob = execFileSync("git", ["hash-object", "hooks/guard.ts"], {
-        cwd: ROOT,
-        encoding: "utf8",
-      }).trim();
-      expect(blob).toBe(FROZEN_GUARD_BLOB);
-    });
-
-    it("hooks/guard.ts has no uncommitted modification, measured against HEAD", () => {
-      // MEASURED AGAINST **HEAD**, NOT THE INDEX (plan 30-11, red-team surface A, finding A-5).
-      //
-      // This assertion used to read `git diff --quiet hooks/guard.ts`. With no commit argument,
-      // `git diff` compares the WORKING TREE to the **INDEX** — so a single `git add hooks/guard.ts`
-      // satisfied it while HEAD still carried the old guard. Reproduced on a clone of this
-      // repository: append a line to the guard, update FROZEN_GUARD_BLOB to the new hash, stage ONLY
-      // the guard, and `git diff --quiet hooks/guard.ts` exits 0 while
-      // `git diff --quiet HEAD -- hooks/guard.ts` exits non-zero. The comment above claims this pair
-      // refuses a change that someone "leaves uncommitted"; against the index, it did not.
-      //
-      // `--quiet` exits 0 when the path matches HEAD. execFileSync throws on a nonzero exit, so a
-      // clean tree returns normally and a dirty-or-merely-staged tree throws (fails).
-      expect(() =>
-        execFileSync("git", ["diff", "--quiet", "HEAD", "--", "hooks/guard.ts"], { cwd: ROOT }),
-      ).not.toThrow();
-    });
-
-    it("the guard and this baseline moved in the SAME COMMIT (D-24, commit-scoped)", () => {
-      // WHAT SCOPE THE FREEZE RULE ACTUALLY HAD, AND WHAT IT NOW HAS (finding A-5).
-      //
-      // D-24 says the hook is unfrozen and re-frozen in the SAME COMMIT. Until this case, nothing
-      // asked that question: the two assertions above are working-tree assertions, and
-      // `scripts/check-diff-disposition.ts` — which owns this repository's per-commit companion
-      // machinery, with the explicit "the commit that actually changed it, not merely somewhere in
-      // the range" rule — carries three frozen sources and `hooks/guard.ts` is not one of them. So
-      // the freeze was neither commit-scoped nor range-scoped: it was index-scoped, and D-24 was
-      // enforced by the author's discipline alone.
-      //
-      // The question asked here is commit-scoped on purpose. A range-scoped form ("did the baseline
-      // change anywhere between some base and HEAD") self-disarms the first time the companion file
-      // changes for an unrelated reason — and this phase changed the guard four times, which is
-      // exactly the condition under which that happens.
-      const guardCommit = execFileSync(
-        "git",
-        ["log", "-1", "--format=%H", "--", "hooks/guard.ts"],
-        { cwd: ROOT, encoding: "utf8" },
-      ).trim();
-      expect(guardCommit, "hooks/guard.ts must exist in history for the freeze to mean anything").toMatch(
-        /^[0-9a-f]{40}$/,
-      );
-      const touched = execFileSync(
-        "git",
-        ["show", "--name-only", "--format=", guardCommit],
-        { cwd: ROOT, encoding: "utf8" },
-      )
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-      // Its own premise: the commit we found really is a commit that touched the guard. Without
-      // this, a `git log` that silently returned an unrelated commit would make the case pass for a
-      // reason it never checked.
-      expect(touched, `commit ${guardCommit} does not touch hooks/guard.ts`).toContain("hooks/guard.ts");
-      expect(
-        touched,
-        `hooks/guard.ts last changed in ${guardCommit}, which does not also carry ` +
-          `scripts/floor-invariance.test.ts. D-24 requires the source and its frozen baseline to ` +
-          `move as one act; a two-commit split leaves HEAD carrying a guard whose blob does not ` +
-          `match HEAD's baseline, and a fresh clone of that commit is red while this working tree ` +
-          `is green.`,
-      ).toContain("scripts/floor-invariance.test.ts");
-      // And the compiled artifact the HOST runs moved with them — the source freeze says nothing
-      // about hooks/guard.js on its own.
-      expect(
-        touched,
-        `commit ${guardCommit} changed hooks/guard.ts without hooks/guard.js; the host runs the ` +
-          `artifact, so a source-only commit ships a guard nobody built.`,
-      ).toContain("hooks/guard.js");
-    });
-
-    it("NEW FREEDOM, BOUNDED: the commit-scoped assertion needs a git HISTORY, and says so", () => {
-      // The bound on the case above, stated in the same commit that introduced it. `git hash-object`
-      // works outside a repository; `git log` does not. A consumer running this suite from an
-      // exported archive (`git archive`, a tarball, a vendored copy) has no history, and this
-      // repository has already recorded one round where a mirror with no `.git` produced a clean
-      // result from a gate that never reached its predicate. So the premise is asserted rather than
-      // assumed: if this is not a git working tree, the case above proves nothing and this one says
-      // which of the two situations we are in.
-      const inRepo = execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
-        cwd: ROOT,
-        encoding: "utf8",
-      }).trim();
-      expect(
-        inRepo,
-        "the commit-scoped freeze assertion is only meaningful inside a git working tree",
-      ).toBe("true");
-    });
-  });
-
   // ── The STRUCTURAL dials-only-tighten guarantee (the heart of SC3) ───────────────────────────────
   // A garbage / unknown human_admission value NEVER admits a high-severity finding lacking a human
   // stamp. The dials ADD a refusal (high-severity / all) or leave admission unchanged (off / unknown
@@ -586,7 +318,7 @@ describe("SC3 floor-invariance — every governance dial value (incl. garbage) s
 // PreToolUse matcher on the mcp__grugops__.* family, DELETED the entire command-string parser, and
 // decides admission from the FINAL structured tool_input (by/kind/verified_by) plus the FRESH per-call
 // session env. So the SC3 floor sweep below drives the COMMITTED admission-guard.js with STRUCTURED
-// stdin payloads (never a shell command string — there is none anymore). The four un-dialable floor
+// stdin payloads (never a shell command string — there is none anymore). The three un-dialable floor
 // invariants above are admit()-tier (the WEAKER degrade tier, D-04) and are PRESERVED unchanged; this
 // block carries the SC3 floor + the per-call stamp-binding onto the un-forgeable structured channel.
 //
@@ -843,7 +575,7 @@ describe("W3 matcher breadth (25-10) — the grugops admission FAMILY is gated, 
 });
 
 describe("Floor invariants preserved at the structured hook tier (25-10)", () => {
-  it("the stamp alone never grants behind any dial (refuse-self analog) and guard.ts stays byte-frozen", () => {
+  it("the stamp alone never grants behind any dial (refuse-self analog)", () => {
     // A self-authored stamp with NO env DENIES under every active dial — the structured-channel form of
     // refuse-self-set (the agent cannot set the hook's fresh session env).
     for (const dial of ["high-severity", "all", "bogus"]) {
@@ -852,11 +584,6 @@ describe("Floor invariants preserved at the structured hook tier (25-10)", () =>
         `self-stamp with no env must DENY under ${dial}`,
       ).toBe("deny");
     }
-    // hooks/guard.ts stays byte-frozen (D-02) — the round-6 retarget must not touch the deploy guard.
-    const blob = execFileSync("git", ["hash-object", join(ROOT, "hooks", "guard.ts")], {
-      encoding: "utf8",
-    }).trim();
-    expect(blob, "hooks/guard.ts must be byte-frozen at the D-02 blob").toBe(FROZEN_GUARD_BLOB);
   });
 });
 
@@ -868,18 +595,20 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
   // covered without anyone editing this case.
   const FILES = [
     "scripts/floor-invariance.test.ts",
-    "hooks/guard.test.ts",
     "hooks/admission-guard.test.ts",
   ];
 
   it("every spawnSync call in these files passes a timeout", () => {
     const offenders: string[] = [];
     let calls = 0;
+    const perFile = new Map<string, number>();
     for (const rel of FILES) {
       const src = readFileSync(join(ROOT, rel), "utf8");
+      perFile.set(rel, 0);
       // Each call's options object runs to the closing `});` of the call — enough to see `timeout:`.
       for (const m of src.matchAll(/spawnSync\(/g)) {
         calls += 1;
+        perFile.set(rel, (perFile.get(rel) ?? 0) + 1);
         const window = src.slice(m.index, m.index + 600);
         const end = window.indexOf("\n  });");
         const body = end === -1 ? window : window.slice(0, end);
@@ -888,8 +617,14 @@ describe("30-11 round 3 — every spawn in the hook and floor tests is BOUNDED (
         }
       }
     }
-    // The scan's own premise: a regex that matched nothing would pass this case forever.
-    expect(calls, "the spawnSync scan found no calls at all — it has stopped asking").toBeGreaterThan(3);
+    // The scan's own premise: a regex that matched nothing would pass this case forever. The total
+    // floor moved from `> 3` to `>= 3` when the Bash command guard's test left this set (33.1
+    // D-17/D-23); every remaining file is now also required to contribute at least one call, so a
+    // file whose spawns the scan stopped seeing is red by name.
+    expect(calls, "the spawnSync scan found no calls at all — it has stopped asking").toBeGreaterThanOrEqual(3);
+    for (const [rel, n] of perFile) {
+      expect(n, `the spawnSync scan found no calls in ${rel}`).toBeGreaterThan(0);
+    }
     expect(
       offenders,
       `spawnSync without a timeout:\n${offenders.join("\n")}\n` +

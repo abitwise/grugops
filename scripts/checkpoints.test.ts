@@ -633,9 +633,9 @@ describe("30-02 — the floor set after the `autonomy` retirement (D-04 / D-05 /
 });
 
 describe("30-02 — NON_DIALABLE_INVARIANTS is disjoint from the roster, in BOTH directions (D-04)", () => {
-  it("carries the three floor-invariance properties that are test-harness properties, not dials", () => {
+  it("carries the two floor-invariance properties that are test-harness properties, not dials", () => {
+    // `guard-byte-frozen` was dissolved by 33.1 D-17: the file it froze was retired.
     expect(cp.sortedIds(am.NON_DIALABLE_INVARIANTS.map((i) => i.id))).toEqual([
-      "guard-byte-frozen",
       "no-fabrication",
       "refuse-self",
     ]);
@@ -671,12 +671,12 @@ describe("30-02 — NON_DIALABLE_INVARIANTS is disjoint from the roster, in BOTH
     expect(clash).toEqual([cp.CHECKPOINTS[0]]);
   });
 
-  it("`test_integrity` is on the DIAL side of the line, and the other three are not", () => {
-    // scripts/floor-invariance.test.ts sweeps FOUR invariants; exactly one of them is a checkpoint.
-    // Stating which, by assertion, is what stops the count drifting to 4-and-0 or 2-and-2.
+  it("`test_integrity` is on the DIAL side of the line, and the other two are not", () => {
+    // scripts/floor-invariance.test.ts sweeps THREE invariants; exactly one of them is a checkpoint.
+    // Stating which, by assertion, is what stops the count drifting to 3-and-0 or 1-and-2.
     expect(cp.CHECKPOINTS).toContain("test_integrity");
     expect(am.NON_DIALABLE_INVARIANTS.map((i) => i.id)).not.toContain("test_integrity");
-    expect(am.NON_DIALABLE_INVARIANTS.length + 1).toBe(4);
+    expect(am.NON_DIALABLE_INVARIANTS.length + 1).toBe(3);
   });
 });
 
@@ -1898,14 +1898,6 @@ describe("30-11 the command model — one tokenizer, one tool->verb table", () =
   });
 });
 
-describe("30-11 the grant vocabulary's operator set (RA1-5)", () => {
-  it("`=` and `+=` are both assignment operators, and the constant says so", () => {
-    const src = readFileSync(join(import.meta.dirname, "..", "hooks", "guard.ts"), "utf8");
-    expect(src).toMatch(/ASSIGNMENT_OPERATOR/);
-    expect(src).toMatch(/COMPLETE set of assignment operators/);
-  });
-});
-
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 // PLAN 33-27 — A REDIRECTION IS A REDIRECTION (33-DIAGNOSIS.md § 2, WINDOWS.md row 257).
 //
@@ -2338,23 +2330,6 @@ describe("33-R3 CR-01 — a tool word spliced with shell-neutral punctuation sti
   it("the governed tool set is DERIVED from the table and its count is pinned (15)", () => {
     expect(TOOLS.length).toBe(15);
     expect(TOOLS.length).toBe(cp.COMMAND_CHECKPOINT_RULES.length);
-  });
-
-  it("the converse: every tool a literal pattern in hooks/guard.ts anchors on is a model tool — no literal-only tool", () => {
-    // The literal sets are byte-frozen in hooks/guard.ts; their tool anchors are read out of the source,
-    // not retyped. A literal-only tool is a tool the fail-closed arm can never name, which is how
-    // `v\ercel --prod` stayed open while every model tool was being closed.
-    const src = readFileSync(join(ROOT, "hooks", "guard.ts"), "utf8");
-    const anchors = new Set<string>();
-    for (const name of ["PRODUCTION_DEPLOY_PATTERNS", "PROTECTED_BRANCH_PATTERNS"]) {
-      const start = src.indexOf(`const ${name}: RegExp[] = [`);
-      expect(start, name).toBeGreaterThan(-1);
-      const body = src.slice(start, src.indexOf("];", start));
-      for (const m of body.matchAll(/^\s*\/\\b\(?([a-z|]+)\)?/gm)) for (const t of (m[1] as string).split("|")) anchors.add(t);
-    }
-    // 14 literal anchors (`gh` has no literal pattern; the model alone governs it), all of them model tools.
-    expect(anchors.size).toBe(14);
-    for (const t of anchors) expect(TOOLS, `literal anchor ${t}`).toContain(t);
   });
 
   it("the review's table — every row DENIES on the model, and every control still denies", () => {
@@ -2857,7 +2832,9 @@ const reviewCr01Table = (): { readonly rows: readonly string[]; readonly control
   return { rows, controls };
 };
 
-describe("33-R4 CR-01 nested — the consolidated corpus, replayed against the committed hooks/hook-entry.js guard.js", () => {
+// (33.1-05) The case that replayed this corpus through the wrapper against the Bash command guard was
+// removed with that guard (33.1 D-17/D-23); the corpus itself is deleted by plan 33.1-06.
+describe("33-R4 CR-01 nested — the consolidated corpus is in the fixture, by reference", () => {
   const byCommand = new Map(CR01_NESTED_CORPUS.map((r) => [r.command, r]));
 
   it("the verifier's 17-ALLOW adversarial list is in the fixture, row for row, by reference", () => {
@@ -2879,39 +2856,6 @@ describe("33-R4 CR-01 nested — the consolidated corpus, replayed against the c
     for (const cmd of rows) expect(byCommand.get(cmd)?.kind, cmd).toBe("deny");
     for (const cmd of controls) expect(byCommand.get(cmd)?.kind, cmd).toBe("deny-control");
   });
-
-  it("every in-scope row DENIES, every allow-control ALLOWS, the residual ALLOWS and every handed-off row reads as its owner left it", () => {
-    const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.env)) {
-      if (k.startsWith("GRUGOPS_") || k === "CLAUDE_PROJECT_DIR" || v === undefined) continue;
-      env[k] = v;
-    }
-    const entry = join(ROOT, "hooks", "hook-entry.js");
-    const wrong: string[] = [];
-    for (const row of CR01_NESTED_CORPUS) {
-      const r = spawnSync("node", [entry, "guard.js"], {
-        cwd: ROOT,
-        env,
-        encoding: "utf8",
-        timeout: 20_000,
-        input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: row.command }, cwd: "/tmp" }),
-      });
-      const out = r.stdout ?? "";
-      const denied = out.includes('"permissionDecision":"deny"');
-      const decided = out.includes("permissionDecision");
-      if (r.status !== 0) wrong.push(`${row.id} exit ${String(r.status)}`);
-      else if ((row.kind === "deny" || row.kind === "deny-control") && !denied) wrong.push(`${row.id} should DENY: ${row.command}`);
-      else if (row.kind === "allow-control" && decided) wrong.push(`${row.id} should ALLOW: ${row.command}`);
-      // The disclosed residual: a name COMPUTED at run time. It stays ALLOW; plan 33-43 ledgers it.
-      else if (row.kind === "residual" && decided) wrong.push(`${row.id} residual (owner ${row.owner}) changed verdict: ${row.command}`);
-      // Handed off, not closed here: pinned at the verdict measured on 2026-09-23. The owning plan flips
-      // the row to kind `deny` in the same commit that closes it, so a silent change reddens here.
-      else if (row.kind === "handed-off" && decided) wrong.push(`${row.id} handed-off (owner ${row.owner}) changed verdict — re-label it: ${row.command}`);
-    }
-    expect(wrong).toEqual([]);
-    // Non-vacuous: the replay covered every kind the fixture declares.
-    expect(new Set(CR01_NESTED_CORPUS.map((r) => r.kind)).size).toBe(5);
-  }, 600_000);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────

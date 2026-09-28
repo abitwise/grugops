@@ -2518,7 +2518,7 @@ describe("32.1-14 — the loader oracle fails RED with a cause, never silently (
 // RUN time. That is fine for a development and continuous-integration tool and it is NOT fine for
 // anything a host runs, because CLAUDE.md promises a host zero installed runtime dependencies. The
 // rule below is what keeps that promise from depending on nobody ever writing the import — and it is
-// SCOPED, because `hooks/guard.test.ts` legitimately imports the walker at six call sites and an
+// SCOPED, because `hooks/admission-guard.test.ts` legitimately imports the walker and an
 // unscoped rule would be red the moment it landed rather than the moment somebody shipped the import.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -2860,8 +2860,8 @@ describe("32.1-06 — a tokenizer decides what a module specifier is, and the se
     expect(
       scannerImporters(ROOT, tests),
       "PREMISE: no TEST file under the installer or hook trees imports the scanner, so the " +
-        "non-test derivation is removing nothing and its scoping is untested. hooks/guard.test.ts " +
-        "imports closureTargets at six call sites; if that stopped being true, this rule's scoping " +
+        "non-test derivation is removing nothing and its scoping is untested. " +
+        "hooks/admission-guard.test.ts imports closureTargets; if that stopped being true, this rule's scoping " +
         "needs a new witness rather than a quieter premise",
     ).not.toEqual([]);
   });
@@ -2906,11 +2906,12 @@ describe("32.1-06 — a tokenizer decides what a module specifier is, and the se
       ).toEqual([target]);
     });
 
-    // THE CONVERSE, and it is not a mirror plant because the plant is LIVE: hooks/guard.test.ts
-    // already carries the import, at six call sites, on the real tree. A rule that reddened here
-    // would have been red the moment it landed — which is the recorded reason D-08's assertion
-    // needed scoping in the first place.
-    const witness = "hooks/guard.test.ts";
+    // THE CONVERSE, and it is not a mirror plant because the plant is LIVE:
+    // hooks/admission-guard.test.ts already carries the import on the real tree. (The first witness
+    // was the Bash command guard's test, deleted with that guard by 33.1 D-17/D-23.) A rule that
+    // reddened here would have been red the moment it landed — which is the recorded reason D-08's
+    // assertion needed scoping in the first place.
+    const witness = "hooks/admission-guard.test.ts";
     expect(
       scannerImporters(ROOT, [witness]),
       `PREMISE: ${witness} does not import the scanner, so the converse below is vacuous`,
@@ -3237,24 +3238,6 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
         "scripts/voice-model.js",
       ],
     },
-    {
-      entry: "hooks/guard.js",
-      modules: [
-        "hooks/guard.js",
-        "scripts/audit-model.js",
-        "scripts/audit-prepass.js",
-        "scripts/check-diff-disposition.js",
-        "scripts/checkpoints.js",
-        "scripts/context-io.js",
-        "scripts/dead-vocabulary.js",
-        "scripts/frontmatter.js",
-        "scripts/generate-safety-surface.js",
-        "scripts/is-entry.js",
-        "scripts/kit-model.js",
-        "scripts/vacuity.js",
-        "scripts/voice-model.js",
-      ],
-    },
     { entry: "hooks/hook-entry.js", modules: ["hooks/hook-entry.js"] },
     {
       entry: "scripts/board-dashboard.js",
@@ -3323,16 +3306,23 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
     },
   ]);
 
-/** Nine entry artifacts carry a closure a gate depends on. A tenth is a decision, recorded above. */
-const CLOSURE_BASELINE_COUNT = 9;
+/**
+ * Eight entry artifacts carry a closure a gate depends on. A ninth is a decision, recorded above.
+ * Moved 9 -> 8 by plan 33.1-05: the Bash command guard's row left with the guard (33.1 D-17/D-23).
+ */
+const CLOSURE_BASELINE_COUNT = 8;
 
 /**
  * The number of `.ts` modules that import the shared walker, MEASURED at the time of the cutover.
  * Moved 12 -> 13 on purpose by plan 33.1-01: `hooks/admission-guard.test.ts` now mirrors the admission
  * guard's closure for its WR-04 crash/hang stubs. Its entry artifact, `hooks/admission-guard.js`, is
  * already a `CLOSURE_BASELINES` row, so the new caller builds a mirror that row pins.
+ * Moved 13 -> 10 on purpose by plan 33.1-05: the Bash command guard's test was deleted with the guard
+ * (33.1 D-17/D-23), and `scripts/check-uat-oracles.test.ts` and `scripts/check-foundation-guards.test.ts`
+ * stopped mirroring the guard's closure when UAT oracle A2 was retired (33.1 D-28). No caller was
+ * added, so no `CLOSURE_BASELINES` row is needed.
  */
-const WALKER_IMPORTER_COUNT = 13;
+const WALKER_IMPORTER_COUNT = 10;
 
 /**
  * How many of those importers are PRODUCTION modules — i.e. not `*.test.ts` (Phase 32.1, plan
@@ -3859,7 +3849,7 @@ describe("32-31 — every existing caller of the shared walker still builds the 
   it("the caller-entry table has exactly the number of rows its decision records", () => {
     expect(
       CLOSURE_BASELINES.length,
-      "a TENTH entry artifact whose closure a gate depends on is a DECISION: record it above with " +
+      "a NINTH entry artifact whose closure a gate depends on is a DECISION: record it above with " +
         "the module list measured BEFORE the change, never with the list the changed code produces",
     ).toBe(CLOSURE_BASELINE_COUNT);
     expect(new Set(CLOSURE_BASELINES.map((r) => r.entry)).size).toBe(CLOSURE_BASELINE_COUNT);
