@@ -189,7 +189,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:mkdirp:mkdirSync",
     count: 1,
     gate: "dry-run-guard-inline",
-    why: "install.ts:418 the call's own condition is `!existsSync(dir) && !DRY_RUN`",
+    why: "install.ts:430 the call's own condition is `!existsSync(dir) && !DRY_RUN` (the ancestor walk added by plan 33.1-21 inside that branch only reads)",
   },
   {
     site: "install.ts:removeBackup:rmSync",

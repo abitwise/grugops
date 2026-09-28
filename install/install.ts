@@ -64,7 +64,7 @@ import {
   mkdtempSync,
   realpathSync,
 } from "node:fs";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 // The mirror spawn (D-01). This is the ONLY import this file has ever needed beyond fs/path/os, and
 // it buys the whole render path: the generator stays the single renderer of the `model:` line, and
@@ -87,6 +87,10 @@ import {
 // install/ still imports nothing from scripts/. The rules are a speed bump, not a security boundary;
 // the git host is the hard floor (see the module header).
 import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpoint-ask-rules.js";
+// CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
+// added, the directories install created), shared with uninstall.ts so the two binaries cannot read
+// one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
+import { readInstallMarker, readCreatedDirs } from "./install-marker.js";
 
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
@@ -414,8 +418,29 @@ const verify = (msg: string): void => {
   report("verify", msg);
 };
 
+// CREATED_DIRS (CR-02, D-18): every directory under TARGET that mkdirp itself created in this run,
+// as a POSIX path relative to TARGET. writeMarker() records it in the marker as `createdDirs`, and
+// uninstall removes an empty shared-name directory (.claude/, .gemini/, .github/, ...) only when it
+// is in that ledger — so an empty directory the user made before the install is never removed.
+// Directories outside TARGET (the kit home) are not recorded. The DRY_RUN guard is unchanged: a
+// preview creates nothing and records nothing.
+const CREATED_DIRS = new Set<string>();
+
 const mkdirp = (dir: string): void => {
-  if (!existsSync(dir) && !DRY_RUN) mkdirSync(dir, { recursive: true });
+  if (!existsSync(dir) && !DRY_RUN) {
+    const missing: string[] = [];
+    for (let cur = dir; !existsSync(cur); cur = dirname(cur)) {
+      missing.push(cur);
+      if (dirname(cur) === cur) break;
+    }
+    mkdirSync(dir, { recursive: true });
+    for (const p of missing) {
+      const rel = relative(TARGET, p);
+      if (rel !== "" && !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`)) {
+        CREATED_DIRS.add(rel.split(sep).join("/"));
+      }
+    }
+  }
 };
 
 const sameContent = (a: string, b: string): boolean => {
@@ -609,6 +634,7 @@ interface InstallMarker {
   kitRoot?: string;
   installMode?: string;
   claudeAskRules?: unknown;
+  createdDirs?: unknown;
 }
 
 // AskRuleLedger (D-18): what this installer added to the target's .claude/settings.json, so that
@@ -2301,11 +2327,28 @@ function materializeRunnable(): void {
 }
 
 // writeMarker: write .grugops/install.json. Four stable fields in fixed order, then the
-// claudeAskRules ledger (D-18) when writeAskRules() produced one; the install-time timestamp is
-// deliberately OMITTED (RESOLVED Q1, Option b) — overwrite unconditionally, idempotent. The ledger is
-// computed BEFORE this call and carried forward from the previous marker (see writeAskRules), so the
-// unconditional overwrite cannot orphan rules an earlier run added.
+// claudeAskRules ledger (D-18) when writeAskRules() produced one, then the createdDirs ledger
+// (CR-02), which is always written; the install-time timestamp is deliberately OMITTED (RESOLVED Q1,
+// Option b) — overwrite unconditionally, idempotent. The ledgers are carried forward from the
+// previous marker (see writeAskRules for the ask rules), so the unconditional overwrite cannot orphan
+// rules or directories an earlier run recorded.
+//
+// createdDirs: the previous marker's entries that are still directories, united with the
+// directories this run created (CREATED_DIRS), sorted. With no previous ledger it is this run's
+// set (an empty array when install created nothing). A previous ledger that is present but malformed
+// is a `verify` finding and is written back unchanged (fail closed, WR-05's rule for both ledgers):
+// install never replaces a ledger it could not read with one that forgets what it recorded.
 function writeMarker(): void {
+  const markerRel = ".grugops/install.json";
+  const previousMarker = readInstallMarker(join(TARGET, ".grugops", "install.json"));
+  const previousDirs = readCreatedDirs(previousMarker.state === "ok" ? previousMarker.marker : null);
+  if (previousDirs.state === "malformed") {
+    verify(
+      `${markerRel} — the directory ledger (createdDirs) is malformed, so it was written back unchanged and ` +
+        `the directories this run created were not recorded. Uninstall will remove only directories whose ` +
+        `own name begins with grugops; fix or delete the createdDirs field to restore the ledger.`,
+    );
+  }
   let ver = "";
   if (existsSync(join(KIT_ROOT, "VERSION"))) {
     ver = readFileSync(join(KIT_ROOT, "VERSION"), "utf8").split("\n")[0];
@@ -2330,6 +2373,20 @@ function writeMarker(): void {
       createdPermissions: ASK_LEDGER.createdPermissions,
       createdAsk: ASK_LEDGER.createdAsk,
     };
+  }
+  // Computed after the mkdirp above, so a .grugops/ this call created is recorded too.
+  if (previousDirs.state === "malformed") {
+    marker.createdDirs = previousDirs.raw;
+  } else {
+    const union = new Set<string>(CREATED_DIRS);
+    for (const rel of previousDirs.dirs) {
+      try {
+        if (lstatSync(join(TARGET, ...rel.split("/"))).isDirectory()) union.add(rel);
+      } catch {
+        // gone since the earlier install: dropped from the ledger
+      }
+    }
+    marker.createdDirs = [...union].sort();
   }
   writeFileSync(join(TARGET, ".grugops", "install.json"), JSON.stringify(marker, null, 2) + "\n");
   report("created", ".grugops/install.json (marker)");

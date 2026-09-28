@@ -24,6 +24,9 @@
 //     in the install ledger that are still present; a user's own identical rule is never removed,
 //     and the file is deleted only if install created it and nothing else is left in it)
 //   - the .grugops/install.json marker (the one grugops-owned file under .grugops/ — D-06)
+//   - an EMPTY directory it visits, only when grugops owns it (CR-02): the directory is in the
+//     marker's `createdDirs` ledger (install created it), or its own name begins with `grugops`.
+//     An empty .claude/, .claude/agents/, .gemini/ or .github/ the user made is left and reported.
 //
 // It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state
 // (.grugops/factory.config.json, plans/, memory-bank/), the shared kit at $GRUGOPS_HOME, or any
@@ -51,7 +54,7 @@ import {
   readlinkSync,
   realpathSync,
 } from "node:fs";
-import { join, resolve, isAbsolute } from "node:path";
+import { basename, join, relative, resolve, isAbsolute, sep } from "node:path";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts, so the
 // REMOVAL set and the INSTALL set can never be two answers to one predicate again (CR-02). Only the
 // two derivations this file uses are imported — see the kit-set derivation block below for why
@@ -62,6 +65,8 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // NAME a present rule the user holds (a grugops-shaped rule that is not in the install ledger); the
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
+// CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
+import { readInstallMarker, readCreatedDirs, type CreatedDirsRead, type InstallMarkerRead } from "./install-marker.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -257,6 +262,11 @@ function removeFile(f: string, label: string): void {
 // that directory is ALREADY empty; a directory the real run empties first — by removing the grugops
 // files inside it — is removed by the real run without having been named in the preview. So the
 // preview's would-rmdir set is always a subset of the real run's rmdir set, never a superset.
+//
+// OWNERSHIP IS DECIDED BEFORE THE PREVIEW BRANCH (CR-02, D-18). An empty directory is removed only
+// when ownsDir() says grugops owns it; otherwise it is reported `left` with the reason, in the real
+// run and in the preview alike. Both runs apply the same rule, so the preview's subset property
+// above still holds.
 function rmdirIfEmpty(d: string): void {
   if (isProtected(d)) return;
   if (!isDir(d)) return;
@@ -267,6 +277,10 @@ function rmdirIfEmpty(d: string): void {
     return; // unreadable → leave it, say nothing (as before)
   }
   if (entries.length > 0) return;
+  if (!ownsDir(d)) {
+    report("left", `${d} (${notOwnedReason()})`);
+    return;
+  }
   if (DRY_RUN) {
     report("would-rmdir", d);
     return;
@@ -277,6 +291,30 @@ function rmdirIfEmpty(d: string): void {
   } catch {
     // became non-empty in a race, or not removable → leave it
   }
+}
+
+// ownsDir (CR-02, D-18): grugops owns directory `d` when the install marker's `createdDirs` ledger
+// lists it (install created it), or when its own name begins with `grugops` (the kit namespace:
+// .claude/skills/grugops*, tools/grugops). A shared-name directory (.claude/, .claude/skills/,
+// .claude/agents/, .gemini/, .github/) needs ledger evidence. The ledger is only ever ASKED about
+// the fixed candidates this file visits; it is never iterated to decide what to delete.
+function ownsDir(d: string): boolean {
+  if (basename(d).startsWith("grugops")) return true;
+  if (DIR_LEDGER.state !== "ok") return false;
+  return DIR_LEDGER.dirs.includes(relative(TARGET, d).split(sep).join("/"));
+}
+
+function notOwnedReason(): string {
+  if (DIR_LEDGER.state === "ok") {
+    return "install did not create it — it is not in the install marker's directory ledger; left in place";
+  }
+  if (DIR_LEDGER.state === "malformed" || MARKER.state === "unreadable") {
+    return "the directory ledger could not be used (see the verify line above), so there is no record that install created it; left in place";
+  }
+  if (MARKER.state === "absent") {
+    return "there is no install marker, so there is no record that install created it; left in place";
+  }
+  return "the install marker predates the directory ledger, so there is no record that install created it; left in place";
 }
 
 // remove_sentinel_block: strip exactly the open..close sentinel block from a user file,
@@ -708,6 +746,26 @@ if (DRY_RUN) console.log("mode:   DRY_RUN (no filesystem changes)");
 // every file it was supposed to remove.
 const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
 const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
+
+// The directory ledger (CR-02), read ONCE here, before anything is removed and before removeMarker()
+// deletes the marker that holds it. ownsDir() consults it for every empty directory this run visits.
+// A malformed ledger or an unreadable marker is one `verify` finding: only grugops-named directories
+// are removed, and every shared-name directory is left for the human.
+const MARKER: InstallMarkerRead = readInstallMarker(`${TARGET}/.grugops/install.json`);
+const DIR_LEDGER: CreatedDirsRead = readCreatedDirs(MARKER.state === "ok" ? MARKER.marker : null);
+if (MARKER.state === "unreadable") {
+  verify(
+    `.grugops/install.json could not be read as a JSON object, so the directory ledger (createdDirs) is ` +
+      `unknown. Only directories whose own name begins with grugops are removed; any other empty directory ` +
+      `grugops created is left — remove it by hand once you have confirmed it is yours to remove.`,
+  );
+} else if (DIR_LEDGER.state === "malformed") {
+  verify(
+    `.grugops/install.json has a malformed directory ledger (createdDirs), so which directories install ` +
+      `created is unknown. Only directories whose own name begins with grugops are removed; any other empty ` +
+      `directory grugops created is left — remove it by hand once you have confirmed it is yours to remove.`,
+  );
+}
 
 console.log("\n-- removing grugops adapters (only what install.js added) --");
 
