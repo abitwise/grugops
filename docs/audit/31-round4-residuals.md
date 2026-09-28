@@ -600,6 +600,8 @@ separately, and the two variants really are two distinct spellings against two d
 | B9 | **IN-06** — `tsconfig.fixtures.json` disposition category | — | **carried, still open** | Not measured this round. The review records "`check-banned-claims.ts` not in this range". **`UNKNOWN - verify`** |
 | B10 | **IN-09** — residuals `R-43`/`R-44`/`R-46`/`R-47`, `Q9` | — | **carried** | Not measured this round as a set. `R-46` (the alias sentence) was the load-bearing sentence for CR-10 and **has moved**: `31-16` removed the alias residual's claim to cover the fixture parameter and replaced it with residuals true of their own shapes (`UNRESOLVABLE_CALLEE_RESIDUALS` is now 9 members, 6 resolution + 3 membership). The other four are **`UNKNOWN - verify`** |
 
+Annotation 2026-09-28 (plan 33.1-14): B8 / IN-04 was closed by plan 33-38 (the destination decision now precedes the ledger record; pinned by the `scripts/context-io.test.ts` case "IN-04 CLOSED (33-38): a write the chokepoint refuses is refused BEFORE the admission is recorded — no ledger line"); see WINDOWS.md row 300. The B8 row above is left as written.
+
 ### 7.3 Block C — the eight rows of `31-VERIFICATION.md`'s "Anti-Patterns Found" table, and Block D — the six `missing:` bullets
 
 | # | Anti-pattern row (file / pattern) | Severity | Owner | Disposition | Measurement |
