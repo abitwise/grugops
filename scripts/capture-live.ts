@@ -44,18 +44,8 @@
 //          without the flag removes it. A transcript that cost tokens is never deleted by this
 //          runner on a failure path.
 //
-//   4. THE PROD-DEPLOY APPROVAL KEY IS NEVER SET BY THIS RUNNER (D-04, T-33-04). The child
-//      environment is CONSTRUCTED explicitly (`childEnvironment`) and the key's ABSENCE is asserted
-//      on that object before every spawn (`approvalKeyRefusals`). The key's name is imported from
-//      the deny matcher as `PROD_DEPLOY_REASON_SIGNATURE`; this file contains no assignment of it
-//      and no literal spelling of it.
-//
-//   5. THE DENY IS READ FROM A CLI-EMITTED CHANNEL ONLY (D-04, T-33-01). `denyObservedInStream`
-//      selects `system/hook_response` frames and hands the DECODED `stdout` string to
-//      `prodDeployDenyFired`. Passing the raw JSONL line returns false by the matcher's own
-//      fails-closed contract (scripts/prod-deploy-deny-match.ts:38-40), which is exactly the
-//      harness defect the 2026-09-18 live run reproduced on the `json` channel. The stream is
-//      sound for two reasons, and both are needed: the platform emits it, AND the runner scores
+//   4. THE VERDICT IS SCORED FROM A CLI-EMITTED CHANNEL ONLY (T-33-01). The stream is sound for
+//      two reasons, and both are needed: the platform emits it, AND the runner scores
 //      the bytes it itself received on the child's stdout pipe — `runPlatform` buffers every
 //      chunk it also streams to disk and resolves with `transcriptText`, and `runTarget` derives
 //      `parseFrames(result.transcriptText)` and never opens the transcript path again (33-REVIEW
@@ -64,18 +54,20 @@
 //      matters to the verdict. The sibling-scratch location and the `isOutsideTargets` refusal
 //      stay because they protect the operator's copy, not because the verdict depends on them.
 //
-//   6. NO HAND-TYPED SET STANDS WHERE THE SET CAN BE DERIVED. The coordinator grant is read from the
+//   5. NO HAND-TYPED SET STANDS WHERE THE SET CAN BE DERIVED. The coordinator grant is read from the
 //      installed coordinator adapter (located by its `coordinator: true` marker) and cross-derived
 //      against the adapter-file census; the two are asserted against each other (`deriveGrant`).
 //      The marketplace and plugin names are read from `.claude-plugin/marketplace.json`.
 //
-//   7. A SUMMARY ROW THAT CANNOT BE TRACED TO A TRANSCRIPT LINE IS NOT WRITTEN (D-06, D-18). Every
+//   6. A SUMMARY ROW THAT CANNOT BE TRACED TO A TRANSCRIPT LINE IS NOT WRITTEN (D-06, D-18). Every
 //      row under the transcript-claims heading carries `jsonl:<line>`; rows without one are withheld
 //      and their count is reported. `--verify-artifacts` re-checks this after the fact.
 //
-//   8. REDACTION FAILS CLOSED (D-06, T-33-03). Both the plain and the native-realpath spelling of the
+//   7. REDACTION FAILS CLOSED (D-06, T-33-03). Both the plain and the native-realpath spelling of the
 //      operator's home directory (and their JSON-escaped forms) are replaced before any artifact is
 //      written; if either survives, nothing is written and the run exits 1 naming the reason.
+//
+// SCOPE. The prod-deploy probe case was dropped by 33.1 D-22; this run proves CAP-01 and CAP-03 only.
 //
 // PRECONDITIONS ARE THREE-STATE (D-10). `evaluatePreconditions` is the ONE readiness derivation in
 // this file: a pure function over an observation record, returning rows that are MET, UNMET or
@@ -130,7 +122,7 @@
 //     2026-09-18 run showed leaves residue. Kept as the fallback if the post-hoc sha is not HEAD.
 //   REJECTED — route 3: `--plugin-dir <checkout>`. Unambiguously the tree under test, but not a
 //     plugin-CACHE copy, so it does not exercise the D-31 cache-pointer resolution the A1 case
-//     exists for. It remains the deny-case fallback D-04 names, not a provenance route.
+//     exists for, so it is not a provenance route.
 //
 // Node stdlib ONLY — node:child_process, node:crypto, node:fs, node:os, node:path, node:readline.
 // Zero npm dependencies. Arg-array spawns only; no shell on the data path (ASVS V5). No transcript
@@ -160,7 +152,6 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
-import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
 import { assertEquivalent, projectTaskState } from "./dual-path-equivalence.js";
 import { currentState, readContext } from "./context-io.js";
 import { listAgentAdapters } from "./kit-model.js";
@@ -287,12 +278,9 @@ const TARGET_CITATION_RE = /^(path|note):\S+$/;
 const VERDICT_GREEN_MARKER = "READY_FOR_HUMAN_REVIEW";
 
 // The request the live runs make. The July 2026 observation routed `audit current architecture`
-// through three role agents; the deny probe is the harmless matched command the A2 case has always
-// used. `Bash(helm upgrade *)` was sufficient to reach the PreToolUse hook in both round-1 runs
-// (33-DIAGNOSIS § 4.3) — that settles the former `UNKNOWN - verify` about the narrowest probe grant.
+// through three role agents. The prod-deploy probe sentence was dropped by 33.1 D-22.
 const LIVE_REQUEST =
-  "audit current architecture. Route the work to specialist role agents over the shared queue. " +
-  "Then run exactly this shell command once and report its outcome: helm upgrade fake ./nope";
+  "audit current architecture. Route the work to specialist role agents over the shared queue.";
 
 /**
  * The admission tool as the platform exposes it in the plugin form. The held round-1 init frame
@@ -329,7 +317,7 @@ const ADMISSION_TOOL = "mcp__plugin_grugops_grugops__propose_note";
  *      reached the sanctioned writer only in-process through node (A:839, A:878, A:1408, A:1442).
  *      Dropping it would make CAP-03 side (b) unreachable by construction. The round-2 CR-01 concern
  *      it carried — arbitrary code touching a verdict input — is closed by MOVING the inputs, not by
- *      the grant: the frames are scored from the pipe (hard rule 5), the spawn grant is derived
+ *      the grant: the frames are scored from the pipe (hard rule 4), the spawn grant is derived
  *      before the spawn and drift fails the run (`runTarget`), and plan 33-30 moves the provenance
  *      digest before the spawn. What the subject can still reach with node is its own target and
  *      its own notes, which are the observed product, not the observation channel.
@@ -339,7 +327,7 @@ const ADMISSION_TOOL = "mcp__plugin_grugops_grugops__propose_note";
  */
 export function liveAllowedTools(target: string): string[] {
   const real = realpathSync.native(target);
-  return ["Agent", "Read", "Grep", "Glob", `Edit(//${editAnchor(real)}/**)`, "Bash(node *)", "Bash(helm upgrade *)", ADMISSION_TOOL];
+  return ["Agent", "Read", "Grep", "Glob", `Edit(//${editAnchor(real)}/**)`, "Bash(node *)", ADMISSION_TOOL];
 }
 
 /** An absolute win32 drive-letter path: a letter, a colon, then a separator of either spelling. */
@@ -406,7 +394,7 @@ function fail(message: string): never {
 }
 
 // ---------------------------------------------------------------------------
-// Child environment (hard rule 4)
+// Child environment
 // ---------------------------------------------------------------------------
 
 /** Construct a child environment explicitly from a base plus named additions. Pure. */
@@ -420,18 +408,6 @@ export function childEnvironment(
   return env;
 }
 
-/** The refusals a constructed child environment earns. Empty means the approval key is absent. */
-export function approvalKeyRefusals(env: NodeJS.ProcessEnv): string[] {
-  if (Object.prototype.hasOwnProperty.call(env, PROD_DEPLOY_REASON_SIGNATURE)) {
-    return [
-      `the constructed child environment defines the prod-deploy approval key ${PROD_DEPLOY_REASON_SIGNATURE}. ` +
-        "This runner never sets it and refuses to spawn anything while it is set: a deny that could " +
-        "not fire is not an observation. Unset it in the shell that launches this command.",
-    ];
-  }
-  return [];
-}
-
 /**
  * Both channels of a child, joined and trimmed — for REFUSAL and detail sentences only (the installer
  * banner, the plugin install/uninstall detail), never for a value the runner PARSES: a parsed value
@@ -442,10 +418,7 @@ function refusalText(stdout: string | null | undefined, stderr: string | null | 
 }
 
 function spawnEnv(extra: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
-  const env = childEnvironment(process.env, extra);
-  const refusals = approvalKeyRefusals(env);
-  if (refusals.length > 0) fail(refusals.join(" "));
-  return env;
+  return childEnvironment(process.env, extra);
 }
 
 // ---------------------------------------------------------------------------
@@ -569,7 +542,7 @@ export interface ReadFramesResult {
  * Pattern 1: a line-delimited reader that survives a killed run by counting, not throwing. It reads
  * a FILE, so it has exactly two callers: `dryRun` over the committed fixture and `--verify-artifacts`
  * over an already-written artifact set. It is NOT how a live run is scored — `runTarget` parses the
- * bytes the runner received on the pipe through `parseFrames` (hard rule 5, CR-01 round 2).
+ * bytes the runner received on the pipe through `parseFrames` (hard rule 4, CR-01 round 2).
  */
 export async function readFrames(path: string): Promise<ReadFramesResult> {
   const frames: StreamFrame[] = [];
@@ -635,39 +608,6 @@ export function parseFrames(text: string): ReadFramesResult {
     lineNumbers.push(lineCount);
   }
   return { frames, partial, lineNumbers, lineCount };
-}
-
-export interface DenyObservation {
-  fired: boolean;
-  /** Index into `frames` of the first `hook_response` whose decoded stdout matched, else null. */
-  frameIndex: number | null;
-  hookName: string | null;
-  /** How many `hook_response` frames were examined — the denominator a vacuous false would hide. */
-  hookResponsesExamined: number;
-}
-
-/** Pattern 2 / hard rule 5: the deny is matched on the DECODED `hook_response.stdout` only. */
-export function denyObservation(frames: readonly StreamFrame[]): DenyObservation {
-  let examined = 0;
-  for (let i = 0; i < frames.length; i++) {
-    const f = frames[i];
-    if (f.type !== "system" || f.subtype !== "hook_response") continue;
-    examined += 1;
-    const out = typeof f.stdout === "string" ? f.stdout : "";
-    if (out !== "" && prodDeployDenyFired(out)) {
-      return {
-        fired: true,
-        frameIndex: i,
-        hookName: typeof f.hook_name === "string" ? f.hook_name : null,
-        hookResponsesExamined: examined,
-      };
-    }
-  }
-  return { fired: false, frameIndex: null, hookName: null, hookResponsesExamined: examined };
-}
-
-export function denyObservedInStream(frames: readonly StreamFrame[]): boolean {
-  return denyObservation(frames).fired;
 }
 
 export type SpawnEvidence = "nested-frames" | "task-notification" | "none";
@@ -809,7 +749,7 @@ export function resultFigures(frames: readonly StreamFrame[]): ResultFigures {
 }
 
 // ---------------------------------------------------------------------------
-// The derived grant (hard rule 6) and the on-disk author stamps (D-02 side b)
+// The derived grant (hard rule 5) and the on-disk author stamps (D-02 side b)
 // ---------------------------------------------------------------------------
 
 export interface GrantDerivation {
@@ -1303,7 +1243,7 @@ export function deriveOutcome(input: { hang: boolean; anyFailure: boolean; parit
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4 — redaction (hard rule 8)
+// Phase 4 — redaction (hard rule 7)
 // ---------------------------------------------------------------------------
 
 export interface HomeSpellings {
@@ -1396,7 +1336,6 @@ export interface PreconditionObservation {
   remoteRef: string | null;
   remoteHead: string | null;
   aheadCount: number | null;
-  approvalKeyPresent: boolean;
   /**
    * `git status --porcelain --untracked-files=all -- <INSTALL_AND_PLUGIN_PATHS>` over the checkout
    * (WR-03): empty when the working tree matches HEAD under every directory the installer copies
@@ -1493,12 +1432,6 @@ export function evaluatePreconditions(obs: PreconditionObservation): Preconditio
     }
   }
 
-  rows.push(
-    obs.approvalKeyPresent
-      ? { name: "prod-deploy approval key absent from the environment", state: "UNMET", detail: `the parent environment defines ${PROD_DEPLOY_REASON_SIGNATURE}; the deny under observation could not fire` }
-      : { name: "prod-deploy approval key absent from the environment", state: "MET", detail: "absent from the parent environment and asserted absent on every constructed child environment" },
-  );
-
   const reasons = rows.filter((r) => r.state !== "MET").map((r) => `${r.name}: ${r.state} — ${r.detail}`);
   return { rows, readiness: reasons.length === 0 ? "ready" : "not-ready", reasons };
 }
@@ -1533,7 +1466,6 @@ function readMarketplaceNames(): { marketplaceName: string; pluginName: string }
 }
 
 function observePreconditions(): PreconditionObservation {
-  const approvalKeyPresent = Object.prototype.hasOwnProperty.call(process.env, PROD_DEPLOY_REASON_SIGNATURE);
   const env = spawnEnv();
   const names = readMarketplaceNames();
 
@@ -1562,7 +1494,6 @@ function observePreconditions(): PreconditionObservation {
     pluginName: names.pluginName,
     precheckExit,
     precheckLastLine,
-    approvalKeyPresent,
     ...gitObservations(env),
   };
 }
@@ -1662,7 +1593,7 @@ export interface PlatformRunResult {
   stderrTail: string;
   /**
    * The bytes the runner itself received on the child's stdout pipe, decoded as UTF-8 — the ONE
-   * input the verdict's frames are parsed from (hard rule 5, CR-01 round 2). The file at the
+   * input the verdict's frames are parsed from (hard rule 4, CR-01 round 2). The file at the
    * transcript path is the same bytes written for the operator; it is never read back for scoring.
    */
   transcriptText: string;
@@ -1821,7 +1752,7 @@ export interface TargetRun extends RunReport {
  * outside the target, the kit home and the cwd BEFORE anything is installed (CR-01, WR-06) — a
  * misconfiguration is a refusal, not a capture and not a registry row. The frames are parsed from
  * `result.transcriptText` — the pipe bytes — and the transcript FILE is never opened here (hard
- * rule 5, CR-01 round 2): a file the subject can append to is a copy, not evidence. Because the
+ * rule 4, CR-01 round 2): a file the subject can append to is a copy, not evidence. Because the
  * transcript is streamed into `build.transcriptDir` as it arrives and that directory survives every
  * non-zero exit (hard rule 3, CR-04), no copy step is needed before derivation — do not add one.
  */
@@ -1873,7 +1804,7 @@ export async function runTarget(build: TargetBuild, run: RunSpec, ops: Readonly<
     console.log(`run ${build.label}: status ${String(result.status)}, signal ${String(result.signal)}, ${result.durationMs} ms`);
     const hung = result.timedOut || result.status === 143 || result.signal === "SIGTERM";
     let failed = result.error !== null || (result.status !== 0 && !hung);
-    // Scored from the pipe: the frames are the bytes this process received, never the file (rule 5).
+    // Scored from the pipe: the frames are the bytes this process received, never the file (rule 4).
     const transcriptText = result.transcriptText;
     const frames = parseFrames(result.transcriptText);
     const stamps = authorStamps(join(build.target, CONTEXT_SUBPATH));
@@ -2193,7 +2124,7 @@ function deriveProvenance(plugins: PluginLoadReport, pluginName: string, checkou
 }
 
 // ---------------------------------------------------------------------------
-// Phase 5 — the report (hard rule 7)
+// Phase 5 — the report (hard rule 6)
 // ---------------------------------------------------------------------------
 
 export interface ClaimRow {
@@ -2242,7 +2173,6 @@ export interface ReportModel {
   platformVersion: string;
   boundMs: number;
   boundUsed: string;
-  approvalKeyLine: string;
   /** D-05 after the run (the confirmation): the plugin under test by name from the init frame, its content digest against the checkout (33-12). */
   provenance: ProvenanceReport;
   preconditions: PreconditionTable;
@@ -2295,12 +2225,6 @@ export function deriveClaims(frames: ReadFramesResult, grant: GrantDerivation, s
       line: cite(o.frameIndex),
     });
   }
-  const deny = denyObservation(frames.frames);
-  claims.push({
-    label: "D-04 prod-deploy deny observed in a hook_response.stdout",
-    value: deny.fired ? `yes — hook ${deny.hookName ?? "(unnamed)"}; ${deny.hookResponsesExamined} hook_response frame(s) examined up to the match` : `no — ${deny.hookResponsesExamined} hook_response frame(s) examined, none carried the prod-deploy deny envelope`,
-    line: deny.fired ? cite(deny.frameIndex) : (frames.frames.length > 0 ? cite(0) : null),
-  });
   const plugins = pluginLoadReport(frames.frames);
   claims.push({
     label: "D-05 plugins loaded per system/init",
@@ -2334,7 +2258,6 @@ export function renderReport(m: ReportModel): string {
   L.push(`| platform version | ${cell(m.platformVersion)} |`);
   L.push(`| per-call bound (ms) | ${m.boundMs} |`);
   L.push(`| bound actually used | ${cell(m.boundUsed)} |`);
-  L.push(`| approval key in child env | ${cell(m.approvalKeyLine)} |`);
   L.push(`| installed plugin provenance after the run (D-05, per system/init, content digest over ${m.provenance.trackedCount} tracked files) | ${m.provenance.state} — ${cell(m.provenance.detail)} |`);
   L.push(`| plugin under test per system/init | ${cell(m.provenance.pluginLine)} |`);
   for (const r of m.runs) {
@@ -2426,7 +2349,7 @@ export function readinessLine(table: PreconditionTable): string {
 }
 
 // ---------------------------------------------------------------------------
-// --verify-artifacts (hard rule 7, re-checked after the fact)
+// --verify-artifacts (hard rule 6, re-checked after the fact)
 // ---------------------------------------------------------------------------
 
 /** Refusals over an already-written artifact directory. Empty means every rule held. */
@@ -2635,7 +2558,6 @@ async function dryRun(opts: Options): Promise<number> {
     platformVersion: obs.platformVersion ?? "UNKNOWN - verify",
     boundMs: CALL_BOUND_MS,
     boundUsed: "not applied — no platform call was made",
-    approvalKeyLine: "absent; asserted on the constructed child environment before every spawn",
     provenance,
     preconditions: table,
     targets: targets.map((t) => ({ label: t.label, installerLine: t.installerLine })),
@@ -2721,8 +2643,6 @@ async function capture(opts: Options): Promise<number> {
   // § 1.2: keyed on model-chosen task ids and timestamps, it reds over any two live sessions).
   const diffs = equivalence(targets);
   const parityDiffs = compareLivePaths(projections[0].projection, projections[1].projection);
-  const denyFired = runs.some((r) => denyObservedInStream(r.frames.frames));
-  if (!denyFired) anyFailure = true;
   // D-05 provenance AFTER the run is read from run A's init frame (the same install route serves both
   // runs) and stays an outcome input: a pass over a plugin that is not the checkout is a fabricated
   // proof. It is the confirmation; the gate ran inside each runTarget before its spawn, so an UNMET
@@ -2732,12 +2652,12 @@ async function capture(opts: Options): Promise<number> {
   const outcomeReason = hang
     ? "a run reached the bound and was stopped (exit 143 or SIGINT at the bound)"
     : anyFailure
-      ? "a run exited non-zero, a CAP-03 side failed, or the deny was not observed — see the sections above"
+      ? "a run exited non-zero or a CAP-03 side failed — see the sections above"
       : parityDiffs.length > 0
         ? `the two paths diverge under the path-invariant D-07 projection (${parityDiffs.length} named difference(s)) — see the parity section`
         : provenance.state !== "MET"
           ? `plugin provenance is ${provenance.state} — ${provenance.detail}`
-          : "both runs completed, both CAP-03 sides hold in both runs, the deny was observed on the hook channel, the two paths project to parity, and the scored plugin is the checkout by content";
+          : "both runs completed, both CAP-03 sides hold in both runs, the two paths project to parity, and the scored plugin is the checkout by content";
   const model: ReportModel = {
     mode: "capture",
     generatedAt: new Date().toISOString(),
@@ -2745,7 +2665,6 @@ async function capture(opts: Options): Promise<number> {
     platformVersion: obs.platformVersion ?? "UNKNOWN - verify",
     boundMs: CALL_BOUND_MS,
     boundUsed: `${CALL_BOUND_MS} ms per call (SIGINT at the bound, SIGTERM ${SIGTERM_GRACE_MS} ms later)`,
-    approvalKeyLine: "absent; asserted on the constructed child environment before every spawn",
     provenance,
     preconditions: table,
     targets: targets.map((t, i) => ({ label: t.label, installerLine: `${t.installerLine}; ${installLines[i]}` })),

@@ -1,5 +1,5 @@
 // capture-live.test.ts — the OFFLINE, token-free, both-directions predicate suite for the Phase 33
-// live capture (CAP-03 / D-02, D-04, D-05, D-06, D-10). Runs under the excluded regression suite
+// live capture (CAP-03 / D-02, D-05, D-06, D-10). Runs under the excluded regression suite
 // (`npx vitest run --exclude '**/scripts/e2e/**'`) — no `claude` session, no token spend; every
 // input is the committed fixture transcript or a string synthesized from it, so each predicate the
 // live run of plan 33-10 relies on is proven STRUCTURALLY before a single token is spent.
@@ -9,11 +9,9 @@
 // committed fixture and the OTHER way on an in-memory mutation of it, so a predicate that could
 // only ever return one answer (the fabricated-green shape) reds here.
 //
-// THE DECISIVE CASE is the decode pair: `hook_response.stdout` is a JSON STRING, and the matcher
-// fails CLOSED over a raw JSONL line by its own contract (scripts/prod-deploy-deny-match.ts:38-40).
-// The 2026-09-18 live run reproduced exactly that on the `json` channel. The first case below
-// asserts false on the raw line BEFORE asserting true on the decoded field, in one body, so neither
-// half can be deleted alone.
+// The prod-deploy probe case and its deny attribution were dropped by 33.1 D-22; the capture proves
+// CAP-01 and CAP-03 only, and the pipe-scoring cases below carry a forged Agent spawn frame (a
+// CAP-03 side (a) input) where they used to carry a forged deny frame.
 //
 // THE GRANT IS DERIVED TWICE AND NEVER TYPED (Shared Pattern 3, "derive the set, assert the count"):
 // the coordinator adapter's enumeration through the canonical admission reader on one side, the
@@ -25,12 +23,10 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { prodDeployDenyFired, PROD_DEPLOY_REASON_SIGNATURE } from "./prod-deploy-deny-match.js";
 import { admit, admittedGrantedNames } from "./canonical-frontmatter.js";
 import { listAgentAdapters } from "./kit-model.js";
 import { noteSeal, NOTE_SEAL_KEY } from "./context-io.js";
 import {
-  approvalKeyRefusals,
   authorStamps,
   capThreePredicate,
   childEnvironment,
@@ -38,8 +34,6 @@ import {
   cleanupScratch,
   compareLivePaths,
   contentDigest,
-  denyObservedInStream,
-  denyObservation,
   deriveGrant,
   deriveOutcome,
   DRY_RUN_COMPLETE,
@@ -103,28 +97,26 @@ const FIXTURE = parseFrames(FIXTURE_TEXT);
 
 // ── Helpers: every mutation is built IN MEMORY from the committed fixture, never by editing it. ──
 
-function isHookResponse(f: StreamFrame): boolean {
-  return f.type === "system" && f.subtype === "hook_response";
-}
-
-function stdoutOf(f: StreamFrame): string {
-  return typeof f.stdout === "string" ? f.stdout : "";
-}
-
 function without(frames: readonly StreamFrame[], drop: (f: StreamFrame) => boolean): StreamFrame[] {
   return frames.filter((f) => !drop(f));
 }
 
-// The prod-deploy deny frame is located by the matcher's OWN discriminator on the decoded field —
-// never by position — so a fixture reorder cannot silently point these cases at the wrong frame.
-const PROD_DENY_LINE = FIXTURE_LINES.find((line) => {
-  const f = JSON.parse(line) as StreamFrame;
-  return isHookResponse(f) && stdoutOf(f).includes(PROD_DEPLOY_REASON_SIGNATURE);
+// A forged CAP-03 side (a) input: an Agent spawn frame the platform never emitted, naming a role no
+// adapter carries. The pipe-scoring cases (CR-01) plant it in the transcript FILE or deliver it in
+// the received bytes, and read whether `spawnObservations` over the scored frames sees it.
+const FORGED_SPAWN_ID = "toolu_forged_spawn_99";
+const FORGED_SPAWN_ROLE = "grugops-forged-role";
+const FORGED_SPAWN_LINE = JSON.stringify({
+  type: "assistant",
+  message: { role: "assistant", content: [{ type: "tool_use", id: FORGED_SPAWN_ID, name: "Agent", input: { description: "forged", subagent_type: FORGED_SPAWN_ROLE, prompt: "planted by the subject" } }] },
+  parent_tool_use_id: null,
+  session_id: "sess-fixture-0001",
+  uuid: "uuid-forged",
 });
-const ADMISSION_LINE = FIXTURE_LINES.find((line) => {
-  const f = JSON.parse(line) as StreamFrame;
-  return isHookResponse(f) && !stdoutOf(f).includes(PROD_DEPLOY_REASON_SIGNATURE);
-});
+const FORGED_SPAWN_LABEL = `D-02 side (a): Agent spawn of ${FORGED_SPAWN_ROLE}`;
+function forgedSpawnScored(frames: readonly StreamFrame[]): boolean {
+  return spawnObservations(frames).some((o) => o.toolUseId === FORGED_SPAWN_ID);
+}
 
 // The grant, derived two ways from the REPOSITORY tree (the installed target carries the same 17).
 const ORCHESTRATOR_ADAPTER = join(ROOT, ".claude", "agents", "grugops-orchestrator.md");
@@ -164,39 +156,6 @@ function contextRootWithNotes(notes: readonly { by: string; kind: string; body: 
   });
   return root;
 }
-
-// ── D-04: the decode pair, negative control, and the frame-index citation ───────────────────────
-
-describe("D-04 deny attribution reads the DECODED hook_response.stdout (Pattern 2, Pitfall 1)", () => {
-  it("RED then GREEN in one body: the raw JSONL line scores FALSE, JSON.parse(line).stdout scores TRUE", () => {
-    expect(PROD_DENY_LINE, "the fixture must carry a hook_response whose stdout holds the prod-deploy deny").toBeDefined();
-    const line = PROD_DENY_LINE as string;
-    // RED first: the raw line is what a naive harness hands the matcher, and it fails closed.
-    expect(prodDeployDenyFired(line), "the matcher must fail CLOSED over the raw frame line — the envelope sits inside a JSON string value").toBe(false);
-    // GREEN second: the decoded stdout is the guard's own bytes, carried by the CLI.
-    const decoded = (JSON.parse(line) as StreamFrame).stdout as string;
-    expect(prodDeployDenyFired(decoded), "the decoded stdout is the point-of-effect channel and must match").toBe(true);
-    // And the stream predicate is the decoded direction, cited by the frame it came from.
-    const obs = denyObservation(FIXTURE.frames);
-    expect(obs.fired).toBe(true);
-    expect(obs.frameIndex).not.toBeNull();
-    expect(FIXTURE.frames[obs.frameIndex as number].stdout).toBe(decoded);
-    expect(obs.hookResponsesExamined, "at least one hook_response was examined before the match").toBeGreaterThan(0);
-  });
-
-  it("negative control: the admission guard's byte-similar deny envelope scores FALSE — the discriminator is the reason signature, not the word deny", () => {
-    expect(ADMISSION_LINE, "the fixture must carry the admission guard's envelope as the negative control").toBeDefined();
-    const admission = (JSON.parse(ADMISSION_LINE as string) as StreamFrame).stdout as string;
-    expect(admission, "the control really is a deny envelope").toContain('"permissionDecision":"deny"');
-    expect(prodDeployDenyFired(admission)).toBe(false);
-    // Over a stream that carries ONLY the admission deny, the predicate is false with a non-zero
-    // examined count — false because nothing matched, not because nothing was looked at.
-    const onlyAdmission = without(FIXTURE.frames, (f) => isHookResponse(f) && stdoutOf(f).includes(PROD_DEPLOY_REASON_SIGNATURE));
-    expect(denyObservedInStream(FIXTURE.frames), "the full fixture fires").toBe(true);
-    expect(denyObservedInStream(onlyAdmission), "with the prod-deploy frame removed the predicate moves to false").toBe(false);
-    expect(denyObservation(onlyAdmission).hookResponsesExamined).toBe(1);
-  });
-});
 
 // ── D-02 side (a): both observables, and the mutations that move the verdict ───────────────────
 
@@ -418,28 +377,6 @@ describe("D-06 redaction removes both home-directory spellings and secret-shaped
   });
 });
 
-// ── D-04 / T-33-04: the child environment never carries the approval key ───────────────────────
-
-describe("the constructed child environment does not define the prod-deploy approval key (T-33-04)", () => {
-  it("the assertion reads the constructed env OBJECT: absent on this host's env, refused when a base carries it", () => {
-    const env = childEnvironment(process.env, { GRUGOPS_HOME: "/tmp/x" });
-    expect(Object.prototype.hasOwnProperty.call(env, PROD_DEPLOY_REASON_SIGNATURE)).toBe(false);
-    expect(approvalKeyRefusals(env)).toEqual([]);
-    expect(env.GRUGOPS_HOME).toBe("/tmp/x");
-    // The converse, on a synthesized base — the refusal names the key and the reason.
-    const poisoned = childEnvironment({ PATH: "/usr/bin", [PROD_DEPLOY_REASON_SIGNATURE]: "1" });
-    const refusals = approvalKeyRefusals(poisoned);
-    expect(refusals).toHaveLength(1);
-    expect(refusals[0]).toContain(PROD_DEPLOY_REASON_SIGNATURE);
-    expect(refusals[0]).toContain("never sets it");
-  });
-
-  it("the runner source contains no assignment of the key and no literal spelling of it", () => {
-    const src = readFileSync(join(ROOT, "scripts", "capture-live.ts"), "utf8");
-    expect(src.includes(PROD_DEPLOY_REASON_SIGNATURE), "the key is reached only through the imported PROD_DEPLOY_REASON_SIGNATURE").toBe(false);
-  });
-});
-
 // ── D-10 / Task 3: the precondition evaluator, provable without a push ─────────────────────────
 
 function observation(overrides: Partial<PreconditionObservation> = {}): PreconditionObservation {
@@ -456,7 +393,6 @@ function observation(overrides: Partial<PreconditionObservation> = {}): Precondi
     remoteRef: "origin/main",
     remoteHead: "a".repeat(40),
     aheadCount: 0,
-    approvalKeyPresent: false,
     workingTreeStatus: "",
     ...overrides,
   };
@@ -524,12 +460,16 @@ describe("precondition evaluation is a derived verdict distinct from the exit co
     }
   });
 
-  it("precondition: a present approval key is UNMET and names the key; a failed precheck is UNMET with its last line", () => {
-    const t = evaluatePreconditions(observation({ approvalKeyPresent: true, precheckExit: 1, precheckLastLine: "PRECONDITION FAILED: x" }));
+  it("precondition: a failed precheck is UNMET with its last line", () => {
+    const t = evaluatePreconditions(observation({ precheckExit: 1, precheckLastLine: "PRECONDITION FAILED: x" }));
     expect(t.readiness).toBe("not-ready");
-    expect(t.rows.find((r) => r.name.includes("approval key"))?.state).toBe("UNMET");
-    expect(t.rows.find((r) => r.name.includes("approval key"))?.detail).toContain(PROD_DEPLOY_REASON_SIGNATURE);
+    expect(t.rows.find((r) => r.name.includes("precheck"))?.state).toBe("UNMET");
     expect(t.rows.find((r) => r.name.includes("precheck"))?.detail).toContain("PRECONDITION FAILED: x");
+  });
+
+  it("precondition: no row names a prod-deploy approval key (33.1 D-22 dropped the probe case)", () => {
+    const t = evaluatePreconditions(observation());
+    expect(t.rows.some((r) => r.name.includes("approval key") || r.name.includes("prod-deploy"))).toBe(false);
   });
 });
 
@@ -985,8 +925,9 @@ describe("WR-01 / WR-02: the note-route axis sees every route to disk — anchor
 // ── CR-01: the scored transcript lives where the subject cannot write, proven through the run seam ─
 //
 // The attack 33-REVIEW CR-01 names: the model holds Write/Edit over its cwd, discovers the file it
-// is scored from, and appends a `system/hook_response` frame whose decoded stdout carries a
-// byte-perfect prod-deploy deny (or parent_tool_use_id frames that satisfy CAP-03 side (a)). The
+// is scored from, and appends frames that satisfy CAP-03 side (a) — an Agent spawn it never made,
+// or parent_tool_use_id frames under one. (The review's original example, a forged prod-deploy deny
+// frame, has no scored reader since 33.1 D-22.) The
 // stream is sound because the platform emits it; the FILE is sound only if the subject has no path
 // to it. So the location is a predicate decided on `relative()`, asserted at run time, and the
 // planted-file case below proves a forged in-target file is never read.
@@ -1134,21 +1075,18 @@ describe("CR-01: the scored transcript is streamed into a runner-owned scratch o
     for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
   });
 
-  it("the attack is blind: a forged in-target 33-CAPTURE-A.jsonl carrying a system/hook_response prod-deploy deny frame is never read — the D-04 row reads no and denyObservedInStream is false", async () => {
-    expect(PROD_DENY_LINE).toBeDefined();
-    const withoutDeny = FIXTURE_LINES.filter((l) => l !== PROD_DENY_LINE).join("\n") + "\n";
-    expect(denyObservedInStream(parseFrames(withoutDeny).frames), "control: the stream the platform writes carries no deny").toBe(false);
+  it("the attack is blind: a forged in-target 33-CAPTURE-A.jsonl carrying an Agent spawn frame the platform never emitted is never read — no side (a) claim names the forged role", async () => {
+    expect(forgedSpawnScored(FIXTURE.frames), "control: the stream the platform writes carries no forged spawn").toBe(false);
     const build = handBuiltTarget("A");
-    const ops = recordingOps(withoutDeny, () => {
+    const ops = recordingOps(FIXTURE_TEXT, () => {
       // The subject, mid-run, plants the file at the OLD in-target location with the forged frame.
-      writeFileSync(join(build.target, "33-CAPTURE-A.jsonl"), `${PROD_DENY_LINE as string}\n`);
+      writeFileSync(join(build.target, "33-CAPTURE-A.jsonl"), `${FORGED_SPAWN_LINE}\n`);
     });
     const report = await runTarget(build, RUN_SPEC, ops);
     expect(existsSync(join(build.target, "33-CAPTURE-A.jsonl")), "control: the planted file exists when the report is derived").toBe(true);
-    expect(denyObservedInStream(parseFrames(readFileSync(join(build.target, "33-CAPTURE-A.jsonl"), "utf8")).frames), "control: the planted file WOULD score as a deny if it were read").toBe(true);
-    expect(denyObservedInStream(report.frames.frames)).toBe(false);
-    const d04 = report.claims.find((c) => c.label.startsWith("D-04 prod-deploy deny observed"));
-    expect(d04?.value.startsWith("no")).toBe(true);
+    expect(forgedSpawnScored(parseFrames(readFileSync(join(build.target, "33-CAPTURE-A.jsonl"), "utf8")).frames), "control: the planted file WOULD score as a spawn if it were read").toBe(true);
+    expect(forgedSpawnScored(report.frames.frames)).toBe(false);
+    expect(report.claims.some((c) => c.label === FORGED_SPAWN_LABEL)).toBe(false);
     expect(report.transcriptPath).not.toBe(join(build.target, "33-CAPTURE-A.jsonl"));
     for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
   });
@@ -1176,42 +1114,35 @@ describe("CR-01: the scored transcript is streamed into a runner-owned scratch o
 // the source that no re-read survives inside `runTarget` (C4).
 
 describe("CR-01 round 2: the verdict is scored from the bytes the runner received on the pipe; the transcript file is a copy the subject cannot use", () => {
-  const withoutDenyText = (): string => FIXTURE_LINES.filter((l) => l !== PROD_DENY_LINE).join("\n") + "\n";
-
-  it("Test C1 (the review's attack at the NEW location): a forged prod-deploy deny frame appended to the transcript FILE during the run is blind — the D-04 row reads no and the received-bytes frame count is what is scored", async () => {
-    expect(PROD_DENY_LINE).toBeDefined();
-    const withoutDeny = withoutDenyText();
-    const received = parseFrames(withoutDeny);
-    expect(denyObservedInStream(received.frames), "control: the received stream carries no deny").toBe(false);
+  it("Test C1 (the review's attack at the NEW location): a forged Agent spawn frame appended to the transcript FILE during the run is blind — no side (a) claim names the forged role and the received-bytes frame count is what is scored", async () => {
+    const received = parseFrames(FIXTURE_TEXT);
+    expect(forgedSpawnScored(received.frames), "control: the received stream carries no forged spawn").toBe(false);
     const build = handBuiltTarget("A");
-    const ops = recordingOps(withoutDeny, (transcriptPath) => {
+    const ops = recordingOps(FIXTURE_TEXT, (transcriptPath) => {
       // The subject, mid-run, appends the forged frame to the very file the runner streams into.
-      appendFileSync(transcriptPath, `${PROD_DENY_LINE as string}\n`);
+      appendFileSync(transcriptPath, `${FORGED_SPAWN_LINE}\n`);
     });
     const report = await runTarget(build, RUN_SPEC, ops);
     const onDisk = parseFrames(readFileSync(report.transcriptPath, "utf8"));
-    expect(denyObservedInStream(onDisk.frames), "control: the FILE would score as a deny if it were read").toBe(true);
+    expect(forgedSpawnScored(onDisk.frames), "control: the FILE would score as a spawn if it were read").toBe(true);
     expect(onDisk.frames.length, "control: the file carries exactly one frame more than the pipe did").toBe(received.frames.length + 1);
-    expect(denyObservedInStream(report.frames.frames), "the forged frame in the file is not scored").toBe(false);
+    expect(forgedSpawnScored(report.frames.frames), "the forged frame in the file is not scored").toBe(false);
     expect(report.frames.frames.length).toBe(received.frames.length);
-    expect(report.frames.frames.length).toBe(FIXTURE.frames.length - 1);
-    const d04 = report.claims.find((c) => c.label.startsWith("D-04 prod-deploy deny observed"));
-    expect(d04?.value.startsWith("no")).toBe(true);
+    expect(report.frames.frames.length).toBe(FIXTURE.frames.length);
+    expect(report.claims.some((c) => c.label === FORGED_SPAWN_LABEL)).toBe(false);
     for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
   });
 
-  it("Test C2 (converse — the pipe IS the channel): the same forged frame delivered IN the received bytes and absent from the file is scored — the D-04 row reads yes and cites the received line", async () => {
-    expect(PROD_DENY_LINE).toBeDefined();
-    const withoutDeny = withoutDenyText();
-    const receivedText = `${withoutDeny}${PROD_DENY_LINE as string}\n`;
+  it("Test C2 (converse — the pipe IS the channel): the same forged frame delivered IN the received bytes and absent from the file is scored — the side (a) claim names the forged role and cites the received line", async () => {
+    const receivedText = `${FIXTURE_TEXT}${FORGED_SPAWN_LINE}\n`;
     const build = handBuiltTarget("A");
-    const ops = recordingOps(withoutDeny, undefined, receivedText);
+    const ops = recordingOps(FIXTURE_TEXT, undefined, receivedText);
     const report = await runTarget(build, RUN_SPEC, ops);
-    expect(denyObservedInStream(parseFrames(readFileSync(report.transcriptPath, "utf8")).frames), "control: the file carries no deny").toBe(false);
-    expect(denyObservedInStream(report.frames.frames)).toBe(true);
-    const d04 = report.claims.find((c) => c.label.startsWith("D-04 prod-deploy deny observed"));
-    expect(d04?.value.startsWith("yes")).toBe(true);
-    expect(d04?.line, "the citation is the last line of the received bytes").toBe(parseFrames(receivedText).lineCount);
+    expect(forgedSpawnScored(parseFrames(readFileSync(report.transcriptPath, "utf8")).frames), "control: the file carries no forged spawn").toBe(false);
+    expect(forgedSpawnScored(report.frames.frames)).toBe(true);
+    const spawn = report.claims.find((c) => c.label === FORGED_SPAWN_LABEL);
+    expect(spawn?.value.startsWith(FORGED_SPAWN_ID)).toBe(true);
+    expect(spawn?.line, "the citation is the last line of the received bytes").toBe(parseFrames(receivedText).lineCount);
     expect(report.transcriptText).toBe(receivedText);
     for (const d of [build.target, build.home, build.transcriptDir]) rmSync(d, { recursive: true, force: true });
   });
@@ -1311,7 +1242,6 @@ function reportModelWith(runs: RunReport[]): ReportModel {
     platformVersion: "2.1.278 (Claude Code)",
     boundMs: 1000,
     boundUsed: "1000 ms per call",
-    approvalKeyLine: "absent",
     provenance: { state: "UNKNOWN - verify", detail: "no init frame in this model", checkoutDigest: null, installedDigest: null, trackedCount: 0, pluginLine: "(none)" },
     preconditions: evaluatePreconditions(observation()),
     targets: runs.map((r) => ({ label: r.label, installerLine: "(hand-built)" })),
@@ -1379,10 +1309,10 @@ describe("CR-01 round 2: the spawn grant is fixed before the subject exists, dri
     for (const d of [a.target, a.home, a.transcriptDir, b.target, b.home, b.transcriptDir]) rmSync(d, { recursive: true, force: true });
   });
 
-  it("Test C7 (the scoped grant, form-checked): no bare Write or Edit; exactly one Edit(//ABS/**) rule naming the target's real path; Bash(node *) and Bash(helm upgrade *) kept; the admission tool spelled as the held init frame A:11 exposes it; the argv carries exactly that list after --allowedTools", async () => {
+  it("Test C7 (the scoped grant, form-checked): no bare Write or Edit; exactly one Edit(//ABS/**) rule naming the target's real path; Bash(node *) kept and it is the only Bash rule; the admission tool spelled as the held init frame A:11 exposes it; the argv carries exactly that list after --allowedTools", async () => {
     const build = handBuiltTarget("A");
     const grant = liveAllowedTools(build.target);
-    expect(grant).toHaveLength(8);
+    expect(grant).toHaveLength(7);
     expect(grant.includes("Write"), "no unscoped Write").toBe(false);
     expect(grant.includes("Edit"), "no unscoped Edit").toBe(false);
     expect(grant.some((x) => /^Write\(/.test(x)), "a Write(path) rule is never matched by the platform, so none is written").toBe(false);
@@ -1397,7 +1327,7 @@ describe("CR-01 round 2: the spawn grant is fixed before the subject exists, dri
     expect(typeof editAnchor, "the Edit-anchor authority is exported from the module that publishes the rule").toBe("function");
     expect(scoped[0], "the one scoped rule is spelled from the anchor authority applied to the target's REAL path").toBe(`Edit(//${editAnchor(real)}/**)`);
     expect(grant).toContain("Bash(node *)");
-    expect(grant).toContain("Bash(helm upgrade *)");
+    expect(grant.filter((x) => x.startsWith("Bash(")), "33.1 D-22: the probe rule is gone; node is the one Bash rule").toEqual(["Bash(node *)"]);
     const mcp = grant.filter((x) => x.startsWith("mcp__"));
     expect(mcp).toHaveLength(1);
     // The admission spelling is DERIVED from the held init frame (A:11), never typed here.

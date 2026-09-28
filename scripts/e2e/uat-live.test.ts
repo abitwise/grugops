@@ -12,9 +12,9 @@
 //
 //   A1      (D-31)  plugin-cache pointer resolution — the summary's plugin load report names the
 //                   plugin that loaded from the cache and records no plugin_errors.
-//   A2-live (SAFE-02 / V14)  live PreToolUse deny — the summary's deny observation row records the
-//                   prod-deploy deny as observed in a hook_response.stdout field (the CLI-emitted
-//                   channel, D-04), with the approval variable absent from the child environment.
+//   A2-live is no longer a case in this lane. The prod-deploy probe case was dropped by 33.1 D-22
+//                   and the A2 oracle retired with it (33.1 D-28); the live capture proves CAP-01 and
+//                   CAP-03 only.
 //   A3-live (DOG-02) dual-path dispatch parity — the summary's D-02 verdict holds in BOTH runs and
 //                   the D-07 equivalence diff list is empty.
 //   A3-live-N (DOGF-02) is no longer a case in this lane. Its deterministic gating proof is
@@ -32,12 +32,7 @@
 // directory, and accepts no summary.
 //
 // SAFETY (mirrors docs/dogfood-human-runbook.md, non-negotiable):
-//   - The harness NEVER sets or exports the prod-deploy approval variable (V14 — the self-approve
-//     keystone). Its name is imported from the deny matcher as PROD_DEPLOY_REASON_SIGNATURE; this
-//     file carries no literal spelling and no assignment of it, and the environment OBJECT handed to
-//     the runner child is asserted not to define it at run time, before the spawn.
-//   - The deny probe the runner makes is the harmless guaranteed-matched command
-//     (`helm upgrade fake ./nope`), NEVER `kubectl apply` against a real kube-context.
+//   - The runner makes no prod-deploy probe (33.1 D-22) and runs no deploy command.
 //   - The runner installs the plugin at local scope into mkdtemp targets it removes itself; this
 //     file's `afterAll` keeps the lane's own best-effort cleanup so the developer's real claude
 //     config is not polluted even when the runner dies mid-way.
@@ -75,9 +70,6 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-// The approval variable's NAME, imported from the single-source deny matcher so this file spells it
-// nowhere. It is referenced ONLY to assert it is absent from the environment handed to the runner.
-import { PROD_DEPLOY_REASON_SIGNATURE } from "../prod-deploy-deny-match.js";
 // The runner's own surface: artifact names, the frozen outcome-line grammar, the run labels. Imported
 // from the committed .js twin (matching how this file imports other committed .js), so the wrapper
 // and the runner cannot disagree about what the summary is called or how its outcome line reads.
@@ -104,7 +96,7 @@ const RUNNER = join(ROOT, "scripts", "capture-live.js");
 
 // EXACT distinct sentinel — frozen as an exported const so the proving test asserts it byte-for-byte.
 export const LOUD_SKIP_MARKER =
-  "SKIPPED: claude CLI absent or unauthed — UAT A1/A2/A3 NOT exercised; status stays pending";
+  "SKIPPED: claude CLI absent or unauthed — UAT A1/A3 NOT exercised; status stays pending";
 
 // claudePresentAndAuthed — the deterministic, side-effect-free "present AND authed" probe.
 // Cloned from 19-RESEARCH §A: `command -v claude` for presence, then `claude auth status --json`
@@ -262,18 +254,11 @@ function tableRow(text: string, label: string): string[] | null {
 }
 
 // Helper: run the runner as a child with an arg array (never a shell on the data path — ASVS V5 /
-// command-injection). The environment object handed to the child is CONSTRUCTED here, asserted at
-// run time not to define the approval variable, and passed through otherwise unchanged. Returns the
-// exit status plus combined output for DIAGNOSTIC messages only — no assertion below reads it.
+// command-injection). The environment object handed to the child is CONSTRUCTED here and passed
+// through unchanged. Returns the exit status plus combined output for DIAGNOSTIC messages only — no
+// assertion below reads it.
 function runRunner(args: string[], boundMs: number): { status: number | null; out: string } {
   const env: NodeJS.ProcessEnv = { ...process.env };
-  // The run-time form of the safety rule: not "no line in this file sets it" but "the object the
-  // child receives does not define it". A developer who exported it gets a red here, not a run
-  // whose deny could not fire.
-  expect(
-    Object.prototype.hasOwnProperty.call(env, PROD_DEPLOY_REASON_SIGNATURE),
-    `the environment handed to the runner defines the prod-deploy approval variable; this lane refuses to spawn a run whose deny could not fire. Unset it in the shell that launches vitest.`,
-  ).toBe(false);
   const r = spawnSync("node", [RUNNER, ...args], {
     cwd: ROOT,
     encoding: "utf8",
@@ -368,28 +353,6 @@ describe("Tier-2 live E2E — a thin wrapper over scripts/capture-live.js (gated
     liveTimeoutMs(RUN_LABELS.length, 20 * 60_000),
   );
 
-  // A2-live — SAFE-02 live deny (V14), read from the CLI-emitted hook_response channel (D-04).
-  it.skipIf(!LIVE)(
-    "A2-live (SAFE-02 / V14): the summary records the prod-deploy deny as observed in a hook_response.stdout field, with the approval variable absent from the child environment",
-    () => {
-      const summary = requireSummary();
-      // The runner's own record of the rule this lane asserted at spawn time.
-      const approval = tableRow(summary, "approval key in child env");
-      expect(approval, "the summary carries no `approval key in child env` row").not.toBeNull();
-      expect(approval?.[1].startsWith("absent"), `approval key row reads: ${approval?.[1]}`).toBe(true);
-      // The deny observation row, once per run; the summary is a pass only if the runner saw the
-      // deny, so this is the specific reason a red would name.
-      const denyRows = summary
-        .split(/\r?\n/)
-        .filter((l) => l.startsWith("| D-04 prod-deploy deny observed in a hook_response.stdout |"));
-      expect(denyRows.length, "the summary carries no D-04 deny observation row").toBeGreaterThan(0);
-      expect(
-        denyRows.some((l) => l.split("|").map((c) => c.trim())[2]?.startsWith("yes")),
-        `no run's D-04 row reads yes — rows: ${denyRows.join(" // ")}`,
-      ).toBe(true);
-    },
-  );
-
   // A1 — plugin-cache pointer resolution (D-31), from the summary's plugin load report (D-05).
   it.skipIf(!LIVE)(
     "A1 (D-31 / D-05): the summary's plugin load report names a loaded plugin and records no plugin_errors",
@@ -426,7 +389,7 @@ describe("Tier-2 live E2E — a thin wrapper over scripts/capture-live.js (gated
     },
   );
 
-  // The runner's own after-the-fact re-check over the artifacts it wrote (hard rule 7): every claim
+  // The runner's own after-the-fact re-check over the artifacts it wrote (hard rule 6): every claim
   // row cited within its transcript, no home-path spelling surviving, exactly one outcome line.
   it.skipIf(!LIVE)(
     "--verify-artifacts accepts the artifact set the run wrote",
