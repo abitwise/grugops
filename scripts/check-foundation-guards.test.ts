@@ -2129,8 +2129,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     runner's probe paths and the e2e lane's A2-live case; deleted with its compiled twin and its
  *     test. Re-derived rather than decremented: `git ls-files '*.ts'` minus the `.test.ts` and
  *     `.d.ts` members reports 89 with it gone.
+ *
+ * 89 -> 90 (plan 33.1-21, task 1, CR-02 and WR-05), ONE INSTALLER LIBRARY MODULE:
+ *   - `install/install-marker.ts` — the one reader of the install marker `.grugops/install.json`
+ *     and of its two ledgers (`claudeAskRules`, `createdDirs`), as tri-states, imported by both
+ *     `install/install.ts` and `install/uninstall.ts` (a sibling of `install/kit-source.ts`). It
+ *     imports read-only `node:fs` names only and writes nothing.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict. Its committed `.js` twin lands in the same commit.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 90 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 89;
+const NON_TEST_MODULE_COUNT = 90;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
