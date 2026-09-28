@@ -1,4 +1,5 @@
 # 33-41 DIAGNOSIS: why the round-4 live capture reads `OUTCOME: fail`, established from the committed artifacts
+> Round-5 annotation (plan 33.1-15, 2026-09-28): the three files this note cites — `33-CAPTURE-SUMMARY.md`, `33-CAPTURE-A.jsonl`, `33-CAPTURE-B.jsonl` — were moved unedited into `round-4-held/` under this directory so the round-5 runner can write the manifest-keyed names at the phase root; commit `3ed05944` holds them byte-identical at the original paths, and every `A:<n>` / `B:<n>` citation below resolves inside `round-4-held/`.
 
 Plan 33-41, Task 4 (fail branch). This note uses clear professional voice. It bears on a safety
 invariant (the prod-deploy guard and the single-writer admission rule), and CLAUDE.md forbids the
