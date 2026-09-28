@@ -1,19 +1,19 @@
 // checkpoints.ts — the per-checkpoint autonomy matrix's ONE roster (AUTO-01, AUTO-02, AUTO-07).
 //
-// WHAT THIS MODULE IS. Phase 30 replaces the documentary `autonomy` scalar with an ENFORCED
-// per-checkpoint ternary matrix (`block` / `notify` / `off`). This file owns the roster, the
-// ternary vocabulary, the fail-closed canonicalizer, the floor-tier subset, the per-floor env var
-// NAME derivation, the disposition resolution rule and the run banner. Every other surface —
-// the config reader, the PreToolUse guard, the validator, the render — CONSULTS this module and
-// declares none of it a second time.
+// WHAT THIS MODULE IS. Phase 30 replaced the documentary `autonomy` scalar with a per-checkpoint
+// ternary matrix (`block` / `notify` / `off`). This file owns the roster, the ternary vocabulary,
+// the fail-closed canonicalizer, the derivation that rebuilds the roster from the kit, the legacy
+// grade mapping, and the one surviving grant name (the admission approval). Every other surface —
+// the config reader, the admission gate, the validator, the installer cross-check — CONSULTS this
+// module and declares none of it a second time.
 //
 // WHY IT IS ONE MODULE AND NOT A SET OF LITERALS SCATTERED ACROSS THE CONSUMERS. This repository's
 // founding defect class is set-literal drift: a hand-maintained scan set / role list / allowlist
 // that rots while every gate over it stays green. The remedy this tree has settled on is "derive
 // the set, assert the count". So: `CHECKPOINT_DEFAULTS` is the ONLY declaration of the roster,
-// `CHECKPOINTS` is `Object.keys()` over it, and `FLOOR_CHECKPOINTS` is an intersection with
-// `SAFETY_FLOORS` — imported from ./audit-model.js, never restated (D-04). No second array literal
-// of checkpoint ids exists in this file, and none may be added to a consumer.
+// `CHECKPOINTS` is `Object.keys()` over it, and the derivation's floor arm reads `SAFETY_FLOORS` —
+// imported from ./audit-model.js, never restated (D-04). No second array literal of checkpoint ids
+// exists in this file, and none may be added to a consumer.
 //
 // THE COMPILE-TIME HALF OF THE SAME RULE. `CHECKPOINT_DEFAULTS` carries
 // `as const satisfies Record<Checkpoint, Disposition>`: adding a member to the `Checkpoint` union
@@ -21,22 +21,14 @@
 // `FROZEN_SOURCES` idiom from scripts/check-diff-disposition.ts, applied to the roster — Object.keys()
 // over this table is the roster count, and nothing else declares it.
 //
-// THE TWO-KEY RULE (AUTO-03, D-07 / D-09 / D-10). Every checkpoint is ternary. A FLOOR-tier
-// checkpoint differs only in this: lowering it below `block` takes TWO keys, not one.
-//   key one — the agent-writable config declaration `checkpoints.<id>: notify | off`;
-//   key two — the human-set session env var `GRUGOPS_FLOOR_<ID>=<name>`, read FRESH by the hook
-//             process on every invocation.
-// A config declaration with no matching env var is an UNAUTHORIZED LOWERING: the effective
-// disposition stays `block`, so an agent that edits config alone changes nothing — and the banner
-// and the denial both say so by name, so it changes nothing LOUDLY (D-10).
-//
-// HOW FAR KEY TWO ACTUALLY GOES, STATED HONESTLY. `process.env[NAME]` carries no provenance. The
-// env var is un-forgeable from inside a tool call — an agent's own `export VAR=…` lands in the
-// child env it spawns, which the hook process never inherits. It is NOT un-forgeable against an
-// agent that can write the host's settings files: Claude Code's `env` settings block is reapplied
-// to a live session and reaches the next hook subprocess identically (RESEARCH F-2). That residual
-// is accepted and disclosed, not closed here. A grant is also SESSION-SCOPED, not per-action: once
-// the variable is set, it authorizes lowered behaviour under that name until it is unset.
+// WHO READS A CELL, AFTER PHASE 33.1 (D-17, D-26). No hook reads a checkpoint cell. The Bash command
+// guard that once enforced the floor cells was retired in Phase 33.1, and its two-key lowering rule,
+// its run banner and its matrix evaluator were retired with it. What remains: the installer reads
+// `protected_branch_merge` and `production_requires_human_confirmation` to decide whether it writes
+// Claude Code ask rules (a speed bump; the git host's branch protection and deployment environments
+// are the hard floor), and the roles read every other cell as a prose-tier rule. The installer keeps
+// its own canonicalizer, because install/ imports nothing from scripts/; install/install.test.ts
+// holds it equal to `canonicalizeDisposition` below. See agent-factory/config/factory.config.md.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SAFETY_FLOORS } from "./audit-model.js";
@@ -117,78 +109,16 @@ export const CHECKPOINTS = Object.keys(CHECKPOINT_DEFAULTS);
 export const STRICTEST_MATRIX = Object.freeze(Object.fromEntries(CHECKPOINTS.map((id) => [id, "block"])));
 /** The canonical spellings of `Disposition`, derived from nothing else and used by the validator. */
 export const DISPOSITIONS = ["block", "notify", "off"];
-/** The env-var family that carries key two. One prefix, declared once. */
-export const FLOOR_ENV_VAR_PREFIX = "GRUGOPS_FLOOR_";
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// THE GRANT VOCABULARY — one authority over every variable a human sets to authorize something.
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-/**
- * The NAMED grant variables: every environment variable whose presence authorizes an action or a
- * posture that a human — and only a human — may authorize. The floor family
- * (`GRUGOPS_FLOOR_<ID>`) is the third member and is a PATTERN rather than a list, because it grows
- * with the roster; it is folded in by `GRANT_ENV_VAR_PATTERN_SOURCE` below.
- *
- * ---------------------------------------------------------------------------------------------
- * WHY THIS TABLE EXISTS (plan 30-11, red-team surface A, finding A-1).
- *
- * Until this table, the grant vocabulary was written down in three unrelated places: `hooks/guard.ts`
- * held the prod-deploy approval as a bare string literal, `hooks/admission-guard.ts` held the
- * admission approval as its own bare string literal, and the self-set refusal in `hooks/guard.ts`
- * was an alternation of ONE of those two names plus the floor family. Measured on the committed
- * artifact: `export GRUGOPS_FLOOR_OPEN_PR=alice && ls` was REFUSED and
- * `export GRUGOPS_ADMISSION_APPROVED_BY=alice && ls` was ALLOWED — two grant variables, the same
- * command shape, opposite decisions, because the refusal enumerated a set that nothing derived.
- *
- * That is this repository's founding defect class (a hand-maintained set literal drifting away from
- * the thing it is supposed to cover) pointed at a safety refusal. So the set is declared ONCE here,
- * both hooks import their own constant OUT of it rather than restating it, and the refusal pattern
- * is BUILT from it. A grant added to this table is refused without anyone remembering to widen a
- * regex; a grant added anywhere else is caught by the no-second-literal assertion in
- * `hooks/guard.test.ts`.
- *
- * WHAT THE REFUSAL IS, AND WHAT IT IS NOT. Refusing an inline `NAME=value` in an agent-authored
- * command is a VISIBILITY control, not the access control. The access control is that the hook runs
- * as a separate process whose environment the agent's own child shell can never reach. Shell
- * indirection (`V=GRUGOPS_FLOOR_OPEN_PR; export "$V=me"`) defeats the literal spelling and is
- * measured to do so — and it authorizes nothing either way, for the same reason. See
- * `docs/audit/30-redteam-surface-a.md` § A-1.
- * ---------------------------------------------------------------------------------------------
- */
-export const NAMED_GRANT_ENV_VARS = {
-    GRUGOPS_ADMISSION_APPROVED_BY: "the named human who may dispose of a gated governance finding (this session)",
-};
 /** The human-admission approval. `hooks/admission-guard.ts` imports this rather than spelling it. */
 export const ADMISSION_APPROVAL_ENV_VAR = "GRUGOPS_ADMISSION_APPROVED_BY";
 /**
- * The whole grant vocabulary as ONE regular-expression source: every named grant, plus the floor
- * FAMILY. Built from the table above and the prefix above; nothing restates a name.
- */
-export const GRANT_ENV_VAR_PATTERN_SOURCE = `${Object.keys(NAMED_GRANT_ENV_VARS).join("|")}|${FLOOR_ENV_VAR_PREFIX}[A-Z0-9_]+`;
-/** Anchored form of the vocabulary — "is this exact string a grant variable name?" */
-const GRANT_ENV_VAR_EXACT = new RegExp(`^(?:${GRANT_ENV_VAR_PATTERN_SOURCE})$`);
-/** Is `name` a member of the grant vocabulary (a named grant, or a floor-family name)? */
-export function isGrantEnvVarName(name) {
-    return GRANT_ENV_VAR_EXACT.test(name);
-}
-/**
  * Read a grant out of an environment: the human's NAME, or `null` when nobody is named.
  *
- * ---------------------------------------------------------------------------------------------
- * ONE PREDICATE FOR THE WHOLE VOCABULARY, AND WHY IT TRIMS (plan 30-11, finding A-4; reviewer 8
- * observation 2 carried over from surface B as `V-30-10-04` item 2).
- *
- * The presence test used to be `raw.length > 0`, applied to the floor grant only, while the action
- * approval used a bare truthiness test. Measured on the committed artifact: a grant of a single
- * space AUTHORIZED the lowering, and the run banner then published
- * `authorized by GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=` — a lowering in effect, attributed to a name
- * that renders as nothing. The value of a grant is the human's name; that is its entire content and
- * the whole reason the record exists. A value that names nobody is not a grant, and a run that
- * cannot say who authorized a lowering has not recorded the lowering.
- *
- * The direction of the change is strictly stricter: a value that previously authorized and named
- * nobody now authorizes nothing. A value that names somebody is unchanged except that surrounding
- * whitespace is dropped from the published name.
- * ---------------------------------------------------------------------------------------------
+ * WHY IT TRIMS (plan 30-11, finding A-4). A presence test of `raw.length > 0` once let a grant of a
+ * single space authorize, attributed to a name that renders as nothing. The value of a grant is the
+ * human's name; that is its entire content and the whole reason the record exists. A value that names
+ * nobody is not a grant: surrounding whitespace is dropped, and a value that is empty after trimming
+ * authorizes nothing.
  */
 export function grantedBy(env, name) {
     const raw = env[name];
@@ -196,37 +126,6 @@ export function grantedBy(env, name) {
         return null;
     const named = raw.trim();
     return named.length > 0 ? named : null;
-}
-/** The fixed zero-config banner line (D-20). Always printed, so absent and broken look different. */
-export const BANNER_ALL_DEFAULT = "all checkpoints at default";
-/** The opening of the OTHER banner form. Declared once; the composer and the recognizer share it. */
-export const BANNER_NON_DEFAULT_PREFIX = "checkpoints not at default: ";
-/**
- * The opening of a CONFIG-REFUSAL line (plan 30-11, closing `V-30-10-01`).
- *
- * The governance reader accumulates a refusal for every `checkpoints` entry it drops — a key that is
- * not on the roster, a value outside `block|notify|off`, a whole matrix that is not an object. Until
- * this constant nothing printed them, so a human who mistyped a checkpoint id got no signal at all
- * and believed they had lowered something they had not.
- *
- * It is a DIFFERENT prefix from the banner's on purpose, and `isCheckpointBannerLine` must never
- * accept a line that starts with it: the exactly-one-banner count in `hooks/guard.test.ts` is what
- * makes a missing banner and a broken banner look different, and a refusal line counted as a banner
- * would break that count. The two literals are asserted disjoint in `scripts/checkpoints.test.ts`.
- */
-export const CONFIG_REFUSAL_PREFIX = "checkpoint config refused: ";
-/**
- * Is this line a checkpoint banner? The RECOGNIZER half of the exactly-one-banner assertion.
- *
- * A banner-presence check written as "does the output contain this substring" passes for a run that
- * also printed nine wrong lines — the anti-pattern this phase carries forward as blocking. A caller
- * counts the lines this predicate accepts and refuses BY NAME on zero and on two or more, which is
- * the shape install/install.ts already uses for its per-adapter provenance banner. Because both banner
- * forms are produced from the two literals above, a recognizer and a composer that disagree is not a
- * state this module can reach.
- */
-export function isCheckpointBannerLine(line) {
-    return line === BANNER_ALL_DEFAULT || line.startsWith(BANNER_NON_DEFAULT_PREFIX);
 }
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // Canonicalization — fail closed BY RULE, never by coercion.
@@ -255,236 +154,16 @@ export function canonicalizeDisposition(raw) {
         return "off";
     return "block";
 }
-/** `GRUGOPS_FLOOR_<UPPER_ID>` — the name of a floor's key two. Derived from the id, never listed. */
-export function floorEnvVarName(id) {
-    return FLOOR_ENV_VAR_PREFIX + id.toUpperCase();
-}
 /** Sorted copy of an id list, so a set comparison cannot be decided by iteration order. */
 export function sortedIds(ids) {
     return [...ids].sort();
 }
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-// The floor-tier subset — derived from SAFETY_FLOORS, count-asserted.
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-/** Thrown when the floor derivation returns nothing, or returns fewer members than SAFETY_FLOORS. */
-export class FloorCheckpointDerivationError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = "FloorCheckpointDerivationError";
-    }
-}
-/**
- * The floor-tier checkpoints: the roster members that are ALSO members of `SAFETY_FLOORS`
- * (scripts/audit-model.ts), which D-04 makes the canonical floor list. The floor ids are IMPORTED,
- * never restated here.
- *
- * PITFALL 6 — THE COUNT IS DERIVED OUTSIDE THE LOOP THAT BUILDS THE RESULT. A vacuity floor that
- * only refuses an EMPTY result happily returns 1 of 2 floors, and the missing one is exactly the
- * one an attacker wants missing. So the expected count is computed by walking `SAFETY_FLOORS` —
- * the OTHER side of the intersection — and compared against the length of the list built by
- * walking `checkpoints`. Two independent traversals, one equality. A silently SHORT derivation is
- * a named throw, not a quiet shrink.
- *
- * Exported (rather than inlined into the const below) for one stated reason: a test must be able
- * to drive it with an empty input and watch it THROW rather than return `[]`.
- */
-export function deriveFloorCheckpoints(checkpoints = CHECKPOINTS, floors = SAFETY_FLOORS) {
-    const floorIds = new Set(floors.map((f) => f.id));
-    const derived = [...new Set(checkpoints)].filter((c) => floorIds.has(c));
-    // The independent denominator: counted by walking `floors`, never by measuring `derived`.
-    //
-    // IT COUNTS DISTINCT IDS, NOT ENTRIES — this is the ADJACENCY rule (D-02/D-03), and it is the
-    // reason this is a Set and not a counter. The same human stop can be declared in more than one
-    // place (a role's `## Hard limits` AND a workflow's `## Stop conditions`, and later more than one
-    // of each); equal ids MERGE into one roster member with a site count of N. They never collide,
-    // and they must never inflate the denominator into disagreeing with a correctly-merged result.
-    const rosterIds = new Set(checkpoints);
-    const distinctInRoster = new Set();
-    for (const f of floors)
-        if (rosterIds.has(f.id))
-            distinctInRoster.add(f.id);
-    const expected = distinctInRoster.size;
-    if (derived.length !== expected) {
-        throw new FloorCheckpointDerivationError(`checkpoints: the floor-tier derivation produced ${derived.length} member(s) while ` +
-            `SAFETY_FLOORS independently accounts for ${expected} — a derivation that returns short ` +
-            `shrinks what is protected while presenting as a clean run, so it is refused rather than used`);
-    }
-    if (derived.length === 0) {
-        throw new FloorCheckpointDerivationError(`checkpoints: the floor-tier derivation produced NO members. An empty floor set would mean ` +
-            `no checkpoint needs key two, i.e. every lowering could be granted by an agent editing ` +
-            `config alone. An empty result is refused, never returned as an empty array`);
-    }
-    return derived;
-}
-/** The floor-tier roster subset. Every member needs key two before a lowering takes effect. */
-export const FLOOR_CHECKPOINTS = deriveFloorCheckpoints();
-/** Is this checkpoint floor-tier (i.e. does lowering it need key two)? */
-export function isFloorCheckpoint(id) {
-    return FLOOR_CHECKPOINTS.includes(id);
-}
-/**
- * Apply the two-key rule to ONE checkpoint.
- *
- * The rule, in full:
- *   - `declared === "block"` → `effective = "block"`. Nothing to authorize; key two is irrelevant.
- *   - non-floor member declared `notify`/`off` → `effective = declared`. One key is the whole rule.
- *   - FLOOR member declared `notify`/`off`:
- *       key two present and non-empty → `effective = declared` (the lowering takes effect);
- *       key two absent or empty      → `effective = "block"` and `unauthorizedLowering = true`.
- *
- * `env` is read by the CALLER and passed in, so the freshness of the read is the hook's decision
- * (it re-reads `process.env` on every invocation) and a test can drive every arm without mutating
- * the ambient environment.
- */
-export function resolveCheckpoint(id, matrix, env) {
-    const declared = canonicalizeDisposition(matrix[id]);
-    const isFloor = isFloorCheckpoint(id);
-    const envVarName = isFloor ? floorEnvVarName(id) : null;
-    if (declared === "block") {
-        return {
-            id,
-            declared,
-            effective: "block",
-            isFloor,
-            envVarName,
-            authorizedBy: null,
-            unauthorizedLowering: false,
-        };
-    }
-    if (!isFloor) {
-        return {
-            id,
-            declared,
-            effective: declared,
-            isFloor,
-            envVarName,
-            authorizedBy: null,
-            unauthorizedLowering: false,
-        };
-    }
-    // ONE presence predicate for the whole grant vocabulary (finding A-4). A value that names nobody
-    // is not a grant, so a whitespace-only grant leaves the floor at `block` and reports itself as an
-    // unauthorized lowering exactly as an absent one does.
-    const authorizedBy = grantedBy(env, envVarName);
-    return {
-        id,
-        declared,
-        effective: authorizedBy === null ? "block" : declared,
-        isFloor,
-        envVarName,
-        authorizedBy,
-        unauthorizedLowering: authorizedBy === null,
-    };
-}
-/**
- * Resolve the WHOLE roster once (D-19, plan 30-08).
- *
- * WHY THIS EXISTS RATHER THAN TWO CALLS TO `resolveCheckpoint`. Until this plan the banner walked
- * the roster and resolved every member, and the guard's decision loop separately resolved the member
- * it had matched. Two independent evaluations of the same rule over the same inputs is the surface on
- * which a banner comes to say `all checkpoints at default` over a run that denied a lowered
- * checkpoint — the Phase 28 AP-1 shape, a line asserting something the run did not establish. A
- * consistency CHECK between the two would only report the disagreement after the fact. One evaluation
- * removes the disagreement by construction: there is no second value to disagree with.
- *
- * The map is built by walking `CHECKPOINTS`, so its key set IS the roster and a member cannot be
- * silently skipped; `composeBanner` refuses a map that is missing one anyway.
- */
-export function evaluateMatrix(matrix, env) {
-    const out = new Map();
-    for (const id of CHECKPOINTS)
-        out.set(id, resolveCheckpoint(id, matrix, env));
-    return out;
-}
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// The run banner (D-19 / D-20).
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-/**
- * ONE line describing the live matrix, printed on EVERY guard invocation.
- *
- * WHY IT REPORTS THE DECLARED VALUE AND NOT THE EFFECTIVE ONE. An unauthorized lowering enforces
- * `block`, which IS the default — so a banner keyed on the effective value would print
- * `all checkpoints at default` over a config that plainly declares `off`, and the run's own denial
- * would then name a checkpoint the banner had just called default. That disagreement is precisely
- * the Phase 28 AP-1 shape (a line asserting something the run did not establish). The banner
- * therefore reports what the config DECLARED, and says in the same breath whether the declaration
- * is authorized.
- *
- * D-20: with nothing declared away from its default the line is the FIXED literal
- * `all checkpoints at default` — always present, so a missing banner and a broken banner look
- * different.
- */
-/**
- * The ONE way an untrusted value reaches the banner sentence (plan 30-11 round 3, `RA4-4`).
- *
- * ---------------------------------------------------------------------------------------------
- * `A-6` BOUNDED THE KEY AND LEFT THE VALUE IN THE SAME SENTENCE.
- *
- * The banner interpolates two untrusted values: the config KEY (quoted since `A-6`) and the GRANT
- * VALUE, which `grantedBy` trims and hands over raw. Measured on the round-2 artifact with
- * `GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE=$'alice\nall checkpoints at default'`: the run emitted TWO
- * stderr lines, and the shipped recognizer `isCheckpointBannerLine` accepted BOTH — a verbatim, valid
- * alternative banner asserting the opposite posture, on the one artifact D-20 guarantees per
- * invocation so a human can read the run's posture. The exactly-one-banner count that `A-6` added and
- * asserted reported two.
- *
- * The rule is applied to the SENTENCE rather than to one of its slots: every untrusted value goes
- * through here, and a value carrying a line break is refused by name rather than escaped, so the run
- * still emits exactly one banner and the human is told what to fix — the same shape as the
- * `names nobody` clause `A-4` introduced next door.
- * ---------------------------------------------------------------------------------------------
- */
-export function bannerValue(v) {
-    return /[\r\n]/.test(v) ? "REFUSED (the value contains a line break)" : v;
-}
-export function composeBanner(evaluation) {
-    const parts = [];
-    for (const id of CHECKPOINTS) {
-        const r = evaluation.get(id);
-        if (r === undefined) {
-            // Unreachable through evaluateMatrix, which walks the same roster. Asserted anyway: a banner
-            // composed over a SHORT evaluation would omit exactly the checkpoint whose absence an attacker
-            // wants, and would present as a clean line while doing it (Pitfall 6, the short denominator).
-            throw new Error(`checkpoints: the banner was asked to describe "${id}", which the evaluation it was given ` +
-                `does not carry. A banner is a claim a human acts on; it is refused rather than composed ` +
-                `over a partial evaluation.`);
-        }
-        if (r.declared === CHECKPOINT_DEFAULTS[id])
-            continue;
-        if (r.unauthorizedLowering) {
-            // "names nobody", not "absent" (plan 30-11, finding A-4 — the new freedom that fix created).
-            // Tightening `grantedBy` so a whitespace-only value stops authorizing introduced a SECOND way
-            // to be unauthorized: the variable can now be set and still not be a grant. The banner said
-            // `absent`, which for that case is a sentence the run did not establish — a human would go
-            // looking for a variable that is in fact right there. One clause covers both, because the
-            // predicate is one predicate: what is missing is a NAME, not the variable.
-            parts.push(`${id}=${r.declared} NOT AUTHORIZED (${r.envVarName} names nobody; enforced as block)`);
-        }
-        else if (r.authorizedBy !== null) {
-            parts.push(`${id}=${r.declared} authorized by ${r.envVarName}=${bannerValue(r.authorizedBy)}`);
-        }
-        else {
-            parts.push(`${id}=${r.declared}`);
-        }
-    }
-    return parts.length === 0 ? BANNER_ALL_DEFAULT : BANNER_NON_DEFAULT_PREFIX + parts.join(", ");
-}
-/**
- * The convenience adapter: evaluate, then compose. ONE line, so there is still ONE banner grammar.
- *
- * Callers that also DECIDE something must not use this — they must hold the evaluation themselves
- * and pass it to `composeBanner`, or the banner and the decision are two independent reads of the
- * same config and can drift apart. hooks/guard.ts does exactly that.
- */
-export function renderCheckpointBanner(matrix, env) {
-    return composeBanner(evaluateMatrix(matrix, env));
-}
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 // THE DERIVATION (plan 30-04 — D-01, D-02, D-03, AUTO-01).
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //
-// WHY NOTHING BELOW RUNS AT MODULE LOAD. `hooks/guard.js` imports this module on EVERY PreToolUse
-// invocation. A derivation at module scope would read nineteen kit files per tool call and, worse,
+// WHY NOTHING BELOW RUNS AT MODULE LOAD. `hooks/admission-guard.js` imports this module on EVERY
+// gated admission call. A derivation at module scope would read nineteen kit files per call and, worse,
 // would THROW on any kit edit that momentarily left a tag non-canonical — turning a documentation
 // typo into a hook that denies every tool call. So the roster is a table (cheap, total), and the
 // derivation is a FUNCTION the tests and the validator call. The two are compared explicitly by
@@ -801,8 +480,7 @@ export function derivedCheckpointSet(root = DEFAULT_ROOT) {
  * Compare the derived set against the roster in BOTH directions.
  *
  * THE TWO DIRECTIONS ARE DIFFERENT FAULTS AND GET DIFFERENT MESSAGES. A roster-only id is a
- * checkpoint the kit no longer declares anywhere — a config cell and an env var name with nothing
- * behind them. A corpus-only id is a stop somebody tagged that the matrix has never heard of, so it
+ * checkpoint the kit no longer declares anywhere — a config cell with nothing behind it. A corpus-only id is a stop somebody tagged that the matrix has never heard of, so it
  * has no default, no cell and no enforcement. Collapsing them into one "sets differ" line would
  * hand a reader the symptom and withhold which of the two repairs to make.
  *
@@ -818,7 +496,7 @@ export function compareRosterToDerivation(derived, roster) {
     if (rosterOnly.length > 0) {
         failures.push(`checkpoints: the roster declares ${rosterOnly.length} id(s) that NO arm of the derivation ` +
             `produces — [${rosterOnly.join(", ")}]. A roster member nothing declares is a config cell ` +
-            `and an env var name with no stop behind them. Either tag the bullet, add the floor, or ` +
+            `with no stop behind it. Either tag the bullet, add the floor, or ` +
             `remove the member`);
     }
     if (corpusOnly.length > 0) {

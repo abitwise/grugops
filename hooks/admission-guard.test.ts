@@ -446,13 +446,14 @@ describe("30-11 A-4 — an approver that names nobody is not an approver", () =>
   });
 });
 
-describe("30-11 A-1 — this hook's approval name is IMPORTED from the grant vocabulary", () => {
-  it("the name this test asserts is the one the published vocabulary declares", () => {
-    // The test's own premise. If the hook's constant and the vocabulary ever disagreed, every case
-    // in this file would be exercising a variable the hook does not read, and every DENY would be a
-    // pass for the wrong reason.
+describe("30-11 A-1 — this hook's approval name is IMPORTED from scripts/checkpoints.ts", () => {
+  it("the name this test asserts is the one the module declares, unchanged by 33.1 (D-24)", () => {
+    // The test's own premise. If the hook's constant and the module ever disagreed, every case in
+    // this file would be exercising a variable the hook does not read, and every DENY would be a
+    // pass for the wrong reason. The literal pins the published name: 33.1 retired the rest of the
+    // grant vocabulary (D-17, D-26) and kept this one grant exactly as it was (D-24).
     expect(APPROVAL).toBe(cp.ADMISSION_APPROVAL_ENV_VAR);
-    expect(cp.isGrantEnvVarName(APPROVAL)).toBe(true);
+    expect(cp.ADMISSION_APPROVAL_ENV_VAR).toBe("GRUGOPS_ADMISSION_APPROVED_BY");
   });
 });
 

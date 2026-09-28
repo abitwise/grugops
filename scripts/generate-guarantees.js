@@ -75,8 +75,14 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { isEntrypoint } from "./is-entry.js";
 import { join } from "node:path";
 import { isBlank, readRegistry, readResidualAdditions, REGISTRY_PATH, RESIDUAL_PATH, RESIDUAL_ADDITIONS_HEADING, SAFETY_FLOORS, } from "./audit-model.js";
-import { BANNER_ALL_DEFAULT, CHECKPOINT_DEFAULTS, floorEnvVarName, } from "./checkpoints.js";
+import { CHECKPOINT_DEFAULTS } from "./checkpoints.js";
 import { GOVERNANCE_CONFIG_RELPATHS, readGovernanceConfig } from "./context-io.js";
+/**
+ * The page's at-default sentence. It used to be imported as the run banner's zero-config line; the
+ * run banner was retired with the Bash command guard (33.1 D-17, D-26), and this page is now the
+ * only thing that says it. The text is unchanged, so the published bytes are too.
+ */
+export const ALL_AT_DEFAULT = "all checkpoints at default";
 const DEFAULT_ROOT = join(import.meta.dirname, "..");
 /** FIXED literal, repo-relative. The ROOT is redirected under test; this path never is. */
 export const OUT = "docs/GUARANTEES.md";
@@ -419,10 +425,11 @@ export const HISTORICAL_RESIDUAL_ROWS = 8;
  * text rather than against a string somebody copied into the registry, so the published prose and
  * the mechanism cannot drift apart — that drift is the whole failure D-18 names.
  *
- * WHAT IT NAMES, IN THIS ORDER: the checkpoint, the value it is held at, its documented default,
- * and the authorizing name. "The authorizing name" is the GRANT VARIABLE — `floorEnvVarName(id)` —
- * which is what the table in this render already calls it, and which is deterministic where the
- * human's own name is a session value the generator has no honest way to read.
+ * WHAT IT NAMES, IN THIS ORDER: the checkpoint, the value it is held at, and its documented
+ * default. It names no grant: until Phase 33.1 a floor lowering needed a second key, a session grant
+ * variable, and this line named it. The two-key floor was retired with the Bash command guard
+ * (33.1 D-17, D-26), so a lowering is now a configuration decision recorded in git history, and
+ * there is no grant to name.
  *
  * THE FLOORS ARE SORTED BY ID rather than left in the registry row's `depends_on` order. Document
  * order is deterministic today; sorting removes the dependence entirely, so a reordered
@@ -443,8 +450,7 @@ export function disclosureFor(row) {
             `a sentence that is still true`);
     }
     const clauses = lowered
-        .map((f) => `\`${f.id}\` is held at \`${f.held}\` instead of \`${CHECKPOINT_DEFAULTS[f.id]}\`, ` +
-        `authorized by \`${floorEnvVarName(f.id)}\``)
+        .map((f) => `\`${f.id}\` is held at \`${f.held}\` instead of \`${CHECKPOINT_DEFAULTS[f.id]}\``)
         .join("; ");
     return (`**This guarantee is lowered on this repository.** ${clauses}. ` +
         `The sentence that stood here is recorded as ${row.claimId} in \`${REGISTRY_PATH}\` — it is ` +
@@ -539,16 +545,16 @@ export function guaranteesJoin(root = DEFAULT_ROOT) {
  * is the one roster member whose documented default is not `block`, so TIGHTENING it — declaring
  * `commit_to_branch: "block"`, a legitimate and stricter posture — published
  * `**LOWERED: 1 checkpoint(s) sit below their documented default on this tree.**` and a table row
- * naming `GRUGOPS_FLOOR_COMMIT_TO_BRANCH` as authorizing it.
+ * naming a grant variable as authorizing it (that grant column was retired in 33.1, D-26).
  *
  * The direction is over-statement rather than permission, so it is not a bypass. It is nonetheless a
  * FALSE SENTENCE IN THE ONE DOCUMENT WHOSE SUBJECT IS WHICH SENTENCES STOPPED BEING TRUE, reachable
  * by a legitimate configuration, and this page's whole value is that a reader can believe it.
  *
  * The ternary is ordered — `block` < `notify` < `off` — and that order is what "lowered" has always
- * meant everywhere else in this phase: `resolveCheckpoint` treats `block` as the strictest value,
- * `STRICTEST_MATRIX` is every member at `block`, and the two-key rule is about lowering BELOW the
- * default. The rank is declared once, here, and both call sites ask it.
+ * meant everywhere else in this phase: `canonicalizeDisposition` falls to `block` as the strictest
+ * value, and `STRICTEST_MATRIX` is every member at `block`. The rank is declared once, here, and both
+ * call sites ask it.
  * ---------------------------------------------------------------------------------------------
  */
 function isLowered(held, fallback) {
@@ -564,9 +570,9 @@ const PERMISSIVENESS = { block: 0, notify: 1, off: 2 };
  * A SEPARATELY NAMED QUESTION from `isLowered`, and named because this file was answering one and
  * publishing the other. "Nothing is lowered" and "everything sits at its default" are different
  * claims, and they come apart on exactly the tree an attacker does not need to construct: a
- * repository that TIGHTENS something. This is the predicate `composeBanner` already asks
- * (`r.declared === CHECKPOINT_DEFAULTS[id]`), so the page and the run banner are now two readings
- * of ONE rule rather than two rules that happened to agree on the trees anybody tested.
+ * repository that TIGHTENS something. The retired run banner asked the same predicate (declared
+ * value equal to `CHECKPOINT_DEFAULTS[id]`); since that banner was retired (33.1 D-26) this page is
+ * its only reader.
  */
 function atDocumentedDefault(held, fallback) {
     return fallback !== undefined && held === fallback;
@@ -576,7 +582,7 @@ function atDocumentedDefault(held, fallback) {
  *
  * WHY ONE FUNCTION AND NOT TWO. The obvious repair for R6-3 was a second `tightenedCheckpoints`
  * beside `loweredCheckpoints`, each with its own `readGovernanceConfig` and its own loop. That
- * reintroduces, inside this file, precisely the shape `evaluateMatrix`'s comment says it exists to
+ * reintroduces, inside this file, precisely the shape the retired matrix evaluator existed to
  * remove: two independent evaluations of one rule over one config, free to disagree. One walk
  * assigns every roster member to exactly one bucket, so "lowered" and "tightened" cannot both claim
  * a checkpoint and neither can silently drop one.
@@ -598,7 +604,7 @@ function matrixDepartures(root) {
         if (held === undefined || atDocumentedDefault(held, fallback))
             atDefault += 1;
         else if (isLowered(held, fallback))
-            lowered.push({ id, held, grant: floorEnvVarName(id) });
+            lowered.push({ id, held });
         else
             tightened.push({ id, held });
     }
@@ -712,7 +718,7 @@ export function renderGuarantees(root = DEFAULT_ROOT) {
         "",
     ];
     if (lowered.length === 0 && tightened.length === 0) {
-        lines.push(`**${BANNER_ALL_DEFAULT}.** Every checkpoint on the roster sits at its documented default, so`, "no floor below is lowered and every row in the table holds at the status the registry", "measured. A repository that configures nothing lands here: nothing is lowered by omission.", "");
+        lines.push(`**${ALL_AT_DEFAULT}.** Every checkpoint on the roster sits at its documented default, so`, "no floor below is lowered and every row in the table holds at the status the registry", "measured. A repository that configures nothing lands here: nothing is lowered by omission.", "");
     }
     else if (lowered.length === 0) {
         // THE THIRD SENTENCE (round 4, R6-3). Nothing is lowered here, but the page may not therefore
@@ -721,10 +727,10 @@ export function renderGuarantees(root = DEFAULT_ROOT) {
         // tightened tree byte-identical to the page for a tree that configured nothing.
         lines.push(`**No checkpoint is lowered on this tree, and ${tightened.length} ` +
             `checkpoint${tightened.length === 1 ? "" : "s"} sit${tightened.length === 1 ? "s" : ""} ` +
-            "ABOVE the documented", "default.** A tightening is not a lowering: it removes no guarantee and needs no authorizing", "grant. It is named anyway, because a page that stayed silent about it would describe this", "repository in exactly the words it uses for one that configured nothing at all.", "", "| checkpoint | held at | default |", "|---|---|---|", ...tightened.map((t) => `| \`${t.id}\` | \`${t.held}\` | \`${CHECKPOINT_DEFAULTS[t.id]}\` |`), "");
+            "ABOVE the documented", "default.** A tightening is not a lowering: it removes no guarantee. It is named anyway,", "because a page that stayed silent about it would describe this", "repository in exactly the words it uses for one that configured nothing at all.", "", "| checkpoint | held at | default |", "|---|---|---|", ...tightened.map((t) => `| \`${t.id}\` | \`${t.held}\` | \`${CHECKPOINT_DEFAULTS[t.id]}\` |`), "");
     }
     else {
-        lines.push(`**LOWERED: ${lowered.length} checkpoint(s) sit below their documented default on this tree.**`, "A lowered floor must never be discoverable only by reading configuration, so it is named", "here, with the value it is held at and the name of the grant that authorizes it.", "", "| checkpoint | held at | default | authorizing name |", "|---|---|---|---|", ...lowered.map((l) => `| \`${l.id}\` | \`${l.held}\` | \`${CHECKPOINT_DEFAULTS[l.id]}\` | \`${l.grant}\` |`), "", "Every row of the table below whose floors include one of these is marked **LOWERED**. That", "mark is the whole point of this page: the sentence it names is one a reader of the shipped", "documents would otherwise still believe.", "");
+        lines.push(`**LOWERED: ${lowered.length} checkpoint(s) sit below their documented default on this tree.**`, "A lowered floor must never be discoverable only by reading configuration, so it is named", "here, with the value it is held at. No grant authorizes a lowering: since Phase 33.1 (D-26)", "lowering a checkpoint is a configuration decision, recorded in git history.", "", "| checkpoint | held at | default |", "|---|---|---|", ...lowered.map((l) => `| \`${l.id}\` | \`${l.held}\` | \`${CHECKPOINT_DEFAULTS[l.id]}\` |`), "", "Every row of the table below whose floors include one of these is marked **LOWERED**. That", "mark is the whole point of this page: the sentence it names is one a reader of the shipped", "documents would otherwise still believe.", "");
     }
     lines.push("## Which public sentences rest on which floor", "", "| claim | file | measured status | floors, and where each is held | standing |", "|---|---|---|---|---|", ...rows.map((r) => {
         const floors = r.floors

@@ -47,15 +47,13 @@ import {
   readResidualAdditions,
 } from "./audit-model.js";
 import {
-  BANNER_ALL_DEFAULT,
   CHECKPOINT_DEFAULTS,
   CHECKPOINTS,
-  floorEnvVarName,
-  renderCheckpointBanner,
   type Checkpoint,
   type Disposition,
 } from "./checkpoints.js";
 import {
+  ALL_AT_DEFAULT,
   OUT,
   REGEN_COMMAND,
   GUARANTEES_DATA_SOURCES,
@@ -277,7 +275,7 @@ describe("generate-guarantees — the count-asserted join (D-17)", () => {
     expect(text).not.toContain("LOWERED");
   });
 
-  it("a LOWERED checkpoint renders its id, its value AND its authorizing name", () => {
+  it("a LOWERED checkpoint renders its id, its value AND its default, and names no grant", () => {
     // Plan 30-09 (D-18): a lowered floor now OBLIGES every row resting on it to be `dropped`, in
     // both directions, so this fixture marks them rather than leaving the render to refuse. That
     // obligation IS the phase's payoff — the case is updated to satisfy it, never relaxed to skip it.
@@ -294,10 +292,12 @@ describe("generate-guarantees — the count-asserted join (D-17)", () => {
     const text = renderGuarantees(root);
     expect(text).toContain("open_pr");
     expect(text).toContain("`off`");
-    // The AUTHORIZING NAME. Prohibition 2: a lowered floor must never be discoverable only by
-    // reading configuration — the render names the grant, so a reader who opens neither the config
-    // nor the code still learns which guarantee stopped holding and who was named for it.
-    expect(text).toContain(floorEnvVarName("open_pr"));
+    // Prohibition 2: a lowered floor must never be discoverable only by reading configuration — the
+    // render names the checkpoint, the value it is held at and the default it sits below, so a
+    // reader who opens neither the config nor the code still learns which guarantee stopped
+    // holding. It names no grant: the two-key floor was retired in 33.1 (D-26), so there is none.
+    expect(text).toContain("| `open_pr` | `off` | `block` |");
+    expect(text).not.toContain("authorizing name");
     expect(text).toContain("LOWERED");
     expect(text).not.toContain("all checkpoints at default");
     // …and the claims that rest on it are marked, not merely listed. `DROPPED` is the D-18 mark a
@@ -369,7 +369,7 @@ describe("generate-guarantees — the dropped status and the generated disclosur
     expect(refusals[0]).toContain("replace the text at its anchor with EXACTLY");
   });
 
-  it("a CONSISTENT drop renders green, marks the row DROPPED and names the grant", () => {
+  it("a CONSISTENT drop renders green, marks the row DROPPED and names no grant", () => {
     const root = loweredMirror(
       SIX_SAFETY.map((c) => (c.id === "C-28-018" ? { ...c, status: "dropped" } : c)),
       { test_integrity: "notify" },
@@ -378,7 +378,7 @@ describe("generate-guarantees — the dropped status and the generated disclosur
     expect(declaredDroppedRows(root)).toEqual(["C-28-018"]);
     const text = renderGuarantees(root);
     expect(text).toMatch(/C-28-018.*\*\*DROPPED\*\*/);
-    expect(text).toContain(floorEnvVarName("test_integrity"));
+    expect(text).not.toContain("authorized by");
   });
 
   it("`disclosureFor` is BYTE-DETERMINISTIC for fixed inputs", () => {
@@ -391,13 +391,14 @@ describe("generate-guarantees — the dropped status and the generated disclosur
     const once = disclosureFor(row!);
     const twice = disclosureFor(row!);
     expect(Buffer.from(once, "utf8").equals(Buffer.from(twice, "utf8"))).toBe(true);
-    // It names the claim, the checkpoint, its held value and the authorizing name — the four facts
-    // D-18 requires a replacement to carry, so a reader of the public document learns all of them
-    // without opening the configuration.
+    // It names the claim, the checkpoint, its held value and its default — the facts D-18 requires
+    // a replacement to carry, so a reader of the public document learns them without opening the
+    // configuration. It names no grant: the two-key floor was retired in 33.1 (D-26).
     expect(once).toContain("C-28-018");
     expect(once).toContain("`test_integrity`");
     expect(once).toContain("`notify`");
-    expect(once).toContain(floorEnvVarName("test_integrity"));
+    expect(once).toContain("instead of `block`");
+    expect(once).not.toContain("authorized by");
     // ONE LINE — the anchored extent is a line slice, and one line cannot disagree with itself.
     expect(once.split("\n").length).toBe(1);
   });
@@ -961,7 +962,6 @@ describe("30-10 R4 observation 1 — a TIGHTENED checkpoint is not a lowered one
     );
     const text = renderGuarantees(root);
     expect(text).not.toMatch(/LOWERED/);
-    expect(text).not.toContain("GRUGOPS_FLOOR_COMMIT_TO_BRANCH");
     // …and the CONTROL: a genuine lowering still publishes as lowered.
     writeFileSync(
       join(root, ".grugops", "factory.config.json"),
@@ -993,24 +993,22 @@ describe("30-10 R6-3 — \"nothing is lowered\" is not \"everything is at its de
     // page then states that every checkpoint sits at its documented default over a tree where one
     // provably does not. Round 3 traded a visible false sentence for an invisible one.
     const text = renderGuarantees(configuredMirror({ commit_to_branch: "block" }));
-    expect(text).not.toContain(BANNER_ALL_DEFAULT);
+    expect(text).not.toContain(ALL_AT_DEFAULT);
     // …and it is NAMED, not merely omitted — the arm publishes the checkpoint, the value it is held
     // at and the default it sits above.
     expect(text).toContain("commit_to_branch");
     expect(text).toMatch(/sits ABOVE the documented/);
-    // …and a tightening is still not a lowering: no LOWERED line, no grant variable named as
-    // authorizing something that needs no authorization.
+    // …and a tightening is still not a lowering: no LOWERED line.
     expect(text).not.toMatch(/LOWERED/);
-    expect(text).not.toContain("GRUGOPS_FLOOR_COMMIT_TO_BRANCH");
     // THE DEFAULT ARM, for contrast: the same render with nothing configured DOES publish it.
-    expect(renderGuarantees(configuredMirror({}))).toContain(BANNER_ALL_DEFAULT);
+    expect(renderGuarantees(configuredMirror({}))).toContain(ALL_AT_DEFAULT);
   });
 
-  it("the page's at-default claim and `composeBanner` agree on ONE matrix", () => {
+  it("the page's at-default claim holds exactly when every roster member sits at its default", () => {
     // The property, not a spot check: for any matrix, the page carries the all-default sentence if
-    // and only if the guard's banner is the fixed all-default literal. Two documents describing one
-    // config cannot be allowed to describe it differently — that disagreement IS the AP-1 shape the
-    // banner's own comment says it exists to remove.
+    // and only if every roster member is held at its documented default. The expected answer is
+    // computed here from `CHECKPOINTS` and `CHECKPOINT_DEFAULTS`, never from the render. (This case
+    // compared the page against the run banner until that banner was retired, 33.1 D-26.)
     const matrices: Record<string, Disposition>[] = [
       {},
       { commit_to_branch: "block" },
@@ -1021,14 +1019,14 @@ describe("30-10 R6-3 — \"nothing is lowered\" is not \"everything is at its de
       const full = Object.fromEntries(
         CHECKPOINTS.map((id) => [id, m[id] ?? CHECKPOINT_DEFAULTS[id]]),
       ) as Record<Checkpoint, Disposition>;
-      const banner = renderCheckpointBanner(full, {});
+      const allAtDefault = CHECKPOINTS.every((id) => full[id] === CHECKPOINT_DEFAULTS[id]);
       const page = renderGuarantees(configuredMirror(m));
       expect(
-        page.includes(BANNER_ALL_DEFAULT),
+        page.includes(ALL_AT_DEFAULT),
         `matrix ${JSON.stringify(m)}: page says all-default=${page.includes(
-          BANNER_ALL_DEFAULT,
-        )}, banner says "${banner}"`,
-      ).toBe(banner === BANNER_ALL_DEFAULT);
+          ALL_AT_DEFAULT,
+        )}, expected ${allAtDefault}`,
+      ).toBe(allAtDefault);
     }
   });
 });

@@ -191,9 +191,12 @@ describe("the `checkpoints` matrix — the twin documents the roster the module 
     }
   });
 
-  it("the rows marked `floor` are EXACTLY the derived floor subset", () => {
+  it("the rows marked `floor` are EXACTLY the SAFETY_FLOORS ids", () => {
+    // The floor column is compared to the canonical claim-floor list itself. (Until 33.1 it was
+    // compared to a floor subset the checkpoints module derived for the two-key rule; that subset
+    // was retired with the rule, D-26.)
     const documented = [...rows.entries()].filter(([, v]) => v.tier === "floor").map(([k]) => k).sort();
-    expect(documented).toEqual([...cp.FLOOR_CHECKPOINTS].sort());
+    expect(documented).toEqual(am.SAFETY_FLOORS.map((f) => f.id).sort());
     // Non-vacuity: an empty floor column would satisfy an equality against an empty derivation.
     expect(documented.length).toBeGreaterThan(0);
   });
@@ -216,9 +219,12 @@ describe("the `checkpoints` matrix — the twin documents the roster the module 
     expect(checked).toBeGreaterThan(0);
   });
 
-  it("the twin states the two-key rule and names the environment-variable family", () => {
-    expect(twin).toContain(cp.FLOOR_ENV_VAR_PREFIX);
-    expect(twin).toMatch(/two keys, not one/i);
+  it("the twin states that no hook reads a checkpoint cell (33.1 D-26)", () => {
+    // The two-key rule and its session variables were retired with the Bash command guard. The twin
+    // must say so rather than keep describing a mechanism nothing runs.
+    expect(twin).toContain("no hook reads");
+    expect(twin).toContain("33.1 D-26");
+    expect(twin).not.toMatch(/two keys, not one/i);
   });
 
   it("the twin records that a non-blocking disposition is advisory where no hook enforces it", () => {
