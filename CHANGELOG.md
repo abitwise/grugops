@@ -63,6 +63,19 @@ release, together with Phase 33.1, which retires the Bash command guard.
   frontmatter fence. The contract (`agent-factory/contracts/context-note.md`) documents the field,
   what it distinguishes, and what it does not.
 
+### Fixed
+
+- A `DRY_RUN=1` uninstall no longer removes directories, and uninstall removes an empty directory
+  only when install created it (recorded as `createdDirs` in `.grugops/install.json`) or its own
+  name begins with `grugops`. An empty `.github/`, `.gemini/` or `.claude/` directory you made
+  yourself is left and reported (33.1 gap round 1, CR-02).
+- Install fails closed on a malformed or unreadable ask-rule ledger in `.grugops/install.json`: it
+  reports a `verify` finding, adds no rule and leaves the ledger as it found it, instead of
+  relabelling the grugops rules as your own and overwriting the ledger (WR-05). Install and
+  uninstall now read the marker through one shared reader.
+- Uninstall removes one copy of each ask rule install recorded, so a copy of a grugops rule you
+  added yourself stays (IN-02).
+
 ### Security
 
 - Where each safety rule is enforced, stated plainly. The git host is the hard floor: branch

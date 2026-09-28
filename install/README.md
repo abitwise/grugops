@@ -178,12 +178,24 @@ A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It names a dire
 only when that directory is already empty, so the real run can also remove a grugops directory
 that it has just emptied and that the preview did not name.
 
+The uninstaller removes an empty directory only when grugops owns it: either install created it,
+which install records in `.grugops/install.json` as `createdDirs`, or the directory's own name
+begins with `grugops` (`.claude/skills/grugops*/`, `tools/grugops/`). An empty directory you made
+yourself, for example `.github/` or `.gemini/`, is left in place and reported as `left`, in the
+real run and in the preview. An install made before this release has no directory ledger, so its
+shared-name directories (`.claude/`, `.claude/skills/`, `.claude/agents/`, `.gemini/`, `.github/`)
+are left and reported; remove them by hand if they are empty and you do not want them. If the
+directory ledger is malformed or the marker cannot be read, the uninstaller reports a `verify`
+finding, removes only `grugops`-named directories, and exits `3`.
+
 It deliberately does **not** touch:
 
 - the **shared kit** at `${GRUGOPS_HOME:-$HOME/.grugops}` — other repos depend on it, so
   removing it is a manual `rm -rf ~/.grugops` you run yourself when you want it gone everywhere
 - your **seeded per-repo state** — `.grugops/factory.config.json`, `plans/`, and `memory-bank/`
   become your content once seeded (they may hold real work), so they survive uninstall
+- an **empty directory you made yourself** — only a directory install created (recorded as
+  `createdDirs` in `.grugops/install.json`) or one whose own name begins with `grugops` is removed
 - `agent-factory/`, `.planning/`, `docs/`, `src/`, or any file you own
 
 ### Migrating an existing install (`--migrate`)
@@ -494,9 +506,12 @@ written. At `notify` or `off`, no rules are written. Lowering a checkpoint later
 rules an earlier install wrote: the installer reports how many remain, and uninstall removes them.
 The writes follow the installer contract. They are additive (your own rules and keys stay),
 idempotent, skipped under `DRY_RUN=1`, and recorded in `.grugops/install.json`, so `uninstall.js`
-removes exactly the rules install added and nothing else. `--check` reports whether each recorded
-rule is still present. If `.claude/settings.json` cannot be parsed, the installer leaves it
-untouched and exits `3`. One formatting note: when the installer adds rules to an existing
+removes the rules install added and nothing else. It removes one copy of each rule install
+recorded, so a copy of the same rule you added yourself stays and is reported as `left`.
+`--check` reports whether each recorded rule is still present. If `.claude/settings.json` cannot
+be parsed, the installer leaves it untouched and exits `3`. If `.grugops/install.json` cannot be
+read, or its ask-rule ledger is malformed, that is a `verify` finding (exit `3`) on both sides:
+install then adds no rule and leaves the ledger as it found it, and uninstall removes no rule. One formatting note: when the installer adds rules to an existing
 `.claude/settings.json`, it writes the file back as 2-space JSON. Your values and key order are
 kept; your original whitespace is not.
 
