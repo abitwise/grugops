@@ -5786,3 +5786,89 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
     expect(readMarkerJson(second).createdDirs).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// ONE ASK-RULE LEDGER READER FOR BOTH BINARIES (plan 33.1-21, WR-05 and IN-02 / D-18).
+//
+// WR-05: install used to read a malformed or unreadable ledger as "no previous install", relabel
+// every grugops rule as the user's own and overwrite the ledger with an empty one, while uninstall
+// refused on the same input. Both now read through install/install-marker.ts and both fail closed.
+// IN-02: uninstall removes one occurrence per ledger rule, so a later copy the user added stays.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02, plan 33.1-21)", () => {
+  const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
+  const verifyLines = (stdout: string): string[] => stdout.split("\n").filter((l) => /^ {2}verify\s/.test(l));
+
+  it("ask rules WR-05: a malformed ledger makes install report verify, add no rule, relabel none, and write the field back verbatim", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const marker = JSON.parse(readFileSync(markerPathOf(target), "utf8"));
+    delete marker.claudeAskRules.createdAsk;
+    const malformed = marker.claudeAskRules;
+    writeFileSync(markerPathOf(target), JSON.stringify(marker, null, 2) + "\n");
+    const settingsPre = readFileSync(settingsFile(target));
+
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).filter((l) => /ask-rule ledger/.test(l) && /malformed/.test(l)).length).toBe(1);
+    expect(r.stdout).not.toContain("kept as the user's own rule");
+    expect(readFileSync(settingsFile(target)).equals(settingsPre)).toBe(true);
+    expect(JSON.parse(readFileSync(markerPathOf(target), "utf8")).claudeAskRules).toEqual(malformed);
+
+    // Uninstall's fail-closed refusal is unchanged.
+    const u = runUninstall(target, home);
+    expect(u.status, u.stdout).toBe(3);
+    expect(u.stdout).toMatch(/verify\s+\.claude\/settings\.json ask rules — the ask-rule ledger in \.grugops\/install\.json is malformed/);
+    expect(readFileSync(settingsFile(target)).equals(settingsPre)).toBe(true);
+  });
+
+  it("ask rules WR-05: an unreadable marker makes install report verify, add no rule, and leave the marker byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    writeFileSync(markerPathOf(target), "{not json");
+    const settingsPre = readFileSync(settingsFile(target));
+
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).filter((l) => /install\.json/.test(l) && /could not be read/.test(l)).length).toBeGreaterThan(0);
+    expect(r.stdout).not.toContain("kept as the user's own rule");
+    expect(readFileSync(markerPathOf(target), "utf8")).toBe("{not json");
+    expect(readFileSync(settingsFile(target)).equals(settingsPre)).toBe(true);
+  });
+
+  it("ask rules --check: a malformed ledger is a WARN naming the malformed ledger, not 'predates'", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const marker = JSON.parse(readFileSync(markerPathOf(target), "utf8"));
+    marker.claudeAskRules.added = "not-an-array";
+    writeFileSync(markerPathOf(target), JSON.stringify(marker, null, 2) + "\n");
+    const doc = spawnSync("node", [INSTALL_JS, "--check"], {
+      encoding: "utf8",
+      env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT },
+    });
+    expect(doc.stdout).toMatch(/WARN\s+.*ask-rule ledger.*malformed/);
+    expect(doc.stdout).not.toContain("predates the Claude Code ask rules");
+    expect(doc.stdout).not.toContain("ask rule present:");
+  });
+
+  it("ask rules IN-02: uninstall removes one copy per ledger rule, so a later copy the user added stays and is reported", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rule = readAskLedger(target).added[0];
+    const json = JSON.parse(readFileSync(settingsFile(target), "utf8"));
+    json.permissions.ask.push(rule);
+    writeFileSync(settingsFile(target), JSON.stringify(json, null, 2) + "\n");
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(existsSync(settingsFile(target)), "the settings file holding the user's copy was deleted").toBe(true);
+    expect(readAsk(target).filter((x) => x === rule)).toEqual([rule]);
+    expect(readAsk(target)).toEqual([rule]);
+    const esc = rule.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    expect(r.stdout).toMatch(new RegExp(`left\\s+${esc} \\(.*the user's own copy`));
+  });
+});
