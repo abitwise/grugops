@@ -27,12 +27,14 @@ import {
   readlinkSync,
   rmSync,
   existsSync,
+  cpSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
+const INSTALL_JS = join(import.meta.dirname, "install.js");
 const UNINSTALL_JS = join(import.meta.dirname, "uninstall.js");
 
 const tmpDirs: string[] = [];
@@ -57,6 +59,33 @@ function makeFixture(): string {
   writeFileSync(join(d, "CLAUDE.md"), "# User Project\n\nMy own dev instructions — must be preserved.\n");
   writeFileSync(join(d, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE — uninstall must never delete this.\n");
   writeFileSync(join(d, "plans", "board.md"), "user board\n");
+  return d;
+}
+
+// makeOldLayoutFixture — the non-symlink form of install/install.test.ts's v1.0 migrate-FROM shape:
+// a vendored in-repo agent-factory/ with an old user-edited config inside it, repo-relative .claude
+// adapters with no materialized-kit block, and no .grugops/install.json marker.
+function makeOldLayoutFixture(): string {
+  const d = mkTmp();
+  mkdirSync(join(d, "agent-factory", "roles"), { recursive: true });
+  mkdirSync(join(d, "agent-factory", "config"), { recursive: true });
+  mkdirSync(join(d, "agent-factory", "workflows"), { recursive: true });
+  writeFileSync(join(d, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE — old in-repo vendored kit.\n");
+  writeFileSync(
+    join(d, "agent-factory", "config", "factory.config.json"),
+    '{ "_edited": "OLD-USER-EDITED-CONFIG-KIT-LOCATION" }\n',
+  );
+  mkdirSync(join(d, ".claude", "skills", "grugops"), { recursive: true });
+  mkdirSync(join(d, ".claude", "agents"), { recursive: true });
+  writeFileSync(
+    join(d, ".claude", "skills", "grugops", "SKILL.md"),
+    "> read `agent-factory/roles/orchestrator.md` and act as the Orchestrator.\n" +
+      "> config: `agent-factory/config/factory.config.json`; workflows: `agent-factory/workflows/`.\n",
+  );
+  writeFileSync(
+    join(d, ".claude", "agents", "grugops-orchestrator.md"),
+    "> read `agent-factory/roles/orchestrator.md` and act as the Orchestrator (repo-relative).\n",
+  );
   return d;
 }
 
@@ -107,6 +136,8 @@ function spawnBin(bin: string, args: string[], target: string, home: string, dry
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
+const runInstall = (target: string, home: string, dryRun: boolean, ...args: string[]): Run =>
+  spawnBin(INSTALL_JS, ["--yes", ...args], target, home, dryRun);
 const runUninstall = (target: string, home: string, dryRun: boolean): Run => spawnBin(UNINSTALL_JS, [], target, home, dryRun);
 
 // The paths a run printed under one report label. report() pads the label to 14 columns after two
@@ -151,5 +182,175 @@ describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
     expect(real.status, real.stderr).toBe(0);
     const done = new Set(reported(real.stdout, "rmdir"));
     for (const p of would) expect(done.has(p), `preview named ${p}; the real run did not remove it`).toBe(true);
+  });
+});
+
+// ── Every DRY_RUN flow of both binaries (plan 33.1-18 Task 2, CR-02 sibling arms) ──────────────
+//
+// Each case snapshots BOTH roots with the directory-aware snapshotTree immediately before the
+// DRY_RUN run and asserts both are identical after it. An absent home stays absent.
+
+// The EMPTY directories a user may already hold where the INSTALLER writes (flow 2 / flow 8).
+const INSTALL_EMPTY_DIRS = [".claude", ".claude/skills", ".claude/agents", ".gemini", ".github", "tools"];
+const ISO_A = "2026-06-15T00-00-00.000Z";
+const ISO_B = "2026-06-16T00-00-00.000Z";
+
+function expectDryRunUnchanged(target: string, home: string, run: () => Run, status: number, banner: string): Run {
+  const tPre = snapshotTree(target);
+  const hPre = snapshotTree(home);
+  const homeExisted = existsSync(home);
+  const r = run();
+  expect(r.status, r.stdout + r.stderr).toBe(status);
+  expect(r.stdout).toContain(banner);
+  expect(snapshotTree(target)).toBe(tPre);
+  expect(snapshotTree(home)).toBe(hPre);
+  expect(existsSync(home)).toBe(homeExisted);
+  return r;
+}
+
+const INSTALL_BANNER = "== install complete (DRY_RUN — nothing changed) ==";
+const UNINSTALL_BANNER = "== uninstall complete (DRY_RUN — nothing changed) ==";
+
+describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and directory-identical", () => {
+  it("flow 1: DRY_RUN install into a fresh fixture (home absent)", () => {
+    const target = makeFixture();
+    const home = join(mkTmp(), "home-never-created");
+    expectDryRunUnchanged(target, home, () => runInstall(target, home, true), 0, INSTALL_BANNER);
+    expect(existsSync(home)).toBe(false);
+  });
+
+  it("flow 2: DRY_RUN install into a fixture holding pre-existing EMPTY user directories", () => {
+    const target = makeFixture();
+    const home = join(mkTmp(), "home-never-created");
+    plantEmptyDirs(target, INSTALL_EMPTY_DIRS);
+    const pre = snapshotTree(target);
+    for (const rel of INSTALL_EMPTY_DIRS) expect(pre).toContain(`${rel}/ DIR`);
+    expectDryRunUnchanged(target, home, () => runInstall(target, home, true), 0, INSTALL_BANNER);
+  });
+
+  it("flow 3: DRY_RUN re-install over a real install", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    expectDryRunUnchanged(target, home, () => runInstall(target, home, true), 0, INSTALL_BANNER);
+  });
+
+  it("flow 4: DRY_RUN --migrate over an old-layout fixture (home absent)", () => {
+    const target = makeOldLayoutFixture();
+    const home = join(mkTmp(), "home-never-created");
+    const r = expectDryRunUnchanged(target, home, () => runInstall(target, home, true, "--migrate"), 0, "DRY_RUN — nothing changed");
+    expect(r.stdout).toMatch(/would-/);
+  });
+
+  it("flow 5: DRY_RUN --update over a real install whose kit VERSION was changed", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    writeFileSync(join(home, "agent-factory", "VERSION"), "9.9.9-displaced\n");
+    const r = expectDryRunUnchanged(
+      target,
+      home,
+      () => runInstall(target, home, true, "--update"),
+      0,
+      "== update complete (DRY_RUN — nothing changed) ==",
+    );
+    expect(r.stdout).toMatch(/would-/);
+  });
+
+  it("flow 6: DRY_RUN --prune-old-kit with an EMPTY and a NON-EMPTY backup directory in each root", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    for (const root of [target, home]) {
+      mkdirSync(join(root, `agent-factory.bak.${ISO_A}`)); // EMPTY — invisible to the file-only snapshot
+      mkdirSync(join(root, `agent-factory.bak.${ISO_B}`, "roles"), { recursive: true });
+      writeFileSync(join(root, `agent-factory.bak.${ISO_B}`, "roles", "orchestrator.md"), "backup body\n");
+    }
+    const r = expectDryRunUnchanged(
+      target,
+      home,
+      () => runInstall(target, home, true, "--prune-old-kit"),
+      0,
+      "== prune complete (DRY_RUN — nothing changed) ==",
+    );
+    expect(r.stdout).toMatch(/would-remove/);
+    for (const root of [target, home]) {
+      expect(snapshotTree(root)).toContain(`agent-factory.bak.${ISO_A}/ DIR`); // the empty backup survived
+      expect(existsSync(join(root, `agent-factory.bak.${ISO_B}`, "roles", "orchestrator.md"))).toBe(true);
+    }
+  });
+
+  it("flow 7: DRY_RUN uninstall after a real install", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, UNINSTALL_BANNER);
+  });
+
+  it("flow 8: DRY_RUN uninstall after a real install into flow 2's fixture", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plantEmptyDirs(target, INSTALL_EMPTY_DIRS);
+    expect(runInstall(target, home, false).status).toBe(0);
+    expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, UNINSTALL_BANNER);
+  });
+});
+
+// The subset invariant for flows 7 and 8: the preview runs on the installed tree; the real
+// uninstall runs next on a COPY of that same tree (so the real run's result cannot depend on
+// anything the preview did). Paths are compared relative to each run's own target root.
+//
+// MEASURED, NOT ASSUMED: on flow 7's and flow 8's trees the preview names NO directory, because
+// every directory uninstall visits still holds a grugops file when the preview reads it; the real
+// run empties each one first and then removes it. The comparison on those two trees therefore
+// checks an empty would-rmdir set (it still fails if the preview names anything the real run does
+// not remove). The third case below is the NON-VACUOUS one on an installed tree: the user has since
+// emptied .github/ themselves, so the preview names it and the real run must remove it.
+function expectPreviewSubsetOfRealRun(target: string, home: string): { would: string[]; done: string[] } {
+  const copy = join(mkTmp(), "copy");
+  cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
+  expect(snapshotTree(copy)).toBe(snapshotTree(target)); // the copy is faithful
+
+  const rel = (root: string, p: string): string => (p.startsWith(root) ? p.slice(root.length) : `OUTSIDE:${p}`);
+  const tPre = snapshotTree(target);
+  const hPre = snapshotTree(home);
+  const preview = runUninstall(target, home, true);
+  expect(preview.status, preview.stderr).toBe(0);
+  expect(snapshotTree(target)).toBe(tPre); // the preview changed nothing
+  expect(snapshotTree(home)).toBe(hPre);
+  const would = reported(preview.stdout, "would-rmdir").map((p) => rel(target, p));
+
+  const real = runUninstall(copy, home, false);
+  expect(real.status, real.stderr).toBe(0);
+  const done = reported(real.stdout, "rmdir").map((p) => rel(copy, p));
+  expect(done.length).toBeGreaterThan(0); // the real run removed directories, so the comparison is not empty on both sides
+  for (const p of would) expect(done.includes(p), `preview named ${p}; the real run did not remove it`).toBe(true);
+  return { would, done };
+}
+
+describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real run's rmdir", () => {
+  it("subset: uninstall after a real install (flow 7's tree)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    expectPreviewSubsetOfRealRun(target, home);
+  });
+
+  it("subset: uninstall after a real install into flow 2's fixture (flow 8's tree)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plantEmptyDirs(target, INSTALL_EMPTY_DIRS);
+    expect(runInstall(target, home, false).status).toBe(0);
+    expectPreviewSubsetOfRealRun(target, home);
+  });
+
+  it("subset (non-vacuous): an installed tree whose .github/ the user has since emptied", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    rmSync(join(target, ".github", "copilot-instructions.md"));
+    expect(readdirSync(join(target, ".github")).length).toBe(0);
+    const { would } = expectPreviewSubsetOfRealRun(target, home);
+    expect(would).toContain("/.github");
   });
 });
