@@ -38,7 +38,7 @@
 //   node install/uninstall.js --allow-self          # override the self-checkout guard (CR-04)
 //   DRY_RUN=1 node install/uninstall.js             # preview only
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
-import { existsSync, rmSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, lstatSync, readlinkSync, realpathSync, } from "node:fs";
+import { existsSync, rmSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync, readlinkSync, realpathSync, } from "node:fs";
 import { join, resolve, isAbsolute } from "node:path";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts, so the
 // REMOVAL set and the INSTALL set can never be two answers to one predicate again (CR-02). Only the
@@ -231,20 +231,31 @@ function removeFile(f, label) {
     report("removed", label);
 }
 // rmdir_if_empty: remove a now-empty grugops-owned dir (never recursive, never -f a tree).
+//
+// EMPTINESS IS DECIDED BY A READ, NEVER BY ATTEMPTING THE REMOVAL (CR-02, D-18). The DRY_RUN
+// preview reads the directory's entries and, when there are none, narrates `would-rmdir` and
+// returns: the preview path makes NO filesystem call that can change anything. (It used to call
+// rmdirSync "to see whether it would succeed", which deleted every empty directory it visited while
+// printing "nothing changed".) Because the preview changes nothing, it names a directory only when
+// that directory is ALREADY empty; a directory the real run empties first — by removing the grugops
+// files inside it — is removed by the real run without having been named in the preview. So the
+// preview's would-rmdir set is always a subset of the real run's rmdir set, never a superset.
 function rmdirIfEmpty(d) {
     if (isProtected(d))
         return;
     if (!isDir(d))
         return;
+    let entries;
+    try {
+        entries = readdirSync(d);
+    }
+    catch {
+        return; // unreadable → leave it, say nothing (as before)
+    }
+    if (entries.length > 0)
+        return;
     if (DRY_RUN) {
-        // would only remove if empty; rmdir fails on non-empty, so just narrate the attempt
-        try {
-            rmdirSync(d);
-            report("would-rmdir", d);
-        }
-        catch {
-            // non-empty → nothing to narrate
-        }
+        report("would-rmdir", d);
         return;
     }
     try {
@@ -252,7 +263,7 @@ function rmdirIfEmpty(d) {
         report("rmdir", d);
     }
     catch {
-        // non-empty → leave it
+        // became non-empty in a race, or not removable → leave it
     }
 }
 // remove_sentinel_block: strip exactly the open..close sentinel block from a user file,

@@ -174,9 +174,9 @@ it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule
 install stays), the runnable checks under `tools/grugops/` that are still byte-identical to what it
 wrote, and the `.grugops/install.json` marker.
 
-One known exception to "a preview changes nothing": `DRY_RUN=1 node install/uninstall.js` can
-remove a grugops directory that is already empty (for example an empty `.claude/skills/`). It
-never removes a file or a non-empty directory. This is recorded and not yet fixed.
+A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It names a directory for removal
+only when that directory is already empty, so the real run can also remove a grugops directory
+that it has just emptied and that the preview did not name.
 
 It deliberately does **not** touch:
 

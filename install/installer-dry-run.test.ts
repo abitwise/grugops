@@ -33,7 +33,6 @@ import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
-const INSTALL_JS = join(import.meta.dirname, "install.js");
 const UNINSTALL_JS = join(import.meta.dirname, "uninstall.js");
 
 const tmpDirs: string[] = [];
