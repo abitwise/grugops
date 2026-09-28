@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Retirement First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 33.1-14-PLAN.md
-last_updated: "2026-09-28T14:52:26.089Z"
-state_head: 13f6004dfdb19dbc2994b25673a0cffe5f04e612
+stopped_at: "Completed 33.1-15-PLAN.md (OUTCOME: fail; diagnosis filed)"
+last_updated: "2026-09-28T16:49:20.273Z"
+state_head: 14d6fd041de31c059c8f5791a0e8c1117d328183
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 328
-  completed_plans: 326
-  percent: 99
+  completed_plans: 327
+  percent: 100
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 33 CLOSED by human override D-33-R4-08 after round-4 verification gaps_found 0/3 (aba4f1d3). The human decided the four 33-R4-DIAGNOSIS section 5 questions as D-33-R4-04..07 (coordinator-as-subagent route allowed; capture pins --permission-mode default after a zero-token check; guard unreadable-word refusal redesigned; D-04 row keyed on the probe). Round-4 review ledgered: WINDOWS.md rows 301-309 appended (CR-01/CR-02 live guard bypasses first), rows 257/269/274/297-299 annotated; open 259 -> 268 of 309. GAP-D1 open; CAP-01/02/03 not met; all carried to the next phase."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33.1 (Phase 33 Leftovers: Guard Retirement First (INSERTED)) — EXECUTING
-Plan: 14 of 16
+Plan: 15 of 16
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -586,6 +586,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33.1 P12 | 30min | 3 tasks | 7 files |
 | Phase 33.1 P13 | 25 min | 3 tasks | 7 files |
 | Phase 33.1 P14 | 130min | 3 tasks | 8 files |
+| Phase 33.1 P15 | continuation ~14min (runner 5min01s) | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -1610,6 +1611,8 @@ Recent decisions affecting current work:
 - [Phase 33.1]: 33.1-13: WR-03 parity docblock now states count EQUALITY (over- and under-count can each mask a difference; axis is an approximation); SCRIPT_EXTENSIONS +.ps1/.psm1/.cmd/.bat; version suffix granted to VERSIONED_INTERPRETER_WORDS only. --max-budget-usd not added (D-12).
 - [Phase 33.1]: [33.1-14] D-09 stale grugops@grugops 0.1.0 plugin rows: human chose human-removes (2026-09-28) and ran both uninstalls; executor verified zero grugops rows read-only (claude plugin list 14:45:54Z, installed_plugins.json 0 hits) and changed no plugin state.
 - [Phase 33.1]: [33.1-14] D-14: CLAUDE.md/adapters.md nesting text quoted from code.claude.com/docs/en/sub-agents (fetched 2026-09-28): three layers by default since v2.1.219, CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 turns nesting off; main-thread Orchestrator stays the designed path. adapters.md :15-19 dispatch-model sentence logged as a 33.1 follow-up.
+- [Phase 33.1]: 33.1-15: human go "pushed, go" (2026-09-28, sha 7bb21b0d) authorized one live capture; it read OUTCOME: fail (CAP-03 side (b) both paths, side (a) path A); cost 2.0685820 USD runner-cited; no re-run (D-12)
+- [Phase 33.1]: 33.1-15 diagnosis: KIT+SUITE: kit home ships no scripts/ (claim.js, context-io.js) and role adapters lack propose_note, so role agents have no write route; the default-mode pin with Bash(node *) denies the mkdir claim; init frames report permissionMode=default
 
 ### Pending Todos
 
@@ -1740,8 +1743,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-28T14:52:25.591Z
-Stopped at: Completed 33.1-14-PLAN.md
+Last session: 2026-09-28T16:49:19.781Z
+Stopped at: Completed 33.1-15-PLAN.md (OUTCOME: fail; diagnosis filed)
 Resume file: None
 
 ## Operator Next Steps
