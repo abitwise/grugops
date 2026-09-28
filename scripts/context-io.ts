@@ -170,8 +170,8 @@ export type ReservedIdentity = (typeof RESERVED_IDENTITIES)[number];
 //   - §14-gate#<id>  the workhorse; admission cross-checks a live green verdict (D-01).
 //   - human:<name>   the escalation valve (D-07). Its un-forgeable signal is now delivered by the
 //                    separate PreToolUse `admission-guard` hook: a distinct process that reads the
-//                    human-set session variable the agent's own child env cannot reach (mirroring
-//                    the prod-deploy guard). That is the Claude Code primary tier; the four non-CC
+//                    human-set session variable the agent's own child env cannot reach (as did the
+//                    prod-deploy guard retired by 33.1 D-17). That is the Claude Code primary tier; the four non-CC
 //                    CLIs degrade to the in-script admit() refusal plus a prompt-level "stop, ask a
 //                    named human," documented honestly as not mechanically un-forgeable (D-04/D-05).
 // There is NO separate passing-test-reference grammar: a passing test IS a green gate run, so the
@@ -4289,9 +4289,9 @@ export function render(task: string, contextRoot: string = DEFAULT_CONTEXT_ROOT)
 
 // ── readGovernanceConfig — THE governance config-read path. One reader. (GOV-01/GOV-02, AUTO-06) ──
 //
-// This is the ONE config-read the admission-guard hook (25-02), the prod-deploy guard's matrix read
-// (30-01), the in-script admit() refusal (25-03 / 30-03 D-14) and admitAndAppend() (25-09) all
-// consume, so no two governance read paths can diverge (OQ-3).
+// This is the ONE config-read the admission-guard hook (25-02), the in-script admit() refusal (25-03 /
+// 30-03 D-14) and admitAndAppend() (25-09) all consume, so no two governance read paths can diverge
+// (OQ-3). The prod-deploy guard's matrix read (30-01) consumed it too until 33.1 D-17 retired it.
 //
 // THERE WAS A SECOND READER, AND PLAN 30-03 DELETED IT (D-12). Until this plan the module exported a
 // pair: a value-only reader under THIS name, returning `{human_admission, audit_retention}` and
