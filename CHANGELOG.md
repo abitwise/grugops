@@ -14,9 +14,42 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 ## [Unreleased]
 
 Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands in the next
-release.
+release, together with Phase 33.1, which retires the Bash command guard.
+
+### Removed
+
+- The Bash PreToolUse command guard, the command model it read, and its test corpus (33.1 D-17).
+  grugops no longer decides from a shell string whether a command is a production deploy or a
+  protected-branch merge. Thirty-three phases of fixes showed that no parser of shell text could be
+  closed against every way of writing a command, so the guard is retired rather than patched again.
+- The whole two-key floor-grant family, including the deploy-approval environment variable, the run
+  banner, the two-key evaluator and the checkpoint-note writer whose only production caller was
+  the guard (33.1 D-17, D-26).
+- UAT oracle A2, which asserted the guard's deny, and the prod-deploy probe case in the live
+  capture runner (33.1 D-22, D-28). The live capture now proves the spawn and dual-path criteria
+  only.
+
+### Added
+
+- The standalone installer translates the `checkpoints` config into Claude Code `permissions.ask`
+  rules in `.claude/settings.json`: `git push` and `gh pr merge` for protected-branch merges, and
+  the deploy and publish tools the retired guard named for production (33.1 D-18). The set covers
+  only those tools; local ref writes are not added, because the git host is the hard floor
+  (33.1 D-29). The installer records what it added in a ledger, so a re-run is idempotent,
+  pre-existing user rules are preserved, and uninstall removes only what install added.
+- A read-only git-host check, `tools/grugops/host-protection.js`, that the gate and release
+  workflows run. It reports `protected`, `unprotected` or `UNKNOWN - verify` for each protected
+  branch and production environment, and never changes host settings (33.1 D-19).
+- A "Where each floor is enforced" section in `docs/GUARANTEES.md`, generated from the audit model,
+  that names the hard-floor, speed-bump and prose tier of every safety floor.
 
 ### Changed
+
+- The CLAUDE.md "Safety (hard)" constraint now defines mechanical enforcement as the git host
+  (branch protection and deployment environments) plus host CLI permission prompts, not a grugops
+  PreToolUse parser (33.1 D-21).
+- The `open_pr` and `test_integrity` checkpoints are prose-tier rules. No hook enforces them, and
+  every document says so (33.1 D-26).
 
 - The coordinator adapter's `tools:` grant carries the plugin's MCP admission tool under the
   platform's scoped name, `mcp__plugin_grugops_grugops__propose_note`, through a new `admit`
@@ -32,6 +65,13 @@ release.
 
 ### Security
 
+- Where each safety rule is enforced, stated plainly. The git host is the hard floor: branch
+  protection or rulesets on protected branches and a production deployment environment with a
+  required reviewer are what stop an unapproved merge or deploy, whatever the agent types. The
+  Claude Code ask rules are a speed bump and not a security boundary: they make Claude Code ask
+  before a matched command, they do not match every way of writing one, and the plugin form carries
+  none. Configure host protection with the checklist in `install/README.md` §5, and confirm it
+  with the read-only host check. Prose rules remain prose.
 - The admission-guard hook's matcher now matches the plugin-scoped tool name
   (`mcp__(plugin_grugops_)?grugops__.*`). Before this change the matcher was the bare server family
   `mcp__grugops__.*`, and the platform's plugin reference states that for a plugin's bundled MCP
@@ -51,18 +91,6 @@ release.
   file-based kit holds no secret the constrained process cannot read — so it distinguishes
   hand-composed from writer-composed notes and detects post-write edits; it does not stop a process
   that reimplements the algorithm. That un-forgeable tier is a human decision not taken here.
-- The prod-deploy guard now recognizes a governed tool whose name is spelled with shell quoting or
-  escaping. Before this change `g\it push origin main`, `"g"it push --force origin main`,
-  `k\ubectl -n prod apply -f x`, `terra""form apply`, `n\pm publish` and zsh's
-  `=kubectl -n prod apply -f x` ran with no approval and no deny, because the command model searched
-  the typed text for the tool name and the quoting had removed it. Both arms of the command model
-  now ask one function (`governedToolsNamedBy` in `scripts/checkpoints.ts`) that reads a word the
-  way the shell resolves it: quote and backslash removal, `$'…'` escapes, zsh's leading `=`, brace
-  and pathname patterns, and the bodies of command substitutions. `vercel` joined the command model
-  so that a quoted `vercel --prod` is recognized too. The guard does not evaluate expansions: a tool
-  name computed at run time (`K=git; $K push`), a renamed or symlinked binary, an alias, and a name
-  assembled inside another interpreter's string are not recognized; `scripts/checkpoints.ts` lists
-  these beside `failClosedCheckpoints`.
 
 ## [2.1.0] - 2026-09-18
 

@@ -309,7 +309,7 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 - kind: safety
 - depends_on: protected_branch_merge, production_requires_human_confirmation, test_integrity
 - status: overstated
-- mechanism: `hooks/guard.ts` denies protected-branch pushes (`git push … main|master|release/`, and any force push) and a production-deploy verb set unless the human-set `GRUGOPS_PROD_DEPLOY_APPROVED` is present, and refuses any command that tries to inline-set it, so an agent cannot self-approve; `factory.config.json` carries `production_requires_human_confirmation: true` and `quality.test_integrity: "warn"`. THE OVERSTATEMENT IS SCOPE, measured at `hooks/hooks.json`: the guard is wired as a PLUGIN-level PreToolUse hook, and `install/install.ts:1571` prints in its own installed output that `the mechanical prod-deploy guard is Claude-Code-only (plugin hooks/hooks.json)` — so on the other four advertised host CLIs, and on the standalone `.claude/` install form, these rules are held by prompt alone. `guard.ts` additionally records env-var indirection as an out-of-scope residual.
+- mechanism: re-stated 2026-09-26 for 33.1 D-17, D-26 (the Bash command guard, its deploy approval and the two-key floor grants were retired). Three tiers now hold these rules. (1) HARD FLOOR — the git host: branch protection or rulesets on protected branches (pull request, review, no force push) hold `protected_branch_merge`, and a production deployment environment with a required reviewer holds `production_requires_human_confirmation`, for every host CLI and both install forms, but only where the human has configured them; grugops never configures the host and checks it read-only with `tools/grugops/host-protection.js` (33.1 D-19). (2) SPEED BUMP — the standalone installer translates those two `checkpoints` cells into Claude Code `permissions.ask` rules in `.claude/settings.json` (33.1 D-18); they make Claude Code ask before a matched command, they are not a security boundary, and the plugin form and the other four CLIs carry none. (3) PROSE — `test_integrity` has no mechanical tier; it is held by the gate workflow's text (33.1 D-26). THE OVERSTATEMENT IS STILL SCOPE: the sentences are absolutes, and the hard floor holds only on a host where protection is configured; elsewhere the rules are held by prompt and, in the standalone Claude Code form, by the speed bump.
 - disposition: accepted
 - finding_id: F-28-205
 
@@ -897,9 +897,11 @@ sentences must now be recorded `dropped` is measured separately.
 
 `protected_branch_merge` was recorded above as a **hard limit with no config key** until Phase 30
 gave it the cell `checkpoints.protected_branch_merge`. That cell does not make the floor dialable by
-an agent: lowering it below `block` needs a second key the config cannot carry — a human-set
-`GRUGOPS_FLOOR_PROTECTED_BRANCH_MERGE` in the session the hook reads — so a config edit alone
-changes nothing, and the denial names the missing variable.
+an agent: lowering it below `block` needed a second key the config cannot carry — a human-set
+session variable the hook read — so a config edit alone changed nothing. **2026-09-26: that
+second key and the hook that read it were retired by 33.1 D-17 and D-26.** The cell is now read by
+the standalone installer, which writes Claude Code ask rules from it (a speed bump), and the hard
+floor for a protected-branch merge is the git host's branch protection (33.1 D-18, D-19).
 
 **A declared safety rule with no floor, recorded rather than papered over.** `AGENTS.md:29` calls
 the kit-versus-state block *"a resolution and safety rule, not a joke"*, and `AGENTS.md:31-34`
@@ -934,7 +936,7 @@ drift is fixed; the residual is named, and it is the same one residual in all fo
 | F-28-202 | C-28-003 | **true** | — | 29-07 — the voice was rebuilt across all 17 blocks and `guard_caveman_voice` reports `0 findings over 17/17 elements`, watched RED on all 17 in 29-01 first; CLOSED |
 | F-28-203 | C-28-010 | overstated | accepted | 28-05 — `AGENTS.md:6` now agrees with `AGENTS.md:21`; the *"humans decide"* residual is C-28-023's |
 | F-28-204 | C-28-012 | **true** | — | 29-05/29-06/29-07 — the D-30 when-absent fallback sentence now stands in the `## Reads` section of 17 of 17 in-set role files; CLOSED |
-| F-28-205 | C-28-018 | overstated | accepted | the mechanical guard is Claude-Code-plugin-only; residual named in the row |
+| F-28-205 | C-28-018 | overstated | accepted | the mechanical guard is Claude-Code-plugin-only; residual named in the row. 2026-09-26: the guard this finding describes was retired by 33.1 D-17 |
 | F-28-206 | C-28-021 | **true** | — | 28-05 — the `handoff packet` hit the drift guard reported; CLOSED |
 | F-28-207 | C-28-022 | **true** | — | 28-05 — the linear-pipeline claim; CLOSED |
 | F-28-208 | C-28-023 | overstated | accepted | **D-19 item 4** — the irreducible same-uid / no-hook forgery residual |

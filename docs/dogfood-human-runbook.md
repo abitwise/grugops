@@ -5,10 +5,11 @@ professional English because it covers a safety topic; there is no caveman voice
 
 grugops dispatches the same factory two ways. The **sequential `AGENTS.md` path** was run by an
 agent and captured as REAL proof in `examples/03-ticket-to-pr.md` and
-`examples/01-greenfield-bootstrap.md`. The three checks below require a **live, interactive
-Claude Code session** — a plugin marketplace install, the plugin-cache pointer resolution, a real
-PreToolUse hook firing, and a sub-agent spawn. An executor agent **cannot honestly self-perform
-these**, so they are not simulated or fabricated; a human runs them here and records the result.
+`examples/01-greenfield-bootstrap.md`. The live checks below (Checks 1 and 3) require a **live,
+interactive Claude Code session** — a plugin marketplace install, the plugin-cache pointer
+resolution, and a sub-agent spawn. An executor agent **cannot honestly self-perform these**, so
+they are not simulated or fabricated; a human runs them here and records the result. Check 2 is
+retired; its notice below says why and where its evidence now lives.
 
 This is the intended design — humans decide, agents execute — not a degradation. The honest
 "agent-proven vs human-confirmed" split is the point: the sequential path is proven by an agent,
@@ -23,11 +24,11 @@ result it did not actually observe.
 
 | Lane | What it is | Command | Authoritative or advisory |
 |------|------------|---------|---------------------------|
-| **Tier-1 — deterministic oracles** | No-LLM, fail-red checks of the deterministic parts of these UATs: WR-05 wording-consistency, the `hooks.json → guard.js` deny wiring, and dual-path artifact-structure parity. | `node scripts/check-uat-oracles.js` (exit 0 `ALL CHECKS PASSED` / 1 `N CHECK(S) FAILED`) | **Authoritative.** A red oracle is a real failure; a green oracle is a real pass. Never fabricated. |
-| **Tier-2 — headless E2E** | The live-runtime half (Checks 1–3 below) automated step-for-step against the real `claude` CLI in headless `--print` mode, gated on a `claude auth status` present-and-authed probe. | `npm run test:e2e` (dev/CI-only; loud-skips when the CLI is absent/unauthed) | **Authoritative — from a real authed run only.** When the probe fails it emits a LOUD SKIP and exits green via that skip; **a skip is NOT a pass** — the UAT stays `pending`, never flipped by a skip and never hand-set. |
+| **Tier-1 — deterministic oracles** | No-LLM, fail-red checks of the deterministic parts of these UATs: WR-05 wording-consistency and dual-path artifact-structure parity. | `node scripts/check-uat-oracles.js` (exit 0 `ALL CHECKS PASSED` / 1 `N CHECK(S) FAILED`) | **Authoritative.** A red oracle is a real failure; a green oracle is a real pass. Never fabricated. |
+| **Tier-2 — headless E2E** | The live-runtime half (Checks 1 and 3 below) automated step-for-step against the real `claude` CLI in headless `--print` mode, gated on a `claude auth status` present-and-authed probe. | `npm run test:e2e` (dev/CI-only; loud-skips when the CLI is absent/unauthed) | **Authoritative — from a real authed run only.** When the probe fails it emits a LOUD SKIP and exits green via that skip; **a skip is NOT a pass** — the UAT stays `pending`, never flipped by a skip and never hand-set. |
 | **Tier-3 — human persona/prose judgment** | "Is the prose senior enough" — the persona/voice scenarios that are self-grading and low-confidence for any machine. | `11-HUMAN-UAT.md` scenarios 1 & 2 (human sign-off) | **Advisory / human.** Never machine-graded; a human signs off. An LLM-judge here would manufacture a green, so it is deliberately out of scope. |
 
-The manual Checks 1–3 below are now **automated step-for-step by the Tier-2 harness** — the harness
+The manual Checks 1 and 3 below are now **automated step-for-step by the Tier-2 harness** — the harness
 mirrors this procedure. The manual steps remain the canonical description of *what* is being proven
 and are the human fallback when no authed CLI is available. In all cases a UAT status flips to
 passed/resolved **only from a real run's captured output** (Tier-1 oracle output or a real authed
@@ -43,19 +44,19 @@ of that equivalence lives in `scripts/dual-path-equivalence.ts`.
 
 This dogfood runs at `autonomy=pr`. It NEVER deploys to production.
 
-- **Do NOT set `GRUGOPS_PROD_DEPLOY_APPROVED`** at any point during this runbook. The whole point
-  of step 2 is to confirm the guard DENIES a deploy *because* that variable is absent. Setting it
-  would defeat the test and approve a production action that no one intends.
-- **Do NOT run a real deploy.** The sample repo has no production target. The deploy command in
-  step 2 (`kubectl apply -f x`) is a *probe* whose expected outcome is to be **blocked** — it must
-  never actually reach a cluster. If your shell is configured against a real cluster, change the
-  probe to a harmless matched pattern (e.g. `helm upgrade fake ./nope`) or run it with no
-  kube-context; the only thing being tested is that the PreToolUse hook fires and denies.
-- An agent may never grant its own approval. The guard (`hooks/guard.js`) also refuses any inline
-  attempt to set or export `GRUGOPS_PROD_DEPLOY_APPROVED` — approval must come from a human in the
-  shell that launches Claude. Do not attempt to work around this.
+- **Do NOT run a deploy command.** None of the checks below needs one, and the sample repo has no
+  production target. The agent opens a branch and a pull request and never merges.
+- **The git host is the hard floor.** Branch protection on the protected branches and a production
+  deployment environment with a required reviewer are what stop an unapproved merge or deploy.
+  Check them read-only with `node tools/grugops/host-protection.js`, which prints `protected`,
+  `unprotected` or `UNKNOWN - verify` for each branch and environment. The setup checklist is in
+  `install/README.md` §5.
+- **The Claude Code ask rules are a speed bump, not a security boundary.** The standalone installer
+  writes them into `.claude/settings.json`, so Claude Code asks before a matched push, merge,
+  deploy or publish command. They do not stop a command that is not matched, and the plugin form
+  carries none.
 
-These constraints keep SAFE-02 mechanical and uphold V14: humans always hold merge and deploy.
+These constraints uphold V14: humans always hold merge and deploy.
 
 ## Prerequisites
 
@@ -103,36 +104,25 @@ pointers resolve against the user's repo and produce real planning output rather
 
 ---
 
-## Check 2 — Live PreToolUse hook firing (SAFE-02)
+## Check 2 — retired (33.1 D-17, D-28)
 
-**Why:** `hooks/guard.js` is wired as a plugin-level PreToolUse Bash matcher
-(`hooks/hooks.json` → `node "${CLAUDE_PLUGIN_ROOT}/hooks/guard.js"`). The unit harness
-(`npx vitest run hooks`, the `hooks/guard.test.ts` suite) proves the Node logic in isolation; this check proves the full
-wiring fires for real inside a live session. The guard is the mechanical backstop for "humans
-decide, agents execute."
+This check used to confirm, in a live session, that a Bash command guard shipped by grugops denied
+a production-deploy command. Phase 33.1 retired that guard (33.1 D-17): no parser of shell text
+could be closed against every way of writing a command. The live check was retired with it, and
+so was the UAT oracle that asserted the deny (33.1 D-28). There is nothing left for this check to
+observe, so it is not run. The number is kept so that the other checks and the cross-references
+below keep their numbers.
 
-**Steps (run inside the sample repo, plugin installed, in a live Claude Code session):**
+Where the two remaining safety tiers are evidenced instead:
 
-1. Confirm `GRUGOPS_PROD_DEPLOY_APPROVED` is **NOT** set in the shell that launched Claude:
-   ```text
-   (in that shell, before launching Claude) printenv GRUGOPS_PROD_DEPLOY_APPROVED   # must print nothing
-   ```
-2. Ask Claude Code to run a matched production-deploy command — a *probe* that must be blocked,
-   never one that can reach a real cluster:
-   ```text
-   run: kubectl apply -f x
-   ```
+- **Speed bump (Claude Code ask rules).** How an `ask` rule behaves when Claude Code runs
+  non-interactively was measured at zero tokens and is recorded in
+  `.planning/phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-ASK-P-MODE-EVIDENCE.md`.
+- **Hard floor (git host).** Run `node tools/grugops/host-protection.js` in the sample repo. It is
+  read-only and reports `protected`, `unprotected` or `UNKNOWN - verify` for each protected
+  branch and production environment.
 
-**Expected outcome:** The PreToolUse hook intercepts the Bash call and Claude Code presents the
-clear-voice deny message, refusing to run it — wording along the lines of:
-
-> Production deploy blocked: humans decide, agents execute. This command matches a
-> production-deploy pattern and GRUGOPS_PROD_DEPLOY_APPROVED is not set. A human must export
-> GRUGOPS_PROD_DEPLOY_APPROVED in the shell that launches Claude … then re-run the deploy.
-
-Do not export the variable to "make it pass." A successful test is the command being **denied**.
-
-**Record:** PASS / FAIL — ___________  (notes: ____________________________________________)
+**Record:** none. This check is retired.
 
 ---
 
@@ -175,7 +165,7 @@ The dual-path parity table lives in `examples/03-ticket-to-pr.md` under
 from the captured run. Its **CC-native (human-confirmed)** column currently reads `pending human`
 in every cell.
 
-Once Checks 1–3 above pass, replace each `pending human` cell with the confirmed result and
+Once Checks 1 and 3 above pass, replace each `pending human` cell with the confirmed result and
 verify it **equals** its sequential counterpart:
 
 - Same ticket: `ABC-001 — GET /version endpoint`.
@@ -183,8 +173,8 @@ verify it **equals** its sequential counterpart:
   stamp (D-05) — the dual-path artifact, not any generated filename.
 - Same gate verdict string: `READY_FOR_HUMAN_REVIEW`.
 - Same validator outcome: `ALL CHECKS PASSED` (exit 0).
-- Plus the two CC-only confirmations: D-31 pointer resolution (Check 1) and the SAFE-02 live deny
-  (Check 2).
+- Plus the CC-only confirmation: D-31 pointer resolution (Check 1). The table has no live-deny
+  row, because that check is retired (Check 2).
 
 Record the captured run as evidence for the retirement gate: note the **capture date** and the
 observed **verdict string** (`READY_FOR_HUMAN_REVIEW`) alongside the filled cells — that one
@@ -197,7 +187,7 @@ mark a cell passed that was not actually run.
 
 ## Outcome
 
-- All three checks PASS and the parity table is filled and matching → reply **"approved"** to the
+- Checks 1 and 3 PASS and the parity table is filled and matching → reply **"approved"** to the
   executor checkpoint; DOG-02 is confirmed and the plan can complete.
 - You want to defer the live session to milestone-close UAT → reply **"deferred"**; the CC-native
   cells stay `pending human` and the agent-proven half (sequential + validator) stands as the
