@@ -40,6 +40,9 @@ import {
   // this module's derived read-site axis turns red.
   readdirSync,
   renameSync,
+  // `linkSync` publishes a note EXCLUSIVELY (33.1-12, WR-02): a hard link fails EEXIST when anything
+  // occupies the final path, where a rename would replace it. See `publishNoteExclusive`.
+  linkSync,
   unlinkSync,
   mkdirSync,
   existsSync,
@@ -952,8 +955,10 @@ export function validate(text: string, trustedEmitter: ReservedIdentity | null =
 // ── atomicWrite: write a unique temp sibling, then rename onto the final path. ──────────────────
 // POSIX: rename atomically replaces. Windows (MoveFileEx): not atomic and fails with
 // EPERM/EEXIST/EACCES when the destination already exists — the unlink-then-rename branch handles
-// that. For note publication the final path is ALWAYS fresh/unique so the Windows branch never
-// fires; it exists for the single-writer derived-artifact (index.*) regen, which is freshness-gated.
+// that. It REPLACES whatever is at the final path, so it is for the single-writer derived artifacts
+// (index.*, regenerated and freshness-gated) and the callers outside this module that rewrite their
+// own files. It does NOT publish notes: since 33.1-12 (WR-02) a note is published by
+// `publishNoteExclusive`, which cannot replace an occupant.
 export function atomicWrite(finalPath: string, data: string): void {
   const tmp = `${finalPath}.tmp-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}`;
   writeFileSync(tmp, data, "utf8");
@@ -979,6 +984,86 @@ export function atomicWrite(finalPath: string, data: string): void {
       throw e;
     }
   }
+}
+
+// ── publishNoteExclusive: publish a temp file at a note path WITHOUT replacing anything (33.1-12,
+// WR-02). ──────────────────────────────────────────────────────────────────────────────────────
+//
+// WHAT WAS WRONG. The note writers decide what occupies a note path (`decideNoteDestination`) and
+// then publish in a SEPARATE step. The publish was `atomicWrite`, whose rename REPLACES the final
+// path — so an occupant created between the decision and the publish (a concurrent writer; Claude
+// Code runs parallel agents) was silently overwritten, while the comments described the earlier
+// decision as if nothing could change after it. It was a check-then-act.
+//
+// WHAT HOLDS NOW, AND WHAT DOES NOT. The decision and the publish are still two steps. What changed
+// is the publish: `link(2)` creates the final name only if nothing is there, atomically, and fails
+// EEXIST otherwise. So the publish CANNOT overwrite an occupant, whichever step saw it first. On
+// EEXIST the occupant is re-read through the one bounded reader and the identical-bytes rule
+// applies: the same bytes are the idempotent case, different bytes are refused and left untouched.
+// Any OTHER link failure is refused by name, and NO replacing rename is attempted as a fallback —
+// the fallback would re-open exactly the overwrite this function exists to close. That includes a
+// filesystem without hard links: it refuses note writes (`UNKNOWN - verify` which filesystems the
+// kit meets; FAT has no hard links, NTFS does). There is no platform branch (D-15).
+//
+// THE ACCEPTED RESIDUAL. The routes that write a note AND a GOV-02 event append the event FIRST
+// (31-21: an audit trail's conservative direction is to over-record). If a concurrent writer takes
+// the id after the destination decision and before this publish, this publish refuses AFTER the
+// line was appended, and the ledger over-records by one line. That is legible and reconcilable
+// against the notes directory, and it is the direction 31-21 chose; it is not closed here.
+//
+// The temp is the CALLER'S file (written with an exclusive create at an unpredictable name) and is
+// removed on every path out of this function, success or refusal; its removal is best-effort, since
+// a leftover temp ends in a random suffix rather than `.md` and is never read as a note.
+export function publishNoteExclusive(tmpPath: string, finalPath: string): void {
+  const removeTemp = (): void => {
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      /* best-effort: a leftover temp is not a note */
+    }
+  };
+  try {
+    linkSync(tmpPath, finalPath);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code ?? "UNKNOWN";
+    if (code !== "EEXIST") {
+      removeTemp();
+      throw new Error(
+        `context-io.publishNoteExclusive: refusing to publish (${code}) — the exclusive link to ` +
+          `"${finalPath}" failed for a reason other than an existing occupant. No replacing rename ` +
+          `is attempted in its place, because a rename would overwrite whatever is there; a ` +
+          `filesystem without hard links therefore refuses note writes. Nothing was published. ` +
+          `Underlying reason: ${(e as Error).message}`,
+      );
+    }
+    // Something occupies the final path. Decide it by its bytes, through the one bounded reader.
+    let occupant: string | null;
+    let candidate: string | null;
+    try {
+      occupant = readRegularFileOrNull(finalPath, NOTE_FILE_MAX_BYTES, "note destination");
+      candidate = readRegularFileOrNull(tmpPath, NOTE_FILE_MAX_BYTES, "note temp file");
+    } catch (readError) {
+      removeTemp();
+      throw new Error(
+        `context-io.publishNoteExclusive: refusing to publish — "${finalPath}" is occupied and the ` +
+          `occupant could not be compared, so it is left untouched and nothing was published. ` +
+          `Underlying reason: ${(readError as Error).message}`,
+      );
+    }
+    removeTemp();
+    if (occupant !== null && candidate !== null && occupant === candidate) return; // idempotent
+    throw new Error(
+      `context-io.publishNoteExclusive: refusing to publish — ` +
+        (occupant === null
+          ? `"${finalPath}" was occupied when the link was made and is gone now; the note is not ` +
+            `published over a path whose state changed under it. `
+          : `"${finalPath}" already holds a DIFFERENT note, which appeared after the destination ` +
+            `was decided. The shared verified context is APPEND-ONLY (SCTX-04); the occupant is ` +
+            `untouched. `) +
+        `Nothing was published.`,
+    );
+  }
+  removeTemp();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1359,7 +1444,7 @@ export function readRegularFileOrNull(
 // cannot be defeated by a novel metacharacter spelling (the anti-whack-a-mole posture). KNOWN LIMIT
 // (documented, NOT patched): a lexical resolve() does not follow symlinks, so a symlinked notes dir /
 // ancestor would pass containment — bounded by the same-uid direct-FS residual (the channel can only
-// atomicWrite a `.md`, never plant a symlink). The id is NOT inspected by validate(); this
+// publish a `.md`, never plant a symlink). The id is NOT inspected by validate(); this
 // path-containment is what catches a forged/precomputed id.
 //
 // ── APPEND-ONLY, ENFORCED HERE (31-18, CR-11). ──────────────────────────────────────────────────
@@ -1387,9 +1472,13 @@ export function readRegularFileOrNull(
 // the caller asked for already holds, there is no note to destroy, and the case is reachable without
 // any adversary — a re-run compaction promoting the same admitted note twice is an ordinary,
 // idempotent operation that must not become a refusal. Only a write that would CHANGE an existing
-// note's bytes is refused, and it is refused loudly. Returning early also means the rename primitive
-// is never asked to replace an existing file on this path, so `atomicWrite`'s Windows
-// unlink-then-rename branch stays what its own comment says it is: the derived-artifact path only.
+// note's bytes is refused, and it is refused loudly.
+//
+// THE PUBLISH IS EXCLUSIVE, BECAUSE THE DECISION ABOVE IS NOT THE LAST WORD (33.1-12, WR-02). The
+// decision reads the path; the publish happens after it. An occupant created in between used to be
+// REPLACED by `atomicWrite`'s rename. The publish is now `publishNoteExclusive`, a hard link that
+// fails if anything is there, and it applies the same identical-bytes rule to what it finds — so
+// the append-only property holds at the publish itself, not only at the earlier read.
 function writeNoteFile(notesDir: string, id: string, text: string): void {
   const { finalPath, resolvedFinal, existing } = decideNoteDestination(notesDir, id, text);
   if (existing !== null) {
@@ -1397,7 +1486,22 @@ function writeNoteFile(notesDir: string, id: string, text: string): void {
     throw differingOccupantRefusal(id, resolvedFinal);
   }
   mkdirSync(notesDir, { recursive: true });
-  atomicWrite(finalPath, text);
+  // The temp is created EXCLUSIVELY (`wx`, O_CREAT|O_EXCL) at a name carrying a random UUID, so it
+  // can neither replace nor open anything already there, including a planted FIFO.
+  const tmpPath = `${finalPath}.tmp-${process.pid}-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  try {
+    writeFileSync(tmpPath, text, { encoding: "utf8", flag: "wx" });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EEXIST") {
+      try {
+        unlinkSync(tmpPath);
+      } catch {
+        /* best-effort: a partial temp is not a note */
+      }
+    }
+    throw e;
+  }
+  publishNoteExclusive(tmpPath, finalPath);
 }
 
 // ── The append-only refusal, spelled ONCE (33-38). ─────────────────────────────────────────────
@@ -1523,7 +1627,9 @@ function decideNoteDestination(
   // reject has no coherent contract: either the object is admissible, in which case the reader is
   // wrong to refuse it, or it is not, in which case the write was wrong to succeed. The side that
   // ADMITS owns the bound, so the question is settled once, at composition, where "nothing was
-  // written" is true by construction rather than by cleanup. The read side KEEPS its own refusal —
+  // written" follows from the order of the code rather than from cleanup — and this check is not a
+  // check-then-act: the size is a property of the bytes in hand, which nothing on disk can change
+  // between the check and the write. The read side KEEPS its own refusal —
   // it must, because it reads files this module did not write — and both sides read the ONE
   // exported `NOTE_FILE_MAX_BYTES`, so they cannot disagree by a byte.
   //
@@ -1892,9 +1998,11 @@ export function appendNote(
   // no stamp and consults no governance dial. It asks the single authority and refuses on its
   // findings — which is what D-03 means by one authority per predicate.
   //
-  // WHY IT SITS EXACTLY HERE. After compose and validate, and BEFORE writeNoteFile. "Nothing is
-  // written" is then true by construction rather than by cleanup: no file has been opened when the
-  // refusal is decided. It is also why the call cannot be moved lower for convenience.
+  // WHY IT SITS EXACTLY HERE. After compose and validate, and BEFORE writeNoteFile. A refusal then
+  // writes nothing by the order of the code rather than by cleanup: no file has been opened when the
+  // refusal is decided. It is also why the call cannot be moved lower for convenience. (That is a
+  // statement about the authority's refusals, which read no destination. What occupies the note path
+  // is a separate, filesystem question, decided below and again at the exclusive publish.)
   //
   // RECURSION, CHECKED NOT ASSUMED (plan 31-09 assumption A1, RE-MEASURED on this tree rather than
   // inherited from 31-05, because `admit()` has changed since): `admit()` calls no note writer —
@@ -1916,6 +2024,11 @@ export function appendNote(
   // is asked first: a differing occupant raises the chokepoint's own append-only refusal, and that
   // function's other refusals (containment, a FIFO at the path) are raised here too. Identical bytes
   // fall through, exactly as the chokepoint decides them.
+  //
+  // This is a check-then-act (33.1-12, WR-02): an occupant created after this read and before the
+  // publish is refused by the exclusive publish and never overwritten, but after `admit()` has
+  // recorded the admission, so a lost race over-records the ledger by one line — the accepted
+  // residual of the ledger-first ordering (31-21).
   //
   // IN-01 (33.1-12): every refusal of this pre-check names THIS function, because the decision is
   // asked under the name of the function the caller called; it used to name the chokepoint, which
@@ -3317,8 +3430,10 @@ export function promoteAdmitted(
   }
 
   // ── FROM HERE ON THE NOTE CLAIMS TO BE A RE-BINDING, AND MUST PROVE IT. ────────────────────────
-  // Every clause below DECLINES before the write chokepoint is reached, so "nothing was written" is
-  // true by construction rather than by cleanup.
+  // Every clause below DECLINES before the write chokepoint is reached, so a decline writes nothing,
+  // by the order of the code rather than by cleanup. That is a statement about the declines. The
+  // destination clause further down reads the filesystem, and what it read can change before the
+  // publish; its own comment states what then holds.
   if (sourceId.trim() === "") {
     throw declineRebinding("empty-source-id", `The source id was ${JSON.stringify(sourceId)}.`);
   }
@@ -3467,12 +3582,18 @@ export function promoteAdmitted(
 
   // ── THE DESTINATION IS PART OF THE PROOF (31-18, CR-11), DECIDED FROM THE RAW FILE (33-38). ──
   // The clause sits HERE — before the ledger is read or appended and before the write chokepoint is
-  // reached — for the positional reason every other clause in this register sits where it does:
-  // "nothing was written" is then true by construction rather than by cleanup, and "nothing" includes
-  // the GOV-02 ledger. The chokepoint enforces the same invariant for every writer (see
-  // writeNoteFile); this clause exists so the refusal is LEGIBLE where a reader of the register
-  // looks, and so the route names its own decision rather than inheriting a message about a
-  // filesystem primitive.
+  // reached — for the positional reason every other clause in this register sits where it does: a
+  // refusal RAISED HERE writes nothing, and "nothing" includes the GOV-02 ledger. The chokepoint
+  // enforces the same invariant for every writer (see writeNoteFile); this clause exists so the
+  // refusal is LEGIBLE where a reader of the register looks, and so the route names its own decision
+  // rather than inheriting a message about a filesystem primitive.
+  //
+  // IT IS A CHECK-THEN-ACT, AND WHAT HOLDS ACROSS THE GAP IS STATED HERE (33.1-12, WR-02). This read
+  // and the publish are separate steps, with the ledger append between them. The publish is
+  // exclusive (`publishNoteExclusive`), so an occupant that appears in between is never overwritten:
+  // it is refused, and left byte-identical. But that refusal comes AFTER this route's GOV-02 line,
+  // so a lost race over-records the ledger by one line. That is the accepted residual: 31-21's
+  // ledger-first ordering prefers an over-record to a note with no record.
   //
   // WHY NOT `readRawNotes(task, to)`, WHICH IS WHAT STOOD HERE (33-38, WR-01). That walk is sealed
   // (33-25) and skips anything that does not parse, so an unsealed or malformed occupant was
@@ -3535,8 +3656,8 @@ export function promoteAdmitted(
   // THE LOOK IS FAIL-CLOSED (WR-22 (2)). `ledgerRecordsId` throws for a ledger that is present and
   // unreadable rather than answering "not recorded", because the response to "not recorded" is to
   // APPEND and a fail-open read would manufacture the duplicate D-19 (4) exists to prevent. The
-  // throw becomes a named decline here, raised before anything is written — so "nothing was
-  // written" stays true by construction rather than by cleanup, exactly like every clause above.
+  // throw becomes a named decline here, raised before anything is written — so this decline, like
+  // every decline above, writes nothing by the order of the code rather than by cleanup.
   const persistedId = sourceId;
   if (govResult.config.audit_retention === "retained") {
     // BOTH HALVES KEY ON `destinationRoot` (31-29, CR-20). `repoRoot` decided this look and this
@@ -6131,7 +6252,13 @@ export function admitAndAppend(
     // `promoteAdmitted` ask, before the retention guard: a differing occupant is refused here, with
     // nothing written and no ledger line; that function's own refusals (containment, a FIFO or a
     // directory at the path) are raised here too, before the ledger, exactly as the chokepoint would
-    // have raised them one step later. Identical bytes fall through to the write's no-op.
+    // have raised them one step later. Identical bytes fall through to the write's no-op, and their
+    // admission is not recorded a second time (33.1-12, WR-01).
+    //
+    // A CHECK-THEN-ACT, STATED AS ONE (33.1-12, WR-02). This read and the publish are separate
+    // steps with the ledger append between them. An occupant created in between is refused by the
+    // exclusive publish and never overwritten, but after the GOV-02 line, so a lost race
+    // over-records the ledger by one line: the accepted residual of the ledger-first order (31-21).
     const occupied = noteDestinationRefusal(join(contextRoot, task, "notes"), id, text);
     if (occupied.refusal !== null) return { id: null, findings: [occupied.refusal] };
     if (configResult.config.audit_retention === "retained") {
@@ -6227,7 +6354,8 @@ export function admitAndAppend(
   const text = composeNote(note, body, id);
   // OCCUPANCY BEFORE `admit()` HERE TOO (33-38, WR-01's fourth arm). `admit()` records the GOV-02
   // event under `audit_retention: retained` before the write below, so this branch asks the ONE
-  // destination decision first, exactly as its gated sibling does above.
+  // destination decision first, exactly as its gated sibling does above — including the same
+  // check-then-act residual that sibling states (a lost race over-records by one line; WR-02).
   const occupied = noteDestinationRefusal(join(contextRoot, task, "notes"), id, text);
   if (occupied.refusal !== null) return { id: null, findings: [occupied.refusal] };
   // A GOV-02 ledger that cannot be written refuses here too (31-21). Same argument as `appendNote`'s:

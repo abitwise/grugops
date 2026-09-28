@@ -102,7 +102,15 @@ const EXPECTED_NOTE_WRITER_COUNT = 4;
  * binds it — a hand-authored context path could still reach it — which is exactly why it is named
  * here instead of being left as a silence. T-31-25, disposition `accept`.
  */
-const NON_NOTE_WRITER_RESIDUALS = Object.freeze(["atomicWrite"]);
+//
+// 33.1-12 (WR-02) ADDS `publishNoteExclusive`, CLASSIFIED rather than bumped. It is exported (the
+// plan's contract, so its refusals can be driven directly), it takes BOTH paths from its caller, and
+// it does not reach writeNoteFile — writeNoteFile reaches IT. What it can do to a caller-chosen path
+// is narrower than `atomicWrite`: it creates `finalPath` only if nothing is there (a hard link fails
+// EEXIST) and removes `tmpPath`. It can never overwrite. Handed an arbitrary `tmpPath`, it moves that
+// file to a free name, which a same-uid actor importing this module can already do with `node:fs`
+// itself: the standing T-31-25 residual, disposition `accept`, the same as `atomicWrite`'s.
+const NON_NOTE_WRITER_RESIDUALS = Object.freeze(["atomicWrite", "publishNoteExclusive"]);
 
 /**
  * Occurrences of `appendNote(` across tracked NON-TEST sources under scripts/, hooks/, install/.
@@ -157,6 +165,9 @@ const FS_WRITE_PRIMITIVES = Object.freeze([
   "writeFileSync",
   "appendFileSync",
   "renameSync",
+  // 33.1-12 (WR-02): `linkSync` creates a directory entry, so it is a WRITE. It entered the module's
+  // node:fs import list as the exclusive note publish; see the alphabet case below.
+  "linkSync",
   "unlinkSync",
   "mkdirSync",
   "rmSync",
@@ -2400,7 +2411,9 @@ describe("31-05 — the reachability remainder is written down", () => {
       transitive.length,
       "the set of exported non-note-writers that can reach the filesystem at all moved; the " +
         "residual disclosure above is stated against a remainder that is no longer the measured one",
-    ).toBe(3);
+      // 3 -> 4 (33.1-12, WR-02): `publishNoteExclusive`, the exported exclusive publish, disclosed in
+      // NON_NOTE_WRITER_RESIDUALS above. Re-derived from the source, not bumped.
+    ).toBe(4);
   });
 
   it("the filesystem alphabet the residual is derived over is itself bounded", () => {
@@ -2447,7 +2460,12 @@ describe("31-05 — the reachability remainder is written down", () => {
       // primitive — it was never one — so the residual this file derives is unaffected in the
       // direction this assertion guards. Re-adding it is drift, and PART SIX-F's read-site axis is
       // where that shows up as a named member rather than as a bare count.
-    ).toBe(14);
+      //
+      // 14 -> 15 (33.1-12, WR-02), CLASSIFIED rather than bumped: `linkSync` was ADDED. It creates a
+      // directory entry, so it is a WRITE primitive and joined FS_WRITE_PRIMITIVES in the same
+      // change; it does not block on a FIFO (link(2) never opens either path), so the read-site
+      // axis is unaffected by it.
+    ).toBe(15);
   });
 });
 
@@ -3811,16 +3829,25 @@ const FS_SITE_DISPOSITIONS: Readonly<Record<string, string>> = Object.freeze({
     "`${finalPath}.tmp-${pid}-${Date.now()}-${randomUUID().slice(0,8)}` — a name carrying a random " +
     "UUID no caller can predict and therefore no caller can pre-occupy with a FIFO. The subsequent " +
     "`renameSync` REPLACES whatever sits at the final path rather than opening it, and rename does " +
-    "not block on a FIFO. What protects the final path from being replaced is not this call but " +
-    "`writeNoteFile`'s append-only refusal one frame up — CR-11's closure, asserted by PART SIX-E " +
-    "and by the destination cases in scripts/context-io.test.ts. Residual R-31-21-01: a caller who " +
+    "not block on a FIFO. Since 33.1-12 (WR-02) this function no longer publishes notes — the index " +
+    "artifacts and out-of-module callers use it — so it protects no note path; notes are published " +
+    "by `publishNoteExclusive`, which cannot replace an occupant. Residual R-31-21-01: a caller who " +
     "can WATCH the temp name appear and win the race between the write and the rename is already a " +
     "same-uid direct-filesystem actor, which is the standing T-31-25 residual this module does not " +
     "close and does not claim to.",
+  "writeNoteFile:writeFileSync":
+    "NOT AIMABLE, and CREATED EXCLUSIVELY (33.1-12, WR-02). The note's temp file is " +
+    "`${finalPath}.tmp-${pid}-${Date.now()}-${randomUUID().slice(0,8)}` — a random UUID no caller " +
+    "can predict — and it is opened with flag `wx` (O_CREAT|O_EXCL), which fails EEXIST on anything " +
+    "already at the name, a FIFO included, instead of opening it. So a planted FIFO cannot wedge it " +
+    "and a planted file cannot be written through. The note is then published from this temp by " +
+    "`publishNoteExclusive`'s hard link, which never opens the final path either.",
 });
 
 /** The cardinality, asserted separately from the membership: an ADDED site is its own event. */
-const EXPECTED_FS_SITE_COUNT = 5;
+// 5 -> 6 (33.1-12, WR-02): `writeNoteFile:writeFileSync`, the exclusive temp create, with its
+// written disposition above. Re-derived from the source.
+const EXPECTED_FS_SITE_COUNT = 6;
 
 describe("31-21 — every blocking-capable filesystem call is derived, and each carries a disposition", () => {
   it("PREMISE: the derivation actually found blocking-capable calls, in BOTH authorities", () => {

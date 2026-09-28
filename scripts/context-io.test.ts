@@ -12860,7 +12860,7 @@ function deriveCeilingSites(sourcePath: string): CeilingSite[] {
 
 const siteKey = (s: CeilingSite): string => `${s.scope}:${s.via}:${s.text}`;
 
-/** MEASURED, then written down. Nine positions decide with a ceiling; every one reads a binding. */
+/** MEASURED, then written down. Eleven positions decide with a ceiling (nine before 33.1-12); every one reads a binding. */
 const EXPECTED_CEILING_SITES: readonly string[] = Object.freeze([
   "appendAuditLedger:appendRegularFileLine#3:AUDIT_LEDGER_MAX_BYTES",
   "appendRegularFileLine:comparison:maxBytes",
@@ -12870,6 +12870,12 @@ const EXPECTED_CEILING_SITES: readonly string[] = Object.freeze([
   "decideNoteDestination:comparison:NOTE_FILE_MAX_BYTES",
   "decideNoteDestination:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "ledgerRecordsId:readRegularFileOrNull#1:AUDIT_LEDGER_MAX_BYTES",
+  // 33.1-12 (WR-02): the exclusive publish decides a link that met an occupant by comparing BYTES,
+  // so it reads the occupant and its own temp through the one reader, both under the note ceiling.
+  // Two sites, one scope: the occupant is a new fact (it appeared after the destination decision),
+  // not a second answer to the decision's question.
+  "publishNoteExclusive:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
+  "publishNoteExclusive:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "readCliNoteFileOrExit:readRegularFileOrNull#1:NOTE_FILE_MAX_BYTES",
   "readGovernanceConfigCandidate:readRegularFileOrNull#1:GOVERNANCE_CONFIG_MAX_BYTES",
   // 31-29 (IN-14): the walk was split into `readRawNotesWithSkips` (both views) and a
@@ -12880,7 +12886,8 @@ const EXPECTED_CEILING_SITES: readonly string[] = Object.freeze([
 ]);
 
 /** The per-ceiling cardinalities, asserted SEPARATELY — a bound losing one side is its own event. */
-const EXPECTED_NOTE_CEILING_SITES = 4;
+// 4 -> 6 (33.1-12, WR-02): the two `publishNoteExclusive` reads listed above.
+const EXPECTED_NOTE_CEILING_SITES = 6;
 const EXPECTED_LEDGER_CEILING_SITES = 2;
 
 describe("31-29 — every byte ceiling is ONE binding, read by both sides", () => {
