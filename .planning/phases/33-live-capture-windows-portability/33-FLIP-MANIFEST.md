@@ -27,7 +27,7 @@ rather than either being trusted.
 | capture summary | `33-CAPTURE-SUMMARY.md` |
 | parity table file | `examples/03-ticket-to-pr.md` |
 | parity table header cell | `Parity dimension` |
-| parity data rows | `7` |
+| parity data rows | `6` |
 | pinned live-surface total | `28` |
 | residual token | `pending human` |
 
@@ -128,12 +128,15 @@ resolves (a stale exemption is a derivation failure, not a pass):
 |---|---|---|
 | `.planning/PROJECT.md` | `*Last updated: 2026-06-04 — Phase 6 (Validation, Brand & Dogfood) complete` | A dated entry in `## Evolution` (L322). It records what Phase 6 shipped on 2026-06-04, including the cells it left for a human. |
 | `.planning/STATE.md` | `- [Phase 06]: [06-05] Hybrid dogfood` | A dated decision-log entry (L658) written by the state tooling at the time; the decisions log is a record of decisions at their dates. |
+| `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `All 5 content checks pass: plugin install, PreToolUse/hook/kubectl` | Added by the section 10 amendment (33.1 D-22, D-28). The runbook content-check row (L63) records what the Phase 6 verifier checked on its date, including the retired approval variable. Its flip row (F26) was retired with the probe, so the line stays as milestone history and is exempt by this anchor. |
 
 Measured T1 over the live-surface set in the pre-capture state (`grep -ain 'pending human'`): 27
 lines — `examples/03-ticket-to-pr.md` 9 (L16, L182, L187-L193), `docs/dogfood-human-runbook.md` 3
 (L175, L178, L203), `06-HUMAN-UAT.md` 1 (L32), `06-VERIFICATION.md` 8 (L10, L30, L32, L34, L60,
 L63, L71, L133), `19-VERIFICATION.md` 2 (L17, L127), `.planning/PROJECT.md` 3 (L239, L241, L322),
 `.planning/STATE.md` 1 (L658). All but the two exempt lines are flip-class or correction-class rows.
+That census is the measurement at `6b33fb9e`. Section 10 records the lines the 33.1 amendment removed
+and the third exemption it added.
 
 ### 1.5 Members, as derived on this tree
 
@@ -230,8 +233,7 @@ file that was omitted. Neither side is written down against the other.
 | F6 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 3 "Plugin-cache pointer resolution (D-31)"` | right cell `pending human` (runbook step 1) | both cells in the citation form |
 | F7 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 4 "Handoff filenames produced"` | left cell names handoff files MIGR-02 deleted; right cell `pending human` | the row becomes the typed notes each path published into the shared context (D-19); both cells in the citation form |
 | F8 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 5 "Gate verdict"` | right cell `pending human` (runbook step 3) | both cells in the citation form |
-| F9 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 6 "Live PreToolUse deploy guard (SAFE-02)"` | right cell `pending human` (runbook step 2) | both cells in the citation form; the observed deny is the hook event of D-04 |
-| F10 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 7 "Validator on resulting tree (DOG-01)"` | right cell `pending human` (runbook step 4) | both cells in the citation form |
+| F10 | `examples/03-ticket-to-pr.md` | `parity-row` | `row 6 "Validator on resulting tree (DOG-01)"` | right cell `pending human` (runbook step 4) | both cells in the citation form |
 | F11 | `docs/dogfood-human-runbook.md` | `anchor` | `` column currently reads `pending human` `` | L175 | the runbook describes the human fallback; the column is filled and cited |
 | F12 | `docs/dogfood-human-runbook.md` | `anchor` | `` replace each `pending human` cell `` | L178 | past tense or removed; the step is the fallback procedure |
 | F13 | `docs/dogfood-human-runbook.md` | `anchor` | `` cells stay `pending human` `` | L203, the deferred outcome | removed or reworded without the literal |
@@ -247,7 +249,6 @@ file that was omitted. Neither side is written down against the other.
 | F23 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `\| HUMAN NEEDED \|` | L32, truth 7 | `\| VERIFIED \|` with the citation |
 | F24 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `**Score:** 6/7 truths verified (1 pending human by design)` | L34 | `**Score:** 7/7 truths verified` with the capture date |
 | F25 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `REAL capture with gate verdict + pending human parity cells` | L60 | the parity cells are captured and cited |
-| F26 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `GRUGOPS_PROD_DEPLOY_APPROVED, pending human \|` | L63, the runbook content-check row | the checklist's last item names the fallback, not a pending cell |
 | F27 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `` side-by-side parity table with `pending human` cells `` | L71 | the table is filled and cited |
 | F28 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `\| PARTIALLY SATISFIED \|` | L105, DOG-02 | `\| SATISFIED \|` with the citation |
 | F29 | `.planning/milestones/v1.0-phases/06-validation-brand-dogfood/06-VERIFICATION.md` | `anchor` | `The one human_needed item (DOG-02 CC-native path)` | L143, the gaps paragraph | states the item was captured on the capture date and cites the summary |
@@ -277,13 +278,11 @@ file that was omitted. Neither side is written down against the other.
 | F53 | `.planning/WINDOWS.md` | `ledger-row` | `id 1` | `open` — SPAWN-03 runtime half unobserved | `fixed` via the tool, reason citing the summary |
 | F54 | `.planning/WINDOWS.md` | `ledger-row` | `id 183` | `open` — live lane not run for 32-17 | `fixed` via the tool, reason citing the summary |
 | F55 | `.planning/WINDOWS.md` | `ledger-row` | `id 211` | `open` — A1 empty capture on 2026-09-18 | `fixed` via the tool, reason citing the summary |
-| F56 | `.planning/WINDOWS.md` | `ledger-row` | `id 212` | `open` — SAFETY CASE, A2-live deny absent on 2026-09-18 | `fixed` via the tool, reason citing the D-04 hook event in the summary |
 | F57 | `.planning/WINDOWS.md` | `ledger-row` | `id 213` | `open` — A3-live no verdict convergence on 2026-09-18 | `fixed` via the tool, reason citing the summary |
 | F58 | `.planning/WINDOWS.md` | `ledger-row` | `id 214` | `open` — stale `npm test` docblock claim; declared on the premise that plan 33-08 (D-08) lands before the flip and leaves the ledger untouched | `fixed` via the tool, reason citing the 33-08 rewrite |
 | F59 | `.planning/PROJECT.md` | `anchor` | `GAP-D1 rides along` | L51, the current-milestone standing obligations | discharged, with the capture date and summary |
 | F60 | `.planning/PROJECT.md` | `anchor` | `1. **GAP-D1 — the A3/DOG-02 retirement flip.**` | L175, the carried-obligations list | discharged, with the capture date and summary |
 | F61 | `.planning/PROJECT.md` | `anchor` | `DOG-02 live-CC half still pending human` | L239, the key-decisions outcome column | the live half captured on the capture date |
-| F62 | `.planning/PROJECT.md` | `anchor` | `live firing pending human (Deferred Items)` | L241, the key-decisions outcome column | the live deny observed on the capture date (D-04) |
 
 The declared set, as the union of the `File` columns above and in section 3 (14 files):
 `33-FLIP-MANIFEST.md`, `examples/03-ticket-to-pr.md`, `docs/dogfood-human-runbook.md`,
@@ -312,7 +311,9 @@ sed -n '187,193p' examples/03-ticket-to-pr.md | grep -ac 'pending human'  -> 7 r
 grep -ac 'pending human' examples/03-ticket-to-pr.md                      -> 9 (7 cells + L16 + L182)
 ```
 
-The parity table has exactly 7 data rows and exactly 7 right-hand cells. Nine archived sentences
+At commit `6b33fb9e` the parity table had exactly 7 data rows and exactly 7 right-hand cells. Section 10
+retires data row 6, so the table now has 6 of each; the counts in rows C1-C9 below are the measurement
+at `6b33fb9e` and section 10 records what that means for their corrected wording. Nine archived sentences
 across three files say 9 — the count of every occurrence of the phrase in the file, which was never
 the count of the table's cells. RESEARCH § "The count disagreement" measured five such sentences;
 this plan's census (`grep -aon '9 [^|]\{0,40\}cells' <file>`) found nine, listed below. A tenth row
@@ -743,3 +744,64 @@ subagent route under D-02 (a), and whether the D-04 row keys on the probe) chang
 instrument measures. Then plan 33-11's Tasks 2 through 4 are executed as written against this
 manifest with the two owed amendments, in one commit over the fourteen declared files. That work
 belongs to a later phase, not to this one.
+
+---
+
+## 10. Amendment (phase 33.1, plan 33.1-09) — the prod-deploy probe rows are retired (33.1 D-22, D-28)
+
+**What changed and why.** Phase 33.1 retired the Bash command guard (33.1 D-17, retirement commit
+`1b240a14`). Once the guard was gone there was nothing for a prod-deploy probe to observe, so the
+capture runner dropped the probe case (33.1 D-22) and UAT oracle A2, the probe's deny oracle, was
+retired with it (33.1 D-28). Four flip rows were keyed on that probe. A capture can no longer
+produce the value any of them promised, so a flip that kept them would have to invent a citation.
+Under section 5 this manifest records the change here, with its reason, before the gate is re-run.
+
+**Rows retired from the flip table (section 2.3).** Row ids are labels and the other rows are not
+renumbered.
+
+- **F9** — parity row 6, `Live PreToolUse deploy guard (SAFE-02)`, in `examples/03-ticket-to-pr.md`.
+  The row is deleted from the parity table in the same commit as this section. The live-check
+  sentences at the top of that file and above the table no longer list the hook firing among the
+  live checks. The F2 and F3 anchors in those sentences are byte-identical.
+- **F26** — the runbook content-check line in `06-VERIFICATION.md` (L63) that names the retired
+  approval variable. It stays as milestone history and is not rewritten. It still carries the cell
+  token, so section 1.4 gains a third exemption, anchored on a fragment of that line. Without
+  it the residual rule would refuse a line that this manifest no longer asks the flip to change.
+- **F56** — `.planning/WINDOWS.md` row 212, the A2-live deny that was absent on 2026-09-18. The row
+  closes as dissolved by the retirement, through the ledger tool that section 1.6 names, in plan
+  33.1-11 after the D-20 human go. It is not closed here. This amendment has to land first,
+  because the gate refuses a closed ledger row that the manifest still declares open.
+- **F62** — the `.planning/PROJECT.md` key-decisions outcome for "Enforce prod-safety mechanically".
+  It is rewritten in the same commit as this section to record the revision: the guard was retired
+  by 33.1 D-17, and enforcement is now the git host (hard floor) plus the installer's Claude Code
+  ask rules (speed bump). The F59, F60 and F61 anchors in that file are untouched.
+
+**What else moves with them.**
+
+- The settings row `parity data rows` changes from `7` to `6`. F10's locator changes from `row 7`
+  to `row 6 "Validator on resulting tree (DOG-01)"`, the same row under its new index. The gate's
+  three-way agreement (table rows, declared count, enumerated parity-row locators) reads 6, 6, 6.
+- The declared set stays at **14 files**. Each file that held a retired row keeps other rows:
+  `examples/03-ticket-to-pr.md` keeps F2-F8 and F10, `06-VERIFICATION.md` keeps F19-F25 and
+  F27-F29, `.planning/WINDOWS.md` keeps F53-F55, F57 and F58, and `.planning/PROJECT.md` keeps
+  F59-F61.
+- The flip table now has 58 rows. The ledger class has five rows (F53, F54, F55, F57, F58), not
+  six.
+- The section 1.4 census was measured at `6b33fb9e`. On the amended tree it changes in two files.
+  `examples/03-ticket-to-pr.md` has 8 cell-token lines (L16, L182, L187-L192), not 9, and
+  `.planning/PROJECT.md` has 2 (L239, L322), not 3. The exemptions are now three: the two dated
+  ledger entries and the F26 line.
+- The correction rows C1-C9 are not changed. Their stale fragments are still present, and the
+  gate checks nothing else about them. Their "seven" wording counted the table as it stood at
+  `6b33fb9e`, when the capture was to fill seven cells. After this amendment the capture fills
+  six. Section 5 gives the post-flip values to the capture summary at flip time, so the plan that
+  performs the flip words each corrected sentence against the table it then finds. It does not
+  copy "seven" from this table.
+- Sections 6-9 stay as history. Each of them truthfully records seven data rows and six ledger rows
+  on its date.
+
+**What this amendment does not change.** The status line still reads the first declared value, so
+the residual rule and the commit-set rule stay out of force. No capture exists and nothing flips.
+GAP-D1 stays open. The live-surface set is unchanged: 28 documents over five parts. What a later
+flip needs is still what section 9 lists, except that the D-04 deny on the hook channel is no
+longer part of it. That was the probe's evidence, and both the probe and its oracle are retired.

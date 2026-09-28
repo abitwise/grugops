@@ -12,9 +12,9 @@ tree (DOG-01).
 
 The split is deliberate and honest (D-38): the **sequential AGENTS.md path** is agent-run and
 captured here as REAL proof. The **live Claude Code path** (plugin marketplace install +
-plugin-cache pointer resolution, live PreToolUse hook firing, CC sub-agent spawn) cannot be
+plugin-cache pointer resolution, CC sub-agent spawn) cannot be
 honestly self-driven by an executor — those checks are marked **pending human** and live in
-`docs/dogfood-human-runbook.md`. No marketplace install or hook firing is simulated.
+`docs/dogfood-human-runbook.md`. No marketplace install or sub-agent spawn is simulated.
 
 ---
 
@@ -174,8 +174,8 @@ It also still exits 0 on grugops's own tree (the D-42 self-test).
 
 grugops dispatches the same factory two ways: the **sequential AGENTS.md path** (agent loads the
 roles in turn — proven REAL above) and the **CC-native sub-agent path** (a live Claude Code
-session installs the plugin, spawns the `grugops-orchestrator` sub-agent via the `Agent` tool,
-and the PreToolUse hook fires mechanically). DOG-02 asserts they produce the **same ticket, the
+session installs the plugin and spawns the `grugops-orchestrator` sub-agent via the `Agent`
+tool). DOG-02 asserts they produce the **same ticket, the
 same handoff filenames, and the same gate verdict** — only the dispatch mechanism differs.
 
 The CC-native column is filled by running `docs/dogfood-human-runbook.md` in a live Claude Code
@@ -189,7 +189,6 @@ violate the no-fabrication rule).
 | Plugin-cache pointer resolution (D-31) | n/a (no plugin cache on the sequential path) | `pending human` (runbook step 1 — `/grugops:plan` resolves, not a path error) |
 | Handoff filenames produced | `implementation-handoff.md`, `qe-handoff.md` | `pending human` (runbook step 3 — expect the SAME filenames) |
 | Gate verdict | `READY_FOR_HUMAN_REVIEW` | `pending human` (runbook step 3 — expect the SAME verdict) |
-| Live PreToolUse deploy guard (SAFE-02) | n/a (no live hook on the sequential path) | `pending human` (runbook step 2 — a matched deploy is DENIED absent the approval env var) |
 | Validator on resulting tree (DOG-01) | `ALL CHECKS PASSED` (exit 0, bare + strict) | `pending human` (runbook step 4 — expect the SAME exit 0) |
 
 When every CC-native cell is confirmed and equals its sequential counterpart, DOG-02 is met:
