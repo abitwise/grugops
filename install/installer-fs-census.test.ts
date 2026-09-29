@@ -234,13 +234,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "uninstall.ts:unlinkPath:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:648, calls :670 and :685), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
+    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:753, call :759; plan 33.1-29: reached only when the geminiSettings ledger records that install created the file and the file still holds the bytes install wrote), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
   },
   {
     site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:560, call :564; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), unmergeGemini (:648, call :686), removeAskRules (:833, call :846)",
+    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:560, call :564; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), removeAskRules (:833, call :846)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",

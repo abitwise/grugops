@@ -99,10 +99,13 @@ import {
   readCreatedDirs,
   readCreatedFiles,
   readAskRuleLedger,
+  readGeminiLedger,
+  geminiLedgerJson,
   contentRecord,
   linkRecord,
   recordHolds,
   type AskRuleLedger,
+  type GeminiLedger,
 } from "./install-marker.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
@@ -759,6 +762,7 @@ interface InstallMarker {
   claudeAskRules?: unknown;
   createdDirs?: unknown;
   createdFiles?: unknown;
+  geminiSettings?: unknown;
 }
 
 // AskRuleLedger (D-18) and its reader live in ./install-marker.ts, shared with uninstall.ts (WR-05):
@@ -1877,6 +1881,19 @@ interface GeminiSettings {
   [key: string]: unknown;
 }
 
+// GEMINI_RECORD (plan 33.1-29, Gap B / re-review CR-03, D-18): what THIS run did to
+// .gemini/settings.json, as the geminiSettings record (install-marker.ts states the shape), or null
+// when this run changed nothing there. mergeGemini sets it after a successful create or append, and
+// writeMarker() records it: the most recent change is the one uninstall must reverse.
+let GEMINI_RECORD: GeminiLedger | null = null;
+// GEMINI_SEEN (plan 33.1-29): what THIS run read in the settings file when it changed nothing, or
+// null when it read nothing it could use (no file, a refused file, a malformed ledger). `listed` is
+// true when context.fileName already named AGENTS.md; `fileNameContent` is the content record of
+// JSON.stringify(context.fileName), or null when there is none. writeMarker() carries an earlier
+// record forward only when this equals the fileName that record describes (the carry needs proof),
+// and on a fresh install it records {createdFile:false, addedEntry:false} only from this observation.
+let GEMINI_SEEN: { readonly listed: boolean; readonly fileNameContent: string | null } | null = null;
+
 // merge_gemini: additive read-modify-write of .gemini/settings.json context.fileName. Node can
 // safely JSON.parse/merge. Never `>`-clobbers a user's file blindly: a parse failure leaves the
 // file untouched and flags verify.
@@ -1897,13 +1914,21 @@ function mergeGemini(): void {
       report("would-add", ".gemini/settings.json (context.fileName: [AGENTS.md, GEMINI.md])");
       return;
     }
-    const created = writeTargetFile(
-      file,
-      JSON.stringify({ context: { fileName: ["AGENTS.md", "GEMINI.md"] } }, null, 2) + "\n",
-      "create",
-      ".gemini/settings.json",
-    );
-    if (created) report("created", ".gemini/settings.json (context.fileName wiring)");
+    const fileName = ["AGENTS.md", "GEMINI.md"];
+    const text = JSON.stringify({ context: { fileName } }, null, 2) + "\n";
+    if (!writeTargetFile(file, text, "create", ".gemini/settings.json")) return;
+    // Plan 33.1-29: readForWrite said nothing was there and the exclusive create succeeded, so this
+    // run created the file. Uninstall deletes it only on this record, and only while it holds these
+    // bytes.
+    GEMINI_RECORD = {
+      createdFile: true,
+      addedEntry: true,
+      createdContext: true,
+      fileNameBefore: "absent",
+      fileNameContent: contentRecord(JSON.stringify(fileName)),
+      fileContent: contentRecord(text),
+    };
+    report("created", ".gemini/settings.json (context.fileName wiring)");
     return;
   }
   // Red-team of plan 33.1-27 (B5 sibling): a file that does not parse, or parses to something other
@@ -1926,6 +1951,7 @@ function mergeGemini(): void {
       ? [json.context.fileName]
       : [];
   if (list.includes(want)) {
+    GEMINI_SEEN = { listed: true, fileNameContent: contentRecord(JSON.stringify(json.context.fileName)) };
     report("skipped", ".gemini/settings.json (context.fileName already lists AGENTS.md)");
     return;
   }
@@ -2822,6 +2848,31 @@ function writeMarker(): void {
       if (recordHolds(TARGET, join(TARGET, ...rel.split("/")), record)) union.set(rel, record);
     }
     marker.createdFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  }
+  // geminiSettings (plan 33.1-29, Gap B / re-review CR-03). The record always describes the most
+  // recent install that changed the file: this run's record when it created the file or appended the
+  // entry. When this run changed nothing, an earlier `ok` record is carried forward only while the
+  // file's context.fileName is exactly the one that record describes (GEMINI_SEEN, read this run);
+  // otherwise it is replaced by a record that claims nothing (red-team of plan 33.1-28: never carry an
+  // entry forward by presence). An absent record stays absent unless this run itself acted, or, on a
+  // fresh install (no previous marker: this run is the whole history), observed AGENTS.md already
+  // listed. A malformed record is written back as found; mergeGemini() reported it and merged nothing.
+  const previousGemini = readGeminiLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
+  const unclaimedGemini = (): GeminiLedger => ({
+    createdFile: false,
+    addedEntry: false,
+    fileNameContent: GEMINI_SEEN === null ? null : GEMINI_SEEN.fileNameContent,
+  });
+  if (previousGemini.state === "malformed") {
+    marker.geminiSettings = previousGemini.raw;
+  } else if (GEMINI_RECORD !== null) {
+    marker.geminiSettings = geminiLedgerJson(GEMINI_RECORD);
+  } else if (previousGemini.state === "ok" && previousGemini.ledger !== null) {
+    const prev = previousGemini.ledger;
+    const proven = GEMINI_SEEN !== null && GEMINI_SEEN.fileNameContent !== null && GEMINI_SEEN.fileNameContent === prev.fileNameContent;
+    marker.geminiSettings = geminiLedgerJson(proven ? prev : unclaimedGemini());
+  } else if (freshMarker && GEMINI_SEEN !== null && GEMINI_SEEN.listed) {
+    marker.geminiSettings = geminiLedgerJson(unclaimedGemini());
   }
   if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
     report("created", ".grugops/install.json (marker)");

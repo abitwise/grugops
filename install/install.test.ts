@@ -5795,6 +5795,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       "claudeAskRules",
       "createdDirs",
       "createdFiles",
+      "geminiSettings",
     ]);
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
@@ -6223,8 +6224,6 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
   const gemPath = (t: string): string => join(t, ".gemini", "settings.json");
   const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
   const readMarkerJson = (t: string): Record<string, unknown> => JSON.parse(readFileSync(markerPathOf(t), "utf8"));
-  const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
-    writeFileSync(markerPathOf(t), JSON.stringify(m, null, 2) + "\n");
   const asInstaller = (v: unknown): string => JSON.stringify(v, null, 2) + "\n";
   const sha = (b: string | Buffer): string => `sha256:${createHash("sha256").update(b).digest("hex")}`;
   const plant = (t: string, text: string): Buffer => {

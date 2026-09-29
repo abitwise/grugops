@@ -78,7 +78,7 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, malformedLedgers, contentRecord, recordHolds, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, malformedLedgers, contentRecord, recordHolds, } from "./install-marker.js";
 // DC-3 (plan 33.1-27): the ONE bounded reader of a user path, shared with install.ts. readForWrite is
 // its no-follow form for a path this run may edit, wayTo the same walk for a path removed by name,
 // kindAt names what is at a path, and unreadState is the one wording of an unread state. isOwnLink is
@@ -589,92 +589,100 @@ function removeOwnedEmptyFile(rel, label, result) {
     }
     unlinkPath(f, rel, `${rel} (install created it — recorded as createdFiles — and it is empty after the block removal)`);
 }
-// unmerge_gemini: remove AGENTS.md from .gemini/settings.json context.fileName via a safe JSON
-// edit (Node is always present now — this is a TS routine). If grugops created the file and it
-// returns to the empty-default shape, the file is removed; otherwise other keys are preserved.
+// unmergeGemini (plan 33.1-29, Gap B / re-review CR-03, brief DC-2, D-18): reverse what install
+// did to .gemini/settings.json, AS THE INSTALL MARKER'S geminiSettings RECORD SAYS, and nothing else.
+//
+// It used to decide by the file's text and shape: any file containing the substring "AGENTS.md" was
+// parsed and its context.fileName rewritten, and a file of the shape CLAUDE.md itself recommends
+// was deleted, in a repository grugops was never installed into. Neither the text nor the shape is a
+// record of what install did. The decision now comes from the ledger (GEMINI_LEDGER, read once at the
+// top of the removal sequence), in this order, before the file's content is read:
+//   file absent                    → skipped (not present);
+//   no marker                      → left (no record of what install changed);
+//   unreadable marker              → left (the one unreadable-marker verify already counted it);
+//   no geminiSettings field        → left (an install made before this ledger), with the remedy;
+//   malformed geminiSettings       → left (its one verify at the top counted it);
+//   addedEntry false               → skipped (install did not add the entry).
+// Only then is the file read and parsed. A file that is not a readable regular file, does not parse
+// or is not a JSON object is a counted verify and is left untouched, with no `removed` line. A file
+// install created that still holds exactly the bytes install wrote is removed whole.
+// GEMINI_LEDGER_AFTER (plan 33.1-29, with red-team R2 of plan 33.1-28): the geminiSettings record as it
+// stands once unmergeGemini has acted, for removeMarker to write into a marker it keeps. Set only when
+// the recorded change was reversed (or found already reversed): the record then claims nothing, and
+// `fileNameContent` records the fileName left behind (null when there is none). null when nothing was
+// acted on, so a kept marker keeps the record as it was.
+let GEMINI_LEDGER_AFTER = null;
 function unmergeGemini() {
     const f = `${TARGET}/.gemini/settings.json`;
+    const rel = ".gemini/settings.json";
     if (isProtected(f))
         return;
-    // DC-3 (plan 33.1-27): readForWrite, never a plain read; a blocked path is a counted verify and is
-    // never written.
+    // DC-3 (plan 33.1-27): readForWrite, never a plain read. It opens only a regular file within the
+    // bound, so asking it whether anything is there never blocks and never changes anything.
     const read = readForWrite(TARGET, f);
     if (read.state === "create") {
-        report("skipped", ".gemini/settings.json (not present)");
+        report("skipped", `${rel} (not present)`);
+        return;
+    }
+    if (MARKER.state === "absent") {
+        report("left", `${rel} (no install marker, so there is no record of what install changed in it — left untouched)`);
+        return;
+    }
+    if (MARKER.state === "unreadable") {
+        report("left", `${rel} (the install marker could not be read, so there is no usable record of what install changed in it — left untouched)`);
+        return;
+    }
+    if (GEMINI_LEDGER.state === "absent") {
+        report("left", `${rel} (the install marker predates the Gemini settings ledger — left untouched; if grugops added ` +
+            `AGENTS.md to context.fileName, remove that entry by hand)`);
+        return;
+    }
+    const ledger = GEMINI_LEDGER.ledger;
+    if (GEMINI_LEDGER.state === "malformed" || ledger === null) {
+        report("left", `${rel} (the Gemini settings ledger could not be used — see the verify line above; left untouched)`);
+        return;
+    }
+    if (!ledger.addedEntry) {
+        report("skipped", `${rel} (install did not add an AGENTS.md entry to it — AGENTS.md was already listed when install last ran; left untouched)`);
         return;
     }
     if (read.state === "blocked") {
-        verify(`.gemini/settings.json: ${read.at} ${read.reason}. It was not read and was left untouched, so an ` +
-            `AGENTS.md entry grugops added, if there is one, was not removed.`);
-        return;
-    }
-    const raw = read.text;
-    if (!raw.includes("AGENTS.md")) {
-        report("skipped", ".gemini/settings.json (no AGENTS.md entry to remove)");
+        verify(`${rel}: ${read.at} ${read.reason}. It was not read and was left untouched, so the AGENTS.md entry ` +
+            `install recorded adding was not removed; remove it from context.fileName by hand.`);
         return;
     }
     // Red-team of plan 33.1-27 (B5): the file is parsed BEFORE the preview branch, so the preview and
     // the real run decide alike, and a file that does not parse, or is not a JSON object, is a COUNTED
-    // verify and is left untouched. It used to write an uncounted "verify:" line to stderr and then
-    // print `removed ... AGENTS.md entry` with exit 0 over an edit that never happened.
+    // verify with no `removed` line.
     let j;
     try {
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(read.text);
         if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
             throw new Error("not an object");
         j = parsed;
     }
     catch {
-        verify(".gemini/settings.json is not a valid JSON object — it was left untouched, so an AGENTS.md entry grugops " +
-            "added, if there is one, was not removed. Remove it from context.fileName by hand.");
+        verify(`${rel} is not a valid JSON object — it was left untouched, so the AGENTS.md entry install recorded ` +
+            `adding was not removed. Remove it from context.fileName by hand.`);
         return;
     }
-    if (DRY_RUN) {
-        report("would-edit", ".gemini/settings.json (remove AGENTS.md from context.fileName)");
+    void j;
+    // Install created the file, and it holds exactly the bytes install wrote: it holds nothing of the
+    // user's, so it is removed whole.
+    if (ledger.createdFile && ledger.fileContent !== undefined && recordHolds(TARGET, f, ledger.fileContent)) {
+        if (DRY_RUN) {
+            report("would-remove", `${rel} (install created it and it is unchanged — recorded as geminiSettings)`);
+            markGone(f);
+            GEMINI_LEDGER_AFTER = { createdFile: false, addedEntry: false, fileNameContent: null };
+            return;
+        }
+        if (unlinkPath(f, rel, `${rel} (install created it and it is unchanged — recorded as geminiSettings)`)) {
+            GEMINI_LEDGER_AFTER = { createdFile: false, addedEntry: false, fileNameContent: null };
+        }
         return;
     }
-    // If the file is EXACTLY the grugops-created default shape (only context.fileName, and it lists
-    // just AGENTS.md and/or GEMINI.md and nothing else), grugops owns the whole file → remove it
-    // entirely to fully reverse the "created fresh" install path.
-    const keys = Object.keys(j);
-    const ctxKeys = j.context ? Object.keys(j.context) : [];
-    const fn = j.context && Array.isArray(j.context.fileName) ? j.context.fileName : null;
-    const onlyGrugopsEntries = fn !== null && fn.every((x) => x === "AGENTS.md" || x === "GEMINI.md");
-    const isGrugopsDefault = keys.length === 1 &&
-        keys[0] === "context" &&
-        ctxKeys.length === 1 &&
-        ctxKeys[0] === "fileName" &&
-        onlyGrugopsEntries;
-    // Plan 33.1-28 (T-33.1-281): the line no longer calls the file "grugops-created". This step still
-    // decides by the file's shape, not by an install record; that is plan 33.1-29's geminiSettings
-    // ledger, and the line says only what was done.
-    const removedLine = ".gemini/settings.json AGENTS.md entry (Node JSON edit; the whole file is removed when it held only the default context.fileName shape or nothing else)";
-    if (isGrugopsDefault) {
-        unlinkPath(f, ".gemini/settings.json", removedLine);
-        return;
-    }
-    else {
-        // Pre-existing / user-customised file: trim only AGENTS.md, preserve everything else.
-        const ctx = j.context || {};
-        let list = Array.isArray(ctx.fileName) ? ctx.fileName : [];
-        list = list.filter((x) => x !== "AGENTS.md");
-        if (list.length === 0) {
-            delete ctx.fileName;
-        }
-        else {
-            ctx.fileName = list;
-        }
-        if (Object.keys(ctx).length === 0)
-            delete j.context;
-        else
-            j.context = ctx;
-        if (Object.keys(j).length === 0) {
-            unlinkPath(f, ".gemini/settings.json", removedLine);
-        }
-        else if (rewritePath(f, JSON.stringify(j, null, 2) + "\n", ".gemini/settings.json")) {
-            report("removed", removedLine);
-        }
-    }
+    // Interim (plan 33.1-29 Task 1): a merged or edited file is left until its exact reversal lands.
+    report("left", `${rel} (install recorded adding AGENTS.md to it; the exact reversal of that entry is not available in this build — left untouched)`);
 }
 // removeAskRules (D-18): reverse install.ts writeAskRules() BY PROVENANCE, not by presence.
 //
@@ -951,6 +959,12 @@ function updateKeptMarker(m, marker, readBytes, bad) {
             next.claudeAskRules = ASK_LEDGER_AFTER;
         }
     }
+    // The Gemini settings ledger (plan 33.1-29): once unmergeGemini acted on the recorded change (removed
+    // the entry or the file, or found the entry already gone), the record claims nothing more.
+    if (!bad.includes("geminiSettings") && GEMINI_LEDGER_AFTER !== null && GEMINI_LEDGER.state === "ok") {
+        next.geminiSettings = geminiLedgerJson(GEMINI_LEDGER_AFTER);
+        stale.push(".gemini/settings.json (geminiSettings)");
+    }
     if (JSON.stringify(next) === JSON.stringify(marker))
         return;
     const what = stale.length > 0 ? stale.join(", ") : "the ask-rule ledger's created-file flags";
@@ -1054,10 +1068,15 @@ const DIR_LEDGER = readCreatedDirs(MARKER.state === "ok" ? MARKER.marker : null)
 // and from the same marker read. ownsFile() consults it before any file install may have created is
 // deleted. An unreadable marker is still ONE verify finding, naming both ledgers.
 const FILE_LEDGER = readCreatedFiles(MARKER.state === "ok" ? MARKER.marker : null);
+// The Gemini settings ledger (plan 33.1-29, Gap B / re-review CR-03), read ONCE here from the same
+// marker read. unmergeGemini() edits or deletes .gemini/settings.json only as it records. A malformed
+// one is one verify finding, and the settings file is left untouched.
+const GEMINI_LEDGER = readGeminiLedger(MARKER.state === "ok" ? MARKER.marker : null);
 if (MARKER.state === "unreadable") {
-    verify(`.grugops/install.json could not be read as a JSON object (${MARKER.why}), so the directory ledger (createdDirs) and ` +
-        `the file ledger (createdFiles) are unknown. No empty directory and no file install may have created is ` +
-        `removed — remove them by hand once you have confirmed they are yours to remove.`);
+    verify(`.grugops/install.json could not be read as a JSON object (${MARKER.why}), so the directory ledger (createdDirs), ` +
+        `the file ledger (createdFiles) and the Gemini settings ledger (geminiSettings) are unknown. No empty directory ` +
+        `and no file install may have created is removed, and .gemini/settings.json is not edited — remove them by hand ` +
+        `once you have confirmed they are yours to remove.`);
 }
 else {
     if (DIR_LEDGER.state === "malformed") {
@@ -1069,6 +1088,11 @@ else {
         verify(`.grugops/install.json has a malformed file ledger (createdFiles), so which files install created is ` +
             `unknown. No file install may have created is deleted — remove such a file by hand once you have ` +
             `confirmed it is yours to remove.`);
+    }
+    if (GEMINI_LEDGER.state === "malformed") {
+        verify(`.grugops/install.json has a malformed Gemini settings ledger (geminiSettings), so what install changed ` +
+            `in .gemini/settings.json is unknown. The file is left untouched — if grugops added AGENTS.md to its ` +
+            `context.fileName, remove that entry by hand.`);
     }
 }
 console.log("\n-- removing grugops adapters (only what install.js added) --");

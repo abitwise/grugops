@@ -1,5 +1,5 @@
 // install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the three
-// ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B).
+// ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B; plan 33.1-29, CR-03).
 //
 // Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path and
 // ./user-file.ts. A
@@ -17,10 +17,14 @@
 // (not a regular file, too large, unreadable) is `unreadable` here, and each caller already has a
 // fail-closed answer for an unreadable marker.
 //
-// WHY ONE READER. The marker holds three ledgers the uninstaller depends on to reverse an install
+// WHY ONE READER. The marker holds four ledgers the uninstaller depends on to reverse an install
 // without deleting user content:
 //   - `claudeAskRules` — the Claude Code ask rules install added to .claude/settings.json (D-18);
 //   - `createdDirs`    — the directories install itself created under the target (CR-02);
+//   - `geminiSettings` — what install did to .gemini/settings.json (plan 33.1-29, Gap B / re-review
+//                        CR-03): created it, or appended "AGENTS.md" to its context.fileName, and the
+//                        shape it found; see THE geminiSettings SHAPE below. Uninstall edits or deletes
+//                        that file only as this record says.
 //   - `createdFiles`   — the files install itself created under the target (plan 33.1-28, Gap B /
 //                        re-review WR-05): the files ensureBlock creates to hold a sentinel block
 //                        (CLAUDE.md, .github/copilot-instructions.md), the AGENTS.md install copies
@@ -32,8 +36,8 @@
 // malformed one: install read it as "no previous install" and relabelled every grugops rule as the
 // user's own (fail open), while uninstall refused (fail closed). That is WR-05. A second ledger
 // with two readers would repeat the defect, so both binaries now read the marker and both ledgers
-// here, as tri-states, and neither can read a malformed ledger as an empty one. The third ledger
-// follows the same rule, so it has one reader too.
+// here, as tri-states, and neither can read a malformed ledger as an empty one. The third and fourth
+// ledgers follow the same rule, so each has one reader too.
 //
 // THE MARKER IS READ WITHOUT FOLLOWING A LINK (red-team of plan 33.1-27, B3, brief DC-2). The marker
 // holds the ledgers uninstall deletes by, so it must be THIS target's own record. readUserFile follows
@@ -54,7 +58,7 @@
 //   malformedLedgers:  the names of the ledgers in an `ok` marker that are present but malformed.
 //                      A caller that would act on the marker as a whole (uninstall's removal of it)
 //                      does so only when this is empty.
-//   readCreatedDirs / readCreatedFiles / readAskRuleLedger:
+//   readCreatedDirs / readCreatedFiles / readAskRuleLedger / readGeminiLedger:
 //                      `absent`     the marker has no such field (an install made before the
 //                                   ledger existed);
 //                      `malformed`  the field is present but not the exact ledger shape;
@@ -68,6 +72,27 @@
 // `/`-separated segment is non-empty and is neither `.` nor `..`. So no entry can name a path outside
 // the target. The uninstaller only asks whether one of its own fixed candidate paths is IN a ledger;
 // it never iterates a ledger to decide what to delete, and it never removes recursively.
+//
+// THE geminiSettings SHAPE (readGeminiLedger, plan 33.1-29). A plain JSON object with exactly these
+// keys and no others:
+//   createdFile      boolean  install created the file (nothing was at the path);
+//   addedEntry       boolean  install appended "AGENTS.md" to context.fileName;
+//   createdContext   boolean  present exactly when addedEntry is true: `context` was absent and
+//                             install added it;
+//   fileNameBefore   string   present exactly when addedEntry is true: what context.fileName was
+//                             before the append — "absent", "string" (a string, which install turned
+//                             into [string, "AGENTS.md"]) or "array";
+//   fileNameContent  record   the content record (contentRecord, sha256 form) of JSON.stringify of
+//                             context.fileName as install last left it, or null when install left no
+//                             fileName it could record. A re-install carries this record forward only
+//                             while the file's fileName is still exactly that (red-team of plan
+//                             33.1-28: never carry a ledger entry forward by presence). Required, and
+//                             never null when addedEntry is true;
+//   fileContent      record   present exactly when createdFile is true: the content record of the
+//                             bytes install wrote. Uninstall deletes the whole file only while it
+//                             holds them (recordHolds).
+// createdFile true also requires addedEntry true, createdContext true and fileNameBefore "absent"
+// (install writes the file with the entry in it). Anything else is `malformed`.
 //
 // Clear professional voice: this is a safety surface (installer reversal).
 
@@ -98,6 +123,25 @@ export interface AskRuleLedger {
   createdPermissions: boolean;
   createdAsk: boolean;
   askContent: string | null;
+}
+
+// GeminiLedger (plan 33.1-29): the record of what install did to .gemini/settings.json. See THE
+// geminiSettings SHAPE in the header.
+export type FileNameBefore = "absent" | "string" | "array";
+export interface GeminiLedger {
+  createdFile: boolean;
+  addedEntry: boolean;
+  createdContext?: boolean;
+  fileNameBefore?: FileNameBefore;
+  fileNameContent: string | null;
+  fileContent?: string;
+}
+
+export interface GeminiLedgerRead {
+  readonly state: LedgerState;
+  /** The parsed ledger when `ok`; null otherwise. */
+  readonly ledger: GeminiLedger | null;
+  readonly raw: unknown;
 }
 
 export interface CreatedDirsRead {
@@ -203,6 +247,56 @@ export function readAskRuleLedger(marker: Readonly<Record<string, unknown>> | nu
   };
 }
 
+// readGeminiLedger (plan 33.1-29, Gap B / re-review CR-03): the `geminiSettings` ledger, exactly the
+// shape the header states. The key set is checked first, so a record with an extra key, or with a
+// conditional key where it does not belong, is malformed; a partial record never reads as a smaller
+// claim.
+export function readGeminiLedger(marker: Readonly<Record<string, unknown>> | null): GeminiLedgerRead {
+  const { present, raw } = fieldOf(marker, "geminiSettings");
+  if (!present) return { state: "absent", ledger: null, raw };
+  const bad: GeminiLedgerRead = { state: "malformed", ledger: null, raw };
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return bad;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.createdFile !== "boolean" || typeof r.addedEntry !== "boolean") return bad;
+  const want = ["createdFile", "addedEntry", "fileNameContent"];
+  if (r.addedEntry) want.push("createdContext", "fileNameBefore");
+  if (r.createdFile) want.push("fileContent");
+  const keys = Object.keys(r);
+  if (keys.length !== want.length || !want.every((k) => Object.prototype.hasOwnProperty.call(r, k))) return bad;
+  if (r.fileNameContent !== null && !isSha256Record(r.fileNameContent)) return bad;
+  if (r.addedEntry) {
+    if (typeof r.createdContext !== "boolean") return bad;
+    if (r.fileNameBefore !== "absent" && r.fileNameBefore !== "string" && r.fileNameBefore !== "array") return bad;
+    if (r.fileNameContent === null) return bad;
+  }
+  if (r.createdFile) {
+    if (!r.addedEntry || r.createdContext !== true || r.fileNameBefore !== "absent") return bad;
+    if (!isSha256Record(r.fileContent)) return bad;
+  }
+  const ledger: GeminiLedger = { createdFile: r.createdFile, addedEntry: r.addedEntry, fileNameContent: r.fileNameContent as string | null };
+  if (r.addedEntry) {
+    ledger.createdContext = r.createdContext as boolean;
+    ledger.fileNameBefore = r.fileNameBefore as FileNameBefore;
+  }
+  if (r.createdFile) ledger.fileContent = r.fileContent as string;
+  return { state: "ok", ledger, raw };
+}
+
+/**
+ * The geminiSettings record in the order install writes its keys (the header's order), so a record
+ * carried forward and a record written new serialize the same way.
+ */
+export function geminiLedgerJson(l: GeminiLedger): Record<string, unknown> {
+  const out: Record<string, unknown> = { createdFile: l.createdFile, addedEntry: l.addedEntry };
+  if (l.addedEntry) {
+    out.createdContext = l.createdContext;
+    out.fileNameBefore = l.fileNameBefore;
+  }
+  out.fileNameContent = l.fileNameContent;
+  if (l.createdFile) out.fileContent = l.fileContent;
+  return out;
+}
+
 // ── CONTENT RECORDS (red-team of plan 33.1-28, brief DC-2) ────────────────────────────────────
 // A ledger that names a path records a claim about that path at the moment install wrote it, not
 // about whatever is there later: a user can delete the file and make their own at the same name, or
@@ -254,5 +348,6 @@ export function malformedLedgers(marker: Readonly<Record<string, unknown>>): str
   if (readCreatedDirs(marker).state === "malformed") out.push("createdDirs");
   if (readCreatedFiles(marker).state === "malformed") out.push("createdFiles");
   if (readAskRuleLedger(marker).state === "malformed") out.push("claudeAskRules");
+  if (readGeminiLedger(marker).state === "malformed") out.push("geminiSettings");
   return out;
 }
