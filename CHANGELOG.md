@@ -104,8 +104,13 @@ release, together with Phase 33.1, which retires the Bash command guard.
   further page (more than 100 rules or environments), or an environment protection rule of a type
   the check does not know next to the reviewer rule, reads `UNKNOWN - verify`. The report names the
   repository it inspected on its first line, and `--json` carries it as `repository`; a run that
-  cannot name the repository reports every target `UNKNOWN - verify`. A `factory.config.json` that
-  is not a regular file is skipped instead of waited on. Re-run the check to confirm your host.
+  cannot name the repository reports every target `UNKNOWN - verify`. The repository `url` is read
+  only in its plain form on `api.github.com` or under a GitHub Enterprise Server `/api/v3` prefix, and
+  every other url that names a repository must name the same one. A ruleset counts only when its
+  source names the inspected repository, or its owner for an organization ruleset; an enterprise
+  ruleset reads `UNKNOWN - verify`. Host text is printed with bidirectional and other invisible
+  characters escaped. A `factory.config.json` that is not a regular file is skipped without being
+  opened. Re-run the check to confirm your host.
 - The admission-guard hook's matcher now matches the plugin-scoped tool name
   (`mcp__(plugin_grugops_)?grugops__.*`). Before this change the matcher was the bare server family
   `mcp__grugops__.*`, and the platform's plugin reference states that for a plugin's bundled MCP

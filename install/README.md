@@ -455,7 +455,11 @@ that branch, and only what classic protection shows is read. When GitHub's answe
 classic protection endpoint returns a protection record for it, the two answers disagree and that
 branch reads `UNKNOWN - verify`. GitHub does not document whether that `protected` value counts
 rulesets, so the check does not compare it with a branch's ruleset rules; that case is
-`UNKNOWN - verify` until it is measured on a live host.
+`UNKNOWN - verify` until it is measured on a live host. A ruleset counts only when it belongs to
+the repository the check inspected: a repository ruleset must name that repository (`owner/name`)
+as its source, and an organization ruleset its owner, spelled exactly as the repository line spells
+them. A ruleset whose source is an enterprise or any other owner reads `UNKNOWN - verify` for the
+lines it would show.
 
 For production, keep a deployment environment that:
 
@@ -522,7 +526,13 @@ Before the target lines, the check prints the repository it inspected, `reposito
 as gh resolved `{owner}/{repo}` (the `GH_REPO` variable, `gh repo set-default`, or the git remotes).
 In a fork clone, confirm that it names the repository your agent pushes to. When the host does not
 name the repository, or names it inconsistently (its `full_name` and `url` disagree), the line reads
-`repository UNKNOWN - verify` and every target reads `UNKNOWN - verify`.
+`repository UNKNOWN - verify` and every target reads `UNKNOWN - verify`. The check reads that `url`
+only in its plain form, `https://api.github.com/repos/<owner>/<name>`, or
+`https://<host>/api/v3/repos/<owner>/<name>` on GitHub Enterprise Server; any other form, including
+an API host other than `api.github.com` without the `/api/v3` prefix, reads
+`repository UNKNOWN - verify`. Other urls in the host's answers that name a repository (a protection
+record's `url`, an environment's `url` and `html_url`, a listed branch's `protection_url`) must name
+the same one, or the lines they feed read `UNKNOWN - verify`.
 
 Exit codes: `0` every target is protected; `1` at least one target is unprotected; `2` otherwise,
 including when the check could not run. `--json` adds the repository name (`repository`, or null)
