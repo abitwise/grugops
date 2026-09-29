@@ -1601,16 +1601,23 @@ describe("host-protection.js — red-team: a branch the same run saw under anoth
 
   // The comparison is made after percent-decoding, so a branch with `/` or a special character
   // is not falsely made unknown.
-  const GOOD_URLS: Array<[string, string, string]> = [
-    ["release/1.0", "release/1.0", "https://api.github.com/repos/octo/repo/branches/release/1.0/protection"],
-    ["release/1.0", "release/1.0", "https://api.github.com/repos/octo/repo/branches/release%2F1.0/protection"],
-    ["feat#1", "feat%231", "https://api.github.com/repos/octo/repo/branches/feat%231/protection"],
-    ["release", "release", "https://ghe.example.com/api/v3/repos/octo/repo/branches/release/protection"],
+  // The fourth element is the `url` the repository answer carries: from the red-team round of plan
+  // 33.1-23 on, a protection url must sit under the repository this run asked about (same host,
+  // same `/repos/<owner>/<repo>` path, any GHES prefix included).
+  const GOOD_URLS: Array<[string, string, string, string]> = [
+    ["release/1.0", "release/1.0", "https://api.github.com/repos/octo/repo/branches/release/1.0/protection", "https://api.github.com/repos/octo/repo"],
+    ["release/1.0", "release/1.0", "https://api.github.com/repos/octo/repo/branches/release%2F1.0/protection", "https://api.github.com/repos/octo/repo"],
+    ["feat#1", "feat%231", "https://api.github.com/repos/octo/repo/branches/feat%231/protection", "https://api.github.com/repos/octo/repo"],
+    ["release", "release", "https://ghe.example.com/api/v3/repos/octo/repo/branches/release/protection", "https://ghe.example.com/api/v3/repos/octo/repo"],
   ];
-  for (const [name, pathName, url] of GOOD_URLS) {
+  for (const [name, pathName, url, repoUrl] of GOOD_URLS) {
     it(`a classic protection body whose url names ${url.slice(url.indexOf("/branches/"))} for branch ${name} → protected`, () => {
       const r = runCheck(
-        base({ [RULES(pathName)]: NO_RULES, [PROTECTION(pathName)]: classicOf({ ...CLASSIC_STRONG, url }) }),
+        base({
+          [REPO]: { status: 200, body: { default_branch: "main", url: repoUrl } },
+          [RULES(pathName)]: NO_RULES,
+          [PROTECTION(pathName)]: classicOf({ ...CLASSIC_STRONG, url }),
+        }),
         ["--branch", name],
       );
       expect(verdictOf(r.stdout, "branch", name)).toBe("protected");
@@ -1920,7 +1927,10 @@ describe("host-protection.js — the production branch policy needs classic prot
     expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
   });
 
-  it("a probed branch that reads protected false while its protection endpoint answers a body is not evidence; an empty list then reads failed", () => {
+  // Since the red-team round of plan 33.1-23 (finding 5), an empty list is `failed` only when the
+  // same run shows protection on no branch. Here main's ruleset rules (from base()) and master's
+  // protection body both contradict the empty list, so it reads unknown, not failed.
+  it("a probed branch that reads protected false while its protection endpoint answers a body is not evidence; an empty list the same run contradicts reads unknown", () => {
     const r = runCheck(
       base({
         [BRANCH("master")]: { status: 200, body: { name: "master", protected: false } },
@@ -1931,8 +1941,10 @@ describe("host-protection.js — the production branch policy needs classic prot
       ["--json"],
     );
     expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
-    expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+    const fact = branchPolicyFact(r.stdout);
+    expect(fact?.state).toBe("unknown");
+    expect(fact?.evidence).toContain("the host lists no protected branch, but the same run shows");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
   });
 
   it("the list names a branch the same run saw answered as another branch → unknown, and its protection is never asked", () => {
@@ -1966,6 +1978,365 @@ describe("host-protection.js — the production branch policy needs classic prot
     expect(callsTo(r.calls, "branches?protected=true&per_page=1")).toBe(1);
     expect(callsTo(r.calls, "branches/hotfix/protection")).toBe(1);
     expect(r.status).toBe(0);
+  });
+});
+
+// ── Red-team round of plan 33.1-23 (brief §3, D-30, DC-1) ───────────────────────────────────────
+// Five breaks against the committed .js, each tested here as a class, not as the one case found.
+// A fixture with one key removed (the stub then prints nothing and exits 1: not readable).
+function without(fx: Fixture, ...keys: string[]): Fixture {
+  for (const k of keys) delete fx[k];
+  return fx;
+}
+const answer = (body: unknown, status = 200): unknown => ({ status, body });
+const factsOf = (stdout: string, kind: string, name: string): Array<{ id: string; state: string; evidence: string }> =>
+  jsonBlock(stdout).targets.find((t) => t.kind === kind && t.name === name)?.facts ?? [];
+const NOT_A_RECORD = "is not a branch protection record";
+const { enforce_admins: _enforceAdmins, ...STRONG_WITHOUT_ADMINS } = CLASSIC_STRONG;
+
+// Finding 1: every 200 answer of `branches/<b>/protection` that is not a branch protection record.
+const NON_RECORDS: Array<[string, unknown]> = [
+  ["an empty object", {}],
+  ["GitHub's error envelope `Branch not protected`", { message: "Branch not protected" }],
+  ["GitHub's error envelope `Not Found`", { message: "Not Found", documentation_url: "https://docs.github.com" }],
+  ["a branch object that says protected false", { name: "feat", protected: false }],
+  ["a branch object that says protected true", { name: "feat", protected: true, commit: { sha: "abc" } }],
+  ["a strong body that also carries an error message", { ...CLASSIC_STRONG, message: "Branch not protected" }],
+  ["a strong body that also carries a branch's protected flag", { ...CLASSIC_STRONG, protected: false }],
+  ["a strong body without enforce_admins", STRONG_WITHOUT_ADMINS],
+  ["enforce_admins null", { ...CLASSIC_STRONG, enforce_admins: null }],
+  ["enforce_admins true (not an object)", { ...CLASSIC_STRONG, enforce_admins: true }],
+  ["enforce_admins an empty object", { ...CLASSIC_STRONG, enforce_admins: {} }],
+  ["enforce_admins.enabled a string", { ...CLASSIC_STRONG, enforce_admins: { enabled: "true" } }],
+  ["enforce_admins.enabled null", { ...CLASSIC_STRONG, enforce_admins: { enabled: null } }],
+  ["only required_status_checks", { required_status_checks: { strict: true, contexts: [] } }],
+  ["only a url", { url: "https://api.github.com/repos/octo/repo/branches/feat/protection" }],
+  ["an array holding a strong body", [CLASSIC_STRONG]],
+  ["a JSON string", "protected"],
+  ["null", null],
+  ["a number", 1],
+  ["true", true],
+];
+// Bodies that ARE protection records (GitHub's documented example carries enforce_admins; the schema
+// marks no property required, so enforce_admins { enabled: boolean } is what the check requires).
+const RECORDS: Array<[string, unknown]> = [
+  ["the strong body", CLASSIC_STRONG],
+  ["a body with only enforce_admins", { enforce_admins: { enabled: true } }],
+  ["a body whose enforce_admins is false", { ...CLASSIC_STRONG, enforce_admins: { enabled: false } }],
+  ["a body with the documented name and protection_url fields", { ...CLASSIC_STRONG, name: "feat", protection_url: "https://api.github.com/repos/octo/repo/branches/feat/protection" }],
+  ["a body whose url names this branch in this repository", { ...CLASSIC_STRONG, url: "https://api.github.com/repos/octo/repo/branches/feat/protection" }],
+];
+// --branch feat: no ruleset rule, `shape` from feat's protection endpoint, and no protected-branch
+// list, so the environment's branch-policy evidence can come only from the classic arm cache.
+const featRun = (shape: unknown): ReturnType<typeof runCheck> =>
+  runCheck(without(base({ [RULES("feat")]: NO_RULES, [PROTECTION("feat")]: answer(shape) }), PROTECTED_LIST), ["--branch", "feat", "--json"]);
+
+describe("host-protection.js — red-team 33.1-23 finding 1: classic protection is shown only by a protection record (D-30)", () => {
+  it("the shape tables are the pinned size (20 non-records, 5 records)", () => {
+    expect(NON_RECORDS.length).toBe(20);
+    expect(RECORDS.length).toBe(5);
+  });
+
+  it.each(NON_RECORDS)("the listed branch's protection answers %s → branch policy unknown, production not protected", (_label, shape) => {
+    const r = runCheck(base({ [PROTECTION("hotfix")]: answer(shape) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(2);
+  });
+
+  it.each(NON_RECORDS)("a --branch's own protection answers %s → every row of that branch unknown (never unprotected), and it is not branch-policy evidence", (_label, shape) => {
+    const r = featRun(shape);
+    expect(verdictOf(r.stdout, "branch", "feat")).toBe("UNKNOWN - verify");
+    const facts = factsOf(r.stdout, "branch", "feat");
+    expect(facts.length).toBe(jsonBlock(r.stdout).floor.branch.length);
+    for (const f of facts) {
+      expect(f.state, f.id).toBe("unknown");
+      expect(f.evidence, f.id).toContain(NOT_A_RECORD);
+    }
+    expect(branchPolicyFact(r.stdout)?.state).not.toBe("held");
+  });
+
+  // The branch floor and the branch-policy row read ONE predicate, so they can never disagree: the
+  // row is held from feat's cache entry exactly when the floor read feat's body as a record.
+  it.each([...NON_RECORDS.map(([l, s]) => [`non-record: ${l}`, s, false] as const), ...RECORDS.map(([l, s]) => [`record: ${l}`, s, true] as const)])(
+    "agreement, %s: the branch floor reads it as a record exactly when the branch-policy row counts it",
+    (_label, shape, isRecord) => {
+      const r = featRun(shape);
+      const floorSawRecord = !factsOf(r.stdout, "branch", "feat").every((f) => f.evidence.includes(NOT_A_RECORD));
+      const policyHeld = branchPolicyFact(r.stdout)?.state === "held";
+      expect(floorSawRecord).toBe(isRecord);
+      expect(policyHeld).toBe(isRecord);
+    },
+  );
+
+  it("the red-team case c11b: feat's 200 `Branch not protected` envelope is not a record, so feat is not unprotected and production is not protected", () => {
+    const r = featRun({ message: "Branch not protected" });
+    expect(verdictOf(r.stdout, "branch", "feat")).toBe("UNKNOWN - verify");
+    expect(verdictOf(r.stdout, "environment", "production")).not.toBe("protected");
+  });
+});
+
+// Finding 2: every way the main/master probe can fail to show that `master` is a branch.
+const MASTER_NOT_SHOWN: Array<[string, unknown]> = [
+  ["404 `Branch not found`", answer({ message: "Branch not found" }, 404)],
+  ["404 `Not Found`", answer({ message: "Not Found" }, 404)],
+  ["404 with no message", answer(null, 404)],
+  ["500", answer({ message: "Server Error" }, 500)],
+  ["200 naming no branch", answer({ protected: true })],
+  ["200 with a numeric name", answer({ name: 5, protected: true })],
+  ["200 about another branch (renamed)", answer({ name: "main", protected: true })],
+];
+
+describe("host-protection.js — red-team 33.1-23 finding 2: a name the same run did not show to exist is never evidence (D-30)", () => {
+  it("the table is the pinned size (7)", () => {
+    expect(MASTER_NOT_SHOWN.length).toBe(7);
+  });
+
+  it.each(MASTER_NOT_SHOWN)("the probe answers %s, then --branch master (strong rules and body) → master UNKNOWN - verify, nothing asked under that name", (_label, probe) => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: probe,
+        [RULES("master")]: rulesOf(...ALL_ROWS_IN(1)),
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+      }),
+      ["--branch", "master", "--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    for (const f of factsOf(r.stdout, "branch", "master")) expect(f.state, f.id).toBe("unknown");
+    expect(callsTo(r.calls, "rules/branches/master")).toBe(0);
+    expect(callsTo(r.calls, "branches/master/protection")).toBe(0);
+    expect(r.status).toBe(2);
+  });
+
+  it.each(MASTER_NOT_SHOWN)("the probe answers %s, then the protected-branch list names master → branch policy unknown, master's protection never asked", (_label, probe) => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: probe,
+        [PROTECTED_LIST]: listOf({ name: "master", protected: true }),
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+      }),
+      ["--json"],
+    );
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(callsTo(r.calls, "branches/master/protection")).toBe(0);
+  });
+
+  it("the red-team case d01: master 404 `Branch not found`, --branch master with no rules and a strong body → never protected, never evidence", () => {
+    const r = runCheck(
+      without(base({ [RULES("master")]: NO_RULES, [PROTECTION("master")]: classicOf(CLASSIC_STRONG) }), PROTECTED_LIST),
+      ["--branch", "master", "--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    expect(branchLine(r.stdout, "master")).toContain("HTTP 404 (Branch not found)");
+    expect(branchPolicyFact(r.stdout)?.state).not.toBe("held");
+  });
+});
+
+// Finding 3: the probe's own `protected` value, read through one ACCEPT entry. The default branch
+// is `trunk` (strong rules), so `main` is judged only because the probe showed it exists.
+function trunkWithProbedMain(probe: Record<string, unknown>): Fixture {
+  return without(
+    base({
+      [REPO]: { status: 200, body: { default_branch: "trunk", url: "https://api.github.com/repos/octo/repo" } },
+      [RULES("trunk")]: rulesOf(...ALL_ROWS_IN(1)),
+      [BRANCH("main")]: answer({ name: "main", ...probe }),
+      [RULES("main")]: NO_RULES,
+      [PROTECTION("main")]: classicOf(CLASSIC_STRONG),
+      [PROTECTED_LIST]: listOf({ name: "main", protected: true }),
+    }),
+    STRONG_RULES_KEY,
+  );
+}
+const GARBLED_PROBE: Array<[string, unknown]> = [
+  ["false", false],
+  ['"false"', "false"],
+  ['"true"', "true"],
+  ["null", null],
+  ["0", 0],
+  ["1", 1],
+  ["{}", {}],
+  ["[]", []],
+  ['""', ""],
+];
+
+describe("host-protection.js — red-team 33.1-23 finding 3: the probe's protected value is read through the one reader (D-30)", () => {
+  it("the table is the pinned size (9)", () => {
+    expect(GARBLED_PROBE.length).toBe(9);
+  });
+
+  it.each(GARBLED_PROBE)("the probe says main protected %s while main's protection answers a body → main UNKNOWN - verify, branch policy not held", (_label, v) => {
+    const r = runCheck(trunkWithProbedMain({ protected: v }), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "trunk")).toBe("protected");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    for (const f of factsOf(r.stdout, "branch", "main")) expect(f.state, f.id).toBe("unknown");
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+  });
+
+  it("the probe says main protected true → main protected, branch policy held from main's classic body", () => {
+    const r = runCheck(trunkWithProbedMain({ protected: true }), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
+    expect(r.status).toBe(0);
+  });
+
+  // ABSENT stays neutral: every branch the probe never asked (the default branch, each --branch,
+  // a listed branch) has no probe value either, so absence cannot be read as a contradiction
+  // without making every such branch unknown. The probe value is only ever a contradiction check,
+  // never evidence that a branch is protected.
+  it("the probe's answer carries no protected key → neutral: main protected, branch policy held", () => {
+    const r = runCheck(trunkWithProbedMain({}), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
+    expect(r.status).toBe(0);
+  });
+});
+
+// Finding 4: a protection url must sit under the repository this run asked about. The check's
+// paths carry gh's `{owner}/{repo}` placeholders, so the repository is the one the repository
+// answer's own `url` names (the same run), never a name the check invents.
+const OTHER_PLACE_URLS: Array<[string, string]> = [
+  ["another repository", "https://api.github.com/repos/evil/other/branches/B/protection"],
+  ["another owner", "https://api.github.com/repos/evil/repo/branches/B/protection"],
+  ["another repository name", "https://api.github.com/repos/octo/other/branches/B/protection"],
+  ["another host", "http://evil.example/repos/octo/repo/branches/B/protection"],
+  ["another scheme", "http://api.github.com/repos/octo/repo/branches/B/protection"],
+  ["another port", "https://api.github.com:8443/repos/octo/repo/branches/B/protection"],
+  ["a GHES prefix the repository does not have", "https://api.github.com/api/v3/repos/octo/repo/branches/B/protection"],
+  ["a query string", "https://api.github.com/repos/octo/repo/branches/B/protection?x=1"],
+  ["a fragment", "https://api.github.com/repos/octo/repo/branches/B/protection#x"],
+  ["credentials", "https://u:p@api.github.com/repos/octo/repo/branches/B/protection"],
+];
+const THIS_REPO_URL = (b: string): string => `https://api.github.com/repos/octo/repo/branches/${b}/protection`;
+
+describe("host-protection.js — red-team 33.1-23 finding 4: a protection url must name this run's repository (D-30)", () => {
+  it("the table is the pinned size (10)", () => {
+    expect(OTHER_PLACE_URLS.length).toBe(10);
+  });
+
+  it.each(OTHER_PLACE_URLS)("--branch release whose protection url names %s → UNKNOWN - verify", (_label, url) => {
+    const r = runCheck(
+      base({ [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf({ ...CLASSIC_STRONG, url: url.replace("/B/", "/release/") }) }),
+      ["--branch", "release", "--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+    for (const f of factsOf(r.stdout, "branch", "release")) expect(f.state, f.id).toBe("unknown");
+  });
+
+  it.each(OTHER_PLACE_URLS)("the listed branch's protection url names %s → branch policy unknown", (_label, url) => {
+    const r = runCheck(base({ [PROTECTION("hotfix")]: classicOf({ ...CLASSIC_STRONG, url: url.replace("/B/", "/hotfix/") }) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+  });
+
+  it("the listed branch's protection url names this repository → branch policy held (control)", () => {
+    const r = runCheck(base({ [PROTECTION("hotfix")]: classicOf({ ...CLASSIC_STRONG, url: THIS_REPO_URL("hotfix") }) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
+    expect(r.status).toBe(0);
+  });
+
+  const UNREADABLE_REPO_URLS: Array<[string, unknown]> = [
+    ["absent", undefined],
+    ["null", null],
+    ["a number", 5],
+    ["not a URL", "octo/repo"],
+    ["not a repository endpoint", "https://api.github.com/users/octo"],
+    ["a repository endpoint with a trailing segment", "https://api.github.com/repos/octo/repo/extra"],
+  ];
+  it.each(UNREADABLE_REPO_URLS)("the repository answer's url is %s and a protection url is present → UNKNOWN - verify", (_label, repoUrl) => {
+    const r = runCheck(
+      base({
+        [REPO]: { status: 200, body: { default_branch: "main", ...(repoUrl === undefined ? {} : { url: repoUrl }) } },
+        [RULES("release")]: NO_RULES,
+        [PROTECTION("release")]: classicOf({ ...CLASSIC_STRONG, url: THIS_REPO_URL("release") }),
+      }),
+      ["--branch", "release"],
+    );
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+  });
+
+  it("the repository answer carries no url and no protection url is present → still protected (an absent protection url stays neutral)", () => {
+    const r = runCheck(
+      base({ [REPO]: { status: 200, body: { default_branch: "main" } }, [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf(CLASSIC_STRONG) }),
+      ["--branch", "release"],
+    );
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+});
+
+// Finding 5: an empty protected-branch list is `failed` only when the same run shows protection on
+// no branch; any protection shown elsewhere in the run contradicts it, and it is then unknown.
+describe("host-protection.js — red-team 33.1-23 finding 5: an empty protected-branch list the same run contradicts is unknown, not failed (D-30)", () => {
+  const CONTRADICTED: Array<[string, Fixture, string[]]> = [
+    ["the default branch main has ruleset rules (the red-team case c20)", base({ [PROTECTED_LIST]: listOf() }), []],
+    [
+      "the probe reads master protected true",
+      base({
+        ...MAIN_UNPROTECTED,
+        [PROTECTED_LIST]: listOf(),
+        [BRANCH("master")]: answer({ name: "master", protected: true }),
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: NOT_PROTECTED_404,
+      }),
+      [],
+    ],
+    [
+      "a --branch reads protected true on the non-admin path",
+      base({
+        ...MAIN_UNPROTECTED,
+        [PROTECTED_LIST]: listOf(),
+        [RULES("feat")]: NO_RULES,
+        [PROTECTION("feat")]: answer({ message: "Not Found" }, 404),
+        [BRANCH("feat")]: answer({ name: "feat", protected: true }),
+      }),
+      ["--branch", "feat"],
+    ],
+    [
+      "a --branch has a ruleset rule",
+      base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf(), [RULES("feat")]: rulesOf(RULE("non_fast_forward")), [PROTECTION("feat")]: NOT_PROTECTED_404 }),
+      ["--branch", "feat"],
+    ],
+    [
+      "master answers a protection record (though its probe says protected false)",
+      base({
+        ...MAIN_UNPROTECTED,
+        [PROTECTED_LIST]: listOf(),
+        [BRANCH("master")]: answer({ name: "master", protected: false }),
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+      }),
+      [],
+    ],
+  ];
+  it("the table is the pinned size (5)", () => {
+    expect(CONTRADICTED.length).toBe(5);
+  });
+
+  it.each(CONTRADICTED)("empty list, but %s → branch policy unknown, production not unprotected by this row", (_label, fx, args) => {
+    const r = runCheck(fx, [...args, "--json"]);
+    const fact = branchPolicyFact(r.stdout);
+    expect(fact?.state).toBe("unknown");
+    expect(fact?.evidence).toContain("the host lists no protected branch, but the same run shows");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+  });
+
+  it("empty list, and the probe reads master protected false with no protection anywhere → still failed (plan 33.1-23's truth kept)", () => {
+    const r = runCheck(
+      base({
+        ...MAIN_UNPROTECTED,
+        [PROTECTED_LIST]: listOf(),
+        [BRANCH("master")]: answer({ name: "master", protected: false }),
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: NOT_PROTECTED_404,
+      }),
+      ["--json"],
+    );
+    expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+    expect(r.status).toBe(1);
   });
 });
 
