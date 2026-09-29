@@ -22,11 +22,20 @@
 //     re-exporting it or re-binding it is refused, so the call sites ARE the direct calls.
 // Anything outside these constraints is a failure, not a skip.
 //
+// A SECOND AXIS, READS (plan 33.1-27, brief DC-3). Every call of a node:fs export that can read a
+// file's content is either inside install/user-file.ts readUserFile (the one bounded reader of a
+// user path) or a READ_SITES row whose source argument is a kit path or standard input. The set of
+// content-reading exports is derived from node:fs's own export list, not typed. The same census
+// runs over each committed `.js`, so what tsc emitted is held to the same rule as its source.
+//
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
 import { readdirSync, readFileSync } from "node:fs";
+// The read axis enumerates node:fs's exports. A namespace import is fine in this TEST; the census's
+// named-imports-only rule applies to the scanned installer modules.
+import * as nodeFs from "node:fs";
 import { join } from "node:path";
 
 const INSTALL_DIR = import.meta.dirname;
@@ -272,6 +281,106 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE READ AXIS (plan 33.1-27, brief DC-3: an unbounded read of a user-controlled path).
+//
+// The DRY_RUN axis above asks how each MUTATING call is kept off the preview path. This axis asks
+// the DC-3 question of every CONTENT READ: every call under install/ that can read a file's bytes
+// (or block opening one) is either inside user-file.ts readUserFile, the one bounded reader, or a
+// READ_SITES row whose source is a kit path (or standard input), never a user path.
+//
+// THE API SET IS DERIVED FROM node:fs ITSELF. The first draft of this axis listed four APIs and so
+// could not see two copyFileSync calls whose source was a user path (plan 33.1-26 fixed those). A
+// hand list of APIs is the set-literal drift this repository has paid for before. So the test reads
+// node:fs's own export list: every export whose NAME marks a possible content read (it starts with
+// read, copy, cp or open, or ends with ReadStream; and `promises`, the async namespace, which stands
+// for every import from node:fs/promises) must be classified, by reading what it does, in exactly
+// one of CONTENT_READER and NOT_CONTENT_READER. Both directions are asserted, so a Node upgrade that
+// adds such an export fails this file until someone classifies it, and a classified name Node no
+// longer exports fails too. realpathSync is an example of a name the pattern does not reach and that
+// reads no content either (it resolves a path).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** A node:fs export name that may mark a content read. */
+const CONTENT_READ_NAME = /^(read|copy|cp|open)|ReadStream$/;
+
+// Each of these reads a file's bytes, copies them (a copy reads its source), opens a descriptor
+// (an open of a FIFO blocks until a writer appears), or is the async namespace that holds all of
+// those. A call of one is a content read.
+const CONTENT_READER = new Set([
+  "copyFile",
+  "copyFileSync",
+  "cp",
+  "cpSync",
+  "createReadStream",
+  "open",
+  "openSync",
+  "openAsBlob",
+  "read",
+  "readSync",
+  "readv",
+  "readvSync",
+  "readFile",
+  "readFileSync",
+  "ReadStream",
+  "FileReadStream",
+  "promises",
+]);
+// Each of these reads directory entries or a link's target, never a file's content, and none of them
+// opens a FIFO: a FIFO in a directory is listed, not read, and readlink reads the link itself.
+const NOT_CONTENT_READER = new Set(["readdir", "readdirSync", "readlink", "readlinkSync", "opendir", "opendirSync"]);
+
+// The one reader: every content read inside user-file.ts must be in this function.
+const USER_FILE_READER_SCOPE = "user-file.ts:readUserFile";
+
+// The roots a kit-path source may start from: the kit source checkout, the shared kit home, and
+// the kit root inside it. A source argument must be one of these identifiers or `join(<root>, ...)`,
+// and must not name TARGET.
+const KIT_ROOT_NAMES = new Set(["GRUGOPS_SRC", "GRUGOPS_HOME", "KIT_ROOT"]);
+
+type ReadClass = "kit-path" | "stdin";
+
+interface ReadSite {
+  /** `<file>:<scope>:<fs name>`, as on the DRY_RUN axis. */
+  readonly site: string;
+  readonly count: number;
+  readonly cls: ReadClass;
+  /** The source argument's text, whitespace-collapsed: argument 0 (the path, or the descriptor). */
+  readonly source: string;
+  /** The root the source lies under (kit-path), or why it is not a path (stdin). */
+  readonly why: string;
+}
+
+// One row per `<file>:<scope>:<fs name>` outside user-file.ts. Every call at the site has argument 0
+// equal to `source`. A site whose source is under TARGET is a finding: it is routed through
+// readUserFile, never classified here.
+const READ_SITES: readonly ReadSite[] = [
+  {
+    site: "install.ts:readlineSync:readSync",
+    count: 1,
+    cls: "stdin",
+    source: "0",
+    why: "descriptor 0 is standard input, read one byte at a time for the interactive target prompt (--yes and a non-TTY never reach it); no path is opened",
+  },
+  {
+    site: "install.ts:copyKit:cpSync",
+    count: 1,
+    cls: "kit-path",
+    source: 'join(GRUGOPS_SRC, "agent-factory")',
+    why: "the kit source checkout (GRUGOPS_SRC): the kit is copied into a staging directory beside the kit home",
+  },
+  {
+    site: "install.ts:renderAdaptersInMirror:cpSync",
+    count: 2,
+    cls: "kit-path",
+    source: 'join(GRUGOPS_SRC, ...rel.split("/"))',
+    why: "the kit source checkout (GRUGOPS_SRC): the renderer's inputs are copied into the mkdtemp render mirror; the target's config is written into it from readUserFile's bytes instead (plan 33.1-26)",
+  },
+];
+
+/** Modules that make no content read at all (plan 33.1-27): they read only through user-file.ts. */
+const ZERO_READER_FILES = ["uninstall.ts", "install-marker.ts"];
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // The derivation.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -292,6 +401,8 @@ interface FileCensus {
   readonly sites: string[];
   /** Every direct openSync call, with the problem its flags have under `read-only-open` (null: none). */
   readonly opens: { readonly site: string; readonly line: number; readonly flagsProblem: string | null }[];
+  /** Every direct call of a CONTENT_READER binding: its site, its argument 0's text, and its line. */
+  readonly reads: { readonly site: string; readonly source: string; readonly line: number }[];
 }
 
 // THE read-only-open FLAGS CHECK (plan 33.1-26, DC-3). Exported to the cases below through the
@@ -371,12 +482,16 @@ function scopeOf(node: ts.Node): string {
 
 function censusOf(file: string): FileCensus {
   const text = readFileSync(join(INSTALL_DIR, file), "utf8");
-  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith(".js") ? ts.ScriptKind.JS : ts.ScriptKind.TS);
   const refusals: string[] = [];
   const imports = new Map<string, Set<string>>();
   const localToImported = new Map<string, string>();
+  // The read axis's key for each local binding: the imported name for node:fs / fs, and `promises`
+  // for ANY name imported from node:fs/promises / fs/promises (the whole async namespace).
+  const localToReaderKey = new Map<string, string>();
   const sites: string[] = [];
   const opens: { site: string; line: number; flagsProblem: string | null }[] = [];
+  const reads: { site: string; source: string; line: number }[] = [];
 
   // Pass 1: the import surface.
   for (const st of sf.statements) {
@@ -396,6 +511,7 @@ function censusOf(file: string): FileCensus {
           if (!imports.has(imported)) imports.set(imported, new Set());
           imports.get(imported)!.add(local);
           localToImported.set(local, imported);
+          localToReaderKey.set(local, mod.endsWith("promises") ? "promises" : imported);
         }
       }
     } else if (ts.isImportEqualsDeclaration(st)) {
@@ -430,6 +546,22 @@ function censusOf(file: string): FileCensus {
       refusals.push(`${file}:${lineOf(sf, node)} fs module name "${node.text}" outside an import declaration`);
     }
     if (ts.isIdentifier(node) && !isNonReferencePosition(node)) {
+      const readerKey = localToReaderKey.get(node.text);
+      if (readerKey !== undefined && CONTENT_READER.has(readerKey)) {
+        const p = node.parent;
+        if (ts.isCallExpression(p) && p.expression === node) {
+          const arg0 = p.arguments[0];
+          reads.push({
+            site: `${file.replace(/\.js$/, ".ts")}:${scopeOf(p)}:${readerKey}`,
+            source: arg0 === undefined ? "" : arg0.getText(sf).replace(/\s+/g, " "),
+            line: lineOf(sf, p),
+          });
+        } else {
+          refusals.push(
+            `${file}:${lineOf(sf, node)} content-reading fs binding ${node.text} (${readerKey}) used other than as a direct callee`,
+          );
+        }
+      }
       const imported = localToImported.get(node.text);
       if (imported !== undefined && FS_MUTATING.has(imported)) {
         const p = node.parent;
@@ -453,7 +585,7 @@ function censusOf(file: string): FileCensus {
   };
   walk(sf);
 
-  return { file, refusals, imports, sites, opens };
+  return { file, refusals, imports, sites, opens, reads };
 }
 
 function countBy(xs: readonly string[]): Map<string, number> {
@@ -557,24 +689,40 @@ describe("installer fs census (CR-02 sibling arms, statically)", () => {
     expect(accepted.length + refused.length).toBe(19);
   });
 
-  // THE DC-3 FLOOR FOR install.js (red-team of plan 33.1-26). install.js reads a file's content only
-  // through user-file.ts readUserFile: it imports none of the node:fs content readers, and its
-  // committed .js names none of them outside a comment. Plan 33.1-27 derives the full read axis from
-  // node:fs itself; this is the floor it builds on. Both halves, because the .ts census cannot see
-  // what tsc emitted and the .js scan cannot see an alias.
-  it("install.ts imports no node:fs content reader, and install.js names none outside a comment (DC-3 floor)", () => {
-    const CONTENT_READERS = ["readFileSync", "copyFileSync", "createReadStream", "openSync"];
+  // THE DC-3 FLOOR, EVERY MODULE (red-team of plan 33.1-26, extended by plan 33.1-27). A module
+  // reads a file's content only through user-file.ts readUserFile or at a pinned READ_SITES row, so
+  // its committed .js names no CONTENT_READER outside a comment except the ones its own rows pin.
+  // Both halves, because the .ts census cannot see what tsc emitted and the .js text scan cannot see
+  // an alias (the read axis below also runs the census over each .js). The text scan skips the
+  // CONTENT_READER names that are ordinary English words in the installers' messages ("read",
+  // "open", "cp", "promises"); the .js census covers those.
+  it("each module's .js names no content reader outside a comment beyond its own pinned read sites (DC-3 floor)", () => {
+    const TEXT_SCANNED = [...CONTENT_READER].filter((n) => !["read", "open", "cp", "promises"].includes(n));
+    // The floor plan 33.1-26 set for install.js, kept as a subset: every one of these is scanned.
+    for (const n of ["readFileSync", "copyFileSync", "createReadStream", "openSync"]) expect(TEXT_SCANNED).toContain(n);
     const installCensus = CENSUS.find((c) => c.file === "install.ts");
     expect(installCensus, "install.ts is not in the scanned set").toBeDefined();
-    const imported = CONTENT_READERS.filter((n) => installCensus!.imports.has(n));
-    expect(imported, `install.ts imports ${imported.join(", ")} from node:fs`).toEqual([]);
-    const js = readFileSync(join(INSTALL_DIR, "install.js"), "utf8").split("\n");
-    const named = js
-      .map((line, i) => ({ line, n: i + 1 }))
-      .filter(({ line }) => !/^\s*(\/\/|\*|\/\*)/.test(line))
-      .filter(({ line }) => CONTENT_READERS.some((name) => new RegExp(`\\b${name}\\b`).test(line)))
-      .map(({ line, n }) => `install.js:${n}: ${line.trim()}`);
-    expect(named, named.join("\n")).toEqual([]);
+    const problems: string[] = [];
+    for (const c of CENSUS) {
+      // Allowed: the names this module's pinned READ_SITES rows name, and for user-file.ts the reads
+      // inside readUserFile. Taken from the pins, not from the reads found, so an unpinned read is
+      // refused here as well as by the read axis below.
+      const allowed = new Set([
+        ...READ_SITES.filter((r) => r.site.startsWith(`${c.file}:`)).map((r) => r.site.split(":")[2]),
+        ...c.reads.filter((r) => r.site.startsWith(`${USER_FILE_READER_SCOPE}:`)).map((r) => r.site.split(":")[2]),
+      ]);
+      const importedReaders = [...c.imports.keys()].filter((n) => CONTENT_READER.has(n) && !allowed.has(n));
+      for (const n of importedReaders) problems.push(`${c.file} imports ${n} from node:fs and has no pinned read of it`);
+      const jsFile = c.file.replace(/\.ts$/, ".js");
+      const js = readFileSync(join(INSTALL_DIR, jsFile), "utf8").split("\n");
+      js.forEach((line, i) => {
+        if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+        for (const name of TEXT_SCANNED) {
+          if (!allowed.has(name) && new RegExp(`\\b${name}\\b`).test(line)) problems.push(`${jsFile}:${i + 1}: ${name}: ${line.trim()}`);
+        }
+      });
+    }
+    expect(problems, problems.join("\n")).toEqual([]);
   });
 
   it("the mutating call-site multiset equals CLASSIFIED_SITES two-sided, with counts", () => {
@@ -591,5 +739,137 @@ describe("installer fs census (CR-02 sibling arms, statically)", () => {
     }
     console.log(`installer fs census: ${[...found.values()].reduce((a, b) => a + b, 0)} mutating call site(s) in ${found.size} row(s)`);
     expect(problems, problems.join("\n")).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// The read axis checks (plan 33.1-27, DC-3).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const FS_EXPORTS = Object.keys(nodeFs);
+const CONTENT_READ_CANDIDATES = [...new Set(FS_EXPORTS.filter((n) => CONTENT_READ_NAME.test(n) || n === "promises"))].sort();
+const CENSUS_JS = FILES.map((f) => censusOf(f.replace(/\.ts$/, ".js")));
+
+function readSiteProblems(census: readonly FileCensus[]): string[] {
+  const problems: string[] = [];
+  const found = new Map<string, { count: number; sources: Set<string>; lines: number[] }>();
+  for (const r of census.flatMap((c) => c.reads)) {
+    if (r.site.startsWith("user-file.ts:")) {
+      const scope = r.site.split(":").slice(0, 2).join(":");
+      if (scope !== USER_FILE_READER_SCOPE) problems.push(`OUTSIDE THE READER ${r.site} (line ${r.line}): user-file.ts reads content only in readUserFile`);
+      continue;
+    }
+    const e = found.get(r.site) ?? { count: 0, sources: new Set<string>(), lines: [] };
+    e.count += 1;
+    e.sources.add(r.source);
+    e.lines.push(r.line);
+    found.set(r.site, e);
+  }
+  const pinned = new Map(READ_SITES.map((r) => [r.site, r]));
+  for (const [site, e] of [...found].sort()) {
+    const row = pinned.get(site);
+    if (row === undefined) {
+      problems.push(`UNCLASSIFIED ${site} x${e.count} (line(s) ${e.lines.join(", ")}; source ${[...e.sources].join(" | ")})`);
+      continue;
+    }
+    if (row.count !== e.count) problems.push(`COUNT ${site}: found ${e.count}, pinned ${row.count}`);
+    for (const src of e.sources) {
+      if (src !== row.source) problems.push(`SOURCE ${site}: found \`${src}\`, pinned \`${row.source}\``);
+    }
+  }
+  for (const [site, row] of [...pinned].sort()) {
+    if (!found.has(site)) problems.push(`STALE ROW ${site} x${row.count} (no such read)`);
+  }
+  return problems;
+}
+
+/** The structural rule for a pinned source: what makes it a kit path or standard input. */
+function sourceProblem(row: ReadSite): string | null {
+  const sf = ts.createSourceFile("src.ts", row.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const st = sf.statements[0];
+  if (sf.statements.length !== 1 || st === undefined || !ts.isExpressionStatement(st)) return "is not one expression";
+  const e = st.expression;
+  if (row.cls === "stdin") return ts.isNumericLiteral(e) && e.text === "0" ? null : "is not the descriptor 0";
+  if (/\bTARGET\b/.test(row.source)) return "names TARGET, a user path";
+  const rootOf = (n: ts.Expression): string | null => {
+    if (ts.isIdentifier(n)) return n.text;
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "join" && n.arguments.length > 0) {
+      const a0 = n.arguments[0];
+      return ts.isIdentifier(a0) ? a0.text : null;
+    }
+    return null;
+  };
+  const root = rootOf(e);
+  return root !== null && KIT_ROOT_NAMES.has(root) ? null : `does not start from a kit root (${[...KIT_ROOT_NAMES].join(", ")})`;
+}
+
+describe("installer fs census — the read axis (DC-3, plan 33.1-27)", () => {
+  it("every node:fs export whose name may mark a content read is classified, two-sided, in CONTENT_READER or NOT_CONTENT_READER", () => {
+    console.log(
+      `installer fs census: node ${process.version}: ${FS_EXPORTS.length} node:fs export(s); ${CONTENT_READ_CANDIDATES.length} match the ` +
+        `content-read pattern; CONTENT_READER ${CONTENT_READER.size}, NOT_CONTENT_READER ${NOT_CONTENT_READER.size}`,
+    );
+    expect(CONTENT_READER.size, "CONTENT_READER is empty: the axis would ask nothing").toBeGreaterThan(0);
+    const problems: string[] = [];
+    for (const n of CONTENT_READER) if (NOT_CONTENT_READER.has(n)) problems.push(`${n} is in both sets`);
+    for (const n of CONTENT_READ_CANDIDATES) {
+      if (!CONTENT_READER.has(n) && !NOT_CONTENT_READER.has(n)) problems.push(`UNCLASSIFIED node:fs export ${n}: read what it does and classify it`);
+    }
+    for (const n of [...CONTENT_READER, ...NOT_CONTENT_READER]) {
+      if (!FS_EXPORTS.includes(n)) problems.push(`STALE ${n}: no longer a node:fs export`);
+      if (!CONTENT_READ_CANDIDATES.includes(n)) problems.push(`${n} does not match the content-read pattern, so the pattern could not have asked about it`);
+    }
+    expect(problems, problems.join("\n")).toEqual([]);
+    expect(CONTENT_READER.size + NOT_CONTENT_READER.size).toBe(CONTENT_READ_CANDIDATES.length);
+  });
+
+  it("every READ_SITES row has a non-empty reason and a source that is a kit path (or standard input), never TARGET", () => {
+    const keys = READ_SITES.map((r) => r.site);
+    expect(new Set(keys).size, "duplicate READ_SITES row").toBe(keys.length);
+    const problems: string[] = [];
+    for (const row of READ_SITES) {
+      if (row.why.trim() === "") problems.push(`${row.site}: empty why`);
+      if (row.count < 1) problems.push(`${row.site}: count ${row.count}`);
+      if (!CONTENT_READER.has(row.site.split(":")[2])) problems.push(`${row.site}: not a CONTENT_READER`);
+      const p = sourceProblem(row);
+      if (p !== null) problems.push(`${row.site}: source \`${row.source}\` ${p}`);
+    }
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  it("every content read under install/ is inside readUserFile or a READ_SITES row, two-sided with counts and sources", () => {
+    const n = CENSUS.flatMap((c) => c.reads).length;
+    console.log(`installer fs census: ${n} content read(s) in the .ts sources; READ_SITES ${READ_SITES.length} row(s)`);
+    const problems = readSiteProblems(CENSUS);
+    expect(problems, problems.join("\n")).toEqual([]);
+    // Vacuity floor: the one reader itself is seen by the axis (its openSync and readSync).
+    expect(CENSUS.flatMap((c) => c.reads).some((r) => r.site === `${USER_FILE_READER_SCOPE}:openSync`)).toBe(true);
+  });
+
+  it("uninstall.ts and install-marker.ts make no content read and import no content reader (they read through user-file.ts)", () => {
+    const problems: string[] = [];
+    for (const f of ZERO_READER_FILES) {
+      const c = CENSUS.find((x) => x.file === f);
+      if (c === undefined) {
+        problems.push(`${f} is not in the scanned set`);
+        continue;
+      }
+      for (const r of c.reads) problems.push(`${r.site} (line ${r.line}): ${f} must read through user-file.ts`);
+      for (const n of c.imports.keys()) if (CONTENT_READER.has(n)) problems.push(`${f} imports ${n} from node:fs`);
+    }
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  it("the committed .js of every module has the same content reads as its source, and no refusal", () => {
+    const refused = CENSUS_JS.flatMap((c) => c.refusals);
+    expect(refused, refused.join("\n")).toEqual([]);
+    const key = (cs: readonly FileCensus[]): string[] => cs.flatMap((c) => c.reads.map((r) => `${r.site} ${r.source}`)).sort();
+    expect(key(CENSUS_JS)).toEqual(key(CENSUS));
+    expect(readSiteProblems(CENSUS_JS)).toEqual([]);
+  });
+
+  it("a content-reading binding is only ever the callee of a direct call (no stored or passed reader)", () => {
+    const refused = [...CENSUS, ...CENSUS_JS].flatMap((c) => c.refusals.filter((r) => r.includes("content-reading fs binding")));
+    expect(refused, refused.join("\n")).toEqual([]);
   });
 });
