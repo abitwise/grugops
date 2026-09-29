@@ -1733,8 +1733,8 @@ describe("host-protection.js — red-team: gh's exit status must agree with the 
   // Every endpoint of the strong fixture, one at a time, with gh's exit status flipped against the
   // HTTP status it printed (a 200 with exit 1, the master 404 with exit 0). Never protected-all.
   const endpoints = Object.keys(base()).filter((k) => k.startsWith("api "));
-  it("the strong fixture has the five endpoints this class covers (repository, rules, ruleset, master probe, environments)", () => {
-    expect(endpoints.length).toBe(5);
+  it("the strong fixture has the seven endpoints this class covers (repository, rules, ruleset, master probe, protected-branch list, listed branch protection, environments)", () => {
+    expect(endpoints.length).toBe(7);
   });
   for (const key of endpoints) {
     it(`${key.slice("api --method GET -i ".length)} answering with gh's exit status contradicting its HTTP status → exit 2, never all protected`, () => {
@@ -1829,6 +1829,141 @@ describe("host-protection.js — when the host cannot be asked, and the result c
     const at = badLines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
     expect((JSON.parse(badLines.slice(at + 1).join("\n")) as { ok: boolean }).ok).toBe(false);
     expect(bad.status).toBe(1);
+  });
+});
+
+// ── Re-review CR-02 (plan 33.1-23, D-30) ────────────────────────────────────────────────────────
+// "Protected branches only" lets every branch deploy when no branch has branch protection rules
+// (docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments), so the
+// environment's branch-policy row is `held` only when the same run shows CLASSIC branch protection
+// somewhere: a 200 object body from `branches/<b>/protection`, for a branch the run already read or
+// for the first branch the host lists under `branches?protected=true&per_page=1`. That list also
+// names ruleset-protected branches (docs.github.com/en/rest/branches/branches), so it is never
+// evidence by itself.
+const PROTECTED_LIST = api("repos/{owner}/{repo}/branches?protected=true&per_page=1");
+const BRANCH_POLICY = "allows deployments only from protected branches";
+const listOf = (...items: unknown[]): unknown => ({ status: 200, body: items });
+// Branch main with no ruleset rule and no classic protection: `unprotected`.
+const MAIN_UNPROTECTED = { [RULES("main")]: NO_RULES, [PROTECTION("main")]: NOT_PROTECTED_404 };
+const branchPolicyFact = (stdout: string): { state: string; evidence: string } | undefined =>
+  envFacts(stdout, "production").find((f) => f.requirement === BRANCH_POLICY);
+const callsTo = (calls: string[][], fragment: string): number => calls.filter((c) => c.join(" ").includes(fragment)).length;
+
+describe("host-protection.js — the production branch policy needs classic protection shown in the same run (re-review CR-02, D-30)", () => {
+  it("the 33.1-VERIFICATION.md reproduction: main unprotected and the host lists no protected branch → production unprotected, branch policy failed", () => {
+    const r = runCheck(base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf() }), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+    expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
+    expect(envLine(r.stdout)).toContain(`${BRANCH_POLICY}: not shown`);
+    expect(r.status).toBe(1);
+  });
+
+  it("the list names main, whose classic arm this run already read as not protected → branch policy unknown, and main's protection is asked once", () => {
+    const r = runCheck(base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf({ name: "main", protected: true }) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(callsTo(r.calls, "branches/main/protection")).toBe(1);
+  });
+
+  const UNREADABLE_LISTS: Array<[string, unknown]> = [
+    ["a 500 answer", { status: 500, body: { message: "Server Error" } }],
+    ["a hostile branch name", listOf({ name: "../x", protected: true })],
+    ["an element that says protected false", listOf({ name: "hotfix", protected: false })],
+    ["a null element", listOf(null)],
+    ["two elements (the check asked for one)", listOf({ name: "hotfix", protected: true }, { name: "main", protected: true })],
+    ["an empty list that names a further page", { status: 200, body: [], link: '<https://api.github.com/x?page=2>; rel="next"' }],
+  ];
+  it.each(UNREADABLE_LISTS)("the protected-branch list is %s → branch policy unknown, and no requested path holds `..`", (_label, answer) => {
+    const r = runCheck(base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: answer }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    for (const c of r.calls) expect(c.join(" ")).not.toContain("..");
+  });
+
+  it("the first listed branch is protected only by a ruleset (classic 404 `Branch not protected`) → unknown, citing what GitHub documents", () => {
+    const r = runCheck(
+      base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf({ name: "hotfix", protected: true }), [PROTECTION("hotfix")]: NOT_PROTECTED_404 }),
+      ["--json"],
+    );
+    const fact = branchPolicyFact(r.stdout);
+    expect(fact?.state).toBe("unknown");
+    expect(fact?.evidence).toContain('"Protected branches only"');
+    expect(fact?.evidence).toContain("branch protection rules");
+    expect(fact?.evidence).toContain("rulesets");
+    expect(callsTo(r.calls, "branches/hotfix/protection")).toBe(1);
+  });
+
+  it("classic-only strong main → branch policy held from main's classic body, and the protected-branch list is never asked", () => {
+    const r = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf(CLASSIC_STRONG) }), ["--json"]);
+    const fact = branchPolicyFact(r.stdout);
+    expect(fact?.state).toBe("held");
+    expect(fact?.evidence).toContain('"main"');
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(callsTo(r.calls, "branches?protected=true")).toBe(0);
+    expect(r.status).toBe(0);
+  });
+
+  it("a non-admin reading (protection 404 `Not Found`, branches/main protected true) → branch policy unknown: a protected flag also counts rulesets", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: { status: 404, body: { message: "Not Found" } },
+        [BRANCH("main")]: { status: 200, body: { name: "main", protected: true } },
+        [PROTECTED_LIST]: listOf({ name: "main", protected: true }),
+      }),
+      ["--json"],
+    );
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+  });
+
+  it("a probed branch that reads protected false while its protection endpoint answers a body is not evidence; an empty list then reads failed", () => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: { status: 200, body: { name: "master", protected: false } },
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+        [PROTECTED_LIST]: listOf(),
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+  });
+
+  it("the list names a branch the same run saw answered as another branch → unknown, and its protection is never asked", () => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: { status: 200, body: { name: "main", protected: true } },
+        [PROTECTED_LIST]: listOf({ name: "master", protected: true }),
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+      }),
+      ["--json"],
+    );
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(callsTo(r.calls, "branches/master/protection")).toBe(0);
+  });
+
+  it.each([
+    ["a null policy", null, "failed"],
+    ["the custom pair", { protected_branches: false, custom_branch_policies: true }, "unknown"],
+  ])("an environment with %s never asks for the protected-branch list", (_label, policy, state) => {
+    const r = runCheck(base({ ...MAIN_UNPROTECTED, [ENVS]: envs({ name: "production", deployment_branch_policy: policy }) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe(state);
+    expect(callsTo(r.calls, "branches?protected=true")).toBe(0);
+  });
+
+  it("the strong fixture stays all protected: its branch-policy evidence comes from the listed branch hotfix", () => {
+    const r = runCheck(base(), ["--json"]);
+    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    const fact = branchPolicyFact(r.stdout);
+    expect(fact?.state).toBe("held");
+    expect(fact?.evidence).toContain('"hotfix"');
+    expect(callsTo(r.calls, "branches?protected=true&per_page=1")).toBe(1);
+    expect(callsTo(r.calls, "branches/hotfix/protection")).toBe(1);
+    expect(r.status).toBe(0);
   });
 });
 
