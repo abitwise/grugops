@@ -1267,6 +1267,22 @@ const MANY_REVIEWER_RULES = (n) => ({
     state: "unknown",
     evidence: `the environment lists ${n} required_reviewers rules, so which one applies is not readable`,
 });
+// Whether the one-rule answer is readable at all (plan 33.1-24, sibling of the evidence-field
+// pairs finding, DC-1). More than one required_reviewers rule is not; neither is one readable rule
+// beside an entry of protection_rules that is not a readable rule, because that entry may be a
+// second required_reviewers rule (garbling one field of a duplicate must not turn "which one
+// applies is not readable" into a pass). A readable entry of another type is provably not one.
+function ambiguousReviewerRules(found) {
+    if (found.rules.length > 1)
+        return MANY_REVIEWER_RULES(found.rules.length);
+    if (found.rules.length === 1 && found.partial) {
+        return {
+            state: "unknown",
+            evidence: "an entry of protection_rules is not a readable rule and may be a second required_reviewers rule, so which one applies is not readable",
+        };
+    }
+    return undefined;
+}
 function reviewerRule(rules) {
     return rules.length === 1 ? rules[0] : undefined;
 }
@@ -1295,8 +1311,9 @@ const ENVIRONMENT_FLOOR = [
             const found = reviewerRules(env);
             if (found === undefined)
                 return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
-            if (found.rules.length > 1)
-                return MANY_REVIEWER_RULES(found.rules.length);
+            const ambiguous = ambiguousReviewerRules(found);
+            if (ambiguous !== undefined)
+                return ambiguous;
             const states = found.rules.map(reviewersOf);
             const at = states.findIndex((state) => state === "held");
             if (at >= 0) {
@@ -1325,8 +1342,9 @@ const ENVIRONMENT_FLOOR = [
             const found = reviewerRules(env);
             if (found === undefined)
                 return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
-            if (found.rules.length > 1)
-                return MANY_REVIEWER_RULES(found.rules.length);
+            const ambiguous = ambiguousReviewerRules(found);
+            if (ambiguous !== undefined)
+                return ambiguous;
             const rule = reviewerRule(found.rules);
             if (rule === undefined) {
                 return {
@@ -1404,10 +1422,17 @@ function environmentVerdict(name, source) {
     }
     const entries = list;
     const matches = entries.filter((e) => hostField(e, "name") === name);
+    // An entry with no readable name may be another environment of this name (plan 33.1-24, sibling
+    // of the evidence-field pairs finding, DC-1): garbling one field of a duplicate must not turn
+    // "which one deploys use is not readable" into a pass. An entry with another readable name is
+    // provably another environment.
+    const unnamed = entries.filter((e) => typeof hostField(e, "name") !== "string").length;
     // Two environments of one name do not say which one deploys use: never first-match-wins
     // (red-team finding 4 of plan 33.1-22, D-30); every row is unknown.
-    if (matches.length > 1) {
-        const reason = `the host lists ${matches.length} environments named ${name}, so which one deploys use is not readable`;
+    if (matches.length > 1 || (matches.length === 1 && unnamed > 0)) {
+        const reason = matches.length > 1
+            ? `the host lists ${matches.length} environments named ${name}, so which one deploys use is not readable`
+            : `the host lists an environment named ${name} beside ${unnamed} entr${unnamed === 1 ? "y" : "ies"} with no readable name, which may be another environment of that name, so which one deploys use is not readable`;
         return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
     }
     const found = matches[0];
