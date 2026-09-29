@@ -64,7 +64,7 @@
 // It only reads (lstat, and readUserFile for the final component), so it lives with the reader.
 //
 // Clear professional voice: this is a safety surface (installer reads of user content).
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, statSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readlinkSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 /** The default size bound: no file the installer reads in a user repository is near this. */
 export const USER_FILE_MAX_BYTES = 8 * 1024 * 1024;
@@ -235,6 +235,38 @@ export function kindAt(path) {
     }
     catch {
         return null;
+    }
+}
+/**
+ * isOwnLink: `dest` is a symbolic link whose target is exactly `src` — the link a --symlink install
+ * makes (install.ts linkOrCopy's symlinkSync(src, dest)). THE ONE OWNERSHIP PREDICATE FOR A LINK,
+ * shared by both binaries (red-team of plan 33.1-27, B2): install skips such a link as its own and
+ * refuses every other link at a path it writes; uninstall removes a link only when it is this link,
+ * and leaves every other link (a loop, a dangling link, a link to a device, a FIFO, a directory or a
+ * file anywhere else) in place with a verify. It reads only the link itself (lstat and readlink),
+ * never what it points at.
+ */
+export function isOwnLink(dest, src) {
+    try {
+        return lstatSync(dest).isSymbolicLink() && readlinkSync(dest) === src;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * gone: nothing is at `path` by lstat — the answer is ENOENT, and only ENOENT. A remover asks it
+ * after its removal and reports `removed` only when it is true (red-team of plan 33.1-27, B2: on
+ * Node 24 rmSync with force left a dangling link in place and threw nothing). Any other lstat error
+ * is not proof that the path is gone.
+ */
+export function gone(path) {
+    try {
+        lstatSync(path);
+        return false;
+    }
+    catch (e) {
+        return codeOf(e) === "ENOENT";
     }
 }
 /**

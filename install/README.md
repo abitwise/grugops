@@ -71,7 +71,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 | `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==`, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo reports *nothing was changed*. All four are **`install.js` only**. So do not test for the install banner to decide a run succeeded; test the exit code. |
 | `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument. Nothing was read or written. |
-| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`). Every `verify` line in the output names what was left undone and the remedy for it. |
+| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
 
 Code `3` is the important one: grug not lie about finish. A run that could not read a source
 directory, that refused an adapter (a `models` block the resolver refuses is one way), or that could
@@ -139,7 +139,8 @@ In the **target repo**:
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved)
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"` (read-modify-write; other
-  keys are preserved, never clobbered)
+  keys are preserved, never clobbered). A settings file that is not a valid JSON object is left
+  untouched and reported as a `verify` finding (exit `3`), by the installer and the uninstaller alike
 - `.claude/settings.json` — the Claude Code ask rules described in §5 are added to
   `permissions.ask` (additive; your own rules and keys are kept, and the added rules are recorded
   so uninstall removes exactly those)
@@ -177,6 +178,21 @@ Copilot pointer blocks (the rest of those files stays exactly as it was), the `A
 it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule you had before
 install stays), the runnable checks under `tools/grugops/` that are still byte-identical to what it
 wrote, and the `.grugops/install.json` marker.
+
+A symbolic link at one of those paths is removed only when it is exactly the link a `--symlink`
+install makes: it points at the kit source file of the checkout you run the uninstaller from. Any
+other link (a dangling one, a loop, a link to a device, to a FIFO, or to a file or directory
+elsewhere) is left in place, is not followed, and is reported as a `verify` finding (exit `3`);
+remove it by hand if it is grugops's. A runnable is never a link, so a link under `tools/grugops/` is
+always left. A path is reported `removed` only when it is gone afterwards.
+
+The marker is removed only when the uninstaller could read it as the target's own JSON object and
+every ledger in it is well-formed. It is never read through a symbolic link: a link at
+`.grugops/install.json`, or a `.grugops` that is itself a link, makes the marker unreadable, so no
+ledger from another repository is believed. A marker that cannot be read (not JSON, too large, a
+FIFO, a directory, a link) or that holds a malformed ledger is reported as a `verify` finding, is
+left in place, and the run exits `3`. `--check` names such a marker as present but unreadable (a
+doctor FAIL, exit `1`), not as "not installed".
 
 A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It names a directory for removal
 only when that directory is already empty, so the real run can also remove a grugops directory
@@ -357,7 +373,10 @@ This is the **single, opt-in deletion path** in grugops, and it is deliberately 
   (grugops never deletes first);
 - it never touches the **live** `agent-factory/` kit, your seeded `.grugops/` state, `plans/`,
   `.planning/`, `docs/`, `src/`, or any other content you own (the same protected-path guard the
-  uninstaller uses).
+  uninstaller uses);
+- a match that is a symbolic link is removed as a link, never followed. A backup is reported
+  `removed` only when it is gone afterwards; one that could not be removed is a `verify` finding,
+  and the run prints `== prune INCOMPLETE — N item(s) need verification ==` and exits `3`.
 
 ### Prove it yourself
 

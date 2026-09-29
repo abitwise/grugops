@@ -105,10 +105,10 @@ function linesFor(stdout: string, rel: string, target: string): Line[] {
   }
   return out;
 }
-/** The decision a run printed for `rel`, with the preview's `would-X` read as the real run's `X`. */
+/** The decision a run printed for `rel`, with the preview's `would-remove` read as the real run's `removed`. */
 function decisionOf(stdout: string, rel: string, target: string): string {
   return linesFor(stdout, rel, target)
-    .map((l) => `${l.label.replace(/^would-/, "")} ${l.msg.replace(/\s*\(DRY_RUN[^)]*\)/, "")}`)
+    .map((l) => `${l.label === "would-remove" ? "removed" : l.label.replace(/^would-/, "")} ${l.msg}`)
     .join(" | ");
 }
 

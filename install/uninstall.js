@@ -17,8 +17,11 @@
 // which opens only a regular file within its size bound and never releases a writer blocked on a
 // FIFO. A path this run edits is asked through readForWrite first, so a symbolic link or a
 // non-directory at the path or on the way to it is refused rather than followed. A path this run
-// removes by name is removed only when it is a regular file or a link; a directory or a special
-// file there is left and reported. install/installer-fs-census.test.ts holds the rule.
+// removes by name is removed only when it is a regular file or the exact link install makes there
+// (removalDecision, isOwnLink); any other link is left and counted, and a directory or a special
+// file there is left and reported. Every removal is one unlinkSync (unlinkPath) whose failure is a
+// counted verify and whose `removed` line is printed only when the path is gone (red-team of plan
+// 33.1-27). install/installer-fs-census.test.ts holds the rule.
 //
 // Removes ONLY what install.ts added:
 //   - the skills install.ts laid down: .claude/skills/<name>/SKILL.md (and the now-empty dirs)
@@ -52,7 +55,7 @@
 //   node install/uninstall.js --allow-self          # override the self-checkout guard (CR-04)
 //   DRY_RUN=1 node install/uninstall.js             # preview only
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
-import { existsSync, rmSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync, readlinkSync, realpathSync, } from "node:fs";
+import { existsSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync } from "node:fs";
 import { basename, join, relative, resolve, isAbsolute, sep } from "node:path";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts, so the
 // REMOVAL set and the INSTALL set can never be two answers to one predicate again (CR-02). Only the
@@ -65,11 +68,13 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { readInstallMarker, readCreatedDirs, readAskRuleLedger, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readCreatedDirs, readAskRuleLedger, malformedLedgers, } from "./install-marker.js";
 // DC-3 (plan 33.1-27): the ONE bounded reader of a user path, shared with install.ts. readForWrite is
 // its no-follow form for a path this run may edit, wayTo the same walk for a path removed by name,
-// kindAt names what is at a path, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, kindAt, unreadState } from "./user-file.js";
+// kindAt names what is at a path, and unreadState is the one wording of an unread state. isOwnLink is
+// the one "this link is the link install makes" predicate, shared with install.ts, and gone is the
+// one "nothing is there any more" check a removal is reported by (red-team of plan 33.1-27).
+import { readUserFile, readForWrite, wayTo, kindAt, unreadState, isOwnLink, gone } from "./user-file.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -233,37 +238,98 @@ const isDir = (p) => {
         return false;
     }
 };
-// remove_file: delete a single file if present, after the protection guard. Never recursive.
-function removeFile(f, label) {
-    if (isProtected(f)) {
-        report("refused", `${label} (protected path — never removed)`);
-        return;
+// errCode: the error code a thrown fs error carries, or "UNKNOWN".
+const errCode = (e) => {
+    const code = e.code;
+    return typeof code === "string" && code !== "" ? code : "UNKNOWN";
+};
+// unlinkPath (red-team of plan 33.1-27, B1/B2): THE ONE REMOVAL OF A FILE OR A LINK in this file.
+// unlinkSync removes the name itself: a link is removed as a link, whatever it points at, and a
+// directory is refused (it is never asked to remove one; the callers decide that first). rmSync did
+// not behave that way: on Node 24 it threw ERR_FS_EISDIR on a link to a directory (an uncaught exit
+// 1 after some removals had happened, and every later step skipped), and with `force` it left a
+// dangling link in place while this file printed `removed`. Node 22 removed both, so CI could not
+// see either. Here a failure is a counted verify, never a throw, and `removed` is printed only when
+// lstat afterwards finds nothing at the path. Every caller returns under DRY_RUN before calling it.
+function unlinkPath(f, label, removedLine) {
+    try {
+        unlinkSync(f);
     }
-    if (!pathExists(f)) {
-        report("skipped", `${label} (not present)`);
-        return;
+    catch (e) {
+        verify(`${label}: ${f} could not be removed (${errCode(e)}). It was left in place; remove it by hand if it is grugops's.`);
+        return false;
     }
-    // DC-3 / D-18 (plan 33.1-27): asked before the preview branch, so the preview and the real run
-    // name the same paths. A link or a non-directory on the way means the path is not where it looks
-    // (a removal would land outside the target): that is a verify, because an older install may have
-    // written through it. A directory or a special file at the path is not something install writes,
-    // so it is left and said; rmSync on a directory would also throw.
+    if (!gone(f)) {
+        verify(`${label}: ${f} is still present after its removal. Remove it by hand if it is grugops's.`);
+        return false;
+    }
+    report("removed", removedLine);
+    return true;
+}
+// rewritePath (red-team of plan 33.1-27, DC-3 "never crashes"): THE ONE REWRITE of a file this run
+// edits (a sentinel block, the Gemini entry, the ask rules). Each caller asked readForWrite first and
+// returns under DRY_RUN before calling it. A write that fails (EACCES, EROFS, a path that changed
+// since the read) is a counted verify, never an uncaught throw, and the caller reports its success
+// line only when this returns true.
+function rewritePath(f, text, label) {
+    try {
+        writeFileSync(f, text);
+        return true;
+    }
+    catch (e) {
+        verify(`${label}: ${f} could not be rewritten (${errCode(e)}). It was left as it was; make the change by hand.`);
+        return false;
+    }
+}
+function removalDecision(f, label, ownLink) {
+    if (isProtected(f))
+        return { act: "refused", line: `${label} (protected path — never removed)` };
     const way = wayTo(TARGET, f);
-    if (way !== null && way !== "absent") {
-        verify(`${label}: ${way.at} ${way.reason}. The path was not removed; remove it by hand if it is grugops's.`);
-        return;
+    if (way === "absent")
+        return { act: "absent", line: `${label} (not present)` };
+    if (way !== null) {
+        return { act: "verify", line: `${label}: ${way.at} ${way.reason}. The path was not removed; remove it by hand if it is grugops's.` };
     }
     const kind = kindAt(f);
-    if (kind !== "regular file" && kind !== "symbolic link") {
-        report("left", `${label} (it is a ${kind ?? "path that could not be read"}, not a file install writes — left in place)`);
-        return;
+    if (kind === null) {
+        return gone(f)
+            ? { act: "absent", line: `${label} (not present)` }
+            : { act: "verify", line: `${label}: ${f} could not be examined. It was not removed; remove it by hand if it is grugops's.` };
     }
+    if (kind === "regular file")
+        return { act: "remove" };
+    if (kind === "symbolic link") {
+        if (ownLink !== null && isOwnLink(f, ownLink))
+            return { act: "remove" };
+        const install = ownLink === null ? "install never makes a link here" : `the link install makes here points at ${ownLink}`;
+        return {
+            act: "verify",
+            line: `${label}: ${f} is a symbolic link that is not the one install makes (${install}). It was left in place ` +
+                `and not followed; remove it by hand if it is grugops's.`,
+        };
+    }
+    return { act: "left", line: `${label} (it is a ${kind}, not a file install writes — left in place)` };
+}
+/** Print a non-remove decision; true when the caller should stop. */
+function reportDecision(d) {
+    if (d.act === "remove")
+        return false;
+    if (d.act === "verify")
+        verify(d.line);
+    else
+        report(d.act === "absent" ? "skipped" : d.act, d.line);
+    return true;
+}
+// remove_file: delete a single file or install's own link, by the one decision above. Never recursive.
+function removeFile(f, label, ownLink) {
+    const d = removalDecision(f, label, ownLink);
+    if (reportDecision(d))
+        return;
     if (DRY_RUN) {
         report("would-remove", label);
         return;
     }
-    rmSync(f, { force: true });
-    report("removed", label);
+    unlinkPath(f, label, label);
 }
 // rmdir_if_empty: remove a now-empty grugops-owned dir (never recursive, never -f a tree).
 //
@@ -419,8 +485,8 @@ function removeSentinelBlock(f, open, close, label) {
     }
     // Reconstruct with a trailing newline (awk's print adds a newline after every emitted record).
     const result = out.length > 0 ? out.join("\n") + "\n" : "";
-    writeFileSync(f, result);
-    report("removed", `${label} (sentinel block only; rest of file preserved)`);
+    if (rewritePath(f, result, label))
+        report("removed", `${label} (sentinel block only; rest of file preserved)`);
 }
 // remove_if_empty: delete a file grugops created if it is now empty / whitespace-only after its
 // sentinel block was stripped. Used for the optional Copilot pointer (when grugops created the
@@ -440,8 +506,7 @@ function removeIfEmpty(f, label) {
             report("would-remove", `${label} (empty after block removal)`);
             return;
         }
-        rmSync(f, { force: true });
-        report("removed", `${label} (file empty after block removal — grugops-created)`);
+        unlinkPath(f, label, `${label} (file empty after block removal — grugops-created)`);
     }
 }
 // unmerge_gemini: remove AGENTS.md from .gemini/settings.json context.fileName via a safe JSON
@@ -468,23 +533,24 @@ function unmergeGemini() {
         report("skipped", ".gemini/settings.json (no AGENTS.md entry to remove)");
         return;
     }
-    if (DRY_RUN) {
-        report("would-edit", ".gemini/settings.json (remove AGENTS.md from context.fileName)");
-        return;
-    }
+    // Red-team of plan 33.1-27 (B5): the file is parsed BEFORE the preview branch, so the preview and
+    // the real run decide alike, and a file that does not parse, or is not a JSON object, is a COUNTED
+    // verify and is left untouched. It used to write an uncounted "verify:" line to stderr and then
+    // print `removed ... AGENTS.md entry` with exit 0 over an edit that never happened.
     let j;
     try {
         const parsed = JSON.parse(raw);
-        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-            process.stderr.write("verify: settings.json not valid JSON; left untouched\n");
-            report("removed", ".gemini/settings.json AGENTS.md entry (Node JSON edit; grugops-created file removed if now empty)");
-            return;
-        }
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+            throw new Error("not an object");
         j = parsed;
     }
     catch {
-        process.stderr.write("verify: settings.json not valid JSON; left untouched\n");
-        report("removed", ".gemini/settings.json AGENTS.md entry (Node JSON edit; grugops-created file removed if now empty)");
+        verify(".gemini/settings.json is not a valid JSON object — it was left untouched, so an AGENTS.md entry grugops " +
+            "added, if there is one, was not removed. Remove it from context.fileName by hand.");
+        return;
+    }
+    if (DRY_RUN) {
+        report("would-edit", ".gemini/settings.json (remove AGENTS.md from context.fileName)");
         return;
     }
     // If the file is EXACTLY the grugops-created default shape (only context.fileName, and it lists
@@ -499,8 +565,10 @@ function unmergeGemini() {
         ctxKeys.length === 1 &&
         ctxKeys[0] === "fileName" &&
         onlyGrugopsEntries;
+    const removedLine = ".gemini/settings.json AGENTS.md entry (Node JSON edit; grugops-created file removed if now empty)";
     if (isGrugopsDefault) {
-        unlinkSync(f);
+        unlinkPath(f, ".gemini/settings.json", removedLine);
+        return;
     }
     else {
         // Pre-existing / user-customised file: trim only AGENTS.md, preserve everything else.
@@ -518,13 +586,12 @@ function unmergeGemini() {
         else
             j.context = ctx;
         if (Object.keys(j).length === 0) {
-            unlinkSync(f);
+            unlinkPath(f, ".gemini/settings.json", removedLine);
         }
-        else {
-            writeFileSync(f, JSON.stringify(j, null, 2) + "\n");
+        else if (rewritePath(f, JSON.stringify(j, null, 2) + "\n", ".gemini/settings.json")) {
+            report("removed", removedLine);
         }
     }
-    report("removed", ".gemini/settings.json AGENTS.md entry (Node JSON edit; grugops-created file removed if now empty)");
 }
 // removeAskRules (D-18): reverse install.ts writeAskRules() BY PROVENANCE, not by presence.
 //
@@ -556,8 +623,8 @@ function removeAskRules() {
         return;
     }
     if (MARKER.state === "unreadable") {
-        verify(`${rel} ask rules — .grugops/install.json could not be read as JSON, so the ledger of rules grugops ` +
-            `added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.`);
+        verify(`${rel} ask rules — .grugops/install.json could not be read as JSON (${MARKER.why}), so the ledger of rules ` +
+            `grugops added is unknown and NO ask rule was removed. Remove the grugops ask rules by hand.`);
         return;
     }
     const askRead = readAskRuleLedger(MARKER.marker);
@@ -662,13 +729,14 @@ function removeAskRules() {
         return;
     }
     if (deleteFile) {
-        unlinkSync(f);
-        report("removed", `${rel} (${removing.length} ask rule(s) grugops added; grugops created the file and it is now empty)`);
-        rmdirIfEmpty(`${TARGET}/.claude`);
+        if (unlinkPath(f, rel, `${rel} (${removing.length} ask rule(s) grugops added; grugops created the file and it is now empty)`)) {
+            rmdirIfEmpty(`${TARGET}/.claude`);
+        }
         return;
     }
-    writeFileSync(f, JSON.stringify(next, null, 2) + "\n");
-    report("removed", `${rel} (${removing.length} ask rule(s) grugops added; every other entry and key preserved)`);
+    if (rewritePath(f, JSON.stringify(next, null, 2) + "\n", rel)) {
+        report("removed", `${rel} (${removing.length} ask rule(s) grugops added; every other entry and key preserved)`);
+    }
 }
 // remove_marker: remove ONLY the grugops-owned install marker .grugops/install.json (D-06). This
 // is the single narrow exception to the .grugops/ protection in isProtected: the marker is the one
@@ -689,10 +757,20 @@ function removeAskRules() {
 // the migrate-seeded .grugops/factory.config.json. Those rollback steps are owned by the user and
 // documented in install/README.md (### Migrating an existing install). No automated migrate-rollback
 // logic lives here by design (minimal-change, never-delete-first).
+//
+// THE MARKER IS REMOVED ONLY WHEN THIS RUN COULD USE IT (red-team of plan 33.1-27, B4, brief DC-2).
+// It is removed when MARKER (read once, before anything was removed) is `ok` AND every ledger in it
+// is well-formed (malformedLedgers, by the readers the rest of this run trusts). A marker this run
+// reported unreadable (not JSON, not an object, too large, a special file, a link at it or on the
+// way) or holding a malformed ledger is the only record of what install did; deleting it would
+// throw away what the human needs to finish the reversal by hand, right after telling them it
+// could not be used. So it is left, with the reason, next to the verify line that already counted
+// it. The decision is taken before the DRY_RUN branch, so the preview decides as the real run does.
+// (Plan 33.1-33 adds the check that the object carries install's own marker fields.)
 function removeMarker() {
-    const m = `${TARGET}/.grugops/install.json`;
+    const m = `${TARGET}/${MARKER_REL}`;
     if (!pathExists(m)) {
-        report("skipped", ".grugops/install.json (marker not present)");
+        report("skipped", `${MARKER_REL} (marker not present)`);
         return;
     }
     // DC-3 / D-18 (plan 33.1-27): install writes the marker as a regular file inside a real .grugops/
@@ -702,15 +780,25 @@ function removeMarker() {
     const kind = kindAt(m);
     if ((way !== null && way !== "absent") || kind !== "regular file") {
         const what = way !== null && way !== "absent" ? `${way.at} ${way.reason}` : `it is a ${kind ?? "path that could not be read"}`;
-        report("left", `.grugops/install.json (${what}; not the marker install writes — left in place)`);
+        report("left", `${MARKER_REL} (${what}; not the marker install writes — left in place)`);
+        return;
+    }
+    if (MARKER.state !== "ok") {
+        const why = MARKER.state === "unreadable" ? MARKER.why : "it was not present when this run started";
+        report("left", `${MARKER_REL} (it could not be read as install's marker: ${why}; it was left in place — fix or remove it by hand)`);
+        return;
+    }
+    const bad = malformedLedgers(MARKER.marker);
+    if (bad.length > 0) {
+        report("left", `${MARKER_REL} (its ${bad.join(" and ")} ledger is malformed, so the record of what install did could not be used; ` +
+            `it was left in place — fix or remove it by hand)`);
         return;
     }
     if (DRY_RUN) {
-        report("would-remove", ".grugops/install.json (grugops-owned marker)");
+        report("would-remove", `${MARKER_REL} (grugops-owned marker)`);
         return;
     }
-    rmSync(m, { force: true });
-    report("removed", ".grugops/install.json (grugops-owned marker; seeded .grugops/ state preserved)");
+    unlinkPath(m, MARKER_REL, `${MARKER_REL} (grugops-owned marker; seeded .grugops/ state preserved)`);
 }
 // sameFileBytes: byte-identical content compare following symlinks (mirrors `cmp -s`). Used for
 // the grugops-owned-AGENTS.md tests and the runnables. DC-3 (plan 33.1-27): both sides are read
@@ -789,10 +877,13 @@ const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 // deletes the marker that holds it. ownsDir() consults it for every empty directory this run visits.
 // A malformed ledger or an unreadable marker is one `verify` finding: only grugops-named directories
 // are removed, and every shared-name directory is left for the human.
-const MARKER = readInstallMarker(`${TARGET}/.grugops/install.json`);
+// Red-team of plan 33.1-27 (B3): read without following a link (install-marker.ts says why). A link
+// at the marker or on the way to it is `unreadable`, so no ledger that is not this target's own is
+// ever believed.
+const MARKER = readInstallMarker(TARGET);
 const DIR_LEDGER = readCreatedDirs(MARKER.state === "ok" ? MARKER.marker : null);
 if (MARKER.state === "unreadable") {
-    verify(`.grugops/install.json could not be read as a JSON object, so the directory ledger (createdDirs) is ` +
+    verify(`.grugops/install.json could not be read as a JSON object (${MARKER.why}), so the directory ledger (createdDirs) is ` +
         `unknown. Only directories whose own name begins with grugops are removed; any other empty directory ` +
         `grugops created is left — remove it by hand once you have confirmed it is yours to remove.`);
 }
@@ -812,8 +903,9 @@ else {
     for (const s of SRC_SKILLS) {
         const rel = `.claude/skills/${s}/SKILL.md`;
         const f = `${TARGET}/${rel}`;
+        // The link install makes here (--symlink, a skill with no resolver slot) points at exactly this.
         if (pathExists(f))
-            removeFile(f, rel);
+            removeFile(f, rel, join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md"));
         else
             report("skipped", `${rel} (not present in the target — outside the removal set)`);
         rmdirIfEmpty(`${TARGET}/.claude/skills/${s}`);
@@ -832,8 +924,10 @@ else {
     for (const a of SRC_ADAPTERS) {
         const rel = `.claude/agents/${a}`;
         const f = `${TARGET}/${rel}`;
+        // Today install renders every adapter to a regular file; an install made before the render
+        // linked an adapter to exactly this kit source path (linkOrCopy), so that link is still install's.
         if (pathExists(f))
-            removeFile(f, rel);
+            removeFile(f, rel, join(GRUGOPS_SRC, ".claude", "agents", a));
         else
             report("skipped", `${rel} (not present in the target — outside the removal set)`);
     }
@@ -843,38 +937,25 @@ rmdirIfEmpty(`${TARGET}/.claude`);
 // 3. AGENTS.md — remove ONLY a grugops-laid-down one (symlink into source, or byte-identical
 //    copy of the source AGENTS.md). A user's own AGENTS.md is never removed.
 const agents = `${TARGET}/AGENTS.md`;
-const srcAgents = `${GRUGOPS_SRC}/AGENTS.md`;
+const srcAgents = join(GRUGOPS_SRC, "AGENTS.md");
 if (isProtected(agents)) {
     // never
 }
 else if (isSymlink(agents)) {
-    // A symlink is removed ONLY if it resolves to the grugops source AGENTS.md. Following the link
-    // and comparing resolved content is exactly the byte-identical test used for the copy branch
-    // below. A user's own AGENTS.md symlink (e.g. AGENTS.md -> docs/agents.md) resolves to other
-    // content, fails the compare, and is left untouched. Reject any symlink that does not resolve to
-    // the source.
-    let resolvesToSource = false;
-    try {
-        // readlinkSync to confirm it is a link; realpathSync + byte-compare to confirm the resolved
-        // target matches the source (cmp -s follows the link).
-        readlinkSync(agents);
-        if (isFile(srcAgents)) {
-            const resolved = realpathSync(agents);
-            resolvesToSource = sameFileBytes(resolved, srcAgents);
-        }
-    }
-    catch {
-        resolvesToSource = false;
-    }
-    if (resolvesToSource) {
-        removeFile(agents, "AGENTS.md (grugops symlink into source)");
+    // A symlink is removed ONLY if it is the link install makes: readlink equals exactly the source
+    // AGENTS.md path (isOwnLink, the predicate install uses; red-team of plan 33.1-27, B2). It used to
+    // follow the link and compare what it resolved to, so any link whose target held the same bytes
+    // was removed. A user's own AGENTS.md symlink (e.g. AGENTS.md -> docs/agents.md) is left untouched,
+    // as is any other link, and it is never followed.
+    if (isOwnLink(agents, srcAgents)) {
+        removeFile(agents, "AGENTS.md (grugops symlink into source)", srcAgents);
     }
     else {
         report("skipped", "AGENTS.md (user-owned symlink — left untouched)");
     }
 }
 else if (isFile(agents) && isFile(srcAgents) && sameFileBytes(srcAgents, agents)) {
-    removeFile(agents, "AGENTS.md (grugops copy, byte-identical to source)");
+    removeFile(agents, "AGENTS.md (grugops copy, byte-identical to source)", null);
 }
 else {
     report("skipped", "AGENTS.md (user-owned or modified — left untouched)");
@@ -923,14 +1004,14 @@ console.log("\n-- removing grugops runnables (only what install.js materialized)
 for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
     const src = `${GRUGOPS_SRC}/${srcRel}`;
     const dest = `${TARGET}/${destRel}`;
-    if (isProtected(dest)) {
-        report("refused", `${destRel} (protected path — never removed)`);
+    // Red-team of plan 33.1-27 (B2, B3): the one removal decision is asked FIRST, without following a
+    // link. install writes a runnable as a regular file and never links one, so a link here (even to a
+    // byte-identical file, which the compare below would follow) is not install's and is left and
+    // counted; a link or non-directory on the way is a verify; a special file is left and said. Only a
+    // regular file inside the target reaches the byte compare.
+    const decision = removalDecision(dest, destRel, null);
+    if (reportDecision(decision))
         continue;
-    }
-    if (!pathExists(dest)) {
-        report("skipped", `${destRel} (not present)`);
-        continue;
-    }
     // DC-3 (plan 33.1-27): a dest that is not a readable regular file is never opened and never a
     // candidate for removal; say what it is rather than calling it user-modified.
     const destRead = readUserFile(dest);
@@ -948,7 +1029,7 @@ for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
         report("skipped", `${destRel} (user-modified — left untouched, never-delete-user-content)`);
         continue;
     }
-    removeFile(dest, `${destRel} (grugops runnable, byte-identical to source)`);
+    removeFile(dest, `${destRel} (grugops runnable, byte-identical to source)`, null);
 }
 // Only the CONTAINING directory, and only when empty — never a recursive removal.
 rmdirIfEmpty(`${TARGET}/tools/grugops`);

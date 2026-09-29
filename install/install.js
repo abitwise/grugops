@@ -50,7 +50,7 @@
 // user path or kit path, goes through ./user-file.ts readUserFile, and every copy is written from
 // its bytes: install/installer-fs-census.test.ts refuses readFileSync, copyFileSync,
 // createReadStream and openSync in this module and in the committed install.js.
-import { existsSync, mkdirSync, writeFileSync, appendFileSync, symlinkSync, cpSync, rmSync, renameSync, readSync, readdirSync, readlinkSync, lstatSync, statSync, mkdtempSync, realpathSync, } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, appendFileSync, symlinkSync, cpSync, rmSync, unlinkSync, renameSync, readSync, readdirSync, lstatSync, statSync, mkdtempSync, realpathSync, } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 // The mirror spawn (D-01). This is the ONLY import this file has ever needed beyond fs/path/os, and
@@ -83,7 +83,7 @@ import { readInstallMarker, readCreatedDirs, readAskRuleLedger } from "./install
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -494,17 +494,9 @@ function writeTargetFile(path, data, how, label) {
         return false;
     }
 }
-// isOwnLink: a symbolic link at `dest` whose target is exactly `src` — the link a --symlink install
-// made (linkOrCopy's symlinkSync(src, dest)). The one kind of link at a write-set path this
-// installer treats as its own; every other link is refused and reported.
-const isOwnLink = (dest, src) => {
-    try {
-        return lstatSync(dest).isSymbolicLink() && readlinkSync(dest) === src;
-    }
-    catch {
-        return false;
-    }
-};
+// isOwnLink (the link a --symlink install made: readlink equals the exact source path) moved into
+// ./user-file.ts in the red-team fixes of plan 33.1-27, so install's "this link is mine" and
+// uninstall's "this link may be removed" are one predicate.
 // sameContent reads BOTH sides through readUserFile (DC-3, plan 33.1-26): one side is usually a path
 // in the user's repository (a linkOrCopy or materializeRunnable destination, a file inside the
 // in-repo agent-factory/ that --migrate compares). Anything but two readable regular files within
@@ -687,8 +679,8 @@ const docWarn = (msg) => {
 // reader in ./install-marker.ts, so the marker is parsed one way in both binaries: an absent,
 // garbled or non-object marker returns null (never throws). The ledger callers use the tri-state
 // directly, because for them "unreadable" and "absent" must not be the same answer (WR-05).
-function readMarker(markerFile) {
-    const read = readInstallMarker(markerFile);
+function readMarker() {
+    const read = readInstallMarker(TARGET);
     return read.state === "ok" ? read.marker : null;
 }
 // readAdapterKit: extract the materialized KIT="…" line from the grugops:materialized-kit
@@ -744,6 +736,16 @@ function notInstalled() {
     docReport("FAIL", `grugops not installed in ${TARGET} — run install.js (then install.js --check)`);
     console.log("\n1 FAILURE(S)");
 }
+// markerUnreadable (red-team of plan 33.1-27): the marker is THERE but could not be read as this
+// target's JSON object (a FIFO, a directory, a symbolic link, a link on the way, garbage, too large).
+// "not installed" would claim it is absent, which is false and hides the one file the human must
+// look at. Still a FAIL with the same exit code, and still fail-closed: nothing else is checked.
+function markerUnreadable(markerFile, why) {
+    docReport("FAIL", `the install marker ${markerFile} is present but could not be read as a JSON object (${why}) — the ` +
+        `install state of ${TARGET} is unknown, so nothing else was checked. Fix or remove the marker, then ` +
+        `re-run install.js (then install.js --check)`);
+    console.log("\n1 FAILURE(S)");
+}
 // doctor: the INSTALL-05 verifier. Read-only by construction. Returns 0 on pass / WARN-only,
 // nonzero on any FAIL (or WARN + --strict).
 function doctor() {
@@ -768,14 +770,20 @@ function doctor() {
         adapterCandidates[0] ??
         join(TARGET, ".claude", "agents");
     // --- not-installed fold-into-FAIL (RESEARCH Discretion §5) --------------------------------
-    // Absent/garbled marker = a dev/uninstalled checkout. Fail-closed BEFORE touching adapters:
-    // print a distinct greppable "not installed" line and return nonzero. Never crash, never
+    // Absent marker = a dev/uninstalled checkout; a marker that is there but unreadable is named as
+    // such (red-team of plan 33.1-27), never as "not installed". Both fail closed BEFORE touching
+    // adapters: print a distinct greppable line and return nonzero. Never crash, never
     // false-green (ties to C3 — the dev checkout has agent-factory/ but no marker).
-    const marker = readMarker(markerFile);
-    if (!marker) {
+    const markerRead = readInstallMarker(TARGET);
+    if (markerRead.state === "unreadable") {
+        markerUnreadable(markerFile, markerRead.why);
+        return 1;
+    }
+    if (markerRead.state === "absent") {
         notInstalled();
         return 1;
     }
+    const marker = markerRead.marker;
     // --- D-03 three-source kit-root cross-check ------------------------------------------------
     // (a) the freshly re-resolved rule, (b) the marker kitRoot, (c) the adapter KIT=. Normalize all
     // three via docAbspath (mirrors the sh abspath); all-equal → pass; differ-but-all-real-and-
@@ -1059,7 +1067,7 @@ function doctor() {
     // The rules are a speed bump, not a security boundary; the git host is the hard floor. A missing
     // rule is a WARN (someone removed it), not a FAIL, and the doctor writes nothing either way.
     // One reader, three states (WR-05): a malformed ledger is a WARN naming it, never "predates".
-    const askMarker = readInstallMarker(markerFile);
+    const askMarker = readInstallMarker(TARGET);
     const askRead = readAskRuleLedger(askMarker.state === "ok" ? askMarker.marker : null);
     const askLedger = askRead.ledger;
     if (askMarker.state === "unreadable") {
@@ -1168,8 +1176,15 @@ if (PRUNE_OLD_KIT) {
         console.log("mode:   DRY_RUN (no filesystem changes)");
     console.log("\n-- removing grugops backups (only the timestamped .bak.<ISO> migrate/update leave) --");
     pruneOldKit();
-    console.log(`\n== prune complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
-    process.exit(0);
+    // Red-team of plan 33.1-27: a backup that could not be removed is a counted verify, so the banner
+    // and the status say INCOMPLETE (3) rather than complete (0) over it.
+    if (VERIFY_FINDINGS > 0) {
+        console.log(`\n== prune INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification ==`);
+    }
+    else {
+        console.log(`\n== prune complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    }
+    process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
 }
 // --- D-07 self-checkout guard (ALWAYS-ON): runs unconditionally after TARGET resolution, before
 // any write, independent of TTY / --yes (Pitfall 3). Refuse when EITHER resolved TARGET ==
@@ -1396,7 +1411,24 @@ function removeBackup(path, name) {
         report("would-remove", path);
         return;
     }
-    rmSync(path, { recursive: true, force: true });
+    // Red-team of plan 33.1-27 (sibling of B2): a backup install made is a directory (a renamed kit) or
+    // a regular file (a renamed config); a link named like one is removed as a link, never followed.
+    // On Node 24 rmSync with force left a dangling link in place and threw nothing, so `removed` is
+    // printed only when the path is gone, and a failure is a counted verify, never a throw.
+    try {
+        if (lstatSync(path).isDirectory())
+            rmSync(path, { recursive: true, force: true });
+        else
+            unlinkSync(path);
+    }
+    catch (e) {
+        verify(`${path} could not be removed (${errCode(e)}). It was left in place; remove it by hand.`);
+        return;
+    }
+    if (!gone(path)) {
+        verify(`${path} is still present after its removal. Remove it by hand.`);
+        return;
+    }
     report("removed", path);
 }
 // pruneOldKit: the ONLY deletion path (D-10). Glob BOTH roots for the grugops backup name-shape and
@@ -1432,7 +1464,7 @@ function pruneOldKit() {
 }
 function detectOldLayout() {
     const hasInRepoKit = existsSync(join(TARGET, "agent-factory", "roles", "orchestrator.md"));
-    const marker = readMarker(join(TARGET, ".grugops", "install.json"));
+    const marker = readMarker();
     // KIT-02: probe the DERIVED adapter set rather than one hand-named file — the target counts as
     // materialized when ANY derived adapter carries a KIT= line. Fail-closed posture is unchanged: an
     // absent file, a missing KIT line, or an empty derived set all read as not-materialized.
@@ -1556,7 +1588,21 @@ function migratePreSteps() {
             report("would-unlink", `symlink adapter ${dest} (never write through a live symlink — Pitfall 1)`);
             continue;
         }
-        rmSync(dest, { force: true });
+        // Red-team of plan 33.1-27 (sibling of B1/B2): unlinkSync removes the link itself, whatever it
+        // points at. rmSync did not: on Node 24 a link to a directory threw ERR_FS_EISDIR (an uncaught
+        // exit 1 in the middle of --migrate), and a dangling link was left in place under an `unlinked`
+        // line. A failure is a counted verify, and `unlinked` is printed only when the link is gone.
+        try {
+            unlinkSync(dest);
+        }
+        catch (e) {
+            verify(`symlink adapter ${dest} could not be unlinked (${errCode(e)}). It was left in place and nothing was written through it.`);
+            continue;
+        }
+        if (!gone(dest)) {
+            verify(`symlink adapter ${dest} is still present after it was unlinked. Nothing was written through it; remove it by hand.`);
+            continue;
+        }
         report("unlinked", `symlink adapter ${dest} (re-materialized as a real file — Pitfall 1)`);
     }
 }
@@ -1684,12 +1730,19 @@ function mergeGemini() {
             report("created", ".gemini/settings.json (context.fileName wiring)");
         return;
     }
+    // Red-team of plan 33.1-27 (B5 sibling): a file that does not parse, or parses to something other
+    // than a JSON object (an array, null, a string), is a COUNTED verify and is left untouched. It used
+    // to be an uncounted report line (exit 0 over a merge that did not happen), and `null` crashed the
+    // merge below. The types of `context` and `fileName` inside an object are plan 33.1-29's.
     let json;
     try {
-        json = JSON.parse(cur.text);
+        const parsed = JSON.parse(cur.text);
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+            throw new Error("not an object");
+        json = parsed;
     }
     catch {
-        report("verify", ".gemini/settings.json is not valid JSON — left untouched; add AGENTS.md to context.fileName manually");
+        verify(".gemini/settings.json is not a valid JSON object — left untouched; add AGENTS.md to context.fileName manually");
         return;
     }
     json.context = json.context || {};
@@ -2405,7 +2458,7 @@ function materializeRunnable() {
 // install never replaces a ledger it could not read with one that forgets what it recorded.
 function writeMarker() {
     const markerRel = ".grugops/install.json";
-    const previousMarker = readInstallMarker(join(TARGET, ".grugops", "install.json"));
+    const previousMarker = readInstallMarker(TARGET);
     // WR-05: a marker that exists but cannot be read holds ledgers this run cannot see. Overwriting it
     // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
     if (previousMarker.state === "unreadable") {
@@ -3071,9 +3124,9 @@ function writeAskRules() {
     // cannot tell a rule an earlier install added from the user's own identical rule, so it adds no
     // rule, relabels none, and leaves the ledger as it found it. A marker with no ledger field (an
     // install that predates the ask rules, or no marker at all) is not a defect: nothing was recorded.
-    const previousMarker = readInstallMarker(join(TARGET, ".grugops", "install.json"));
+    const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
-        verify(`.grugops/install.json could not be read as a JSON object, so the ask-rule ledger is unknown — no ask rule ` +
+        verify(`.grugops/install.json could not be read as a JSON object (${previousMarker.why}), so the ask-rule ledger is unknown — no ask rule ` +
             `was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.`);
         return;
     }

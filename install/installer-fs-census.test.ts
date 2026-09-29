@@ -165,10 +165,10 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1606-1609 continues before the config backup rename at :1622 (after readForWrite read both the legacy config and its destination; red-team of plan 33.1-26)",
   },
   {
-    site: "install.ts:migratePreSteps:rmSync",
+    site: "install.ts:migratePreSteps:unlinkSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1670-1673 `if (DRY_RUN)` reports would-unlink and continues before rmSync at :1674 (after wayTo refused a link or non-directory on the way; red-team of plan 33.1-26)",
+    why: "install.ts:1703-1706 `if (DRY_RUN)` reports would-unlink and continues before unlinkSync at :1712 (after wayTo refused a link or non-directory on the way; red-team of plan 33.1-26). It replaced rmSync in the red-team fixes of plan 33.1-27: a throw is a counted verify and `unlinked` needs gone()",
   },
   {
     site: "install.ts:mkdirp:mkdirSync",
@@ -186,7 +186,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:removeBackup:rmSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1329-1332 `if (DRY_RUN)` reports would-remove and returns before rmSync at :1333",
+    why: "install.ts:1495-1498 `if (DRY_RUN)` reports would-remove and returns before rmSync at :1504 (a directory backup, by lstat)",
+  },
+  {
+    site: "install.ts:removeBackup:unlinkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:1495-1498 returns before unlinkSync at :1505 (anything that is not a directory, a link included, removed as a name; red-team of plan 33.1-27). A throw is a counted verify and `removed` needs gone()",
   },
   {
     site: "install.ts:renderAdaptersInMirror:cpSync",
@@ -225,40 +231,16 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "user-file.ts readUserFile opens with constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOCTTY ?? 0) and no mode, only after statSync showed a regular file within the bound; the descriptor is fstat'ed, read and closed in a finally (plan 33.1-26, DC-3)",
   },
   {
-    site: "uninstall.ts:removeAskRules:unlinkSync",
+    site: "uninstall.ts:unlinkPath:unlinkSync",
     count: 1,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:588-593 `if (DRY_RUN)` reports would-remove and returns before unlinkSync at :596; the earlier returns only read",
+    gate: "helper-gated",
+    why: "uninstall.ts:268 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:357, call :361), removeIfEmpty (:528, call :532), unmergeGemini (:583, calls :602 and :617), removeAskRules (:765, call :773), removeMarker (:842, call :846)",
   },
   {
-    site: "uninstall.ts:removeAskRules:writeFileSync",
+    site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:588-593 returns before writeFileSync at :601",
-  },
-  {
-    site: "uninstall.ts:removeFile:rmSync",
-    count: 1,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:242-245 `if (DRY_RUN)` reports would-remove and returns before rmSync at :246",
-  },
-  {
-    site: "uninstall.ts:removeIfEmpty:rmSync",
-    count: 1,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:377-380 `if (DRY_RUN)` reports would-remove and returns before rmSync at :381",
-  },
-  {
-    site: "uninstall.ts:removeMarker:rmSync",
-    count: 1,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:630-633 `if (DRY_RUN)` reports would-remove and returns before rmSync at :634",
-  },
-  {
-    site: "uninstall.ts:removeSentinelBlock:writeFileSync",
-    count: 1,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:304-307 `if (DRY_RUN)` reports would-remove and returns before writeFileSync at :359",
+    gate: "helper-gated",
+    why: "uninstall.ts:288 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:458, call :513), unmergeGemini (:583, call :618), removeAskRules (:765, call :778)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
@@ -266,18 +248,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     gate: "dry-run-return-above",
     why: "uninstall.ts:270-273 `if (DRY_RUN)` reports would-rmdir and returns before rmdirSync at :275; emptiness is read with readdirSync at :265 (CR-02 fix)",
   },
-  {
-    site: "uninstall.ts:unmergeGemini:unlinkSync",
-    count: 2,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:413-416 `if (DRY_RUN)` reports would-edit and returns before unlinkSync at :445 and :459",
-  },
-  {
-    site: "uninstall.ts:unmergeGemini:writeFileSync",
-    count: 1,
-    gate: "dry-run-return-above",
-    why: "uninstall.ts:413-416 returns before writeFileSync at :461",
-  },
+
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
