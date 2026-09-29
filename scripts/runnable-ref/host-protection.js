@@ -117,7 +117,9 @@
 // same ACCEPT.classicProtectionRecord the branch floor reads, so the two never disagree): first
 // from a classic arm this run already read (each branch's classic arm is read at most once per run),
 // else from `GET branches?protected=true&per_page=1`, read at most once per run and only for the
-// documented pair: an empty list is `failed` (every branch can deploy); one element naming a usable
+// documented pair: an empty list is `failed` (every branch can deploy) unless the same run shows
+// protection on some branch (a ruleset rule, a classic record, or `protected: true`), which makes
+// it `unknown` (red-team finding 5 of plan 33.1-23); one element naming a usable
 // branch with `protected: true` → that branch's classic arm is read, and anything but a body (a
 // ruleset-only branch, a non-admin 404, any other answer) is `unknown`; any other answer is
 // `unknown`. A branch the same run contradicts (a name answered as another branch or not shown to
@@ -868,13 +870,15 @@ function unreadFacts(why) {
 function branchUnknown(name, reason) {
     return { kind: "branch", name, verdict: "UNKNOWN - verify", reason, facts: unreadFacts(reason) };
 }
-function readRulesetArm(bp) {
+function readRulesetArm(name, bp) {
     const res = apiGet(`repos/{owner}/{repo}/rules/branches/${bp}?per_page=100`);
     if (res.status === 200 && Array.isArray(res.body)) {
         const entries = res.body;
         // Only readable entries count. A garbage entry shows nothing, and the list is then read only
         // partially, so a row no readable rule shows is `unknown`, never `failed` (D-30).
         const rules = entries.filter((r) => readFact(r, ACCEPT.ruleEntry) === "held");
+        if (rules.length > 0)
+            noteProtectionShown(`the rule list of branch ${hostText(name)} names ${rules.length} active ruleset rule(s)`);
         const whys = [];
         if (rules.length < entries.length)
             whys.push("an entry of the rule list is not a readable rule");
@@ -963,6 +967,17 @@ const NOT_A_RECORD = "is not a branch protection record";
 const probedProtected = new Map();
 const renamedBranches = new Map();
 const unshownBranches = new Map();
+// Protection this run showed on some branch (red-team finding 5 of plan 33.1-23, D-30): a rule list
+// naming at least one readable ruleset rule, a classic protection record, or a branch answer that
+// reports `protected: true`. `GET branches?protected=true` documents that it lists branches
+// protected by branch protections or rulesets, so any of these contradicts an EMPTY list, which is
+// then `unknown`, never `failed`. `rules/branches/<b>` answers for a name whether or not a branch
+// of that name exists, so a rule list may over-count; that only turns `failed` into `unknown`.
+const protectionShown = [];
+function noteProtectionShown(what) {
+    if (!protectionShown.includes(what))
+        protectionShown.push(what);
+}
 // THE ONE AUTHORITY for "the same run shows that nothing asked under this name is evidence about a
 // branch of that name" (red-team finding 2 of plan 33.1-23, D-30): a name the probe saw answered
 // as another branch, or a name the probe did not show to exist. Every later read under such a
@@ -996,6 +1011,8 @@ function readClassicArm(name, bp) {
         return cached;
     const arm = readClassicArmOnce(name, bp);
     classicArmCache.set(name, arm);
+    if (arm.kind === "body")
+        noteProtectionShown(`branch ${hostText(name)} answers a classic protection record`);
     return arm;
 }
 function readClassicArmOnce(name, bp) {
@@ -1025,11 +1042,14 @@ function readClassicArmOnce(name, bp) {
         // answers with the new branch's record).
         const brName = hostField(br.body, "name");
         if (br.status === 200 && brName === name) {
-            const isProtected = hostField(br.body, "protected");
-            if (isProtected === true) {
+            // Read through the same ACCEPT entry as the probe's value (sibling of red-team finding 3 of
+            // plan 33.1-23): true and false are read, anything else is not readable.
+            const flag = readFact(hostField(br.body, "protected"), ACCEPT.branchProtectedFlag);
+            if (flag === "held") {
+                noteProtectionShown(`branch ${hostText(name)} reports protected true`);
                 return { kind: "unreadable", evidence: "classic protection present; its rules are not readable with this token" };
             }
-            if (isProtected === false)
+            if (flag === "failed")
                 return { kind: "none", evidence: "the branch reports no classic protection" };
         }
         if (br.status === 200 && typeof brName === "string") {
@@ -1050,7 +1070,7 @@ function branchVerdict(name) {
     if (contradicted !== undefined)
         return branchUnknown(name, `${contradicted}, so nothing asked under this name is evidence about it`);
     const bp = branchPath(name);
-    const rulesetArm = readRulesetArm(bp);
+    const rulesetArm = readRulesetArm(name, bp);
     const bindings = rulesetBindings(rulesetArm);
     const fromRules = FLOOR_ITEMS.map((row) => rulesetReading(row, rulesetArm, bindings));
     // The classic arm is read only when the ruleset arm leaves some item not shown.
@@ -1168,6 +1188,10 @@ function readClassicProtectionEvidence() {
     // An empty list that names a further page contradicts itself: it cannot show "no protected
     // branch", so downgrade() reads it as unknown.
     const list = downgrade(readFact(res.body, ACCEPT.protectedBranchList), res.next);
+    // An empty list the same run contradicts cannot show "no protected branch" (finding 5).
+    if (list === "failed" && protectionShown.length > 0) {
+        return { state: "unknown", evidence: `the host lists no protected branch, but the same run shows protection: ${protectionShown.join("; ")}` };
+    }
     if (list !== "held") {
         return says(list, {
             held: "the protected-branch list names a branch",
@@ -1453,8 +1477,12 @@ else {
             // branch unknown, and the probe value is never evidence of protection, only a check against
             // a protection body.
             const flag = hostField(res.body, "protected");
-            if (flag !== undefined)
-                probed.set(b, { state: readFact(flag, ACCEPT.branchProtectedFlag), value: flag });
+            if (flag !== undefined) {
+                const state = readFact(flag, ACCEPT.branchProtectedFlag);
+                probed.set(b, { state, value: flag });
+                if (state === "held")
+                    noteProtectionShown(`branch ${hostText(b)} reports protected true`);
+            }
         }
         else if (res.status === 200 && typeof answeredName === "string")
             renamed.set(b, answeredName);
