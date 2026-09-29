@@ -3394,6 +3394,89 @@ describe("host-protection.js — red-team 33.1-25 B1 siblings: every host field 
   });
 });
 
+// B1 siblings found by the executor's own search of the answers the check reads: the repository
+// answer's `name`, `owner.login` and `html_url` restate the identity; a branch answer's
+// `protection_url` (the main/master probe, and the non-admin path's `branches/<b>`) names the branch's
+// protection endpoint. Absent is neutral; present and naming another repository, owner or branch, or
+// unreadable, contradicts the same run.
+const REPO_ANSWER_CONTRADICTING: Array<[string, Record<string, unknown>]> = [
+  ["name naming another repository", { name: "other" }],
+  ["name in another case", { name: "Repo" }],
+  ["name a number", { name: 7 }],
+  ["owner.login naming another owner", { owner: { login: "evil" } }],
+  ["owner.login in another case", { owner: { login: "Octo" } }],
+  ["owner not an object", { owner: "octo" }],
+  ["html_url naming another repository", { html_url: "https://github.com/evil/other" }],
+  ["html_url on the API host", { html_url: "https://api.github.com/octo/repo" }],
+  ["html_url not canonical (a tab inside)", { html_url: "https://github.com/octo/re\tpo" }],
+];
+const OTHER_PROTECTION = (b: string): string => `https://api.github.com/repos/evil/other/branches/${b}/protection`;
+
+describe("host-protection.js — red-team 33.1-25 B1 siblings: the repository answer's other names and the branch answers' protection_url (DC-1)", () => {
+  it("the table has the pinned size (9)", () => {
+    expect(REPO_ANSWER_CONTRADICTING).toHaveLength(9);
+  });
+
+  it.each(REPO_ANSWER_CONTRADICTING)("the repository answer's %s → the repository is not named, every target UNKNOWN - verify", (_label, over) => {
+    const r = runCheck(base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: THIS_REPOSITORY, ...over } } }), ["--json"]);
+    expect(firstLine(r.stdout)).toMatch(new RegExp(`^repository UNKNOWN - verify — .*${UNNAMED_WHY}`));
+    for (const l of targetLines(r.stdout)) expect(TARGET_LINE.exec(l)?.[3], l).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("controls: name, owner.login and html_url restating octo/repo (and a GHES html_url on its own host) → named, exit 0", () => {
+    const agreeing = { name: "repo", owner: { login: "octo" }, html_url: "https://github.com/octo/repo" };
+    const ghes = { url: "https://ghe.example.com/api/v3/repos/octo/repo", html_url: "https://ghe.example.com/octo/repo" };
+    for (const over of [agreeing, ghes]) {
+      const r = runCheck(base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: THIS_REPOSITORY, ...over } } }));
+      expect(firstLine(r.stdout), JSON.stringify(over)).toBe("repository octo/repo");
+      expect(r.status, JSON.stringify(over)).toBe(0);
+    }
+  });
+
+  const probedMaster = (protectionUrl: unknown): Fixture =>
+    base({
+      [BRANCH("master")]: { status: 200, body: { name: "master", protected: true, protection_url: protectionUrl } },
+      [RULES("master")]: NO_RULES,
+      [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+    });
+  it.each([
+    ["another repository", OTHER_PROTECTION("master")],
+    ["another branch", "https://api.github.com/repos/octo/repo/branches/main/protection"],
+    ["a number", 7],
+  ])("the master probe's protection_url names %s → master UNKNOWN - verify, never judged", (_label, url) => {
+    const r = runCheck(probedMaster(url), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    expect(callsTo(r.calls, "branches/master/protection")).toBe(0);
+    expect(r.status).toBe(2);
+  });
+  it("control: the master probe's protection_url names master's protection endpoint here → master protected", () => {
+    const r = runCheck(probedMaster("https://api.github.com/repos/octo/repo/branches/master/protection"));
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  // The non-admin path: the protection endpoint answers 404 `Not Found`, and branches/<b> answers
+  // about this branch with protected false (no classic protection). A pull_request rule shows only
+  // two rows, so the branch reads unprotected on that answer; a protection_url naming another
+  // repository makes the answer not about this branch.
+  const nonAdmin = (protectionUrl: unknown): Fixture =>
+    base({
+      [RULES("release")]: rulesOf(PR_RULE(1)),
+      [PROTECTION("release")]: { status: 404, body: { message: "Not Found" } },
+      [BRANCH("release")]: { status: 200, body: { name: "release", protected: false, protection_url: protectionUrl } },
+    });
+  it("the non-admin path's branch answer carries a protection_url naming another repository → release UNKNOWN - verify, not unprotected", () => {
+    const r = runCheck(nonAdmin(OTHER_PROTECTION("release")), ["--branch", "release"]);
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+  });
+  it("control: the non-admin path's protection_url names release's endpoint here → release unprotected, exit 1", () => {
+    const r = runCheck(nonAdmin("https://api.github.com/repos/octo/repo/branches/release/protection"), ["--branch", "release"]);
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("unprotected");
+    expect(r.status).toBe(1);
+  });
+});
+
 // B3: one url authority. The raw string must BE the canonical form (it equals its own parsed
 // `href`), https, no credentials, no query or fragment (an empty one included), a path prefix before
 // `/repos/` that is empty or exactly `/api/v3`, a host that is api.github.com unless that GHES prefix

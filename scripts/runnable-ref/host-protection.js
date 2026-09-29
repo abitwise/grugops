@@ -1076,8 +1076,7 @@ function underRepository(loc, repo) {
 // a path whose first two segments are exactly this repository's owner and name. What follows them
 // (the page, its query) is not compared: it does not name a repository, and its shape is only shown
 // by GitHub's example, not documented.
-function webUrlMismatch(url, says) {
-    const repo = repositoryApi;
+function webUrlMismatch(url, says, repo = repositoryApi) {
     if (repo === undefined) {
         return `${says}, but the repository answer names no readable url to compare it with, so which repository it describes is not shown`;
     }
@@ -1138,7 +1137,25 @@ function repositoryIdentity(repo) {
     if (`${api.owner}/${api.name}` !== fullName) {
         return { why: `the repository endpoint names the repository ${fullName} (full_name) but its url ${hostText(url)} names another, ${UNNAMED_REPOSITORY}` };
     }
+    const restated = repositoryRestatementMismatch(repo.body, api);
+    if (restated !== undefined)
+        return { why: `the repository endpoint names the repository ${fullName} (full_name) but ${restated}, ${UNNAMED_REPOSITORY}` };
     return { name: fullName, api };
+}
+// The repository answer's other names for itself (a sibling of red-team B1 of plan 33.1-25, found by
+// search, DC-1): `name`, `owner.login` and `html_url` restate full_name and url. Each is optional
+// here (absent is neutral); a present one must say the same thing exactly: `name` is the proven
+// name, `owner` is an object whose `login` is the proven owner, and `html_url` is this repository's
+// page on its web host (webUrlMismatch). Anything else is the same answer disagreeing with itself.
+function repositoryRestatementMismatch(body, api) {
+    const name = hostField(body, "name");
+    if (name !== undefined && name !== api.name)
+        return `its name is ${hostText(name)}`;
+    const owner = hostField(body, "owner");
+    if (owner !== undefined && hostField(owner, "login") !== api.owner)
+        return `its owner is ${hostText(owner)}`;
+    const page = hostField(body, "html_url");
+    return page === undefined ? undefined : webUrlMismatch(page, `its html_url is ${hostText(page)}`, api);
 }
 // Why a host API url that is PRESENT does not name `<this run's repository><rest>` for the expected
 // rest, or undefined when it does (red-team finding 3 of plan 33.1-22, finding 4 of plan 33.1-23,
@@ -1282,6 +1299,12 @@ function readClassicArmOnce(name, bp) {
         // answers with the new branch's record).
         const brName = hostField(br.body, "name");
         if (br.status === 200 && brName === name) {
+            // A present protection_url must name this branch's protection endpoint in this repository
+            // (sibling of red-team B1 of plan 33.1-25): otherwise the answer is not shown to be about it.
+            const brUrl = hostField(br.body, "protection_url");
+            const brElsewhere = protectionUrlMismatch(brUrl, name, `the branch endpoint's answer carries protection_url ${hostText(brUrl)}`);
+            if (brElsewhere !== undefined)
+                return { kind: "elsewhere", evidence: brElsewhere };
             // Read through the same ACCEPT entry as the probe's value (sibling of red-team finding 3 of
             // plan 33.1-23): true and false are read, anything else is not readable.
             const flag = readFact(hostField(br.body, "protected"), ACCEPT.branchProtectedFlag);
@@ -1913,7 +1936,17 @@ else {
         // control-character name, or the probed name in another case or with an invisible character,
         // shows neither this branch nor another one, so the branch is not shown to exist.
         const renamedTo = typeof answeredName === "string" && usableBranch(answeredName) && provablyAnotherName(answeredName, b) ? answeredName : undefined;
-        if (res.status === 200 && answeredName === b) {
+        // A present protection_url must name this branch's protection endpoint in this repository
+        // (sibling of red-team B1 of plan 33.1-25, DC-1); otherwise the answer does not show the branch.
+        const probeUrl = hostField(res.body, "protection_url");
+        const probeElsewhere = res.status === 200 && answeredName === b
+            ? protectionUrlMismatch(probeUrl, b, `HTTP 200 about ${hostText(b)} carrying protection_url ${hostText(probeUrl)}`)
+            : undefined;
+        if (probeElsewhere !== undefined) {
+            unshownBranches.set(b, probeElsewhere);
+            targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${probeElsewhere}`));
+        }
+        else if (res.status === 200 && answeredName === b) {
             names.push(b);
             // Read through ACCEPT.branchProtectedFlag. An ABSENT key is not recorded, and stays neutral:
             // every branch the probe never asks (the default branch, each --branch, a listed branch) has
