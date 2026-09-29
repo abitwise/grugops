@@ -13,6 +13,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import ts from "typescript";
+import { skipLine, stageShapeOrSkip } from "../check-platform-shapes.js";
 
 const HERE = import.meta.dirname;
 const CHECK_JS = join(HERE, "host-protection.js");
@@ -3072,11 +3073,11 @@ const SPECIAL_SHAPES: SpecialShape[] = [
   {
     name: "a FIFO",
     kind: "fifo",
+    // Through the platform-shape corpus's own constructor (plan 33-05): `mkfifo` followed by
+    // `isFIFO()`, so a host that cannot make one (win32, no mkfifo) prints a counted skip.
     make: (at) => {
-      if (process.platform === "win32") return "a FIFO at a filesystem path is a POSIX shape (win32)";
-      const r = spawnSync("mkfifo", [at]);
-      if (r.error !== undefined || r.status !== 0) return `mkfifo is unavailable here (${r.error?.message ?? `exit ${r.status}`})`;
-      return existsSync(at) && lstatSync(at).isFIFO() ? undefined : "mkfifo exited 0 without making a FIFO";
+      const skipped = stageShapeOrSkip("FIFO", at, `scripts/runnable-ref/host-protection.test.ts: ${at}`);
+      return skipped === null ? undefined : skipLine(skipped, "the directory and character-device cases at the same path");
     },
   },
   { name: "a directory", kind: "directory", make: (at) => (mkdirSync(at, { recursive: true }), undefined) },
