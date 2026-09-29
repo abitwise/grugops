@@ -605,6 +605,26 @@ describe("installer fs census (CR-02 sibling arms, statically)", () => {
     expect(accepted.length + refused.length).toBe(19);
   });
 
+  // THE DC-3 FLOOR FOR install.js (red-team of plan 33.1-26). install.js reads a file's content only
+  // through user-file.ts readUserFile: it imports none of the node:fs content readers, and its
+  // committed .js names none of them outside a comment. Plan 33.1-27 derives the full read axis from
+  // node:fs itself; this is the floor it builds on. Both halves, because the .ts census cannot see
+  // what tsc emitted and the .js scan cannot see an alias.
+  it("install.ts imports no node:fs content reader, and install.js names none outside a comment (DC-3 floor)", () => {
+    const CONTENT_READERS = ["readFileSync", "copyFileSync", "createReadStream", "openSync"];
+    const installCensus = CENSUS.find((c) => c.file === "install.ts");
+    expect(installCensus, "install.ts is not in the scanned set").toBeDefined();
+    const imported = CONTENT_READERS.filter((n) => installCensus!.imports.has(n));
+    expect(imported, `install.ts imports ${imported.join(", ")} from node:fs`).toEqual([]);
+    const js = readFileSync(join(INSTALL_DIR, "install.js"), "utf8").split("\n");
+    const named = js
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .filter(({ line }) => CONTENT_READERS.some((name) => new RegExp(`\\b${name}\\b`).test(line)))
+      .map(({ line, n }) => `install.js:${n}: ${line.trim()}`);
+    expect(named, named.join("\n")).toEqual([]);
+  });
+
   it("the mutating call-site multiset equals CLASSIFIED_SITES two-sided, with counts", () => {
     const found = countBy(CENSUS.flatMap((c) => c.sites));
     const pinned = new Map(CLASSIFIED_SITES.map((r) => [r.site, r.count]));

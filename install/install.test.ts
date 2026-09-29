@@ -5929,17 +5929,20 @@ const pause = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 const stillRunning = (c: ChildProcess): boolean => c.exitCode === null && c.signalCode === null;
 
 describe("readUserFile: the one bounded reader of a user path (DC-3, plan 33.1-26)", () => {
-  it("readUserFile: an absent path, a path under a regular file and a dangling symlink are `absent`", () => {
+  // Red-team of plan 33.1-26: `absent` means nothing is at the path. A path under a regular file
+  // (ENOTDIR) and a dangling symlink both name SOMETHING, and a caller that read either as absent
+  // wrote through it (the dangling link) or crashed on the write (ENOTDIR).
+  it("readUserFile: an absent path is `absent`; a path under a regular file and a dangling symlink are not", () => {
     const d = mkTmp();
     expect(readUserFileInChild(join(d, "nope")).result).toEqual({ state: "absent" });
     writeFileSync(join(d, "file"), "x");
-    expect(readUserFileInChild(join(d, "file", "under")).result).toEqual({ state: "absent" });
+    expect(readUserFileInChild(join(d, "file", "under")).result).toEqual({ state: "unreadable", code: "ENOTDIR" });
     const skip = stageSymlinkOrSkip(join(d, "missing-target"), join(d, "dangling"), "dangling symlink", "readUserFile case");
     if (skip !== null) {
       console.log(skipLine(skip, "the absent-path assertion above"));
       return;
     }
-    expect(readUserFileInChild(join(d, "dangling")).result).toEqual({ state: "absent" });
+    expect(readUserFileInChild(join(d, "dangling")).result).toEqual({ state: "not-regular", kind: "dangling symbolic link" });
   });
 
   it("readUserFile: a regular file, and a symlink to one, are `ok` with their bytes and text", () => {
