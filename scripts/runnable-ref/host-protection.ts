@@ -1194,6 +1194,11 @@ function readClassicArmOnce(name: string, bp: string): ClassicArm {
         return { kind: "unreadable", evidence: "classic protection present; its rules are not readable with this token" };
       }
       if (flag === "failed") return { kind: "none", evidence: "the branch reports no classic protection" };
+      // The answer is about this branch, so it is not `elsewhere`; its protected value is not read.
+      return {
+        kind: "unreadable",
+        evidence: `the protection endpoint answered HTTP 404 (Not Found) and the branch endpoint reports a protected value this check cannot read (${hostText(hostField(br.body, "protected"))})`,
+      };
     }
     if (br.status === 200 && typeof brName === "string") {
       return { kind: "elsewhere", evidence: `the branch endpoint answered about branch ${hostText(brName)}, not this one (a renamed branch's old name answers this way)` };

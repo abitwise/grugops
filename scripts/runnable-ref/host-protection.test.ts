@@ -2082,6 +2082,25 @@ describe("host-protection.js — red-team 33.1-23 finding 1: classic protection 
   });
 });
 
+// Sibling of finding 3: the 404 `Not Found` path's branches/<b> `protected`, read through the same
+// ACCEPT entry. A garbled value about THIS branch is not readable; it is not an answer about
+// another branch, so the evidence must not say so.
+describe("host-protection.js — red-team 33.1-23 sibling: the non-admin path's protected value is read through the one reader (D-30)", () => {
+  it.each([["a string", "true"], ["null", null], ["a number", 1]])("branches/main answers protected as %s → main UNKNOWN - verify, not read as another branch", (_label, v) => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: answer({ message: "Not Found" }, 404),
+        [BRANCH("main")]: answer({ name: "main", protected: v }),
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(branchLine(r.stdout)).toContain("a protected value this check cannot read");
+    expect(branchLine(r.stdout)).not.toContain("not this one");
+  });
+});
+
 // Finding 2: every way the main/master probe can fail to show that `master` is a branch.
 const MASTER_NOT_SHOWN: Array<[string, unknown]> = [
   ["404 `Branch not found`", answer({ message: "Branch not found" }, 404)],
