@@ -47,8 +47,9 @@
 //     branch asked for → no classic protection; `.protected === true` → classic protection exists
 //     but its rules are not readable with this token; an answer about another branch → the whole
 //     branch is `UNKNOWN - verify`. Anything else → not readable, quoting the status. A protection
-//     body for a branch the main/master probe read as `protected: false` → the whole branch is
-//     `UNKNOWN - verify` (the same run contradicts itself).
+//     body for a branch the main/master probe read as `protected` false, or as any present value
+//     that is not a boolean (ACCEPT.branchProtectedFlag) → the whole branch is `UNKNOWN - verify`
+//     (the same run contradicts itself); an absent `protected` stays neutral.
 //     (Measured endpoint behaviour: 33.1-RESEARCH.md § Q4.)
 // Each arm gives each row one of three states: `held` (positively shown), `failed` (read, and not
 // shown) or `unknown` (not readable). THE UNION RULE: GitHub enforces rulesets and classic branch
@@ -118,8 +119,9 @@
 // documented pair: an empty list is `failed` (every branch can deploy); one element naming a usable
 // branch with `protected: true` → that branch's classic arm is read, and anything but a body (a
 // ruleset-only branch, a non-admin 404, any other answer) is `unknown`; any other answer is
-// `unknown`. A branch the same run contradicts (a name answered as another branch, or a body for a
-// branch the probe read as `protected: false`) is never evidence.
+// `unknown`. A branch the same run contradicts (a name answered as another branch or not shown to
+// exist, or a body for a branch the probe read as `protected` false or unreadable) is never
+// evidence.
 // A field that is missing or of an unexpected type is `unknown`, never its safe default;
 // `protection_rules` that is not an array is `unknown`; a `null` branch policy is `failed`; a custom
 // branch policy is `unknown` (the check does not read which branches it allows). A reviewer counts
@@ -405,6 +407,14 @@ const ACCEPT = {
     // classic row without a readable enforce_admins anyway (classicBinding), so requiring it here
     // costs no row the floor could have held. Anything else (`{}`, an error envelope, a branch
     // object) is not a record: the classic arm is not readable, and it is no branch-policy evidence.
+    // The main/master probe's `protected` on `branches/<b>` about the branch asked for (red-team
+    // finding 3 of plan 33.1-23): true is held, false is failed, and anything else present (a string,
+    // null, a number, an object) is unknown. It is only ever a contradiction check against a
+    // protection body, never evidence that a branch is protected.
+    branchProtectedFlag: {
+        held: (v) => v === true,
+        failed: (v) => v === false,
+    },
     classicProtectionRecord: {
         held: (v) => isObject(v) && v.message === undefined && v.protected === undefined && isObject(v.enforce_admins) && typeof v.enforce_admins.enabled === "boolean",
     },
@@ -911,11 +921,6 @@ function protectionUrlMismatch(url, name) {
 const classicArmCache = new Map();
 // The evidence phrase for a 200 answer that is not a protection record (the tests key on it).
 const NOT_A_RECORD = "is not a branch protection record";
-// What the main/master probe read this run (the main flow fills these before any verdict is made):
-// the `protected` value each probed branch's own answer carried, each probed name the host
-// answered as ANOTHER branch (mapped to the name it answered), and each probed name whose answer
-// did not show a branch of that name (mapped to how it answered: a 404, another status, or a 200
-// naming no readable branch).
 const probedProtected = new Map();
 const renamedBranches = new Map();
 const unshownBranches = new Map();
@@ -925,6 +930,16 @@ const unshownBranches = new Map();
 // name is refused: a `--branch` target of that name is UNKNOWN - verify and is never asked about,
 // a protected-branch list naming it is not evidence and its protection is never asked, and a
 // classic arm cached under it is never branch-policy evidence.
+// Whether the probe's own `protected` value contradicts a protection body under `name` (red-team
+// finding 3 of plan 33.1-23, D-30): `false` does, and so does any present value that is not a
+// boolean (it cannot be read, so it cannot be shown to agree). `true` and absence do not.
+function probeContradictsBody(name) {
+    const flag = probedProtected.get(name);
+    if (flag === undefined || flag.state === "held")
+        return undefined;
+    const says = flag.state === "failed" ? "reports protected false" : `reports a protected value this check cannot read (${hostText(flag.value)})`;
+    return `branch ${hostText(name)} ${says}, but its classic protection endpoint answered with a protection body`;
+}
 function contradictedName(name) {
     const renamedTo = renamedBranches.get(name);
     if (renamedTo !== undefined) {
@@ -989,9 +1004,7 @@ function readClassicArmOnce(name, bp) {
     return { kind: "unreadable", evidence: `the protection endpoint answered ${answered(prot)}` };
 }
 // --- branch verdict ---------------------------------------------------------------------------
-// `probedProtected`: the `protected` value the main/master probe read from `branches/<b>` about
-// this branch in the same run (undefined when it was not probed).
-function branchVerdict(name, probedProtected) {
+function branchVerdict(name) {
     if (!usableBranch(name))
         return branchUnknown(name, "this is not a branch name the check can ask the host about");
     const contradicted = contradictedName(name);
@@ -1006,11 +1019,11 @@ function branchVerdict(name, probedProtected) {
     // An answer about another branch taints every read made under this name, the ruleset arm too.
     if (classicArm?.kind === "elsewhere")
         return branchUnknown(name, classicArm.evidence);
-    // Two endpoints naming one fact (D-30): the probe read `protected: false`, but the classic
-    // protection endpoint answered with a protection body. The same run contradicts itself.
-    if (classicArm?.kind === "body" && probedProtected === false) {
-        return branchUnknown(name, "the branch endpoint reports protected false, but the classic protection endpoint answered with a protection body");
-    }
+    // Two endpoints naming one fact (D-30): the probe read `protected` false or unreadable, but the
+    // classic protection endpoint answered with a protection body. The same run contradicts itself.
+    const probeSays = classicArm?.kind === "body" ? probeContradictsBody(name) : undefined;
+    if (probeSays !== undefined)
+        return branchUnknown(name, probeSays);
     const fromClassic = FLOOR_ITEMS.map((row) => classicArm === undefined ? plain("unknown", "not read (the ruleset arm shows every item)") : classicReading(row, classicArm));
     const items = FLOOR_ITEMS.map((row, i) => ({
         fact: {
@@ -1078,18 +1091,15 @@ function environmentName() {
 const PROTECTED_BRANCH_LIST = "repos/{owner}/{repo}/branches?protected=true&per_page=1";
 const RULESETS_UNSAID = 'GitHub documents "Protected branches only" for branch protection rules and does not say whether rulesets count';
 // Whether one branch's classic arm, as this run read it, shows classic branch protection, or why
-// not. A name the run saw answered as another branch, or a body for a branch the probe read as
-// `protected: false`, is contradicted by the same run and is not evidence.
+// not. A name the run contradicts (contradictedName), or a body for a branch the probe read as
+// `protected` false or unreadable (probeContradictsBody), is not evidence.
 function classicShownOn(name, arm) {
     const contradicted = contradictedName(name);
     if (contradicted !== undefined)
         return { state: "unknown", evidence: contradicted };
-    if (arm.kind === "body" && probedProtected.get(name) === false) {
-        return {
-            state: "unknown",
-            evidence: `branch ${hostText(name)} reports protected false, but its classic protection endpoint answered with a protection body`,
-        };
-    }
+    const probeSays = arm.kind === "body" ? probeContradictsBody(name) : undefined;
+    if (probeSays !== undefined)
+        return { state: "unknown", evidence: probeSays };
     const why = arm.kind === "body" ? "" : arm.evidence;
     return says(readFact(arm.kind, ACCEPT.classicArmShown), {
         held: `classic branch protection exists on branch ${hostText(name)}: its protection endpoint answered 200`,
@@ -1396,7 +1406,14 @@ else {
         const answeredName = hostField(res.body, "name");
         if (res.status === 200 && answeredName === b) {
             names.push(b);
-            probed.set(b, hostField(res.body, "protected"));
+            // Read through ACCEPT.branchProtectedFlag. An ABSENT key is not recorded, and stays neutral:
+            // every branch the probe never asks (the default branch, each --branch, a listed branch) has
+            // no probe value either, so absence cannot count as a contradiction without making every such
+            // branch unknown, and the probe value is never evidence of protection, only a check against
+            // a protection body.
+            const flag = hostField(res.body, "protected");
+            if (flag !== undefined)
+                probed.set(b, { state: readFact(flag, ACCEPT.branchProtectedFlag), value: flag });
         }
         else if (res.status === 200 && typeof answeredName === "string")
             renamed.set(b, answeredName);
@@ -1423,7 +1440,7 @@ else {
             targets.push(branchUnknown(b, `${contradicted}, so nothing asked under this name is evidence about it`));
     }
     for (const b of names)
-        targets.push(branchVerdict(b, probed.get(b)));
+        targets.push(branchVerdict(b));
     targets.push(environmentVerdict(env.name, env.source));
 }
 // --- report -----------------------------------------------------------------------------------
