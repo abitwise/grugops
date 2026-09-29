@@ -9,9 +9,10 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, lstatSync, symlinkSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import ts from "typescript";
 
 const HERE = import.meta.dirname;
 const CHECK_JS = join(HERE, "host-protection.js");
@@ -3001,6 +3002,166 @@ describe("host-protection.js — red-team 33.1-24 sibling: a host branch name wi
       expect(r.status, name).toBe(0);
     }
   });
+});
+
+// ── Brief DC-3 (plan 33.1-25): the config read is bounded to regular files ───────────────────────
+// environmentName reads the user's factory.config.json candidates, the host check's only reads of a
+// user-controlled path. A FIFO, a directory or a character device at a candidate must be skipped as
+// unreadable (the name falls through to the next source), never block the run; a regular file above
+// the size bound is skipped too. The path set is taken from environmentName's own candidate list in
+// the syntax tree, never typed here.
+const CHECK_TS = join(HERE, "host-protection.ts");
+function configCandidates(): string[] {
+  const sf = ts.createSourceFile(CHECK_TS, readFileSync(CHECK_TS, "utf8"), ts.ScriptTarget.Latest, true);
+  const found: string[][] = [];
+  const visit = (node: ts.Node, inside: boolean): void => {
+    const here = inside || (ts.isFunctionDeclaration(node) && node.name?.text === "environmentName");
+    if (here && ts.isForOfStatement(node) && ts.isArrayLiteralExpression(node.expression)) {
+      const els = node.expression.elements;
+      if (els.every((e) => ts.isStringLiteral(e))) found.push(els.map((e) => (e as ts.StringLiteral).text));
+    }
+    ts.forEachChild(node, (c) => visit(c, here));
+  };
+  visit(sf, false);
+  expect(found, "environmentName has exactly one for…of over a literal list of candidate paths").toHaveLength(1);
+  return found[0];
+}
+const CONFIG_CANDIDATES = configCandidates();
+const DEFAULT_SOURCE = "the documented default";
+const sourceOf = (rel: string): string => `the last "environments" entry of ${rel}`;
+const CONFIG_BOUND = 1024 * 1024;
+
+// Like runCheck, with a 20 s bound: a hang is a finding, never a stalled suite.
+function runBounded(cwd: string): { error: Error | undefined; signal: NodeJS.Signals | null; status: number | null; stdout: string } {
+  const scratch = mkTmp();
+  const fixturePath = join(scratch, "fixture.json");
+  const logPath = join(scratch, "calls.log");
+  writeFileSync(fixturePath, JSON.stringify(base()));
+  const r = spawnSync("node", [CHECK_JS, "--gh-script", GH_STUB], {
+    encoding: "utf8",
+    cwd,
+    timeout: 20_000,
+    killSignal: "SIGKILL",
+    env: { ...process.env, GH_STUB_FIXTURE: fixturePath, GH_STUB_LOG: logPath },
+  });
+  if (existsSync(logPath)) {
+    for (const l of readFileSync(logPath, "utf8").split("\n")) if (l.length > 0) ALL_CALLS.push(JSON.parse(l) as string[]);
+  }
+  return { error: r.error, signal: r.signal, status: r.status, stdout: r.stdout ?? "" };
+}
+function environmentLine(stdout: string): string {
+  return targetLines(stdout).find((l) => l.startsWith("environment ")) ?? "";
+}
+function writeConfig(cwd: string, rel: string, name: string): void {
+  mkdirSync(dirname(join(cwd, rel)), { recursive: true });
+  writeFileSync(join(cwd, rel), JSON.stringify({ environments: [name] }));
+}
+// The kind of what sits at a path, without following a symlink.
+function kindAt(p: string): string {
+  const st = lstatSync(p);
+  return st.isFIFO() ? "fifo" : st.isDirectory() ? "directory" : st.isSymbolicLink() ? "symlink" : st.isFile() ? "file" : "other";
+}
+
+// Each special shape: how to make it (or why this platform cannot), and its kind once made.
+interface SpecialShape {
+  name: string;
+  kind: string;
+  make: (at: string) => string | undefined; // undefined when made, else the skip reason
+}
+const SPECIAL_SHAPES: SpecialShape[] = [
+  {
+    name: "a FIFO",
+    kind: "fifo",
+    make: (at) => {
+      if (process.platform === "win32") return "a FIFO at a filesystem path is a POSIX shape (win32)";
+      const r = spawnSync("mkfifo", [at]);
+      if (r.error !== undefined || r.status !== 0) return `mkfifo is unavailable here (${r.error?.message ?? `exit ${r.status}`})`;
+      return existsSync(at) && lstatSync(at).isFIFO() ? undefined : "mkfifo exited 0 without making a FIFO";
+    },
+  },
+  { name: "a directory", kind: "directory", make: (at) => (mkdirSync(at, { recursive: true }), undefined) },
+  {
+    name: "a symlink to a character device (/dev/zero)",
+    kind: "symlink",
+    make: (at) => {
+      if (process.platform === "win32" || !existsSync("/dev/zero")) return "/dev/zero is not present on this platform";
+      symlinkSync("/dev/zero", at);
+      return undefined;
+    },
+  },
+];
+
+describe("host-protection.js — brief DC-3: a config candidate that is not a regular file is skipped, never read (plan 33.1-25)", () => {
+  it("the candidate paths come from environmentName's own list, and there are exactly 2", () => {
+    console.log(`environmentName config candidates (from the syntax tree): ${CONFIG_CANDIDATES.join(", ")}`);
+    expect(CONFIG_CANDIDATES).toHaveLength(2);
+  });
+
+  // For the candidate at index i, every LATER candidate holds a valid config naming `production`,
+  // and no earlier one exists, so the unreadable path is the one the check reaches first and the
+  // environment line names the next source (the later candidate, or the documented default).
+  const expectedSource = (i: number): string => (i + 1 < CONFIG_CANDIDATES.length ? sourceOf(CONFIG_CANDIDATES[i + 1]) : DEFAULT_SOURCE);
+  const stage = (i: number): string => {
+    const cwd = mkTmp();
+    for (const later of CONFIG_CANDIDATES.slice(i + 1)) writeConfig(cwd, later, "production");
+    mkdirSync(dirname(join(cwd, CONFIG_CANDIDATES[i])), { recursive: true });
+    return cwd;
+  };
+  const cases = CONFIG_CANDIDATES.flatMap((rel, i) => SPECIAL_SHAPES.map((shape) => [rel, i, shape] as const));
+  it("the special-file table covers every derived path with every shape (2 × 3)", () => {
+    expect(cases).toHaveLength(CONFIG_CANDIDATES.length * 3);
+  });
+  for (const [rel, i, shape] of cases) {
+    it(`${rel} holding ${shape.name}: the run finishes within 20 s, the file is untouched, and the name falls through`, (ctx) => {
+      const cwd = stage(i);
+      const at = join(cwd, rel);
+      const skip = shape.make(at);
+      if (skip !== undefined) {
+        console.log(`SKIP ${shape.name} at ${rel}: ${skip}`);
+        ctx.skip();
+        return;
+      }
+      const r = runBounded(cwd);
+      expect(r.error, `the check did not finish: ${r.error?.message}`).toBeUndefined();
+      expect(r.signal).toBeNull();
+      expect(kindAt(at), "the special file is still there, and unchanged in kind").toBe(shape.kind);
+      expect(environmentLine(r.stdout)).toContain(`environment name from ${expectedSource(i)}`);
+      expect(r.status).toBe(0);
+    }, 30_000);
+  }
+
+  it.each(CONFIG_CANDIDATES.map((rel, i) => [rel, i] as const))("%s holding a regular file above the 1 MiB bound: skipped as unreadable, the name falls through", (rel, i) => {
+    const cwd = stage(i);
+    const at = join(cwd, rel);
+    // Valid JSON naming `big`: read, it would name the environment `big`.
+    const body = JSON.stringify({ environments: ["big"], pad: "x".repeat(CONFIG_BOUND) });
+    writeFileSync(at, body);
+    expect(statSync(at).size).toBeGreaterThan(CONFIG_BOUND);
+    const r = runBounded(cwd);
+    expect(r.error).toBeUndefined();
+    expect(environmentLine(r.stdout)).toContain(`environment name from ${expectedSource(i)}`);
+    expect(environmentLine(r.stdout)).not.toMatch(/^environment big:/);
+    expect(statSync(at).size).toBe(Buffer.byteLength(body));
+  }, 30_000);
+
+  // Controls: a regular file, and a symlink to one, within the bound ARE read, so the skips above
+  // are about the file's kind and size and nothing else.
+  it.each(CONFIG_CANDIDATES.map((rel, i) => [rel, i] as const))("%s holding a regular config within the bound → read (control)", (rel, i) => {
+    const cwd = stage(i);
+    writeConfig(cwd, rel, "production");
+    const r = runBounded(cwd);
+    expect(environmentLine(r.stdout)).toContain(`environment name from ${sourceOf(rel)}`);
+    expect(r.status).toBe(0);
+  }, 30_000);
+  it.each(CONFIG_CANDIDATES.map((rel, i) => [rel, i] as const))("%s as a symlink to a regular config → read (control)", (rel, i) => {
+    const cwd = stage(i);
+    const target = join(cwd, "real-config.json");
+    writeFileSync(target, JSON.stringify({ environments: ["production"] }));
+    symlinkSync(target, join(cwd, rel));
+    const r = runBounded(cwd);
+    expect(environmentLine(r.stdout)).toContain(`environment name from ${sourceOf(rel)}`);
+    expect(r.status).toBe(0);
+  }, 30_000);
 });
 
 // Runs LAST (vitest runs a file's tests in declaration order): aggregates the stub log of every
