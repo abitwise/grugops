@@ -492,10 +492,13 @@ interface RulesetArm {
 
 // What the classic arm read: a protection body, positive evidence that there is no classic
 // protection, or nothing readable.
+// `elsewhere`: the same run shows the answer is about ANOTHER branch (a renamed branch's old name
+// answers with the new branch's record), so nothing asked under this name is evidence about it.
 type ClassicArm =
   | { kind: "body"; body: Record<string, unknown> }
   | { kind: "none"; evidence: string }
-  | { kind: "unreadable"; evidence: string };
+  | { kind: "unreadable"; evidence: string }
+  | { kind: "elsewhere"; evidence: string };
 
 // What one source (one ruleset rule, or the classic protection body) says about one item, before
 // asking whether it binds the account the check runs under.
@@ -890,9 +893,41 @@ function readRulesetArm(bp: string): RulesetArm {
   return { read: "none", rules: [], why: `the rules endpoint answered ${answered(res)}` };
 }
 
+// Why a classic protection body's `url` shows it is NOT about branch `name`, or undefined when it
+// is (red-team finding 3 of plan 33.1-22, D-30). The branch segment of
+// `.../repos/<owner>/<repo>/branches/<branch>/protection` is compared after percent-decoding, so a
+// branch whose name holds `/` or an escaped character is not falsely refused.
+// An ABSENT url is not required: its absence says nothing about which branch the body describes,
+// and the check's rename evidence comes from the branches/<b> answer (the main/master probe and the
+// 404 `Not Found` path). A url that is present and names another endpoint, or cannot be read, is
+// evidence the same answer contradicts, so the branch is `UNKNOWN - verify`.
+function protectionUrlMismatch(url: unknown, name: string): string | undefined {
+  if (url === undefined) return undefined;
+  const says = `the protection endpoint's answer carries url ${hostText(url)}`;
+  if (typeof url !== "string") return `${says}, which is not a string`;
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return `${says}, which is not a URL this check can read`;
+  }
+  const m = /\/repos\/[^/]+\/[^/]+\/branches\/(.+)\/protection$/.exec(path);
+  if (m === null) return `${says}, which is not a branch protection endpoint`;
+  let about: string;
+  try {
+    about = decodeURIComponent(m[1]);
+  } catch {
+    return `${says}, whose branch name cannot be decoded`;
+  }
+  return about === name ? undefined : `${says}, which is about branch ${hostText(about)}, not this one`;
+}
+
 function readClassicArm(name: string, bp: string): ClassicArm {
   const prot = apiGet(`repos/{owner}/{repo}/branches/${bp}/protection`);
-  if (prot.status === 200 && isObject(prot.body)) return { kind: "body", body: prot.body };
+  if (prot.status === 200 && isObject(prot.body)) {
+    const elsewhere = protectionUrlMismatch(hostField(prot.body, "url"), name);
+    return elsewhere === undefined ? { kind: "body", body: prot.body } : { kind: "elsewhere", evidence: elsewhere };
+  }
   const message = hostField(prot.body, "message");
   if (prot.status === 404 && message === "Branch not protected") {
     return { kind: "none", evidence: "the host reports no classic branch protection" };
@@ -901,12 +936,16 @@ function readClassicArm(name: string, bp: string): ClassicArm {
     const br = apiGet(`repos/{owner}/{repo}/branches/${bp}`);
     // Only an answer about the branch that was asked for counts (a renamed branch's old name
     // answers with the new branch's record).
-    if (br.status === 200 && hostField(br.body, "name") === name) {
+    const brName = hostField(br.body, "name");
+    if (br.status === 200 && brName === name) {
       const isProtected = hostField(br.body, "protected");
       if (isProtected === true) {
         return { kind: "unreadable", evidence: "classic protection present; its rules are not readable with this token" };
       }
       if (isProtected === false) return { kind: "none", evidence: "the branch reports no classic protection" };
+    }
+    if (br.status === 200 && typeof brName === "string") {
+      return { kind: "elsewhere", evidence: `the branch endpoint answered about branch ${hostText(brName)}, not this one (a renamed branch's old name answers this way)` };
     }
     return {
       kind: "unreadable",
@@ -926,6 +965,8 @@ function branchVerdict(name: string): Target {
   const fromRules = FLOOR_ITEMS.map((row) => rulesetReading(row, rulesetArm, bindings));
   // The classic arm is read only when the ruleset arm leaves some item not shown.
   const classicArm: ClassicArm | undefined = fromRules.every((r) => r.state === "held") ? undefined : readClassicArm(name, bp);
+  // An answer about another branch taints every read made under this name, the ruleset arm too.
+  if (classicArm?.kind === "elsewhere") return branchUnknown(name, classicArm.evidence);
   const fromClassic = FLOOR_ITEMS.map((row): ArmReading =>
     classicArm === undefined ? plain("unknown", "not read (the ruleset arm shows every item)") : classicReading(row, classicArm),
   );
@@ -1204,6 +1245,8 @@ if (cannotAsk !== undefined) {
   });
 } else {
   const names: string[] = [];
+  // main/master names the host answered as another branch (the name it answered), this run.
+  const renamed = new Map<string, string>();
   const repo = apiGet("repos/{owner}/{repo}");
   const defaultBranch = hostField(repo.body, "default_branch");
   if (repo.status === 200 && typeof defaultBranch === "string") {
@@ -1219,12 +1262,21 @@ if (cannotAsk !== undefined) {
     // renamed). Only an answer about the branch that was asked for shows the branch exists.
     const answeredName = hostField(res.body, "name");
     if (res.status === 200 && answeredName === b) names.push(b);
-    else if (res.status === 200 && typeof answeredName === "string") continue;
+    else if (res.status === 200 && typeof answeredName === "string") renamed.set(b, answeredName);
     else if (res.status !== 404) {
       targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${answered(res)}`));
     }
   }
-  for (const b of extraBranches) if (!names.includes(b)) names.push(b);
+  // A `--branch` name this run saw answer as another branch is never re-added as a target to
+  // judge: every read under that name describes the other branch (red-team finding 3, D-30).
+  for (const b of extraBranches) {
+    if (names.includes(b) || targets.some((t) => t.kind === "branch" && t.name === b)) continue;
+    const now = renamed.get(b);
+    if (now === undefined) names.push(b);
+    else {
+      targets.push(branchUnknown(b, `the branch endpoint answered about branch ${hostText(now)}, not this one (a renamed branch's old name answers this way), so nothing asked under this name is evidence about it`));
+    }
+  }
   for (const b of names) targets.push(branchVerdict(b));
   targets.push(environmentVerdict(env.name, env.source));
 }
