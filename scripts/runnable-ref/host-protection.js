@@ -23,7 +23,9 @@
 //
 // TARGETS. The default branch always; `main` and `master` when the host says they exist (a 404
 // omits them, any other answer reports them as `UNKNOWN - verify`); each `--branch <name>`
-// (repeatable); and one production deployment environment.
+// (repeatable); and one production deployment environment. A name the same run saw answered as
+// ANOTHER branch (a renamed branch's old name) is never judged: a `--branch` of that name, or a
+// branch whose classic answer is about another branch, is `UNKNOWN - verify` on every row.
 //
 // BRANCH EVIDENCE: ONE CANONICAL TABLE (plan 33.1-17, CR-01). `BRANCH_FLOOR` below is the branch
 // floor, one row per item of the branch checklist in install/README.md §5 ("Git-host setup
@@ -34,11 +36,13 @@
 //     Read in full (200, a JSON array, no `Link: rel="next"`), read partially (a further page
 //     exists), or not read (any other answer, which is quoted).
 //   - the classic arm, `branches/<b>/protection`, asked only when the ruleset arm leaves some row
-//     not shown. 200 → its body is read field by field. 404 `Branch not protected` (what an admin
-//     sees) → the host shows no classic protection. 404 `Not Found` (what a non-admin sees,
-//     protected or not) → ask `branches/<b>`: `.protected === false` about the branch asked for →
-//     no classic protection; `.protected === true` → classic protection exists but its rules are
-//     not readable with this token. Anything else → not readable, quoting the status.
+//     not shown. 200 → its body is read field by field (a `url` that is present must name this
+//     branch's protection endpoint; an absent `url` is not required). 404 `Branch not protected`
+//     (what an admin sees) → the host shows no classic protection. 404 `Not Found` (what a
+//     non-admin sees, protected or not) → ask `branches/<b>`: `.protected === false` about the
+//     branch asked for → no classic protection; `.protected === true` → classic protection exists
+//     but its rules are not readable with this token; an answer about another branch → the whole
+//     branch is `UNKNOWN - verify`. Anything else → not readable, quoting the status.
 //     (Measured endpoint behaviour: 33.1-RESEARCH.md § Q4.)
 // Each arm gives each row one of three states: `held` (positively shown), `failed` (read, and not
 // shown) or `unknown` (not readable). THE UNION RULE: GitHub enforces rulesets and classic branch
