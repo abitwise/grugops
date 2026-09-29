@@ -5823,6 +5823,12 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
   const COPILOT = ".github/copilot-instructions.md";
+  // createdFiles is an object from path to the content record of what install wrote (red-team of
+  // plan 33.1-28); these cases ask which paths it lists.
+  const fileKeys = (v: unknown): string[] => {
+    expect(v !== null && typeof v === "object" && !Array.isArray(v), `createdFiles is not an object: ${JSON.stringify(v)}`).toBe(true);
+    return Object.keys(v as Record<string, unknown>);
+  };
   const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
   const readMarkerJson = (t: string): Record<string, unknown> => JSON.parse(readFileSync(markerPathOf(t), "utf8"));
   const copilotPath = (t: string): string => join(t, ...COPILOT.split("/"));
@@ -5886,9 +5892,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     expect(existsSync(join(target, ".github")), "PREMISE: the fixture has no .github/").toBe(false);
     expect(runInstall(target, home).status).toBe(0);
-    const created = readMarkerJson(target).createdFiles;
-    expect(Array.isArray(created), "createdFiles is not an array").toBe(true);
-    expect(created as string[]).toContain(COPILOT);
+    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain(COPILOT);
 
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
@@ -5905,9 +5909,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     mkdirSync(join(target, ".github"));
     writeFileSync(copilotPath(target), "\n");
     expect(runInstall(target, home).status).toBe(0);
-    const created = readMarkerJson(target).createdFiles;
-    expect(Array.isArray(created), "createdFiles is not an array").toBe(true);
-    expect(created as string[]).not.toContain(COPILOT);
+    expect(fileKeys(readMarkerJson(target).createdFiles)).not.toContain(COPILOT);
     expect(readFileSync(copilotPath(target), "utf8")).toContain("GSD:grugops-copilot-start-here"); // non-vacuous
 
     const r = runUninstall(target, home);
@@ -5920,21 +5922,26 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     expect(left[0]).toMatch(/there is no record that install created it/);
   });
 
-  it("file ownership: the marker keys are in fixed order with createdFiles last; a second install is byte-identical; a run that creates no file writes []", () => {
+  it("file ownership: the marker keys are in fixed order with createdFiles last; a second install is byte-identical; a run that creates no file writes {}", () => {
     const first = makeFixture();
     const home = mkTmp();
     expect(runInstall(first, home).status).toBe(0);
     const m = readMarkerJson(first);
     expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles"]);
-    const created = m.createdFiles as string[];
+    const created = fileKeys(m.createdFiles);
     expect(created).toEqual([...created].sort());
     expect(created.length).toBeGreaterThan(0);
+    // Each value is the record of what install wrote there: the sha256 of the file's bytes now.
+    for (const rel of created) {
+      const sha = createHash("sha256").update(readFileSync(join(first, ...rel.split("/")))).digest("hex");
+      expect((m.createdFiles as Record<string, string>)[rel], rel).toBe(`sha256:${sha}`);
+    }
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
     expect(readFileSync(markerPathOf(first)).equals(m1), "a second install changed the marker").toBe(true);
 
     // A target that already holds every file the first install created (the same bytes): install
-    // creates none, and still writes the field, as an empty array (a fresh install is the whole history).
+    // creates none, and still writes the field, as an empty object (a fresh install is the whole history).
     const second = makeFixture();
     for (const rel of created) {
       const dest = join(second, ...rel.split("/"));
@@ -5942,7 +5949,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
       writeFileSync(dest, readFileSync(join(first, ...rel.split("/"))));
     }
     expect(runInstall(second, home).status).toBe(0);
-    expect(readMarkerJson(second).createdFiles).toEqual([]);
+    expect(readMarkerJson(second).createdFiles).toEqual({});
   });
   // ── Task 2: every file install creates goes through the same record (plan 33.1-28) ──────────
   const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
@@ -5980,7 +5987,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
       const t = fixtureWithoutClaude();
       expect(runInstall(t, mkTmp()).status).toBe(0);
       const m = readMarkerJson(t);
-      memo = { files: m.createdFiles as string[], dirs: m.createdDirs as string[], source: t };
+      memo = { files: fileKeys(m.createdFiles), dirs: m.createdDirs as string[], source: t };
       return memo;
     };
   })();
@@ -5989,7 +5996,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const target = fixtureWithoutClaude();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(readMarkerJson(target).createdFiles as string[]).toContain("CLAUDE.md");
+    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain("CLAUDE.md");
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(existsSync(join(target, "CLAUDE.md")), "the CLAUDE.md install created was left behind").toBe(false);
@@ -6001,7 +6008,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     writeFileSync(join(target, "CLAUDE.md"), "\n");
     expect(runInstall(target, home).status).toBe(0);
-    expect(readMarkerJson(target).createdFiles as string[]).not.toContain("CLAUDE.md");
+    expect(fileKeys(readMarkerJson(target).createdFiles)).not.toContain("CLAUDE.md");
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(existsSync(join(target, "CLAUDE.md")), "the user's pre-existing blank CLAUDE.md was deleted").toBe(true);
@@ -6016,7 +6023,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const m = readMarkerJson(target);
-    expect(m.createdFiles as string[]).toEqual(expect.arrayContaining(["CLAUDE.md", COPILOT])); // non-vacuous
+    expect(fileKeys(m.createdFiles)).toEqual(expect.arrayContaining(["CLAUDE.md", COPILOT])); // non-vacuous
     delete m.createdFiles;
     writeMarkerJson(target, m);
     const r = runUninstall(target, home);
@@ -6057,7 +6064,9 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
   });
 
   it("file ownership: a malformed createdFiles is a verify finding on both sides; install writes it back verbatim and uninstall deletes neither created file", () => {
-    const MALFORMED: unknown[] = ["x", [1], ["../outside"], ["/abs"], ["a//b"], null, {}];
+    // The plan-28 array of bare paths is malformed too: a path with no content record proves nothing
+    // (red-team of plan 33.1-28). So are a bad key and a bad record value.
+    const MALFORMED: unknown[] = ["x", [1], ["CLAUDE.md"], null, { "../outside": `sha256:${"0".repeat(64)}` }, { "CLAUDE.md": "sha256:XYZ" }, { "CLAUDE.md": 1 }];
     for (const bad of MALFORMED) {
       const target = fixtureWithoutClaude();
       const home = mkTmp();
@@ -6083,18 +6092,18 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(readMarkerJson(target).createdFiles as string[]).toContain(COPILOT);
+    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain(COPILOT);
     rmSync(copilotPath(target));
     mkdirSync(copilotPath(target)); // the path now holds a directory, which install refuses (exit 3)
     expect(runInstall(target, home).status).toBe(3);
-    expect(readMarkerJson(target).createdFiles as string[]).not.toContain(COPILOT);
+    expect(fileKeys(readMarkerJson(target).createdFiles)).not.toContain(COPILOT);
   });
 
   it("file ownership: a created Copilot file whose block the user removed, leaving it blank, is kept (this run removed no block)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(readMarkerJson(target).createdFiles as string[]).toContain(COPILOT);
+    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain(COPILOT);
     writeFileSync(copilotPath(target), "\n");
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
@@ -6150,14 +6159,11 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
 
     const installedT = makeFixture();
     const home = mkTmp();
-    expect(runInstall(installedT, home).status).toBe(0);
-    expect(readMarkerJson(installedT).createdFiles as string[]).toContain("AGENTS.md");
-    rmSync(join(installedT, "AGENTS.md"));
-    const s2 = stageSymlinkOrSkip(join(REPO_ROOT, "AGENTS.md"), join(installedT, "AGENTS.md"), "symlink AGENTS.md (install's own)", POSITION);
-    if (s2 !== null) {
-      console.warn(skipLine(s2, "the never-installed AGENTS.md copy case above"));
-      return;
-    }
+    // Red-team of plan 33.1-28: the record says what install made. A --symlink install links
+    // AGENTS.md and records the link's target; its uninstall removes that link.
+    expect(runInstall(installedT, home, "--symlink").status).toBe(0);
+    expect(lstatSync(join(installedT, "AGENTS.md")).isSymbolicLink(), "PREMISE: the --symlink install linked AGENTS.md").toBe(true);
+    expect((readMarkerJson(installedT).createdFiles as Record<string, string>)["AGENTS.md"]).toBe(`link:${join(REPO_ROOT, "AGENTS.md")}`);
     expect(runUninstall(installedT, home).status).toBe(0);
     expect(lstatSync(join(installedT, "AGENTS.md"), { throwIfNoEntry: false }), "install's own AGENTS.md link was not removed").toBeUndefined();
   });

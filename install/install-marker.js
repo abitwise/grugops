@@ -1,7 +1,8 @@
 // install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the three
 // ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B).
 //
-// Cross-platform. ZERO npm dependencies: it imports only node:path and ./user-file.ts. A
+// Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path and
+// ./user-file.ts. A
 // sibling of install.js and uninstall.js inside install/, imported by BOTH binaries, so both still
 // run on a host with nothing installed. This module never writes and imports nothing from node:fs;
 // install/installer-fs-census.test.ts scans it with the rest of install/ and asserts it makes no
@@ -23,8 +24,10 @@
 //   - `createdFiles`   — the files install itself created under the target (plan 33.1-28, Gap B /
 //                        re-review WR-05): the files ensureBlock creates to hold a sentinel block
 //                        (CLAUDE.md, .github/copilot-instructions.md), the AGENTS.md install copies
-//                        or links in, and the runnables it materializes under tools/grugops/.
-//                        Uninstall deletes one of those files only when this ledger lists it.
+//                        or links in, and the runnables it materializes under tools/grugops/, each
+//                        with a content record of what install wrote there (red-team of plan
+//                        33.1-28: see CONTENT RECORDS below). Uninstall deletes one of those files
+//                        only when this ledger lists it AND the file still holds what it records.
 // Each binary used to hold its own reader of the ask-rule ledger, and the two disagreed about a
 // malformed one: install read it as "no previous install" and relabelled every grugops rule as the
 // user's own (fail open), while uninstall refused (fail closed). That is WR-05. A second ledger
@@ -59,16 +62,17 @@
 // `raw` is always the field's value as found, so a caller that must leave a malformed ledger as it
 // was can write it back verbatim.
 //
-// THE createdDirs AND createdFiles SHAPE (isLedgerPath, one rule for both). An array of strings. Each
-// entry is a path relative to the target in POSIX form: non-empty, not starting with `/`, containing
-// no `\` and no `:`, and every `/`-separated segment is non-empty and is neither `.` nor `..`. So no
-// entry can name a path outside the target. The uninstaller only asks whether one of its own fixed
-// candidate paths is IN a ledger; it never iterates a ledger to decide what to delete, and it never
-// removes recursively.
+// THE createdDirs AND createdFiles SHAPE (isLedgerPath, one rule for both). createdDirs is an array of
+// paths; createdFiles is an object from path to content record. Each path is relative to the target
+// in POSIX form: non-empty, not starting with `/`, containing no `\` and no `:`, and every
+// `/`-separated segment is non-empty and is neither `.` nor `..`. So no entry can name a path outside
+// the target. The uninstaller only asks whether one of its own fixed candidate paths is IN a ledger;
+// it never iterates a ledger to decide what to delete, and it never removes recursively.
 //
 // Clear professional voice: this is a safety surface (installer reversal).
+import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { readForWrite } from "./user-file.js";
+import { isOwnLink, readForWrite, wayTo } from "./user-file.js";
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
 /** Read `<target>/.grugops/install.json` without following a link (see the header). */
@@ -85,7 +89,7 @@ export function readInstallMarker(target) {
         if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
             return { state: "unreadable", marker: null, why: "it is JSON but not a JSON object" };
         }
-        return { state: "ok", marker: parsed };
+        return { state: "ok", marker: parsed, bytes: read.bytes };
     }
     catch {
         return { state: "unreadable", marker: null, why: "it is not valid JSON" };
@@ -114,15 +118,20 @@ export function readCreatedDirs(marker) {
         return { state: "malformed", dirs: [], raw };
     return { state: "ok", dirs: [...new Set(raw)].sort(), raw };
 }
-// readCreatedFiles (plan 33.1-28): the `createdFiles` ledger, with the createdDirs shape rule, sort
-// and de-duplication.
+// readCreatedFiles (plan 33.1-28; red-team R1): the `createdFiles` ledger. A plain JSON object whose
+// every key has the isLedgerPath shape and whose every value is a content record (isContentRecord).
+// Anything else, the plan-28 array of bare paths included, is `malformed`: a path with no record of
+// what install wrote there proves nothing about what is there now.
 export function readCreatedFiles(marker) {
     const { present, raw } = fieldOf(marker, "createdFiles");
     if (!present)
-        return { state: "absent", files: [], raw };
-    if (!Array.isArray(raw) || !raw.every(isLedgerPath))
-        return { state: "malformed", files: [], raw };
-    return { state: "ok", files: [...new Set(raw)].sort(), raw };
+        return { state: "absent", files: new Map(), raw };
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw))
+        return { state: "malformed", files: new Map(), raw };
+    const entries = Object.entries(raw);
+    if (!entries.every(([k, v]) => isLedgerPath(k) && isContentRecord(v)))
+        return { state: "malformed", files: new Map(), raw };
+    return { state: "ok", files: new Map(entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), raw };
 }
 export function readAskRuleLedger(marker) {
     const { present, raw } = fieldOf(marker, "claudeAskRules");
@@ -137,6 +146,11 @@ export function readAskRuleLedger(marker) {
     if (typeof r.createdFile !== "boolean" || typeof r.createdPermissions !== "boolean" || typeof r.createdAsk !== "boolean") {
         return { state: "malformed", ledger: null, raw };
     }
+    // Red-team of plan 33.1-28 (R3): the ask array's content record is part of the shape. A ledger
+    // without it (written before this field existed, never released) is malformed, so it fails closed.
+    if (!Object.prototype.hasOwnProperty.call(r, "askContent") || (r.askContent !== null && !isSha256Record(r.askContent))) {
+        return { state: "malformed", ledger: null, raw };
+    }
     return {
         state: "ok",
         ledger: {
@@ -144,9 +158,46 @@ export function readAskRuleLedger(marker) {
             createdFile: r.createdFile,
             createdPermissions: r.createdPermissions,
             createdAsk: r.createdAsk,
+            askContent: r.askContent,
         },
         raw,
     };
+}
+// ── CONTENT RECORDS (red-team of plan 33.1-28, brief DC-2) ────────────────────────────────────
+// A ledger that names a path records a claim about that path at the moment install wrote it, not
+// about whatever is there later: a user can delete the file and make their own at the same name, or
+// edit it. So every record of a file install wrote also carries WHAT install wrote there, in one
+// grammar, and both binaries ask one predicate whether the path still holds it:
+//   `sha256:<64 lowercase hex>`  the sha256 of the bytes install wrote (a copy, a created file);
+//   `link:<target>`              the link install made, by its exact readlink target.
+// recordHolds(root, path, record) is the one question. A `sha256:` record holds only for a regular
+// file inside `root`, read without following a link on the way or at the path (readForWrite, so a
+// FIFO, a directory or a device is never opened, brief DC-3), whose bytes hash to the record. A
+// `link:` record holds only for a symbolic link at the path, with nothing but real directories on the
+// way, whose readlink equals the target (isOwnLink). Anything else does not hold. Plan 33.1-30's
+// kitFiles uses the same grammar and the same predicate.
+const SHA256_RECORD = /^sha256:[0-9a-f]{64}$/;
+const LINK_RECORD = /^link:[^\u0000-\u001f\u007f]+$/;
+const isSha256Record = (v) => typeof v === "string" && SHA256_RECORD.test(v);
+/** The record of `bytes` install wrote: `sha256:<hex>`. A string is hashed as its UTF-8 bytes. */
+export function contentRecord(bytes) {
+    return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+/** The record of a symbolic link install made to `target`: `link:<target>`. */
+export function linkRecord(target) {
+    return `link:${target}`;
+}
+/** One value has the content-record grammar above. */
+export function isContentRecord(v) {
+    return typeof v === "string" && (SHA256_RECORD.test(v) || LINK_RECORD.test(v));
+}
+/** `path` (strictly inside `root`) still holds exactly what `record` says install wrote there. */
+export function recordHolds(root, path, record) {
+    if (record.startsWith("link:")) {
+        return wayTo(root, path) === null && isOwnLink(path, record.slice("link:".length));
+    }
+    const r = readForWrite(root, path);
+    return r.state === "ok" && contentRecord(r.bytes) === record;
 }
 // malformedLedgers (red-team of plan 33.1-27, B4): every ledger field the marker carries that is
 // present but malformed, by the same readers every caller already trusts. uninstall removes the

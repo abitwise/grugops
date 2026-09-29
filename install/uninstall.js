@@ -66,7 +66,7 @@
 //   DRY_RUN=1 node install/uninstall.js             # preview only
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
 import { existsSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync } from "node:fs";
-import { join, relative, resolve, isAbsolute, sep } from "node:path";
+import { dirname, join, relative, resolve, isAbsolute, sep } from "node:path";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts, so the
 // REMOVAL set and the INSTALL set can never be two answers to one predicate again (CR-02). Only the
 // two derivations this file uses are imported — see the kit-set derivation block below for why
@@ -78,7 +78,7 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, malformedLedgers, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, malformedLedgers, contentRecord, recordHolds, } from "./install-marker.js";
 // DC-3 (plan 33.1-27): the ONE bounded reader of a user path, shared with install.ts. readForWrite is
 // its no-follow form for a path this run may edit, wayTo the same walk for a path removed by name,
 // kindAt names what is at a path, and unreadState is the one wording of an unread state. isOwnLink is
@@ -148,6 +148,16 @@ let VERIFY_FINDINGS = 0;
 const verify = (msg) => {
     VERIFY_FINDINGS += 1;
     report("verify", msg);
+};
+// GONE_THIS_RUN (red-team of plan 33.1-28, R1/R2, brief DC-2): every path this run removed, or, in
+// DRY_RUN, would remove, resolved. Two decisions read it. rmdirIfEmpty removes an empty directory only
+// when this run emptied it (an entry of it is in this set), and in DRY_RUN it counts an entry this run
+// would remove as gone, so the preview decides as the real run does. removeMarker, when it keeps a
+// marker, takes every path in this set out of the marker's ledgers, so a later run cannot act on a
+// record of something this run already removed.
+const GONE_THIS_RUN = new Set();
+const markGone = (p) => {
+    GONE_THIS_RUN.add(resolve(p));
 };
 // ---------------------------------------------------------------------------
 // Kit-set derivation (KIT-02 / T-27-06). The hand-listed SKILLS array and the single AGENT_REL
@@ -273,6 +283,7 @@ function unlinkPath(f, label, removedLine) {
         verify(`${label}: ${f} is still present after its removal. Remove it by hand if it is grugops's.`);
         return false;
     }
+    markGone(f);
     report("removed", removedLine);
     return true;
 }
@@ -281,13 +292,13 @@ function unlinkPath(f, label, removedLine) {
 // returns under DRY_RUN before calling it. A write that fails (EACCES, EROFS, a path that changed
 // since the read) is a counted verify, never an uncaught throw, and the caller reports its success
 // line only when this returns true.
-function rewritePath(f, text, label) {
+function rewritePath(f, text, label, remedy = "make the change by hand.") {
     try {
         writeFileSync(f, text);
         return true;
     }
     catch (e) {
-        verify(`${label}: ${f} could not be rewritten (${errCode(e)}). It was left as it was; make the change by hand.`);
+        verify(`${label}: ${f} could not be rewritten (${errCode(e)}). It was left as it was; ${remedy}`);
         return false;
     }
 }
@@ -337,6 +348,7 @@ function removeFile(f, label, ownLink) {
         return;
     if (DRY_RUN) {
         report("would-remove", label);
+        markGone(f);
         return;
     }
     unlinkPath(f, label, label);
@@ -356,6 +368,15 @@ function removeFile(f, label, ownLink) {
 // when ownsDir() says grugops owns it; otherwise it is reported `left` with the reason, in the real
 // run and in the preview alike. Both runs apply the same rule, so the preview's subset property
 // above still holds.
+//
+// AND ONLY WHEN THIS RUN EMPTIED IT (red-team of plan 33.1-28, R1/R2, brief DC-2). The record names a
+// path, and a user can delete the directory install created and make their own at the same name; a
+// marker kept by an earlier run, or copied, can name a directory that run already removed. So the
+// record alone is not enough: the directory must also have held something this run removed (an entry
+// of it is in GONE_THIS_RUN). A recorded directory that was already empty when this run reached it
+// shows nothing of install's any more, and is left and reported. In DRY_RUN nothing is removed, so an
+// entry the preview would remove counts as gone: the preview reaches the real run's answer (assuming
+// each removal it names succeeds) and names what the real run removes, never more.
 function rmdirIfEmpty(d) {
     if (isProtected(d))
         return;
@@ -371,18 +392,26 @@ function rmdirIfEmpty(d) {
     catch {
         return; // unreadable → leave it, say nothing (as before)
     }
-    if (entries.length > 0)
+    if (entries.some((e) => !GONE_THIS_RUN.has(resolve(d, e))))
         return;
     if (!ownsDir(d)) {
         report("left", `${d} (${notRecordedReason(DIR_LEDGER, "directory")})`);
         return;
     }
+    const key = resolve(d);
+    if (![...GONE_THIS_RUN].some((p) => dirname(p) === key)) {
+        report("left", `${d} (it was already empty when this run reached it, so nothing in it shows it is still the directory ` +
+            `install created — it may have been emptied, or deleted and made again, since; left in place)`);
+        return;
+    }
     if (DRY_RUN) {
         report("would-rmdir", d);
+        markGone(d);
         return;
     }
     try {
         rmdirSync(d);
+        markGone(d);
         report("rmdir", d);
     }
     catch {
@@ -402,14 +431,21 @@ function ownsDir(d) {
         return false;
     return DIR_LEDGER.dirs.includes(relative(TARGET, d).split(sep).join("/"));
 }
-// ownsFile (plan 33.1-28, Gap B / re-review WR-05, D-18): install created file `rel` (a POSIX path
-// relative to the target) only when the install marker's `createdFiles` ledger is readable and lists
-// it. Nothing else is evidence: not the file's name, not its being blank, not its bytes matching the
-// kit's. The ledger is only ever ASKED about the fixed paths this file visits; it is never iterated to
-// decide what to delete.
-function ownsFile(rel) {
-    return FILE_LEDGER.state === "ok" && FILE_LEDGER.files.includes(rel);
+function ownsFile(rel, holds) {
+    const record = FILE_LEDGER.state === "ok" ? FILE_LEDGER.files.get(rel) : undefined;
+    if (record === undefined)
+        return { owned: false, reason: notRecordedReason(FILE_LEDGER, "file") };
+    if (!holds(record)) {
+        return {
+            owned: false,
+            reason: "it does not hold what the install marker's file ledger records install wrote there (it was edited " +
+                "or replaced since), so there is no record that install created this content; left in place",
+        };
+    }
+    return { owned: true };
 }
+/** ownsFile for a file read now, at `rel` under the target. */
+const ownsFileNow = (rel) => ownsFile(rel, (record) => recordHolds(TARGET, join(TARGET, ...rel.split("/")), record));
 // notRecordedReason (re-review IN-01, plan 33.1-28): the ONE wording of "there is no install record
 // for this path", for a directory (createdDirs) or a file (createdFiles), chosen from the state of the
 // ledger that would have held it. It says what the record shows, never more: a path missing from a
@@ -427,7 +463,7 @@ function notRecordedReason(ledger, what) {
     }
     return `the install marker predates the ${what} ledger, so there is no record that install created it; left in place`;
 }
-const NO_BLOCK_REMOVED = { removed: false, blankAfter: false };
+const NO_BLOCK_REMOVED = { removed: false, blankAfter: false, before: null };
 function removeSentinelBlock(f, open, close, label) {
     if (isProtected(f)) {
         report("refused", `${label} (protected path)`);
@@ -509,18 +545,20 @@ function removeSentinelBlock(f, open, close, label) {
     const blankAfter = result.replace(/[ \t\r\n]/g, "") === "";
     if (DRY_RUN) {
         report("would-remove", `${label} (sentinel block only)`);
-        return { removed: true, blankAfter };
+        return { removed: true, blankAfter, before: read.bytes };
     }
     if (!rewritePath(f, result, label))
         return NO_BLOCK_REMOVED;
     report("removed", `${label} (sentinel block only; rest of file preserved)`);
-    return { removed: true, blankAfter };
+    return { removed: true, blankAfter, before: read.bytes };
 }
 // removeOwnedEmptyFile (plan 33.1-28, Gap B / re-review WR-05, brief DC-2, D-18): delete a file that
 // held a grugops sentinel block ONLY when all three hold:
 //   1. THIS run removed a terminated block from it (`result.removed`, from removeSentinelBlock);
 //   2. the file is blank after that removal (`result.blankAfter`: spaces, tabs, CR and LF only);
-//   3. the install marker's `createdFiles` ledger records that install created it (ownsFile).
+//   3. the install marker's `createdFiles` ledger records that install created it, and the file held
+//      exactly what the record says install wrote there before this run removed the block (ownsFile;
+//      red-team of plan 33.1-28, R1: a file the user re-made or edited since is not install's).
 // It replaces a remover that deleted any whitespace-only file at the path and called it
 // "grugops-created" with no record: a user's blank .github/copilot-instructions.md in a repository
 // grugops never installed into was deleted. Presence and shape are not provenance. A file that fails
@@ -536,8 +574,9 @@ function removeOwnedEmptyFile(rel, label, result) {
         report("refused", `${label} (protected path — never removed)`);
         return;
     }
-    if (!ownsFile(rel)) {
-        report("left", `${rel} (it is blank after the block removal, but ${notRecordedReason(FILE_LEDGER, "file")})`);
+    const own = ownsFile(rel, (record) => result.before !== null && contentRecord(result.before) === record);
+    if (!own.owned) {
+        report("left", `${rel} (it is blank after the block removal, but ${own.reason})`);
         return;
     }
     const d = removalDecision(f, rel, null);
@@ -545,6 +584,7 @@ function removeOwnedEmptyFile(rel, label, result) {
         return;
     if (DRY_RUN) {
         report("would-remove", `${rel} (install created it — recorded as createdFiles — and it would be blank after the block removal)`);
+        markGone(f);
         return;
     }
     unlinkPath(f, rel, `${rel} (install created it — recorded as createdFiles — and it is empty after the block removal)`);
@@ -656,6 +696,19 @@ function unmergeGemini() {
 // ONE OCCURRENCE PER LEDGER RULE (IN-02). The ledger records that install added a rule once. A
 // further copy of the same rule in permissions.ask was added by someone else later, so only the
 // first occurrence of each ledger rule is removed; every later copy is kept and reported `left`.
+// ASK_LEDGER_AFTER (red-team of plan 33.1-28, R2): the ask-rule ledger as it stands once this pass
+// has acted, for removeMarker to write into a marker it keeps. Set only when the pass reached the
+// settings file's content (or found the file gone): every rule the ledger claimed is then removed or
+// already absent, so the ledger claims nothing more, and askContent records the array as left. null
+// when the pass did not act (no ledger, a verify), so a kept marker keeps its ledger as it was.
+let ASK_LEDGER_AFTER = null;
+const askLedgerAfter = (ask) => ({
+    added: [],
+    createdFile: false,
+    createdPermissions: false,
+    createdAsk: false,
+    askContent: ask === null ? null : contentRecord(JSON.stringify(ask)),
+});
 function removeAskRules() {
     const rel = ".claude/settings.json";
     const f = `${TARGET}/.claude/settings.json`;
@@ -687,6 +740,7 @@ function removeAskRules() {
     const read = readForWrite(TARGET, f);
     if (read.state === "create") {
         report("skipped", `${rel} (not present — the ${ledger.size} ask rule(s) in the install ledger are already gone)`);
+        ASK_LEDGER_AFTER = askLedgerAfter(null);
         return;
     }
     if (read.state === "blocked") {
@@ -763,21 +817,31 @@ function removeAskRules() {
     }
     const deleteFile = led.createdFile && Object.keys(next).length === 0;
     const changed = removing.length > 0 || JSON.stringify(next) !== JSON.stringify(json);
+    const nextPerms = next.permissions;
+    const askLeft = nextPerms !== undefined && Array.isArray(nextPerms.ask) ? nextPerms.ask : null;
     if (!changed && !deleteFile) {
         report("skipped", `${rel} (no ask rule from the install ledger is present — nothing to remove)`);
+        ASK_LEDGER_AFTER = askLedgerAfter(askLeft);
         return;
     }
     if (DRY_RUN) {
         report("would-remove", `${rel} (${removing.length} ask rule(s) grugops added${deleteFile ? "; the file grugops created would be deleted" : ""})`);
+        ASK_LEDGER_AFTER = askLedgerAfter(deleteFile ? null : askLeft);
+        if (deleteFile) {
+            markGone(f);
+            rmdirIfEmpty(`${TARGET}/.claude`);
+        }
         return;
     }
     if (deleteFile) {
         if (unlinkPath(f, rel, `${rel} (${removing.length} ask rule(s) grugops added; grugops created the file and it is now empty)`)) {
+            ASK_LEDGER_AFTER = askLedgerAfter(null);
             rmdirIfEmpty(`${TARGET}/.claude`);
         }
         return;
     }
     if (rewritePath(f, JSON.stringify(next, null, 2) + "\n", rel)) {
+        ASK_LEDGER_AFTER = askLedgerAfter(askLeft);
         report("removed", `${rel} (${removing.length} ask rule(s) grugops added; every other entry and key preserved)`);
     }
 }
@@ -835,6 +899,7 @@ function removeMarker() {
     if (bad.length > 0) {
         report("left", `${MARKER_REL} (its ${bad.join(" and ")} ledger is malformed, so the record of what install did could not be used; ` +
             `it was left in place — fix or remove it by hand)`);
+        updateKeptMarker(m, MARKER.marker, MARKER.bytes, bad);
         return;
     }
     if (DRY_RUN) {
@@ -842,6 +907,66 @@ function removeMarker() {
         return;
     }
     unlinkPath(m, MARKER_REL, `${MARKER_REL} (grugops-owned marker; seeded .grugops/ state preserved)`);
+}
+// updateKeptMarker (red-team of plan 33.1-28, R2, brief DC-2): a marker this run keeps (another ledger
+// in it is malformed) must not go on naming what this run removed. It used to: the kept marker still
+// listed AGENTS.md, the pointer files, the runnables, the directories and the ask rules the run had
+// just removed, and when the user later made their own at those paths (README §1's copy of
+// AGENTS.md, an empty .github/, their own `Bash(git push *)` rule) the next uninstall removed them on
+// that record. So every well-formed ledger in it is rewritten without the entries this run removed
+// (GONE_THIS_RUN, and the ask-rule ledger as removeAskRules left it); a malformed ledger and every
+// other field are written back exactly as found, in their order. The write goes through the one
+// rewrite (rewritePath), only after readForWrite (no link followed at the marker or on the way) shows
+// the same regular file with the same bytes this run read at its start. When it cannot be written,
+// that is a counted verify naming each entry it still lists, so the human can take them out by hand.
+// The DRY_RUN preview says what it would take out and writes nothing.
+function updateKeptMarker(m, marker, readBytes, bad) {
+    const next = { ...marker };
+    const stale = [];
+    const goneRel = (rel) => GONE_THIS_RUN.has(resolve(TARGET, ...rel.split("/")));
+    if (!bad.includes("createdFiles") && FILE_LEDGER.state === "ok") {
+        const keep = [...FILE_LEDGER.files].filter(([rel]) => !goneRel(rel));
+        for (const [rel] of FILE_LEDGER.files)
+            if (goneRel(rel))
+                stale.push(rel);
+        if (keep.length !== FILE_LEDGER.files.size)
+            next.createdFiles = Object.fromEntries(keep);
+    }
+    if (!bad.includes("createdDirs") && DIR_LEDGER.state === "ok") {
+        const keep = DIR_LEDGER.dirs.filter((rel) => !goneRel(rel));
+        for (const rel of DIR_LEDGER.dirs)
+            if (goneRel(rel))
+                stale.push(`${rel}/`);
+        if (keep.length !== DIR_LEDGER.dirs.length)
+            next.createdDirs = keep;
+    }
+    if (!bad.includes("claudeAskRules") && ASK_LEDGER_AFTER !== null) {
+        const before = readAskRuleLedger(marker);
+        const l = before.ledger;
+        // Only a ledger that still claims something is rewritten; one that claims nothing stays as it is.
+        const claims = l !== null && (l.added.length > 0 || l.createdFile || l.createdPermissions || l.createdAsk);
+        if (before.state === "ok" && l !== null && claims) {
+            for (const r of l.added)
+                stale.push(r);
+            next.claudeAskRules = ASK_LEDGER_AFTER;
+        }
+    }
+    if (JSON.stringify(next) === JSON.stringify(marker))
+        return;
+    const what = stale.length > 0 ? stale.join(", ") : "the ask-rule ledger's created-file flags";
+    const remedy = `it still lists what this run removed (${what}); take those entries out of it by hand, or a later run may act on them.`;
+    if (DRY_RUN) {
+        report("would-edit", `${MARKER_REL} (kept; the entries this run would remove would be taken out of its ledgers: ${what})`);
+        return;
+    }
+    const cur = readForWrite(TARGET, m);
+    if (cur.state !== "ok" || !cur.bytes.equals(readBytes)) {
+        verify(`${MARKER_REL} changed since this run read it, so it was not rewritten; ${remedy}`);
+        return;
+    }
+    if (rewritePath(m, JSON.stringify(next, null, 2) + "\n", MARKER_REL, remedy)) {
+        report("edited", `${MARKER_REL} (kept; the entries this run removed were taken out of its ledgers: ${what})`);
+    }
 }
 // sameFileBytes: byte-identical content compare following symlinks (mirrors `cmp -s`). Used for
 // the grugops-owned-AGENTS.md tests and the runnables. DC-3 (plan 33.1-27): both sides are read
@@ -1000,7 +1125,7 @@ rmdirIfEmpty(`${TARGET}/.claude`);
 //    so the preview decides as the real run does.
 const agents = `${TARGET}/AGENTS.md`;
 const srcAgents = join(GRUGOPS_SRC, "AGENTS.md");
-const agentsNotRecorded = () => report("left", `AGENTS.md (it matches the grugops kit, but ${notRecordedReason(FILE_LEDGER, "file")})`);
+const agentsNotOwned = (reason) => report("left", `AGENTS.md (it matches the grugops kit, but ${reason})`);
 if (isProtected(agents)) {
     // never
 }
@@ -1010,19 +1135,21 @@ else if (isSymlink(agents)) {
     // follow the link and compare what it resolved to, so any link whose target held the same bytes
     // was removed. A user's own AGENTS.md symlink (e.g. AGENTS.md -> docs/agents.md) is left untouched,
     // as is any other link, and it is never followed.
+    const own = ownsFileNow("AGENTS.md");
     if (!isOwnLink(agents, srcAgents)) {
         report("skipped", "AGENTS.md (user-owned symlink — left untouched)");
     }
-    else if (!ownsFile("AGENTS.md")) {
-        agentsNotRecorded();
+    else if (!own.owned) {
+        agentsNotOwned(own.reason);
     }
     else {
         removeFile(agents, "AGENTS.md (grugops symlink into source)", srcAgents);
     }
 }
 else if (isFile(agents) && isFile(srcAgents) && sameFileBytes(srcAgents, agents)) {
-    if (!ownsFile("AGENTS.md"))
-        agentsNotRecorded();
+    const own = ownsFileNow("AGENTS.md");
+    if (!own.owned)
+        agentsNotOwned(own.reason);
     else
         removeFile(agents, "AGENTS.md (grugops copy, byte-identical to source)", null);
 }
@@ -1105,8 +1232,9 @@ for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
     // Plan 33.1-28 (brief DC-2): byte identity is not provenance. A runnable is removed only when the
     // `createdFiles` ledger records that install created it; a byte-identical copy with no record is
     // left and the reason is said.
-    if (!ownsFile(destRel)) {
-        report("left", `${destRel} (it is byte-identical to its source, but ${notRecordedReason(FILE_LEDGER, "file")})`);
+    const own = ownsFileNow(destRel);
+    if (!own.owned) {
+        report("left", `${destRel} (it is byte-identical to its source, but ${own.reason})`);
         continue;
     }
     removeFile(dest, `${destRel} (grugops runnable, byte-identical to source)`, null);

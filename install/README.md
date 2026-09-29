@@ -185,9 +185,15 @@ A file is deleted only on install's own record. Install records in `.grugops/ins
 it copied or linked in, and the runnables under `tools/grugops/`. The uninstaller deletes `CLAUDE.md`
 or the Copilot file only when that record lists it, it removed the grugops block from it in this
 run, and the file is blank afterwards. It deletes `AGENTS.md` or a runnable only when the record
-lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. A file the record
-does not list is left in place and reported as `left` with the reason, even when it is blank or
-byte-identical to the kit: in a repository you never ran the installer on (for example after the
+lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. The record keeps
+what install wrote to each file (a sha256 of the bytes, or the target of the link), and a file is
+deleted only while it still holds exactly that: a file you edited or replaced since is left and
+reported. A re-install keeps an earlier entry only while the file still holds what the record says
+and the re-install did not have to add its pointer block to it, so a file you deleted and then made
+again yourself is dropped from the record and left by the uninstaller. A file whose bytes are
+exactly the ones install wrote holds nothing of yours, so it is treated as install's. A file the
+record does not list is left in place and reported as `left` with the reason, even when it is blank
+or byte-identical to the kit: in a repository you never ran the installer on (for example after the
 minimal copy path in §1) nothing is removed. An install made before this release has no file ledger,
 so the blank pointer files, `AGENTS.md` and the runnables it created are left and reported; remove
 them by hand if you do not want them. A malformed file ledger is a `verify` finding on both sides
@@ -206,17 +212,23 @@ every ledger in it is well-formed. It is never read through a symbolic link: a l
 `.grugops/install.json`, or a `.grugops` that is itself a link, makes the marker unreadable, so no
 ledger from another repository is believed. A marker that cannot be read (not JSON, too large, a
 FIFO, a directory, a link) or that holds a malformed ledger is reported as a `verify` finding, is
-left in place, and the run exits `3`. `--check` names such a marker as present but unreadable (a
+left in place, and the run exits `3`. When the marker is kept because one ledger in it is malformed,
+the uninstaller takes every entry it removed in this run out of the other ledgers, so a later run
+cannot act on a record of something already removed; if it cannot rewrite the marker, that is a
+`verify` finding that names those entries. `--check` names such a marker as present but unreadable (a
 doctor FAIL, exit `1`), not as "not installed".
 
-A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It names a directory for removal
-only when that directory is already empty, so the real run can also remove a grugops directory
-that it has just emptied and that the preview did not name.
+A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It counts each file it would
+remove as removed, so it names the directories the real run would empty and then remove, and never
+a directory the real run keeps.
 
 The uninstaller removes an empty directory only when install created it, which install records in
-`.grugops/install.json` as `createdDirs`. A directory's name is not a record: an empty directory
-you made yourself, for example `.github/`, `.gemini/` or even `.claude/skills/grugops/`, is left in
-place and reported as `left`, in the real run and in the preview. An install made before the
+`.grugops/install.json` as `createdDirs`, and only when the same run emptied it by removing what
+install put there. A directory's name is not a record: an empty directory you made yourself, for
+example `.github/`, `.gemini/` or even `.claude/skills/grugops/`, is left in place and reported as
+`left`, in the real run and in the preview. A recorded directory that is already empty when the
+uninstaller reaches it (you emptied it, or deleted it and made it again) is left and reported too,
+and a re-install that finds a recorded directory empty drops it from the record. An install made before the
 directory ledger has none, so every empty directory it created is left and reported; remove them by
 hand if they are empty and you do not want them. If the directory ledger is malformed or the marker
 cannot be read, the uninstaller reports a `verify` finding, removes no empty directory, and exits
@@ -602,8 +614,12 @@ The writes follow the installer contract. They are additive (your own rules and 
 idempotent, skipped under `DRY_RUN=1`, and recorded in `.grugops/install.json`, so `uninstall.js`
 removes the rules install added and nothing else. It removes one copy of each rule install
 recorded, so a copy of the same rule you added yourself stays and is reported as `left`.
-`--check` reports whether each recorded rule is still present. If `.claude/settings.json` cannot
-be parsed, the installer leaves it untouched and exits `3`. If `.grugops/install.json` cannot be
+`--check` reports whether each recorded rule is still present. The record also keeps a sha256 of
+the `permissions.ask` list as install left it. A re-install keeps the earlier record of which rules
+install added only while that list is unchanged. If you changed the list, or deleted the file and
+wrote your own, every rule already in it is treated as yours, reported so, and left by uninstall; a
+key you add beside the list does not change this. If `.claude/settings.json` cannot be parsed, the
+installer leaves it untouched, records no rule as its own, and exits `3`. If `.grugops/install.json` cannot be
 read, or its ask-rule ledger is malformed, that is a `verify` finding (exit `3`) on both sides:
 install then adds no rule and leaves the ledger as it found it, and uninstall removes no rule. One formatting note: when the installer adds rules to an existing
 `.claude/settings.json`, it writes the file back as 2-space JSON. Your values and key order are

@@ -294,6 +294,13 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
         if (RUNNABLE_PATHS.includes(rel)) {
           expect(gone, `${what}: the link at runnable ${rel} was removed`).toBe(false);
           expect(labels, `${what}: ${rel}`).toContain("verify");
+        } else if (rel === AGENTS) {
+          // Red-team of plan 33.1-28 (R1): this copy install recorded the bytes it copied to AGENTS.md.
+          // A link put there since is not what install made at that path, so it is left, even though
+          // it is the shape of link a --symlink install makes (that install records the link, and its
+          // uninstall removes it: install.test.ts "file ownership ... AGENTS.md link").
+          expect(gone, `${what}: AGENTS.md was removed although it no longer holds what install wrote`).toBe(false);
+          expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("left");
         } else if (dry) {
           expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("would-remove");
           expect(gone, `${what}: the preview removed ${rel}`).toBe(false);
@@ -398,8 +405,25 @@ describe("B4: uninstall deletes the marker only when it read it and every ledger
         expect(labels, `${what}: the marker was removed`).not.toContain("removed");
         expect(labels, `${what}: the marker was previewed as removed`).not.toContain("would-remove");
         const after = damage === "larger than the read bound" ? `size ${statSync(m).size}` : readFileSync(m, "utf8");
-        expect(after, `${what}: the marker changed`).toBe(before);
-        decisions.push(decisionOf(r.stdout, MARKER_REL, t.target));
+        if (dry || damage === "not JSON" || damage === "larger than the read bound") {
+          expect(after, `${what}: the marker changed`).toBe(before);
+        } else {
+          // Red-team of plan 33.1-28 (R2): a marker kept for a malformed ledger is rewritten without
+          // the entries this run removed. The malformed ledger and the identity fields are as found.
+          const a = JSON.parse(after) as Record<string, unknown>;
+          const b = JSON.parse(before) as Record<string, unknown>;
+          expect(Object.keys(a), what).toEqual(Object.keys(b));
+          for (const k of ["kitVersion", "grugopsHome", "kitRoot", "installMode"]) expect(a[k], `${what}: ${k}`).toEqual(b[k]);
+          const bad = damage === "createdDirs not an array" ? "createdDirs" : "claudeAskRules";
+          expect(a[bad], `${what}: the malformed ledger changed`).toEqual(b[bad]);
+          expect(labels, `${what}\n${r.stdout}`).toContain("edited");
+        }
+        decisions.push(
+          linesFor(r.stdout, MARKER_REL, t.target)
+            .filter((l) => l.label === "left")
+            .map((l) => l.msg)
+            .join(" | "),
+        );
       }
       expect(decisions[0], "the preview and the real run decided differently").toBe(decisions[1]);
     });

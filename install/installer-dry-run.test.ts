@@ -96,10 +96,11 @@ describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
     const home = mkTmp();
     plantEmptyDirs(target, USER_EMPTY_DIRS);
     // Plan 33.1-28: a directory is removed only on install's createdDirs record, never by its name,
-    // so the preview can name a directory only in an installed target. Install, then empty one
-    // directory install created (the skill file inside it is gone), so the preview has one to name.
+    // so the preview can name a directory only in an installed target. Red-team of plan 33.1-28: and
+    // only one this run empties, so the preview counts each file it would remove as removed and names
+    // the directories it would empty. The preview changes nothing, so the real run below runs on the
+    // same tree.
     expect(runInstall(target, home, false).status).toBe(0);
-    rmSync(join(target, ".claude", "skills", "grugops", "SKILL.md"));
 
     const preview = runUninstall(target, home, true);
     expect(preview.status, preview.stderr).toBe(0);
@@ -228,12 +229,11 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
 // uninstall runs next on a COPY of that same tree (so the real run's result cannot depend on
 // anything the preview did). Paths are compared relative to each run's own target root.
 //
-// MEASURED, NOT ASSUMED: on flow 7's and flow 8's trees the preview names NO directory, because
-// every directory uninstall visits still holds a grugops file when the preview reads it; the real
-// run empties each one first and then removes it. The comparison on those two trees therefore
-// checks an empty would-rmdir set (it still fails if the preview names anything the real run does
-// not remove). The third case below is the NON-VACUOUS one on an installed tree: the user has since
-// emptied .github/ themselves, so the preview names it and the real run must remove it.
+// Red-team of plan 33.1-28: a directory is removed only when the run empties it, and the preview
+// counts each file it would remove as removed, so on flow 7's and flow 8's trees the preview names
+// the directories the real run empties and removes. The third case is an installed tree whose
+// .github/ the user has since emptied themselves: neither run removes it (this run did not empty it),
+// and the preview still names the others.
 function expectPreviewSubsetOfRealRun(target: string, home: string): { would: string[]; done: string[] } {
   const copy = join(mkTmp(), "copy");
   cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
@@ -272,13 +272,16 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
     expectPreviewSubsetOfRealRun(target, home);
   });
 
-  it("subset (non-vacuous): an installed tree whose .github/ the user has since emptied", () => {
+  it("subset (non-vacuous): the preview names directories; an installed tree's .github/ the user has since emptied is left by both", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home, false).status).toBe(0);
     rmSync(join(target, ".github", "copilot-instructions.md"));
     expect(readdirSync(join(target, ".github")).length).toBe(0);
-    const { would } = expectPreviewSubsetOfRealRun(target, home);
-    expect(would).toContain("/.github");
+    const { would, done } = expectPreviewSubsetOfRealRun(target, home);
+    expect(would.length).toBeGreaterThan(0);
+    expect(would).toContain("/.claude");
+    expect(would).not.toContain("/.github");
+    expect(done).not.toContain("/.github");
   });
 });

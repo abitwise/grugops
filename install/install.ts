@@ -94,7 +94,16 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpo
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, type AskRuleLedger } from "./install-marker.js";
+import {
+  readInstallMarker,
+  readCreatedDirs,
+  readCreatedFiles,
+  readAskRuleLedger,
+  contentRecord,
+  linkRecord,
+  recordHolds,
+  type AskRuleLedger,
+} from "./install-marker.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -452,19 +461,33 @@ const errCode = (e: unknown): string => {
 const CREATED_DIRS = new Set<string>();
 
 // CREATED_FILES (plan 33.1-28, Gap B / re-review WR-05, D-18): every file under TARGET that THIS run
-// created where nothing was before, as a POSIX path relative to TARGET: the files ensureBlock
+// created where nothing was before, as a POSIX path relative to TARGET, mapped to the content record
+// of what this run wrote there (install-marker.ts contentRecord / linkRecord): the files ensureBlock
 // creates to hold a sentinel block (CLAUDE.md, .github/copilot-instructions.md), the AGENTS.md
 // linkOrCopy lays down, and the runnables materializeRunnable writes. writeMarker() records it in the
-// marker as `createdFiles`, and uninstall deletes one of those files only when that ledger lists it,
-// so a file the user had before the install (a blank Copilot file, a byte-identical AGENTS.md from
-// the minimal copy path) is never deleted. Only a successful create is recorded: an append, a skip
-// and a DRY_RUN preview record nothing. The inside-TARGET test is mkdirp's.
-const CREATED_FILES = new Set<string>();
-const recordCreatedFile = (path: string): void => {
+// marker as `createdFiles`, and uninstall deletes one of those files only when that ledger lists it
+// and the file still holds what the record says, so a file the user had before the install (a blank
+// Copilot file, a byte-identical AGENTS.md from the minimal copy path) is never deleted. Only a
+// successful create is recorded: an append, a skip and a DRY_RUN preview record nothing. The
+// inside-TARGET test is mkdirp's.
+const CREATED_FILES = new Map<string, string>();
+const targetRel = (path: string): string | null => {
   const rel = relative(TARGET, path);
-  if (rel === "" || isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`)) return;
-  CREATED_FILES.add(rel.split(sep).join("/"));
+  if (rel === "" || isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`)) return null;
+  return rel.split(sep).join("/");
 };
+const recordCreatedFile = (path: string, record: string): void => {
+  const rel = targetRel(path);
+  if (rel !== null) CREATED_FILES.set(rel, record);
+};
+
+// APPENDED_FILES (red-team of plan 33.1-28, R1): every file ensureBlock APPENDED its block to in this
+// run. The file was there without a grugops block when this run started, so it is the user's, whatever
+// an earlier record says: a user who deleted a file install created and made their own at the same
+// name has a file install did not create. writeMarker() drops such a path from createdFiles, and this
+// rule does not depend on the bytes (appending the block to an empty file produces exactly the bytes a
+// create writes, so a content record alone could not tell the two apart).
+const APPENDED_FILES = new Set<string>();
 
 // mkdirp (red-team of plan 33.1-26, D-18): make `dir` and every missing directory on the way to it.
 // Returns null on success, or a sentence naming the component that stopped it; it never throws.
@@ -1768,8 +1791,9 @@ function ensureBlock(file: string, open: string, body: string, close: string, la
   if (cur.state === "create") {
     if (!writeTargetFile(file, block, "create", label)) return;
     // Plan 33.1-28: readForWrite said nothing was there and the exclusive create succeeded, so
-    // install created this file. Uninstall deletes it only on this record (createdFiles).
-    recordCreatedFile(file);
+    // install created this file. Uninstall deletes it only on this record (createdFiles), and only
+    // while the file still holds these bytes (red-team R1).
+    recordCreatedFile(file, contentRecord(block));
   } else {
     try {
       appendFileSync(file, block);
@@ -1777,6 +1801,9 @@ function ensureBlock(file: string, open: string, body: string, close: string, la
       verify(`${label}: ${file} could not be appended to (${errCode(e)}). Nothing was added to it.`);
       return;
     }
+    // Red-team of plan 33.1-28 (R1): the file was there before this run, so it is not install's.
+    const rel = targetRel(file);
+    if (rel !== null) APPENDED_FILES.add(rel);
   }
   report("created", label);
 }
@@ -1790,57 +1817,58 @@ function ensureBlock(file: string, open: string, body: string, close: string, la
 // (isOwnLink); any other link, dangling or not, and any special file or non-directory on the way, is
 // left untouched and reported. A new file is made with an exclusive create.
 //
-// Returns true only when THIS call created `dest` where nothing was before (a new link, or a new
-// copy through the exclusive create), so a caller that records created files (the AGENTS.md step,
-// plan 33.1-28) records exactly those. Every other outcome returns false.
-function linkOrCopy(src: string, dest: string, label: string): boolean {
+// Returns the content record of what THIS call created at `dest` where nothing was before (a new
+// link: linkRecord(src); a new copy through the exclusive create: contentRecord of the bytes written),
+// so a caller that records created files (the AGENTS.md step, plan 33.1-28) records exactly those,
+// with what was written. Every other outcome returns null.
+function linkOrCopy(src: string, dest: string, label: string): string | null {
   const srcRead = readUserFile(src);
   if (srcRead.state === "absent") {
     report("skipped", `${label} (source missing: ${src})`);
-    return false;
+    return null;
   }
   if (srcRead.state !== "ok") {
     verify(`${label}: the kit source ${src} ${unreadState(srcRead)}. Nothing was installed for it.`);
-    return false;
+    return null;
   }
   if (isOwnLink(dest, src)) {
     report("skipped", `${label} (symlink present)`);
-    return false;
+    return null;
   }
   // DC-3 / D-18 (plan 33.1-26): the destination is read before anything is written to it. A FIFO,
   // directory, socket or device there, or a file too large or unreadable, is left untouched.
   const destRead = readForWrite(TARGET, dest);
   if (destRead.state === "blocked") {
     verify(`${label}: ${blockedAt(destRead, dest)}. It was left untouched and nothing was copied over it.`);
-    return false;
+    return null;
   }
   if (destRead.state === "ok" && destRead.text === srcRead.text) {
     report("skipped", `${label} (identical copy present)`);
-    return false;
+    return null;
   }
   if (DRY_RUN) {
     report(INSTALL_MODE === "copy" ? "would-copy" : "would-link", label);
-    return false;
+    return null;
   }
   if (INSTALL_MODE !== "copy" && destRead.state === "create") {
     const why = mkdirp(dirname(dest));
     if (why !== null) {
       verify(`${label}: ${why}. Nothing was linked or copied to ${dest}.`);
-      return false;
+      return null;
     }
     try {
       symlinkSync(src, dest);
       if (isSymlink(dest)) {
         report("linked", label);
-        return true;
+        return linkRecord(src);
       }
     } catch {
       // fall through to copy
     }
   }
-  if (!writeTargetFile(dest, srcRead.bytes, destRead.state, label)) return false;
+  if (!writeTargetFile(dest, srcRead.bytes, destRead.state, label)) return null;
   report("copied(verify)", label);
-  return destRead.state === "create";
+  return destRead.state === "create" ? contentRecord(srcRead.bytes) : null;
 }
 
 // Gemini settings shape — the JSON merge target. context.fileName is the array we add AGENTS.md to.
@@ -2661,9 +2689,10 @@ function materializeRunnable(): void {
       continue;
     }
     if (writeTargetFile(dest, srcRead.bytes, "create", destRel)) {
-      // Plan 33.1-28: a runnable install created is recorded; uninstall removes one only on this
-      // record and when it is still byte-identical to its source.
-      recordCreatedFile(dest);
+      // Plan 33.1-28: a runnable install created is recorded with the bytes written; uninstall
+      // removes one only on this record, while it still holds those bytes, and when it is still
+      // byte-identical to its source.
+      recordCreatedFile(dest, contentRecord(srcRead.bytes));
       report("created", destRel);
     }
   }
@@ -2676,11 +2705,16 @@ function materializeRunnable(): void {
 // forward from the previous marker (see writeAskRules for the ask rules), so the unconditional
 // overwrite cannot orphan rules, directories or files an earlier run recorded.
 //
-// createdDirs: the previous marker's entries that are still directories, united with the
-// directories this run created (CREATED_DIRS), sorted.
-// createdFiles: the previous marker's entries that are still a regular file or a symbolic link (an
-// AGENTS.md a --symlink install linked in), united with the files this run created (CREATED_FILES),
-// sorted. A file the user deleted since is dropped.
+// A PREVIOUS ENTRY IS CARRIED ONLY WITH PROOF (red-team of plan 33.1-28, R1, brief DC-2). A record
+// names a path; the path can have been deleted and made again by the user since, so its presence is
+// not proof. Each ledger states what this run must see to carry an entry forward:
+// createdDirs: the directories this run created (CREATED_DIRS), united with the previous marker's
+// entries that were a real, non-empty directory when this run started (START_HELD_DIRS) and are still
+// a real directory now, sorted.
+// createdFiles: the files this run created (CREATED_FILES, with what this run wrote), united with the
+// previous marker's entries that still hold exactly what their record says install wrote
+// (recordHolds) and that this run did not append a block to (APPENDED_FILES), each keeping its record,
+// sorted by path. A file the user deleted, edited or replaced since is dropped.
 //
 // ONE RULE FOR AN ABSENT LEDGER FIELD (plan 33.1-28): an absent record stays absent unless this run
 // itself performed the recorded action. With NO previous marker this run is the whole history, so
@@ -2764,6 +2798,7 @@ function writeMarker(): void {
       createdFile: ASK_LEDGER.createdFile,
       createdPermissions: ASK_LEDGER.createdPermissions,
       createdAsk: ASK_LEDGER.createdAsk,
+      askContent: ASK_LEDGER.askContent,
     };
   }
   // Computed after the mkdirp above, so a .grugops/ this call created is recorded too.
@@ -2773,27 +2808,20 @@ function writeMarker(): void {
   } else if (previousDirs.state === "ok" || freshMarker || CREATED_DIRS.size > 0) {
     const union = new Set<string>(CREATED_DIRS);
     for (const rel of previousDirs.dirs) {
-      try {
-        if (lstatSync(join(TARGET, ...rel.split("/"))).isDirectory()) union.add(rel);
-      } catch {
-        // gone since the earlier install: dropped from the ledger
-      }
+      if (!START_HELD_DIRS.has(rel)) continue; // empty, gone or not a real directory at the start: no proof
+      if (directoryComponent(join(TARGET, ...rel.split("/"))) === "fine") union.add(rel);
     }
     marker.createdDirs = [...union].sort();
   }
   if (previousFiles.state === "malformed") {
     marker.createdFiles = previousFiles.raw;
   } else if (previousFiles.state === "ok" || freshMarker || CREATED_FILES.size > 0) {
-    const union = new Set<string>(CREATED_FILES);
-    for (const rel of previousFiles.files) {
-      try {
-        const st = lstatSync(join(TARGET, ...rel.split("/")));
-        if (st.isFile() || st.isSymbolicLink()) union.add(rel);
-      } catch {
-        // gone since the earlier install: dropped from the ledger
-      }
+    const union = new Map<string, string>(CREATED_FILES);
+    for (const [rel, record] of previousFiles.files) {
+      if (union.has(rel) || APPENDED_FILES.has(rel)) continue;
+      if (recordHolds(TARGET, join(TARGET, ...rel.split("/")), record)) union.set(rel, record);
     }
-    marker.createdFiles = [...union].sort();
+    marker.createdFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   }
   if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
     report("created", ".grugops/install.json (marker)");
@@ -2909,6 +2937,33 @@ function updateKitHome(): void {
 //   - isOldLayout → run migratePreSteps() (config-move + in-repo-kit backup + symlink-unlink), then
 //     FALL THROUGH into the existing install run (which copies the fresh kit, D-01).
 //   - isClean (or anything else) → FALL THROUGH into the existing install run unchanged (D-11).
+//
+// START_HELD_DIRS (red-team of plan 33.1-28, R1, brief DC-2) is taken HERE, before this run's first
+// change to the target (the --migrate pre-steps below are the earliest). It is the set of the previous
+// marker's createdDirs entries that are, right now, a real directory (not a link, nothing but real
+// directories on the way) holding at least one entry. writeMarker() carries a previous createdDirs
+// entry forward only when it is in this set. Install never leaves a directory it created empty, so
+// one found empty at the start of a run was emptied, or deleted and made again, since the record was
+// written; nothing is left to show it is still the directory install created, so the entry is
+// dropped and uninstall leaves the directory (the safe direction). Taken later in the run, the answer
+// would count what this run itself wrote into the directory.
+const START_HELD_DIRS: ReadonlySet<string> = (() => {
+  const held = new Set<string>();
+  const m = readInstallMarker(TARGET);
+  const dirs = readCreatedDirs(m.state === "ok" ? m.marker : null);
+  if (dirs.state !== "ok") return held;
+  for (const rel of dirs.dirs) {
+    const p = join(TARGET, ...rel.split("/"));
+    if (wayTo(TARGET, p) !== null || directoryComponent(p) !== "fine") continue;
+    try {
+      if (readdirSync(p).length > 0) held.add(rel);
+    } catch {
+      // unreadable: not shown to be held, so not carried
+    }
+  }
+  return held;
+})();
+
 if (MIGRATE) {
   const layout = detectOldLayout();
   // MIGR-04 (Phase 24, D-17 reconcile): back up a user's runtime-accumulated plans/handoffs/ on
@@ -3340,11 +3395,14 @@ if (SRC_NESTED.overflow !== null) {
     report("skipped", "AGENTS.md (target already has one — left untouched)");
   } else if (agentsRead.state === "blocked") {
     verify(`AGENTS.md: ${blockedAt(agentsRead, agentsDest)}. It was left untouched and nothing was copied to it.`);
-  } else if (linkOrCopy(agentsSrc, agentsDest, "AGENTS.md")) {
+  } else {
     // Plan 33.1-28 (brief DC-2): install created AGENTS.md, so it is recorded; uninstall removes an
     // AGENTS.md only on this record, never because it matches the kit's bytes (a never-installed
-    // repository that took the minimal copy path holds exactly those bytes).
-    recordCreatedFile(agentsDest);
+    // repository that took the minimal copy path holds exactly those bytes). The record says what
+    // install wrote (the copy's bytes or the link's target), so an AGENTS.md changed since does not
+    // match it (red-team R1).
+    const created = linkOrCopy(agentsSrc, agentsDest, "AGENTS.md");
+    if (created !== null) recordCreatedFile(agentsDest, created);
   }
 }
 
@@ -3449,6 +3507,17 @@ function reportRetiredConfigKeys(): void {
 // forward from the previous marker while the thing it names still exists. A second install finds
 // every rule already present and adds nothing; without the carry-forward it would write an empty
 // ledger and uninstall could no longer remove the rules.
+//
+// THE CARRY NEEDS PROOF (red-team of plan 33.1-28, R3, brief DC-2). A rule string or a flag says
+// nothing about who wrote what is in the file NOW: a user who deleted the settings file and wrote
+// their own, holding their own `Bash(git push *)`, had that rule claimed as install's (uninstall
+// removed it) and their file claimed as created by install (uninstall deleted it). So the ledger
+// records `askContent`, the content record of the `permissions.ask` array exactly as install left
+// it, and the previous claims and created* flags are carried only while the array found now is that
+// array. Otherwise every rule already present is the user's (reported so, and uninstall leaves it),
+// and each created* flag says only what THIS run created. A key the user adds beside the array
+// changes nothing; any change to the array itself ends the claim. A settings file this run cannot
+// read, parse or type-check shows nothing either, so its ledger claims nothing.
 // ---------------------------------------------------------------------------
 const ASK_CONFIG_CANDIDATES: ReadonlyArray<readonly string[]> = [
   [".grugops", "factory.config.json"],
@@ -3507,6 +3576,9 @@ function writeAskRules(): void {
     return;
   }
   const previous = previousRead.ledger;
+  // The ledger to write when the previous claims cannot be carried (see THE CARRY NEEDS PROOF).
+  const unclaimed = (askContent: string | null): AskRuleLedger | null =>
+    previous === null ? null : { added: [], createdFile: false, createdPermissions: false, createdAsk: false, askContent };
 
   const config = readCheckpointConfig();
   const toWrite = checkpointsToWrite(config);
@@ -3539,7 +3611,7 @@ function writeAskRules(): void {
   const settingsRead = readForWrite(TARGET, file);
   if (settingsRead.state === "blocked") {
     verify(`${rel}: ${blockedAt(settingsRead, file)} — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
-    ASK_LEDGER = previous;
+    ASK_LEDGER = unclaimed(null);
     return;
   }
   const exists = settingsRead.state === "ok";
@@ -3549,12 +3621,12 @@ function writeAskRules(): void {
       parsed = JSON.parse(settingsRead.text);
     } catch {
       verify(`${rel} is not valid JSON — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
-      ASK_LEDGER = previous;
+      ASK_LEDGER = unclaimed(null);
       return;
     }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       verify(`${rel} is not a JSON object — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
-      ASK_LEDGER = previous;
+      ASK_LEDGER = unclaimed(null);
       return;
     }
     json = parsed as Record<string, unknown>;
@@ -3562,14 +3634,14 @@ function writeAskRules(): void {
       const p = json.permissions;
       if (p === null || typeof p !== "object" || Array.isArray(p)) {
         verify(`${rel} has a "permissions" value that is not an object — left untouched; no ask rule was written.`);
-        ASK_LEDGER = previous;
+        ASK_LEDGER = unclaimed(null);
         return;
       }
       permissions = p as Record<string, unknown>;
       if (Object.prototype.hasOwnProperty.call(permissions, "ask")) {
         if (!Array.isArray(permissions.ask)) {
           verify(`${rel} has a "permissions.ask" value that is not an array — left untouched; no ask rule was written.`);
-          ASK_LEDGER = previous;
+          ASK_LEDGER = unclaimed(null);
           return;
         }
         ask = permissions.ask;
@@ -3579,12 +3651,29 @@ function writeAskRules(): void {
 
   const present = new Set((ask ?? []).filter((x): x is string => typeof x === "string"));
   const toAdd = rules.filter((r) => !present.has(r));
-  const prevAdded = new Set(previous ? previous.added : []);
+  // THE CARRY NEEDS PROOF (R3): the previous claims hold only while the ask array is the one install
+  // last left there.
+  const askNow = ask === null ? null : contentRecord(JSON.stringify(ask));
+  const proven = previous !== null && previous.askContent !== null && previous.askContent === askNow;
+  const prevAdded = new Set(proven && previous !== null ? previous.added : []);
+  const unprovenClaims = new Set(previous !== null && !proven ? previous.added : []);
+  if (unprovenClaims.size > 0) {
+    report(
+      "note",
+      `${rel}: its permissions.ask list is not the one install last left there, so the ${unprovenClaims.size} ask ` +
+        `rule(s) an earlier install recorded are no longer claimed as install's; a copy present now is the user's own`,
+    );
+  }
 
   // Rules already present that no earlier run of this installer added are the user's own.
   for (const r of rules) {
     if (present.has(r) && !prevAdded.has(r)) {
-      report("skipped", `${r} (already present in ${rel} — kept as the user's own rule; uninstall will not remove it)`);
+      report(
+        "skipped",
+        unprovenClaims.has(r)
+          ? `${r} (already present in ${rel} — there is no proof that install added this copy, so it is kept as the user's own rule; uninstall will not remove it)`
+          : `${r} (already present in ${rel} — kept as the user's own rule; uninstall will not remove it)`,
+      );
     }
   }
   const carried = rules.filter((r) => present.has(r) && prevAdded.has(r)).length;
@@ -3609,9 +3698,11 @@ function writeAskRules(): void {
   const addedNow = new Set<string>([...[...prevAdded].filter((r) => present.has(r)), ...toAdd]);
   ASK_LEDGER = {
     added: [...addedNow].sort(),
-    createdFile: willCreateFile || (exists && previous !== null && previous.createdFile),
-    createdPermissions: willCreatePermissions || (permissions !== null && previous !== null && previous.createdPermissions),
-    createdAsk: willCreateAsk || (ask !== null && previous !== null && previous.createdAsk),
+    createdFile: willCreateFile || (proven && exists && previous !== null && previous.createdFile),
+    createdPermissions: willCreatePermissions || (proven && permissions !== null && previous !== null && previous.createdPermissions),
+    createdAsk: willCreateAsk || (proven && ask !== null && previous !== null && previous.createdAsk),
+    // The array as this run leaves it: the one it writes below, or the one it found.
+    askContent: toAdd.length > 0 ? contentRecord(JSON.stringify([...(ask ?? []), ...toAdd])) : askNow,
   };
 
   if (toAdd.length === 0) {
@@ -3628,8 +3719,9 @@ function writeAskRules(): void {
   }
   permissions.ask = [...(ask ?? []), ...toAdd];
   if (!writeTargetFile(file, JSON.stringify(json, null, 2) + "\n", settingsRead.state, rel)) {
-    // Nothing was written, so this run added no rule: the ledger stays as it was.
-    ASK_LEDGER = previous;
+    // Nothing was written, so this run added no rule: the ledger stays as it was when the array found
+    // is still install's, and claims nothing otherwise (R3).
+    ASK_LEDGER = proven ? previous : unclaimed(askNow);
     return;
   }
   report(
