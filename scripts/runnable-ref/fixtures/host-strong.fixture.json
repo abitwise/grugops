@@ -17,7 +17,14 @@
   },
   "api --method GET -i repos/{owner}/{repo}/rulesets/1": {
     "status": 200,
-    "body": { "id": 1, "target": "branch", "enforcement": "active", "current_user_can_bypass": "never" }
+    "body": {
+      "id": 1,
+      "target": "branch",
+      "enforcement": "active",
+      "source": "octo/repo",
+      "source_type": "Repository",
+      "current_user_can_bypass": "never"
+    }
   },
   "api --method GET -i repos/{owner}/{repo}/branches/master":{ "status": 404, "body": { "message": "Branch not found" } },
   "api --method GET -i repos/{owner}/{repo}/environments?per_page=100": {

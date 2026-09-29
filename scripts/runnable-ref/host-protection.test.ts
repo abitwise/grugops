@@ -347,7 +347,14 @@ const RULESET = (id: number | string): string => api(`repos/{owner}/{repo}/rules
 // (an absent value is not readable, D-30).
 const rulesetAnswer = (id: number, bypass?: unknown): unknown => ({
   status: 200,
-  body: { id, enforcement: "active", target: "branch", ...(bypass === undefined ? {} : { current_user_can_bypass: bypass }) },
+  body: {
+    id,
+    enforcement: "active",
+    target: "branch",
+    source: "octo/repo",
+    source_type: "Repository",
+    ...(bypass === undefined ? {} : { current_user_can_bypass: bypass }),
+  },
 });
 // A rule from a named ruleset (or with a raw `ruleset_id` value, including a hostile one).
 const RULE_IN = (id: unknown, type: string, parameters?: Record<string, unknown>): Record<string, unknown> => ({
@@ -1322,7 +1329,14 @@ const ADMIN_BYPASS_ENV = (): unknown => envs({ name: "production", can_admins_by
 const MAIN_PROTECTION_URL = "https://api.github.com/repos/octo/repo/branches/main/protection";
 // A 200 answer from `GET rulesets/1` built from the strong body; `undefined` removes a key.
 function rulesetBodyWith(over: Record<string, unknown>): unknown {
-  const body: Record<string, unknown> = { id: 1, target: "branch", enforcement: "active", current_user_can_bypass: "never" };
+  const body: Record<string, unknown> = {
+    id: 1,
+    target: "branch",
+    enforcement: "active",
+    source: "octo/repo",
+    source_type: "Repository",
+    current_user_can_bypass: "never",
+  };
   for (const [k, v] of Object.entries(over)) {
     if (v === undefined) delete body[k];
     else body[k] = v;
@@ -1409,6 +1423,124 @@ describe("host-protection.js — red-team: a ruleset binds only when its body sa
     );
     expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
     expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+  });
+});
+
+// Every rule of ruleset 1 (the strong fixture's three) with the given fields changed; `undefined`
+// removes a key.
+function rulesWithSource(over: Record<string, unknown>, only?: number): unknown {
+  return rulesOf(
+    ...ALL_ROWS_IN(1).map((rule, i) => {
+      if (only !== undefined && i !== only) return rule;
+      const out: Record<string, unknown> = { ...rule };
+      for (const [k, v] of Object.entries(over)) {
+        if (v === undefined) delete out[k];
+        else out[k] = v;
+      }
+      return out;
+    }),
+  );
+}
+
+describe("host-protection.js — red-team: a ruleset binds only when its body's source agrees with the rule list (D-30)", () => {
+  it("the strong fixture's ruleset body names the same source and source type as its rules, and reads protected", () => {
+    const body = (base()[RULESET(1)] as { body: Record<string, unknown> }).body;
+    expect(body.source).toBe("octo/repo");
+    expect(body.source_type).toBe("Repository");
+    const r = runCheck(base());
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("the red-team case P: the body says source \"someone/else\" (Organization), the rules say octo/repo (Repository) → UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({ [RULESET(1)]: rulesetBodyWith({ source: "someone/else", source_type: "Organization" }), [PROTECTION("main")]: NOT_PROTECTED_404 }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    for (const requirement of jsonBlock(r.stdout).floor.branch) {
+      expect(factOf(r.stdout, "main", requirement), requirement).toBe("unknown");
+    }
+    expect(branchLine(r.stdout)).toContain("source");
+    expect(r.status).toBe(2);
+  });
+
+  // [case, fixture override]: each one side of the pair disagrees, is absent or is garbled.
+  const DISAGREE: Array<[string, Fixture]> = [
+    ['body source "someone/else"', { [RULESET(1)]: rulesetBodyWith({ source: "someone/else" }) }],
+    ["body source absent", { [RULESET(1)]: rulesetBodyWith({ source: undefined }) }],
+    ["body source null", { [RULESET(1)]: rulesetBodyWith({ source: null }) }],
+    ['body source ""', { [RULESET(1)]: rulesetBodyWith({ source: "" }) }],
+    ["body source 1", { [RULESET(1)]: rulesetBodyWith({ source: 1 }) }],
+    ["body source {}", { [RULESET(1)]: rulesetBodyWith({ source: {} }) }],
+    ['body source_type "Organization"', { [RULESET(1)]: rulesetBodyWith({ source_type: "Organization" }) }],
+    ["body source_type null", { [RULESET(1)]: rulesetBodyWith({ source_type: null }) }],
+    ["body source_type 1", { [RULESET(1)]: rulesetBodyWith({ source_type: 1 }) }],
+    ["body source_type absent while the rules carry one", { [RULESET(1)]: rulesetBodyWith({ source_type: undefined }) }],
+    ['rules ruleset_source "someone/else"', { [RULES("main")]: rulesWithSource({ ruleset_source: "someone/else" }) }],
+    ["rules ruleset_source absent", { [RULES("main")]: rulesWithSource({ ruleset_source: undefined }) }],
+    ["rules ruleset_source null", { [RULES("main")]: rulesWithSource({ ruleset_source: null }) }],
+    ['rules ruleset_source_type "Organization"', { [RULES("main")]: rulesWithSource({ ruleset_source_type: "Organization" }) }],
+    ["rules ruleset_source_type absent while the body carries one", { [RULES("main")]: rulesWithSource({ ruleset_source_type: undefined }) }],
+    ["one rule of the ruleset naming another source than its siblings", { [RULES("main")]: rulesWithSource({ ruleset_source: "someone/else" }, 2) }],
+  ];
+  for (const [name, over] of DISAGREE) {
+    it(`${name} → the ruleset binds nothing, UNKNOWN - verify, never protected`, () => {
+      const r = runCheck(base({ ...over, [PROTECTION("main")]: NOT_PROTECTED_404 }), ["--json"]);
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it("source_type absent on both sides, sources agreeing → still protected (source_type is compared only when present)", () => {
+    const r = runCheck(
+      base({ [RULESET(1)]: rulesetBodyWith({ source_type: undefined }), [RULES("main")]: rulesWithSource({ ruleset_source_type: undefined }) }),
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it('a bypassable ruleset ("always") whose source disagrees is not read as bypassable → UNKNOWN - verify, not unprotected', () => {
+    const r = runCheck(
+      base({
+        [RULESET(1)]: rulesetBodyWith({ source: "someone/else", current_user_can_bypass: "always" }),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+  });
+
+  // Sibling (same class, two endpoints naming one fact): the main/master probe's `protected` and
+  // the classic protection endpoint of the same branch.
+  it("the probe reports master `protected: false` but its classic protection endpoint answers 200 → master UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: { status: 200, body: { name: "master", protected: false } },
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    for (const requirement of jsonBlock(r.stdout).floor.branch) {
+      expect(factOf(r.stdout, "master", requirement), requirement).toBe("unknown");
+    }
+    expect(r.status).toBe(2);
+  });
+
+  it("the probe reports master `protected: true` and its classic protection endpoint answers 200 → master protected", () => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: { status: 200, body: { name: "master", protected: true } },
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+      }),
+    );
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("protected");
+    expect(r.status).toBe(0);
   });
 });
 
