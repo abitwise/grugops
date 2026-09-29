@@ -34,14 +34,18 @@
 //   4. The source calls assertAcceptTable() at top level, after ACCEPT and the uncaughtException
 //      handler, and before any gh call.
 //
-// This is the static half. Plan 33.1-23 adds the behavioural half (every evidence field of the
-// strong fixture removed, nulled or garbled alone) to this same file.
+// This is the static half. The behavioural half is section 5, "evidence-field matrix" (plan
+// 33.1-23): every field of every host answer that feeds a floor row, taken from the strong fixture
+// by walking it, removed, nulled or garbled alone, run through the COMMITTED host-protection.js.
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const HERE = import.meta.dirname;
 const REPO_ROOT = join(HERE, "..", "..");
@@ -562,4 +566,460 @@ describe("host-protection.ts floor census (Gap A, CR-01, D-30, plan 33.1-22)", (
     expect(acceptAt).toBeLessThan(callAt);
     expect(callAt).toBeLessThan(ghAt);
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 5. The evidence-field matrix (plan 33.1-23, Gap A, D-30, brief 33.1-GAP-PLANNING-BRIEF.md DC-1).
+//
+// Every field of every host answer that feeds a floor row is taken from the strong baselines by
+// WALKING the answers (object keys and array indices, root included), never from a typed list. Each
+// field is mutated alone: absent (for a root, the fixture entry is removed; for an array element,
+// the element is removed), null, a value of another JSON type, and for arrays `[null]`. For every
+// mutation the rows the field feeds (LEAVES) read `unknown` (or what one of the two EXCEPTIONS
+// declares), every other row of both targets stays `held`, the fed target is not `protected`, and
+// the run does not exit 0. An INERT field changes nothing. A removed array element is a different,
+// well-formed list rather than an absent field: a list read in full without the element can
+// correctly read `failed`, so removal asserts the weaker "not held, target not protected".
+//
+// The run helper and the stub keys are COPIED from host-protection.test.ts, because that file exports
+// nothing (a vitest file is not a module other test files import; install/installer-dry-run.test.ts
+// records the same for its own copies). Plan 33.1-24 reuses BASELINES, BODIES, LEAVES and
+// runHostCheck in place for its pairs matrix.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const CHECK_JS = join(HERE, "host-protection.js");
+const GH_STUB = join(HERE, "fixtures", "gh-stub.mjs");
+const STRONG_FIXTURE = join(HERE, "fixtures", "host-strong.fixture.json");
+
+type Fixture = Record<string, unknown>;
+const api = (path: string): string => `api --method GET -i ${path}`;
+const RULES_MAIN = api("repos/{owner}/{repo}/rules/branches/main?per_page=100");
+const RULESET_1 = api("repos/{owner}/{repo}/rulesets/1");
+const PROTECTION = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}/protection`);
+const ENVS = api("repos/{owner}/{repo}/environments?per_page=100");
+const PROTECTED_LIST = api("repos/{owner}/{repo}/branches?protected=true&per_page=1");
+
+interface HostJson {
+  ok: boolean;
+  floor: { branch: string[]; environment: string[] };
+  targets: Array<{ kind: string; name: string; verdict: string; facts?: Array<{ id: string; state: string; evidence: string }> }>;
+  calls: string[][];
+}
+interface MatrixRun {
+  status: number | null;
+  json: HostJson | undefined;
+  stdout: string;
+}
+
+// Runs the COMMITTED host-protection.js through its --gh-script seam with gh-stub.mjs, in a scratch
+// cwd (no factory.config.json, so the environment name is the documented default `production`).
+function runHostCheck(fixture: Fixture): MatrixRun {
+  const scratch = mkdtempSync(join(tmpdir(), "grugops-floor-matrix-"));
+  try {
+    const fixturePath = join(scratch, "fixture.json");
+    writeFileSync(fixturePath, JSON.stringify(fixture));
+    const r = spawnSync("node", [CHECK_JS, "--gh-script", GH_STUB, "--json"], {
+      encoding: "utf8",
+      cwd: scratch,
+      env: { ...process.env, GH_STUB_FIXTURE: fixturePath, GH_STUB_LOG: "" },
+    });
+    const stdout = r.stdout ?? "";
+    const lines = stdout.trim().split("\n");
+    const at = lines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
+    let json: HostJson | undefined;
+    try {
+      json = at < 0 ? undefined : (JSON.parse(lines.slice(at + 1).join("\n")) as HostJson);
+    } catch {
+      json = undefined;
+    }
+    return { status: r.status, json, stdout };
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+function targetOf(json: HostJson | undefined, kind: string, name: string): HostJson["targets"][number] | undefined {
+  return json?.targets.find((t) => t.kind === kind && t.name === name);
+}
+
+// Every fact of branch main and environment production, by row id.
+function rowStates(json: HostJson | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const t of [targetOf(json, "branch", "main"), targetOf(json, "environment", "production")]) {
+    for (const f of t?.facts ?? []) out.set(f.id, f.state);
+  }
+  return out;
+}
+
+// ── The two baselines, both built from the shared strong fixture ────────────────────────────────
+function strongFixture(): Fixture {
+  return JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture;
+}
+// A strong classic body with an explicit, empty pull request bypass allowance.
+function classicStrongBody(): Record<string, unknown> {
+  return {
+    enforce_admins: { enabled: true },
+    required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: { users: [], teams: [], apps: [] } },
+    allow_force_pushes: { enabled: false },
+    allow_deletions: { enabled: false },
+  };
+}
+const BASELINES = {
+  // The ruleset arm shows every branch row; main's classic arm is 404 `Branch not protected`; the
+  // environment's branch-policy evidence comes from the protected-branch list and hotfix's body.
+  RULESET_ARM: (): Fixture => ({ ...strongFixture(), [PROTECTION("main")]: { status: 404, body: { message: "Branch not protected" } } }),
+  // No ruleset rule; main's strong classic body shows every branch row and is the environment's
+  // branch-policy evidence.
+  CLASSIC_ARM: (): Fixture => ({
+    ...strongFixture(),
+    [RULES_MAIN]: { status: 200, body: [] },
+    [PROTECTION("main")]: { status: 200, body: classicStrongBody() },
+  }),
+} as const;
+type BaselineName = keyof typeof BASELINES;
+
+// The six evidence bodies and the baseline each is taken from.
+type BodyName = "rules" | "ruleset" | "classic" | "environments" | "protectedList" | "listedClassic";
+const BODIES: Record<BodyName, { baseline: BaselineName; key: string }> = {
+  rules: { baseline: "RULESET_ARM", key: RULES_MAIN },
+  ruleset: { baseline: "RULESET_ARM", key: RULESET_1 },
+  classic: { baseline: "CLASSIC_ARM", key: PROTECTION("main") },
+  environments: { baseline: "CLASSIC_ARM", key: ENVS },
+  protectedList: { baseline: "RULESET_ARM", key: PROTECTED_LIST },
+  listedClassic: { baseline: "RULESET_ARM", key: PROTECTION("hotfix") },
+};
+const BODY_NAMES = Object.keys(BODIES) as BodyName[];
+
+function bodyOf(name: BodyName): unknown {
+  const entry = BASELINES[BODIES[name].baseline]()[BODIES[name].key];
+  if (typeof entry !== "object" || entry === null || !("body" in entry)) throw new Error(`baseline has no body for ${name}`);
+  return entry.body;
+}
+
+// ── The path walk ────────────────────────────────────────────────────────────────────────────────
+type Seg = string | number;
+const pathText = (segs: readonly Seg[]): string => `$${segs.map((s) => (typeof s === "number" ? `[${s}]` : `.${s}`)).join("")}`;
+
+function walkPaths(v: unknown, segs: Seg[] = [], out: Seg[][] = []): Seg[][] {
+  out.push(segs);
+  if (Array.isArray(v)) {
+    const list: unknown[] = v;
+    list.forEach((e, i) => walkPaths(e, [...segs, i], out));
+  } else if (typeof v === "object" && v !== null) {
+    for (const [k, child] of Object.entries(v)) walkPaths(child, [...segs, k], out);
+  }
+  return out;
+}
+
+function childOf(v: unknown, s: Seg): unknown {
+  if (typeof s === "number") return Array.isArray(v) ? (v as unknown[])[s] : undefined;
+  return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>)[s] : undefined;
+}
+
+// Every path of every body, keyed `<body>:<path>`.
+interface WalkedPath {
+  key: string;
+  body: BodyName;
+  segs: Seg[];
+  value: unknown;
+}
+function walkedPaths(): WalkedPath[] {
+  return BODY_NAMES.flatMap((body) => {
+    const root = bodyOf(body);
+    return walkPaths(root).map((segs) => ({ key: `${body}:${pathText(segs)}`, body, segs, value: segs.reduce(childOf, root) }));
+  });
+}
+
+// ── The mutations ────────────────────────────────────────────────────────────────────────────────
+type Mutation = "absent" | "removed" | "null" | "wrong-type" | "[null]";
+
+function mutationsFor(p: WalkedPath): Mutation[] {
+  const last = p.segs[p.segs.length - 1];
+  const out: Mutation[] = [typeof last === "number" ? "removed" : "absent", "null", "wrong-type"];
+  if (Array.isArray(p.value)) out.push("[null]");
+  return out;
+}
+
+// A value of another JSON type: string → 7, number → "x", boolean → "x", object → "x", array → {}.
+function wrongType(v: unknown): unknown {
+  if (typeof v === "string") return 7;
+  if (Array.isArray(v)) return {};
+  return "x";
+}
+
+function replacement(m: Exclude<Mutation, "absent" | "removed">, v: unknown): unknown {
+  if (m === "null") return null;
+  if (m === "[null]") return [null];
+  return wrongType(v);
+}
+
+function mutated(p: WalkedPath, m: Mutation): Fixture {
+  const fx = BASELINES[BODIES[p.body].baseline]();
+  const key = BODIES[p.body].key;
+  if (p.segs.length === 0) {
+    if (m === "absent") {
+      delete fx[key];
+      return fx;
+    }
+    if (m === "removed") throw new Error("a root is never an array element");
+    fx[key] = { ...(fx[key] as Record<string, unknown>), body: replacement(m, p.value) };
+    return fx;
+  }
+  const entry = structuredClone(fx[key]) as Record<string, unknown>;
+  fx[key] = entry;
+  const parent = p.segs.slice(0, -1).reduce(childOf, entry.body);
+  const last = p.segs[p.segs.length - 1];
+  if (typeof last === "number") {
+    const list = parent as unknown[];
+    if (m === "removed") list.splice(last, 1);
+    else if (m === "absent") throw new Error("an array element is removed, not made absent");
+    else list[last] = replacement(m, p.value);
+  } else {
+    const obj = parent as Record<string, unknown>;
+    if (m === "absent") delete obj[last];
+    else if (m === "removed") throw new Error("an object key is made absent, not removed");
+    else obj[last] = replacement(m, p.value);
+  }
+  return fx;
+}
+
+// ── The rows ─────────────────────────────────────────────────────────────────────────────────────
+const BRANCH_ROWS = ["pull_request", "approving_review", "no_force_push", "no_deletion", "no_bypass"] as const;
+const ENV_ROWS = ["environment_exists", "required_reviewer", "no_self_review", "no_admin_bypass", "branch_policy"] as const;
+type RowId = (typeof BRANCH_ROWS)[number] | (typeof ENV_ROWS)[number];
+const B5: readonly RowId[] = BRANCH_ROWS;
+const E5: readonly RowId[] = ENV_ROWS;
+const PR: readonly RowId[] = ["pull_request", "approving_review", "no_bypass"];
+const APPROVAL: readonly RowId[] = ["approving_review", "no_bypass"];
+const NFF: readonly RowId[] = ["no_force_push", "no_bypass"];
+const DEL: readonly RowId[] = ["no_deletion", "no_bypass"];
+const REVIEWER: readonly RowId[] = ["required_reviewer", "no_self_review"];
+const POLICY: readonly RowId[] = ["branch_policy"];
+const INERT_ROWS: readonly RowId[] = [];
+const isBranchRow = (id: RowId): boolean => (BRANCH_ROWS as readonly string[]).includes(id);
+
+// LEAVES: `<body>:<path>` → the rows the field feeds. An empty list marks an INERT field (and must
+// have its INERT reason below). Follows plan 33.1-22's ACCEPT entries and the union rule; the
+// corrections to the plan's mapping are recorded in 33.1-23-SUMMARY.md.
+const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
+  "rules:$": B5,
+  "rules:$[0]": PR,
+  "rules:$[0].type": PR,
+  "rules:$[0].parameters": APPROVAL,
+  "rules:$[0].parameters.required_approving_review_count": APPROVAL,
+  // Read since red-team case P of plan 33.1-22: every rule of a ruleset must name the source the
+  // ruleset's own body names, or the ruleset binds nothing on this branch (every branch row).
+  "rules:$[0].ruleset_source_type": B5,
+  "rules:$[0].ruleset_source": B5,
+  "rules:$[0].ruleset_id": PR,
+  "rules:$[1]": NFF,
+  "rules:$[1].type": NFF,
+  "rules:$[1].ruleset_source_type": B5,
+  "rules:$[1].ruleset_source": B5,
+  "rules:$[1].ruleset_id": NFF,
+  "rules:$[2]": DEL,
+  "rules:$[2].type": DEL,
+  "rules:$[2].ruleset_source_type": B5,
+  "rules:$[2].ruleset_source": B5,
+  "rules:$[2].ruleset_id": DEL,
+  "ruleset:$": B5,
+  "ruleset:$.id": B5,
+  // enforcement, target, source and source_type: read since plan 33.1-22's red-team round.
+  "ruleset:$.target": B5,
+  "ruleset:$.enforcement": B5,
+  "ruleset:$.source": B5,
+  "ruleset:$.source_type": B5,
+  "ruleset:$.current_user_can_bypass": B5,
+  "classic:$": B5,
+  "classic:$.enforce_admins": B5,
+  "classic:$.enforce_admins.enabled": B5,
+  "classic:$.required_pull_request_reviews": PR,
+  "classic:$.required_pull_request_reviews.required_approving_review_count": APPROVAL,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances": PR,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.users": PR,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.teams": PR,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.apps": PR,
+  "classic:$.allow_force_pushes": NFF,
+  "classic:$.allow_force_pushes.enabled": NFF,
+  "classic:$.allow_deletions": DEL,
+  "classic:$.allow_deletions.enabled": DEL,
+  "environments:$": E5,
+  "environments:$.total_count": INERT_ROWS,
+  "environments:$.environments": E5,
+  "environments:$.environments[0]": E5,
+  "environments:$.environments[0].name": E5,
+  "environments:$.environments[0].can_admins_bypass": ["no_admin_bypass"],
+  "environments:$.environments[0].deployment_branch_policy": POLICY,
+  "environments:$.environments[0].deployment_branch_policy.protected_branches": POLICY,
+  "environments:$.environments[0].deployment_branch_policy.custom_branch_policies": POLICY,
+  "environments:$.environments[0].protection_rules": REVIEWER,
+  "environments:$.environments[0].protection_rules[0]": REVIEWER,
+  "environments:$.environments[0].protection_rules[0].type": REVIEWER,
+  "environments:$.environments[0].protection_rules[0].prevent_self_review": ["no_self_review"],
+  // WR-01 (plan 33.1-22): a rule whose reviewers are not readable leaves the self-review row
+  // unreadable too, so every reviewers field feeds both reviewer rows.
+  "environments:$.environments[0].protection_rules[0].reviewers": REVIEWER,
+  "environments:$.environments[0].protection_rules[0].reviewers[0]": REVIEWER,
+  "environments:$.environments[0].protection_rules[0].reviewers[0].type": REVIEWER,
+  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer": REVIEWER,
+  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.login": INERT_ROWS,
+  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.id": REVIEWER,
+  "protectedList:$": POLICY,
+  "protectedList:$[0]": POLICY,
+  "protectedList:$[0].name": POLICY,
+  "protectedList:$[0].protected": POLICY,
+  "listedClassic:$": POLICY,
+  "listedClassic:$.enforce_admins": INERT_ROWS,
+  "listedClassic:$.enforce_admins.enabled": INERT_ROWS,
+  "listedClassic:$.required_pull_request_reviews": INERT_ROWS,
+  "listedClassic:$.required_pull_request_reviews.required_approving_review_count": INERT_ROWS,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances": INERT_ROWS,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.users": INERT_ROWS,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.teams": INERT_ROWS,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.apps": INERT_ROWS,
+  "listedClassic:$.allow_force_pushes": INERT_ROWS,
+  "listedClassic:$.allow_force_pushes.enabled": INERT_ROWS,
+  "listedClassic:$.allow_deletions": INERT_ROWS,
+  "listedClassic:$.allow_deletions.enabled": INERT_ROWS,
+};
+
+// INERT: a closed set, one reason each, equal to the LEAVES entries with no row.
+const LISTED_CLASSIC_INERT =
+  "only the 200 status and an object body of the listed branch's protection are read for the branch-policy evidence; its fields decide nothing";
+const INERT: Readonly<Record<string, string>> = {
+  "environments:$.total_count": "never read: the check reads the environments list itself",
+  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.login": "identities are never read; the reviewer's id decides",
+  "listedClassic:$.enforce_admins": LISTED_CLASSIC_INERT,
+  "listedClassic:$.enforce_admins.enabled": LISTED_CLASSIC_INERT,
+  "listedClassic:$.required_pull_request_reviews": LISTED_CLASSIC_INERT,
+  "listedClassic:$.required_pull_request_reviews.required_approving_review_count": LISTED_CLASSIC_INERT,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances": LISTED_CLASSIC_INERT,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.users": LISTED_CLASSIC_INERT,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.teams": LISTED_CLASSIC_INERT,
+  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.apps": LISTED_CLASSIC_INERT,
+  "listedClassic:$.allow_force_pushes": LISTED_CLASSIC_INERT,
+  "listedClassic:$.allow_force_pushes.enabled": LISTED_CLASSIC_INERT,
+  "listedClassic:$.allow_deletions": LISTED_CLASSIC_INERT,
+  "listedClassic:$.allow_deletions.enabled": LISTED_CLASSIC_INERT,
+};
+
+// EXCEPTIONS: a closed set of exactly two, each an ACCEPT entry with a written absentFailedWhy.
+// `<body>:<path>|<mutation>` → the state each fed row reads instead of `unknown`.
+const EXCEPTIONS: Readonly<Record<string, { rows: Readonly<Partial<Record<RowId, string>>>; why: string }>> = {
+  "classic:$.required_pull_request_reviews|absent": {
+    rows: { pull_request: "failed", approving_review: "failed", no_bypass: "unknown" },
+    why: "ACCEPT.classicReviews reads an absent key as failed (absentFailedWhy: observed, not documented; failed is fail-safe)",
+  },
+  "environments:$.environments[0].deployment_branch_policy|null": {
+    rows: { branch_policy: "failed" },
+    why: "ACCEPT.deploymentBranchPolicy reads null as failed (absentFailedWhy: GitHub documents null as any branch may deploy)",
+  },
+};
+
+// The pinned field counts. A fixture that gains or loses a field changes a count and stays red until
+// someone reads the new field and classifies it in LEAVES.
+const FIELDS_PER_BODY: Readonly<Record<BodyName, number>> = {
+  rules: 18,
+  ruleset: 7,
+  classic: 13,
+  environments: 19,
+  protectedList: 4,
+  listedClassic: 13,
+};
+const EVIDENCE_FIELD_COUNT = 60;
+const INERT_FIELD_COUNT = 14;
+
+const WALKED = walkedPaths();
+
+describe("evidence-field matrix (Gap A, D-30, derived)", () => {
+  it("both baselines read branch main and environment production protected, exit 0, from the arm each claims", () => {
+    const ruleset = runHostCheck(BASELINES.RULESET_ARM());
+    const classic = runHostCheck(BASELINES.CLASSIC_ARM());
+    for (const r of [ruleset, classic]) {
+      expect(targetOf(r.json, "branch", "main")?.verdict, r.stdout).toBe("protected");
+      expect(targetOf(r.json, "environment", "production")?.verdict, r.stdout).toBe("protected");
+      expect(r.status).toBe(0);
+    }
+    const policy = (r: MatrixRun): string => targetOf(r.json, "environment", "production")?.facts?.find((f) => f.id === "branch_policy")?.evidence ?? "";
+    expect(policy(ruleset)).toContain('"hotfix"');
+    expect(policy(classic)).toContain('"main"');
+    expect(classic.json?.calls.some((c) => c.join(" ").includes("branches?protected=true"))).toBe(false);
+  });
+
+  it("the walked field set equals LEAVES, both ways, and the counts are the pinned ones", () => {
+    const walked = WALKED.map((p) => p.key);
+    const perBody = Object.fromEntries(BODY_NAMES.map((b) => [b, WALKED.filter((p) => p.body === b).length]));
+    const evidence = walked.filter((k) => (LEAVES[k] ?? []).length > 0).length;
+    const inert = walked.filter((k) => LEAVES[k] !== undefined && LEAVES[k].length === 0).length;
+    console.log(
+      `host-protection evidence-field matrix: ${walked.length} fields walked (${BODY_NAMES.map((b) => `${b} ${perBody[b]}`).join(", ")}); ${evidence} evidence, ${inert} inert`,
+    );
+    expect(new Set(walked).size, "a walked path twice").toBe(walked.length);
+    const unclassified = walked.filter((k) => LEAVES[k] === undefined);
+    const stale = Object.keys(LEAVES).filter((k) => !walked.includes(k));
+    expect(unclassified, `fields the fixtures carry that LEAVES does not classify:\n${unclassified.join("\n")}`).toEqual([]);
+    expect(stale, `LEAVES rows no fixture carries:\n${stale.join("\n")}`).toEqual([]);
+    expect(perBody).toEqual(FIELDS_PER_BODY);
+    expect(evidence).toBe(EVIDENCE_FIELD_COUNT);
+    expect(inert).toBe(INERT_FIELD_COUNT);
+    expect(walked.length).toBe(EVIDENCE_FIELD_COUNT + INERT_FIELD_COUNT);
+  });
+
+  it("INERT is exactly the LEAVES entries with no row, each with a reason; EXCEPTIONS has exactly two entries, each with a reason", () => {
+    const markedInert = Object.keys(LEAVES).filter((k) => LEAVES[k].length === 0).sort();
+    expect(Object.keys(INERT).sort()).toEqual(markedInert);
+    for (const [k, why] of Object.entries(INERT)) expect(why.trim().length, `${k}: empty reason`).toBeGreaterThan(0);
+    expect(Object.keys(EXCEPTIONS)).toHaveLength(2);
+    for (const [k, e] of Object.entries(EXCEPTIONS)) {
+      expect(e.why.trim().length, `${k}: empty reason`).toBeGreaterThan(0);
+      const [path] = k.split("|");
+      for (const row of Object.keys(e.rows)) expect(LEAVES[path], `${k} names a row its field does not feed`).toContain(row);
+    }
+  });
+
+  it("the rows fed by evidence fields are exactly the fact ids of a baseline run: floor.branch plus floor.environment", () => {
+    const r = runHostCheck(BASELINES.RULESET_ARM());
+    const factIds = [...rowStates(r.json).keys()].sort();
+    const fed = [...new Set(Object.values(LEAVES).flat())].sort();
+    expect(fed).toEqual(factIds);
+    expect(fed.length).toBe((r.json?.floor.branch.length ?? 0) + (r.json?.floor.environment.length ?? 0));
+    expect(new Set(factIds).size, "a row id shared by the two tables").toBe(factIds.length);
+  });
+
+  for (const p of WALKED) {
+    const rows = LEAVES[p.key] ?? [];
+    const inert = rows.length === 0;
+    it(`${p.key} → ${inert ? "inert: both targets stay protected" : `feeds ${rows.join(", ")}`}`, { timeout: 30_000 }, () => {
+      expect(LEAVES[p.key], `${p.key} is not classified in LEAVES`).toBeDefined();
+      for (const m of mutationsFor(p)) {
+        const r = runHostCheck(mutated(p, m));
+        const states = rowStates(r.json);
+        const label = `${p.key} ${m}`;
+        expect(states.size, `${label}: every row of both targets reported\n${r.stdout}`).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
+        if (inert) {
+          expect(targetOf(r.json, "branch", "main")?.verdict, label).toBe("protected");
+          expect(targetOf(r.json, "environment", "production")?.verdict, label).toBe("protected");
+          expect(r.status, label).toBe(0);
+          continue;
+        }
+        const exception = EXCEPTIONS[`${p.key}|${m}`];
+        for (const [id, state] of states) {
+          const fed = rows.includes(id as RowId);
+          if (!fed) expect(state, `${label}: row ${id} is not fed and must stay held`).toBe("held");
+          else if (m !== "removed") expect(state, `${label}: row ${id}`).toBe(exception?.rows[id as RowId] ?? "unknown");
+        }
+        // A removed element leaves a shorter, well-formed list: some fed row must stop being held
+        // (the one the element showed), but a row the rest of the list still shows may stay held
+        // (removing the only reviewer fails the reviewer row, while prevent_self_review stays read).
+        if (m === "removed") {
+          const stillHeld = rows.filter((id) => states.get(id) === "held");
+          expect(stillHeld.length, `${label}: every fed row still held (${stillHeld.join(", ")})`).toBeLessThan(rows.length);
+        }
+        const fedTargets = new Set(rows.map((id) => (isBranchRow(id) ? "branch" : "environment")));
+        if (fedTargets.has("branch")) expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");
+        if (fedTargets.has("environment")) expect(targetOf(r.json, "environment", "production")?.verdict, label).not.toBe("protected");
+        expect(r.status, label).not.toBe(0);
+      }
+    });
+  }
 });
