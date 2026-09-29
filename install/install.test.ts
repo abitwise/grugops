@@ -6318,12 +6318,12 @@ function runUninstallBounded(target: string, home: string, timeoutMs: number, ex
   return spawnSync("node", [UNINSTALL_JS], { encoding: "utf8", timeout: timeoutMs, env });
 }
 
-// The unreadable-marker finding each binary already prints for a garbled marker, unchanged by this
-// plan: install (writeAskRules) and uninstall (the directory-ledger verify) say the marker "could
-// not be read as a JSON object"; the doctor folds an unusable marker into its fail-closed
-// "grugops not installed" FAIL before it reads anything else.
+// The unreadable-marker finding each binary prints for a garbled marker: install (writeAskRules) and
+// uninstall (the directory-ledger verify) say the marker "could not be read as a JSON object". The
+// doctor's FAIL says the marker is present but could not be read (red-team of plan 33.1-27: it used
+// to say "grugops not installed", which claims the marker is absent when it is there).
 const MARKER_UNREADABLE = /\.grugops\/install\.json could not be read as a JSON object/;
-const DOCTOR_MARKER_UNREADABLE = /^ {2}FAIL\s+grugops not installed in /m;
+const DOCTOR_MARKER_UNREADABLE = /^ {2}FAIL\s+the install marker \S*\.grugops\/install\.json is present but could not be read/m;
 
 type MarkerShape = "FIFO" | "directory" | "symlink to a FIFO";
 const MARKER_SHAPES: readonly MarkerShape[] = ["FIFO", "directory", "symlink to a FIFO"];
