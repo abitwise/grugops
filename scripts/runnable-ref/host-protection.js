@@ -70,7 +70,8 @@
 // `ruleset_id`; an id that is not a safe positive integer is never put in a path and the rule
 // shows nothing. Each distinct id is read once per run through `rulesets/<id>`, at most
 // MAX_RULESET_READS per branch (the rest show nothing). The rule binds only when that read is a
-// 200 about the same ruleset reporting `current_user_can_bypass: "never"`; `always`,
+// 200 about the same ruleset reporting `enforcement: "active"`, `target: "branch"` (any other or
+// absent value of either is not readable) and `current_user_can_bypass: "never"`; `always`,
 // `pull_requests_only` and `exempt` are read as bypassable; any other answer is not readable. So
 // an item is `held` on the ruleset arm when at least one binding rule shows it. Classic arm: the
 // body binds only with `enforce_admins.enabled === true` (`false` is read as bypassable, since a
@@ -292,6 +293,18 @@ const ACCEPT = {
     rulesetBypass: {
         held: (v) => v === "never",
         failed: (v) => v === "always" || v === "pull_requests_only" || v === "exempt",
+    },
+    // `enforcement` on `GET rulesets/<id>`: only "active" is enforced. GitHub documents "disabled"
+    // and "evaluate" as not enforced, but the rule list named this ruleset as applying, so a body
+    // saying either contradicts the same run and is not readable (no `failed`); so is any other value.
+    // An absent value is not readable (D-30); a real answer carries it (fixtures model that).
+    rulesetEnforcement: {
+        held: (v) => v === "active",
+    },
+    // `target` on `GET rulesets/<id>`: a ruleset binds a branch only when it targets branches. A
+    // "tag", "push" or "repository" ruleset, an absent target or any other value is not readable.
+    rulesetTarget: {
+        held: (v) => v === "branch",
     },
     // The environment object `GET environments` listed under the configured name.
     environmentPresent: {
@@ -524,14 +537,26 @@ const MAX_RULESET_READS = 20;
 const rulesetBindingCache = new Map();
 // `GET rulesets/<id>`: GitHub documents `current_user_can_bypass` as one of `always`,
 // `pull_requests_only`, `never` and `exempt`. Only `never` binds. The answer counts only when it
-// is about the ruleset that was asked for. `bypass_actors` is never read (T-33.1-193).
+// is about the ruleset that was asked for, and only when the same body says the ruleset is
+// enforced (`enforcement` "active") and targets branches (`target` "branch"): a ruleset that is
+// disabled, only evaluated, or aimed at tags, pushes or the repository binds no branch row, and
+// its bypass value is then not read either (red-team finding 2 of plan 33.1-22, D-30).
+// `bypass_actors` is never read (T-33.1-193).
 function readRulesetBinding(id) {
     const cached = rulesetBindingCache.get(id);
     if (cached !== undefined)
         return cached;
     const res = apiGet(`repos/{owner}/{repo}/rulesets/${id}`);
     let b;
-    if (res.status === 200 && hostField(res.body, "id") === id) {
+    const enforcement = hostField(res.body, "enforcement");
+    const target = hostField(res.body, "target");
+    if (res.status === 200 && hostField(res.body, "id") === id && readFact(enforcement, ACCEPT.rulesetEnforcement) !== "held") {
+        b = { state: "unknown", evidence: `ruleset ${id} does not report enforcement "active" (it reports ${hostText(enforcement)}), so it is not shown to bind` };
+    }
+    else if (res.status === 200 && hostField(res.body, "id") === id && readFact(target, ACCEPT.rulesetTarget) !== "held") {
+        b = { state: "unknown", evidence: `ruleset ${id} does not report target "branch" (it reports ${hostText(target)}), so it cannot bind a branch` };
+    }
+    else if (res.status === 200 && hostField(res.body, "id") === id) {
         const v = hostField(res.body, "current_user_can_bypass");
         b = toBinding(readFact(v, ACCEPT.rulesetBypass), {
             held: `ruleset ${id} reports current_user_can_bypass "never"`,
