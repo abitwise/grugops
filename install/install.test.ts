@@ -44,6 +44,7 @@ import {
   chmodSync,
   symlinkSync,
   cpSync,
+  readlinkSync,
 } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -1083,7 +1084,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // ── never-delete: uninstall preserves a USER-owned AGENTS.md symlink (install.test.sh Check 5, CR-01) ─
-  it("never-delete: uninstall preserves a user-owned AGENTS.md symlink; removes a grugops-source one", () => {
+  it("never-delete: uninstall preserves a user-owned AGENTS.md symlink, and a grugops-source one it has no install record of", () => {
     // Both links are staged through the D-16 helper, not `spawnSync("ln", ["-s", …])`: on
     // windows-latest run 35394268365 the MSYS `ln` in PATH exited 0 and left a COPY, so
     // `isSymbolicLink()` read false over a fixture the case never had. `symlinkSync` either stages
@@ -1107,7 +1108,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(lstatSync(join(userT, "AGENTS.md")).isSymbolicLink()).toBe(true);
     expect(readFileSync(join(userT, "AGENTS.md"), "utf8")).toContain("USER-OWNED AGENTS");
 
-    // a symlink that resolves to the grugops source IS grugops-owned → removed
+    // A link to the grugops source in a target grugops was never installed into is NOT install's:
+    // there is no install record of it (plan 33.1-28, brief DC-2), so it survives. The removal of the
+    // link install itself made is covered by the "file ownership" and uninstall-removal cases.
     const grugT = makeFixture();
     const skippedGrug = stageSymlinkOrSkip(join(REPO_ROOT, "AGENTS.md"), join(grugT, "AGENTS.md"), "symlink AGENTS.md (grugops-source)", POSITION);
     if (skippedGrug !== null) {
@@ -1116,7 +1119,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     }
     expect(lstatSync(join(grugT, "AGENTS.md")).isSymbolicLink(), "PREMISE: the grugops-source link was not staged").toBe(true);
     expect(runUninstall(grugT, mkTmp()).status).toBe(0);
-    expect(existsSync(join(grugT, "AGENTS.md"))).toBe(false);
+    expect(lstatSync(join(grugT, "AGENTS.md"), { throwIfNoEntry: false })?.isSymbolicLink(), "a never-installed target's AGENTS.md link was removed").toBe(true);
   });
 
   // ── distinct Copilot sentinel: the Copilot block round-trips on its own sentinel (install.test.sh Check 6, WR-05) ─
@@ -5652,9 +5655,9 @@ describe("ask rules: uninstall side (D-18)", () => {
 // DIRECTORY OWNERSHIP (plan 33.1-21, CR-02 ownership half / D-18 / D-20 part (c)).
 //
 // Uninstall removes an empty directory only when grugops owns it: its path is in the install
-// marker's `createdDirs` ledger (a directory install itself created), or its own name begins with
-// `grugops` (the kit namespace). An empty `.github/`, `.gemini/`, `.claude/` or `.claude/agents/`
-// the user made survives and is reported `left`. The expected removals below are DERIVED from the
+// marker's `createdDirs` ledger (a directory install itself created). Its name is not evidence
+// (plan 33.1-28 removed the `grugops`-name rule, brief DC-2 carry #7). An empty `.github/`,
+// `.gemini/`, `.claude/` or `.claude/agents/` the user made survives and is reported `left`. The expected removals below are DERIVED from the
 // marker's `createdDirs` and the uninstaller's fixed candidate shape, never hard-coded as a list.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe("directory ownership (CR-02, plan 33.1-21)", () => {
@@ -5722,7 +5725,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
     expect(r.stdout).toMatch(/left\s+tools\/ \(/);
   });
 
-  it("directory ownership: a legacy marker (no createdDirs) removes only grugops-named directories and says why the rest are left", () => {
+  it("directory ownership: a legacy marker (no createdDirs) removes no empty directory, grugops-named ones included, and says why each is left", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -5737,7 +5740,15 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
 
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
-    for (const rel of [...skillDirs, "tools/grugops"]) expect(existsSync(join(target, ...rel.split("/"))), rel).toBe(false);
+    // Plan 33.1-28 (carry #7): a grugops-named directory needs the record too; with none, it is left.
+    for (const rel of skillDirs) {
+      const p = join(target, ...rel.split("/"));
+      expect(existsSync(p), `${rel} was removed by its name alone`).toBe(true);
+      expect(isEmptyDir(p), `${rel} is not empty — the case measures nothing`).toBe(true);
+      const lines = leftFor(r.stdout, target, rel);
+      expect(lines.length, `no left line for ${rel}`).toBe(1);
+      expect(lines[0]).toMatch(/predates the directory ledger/);
+    }
     for (const rel of SHARED_NAME_DIRS) {
       const p = join(target, ...rel.split("/"));
       expect(existsSync(p), `${rel} was removed without ledger evidence`).toBe(true);
@@ -5932,6 +5943,241 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     }
     expect(runInstall(second, home).status).toBe(0);
     expect(readMarkerJson(second).createdFiles).toEqual([]);
+  });
+  // ── Task 2: every file install creates goes through the same record (plan 33.1-28) ──────────
+  const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
+    writeFileSync(markerPathOf(t), JSON.stringify(m, null, 2) + "\n");
+  const verifyLinesMatching = (stdout: string, re: RegExp): string[] => linesUnder(stdout, "verify").filter((l) => re.test(l));
+  /** A fixture with no CLAUDE.md, so install creates it (and the Copilot file). */
+  const fixtureWithoutClaude = (): string => {
+    const t = makeFixture();
+    rmSync(join(t, "CLAUDE.md"));
+    return t;
+  };
+  // A tree listing that includes directories (snapshot() lists files and links only), so an empty
+  // directory removed by name shows up as a difference.
+  const treeOf = (dir: string): string => {
+    const rows: string[] = [];
+    const walk = (rel: string): void => {
+      for (const ent of readdirSync(join(dir, rel), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const childRel = rel ? `${rel}/${ent.name}` : ent.name;
+        const abs = join(dir, childRel);
+        if (ent.isSymbolicLink()) rows.push(`${childRel} LINK ${readlinkSync(abs)}`);
+        else if (ent.isDirectory()) {
+          rows.push(`${childRel}/`);
+          walk(childRel);
+        } else rows.push(`${childRel} ${createHash("sha256").update(readFileSync(abs)).digest("hex")}`);
+      }
+    };
+    walk("");
+    return rows.sort().join("\n");
+  };
+  // install's own record of what it creates, from a real install into a target with no CLAUDE.md.
+  const installRecord = (() => {
+    let memo: { files: string[]; dirs: string[]; source: string } | null = null;
+    return (): { files: string[]; dirs: string[]; source: string } => {
+      if (memo !== null) return memo;
+      const t = fixtureWithoutClaude();
+      expect(runInstall(t, mkTmp()).status).toBe(0);
+      const m = readMarkerJson(t);
+      memo = { files: m.createdFiles as string[], dirs: m.createdDirs as string[], source: t };
+      return memo;
+    };
+  })();
+
+  it("file ownership: CLAUDE.md install created is recorded and deleted by uninstall, never left as a 0-byte file (carry #8)", () => {
+    const target = fixtureWithoutClaude();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readMarkerJson(target).createdFiles as string[]).toContain("CLAUDE.md");
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(join(target, "CLAUDE.md")), "the CLAUDE.md install created was left behind").toBe(false);
+    expect(naming(r.stdout, "removed", "CLAUDE.md").some((l) => /install created it/.test(l)), r.stdout).toBe(true);
+  });
+
+  it("file ownership: a CLAUDE.md that was blank before install is kept after uninstall and reported left", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "\n");
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readMarkerJson(target).createdFiles as string[]).not.toContain("CLAUDE.md");
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(join(target, "CLAUDE.md")), "the user's pre-existing blank CLAUDE.md was deleted").toBe(true);
+    expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).not.toContain("GSD:grugops-start-here");
+    const left = naming(r.stdout, "left", "CLAUDE.md");
+    expect(left.length, r.stdout).toBe(1);
+    expect(left[0]).toMatch(/there is no record that install created it/);
+  });
+
+  it("file ownership: a legacy marker (no createdFiles) removes both blocks, deletes neither created file, and says the marker predates the file ledger", () => {
+    const target = fixtureWithoutClaude();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const m = readMarkerJson(target);
+    expect(m.createdFiles as string[]).toEqual(expect.arrayContaining(["CLAUDE.md", COPILOT])); // non-vacuous
+    delete m.createdFiles;
+    writeMarkerJson(target, m);
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of ["CLAUDE.md", COPILOT]) {
+      const p = join(target, ...rel.split("/"));
+      expect(existsSync(p), `${rel} was deleted without a file ledger`).toBe(true);
+      const text = readFileSync(p, "utf8");
+      expect(isBlank(text), `${rel}: ${JSON.stringify(text)}`).toBe(true);
+      const left = naming(r.stdout, "left", rel);
+      expect(left.length, `${rel}\n${r.stdout}`).toBe(1);
+      expect(left[0]).toMatch(/the install marker predates the file ledger/);
+    }
+  });
+
+  it("file ownership: an absent record stays absent — a re-install over a legacy marker that creates nothing leaves both ledgers absent, and uninstall says 'predates'", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const m = readMarkerJson(target);
+    delete m.createdFiles;
+    delete m.createdDirs;
+    writeMarkerJson(target, m);
+    expect(runInstall(target, home).status).toBe(0);
+    const m2 = readMarkerJson(target);
+    expect(Object.prototype.hasOwnProperty.call(m2, "createdFiles"), "createdFiles was written as a record of nothing").toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(m2, "createdDirs"), "createdDirs was written as a record of nothing").toBe(false);
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).not.toMatch(/not in the install marker's/);
+    const copilotLeft = naming(r.stdout, "left", COPILOT);
+    expect(copilotLeft.length, r.stdout).toBe(1);
+    expect(copilotLeft[0]).toMatch(/predates the file ledger/);
+    const geminiLeft = linesUnder(r.stdout, "left").filter((l) => l.replace(/\\/g, "/").startsWith(`${join(target, ".gemini").replace(/\\/g, "/")} (`));
+    expect(geminiLeft.length, r.stdout).toBe(1);
+    expect(geminiLeft[0]).toMatch(/predates the directory ledger/);
+  });
+
+  it("file ownership: a malformed createdFiles is a verify finding on both sides; install writes it back verbatim and uninstall deletes neither created file", () => {
+    const MALFORMED: unknown[] = ["x", [1], ["../outside"], ["/abs"], ["a//b"], null, {}];
+    for (const bad of MALFORMED) {
+      const target = fixtureWithoutClaude();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      const m = readMarkerJson(target);
+      m.createdFiles = bad;
+      writeMarkerJson(target, m);
+      const tag = JSON.stringify(bad);
+
+      const ri = runInstall(target, home);
+      expect(ri.status, `${tag}: install ${ri.stdout}`).toBe(3);
+      expect(verifyLinesMatching(ri.stdout, /file ledger/).length, `${tag}\n${ri.stdout}`).toBe(1);
+      expect(readMarkerJson(target).createdFiles, tag).toEqual(bad);
+
+      const ru = runUninstall(target, home);
+      expect(ru.status, `${tag}: uninstall ${ru.stdout}`).toBe(3);
+      expect(verifyLinesMatching(ru.stdout, /file ledger/).length, `${tag}\n${ru.stdout}`).toBe(1);
+      for (const rel of ["CLAUDE.md", COPILOT]) expect(existsSync(join(target, ...rel.split("/"))), `${tag}: ${rel}`).toBe(true);
+    }
+  });
+
+  it("file ownership: a created file that is no longer a file is dropped from createdFiles by the next install", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readMarkerJson(target).createdFiles as string[]).toContain(COPILOT);
+    rmSync(copilotPath(target));
+    mkdirSync(copilotPath(target)); // the path now holds a directory, which install refuses (exit 3)
+    expect(runInstall(target, home).status).toBe(3);
+    expect(readMarkerJson(target).createdFiles as string[]).not.toContain(COPILOT);
+  });
+
+  it("file ownership: a created Copilot file whose block the user removed, leaving it blank, is kept (this run removed no block)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readMarkerJson(target).createdFiles as string[]).toContain(COPILOT);
+    writeFileSync(copilotPath(target), "\n");
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(copilotPath(target)), "a blank file this run removed no block from was deleted").toBe(true);
+    expect(readFileSync(copilotPath(target), "utf8")).toBe("\n");
+  });
+
+  it("file ownership: a never-installed target is changed by zero bytes — blank sentinel files, byte-identical AGENTS.md and runnables, empty grugops-named directories (carry #2, #7; real and DRY_RUN)", () => {
+    const rec = installRecord();
+    // install's own record: the sentinel files, AGENTS.md and the four runnables. Pinned count.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(7);
+    const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
+    expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
+    const plant = (): string => {
+      const t = fixtureWithoutClaude();
+      for (const d of grugopsNamedDirs) mkdirSync(join(t, ...d.split("/")), { recursive: true });
+      for (const rel of rec.files) {
+        const p = join(t, ...rel.split("/"));
+        mkdirSync(dirname(p), { recursive: true });
+        // A sentinel file (install appends a block to it) is planted blank, the WR-05 shape; every
+        // other file with the exact bytes install writes, the minimal-copy-path shape.
+        const installed = readFileSync(join(rec.source, ...rel.split("/")));
+        writeFileSync(p, installed.toString("utf8").includes("<!-- GSD:grugops-") ? " \n\t\n" : installed);
+      }
+      // tools/grugops holds the runnables here; an EMPTY grugops-named directory is planted too.
+      return t;
+    };
+    for (const dry of [false, true]) {
+      const target = plant();
+      const home = mkTmp();
+      const before = treeOf(target);
+      const r = dry ? runUninstallDry(target, home) : runUninstall(target, home);
+      expect(r.status, r.stdout).toBe(0);
+      expect(treeOf(target), `${dry ? "DRY_RUN " : ""}uninstall changed a never-installed target\n${r.stdout}`).toBe(before);
+      for (const rel of rec.files) {
+        expect(naming(r.stdout, dry ? "would-remove" : "removed", rel), `${rel}\n${r.stdout}`).toEqual([]);
+      }
+    }
+  });
+
+  it("file ownership: a never-installed target keeps an AGENTS.md link to the kit source; an installed one's own link is removed", () => {
+    const POSITION = "install/install.test.ts: file ownership AGENTS.md link";
+    const neverT = makeFixture();
+    const s1 = stageSymlinkOrSkip(join(REPO_ROOT, "AGENTS.md"), join(neverT, "AGENTS.md"), "symlink AGENTS.md (kit source)", POSITION);
+    if (s1 !== null) {
+      console.warn(skipLine(s1, "the never-installed AGENTS.md copy case above"));
+      return;
+    }
+    const r = runUninstall(neverT, mkTmp());
+    expect(r.status, r.stdout).toBe(0);
+    expect(lstatSync(join(neverT, "AGENTS.md"), { throwIfNoEntry: false })?.isSymbolicLink(), "a never-installed target's AGENTS.md link was removed").toBe(true);
+    expect(naming(r.stdout, "left", "AGENTS.md").some((l) => /there is no install marker/.test(l)), r.stdout).toBe(true);
+
+    const installedT = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(installedT, home).status).toBe(0);
+    expect(readMarkerJson(installedT).createdFiles as string[]).toContain("AGENTS.md");
+    rmSync(join(installedT, "AGENTS.md"));
+    const s2 = stageSymlinkOrSkip(join(REPO_ROOT, "AGENTS.md"), join(installedT, "AGENTS.md"), "symlink AGENTS.md (install's own)", POSITION);
+    if (s2 !== null) {
+      console.warn(skipLine(s2, "the never-installed AGENTS.md copy case above"));
+      return;
+    }
+    expect(runUninstall(installedT, home).status).toBe(0);
+    expect(lstatSync(join(installedT, "AGENTS.md"), { throwIfNoEntry: false }), "install's own AGENTS.md link was not removed").toBeUndefined();
+  });
+
+  it("file ownership (IN-01): a directory left for want of a ledger entry says there is no record, never 'install did not create it'; tools/ is left even when recorded", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".gemini")); // the user's own, empty before install
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readMarkerJson(target).createdDirs as string[]).toContain("tools");
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(join(target, ".gemini"))).toBe(true);
+    const gemini = linesUnder(r.stdout, "left").filter((l) => l.replace(/\\/g, "/").startsWith(`${join(target, ".gemini").replace(/\\/g, "/")} (`));
+    expect(gemini.length, r.stdout).toBe(1);
+    expect(gemini[0]).toMatch(/there is no record that install created it/);
+    expect(r.stdout).not.toMatch(/install did not create it/);
+    const tools = linesUnder(r.stdout, "left").filter((l) => l.startsWith("tools/ (grugops owns tools/grugops/ only"));
+    expect(tools.length, r.stdout).toBe(1);
+    expect(tools[0]).toMatch(/even when the install marker records that install created it/);
   });
 });
 
