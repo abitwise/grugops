@@ -28,7 +28,7 @@
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
 import { describe, it, expect, afterEach } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -49,6 +49,7 @@ import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { createServer } from "node:net";
 
 // THE SHARED ADAPTER AUTHORITY — imported HERE, IN THE TEST ONLY (KIT-02 / D-18 as amended by
 // D-28).
@@ -113,7 +114,7 @@ import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarke
 // build with `ln -s`, so a host that refuses the link prints one counted SKIPPED row instead of
 // running the case's assertions over a copy that `ln` left behind (plan 33-06, CAP-02).
 import { toPosix } from "../scripts/posix-path.js";
-import { stageSymlinkOrSkip, skipLine, type SkipEntry } from "../scripts/check-platform-shapes.js";
+import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "../scripts/check-platform-shapes.js";
 
 // THE DISPOSITION CANONICALIZER, IMPORTED HERE UNDER THE SAME TEST-ONLY EXCEPTION (plan 33.1-03,
 // D-18). install/checkpoint-ask-rules.ts restates scripts/checkpoints.ts canonicalizeDisposition
@@ -5874,5 +5875,240 @@ describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02,
     expect(readAsk(target)).toEqual([rule]);
     const esc = rule.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     expect(r.stdout).toMatch(new RegExp(`left\\s+${esc} \\(.*the user's own copy`));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md §1): an unbounded read of a user-controlled path, plan
+// 33.1-26. install/user-file.ts readUserFile is the one reader of a user path in install.js. Its own
+// cases drive the COMMITTED install/user-file.js in a CHILD process with a timeout, so a regression
+// that blocks (a FIFO read, a /dev/zero read) fails the case instead of hanging the test runner.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
+
+interface ChildRead {
+  readonly timedOut: boolean;
+  readonly status: number | null;
+  readonly stderr: string;
+  /** The helper's result, with `bytes` replaced by its length so it survives JSON. */
+  readonly result: { state?: string; kind?: string; size?: number; code?: string; text?: string; bytes?: number } | null;
+}
+
+function readUserFileInChild(path: string, maxBytes?: number): ChildRead {
+  const script =
+    `import(${JSON.stringify(pathToFileURL(USER_FILE_JS).href)}).then((m) => {` +
+    `const a = process.argv[2];` +
+    `const r = a === "" ? m.readUserFile(process.argv[1]) : m.readUserFile(process.argv[1], Number(a));` +
+    `const o = { ...r };` +
+    `if (o.bytes !== undefined) o.bytes = o.bytes.length;` +
+    `process.stdout.write(JSON.stringify(o));` +
+    `});`;
+  const r = spawnSync("node", ["--input-type=module", "-e", script, path, maxBytes === undefined ? "" : String(maxBytes)], {
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+  let result: ChildRead["result"] = null;
+  try {
+    result = JSON.parse(r.stdout ?? "");
+  } catch {
+    result = null;
+  }
+  return { timedOut: r.error !== undefined || r.signal !== null, status: r.status, stderr: r.stderr ?? "", result };
+}
+
+// A writer blocked in open(2) on a FIFO until some reader opens it. The helper must decide the type
+// BEFORE opening (red-team B2 of plan 33.1-25): opening a FIFO to read, even non-blocking, releases
+// this writer, so a writer that has exited after the read is proof the path was opened.
+function startBlockedFifoWriter(fifo: string): ChildProcess {
+  return spawn("node", ["-e", "require('node:fs').writeFileSync(process.argv[1], 'x')", fifo], { stdio: "ignore" });
+}
+const pause = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+const stillRunning = (c: ChildProcess): boolean => c.exitCode === null && c.signalCode === null;
+
+describe("readUserFile: the one bounded reader of a user path (DC-3, plan 33.1-26)", () => {
+  it("readUserFile: an absent path, a path under a regular file and a dangling symlink are `absent`", () => {
+    const d = mkTmp();
+    expect(readUserFileInChild(join(d, "nope")).result).toEqual({ state: "absent" });
+    writeFileSync(join(d, "file"), "x");
+    expect(readUserFileInChild(join(d, "file", "under")).result).toEqual({ state: "absent" });
+    const skip = stageSymlinkOrSkip(join(d, "missing-target"), join(d, "dangling"), "dangling symlink", "readUserFile case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the absent-path assertion above"));
+      return;
+    }
+    expect(readUserFileInChild(join(d, "dangling")).result).toEqual({ state: "absent" });
+  });
+
+  it("readUserFile: a regular file, and a symlink to one, are `ok` with their bytes and text", () => {
+    const d = mkTmp();
+    writeFileSync(join(d, "f.md"), "hello — grug\n");
+    const want = { state: "ok", text: "hello — grug\n", bytes: Buffer.byteLength("hello — grug\n") };
+    expect(readUserFileInChild(join(d, "f.md")).result).toEqual(want);
+    const skip = stageSymlinkOrSkip(join(d, "f.md"), join(d, "link.md"), "symlink to a regular file", "readUserFile case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the regular-file assertion above"));
+      return;
+    }
+    expect(readUserFileInChild(join(d, "link.md")).result).toEqual(want);
+  });
+
+  it("readUserFile: a directory is `not-regular` (directory)", () => {
+    const d = mkTmp();
+    mkdirSync(join(d, "dir"));
+    expect(readUserFileInChild(join(d, "dir")).result).toEqual({ state: "not-regular", kind: "directory" });
+  });
+
+  it("readUserFile: a FIFO is `not-regular` (fifo) without blocking", () => {
+    const d = mkTmp();
+    const fifo = join(d, "fifo");
+    const skip = stageShapeOrSkip("FIFO", fifo, "readUserFile case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the directory case above"));
+      return;
+    }
+    const r = readUserFileInChild(fifo);
+    expect(r.timedOut, "readUserFile blocked on a FIFO").toBe(false);
+    expect(r.result).toEqual({ state: "not-regular", kind: "fifo" });
+  });
+
+  it("readUserFile: a FIFO with a writer blocked on it is never opened, so the writer stays blocked", async () => {
+    const d = mkTmp();
+    const fifo = join(d, "fifo");
+    const skip = stageShapeOrSkip("FIFO", fifo, "readUserFile case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the directory case above"));
+      return;
+    }
+    const writer = startBlockedFifoWriter(fifo);
+    try {
+      await pause(400);
+      expect(stillRunning(writer), "the writer did not block (premise)").toBe(true);
+      const r = readUserFileInChild(fifo);
+      expect(r.result).toEqual({ state: "not-regular", kind: "fifo" });
+      await pause(400);
+      expect(stillRunning(writer), "readUserFile opened the FIFO: the blocked writer was released").toBe(true);
+    } finally {
+      writer.kill("SIGKILL");
+    }
+  });
+
+  it("readUserFile: a character device, directly and through a symlink to /dev/zero, is `not-regular`", () => {
+    if (process.platform === "win32") {
+      console.log("SKIPPED readUserFile character-device case: /dev/null and /dev/zero are POSIX paths");
+      return;
+    }
+    expect(readUserFileInChild("/dev/null").result).toEqual({ state: "not-regular", kind: "character device" });
+    const d = mkTmp();
+    const skip = stageSymlinkOrSkip("/dev/zero", join(d, "zero"), "symlink to /dev/zero", "readUserFile case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the /dev/null assertion above"));
+      return;
+    }
+    const r = readUserFileInChild(join(d, "zero"));
+    expect(r.timedOut, "readUserFile read /dev/zero without end").toBe(false);
+    expect(r.result).toEqual({ state: "not-regular", kind: "character device" });
+  });
+
+  it("readUserFile: a symlink loop is `unreadable` (ELOOP)", () => {
+    const d = mkTmp();
+    const a = stageSymlinkOrSkip(join(d, "b"), join(d, "a"), "symlink loop", "readUserFile case");
+    const b = a === null ? stageSymlinkOrSkip(join(d, "a"), join(d, "b"), "symlink loop", "readUserFile case") : a;
+    if (b !== null) {
+      console.log(skipLine(b, "the dangling-symlink case above"));
+      return;
+    }
+    expect(readUserFileInChild(join(d, "a")).result).toEqual({ state: "unreadable", code: "ELOOP" });
+  });
+
+  it("readUserFile: a unix socket is `not-regular` (socket)", async () => {
+    if (process.platform === "win32") {
+      console.log("SKIPPED readUserFile socket case: a socket bound at a filesystem path is a POSIX shape");
+      return;
+    }
+    const d = mkTmp();
+    const at = join(d, "sock");
+    const server = createServer();
+    await new Promise<void>((res) => server.listen(at, () => res()));
+    try {
+      expect(readUserFileInChild(at).result).toEqual({ state: "not-regular", kind: "socket" });
+    } finally {
+      await new Promise<void>((res) => server.close(() => res()));
+    }
+  });
+
+  it("readUserFile: a file above the size bound is `too-large`, and one at the bound is `ok`", () => {
+    const d = mkTmp();
+    writeFileSync(join(d, "big"), "y".repeat(100));
+    expect(readUserFileInChild(join(d, "big"), 99).result).toEqual({ state: "too-large", size: 100 });
+    expect(readUserFileInChild(join(d, "big"), 100).result).toEqual({ state: "ok", text: "y".repeat(100), bytes: 100 });
+  });
+});
+
+// runInstallBounded — runInstall with a timeout, returning the raw spawnSync fields a hang shows in.
+function runInstallBounded(target: string, home: string, timeoutMs: number, ...args: string[]) {
+  return spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+    encoding: "utf8",
+    timeout: timeoutMs,
+    env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+  });
+}
+
+describe("special file at a user path: install neither hangs on it nor writes to it (DC-3, D-18, plan 33.1-26)", () => {
+  it("special file: a FIFO at CLAUDE.md does not hang install, stays a FIFO, and is reported `verify`", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const at = join(target, "CLAUDE.md");
+    rmSync(at);
+    const skip = stageShapeOrSkip("FIFO", at, "install CLAUDE.md case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the directory-at-CLAUDE.md case"));
+      return;
+    }
+    const r = runInstallBounded(target, home, 30_000);
+    expect(r.error, "install hung on a FIFO at CLAUDE.md").toBeUndefined();
+    expect(r.signal).toBeNull();
+    expect(lstatSync(at).isFIFO(), "the FIFO at CLAUDE.md was replaced").toBe(true);
+    expect(r.stdout).toMatch(/verify\s+.*CLAUDE\.md.*is not a regular file/);
+    expect(r.status, r.stdout + r.stderr).toBe(3);
+  });
+
+  it("special file: a FIFO at CLAUDE.md with a writer blocked on it is never opened", async () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const at = join(target, "CLAUDE.md");
+    rmSync(at);
+    const skip = stageShapeOrSkip("FIFO", at, "install CLAUDE.md case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the directory-at-CLAUDE.md case"));
+      return;
+    }
+    const writer = startBlockedFifoWriter(at);
+    try {
+      await pause(400);
+      expect(stillRunning(writer), "the writer did not block (premise)").toBe(true);
+      const r = runInstallBounded(target, home, 30_000);
+      expect(r.error, "install hung").toBeUndefined();
+      await pause(400);
+      expect(stillRunning(writer), "install opened the FIFO at CLAUDE.md: the blocked writer was released").toBe(true);
+      expect(r.stdout).toMatch(/verify\s+.*CLAUDE\.md.*is not a regular file/);
+    } finally {
+      writer.kill("SIGKILL");
+    }
+  });
+
+  it("special file: a directory at CLAUDE.md is left as it was and reported `verify`", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const at = join(target, "CLAUDE.md");
+    rmSync(at);
+    mkdirSync(at);
+    const r = runInstallBounded(target, home, 30_000);
+    expect(r.error).toBeUndefined();
+    expect(r.signal).toBeNull();
+    expect(lstatSync(at).isDirectory()).toBe(true);
+    expect(readdirSync(at)).toEqual([]);
+    expect(r.stdout).toMatch(/verify\s+.*CLAUDE\.md.*is not a regular file/);
+    expect(r.status, r.stdout + r.stderr).toBe(3);
   });
 });
