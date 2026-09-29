@@ -101,7 +101,20 @@
 // install/README.md §5, read from the environment `GET environments?per_page=100` lists under the
 // configured name: the environment exists; a `required_reviewers` rule names at least one reviewer;
 // that rule has `prevent_self_review === true`; `can_admins_bypass === false`; and
-// `deployment_branch_policy` is exactly `{ protected_branches: true, custom_branch_policies: false }`.
+// `deployment_branch_policy` is exactly `{ protected_branches: true, custom_branch_policies: false }`
+// AND the same run shows CLASSIC branch protection on some branch (re-review CR-02, plan 33.1-23).
+// GitHub defines "Protected branches only" for branch protection rules, lets every branch deploy
+// when no branch has them, and does not mention rulesets there (docs.github.com/en/actions/
+// reference/workflows-and-actions/deployments-and-environments, fetched 2026-09-29), while
+// `GET branches?protected=true` also lists ruleset-protected branches (docs.github.com/en/rest/
+// branches/branches). So the evidence is a 200 object body from `branches/<b>/protection`: first
+// from a classic arm this run already read (each branch's classic arm is read at most once per run),
+// else from `GET branches?protected=true&per_page=1`, read at most once per run and only for the
+// documented pair: an empty list is `failed` (every branch can deploy); one element naming a usable
+// branch with `protected: true` → that branch's classic arm is read, and anything but a body (a
+// ruleset-only branch, a non-admin 404, any other answer) is `unknown`; any other answer is
+// `unknown`. A branch the same run contradicts (a name answered as another branch, or a body for a
+// branch the probe read as `protected: false`) is never evidence.
 // A field that is missing or of an unexpected type is `unknown`, never its safe default;
 // `protection_rules` that is not an array is `unknown`; a `null` branch policy is `failed`; a custom
 // branch policy is `unknown` (the check does not read which branches it allows). A reviewer counts
@@ -120,7 +133,9 @@
 //
 // READ-ONLY BY CONSTRUCTION. Every call goes through runGh(), and there are exactly two argv
 // shapes: `gh auth status` and `gh api --method GET -i <path>`. No field flag is ever passed
-// (`gh api` switches to POST when a field is given), and the method is pinned to GET.
+// (`gh api` switches to POST when a field is given), and the method is pinned to GET. The
+// protected-branch list is a GET too: its query (`?protected=true&per_page=1`) is part of the path,
+// never a field flag.
 //
 // The D-12 contract (uniform across all kit-shipped runnables):
 //   node tools/grugops/host-protection.js [--json] [--branch <name>]... [--env <name>]
@@ -361,6 +376,26 @@ const ACCEPT = {
         held: (v) => isObject(v) && v.protected_branches === true && v.custom_branch_policies === false,
         failed: (v) => v === null,
         absentFailedWhy: "GitHub documents a null deployment_branch_policy as: any branch may deploy to the environment",
+    },
+    // The answer of `GET branches?protected=true&per_page=1` (re-review CR-02, plan 33.1-23): held for
+    // a list of exactly the one element asked for, a plain object with `protected === true` and a
+    // `name` this check will put in a REST path; failed for an empty list (the host lists no protected
+    // branch); anything else, including two elements when one was asked for, is unknown. A held list
+    // is not evidence by itself: it also names ruleset-protected branches, so the named branch's
+    // classic protection is read next.
+    protectedBranchList: {
+        held: (v) => {
+            if (!Array.isArray(v) || v.length !== 1)
+                return false;
+            const first = v[0];
+            return isObject(first) && first.protected === true && typeof first.name === "string" && usableBranch(first.name);
+        },
+        failed: (v) => isEmptyList(v),
+    },
+    // What the classic arm read for a branch (the check's own ClassicArm kind): only a 200 object body
+    // from `branches/<b>/protection` shows classic branch protection. There is no `failed`.
+    classicArmShown: {
+        held: (v) => v === "body",
     },
 };
 // The load-time self-check. A violation throws, and the uncaughtException handler above turns that
@@ -853,7 +888,23 @@ function protectionUrlMismatch(url, name) {
     }
     return about === name ? undefined : `${says}, which is about branch ${hostText(about)}, not this one`;
 }
+// One classic read per branch per run, whoever asks first (a branch target, or the environment's
+// branch-policy evidence). Keyed by the branch name; the path is always branchPath(name).
+const classicArmCache = new Map();
+// What the main/master probe read this run (the main flow fills both before any verdict is made):
+// the `protected` value each probed branch's own answer carried, and each probed name the host
+// answered as ANOTHER branch (mapped to the name it answered).
+const probedProtected = new Map();
+const renamedBranches = new Map();
 function readClassicArm(name, bp) {
+    const cached = classicArmCache.get(name);
+    if (cached !== undefined)
+        return cached;
+    const arm = readClassicArmOnce(name, bp);
+    classicArmCache.set(name, arm);
+    return arm;
+}
+function readClassicArmOnce(name, bp) {
     const prot = apiGet(`repos/{owner}/{repo}/branches/${bp}/protection`);
     if (prot.status === 200 && isObject(prot.body)) {
         const elsewhere = protectionUrlMismatch(hostField(prot.body, "url"), name);
@@ -962,6 +1013,80 @@ function environmentName() {
         }
     }
     return { name: "production", source: 'the documented default (no --env flag and no usable "environments" list)' };
+}
+// --- the branch-policy row's run evidence (re-review CR-02, plan 33.1-23, D-30) ----------------
+// "Protected branches only" is defined for branch protection rules, and every branch can deploy
+// when no branch has them (docs.github.com/en/actions/reference/workflows-and-actions/
+// deployments-and-environments, fetched 2026-09-29); the page does not mention rulesets. The
+// protected-branch list `GET branches?protected=true` names branches protected by branch
+// protection OR by rulesets (docs.github.com/en/rest/branches/branches). So only CLASSIC branch
+// protection shown in this run is evidence: a 200 object body from `branches/<b>/protection`.
+const PROTECTED_BRANCH_LIST = "repos/{owner}/{repo}/branches?protected=true&per_page=1";
+const RULESETS_UNSAID = 'GitHub documents "Protected branches only" for branch protection rules and does not say whether rulesets count';
+// Whether one branch's classic arm, as this run read it, shows classic branch protection, or why
+// not. A name the run saw answered as another branch, or a body for a branch the probe read as
+// `protected: false`, is contradicted by the same run and is not evidence.
+function classicShownOn(name, arm) {
+    const renamedTo = renamedBranches.get(name);
+    if (renamedTo !== undefined) {
+        return { state: "unknown", evidence: `the same run saw branch ${hostText(name)} answered as branch ${hostText(renamedTo)}` };
+    }
+    if (arm.kind === "body" && probedProtected.get(name) === false) {
+        return {
+            state: "unknown",
+            evidence: `branch ${hostText(name)} reports protected false, but its classic protection endpoint answered with a protection body`,
+        };
+    }
+    const why = arm.kind === "body" ? "" : arm.evidence;
+    return says(readFact(arm.kind, ACCEPT.classicArmShown), {
+        held: `classic branch protection exists on branch ${hostText(name)}: its protection endpoint answered 200`,
+        failed: `branch ${hostText(name)} shows no classic branch protection (${why})`,
+        unknown: `branch ${hostText(name)} shows no readable classic branch protection (${why})`,
+    });
+}
+// At most once per run, and only when the branch-policy row asks (the policy is the documented
+// protected-branches pair). (a) A classic arm this run already read shows a body → that branch.
+// (b) Otherwise the host's protected-branch list, one element: empty → failed (every branch can
+// deploy); unreadable → unknown; one branch → its classic arm (read, or reused from the cache).
+let classicEvidence;
+function classicProtectionEvidence() {
+    if (classicEvidence === undefined)
+        classicEvidence = readClassicProtectionEvidence();
+    return classicEvidence;
+}
+function readClassicProtectionEvidence() {
+    for (const [name, arm] of classicArmCache) {
+        const shown = classicShownOn(name, arm);
+        if (shown.state === "held")
+            return shown;
+    }
+    const res = apiGet(PROTECTED_BRANCH_LIST);
+    if (res.status !== 200)
+        return { state: "unknown", evidence: `the protected-branch list answered ${answered(res)}` };
+    // An empty list that names a further page contradicts itself: it cannot show "no protected
+    // branch", so downgrade() reads it as unknown.
+    const list = downgrade(readFact(res.body, ACCEPT.protectedBranchList), res.next);
+    if (list !== "held") {
+        return says(list, {
+            held: "the protected-branch list names a branch",
+            failed: "the host lists no protected branch, and GitHub documents that every branch can deploy when no branch has branch protection rules",
+            unknown: "the protected-branch list is not readable (one plain-object element with protected true and a usable name, or an empty list, was expected)",
+        });
+    }
+    const listed = Array.isArray(res.body) ? res.body : [];
+    const name = hostField(listed[0], "name");
+    if (typeof name !== "string")
+        return { state: "unknown", evidence: "the protected-branch list names no readable branch" };
+    // A name the same run saw answered as another branch is never asked about (its protection read
+    // would describe the other branch).
+    const arm = renamedBranches.has(name) ? { kind: "unreadable", evidence: "not asked" } : readClassicArm(name, branchPath(name));
+    const shown = classicShownOn(name, arm);
+    if (shown.state === "held")
+        return { state: shown.state, evidence: `the first protected branch the host lists has classic protection: ${shown.evidence}` };
+    return {
+        state: "unknown",
+        evidence: `the first protected branch the host lists, ${hostText(name)}, is not shown to have classic branch protection (${shown.evidence}); ${RULESETS_UNSAID}`,
+    };
 }
 const NO_ENVIRONMENT = { state: "unknown", evidence: "there is no environment of that name to read" };
 // The environment's readable `required_reviewers` rules, plus `partial` when some entry of
@@ -1088,18 +1213,27 @@ const ENVIRONMENT_FLOOR = [
     {
         id: "branch_policy",
         requirement: "allows deployments only from protected branches",
-        read: (env) => {
+        // Held only when the policy is the documented protected-branches pair AND the same run shows
+        // classic branch protection on some branch (re-review CR-02): with no branch protection rules
+        // anywhere, "Protected branches only" lets every branch deploy.
+        read: (env, run) => {
             if (env === undefined)
                 return NO_ENVIRONMENT;
             const policy = hostField(env, "deployment_branch_policy");
             const custom = hostField(policy, "protected_branches") === false && hostField(policy, "custom_branch_policies") === true;
-            return says(readFact(policy, ACCEPT.deploymentBranchPolicy), {
-                held: "deployment_branch_policy.protected_branches is true and custom_branch_policies is false",
-                failed: "deployment_branch_policy is null, so any branch can deploy",
-                unknown: custom
-                    ? "the environment uses a custom deployment branch policy, and the check does not read which branches it allows"
-                    : "the environment carries no readable deployment_branch_policy (only protected_branches true with custom_branch_policies false shows this item)",
-            });
+            const pair = readFact(policy, ACCEPT.deploymentBranchPolicy);
+            const PAIR = "deployment_branch_policy allows protected branches only";
+            if (pair !== "held") {
+                return says(pair, {
+                    held: PAIR,
+                    failed: "deployment_branch_policy is null, so any branch can deploy",
+                    unknown: custom
+                        ? "the environment uses a custom deployment branch policy, and the check does not read which branches it allows"
+                        : "the environment carries no readable deployment_branch_policy (only protected_branches true with custom_branch_policies false shows this item)",
+                });
+            }
+            const shown = run.classicProtection();
+            return { state: shown.state, evidence: `${PAIR}, ${shown.state === "held" ? "and" : "but"} ${shown.evidence}` };
         },
     },
 ];
@@ -1125,7 +1259,10 @@ function environmentVerdict(name, source) {
     }
     const found = matches[0];
     const env = isObject(found) ? found : undefined;
-    const facts = ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, ...row.read(env) }));
+    // Every branch verdict ran before this one, so the classic arm cache already holds this run's
+    // branch reads; the branch-policy row reuses them before asking the host anything new.
+    const run = { classicProtection: classicProtectionEvidence };
+    const facts = ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, ...row.read(env, run) }));
     if (env === undefined) {
         const why = res.next ? `no environment named ${name} on the first page of a longer list` : `no environment named ${name}`;
         const reason = `${why}; grugops cannot tell how production deploys run`;
@@ -1183,10 +1320,11 @@ if (cannotAsk !== undefined) {
 }
 else {
     const names = [];
-    // main/master names the host answered as another branch (the name it answered), this run.
-    const renamed = new Map();
-    // The `protected` value each probed main/master answer carried about itself, for branchVerdict.
-    const probed = new Map();
+    // The probe fills renamedBranches (main/master names the host answered as another branch) and
+    // probedProtected (the `protected` value each probed answer carried about itself), module-level,
+    // because branchVerdict and the environment's branch-policy evidence both read them.
+    const renamed = renamedBranches;
+    const probed = probedProtected;
     const repo = apiGet("repos/{owner}/{repo}");
     const defaultBranch = hostField(repo.body, "default_branch");
     if (repo.status === 200 && typeof defaultBranch === "string") {

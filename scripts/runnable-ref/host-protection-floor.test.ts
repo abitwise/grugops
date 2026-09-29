@@ -121,6 +121,12 @@ const HOST_READS: readonly HostReadRow[] = [
     why: "protected_branches === true and custom_branch_policies === false",
   },
   {
+    key: "ACCEPT.protectedBranchList.held:property",
+    count: 3,
+    cls: "reader",
+    why: "the one listed element: protected === true, and a string name that usableBranch accepts (plan 33.1-23)",
+  },
+  {
     key: "environmentName:property",
     count: 4,
     cls: "config-json",

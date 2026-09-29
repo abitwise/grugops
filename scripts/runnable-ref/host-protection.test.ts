@@ -951,7 +951,9 @@ describe("host-protection.js — the union matrix with bypass (CR-01, D-30)", ()
   it("(c) a binding ruleset showing every item → protected, and the classic protection endpoint is never called", () => {
     const r = runCheck(base({ [RULES("main")]: rulesOf(...ALL_ROWS_IN(1)) }));
     expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    for (const c of r.calls) expect(c.join(" ")).not.toContain("/protection");
+    // Branch main's classic endpoint is never asked. The environment's branch-policy evidence
+    // (plan 33.1-23) reads the listed branch's protection (`branches/hotfix/protection`), not main's.
+    for (const c of r.calls) expect(c.join(" ")).not.toContain("branches/main/protection");
     expect(r.status).toBe(0);
   });
 
@@ -1988,7 +1990,7 @@ describe("host-protection.js — read-only by construction", () => {
 
   // The closed list of endpoint shapes (T-33.1-191, T-33.1-194): every GET path, with any
   // `?per_page=100` removed, matches exactly one shape, and each shape is used at least once.
-  it("every recorded GET path matches exactly one of six endpoint shapes, and each shape is used", () => {
+  it("every recorded GET path matches exactly one of seven endpoint shapes, and each shape is used", () => {
     const BR = "[^?]+"; // a branch name as it appears in a path; `/` is kept literal
     const SHAPES: Record<string, RegExp> = {
       repository: /^repos\/\{owner\}\/\{repo\}$/,
@@ -1997,6 +1999,8 @@ describe("host-protection.js — read-only by construction", () => {
       protection: new RegExp(`^repos/\\{owner\\}/\\{repo\\}/branches/${BR}/protection$`),
       ruleset: /^repos\/\{owner\}\/\{repo\}\/rulesets\/[0-9]+$/,
       environments: /^repos\/\{owner\}\/\{repo\}\/environments$/,
+      // The branch-policy evidence of plan 33.1-23: exactly this query, nothing else.
+      protectedBranches: /^repos\/\{owner\}\/\{repo\}\/branches\?protected=true&per_page=1$/,
     };
     const used = new Set<string>();
     const gets = ALL_CALLS.filter((a) => a[0] === "api");
