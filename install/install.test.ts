@@ -6303,3 +6303,172 @@ describe("special file at a --migrate legacy config (DC-3, D-18, plan 33.1-26)",
     expect(readdirSync(target).some((n) => n.startsWith("factory.config.json.bak."))).toBe(true);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// DC-3 for uninstall.js and the marker reader (plan 33.1-27 Task 1, IN-04). The marker reader and
+// every uninstall read of a user path go through readUserFile: a FIFO, a directory or a symlink to a
+// FIFO at `.grugops/install.json` is `unreadable`, and install, uninstall and `--check` finish with
+// their existing unreadable-marker finding. A FIFO at a file uninstall edits or compares is never
+// opened (a writer blocked on it stays blocked) and never written.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+function runUninstallBounded(target: string, home: string, timeoutMs: number, extraEnv: NodeJS.ProcessEnv = {}) {
+  const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target, ...extraEnv };
+  if (extraEnv.DRY_RUN === undefined) delete env.DRY_RUN;
+  return spawnSync("node", [UNINSTALL_JS], { encoding: "utf8", timeout: timeoutMs, env });
+}
+
+// The unreadable-marker finding each binary already prints for a garbled marker, unchanged by this
+// plan: install (writeAskRules) and uninstall (the directory-ledger verify) say the marker "could
+// not be read as a JSON object"; the doctor folds an unusable marker into its fail-closed
+// "grugops not installed" FAIL before it reads anything else.
+const MARKER_UNREADABLE = /\.grugops\/install\.json could not be read as a JSON object/;
+const DOCTOR_MARKER_UNREADABLE = /^ {2}FAIL\s+grugops not installed in /m;
+
+type MarkerShape = "FIFO" | "directory" | "symlink to a FIFO";
+const MARKER_SHAPES: readonly MarkerShape[] = ["FIFO", "directory", "symlink to a FIFO"];
+
+// Replace the installed marker with `shape`. Returns the FIFO a writer should block on (the marker
+// itself, or the FIFO the link names), or a skip line.
+function plantMarker(target: string, shape: MarkerShape): { fifo: string | null; skip: string | null } {
+  const at = join(target, ".grugops", "install.json");
+  rmSync(at, { recursive: true, force: true });
+  if (shape === "directory") {
+    mkdirSync(at);
+    return { fifo: null, skip: null };
+  }
+  const fifo = shape === "FIFO" ? at : join(target, ".grugops", "marker-fifo");
+  const s = stageShapeOrSkip("FIFO", fifo, `IN-04 marker ${shape} case`);
+  if (s !== null) return { fifo: null, skip: skipLine(s, "the directory marker case") };
+  if (shape === "symlink to a FIFO") {
+    const l = stageSymlinkOrSkip(fifo, at, "symlink to a FIFO", "IN-04 marker case");
+    if (l !== null) return { fifo: null, skip: skipLine(l, "the FIFO marker case") };
+  }
+  return { fifo, skip: null };
+}
+
+function expectMarkerUntouched(target: string, shape: MarkerShape): void {
+  const at = join(target, ".grugops", "install.json");
+  const st = lstatSync(at);
+  if (shape === "FIFO") expect(st.isFIFO(), "the FIFO marker was replaced or removed").toBe(true);
+  if (shape === "directory") {
+    expect(st.isDirectory(), "the directory marker was replaced or removed").toBe(true);
+    expect(readdirSync(at)).toEqual([]);
+  }
+  if (shape === "symlink to a FIFO") {
+    expect(st.isSymbolicLink(), "the symlinked marker was replaced or removed").toBe(true);
+    expect(lstatSync(join(target, ".grugops", "marker-fifo")).isFIFO()).toBe(true);
+  }
+}
+
+describe("IN-04: a special file at .grugops/install.json hangs nothing (DC-3, plan 33.1-27)", () => {
+  for (const shape of MARKER_SHAPES) {
+    for (const run of ["install --yes", "uninstall", "install --check"] as const) {
+      it(`IN-04: a ${shape} at the marker — ${run} finishes with the unreadable-marker finding and leaves it as it was`, async () => {
+        const target = makeFixture();
+        const home = mkTmp();
+        expect(runInstall(target, home).status).toBe(0);
+        const planted = plantMarker(target, shape);
+        if (planted.skip !== null) {
+          console.log(planted.skip);
+          return;
+        }
+        const writer = planted.fifo !== null ? startBlockedFifoWriter(planted.fifo) : null;
+        try {
+          if (writer) {
+            await pause(300);
+            expect(stillRunning(writer), "the writer did not block (premise)").toBe(true);
+          }
+          const r =
+            run === "uninstall"
+              ? runUninstallBounded(target, home, 20_000)
+              : run === "install --check"
+                ? runInstallBounded(target, home, 20_000, "--check")
+                : runInstallBounded(target, home, 20_000);
+          expect(r.error, `${run} hung on a ${shape} at the marker`).toBeUndefined();
+          expect(r.signal).toBeNull();
+          expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
+          expect(r.stdout, r.stdout).toMatch(run === "install --check" ? DOCTOR_MARKER_UNREADABLE : MARKER_UNREADABLE);
+          if (writer) {
+            await pause(300);
+            expect(stillRunning(writer), `${run} opened the FIFO: the blocked writer was released`).toBe(true);
+          }
+          expectMarkerUntouched(target, shape);
+        } finally {
+          writer?.kill("SIGKILL");
+        }
+      });
+    }
+  }
+});
+
+describe("uninstall reads every user path through readUserFile (DC-3, plan 33.1-27)", () => {
+  // The four files uninstall edits (removeSentinelBlock x2, unmergeGemini, removeAskRules, and the
+  // empty-file remover on the Copilot file) and a runnable it byte-compares (sameFileBytes).
+  const EDITED = [
+    "CLAUDE.md",
+    ".gemini/settings.json",
+    ".claude/settings.json",
+    ".github/copilot-instructions.md",
+    "tools/grugops/reference-check.js",
+  ];
+  for (const rel of EDITED) {
+    it(`uninstall: a FIFO at ${rel} on an installed target — the run finishes, the writer stays blocked, the FIFO stays, and the path is reported`, async () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      const at = join(target, ...rel.split("/"));
+      const skip = plantSpecial(at, "FIFO", `uninstall ${rel} case`);
+      if (skip !== null) {
+        console.log(skipLine(skip, "the directory cases"));
+        return;
+      }
+      const writer = startBlockedFifoWriter(at);
+      try {
+        await pause(300);
+        expect(stillRunning(writer), "the writer did not block (premise)").toBe(true);
+        const r = runUninstallBounded(target, home, 20_000);
+        expect(r.error, `uninstall hung on a FIFO at ${rel}`).toBeUndefined();
+        expect(r.signal).toBeNull();
+        expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
+        await pause(300);
+        expect(stillRunning(writer), `uninstall opened the FIFO at ${rel}: the blocked writer was released`).toBe(true);
+        expect(lstatSync(at).isFIFO(), `the FIFO at ${rel} was replaced or removed`).toBe(true);
+        const named = (r.stdout ?? "").split("\n").filter((l) => /^ {2}(skipped|verify|left)\s/.test(l) && l.includes(rel));
+        expect(named.length, `no skipped/verify/left line names ${rel}\n${r.stdout}`).toBeGreaterThan(0);
+        expect([0, 3], r.stdout + r.stderr).toContain(r.status);
+      } finally {
+        writer.kill("SIGKILL");
+      }
+    });
+  }
+
+  for (const rel of [".claude/skills/grugops-gate/SKILL.md", ".claude/agents/grugops-orchestrator.md", ...EDITED]) {
+    it(`uninstall: a directory at ${rel} on an installed target — no crash, left as it was`, () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      const at = join(target, ...rel.split("/"));
+      plantSpecial(at, "directory", `uninstall ${rel} case`);
+      for (const dry of ["1", undefined]) {
+        const r = runUninstallBounded(target, home, 20_000, dry === undefined ? {} : { DRY_RUN: dry });
+        expect(r.error).toBeUndefined();
+        expect(r.signal).toBeNull();
+        expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
+        expect([0, 3], r.stdout + r.stderr).toContain(r.status);
+        expect(lstatSync(at).isDirectory(), `the directory at ${rel} was removed`).toBe(true);
+        expect(readdirSync(at)).toEqual([]);
+      }
+    });
+  }
+
+  it("uninstall: a regular installed target still uninstalls completely (control)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const r = runUninstallBounded(target, home, 60_000);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain("CLAUDE.md start-here pointer (sentinel block only; rest of file preserved)");
+    expect(existsSync(join(target, ".grugops", "install.json"))).toBe(false);
+  });
+});
