@@ -14,11 +14,15 @@
 //   4. DC-1 flavour: the doctor printed `ok` for plans/board.md with a FIFO there.
 //   5. `--migrate` renamed the legacy config to .bak while the destination was a FIFO it never wrote.
 //
-// THE CLASS TEST (brief §2.1). The write set is DERIVED from a real baseline install in a scratch
-// directory, never typed: every file and every directory under the baseline target. Its size is
-// cross-checked against two independent derivations — the install's own write-report lines, and
-// the `createdDirs` ledger the install recorded — so a derivation that silently shrinks fails the
-// count. Then, one fresh target per (path, shape): a FIFO with a writer blocked on it, a dangling
+// THE CLASS TEST (brief §2.1). The write set is DERIVED, never typed. Since plan 33.1-27 it comes
+// from the ONE shared derivation, install/installer-paths.test-support.ts deriveWritePaths (the union
+// over the default, --symlink, --migrate and checkpoints-at-notify installs), which the DC-3
+// special-files test and the DC-2 class tests use too (brief §2.2: one authority per rule). This
+// file plants into an EMPTY target and runs a default install, so it takes the union's paths that do
+// not carry a --migrate run timestamp, and asserts that they are exactly what the default variant
+// wrote. Its size is cross-checked against two independent derivations — the default install's own
+// write-report lines, and the `createdDirs` ledger it recorded — so a derivation that silently
+// shrinks fails the count. Then, one fresh target per (path, shape): a FIFO with a writer blocked on it, a dangling
 // link to a file outside the target, a dangling link into a missing directory, a link loop, a link
 // to a regular file outside the target, and a link to /dev/zero at every FILE path; and a FIFO with
 // a blocked writer, a regular file, a dangling link and a link to an empty directory outside the
@@ -46,13 +50,12 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
+import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, runInstall } from "./installer-paths.test-support.js";
 
-const REPO_ROOT = resolve(import.meta.dirname, "..");
-const INSTALL_JS = join(import.meta.dirname, "install.js");
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
 
 // One scratch root for the whole file, removed at the end. realpath'd so a macOS /var → /private/var
@@ -66,28 +69,10 @@ function fresh(tag: string): string {
   return d;
 }
 
-// The child environment: no inherited DRY_RUN, copy mode, and every root a scratch directory.
-function childEnv(home: string, target: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  delete env.DRY_RUN;
-  delete env.INSTALL_MODE;
-  return {
-    ...env,
-    HOME: home,
-    INSTALL_MODE: "copy",
-    GRUGOPS_SRC: REPO_ROOT,
-    GRUGOPS_HOME: join(home, ".grugops"),
-    TARGET: target,
-  };
-}
-
+// The shared hermetic runner: no inherited DRY_RUN, copy mode, HOME, GRUGOPS_HOME and TARGET all
+// scratch directories, `--yes` always.
 function runInstaller(target: string, home: string, timeoutMs: number, ...args: string[]) {
-  return spawnSync(process.execPath, [INSTALL_JS, "--yes", ...args], {
-    encoding: "utf8",
-    timeout: timeoutMs,
-    maxBuffer: 64 * 1024 * 1024,
-    env: childEnv(home, target),
-  });
+  return runInstall(target, join(home, ".grugops"), args, { home, timeoutMs });
 }
 
 // A stack trace on stderr is the mark of an uncaught throw.
@@ -124,13 +109,17 @@ function walk(root: string): { files: string[]; dirs: string[] } {
   return { files: files.sort(), dirs: dirs.sort() };
 }
 
-// ── The derived write set: one real baseline install into an empty scratch target ──────────────
-const BASE_HOME = fresh("base-home");
-const BASE_TARGET = fresh("base-target");
-const BASE = runInstaller(BASE_TARGET, BASE_HOME, 120_000);
-const BASE_TREE = BASE.status === 0 ? walk(BASE_TARGET) : { files: [], dirs: [] };
-const WRITE_FILES = BASE_TREE.files;
-const WRITE_DIRS = BASE_TREE.dirs;
+// ── The derived write set: the shared derivation (plan 33.1-27) ─────────────────────────────────
+const SET = deriveWritePaths(fresh("derive"));
+const BASE_VARIANT = SET.variant("default");
+const BASE = BASE_VARIANT.run;
+const BASE_TARGET = BASE_VARIANT.target;
+// The union's paths that carry a --migrate run timestamp name a rename destination that does not
+// exist before that run; a default install into an empty target never writes them, so this file
+// cannot ask about them. They are declared and counted, not dropped silently.
+const TIMESTAMPED = [...SET.files, ...SET.dirs].filter((p) => p.includes(ISO_PLACEHOLDER));
+const WRITE_FILES = SET.files.filter((p) => !p.includes(ISO_PLACEHOLDER));
+const WRITE_DIRS = SET.dirs.filter((p) => !p.includes(ISO_PLACEHOLDER));
 // Independent derivation 1: the install's own write-report lines for target files.
 const REPORTED_WRITES = (BASE.stdout ?? "")
   .split("\n")
@@ -147,13 +136,9 @@ function baseCreatedDirs(): string[] {
   }
 }
 
-// The one declared exclusion, counted: a FIFO or a /dev/zero link AT the install marker hangs or
-// floods readInstallMarker, which plan 33.1-27 owns ("uninstall.js reads, readInstallMarker").
-const MARKER_REL = ".grugops/install.json";
-const EXCLUDED: ReadonlyArray<readonly [string, string]> = [
-  [MARKER_REL, "FIFO"],
-  [MARKER_REL, "/dev/zero"],
-];
+// No exclusion: plan 33.1-27 routed readInstallMarker through readUserFile, so a FIFO or a
+// /dev/zero link at the marker is asked like every other path (it used to be the one declared,
+// counted exclusion).
 
 type FileShape = "FIFO" | "dangling-outside" | "dangling-missing-dir" | "loop" | "link-outside-file" | "/dev/zero";
 const FILE_SHAPES: readonly FileShape[] = [
@@ -344,21 +329,22 @@ describe("the write set is derived from a real baseline install (red-team of pla
     // Directories: exactly the createdDirs ledger install recorded.
     expect(WRITE_DIRS.length).toBeGreaterThan(0);
     expect(WRITE_DIRS).toEqual(baseCreatedDirs());
-    // The one declared exclusion names a member of the derived set.
+    // The union's untimestamped part is exactly what a default install writes: a path only another
+    // variant writes would need a variant-aware case here, so it fails this line rather than a
+    // shape case with a misleading message.
+    expect(WRITE_FILES, "the union holds a file path a default install does not write").toEqual([...BASE_VARIANT.files]);
+    expect(WRITE_DIRS, "the union holds a directory a default install does not create").toEqual([...BASE_VARIANT.dirs]);
+    // The timestamped --migrate backups, declared and counted: 3 files and 4 directories.
+    console.log(`write set: ${TIMESTAMPED.length} timestamped --migrate path(s) not asked here: ${TIMESTAMPED.join(", ")}`);
+    expect(TIMESTAMPED.length).toBe(7);
     expect(WRITE_FILES).toContain(MARKER_REL);
-    expect(EXCLUDED.length).toBe(2);
   });
 });
 
 describe("a special file or a link at every file path install writes (DC-3, D-18, red-team of plan 33.1-26)", () => {
   for (const rel of WRITE_FILES) {
     for (const shape of FILE_SHAPES) {
-      const excluded = EXCLUDED.some(([p, s]) => p === rel && s === shape);
       it(`write set: ${shape} at ${rel}`, async () => {
-        if (excluded) {
-          console.log(`EXCLUDED ${shape} at ${rel}: readInstallMarker reads it (plan 33.1-27 owns that reader)`);
-          return;
-        }
         await runShapeCase(rel, shape);
       });
     }

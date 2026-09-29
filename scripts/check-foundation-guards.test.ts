@@ -2152,8 +2152,21 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     grant and renders no spawn verdict. Its committed `.js` twin lands in the same commit.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 91 with this module tracked.
+ *
+ * 91 -> 92 (plan 33.1-27, task 3, DC-3 and brief §2.2), ONE TEST-SUPPORT MODULE:
+ *   - `install/installer-paths.test-support.ts` — the one derivation of every path install can
+ *     write (`deriveWritePaths`, the union over the default, --symlink, --migrate and
+ *     checkpoints-at-notify installs), with snapshotTree, the fixtures and the hermetic runners,
+ *     shared by the installer's DC-2 and DC-3 class tests. A TEST-ONLY module, counted here for the
+ *     reason recorded at 83 -> 85 (this set is enumerated by file shape). It is excluded from emit
+ *     (tsconfig.json), so it has no `.js` twin, and it imports only node: builtins.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 92 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 91;
+const NON_TEST_MODULE_COUNT = 92;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
