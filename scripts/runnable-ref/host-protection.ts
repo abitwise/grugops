@@ -36,7 +36,9 @@
 //     Read in full (200, a JSON array, no `Link: rel="next"`), read partially (a further page
 //     exists), or not read (any other answer, which is quoted).
 //   - the classic arm, `branches/<b>/protection`, asked only when the ruleset arm leaves some row
-//     not shown. 200 → its body is read field by field (a `url` that is present must name this
+//     not shown. 200 with a protection record (ACCEPT.classicProtectionRecord: an enforce_admins
+//     object with a boolean `enabled`, and no `message` or `protected` key) → its body is read field
+//     by field; a 200 that is not a record is not readable (a `url` that is present must name this
 //     branch's protection endpoint; an absent `url` is not required). 404 `Branch not protected`
 //     (what an admin sees) → the host shows no classic protection. 404 `Not Found` (what a
 //     non-admin sees, protected or not) → ask `branches/<b>`: `.protected === false` about the
@@ -107,7 +109,8 @@
 // when no branch has them, and does not mention rulesets there (docs.github.com/en/actions/
 // reference/workflows-and-actions/deployments-and-environments, fetched 2026-09-29), while
 // `GET branches?protected=true` also lists ruleset-protected branches (docs.github.com/en/rest/
-// branches/branches). So the evidence is a 200 object body from `branches/<b>/protection`: first
+// branches/branches). So the evidence is a protection record from `branches/<b>/protection` (the
+// same ACCEPT.classicProtectionRecord the branch floor reads, so the two never disagree): first
 // from a classic arm this run already read (each branch's classic arm is read at most once per run),
 // else from `GET branches?protected=true&per_page=1`, read at most once per run and only for the
 // documented pair: an empty list is `failed` (every branch can deploy); one element naming a usable
@@ -442,8 +445,22 @@ const ACCEPT = {
     },
     failed: (v: unknown) => isEmptyList(v),
   },
-  // What the classic arm read for a branch (the check's own ClassicArm kind): only a 200 object body
-  // from `branches/<b>/protection` shows classic branch protection. There is no `failed`.
+  // A 200 answer of `branches/<b>/protection` is a branch protection record (red-team finding 1 of
+  // plan 33.1-23) only as a plain object that carries `enforce_admins` as an object with a boolean
+  // `enabled`, and carries neither `message` (GitHub's error envelope) nor `protected` (a field of
+  // the branch object, not of a protection record). GitHub's documented example answer carries
+  // enforce_admins, and its schema marks no property required; the branch floor cannot show any
+  // classic row without a readable enforce_admins anyway (classicBinding), so requiring it here
+  // costs no row the floor could have held. Anything else (`{}`, an error envelope, a branch
+  // object) is not a record: the classic arm is not readable, and it is no branch-policy evidence.
+  classicProtectionRecord: {
+    held: (v: unknown) =>
+      isObject(v) && v.message === undefined && v.protected === undefined && isObject(v.enforce_admins) && typeof v.enforce_admins.enabled === "boolean",
+  },
+  // What the classic arm read for a branch (the check's own ClassicArm kind): only a protection
+  // record (ACCEPT.classicProtectionRecord, decided once in readClassicArmOnce) shows classic
+  // branch protection. The branch floor and the branch-policy row both read this one kind, so they
+  // can never disagree about a body. There is no `failed`.
   classicArmShown: {
     held: (v: unknown) => v === "body",
   },
@@ -1028,6 +1045,9 @@ function protectionUrlMismatch(url: unknown, name: string): string | undefined {
 // branch-policy evidence). Keyed by the branch name; the path is always branchPath(name).
 const classicArmCache = new Map<string, ClassicArm>();
 
+// The evidence phrase for a 200 answer that is not a protection record (the tests key on it).
+const NOT_A_RECORD = "is not a branch protection record";
+
 // What the main/master probe read this run (the main flow fills both before any verdict is made):
 // the `protected` value each probed branch's own answer carried, and each probed name the host
 // answered as ANOTHER branch (mapped to the name it answered).
@@ -1044,9 +1064,18 @@ function readClassicArm(name: string, bp: string): ClassicArm {
 
 function readClassicArmOnce(name: string, bp: string): ClassicArm {
   const prot = apiGet(`repos/{owner}/{repo}/branches/${bp}/protection`);
-  if (prot.status === 200 && isObject(prot.body)) {
+  if (prot.status === 200) {
     const elsewhere = protectionUrlMismatch(hostField(prot.body, "url"), name);
-    return elsewhere === undefined ? { kind: "body", body: prot.body } : { kind: "elsewhere", evidence: elsewhere };
+    if (elsewhere !== undefined) return { kind: "elsewhere", evidence: elsewhere };
+    // THE ONE PLACE a classic arm becomes `body` (red-team finding 1 of plan 33.1-23): only a
+    // protection record. Every reader of the arm (the branch floor and the branch-policy row) asks
+    // its kind, so no reader can take a non-record as protection.
+    if (isObject(prot.body) && readFact(prot.body, ACCEPT.classicProtectionRecord) === "held") return { kind: "body", body: prot.body };
+    return {
+      kind: "unreadable",
+      // The body is not quoted: a non-record may still list actors, and evidence never names them.
+      evidence: `the protection endpoint answered HTTP 200 with a body that ${NOT_A_RECORD} (a plain object with an enforce_admins object whose enabled is a boolean, and no message or protected key, was expected)`,
+    };
   }
   const message = hostField(prot.body, "message");
   if (prot.status === 404 && message === "Branch not protected") {

@@ -161,7 +161,9 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
     const r = runCheck(
       base({
         [RULES("main")]: NO_RULES,
-        [PROTECTION("main")]: { status: 200, body: { allow_force_pushes: { enabled: true } } },
+        // A protection record (enforce_admins present; red-team finding 1 of plan 33.1-23: a body
+        // without it is not a record and reads UNKNOWN - verify) that lacks the requirements.
+        [PROTECTION("main")]: { status: 200, body: { enforce_admins: { enabled: true }, allow_force_pushes: { enabled: true } } },
       }),
     );
     expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
@@ -2052,7 +2054,8 @@ describe("host-protection.js — red-team 33.1-23 finding 1: classic protection 
     expect(facts.length).toBe(jsonBlock(r.stdout).floor.branch.length);
     for (const f of facts) {
       expect(f.state, f.id).toBe("unknown");
-      expect(f.evidence, f.id).toContain(NOT_A_RECORD);
+      // The qualifier row carries its own evidence (no item is shown); the item rows quote the arm.
+      if (f.id !== "no_bypass") expect(f.evidence, f.id).toContain(NOT_A_RECORD);
     }
     expect(branchPolicyFact(r.stdout)?.state).not.toBe("held");
   });
@@ -2063,7 +2066,9 @@ describe("host-protection.js — red-team 33.1-23 finding 1: classic protection 
     "agreement, %s: the branch floor reads it as a record exactly when the branch-policy row counts it",
     (_label, shape, isRecord) => {
       const r = featRun(shape);
-      const floorSawRecord = !factsOf(r.stdout, "branch", "feat").every((f) => f.evidence.includes(NOT_A_RECORD));
+      const items = factsOf(r.stdout, "branch", "feat").filter((f) => f.id !== "no_bypass");
+      expect(items.length).toBe(4);
+      const floorSawRecord = !items.every((f) => f.evidence.includes(NOT_A_RECORD));
       const policyHeld = branchPolicyFact(r.stdout)?.state === "held";
       expect(floorSawRecord).toBe(isRecord);
       expect(policyHeld).toBe(isRecord);

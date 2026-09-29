@@ -131,6 +131,12 @@ const HOST_READS: readonly HostReadRow[] = [
     why: "the one listed element: protected === true, and a string name that usableBranch accepts (plan 33.1-23)",
   },
   {
+    key: "ACCEPT.classicProtectionRecord.held:property",
+    count: 5,
+    cls: "reader",
+    why: "a protection record: no message, no protected, and enforce_admins an object whose enabled is a boolean (red-team finding 1 of plan 33.1-23)",
+  },
+  {
     key: "environmentName:property",
     count: 4,
     cls: "config-json",
@@ -869,8 +875,8 @@ const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
   "protectedList:$[0].name": POLICY,
   "protectedList:$[0].protected": POLICY,
   "listedClassic:$": POLICY,
-  "listedClassic:$.enforce_admins": INERT_ROWS,
-  "listedClassic:$.enforce_admins.enabled": INERT_ROWS,
+  "listedClassic:$.enforce_admins": POLICY,
+  "listedClassic:$.enforce_admins.enabled": POLICY,
   "listedClassic:$.required_pull_request_reviews": INERT_ROWS,
   "listedClassic:$.required_pull_request_reviews.required_approving_review_count": INERT_ROWS,
   "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances": INERT_ROWS,
@@ -884,13 +890,14 @@ const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
 };
 
 // INERT: a closed set, one reason each, equal to the LEAVES entries with no row.
+// Since red-team finding 1 of plan 33.1-23 the listed branch's body counts only as a protection
+// record, which reads enforce_admins (so those two fields feed the branch-policy row); its other
+// fields still decide nothing.
 const LISTED_CLASSIC_INERT =
-  "only the 200 status and an object body of the listed branch's protection are read for the branch-policy evidence; its fields decide nothing";
+  "only the 200 status and a protection record (enforce_admins { enabled: boolean }) of the listed branch's protection are read for the branch-policy evidence; its other fields decide nothing";
 const INERT: Readonly<Record<string, string>> = {
   "environments:$.total_count": "never read: the check reads the environments list itself",
   "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.login": "identities are never read; the reviewer's id decides",
-  "listedClassic:$.enforce_admins": LISTED_CLASSIC_INERT,
-  "listedClassic:$.enforce_admins.enabled": LISTED_CLASSIC_INERT,
   "listedClassic:$.required_pull_request_reviews": LISTED_CLASSIC_INERT,
   "listedClassic:$.required_pull_request_reviews.required_approving_review_count": LISTED_CLASSIC_INERT,
   "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances": LISTED_CLASSIC_INERT,
@@ -926,8 +933,10 @@ const FIELDS_PER_BODY: Readonly<Record<BodyName, number>> = {
   protectedList: 4,
   listedClassic: 13,
 };
-const EVIDENCE_FIELD_COUNT = 60;
-const INERT_FIELD_COUNT = 14;
+// 60 → 62 and 14 → 12 (red-team finding 1 of plan 33.1-23): listedClassic enforce_admins and
+// enforce_admins.enabled moved from INERT to the branch-policy row. No field was made inert.
+const EVIDENCE_FIELD_COUNT = 62;
+const INERT_FIELD_COUNT = 12;
 
 const WALKED = walkedPaths();
 
