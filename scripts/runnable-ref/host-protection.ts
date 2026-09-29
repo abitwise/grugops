@@ -585,6 +585,9 @@ function branchPath(name: string): string {
 interface RulesetArm {
   read: "full" | "partial" | "none";
   rules: Record<string, unknown>[]; // every rule object with a string `type` on the page read
+  // Every entry on the page read, readable or not (plan 33.1-24): the source agreement is asked of
+  // each entry that may belong to a ruleset, not only of the readable ones.
+  entries: unknown[];
   why: string; // why the list was not read in full ("" when it was)
 }
 
@@ -805,8 +808,17 @@ function readRulesetBinding(id: number): RulesetRead {
 // string comparison), and the same readable source type whenever either side carries one (absent
 // on both sides is not a disagreement). Anything else — a disagreement, or one side absent or
 // garbled — is why the ruleset binds nothing: its rows are `unknown`, never `failed`.
-function sourceDisagreement(id: number, rules: Record<string, unknown>[], read: RulesetRead): string | undefined {
-  const mine = rules.filter((r) => hostField(r, "ruleset_id") === id);
+// WHICH ENTRIES (plan 33.1-24, found by the evidence-field pairs, DC-1): every entry of the rule
+// list that may belong to this ruleset, readable or not. That is an entry naming this id, and an
+// entry naming no usable ruleset id at all (it may be this ruleset's rule with its id broken). An
+// entry is dropped only when it names ANOTHER ruleset by a usable id. Asking only the readable
+// entries of this id let a second broken field (the entry's `type`, or its `ruleset_id`) remove the
+// entry whose source disagreed, so more broken input read stronger.
+function sourceDisagreement(id: number, entries: unknown[], read: RulesetRead): string | undefined {
+  const mine = entries.filter((r) => {
+    const rid = hostField(r, "ruleset_id");
+    return rid === id || !usableRulesetId(rid);
+  });
   const sources = [read.source, ...mine.map((r) => hostField(r, "ruleset_source"))];
   if (!sources.every((v) => readFact(v, ACCEPT.rulesetSource) === "held") || new Set(sources).size !== 1) {
     return `ruleset ${id} names its source as ${hostText(read.source)}, and its rules name ${hostText(mine.map((r) => hostField(r, "ruleset_source")))}: these do not agree, so it is not shown to bind`;
@@ -821,10 +833,10 @@ function sourceDisagreement(id: number, rules: Record<string, unknown>[], read: 
 
 // A ruleset's binding for this branch: its own read, unless its source disagrees with the rules
 // that name it here.
-function rulesetBindingFor(id: number, rules: Record<string, unknown>[]): Binding {
+function rulesetBindingFor(id: number, entries: unknown[]): Binding {
   const read = readRulesetBinding(id);
   if (read.binding.state === "unknown") return read.binding;
-  const why = sourceDisagreement(id, rules, read);
+  const why = sourceDisagreement(id, entries, read);
   return why === undefined ? read.binding : { state: "unknown", evidence: why };
 }
 
@@ -843,7 +855,7 @@ function rulesetBindings(arm: RulesetArm): Map<number, Binding> {
     out.set(
       id,
       i < MAX_RULESET_READS
-        ? rulesetBindingFor(id, arm.rules)
+        ? rulesetBindingFor(id, arm.entries)
         : { state: "unknown", evidence: `ruleset ${id} was not read (the check reads at most ${MAX_RULESET_READS} rulesets per branch)` },
     );
   });
@@ -1025,9 +1037,9 @@ function readRulesetArm(name: string, bp: string): RulesetArm {
     const whys: string[] = [];
     if (rules.length < entries.length) whys.push("an entry of the rule list is not a readable rule");
     if (res.next) whys.push("the rule list runs past one page");
-    return whys.length > 0 ? { read: "partial", rules, why: whys.join(", and ") } : { read: "full", rules, why: "" };
+    return whys.length > 0 ? { read: "partial", rules, entries, why: whys.join(", and ") } : { read: "full", rules, entries, why: "" };
   }
-  return { read: "none", rules: [], why: `the rules endpoint answered ${answered(res)}` };
+  return { read: "none", rules: [], entries: [], why: `the rules endpoint answered ${answered(res)}` };
 }
 
 // The repository API url this run asked about (red-team finding 4 of plan 33.1-23), from the

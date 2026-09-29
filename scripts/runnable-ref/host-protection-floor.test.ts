@@ -815,7 +815,10 @@ const isBranchRow = (id: RowId): boolean => (BRANCH_ROWS as readonly string[]).i
 // corrections to the plan's mapping are recorded in 33.1-23-SUMMARY.md.
 const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
   "rules:$": B5,
-  "rules:$[0]": PR,
+  // A whole rule entry nulled or garbled names no ruleset and no source, so since plan 33.1-24 it
+  // is asked by the source agreement of every ruleset it may belong to (every branch row). Removing
+  // the element is a shorter, well-formed list and still fails only its own rows.
+  "rules:$[0]": B5,
   "rules:$[0].type": PR,
   "rules:$[0].parameters": APPROVAL,
   "rules:$[0].parameters.required_approving_review_count": APPROVAL,
@@ -824,12 +827,12 @@ const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
   "rules:$[0].ruleset_source_type": B5,
   "rules:$[0].ruleset_source": B5,
   "rules:$[0].ruleset_id": PR,
-  "rules:$[1]": NFF,
+  "rules:$[1]": B5,
   "rules:$[1].type": NFF,
   "rules:$[1].ruleset_source_type": B5,
   "rules:$[1].ruleset_source": B5,
   "rules:$[1].ruleset_id": NFF,
-  "rules:$[2]": DEL,
+  "rules:$[2]": B5,
   "rules:$[2].type": DEL,
   "rules:$[2].ruleset_source_type": B5,
   "rules:$[2].ruleset_source": B5,
@@ -1097,9 +1100,19 @@ function expectPairClassRule(members: readonly PairMember[], r: MatrixRun): void
   const states = rowStates(r.json);
   expect(states.size, `${label}: every row of both targets reported\n${r.stdout}`).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
   const fed = new Set<string>(members.flatMap((x) => LEAVES[x.path.key]));
+  // A member changed in place (a key deleted, a value of another type) makes every row it feeds
+  // not held. A REMOVED array element leaves a shorter, well-formed list, as in section 5: some row
+  // it feeds must stop being held, but a row the rest of the list still shows may stay held.
+  const mustNotHold = new Set<string>(members.filter((x) => asMutation(x) !== "removed").flatMap((x) => LEAVES[x.path.key]));
   for (const [id, state] of states) {
-    if (fed.has(id)) expect(state, `${label}: row ${id} is fed and must not be held\n${r.stdout}`).not.toBe("held");
-    else expect(state, `${label}: row ${id} is not fed and must stay held\n${r.stdout}`).toBe("held");
+    if (mustNotHold.has(id)) expect(state, `${label}: row ${id} is fed and must not be held\n${r.stdout}`).not.toBe("held");
+    else if (!fed.has(id)) expect(state, `${label}: row ${id} is not fed and must stay held\n${r.stdout}`).toBe("held");
+  }
+  for (const x of members.filter((m) => asMutation(m) === "removed")) {
+    const stillHeld = LEAVES[x.path.key].filter((id) => states.get(id) === "held");
+    expect(stillHeld.length, `${label}: every row ${x.path.key} feeds is still held (${stillHeld.join(", ")})\n${r.stdout}`).toBeLessThan(
+      LEAVES[x.path.key].length,
+    );
   }
   const fedIds = [...fed] as RowId[];
   if (fedIds.some(isBranchRow)) expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");

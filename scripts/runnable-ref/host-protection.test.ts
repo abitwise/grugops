@@ -1248,14 +1248,18 @@ describe("host-protection.js — rule list garbage, the branch-policy pair and a
   const APPROVAL_ROW = "requires at least one approving review";
   const POLICY_ROW = "allows deployments only from protected branches";
 
-  it("a rule list [null, non_fast_forward, deletion] read in full, classic 404 `Branch not protected` → pull request and approval unknown, UNKNOWN - verify", () => {
+  // Plan 33.1-24 (found by the evidence-field pairs): the null entry names no ruleset and no
+  // source, so it may be ruleset 1's rule, and ruleset 1's source agreement cannot be shown. Every
+  // row the ruleset shows is unknown now, where plan 33.1-22 kept force pushes held.
+  it("a rule list [null, non_fast_forward, deletion] read in full, classic 404 `Branch not protected` → every branch row unknown, UNKNOWN - verify", () => {
     const r = runCheck(
       base({ [RULES("main")]: rulesOf(null, RULE("non_fast_forward"), RULE("deletion")), [PROTECTION("main")]: NOT_PROTECTED_404 }),
       ["--json"],
     );
     expect(factOf(r.stdout, "main", PR_ROW)).toBe("unknown");
     expect(factOf(r.stdout, "main", APPROVAL_ROW)).toBe("unknown");
-    expect(factOf(r.stdout, "main", "blocks force pushes")).toBe("held");
+    expect(factOf(r.stdout, "main", "blocks force pushes")).toBe("unknown");
+    expect(factOf(r.stdout, "main", "restricts deletions")).toBe("unknown");
     expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
     expect(branchLine(r.stdout)).toContain("an entry of the rule list is not a readable rule");
     expect(r.status).toBe(2);
