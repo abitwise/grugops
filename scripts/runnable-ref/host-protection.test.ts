@@ -1221,10 +1221,14 @@ describe("host-protection.js — reviewer element shape (WR-01, D-30)", () => {
     expect(r.status).toBe(1);
   });
 
-  it("protection_rules [null, <strong reviewer rule>] → the reviewer rows stay held", () => {
+  // Plan 33.1-24 (sibling of the pairs finding): the null entry may be a second required_reviewers
+  // rule, and two such rules read unknown (never first-match-wins), so the reviewer rows are
+  // unknown now, where plan 33.1-22 kept them held.
+  it("protection_rules [null, <strong reviewer rule>] → the reviewer rows are unknown", () => {
     const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [null, REVIEWER_RULE()] }) }), ["--json"]);
-    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("held");
-    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("held");
+    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
+    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
+    expect(r.status).toBe(2);
   });
 
   it("protection_rules [null] → the reviewer rows are unknown, not failed", () => {
@@ -1614,6 +1618,72 @@ describe("host-protection.js — pairs: an entry that may belong to the ruleset 
 
   it("the case table has the pinned size (6 pair shapes × 3 rules, 3 whole-entry shapes)", () => {
     expect(PAIRED.length * 3 + WHOLE.length).toBe(21);
+  });
+});
+
+// Plan 33.1-24, sibling search for the same shape (DC-1): a check that asks "is there exactly one?"
+// over a host list dropped the entries it could not read, so garbling one field of a duplicate
+// turned "which one applies is not readable" into a pass. An entry that cannot be read may be the
+// duplicate: it is counted unless it provably names something else.
+describe("host-protection.js — pairs sibling: an unreadable entry may be the duplicate (DC-1, plan 33.1-24)", () => {
+  const REVIEWER_ROW = "requires at least one reviewer";
+  const SELF_REVIEW = "prevents self-review";
+  const envBody = (...list: unknown[]): unknown => ({ status: 200, body: { total_count: list.length, environments: list } });
+
+  const RULES_AMBIGUOUS: Array<[string, unknown[]]> = [
+    ["[null, <strong rule>]", [null, REVIEWER_RULE()]],
+    ["[<strong rule>, null]", [REVIEWER_RULE(), null]],
+    ['[{ type: 7 }, <strong rule>]', [{ type: 7 }, REVIEWER_RULE()]],
+    ["[<strong rule>, <the same rule with type 7>] (one field of a duplicate garbled)", [REVIEWER_RULE(), REVIEWER_RULE({ type: 7 })]],
+    ["[<strong rule>, <the same rule with type absent>]", [REVIEWER_RULE(), REVIEWER_RULE({ type: undefined })]],
+    ['[<strong rule>, "x"]', [REVIEWER_RULE(), "x"]],
+  ];
+  for (const [name, rules] of RULES_AMBIGUOUS) {
+    it(`protection_rules ${name} → both reviewer rows unknown, UNKNOWN - verify`, () => {
+      const env = { ...strongEnv(), protection_rules: rules };
+      const r = runCheck(base({ [ENVS]: envBody(env) }), ["--json"]);
+      expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
+      expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it('control: a readable rule of another type ({ type: "wait_timer" }) beside the reviewer rule → the reviewer rows stay held', () => {
+    const env = { ...strongEnv(), protection_rules: [{ type: "wait_timer", wait_timer: 5 }, REVIEWER_RULE()] };
+    const r = runCheck(base({ [ENVS]: envBody(env) }), ["--json"]);
+    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("held");
+    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("held");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+  });
+
+  const ENVS_AMBIGUOUS: Array<[string, unknown[]]> = [
+    ["[<strong production>, null]", [strongEnv(), null]],
+    ["[null, <strong production>]", [null, strongEnv()]],
+    ["[<strong production>, <an environment with name 7>]", [strongEnv(), { ...strongEnv(), name: 7 }]],
+    ["[<strong production>, <an environment with no name>]", [strongEnv(), { ...strongEnv(), name: undefined }]],
+    ['[<strong production>, "x"]', [strongEnv(), "x"]],
+  ];
+  for (const [name, list] of ENVS_AMBIGUOUS) {
+    it(`environments ${name} → every environment row unknown, UNKNOWN - verify`, () => {
+      const r = runCheck(base({ [ENVS]: envBody(...list) }), ["--json"]);
+      for (const requirement of jsonBlock(r.stdout).floor.environment) {
+        expect(envFactOf(r.stdout, "production", requirement), `${name}: ${requirement}`).toBe("unknown");
+      }
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it('control: another environment with a readable name ("staging") beside production → protected', () => {
+    const r = runCheck(base({ [ENVS]: envBody(strongEnv(), { ...strongEnv(), name: "staging" }) }));
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("the case tables have the pinned sizes (6 reviewer-rule lists, 5 environment lists)", () => {
+    expect(RULES_AMBIGUOUS.length).toBe(6);
+    expect(ENVS_AMBIGUOUS.length).toBe(5);
   });
 });
 
