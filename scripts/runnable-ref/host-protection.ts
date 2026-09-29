@@ -7,7 +7,10 @@
 // place, so the gate (workflow 05) and the release (workflow 12) can record the answer honestly
 // instead of assuming it.
 //
-// WHAT IT REPORTS. One line per inspected target, and one summary line,
+// WHAT IT REPORTS. First, the repository it inspected: `repository <owner>/<name>`, the
+// `full_name` of the `repos/{owner}/{repo}` answer (as gh resolved `{owner}/{repo}`), or
+// `repository UNKNOWN - verify — <reason>` when the host was not asked or did not name it (re-review
+// WR-04, plan 33.1-25). Then one line per inspected target, and one summary line,
 // `HOST-PROTECTION: <p> protected, <u> unprotected, <k> UNKNOWN - verify`. Each target line
 // carries exactly one of three words:
 //   `protected`         — every row of the canonical table for that target (`BRANCH_FLOOR` for a
@@ -20,6 +23,13 @@
 // line, byte for byte (a test binds each table to its list, both ways).
 // The check NEVER answers `protected` without positive evidence. When in doubt the answer is
 // `UNKNOWN - verify` (project rule: never fabricate a passing gate).
+//
+// THE REPOSITORY (re-review WR-04, plan 33.1-25, D-19). The run is about a named repository only
+// when the `repos/{owner}/{repo}` answer is a 200 object whose `full_name` is a plain `owner/name`
+// (usableRepositoryName) and whose `url` names exactly that owner and name (repositoryIdentity, the
+// one authority; the same url is what every classic protection url is compared with). Otherwise
+// every target (the default branch, each `--branch`, the environment) is `UNKNOWN - verify` with
+// the reason, the run exits 2, and no further endpoint is asked.
 //
 // TARGETS. The default branch always; `main` and `master` when the host says they exist (a 404
 // omits them, any other answer reports them as `UNKNOWN - verify`); each `--branch <name>`
@@ -163,8 +173,12 @@
 //     exit 2 → none `unprotected`, but at least one `UNKNOWN - verify`, or the check could not run.
 //              Exit 2 is never a pass.
 //     stdout → human-readable lines in CLEAR PROFESSIONAL VOICE (the audit trail)
-//     stdout → with --json, a { ok, floor: { branch, environment }, targets: [{ kind, name,
-//              verdict, reason, facts }], calls } block after the human lines; `floor.branch` and
+//     stdout → the first line names the repository inspected (`repository <owner>/<name>`, or
+//              `repository UNKNOWN - verify — <reason>`); a run that cannot name it reports every
+//              target `UNKNOWN - verify` and exits 2
+//     stdout → with --json, a { ok, repository, floor: { branch, environment }, targets: [{ kind,
+//              name, verdict, reason, facts }], calls } block after the human lines; `repository`
+//              is the inspected `owner/name` or null; `floor.branch` and
 //              `floor.environment` are the BRANCH_FLOOR and ENVIRONMENT_FLOOR requirement strings
 //              in table order, every target carries `facts` (one { id, requirement, state,
 //              evidence } per row of its table), and `calls` is the argv of every gh call, so a
@@ -1113,8 +1127,9 @@ function readRulesetArm(name: string, bp: string): RulesetArm {
 // gh's `{owner}/{repo}` placeholders, so the check does not know the owner and name it asked
 // about; this same-run answer is what names them. Readable only as an http(s) URL with no
 // credentials, query or fragment, whose path ends in `/repos/<owner>/<name>` (any prefix before it,
-// such as GitHub Enterprise Server's `/api/v3`, is kept and must match). `full_name` is not read
-// here (plan 33.1-25 owns it).
+// such as GitHub Enterprise Server's `/api/v3`, is kept and must match). It is set only by
+// repositoryIdentity() below, which also requires the answer's `full_name` to name the same
+// repository (plan 33.1-25, re-review WR-04).
 let repositoryApi: URL | undefined;
 function readRepositoryApi(v: unknown): URL | undefined {
   if (typeof v !== "string") return undefined;
@@ -1127,6 +1142,51 @@ function readRepositoryApi(v: unknown): URL | undefined {
   if (u.protocol !== "https:" && u.protocol !== "http:") return undefined;
   if (u.username !== "" || u.password !== "" || u.search !== "" || u.hash !== "") return undefined;
   return /\/repos\/[^/]+\/[^/]+$/.test(u.pathname) ? u : undefined;
+}
+
+// A repository name this check will print and publish (re-review WR-04, plan 33.1-25, D-19): a
+// plain `owner/name` string of at most 200 characters, each part letters, digits, `.`, `_` or `-`,
+// and neither part `.` or `..`. Anything else is not a name the check can vouch for. A plain
+// predicate: it produces no FactState and is not a floor row.
+const REPOSITORY_NAME = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+function usableRepositoryName(v: unknown): v is string {
+  if (typeof v !== "string" || v.length > 200 || !REPOSITORY_NAME.test(v)) return false;
+  return v.split("/").every((part) => part !== "." && part !== "..");
+}
+
+// THE ONE AUTHORITY for "which repository this run is about" (re-review WR-04, plan 33.1-25,
+// D-19, D-30). gh resolves `{owner}/{repo}` from GH_REPO, `gh repo set-default` or the git
+// remotes, so in a fork clone it can be another repository than the one the agent pushes to; the
+// report must name what it inspected. The `repos/{owner}/{repo}` answer names it twice: `full_name`
+// (printed) and `url` (what every classic protection url is compared with). The run is about a
+// named repository only when the answer is a 200 object, `full_name` passes usableRepositoryName,
+// `url` is readable (readRepositoryApi), and the url's `/repos/<owner>/<name>` names exactly the
+// same owner and name. Anything else (not a 200, `full_name` absent or unusable, `url` absent or
+// unreadable, or the two disagreeing, case included) names no repository, and the run claims
+// nothing about any target.
+const UNNAMED_REPOSITORY = "so the check cannot say which repository it inspected";
+function repositoryIdentity(repo: ApiResult): { name: string; api: URL } | { why: string } {
+  const fullName = repo.status === 200 ? hostField(repo.body, "full_name") : undefined;
+  if (!usableRepositoryName(fullName)) {
+    const how = repo.status === 200 && isObject(repo.body) ? "" : `; it answered ${answered(repo)}`;
+    return { why: `the repository endpoint did not name the repository it answered for (full_name), ${UNNAMED_REPOSITORY}${how}` };
+  }
+  const url = hostField(repo.body, "url");
+  const api = readRepositoryApi(url);
+  if (api === undefined) {
+    return { why: `the repository endpoint names the repository ${fullName} (full_name) but carries no readable url for it (url ${hostText(url)}), ${UNNAMED_REPOSITORY}` };
+  }
+  const parts = api.pathname.split("/").slice(-2);
+  let urlName: string | undefined;
+  try {
+    urlName = parts.map((part) => decodeURIComponent(part)).join("/");
+  } catch {
+    urlName = undefined;
+  }
+  if (urlName !== fullName) {
+    return { why: `the repository endpoint names the repository ${fullName} (full_name) but its url ${hostText(url)} names another, ${UNNAMED_REPOSITORY}` };
+  }
+  return { name: fullName, api };
 }
 
 // Why a classic protection body's `url` shows it is NOT about branch `name` of this run's
@@ -1151,6 +1211,8 @@ function protectionUrlMismatch(url: unknown, name: string): string | undefined {
     return `${says}, which is not a URL this check can read`;
   }
   const repo = repositoryApi;
+  // Not reached while a run judges branches only after repositoryIdentity() named the repository
+  // (plan 33.1-25); kept so no caller can ever compare a present url with nothing.
   if (repo === undefined) {
     return `${says}, but the repository answer names no readable url to compare it with, so which repository it describes is not shown`;
   }
@@ -1753,6 +1815,10 @@ const extraBranches = flagValues("--branch");
 const env = environmentName();
 
 let cannotAsk: string | undefined;
+// The repository the run inspected (repositoryIdentity), or why it is not named. The report's
+// first line says one or the other.
+let repositoryName: string | undefined;
+let repositoryUnnamed: string | undefined;
 if (ghScript !== undefined && !existsSync(ghScript)) {
   cannotAsk = "gh is not available on this machine, so the host could not be asked";
 } else {
@@ -1761,28 +1827,44 @@ if (ghScript !== undefined && !existsSync(ghScript)) {
   else if (auth.status !== 0) cannotAsk = "`gh auth status` failed, so the host could not be asked";
 }
 
-if (cannotAsk !== undefined) {
+// Every target UNKNOWN - verify with one reason: the host could not be asked, or it did not name
+// the repository it answered for. Every target keeps one fact per row of its table.
+function everyTargetUnknown(why: string): void {
   for (const name of ["(default branch)", ...extraBranches]) {
-    targets.push(branchUnknown(name, cannotAsk));
+    targets.push(branchUnknown(name, why));
   }
   targets.push({
     kind: "environment",
     name: env.name,
     verdict: "UNKNOWN - verify",
-    reason: `${cannotAsk}; environment name from ${env.source}`,
-    facts: unreadEnvironmentFacts(cannotAsk),
+    reason: `${why}; environment name from ${env.source}`,
+    facts: unreadEnvironmentFacts(why),
   });
+}
+
+const repo = cannotAsk === undefined ? apiGet("repos/{owner}/{repo}") : undefined;
+const identity = repo === undefined ? undefined : repositoryIdentity(repo);
+if (cannotAsk !== undefined) {
+  repositoryUnnamed = cannotAsk;
+  everyTargetUnknown(cannotAsk);
+} else if (repo === undefined || identity === undefined || "why" in identity) {
+  // Re-review WR-04 (plan 33.1-25): a run that cannot name the repository it inspected claims
+  // nothing about any target, and asks no further endpoint.
+  const why = identity !== undefined && "why" in identity ? identity.why : `the repository endpoint was not asked, ${UNNAMED_REPOSITORY}`;
+  repositoryUnnamed = why;
+  everyTargetUnknown(why);
 } else {
+  repositoryName = identity.name;
+  // The repository a protection body's url must name (red-team finding 4 of plan 33.1-23), from
+  // the same identity the report prints.
+  repositoryApi = identity.api;
   const names: string[] = [];
   // The probe fills renamedBranches (main/master names the host answered as another branch) and
   // probedProtected (the `protected` value each probed answer carried about itself), module-level,
   // because branchVerdict and the environment's branch-policy evidence both read them.
   const renamed = renamedBranches;
   const probed = probedProtected;
-  const repo = apiGet("repos/{owner}/{repo}");
   const defaultBranch = hostField(repo.body, "default_branch");
-  // The repository a protection body's url must name (red-team finding 4 of plan 33.1-23).
-  repositoryApi = repo.status === 200 ? readRepositoryApi(hostField(repo.body, "url")) : undefined;
   if (repo.status === 200 && typeof defaultBranch === "string") {
     names.push(defaultBranch);
   } else {
@@ -1842,6 +1924,13 @@ if (cannotAsk !== undefined) {
 let p = 0;
 let u = 0;
 let k = 0;
+// The first line names the repository the run inspected, as gh resolved `{owner}/{repo}`
+// (re-review WR-04, plan 33.1-25).
+console.log(
+  repositoryName !== undefined
+    ? `repository ${printable(repositoryName)}`
+    : `repository UNKNOWN - verify — ${printable(repositoryUnnamed ?? `the repository endpoint was not asked, ${UNNAMED_REPOSITORY}`, REASON_MAX)}`,
+);
 for (const t of targets) {
   if (t.verdict === "protected") p++;
   else if (t.verdict === "unprotected") u++;
@@ -1855,6 +1944,7 @@ if (wantJson) {
     JSON.stringify(
       {
         ok: exitCode === 0,
+        repository: repositoryName ?? null,
         floor: {
           branch: BRANCH_FLOOR.map((row) => row.requirement),
           environment: ENVIRONMENT_FLOOR.map((row) => row.requirement),
