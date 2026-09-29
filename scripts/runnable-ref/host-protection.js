@@ -35,8 +35,9 @@
 // is `protected` only when EVERY row is positively shown; no code path outside the table produces
 // `protected` for a branch. Each row is read from two arms, each read at most once per branch:
 //   - the ruleset arm, `rules/branches/<b>` (the active rules from every ruleset that applies).
-//     Read in full (200, a JSON array, no `Link: rel="next"`), read partially (a further page
-//     exists), or not read (any other answer, which is quoted).
+//     Read in full (200, a JSON array, no `Link` naming a further page), read partially (a further
+//     page exists: then no ruleset's rules are shown to agree on their source, so no ruleset binds;
+//     red-team B2 of plan 33.1-24), or not read (any other answer, which is quoted).
 //   - the classic arm, `branches/<b>/protection`, asked only when the ruleset arm leaves some row
 //     not shown. 200 with a protection record (ACCEPT.classicProtectionRecord: an enforce_admins
 //     object with a boolean `enabled`, and no `message` or `protected` key) → its body is read field
@@ -259,7 +260,8 @@ function apiGet(path) {
             if (status === undefined)
                 status = Number(m[1]);
         }
-        if (/^link:/i.test(line) && /rel="next"/.test(line))
+        const link = /^link:(.*)$/i.exec(line);
+        if (link !== null && linkNamesNextPage(link[1]))
             next = true;
     }
     if (status === undefined) {
@@ -289,6 +291,14 @@ function apiGet(path) {
         body = undefined;
     }
     return { status, body, next, problem: undefined };
+}
+// THE ONE AUTHORITY for "this response names a further page" (red-team B2 of plan 33.1-24, DC-1),
+// asked of every `Link` header line of every answer. RFC 8288 lets a relation type be quoted or
+// not, in any case, and one of several (`rel="prev next"`). So the value names a further page when
+// the token `next` appears anywhere outside its `<URI>` parts. Reading more as a further page can
+// only lower a reading: a further page makes a list not read whole.
+function linkNamesNextPage(value) {
+    return /\bnext\b/i.test(value.replace(/<[^>]*>/g, " "));
 }
 function isObject(v) {
     return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -378,6 +388,12 @@ const ACCEPT = {
     // whenever either side carries it.
     rulesetSourceType: {
         held: (v) => typeof v === "string" && v.length > 0,
+    },
+    // `total_count` of `GET environments` (red-team B2 of plan 33.1-24): readable only as a whole
+    // number of 0 or more. The caller compares it with the length of the list read; an ABSENT count
+    // is handled there, as neutral, with the reason.
+    environmentTotalCount: {
+        held: (v) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0,
     },
     // The environment object `GET environments` listed under the configured name.
     environmentPresent: {
@@ -739,12 +755,19 @@ function sourceDisagreement(id, entries, read) {
     return undefined;
 }
 // A ruleset's binding for this branch: its own read, unless its source disagrees with the rules
-// that name it here.
-function rulesetBindingFor(id, entries) {
+// that name it here, or the rule list names a further page (red-team B2 of plan 33.1-24): a rule of
+// this ruleset on that page may name another source, so agreement over every rule is not shown.
+function rulesetBindingFor(id, arm) {
     const read = readRulesetBinding(id);
     if (read.binding.state === "unknown")
         return read.binding;
-    const why = sourceDisagreement(id, entries, read);
+    if (arm.morePages) {
+        return {
+            state: "unknown",
+            evidence: `the rule list runs past one page, so whether every rule of ruleset ${id} names the source its own answer names is not shown`,
+        };
+    }
+    const why = sourceDisagreement(id, arm.entries, read);
     return why === undefined ? read.binding : { state: "unknown", evidence: why };
 }
 // The binding of every distinct ruleset whose rules could show an item on this branch, in the
@@ -761,7 +784,7 @@ function rulesetBindings(arm) {
     const out = new Map();
     ids.forEach((id, i) => {
         out.set(id, i < MAX_RULESET_READS
-            ? rulesetBindingFor(id, arm.entries)
+            ? rulesetBindingFor(id, arm)
             : { state: "unknown", evidence: `ruleset ${id} was not read (the check reads at most ${MAX_RULESET_READS} rulesets per branch)` });
     });
     return out;
@@ -930,9 +953,10 @@ function readRulesetArm(name, bp) {
             whys.push("an entry of the rule list is not a readable rule");
         if (res.next)
             whys.push("the rule list runs past one page");
-        return whys.length > 0 ? { read: "partial", rules, entries, why: whys.join(", and ") } : { read: "full", rules, entries, why: "" };
+        const morePages = res.next;
+        return whys.length > 0 ? { read: "partial", rules, entries, morePages, why: whys.join(", and ") } : { read: "full", rules, entries, morePages, why: "" };
     }
-    return { read: "none", rules: [], entries: [], why: `the rules endpoint answered ${answered(res)}` };
+    return { read: "none", rules: [], entries: [], morePages: false, why: `the rules endpoint answered ${answered(res)}` };
 }
 // The repository API url this run asked about (red-team finding 4 of plan 33.1-23), from the
 // `url` of the `repos/{owner}/{repo}` answer the main flow reads first. The check's own paths carry
@@ -1465,6 +1489,25 @@ function environmentPartition(entries, name) {
     }
     return { matches, possible };
 }
+// Why the environments list was not read whole, or undefined when it was (red-team B2 of plan
+// 33.1-24, DC-1): the answer names a further page, or carries a `total_count` that cannot be read or
+// is not the length of the list read. An ABSENT total_count is neutral: it restates the length of the
+// list, so its absence removes a cross-check and asserts nothing, and a list with no further page
+// already carries every entry.
+function environmentListNotWhole(res, entries) {
+    if (res.next)
+        return "the environments list names a further page, so whether exactly one environment has this name is not readable";
+    const total = hostField(res.body, "total_count");
+    if (total === undefined)
+        return undefined;
+    if (readFact(total, ACCEPT.environmentTotalCount) !== "held") {
+        return `the environments list carries a total_count this check cannot read (${hostText(total)}), so whether it lists every environment is not readable`;
+    }
+    if (total !== entries.length) {
+        return `the environments list reports total_count ${hostText(total)} but lists ${entries.length}, so whether exactly one environment has this name is not readable`;
+    }
+    return undefined;
+}
 // Every production floor row `unknown`, for an environment the check could not read at all.
 function unreadEnvironmentFacts(why) {
     return ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, state: "unknown", evidence: why }));
@@ -1478,6 +1521,12 @@ function environmentVerdict(name, source) {
         return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
     }
     const entries = list;
+    // A list not read whole cannot show "exactly one environment of this name" (red-team B2 of plan
+    // 33.1-24, DC-1): every row is unknown.
+    const partial = environmentListNotWhole(res, entries);
+    if (partial !== undefined) {
+        return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${partial}${at}`, facts: unreadEnvironmentFacts(partial) };
+    }
     // An entry whose name is not provably another environment's may be another environment of this
     // name (plan 33.1-24 and its red-team B1, DC-1): garbling one field of a duplicate, its name
     // included, must not turn "which one deploys use is not readable" into a pass.
@@ -1496,8 +1545,7 @@ function environmentVerdict(name, source) {
     const run = { classicProtection: classicProtectionEvidence };
     const facts = ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, ...row.read(env, run) }));
     if (env === undefined) {
-        const why = res.next ? `no environment named ${name} on the first page of a longer list` : `no environment named ${name}`;
-        const reason = `${why}; grugops cannot tell how production deploys run`;
+        const reason = `no environment named ${name}; grugops cannot tell how production deploys run`;
         return {
             kind: "environment",
             name,
