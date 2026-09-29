@@ -91,6 +91,12 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpo
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
 import { readInstallMarker, readCreatedDirs, readAskRuleLedger, type AskRuleLedger } from "./install-marker.js";
+// DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
+// this file makes of a path in the user's repository goes through it, and so does every copy whose
+// source is such a path (the copy is written from its bytes). It decides the file type before it
+// opens anything, so a FIFO, directory, socket or device is never read, never written and never
+// hangs the run. Node stdlib only, read-only, sibling module inside install/.
+import { readUserFile, type UserFileRead } from "./user-file.js";
 
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
@@ -416,6 +422,20 @@ let VERIFY_FINDINGS = 0;
 const verify = (msg: string): void => {
   VERIFY_FINDINGS += 1;
   report("verify", msg);
+};
+
+// unreadState (DC-3, plan 33.1-26): the one wording of why a user path was not read, for every
+// readUserFile state other than `ok` and `absent`. Each call site that reports one says what it did
+// instead (skipped, left untouched), so this names only the state of the path.
+const unreadState = (r: Exclude<UserFileRead, { state: "ok" } | { state: "absent" }>): string => {
+  switch (r.state) {
+    case "not-regular":
+      return `is not a regular file (it is a ${r.kind})`;
+    case "too-large":
+      return `is larger than the size bound (${r.size} bytes)`;
+    case "unreadable":
+      return `could not be read (${r.code})`;
+  }
 };
 
 // CREATED_DIRS (CR-02, D-18): every directory under TARGET that mkdirp itself created in this run,
@@ -1495,8 +1515,17 @@ function migratePreSteps(): void {
 
 // ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
 // if the open sentinel is already present; creates the file if absent. Never `>`-truncates.
+//
+// DC-3 / D-18 (plan 33.1-26): the file is read through readUserFile, and nothing is written or
+// appended unless that read found it absent or a regular file. A FIFO, directory, socket or device
+// at the path is neither read nor written; the run reports a counted `verify` and goes on.
 function ensureBlock(file: string, open: string, body: string, close: string, label: string): void {
-  if (existsSync(file) && readFileSync(file, "utf8").includes(open)) {
+  const cur = readUserFile(file);
+  if (cur.state !== "ok" && cur.state !== "absent") {
+    verify(`${label}: ${file} ${unreadState(cur)}. It was left untouched and nothing was added to it.`);
+    return;
+  }
+  if (cur.state === "ok" && cur.text.includes(open)) {
     report("skipped", `${label} (sentinel already present)`);
     return;
   }
@@ -1505,7 +1534,7 @@ function ensureBlock(file: string, open: string, body: string, close: string, la
     return;
   }
   mkdirp(dirname(file));
-  if (!existsSync(file)) writeFileSync(file, "");
+  if (cur.state === "absent") writeFileSync(file, "");
   appendFileSync(file, `\n${open}\n${body}\n${close}\n`);
   report("created", label);
 }

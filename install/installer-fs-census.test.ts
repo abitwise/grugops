@@ -46,6 +46,12 @@ const FS_READ_ONLY = new Set([
   "statSync",
   "readlinkSync",
   "realpathSync",
+  // plan 33.1-26 (DC-3): install/user-file.ts's descriptor calls and flag constants. fstatSync and
+  // closeSync only inspect or release a descriptor; `constants` is the flag table the read-only open
+  // takes its flags from (the `read-only-open` gate below checks those flags).
+  "fstatSync",
+  "closeSync",
+  "constants",
 ]);
 const FS_MUTATING = new Set([
   "writeFileSync",
@@ -75,12 +81,18 @@ const FS_MUTATING = new Set([
 //   helper-gated           every caller of the helper is itself gated (the callers are named)
 //   scratch-outside-roots  the call writes only under an os.tmpdir() mkdtemp directory the scope
 //                          removes, never under TARGET or GRUGOPS_HOME
-type Gate = "dry-run-return-above" | "dry-run-guard-inline" | "helper-gated" | "scratch-outside-roots";
+//   read-only-open         (plan 33.1-26, DC-3) an openSync whose flags expression names only
+//                          O_RDONLY, O_NONBLOCK and O_NOCTTY from the imported `constants`, joined by
+//                          `|`, each optional one as `(constants.O_X ?? 0)`, with no third (mode)
+//                          argument. It creates, truncates and writes nothing. The flags are checked
+//                          structurally below, not taken from the row's `why`.
+type Gate = "dry-run-return-above" | "dry-run-guard-inline" | "helper-gated" | "scratch-outside-roots" | "read-only-open";
 const GATES: ReadonlySet<string> = new Set<Gate>([
   "dry-run-return-above",
   "dry-run-guard-inline",
   "helper-gated",
   "scratch-outside-roots",
+  "read-only-open",
 ]);
 
 interface ClassifiedSite {
@@ -252,6 +264,12 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:2315-2318 `if (DRY_RUN)` reports would-add and returns before writeFileSync at :2334",
   },
   {
+    site: "user-file.ts:readUserFile:openSync",
+    count: 1,
+    gate: "read-only-open",
+    why: "user-file.ts readUserFile opens with constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOCTTY ?? 0) and no mode, only after statSync showed a regular file within the bound; the descriptor is fstat'ed, read and closed in a finally (plan 33.1-26, DC-3)",
+  },
+  {
     site: "uninstall.ts:removeAskRules:unlinkSync",
     count: 1,
     gate: "dry-run-return-above",
@@ -326,6 +344,50 @@ interface FileCensus {
   readonly imports: Map<string, Set<string>>;
   /** `<file>:<scope>:<fs name>` for every direct call of a mutating binding, with repeats. */
   readonly sites: string[];
+  /** Every direct openSync call, with the problem its flags have under `read-only-open` (null: none). */
+  readonly opens: { readonly site: string; readonly line: number; readonly flagsProblem: string | null }[];
+}
+
+// THE read-only-open FLAGS CHECK (plan 33.1-26, DC-3). Exported to the cases below through the
+// census, and also driven directly over synthetic calls, so a mutation of the rule shows red here.
+const READ_ONLY_OPEN_FLAGS = new Set(["O_RDONLY", "O_NONBLOCK", "O_NOCTTY"]);
+function readOnlyOpenProblem(call: ts.CallExpression, constantsLocals: ReadonlySet<string>, sf: ts.SourceFile): string | null {
+  if (call.arguments.length !== 2) return `takes ${call.arguments.length} argument(s); a read-only open takes the path and the flags only`;
+  const problems: string[] = [];
+  const named = new Set<string>();
+  const flagName = (n: ts.Node): string | null =>
+    ts.isPropertyAccessExpression(n) &&
+    ts.isIdentifier(n.expression) &&
+    constantsLocals.has(n.expression.text) &&
+    READ_ONLY_OPEN_FLAGS.has(n.name.text)
+      ? n.name.text
+      : null;
+  const visit = (n: ts.Node): void => {
+    if (ts.isParenthesizedExpression(n)) return visit(n.expression);
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.BarToken) {
+      visit(n.left);
+      visit(n.right);
+      return;
+    }
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+      const name = flagName(n.left);
+      if (name !== null && name !== "O_RDONLY" && ts.isNumericLiteral(n.right) && n.right.text === "0") {
+        named.add(name);
+        return;
+      }
+      problems.push(`\`${n.getText(sf)}\` is not \`(constants.O_NONBLOCK ?? 0)\` or \`(constants.O_NOCTTY ?? 0)\``);
+      return;
+    }
+    const name = flagName(n);
+    if (name !== null) {
+      named.add(name);
+      return;
+    }
+    problems.push(`\`${n.getText(sf)}\` is not one of constants.${[...READ_ONLY_OPEN_FLAGS].join(" / constants.")}`);
+  };
+  visit(call.arguments[1]);
+  if (!named.has("O_RDONLY")) problems.push("the flags do not name constants.O_RDONLY");
+  return problems.length === 0 ? null : problems.join("; ");
 }
 
 const lineOf = (sf: ts.SourceFile, node: ts.Node): number => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
@@ -368,6 +430,7 @@ function censusOf(file: string): FileCensus {
   const imports = new Map<string, Set<string>>();
   const localToImported = new Map<string, string>();
   const sites: string[] = [];
+  const opens: { site: string; line: number; flagsProblem: string | null }[] = [];
 
   // Pass 1: the import surface.
   for (const st of sf.statements) {
@@ -426,6 +489,13 @@ function censusOf(file: string): FileCensus {
         const p = node.parent;
         if (ts.isCallExpression(p) && p.expression === node) {
           sites.push(`${file}:${scopeOf(p)}:${imported}`);
+          if (imported === "openSync") {
+            opens.push({
+              site: `${file}:${scopeOf(p)}:${imported}`,
+              line: lineOf(sf, p),
+              flagsProblem: readOnlyOpenProblem(p, imports.get("constants") ?? new Set(), sf),
+            });
+          }
         } else {
           refusals.push(
             `${file}:${lineOf(sf, node)} mutating fs binding ${node.text} (${imported}) used other than as a direct callee`,
@@ -437,7 +507,7 @@ function censusOf(file: string): FileCensus {
   };
   walk(sf);
 
-  return { file, refusals, imports, sites };
+  return { file, refusals, imports, sites, opens };
 }
 
 function countBy(xs: readonly string[]): Map<string, number> {
@@ -490,6 +560,55 @@ describe("installer fs census (CR-02 sibling arms, statically)", () => {
     }
     const keys = CLASSIFIED_SITES.map((r) => r.site);
     expect(new Set(keys).size, "duplicate CLASSIFIED_SITES row").toBe(keys.length);
+  });
+
+  it("every openSync in a `read-only-open` row opens read-only, structurally (plan 33.1-26, DC-3)", () => {
+    const readOnlyRows = new Set(CLASSIFIED_SITES.filter((r) => r.gate === "read-only-open").map((r) => r.site));
+    const opens = CENSUS.flatMap((c) => c.opens).filter((o) => readOnlyRows.has(o.site));
+    // Vacuity floor: the row set and the call set are each non-empty and cover each other.
+    expect(readOnlyRows.size, "no read-only-open row: the check would ask nothing").toBeGreaterThan(0);
+    expect(new Set(opens.map((o) => o.site)), "a read-only-open row names no openSync call").toEqual(readOnlyRows);
+    const bad = opens.filter((o) => o.flagsProblem !== null).map((o) => `${o.site} (line ${o.line}): ${o.flagsProblem}`);
+    expect(bad, bad.join("\n")).toEqual([]);
+  });
+
+  it("the read-only-open flags check refuses every write-capable or unrecognised flags shape (mutation proof)", () => {
+    const problemOf = (src: string): string | null => {
+      const sf = ts.createSourceFile("probe.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      let call: ts.CallExpression | undefined;
+      const find = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "openSync") call = n;
+        ts.forEachChild(n, find);
+      };
+      find(sf);
+      return readOnlyOpenProblem(call!, new Set(["constants", "fsc"]), sf);
+    };
+    const accepted = [
+      "openSync(p, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOCTTY ?? 0));",
+      "openSync(p, constants.O_RDONLY | constants.O_NONBLOCK);",
+      "openSync(p, fsc.O_RDONLY);",
+    ];
+    const refused = [
+      "openSync(p, constants.O_WRONLY);",
+      "openSync(p, constants.O_RDWR | constants.O_NONBLOCK);",
+      "openSync(p, constants.O_RDONLY | constants.O_CREAT);",
+      "openSync(p, constants.O_RDONLY | constants.O_TRUNC);",
+      "openSync(p, constants.O_RDONLY | constants.O_APPEND);",
+      "openSync(p, constants.O_RDONLY, 0o644);",
+      "openSync(p, \"r+\");",
+      "openSync(p, \"r\");",
+      "openSync(p, 2);",
+      "openSync(p, flags);",
+      "openSync(p, other.O_RDONLY);",
+      "openSync(p, constants.O_NONBLOCK);",
+      "openSync(p, constants.O_RDONLY | (constants.O_NONBLOCK ?? 1));",
+      "openSync(p, constants.O_RDONLY | (constants.O_WRONLY ?? 0));",
+      "openSync(p, constants.O_RDONLY + constants.O_NONBLOCK);",
+      "openSync(p);",
+    ];
+    for (const src of accepted) expect(problemOf(src), src).toBeNull();
+    for (const src of refused) expect(problemOf(src), src).not.toBeNull();
+    expect(accepted.length + refused.length).toBe(19);
   });
 
   it("the mutating call-site multiset equals CLASSIFIED_SITES two-sided, with counts", () => {

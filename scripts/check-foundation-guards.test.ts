@@ -2140,8 +2140,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     grant and renders no spawn verdict. Its committed `.js` twin lands in the same commit.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 90 with this module tracked.
+ *
+ * 90 -> 91 (plan 33.1-26, task 1, DC-3), ONE INSTALLER LIBRARY MODULE:
+ *   - `install/user-file.ts` — the one reader of a user-controlled path in the installer
+ *     (`readUserFile`): it stats the path first, opens only a regular file within a size bound,
+ *     read-only, non-blocking and O_NOCTTY, fstats the same descriptor and returns a tagged state.
+ *     Imported by `install/install.ts` (a sibling of `install/install-marker.ts`). It imports
+ *     read-only `node:fs` names and one read-only openSync, and writes nothing.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict. Its committed `.js` twin lands in the same commit.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 91 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 90;
+const NON_TEST_MODULE_COUNT = 91;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
