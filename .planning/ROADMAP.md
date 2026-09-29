@@ -1482,7 +1482,7 @@ Plans:
 **Goal:** Take over what Phase 33 carried at its human-override close (D-33-R4-08), guard first — REVISED 2026-09-26 (33.1 D-17): the canonical-form cutover is abandoned and the Bash command-parsing prod-deploy/merge guard is RETIRED. Wave 1 deletes the Bash PreToolUse matcher, `hooks/guard.*`, the command model in `scripts/checkpoints.ts` and its grant keys; the installer translates the checkpoints config into Claude Code `permissions.ask` rules (a speed bump, documented as such); git-host branch protection and deployment environments are the hard floor, with a setup checklist and a read-only `gh api` check in the gate and release roles; CLAUDE.md "Safety (hard)" is rewritten by recorded decision (D-21). CR-01, CR-02, the two zero-key deferred ALLOW forms, IN-02, WR-04 and row 269 close as dissolved by retirement. A blocking human checkpoint (D-20) follows. Then: D-33-R4-04 (row 297), D-33-R4-05 (the `--permission-mode default` pin, after its zero-token check; row 298), rows 303-305 and 307, the CLAUDE.md nesting correction (row 309), and the open non-windows deferred items; D-33-R4-07 (row 299) is moot. Last: exactly one live capture go toward GAP-D1 (CAP-01/CAP-03) with no prod-deploy probe case. Row 274 and the windows reds are out of this phase, so CAP-02 cannot be met here. Replanned 2026-09-26: plans 03-16 below supersede the pre-D-17 set.
 **Requirements**: TBD
 **Depends on:** Phase 33
-**Plans:** 21/28 plans executed (01-02 executed against the superseded canonical-form design; their code is deleted by D-23; 03-16 replanned 2026-09-26 for the retirement; 17-21 are gap-closure round 1 of 4 for CR-01 and CR-02, planned 2026-09-28; 22-28 are gap-closure round 2 of 4 for the re-verification's Gap A and Gap B, planned 2026-09-29)
+**Plans:** 21/29 plans executed (01-02 executed against the superseded canonical-form design; their code is deleted by D-23; 03-16 replanned 2026-09-26 for the retirement; 17-21 are gap-closure round 1 of 4 for CR-01 and CR-02, planned 2026-09-28; 22-29 are gap-closure round 2 of 4 for the re-verification's Gap A and Gap B, planned 2026-09-29)
 
 Plans:
 **Executed before the replan (history)**
@@ -1589,11 +1589,15 @@ Plans:
 
 **Wave 6** *(blocked on 33.1-26)*
 
-- [ ] 33.1-27-PLAN.md — Gap B derived: ownership axis of the fs census over the uninstall path, with gate-position checks; DRY_RUN flows 9-10; README § Undo and CHANGELOG (D-18, D-20)
+- [ ] 33.1-27-PLAN.md — Gap B: `kitFiles` content record; uninstall removes a grugops skill or adapter file only while it still matches what install wrote (hash or link target), legacy installs fall back to byte identity with the kit source, and an edited file is left (D-18, D-20)
 
 **Wave 7** *(blocked on 33.1-27)*
 
-- [ ] 33.1-28-PLAN.md — ledger from a review snapshot (every re-review finding folded or ledgered); BLOCKING decision on the three D-30 amendment questions (WR-02, WR-03, CR-01 follow-up) recorded as D-31; final regression (D-06, D-30)
+- [ ] 33.1-28-PLAN.md — Gap B derived: ownership axis of the fs census over the uninstall path, with gate-position checks and no name-only caller class; DRY_RUN flows 9-10; README § Undo and CHANGELOG (D-18, D-20)
+
+**Wave 8** *(blocked on 33.1-28)*
+
+- [ ] 33.1-29-PLAN.md — ledger from a review snapshot (every re-review finding folded or ledgered); BLOCKING decision on the D-30 amendment questions (WR-02, WR-03, and Q3 for the CR-01 and CR-02 fail-closed readings) recorded as D-31; final regression (D-06, D-30)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
