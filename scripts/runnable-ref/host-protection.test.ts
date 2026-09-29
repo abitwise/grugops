@@ -871,15 +871,26 @@ describe("host-protection.js — classic protection bypass (CR-01, D-30)", () =>
     expect(r.status).toBe(0);
   });
 
-  it("classic protection with no bypass_pull_request_allowances key → protected", () => {
+  // Re-review CR-01 (plan 33.1-22, D-30): an absent allowance key is not readable. It is never
+  // evidence that the protection grants no allowance, so the branch is never `protected` on it.
+  it("classic protection with no bypass_pull_request_allowances key → UNKNOWN - verify, never protected", () => {
     const r = runCheck(
       base({
         [RULES("main")]: NO_RULES,
         [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, required_pull_request_reviews: { required_approving_review_count: 1 } }),
       }),
+      ["--json"],
     );
-    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    expect(r.status).toBe(0);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(factOf(r.stdout, "main", "requires a pull request before merging")).toBe("unknown");
+    expect(factOf(r.stdout, "main", "requires at least one approving review")).toBe("unknown");
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+    expect(factOf(r.stdout, "main", "blocks force pushes")).toBe("held");
+    expect(factOf(r.stdout, "main", "restricts deletions")).toBe("held");
+    // The evidence says the allowance could not be read, never that the protection grants none.
+    expect(branchLine(r.stdout)).toContain("classic protection carries no readable bypass_pull_request_allowances");
+    expect(branchLine(r.stdout)).not.toContain("grants no pull request bypass allowance");
+    expect(r.status).toBe(2);
   });
 
   it("a listed allowance counts actors in the evidence, never names them", () => {
