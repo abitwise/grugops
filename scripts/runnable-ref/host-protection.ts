@@ -1286,8 +1286,14 @@ function readClassicArmOnce(name: string, bp: string): ClassicArm {
         evidence: `the protection endpoint answered HTTP 404 (Not Found) and the branch endpoint reports a protected value this check cannot read (${hostText(hostField(br.body, "protected"))})`,
       };
     }
+    // Any other string name taints every read under this name. Only a usable, provably other name
+    // (provablyAnotherName, red-team B3 of plan 33.1-24) is described as another branch.
     if (br.status === 200 && typeof brName === "string") {
-      return { kind: "elsewhere", evidence: `the branch endpoint answered about branch ${hostText(brName)}, not this one (a renamed branch's old name answers this way)` };
+      const evidence =
+        usableBranch(brName) && provablyAnotherName(brName, name)
+          ? `the branch endpoint answered about branch ${hostText(brName)}, not this one (a renamed branch's old name answers this way)`
+          : `the branch endpoint answered HTTP 200 naming ${hostText(brName)}, which is neither this branch nor provably another one`;
+      return { kind: "elsewhere", evidence };
     }
     return {
       kind: "unreadable",
@@ -1785,6 +1791,11 @@ if (cannotAsk !== undefined) {
     // 2026-09-27: `branches/master` → 200 with `"name": "main"` on a repository whose master was
     // renamed). Only an answer about the branch that was asked for shows the branch exists.
     const answeredName = hostField(res.body, "name");
+    // A rename only when the answer names a usable branch that is PROVABLY another name
+    // (provablyAnotherName, red-team B3 of plan 33.1-24): an empty, `..`, `-x`, spaced or
+    // control-character name, or the probed name in another case or with an invisible character,
+    // shows neither this branch nor another one, so the branch is not shown to exist.
+    const renamedTo = typeof answeredName === "string" && usableBranch(answeredName) && provablyAnotherName(answeredName, b) ? answeredName : undefined;
     if (res.status === 200 && answeredName === b) {
       names.push(b);
       // Read through ACCEPT.branchProtectedFlag. An ABSENT key is not recorded, and stays neutral:
@@ -1798,14 +1809,15 @@ if (cannotAsk !== undefined) {
         probed.set(b, { state, value: flag });
         if (state === "held") noteProtectionShown(`branch ${hostText(b)} reports protected true`);
       }
-    } else if (res.status === 200 && typeof answeredName === "string") renamed.set(b, answeredName);
+    } else if (res.status === 200 && renamedTo !== undefined) renamed.set(b, renamedTo);
     else {
       // Not shown to exist (red-team finding 2 of plan 33.1-23): a 404 omits the target, but the
       // name is recorded, so no later read under it (a --branch, the protected-branch list, the
       // classic arm cache) is taken as evidence about a branch of that name.
-      unshownBranches.set(b, res.status === 200 ? "HTTP 200 naming no readable branch" : answered(res));
+      const how = res.status === 200 ? `HTTP 200 naming ${hostText(answeredName)} (neither this branch nor provably another one)` : answered(res);
+      unshownBranches.set(b, how);
       if (res.status !== 404) {
-        targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${answered(res)}`));
+        targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${how}`));
       }
     }
   }
