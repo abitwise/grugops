@@ -26,12 +26,14 @@
 // Removes ONLY what install.ts added:
 //   - the skills install.ts laid down: .claude/skills/<name>/SKILL.md (and the now-empty dirs)
 //   - the adapters install.ts laid down: .claude/agents/<file>.md (and the now-empty dir)
-//   - the AGENTS.md grugops laid down  (ONLY if it is a symlink into the grugops source, or a
-//     copy byte-identical to the source — a user's own AGENTS.md is never removed)
+//   - the AGENTS.md grugops laid down  (ONLY if the install marker's `createdFiles` ledger records
+//     that install created it AND it is still the exact link install makes or a copy byte-identical
+//     to the source — a user's own AGENTS.md, including a byte-identical copy install did not
+//     create, is never removed; plan 33.1-28)
 //   - the CLAUDE.md "GSD:grugops-start-here" sentinel block (only that block; the rest of the
 //     user's CLAUDE.md is preserved verbatim). A block is removed only when both its open and its
-//     close marker are present; an open marker with no close is left, and nothing is written
-//     (plan 33.1-28)
+//     close marker are present; an open marker with no close is left, and nothing is written. The
+//     file itself is deleted by the Copilot rule below (plan 33.1-28)
 //   - the .gemini/settings.json context.fileName entry it added  (AGENTS.md removed from the
 //     array; the file and any other keys are preserved; the file is deleted only if grugops
 //     created it and it is now back to its empty-default shape)
@@ -43,9 +45,12 @@
 //     in the install ledger that are still present; a user's own identical rule is never removed,
 //     and the file is deleted only if install created it and nothing else is left in it)
 //   - the .grugops/install.json marker (the one grugops-owned file under .grugops/ — D-06)
+//   - the runnables under tools/grugops/, only when the `createdFiles` ledger records that install
+//     created them and they are still byte-identical to their source (plan 33.1-28)
 //   - an EMPTY directory it visits, only when grugops owns it (CR-02): the directory is in the
-//     marker's `createdDirs` ledger (install created it), or its own name begins with `grugops`.
-//     An empty .claude/, .claude/agents/, .gemini/ or .github/ the user made is left and reported.
+//     marker's `createdDirs` ledger (install created it). Its name is not evidence (plan 33.1-28
+//     removed the `grugops`-name rule): an empty .claude/, .claude/agents/, .gemini/, .github/ or
+//     .claude/skills/grugops*/ with no record is left and reported.
 //
 // It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state
 // (.grugops/factory.config.json, plans/, memory-bank/), the shared kit at $GRUGOPS_HOME, or any
@@ -61,7 +66,7 @@
 //   DRY_RUN=1 node install/uninstall.js             # preview only
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
 import { existsSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync } from "node:fs";
-import { basename, join, relative, resolve, isAbsolute, sep } from "node:path";
+import { join, relative, resolve, isAbsolute, sep } from "node:path";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts, so the
 // REMOVAL set and the INSTALL set can never be two answers to one predicate again (CR-02). Only the
 // two derivations this file uses are imported — see the kit-set derivation block below for why
@@ -384,14 +389,15 @@ function rmdirIfEmpty(d) {
         // became non-empty in a race, or not removable → leave it
     }
 }
-// ownsDir (CR-02, D-18): grugops owns directory `d` when the install marker's `createdDirs` ledger
-// lists it (install created it), or when its own name begins with `grugops` (the kit namespace:
-// .claude/skills/grugops*, tools/grugops). A shared-name directory (.claude/, .claude/skills/,
-// .claude/agents/, .gemini/, .github/) needs ledger evidence. The ledger is only ever ASKED about
-// the fixed candidates this file visits; it is never iterated to decide what to delete.
+// ownsDir (CR-02, D-18): grugops owns directory `d` only when the install marker's `createdDirs`
+// ledger lists it (install created it). The ledger is only ever ASKED about the fixed candidates this
+// file visits; it is never iterated to decide what to delete.
+//
+// A NAME IS NOT A RECORD (plan 33.1-28, brief DC-2, red-team carry #7). A directory whose own name
+// begins with `grugops` (.claude/skills/grugops*, tools/grugops) used to count as grugops's with no
+// record, so an empty one in a repository grugops was never installed into was removed by its name
+// alone. Every candidate now needs the ledger; one with none is left and reported with the reason.
 function ownsDir(d) {
-    if (basename(d).startsWith("grugops"))
-        return true;
     if (DIR_LEDGER.state !== "ok")
         return false;
     return DIR_LEDGER.dirs.includes(relative(TARGET, d).split(sep).join("/"));
@@ -912,8 +918,8 @@ const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
 const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 // The directory ledger (CR-02), read ONCE here, before anything is removed and before removeMarker()
 // deletes the marker that holds it. ownsDir() consults it for every empty directory this run visits.
-// A malformed ledger or an unreadable marker is one `verify` finding: only grugops-named directories
-// are removed, and every shared-name directory is left for the human.
+// A malformed ledger or an unreadable marker is one `verify` finding, and no empty directory is
+// removed: each is left for the human.
 // Red-team of plan 33.1-27 (B3): read without following a link (install-marker.ts says why). A link
 // at the marker or on the way to it is `unreadable`, so no ledger that is not this target's own is
 // ever believed.
@@ -925,15 +931,14 @@ const DIR_LEDGER = readCreatedDirs(MARKER.state === "ok" ? MARKER.marker : null)
 const FILE_LEDGER = readCreatedFiles(MARKER.state === "ok" ? MARKER.marker : null);
 if (MARKER.state === "unreadable") {
     verify(`.grugops/install.json could not be read as a JSON object (${MARKER.why}), so the directory ledger (createdDirs) and ` +
-        `the file ledger (createdFiles) are unknown. Only directories whose own name begins with grugops are removed; ` +
-        `any other empty directory grugops created is left, and no file install may have created is deleted — remove ` +
-        `them by hand once you have confirmed they are yours to remove.`);
+        `the file ledger (createdFiles) are unknown. No empty directory and no file install may have created is ` +
+        `removed — remove them by hand once you have confirmed they are yours to remove.`);
 }
 else {
     if (DIR_LEDGER.state === "malformed") {
         verify(`.grugops/install.json has a malformed directory ledger (createdDirs), so which directories install ` +
-            `created is unknown. Only directories whose own name begins with grugops are removed; any other empty ` +
-            `directory grugops created is left — remove it by hand once you have confirmed it is yours to remove.`);
+            `created is unknown. No empty directory install may have created is removed — remove it by hand once ` +
+            `you have confirmed it is yours to remove.`);
     }
     if (FILE_LEDGER.state === "malformed") {
         verify(`.grugops/install.json has a malformed file ledger (createdFiles), so which files install created is ` +
@@ -985,8 +990,17 @@ else {
 rmdirIfEmpty(`${TARGET}/.claude`);
 // 3. AGENTS.md — remove ONLY a grugops-laid-down one (symlink into source, or byte-identical
 //    copy of the source AGENTS.md). A user's own AGENTS.md is never removed.
+//
+//    BY RECORD, THEN BY CONTENT (plan 33.1-28, brief DC-2, red-team carry #2). The content test alone
+//    is not provenance: README §1's minimal path copies the kit's AGENTS.md into a repository by hand,
+//    so a byte-identical copy (or a link to the checkout's AGENTS.md) in a repository grugops was never
+//    installed into was deleted. It is removed only when the `createdFiles` ledger records that install
+//    created it (ownsFile) AND it is still install's link or a byte-identical copy; with no record it is
+//    left and the reason is said. The ownership question is asked before removeFile's DRY_RUN branch,
+//    so the preview decides as the real run does.
 const agents = `${TARGET}/AGENTS.md`;
 const srcAgents = join(GRUGOPS_SRC, "AGENTS.md");
+const agentsNotRecorded = () => report("left", `AGENTS.md (it matches the grugops kit, but ${notRecordedReason(FILE_LEDGER, "file")})`);
 if (isProtected(agents)) {
     // never
 }
@@ -996,21 +1010,31 @@ else if (isSymlink(agents)) {
     // follow the link and compare what it resolved to, so any link whose target held the same bytes
     // was removed. A user's own AGENTS.md symlink (e.g. AGENTS.md -> docs/agents.md) is left untouched,
     // as is any other link, and it is never followed.
-    if (isOwnLink(agents, srcAgents)) {
-        removeFile(agents, "AGENTS.md (grugops symlink into source)", srcAgents);
+    if (!isOwnLink(agents, srcAgents)) {
+        report("skipped", "AGENTS.md (user-owned symlink — left untouched)");
+    }
+    else if (!ownsFile("AGENTS.md")) {
+        agentsNotRecorded();
     }
     else {
-        report("skipped", "AGENTS.md (user-owned symlink — left untouched)");
+        removeFile(agents, "AGENTS.md (grugops symlink into source)", srcAgents);
     }
 }
 else if (isFile(agents) && isFile(srcAgents) && sameFileBytes(srcAgents, agents)) {
-    removeFile(agents, "AGENTS.md (grugops copy, byte-identical to source)", null);
+    if (!ownsFile("AGENTS.md"))
+        agentsNotRecorded();
+    else
+        removeFile(agents, "AGENTS.md (grugops copy, byte-identical to source)", null);
 }
 else {
     report("skipped", "AGENTS.md (user-owned or modified — left untouched)");
 }
-// 4. CLAUDE.md sentinel block (preserve the rest of the user's file).
-removeSentinelBlock(`${TARGET}/CLAUDE.md`, CLAUDE_OPEN, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
+// 4. CLAUDE.md sentinel block (preserve the rest of the user's file), and the file itself only when
+//    install created it (createdFiles), this run removed its block and it is blank afterwards: the
+//    same rule as the Copilot file (removeOwnedEmptyFile, plan 33.1-28, D-18). A CLAUDE.md install
+//    created is reversed rather than left behind as an empty file; one the user had, blank or not,
+//    is never deleted.
+removeOwnedEmptyFile("CLAUDE.md", "CLAUDE.md", removeSentinelBlock(`${TARGET}/CLAUDE.md`, CLAUDE_OPEN, CLAUDE_CLOSE, "CLAUDE.md start-here pointer"));
 // 5. Gemini settings entry.
 unmergeGemini();
 rmdirIfEmpty(`${TARGET}/.gemini`);
@@ -1078,17 +1102,28 @@ for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
         report("skipped", `${destRel} (user-modified — left untouched, never-delete-user-content)`);
         continue;
     }
+    // Plan 33.1-28 (brief DC-2): byte identity is not provenance. A runnable is removed only when the
+    // `createdFiles` ledger records that install created it; a byte-identical copy with no record is
+    // left and the reason is said.
+    if (!ownsFile(destRel)) {
+        report("left", `${destRel} (it is byte-identical to its source, but ${notRecordedReason(FILE_LEDGER, "file")})`);
+        continue;
+    }
     removeFile(dest, `${destRel} (grugops runnable, byte-identical to source)`, null);
 }
 // Only the CONTAINING directory, and only when empty — never a recursive removal.
 rmdirIfEmpty(`${TARGET}/tools/grugops`);
-// tools/ itself is deliberately NOT removed, even when the pass above just left it empty. grugops
-// owns tools/grugops/; it does not own tools/, which is an ordinary directory name a project is very
-// likely to own itself, and mkdirp created it only as a side effect of creating the namespaced
-// child. Deleting it would be deleting a directory that is not ours. It is REPORTED as left rather
-// than passing silently, so the one artifact this pass cannot reverse is visible to the reader.
+// tools/ itself is deliberately NOT removed, even when the pass above just left it empty, and even
+// when the install marker's `createdDirs` ledger records that install created it (re-review IN-01,
+// plan 33.1-28). tools/ is an ordinary directory name a project is very likely to own itself: install
+// created it only as a side effect of creating tools/grugops/, and a project may start using it for
+// its own files between the install and the uninstall without that showing in any record. So the
+// ledger entry is not used for tools/, and the line says so rather than implying there is no record.
+// It is REPORTED as left rather than passing silently, so the one artifact this pass cannot reverse
+// is visible to the reader.
 if (isDir(`${TARGET}/tools`)) {
-    report("left", "tools/ (grugops owns tools/grugops/ only — the directory itself is left in place)");
+    report("left", "tools/ (grugops owns tools/grugops/ only — the directory itself is left in place, even when the install " +
+        "marker records that install created it)");
 }
 // 8. The grugops-owned install marker (D-06). Removes ONLY .grugops/install.json via the narrow
 //    named exception; the rest of .grugops/ (seeded user state) is protected and survives. The

@@ -2704,8 +2704,8 @@ function writeMarker(): void {
   if (previousDirs.state === "malformed") {
     verify(
       `${markerRel} — the directory ledger (createdDirs) is malformed, so it was written back unchanged and ` +
-        `the directories this run created were not recorded. Uninstall will remove only directories whose ` +
-        `own name begins with grugops; fix or delete the createdDirs field to restore the ledger.`,
+        `the directories this run created were not recorded. Uninstall will remove no empty directory ` +
+        `install may have created; fix or delete the createdDirs field to restore the ledger.`,
     );
   }
   const previousFiles = readCreatedFiles(previousMarker.state === "ok" ? previousMarker.marker : null);

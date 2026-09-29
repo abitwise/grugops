@@ -95,6 +95,11 @@ describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
     const target = makeFixture();
     const home = mkTmp();
     plantEmptyDirs(target, USER_EMPTY_DIRS);
+    // Plan 33.1-28: a directory is removed only on install's createdDirs record, never by its name,
+    // so the preview can name a directory only in an installed target. Install, then empty one
+    // directory install created (the skill file inside it is gone), so the preview has one to name.
+    expect(runInstall(target, home, false).status).toBe(0);
+    rmSync(join(target, ".claude", "skills", "grugops", "SKILL.md"));
 
     const preview = runUninstall(target, home, true);
     expect(preview.status, preview.stderr).toBe(0);

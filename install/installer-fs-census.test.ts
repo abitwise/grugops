@@ -234,19 +234,19 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "uninstall.ts:unlinkPath:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:276 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:365, call :369), removeOwnedEmptyFile (:587, call :591; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:641, calls :663 and :678), removeAskRules (:826, call :834), removeMarker (:903, call :907)",
+    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:648, calls :670 and :685), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
   },
   {
     site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:296 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:553, call :557; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), unmergeGemini (:641, call :679), removeAskRules (:826, call :839)",
+    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:560, call :564; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), unmergeGemini (:648, call :686), removeAskRules (:833, call :846)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "uninstall.ts:403-406 `if (DRY_RUN)` reports would-rmdir and returns before rmdirSync at :408; emptiness is read with readdirSync at :394 (CR-02 fix)",
+    why: "uninstall.ts:408-411 `if (DRY_RUN)` reports would-rmdir and returns before rmdirSync at :413; emptiness is read with readdirSync at :399, and ownership (the createdDirs ledger only, plan 33.1-28) is decided before that return (CR-02 fix)",
   },
 
 ];

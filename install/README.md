@@ -179,6 +179,21 @@ it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule
 install stays), the runnable checks under `tools/grugops/` that are still byte-identical to what it
 wrote, and the `.grugops/install.json` marker.
 
+A file is deleted only on install's own record. Install records in `.grugops/install.json`, as
+`createdFiles`, each file it created where nothing was before: `CLAUDE.md` and
+`.github/copilot-instructions.md` when it created them to hold its pointer block, the `AGENTS.md`
+it copied or linked in, and the runnables under `tools/grugops/`. The uninstaller deletes `CLAUDE.md`
+or the Copilot file only when that record lists it, it removed the grugops block from it in this
+run, and the file is blank afterwards. It deletes `AGENTS.md` or a runnable only when the record
+lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. A file the record
+does not list is left in place and reported as `left` with the reason, even when it is blank or
+byte-identical to the kit: in a repository you never ran the installer on (for example after the
+minimal copy path in §1) nothing is removed. An install made before this release has no file ledger,
+so the blank pointer files, `AGENTS.md` and the runnables it created are left and reported; remove
+them by hand if you do not want them. A malformed file ledger is a `verify` finding on both sides
+(exit `3`), and the uninstaller then deletes none of these files. A `CLAUDE.md` or Copilot file whose
+grugops open marker has no close marker on a later line is left exactly as it is and reported.
+
 A symbolic link at one of those paths is removed only when it is exactly the link a `--symlink`
 install makes: it points at the kit source file of the checkout you run the uninstaller from. Any
 other link (a dangling one, a loop, a link to a device, to a FIFO, or to a file or directory
@@ -198,15 +213,15 @@ A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It names a dire
 only when that directory is already empty, so the real run can also remove a grugops directory
 that it has just emptied and that the preview did not name.
 
-The uninstaller removes an empty directory only when grugops owns it: either install created it,
-which install records in `.grugops/install.json` as `createdDirs`, or the directory's own name
-begins with `grugops` (`.claude/skills/grugops*/`, `tools/grugops/`). An empty directory you made
-yourself, for example `.github/` or `.gemini/`, is left in place and reported as `left`, in the
-real run and in the preview. An install made before this release has no directory ledger, so its
-shared-name directories (`.claude/`, `.claude/skills/`, `.claude/agents/`, `.gemini/`, `.github/`)
-are left and reported; remove them by hand if they are empty and you do not want them. If the
-directory ledger is malformed or the marker cannot be read, the uninstaller reports a `verify`
-finding, removes only `grugops`-named directories, and exits `3`.
+The uninstaller removes an empty directory only when install created it, which install records in
+`.grugops/install.json` as `createdDirs`. A directory's name is not a record: an empty directory
+you made yourself, for example `.github/`, `.gemini/` or even `.claude/skills/grugops/`, is left in
+place and reported as `left`, in the real run and in the preview. An install made before the
+directory ledger has none, so every empty directory it created is left and reported; remove them by
+hand if they are empty and you do not want them. If the directory ledger is malformed or the marker
+cannot be read, the uninstaller reports a `verify` finding, removes no empty directory, and exits
+`3`. `tools/` is always left, even when install created it: a project is likely to use a directory
+of that name itself.
 
 It deliberately does **not** touch:
 
@@ -215,7 +230,9 @@ It deliberately does **not** touch:
 - your **seeded per-repo state** — `.grugops/factory.config.json`, `plans/`, and `memory-bank/`
   become your content once seeded (they may hold real work), so they survive uninstall
 - an **empty directory you made yourself** — only a directory install created (recorded as
-  `createdDirs` in `.grugops/install.json`) or one whose own name begins with `grugops` is removed
+  `createdDirs` in `.grugops/install.json`) is removed
+- a **file install did not create** — a blank `CLAUDE.md` or Copilot file, or a copy of the kit's
+  `AGENTS.md` or runnables, is removed only when `createdFiles` records that install created it
 - `agent-factory/`, `.planning/`, `docs/`, `src/`, or any file you own
 
 ### Migrating an existing install (`--migrate`)
