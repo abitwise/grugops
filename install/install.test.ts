@@ -5379,7 +5379,7 @@ describe("ask rules: install side (D-18)", () => {
     expect(ledger.createdAsk).toBe(true);
     // The marker keeps a fixed field order with the ledger after installMode.
     const markerKeys = Object.keys(JSON.parse(readFileSync(join(target, ".grugops", "install.json"), "utf8")));
-    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs"]);
+    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles"]);
     expect(r.stdout).toContain("-- permission rules --");
     expect(r.stdout).toContain("speed bump");
     expect(r.stdout).toContain("not a security boundary");
@@ -5783,6 +5783,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       "installMode",
       "claudeAskRules",
       "createdDirs",
+      "createdFiles",
     ]);
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
@@ -5796,6 +5797,141 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
     }
     expect(runInstall(second, home).status).toBe(0);
     expect(readMarkerJson(second).createdDirs).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// FILE OWNERSHIP (plan 33.1-28, Gap B / re-review WR-05, brief DC-2, D-18).
+//
+// Uninstall deletes a file only on an install record: the install marker's `createdFiles` ledger
+// lists it (install created it), and, for a file that held a sentinel block, THIS run removed a
+// block from it and the file is blank afterwards. Presence or shape is never proof: a blank
+// `.github/copilot-instructions.md` in a repository grugops never installed into is the user's, and
+// survives byte-identical. The expected ledger entries are read from the marker a real install
+// wrote, never typed as a list.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
+  const COPILOT = ".github/copilot-instructions.md";
+  const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
+  const readMarkerJson = (t: string): Record<string, unknown> => JSON.parse(readFileSync(markerPathOf(t), "utf8"));
+  const copilotPath = (t: string): string => join(t, ...COPILOT.split("/"));
+  const isBlank = (s: string): boolean => /^[ \t\r\n]*$/.test(s);
+  // The messages a run printed under one report label (label padded to 14 columns after two spaces).
+  const linesUnder = (stdout: string, label: string): string[] =>
+    stdout
+      .split("\n")
+      .map((l) => /^ {2}(\S+)\s+(.+)$/.exec(l))
+      .filter((m): m is RegExpExecArray => m !== null && m[1] === label)
+      .map((m) => m[2]);
+  // The messages under `label` that name `rel` itself (not `rel pointer`, the sentinel-block line).
+  const naming = (stdout: string, label: string, rel: string): string[] =>
+    linesUnder(stdout, label).filter((l) => l === rel || l.startsWith(`${rel} (`) || l.startsWith(`${rel}:`));
+  const runUninstallDry = (target: string, home: string): { status: number | null; stdout: string } => {
+    const r = spawnSync("node", [UNINSTALL_JS], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    return { status: r.status, stdout: r.stdout ?? "" };
+  };
+
+  it("file ownership: a never-installed target keeps its blank .github/copilot-instructions.md byte-identical (real and DRY_RUN)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".github"));
+    writeFileSync(copilotPath(target), "\n");
+    const before = readFileSync(copilotPath(target));
+    expect(existsSync(markerPathOf(target)), "PREMISE: the target was never installed into").toBe(false);
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(copilotPath(target)), "the user's blank Copilot file was deleted").toBe(true);
+    expect(readFileSync(copilotPath(target)).equals(before), "the user's blank Copilot file changed").toBe(true);
+    expect(naming(r.stdout, "removed", COPILOT), r.stdout).toEqual([]);
+    expect(r.stdout).not.toContain("grugops-created");
+
+    // The preview decides as the real run does: it names no removal of the user's file.
+    const dryTarget = makeFixture();
+    mkdirSync(join(dryTarget, ".github"));
+    writeFileSync(copilotPath(dryTarget), "\n");
+    const dry = runUninstallDry(dryTarget, home);
+    expect(dry.status, dry.stdout).toBe(0);
+    expect(naming(dry.stdout, "would-remove", COPILOT), dry.stdout).toEqual([]);
+    expect(readFileSync(copilotPath(dryTarget), "utf8")).toBe("\n");
+  });
+
+  it("file ownership: a never-installed target keeps a Copilot file with user text byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".github"));
+    writeFileSync(copilotPath(target), "# Copilot\n\nThe user's own guidance.\n");
+    const before = readFileSync(copilotPath(target));
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(readFileSync(copilotPath(target)).equals(before)).toBe(true);
+  });
+
+  it("file ownership: a Copilot file install created is recorded as createdFiles and reversed, then .github/", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(existsSync(join(target, ".github")), "PREMISE: the fixture has no .github/").toBe(false);
+    expect(runInstall(target, home).status).toBe(0);
+    const created = readMarkerJson(target).createdFiles;
+    expect(Array.isArray(created), "createdFiles is not an array").toBe(true);
+    expect(created as string[]).toContain(COPILOT);
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(copilotPath(target)), "the Copilot file install created was not reversed").toBe(false);
+    const removed = naming(r.stdout, "removed", COPILOT);
+    expect(removed.some((l) => /install created it/.test(l) && /createdFiles/.test(l)), r.stdout).toBe(true);
+    expect(existsSync(join(target, ".github")), ".github/ (install created it) was not removed").toBe(false);
+    expect(r.stdout).not.toContain("grugops-created");
+  });
+
+  it("file ownership: a blank Copilot file the user had before install keeps existing after uninstall, reported left", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    mkdirSync(join(target, ".github"));
+    writeFileSync(copilotPath(target), "\n");
+    expect(runInstall(target, home).status).toBe(0);
+    const created = readMarkerJson(target).createdFiles;
+    expect(Array.isArray(created), "createdFiles is not an array").toBe(true);
+    expect(created as string[]).not.toContain(COPILOT);
+    expect(readFileSync(copilotPath(target), "utf8")).toContain("GSD:grugops-copilot-start-here"); // non-vacuous
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(existsSync(copilotPath(target)), "the user's pre-existing Copilot file was deleted").toBe(true);
+    const after = readFileSync(copilotPath(target), "utf8");
+    expect(isBlank(after), JSON.stringify(after)).toBe(true);
+    const left = naming(r.stdout, "left", COPILOT);
+    expect(left.length, r.stdout).toBe(1);
+    expect(left[0]).toMatch(/there is no record that install created it/);
+  });
+
+  it("file ownership: the marker keys are in fixed order with createdFiles last; a second install is byte-identical; a run that creates no file writes []", () => {
+    const first = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(first, home).status).toBe(0);
+    const m = readMarkerJson(first);
+    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles"]);
+    const created = m.createdFiles as string[];
+    expect(created).toEqual([...created].sort());
+    expect(created.length).toBeGreaterThan(0);
+    const m1 = readFileSync(markerPathOf(first));
+    expect(runInstall(first, home).status).toBe(0);
+    expect(readFileSync(markerPathOf(first)).equals(m1), "a second install changed the marker").toBe(true);
+
+    // A target that already holds every file the first install created (the same bytes): install
+    // creates none, and still writes the field, as an empty array (a fresh install is the whole history).
+    const second = makeFixture();
+    for (const rel of created) {
+      const dest = join(second, ...rel.split("/"));
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest, readFileSync(join(first, ...rel.split("/"))));
+    }
+    expect(runInstall(second, home).status).toBe(0);
+    expect(readMarkerJson(second).createdFiles).toEqual([]);
   });
 });
 
