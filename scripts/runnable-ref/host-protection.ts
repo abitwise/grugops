@@ -601,10 +601,14 @@ function hostText(v: unknown, max = 200): string {
 }
 
 // A branch name this check will put in a REST path: git's own rules refuse the rest, and refusing
-// `.`/`..` segments keeps a crafted name from resolving to a different endpoint.
+// `.`/`..` segments keeps a crafted name from resolving to a different endpoint. A name holding an
+// invisible, format, private-use or unassigned character (\p{C}, or default-ignorable) is not a
+// plain name either (sibling of red-team B1/B3 of plan 33.1-24, DC-1): a host answer naming one is
+// never judged and never evidence.
 function usableBranch(name: string): boolean {
   if (name.length === 0 || name.startsWith("-")) return false;
   if (/[\u0000- \u007f-\u009f]/.test(name)) return false;
+  if (/[\p{C}\p{Default_Ignorable_Code_Point}]/u.test(name)) return false;
   return name.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
 }
 
