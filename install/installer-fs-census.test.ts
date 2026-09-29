@@ -150,13 +150,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:ensureBlock:appendFileSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1701-1704 `if (DRY_RUN)` reports would-add and returns before appendFileSync at :1710 (an existing regular file readForWrite read; red-team of plan 33.1-26)",
+    why: "install.ts:1763-1766 `if (DRY_RUN)` reports would-add and returns before appendFileSync at :1775 (an existing regular file readForWrite read; red-team of plan 33.1-26). The create branch above it (writeTargetFile, then recordCreatedFile for the createdFiles ledger, plan 33.1-28) is after the same return",
   },
   {
     site: "install.ts:linkOrCopy:symlinkSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1752-1755 returns before symlinkSync at :1763 (reached only when readForWrite answered create)",
+    why: "install.ts:1821-1824 returns before symlinkSync at :1832 (reached only when readForWrite answered create)",
   },
   {
     site: "install.ts:migratePreSteps:renameSync",
@@ -234,19 +234,19 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "uninstall.ts:unlinkPath:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:268 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:357, call :361), removeIfEmpty (:528, call :532), unmergeGemini (:583, calls :602 and :617), removeAskRules (:765, call :773), removeMarker (:842, call :846)",
+    why: "uninstall.ts:276 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:365, call :369), removeOwnedEmptyFile (:587, call :591; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:641, calls :663 and :678), removeAskRules (:826, call :834), removeMarker (:903, call :907)",
   },
   {
     site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:288 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:458, call :513), unmergeGemini (:583, call :618), removeAskRules (:765, call :778)",
+    why: "uninstall.ts:296 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:553, call :557; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), unmergeGemini (:641, call :679), removeAskRules (:826, call :839)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "uninstall.ts:270-273 `if (DRY_RUN)` reports would-rmdir and returns before rmdirSync at :275; emptiness is read with readdirSync at :265 (CR-02 fix)",
+    why: "uninstall.ts:403-406 `if (DRY_RUN)` reports would-rmdir and returns before rmdirSync at :408; emptiness is read with readdirSync at :394 (CR-02 fix)",
   },
 
 ];

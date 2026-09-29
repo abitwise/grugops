@@ -1,5 +1,5 @@
-// install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the two
-// ledgers it carries (plan 33.1-21, CR-02 and WR-05).
+// install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the three
+// ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B).
 //
 // Cross-platform. ZERO npm dependencies: it imports only node:path and ./user-file.ts. A
 // sibling of install.js and uninstall.js inside install/, imported by BOTH binaries, so both still
@@ -16,15 +16,21 @@
 // (not a regular file, too large, unreadable) is `unreadable` here, and each caller already has a
 // fail-closed answer for an unreadable marker.
 //
-// WHY ONE READER. The marker holds two ledgers the uninstaller depends on to reverse an install
+// WHY ONE READER. The marker holds three ledgers the uninstaller depends on to reverse an install
 // without deleting user content:
 //   - `claudeAskRules` — the Claude Code ask rules install added to .claude/settings.json (D-18);
-//   - `createdDirs`    — the directories install itself created under the target (CR-02).
+//   - `createdDirs`    — the directories install itself created under the target (CR-02);
+//   - `createdFiles`   — the files install itself created under the target (plan 33.1-28, Gap B /
+//                        re-review WR-05): the files ensureBlock creates to hold a sentinel block
+//                        (CLAUDE.md, .github/copilot-instructions.md), the AGENTS.md install copies
+//                        or links in, and the runnables it materializes under tools/grugops/.
+//                        Uninstall deletes one of those files only when this ledger lists it.
 // Each binary used to hold its own reader of the ask-rule ledger, and the two disagreed about a
 // malformed one: install read it as "no previous install" and relabelled every grugops rule as the
 // user's own (fail open), while uninstall refused (fail closed). That is WR-05. A second ledger
 // with two readers would repeat the defect, so both binaries now read the marker and both ledgers
-// here, as tri-states, and neither can read a malformed ledger as an empty one.
+// here, as tri-states, and neither can read a malformed ledger as an empty one. The third ledger
+// follows the same rule, so it has one reader too.
 //
 // THE MARKER IS READ WITHOUT FOLLOWING A LINK (red-team of plan 33.1-27, B3, brief DC-2). The marker
 // holds the ledgers uninstall deletes by, so it must be THIS target's own record. readUserFile follows
@@ -45,7 +51,7 @@
 //   malformedLedgers:  the names of the ledgers in an `ok` marker that are present but malformed.
 //                      A caller that would act on the marker as a whole (uninstall's removal of it)
 //                      does so only when this is empty.
-//   readCreatedDirs / readAskRuleLedger:
+//   readCreatedDirs / readCreatedFiles / readAskRuleLedger:
 //                      `absent`     the marker has no such field (an install made before the
 //                                   ledger existed);
 //                      `malformed`  the field is present but not the exact ledger shape;
@@ -53,11 +59,12 @@
 // `raw` is always the field's value as found, so a caller that must leave a malformed ledger as it
 // was can write it back verbatim.
 //
-// THE createdDirs SHAPE. An array of strings. Each entry is a path relative to the target in POSIX
-// form: non-empty, not starting with `/`, containing no `\` and no `:`, and every `/`-separated
-// segment is non-empty and is neither `.` nor `..`. So no entry can name a path outside the
-// target. The uninstaller only asks whether one of its own fixed candidate directories is IN the
-// ledger; it never iterates the ledger to decide what to delete, and it never removes recursively.
+// THE createdDirs AND createdFiles SHAPE (isLedgerPath, one rule for both). An array of strings. Each
+// entry is a path relative to the target in POSIX form: non-empty, not starting with `/`, containing
+// no `\` and no `:`, and every `/`-separated segment is non-empty and is neither `.` nor `..`. So no
+// entry can name a path outside the target. The uninstaller only asks whether one of its own fixed
+// candidate paths is IN a ledger; it never iterates a ledger to decide what to delete, and it never
+// removes recursively.
 //
 // Clear professional voice: this is a safety surface (installer reversal).
 import { join } from "node:path";
@@ -89,8 +96,10 @@ function fieldOf(marker, name) {
         return { present: false, raw: undefined };
     return { present: true, raw: marker[name] };
 }
-// isLedgerDir: one createdDirs entry has the shape stated in the header.
-export function isLedgerDir(entry) {
+// isLedgerPath: one createdDirs or createdFiles entry has the shape stated in the header. The same
+// rule serves both ledgers, because a file path and a directory path under the target have the same
+// shape.
+export function isLedgerPath(entry) {
     if (typeof entry !== "string" || entry === "")
         return false;
     if (entry.startsWith("/") || entry.includes("\\") || entry.includes(":"))
@@ -101,9 +110,19 @@ export function readCreatedDirs(marker) {
     const { present, raw } = fieldOf(marker, "createdDirs");
     if (!present)
         return { state: "absent", dirs: [], raw };
-    if (!Array.isArray(raw) || !raw.every(isLedgerDir))
+    if (!Array.isArray(raw) || !raw.every(isLedgerPath))
         return { state: "malformed", dirs: [], raw };
     return { state: "ok", dirs: [...new Set(raw)].sort(), raw };
+}
+// readCreatedFiles (plan 33.1-28): the `createdFiles` ledger, with the createdDirs shape rule, sort
+// and de-duplication.
+export function readCreatedFiles(marker) {
+    const { present, raw } = fieldOf(marker, "createdFiles");
+    if (!present)
+        return { state: "absent", files: [], raw };
+    if (!Array.isArray(raw) || !raw.every(isLedgerPath))
+        return { state: "malformed", files: [], raw };
+    return { state: "ok", files: [...new Set(raw)].sort(), raw };
 }
 export function readAskRuleLedger(marker) {
     const { present, raw } = fieldOf(marker, "claudeAskRules");
@@ -138,6 +157,8 @@ export function malformedLedgers(marker) {
     const out = [];
     if (readCreatedDirs(marker).state === "malformed")
         out.push("createdDirs");
+    if (readCreatedFiles(marker).state === "malformed")
+        out.push("createdFiles");
     if (readAskRuleLedger(marker).state === "malformed")
         out.push("claudeAskRules");
     return out;

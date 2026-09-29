@@ -29,11 +29,16 @@
 //   - the AGENTS.md grugops laid down  (ONLY if it is a symlink into the grugops source, or a
 //     copy byte-identical to the source — a user's own AGENTS.md is never removed)
 //   - the CLAUDE.md "GSD:grugops-start-here" sentinel block (only that block; the rest of the
-//     user's CLAUDE.md is preserved verbatim)
+//     user's CLAUDE.md is preserved verbatim). A block is removed only when both its open and its
+//     close marker are present; an open marker with no close is left, and nothing is written
+//     (plan 33.1-28)
 //   - the .gemini/settings.json context.fileName entry it added  (AGENTS.md removed from the
 //     array; the file and any other keys are preserved; the file is deleted only if grugops
 //     created it and it is now back to its empty-default shape)
-//   - the .github/copilot-instructions.md sentinel block (only that block)
+//   - the .github/copilot-instructions.md sentinel block (only that block), and the file itself only
+//     when the install marker's `createdFiles` ledger records that install created it, THIS run
+//     removed a block from it, and it is blank afterwards (removeOwnedEmptyFile, plan 33.1-28, Gap B
+//     / re-review WR-05). A file the user had, blank or not, is never deleted.
 //   - the Claude Code ask rules it added to .claude/settings.json permissions.ask (exactly the rules
 //     in the install ledger that are still present; a user's own identical rule is never removed,
 //     and the file is deleted only if install created it and nothing else is left in it)
@@ -68,7 +73,7 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { MARKER_REL, readInstallMarker, readCreatedDirs, readAskRuleLedger, malformedLedgers, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, malformedLedgers, } from "./install-marker.js";
 // DC-3 (plan 33.1-27): the ONE bounded reader of a user path, shared with install.ts. readForWrite is
 // its no-follow form for a path this run may edit, wayTo the same walk for a path removed by name,
 // kindAt names what is at a path, and unreadState is the one wording of an unread state. isOwnLink is
@@ -364,7 +369,7 @@ function rmdirIfEmpty(d) {
     if (entries.length > 0)
         return;
     if (!ownsDir(d)) {
-        report("left", `${d} (${notOwnedReason()})`);
+        report("left", `${d} (${notRecordedReason(DIR_LEDGER, "directory")})`);
         return;
     }
     if (DRY_RUN) {
@@ -391,24 +396,36 @@ function ownsDir(d) {
         return false;
     return DIR_LEDGER.dirs.includes(relative(TARGET, d).split(sep).join("/"));
 }
-function notOwnedReason() {
-    if (DIR_LEDGER.state === "ok") {
-        return "install did not create it — it is not in the install marker's directory ledger; left in place";
+// ownsFile (plan 33.1-28, Gap B / re-review WR-05, D-18): install created file `rel` (a POSIX path
+// relative to the target) only when the install marker's `createdFiles` ledger is readable and lists
+// it. Nothing else is evidence: not the file's name, not its being blank, not its bytes matching the
+// kit's. The ledger is only ever ASKED about the fixed paths this file visits; it is never iterated to
+// decide what to delete.
+function ownsFile(rel) {
+    return FILE_LEDGER.state === "ok" && FILE_LEDGER.files.includes(rel);
+}
+// notRecordedReason (re-review IN-01, plan 33.1-28): the ONE wording of "there is no install record
+// for this path", for a directory (createdDirs) or a file (createdFiles), chosen from the state of the
+// ledger that would have held it. It says what the record shows, never more: a path missing from a
+// readable ledger has no record that install created it, which is not the same as "install did not
+// create it" (an install made before a later re-install, or a record the human edited, can differ).
+function notRecordedReason(ledger, what) {
+    if (ledger.state === "ok") {
+        return `there is no record that install created it — it is not in the install marker's ${what} ledger; left in place`;
     }
-    if (DIR_LEDGER.state === "malformed" || MARKER.state === "unreadable") {
-        return "the directory ledger could not be used (see the verify line above), so there is no record that install created it; left in place";
+    if (ledger.state === "malformed" || MARKER.state === "unreadable") {
+        return `the ${what} ledger could not be used (see the verify line above), so there is no record that install created it; left in place`;
     }
     if (MARKER.state === "absent") {
         return "there is no install marker, so there is no record that install created it; left in place";
     }
-    return "the install marker predates the directory ledger, so there is no record that install created it; left in place";
+    return `the install marker predates the ${what} ledger, so there is no record that install created it; left in place`;
 }
-// remove_sentinel_block: strip exactly the open..close sentinel block from a user file,
-// preserving every other line. Idempotent (no block → no-op). Never truncates the whole file.
+const NO_BLOCK_REMOVED = { removed: false, blankAfter: false };
 function removeSentinelBlock(f, open, close, label) {
     if (isProtected(f)) {
         report("refused", `${label} (protected path)`);
-        return;
+        return NO_BLOCK_REMOVED;
     }
     // DC-3 (plan 33.1-27): readForWrite, never a plain read. Nothing there is the existing "no block"
     // answer. A special file, a link, or a non-directory on the way is a counted verify: it was not
@@ -416,21 +433,17 @@ function removeSentinelBlock(f, open, close, label) {
     const read = readForWrite(TARGET, f);
     if (read.state === "create") {
         report("skipped", `${label} (no grugops block present)`);
-        return;
+        return NO_BLOCK_REMOVED;
     }
     if (read.state === "blocked") {
         verify(`${label}: ${read.at} ${read.reason}. It was not read and was left untouched, so a grugops block ` +
             `in it, if there is one, was not removed.`);
-        return;
+        return NO_BLOCK_REMOVED;
     }
     const text = read.text;
     if (!text.includes(open)) {
         report("skipped", `${label} (no grugops block present)`);
-        return;
-    }
-    if (DRY_RUN) {
-        report("would-remove", `${label} (sentinel block only)`);
-        return;
+        return NO_BLOCK_REMOVED;
     }
     // Drop the open..close block. install.ts prepends one blank line before the block; we buffer
     // pending blank lines and emit them only when a real line follows, which trims that separator
@@ -439,8 +452,7 @@ function removeSentinelBlock(f, open, close, label) {
     // CR-01 (bounded removal): an UNTERMINATED open marker (close sentinel missing because the
     // file was hand-edited or a prior run was interrupted) must NEVER cause every line after the
     // open marker to be deleted — that is silent loss of user content. We buffer the block lines
-    // and only commit the deletion when a matching close is actually seen; if inblk is still set
-    // at END, the block never closed, so we emit the buffered lines unchanged (remove nothing).
+    // and only commit the deletion when a matching close is actually seen.
     //
     // The sh awk reads line-records split on "\n". The text read above preserves a trailing newline as a
     // trailing empty field on split("\n"); awk does not emit that phantom empty record, so we drop
@@ -451,20 +463,17 @@ function removeSentinelBlock(f, open, close, label) {
     const lines = hadTrailingNewline ? rawLines.slice(0, -1) : rawLines;
     const out = [];
     let inblk = false;
+    let terminated = 0;
     let pend = 0;
-    let buf = [];
     for (const line of lines) {
         if (line === open) {
             inblk = true;
-            buf = [];
             continue;
         }
         if (inblk) {
             if (line === close) {
-                inblk = false; // terminated block → drop the buffer
-            }
-            else {
-                buf.push(line); // buffer until we know it terminates
+                inblk = false; // terminated block → drop it
+                terminated += 1;
             }
             continue;
         }
@@ -478,36 +487,61 @@ function removeSentinelBlock(f, open, close, label) {
         }
         out.push(line);
     }
-    // Unterminated open at EOF: the block never closed → restore what we buffered (lose nothing).
-    if (inblk && buf.length > 0) {
-        for (const line of buf)
-            out.push(line);
+    // NO TERMINATED BLOCK, NO WRITE (plan 33.1-28, brief DC-2). The open marker is present, but not as
+    // an open line followed by a close line (the close is missing, or the marker is not on a line of
+    // its own). The file used to be rewritten anyway: the open line and trailing blank lines were
+    // dropped while the run printed "sentinel block only". Nothing here is a block install wrote
+    // whole, so the file is left exactly as it is, and the reason is said.
+    if (terminated === 0 || inblk) {
+        report("left", `${label} (the file holds a grugops open marker without a matching close marker on a later line, so ` +
+            `no complete grugops block was found; nothing was removed and the file was left as it is — remove ` +
+            `the grugops lines by hand)`);
+        return NO_BLOCK_REMOVED;
     }
     // Reconstruct with a trailing newline (awk's print adds a newline after every emitted record).
     const result = out.length > 0 ? out.join("\n") + "\n" : "";
-    if (rewritePath(f, result, label))
-        report("removed", `${label} (sentinel block only; rest of file preserved)`);
-}
-// remove_if_empty: delete a file grugops created if it is now empty / whitespace-only after its
-// sentinel block was stripped. Used for the optional Copilot pointer (when grugops created the
-// file fresh, removing the block leaves it empty → fully reverse it). Guarded; never recursive.
-function removeIfEmpty(f, label) {
-    if (isProtected(f))
-        return;
-    // DC-3 (plan 33.1-27): only a regular file readForWrite read is a candidate; anything else was
-    // already reported by removeSentinelBlock for the same path, and is left.
-    const read = readForWrite(TARGET, f);
-    if (read.state !== "ok")
-        return;
-    const content = read.text;
-    // whitespace-only (or zero-byte) → remove
-    if (content.replace(/[ \t\n\r]/g, "") === "") {
-        if (DRY_RUN) {
-            report("would-remove", `${label} (empty after block removal)`);
-            return;
-        }
-        unlinkPath(f, label, `${label} (file empty after block removal — grugops-created)`);
+    const blankAfter = result.replace(/[ \t\r\n]/g, "") === "";
+    if (DRY_RUN) {
+        report("would-remove", `${label} (sentinel block only)`);
+        return { removed: true, blankAfter };
     }
+    if (!rewritePath(f, result, label))
+        return NO_BLOCK_REMOVED;
+    report("removed", `${label} (sentinel block only; rest of file preserved)`);
+    return { removed: true, blankAfter };
+}
+// removeOwnedEmptyFile (plan 33.1-28, Gap B / re-review WR-05, brief DC-2, D-18): delete a file that
+// held a grugops sentinel block ONLY when all three hold:
+//   1. THIS run removed a terminated block from it (`result.removed`, from removeSentinelBlock);
+//   2. the file is blank after that removal (`result.blankAfter`: spaces, tabs, CR and LF only);
+//   3. the install marker's `createdFiles` ledger records that install created it (ownsFile).
+// It replaces a remover that deleted any whitespace-only file at the path and called it
+// "grugops-created" with no record: a user's blank .github/copilot-instructions.md in a repository
+// grugops never installed into was deleted. Presence and shape are not provenance. A file that fails
+// condition 3 stays, blank, and is reported `left` with the reason the ledger state gives. A
+// protected path is refused, and anything that is not a regular file inside the target is left by the
+// one removal decision (removalDecision). Ownership and the decision are taken before the DRY_RUN
+// branch, so the preview names exactly what the real run removes.
+function removeOwnedEmptyFile(rel, label, result) {
+    if (!result.removed || !result.blankAfter)
+        return;
+    const f = `${TARGET}/${rel}`;
+    if (isProtected(f)) {
+        report("refused", `${label} (protected path — never removed)`);
+        return;
+    }
+    if (!ownsFile(rel)) {
+        report("left", `${rel} (it is blank after the block removal, but ${notRecordedReason(FILE_LEDGER, "file")})`);
+        return;
+    }
+    const d = removalDecision(f, rel, null);
+    if (reportDecision(d))
+        return;
+    if (DRY_RUN) {
+        report("would-remove", `${rel} (install created it — recorded as createdFiles — and it would be blank after the block removal)`);
+        return;
+    }
+    unlinkPath(f, rel, `${rel} (install created it — recorded as createdFiles — and it is empty after the block removal)`);
 }
 // unmerge_gemini: remove AGENTS.md from .gemini/settings.json context.fileName via a safe JSON
 // edit (Node is always present now — this is a TS routine). If grugops created the file and it
@@ -565,7 +599,10 @@ function unmergeGemini() {
         ctxKeys.length === 1 &&
         ctxKeys[0] === "fileName" &&
         onlyGrugopsEntries;
-    const removedLine = ".gemini/settings.json AGENTS.md entry (Node JSON edit; grugops-created file removed if now empty)";
+    // Plan 33.1-28 (T-33.1-281): the line no longer calls the file "grugops-created". This step still
+    // decides by the file's shape, not by an install record; that is plan 33.1-29's geminiSettings
+    // ledger, and the line says only what was done.
+    const removedLine = ".gemini/settings.json AGENTS.md entry (Node JSON edit; the whole file is removed when it held only the default context.fileName shape or nothing else)";
     if (isGrugopsDefault) {
         unlinkPath(f, ".gemini/settings.json", removedLine);
         return;
@@ -882,15 +919,27 @@ const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 // ever believed.
 const MARKER = readInstallMarker(TARGET);
 const DIR_LEDGER = readCreatedDirs(MARKER.state === "ok" ? MARKER.marker : null);
+// The file ledger (plan 33.1-28, Gap B / re-review WR-05), read ONCE here with the directory ledger
+// and from the same marker read. ownsFile() consults it before any file install may have created is
+// deleted. An unreadable marker is still ONE verify finding, naming both ledgers.
+const FILE_LEDGER = readCreatedFiles(MARKER.state === "ok" ? MARKER.marker : null);
 if (MARKER.state === "unreadable") {
-    verify(`.grugops/install.json could not be read as a JSON object (${MARKER.why}), so the directory ledger (createdDirs) is ` +
-        `unknown. Only directories whose own name begins with grugops are removed; any other empty directory ` +
-        `grugops created is left — remove it by hand once you have confirmed it is yours to remove.`);
+    verify(`.grugops/install.json could not be read as a JSON object (${MARKER.why}), so the directory ledger (createdDirs) and ` +
+        `the file ledger (createdFiles) are unknown. Only directories whose own name begins with grugops are removed; ` +
+        `any other empty directory grugops created is left, and no file install may have created is deleted — remove ` +
+        `them by hand once you have confirmed they are yours to remove.`);
 }
-else if (DIR_LEDGER.state === "malformed") {
-    verify(`.grugops/install.json has a malformed directory ledger (createdDirs), so which directories install ` +
-        `created is unknown. Only directories whose own name begins with grugops are removed; any other empty ` +
-        `directory grugops created is left — remove it by hand once you have confirmed it is yours to remove.`);
+else {
+    if (DIR_LEDGER.state === "malformed") {
+        verify(`.grugops/install.json has a malformed directory ledger (createdDirs), so which directories install ` +
+            `created is unknown. Only directories whose own name begins with grugops are removed; any other empty ` +
+            `directory grugops created is left — remove it by hand once you have confirmed it is yours to remove.`);
+    }
+    if (FILE_LEDGER.state === "malformed") {
+        verify(`.grugops/install.json has a malformed file ledger (createdFiles), so which files install created is ` +
+            `unknown. No file install may have created is deleted — remove such a file by hand once you have ` +
+            `confirmed it is yours to remove.`);
+    }
 }
 console.log("\n-- removing grugops adapters (only what install.js added) --");
 // 1. Skills + empty dirs. Derived from the kit source, intersected with the target: a skill the
@@ -969,10 +1018,10 @@ rmdirIfEmpty(`${TARGET}/.gemini`);
 //     the ledger lives in .grugops/install.json.
 console.log("\n-- removing grugops Claude Code ask rules (only what install.js added) --");
 removeAskRules();
-// 6. Copilot pointer block (and remove the file if grugops created it and it is now empty). Uses
-//    the Copilot-specific sentinel (WR-05), not the CLAUDE.md one.
-removeSentinelBlock(`${TARGET}/${COPILOT_REL}`, COPILOT_OPEN, COPILOT_CLOSE, `${COPILOT_REL} pointer`);
-removeIfEmpty(`${TARGET}/${COPILOT_REL}`, COPILOT_REL);
+// 6. Copilot pointer block, and the file itself only when install created it (createdFiles), this
+//    run removed its block and it is blank afterwards (removeOwnedEmptyFile, plan 33.1-28). Uses the
+//    Copilot-specific sentinel (WR-05), not the CLAUDE.md one.
+removeOwnedEmptyFile(COPILOT_REL, COPILOT_REL, removeSentinelBlock(`${TARGET}/${COPILOT_REL}`, COPILOT_OPEN, COPILOT_CLOSE, `${COPILOT_REL} pointer`));
 rmdirIfEmpty(`${TARGET}/.github`);
 // 7. The kit-shipped RUNNABLES the installer materializes into the user's repository (WR-04,
 //    plan 27-13). This pass is the missing half of the installer's reversibility constraint: before
