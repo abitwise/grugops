@@ -1,10 +1,20 @@
 // install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the two
 // ledgers it carries (plan 33.1-21, CR-02 and WR-05).
 //
-// Cross-platform. Node stdlib ONLY (node:fs read calls) — ZERO npm dependencies. A sibling of
-// install.js and uninstall.js inside install/, imported by BOTH binaries, so both still run on a
-// host with nothing installed. This module never writes: it imports read-only fs names only, and
-// install/installer-fs-census.test.ts scans it with the rest of install/.
+// Cross-platform. ZERO npm dependencies: it imports only ./user-file.ts (node builtins only). A
+// sibling of install.js and uninstall.js inside install/, imported by BOTH binaries, so both still
+// run on a host with nothing installed. This module never writes and imports nothing from node:fs;
+// install/installer-fs-census.test.ts scans it with the rest of install/ and asserts it makes no
+// content read of its own.
+//
+// WHY THE MARKER IS READ THROUGH readUserFile (plan 33.1-27, IN-04, brief DC-3). The marker is a
+// path in the user's repository, so it may be a FIFO, a directory, a device or a symlink to one.
+// A plain read of a FIFO blocks until a writer appears: the installer used to hang there forever,
+// the same shape Phase 31 round 5 found at a write chokepoint. readUserFile decides the file type
+// before it opens anything and opens only a regular file within its size bound, so this reader
+// never blocks and never releases a writer blocked on a FIFO. Every state but `ok` and `absent`
+// (not a regular file, too large, unreadable) is `unreadable` here, and each caller already has a
+// fail-closed answer for an unreadable marker.
 //
 // WHY ONE READER. The marker holds two ledgers the uninstaller depends on to reverse an install
 // without deleting user content:
@@ -17,8 +27,10 @@
 // here, as tri-states, and neither can read a malformed ledger as an empty one.
 //
 // THE STATES.
-//   readInstallMarker: `absent`     the marker file does not exist (no install, or a removed one);
-//                      `unreadable` it exists but could not be read, is not JSON, or is not a
+//   readInstallMarker: `absent`     nothing is at the marker path (no install, or a removed one);
+//                      `unreadable` something is there and it is not a readable regular file
+//                                   within the bound (a FIFO, a directory, a dangling link, a path
+//                                   under a non-directory, ...), or it is not JSON, or it is not a
 //                                   plain JSON object;
 //                      `ok`         a plain object.
 //   readCreatedDirs / readAskRuleLedger:
@@ -36,19 +48,15 @@
 // ledger; it never iterates the ledger to decide what to delete, and it never removes recursively.
 //
 // Clear professional voice: this is a safety surface (installer reversal).
-import { lstatSync, readFileSync } from "node:fs";
+import { readUserFile } from "./user-file.js";
 export function readInstallMarker(path) {
-    try {
-        lstatSync(path);
-    }
-    catch (e) {
-        const code = e.code;
-        if (code === "ENOENT" || code === "ENOTDIR")
-            return { state: "absent", marker: null };
+    const read = readUserFile(path);
+    if (read.state === "absent")
+        return { state: "absent", marker: null };
+    if (read.state !== "ok")
         return { state: "unreadable", marker: null };
-    }
     try {
-        const parsed = JSON.parse(readFileSync(path, "utf8"));
+        const parsed = JSON.parse(read.text);
         if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
             return { state: "unreadable", marker: null };
         }

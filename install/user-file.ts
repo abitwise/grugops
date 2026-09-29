@@ -236,6 +236,20 @@ export function readForWrite(root: string, path: string, maxBytes: number = USER
 }
 
 /**
+ * What is at `path` itself, by lstat (a link is not followed): the kind wording readUserFile uses
+ * ("regular file", "symbolic link", "directory", "fifo", ...), or null when nothing is there or the
+ * path cannot be lstat'ed. For a caller that removes a path by name (uninstall.ts), which may remove
+ * a regular file or a link but never a directory or a special file (plan 33.1-27). It only lstats.
+ */
+export function kindAt(path: string): string | null {
+  try {
+    return kindOf(lstatSync(path));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * What one directory component on the way to a write is, for the caller that creates the missing
  * ones (install.ts mkdirp): `absent`, a real directory (`fine`), or the reason it is neither.
  * The same rule readForWrite applies to every directory on the way, from one place.

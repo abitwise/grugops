@@ -9,6 +9,17 @@
 //
 // Cross-platform. Node stdlib ONLY: node:fs + node:path — ZERO npm dependencies.
 //
+// EVERY READ OF A FILE'S CONTENT GOES THROUGH ./user-file.ts (plan 33.1-27, brief DC-3). Any path in
+// the target may be a FIFO, a directory, a device or a symlink to one; a plain read of a FIFO blocks
+// forever and a read of /dev/zero never ends. This file imports no node:fs content reader: the
+// sentinel-block edits, the Gemini and ask-rule edits, the empty-file check and the byte compares
+// all read through readUserFile (or readForWrite, its no-follow form for a path this run may write),
+// which opens only a regular file within its size bound and never releases a writer blocked on a
+// FIFO. A path this run edits is asked through readForWrite first, so a symbolic link or a
+// non-directory at the path or on the way to it is refused rather than followed. A path this run
+// removes by name is removed only when it is a regular file or a link; a directory or a special
+// file there is left and reported. install/installer-fs-census.test.ts holds the rule.
+//
 // Removes ONLY what install.ts added:
 //   - the skills install.ts laid down: .claude/skills/<name>/SKILL.md (and the now-empty dirs)
 //   - the adapters install.ts laid down: .claude/agents/<file>.md (and the now-empty dir)
@@ -41,7 +52,7 @@
 //   node install/uninstall.js --allow-self          # override the self-checkout guard (CR-04)
 //   DRY_RUN=1 node install/uninstall.js             # preview only
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
-import { existsSync, rmSync, readFileSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync, readlinkSync, realpathSync, } from "node:fs";
+import { existsSync, rmSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync, readlinkSync, realpathSync, } from "node:fs";
 import { basename, join, relative, resolve, isAbsolute, sep } from "node:path";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts, so the
 // REMOVAL set and the INSTALL set can never be two answers to one predicate again (CR-02). Only the
@@ -55,6 +66,10 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
 import { readInstallMarker, readCreatedDirs, readAskRuleLedger, } from "./install-marker.js";
+// DC-3 (plan 33.1-27): the ONE bounded reader of a user path, shared with install.ts. readForWrite is
+// its no-follow form for a path this run may edit, wayTo the same walk for a path removed by name,
+// kindAt names what is at a path, and unreadState is the one wording of an unread state.
+import { readUserFile, readForWrite, wayTo, kindAt, unreadState } from "./user-file.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -228,6 +243,21 @@ function removeFile(f, label) {
         report("skipped", `${label} (not present)`);
         return;
     }
+    // DC-3 / D-18 (plan 33.1-27): asked before the preview branch, so the preview and the real run
+    // name the same paths. A link or a non-directory on the way means the path is not where it looks
+    // (a removal would land outside the target): that is a verify, because an older install may have
+    // written through it. A directory or a special file at the path is not something install writes,
+    // so it is left and said; rmSync on a directory would also throw.
+    const way = wayTo(TARGET, f);
+    if (way !== null && way !== "absent") {
+        verify(`${label}: ${way.at} ${way.reason}. The path was not removed; remove it by hand if it is grugops's.`);
+        return;
+    }
+    const kind = kindAt(f);
+    if (kind !== "regular file" && kind !== "symbolic link") {
+        report("left", `${label} (it is a ${kind ?? "path that could not be read"}, not a file install writes — left in place)`);
+        return;
+    }
     if (DRY_RUN) {
         report("would-remove", label);
         return;
@@ -252,6 +282,9 @@ function removeFile(f, label) {
 // above still holds.
 function rmdirIfEmpty(d) {
     if (isProtected(d))
+        return;
+    // A link or non-directory on the way (plan 33.1-27): the directory is not inside the target.
+    if (wayTo(TARGET, d) !== null)
         return;
     if (!isDir(d))
         return;
@@ -311,18 +344,20 @@ function removeSentinelBlock(f, open, close, label) {
         report("refused", `${label} (protected path)`);
         return;
     }
-    let text;
-    if (!isFile(f)) {
+    // DC-3 (plan 33.1-27): readForWrite, never a plain read. Nothing there is the existing "no block"
+    // answer. A special file, a link, or a non-directory on the way is a counted verify: it was not
+    // read, so whether it holds a grugops block is unknown, and it is never written.
+    const read = readForWrite(TARGET, f);
+    if (read.state === "create") {
         report("skipped", `${label} (no grugops block present)`);
         return;
     }
-    try {
-        text = readFileSync(f, "utf8");
-    }
-    catch {
-        report("skipped", `${label} (no grugops block present)`);
+    if (read.state === "blocked") {
+        verify(`${label}: ${read.at} ${read.reason}. It was not read and was left untouched, so a grugops block ` +
+            `in it, if there is one, was not removed.`);
         return;
     }
+    const text = read.text;
     if (!text.includes(open)) {
         report("skipped", `${label} (no grugops block present)`);
         return;
@@ -341,7 +376,7 @@ function removeSentinelBlock(f, open, close, label) {
     // and only commit the deletion when a matching close is actually seen; if inblk is still set
     // at END, the block never closed, so we emit the buffered lines unchanged (remove nothing).
     //
-    // The sh awk reads line-records split on "\n". readFileSync preserves a trailing newline as a
+    // The sh awk reads line-records split on "\n". The text read above preserves a trailing newline as a
     // trailing empty field on split("\n"); awk does not emit that phantom empty record, so we drop
     // a single trailing "" before processing and re-add the trailing newline on write — preserving
     // the sh byte output.
@@ -393,15 +428,12 @@ function removeSentinelBlock(f, open, close, label) {
 function removeIfEmpty(f, label) {
     if (isProtected(f))
         return;
-    if (!isFile(f))
+    // DC-3 (plan 33.1-27): only a regular file readForWrite read is a candidate; anything else was
+    // already reported by removeSentinelBlock for the same path, and is left.
+    const read = readForWrite(TARGET, f);
+    if (read.state !== "ok")
         return;
-    let content;
-    try {
-        content = readFileSync(f, "utf8");
-    }
-    catch {
-        return;
-    }
+    const content = read.text;
     // whitespace-only (or zero-byte) → remove
     if (content.replace(/[ \t\n\r]/g, "") === "") {
         if (DRY_RUN) {
@@ -419,18 +451,19 @@ function unmergeGemini() {
     const f = `${TARGET}/.gemini/settings.json`;
     if (isProtected(f))
         return;
-    if (!isFile(f)) {
+    // DC-3 (plan 33.1-27): readForWrite, never a plain read; a blocked path is a counted verify and is
+    // never written.
+    const read = readForWrite(TARGET, f);
+    if (read.state === "create") {
         report("skipped", ".gemini/settings.json (not present)");
         return;
     }
-    let raw;
-    try {
-        raw = readFileSync(f, "utf8");
-    }
-    catch {
-        report("skipped", ".gemini/settings.json (not present)");
+    if (read.state === "blocked") {
+        verify(`.gemini/settings.json: ${read.at} ${read.reason}. It was not read and was left untouched, so an ` +
+            `AGENTS.md entry grugops added, if there is one, was not removed.`);
         return;
     }
+    const raw = read.text;
     if (!raw.includes("AGENTS.md")) {
         report("skipped", ".gemini/settings.json (no AGENTS.md entry to remove)");
         return;
@@ -539,13 +572,21 @@ function removeAskRules() {
     }
     const led = askRead.ledger;
     const ledger = new Set(led.added);
-    if (!pathExists(f)) {
+    // DC-3 (plan 33.1-27): readForWrite, never a plain read; a blocked path is a counted verify and is
+    // never written.
+    const read = readForWrite(TARGET, f);
+    if (read.state === "create") {
         report("skipped", `${rel} (not present — the ${ledger.size} ask rule(s) in the install ledger are already gone)`);
+        return;
+    }
+    if (read.state === "blocked") {
+        verify(`${rel}: ${read.at} ${read.reason}. It was not read and was left untouched; the ${ledger.size} ask ` +
+            `rule(s) grugops added were NOT removed. Remove them by hand.`);
         return;
     }
     let json;
     try {
-        const parsed = JSON.parse(readFileSync(f, "utf8"));
+        const parsed = JSON.parse(read.text);
         if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
             throw new Error("not an object");
         json = parsed;
@@ -654,6 +695,16 @@ function removeMarker() {
         report("skipped", ".grugops/install.json (marker not present)");
         return;
     }
+    // DC-3 / D-18 (plan 33.1-27): install writes the marker as a regular file inside a real .grugops/
+    // directory. Anything else there (a FIFO, a directory, a link, or a link on the way) is not the
+    // marker install wrote, was never read (MARKER above says why), and is left in place.
+    const way = wayTo(TARGET, m);
+    const kind = kindAt(m);
+    if ((way !== null && way !== "absent") || kind !== "regular file") {
+        const what = way !== null && way !== "absent" ? `${way.at} ${way.reason}` : `it is a ${kind ?? "path that could not be read"}`;
+        report("left", `.grugops/install.json (${what}; not the marker install writes — left in place)`);
+        return;
+    }
     if (DRY_RUN) {
         report("would-remove", ".grugops/install.json (grugops-owned marker)");
         return;
@@ -662,14 +713,17 @@ function removeMarker() {
     report("removed", ".grugops/install.json (grugops-owned marker; seeded .grugops/ state preserved)");
 }
 // sameFileBytes: byte-identical content compare following symlinks (mirrors `cmp -s`). Used for
-// the grugops-owned-AGENTS.md tests.
+// the grugops-owned-AGENTS.md tests and the runnables. DC-3 (plan 33.1-27): both sides are read
+// through readUserFile, so a FIFO, directory or device on either side is never opened; the answer
+// is "the same" only when BOTH reads are `ok` and their bytes are equal.
 function sameFileBytes(a, b) {
-    try {
-        return readFileSync(a).equals(readFileSync(b));
-    }
-    catch {
+    const ra = readUserFile(a);
+    if (ra.state !== "ok")
         return false;
-    }
+    const rb = readUserFile(b);
+    if (rb.state !== "ok")
+        return false;
+    return ra.bytes.equals(rb.bytes);
 }
 // ---------------------------------------------------------------------------
 // SELF-CHECKOUT GUARD (ALWAYS-ON) — the reversal half of install.ts's D-07 guard, closing CR-04.
@@ -875,6 +929,13 @@ for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
     }
     if (!pathExists(dest)) {
         report("skipped", `${destRel} (not present)`);
+        continue;
+    }
+    // DC-3 (plan 33.1-27): a dest that is not a readable regular file is never opened and never a
+    // candidate for removal; say what it is rather than calling it user-modified.
+    const destRead = readUserFile(dest);
+    if (destRead.state !== "ok" && destRead.state !== "absent") {
+        report("left", `${destRel} (${unreadState(destRead)} — it was not read, and it was left in place)`);
         continue;
     }
     if (!isFile(src)) {
