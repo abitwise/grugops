@@ -132,11 +132,17 @@
 // branch policy is `unknown` (the check does not read which branches it allows). A reviewer counts
 // only in the documented shape (`type` "User" or "Team" and a `reviewer` whose `id` is a positive
 // integer); a reviewers list holding anything else is `unknown` (re-review WR-01). An entry of
-// `protection_rules` that is not an object with a string `type` can only turn a row that would be
-// `failed` into `unknown`; what a readable rule shows stays shown. No environment of that name is `unknown` for every row, and
-// the verdict says grugops cannot tell how production deploys run. Two environments of that name,
-// or two `required_reviewers` rules in it, are `unknown` too: the check never takes the first
-// match of a host list (nor the first of two HTTP status lines). Same verdict rule as branches.
+// `protection_rules` that is not a rule of a documented other type (wait_timer, branch_policy) may
+// be a required_reviewers rule, so it can only turn a row that would be `failed` into `unknown`;
+// what the one required_reviewers rule shows stays shown. No environment of that name is `unknown`
+// for every row, and the verdict says grugops cannot tell how production deploys run. Two
+// environments of that name, or two `required_reviewers` rules in it, are `unknown` too: the check
+// never takes the first match of a host list (nor the first of two HTTP status lines), and an entry
+// counts as ANOTHER environment or rule only when it provably is one (a plain name that differs
+// apart from case, a documented other rule type; red-team B1 of plan 33.1-24). A list that names a
+// further page, or whose `total_count` is present and is not the length of the list read, is not
+// read whole, so every row is `unknown` (red-team B2 of plan 33.1-24; an absent total_count is
+// neutral). Same verdict rule as branches.
 // Reviewer identities are never printed; the evidence counts them. The name is `--env <name>`,
 // else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
 // `agent-factory/config/factory.config.json` (both relative to the working directory; an
@@ -385,6 +391,16 @@ const ACCEPT = {
   ruleEntry: {
     held: (v: unknown) => isObject(v) && typeof v.type === "string",
   },
+  // The `type` of one entry of an environment's `protection_rules` (red-team B1 of plan 33.1-24,
+  // DC-1): held when the entry is a `required_reviewers` rule; failed when it is provably ANOTHER
+  // rule, which only a documented other type shows (`wait_timer`, `branch_policy`: the environment
+  // protection rule types of GitHub's REST description, 33.1-RESEARCH.md); anything else (absent,
+  // not a string, empty, another spelling, an undocumented type) is unknown, and such an entry may
+  // be a second required_reviewers rule. Compared exactly: "Required_Reviewers" is not documented.
+  reviewerRuleType: {
+    held: (v: unknown) => v === "required_reviewers",
+    failed: (v: unknown) => v === "wait_timer" || v === "branch_policy",
+  },
   // current_user_can_bypass on `GET rulesets/<id>`: only "never" binds; the three documented other
   // values are read as bypassable; anything else is not readable.
   rulesetBypass: {
@@ -578,6 +594,24 @@ function usableBranch(name: string): boolean {
 // Encode a branch name for a REST path, keeping `/` literal (branch names may contain it).
 function branchPath(name: string): string {
   return name.split("/").map(encodeURIComponent).join("/");
+}
+
+// THE ONE AUTHORITY for "this host-supplied name is PROVABLY another name than `target`" (red-team
+// B1 and B3 of plan 33.1-24, DC-1). A string that merely differs is not enough: a garbled value that
+// is still a string must never pass as "another entry" beside the one the check selects, and must
+// never pass as "the host answered about another branch". Provably another only when the name is a
+// non-empty string that, after NFKC normalisation, has no whitespace at either end, no whitespace
+// other than a plain space, and no control, format, unassigned, private-use or default-ignorable
+// (invisible) character, and that does not equal `target` apart from case (GitHub: environment
+// names are not case sensitive; a branch name that differs from the probed one only in case is not
+// read as a rename either). Anything else may name the same thing, so it is never "another".
+const NOT_A_PLAIN_NAME = /[\p{C}\p{Default_Ignorable_Code_Point}]|[^\S ]/u;
+function provablyAnotherName(candidate: unknown, target: string): boolean {
+  if (typeof candidate !== "string" || candidate.length === 0) return false;
+  const c = candidate.normalize("NFKC");
+  if (c !== c.trim() || NOT_A_PLAIN_NAME.test(c)) return false;
+  const t = target.normalize("NFKC");
+  return c.toLowerCase() !== t.toLowerCase() && c.toUpperCase() !== t.toUpperCase();
 }
 
 // --- the branch floor -------------------------------------------------------------------------
@@ -1407,17 +1441,19 @@ function readClassicProtectionEvidence(): Shown {
 
 const NO_ENVIRONMENT: Shown = { state: "unknown", evidence: "there is no environment of that name to read" };
 
-// The environment's readable `required_reviewers` rules, plus `partial` when some entry of
-// `protection_rules` is not a readable rule (not an object with a string `type`); undefined when
-// `protection_rules` is not an array (an unexpected shape, never read as "no rules").
+// THE ONE PARTITION of an environment's `protection_rules` (red-team B1 of plan 33.1-24, DC-1).
+// Every entry is one of three: a `required_reviewers` rule (in `rules`), provably another rule (a
+// documented other type), or possibly a required_reviewers rule (anything else, counted by
+// `partial`): ACCEPT.reviewerRuleType decides. Undefined when `protection_rules` is not an array (an
+// unexpected shape, never read as "no rules").
 function reviewerRules(env: Record<string, unknown>): { rules: Record<string, unknown>[]; partial: boolean } | undefined {
   const list = hostField(env, "protection_rules");
   if (!Array.isArray(list)) return undefined;
   const entries: unknown[] = list;
-  const readable = entries.filter((r): r is Record<string, unknown> => readFact(r, ACCEPT.ruleEntry) === "held");
+  const kinds = entries.map((r) => readFact(hostField(r, "type"), ACCEPT.reviewerRuleType));
   return {
-    rules: readable.filter((r) => hostField(r, "type") === "required_reviewers"),
-    partial: readable.length < entries.length,
+    rules: entries.filter((r, i): r is Record<string, unknown> => isObject(r) && kinds[i] === "held"),
+    partial: kinds.includes("unknown"),
   };
 }
 
@@ -1434,16 +1470,18 @@ const MANY_REVIEWER_RULES = (n: number): Shown => ({
   evidence: `the environment lists ${n} required_reviewers rules, so which one applies is not readable`,
 });
 // Whether the one-rule answer is readable at all (plan 33.1-24, sibling of the evidence-field
-// pairs finding, DC-1). More than one required_reviewers rule is not; neither is one readable rule
-// beside an entry of protection_rules that is not a readable rule, because that entry may be a
-// second required_reviewers rule (garbling one field of a duplicate must not turn "which one
-// applies is not readable" into a pass). A readable entry of another type is provably not one.
+// pairs finding, DC-1). More than one required_reviewers rule is not; neither is one such rule
+// beside an entry of protection_rules that is not provably another rule, because that entry may be
+// a second required_reviewers rule (garbling one field of a duplicate, its type included, must not
+// turn "which one applies is not readable" into a pass). Only an entry of a documented other type
+// is provably not one (red-team B1 of plan 33.1-24).
 function ambiguousReviewerRules(found: { rules: Record<string, unknown>[]; partial: boolean }): Shown | undefined {
   if (found.rules.length > 1) return MANY_REVIEWER_RULES(found.rules.length);
   if (found.rules.length === 1 && found.partial) {
     return {
       state: "unknown",
-      evidence: "an entry of protection_rules is not a readable rule and may be a second required_reviewers rule, so which one applies is not readable",
+      evidence:
+        "an entry of protection_rules is not a rule of a documented other type (wait_timer, branch_policy) and may be a second required_reviewers rule, so which one applies is not readable",
     };
   }
   return undefined;
@@ -1569,6 +1607,24 @@ const ENVIRONMENT_FLOOR: readonly EnvironmentRow[] = [
   },
 ];
 
+// THE ONE PARTITION of the environments list (red-team B1 of plan 33.1-24, DC-1). Every entry is
+// one of three: an environment of the configured name (an object whose `name` is exactly that
+// string, in `matches`), provably another environment (provablyAnotherName: a plain name that
+// differs apart from case, after NFKC normalisation), or possibly another environment of the
+// configured name (anything else, counted by `possible`): an absent, wrong-typed or empty name, one
+// that equals the configured name apart from case, or one with an invisible character or stray
+// whitespace. GitHub documents environment names as not case sensitive and unique.
+function environmentPartition(entries: unknown[], name: string): { matches: Record<string, unknown>[]; possible: number } {
+  const matches: Record<string, unknown>[] = [];
+  let possible = 0;
+  for (const e of entries) {
+    const entryName = hostField(e, "name");
+    if (isObject(e) && entryName === name) matches.push(e);
+    else if (!provablyAnotherName(entryName, name)) possible++;
+  }
+  return { matches, possible };
+}
+
 // Every production floor row `unknown`, for an environment the check could not read at all.
 function unreadEnvironmentFacts(why: string): Fact[] {
   return ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, state: "unknown", evidence: why }));
@@ -1583,23 +1639,20 @@ function environmentVerdict(name: string, source: string): Target {
     return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
   }
   const entries: unknown[] = list;
-  const matches = entries.filter((e) => hostField(e, "name") === name);
-  // An entry with no readable name may be another environment of this name (plan 33.1-24, sibling
-  // of the evidence-field pairs finding, DC-1): garbling one field of a duplicate must not turn
-  // "which one deploys use is not readable" into a pass. An entry with another readable name is
-  // provably another environment.
-  const unnamed = entries.filter((e) => typeof hostField(e, "name") !== "string").length;
+  // An entry whose name is not provably another environment's may be another environment of this
+  // name (plan 33.1-24 and its red-team B1, DC-1): garbling one field of a duplicate, its name
+  // included, must not turn "which one deploys use is not readable" into a pass.
+  const { matches, possible } = environmentPartition(entries, name);
   // Two environments of one name do not say which one deploys use: never first-match-wins
   // (red-team finding 4 of plan 33.1-22, D-30); every row is unknown.
-  if (matches.length > 1 || (matches.length === 1 && unnamed > 0)) {
+  if (matches.length > 1 || (matches.length === 1 && possible > 0)) {
     const reason =
       matches.length > 1
         ? `the host lists ${matches.length} environments named ${name}, so which one deploys use is not readable`
-        : `the host lists an environment named ${name} beside ${unnamed} entr${unnamed === 1 ? "y" : "ies"} with no readable name, which may be another environment of that name, so which one deploys use is not readable`;
+        : `the host lists an environment named ${name} beside ${possible} entr${possible === 1 ? "y" : "ies"} whose name is not provably another environment's (absent, not a plain name, or the same name apart from case), which may be another environment of that name, so which one deploys use is not readable`;
     return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
   }
-  const found: unknown = matches[0];
-  const env = isObject(found) ? found : undefined;
+  const env: Record<string, unknown> | undefined = matches[0];
   // Every branch verdict ran before this one, so the classic arm cache already holds this run's
   // branch reads; the branch-policy row reuses them before asking the host anything new.
   const run: RunEvidence = { classicProtection: classicProtectionEvidence };
