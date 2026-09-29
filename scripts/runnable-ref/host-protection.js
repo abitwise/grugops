@@ -851,7 +851,7 @@ const ENVIRONMENT_FLOOR = [
             if (found === undefined)
                 return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
             const states = found.rules.map(reviewersOf);
-            const at = states.indexOf("held");
+            const at = states.findIndex((state) => state === "held");
             if (at >= 0) {
                 const n = reviewerCount(found.rules[at]);
                 return { state: states[at], evidence: `a required_reviewers rule names ${n} reviewer${n === 1 ? "" : "s"}` };
