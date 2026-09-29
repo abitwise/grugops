@@ -534,14 +534,21 @@ function answered(res) {
     const message = typeof text === "string" ? ` (${printable(text)})` : "";
     return `HTTP ${res.status}${message}`;
 }
-// Untrusted text (branch names, host messages) is printed with control characters replaced and
-// its length bounded, so a hostile value cannot rewrite the audit line it appears in. A single host
-// value is bounded at 200 characters; a composed reason or fact evidence (our own text around host
-// values that were each bounded already) at REASON_MAX, since a branch reason names up to four
-// floor rows with the evidence from both arms.
+// THE ONE TEXT AUTHORITY for every printed line. Untrusted text (branch names, host messages, user
+// arguments) is printed with control characters (C0, C1) replaced by `?`, and with every format
+// character (Cf: bidi controls such as U+202E and U+2066..U+2069, zero-width characters, the
+// byte-order mark), line or paragraph separator (Zl, Zp: U+2028, U+2029), lone surrogate (Cs) and
+// other default-ignorable (invisible) code point written as a visible escape such as `\u{202e}`
+// (red-team B4 of plan 33.1-25). So a hostile value cannot reorder, hide or split the audit line
+// it appears in. The length is bounded too: a single host value at 200 characters; a composed
+// reason or fact evidence (our own text around host values that were each bounded already) at
+// REASON_MAX, since a branch reason names up to four floor rows with the evidence from both arms.
 const REASON_MAX = 2000;
+const INVISIBLE_TEXT = /[\p{Cf}\p{Zl}\p{Zp}\p{Cs}\p{Default_Ignorable_Code_Point}]/gu;
 function printable(s, max = 200) {
-    const clean = s.replace(/[\u0000-\u001f\u007f-\u009f]/g, "?");
+    const clean = s
+        .replace(/[\u0000-\u001f\u007f-\u009f]/g, "?")
+        .replace(INVISIBLE_TEXT, (c) => `\\u{${(c.codePointAt(0) ?? 0).toString(16)}}`);
     return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 // THE ONE WAY A HOST VALUE ENTERS EVIDENCE TEXT (red-team finding 5 of plan 33.1-22). Never

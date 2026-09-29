@@ -2985,7 +2985,11 @@ describe("host-protection.js — red-team 33.1-24 sibling: a host branch name wi
   });
   it.each(INVISIBLE_IN_BRANCH)("the default branch is named trunk with %s, and that name's rules show every row → that target UNKNOWN - verify, exit 2", (_label, ch) => {
     const r = runCheck(trunkNamed(`trunk${ch}`), ["--json"]);
-    expect(verdictOf(r.stdout, "branch", `trunk${ch}`)).toBe("UNKNOWN - verify");
+    // Changed by the red-team round of plan 33.1-25 (B4): the printed name writes a format or
+    // invisible character as a visible escape, so the one trunk line is found by its plain prefix.
+    const trunkLines = targetLines(r.stdout).filter((l) => l.startsWith("branch trunk"));
+    expect(trunkLines).toHaveLength(1);
+    expect(TARGET_LINE.exec(trunkLines[0])?.[3]).toBe("UNKNOWN - verify");
     expect(callsTo(r.calls, "rules/branches/trunk%")).toBe(0);
     expect(r.status).toBe(2);
   });
