@@ -37,6 +37,9 @@
 // This is the static half. The behavioural half is section 5, "evidence-field matrix" (plan
 // 33.1-23): every field of every host answer that feeds a floor row, taken from the strong fixture
 // by walking it, removed, nulled or garbled alone, run through the COMMITTED host-protection.js.
+// Section 6, "evidence-field pairs" (plan 33.1-24), breaks two fields at once: sibling fields of one
+// answer, the representatives of every two floor rows, and each branch row beside the
+// protected-branch evidence of the environment's branch-policy row.
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
@@ -1144,6 +1147,69 @@ const SIBLING_PAIRS = siblingPairs();
 // policy 1, its reviewer rule 3, the reviewer entry 1, and the protected-branch list element 1.
 const SIBLING_PAIR_COUNT = 62;
 
+// ── Cross-row and cross-target pairs (plan 33.1-24 Task 2) ──────────────────────────────────────
+// The row ids come from baseline runs' facts, never from a typed list.
+const CLASSIC_RUN = runHostCheck(BASELINES.CLASSIC_ARM());
+const RULESET_RUN = runHostCheck(BASELINES.RULESET_ARM());
+const ROW_IDS: readonly string[] = [...rowStates(CLASSIC_RUN.json).keys()];
+const BRANCH_IDS: readonly string[] = (targetOf(RULESET_RUN.json, "branch", "main")?.facts ?? []).map((f) => f.id);
+
+// A row's REPRESENTATIVE: among the evidence paths of the given bodies that feed the row, the one
+// that feeds the fewest rows, then the deepest, then the first in walk order (the sort is stable).
+// The plan's literal rule ("the first evidence path in walk order") picks each body's ROOT, which
+// feeds every row of its target, so the 45 row pairs would collapse into three fixtures (classic
+// root absent, environments root absent, both). The most specific field keeps each pair about the
+// two rows it names; the choice is recorded in 33.1-24-SUMMARY.md.
+const feedsOf = (p: WalkedPath): readonly string[] => LEAVES[p.key] ?? [];
+function representative(row: string, bodies: readonly BodyName[]): WalkedPath | undefined {
+  const candidates = EVIDENCE_PATHS.filter((p) => bodies.includes(p.body) && feedsOf(p).includes(row));
+  return [...candidates].sort((a, b) => feedsOf(a).length - feedsOf(b).length || b.segs.length - a.segs.length)[0];
+}
+const CLASSIC_BODIES: readonly BodyName[] = BODY_NAMES.filter((b) => BODIES[b].baseline === "CLASSIC_ARM");
+const RULESET_RULE_BODIES: readonly BodyName[] = ["rules", "ruleset"];
+
+interface RowPair {
+  rows: readonly [string, string];
+  paths: readonly [WalkedPath | undefined, WalkedPath | undefined];
+}
+function rowPairs(): RowPair[] {
+  const out: RowPair[] = [];
+  ROW_IDS.forEach((a, i) => {
+    for (const b of ROW_IDS.slice(i + 1)) out.push({ rows: [a, b], paths: [representative(a, CLASSIC_BODIES), representative(b, CLASSIC_BODIES)] });
+  });
+  return out;
+}
+const ROW_PAIRS = rowPairs();
+// C(10, 2): the ten floor rows of the CLASSIC_ARM run (floor.branch plus floor.environment).
+const ROW_PAIR_COUNT = 45;
+
+// The protected-branch evidence: every evidence path of the protected-branch list, and the listed
+// branch's classic answer (its root).
+const PROTECTED_BRANCH_PATHS: readonly WalkedPath[] = [
+  ...EVIDENCE_PATHS.filter((p) => p.body === "protectedList"),
+  ...WALKED.filter((p) => p.body === "listedClassic" && p.segs.length === 0),
+];
+interface CrossPair {
+  row: string;
+  branchPath: WalkedPath | undefined;
+  policyPath: WalkedPath;
+}
+const CROSS_TARGET_PAIRS: readonly CrossPair[] = BRANCH_IDS.flatMap((row) =>
+  PROTECTED_BRANCH_PATHS.map((policyPath) => ({ row, branchPath: representative(row, RULESET_RULE_BODIES), policyPath })),
+);
+// 5 branch rows × (4 protected-branch-list evidence paths + the listed branch's classic root).
+const CROSS_TARGET_PAIR_COUNT = 25;
+
+// Both members absent; a representative two rows share is one member.
+function absentMembers(paths: ReadonlyArray<WalkedPath | undefined>): PairMember[] {
+  const out: PairMember[] = [];
+  for (const p of paths) {
+    if (p === undefined) throw new Error("a row has no representative evidence path");
+    if (!out.some((x) => x.path.key === p.key)) out.push({ path: p, m: "absent" });
+  }
+  return out;
+}
+
 describe("evidence-field pairs (DC-1, plan 33.1-24)", () => {
   it("SIBLING_PAIRS is derived from the walk, holds no inert path, and has the pinned count", () => {
     const byParent = countBy(SIBLING_PAIRS.map(([a]) => parentKey(a) ?? ""));
@@ -1169,6 +1235,62 @@ describe("evidence-field pairs (DC-1, plan 33.1-24)", () => {
         ];
         expectPairClassRule(members, runHostCheck(mutatedPair(members)));
       }
+    });
+  }
+
+  it("ROW_PAIRS is C(n, 2) over the CLASSIC_ARM run's fact ids, every row has a CLASSIC_ARM representative, and the count is pinned", () => {
+    console.log(
+      `host-protection row pairs: ${ROW_PAIRS.length} (rows: ${ROW_IDS.join(", ")})\n` +
+        ROW_IDS.map((id) => `  ${id} ← ${representative(id, CLASSIC_BODIES)?.key ?? "(none)"}`).join("\n"),
+    );
+    const n = ROW_IDS.length;
+    expect(n).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
+    expect(new Set(ROW_IDS).size).toBe(n);
+    expect(ROW_PAIRS.length).toBe((n * (n - 1)) / 2);
+    expect(ROW_PAIRS.length).toBe(ROW_PAIR_COUNT);
+    for (const id of ROW_IDS) {
+      const rep = representative(id, CLASSIC_BODIES);
+      expect(rep, `${id} has no representative`).toBeDefined();
+      expect(BODIES[rep!.body].baseline, id).toBe("CLASSIC_ARM");
+      expect(feedsOf(rep!), id).toContain(id);
+    }
+  });
+
+  for (const { rows, paths } of ROW_PAIRS) {
+    it(`row pair ${rows[0]} + ${rows[1]} (${paths[0]?.key} + ${paths[1]?.key})`, { timeout: 30_000 }, () => {
+      const members = absentMembers(paths);
+      expectPairClassRule(members, runHostCheck(mutatedPair(members)));
+    });
+  }
+
+  it("CROSS_TARGET_PAIRS is (branch rows) × (protected-branch evidence paths) from the RULESET_ARM run, and the count is pinned", () => {
+    console.log(
+      `host-protection cross-target pairs: ${CROSS_TARGET_PAIRS.length} (${BRANCH_IDS.length} branch rows × ${PROTECTED_BRANCH_PATHS.length} protected-branch evidence paths: ${PROTECTED_BRANCH_PATHS.map((p) => p.key).join(", ")})\n` +
+        BRANCH_IDS.map((id) => `  ${id} ← ${representative(id, RULESET_RULE_BODIES)?.key ?? "(none)"}`).join("\n"),
+    );
+    expect(BRANCH_IDS).toEqual([...BRANCH_ROWS]);
+    for (const p of PROTECTED_BRANCH_PATHS) {
+      expect(BODIES[p.body].baseline, p.key).toBe("RULESET_ARM");
+      expect(feedsOf(p), p.key).toContain("branch_policy");
+    }
+    for (const id of BRANCH_IDS) {
+      const rep = representative(id, RULESET_RULE_BODIES);
+      expect(rep, `${id} has no representative`).toBeDefined();
+      expect(BODIES[rep!.body].baseline, id).toBe("RULESET_ARM");
+    }
+    expect(CROSS_TARGET_PAIRS.length).toBe(BRANCH_IDS.length * PROTECTED_BRANCH_PATHS.length);
+    expect(CROSS_TARGET_PAIRS.length).toBe(CROSS_TARGET_PAIR_COUNT);
+  });
+
+  for (const { row, branchPath, policyPath } of CROSS_TARGET_PAIRS) {
+    it(`cross-target pair ${row} (${branchPath?.key}) + ${policyPath.key}`, { timeout: 30_000 }, () => {
+      const members = absentMembers([branchPath, policyPath]);
+      const r = runHostCheck(mutatedPair(members));
+      const label = pairLabel(members);
+      // The brief's own example: a branch-policy line beside a branch that is not protected.
+      expect(targetOf(r.json, "branch", "main")?.verdict, `${label}\n${r.stdout}`).not.toBe("protected");
+      expect(rowStates(r.json).get("branch_policy"), `${label}\n${r.stdout}`).not.toBe("held");
+      expectPairClassRule(members, r);
     });
   }
 });
