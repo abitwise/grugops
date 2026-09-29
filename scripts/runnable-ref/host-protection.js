@@ -105,7 +105,9 @@
 // integer); a reviewers list holding anything else is `unknown` (re-review WR-01). An entry of
 // `protection_rules` that is not an object with a string `type` can only turn a row that would be
 // `failed` into `unknown`; what a readable rule shows stays shown. No environment of that name is `unknown` for every row, and
-// the verdict says grugops cannot tell how production deploys run. Same verdict rule as branches.
+// the verdict says grugops cannot tell how production deploys run. Two environments of that name,
+// or two `required_reviewers` rules in it, are `unknown` too: the check never takes the first
+// match of a host list (nor the first of two HTTP status lines). Same verdict rule as branches.
 // Reviewer identities are never printed; the evidence counts them. The name is `--env <name>`,
 // else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
 // `agent-factory/config/factory.config.json` (both relative to the working directory; an
@@ -211,16 +213,25 @@ function apiGet(path) {
     const head = split === null ? r.stdout : r.stdout.slice(0, split.index);
     const rest = split === null ? "" : r.stdout.slice(split.index + split[0].length);
     let status;
+    let statusLines = 0;
     let next = false;
     for (const line of head.split(/\r?\n/)) {
         const m = /^HTTP\/[0-9.]+ ([0-9]{3})(?:\s|$)/.exec(line);
-        if (m !== null && status === undefined)
-            status = Number(m[1]);
+        if (m !== null) {
+            statusLines++;
+            if (status === undefined)
+                status = Number(m[1]);
+        }
         if (/^link:/i.test(line) && /rel="next"/.test(line))
             next = true;
     }
     if (status === undefined) {
         return { status: undefined, body: undefined, next: false, problem: "gh returned no readable HTTP status" };
+    }
+    // Never first-match-wins (red-team finding 4, D-30): a header block with more than one status
+    // line does not say which status answers.
+    if (statusLines > 1) {
+        return { status: undefined, body: undefined, next: false, problem: "gh printed more than one HTTP status line in one header block" };
     }
     // gh's exit status must agree with the status it printed (D-30: an answer the same run
     // contradicts is never evidence). Measured 2026-09-29 on gh 2.96.0: `gh api --method GET -i`
@@ -919,10 +930,15 @@ function reviewerRules(env) {
 function reviewersOf(rule) {
     return readFact(hostField(rule, "reviewers"), ACCEPT.reviewerList);
 }
-// The reviewer rule whose fields the self-review row reads: the first whose reviewers read `held`,
-// else the first `required_reviewers` rule.
+// More than one `required_reviewers` rule in one answer does not say which one the host enforces,
+// so neither reviewer row picks one (never first-match-wins, red-team finding 4 of plan 33.1-22,
+// D-30): both rows are `unknown`. Otherwise the one rule, or undefined when there is none.
+const MANY_REVIEWER_RULES = (n) => ({
+    state: "unknown",
+    evidence: `the environment lists ${n} required_reviewers rules, so which one applies is not readable`,
+});
 function reviewerRule(rules) {
-    return rules.find((r) => reviewersOf(r) === "held") ?? rules[0];
+    return rules.length === 1 ? rules[0] : undefined;
 }
 // How many reviewers of the documented shape a rule names (the evidence counts; it never names).
 function reviewerCount(rule) {
@@ -949,6 +965,8 @@ const ENVIRONMENT_FLOOR = [
             const found = reviewerRules(env);
             if (found === undefined)
                 return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
+            if (found.rules.length > 1)
+                return MANY_REVIEWER_RULES(found.rules.length);
             const states = found.rules.map(reviewersOf);
             const at = states.findIndex((state) => state === "held");
             if (at >= 0) {
@@ -977,6 +995,8 @@ const ENVIRONMENT_FLOOR = [
             const found = reviewerRules(env);
             if (found === undefined)
                 return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
+            if (found.rules.length > 1)
+                return MANY_REVIEWER_RULES(found.rules.length);
             const rule = reviewerRule(found.rules);
             if (rule === undefined) {
                 return {
@@ -1044,7 +1064,14 @@ function environmentVerdict(name, source) {
         return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
     }
     const entries = list;
-    const found = entries.find((e) => hostField(e, "name") === name);
+    const matches = entries.filter((e) => hostField(e, "name") === name);
+    // Two environments of one name do not say which one deploys use: never first-match-wins
+    // (red-team finding 4 of plan 33.1-22, D-30); every row is unknown.
+    if (matches.length > 1) {
+        const reason = `the host lists ${matches.length} environments named ${name}, so which one deploys use is not readable`;
+        return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
+    }
+    const found = matches[0];
     const env = isObject(found) ? found : undefined;
     const facts = ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, ...row.read(env) }));
     if (env === undefined) {
