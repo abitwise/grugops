@@ -525,13 +525,14 @@ target with one of three words:
 Before the target lines, the check prints the repository it inspected, `repository <owner>/<name>`,
 as gh resolved `{owner}/{repo}` (the `GH_REPO` variable, `gh repo set-default`, or the git remotes).
 In a fork clone, confirm that it names the repository your agent pushes to. When the host does not
-name the repository, or names it inconsistently (its `full_name` and `url` disagree), the line reads
+name the repository, or names it inconsistently (its `full_name` and `url` disagree, or its `name`,
+`owner` or `html_url` names another), the line reads
 `repository UNKNOWN - verify` and every target reads `UNKNOWN - verify`. The check reads that `url`
 only in its plain form, `https://api.github.com/repos/<owner>/<name>`, or
 `https://<host>/api/v3/repos/<owner>/<name>` on GitHub Enterprise Server; any other form, including
 an API host other than `api.github.com` without the `/api/v3` prefix, reads
 `repository UNKNOWN - verify`. Other urls in the host's answers that name a repository (a protection
-record's `url`, an environment's `url` and `html_url`, a listed branch's `protection_url`) must name
+record's `url`, an environment's `url` and `html_url`, a branch's `protection_url`) must name
 the same one, or the lines they feed read `UNKNOWN - verify`.
 
 Exit codes: `0` every target is protected; `1` at least one target is unprotected; `2` otherwise,
