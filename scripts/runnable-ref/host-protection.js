@@ -157,8 +157,9 @@
 // Reviewer identities are never printed; the evidence counts them. The name is `--env <name>`,
 // else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
 // `agent-factory/config/factory.config.json` (both relative to the working directory; an
-// unparseable file or a non-array value falls through), else `production`. The line names the
-// source.
+// unparseable file or a non-array value falls through, and so does a candidate that is not a
+// regular file of at most 1 MiB, such as a FIFO, a directory or a device, which is never read:
+// readConfigText, brief DC-3), else `production`. The line names the source.
 //
 // READ-ONLY BY CONSTRUCTION. Every call goes through runGh(), and there are exactly two argv
 // shapes: `gh auth status` and `gh api --method GET -i <path>`. No field flag is ever passed
@@ -195,7 +196,7 @@
 // VOICE DISCIPLINE (CLAUDE.md hard rule): every string this routine emits is clear professional
 // English. This is a safety surface.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { closeSync, constants as fsConstants, existsSync, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 // An unexpected failure must never surface as exit 1, which the contract reserves for "at least
 // one target is unprotected". Anything thrown is the "could not run" answer: exit 2.
@@ -1275,16 +1276,60 @@ function branchVerdict(name) {
     return { kind: "branch", name, verdict, reason, facts };
 }
 // --- environment verdict ----------------------------------------------------------------------
+// THE ONE READER of a user-controlled path in this check (brief 33.1-GAP-PLANNING-BRIEF.md DC-3,
+// plan 33.1-25; D-19: the check must answer, and a check that hangs answers nothing). The config
+// candidates sit in the user's working tree, where a FIFO, a directory or a device may stand at the
+// path; reading one can block forever or never end. So the file is opened read-only and
+// non-blocking (a FIFO with no writer opens at once instead of waiting), the SAME descriptor is
+// fstat'ed, and the text is read only from a regular file (a symlink resolving to one included) of
+// at most CONFIG_MAX_BYTES, never past the size that fstat reported. Anything else (absent, not a
+// regular file, too large, or any error) is undefined: unreadable, and the caller falls through
+// exactly as for an unparseable file. This file may import only node builtins (it is copied alone
+// into tools/grugops/), so it restates scripts/context-io.ts readRegularFileOrNull's rule rather
+// than importing it. `O_NONBLOCK` is absent on win32, where the flag is 0 (D-15 keeps Windows
+// behaviour out of scope).
+const CONFIG_MAX_BYTES = 1024 * 1024;
+function readConfigText(path) {
+    let fd;
+    try {
+        fd = openSync(path, fsConstants.O_RDONLY | (fsConstants.O_NONBLOCK ?? 0));
+    }
+    catch {
+        return undefined;
+    }
+    try {
+        const st = fstatSync(fd);
+        if (!st.isFile() || st.size > CONFIG_MAX_BYTES)
+            return undefined;
+        const buf = Buffer.alloc(st.size);
+        let off = 0;
+        while (off < buf.length) {
+            const n = readSync(fd, buf, off, buf.length - off, off);
+            if (n === 0)
+                break;
+            off += n;
+        }
+        return buf.subarray(0, off).toString("utf8");
+    }
+    catch {
+        return undefined;
+    }
+    finally {
+        closeSync(fd);
+    }
+}
 function environmentName() {
     const flag = flagValue("--env");
     if (flag !== undefined && flag.length > 0)
         return { name: flag, source: "the --env flag" };
     for (const rel of [".grugops/factory.config.json", "agent-factory/config/factory.config.json"]) {
-        const p = join(process.cwd(), rel);
-        if (!existsSync(p))
+        // Through the one bounded reader: a candidate that is not a regular file within the bound is
+        // skipped as unreadable (brief DC-3).
+        const text = readConfigText(join(process.cwd(), rel));
+        if (text === undefined)
             continue;
         try {
-            const parsed = JSON.parse(readFileSync(p, "utf8"));
+            const parsed = JSON.parse(text);
             if (isObject(parsed) && Array.isArray(parsed.environments) && parsed.environments.length > 0) {
                 const last = parsed.environments[parsed.environments.length - 1];
                 if (typeof last === "string" && last.length > 0) {

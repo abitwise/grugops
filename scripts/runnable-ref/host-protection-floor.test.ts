@@ -143,7 +143,7 @@ const HOST_READS: readonly HostReadRow[] = [
     key: "environmentName:property",
     count: 4,
     cls: "config-json",
-    why: "parses the user's factory.config.json `environments` list (not a host answer); plan 33.1-25 bounds this read",
+    why: "parses the user's factory.config.json `environments` list (not a host answer), text read through readConfigText, the one bounded reader (plan 33.1-25, brief DC-3)",
   },
 ];
 
