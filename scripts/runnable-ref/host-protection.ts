@@ -24,8 +24,10 @@
 // TARGETS. The default branch always; `main` and `master` when the host says they exist (a 404
 // omits them, any other answer reports them as `UNKNOWN - verify`); each `--branch <name>`
 // (repeatable); and one production deployment environment. A name the same run saw answered as
-// ANOTHER branch (a renamed branch's old name) is never judged: a `--branch` of that name, or a
-// branch whose classic answer is about another branch, is `UNKNOWN - verify` on every row.
+// ANOTHER branch (a renamed branch's old name), or did not show to exist (the probe's 404 or any
+// other answer that names no such branch), is never judged and never evidence: a `--branch` of
+// that name, or a branch whose classic answer is about another branch, is `UNKNOWN - verify` on
+// every row, and the branch-policy row never counts a read under that name (contradictedName).
 //
 // BRANCH EVIDENCE: ONE CANONICAL TABLE (plan 33.1-17, CR-01). `BRANCH_FLOOR` below is the branch
 // floor, one row per item of the branch checklist in install/README.md §5 ("Git-host setup
@@ -1048,11 +1050,32 @@ const classicArmCache = new Map<string, ClassicArm>();
 // The evidence phrase for a 200 answer that is not a protection record (the tests key on it).
 const NOT_A_RECORD = "is not a branch protection record";
 
-// What the main/master probe read this run (the main flow fills both before any verdict is made):
-// the `protected` value each probed branch's own answer carried, and each probed name the host
-// answered as ANOTHER branch (mapped to the name it answered).
+// What the main/master probe read this run (the main flow fills these before any verdict is made):
+// the `protected` value each probed branch's own answer carried, each probed name the host
+// answered as ANOTHER branch (mapped to the name it answered), and each probed name whose answer
+// did not show a branch of that name (mapped to how it answered: a 404, another status, or a 200
+// naming no readable branch).
 const probedProtected = new Map<string, unknown>();
 const renamedBranches = new Map<string, string>();
+const unshownBranches = new Map<string, string>();
+
+// THE ONE AUTHORITY for "the same run shows that nothing asked under this name is evidence about a
+// branch of that name" (red-team finding 2 of plan 33.1-23, D-30): a name the probe saw answered
+// as another branch, or a name the probe did not show to exist. Every later read under such a
+// name is refused: a `--branch` target of that name is UNKNOWN - verify and is never asked about,
+// a protected-branch list naming it is not evidence and its protection is never asked, and a
+// classic arm cached under it is never branch-policy evidence.
+function contradictedName(name: string): string | undefined {
+  const renamedTo = renamedBranches.get(name);
+  if (renamedTo !== undefined) {
+    return `the same run saw branch ${hostText(name)} answered as branch ${hostText(renamedTo)} (a renamed branch's old name answers this way)`;
+  }
+  const unshown = unshownBranches.get(name);
+  if (unshown !== undefined) {
+    return `the same run's branch endpoint answered ${unshown} for branch ${hostText(name)}, so the branch is not shown to exist`;
+  }
+  return undefined;
+}
 
 function readClassicArm(name: string, bp: string): ClassicArm {
   const cached = classicArmCache.get(name);
@@ -1109,6 +1132,8 @@ function readClassicArmOnce(name: string, bp: string): ClassicArm {
 // this branch in the same run (undefined when it was not probed).
 function branchVerdict(name: string, probedProtected?: unknown): Target {
   if (!usableBranch(name)) return branchUnknown(name, "this is not a branch name the check can ask the host about");
+  const contradicted = contradictedName(name);
+  if (contradicted !== undefined) return branchUnknown(name, `${contradicted}, so nothing asked under this name is evidence about it`);
   const bp = branchPath(name);
 
   const rulesetArm = readRulesetArm(bp);
@@ -1218,10 +1243,8 @@ const RULESETS_UNSAID =
 // not. A name the run saw answered as another branch, or a body for a branch the probe read as
 // `protected: false`, is contradicted by the same run and is not evidence.
 function classicShownOn(name: string, arm: ClassicArm): Shown {
-  const renamedTo = renamedBranches.get(name);
-  if (renamedTo !== undefined) {
-    return { state: "unknown", evidence: `the same run saw branch ${hostText(name)} answered as branch ${hostText(renamedTo)}` };
-  }
+  const contradicted = contradictedName(name);
+  if (contradicted !== undefined) return { state: "unknown", evidence: contradicted };
   if (arm.kind === "body" && probedProtected.get(name) === false) {
     return {
       state: "unknown",
@@ -1266,9 +1289,9 @@ function readClassicProtectionEvidence(): Shown {
   const listed: unknown[] = Array.isArray(res.body) ? res.body : [];
   const name = hostField(listed[0], "name");
   if (typeof name !== "string") return { state: "unknown", evidence: "the protected-branch list names no readable branch" };
-  // A name the same run saw answered as another branch is never asked about (its protection read
-  // would describe the other branch).
-  const arm: ClassicArm = renamedBranches.has(name) ? { kind: "unreadable", evidence: "not asked" } : readClassicArm(name, branchPath(name));
+  // A name the same run contradicts (answered as another branch, or not shown to exist) is never
+  // asked about: its protection read would describe another branch, or none.
+  const arm: ClassicArm = contradictedName(name) !== undefined ? { kind: "unreadable", evidence: "not asked" } : readClassicArm(name, branchPath(name));
   const shown = classicShownOn(name, arm);
   if (shown.state === "held") return { state: shown.state, evidence: `the first protected branch the host lists has classic protection: ${shown.evidence}` };
   return {
@@ -1529,21 +1552,25 @@ if (cannotAsk !== undefined) {
     if (res.status === 200 && answeredName === b) {
       names.push(b);
       probed.set(b, hostField(res.body, "protected"));
-    }
-    else if (res.status === 200 && typeof answeredName === "string") renamed.set(b, answeredName);
-    else if (res.status !== 404) {
-      targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${answered(res)}`));
+    } else if (res.status === 200 && typeof answeredName === "string") renamed.set(b, answeredName);
+    else {
+      // Not shown to exist (red-team finding 2 of plan 33.1-23): a 404 omits the target, but the
+      // name is recorded, so no later read under it (a --branch, the protected-branch list, the
+      // classic arm cache) is taken as evidence about a branch of that name.
+      unshownBranches.set(b, res.status === 200 ? "HTTP 200 naming no readable branch" : answered(res));
+      if (res.status !== 404) {
+        targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${answered(res)}`));
+      }
     }
   }
-  // A `--branch` name this run saw answer as another branch is never re-added as a target to
-  // judge: every read under that name describes the other branch (red-team finding 3, D-30).
+  // A `--branch` name the same run contradicts (answered as another branch, or not shown to exist)
+  // is never judged: contradictedName() is the one authority (red-team findings 3 of plan 33.1-22
+  // and 2 of plan 33.1-23, D-30).
   for (const b of extraBranches) {
     if (names.includes(b) || targets.some((t) => t.kind === "branch" && t.name === b)) continue;
-    const now = renamed.get(b);
-    if (now === undefined) names.push(b);
-    else {
-      targets.push(branchUnknown(b, `the branch endpoint answered about branch ${hostText(now)}, not this one (a renamed branch's old name answers this way), so nothing asked under this name is evidence about it`));
-    }
+    const contradicted = contradictedName(b);
+    if (contradicted === undefined) names.push(b);
+    else targets.push(branchUnknown(b, `${contradicted}, so nothing asked under this name is evidence about it`));
   }
   for (const b of names) targets.push(branchVerdict(b, probed.get(b)));
   targets.push(environmentVerdict(env.name, env.source));
