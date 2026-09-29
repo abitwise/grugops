@@ -7,7 +7,9 @@
 // place, so the gate (workflow 05) and the release (workflow 12) can record the answer honestly
 // instead of assuming it.
 //
-// WHAT IT REPORTS. One line per inspected target, each carrying exactly one of three words:
+// WHAT IT REPORTS. One line per inspected target, and one summary line,
+// `HOST-PROTECTION: <p> protected, <u> unprotected, <k> UNKNOWN - verify`. Each target line
+// carries exactly one of three words:
 //   `protected`         — every row of the canonical table for that target (`BRANCH_FLOOR` for a
 //                         branch, `ENVIRONMENT_FLOOR` for the production environment) is positively
 //                         shown by the host, from rules the checked account cannot bypass
@@ -16,7 +18,6 @@
 //                         an ambiguous answer, or output this check cannot parse
 // The two tables are the git-host setup checklist in install/README.md §5, one row per checklist
 // line, byte for byte (a test binds each table to its list, both ways).
-// and one summary line, `HOST-PROTECTION: <p> protected, <u> unprotected, <k> UNKNOWN - verify`.
 // The check NEVER answers `protected` without positive evidence. When in doubt the answer is
 // `UNKNOWN - verify` (project rule: never fabricate a passing gate).
 //
@@ -47,9 +48,16 @@
 // when BOTH arms were read and neither shows it, and `unknown` otherwise. A weak arm never weakens
 // a strong one, and a row neither arm can read never counts as shown. On the ruleset arm a row not
 // shown is `failed` only when the rule list was read in full (a later page may carry the rule).
+// THE ONE READER (plan 33.1-22, D-30). Every host value that can make a row `held`, or a source
+// `binds`, is read through readFact(value, ACCEPT.<name>), and every other host field through
+// hostField(value, key). The ACCEPT table is checked when the module loads: no entry reads an
+// absent or null value as `held`, and an entry reads absence as `failed` only with a written reason.
+// A test census (host-protection-floor.test.ts) holds that no host field is read anywhere else.
 // THE ABSENT-FIELD MAPPING: a field that is missing or of an unexpected type is never read as its
-// safe default. An approval count must be an integer (`Number.isInteger`) >= 1 to show the
-// approval row; an integer 0 does not show it; a missing or non-integer count is `unknown`. On a
+// safe default. An approval count must be a safe integer >= 1 to show the approval row; the integer
+// 0 does not show it; a missing, negative, fractional or unsafe count is `unknown`. An entry of the
+// rule list that is not an object with a string `type` shows nothing and makes the list read
+// partially, so a row no readable rule shows is `unknown`, not `failed`. On a
 // classic 200 body, `allow_force_pushes` / `allow_deletions` must be objects with
 // `enabled === false` to show their row (`enabled === true` → `failed`, anything else →
 // `unknown`). A classic 200 body with no `required_pull_request_reviews` key is `failed` for the
@@ -84,10 +92,14 @@
 // install/README.md §5, read from the environment `GET environments?per_page=100` lists under the
 // configured name: the environment exists; a `required_reviewers` rule names at least one reviewer;
 // that rule has `prevent_self_review === true`; `can_admins_bypass === false`; and
-// `deployment_branch_policy.protected_branches === true`. A field that is missing or of an
-// unexpected type is `unknown`, never its safe default; `protection_rules` that is not an array is
-// `unknown`; a `null` branch policy is `failed`; a custom branch policy is `unknown` (the check does
-// not read which branches it allows). No environment of that name is `unknown` for every row, and
+// `deployment_branch_policy` is exactly `{ protected_branches: true, custom_branch_policies: false }`.
+// A field that is missing or of an unexpected type is `unknown`, never its safe default;
+// `protection_rules` that is not an array is `unknown`; a `null` branch policy is `failed`; a custom
+// branch policy is `unknown` (the check does not read which branches it allows). A reviewer counts
+// only in the documented shape (`type` "User" or "Team" and a `reviewer` whose `id` is a positive
+// integer); a reviewers list holding anything else is `unknown` (re-review WR-01). An entry of
+// `protection_rules` that is not an object with a string `type` can only turn a row that would be
+// `failed` into `unknown`; what a readable rule shows stays shown. No environment of that name is `unknown` for every row, and
 // the verdict says grugops cannot tell how production deploys run. Same verdict rule as branches.
 // Reviewer identities are never printed; the evidence counts them. The name is `--env <name>`,
 // else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
@@ -220,12 +232,81 @@ function isObject(v) {
 function isEmptyList(v) {
     return Array.isArray(v) && v.length === 0;
 }
+function isPositiveSafeInteger(v) {
+    return typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+}
+// One element of a `required_reviewers` rule's `reviewers` list in the documented shape (re-review
+// WR-01): `type` "User" or "Team", and a plain-object `reviewer` whose `id` is a positive safe
+// integer. It reads through hostField, so a non-object element or reviewer is never of this shape.
+function isReviewerElement(e) {
+    const type = hostField(e, "type");
+    return (type === "User" || type === "Team") && isPositiveSafeInteger(hostField(hostField(e, "reviewer"), "id"));
+}
 const ACCEPT = {
     // bypass_pull_request_allowances inside classic required_pull_request_reviews: held only when it is
     // present and lists no user, team or app. There is no `failed`: a list with members is not
     // readable, because the check cannot tell whether the account it runs under is on it.
     bypassAllowances: {
         held: (v) => isObject(v) && isEmptyList(v.users) && isEmptyList(v.teams) && isEmptyList(v.apps),
+    },
+    // Classic enforce_admins: the protection applies to administrators only as `{ enabled: true }`.
+    enforceAdmins: {
+        held: (v) => isObject(v) && v.enabled === true,
+        failed: (v) => isObject(v) && v.enabled === false,
+    },
+    // Classic required_pull_request_reviews: a plain object shows that reviews are required.
+    classicReviews: {
+        held: (v) => isObject(v),
+        failed: (v) => v === undefined,
+        absentFailedWhy: "whether GitHub omits required_pull_request_reviews when reviews are off is observed, not documented; failed is fail-safe because it is never held",
+    },
+    // required_approving_review_count on a ruleset rule or classic protection: a safe integer >= 1
+    // shows the approval row; only the integer 0 is read and not met; anything else is unknown.
+    approvalCount: {
+        held: (v) => isPositiveSafeInteger(v),
+        failed: (v) => v === 0,
+    },
+    // Classic allow_force_pushes / allow_deletions: the row is shown only as `{ enabled: false }`.
+    disabledFlag: {
+        held: (v) => isObject(v) && v.enabled === false,
+        failed: (v) => isObject(v) && v.enabled === true,
+    },
+    // One entry of a rule list (the ruleset rules of a branch, or an environment's protection_rules):
+    // readable only as an object with a string `type`.
+    ruleEntry: {
+        held: (v) => isObject(v) && typeof v.type === "string",
+    },
+    // current_user_can_bypass on `GET rulesets/<id>`: only "never" binds; the three documented other
+    // values are read as bypassable; anything else is not readable.
+    rulesetBypass: {
+        held: (v) => v === "never",
+        failed: (v) => v === "always" || v === "pull_requests_only" || v === "exempt",
+    },
+    // The environment object `GET environments` listed under the configured name.
+    environmentPresent: {
+        held: (v) => isObject(v),
+    },
+    // A required_reviewers rule's `reviewers`: held for a non-empty list whose every element has the
+    // documented shape; failed for an empty list; any other value, including a list holding one
+    // element of another shape, is unknown (WR-01).
+    reviewerList: {
+        held: (v) => Array.isArray(v) && v.length > 0 && v.every(isReviewerElement),
+        failed: (v) => isEmptyList(v),
+    },
+    preventSelfReview: {
+        held: (v) => v === true,
+        failed: (v) => v === false,
+    },
+    canAdminsBypass: {
+        held: (v) => v === false,
+        failed: (v) => v === true,
+    },
+    // deployment_branch_policy: held only as the documented protected-branches pair; null is the
+    // documented "any branch may deploy".
+    deploymentBranchPolicy: {
+        held: (v) => isObject(v) && v.protected_branches === true && v.custom_branch_policies === false,
+        failed: (v) => v === null,
+        absentFailedWhy: "GitHub documents a null deployment_branch_policy as: any branch may deploy to the environment",
     },
 };
 // The load-time self-check. A violation throws, and the uncaughtException handler above turns that
@@ -267,11 +348,21 @@ function toBinding(state, evidence) {
         return { state: "bypassable", evidence: evidence.failed };
     return { state: "unknown", evidence: evidence.unknown };
 }
+// A row reading from one readFact state, with the evidence written for that state.
+function says(state, evidence) {
+    return { state, evidence: evidence[state] };
+}
+// A list that could not be read whole (a garbage entry) cannot show that a row is missing: a row
+// that would be `failed` is `unknown`. A row a readable entry shows is unchanged.
+function downgrade(state, partial) {
+    return partial && state === "failed" ? "unknown" : state;
+}
 // How a call answered, for an UNKNOWN - verify reason: the problem, or the status and message.
 function answered(res) {
     if (res.problem !== undefined)
         return res.problem;
-    const message = isObject(res.body) && typeof res.body.message === "string" ? ` (${printable(res.body.message)})` : "";
+    const text = hostField(res.body, "message");
+    const message = typeof text === "string" ? ` (${printable(text)})` : "";
     return `HTTP ${res.status}${message}`;
 }
 // Untrusted text (branch names, host messages) is printed with control characters replaced and
@@ -298,37 +389,47 @@ function branchPath(name) {
     return name.split("/").map(encodeURIComponent).join("/");
 }
 function rulesOfType(rules, type) {
-    return rules.filter((r) => r.type === type);
+    return rules.filter((r) => hostField(r, "type") === type);
 }
 // A `ruleset_id` this check will put in a REST path: a safe positive integer, nothing else
 // (T-33.1-191). A string, a fraction, 0, a negative or an unsafe integer never reaches a path.
 function usableRulesetId(v) {
-    return typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+    return isPositiveSafeInteger(v);
 }
 // Which ruleset a rule came from, for the evidence line.
 function rulesetOf(rule) {
-    return usableRulesetId(rule.ruleset_id) ? `ruleset ${rule.ruleset_id}` : "an active ruleset";
+    const id = hostField(rule, "ruleset_id");
+    return usableRulesetId(id) ? `ruleset ${id}` : "an active ruleset";
 }
-// A rule of the item's type shows it by being present.
+// A rule of the item's type shows it by being a readable rule entry.
 function ruleShows(rule) {
-    return { state: "held", evidence: `${rulesetOf(rule)} has a ${String(rule.type)} rule` };
+    return says(readFact(rule, ACCEPT.ruleEntry), {
+        held: `${rulesetOf(rule)} has a ${String(hostField(rule, "type"))} rule`,
+        failed: "an entry of the rule list does not show the item",
+        unknown: "an entry of the rule list is not a readable rule",
+    });
 }
 // A classic `{ enabled }` object shows the item only when `enabled === false`.
 function classicDisabled(key) {
-    return (body) => {
-        const v = body[key];
-        if (isObject(v) && v.enabled === false)
-            return { state: "held", evidence: `classic ${key}.enabled is false` };
-        if (isObject(v) && v.enabled === true)
-            return { state: "failed", evidence: `classic ${key}.enabled is true` };
-        return { state: "unknown", evidence: `classic protection carries no readable ${key}.enabled` };
-    };
+    return (body) => says(readFact(hostField(body, key), ACCEPT.disabledFlag), {
+        held: `classic ${key}.enabled is false`,
+        failed: `classic ${key}.enabled is true`,
+        unknown: `classic protection carries no readable ${key}.enabled`,
+    });
 }
-// An approval count shows the approval item only as an integer >= 1.
-function approvalCount(count) {
-    if (!Number.isInteger(count))
-        return "unknown";
-    return count >= 1 ? "held" : "failed";
+// Classic required_pull_request_reviews, as both review rows read it first.
+const CLASSIC_REVIEWS_SAYS = {
+    held: "classic protection requires pull request reviews",
+    failed: "classic protection does not require pull request reviews",
+    unknown: "classic required_pull_request_reviews has an unexpected shape",
+};
+// The approval count's evidence: the count when it is read, and what is expected when it is not.
+function approvalSays(where, count) {
+    return {
+        held: `${where} requires ${String(count)} approving review(s)`,
+        failed: `${where} requires ${String(count)} approving review(s)`,
+        unknown: `${where} carries no required_approving_review_count this check can read (a whole number of 0 or more)`,
+    };
 }
 // THE CANONICAL BRANCH FLOOR. Each `requirement` is byte-equal to a line of the branch checklist
 // in install/README.md §5; host-protection.test.ts binds the two both ways and holds a weakening
@@ -340,14 +441,7 @@ const BRANCH_FLOOR = [
         requirement: "requires a pull request before merging",
         ruleType: "pull_request",
         fromRule: ruleShows,
-        fromClassic: (body) => {
-            const rpr = body.required_pull_request_reviews;
-            if (isObject(rpr))
-                return { state: "held", evidence: "classic protection requires pull request reviews" };
-            if (rpr === undefined)
-                return { state: "failed", evidence: "classic protection does not require pull request reviews" };
-            return { state: "unknown", evidence: "classic required_pull_request_reviews has an unexpected shape" };
-        },
+        fromClassic: (body) => says(readFact(hostField(body, "required_pull_request_reviews"), ACCEPT.classicReviews), CLASSIC_REVIEWS_SAYS),
         reviewItem: true,
     },
     {
@@ -356,25 +450,16 @@ const BRANCH_FLOOR = [
         requirement: "requires at least one approving review",
         ruleType: "pull_request",
         fromRule: (rule) => {
-            const count = isObject(rule.parameters) ? rule.parameters.required_approving_review_count : undefined;
-            const state = approvalCount(count);
-            if (state === "unknown") {
-                return { state, evidence: `a pull_request rule in ${rulesetOf(rule)} carries no integer required_approving_review_count` };
-            }
-            return { state, evidence: `a pull_request rule in ${rulesetOf(rule)} requires ${String(count)} approving review(s)` };
+            const count = hostField(hostField(rule, "parameters"), "required_approving_review_count");
+            return says(readFact(count, ACCEPT.approvalCount), approvalSays(`a pull_request rule in ${rulesetOf(rule)}`, count));
         },
         fromClassic: (body) => {
-            const rpr = body.required_pull_request_reviews;
-            if (rpr === undefined)
-                return { state: "failed", evidence: "classic protection does not require pull request reviews" };
-            if (!isObject(rpr))
-                return { state: "unknown", evidence: "classic required_pull_request_reviews has an unexpected shape" };
-            const count = rpr.required_approving_review_count;
-            const state = approvalCount(count);
-            if (state === "unknown") {
-                return { state, evidence: "classic protection carries no integer required_approving_review_count" };
-            }
-            return { state, evidence: `classic protection requires ${String(count)} approving review(s)` };
+            const rpr = hostField(body, "required_pull_request_reviews");
+            const reviews = readFact(rpr, ACCEPT.classicReviews);
+            if (reviews !== "held")
+                return says(reviews, CLASSIC_REVIEWS_SAYS);
+            const count = hostField(rpr, "required_approving_review_count");
+            return says(readFact(count, ACCEPT.approvalCount), approvalSays("classic protection", count));
         },
         reviewItem: true,
     },
@@ -419,22 +504,15 @@ function readRulesetBinding(id) {
         return cached;
     const res = apiGet(`repos/{owner}/{repo}/rulesets/${id}`);
     let b;
-    if (res.status === 200 && isObject(res.body) && res.body.id === id) {
-        const v = res.body.current_user_can_bypass;
-        if (v === "never")
-            b = { state: "binds", evidence: `ruleset ${id} reports current_user_can_bypass "never"` };
-        else if (v === "always" || v === "pull_requests_only" || v === "exempt") {
-            b = { state: "bypassable", evidence: `ruleset ${id} reports current_user_can_bypass "${v}"` };
-        }
-        else if (v === undefined) {
-            b = { state: "unknown", evidence: `ruleset ${id} carries no current_user_can_bypass` };
-        }
-        else {
-            b = {
-                state: "unknown",
-                evidence: `ruleset ${id} reports a current_user_can_bypass this check does not recognize (${printable(String(JSON.stringify(v)))})`,
-            };
-        }
+    if (res.status === 200 && hostField(res.body, "id") === id) {
+        const v = hostField(res.body, "current_user_can_bypass");
+        b = toBinding(readFact(v, ACCEPT.rulesetBypass), {
+            held: `ruleset ${id} reports current_user_can_bypass "never"`,
+            failed: `ruleset ${id} reports current_user_can_bypass "${String(v)}"`,
+            unknown: v === undefined
+                ? `ruleset ${id} carries no current_user_can_bypass`
+                : `ruleset ${id} reports a current_user_can_bypass this check does not recognize (${printable(String(JSON.stringify(v)))})`,
+        });
     }
     else if (res.status === 200 && isObject(res.body)) {
         b = { state: "unknown", evidence: `the read of ruleset ${id} answered about a different ruleset` };
@@ -451,8 +529,8 @@ function rulesetBindings(arm) {
     const types = new Set(FLOOR_ITEMS.map((row) => row.ruleType));
     const ids = [];
     for (const rule of arm.rules) {
-        const id = rule.ruleset_id;
-        if (types.has(String(rule.type)) && usableRulesetId(id) && !ids.includes(id))
+        const id = hostField(rule, "ruleset_id");
+        if (types.has(String(hostField(rule, "type"))) && usableRulesetId(id) && !ids.includes(id))
             ids.push(id);
     }
     const out = new Map();
@@ -464,9 +542,12 @@ function rulesetBindings(arm) {
     return out;
 }
 function ruleBinding(rule, bindings) {
-    const id = rule.ruleset_id;
+    const id = hostField(rule, "ruleset_id");
     if (!usableRulesetId(id)) {
-        return { state: "unknown", evidence: `a ${String(rule.type)} rule carries no usable ruleset_id, so its ruleset cannot be asked about bypass` };
+        return {
+            state: "unknown",
+            evidence: `a ${String(hostField(rule, "type"))} rule carries no usable ruleset_id, so its ruleset cannot be asked about bypass`,
+        };
     }
     return bindings.get(id) ?? { state: "unknown", evidence: `ruleset ${id} was not read` };
 }
@@ -480,19 +561,15 @@ function ruleBinding(rule, bindings) {
 // evidence that the protection grants no allowance. Evidence counts listed actors and never names
 // them (T-33.1-193).
 function classicBinding(body, row) {
-    const ea = body.enforce_admins;
-    if (isObject(ea) && ea.enabled === false) {
-        return {
-            state: "bypassable",
-            evidence: "classic protection does not apply to administrators (enforce_admins.enabled is false), and a 200 from the protection endpoint shows this account reads it as an administrator",
-        };
-    }
-    if (!isObject(ea) || ea.enabled !== true) {
-        return { state: "unknown", evidence: "classic protection carries no readable enforce_admins.enabled" };
-    }
     const applies = "classic protection applies to administrators";
-    if (!row.reviewItem)
-        return { state: "binds", evidence: applies };
+    const admins = readFact(hostField(body, "enforce_admins"), ACCEPT.enforceAdmins);
+    if (admins !== "held" || !row.reviewItem) {
+        return toBinding(admins, {
+            held: applies,
+            failed: "classic protection does not apply to administrators (enforce_admins.enabled is false), and a 200 from the protection endpoint shows this account reads it as an administrator",
+            unknown: "classic protection carries no readable enforce_admins.enabled",
+        });
+    }
     const allowances = hostField(hostField(body, "required_pull_request_reviews"), "bypass_pull_request_allowances");
     return toBinding(readFact(allowances, ACCEPT.bypassAllowances), {
         held: `${applies} and grants no pull request bypass allowance`,
@@ -560,7 +637,7 @@ function rulesetReading(row, arm, bindings) {
         ? plain("failed", `no active ruleset has a ${row.ruleType} rule`)
         : bindSources(found.map((rule) => ({ shown: row.fromRule(rule), binding: ruleBinding(rule, bindings) })));
     if (r.state === "failed" && arm.read === "partial") {
-        return { ...r, state: "unknown", evidence: `${r.evidence} on the first page, but ${arm.why}` };
+        return { ...r, state: "unknown", evidence: `${r.evidence} in the entries read, but ${arm.why}` };
     }
     return r;
 }
@@ -617,10 +694,16 @@ function branchUnknown(name, reason) {
 function readRulesetArm(bp) {
     const res = apiGet(`repos/{owner}/{repo}/rules/branches/${bp}?per_page=100`);
     if (res.status === 200 && Array.isArray(res.body)) {
-        const rules = res.body.filter((r) => isObject(r) && typeof r.type === "string");
-        return res.next
-            ? { read: "partial", rules, why: "the rule list runs past one page" }
-            : { read: "full", rules, why: "" };
+        const entries = res.body;
+        // Only readable entries count. A garbage entry shows nothing, and the list is then read only
+        // partially, so a row no readable rule shows is `unknown`, never `failed` (D-30).
+        const rules = entries.filter((r) => readFact(r, ACCEPT.ruleEntry) === "held");
+        const whys = [];
+        if (rules.length < entries.length)
+            whys.push("an entry of the rule list is not a readable rule");
+        if (res.next)
+            whys.push("the rule list runs past one page");
+        return whys.length > 0 ? { read: "partial", rules, why: whys.join(", and ") } : { read: "full", rules, why: "" };
     }
     return { read: "none", rules: [], why: `the rules endpoint answered ${answered(res)}` };
 }
@@ -628,18 +711,20 @@ function readClassicArm(name, bp) {
     const prot = apiGet(`repos/{owner}/{repo}/branches/${bp}/protection`);
     if (prot.status === 200 && isObject(prot.body))
         return { kind: "body", body: prot.body };
-    if (prot.status === 404 && isObject(prot.body) && prot.body.message === "Branch not protected") {
+    const message = hostField(prot.body, "message");
+    if (prot.status === 404 && message === "Branch not protected") {
         return { kind: "none", evidence: "the host reports no classic branch protection" };
     }
-    if (prot.status === 404 && isObject(prot.body) && prot.body.message === "Not Found") {
+    if (prot.status === 404 && message === "Not Found") {
         const br = apiGet(`repos/{owner}/{repo}/branches/${bp}`);
         // Only an answer about the branch that was asked for counts (a renamed branch's old name
         // answers with the new branch's record).
-        if (br.status === 200 && isObject(br.body) && br.body.name === name) {
-            if (br.body.protected === true) {
+        if (br.status === 200 && hostField(br.body, "name") === name) {
+            const isProtected = hostField(br.body, "protected");
+            if (isProtected === true) {
                 return { kind: "unreadable", evidence: "classic protection present; its rules are not readable with this token" };
             }
-            if (br.body.protected === false)
+            if (isProtected === false)
                 return { kind: "none", evidence: "the branch reports no classic protection" };
         }
         return {
@@ -717,26 +802,44 @@ function environmentName() {
     return { name: "production", source: 'the documented default (no --env flag and no usable "environments" list)' };
 }
 const NO_ENVIRONMENT = { state: "unknown", evidence: "there is no environment of that name to read" };
-// The environment's `required_reviewers` rules, or undefined when `protection_rules` is not an
-// array (an unexpected shape, never read as "no rules").
+// The environment's readable `required_reviewers` rules, plus `partial` when some entry of
+// `protection_rules` is not a readable rule (not an object with a string `type`); undefined when
+// `protection_rules` is not an array (an unexpected shape, never read as "no rules").
 function reviewerRules(env) {
-    if (!Array.isArray(env.protection_rules))
+    const list = hostField(env, "protection_rules");
+    if (!Array.isArray(list))
         return undefined;
-    return env.protection_rules.filter((r) => isObject(r) && r.type === "required_reviewers");
+    const entries = list;
+    const readable = entries.filter((r) => readFact(r, ACCEPT.ruleEntry) === "held");
+    return {
+        rules: readable.filter((r) => hostField(r, "type") === "required_reviewers"),
+        partial: readable.length < entries.length,
+    };
 }
-// The reviewer rule whose fields the self-review row reads: the one naming a reviewer, else the
-// first `required_reviewers` rule.
+// A rule's reviewers read through ACCEPT.reviewerList.
+function reviewersOf(rule) {
+    return readFact(hostField(rule, "reviewers"), ACCEPT.reviewerList);
+}
+// The reviewer rule whose fields the self-review row reads: the first whose reviewers read `held`,
+// else the first `required_reviewers` rule.
 function reviewerRule(rules) {
-    return rules.find((r) => Array.isArray(r.reviewers) && r.reviewers.length > 0) ?? rules[0];
+    return rules.find((r) => reviewersOf(r) === "held") ?? rules[0];
+}
+// How many reviewers of the documented shape a rule names (the evidence counts; it never names).
+function reviewerCount(rule) {
+    const list = hostField(rule, "reviewers");
+    return Array.isArray(list) ? list.filter(isReviewerElement).length : 0;
 }
 const ENVIRONMENT_FLOOR = [
     {
         id: "environment_exists",
         requirement: "has the name your deploy jobs use",
         // Not found is `unknown`, never `failed`: grugops cannot tell how production deploys run.
-        read: (env) => env === undefined
-            ? { state: "unknown", evidence: "the host lists no environment of that name" }
-            : { state: "held", evidence: "the host lists an environment of that name" },
+        read: (env) => says(readFact(env, ACCEPT.environmentPresent), {
+            held: "the host lists an environment of that name",
+            failed: "the host lists no environment of that name",
+            unknown: "the host lists no environment of that name",
+        }),
     },
     {
         id: "required_reviewer",
@@ -744,18 +847,26 @@ const ENVIRONMENT_FLOOR = [
         read: (env) => {
             if (env === undefined)
                 return NO_ENVIRONMENT;
-            const rules = reviewerRules(env);
-            if (rules === undefined)
+            const found = reviewerRules(env);
+            if (found === undefined)
                 return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
-            const naming = rules.find((r) => Array.isArray(r.reviewers) && r.reviewers.length > 0);
-            if (naming !== undefined) {
-                const n = naming.reviewers.length;
-                return { state: "held", evidence: `a required_reviewers rule names ${n} reviewer${n === 1 ? "" : "s"}` };
+            const states = found.rules.map(reviewersOf);
+            const at = states.indexOf("held");
+            if (at >= 0) {
+                const n = reviewerCount(found.rules[at]);
+                return { state: states[at], evidence: `a required_reviewers rule names ${n} reviewer${n === 1 ? "" : "s"}` };
             }
-            if (rules.some((r) => !Array.isArray(r.reviewers))) {
-                return { state: "unknown", evidence: "a required_reviewers rule carries no readable reviewers list" };
+            if (states.includes("unknown")) {
+                return { state: "unknown", evidence: "a required_reviewers rule carries no readable reviewers list (each reviewer needs a type and a numeric id)" };
             }
-            return { state: "failed", evidence: "the environment has no required_reviewers rule that names a reviewer" };
+            // Every readable rule was read and names no reviewer. `failed`, unless a garbage entry of the
+            // list might have been the rule that does.
+            return {
+                state: downgrade("failed", found.partial),
+                evidence: found.partial
+                    ? "no readable required_reviewers rule names a reviewer, and an entry of protection_rules is not a readable rule"
+                    : "the environment has no required_reviewers rule that names a reviewer",
+            };
         },
     },
     {
@@ -764,17 +875,30 @@ const ENVIRONMENT_FLOOR = [
         read: (env) => {
             if (env === undefined)
                 return NO_ENVIRONMENT;
-            const rules = reviewerRules(env);
-            if (rules === undefined)
+            const found = reviewerRules(env);
+            if (found === undefined)
                 return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
-            const rule = reviewerRule(rules);
-            if (rule === undefined)
-                return { state: "failed", evidence: "the environment has no required_reviewers rule, so nothing prevents self-review" };
-            if (rule.prevent_self_review === true)
-                return { state: "held", evidence: "the required_reviewers rule has prevent_self_review true" };
-            if (rule.prevent_self_review === false)
-                return { state: "failed", evidence: "the required_reviewers rule has prevent_self_review false" };
-            return { state: "unknown", evidence: "the required_reviewers rule carries no boolean prevent_self_review" };
+            const rule = reviewerRule(found.rules);
+            if (rule === undefined) {
+                return {
+                    state: downgrade("failed", found.partial),
+                    evidence: found.partial
+                        ? "no readable required_reviewers rule was found, and an entry of protection_rules is not a readable rule"
+                        : "the environment has no required_reviewers rule, so nothing prevents self-review",
+                };
+            }
+            // A rule whose reviewers cannot be read cannot be told apart from a garbage entry, so which
+            // rule prevents self-review is not readable either (WR-01).
+            if (reviewersOf(rule) === "unknown") {
+                return { state: "unknown", evidence: "the required_reviewers rule carries no readable reviewers list" };
+            }
+            return says(downgrade(readFact(hostField(rule, "prevent_self_review"), ACCEPT.preventSelfReview), found.partial), {
+                held: "the required_reviewers rule has prevent_self_review true",
+                failed: "the required_reviewers rule has prevent_self_review false",
+                unknown: found.partial
+                    ? "the required_reviewers rule does not show prevent_self_review true, and an entry of protection_rules is not a readable rule"
+                    : "the required_reviewers rule carries no boolean prevent_self_review",
+            });
         },
     },
     {
@@ -783,11 +907,11 @@ const ENVIRONMENT_FLOOR = [
         read: (env) => {
             if (env === undefined)
                 return NO_ENVIRONMENT;
-            if (env.can_admins_bypass === false)
-                return { state: "held", evidence: "can_admins_bypass is false" };
-            if (env.can_admins_bypass === true)
-                return { state: "failed", evidence: "can_admins_bypass is true" };
-            return { state: "unknown", evidence: "the environment carries no boolean can_admins_bypass" };
+            return says(readFact(hostField(env, "can_admins_bypass"), ACCEPT.canAdminsBypass), {
+                held: "can_admins_bypass is false",
+                failed: "can_admins_bypass is true",
+                unknown: "the environment carries no boolean can_admins_bypass",
+            });
         },
     },
     {
@@ -796,19 +920,15 @@ const ENVIRONMENT_FLOOR = [
         read: (env) => {
             if (env === undefined)
                 return NO_ENVIRONMENT;
-            const policy = env.deployment_branch_policy;
-            if (policy === null)
-                return { state: "failed", evidence: "deployment_branch_policy is null, so any branch can deploy" };
-            if (isObject(policy) && policy.protected_branches === true) {
-                return { state: "held", evidence: "deployment_branch_policy.protected_branches is true" };
-            }
-            if (isObject(policy) && policy.custom_branch_policies === true) {
-                return {
-                    state: "unknown",
-                    evidence: "the environment uses a custom deployment branch policy, and the check does not read which branches it allows",
-                };
-            }
-            return { state: "unknown", evidence: "the environment carries no readable deployment_branch_policy" };
+            const policy = hostField(env, "deployment_branch_policy");
+            const custom = hostField(policy, "protected_branches") === false && hostField(policy, "custom_branch_policies") === true;
+            return says(readFact(policy, ACCEPT.deploymentBranchPolicy), {
+                held: "deployment_branch_policy.protected_branches is true and custom_branch_policies is false",
+                failed: "deployment_branch_policy is null, so any branch can deploy",
+                unknown: custom
+                    ? "the environment uses a custom deployment branch policy, and the check does not read which branches it allows"
+                    : "the environment carries no readable deployment_branch_policy (only protected_branches true with custom_branch_policies false shows this item)",
+            });
         },
     },
 ];
@@ -819,11 +939,13 @@ function unreadEnvironmentFacts(why) {
 function environmentVerdict(name, source) {
     const at = `; environment name from ${source}`;
     const res = apiGet("repos/{owner}/{repo}/environments?per_page=100");
-    if (!(res.status === 200 && isObject(res.body) && Array.isArray(res.body.environments))) {
+    const list = hostField(res.body, "environments");
+    if (!(res.status === 200 && Array.isArray(list))) {
         const reason = `the environments endpoint answered ${answered(res)}`;
         return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
     }
-    const found = res.body.environments.find((e) => isObject(e) && e.name === name);
+    const entries = list;
+    const found = entries.find((e) => hostField(e, "name") === name);
     const env = isObject(found) ? found : undefined;
     const facts = ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, ...row.read(env) }));
     if (env === undefined) {
@@ -884,8 +1006,9 @@ if (cannotAsk !== undefined) {
 else {
     const names = [];
     const repo = apiGet("repos/{owner}/{repo}");
-    if (repo.status === 200 && isObject(repo.body) && typeof repo.body.default_branch === "string") {
-        names.push(repo.body.default_branch);
+    const defaultBranch = hostField(repo.body, "default_branch");
+    if (repo.status === 200 && typeof defaultBranch === "string") {
+        names.push(defaultBranch);
     }
     else {
         targets.push(branchUnknown("(default branch)", `the repository endpoint answered ${answered(repo)}; the default branch is unknown`));
@@ -897,9 +1020,10 @@ else {
         // GitHub answers a RENAMED branch's old name with the branch it was renamed to (measured
         // 2026-09-27: `branches/master` → 200 with `"name": "main"` on a repository whose master was
         // renamed). Only an answer about the branch that was asked for shows the branch exists.
-        if (res.status === 200 && isObject(res.body) && res.body.name === b)
+        const answeredName = hostField(res.body, "name");
+        if (res.status === 200 && answeredName === b)
             names.push(b);
-        else if (res.status === 200 && isObject(res.body) && typeof res.body.name === "string")
+        else if (res.status === 200 && typeof answeredName === "string")
             continue;
         else if (res.status !== 404) {
             targets.push(branchUnknown(b, `could not tell whether the branch exists: the branch endpoint answered ${answered(res)}`));
