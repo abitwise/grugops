@@ -250,6 +250,17 @@ function apiGet(path: string): ApiResult {
   if (status === undefined) {
     return { status: undefined, body: undefined, next: false, problem: "gh returned no readable HTTP status" };
   }
+  // gh's exit status must agree with the status it printed (D-30: an answer the same run
+  // contradicts is never evidence). Measured 2026-09-29 on gh 2.96.0: `gh api --method GET -i`
+  // exits 0 on HTTP 200 and 1 on HTTP 404 (fixtures/gh-stub.mjs models the same). So exit 0 goes
+  // with a status below 400 and a non-zero exit with 400 or above; any other pairing, or no exit
+  // status at all (the process was killed), is a problem. A 404 with exit 1 is still read, which
+  // every "not protected" and "not found" path depends on.
+  const exitOk = r.status === 0;
+  if (r.status === null || exitOk !== status < 400) {
+    const exit = r.status === null ? "without an exit status" : `with status ${r.status}`;
+    return { status: undefined, body: undefined, next: false, problem: `gh exited ${exit} but printed HTTP ${status}` };
+  }
   let body: unknown;
   try {
     body = JSON.parse(rest);
