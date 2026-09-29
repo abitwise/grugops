@@ -8,7 +8,7 @@
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
 import { describe, it, expect, afterEach } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, lstatSync, symlinkSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
@@ -3163,6 +3163,415 @@ describe("host-protection.js — brief DC-3: a config candidate that is not a re
     expect(environmentLine(r.stdout)).toContain(`environment name from ${sourceOf(rel)}`);
     expect(r.status).toBe(0);
   }, 30_000);
+});
+
+// ── Red-team round of plan 33.1-25 (brief §3, DC-1, DC-3) ────────────────────────────────────────
+// Four breaks against the committed .js, each tested here as a class, not as the one case found:
+// B1  a ruleset's `source` was only compared between the rule list and the ruleset body, never with
+//     the repository the run proved (repositoryIdentity), and no other host field that names a
+//     repository (an environment's url and html_url, the protected-branch list's protection_url)
+//     was compared with it either;
+// B3  the repository url was compared only in its WHATWG-normalised form, so a garbled string that
+//     normalises to this repository (tabs, controls, backslashes, dot segments, a bare `?`) or one
+//     on any host, under any path prefix, over http, named the repository;
+// B4  printable() let format characters (bidi controls) and line/paragraph separators through;
+// B2  the config read opened a path before it knew its type, so a writer blocked on a FIFO there
+//     was released (and then died).
+
+// Every rule of ruleset 1 and the ruleset's own body naming `source` and `source_type` (undefined
+// removes the key on both sides), with main's classic arm reporting no classic protection, so only
+// the ruleset can show main's rows.
+function sourcedAs(source: string, type: string | undefined): Fixture {
+  return base({
+    [RULES("main")]: rulesWithSource({ ruleset_source: source, ruleset_source_type: type }),
+    [RULESET(1)]: rulesetBodyWith({ source, source_type: type }),
+    [PROTECTION("main")]: NOT_PROTECTED_404,
+  });
+}
+// [case, source, source_type]: both sides agree, and the agreed source does not name the repository
+// this run proved (octo/repo, owner octo).
+const SOURCE_NOT_THIS_REPOSITORY: Array<[string, string, string | undefined]> = [
+  ["another repository (the red-team case)", "evil/other", "Repository"],
+  ["this repository in another case", "Octo/Repo", "Repository"],
+  ["this repository's owner alone, typed Repository", "octo", "Repository"],
+  ["this repository with a trailing segment", "octo/repo/x", "Repository"],
+  ["this repository with a trailing space", "octo/repo ", "Repository"],
+  ["this repository with a right-to-left override", "octo/repo‮", "Repository"],
+  ["another organization", "evil", "Organization"],
+  ["this owner in another case, typed Organization", "Octo", "Organization"],
+  ["this repository's full name, typed Organization", "octo/repo", "Organization"],
+  ["an Enterprise source naming this owner", "octo", "Enterprise"],
+  ["an Enterprise source naming this repository", "octo/repo", "Enterprise"],
+  ["a source type in another case", "octo/repo", "repository"],
+  ["an undocumented source type", "octo/repo", "User"],
+  ["no source type on either side, naming this owner alone", "octo", undefined],
+  ["no source type on either side, naming another repository", "evil/other", undefined],
+];
+const SOURCE_THIS_REPOSITORY: Array<[string, string, string | undefined]> = [
+  ["this repository", "octo/repo", "Repository"],
+  ["this repository's owner, typed Organization", "octo", "Organization"],
+  ["this repository, no source type on either side", "octo/repo", undefined],
+];
+
+describe("host-protection.js — red-team 33.1-25 B1: a ruleset's source must name the repository this run proved (DC-1)", () => {
+  it("the tables have the pinned sizes (15 contradicting, 3 controls)", () => {
+    expect(SOURCE_NOT_THIS_REPOSITORY).toHaveLength(15);
+    expect(SOURCE_THIS_REPOSITORY).toHaveLength(3);
+  });
+
+  it("the red-team case as found: every rule and the body name evil/other (Repository), main has no classic answer → main UNKNOWN - verify, exit 2", () => {
+    const fx = base({
+      [RULES("main")]: rulesWithSource({ ruleset_source: "evil/other" }),
+      [RULESET(1)]: rulesetBodyWith({ source: "evil/other" }),
+    });
+    const r = runCheck(fx, ["--json"]);
+    expect(firstLine(r.stdout)).toBe("repository octo/repo");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    for (const f of factsOf(r.stdout, "branch", "main")) expect(f.state, f.id).toBe("unknown");
+    expect(r.status).toBe(2);
+  });
+
+  it.each(SOURCE_NOT_THIS_REPOSITORY)("the ruleset's source is %s (%s, %s) on both sides → UNKNOWN - verify, every main row unknown, exit 2", (_label, source, type) => {
+    const r = runCheck(sourcedAs(source, type), ["--json"]);
+    expect(firstLine(r.stdout)).toBe("repository octo/repo");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    for (const f of factsOf(r.stdout, "branch", "main")) expect(f.state, f.id).toBe("unknown");
+    expect(r.status).toBe(2);
+  });
+
+  it.each(SOURCE_THIS_REPOSITORY)("control: the ruleset's source is %s (%s, %s) → main protected, exit 0", (_label, source, type) => {
+    const r = runCheck(sourcedAs(source, type));
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("the strong ruleset (source octo/repo) under a run that proved ANOTHER repository (acme/app) → main UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "acme/app", url: "https://api.github.com/repos/acme/app" } } }),
+      ["--json"],
+    );
+    expect(firstLine(r.stdout)).toBe("repository acme/app");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("control: the same run proving acme/app with a ruleset whose source is acme/app → main protected", () => {
+    const r = runCheck({
+      ...sourcedAs("acme/app", "Repository"),
+      [REPO]: { status: 200, body: { default_branch: "main", full_name: "acme/app", url: "https://api.github.com/repos/acme/app" } },
+    });
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+});
+
+// B1 siblings: every other host field that names a repository. Absent is neutral (the strong
+// fixture carries none of them); present and naming another repository, another host, another
+// environment or branch, or not readable, contradicts the same run.
+const ENV_URL = "https://api.github.com/repos/octo/repo/environments/production";
+const ENV_HTML_URL = "https://github.com/octo/repo/deployments/activity_log?environments_filter=production";
+const ENV_FIELDS_CONTRADICTING: Array<[string, Record<string, unknown>]> = [
+  ["url naming another repository", { url: "https://api.github.com/repos/evil/other/environments/production" }],
+  ["url naming another owner", { url: "https://api.github.com/repos/evil/repo/environments/production" }],
+  ["url naming this repository in another case", { url: "https://api.github.com/repos/Octo/repo/environments/production" }],
+  ["url naming another environment", { url: "https://api.github.com/repos/octo/repo/environments/staging" }],
+  ["url on another host", { url: "https://evil.example/repos/octo/repo/environments/production" }],
+  ["url that is not an environment endpoint", { url: "https://api.github.com/repos/octo/repo" }],
+  ["url with a percent-encoded repository name", { url: "https://api.github.com/repos/octo/%72epo/environments/production" }],
+  ["url not canonical (a tab inside)", { url: "https://api.github.com/repos/octo/re\tpo/environments/production" }],
+  ["url a number", { url: 7 }],
+  ["url null", { url: null }],
+  ["html_url naming another repository", { html_url: "https://github.com/evil/other/deployments/activity_log?environments_filter=production" }],
+  ["html_url naming this repository in another case", { html_url: "https://github.com/Octo/Repo/deployments/activity_log?environments_filter=production" }],
+  ["html_url on another host", { html_url: "https://evil.example/octo/repo/deployments/activity_log?environments_filter=production" }],
+  ["html_url on the API host", { html_url: "https://api.github.com/octo/repo/deployments/activity_log?environments_filter=production" }],
+  ["html_url with a fragment", { html_url: "https://github.com/octo/repo/deployments#x" }],
+  ["html_url with credentials", { html_url: "https://u:p@github.com/octo/repo/deployments" }],
+  ["html_url a number", { html_url: 7 }],
+];
+const LIST_PROTECTION_URLS_CONTRADICTING: Array<[string, unknown]> = [
+  ["another repository", "https://api.github.com/repos/evil/other/branches/hotfix/protection"],
+  ["another branch", "https://api.github.com/repos/octo/repo/branches/main/protection"],
+  ["another host", "https://evil.example/repos/octo/repo/branches/hotfix/protection"],
+  ["a percent-encoded repository name", "https://api.github.com/repos/octo/%72epo/branches/hotfix/protection"],
+  ["a url that is not canonical (a newline inside)", "https://api.github.com/repos/octo/repo/branches/hot\nfix/protection"],
+  ["a number", 7],
+  ["null", null],
+];
+
+describe("host-protection.js — red-team 33.1-25 B1 siblings: every host field that names a repository is compared with the proven one (DC-1)", () => {
+  it("the tables have the pinned sizes (17 environment fields, 7 protection urls)", () => {
+    expect(ENV_FIELDS_CONTRADICTING).toHaveLength(17);
+    expect(LIST_PROTECTION_URLS_CONTRADICTING).toHaveLength(7);
+  });
+
+  it.each(ENV_FIELDS_CONTRADICTING)("the production environment's %s → every production row unknown, exit 2", (_label, over) => {
+    const r = runCheck(base({ [ENVS]: envs({ name: "production", ...over }) }), ["--json"]);
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    for (const f of envFacts(r.stdout, "production")) expect(f.state, f.id).toBe("unknown");
+    expect(r.status).toBe(2);
+  });
+
+  it.each(ENV_FIELDS_CONTRADICTING.filter(([label]) => label.includes("another repository")))(
+    "ANOTHER environment of the list (staging) whose %s → the list is not about this repository, every production row unknown",
+    (_label, over) => {
+      const r = runCheck(base({ [ENVS]: envs({ name: "production" }, { name: "staging", ...over }) }), ["--json"]);
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+      expect(r.status).toBe(2);
+    },
+  );
+
+  it("controls: the production environment's url and html_url name this repository (and a staging entry its own) → protected, exit 0", () => {
+    for (const fx of [
+      base({ [ENVS]: envs({ name: "production", url: ENV_URL }) }),
+      base({ [ENVS]: envs({ name: "production", html_url: ENV_HTML_URL }) }),
+      base({
+        [ENVS]: envs(
+          { name: "production", url: ENV_URL, html_url: ENV_HTML_URL },
+          { name: "staging", url: "https://api.github.com/repos/octo/repo/environments/staging" },
+        ),
+      }),
+    ]) {
+      const r = runCheck(fx);
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+      expect(r.status).toBe(0);
+    }
+  });
+
+  it("control: an environment name that needs percent-encoding in its url (pre production) → protected", () => {
+    const r = runCheck(
+      base({ [ENVS]: envs({ name: "pre production", url: "https://api.github.com/repos/octo/repo/environments/pre%20production" }) }),
+      ["--env", "pre production"],
+    );
+    expect(verdictOf(r.stdout, "environment", "pre production")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("control: a GitHub Enterprise Server repository whose environment url and html_url sit on its own host → protected", () => {
+    const r = runCheck(
+      base({
+        [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://ghe.example.com/api/v3/repos/octo/repo" } },
+        [ENVS]: envs({
+          name: "production",
+          url: "https://ghe.example.com/api/v3/repos/octo/repo/environments/production",
+          html_url: "https://ghe.example.com/octo/repo/deployments/activity_log?environments_filter=production",
+        }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("a GitHub Enterprise Server repository whose environment html_url sits on github.com → UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://ghe.example.com/api/v3/repos/octo/repo" } },
+        [ENVS]: envs({ name: "production", html_url: ENV_HTML_URL }),
+      }),
+    );
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it.each(LIST_PROTECTION_URLS_CONTRADICTING)("the protected-branch list's element carries a protection_url that is %s → branch policy unknown", (_label, url) => {
+    const r = runCheck(base({ [PROTECTED_LIST]: listOf({ name: "hotfix", protected: true, protection_url: url }) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("control: the listed element's protection_url names hotfix's protection endpoint in this repository → branch policy held, exit 0", () => {
+    const r = runCheck(
+      base({ [PROTECTED_LIST]: listOf({ name: "hotfix", protected: true, protection_url: "https://api.github.com/repos/octo/repo/branches/hotfix/protection" }) }),
+      ["--json"],
+    );
+    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
+    expect(r.status).toBe(0);
+  });
+});
+
+// B3: one url authority. The raw string must BE the canonical form (it equals its own parsed
+// `href`), https, no credentials, no query or fragment (an empty one included), a path prefix before
+// `/repos/` that is empty or exactly `/api/v3`, a host that is api.github.com unless that GHES prefix
+// is present, and owner and name segments with no percent-encoding.
+const NOT_CANONICAL_REPOSITORY_URLS: Array<[string, string]> = [
+  ["a tab inside", "https://api.github.com/re\tpos/octo/repo"],
+  ["a newline inside", "https://api.github.com/repos/oc\nto/repo"],
+  ["a leading control character", "\u0001https://api.github.com/repos/octo/repo"],
+  ["a trailing control character", "https://api.github.com/repos/octo/repo\u001f"],
+  ["a leading space", " https://api.github.com/repos/octo/repo"],
+  ["backslashes", "https://api.github.com\\repos\\octo\\repo"],
+  ["dot segments", "https://api.github.com/repos/evil/x/../../octo/repo"],
+  ["percent-encoded dot segments (the raw string names evil/x)", "https://api.github.com/repos/evil/x/%2e%2e/%2E%2e/octo/repo"],
+  ["a bare ?", "https://api.github.com/repos/octo/repo?"],
+  ["a bare #", "https://api.github.com/repos/octo/repo#"],
+  ["an arbitrary path prefix", "https://api.github.com/foo/repos/x/repos/octo/repo"],
+  ["a prefix other than /api/v3", "https://ghe.example.com/api/v4/repos/octo/repo"],
+  ["another host without the GHES prefix", "https://evil.example/repos/octo/repo"],
+  ["http", "http://api.github.com/repos/octo/repo"],
+  ["an upper-case host", "https://API.github.com/repos/octo/repo"],
+  ["the default port spelled out", "https://api.github.com:443/repos/octo/repo"],
+  ["a percent-encoded repository name", "https://api.github.com/repos/octo/%72epo"],
+  ["a percent-encoded owner", "https://api.github.com/repos/%6fcto/repo"],
+  ["a trailing slash", "https://api.github.com/repos/octo/repo/"],
+  ["the web url", "https://github.com/octo/repo"],
+];
+const NOT_CANONICAL_PROTECTION_URLS: Array<[string, string]> = [
+  ["a tab inside", "https://api.github.com/repos/octo/re\tpo/branches/release/protection"],
+  ["a leading control character", "\u0001https://api.github.com/repos/octo/repo/branches/release/protection"],
+  ["a trailing control character", "https://api.github.com/repos/octo/repo/branches/release/protection\u001f"],
+  ["backslashes", "https://api.github.com\\repos\\octo\\repo\\branches\\release\\protection"],
+  ["dot segments", "https://api.github.com/repos/evil/x/../../octo/repo/branches/release/protection"],
+  ["percent-encoded dot segments", "https://api.github.com/repos/evil/x/%2e%2e/%2E%2e/octo/repo/branches/release/protection"],
+  ["a bare ?", "https://api.github.com/repos/octo/repo/branches/release/protection?"],
+  ["a bare #", "https://api.github.com/repos/octo/repo/branches/release/protection#"],
+  ["an upper-case host", "https://API.github.com/repos/octo/repo/branches/release/protection"],
+  ["a percent-encoded repository name", "https://api.github.com/repos/octo/%72epo/branches/release/protection"],
+  ["a percent-encoded owner", "https://api.github.com/repos/%6fcto/repo/branches/release/protection"],
+];
+
+describe("host-protection.js — red-team 33.1-25 B3: one url authority, canonical form only (DC-1)", () => {
+  it("the tables have the pinned sizes (20 repository urls, 11 protection urls)", () => {
+    expect(NOT_CANONICAL_REPOSITORY_URLS).toHaveLength(20);
+    expect(NOT_CANONICAL_PROTECTION_URLS).toHaveLength(11);
+  });
+
+  it.each(NOT_CANONICAL_REPOSITORY_URLS)("the repository url has %s → the repository is not named, every target UNKNOWN - verify, no further endpoint", (_label, url) => {
+    const r = runCheck(base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url } } }), ["--json"]);
+    expect(firstLine(r.stdout)).toMatch(new RegExp(`^repository UNKNOWN - verify — .*${UNNAMED_WHY}`));
+    for (const l of targetLines(r.stdout)) expect(TARGET_LINE.exec(l)?.[3], l).toBe("UNKNOWN - verify");
+    expect(repositoryField(r.stdout)).toBeNull();
+    expect(r.calls).toEqual([
+      ["auth", "status"],
+      ["api", "--method", "GET", "-i", "repos/{owner}/{repo}"],
+    ]);
+    expect(r.status).toBe(2);
+  });
+
+  it.each(NOT_CANONICAL_PROTECTION_URLS)("--branch release whose protection url has %s → release UNKNOWN - verify", (_label, url) => {
+    const r = runCheck(base({ [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf({ ...CLASSIC_STRONG, url }) }), ["--branch", "release", "--json"]);
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+    for (const f of factsOf(r.stdout, "branch", "release")) expect(f.state, f.id).toBe("unknown");
+  });
+
+  it("the two checks agree on percent-encoding: octo/%72epo is refused as the repository url AND as a protection url", () => {
+    const asRepo = runCheck(base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://api.github.com/repos/octo/%72epo" } } }));
+    expect(firstLine(asRepo.stdout)).toMatch(/^repository UNKNOWN - verify/);
+    const asProtection = runCheck(
+      base({ [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf({ ...CLASSIC_STRONG, url: "https://api.github.com/repos/octo/%72epo/branches/release/protection" }) }),
+      ["--branch", "release"],
+    );
+    expect(verdictOf(asProtection.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+  });
+
+  it("controls: canonical api.github.com and GHES /api/v3 repository urls (a GHES port included) name the repository", () => {
+    for (const url of [THIS_REPOSITORY, "https://ghe.example.com/api/v3/repos/octo/repo", "https://ghe.example.com:8443/api/v3/repos/octo/repo"]) {
+      const r = runCheck(base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url } } }));
+      expect(firstLine(r.stdout), url).toBe("repository octo/repo");
+      expect(r.status, url).toBe(0);
+    }
+  });
+});
+
+// B4: printable() is the one text authority. A format character (bidi controls, zero-width
+// characters) or a line/paragraph separator in host text or a user argument is escaped visibly on
+// every printed line, never written raw.
+const INVISIBLE_PRINTED: Array<[string, string]> = [
+  ["a right-to-left override", "‮"],
+  ["a left-to-right isolate", "⁦"],
+  ["a right-to-left isolate", "⁧"],
+  ["a first-strong isolate", "⁨"],
+  ["a pop directional isolate", "⁩"],
+  ["a line separator", " "],
+  ["a paragraph separator", " "],
+  ["a zero-width space", "​"],
+  ["a byte-order mark", "﻿"],
+  ["an Arabic letter mark", "؜"],
+];
+const RAW_UNPRINTABLE = /[\p{Cf}\p{Zl}\p{Zp}]/u;
+const visibleEscape = (ch: string): string => `\\u{${ch.codePointAt(0)!.toString(16)}}`;
+function expectNoRawUnprintable(stdout: string): void {
+  for (const line of stdout.split("\n")) expect(RAW_UNPRINTABLE.test(line), `a printed line carries a raw format or separator character: ${JSON.stringify(line)}`).toBe(false);
+}
+
+describe("host-protection.js — red-team 33.1-25 B4: format characters and line/paragraph separators are escaped on every printed line", () => {
+  it("the table has the pinned size (10)", () => {
+    expect(INVISIBLE_PRINTED).toHaveLength(10);
+  });
+
+  it.each(INVISIBLE_PRINTED)("%s in a 404 message → the repository line escapes it", (_label, ch) => {
+    const r = runCheck(base({ [REPO]: { status: 404, body: { message: `Not Found ${ch} yfirev - NWONKU` } } }), ["--json"]);
+    expectNoRawUnprintable(r.stdout);
+    expect(firstLine(r.stdout)).toContain(visibleEscape(ch));
+  });
+
+  it.each(INVISIBLE_PRINTED)("%s in an unreadable repository url → the repository line escapes it", (_label, ch) => {
+    const r = runCheck(base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: `https://api.github.com/repos/x/${ch} repository octo/repo` } } }), ["--json"]);
+    expectNoRawUnprintable(r.stdout);
+    expect(firstLine(r.stdout)).toContain(visibleEscape(ch));
+  });
+
+  it.each(INVISIBLE_PRINTED)("%s in a --branch name, a host message on a branch, an --env name and an environments message → every line escapes it", (_label, ch) => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: { status: 500, body: { message: `rules broke ${ch} here` } },
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+        [ENVS]: { status: 500, body: { message: `environments broke ${ch} here` } },
+      }),
+      ["--branch", `rel${ch}ease`, "--env", `prod${ch}uction`, "--json"],
+    );
+    expectNoRawUnprintable(r.stdout);
+    const esc = visibleEscape(ch);
+    expect(targetLines(r.stdout).find((l) => l.startsWith(`branch rel${esc}ease:`)), "the --branch line").toBeDefined();
+    expect(branchLine(r.stdout)).toContain(`rules broke ${esc} here`);
+    const env = targetLines(r.stdout).find((l) => l.startsWith("environment "));
+    expect(env).toContain(`environment prod${esc}uction:`);
+    expect(env).toContain(`environments broke ${esc} here`);
+  });
+});
+
+// B2: the config read decides a candidate's type BEFORE it opens it. A writer blocked in open() on
+// a FIFO at a candidate path stays blocked: opening the FIFO to read, even non-blocking, would
+// release it (and it then dies writing to a closed pipe), so "the special file is untouched" would
+// be false.
+const BLOCKED_WRITER = "process.stderr.write('ready\\n'); const fs = require('node:fs'); const fd = fs.openSync(process.argv[1], 'w'); fs.writeSync(fd, 'x'); fs.closeSync(fd);";
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+describe("host-protection.js — red-team 33.1-25 B2: a writer blocked on a FIFO at a config candidate stays blocked (DC-3)", () => {
+  for (const [i, rel] of CONFIG_CANDIDATES.entries()) {
+    it(`${rel} is a FIFO with a writer blocked in open(): the check finishes, the name falls through, and the writer is still blocked`, async (ctx) => {
+      const cwd = mkTmp();
+      for (const later of CONFIG_CANDIDATES.slice(i + 1)) writeConfig(cwd, later, "production");
+      const at = join(cwd, rel);
+      mkdirSync(dirname(at), { recursive: true });
+      const skipped = stageShapeOrSkip("FIFO", at, `scripts/runnable-ref/host-protection.test.ts: ${at} (blocked writer)`);
+      if (skipped !== null) {
+        console.log(skipLine(skipped, "the DC-3 FIFO, directory and device cases at the same path"));
+        ctx.skip();
+        return;
+      }
+      const writer = spawn(process.execPath, ["-e", BLOCKED_WRITER, at], { stdio: ["ignore", "ignore", "pipe"] });
+      const exited = new Promise<void>((resolve) => writer.once("exit", () => resolve()));
+      try {
+        await new Promise<void>((resolve, reject) => {
+          writer.stderr.on("data", (d: Buffer) => (d.toString().includes("ready") ? resolve() : undefined));
+          writer.once("exit", () => reject(new Error("the writer exited before it blocked")));
+        });
+        await pause(400); // the writer is now inside open(), waiting for a reader
+        const r = runBounded(cwd);
+        expect(r.error, `the check did not finish: ${r.error?.message}`).toBeUndefined();
+        const expected = i + 1 < CONFIG_CANDIDATES.length ? sourceOf(CONFIG_CANDIDATES[i + 1]) : DEFAULT_SOURCE;
+        expect(environmentLine(r.stdout)).toContain(`environment name from ${expected}`);
+        await pause(500); // time for a released writer to finish or die
+        expect(writer.exitCode, "the writer was released by the check").toBeNull();
+        expect(writer.signalCode, "the writer was released by the check").toBeNull();
+        expect(kindAt(at)).toBe("fifo");
+      } finally {
+        if (writer.exitCode === null && writer.signalCode === null) writer.kill("SIGKILL");
+        await exited;
+      }
+    }, 30_000);
+  }
 });
 
 // Runs LAST (vitest runs a file's tests in declaration order): aggregates the stub log of every
