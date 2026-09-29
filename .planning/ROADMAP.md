@@ -1482,7 +1482,7 @@ Plans:
 **Goal:** Take over what Phase 33 carried at its human-override close (D-33-R4-08), guard first — REVISED 2026-09-26 (33.1 D-17): the canonical-form cutover is abandoned and the Bash command-parsing prod-deploy/merge guard is RETIRED. Wave 1 deletes the Bash PreToolUse matcher, `hooks/guard.*`, the command model in `scripts/checkpoints.ts` and its grant keys; the installer translates the checkpoints config into Claude Code `permissions.ask` rules (a speed bump, documented as such); git-host branch protection and deployment environments are the hard floor, with a setup checklist and a read-only `gh api` check in the gate and release roles; CLAUDE.md "Safety (hard)" is rewritten by recorded decision (D-21). CR-01, CR-02, the two zero-key deferred ALLOW forms, IN-02, WR-04 and row 269 close as dissolved by retirement. A blocking human checkpoint (D-20) follows. Then: D-33-R4-04 (row 297), D-33-R4-05 (the `--permission-mode default` pin, after its zero-token check; row 298), rows 303-305 and 307, the CLAUDE.md nesting correction (row 309), and the open non-windows deferred items; D-33-R4-07 (row 299) is moot. Last: exactly one live capture go toward GAP-D1 (CAP-01/CAP-03) with no prod-deploy probe case. Row 274 and the windows reds are out of this phase, so CAP-02 cannot be met here. Replanned 2026-09-26: plans 03-16 below supersede the pre-D-17 set.
 **Requirements**: TBD
 **Depends on:** Phase 33
-**Plans:** 21/33 plans executed (01-02 executed against the superseded canonical-form design; their code is deleted by D-23; 03-16 replanned 2026-09-26 for the retirement; 17-21 are gap-closure round 1 of 4 for CR-01 and CR-02, planned 2026-09-28; 22-33 are gap-closure round 2 of 4 for the re-verification's Gap A and Gap B, planned 2026-09-29 and revised the same day for the gap-planning brief (DC-1..DC-3) and D-32)
+**Plans:** 21/35 plans executed (01-02 executed against the superseded canonical-form design; their code is deleted by D-23; 03-16 replanned 2026-09-26 for the retirement; 17-21 are gap-closure round 1 of 4 for CR-01 and CR-02, planned 2026-09-28; 22-35 are gap-closure round 2 of 4 for the re-verification's Gap A and Gap B, planned 2026-09-29 and revised the same day for the gap-planning brief (DC-1..DC-3) and D-32)
 
 Plans:
 **Executed before the replan (history)**
@@ -1585,35 +1585,43 @@ Plans:
 
 **Wave 5** *(blocked on 33.1-25)*
 
-- [ ] 33.1-26-PLAN.md — DC-3: one bounded reader for user paths (`readUserFile`), every installer read routed through it (IN-04 included), the census read axis, and a derived FIFO/directory test over every read path (D-18, D-20)
+- [ ] 33.1-26-PLAN.md — DC-3: one bounded reader for user paths (`readUserFile`); every install.ts user-path read routed through it, the copy-family sources (`--migrate`'s legacy config, the render mirror's config) included (D-18, D-20)
 
 **Wave 6** *(blocked on 33.1-26)*
 
-- [ ] 33.1-27-PLAN.md — Gap B tracer: `createdFiles` ledger; a blank Copilot file or CLAUDE.md is deleted only when install created it (WR-05); honest left wording (IN-01) (D-18, D-20)
+- [ ] 33.1-27-PLAN.md — DC-3: uninstall and marker reads through the helper (IN-04); census read axis derived from node:fs's exports; shared path derivation over every install variant; derived FIFO/directory test (D-18, D-20)
 
 **Wave 7** *(blocked on 33.1-27)*
 
-- [ ] 33.1-28-PLAN.md — Gap B: `geminiSettings` ledger (always the most recent change); uninstall reverses only what install recorded in `.gemini/settings.json`; install-side shape guard and counted verify (CR-03) (D-18, D-20)
+- [ ] 33.1-28-PLAN.md — Gap B tracer: `createdFiles` ledger (an absent record stays absent unless the run acted); a blank Copilot file or CLAUDE.md is deleted only when install created it (WR-05); honest left wording (IN-01) (D-18, D-20)
 
 **Wave 8** *(blocked on 33.1-28)*
 
-- [ ] 33.1-29-PLAN.md — Gap B: `kitFiles` content record; uninstall removes a grugops skill or adapter file only while it still matches what install wrote; legacy installs fall back to byte identity with the kit source (D-18, D-20)
+- [ ] 33.1-29-PLAN.md — Gap B: `geminiSettings` ledger (most recent change; absent stays absent); uninstall reverses only what install recorded in `.gemini/settings.json`; install-side shape guard and counted verify (CR-03) (D-18, D-20)
 
 **Wave 9** *(blocked on 33.1-29)*
 
-- [ ] 33.1-30-PLAN.md — D-32: re-install never silently overwrites an edited kit file; pre-flight on the record, then ask (terminal) or `--backup-edited-kit`, back up all and refresh all or change nothing in the kit; DRY_RUN lists backups (D-18, D-32)
+- [ ] 33.1-30-PLAN.md — Gap B: `kitFiles` content record; uninstall removes a grugops skill or adapter file only while it still matches what install wrote; legacy installs fall back to byte identity with the kit source (D-18, D-20)
 
 **Wave 10** *(blocked on 33.1-30)*
 
-- [ ] 33.1-31-PLAN.md — Gap B derived: DC-2 never-installed class test over every write path (zero bytes, real and DRY_RUN), the `ownsMarker` gate it finds, and the ownership axis of the fs census with gate-position checks (D-18, D-20)
+- [ ] 33.1-31-PLAN.md — the kit write plan: every kit destination, the adapter render and every refusal built and validated before the first kit write; a refusal writes nothing (D-18, D-32)
 
 **Wave 11** *(blocked on 33.1-31)*
 
-- [ ] 33.1-32-PLAN.md — Gap B derived: DC-2 user-edit class test over every installed file; DRY_RUN file-subset invariant; README and CHANGELOG for the reversal, D-32 and the special-file rule (D-18, D-20, D-32)
+- [ ] 33.1-32-PLAN.md — D-32: re-install never silently overwrites an edited kit file; pre-flight over the kit plan (an untrusted record counts as no record), then ask (terminal) or `--backup-edited-kit`; back up all and refresh all or change nothing; kitVersion kept when the kit is not written (D-18, D-32)
 
 **Wave 12** *(blocked on 33.1-32)*
 
-- [ ] 33.1-33-PLAN.md — ledger from a review snapshot (every re-review finding folded or ledgered, plus the owns(path) and DC-3 deferrals); BLOCKING decision on the D-30 questions (WR-02, WR-03, Q3a/Q3b) and the brief's scope lever (Q4), recorded as D-31; final scratch replay and regression (D-06, D-30)
+- [ ] 33.1-33-PLAN.md — Gap B derived: DC-2 never-installed class test over the union of every install variant's writes (zero bytes, real and DRY_RUN), the `ownsMarker` gate it finds, and the ownership axis of the fs census (D-18, D-20)
+
+**Wave 13** *(blocked on 33.1-33)*
+
+- [ ] 33.1-34-PLAN.md — Gap B derived: DC-2 user-edit class test over every copy-mode variant's installed files; DRY_RUN file-subset invariant; README and CHANGELOG for the reversal, D-32 and the special-file rule (D-18, D-20, D-32)
+
+**Wave 14** *(blocked on 33.1-34)*
+
+- [ ] 33.1-35-PLAN.md — ledger from a review snapshot (every re-review finding folded or ledgered, plus the owns(path) and DC-3 deferrals); BLOCKING decision on the D-30 questions (WR-02, WR-03, Q3a/Q3b) and the brief's scope lever (Q4), recorded as D-31; final scratch replay and regression (D-06, D-30)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
