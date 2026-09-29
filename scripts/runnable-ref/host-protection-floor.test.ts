@@ -862,7 +862,10 @@ const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
   "classic:$.allow_deletions": DEL,
   "classic:$.allow_deletions.enabled": DEL,
   "environments:$": E5,
-  "environments:$.total_count": INERT_ROWS,
+  // Read since the red-team of plan 33.1-24 (B2): a count that is present and is not the length of
+  // the list read, or is not a whole number of 0 or more, means the list is not read whole, so which
+  // environment of the configured name deploys use is not readable. Absence is neutral (ABSENT_NEUTRAL).
+  "environments:$.total_count": E5,
   "environments:$.environments": E5,
   "environments:$.environments[0]": E5,
   "environments:$.environments[0].name": E5,
@@ -908,7 +911,6 @@ const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
 const LISTED_CLASSIC_INERT =
   "only the 200 status and a protection record (enforce_admins { enabled: boolean }) of the listed branch's protection are read for the branch-policy evidence; its other fields decide nothing";
 const INERT: Readonly<Record<string, string>> = {
-  "environments:$.total_count": "never read: the check reads the environments list itself",
   "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.login": "identities are never read; the reviewer's id decides",
   "listedClassic:$.required_pull_request_reviews": LISTED_CLASSIC_INERT,
   "listedClassic:$.required_pull_request_reviews.required_approving_review_count": LISTED_CLASSIC_INERT,
@@ -935,6 +937,14 @@ const EXCEPTIONS: Readonly<Record<string, { rows: Readonly<Partial<Record<RowId,
   },
 };
 
+// ABSENT_NEUTRAL: a closed set of exactly one. An evidence field whose ABSENCE the check reads as
+// neutral by design, with the reason: removing the key leaves both targets protected, while null and
+// a value of another type still make every row it feeds unknown.
+const ABSENT_NEUTRAL: Readonly<Record<string, string>> = {
+  "environments:$.total_count":
+    "total_count restates the length of the list read; its absence removes a cross-check and asserts nothing, and the list itself carries every entry (no further page), so absence is not read as a mismatch",
+};
+
 // The pinned field counts. A fixture that gains or loses a field changes a count and stays red until
 // someone reads the new field and classifies it in LEAVES.
 const FIELDS_PER_BODY: Readonly<Record<BodyName, number>> = {
@@ -946,9 +956,11 @@ const FIELDS_PER_BODY: Readonly<Record<BodyName, number>> = {
   listedClassic: 13,
 };
 // 60 → 62 and 14 → 12 (red-team finding 1 of plan 33.1-23): listedClassic enforce_admins and
-// enforce_admins.enabled moved from INERT to the branch-policy row. No field was made inert.
-const EVIDENCE_FIELD_COUNT = 62;
-const INERT_FIELD_COUNT = 12;
+// enforce_admins.enabled moved from INERT to the branch-policy row. 62 → 63 and 12 → 11 (red-team
+// B2 of plan 33.1-24): environments total_count is read now, so it moved from INERT to every
+// environment row (its absence is neutral, ABSENT_NEUTRAL). No field was made inert.
+const EVIDENCE_FIELD_COUNT = 63;
+const INERT_FIELD_COUNT = 11;
 
 const WALKED = walkedPaths();
 
@@ -998,6 +1010,17 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
     }
   });
 
+  it("ABSENT_NEUTRAL has exactly one entry, an evidence field (not inert, not an array element), with a reason", () => {
+    expect(Object.keys(ABSENT_NEUTRAL)).toHaveLength(1);
+    for (const [k, why] of Object.entries(ABSENT_NEUTRAL)) {
+      expect(why.trim().length, `${k}: empty reason`).toBeGreaterThan(0);
+      expect((LEAVES[k] ?? []).length, `${k} feeds no row`).toBeGreaterThan(0);
+      const p = WALKED.find((w) => w.key === k);
+      expect(p, `${k} is not walked`).toBeDefined();
+      expect(typeof p!.segs[p!.segs.length - 1], `${k} is an array element`).toBe("string");
+    }
+  });
+
   it("the rows fed by evidence fields are exactly the fact ids of a baseline run: floor.branch plus floor.environment", () => {
     const r = runHostCheck(BASELINES.RULESET_ARM());
     const factIds = [...rowStates(r.json).keys()].sort();
@@ -1017,7 +1040,7 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
         const states = rowStates(r.json);
         const label = `${p.key} ${m}`;
         expect(states.size, `${label}: every row of both targets reported\n${r.stdout}`).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
-        if (inert) {
+        if (inert || (m === "absent" && ABSENT_NEUTRAL[p.key] !== undefined)) {
           expect(targetOf(r.json, "branch", "main")?.verdict, label).toBe("protected");
           expect(targetOf(r.json, "environment", "production")?.verdict, label).toBe("protected");
           expect(r.status, label).toBe(0);
@@ -1145,7 +1168,9 @@ const SIBLING_PAIRS = siblingPairs();
 // pairs by parent are rules $ 3, rules $[0] 10, rules $[1] 6, rules $[2] 6, ruleset $ 15, classic $
 // 6, classic reviews 1, classic bypass allowances 3, environment $[0] 6, its deployment branch
 // policy 1, its reviewer rule 3, the reviewer entry 1, and the protected-branch list element 1.
-const SIBLING_PAIR_COUNT = 62;
+// 62 → 63 (red-team B2 of plan 33.1-24): environments total_count is an evidence field now, so it
+// pairs with its sibling environments $.environments (environments $ 1).
+const SIBLING_PAIR_COUNT = 63;
 
 // ── Cross-row and cross-target pairs (plan 33.1-24 Task 2) ──────────────────────────────────────
 // The row ids come from baseline runs' facts, never from a typed list.

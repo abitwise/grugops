@@ -2535,6 +2535,291 @@ describe("host-protection.js — red-team 33.1-23 finding 5: an empty protected-
   });
 });
 
+// ── Red-team of plan 33.1-24 (brief 33.1-GAP-PLANNING-BRIEF.md §3, DC-1) ──────────────────────────
+// Three breaks, each tested as a class. B1: a garbled value that is still a string counted as
+// "provably another" entry beside the one the check selects (a protection rule's `type`, an
+// environment's `name`). B2: first-page-only evidence (a `Link` naming a further page, or an
+// environments `total_count` that disagrees with the list). B3: the main/master probe took any
+// string name as a rename.
+
+// B1, protection_rules: a rule is provably not a second required_reviewers rule only when its type
+// is another DOCUMENTED type (wait_timer, branch_policy: 33.1-RESEARCH.md, the environment
+// protection rule types of the REST description). Every other string may be the duplicate.
+const WEAK_REVIEWER_FIELDS = { prevent_self_review: false, reviewers: [] };
+const REVIEWER_TYPE_GARBAGE: Array<[string, string]> = [
+  ["empty", ""],
+  ["Required_Reviewers (the red-team case p08b)", "Required_Reviewers"],
+  ["REQUIRED_REVIEWERS", "REQUIRED_REVIEWERS"],
+  ["REQUIRED_REVIEWERS_", "REQUIRED_REVIEWERS_"],
+  ["a trailing space", "required_reviewers "],
+  ["a leading space", " required_reviewers"],
+  ["a zero-width space", "required_reviewers​"],
+  ["a soft hyphen", "required­reviewers"],
+  ["fullwidth letters", "ｒｅｑｕｉｒｅｄ_reviewers"],
+  ["a hyphen for the underscore", "required-reviewers"],
+  ["an undocumented type", "custom"],
+  ["a documented other type, garbled (Wait_Timer)", "Wait_Timer"],
+];
+const DOCUMENTED_OTHER_RULE_TYPES = ["wait_timer", "branch_policy"];
+
+// B1, environments: another entry is provably another environment only when its name is a
+// non-empty string with no invisible, format or control character and no whitespace at either end
+// or other than a plain space, and does not match the configured name case-insensitively after
+// NFKC normalisation (GitHub: environment names are not case sensitive).
+const ENV_NAME_GARBAGE: Array<[string, string]> = [
+  ["empty", ""],
+  ["Production (the red-team case p07)", "Production"],
+  ["PRODUCTION", "PRODUCTION"],
+  ["a trailing space", "production "],
+  ["a leading space", " production"],
+  ["a zero-width space (the red-team case q03)", "production​"],
+  ["a leading zero-width space", "​production"],
+  ["a soft hyphen", "prod­uction"],
+  ["a no-break space", "production "],
+  ["fullwidth letters", "ｐｒｏｄｕｃｔｉｏｎ"],
+  ["a NUL", "production\u0000"],
+  ["a tab", "production\t"],
+  ["a byte-order mark", "﻿production"],
+  ["another name with a zero-width space", "staging​"],
+];
+const PROVABLY_OTHER_ENV_NAMES = ["staging", "Staging", "production-eu", "pre production"];
+const weakEnvNamed = (name: string): Record<string, unknown> => ({ name, can_admins_bypass: true, deployment_branch_policy: null, protection_rules: [] });
+const envList = (...list: unknown[]): unknown => ({ status: 200, body: { total_count: list.length, environments: list } });
+
+describe("host-protection.js — red-team 33.1-24 B1: a garbled string is never provably another entry (DC-1)", () => {
+  it("the tables have the pinned sizes (12 rule types, 2 documented other types, 14 environment names, 4 other names)", () => {
+    expect(REVIEWER_TYPE_GARBAGE.length).toBe(12);
+    expect(DOCUMENTED_OTHER_RULE_TYPES.length).toBe(2);
+    expect(ENV_NAME_GARBAGE.length).toBe(14);
+    expect(PROVABLY_OTHER_ENV_NAMES.length).toBe(4);
+  });
+
+  for (const [label, type] of REVIEWER_TYPE_GARBAGE) {
+    for (const order of ["after", "before"] as const) {
+      it(`a weak rule typed ${JSON.stringify(type)} (${label}) ${order} the strong reviewer rule → both reviewer rows unknown, UNKNOWN - verify, exit 2`, () => {
+        const weak = { ...WEAK_REVIEWER_FIELDS, type };
+        const rules = order === "after" ? [REVIEWER_RULE(), weak] : [weak, REVIEWER_RULE()];
+        const r = runCheck(base({ [ENVS]: envList({ ...strongEnv(), protection_rules: rules }) }), ["--json"]);
+        expect(envFactOf(r.stdout, "production", "requires at least one reviewer")).toBe("unknown");
+        expect(envFactOf(r.stdout, "production", "prevents self-review")).toBe("unknown");
+        expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+        expect(r.status).toBe(2);
+      });
+    }
+  }
+
+  for (const type of DOCUMENTED_OTHER_RULE_TYPES) {
+    it(`control: a rule of the documented type ${type} beside the strong reviewer rule → both reviewer rows held, protected`, () => {
+      const r = runCheck(base({ [ENVS]: envList({ ...strongEnv(), protection_rules: [{ type }, REVIEWER_RULE()] }) }), ["--json"]);
+      expect(envFactOf(r.stdout, "production", "requires at least one reviewer")).toBe("held");
+      expect(envFactOf(r.stdout, "production", "prevents self-review")).toBe("held");
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+      expect(r.status).toBe(0);
+    });
+  }
+
+  for (const [label, name] of ENV_NAME_GARBAGE) {
+    for (const order of ["after", "before"] as const) {
+      it(`a weak environment named ${JSON.stringify(name)} (${label}) ${order} production → every environment row unknown, UNKNOWN - verify, exit 2`, () => {
+        const list = order === "after" ? [strongEnv(), weakEnvNamed(name)] : [weakEnvNamed(name), strongEnv()];
+        const r = runCheck(base({ [ENVS]: envList(...list) }), ["--json"]);
+        for (const requirement of jsonBlock(r.stdout).floor.environment) {
+          expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
+        }
+        expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+        expect(r.status).toBe(2);
+      });
+    }
+  }
+
+  for (const name of PROVABLY_OTHER_ENV_NAMES) {
+    it(`control: a weak environment named ${JSON.stringify(name)} beside production → protected, exit 0`, () => {
+      const r = runCheck(base({ [ENVS]: envList(strongEnv(), weakEnvNamed(name)) }));
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+      expect(r.status).toBe(0);
+    });
+  }
+});
+
+// B2: every list endpoint the check reads, taken from its own source (every path literal that asks
+// for a page size), each with the effect a further page must have on it.
+const HOST_SOURCE = readFileSync(join(HERE, "host-protection.ts"), "utf8");
+const LIST_ENDPOINTS: string[] = [...HOST_SOURCE.matchAll(/["`](repos\/\{owner\}\/\{repo\}\/[^"`]*per_page=[^"`]*)["`]/g)].map((m) => m[1]);
+const NEXT = "<https://api.github.com/x?page=2>";
+const LAST = "<https://api.github.com/x?page=9>";
+const NEXT_SPELLINGS: string[] = [
+  `${NEXT}; rel="next"`,
+  `${NEXT}; rel=next`,
+  `${NEXT}; REL="NEXT"`,
+  `${NEXT}; rel="prev next"`,
+  `${NEXT}; rel="next", ${LAST}; rel="last"`,
+  `${LAST}; rel="last", ${NEXT}; rel=next`,
+];
+const NO_NEXT_SPELLINGS: Array<string | undefined> = [undefined, `${LAST}; rel="last"`, `${LAST}; rel=prev`];
+// The q01 shape: no protection shown anywhere in the run, and an empty protected-branch list.
+const NOTHING_SHOWN = { [RULES("main")]: { status: 500, body: {} }, [PROTECTION("main")]: NOT_PROTECTED_404 };
+interface ListCase {
+  fixture: (link: string | undefined) => Fixture;
+  // What a further page must do, and what no further page leaves as it is.
+  more: (r: ReturnType<typeof runCheck>) => void;
+  none: (r: ReturnType<typeof runCheck>) => void;
+}
+const withLink = (answer: unknown, link: string | undefined): unknown =>
+  link === undefined ? answer : { ...(answer as Record<string, unknown>), link };
+const LIST_CASES: Record<string, ListCase> = {
+  "repos/{owner}/{repo}/rules/branches/${bp}?per_page=100": {
+    // A further page may carry a rule of ruleset 1 whose source disagrees: agreement is not shown.
+    fixture: (link) => base({ [RULES("main")]: withLink(STRONG[STRONG_RULES_KEY], link) }),
+    more: (r) => {
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      for (const f of factsOf(r.stdout, "branch", "main")) expect(f.state, f.id).toBe("unknown");
+      expect(r.status).toBe(2);
+    },
+    none: (r) => {
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+      expect(r.status).toBe(0);
+    },
+  },
+  "repos/{owner}/{repo}/environments?per_page=100": {
+    fixture: (link) => base({ [ENVS]: withLink(STRONG[ENVS], link) }),
+    more: (r) => {
+      for (const requirement of jsonBlock(r.stdout).floor.environment) expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+      expect(r.status).toBe(2);
+    },
+    none: (r) => {
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+      expect(r.status).toBe(0);
+    },
+  },
+  "repos/{owner}/{repo}/branches?protected=true&per_page=1": {
+    fixture: (link) => base({ ...NOTHING_SHOWN, [PROTECTED_LIST]: withLink(listOf(), link) }),
+    more: (r) => {
+      expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    },
+    none: (r) => {
+      expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+      expect(r.status).toBe(1);
+    },
+  },
+};
+
+describe("host-protection.js — red-team 33.1-24 B2: a list with a further page, or a count it contradicts, is not read whole (DC-1)", () => {
+  it("every list endpoint in host-protection.ts has a further-page case (3, derived from the source), and the spelling tables have the pinned sizes", () => {
+    console.log(`host-protection list endpoints: ${LIST_ENDPOINTS.join(", ")}`);
+    expect(LIST_ENDPOINTS.length).toBe(3);
+    expect([...LIST_ENDPOINTS].sort()).toEqual(Object.keys(LIST_CASES).sort());
+    expect(NEXT_SPELLINGS.length).toBe(6);
+    expect(NO_NEXT_SPELLINGS.length).toBe(3);
+  });
+
+  for (const [endpoint, c] of Object.entries(LIST_CASES)) {
+    for (const link of NEXT_SPELLINGS) {
+      it(`${endpoint} with Link ${JSON.stringify(link)} → not read whole`, () => {
+        c.more(runCheck(c.fixture(link), ["--json"]));
+      });
+    }
+    for (const link of NO_NEXT_SPELLINGS) {
+      it(`control: ${endpoint} with ${link === undefined ? "no Link" : `Link ${JSON.stringify(link)}`} → read whole`, () => {
+        c.none(runCheck(c.fixture(link), ["--json"]));
+      });
+    }
+  }
+
+  it("the red-team case p01: a rule list with a further page, and a strong classic record on main → protected by the classic arm alone", () => {
+    const r = runCheck(
+      base({ [RULES("main")]: withLink(STRONG[STRONG_RULES_KEY], `${NEXT}; rel="next"`), [PROTECTION("main")]: classicOf(CLASSIC_STRONG) }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(branchLine(r.stdout)).not.toContain("(ruleset)");
+    expect(r.status).toBe(0);
+  });
+
+  it("control (plan 33.1-23 kept): the protected-branch list asked for one element names a further page, and that element is read", () => {
+    const r = runCheck(base({ [PROTECTED_LIST]: withLink(STRONG[PROTECTED_LIST], `${NEXT}; rel="next"`) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  const TOTAL_COUNT_UNREADABLE: Array<[string, unknown]> = [
+    ["2 with one listed (the red-team case p06)", 2],
+    ["0 with one listed", 0],
+    ["null", null],
+    ['"1"', "1"],
+    ["1.5", 1.5],
+    ["-1", -1],
+    ["true", true],
+    ["{}", {}],
+  ];
+  it("the total_count table has the pinned size (8)", () => {
+    expect(TOTAL_COUNT_UNREADABLE.length).toBe(8);
+  });
+  it.each(TOTAL_COUNT_UNREADABLE)("environments total_count %s → every environment row unknown, UNKNOWN - verify, exit 2", (_label, total) => {
+    const r = runCheck(base({ [ENVS]: { status: 200, body: { total_count: total, environments: [strongEnv()] } } }), ["--json"]);
+    for (const requirement of jsonBlock(r.stdout).floor.environment) expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+  it("control: total_count equal to the list → protected; total_count absent → protected (absence is neutral)", () => {
+    for (const body of [{ total_count: 1, environments: [strongEnv()] }, { environments: [strongEnv()] }]) {
+      const r = runCheck(base({ [ENVS]: { status: 200, body } }));
+      expect(verdictOf(r.stdout, "environment", "production"), JSON.stringify(Object.keys(body))).toBe("protected");
+      expect(r.status).toBe(0);
+    }
+  });
+});
+
+// B3: the main/master probe. Only an answer naming a usable branch that is provably another name
+// (not the probed name in another case, no invisible character) is a rename; anything else leaves
+// the probed branch not shown to exist, and it is reported UNKNOWN - verify.
+const PROBE_NAME_GARBAGE: Array<[string, (b: string) => string]> = [
+  ["empty (the red-team case r02)", () => ""],
+  ["`..` (r03)", () => ".."],
+  ["`-x` (r04)", () => "-x"],
+  ["`a b` (r05)", () => "a b"],
+  ["a NUL inside the name (r06)", (b) => `${b.slice(0, 2)}\u0000${b.slice(2)}`],
+  ["the name capitalised (r07)", (b) => `${b[0].toUpperCase()}${b.slice(1)}`],
+  ["the name in upper case", (b) => b.toUpperCase()],
+  ["the name with a zero-width space", (b) => `${b}\u200b`],
+  ["the name with a trailing slash", (b) => `${b}/`],
+  ["the name with a `..` segment", (b) => `${b}/../x`],
+];
+describe("host-protection.js — red-team 33.1-24 B3: the probe's answered name is a rename only when it is a usable, provably other name (DC-1)", () => {
+  it("the table has the pinned size (10)", () => {
+    expect(PROBE_NAME_GARBAGE.length).toBe(10);
+  });
+  it.each(PROBE_NAME_GARBAGE)("branches/master answers 200 with a name that is %s → master UNKNOWN - verify, never dropped as renamed", (_label, garble) => {
+    const r = runCheck(base({ [BRANCH("master")]: answer({ name: garble("master"), protected: false }) }), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    expect(branchLine(r.stdout, "master")).not.toContain("answered as branch");
+    expect(r.status).toBe(2);
+  });
+  it.each(PROBE_NAME_GARBAGE)("the probe of main (default branch trunk) answers 200 with a name that is %s → main UNKNOWN - verify", (_label, garble) => {
+    const r = runCheck(
+      without(
+        base({
+          [REPO]: { status: 200, body: { default_branch: "trunk", url: "https://api.github.com/repos/octo/repo" } },
+          [RULES("trunk")]: rulesOf(...ALL_ROWS_IN(1)),
+          [BRANCH("main")]: answer({ name: garble("main"), protected: false }),
+        }),
+        STRONG_RULES_KEY,
+      ),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+  it("control: branches/master answers 200 about main (a real rename) → master is not a target, exit 0", () => {
+    const r = runCheck(base({ [BRANCH("master")]: answer({ name: "main", protected: true }) }));
+    expect(verdictOf(r.stdout, "branch", "master")).toBeUndefined();
+    expect(r.status).toBe(0);
+  });
+});
+
 // Runs LAST (vitest runs a file's tests in declaration order): aggregates the stub log of every
 // case above. This is the read-only proof (T-33.1-41): the check has two argv shapes and no other.
 describe("host-protection.js — read-only by construction", () => {
