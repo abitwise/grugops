@@ -6162,6 +6162,26 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     expect(lstatSync(join(installedT, "AGENTS.md"), { throwIfNoEntry: false }), "install's own AGENTS.md link was not removed").toBeUndefined();
   });
 
+  it("file ownership: a CLAUDE.md whose grugops open marker has no close marker is left byte-identical and reported (carry #5, real and DRY_RUN)", () => {
+    for (const dry of [false, true]) {
+      const target = makeFixture();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      // The user deleted the close marker by hand: an open marker with no close, then user lines and
+      // trailing blank lines, which must all survive.
+      const claude = join(target, "CLAUDE.md");
+      const edited = readFileSync(claude, "utf8").replace("<!-- GSD:grugops-start-here-end -->\n", "") + "User line after the block.\n\n\n";
+      writeFileSync(claude, edited);
+      const r = dry ? runUninstallDry(target, home) : runUninstall(target, home);
+      expect(r.status, r.stdout).toBe(0);
+      expect(readFileSync(claude, "utf8"), `${dry ? "DRY_RUN " : ""}uninstall rewrote an unterminated block`).toBe(edited);
+      expect(naming(r.stdout, dry ? "would-remove" : "removed", "CLAUDE.md start-here pointer"), r.stdout).toEqual([]);
+      const left = naming(r.stdout, "left", "CLAUDE.md start-here pointer");
+      expect(left.length, r.stdout).toBe(1);
+      expect(left[0]).toMatch(/without a matching close marker/);
+    }
+  });
+
   it("file ownership (IN-01): a directory left for want of a ledger entry says there is no record, never 'install did not create it'; tools/ is left even when recorded", () => {
     const target = makeFixture();
     const home = mkTmp();
