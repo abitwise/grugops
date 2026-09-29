@@ -47,20 +47,24 @@
 // installer carries no adapter or skill name literal, and whether a source file is materialized or
 // plain-copied is decided by the resolver slot line in its own body (D-06), not by its filename.
 
+// NO CONTENT READER IS IMPORTED HERE (red-team of plan 33.1-26, DC-3). Every read of a file's bytes,
+// user path or kit path, goes through ./user-file.ts readUserFile, and every copy is written from
+// its bytes: install/installer-fs-census.test.ts refuses readFileSync, copyFileSync,
+// createReadStream and openSync in this module and in the committed install.js.
 import {
   existsSync,
   mkdirSync,
-  readFileSync,
   writeFileSync,
   appendFileSync,
   symlinkSync,
-  copyFileSync,
   cpSync,
   rmSync,
   renameSync,
   readSync,
   readdirSync,
+  readlinkSync,
   lstatSync,
+  statSync,
   mkdtempSync,
   realpathSync,
 } from "node:fs";
@@ -96,7 +100,12 @@ import { readInstallMarker, readCreatedDirs, readAskRuleLedger, type AskRuleLedg
 // source is such a path (the copy is written from its bytes). It decides the file type before it
 // opens anything, so a FIFO, directory, socket or device is never read, never written and never
 // hangs the run. Node stdlib only, read-only, sibling module inside install/.
-import { readUserFile, type UserFileRead } from "./user-file.js";
+//
+// readForWrite (red-team of plan 33.1-26) is the one question every write under TARGET asks first:
+// it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
+// `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
+// rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
+import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState } from "./user-file.js";
 
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
@@ -388,12 +397,13 @@ const RESOLUTION_PROBE_SOURCE = [
 // whole-line equality, matching materializeAdapter's own `line === MAT_SLOT` injection test exactly,
 // so routing and injection can never disagree. Fail-closed: an unreadable source is NOT treated as
 // a resolver (it falls through to linkOrCopy, which reports the missing source).
+//
+// The source is read through readUserFile (red-team of plan 33.1-26, DC-3): GRUGOPS_SRC and the
+// render mirror are paths the user controls too, and a FIFO or a /dev/zero link there must neither
+// hang nor flood this read. Anything but a readable regular file is "not a resolver", as before.
 function srcCarriesSlot(src: string): boolean {
-  try {
-    return readFileSync(src, "utf8").split("\n").includes(MAT_SLOT);
-  } catch {
-    return false;
-  }
+  const read = readUserFile(src);
+  return read.state === "ok" && read.text.split("\n").includes(MAT_SLOT);
 }
 
 // targetAdapterFiles: the derived adapter set mapped into the TARGET's .claude/agents directory.
@@ -424,18 +434,13 @@ const verify = (msg: string): void => {
   report("verify", msg);
 };
 
-// unreadState (DC-3, plan 33.1-26): the one wording of why a user path was not read, for every
-// readUserFile state other than `ok` and `absent`. Each call site that reports one says what it did
-// instead (skipped, left untouched), so this names only the state of the path.
-const unreadState = (r: Exclude<UserFileRead, { state: "ok" } | { state: "absent" }>): string => {
-  switch (r.state) {
-    case "not-regular":
-      return `is not a regular file (it is a ${r.kind})`;
-    case "too-large":
-      return `is larger than the size bound (${r.size} bytes)`;
-    case "unreadable":
-      return `could not be read (${r.code})`;
-  }
+// unreadState (DC-3, plan 33.1-26) moved into ./user-file.ts with readForWrite, so the wording of an
+// unread state has one home for both the reader and the write gate.
+
+// errCode: the error code a thrown fs error carries, or "UNKNOWN".
+const errCode = (e: unknown): string => {
+  const code = (e as { code?: unknown }).code;
+  return typeof code === "string" && code !== "" ? code : "UNKNOWN";
 };
 
 // CREATED_DIRS (CR-02, D-18): every directory under TARGET that mkdirp itself created in this run,
@@ -446,20 +451,84 @@ const unreadState = (r: Exclude<UserFileRead, { state: "ok" } | { state: "absent
 // preview creates nothing and records nothing.
 const CREATED_DIRS = new Set<string>();
 
-const mkdirp = (dir: string): void => {
-  if (!existsSync(dir) && !DRY_RUN) {
-    const missing: string[] = [];
-    for (let cur = dir; !existsSync(cur); cur = dirname(cur)) {
-      missing.push(cur);
-      if (dirname(cur) === cur) break;
+// mkdirp (red-team of plan 33.1-26, D-18): make `dir` and every missing directory on the way to it.
+// Returns null on success, or a sentence naming the component that stopped it; it never throws.
+//
+// INSIDE THE TARGET IT WALKS ONE COMPONENT AT A TIME, FROM TARGET DOWN. Each existing component must
+// be a real directory by lstat (directoryComponent, the same rule readForWrite applies). A FIFO or a
+// regular file where a directory should be used to make every later write throw ENOTDIR, uncaught,
+// after other files were already written; a symbolic link on the way used to carry every write
+// under it out of the target. Each missing component is created with a NON-recursive mkdirSync,
+// which fails on anything that appeared at that name since the check and never follows a link.
+// Every directory it creates is recorded in CREATED_DIRS.
+//
+// OUTSIDE THE TARGET (the kit home) the behaviour is unchanged: one recursive mkdirSync.
+const mkdirp = (dir: string): string | null => {
+  const rel = relative(TARGET, dir);
+  const inTarget = rel === "" || (!isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`));
+  if (!inTarget) {
+    if (!existsSync(dir) && !DRY_RUN) mkdirSync(dir, { recursive: true });
+    return null;
+  }
+  if (DRY_RUN) return null;
+  try {
+    if (!existsSync(TARGET) && !DRY_RUN) mkdirSync(TARGET, { recursive: true });
+  } catch (e) {
+    return `${TARGET} could not be created (${errCode(e)})`;
+  }
+  let cur = TARGET;
+  for (const part of rel === "" ? [] : rel.split(sep)) {
+    cur = join(cur, part);
+    const state = directoryComponent(cur);
+    if (state === "fine") continue;
+    if (state !== "absent") return `${cur} ${state}`;
+    try {
+      if (!DRY_RUN) mkdirSync(cur);
+    } catch (e) {
+      return `${cur} could not be created (${errCode(e)})`;
     }
-    mkdirSync(dir, { recursive: true });
-    for (const p of missing) {
-      const rel = relative(TARGET, p);
-      if (rel !== "" && !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`)) {
-        CREATED_DIRS.add(rel.split(sep).join("/"));
-      }
-    }
+    CREATED_DIRS.add(relative(TARGET, cur).split(sep).join("/"));
+  }
+  return null;
+};
+
+// blockedAt: the one wording of a readForWrite refusal, naming the component that refused and, when
+// that component is a directory on the way, the path the write was for.
+const blockedAt = (g: { readonly at: string; readonly reason: string }, path: string): string =>
+  g.at === path ? `${path} ${g.reason}` : `${g.at} ${g.reason}, on the way to ${path}`;
+
+// writeTargetFile (red-team of plan 33.1-26, D-18): the ONE writer of a whole file under TARGET.
+// `how` is readForWrite's answer for `path`, asked by the caller before its DRY_RUN return:
+//   `create` writes with an exclusive create (flag "wx"). It refuses anything at the path, a
+//            dangling link included (measured on darwin: EEXIST for a dangling link, a link into a
+//            missing directory and a link loop), so a create can never follow a link out of the
+//            target, and a path that appeared since the gate asked is never overwritten.
+//   `ok`     rewrites the regular file (not a link) the gate read. Between the gate and this write a
+//            same-user process could swap the path; that window is the residual SUMMARY records.
+// Missing directories are made by mkdirp. Every failure is a counted `verify`, never a throw.
+function writeTargetFile(path: string, data: string | Uint8Array, how: "create" | "ok", label: string): boolean {
+  const why = mkdirp(dirname(path));
+  if (why !== null) {
+    verify(`${label}: ${why}. Nothing was written to ${path}.`);
+    return false;
+  }
+  try {
+    writeFileSync(path, data, { flag: how === "create" ? "wx" : "w" });
+    return true;
+  } catch (e) {
+    verify(`${label}: ${path} could not be written (${errCode(e)}). It was not written.`);
+    return false;
+  }
+}
+
+// isOwnLink: a symbolic link at `dest` whose target is exactly `src` — the link a --symlink install
+// made (linkOrCopy's symlinkSync(src, dest)). The one kind of link at a write-set path this
+// installer treats as its own; every other link is refused and reported.
+const isOwnLink = (dest: string, src: string): boolean => {
+  try {
+    return lstatSync(dest).isSymbolicLink() && readlinkSync(dest) === src;
+  } catch {
+    return false;
   }
 };
 
@@ -790,20 +859,26 @@ function doctor(): number {
   // repo-relative (Phase-7 classification). A dangling symlink is a FAIL with a symlink-specific
   // message. On the FIRST stat failure, name path + referencing file and STOP. Each entry is
   // [path, referencing-file].
-  const refs: Array<[string, string]> = [
-    [KIT_ROOT, markerFile],
-    [join(KIT_ROOT, "roles", "orchestrator.md"), adapterFile],
-    [join(KIT_ROOT, "roles", "_role-switch-protocol.md"), adapterFile],
-    [join(KIT_ROOT, "workflows"), adapterFile],
-    [join(TARGET, ".grugops", "factory.config.json"), adapterFile],
-    [join(TARGET, "plans", "board.md"), adapterFile],
+  //
+  // PRESENCE IS NOT PROOF (red-team of plan 33.1-26, DC-1/DC-3). Each entry also says what it must BE.
+  // A file entry is read through readUserFile, so a FIFO, a directory or a /dev/zero link at
+  // plans/board.md is never reported `ok` (it used to be, on existsSync alone, and the run printed
+  // ALL CHECKS PASSED). A directory entry must stat as a directory. Anything else present is a WARN
+  // that says no verdict was reached on it; absent stays the FAIL it always was.
+  const refs: Array<[string, string, "dir" | "file"]> = [
+    [KIT_ROOT, markerFile, "dir"],
+    [join(KIT_ROOT, "roles", "orchestrator.md"), adapterFile, "file"],
+    [join(KIT_ROOT, "roles", "_role-switch-protocol.md"), adapterFile, "file"],
+    [join(KIT_ROOT, "workflows"), adapterFile, "dir"],
+    [join(TARGET, ".grugops", "factory.config.json"), adapterFile, "file"],
+    [join(TARGET, "plans", "board.md"), adapterFile, "file"],
     // MIGR-02 (Phase 24): plans/handoffs/ is no longer seeded (the note-native trace replaced the
     // handoff relay), so the doctor must NOT require it — checking it here would FAIL every clean
     // install. Removed deliberately in lockstep with the seedState mkdir removal.
   ];
 
   if (DOC_FAILS === 0) {
-    for (const [p, ref] of refs) {
+    for (const [p, ref, kind] of refs) {
       if (!p) continue;
       if (isDangling(p)) {
         docFail(`dangling symlink: ${p}  (referenced by ${ref})`);
@@ -813,6 +888,21 @@ function doctor(): number {
         docFail(`${p}  (referenced by ${ref})`);
         break;
       }
+      let problem: string | null = null;
+      if (kind === "file") {
+        const read = readUserFile(p);
+        if (read.state !== "ok") problem = read.state === "absent" ? "is not present" : unreadState(read);
+      } else {
+        try {
+          if (!statSync(p).isDirectory()) problem = "is not a directory";
+        } catch (e) {
+          problem = `could not be read (${errCode(e)})`;
+        }
+      }
+      if (problem !== null) {
+        docWarn(`${p} ${problem} — it was not read, so NO VERDICT was reached on it  (referenced by ${ref})`);
+        continue;
+      }
       docReport("ok", p);
     }
   }
@@ -821,22 +911,32 @@ function doctor(): number {
   if (DOC_FAILS === 0) {
     // kit-version skew: marker kitVersion vs the installed kit's VERSION (read head -n 1 the way
     // writeMarker reads it). Unequal → warn (no negotiation; SKEW-01 is v1.2).
+    //
+    // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3). The kit home is
+    // a path the user controls ($HOME/.grugops or $GRUGOPS_HOME): a FIFO there used to hang this read,
+    // or release a writer blocked on it and print the writer's bytes as the verdict, and a link to
+    // /dev/zero grew memory without bound. Anything but a readable regular file is a WARN saying no
+    // skew verdict was reached, never a version.
     const mver = marker.kitVersion ? String(marker.kitVersion) : "";
-    let kver = "";
     const verFile = join(KIT_ROOT, "VERSION");
-    if (existsSync(verFile)) {
-      try {
-        kver = readFileSync(verFile, "utf8").split("\n")[0];
-      } catch {
-        kver = "";
-      }
+    const kitVer = readKitVersion(verFile);
+    const kver = kitVer.version;
+    if (kitVer.problem !== null) {
+      docWarn(
+        `kit-version skew: the kit VERSION at ${verFile} ${kitVer.problem} — it was not read, so NO VERDICT on ` +
+          `kit-version skew was reached`,
+      );
     }
     if (mver !== "" && kver !== "" && mver !== kver) {
       docWarn(`kit-version skew: marker=${mver} kit VERSION=${kver}`);
     }
     // missing optional seed: a seed file the user may have pruned (e.g. memory-bank/00-index.md).
-    if (!existsSync(join(TARGET, "memory-bank", "00-index.md"))) {
-      docWarn(`missing optional seed: ${join(TARGET, "memory-bank", "00-index.md")} (run install.js to re-seed)`);
+    const optionalSeed = join(TARGET, "memory-bank", "00-index.md");
+    const optionalRead = readUserFile(optionalSeed);
+    if (optionalRead.state === "absent") {
+      docWarn(`missing optional seed: ${optionalSeed} (run install.js to re-seed)`);
+    } else if (optionalRead.state !== "ok") {
+      docWarn(`optional seed ${optionalSeed} ${unreadState(optionalRead)} — it was not read, so NO VERDICT was reached on it`);
     }
 
     // --- ADAPTER STALENESS (D-09, D-10) -------------------------------------------------------
@@ -942,15 +1042,15 @@ function doctor(): number {
         // `hazardous` has one — `absent` must keep meaning genuinely absent.
         const unreadable: string[] = [];
         for (const name of docNames) {
-          let expected: string;
-          try {
-            expected = transformAdapter(
-              readFileSync(join(res.value.dir, ".claude", "agents", name), "utf8"),
-            ).text;
-          } catch {
+          // The rendered file is read through readUserFile too (the mirror is this run's own temp
+          // tree, so this is the census floor, not a live hazard): anything but a readable regular
+          // file is "the render produced no file for it", as before.
+          const renderedRead = readUserFile(join(res.value.dir, ".claude", "agents", name));
+          if (renderedRead.state !== "ok") {
             unrendered.push(name);
             continue;
           }
+          const expected = transformAdapter(renderedRead.text).text;
           const destPath = join(TARGET, ".claude", "agents", name);
           const destHazard = adapterDestHazard(destPath);
           if (destHazard !== null) {
@@ -1298,6 +1398,15 @@ function backupIfDiffers(target: string, replacement: string, label: string): bo
 //   - otherwise → renameSync the dir aside and report `backed-up`. Returns true.
 // Clear professional voice on every string (installer safety surface — CLAUDE.md hard constraint).
 function backupDir(target: string, label: string): boolean {
+  // Red-team of plan 33.1-26 (D-18): the rename happens INSIDE the target or not at all. A symbolic
+  // link or a non-directory on the way to `target` (plans/ linked elsewhere, say) would carry the
+  // rename out of the target, so it is refused and reported; the leaf itself is renamed as a name
+  // (a link is renamed, never followed).
+  const way = wayTo(TARGET, target);
+  if (way !== null && way !== "absent") {
+    verify(`${label}: ${blockedAt(way, target)}. Nothing was backed up and nothing was renamed.`);
+    return false;
+  }
   if (!existsSync(target)) {
     report("ok", `${label} (nothing to migrate — no ${target})`);
     return false;
@@ -1467,12 +1576,30 @@ function migratePreSteps(): void {
     // written from those bytes, never by a copy call that reopens the path. A legacy config that is
     // not a readable regular file within the bound is neither copied nor renamed: it is left where
     // it is and reported as a counted `verify`.
-    const legacyRead = readUserFile(legacy);
-    if (legacyRead.state === "absent") continue;
-    if (legacyRead.state !== "ok") {
+    //
+    // Red-team of plan 33.1-26: it is asked through readForWrite, because it is RENAMED below. A link
+    // or a non-directory on the way to it would carry the rename out of the target, and a link at the
+    // path itself is not a config this run may move; both are left and reported the same way.
+    const legacyRead = readForWrite(TARGET, legacy);
+    if (legacyRead.state === "create") continue;
+    if (legacyRead.state === "blocked") {
       verify(
-        `user config ${legacy} ${unreadState(legacyRead)}. It was left in place: it was not copied to ` +
+        `user config ${blockedAt(legacyRead, legacy)}. It was left in place: it was not copied to ` +
           `${seededConfig} and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.`,
+      );
+      continue;
+    }
+    // COPY forward to the seeded .grugops/ location only if nothing is there (never-overwrite seeded
+    // state). The destination is asked through readForWrite BEFORE anything moves (red-team finding
+    // 5 of plan 33.1-26): a destination that is not a readable regular file (a FIFO, a directory, a
+    // link) is not "already present — kept". Nothing was carried forward into it, so the legacy
+    // config is NOT renamed to .bak either; both are left and reported.
+    const seeded = readForWrite(TARGET, seededConfig);
+    if (seeded.state === "blocked") {
+      verify(
+        `user config ${legacy} was not carried forward: ${blockedAt(seeded, seededConfig)}. Both were left ` +
+          `in place and ${legacy} was not renamed to a .bak. Make ${seededConfig} a regular file (or remove it) ` +
+          `and re-run --migrate.`,
       );
       continue;
     }
@@ -1480,18 +1607,23 @@ function migratePreSteps(): void {
       report("would-move", `user config ${legacy} → ${seededConfig} (original left as .bak)`);
       continue;
     }
-    // COPY forward to the seeded .grugops/ location only if absent (never-overwrite seeded state).
-    // The destination is asked through readUserFile too, so only a path it reads as absent is written.
-    if (readUserFile(seededConfig).state === "absent") {
-      mkdirp(dirname(seededConfig));
-      writeFileSync(seededConfig, legacyRead.bytes);
+    if (seeded.state === "create") {
+      if (!writeTargetFile(seededConfig, legacyRead.bytes, "create", `user config ${legacy}`)) {
+        // Not carried forward, so the original stays where it is, unrenamed (the verify says why).
+        continue;
+      }
       report("moved", `user config → ${seededConfig} (carried forward, D-04)`);
     } else {
       report("skipped", `user config (.grugops/factory.config.json already present — kept, D-04)`);
     }
     // Leave the original in place renamed to a timestamped .bak (never deleted, D-04).
     const bak = `${legacy}.bak.${isoStamp()}`;
-    renameSync(legacy, bak);
+    try {
+      renameSync(legacy, bak);
+    } catch (e) {
+      verify(`user config ${legacy} could not be renamed to ${bak} (${errCode(e)}). It was left in place.`);
+      continue;
+    }
     report("backed-up", `original config → ${bak}`);
   }
 
@@ -1528,6 +1660,13 @@ function migratePreSteps(): void {
   ];
   for (const dest of adapterDests) {
     if (!isSymlink(dest)) continue;
+    // Red-team of plan 33.1-26 (D-18): the unlink happens inside the target or not at all. A link or a
+    // non-directory on the way to `dest` would carry the removal out of the target.
+    const way = wayTo(TARGET, dest);
+    if (way !== null && way !== "absent") {
+      verify(`symlink adapter ${dest}: ${blockedAt(way, dest)}. Nothing was unlinked.`);
+      continue;
+    }
     if (DRY_RUN) {
       report("would-unlink", `symlink adapter ${dest} (never write through a live symlink — Pitfall 1)`);
       continue;
@@ -1540,13 +1679,19 @@ function migratePreSteps(): void {
 // ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
 // if the open sentinel is already present; creates the file if absent. Never `>`-truncates.
 //
-// DC-3 / D-18 (plan 33.1-26): the file is read through readUserFile, and nothing is written or
-// appended unless that read found it absent or a regular file. A FIFO, directory, socket or device
-// at the path is neither read nor written; the run reports a counted `verify` and goes on.
+// DC-3 / D-18 (plan 33.1-26): the file is read before anything is written or appended. A FIFO,
+// directory, socket or device at the path is neither read nor written; the run reports a counted
+// `verify` and goes on.
+//
+// Red-team of plan 33.1-26: it is asked through readForWrite, not readUserFile. A dangling link used
+// to read as absent and the create went through it, outside the target; a link to a regular file
+// read as ok and the append went through it; a FIFO where .github/ should be made the create throw.
+// Each is now left untouched and reported. An absent file is created with an exclusive create that
+// already carries the block (the same bytes the old empty-create-then-append produced).
 function ensureBlock(file: string, open: string, body: string, close: string, label: string): void {
-  const cur = readUserFile(file);
-  if (cur.state !== "ok" && cur.state !== "absent") {
-    verify(`${label}: ${file} ${unreadState(cur)}. It was left untouched and nothing was added to it.`);
+  const cur = readForWrite(TARGET, file);
+  if (cur.state === "blocked") {
+    verify(`${label}: ${blockedAt(cur, file)}. It was left untouched and nothing was added to it.`);
     return;
   }
   if (cur.state === "ok" && cur.text.includes(open)) {
@@ -1557,31 +1702,50 @@ function ensureBlock(file: string, open: string, body: string, close: string, la
     report("would-add", label);
     return;
   }
-  mkdirp(dirname(file));
-  if (cur.state === "absent") writeFileSync(file, "");
-  appendFileSync(file, `\n${open}\n${body}\n${close}\n`);
+  const block = `\n${open}\n${body}\n${close}\n`;
+  if (cur.state === "create") {
+    if (!writeTargetFile(file, block, "create", label)) return;
+  } else {
+    try {
+      appendFileSync(file, block);
+    } catch (e) {
+      verify(`${label}: ${file} could not be appended to (${errCode(e)}). Nothing was added to it.`);
+      return;
+    }
+  }
   report("created", label);
 }
 
 // link_or_copy: D-30 symlink-with-copy-fallback, idempotent. Never clobbers a non-grugops
 // user file (destinations are all grugops-owned paths).
+//
+// Red-team of plan 33.1-26 (D-18, DC-3): the kit source is read through readUserFile and the copy is
+// written from those bytes (no copy call reopens a path). The destination is asked through
+// readForWrite: the one link it accepts is the link a --symlink install made to this exact source
+// (isOwnLink); any other link, dangling or not, and any special file or non-directory on the way, is
+// left untouched and reported. A new file is made with an exclusive create.
 function linkOrCopy(src: string, dest: string, label: string): void {
-  if (!existsSync(src)) {
+  const srcRead = readUserFile(src);
+  if (srcRead.state === "absent") {
     report("skipped", `${label} (source missing: ${src})`);
     return;
   }
-  if (isSymlink(dest)) {
+  if (srcRead.state !== "ok") {
+    verify(`${label}: the kit source ${src} ${unreadState(srcRead)}. Nothing was installed for it.`);
+    return;
+  }
+  if (isOwnLink(dest, src)) {
     report("skipped", `${label} (symlink present)`);
     return;
   }
   // DC-3 / D-18 (plan 33.1-26): the destination is read before anything is written to it. A FIFO,
   // directory, socket or device there, or a file too large or unreadable, is left untouched.
-  const destRead = readUserFile(dest);
-  if (destRead.state !== "ok" && destRead.state !== "absent") {
-    verify(`${label}: ${dest} ${unreadState(destRead)}. It was left untouched and nothing was copied over it.`);
+  const destRead = readForWrite(TARGET, dest);
+  if (destRead.state === "blocked") {
+    verify(`${label}: ${blockedAt(destRead, dest)}. It was left untouched and nothing was copied over it.`);
     return;
   }
-  if (destRead.state === "ok" && sameContent(src, dest)) {
+  if (destRead.state === "ok" && destRead.text === srcRead.text) {
     report("skipped", `${label} (identical copy present)`);
     return;
   }
@@ -1589,8 +1753,12 @@ function linkOrCopy(src: string, dest: string, label: string): void {
     report(INSTALL_MODE === "copy" ? "would-copy" : "would-link", label);
     return;
   }
-  mkdirp(dirname(dest));
-  if (INSTALL_MODE !== "copy") {
+  if (INSTALL_MODE !== "copy" && destRead.state === "create") {
+    const why = mkdirp(dirname(dest));
+    if (why !== null) {
+      verify(`${label}: ${why}. Nothing was linked or copied to ${dest}.`);
+      return;
+    }
     try {
       symlinkSync(src, dest);
       if (isSymlink(dest)) {
@@ -1601,8 +1769,7 @@ function linkOrCopy(src: string, dest: string, label: string): void {
       // fall through to copy
     }
   }
-  copyFileSync(src, dest);
-  report("copied(verify)", label);
+  if (writeTargetFile(dest, srcRead.bytes, destRead.state, label)) report("copied(verify)", label);
 }
 
 // Gemini settings shape — the JSON merge target. context.fileName is the array we add AGENTS.md to.
@@ -1617,24 +1784,27 @@ interface GeminiSettings {
 function mergeGemini(): void {
   const file = join(TARGET, ".gemini", "settings.json");
   const want = "AGENTS.md";
-  // DC-3 / D-18 (plan 33.1-26): read through readUserFile before any write. A settings file that is
-  // not a readable regular file within the bound is left untouched and reported.
-  const cur = readUserFile(file);
-  if (cur.state !== "ok" && cur.state !== "absent") {
-    verify(`.gemini/settings.json ${unreadState(cur)} — left untouched; add AGENTS.md to context.fileName manually`);
+  // DC-3 / D-18 (plan 33.1-26): read before any write. A settings file that is not a readable
+  // regular file within the bound is left untouched and reported. Red-team of plan 33.1-26: asked
+  // through readForWrite, so a link at the path (dangling or not) or a non-directory where .gemini/
+  // should be is refused the same way, and a new file is made with an exclusive create.
+  const cur = readForWrite(TARGET, file);
+  if (cur.state === "blocked") {
+    verify(`.gemini/settings.json: ${blockedAt(cur, file)} — left untouched; add AGENTS.md to context.fileName manually`);
     return;
   }
-  if (cur.state === "absent") {
+  if (cur.state === "create") {
     if (DRY_RUN) {
       report("would-add", ".gemini/settings.json (context.fileName: [AGENTS.md, GEMINI.md])");
       return;
     }
-    mkdirp(join(TARGET, ".gemini"));
-    writeFileSync(
+    const created = writeTargetFile(
       file,
       JSON.stringify({ context: { fileName: ["AGENTS.md", "GEMINI.md"] } }, null, 2) + "\n",
+      "create",
+      ".gemini/settings.json",
     );
-    report("created", ".gemini/settings.json (context.fileName wiring)");
+    if (created) report("created", ".gemini/settings.json (context.fileName wiring)");
     return;
   }
   let json: GeminiSettings;
@@ -1660,8 +1830,9 @@ function mergeGemini(): void {
     report("would-add", ".gemini/settings.json (merge AGENTS.md into context.fileName)");
     return;
   }
-  writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
-  report("created", ".gemini/settings.json (merged AGENTS.md into context.fileName)");
+  if (writeTargetFile(file, JSON.stringify(json, null, 2) + "\n", "ok", ".gemini/settings.json")) {
+    report("created", ".gemini/settings.json (merged AGENTS.md into context.fileName)");
+  }
 }
 
 function detectTools(): string {
@@ -2206,8 +2377,15 @@ function transformAdapter(srcText: string): AdapterTransform {
 // never reaches the written bytes — it is read OUT of them.
 function materializeAdapter(src: string, dest: string, label: string, alias?: string): void {
   const suffix = alias === undefined ? `(KIT=${KIT_ROOT})` : `(KIT=${KIT_ROOT}, model=${alias})`;
-  if (!existsSync(src)) {
+  // The source (a kit skill or a rendered mirror file) is read through readUserFile (red-team of
+  // plan 33.1-26, DC-3): absent is the existing "source missing"; any other unread state is refused.
+  const srcRead = readUserFile(src);
+  if (srcRead.state === "absent") {
     report("skipped", `${label} (source missing: ${src})`);
+    return;
+  }
+  if (srcRead.state !== "ok") {
+    verify(`${label} — the source ${src} ${unreadState(srcRead)}. Nothing was written.`);
     return;
   }
   // THE WRITE BOUND (plan 29.2-04, CR-01). Ask what `dest` IS before reading it, before comparing
@@ -2230,13 +2408,15 @@ function materializeAdapter(src: string, dest: string, label: string, alias?: st
     verify(`${label} — ${hazard}`);
     return;
   }
-  const final = transformAdapter(readFileSync(src, "utf8")).text;
-  // DC-3 / D-18 (plan 33.1-26): the destination is read through readUserFile. Absent → a write.
-  // A FIFO, directory, socket or device there, or a file too large or unreadable, is refused: it is
-  // neither read nor written, and the run reports a counted `verify`.
-  const destRead = readUserFile(dest);
-  if (destRead.state !== "ok" && destRead.state !== "absent") {
-    verify(`${label} — ${dest} ${unreadState(destRead)}. It was left untouched and nothing was written.`);
+  const final = transformAdapter(srcRead.text).text;
+  // DC-3 / D-18 (plan 33.1-26): the destination is read before it is compared or written. Absent → a
+  // write. A FIFO, directory, socket or device there, or a file too large or unreadable, is refused:
+  // it is neither read nor written, and the run reports a counted `verify`. Red-team of plan
+  // 33.1-26: asked through readForWrite, so a FIFO or a regular file where .claude/agents/ should be,
+  // or a link inside the target on the way, is refused the same way instead of crashing the write.
+  const destRead = readForWrite(TARGET, dest);
+  if (destRead.state === "blocked") {
+    verify(`${label} — ${blockedAt(destRead, dest)}. It was left untouched and nothing was written.`);
     return;
   }
   const current: string | null = destRead.state === "ok" ? destRead.text : null;
@@ -2268,24 +2448,37 @@ function materializeAdapter(src: string, dest: string, label: string, alias?: st
     report("would-materialize", `${label} ${suffix}`);
     return;
   }
-  mkdirp(dirname(dest));
-  writeFileSync(dest, final);
-  report("materialized", `${label} ${suffix}`);
+  if (writeTargetFile(dest, final, destRead.state, label)) report("materialized", `${label} ${suffix}`);
 }
 
 // seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04).
+//
+// Red-team of plan 33.1-26 (D-18, DC-3): "exists" used to be existsSync, which is false for a
+// dangling link, so the copy went through the link and wrote OUTSIDE the target; and a FIFO where
+// plans/ should be crashed the copy. The destination is now asked through readForWrite: a regular
+// file is the user's and is skipped as before; nothing there is created with an exclusive create
+// from the seed's readUserFile bytes; anything else (a link, a special file, a non-directory on the
+// way) is left untouched and reported.
 function seedFile(src: string, dest: string, label: string): void {
-  if (existsSync(dest)) {
+  const destRead = readForWrite(TARGET, dest);
+  if (destRead.state === "blocked") {
+    verify(`${label}: ${blockedAt(destRead, dest)}. It was left untouched and the seed was not written.`);
+    return;
+  }
+  if (destRead.state === "ok") {
     report("skipped", `${label} (target already has it — D-04)`);
+    return;
+  }
+  const srcRead = readUserFile(src);
+  if (srcRead.state !== "ok") {
+    verify(`${label}: the seed ${src} ${srcRead.state === "absent" ? "is missing" : unreadState(srcRead)}. Nothing was written.`);
     return;
   }
   if (DRY_RUN) {
     report("would-add", label);
     return;
   }
-  mkdirp(dirname(dest));
-  copyFileSync(src, dest);
-  report("created", label);
+  if (writeTargetFile(dest, srcRead.bytes, "create", label)) report("created", label);
 }
 
 // listSeedFiles: every file under the seed subtree, relative + sorted (LC_ALL=C byte order) to
@@ -2358,16 +2551,29 @@ function materializeRunnable(): void {
   for (const [srcRel, destRel] of RUNNABLES) {
     const src = join(GRUGOPS_SRC, srcRel);
     const dest = join(TARGET, destRel);
-    if (!existsSync(src)) {
+    // Red-team of plan 33.1-26 (DC-3, D-18): the source is read through readUserFile and the copy is
+    // written from its bytes; the destination is asked through readForWrite (the seedFile rule: a
+    // dangling link is not "nothing there", and a link or a non-directory on the way is refused).
+    const srcRead = readUserFile(src);
+    if (srcRead.state === "absent") {
       report("skipped", `${destRel} (source missing: ${src})`);
+      continue;
+    }
+    if (srcRead.state !== "ok") {
+      verify(`${destRel}: the source ${src} ${unreadState(srcRead)}. Nothing was written.`);
+      continue;
+    }
+    const destRead = readForWrite(TARGET, dest);
+    if (destRead.state === "blocked") {
+      verify(`${destRel}: ${blockedAt(destRead, dest)}. It was left untouched and nothing was written.`);
       continue;
     }
     // never-overwrite (T-15-05-Tamper): an existing host file is left untouched. If it is
     // byte-identical the re-run is a clean no-op; if a user edited it, it is preserved verbatim.
-    if (existsSync(dest)) {
+    if (destRead.state === "ok") {
       report(
         "skipped",
-        sameContent(src, dest)
+        destRead.text === srcRead.text
           ? `${destRel} (target already has it — D-04)`
           : `${destRel} (target has a different copy — left untouched, never-overwrite)`,
       );
@@ -2377,9 +2583,7 @@ function materializeRunnable(): void {
       report("would-add", destRel);
       continue;
     }
-    mkdirp(dirname(dest));
-    copyFileSync(src, dest);
-    report("created", destRel);
+    if (writeTargetFile(dest, srcRead.bytes, "create", destRel)) report("created", destRel);
   }
 }
 
@@ -2412,17 +2616,39 @@ function writeMarker(): void {
         `own name begins with grugops; fix or delete the createdDirs field to restore the ledger.`,
     );
   }
+  // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3): the kit home and
+  // the checkout are user-controlled paths. An absent kit VERSION falls back to the checkout's, as
+  // before; any other unread state is a counted verify and the marker records an empty version.
   let ver = "";
-  if (existsSync(join(KIT_ROOT, "VERSION"))) {
-    ver = readFileSync(join(KIT_ROOT, "VERSION"), "utf8").split("\n")[0];
-  } else if (existsSync(join(GRUGOPS_SRC, "agent-factory", "VERSION"))) {
-    ver = readFileSync(join(GRUGOPS_SRC, "agent-factory", "VERSION"), "utf8").split("\n")[0];
+  const kitVerFile = join(KIT_ROOT, "VERSION");
+  const srcVerFile = join(GRUGOPS_SRC, "agent-factory", "VERSION");
+  const kitVer = readKitVersion(kitVerFile);
+  const useVer = kitVer.present ? kitVer : readKitVersion(srcVerFile);
+  if (useVer.problem !== null) {
+    verify(
+      `${markerRel}: the kit VERSION at ${kitVer.present ? kitVerFile : srcVerFile} ${useVer.problem}. It was not read, ` +
+        `so the marker records an empty kitVersion.`,
+    );
+  } else {
+    ver = useVer.firstLine;
+  }
+  // The marker path itself is asked through readForWrite (red-team of plan 33.1-26, D-18): a link
+  // there, or a non-directory where .grugops/ should be, is never written through.
+  const markerPath = join(TARGET, ".grugops", "install.json");
+  const markerGate = readForWrite(TARGET, markerPath);
+  if (markerGate.state === "blocked") {
+    verify(`${markerRel}: ${blockedAt(markerGate, markerPath)}. The marker was not written.`);
+    return;
   }
   if (DRY_RUN) {
     report("would-add", ".grugops/install.json (marker)");
     return;
   }
-  mkdirp(join(TARGET, ".grugops"));
+  const markerDirWhy = mkdirp(join(TARGET, ".grugops"));
+  if (markerDirWhy !== null) {
+    verify(`${markerRel}: ${markerDirWhy}. The marker was not written.`);
+    return;
+  }
   const marker: InstallMarker = {
     kitVersion: ver,
     grugopsHome: GRUGOPS_HOME,
@@ -2454,8 +2680,9 @@ function writeMarker(): void {
     }
     marker.createdDirs = [...union].sort();
   }
-  writeFileSync(join(TARGET, ".grugops", "install.json"), JSON.stringify(marker, null, 2) + "\n");
-  report("created", ".grugops/install.json (marker)");
+  if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
+    report("created", ".grugops/install.json (marker)");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2470,15 +2697,27 @@ function writeMarker(): void {
 // string is CLEAR PROFESSIONAL VOICE (safety surface; this runs as `node install/install.js --update`).
 // ---------------------------------------------------------------------------
 
-// readKitVersion: head -n 1 of a kit's VERSION file, the way writeMarker/doctor read it. Returns
-// "" on an absent/unreadable file (fail-closed — an absent VERSION simply yields no version delta).
-function readKitVersion(verFile: string): string {
-  if (!existsSync(verFile)) return "";
-  try {
-    return readFileSync(verFile, "utf8").split("\n")[0].trim();
-  } catch {
-    return "";
-  }
+// readKitVersion: head -n 1 of a kit's VERSION file, the ONE reader writeMarker, the doctor and
+// --update share. `version` is the trimmed first line ("" when absent or unread — an absent VERSION
+// simply yields no version delta); `firstLine` is the untrimmed first line writeMarker records.
+//
+// Red-team of plan 33.1-26 (DC-3): the kit home is a user-controlled path, and this used to be a raw
+// read. A FIFO at VERSION hung --check and --update (or released a writer blocked on it and printed
+// the writer's bytes as the kit version), and a link to /dev/zero grew memory without bound. It now
+// goes through readUserFile, and every state but `ok` and `absent` comes back as `problem`, worded
+// once, for the caller to report as a warning or a verify.
+interface KitVersionRead {
+  readonly present: boolean;
+  readonly version: string;
+  readonly firstLine: string;
+  readonly problem: string | null;
+}
+function readKitVersion(verFile: string): KitVersionRead {
+  const read = readUserFile(verFile);
+  if (read.state === "absent") return { present: false, version: "", firstLine: "", problem: null };
+  if (read.state !== "ok") return { present: true, version: "", firstLine: "", problem: unreadState(read) };
+  const firstLine = read.text.split("\n")[0];
+  return { present: true, version: firstLine.trim(), firstLine, problem: null };
 }
 
 // isDowngrade: true ONLY when both versions parse as dotted numeric SemVer-ish triples AND the
@@ -2516,8 +2755,22 @@ function isDowngrade(installed: string, source: string): boolean {
 // (D-06) and is a no-op when identical (D-09). NOTHING else: no target write, no seed, no adapter,
 // no marker. DRY_RUN-safe (copyKit short-circuits; the downgrade warning still prints the plan).
 function updateKitHome(): void {
-  const installedVer = readKitVersion(join(KIT_ROOT, "VERSION"));
-  const sourceVer = readKitVersion(join(GRUGOPS_SRC, "agent-factory", "VERSION"));
+  const installedRead = readKitVersion(join(KIT_ROOT, "VERSION"));
+  const sourceRead = readKitVersion(join(GRUGOPS_SRC, "agent-factory", "VERSION"));
+  for (const [what, file, r] of [
+    ["installed kit", join(KIT_ROOT, "VERSION"), installedRead],
+    ["running checkout", join(GRUGOPS_SRC, "agent-factory", "VERSION"), sourceRead],
+  ] as const) {
+    if (r.problem !== null) {
+      report(
+        "warning",
+        `the ${what} VERSION at ${file} ${r.problem}. It was not read, so no downgrade check was made; ` +
+          `the refresh proceeds as it would with no VERSION.`,
+      );
+    }
+  }
+  const installedVer = installedRead.version;
+  const sourceVer = sourceRead.version;
   if (installedVer !== "" && sourceVer !== "" && isDowngrade(installedVer, sourceVer)) {
     report(
       "warning",
@@ -2740,18 +2993,18 @@ if (SRC_ADAPTERS === null) {
     const aliasOf = new Map<string, string>();
     for (const f of SRC_ADAPTERS) {
       const label = `.claude/agents/${f}`;
-      let text: string;
-      try {
-        text = readFileSync(join(render.value.dir, ".claude", "agents", f), "utf8");
-      } catch (e) {
+      // Read through readUserFile (the census floor: install.js holds no raw content read).
+      const renderedRead = readUserFile(join(render.value.dir, ".claude", "agents", f));
+      if (renderedRead.state !== "ok") {
         verify(
           `.claude/agents/ — ${label} was rendered but could not be read back ` +
-            `(${e instanceof Error ? e.message : String(e)}), so the model it would be installed ` +
+            `(it ${renderedRead.state === "absent" ? "is missing" : unreadState(renderedRead)}), so the model it would be installed ` +
             `with is unknown. No adapter was installed and every pre-existing target adapter was ` +
             `left as it was.`,
         );
         return;
       }
+      const text = renderedRead.text;
       const alias = readRenderedAlias(text, label);
       if (!alias.ok) {
         verify(
@@ -2960,10 +3213,21 @@ if (SRC_NESTED.overflow !== null) {
   );
 }
 
-if (existsSync(join(TARGET, "AGENTS.md"))) {
-  report("skipped", "AGENTS.md (target already has one — left untouched)");
-} else {
-  linkOrCopy(join(GRUGOPS_SRC, "AGENTS.md"), join(TARGET, "AGENTS.md"), "AGENTS.md");
+// AGENTS.md is never written when the target has one. "Has one" is a regular file (readForWrite
+// `ok`) or the link a --symlink install made to the checkout's AGENTS.md. Red-team of plan 33.1-26:
+// it used to be existsSync, so a FIFO or a directory there read as "has one", and a dangling link
+// read as "has none" and reached linkOrCopy. Nothing there → linkOrCopy; anything else → verify.
+{
+  const agentsSrc = join(GRUGOPS_SRC, "AGENTS.md");
+  const agentsDest = join(TARGET, "AGENTS.md");
+  const agentsRead = isOwnLink(agentsDest, agentsSrc) ? null : readForWrite(TARGET, agentsDest);
+  if (agentsRead === null || agentsRead.state === "ok") {
+    report("skipped", "AGENTS.md (target already has one — left untouched)");
+  } else if (agentsRead.state === "blocked") {
+    verify(`AGENTS.md: ${blockedAt(agentsRead, agentsDest)}. It was left untouched and nothing was copied to it.`);
+  } else {
+    linkOrCopy(agentsSrc, agentsDest, "AGENTS.md");
+  }
 }
 
 ensureBlock(join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
@@ -3149,11 +3413,14 @@ function writeAskRules(): void {
   let json: Record<string, unknown> = {};
   let permissions: Record<string, unknown> | null = null;
   let ask: unknown[] | null = null;
-  // DC-3 / D-18 (plan 33.1-26): read through readUserFile before any write. A settings file that is
-  // not a readable regular file within the bound is left untouched, and the ledger stays as it was.
-  const settingsRead = readUserFile(file);
-  if (settingsRead.state !== "ok" && settingsRead.state !== "absent") {
-    verify(`${rel} ${unreadState(settingsRead)} — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
+  // DC-3 / D-18 (plan 33.1-26): read before any write. A settings file that is not a readable
+  // regular file within the bound is left untouched, and the ledger stays as it was. Red-team of
+  // plan 33.1-26: asked through readForWrite, so a link at the path (a dangling one used to be
+  // written through, outside the target) or a non-directory where .claude/ should be is refused the
+  // same way.
+  const settingsRead = readForWrite(TARGET, file);
+  if (settingsRead.state === "blocked") {
+    verify(`${rel}: ${blockedAt(settingsRead, file)} — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
     ASK_LEDGER = previous;
     return;
   }
@@ -3242,8 +3509,11 @@ function writeAskRules(): void {
     json.permissions = permissions;
   }
   permissions.ask = [...(ask ?? []), ...toAdd];
-  mkdirp(join(TARGET, ".claude"));
-  writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
+  if (!writeTargetFile(file, JSON.stringify(json, null, 2) + "\n", settingsRead.state, rel)) {
+    // Nothing was written, so this run added no rule: the ledger stays as it was.
+    ASK_LEDGER = previous;
+    return;
+  }
   report(
     "created",
     `${rel} (${toAdd.length} ask rule(s) added to permissions.ask${willCreateFile ? "; file created" : ""})`,

@@ -2492,10 +2492,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(mBody).toContain("adapterDestHazard(dest)");
     // ...and it is asked BEFORE the destination is read, which is what makes the refusal precede
     // D-11's skip-if-identical arm rather than follow it. Since plan 33.1-26 (DC-3) the destination
-    // is read through readUserFile, and no direct readFileSync of it remains.
+    // is read through the user-file helpers, and no direct readFileSync of it remains; since the
+    // plan's red-team fixes it is read through readForWrite (the write gate, which also refuses a
+    // link or a non-directory on the way). The read must be FOUND, so a renamed read cannot make
+    // the ordering vacuous.
     expect(mBody).not.toContain("readFileSync(dest");
+    const destReadAt = mBody.indexOf("readForWrite(TARGET, dest)");
+    expect(destReadAt, "materializeAdapter no longer reads its destination through readForWrite").toBeGreaterThan(-1);
     expect(
-      `hazard asked before dest is read: ${mBody.indexOf("adapterDestHazard(dest)") < mBody.indexOf("readUserFile(dest)")}`,
+      `hazard asked before dest is read: ${mBody.indexOf("adapterDestHazard(dest)") < destReadAt}`,
     ).toBe("hazard asked before dest is read: true");
 
     // THE TEMPORAL DEAD ZONE. `--check` calls the doctor at an early exit part-way down this file;
