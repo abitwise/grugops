@@ -102,7 +102,10 @@
 // 200 about the same ruleset reporting `enforcement: "active"`, `target: "branch"` (any other or
 // absent value of either is not readable), `source` and `source_type` agreeing with the rule list's
 // `ruleset_source` and `ruleset_source_type` for that id (a disagreement, or either side absent or
-// garbled, is not readable), and `current_user_can_bypass: "never"`; `always`,
+// garbled, is not readable), the agreed `source` naming the repository this run proved (a
+// `Repository` source is exactly its owner/name, an `Organization` source exactly its owner, and
+// with no source type on either side only the owner/name counts; any other type is not readable:
+// sourceNotThisRepository, red-team B1 of plan 33.1-25), and `current_user_can_bypass: "never"`; `always`,
 // `pull_requests_only` and `exempt` are read as bypassable; any other answer is not readable. So
 // an item is `held` on the ruleset arm when at least one binding rule shows it. Classic arm: the
 // body binds only with `enforce_admins.enabled === true` (`false` is read as bypassable, since a
@@ -157,7 +160,11 @@
 // apart from case, a documented other rule type; red-team B1 of plan 33.1-24). A list that names a
 // further page, or whose `total_count` is present and is not the length of the list read, is not
 // read whole, so every row is `unknown` (red-team B2 of plan 33.1-24; an absent total_count is
-// neutral). Same verdict rule as branches.
+// neutral). An entry whose `url` or `html_url` is present and does not name this run's repository
+// (and, for `url`, the entry's own environment), or cannot be read, makes every row `unknown`, and
+// so does a listed protected branch whose `protection_url` is present and does not name its own
+// protection endpoint in this repository (red-team B1 of plan 33.1-25; absent ones are neutral).
+// Same verdict rule as branches.
 // Reviewer identities are never printed; the evidence counts them. The name is `--env <name>`,
 // else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
 // `agent-factory/config/factory.config.json` (both relative to the working directory; an
@@ -778,12 +785,37 @@ function sourceDisagreement(id, entries, read) {
         return `ruleset ${id} names its source as ${hostText(read.source)}, and its rules name ${hostText(mine.map((r) => hostField(r, "ruleset_source")))}: these do not agree, so it is not shown to bind`;
     }
     const types = [read.sourceType, ...mine.map((r) => hostField(r, "ruleset_source_type"))];
-    if (types.every((v) => v === undefined))
-        return undefined;
-    if (!types.every((v) => readFact(v, ACCEPT.rulesetSourceType) === "held") || new Set(types).size !== 1) {
+    if (!types.every((v) => v === undefined) && (!types.every((v) => readFact(v, ACCEPT.rulesetSourceType) === "held") || new Set(types).size !== 1)) {
         return `ruleset ${id} names its source type as ${hostText(read.sourceType)}, and its rules name ${hostText(mine.map((r) => hostField(r, "ruleset_source_type")))}: these do not agree, so it is not shown to bind`;
     }
-    return undefined;
+    // Both sides agree; the agreed owner must also be the repository this run proved.
+    return sourceNotThisRepository(id, read.source, read.sourceType);
+}
+// THE SOURCE NAMES THIS REPOSITORY (red-team B1 of plan 33.1-25, D-30, DC-1). Two endpoints agreeing
+// on a ruleset's owner is not yet evidence about THIS repository: repositoryIdentity() is the one
+// authority for which repository the run is about, and the agreed `source` must name it, compared
+// exactly (case included):
+//   - `source_type` "Repository": `source` is the proven `owner/name`;
+//   - `source_type` "Organization": `source` is the proven owner;
+//   - any other type ("Enterprise", another spelling, an undocumented value): not compared, so the
+//     ruleset is not shown to bind (an enterprise's name is not in any answer this check reads);
+//   - no `source_type` on either side: `source` must be the proven `owner/name`. Without a type the
+//     source could name an organization or a repository, and only the full `owner/name` names this
+//     repository whichever it is; an owner alone needs the type to say it is an organization.
+// Anything else is why the ruleset binds nothing: its rows are `unknown`, never `failed`.
+function sourceNotThisRepository(id, source, sourceType) {
+    const repo = repositoryApi;
+    const full = repo === undefined ? undefined : `${repo.owner}/${repo.name}`;
+    const expected = sourceType === "Repository" || sourceType === undefined ? full : sourceType === "Organization" ? repo?.owner : undefined;
+    if (expected !== undefined && source === expected)
+        return undefined;
+    const typed = sourceType === undefined ? "with no source type" : `of source type ${hostText(sourceType)}`;
+    const want = expected === undefined
+        ? repo === undefined
+            ? "and the run named no repository to compare it with"
+            : "a source type this check does not compare with the repository (only Repository and Organization are compared)"
+        : `which is not ${hostText(expected)}, the ${sourceType === "Organization" ? "owner of the repository" : "repository"} this run inspected`;
+    return `ruleset ${id} names its source as ${hostText(source)} ${typed}, ${want}, so it is not shown to bind`;
 }
 // A ruleset's binding for this branch: its own read, unless its source disagrees with the rules
 // that name it here, or the rule list names a further page (red-team B2 of plan 33.1-24): a rule of
@@ -997,7 +1029,10 @@ function plainSegment(s) {
     return PLAIN_SEGMENT.test(s) && s !== "." && s !== "..";
 }
 const API_PATH = /^(\/api\/v3)?\/repos\/([^/]+)\/([^/]+)(\/.*)?$/;
-function readApiUrl(v) {
+// The canonical-form rule both readers share: a string that is exactly its own parsed `href`,
+// https, no credentials, no fragment (not even an empty `#`), and no query unless `query` allows a
+// non-empty one (only a web page url does).
+function canonicalUrl(v, query) {
     if (typeof v !== "string")
         return undefined;
     let u;
@@ -1009,7 +1044,15 @@ function readApiUrl(v) {
     }
     if (u.href !== v || u.protocol !== "https:" || u.username !== "" || u.password !== "")
         return undefined;
-    if (v.includes("?") || v.includes("#"))
+    if (v.includes("#"))
+        return undefined;
+    if (v.includes("?") && !(query && u.search.length > 1))
+        return undefined;
+    return u;
+}
+function readApiUrl(v) {
+    const u = canonicalUrl(v, false);
+    if (u === undefined)
         return undefined;
     const m = API_PATH.exec(u.pathname);
     if (m === null)
@@ -1025,6 +1068,30 @@ function readApiUrl(v) {
 // prefix and the same owner and name, compared exactly (case included).
 function underRepository(loc, repo) {
     return loc.host === repo.host && loc.prefix === repo.prefix && loc.owner === repo.owner && loc.name === repo.name;
+}
+// The same authority for a web page url that names a repository (an environment's `html_url`,
+// red-team B1 of plan 33.1-25): canonical form (canonicalUrl; a non-empty query is allowed, since
+// GitHub's documented environment html_url carries one), on the web host of this run's repository
+// (github.com for api.github.com; the same host for a GitHub Enterprise Server `/api/v3` url), with
+// a path whose first two segments are exactly this repository's owner and name. What follows them
+// (the page, its query) is not compared: it does not name a repository, and its shape is only shown
+// by GitHub's example, not documented.
+function webUrlMismatch(url, says) {
+    const repo = repositoryApi;
+    if (repo === undefined) {
+        return `${says}, but the repository answer names no readable url to compare it with, so which repository it describes is not shown`;
+    }
+    const where = `this run's repository ${repo.owner}/${repo.name}`;
+    const webHost = repo.prefix === "/api/v3" ? repo.host : repo.host === "api.github.com" ? "github.com" : undefined;
+    const u = canonicalUrl(url, true);
+    if (u === undefined || webHost === undefined) {
+        return `${says}, which is not a url this check can read (a canonical https page url with no fragment was expected)`;
+    }
+    const m = /^\/([^/]+)\/([^/]+)(?:\/|$)/.exec(u.pathname);
+    if (u.host !== webHost || m === null || m[1] !== repo.owner || m[2] !== repo.name) {
+        return `${says}, which is not a page of ${where} on ${webHost}`;
+    }
+    return undefined;
 }
 // The repository this run proved (red-team finding 4 of plan 33.1-23), from the `url` of the
 // `repos/{owner}/{repo}` answer the main flow reads first, read through readApiUrl with no `rest`.
@@ -1430,6 +1497,14 @@ function readClassicProtectionEvidence() {
     const name = hostField(listed[0], "name");
     if (typeof name !== "string")
         return { state: "unknown", evidence: "the protected-branch list names no readable branch" };
+    // The element's `protection_url`, when present, must name this branch's protection endpoint in this
+    // run's repository (red-team B1 of plan 33.1-25, DC-1): the same comparison as a classic body's
+    // `url`. Absent is neutral; present and naming another repository, host or branch, or not
+    // readable, contradicts the same run, and that branch's protection is never asked.
+    const listedUrl = hostField(listed[0], "protection_url");
+    const listedElsewhere = protectionUrlMismatch(listedUrl, name, `the protected-branch list's element carries protection_url ${hostText(listedUrl)}`);
+    if (listedElsewhere !== undefined)
+        return { state: "unknown", evidence: listedElsewhere };
     // A name the same run contradicts (answered as another branch, or not shown to exist) is never
     // asked about: its protection read would describe another branch, or none.
     const arm = contradictedName(name) !== undefined ? { kind: "unreadable", evidence: "not asked" } : readClassicArm(name, branchPath(name));
@@ -1649,6 +1724,36 @@ function environmentListNotWhole(res, entries) {
     }
     return undefined;
 }
+// Why the environments list is not shown to be this run's repository's list, or undefined when no
+// entry says otherwise (red-team B1 of plan 33.1-25, DC-1). GitHub's environment object carries
+// `url` (its API endpoint) and `html_url` (its page). Each is optional here: an ABSENT one is neutral,
+// as a classic protection body's absent `url` is (absence says nothing about which repository the
+// entry is in). A PRESENT `url` must be `<this run's repository>/environments/<the entry's own name>`
+// (repositoryUrlMismatch, the one comparison, through readApiUrl); a present `html_url` must be a page
+// of this repository (webUrlMismatch). Every entry is asked, not only the one of the configured name:
+// an entry of another repository shows the list is not this repository's, and so it cannot show
+// which environment of that name deploys use.
+function environmentUrlsMismatch(entries) {
+    for (const e of entries) {
+        const entryName = hostField(e, "name");
+        const url = hostField(e, "url");
+        const says = `the environments list's entry named ${hostText(entryName)} carries`;
+        if (url !== undefined) {
+            const why = typeof entryName === "string"
+                ? repositoryUrlMismatch(url, `${says} url ${hostText(url)}`, "environments", entryName, "")
+                : `${says} url ${hostText(url)} beside a name this check cannot read`;
+            if (why !== undefined)
+                return why;
+        }
+        const page = hostField(e, "html_url");
+        if (page !== undefined) {
+            const why = webUrlMismatch(page, `${says} html_url ${hostText(page)}`);
+            if (why !== undefined)
+                return why;
+        }
+    }
+    return undefined;
+}
 // Every production floor row `unknown`, for an environment the check could not read at all.
 function unreadEnvironmentFacts(why) {
     return ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, state: "unknown", evidence: why }));
@@ -1667,6 +1772,12 @@ function environmentVerdict(name, source) {
     const partial = environmentListNotWhole(res, entries);
     if (partial !== undefined) {
         return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${partial}${at}`, facts: unreadEnvironmentFacts(partial) };
+    }
+    // A list an entry of which names another repository (or cannot be read as naming this one) is not
+    // shown to be this repository's list (red-team B1 of plan 33.1-25, DC-1): every row is unknown.
+    const elsewhere = environmentUrlsMismatch(entries);
+    if (elsewhere !== undefined) {
+        return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${elsewhere}${at}`, facts: unreadEnvironmentFacts(elsewhere) };
     }
     // An entry whose name is not provably another environment's may be another environment of this
     // name (plan 33.1-24 and its red-team B1, DC-1): garbling one field of a duplicate, its name
