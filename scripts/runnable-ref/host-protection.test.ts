@@ -2820,6 +2820,56 @@ describe("host-protection.js — red-team 33.1-24 B3: the probe's answered name 
   });
 });
 
+// Sibling of B1/B3 (the sibling search of the red-team fixes): every other host-supplied branch name
+// the check names in a verdict or puts in a REST path goes through usableBranch(), which refused
+// control characters and spaces but let an invisible or format character through. A branch name
+// with one is not a plain name: the default branch's name and the protected-branch list's element
+// are never judged or taken as evidence under it.
+const INVISIBLE_IN_BRANCH: Array<[string, string]> = [
+  ["a zero-width space", "\u200b"],
+  ["a soft hyphen", "\u00ad"],
+  ["a byte-order mark", "\ufeff"],
+  ["a right-to-left override", "\u202e"],
+  ["a word joiner", "\u2060"],
+  ["a private-use character", "\ue000"],
+];
+const encodedBranch = (name: string): string => name.split("/").map(encodeURIComponent).join("/");
+function trunkNamed(name: string): Fixture {
+  return without(
+    base({
+      [REPO]: { status: 200, body: { default_branch: name, url: "https://api.github.com/repos/octo/repo" } },
+      [RULES(encodedBranch(name))]: rulesOf(...ALL_ROWS_IN(1)),
+      [BRANCH("main")]: answer({ message: "Branch not found" }, 404),
+    }),
+    STRONG_RULES_KEY,
+  );
+}
+describe("host-protection.js — red-team 33.1-24 sibling: a host branch name with an invisible or format character is not a plain name (DC-1)", () => {
+  it("the table has the pinned size (6)", () => {
+    expect(INVISIBLE_IN_BRANCH.length).toBe(6);
+  });
+  it.each(INVISIBLE_IN_BRANCH)("the default branch is named trunk with %s, and that name's rules show every row → that target UNKNOWN - verify, exit 2", (_label, ch) => {
+    const r = runCheck(trunkNamed(`trunk${ch}`), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", `trunk${ch}`)).toBe("UNKNOWN - verify");
+    expect(callsTo(r.calls, "rules/branches/trunk%")).toBe(0);
+    expect(r.status).toBe(2);
+  });
+  it.each(INVISIBLE_IN_BRANCH)("the protected-branch list names hotfix with %s, whose protection is a strong record → branch policy unknown, never asked", (_label, ch) => {
+    const name = `hotfix${ch}`;
+    const r = runCheck(base({ [PROTECTED_LIST]: listOf({ name, protected: true }), [PROTECTION(encodedBranch(name))]: classicOf(CLASSIC_STRONG) }), ["--json"]);
+    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(callsTo(r.calls, "branches/hotfix%")).toBe(0);
+  });
+  it("control: a plain default branch name, ASCII or not (trunk, tr\u00fcnk) → protected, exit 0", () => {
+    for (const name of ["trunk", "tr\u00fcnk"]) {
+      const r = runCheck(trunkNamed(name));
+      expect(verdictOf(r.stdout, "branch", name), name).toBe("protected");
+      expect(r.status, name).toBe(0);
+    }
+  });
+});
+
 // Runs LAST (vitest runs a file's tests in declaration order): aggregates the stub log of every
 // case above. This is the read-only proof (T-33.1-41): the check has two argv shapes and no other.
 describe("host-protection.js — read-only by construction", () => {
