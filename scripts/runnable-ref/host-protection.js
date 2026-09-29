@@ -41,7 +41,8 @@
 //     not shown. 200 with a protection record (ACCEPT.classicProtectionRecord: an enforce_admins
 //     object with a boolean `enabled`, and no `message` or `protected` key) → its body is read field
 //     by field; a 200 that is not a record is not readable (a `url` that is present must name this
-//     branch's protection endpoint; an absent `url` is not required). 404 `Branch not protected`
+//     branch's protection endpoint under the repository the `repos/{owner}/{repo}` answer's own
+//     `url` names, same host included; an absent `url` is not required). 404 `Branch not protected`
 //     (what an admin sees) → the host shows no classic protection. 404 `Not Found` (what a
 //     non-admin sees, protected or not) → ask `branches/<b>`: `.protected === false` about the
 //     branch asked for → no classic protection; `.protected === true` → classic protection exists
@@ -883,33 +884,71 @@ function readRulesetArm(bp) {
     }
     return { read: "none", rules: [], why: `the rules endpoint answered ${answered(res)}` };
 }
-// Why a classic protection body's `url` shows it is NOT about branch `name`, or undefined when it
-// is (red-team finding 3 of plan 33.1-22, D-30). The branch segment of
-// `.../repos/<owner>/<repo>/branches/<branch>/protection` is compared after percent-decoding, so a
-// branch whose name holds `/` or an escaped character is not falsely refused.
+// The repository API url this run asked about (red-team finding 4 of plan 33.1-23), from the
+// `url` of the `repos/{owner}/{repo}` answer the main flow reads first. The check's own paths carry
+// gh's `{owner}/{repo}` placeholders, so the check does not know the owner and name it asked
+// about; this same-run answer is what names them. Readable only as an http(s) URL with no
+// credentials, query or fragment, whose path ends in `/repos/<owner>/<name>` (any prefix before it,
+// such as GitHub Enterprise Server's `/api/v3`, is kept and must match). `full_name` is not read
+// here (plan 33.1-25 owns it).
+let repositoryApi;
+function readRepositoryApi(v) {
+    if (typeof v !== "string")
+        return undefined;
+    let u;
+    try {
+        u = new URL(v);
+    }
+    catch {
+        return undefined;
+    }
+    if (u.protocol !== "https:" && u.protocol !== "http:")
+        return undefined;
+    if (u.username !== "" || u.password !== "" || u.search !== "" || u.hash !== "")
+        return undefined;
+    return /\/repos\/[^/]+\/[^/]+$/.test(u.pathname) ? u : undefined;
+}
+// Why a classic protection body's `url` shows it is NOT about branch `name` of this run's
+// repository, or undefined when it is (red-team finding 3 of plan 33.1-22 and finding 4 of plan
+// 33.1-23, D-30). The url must be on the same origin (scheme, host and port) as the repository
+// answer's url, carry no credentials, query or fragment, and its path must be exactly
+// `<repository path>/branches/<branch>/protection`; the branch segment is compared after
+// percent-decoding, so a branch whose name holds `/` or an escaped character is not falsely refused.
 // An ABSENT url is not required: its absence says nothing about which branch the body describes,
 // and the check's rename evidence comes from the branches/<b> answer (the main/master probe and the
-// 404 `Not Found` path). A url that is present and names another endpoint, or cannot be read, is
-// evidence the same answer contradicts, so the branch is `UNKNOWN - verify`.
+// 404 `Not Found` path). A url that is present and names another endpoint, another repository or
+// another host, or cannot be read, or cannot be compared because the repository answer named no
+// readable url, is evidence the same run does not agree with, so the branch is `UNKNOWN - verify`.
 function protectionUrlMismatch(url, name) {
     if (url === undefined)
         return undefined;
     const says = `the protection endpoint's answer carries url ${hostText(url)}`;
     if (typeof url !== "string")
         return `${says}, which is not a string`;
-    let path;
+    let u;
     try {
-        path = new URL(url).pathname;
+        u = new URL(url);
     }
     catch {
         return `${says}, which is not a URL this check can read`;
     }
-    const m = /\/repos\/[^/]+\/[^/]+\/branches\/(.+)\/protection$/.exec(path);
-    if (m === null)
-        return `${says}, which is not a branch protection endpoint`;
+    const repo = repositoryApi;
+    if (repo === undefined) {
+        return `${says}, but the repository answer names no readable url to compare it with, so which repository it describes is not shown`;
+    }
+    const where = `this run's repository ${hostText(repo.href)}`;
+    if (u.origin !== repo.origin || u.username !== "" || u.password !== "" || u.search !== "" || u.hash !== "") {
+        return `${says}, which is not on the host of ${where}`;
+    }
+    const prefix = `${repo.pathname}/branches/`;
+    const suffix = "/protection";
+    const path = u.pathname;
+    if (!path.startsWith(prefix) || !path.endsWith(suffix) || path.length <= prefix.length + suffix.length) {
+        return `${says}, which is not a branch protection endpoint of ${where}`;
+    }
     let about;
     try {
-        about = decodeURIComponent(m[1]);
+        about = decodeURIComponent(path.slice(prefix.length, path.length - suffix.length));
     }
     catch {
         return `${says}, whose branch name cannot be decoded`;
@@ -1390,6 +1429,8 @@ else {
     const probed = probedProtected;
     const repo = apiGet("repos/{owner}/{repo}");
     const defaultBranch = hostField(repo.body, "default_branch");
+    // The repository a protection body's url must name (red-team finding 4 of plan 33.1-23).
+    repositoryApi = repo.status === 200 ? readRepositoryApi(hostField(repo.body, "url")) : undefined;
     if (repo.status === 200 && typeof defaultBranch === "string") {
         names.push(defaultBranch);
     }
