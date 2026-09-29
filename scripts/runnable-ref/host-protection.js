@@ -68,8 +68,9 @@
 // body binds only with `enforce_admins.enabled === true` (`false` is read as bypassable, since a
 // 200 from the protection endpoint shows the account reads it as an administrator; anything else
 // is not readable), and for the pull-request and approval items only with
-// `bypass_pull_request_allowances` absent or listing no user, team or app (a non-empty list is not
-// readable: the check cannot tell whether the account is listed). The last row of
+// `bypass_pull_request_allowances` present and listing no user, team or app (a non-empty list is not
+// readable: the check cannot tell whether the account is listed; a missing key is not readable
+// either, per D-30, and is never read as "no allowance"). The last row of
 // the table, `no_bypass`, is the qualifier: `held` when every item is held (each item already
 // counts only binding sources), `failed` when an item fails and a source that would show it was
 // read as bypassable, `unknown` otherwise; its evidence names each bypassable or unreadable source.
@@ -215,6 +216,56 @@ function apiGet(path) {
 }
 function isObject(v) {
     return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function isEmptyList(v) {
+    return Array.isArray(v) && v.length === 0;
+}
+const ACCEPT = {
+    // bypass_pull_request_allowances inside classic required_pull_request_reviews: held only when it is
+    // present and lists no user, team or app. There is no `failed`: a list with members is not
+    // readable, because the check cannot tell whether the account it runs under is on it.
+    bypassAllowances: {
+        held: (v) => isObject(v) && isEmptyList(v.users) && isEmptyList(v.teams) && isEmptyList(v.apps),
+    },
+};
+// The load-time self-check. A violation throws, and the uncaughtException handler above turns that
+// into exit 2 ("the check could not run") before any gh call is made.
+function assertAcceptTable() {
+    for (const [name, entry] of Object.entries(ACCEPT)) {
+        if (entry.held(undefined) || entry.held(null)) {
+            throw new Error(`ACCEPT.${name} reads an absent or null value as held`);
+        }
+        const failsAbsent = entry.failed !== undefined && (entry.failed(undefined) || entry.failed(null));
+        const why = entry.absentFailedWhy;
+        if (failsAbsent && (typeof why !== "string" || why.trim().length === 0)) {
+            throw new Error(`ACCEPT.${name} reads an absent or null value as failed without a written reason`);
+        }
+    }
+}
+assertAcceptTable();
+// The one reader: `held` when the entry accepts the value as held, `failed` when it reads it as not
+// shown, `unknown` otherwise. It returns nothing else and reads nothing else.
+function readFact(value, accept) {
+    if (accept.held(value))
+        return "held";
+    if (accept.failed !== undefined && accept.failed(value))
+        return "failed";
+    return "unknown";
+}
+// The one accessor for every other field of a host answer: the value under `key` when `value` is a
+// plain object, `undefined` otherwise. Outside readFact and the ACCEPT predicates, nothing else
+// indexes a host answer (brief 33.1-GAP-PLANNING-BRIEF.md §2.2, DC-1).
+function hostField(value, key) {
+    return isObject(value) ? value[key] : undefined;
+}
+// A source's binding from one readFact state: held → `binds`, failed → `bypassable`, unknown →
+// `unknown`, each with the evidence written for that state.
+function toBinding(state, evidence) {
+    if (state === "held")
+        return { state: "binds", evidence: evidence.held };
+    if (state === "failed")
+        return { state: "bypassable", evidence: evidence.failed };
+    return { state: "unknown", evidence: evidence.unknown };
 }
 // How a call answered, for an UNKNOWN - verify reason: the problem, or the status and message.
 function answered(res) {
@@ -425,7 +476,9 @@ function ruleBinding(rule, bindings) {
 // `Not Found`, 33.1-RESEARCH.md Q4), so `false` means this account can bypass it. For the pull
 // request and approval items it also needs `bypass_pull_request_allowances` absent, or listing no
 // user, team or app; a non-empty list is `unknown`, because the check cannot tell whether this
-// account is on it. Evidence counts listed actors and never names them (T-33.1-193).
+// account is on it. An absent key is not readable either (D-30, plan 33.1-22): it is never read as
+// evidence that the protection grants no allowance. Evidence counts listed actors and never names
+// them (T-33.1-193).
 function classicBinding(body, row) {
     const ea = body.enforce_admins;
     if (isObject(ea) && ea.enabled === false) {
@@ -440,22 +493,26 @@ function classicBinding(body, row) {
     const applies = "classic protection applies to administrators";
     if (!row.reviewItem)
         return { state: "binds", evidence: applies };
-    const rpr = body.required_pull_request_reviews;
-    const allowances = isObject(rpr) ? rpr.bypass_pull_request_allowances : undefined;
-    if (allowances === undefined)
-        return { state: "binds", evidence: `${applies} and grants no pull request bypass allowance` };
-    const lists = isObject(allowances) ? [allowances.users, allowances.teams, allowances.apps] : [];
-    if (lists.length === 0 || !lists.every(Array.isArray)) {
-        return { state: "unknown", evidence: "classic bypass_pull_request_allowances has an unexpected shape" };
+    const allowances = hostField(hostField(body, "required_pull_request_reviews"), "bypass_pull_request_allowances");
+    return toBinding(readFact(allowances, ACCEPT.bypassAllowances), {
+        held: `${applies} and grants no pull request bypass allowance`,
+        // ACCEPT.bypassAllowances has no `failed`; the text is here so every state has its evidence.
+        failed: "classic protection lets an actor bypass required pull requests",
+        unknown: allowanceUnreadable(allowances),
+    });
+}
+// Why the allowance is not readable. When the three lists are arrays with members, count them
+// ("lets N actor(s) ..."), never naming an actor. In every other case, including an absent key, say
+// that no readable allowance was found.
+function allowanceUnreadable(allowances) {
+    const lists = [hostField(allowances, "users"), hostField(allowances, "teams"), hostField(allowances, "apps")];
+    if (isObject(allowances) && lists.every(Array.isArray)) {
+        const listed = lists.reduce((n, l) => n + l.length, 0);
+        if (listed > 0) {
+            return `classic protection lets ${listed} actor(s) bypass required pull requests, and the check cannot tell whether this account is one of them`;
+        }
     }
-    const listed = lists.reduce((n, l) => n + l.length, 0);
-    if (listed > 0) {
-        return {
-            state: "unknown",
-            evidence: `classic protection lets ${listed} actor(s) bypass required pull requests, and the check cannot tell whether this account is one of them`,
-        };
-    }
-    return { state: "binds", evidence: `${applies} and grants no pull request bypass allowance` };
+    return "classic protection carries no readable bypass_pull_request_allowances (absent or of an unexpected shape)";
 }
 function plain(state, evidence) {
     return { state, evidence, bypassed: [], unbound: [] };

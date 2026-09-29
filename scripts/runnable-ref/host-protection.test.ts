@@ -86,6 +86,9 @@ const PROTECTION = (b: string): string => api(`repos/{owner}/{repo}/branches/${b
 const BRANCH = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}`);
 const ENVS = api("repos/{owner}/{repo}/environments?per_page=100");
 const REVIEWERS = [{ type: "User", reviewer: { login: "release-owner" } }];
+// An explicit, empty pull request bypass allowance (D-30): a classic body that omits the key is not
+// readable (plan 33.1-22), so every classic body a case expects to be `protected` carries this.
+const NO_ALLOWANCES = { users: [], teams: [], apps: [] };
 function base(over: Fixture = {}): Fixture {
   // A fresh parse per call, so no case can mutate what another case reads.
   return { ...(JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture), ...over };
@@ -141,7 +144,7 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
           status: 200,
           body: {
             enforce_admins: { enabled: true },
-            required_pull_request_reviews: { required_approving_review_count: 1 },
+            required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: NO_ALLOWANCES },
             allow_force_pushes: { enabled: false },
             allow_deletions: { enabled: false },
           },
@@ -324,8 +327,7 @@ const RULE = (type: string, parameters?: Record<string, unknown>): Record<string
 const PR_RULE = (count: unknown): Record<string, unknown> => RULE("pull_request", { required_approving_review_count: count });
 const rulesOf = (...list: unknown[]): unknown => ({ status: 200, body: list });
 // Classic protection that shows every floor row: it applies to administrators and grants no pull
-// request bypass allowance (D-30).
-const NO_ALLOWANCES = { users: [], teams: [], apps: [] };
+// request bypass allowance (D-30). NO_ALLOWANCES is declared with the shared fixtures near the top.
 const CLASSIC_STRONG = {
   enforce_admins: { enabled: true },
   required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: NO_ALLOWANCES },
