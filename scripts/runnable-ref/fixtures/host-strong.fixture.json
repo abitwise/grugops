@@ -1,6 +1,6 @@
 {
   "auth status": { "exit": 0 },
-  "api --method GET -i repos/{owner}/{repo}": { "status": 200, "body": { "default_branch": "main", "url": "https://api.github.com/repos/octo/repo" } },
+  "api --method GET -i repos/{owner}/{repo}": { "status": 200, "body": { "default_branch": "main", "full_name": "octo/repo", "url": "https://api.github.com/repos/octo/repo" } },
   "api --method GET -i repos/{owner}/{repo}/rules/branches/main?per_page=100": {
     "status": 200,
     "body": [

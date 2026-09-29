@@ -266,7 +266,7 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
   it("main and master are added when they exist; a 404 omits the extra branch", () => {
     const r = runCheck(
       base({
-        [REPO]: { status: 200, body: { default_branch: "develop" } },
+        [REPO]: { status: 200, body: { default_branch: "develop", full_name: "octo/repo", url: "https://api.github.com/repos/octo/repo" } },
         [RULES("develop")]: { status: 200, body: RULESET_PROTECTED },
         [BRANCH("main")]: { status: 200, body: { name: "main", protected: false } },
         [RULES("main")]: { status: 200, body: RULESET_PROTECTED },
@@ -1755,7 +1755,7 @@ describe("host-protection.js — red-team: a branch the same run saw under anoth
     it(`a classic protection body whose url names ${url.slice(url.indexOf("/branches/"))} for branch ${name} → protected`, () => {
       const r = runCheck(
         base({
-          [REPO]: { status: 200, body: { default_branch: "main", url: repoUrl } },
+          [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: repoUrl } },
           [RULES(pathName)]: NO_RULES,
           [PROTECTION(pathName)]: classicOf({ ...CLASSIC_STRONG, url }),
         }),
@@ -1979,6 +1979,134 @@ describe("host-protection.js — when the host cannot be asked, and the result c
     const at = badLines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
     expect((JSON.parse(badLines.slice(at + 1).join("\n")) as { ok: boolean }).ok).toBe(false);
     expect(bad.status).toBe(1);
+  });
+});
+
+// ── Re-review WR-04 (plan 33.1-25, D-19) ────────────────────────────────────────────────────────
+// A recorded `protected` must name the repository it is about: gh resolves `{owner}/{repo}` from
+// GH_REPO, `gh repo set-default` or the git remotes, so in a fork clone it can be another repository
+// than the one the agent pushes to. The check prints `repository <owner>/<name>` from the `full_name`
+// of the `repos/{owner}/{repo}` answer, and that name must agree with the same answer's `url`, which
+// the protection-url check already compares against (one authority for "which repository this run
+// is about"). A run that cannot name the repository, or whose two names disagree, claims nothing
+// about any target and asks no further endpoint.
+const THIS_REPOSITORY = "https://api.github.com/repos/octo/repo";
+const UNNAMED_WHY = "so the check cannot say which repository it inspected";
+function firstLine(stdout: string): string {
+  return stdout.split("\n")[0] ?? "";
+}
+function repositoryField(stdout: string): unknown {
+  const lines = stdout.trim().split("\n");
+  const at = lines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
+  const block = JSON.parse(lines.slice(at + 1).join("\n")) as Record<string, unknown>;
+  expect(Object.keys(block).slice(0, 2), "`repository` sits right after `ok`").toEqual(["ok", "repository"]);
+  return block.repository;
+}
+
+describe("host-protection.js — the report names the repository it inspected (re-review WR-04, D-19)", () => {
+  it("the strong fixture: `repository octo/repo` is the first line, before every target line; --json carries it; verdicts and exit 0 unchanged", () => {
+    const r = runCheck(base(), ["--json"]);
+    const lines = r.stdout.split("\n");
+    expect(lines[0]).toBe("repository octo/repo");
+    const firstTarget = lines.findIndex((l) => l.startsWith("branch ") || l.startsWith("environment "));
+    expect(firstTarget).toBeGreaterThan(0);
+    expect(lines.filter((l) => l.startsWith("repository "))).toHaveLength(1);
+    expect(repositoryField(r.stdout)).toBe("octo/repo");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.status).toBe(0);
+  });
+
+  it("a GitHub Enterprise Server url whose path names the same owner/name → named (control)", () => {
+    const r = runCheck(base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://ghe.example.com/api/v3/repos/octo/repo" } } }));
+    expect(firstLine(r.stdout)).toBe("repository octo/repo");
+    expect(r.status).toBe(0);
+  });
+
+  // Each is a repository answer from which the check cannot name, with agreement, the repository
+  // it answered for. The count is pinned below.
+  const UNNAMED: Array<[string, unknown]> = [
+    ["full_name absent", { status: 200, body: { default_branch: "main", url: THIS_REPOSITORY } }],
+    ["full_name null", { status: 200, body: { default_branch: "main", full_name: null, url: THIS_REPOSITORY } }],
+    ["full_name 7", { status: 200, body: { default_branch: "main", full_name: 7, url: THIS_REPOSITORY } }],
+    ["full_name an object", { status: 200, body: { default_branch: "main", full_name: {}, url: THIS_REPOSITORY } }],
+    ['full_name "a/b/c"', { status: 200, body: { default_branch: "main", full_name: "a/b/c", url: THIS_REPOSITORY } }],
+    ['full_name "octo"', { status: 200, body: { default_branch: "main", full_name: "octo", url: THIS_REPOSITORY } }],
+    ['full_name ""', { status: 200, body: { default_branch: "main", full_name: "", url: THIS_REPOSITORY } }],
+    ["full_name holding a control character", { status: 200, body: { default_branch: "main", full_name: "octo/re\u0007po", url: THIS_REPOSITORY } }],
+    ["full_name holding an invisible character", { status: 200, body: { default_branch: "main", full_name: "octo/repo​", url: THIS_REPOSITORY } }],
+    ["full_name holding a space", { status: 200, body: { default_branch: "main", full_name: "octo/re po", url: THIS_REPOSITORY } }],
+    ['full_name "octo/.."', { status: 200, body: { default_branch: "main", full_name: "octo/..", url: THIS_REPOSITORY } }],
+    ["full_name over 200 characters", { status: 200, body: { default_branch: "main", full_name: `o/${"r".repeat(199)}`, url: THIS_REPOSITORY } }],
+    ["url absent beside a usable full_name", { status: 200, body: { default_branch: "main", full_name: "octo/repo" } }],
+    ["url not a URL beside a usable full_name", { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "octo/repo" } }],
+    ["url naming another repository", { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://api.github.com/repos/other/repo" } }],
+    ["url naming another owner", { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://api.github.com/repos/octo/fork" } }],
+    ["full_name differing from the url only in case", { status: 200, body: { default_branch: "main", full_name: "Octo/repo", url: THIS_REPOSITORY } }],
+    ["a 200 whose body is an array", { status: 200, body: [{ full_name: "octo/repo", url: THIS_REPOSITORY }] }],
+    ["HTTP 500", { status: 500, body: { message: "Server Error" } }],
+    ["HTTP 404", { status: 404, body: { message: "Not Found" } }],
+  ];
+  it("the unnamed-repository table has 20 shapes", () => {
+    expect(UNNAMED).toHaveLength(20);
+  });
+  it.each(UNNAMED)("the repository answer: %s → every target UNKNOWN - verify, exit 2, no further endpoint asked", (_label, repoAnswer) => {
+    const r = runCheck(base({ [REPO]: repoAnswer }), ["--branch", "release", "--json"]);
+    const lines = targetLines(r.stdout);
+    expect(lines.map((l) => TARGET_LINE.exec(l)?.slice(1, 3).join(" "))).toEqual([
+      "branch (default branch)",
+      "branch release",
+      "environment production",
+    ]);
+    for (const l of lines) {
+      const m = TARGET_LINE.exec(l);
+      expect(m?.[3], l).toBe("UNKNOWN - verify");
+      expect(m?.[4], l).toContain(UNNAMED_WHY);
+    }
+    expect(r.stdout).toMatch(/^HOST-PROTECTION: 0 protected, 0 unprotected, 3 UNKNOWN - verify$/m);
+    expect(r.status).toBe(2);
+    expect(r.calls).toEqual([
+      ["auth", "status"],
+      ["api", "--method", "GET", "-i", "repos/{owner}/{repo}"],
+    ]);
+    expect(firstLine(r.stdout)).toMatch(new RegExp(`^repository UNKNOWN - verify — .*${UNNAMED_WHY}`));
+    expect(repositoryField(r.stdout)).toBeNull();
+    const block = jsonBlock(r.stdout);
+    for (const t of block.targets) {
+      const floor = t.kind === "branch" ? block.floor.branch : block.floor.environment;
+      expect(t.facts?.map((f) => f.requirement), `${t.kind} ${t.name}`).toEqual(floor);
+      expect(t.facts?.every((f) => f.state === "unknown"), `${t.kind} ${t.name}`).toBe(true);
+    }
+  });
+
+  it("`gh auth status` failing → `repository UNKNOWN - verify — <reason>` first, targets unchanged, --json repository null", () => {
+    const r = runCheck(base({ "auth status": { exit: 1 } }), ["--json"]);
+    expect(firstLine(r.stdout)).toBe("repository UNKNOWN - verify — `gh auth status` failed, so the host could not be asked");
+    expect(verdictOf(r.stdout, "branch", "(default branch)")).toBe("UNKNOWN - verify");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(repositoryField(r.stdout)).toBeNull();
+    expect(r.status).toBe(2);
+  });
+
+  it("gh missing → `repository UNKNOWN - verify — gh is not available …` first", () => {
+    const r = runCheck(base(), [], { ghScript: join(mkTmp(), "no-such-gh.mjs") });
+    expect(firstLine(r.stdout)).toBe("repository UNKNOWN - verify — gh is not available on this machine, so the host could not be asked");
+    expect(r.status).toBe(2);
+  });
+
+  it("a usable, agreeing name but no default_branch → the repository line is printed, and main and the environment are still checked", () => {
+    const r = runCheck(
+      base({
+        [REPO]: { status: 200, body: { full_name: "octo/repo", url: THIS_REPOSITORY } },
+        [BRANCH("main")]: { status: 200, body: { name: "main" } },
+      }),
+    );
+    expect(firstLine(r.stdout)).toBe("repository octo/repo");
+    expect(verdictOf(r.stdout, "branch", "(default branch)")).toBe("UNKNOWN - verify");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(r.status).toBe(2);
   });
 });
 
@@ -2334,7 +2462,7 @@ describe("host-protection.js — red-team 33.1-23 finding 2: a name the same run
 function trunkWithProbedMain(probe: Record<string, unknown>): Fixture {
   return without(
     base({
-      [REPO]: { status: 200, body: { default_branch: "trunk", url: "https://api.github.com/repos/octo/repo" } },
+      [REPO]: { status: 200, body: { default_branch: "trunk", full_name: "octo/repo", url: "https://api.github.com/repos/octo/repo" } },
       [RULES("trunk")]: rulesOf(...ALL_ROWS_IN(1)),
       [BRANCH("main")]: answer({ name: "main", ...probe }),
       [RULES("main")]: NO_RULES,
@@ -2443,7 +2571,7 @@ describe("host-protection.js — red-team 33.1-23 finding 4: a protection url mu
   it.each(UNREADABLE_REPO_URLS)("the repository answer's url is %s and a protection url is present → UNKNOWN - verify", (_label, repoUrl) => {
     const r = runCheck(
       base({
-        [REPO]: { status: 200, body: { default_branch: "main", ...(repoUrl === undefined ? {} : { url: repoUrl }) } },
+        [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", ...(repoUrl === undefined ? {} : { url: repoUrl }) } },
         [RULES("release")]: NO_RULES,
         [PROTECTION("release")]: classicOf({ ...CLASSIC_STRONG, url: THIS_REPO_URL("release") }),
       }),
@@ -2452,13 +2580,18 @@ describe("host-protection.js — red-team 33.1-23 finding 4: a protection url mu
     expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
   });
 
-  it("the repository answer carries no url and no protection url is present → still protected (an absent protection url stays neutral)", () => {
+  // Changed by plan 33.1-25 (re-review WR-04): this case read `protected` while the repository
+  // answer carried no url. The run now names its repository only when `full_name` and `url` agree,
+  // so a repository answer with no url claims nothing about any target, even when no protection url
+  // is present (an absent PROTECTION url stays neutral: "a classic protection body with no url key").
+  it("the repository answer carries no url → the run cannot name its repository, so every target is UNKNOWN - verify even with no protection url", () => {
     const r = runCheck(
-      base({ [REPO]: { status: 200, body: { default_branch: "main" } }, [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf(CLASSIC_STRONG) }),
+      base({ [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo" } }, [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf(CLASSIC_STRONG) }),
       ["--branch", "release"],
     );
-    expect(verdictOf(r.stdout, "branch", "release")).toBe("protected");
-    expect(r.status).toBe(0);
+    for (const l of targetLines(r.stdout)) expect(TARGET_LINE.exec(l)?.[3], l).toBe("UNKNOWN - verify");
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
   });
 });
 
@@ -2802,7 +2935,7 @@ describe("host-protection.js — red-team 33.1-24 B3: the probe's answered name 
     const r = runCheck(
       without(
         base({
-          [REPO]: { status: 200, body: { default_branch: "trunk", url: "https://api.github.com/repos/octo/repo" } },
+          [REPO]: { status: 200, body: { default_branch: "trunk", full_name: "octo/repo", url: "https://api.github.com/repos/octo/repo" } },
           [RULES("trunk")]: rulesOf(...ALL_ROWS_IN(1)),
           [BRANCH("main")]: answer({ name: garble("main"), protected: false }),
         }),
@@ -2837,7 +2970,7 @@ const encodedBranch = (name: string): string => name.split("/").map(encodeURICom
 function trunkNamed(name: string): Fixture {
   return without(
     base({
-      [REPO]: { status: 200, body: { default_branch: name, url: "https://api.github.com/repos/octo/repo" } },
+      [REPO]: { status: 200, body: { default_branch: name, full_name: "octo/repo", url: "https://api.github.com/repos/octo/repo" } },
       [RULES(encodedBranch(name))]: rulesOf(...ALL_ROWS_IN(1)),
       [BRANCH("main")]: answer({ message: "Branch not found" }, 404),
     }),
