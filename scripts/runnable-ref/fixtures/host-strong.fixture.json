@@ -15,7 +15,10 @@
       { "type": "deletion", "ruleset_source_type": "Repository", "ruleset_source": "octo/repo", "ruleset_id": 1 }
     ]
   },
-  "api --method GET -i repos/{owner}/{repo}/rulesets/1": { "status": 200, "body": { "id": 1, "current_user_can_bypass": "never" } },
+  "api --method GET -i repos/{owner}/{repo}/rulesets/1": {
+    "status": 200,
+    "body": { "id": 1, "target": "branch", "enforcement": "active", "current_user_can_bypass": "never" }
+  },
   "api --method GET -i repos/{owner}/{repo}/branches/master":{ "status": 404, "body": { "message": "Branch not found" } },
   "api --method GET -i repos/{owner}/{repo}/environments?per_page=100": {
     "status": 200,

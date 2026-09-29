@@ -342,9 +342,12 @@ const NOT_PROTECTED_404 = { status: 404, body: { message: "Branch not protected"
 const NO_BYPASS = "does not let administrators or the account the agent works under bypass it";
 // `GET repos/{owner}/{repo}/rulesets/<id>` and a 200 answer carrying `current_user_can_bypass`.
 const RULESET = (id: number | string): string => api(`repos/{owner}/{repo}/rulesets/${id}`);
+// A ruleset answer that models a real host carries `enforcement: "active"` and `target: "branch"`:
+// from plan 33.1-22's red-team round on, a ruleset binds a branch only when its own body says both
+// (an absent value is not readable, D-30).
 const rulesetAnswer = (id: number, bypass?: unknown): unknown => ({
   status: 200,
-  body: { id, ...(bypass === undefined ? {} : { current_user_can_bypass: bypass }) },
+  body: { id, enforcement: "active", target: "branch", ...(bypass === undefined ? {} : { current_user_can_bypass: bypass }) },
 });
 // A rule from a named ruleset (or with a raw `ruleset_id` value, including a hostile one).
 const RULE_IN = (id: unknown, type: string, parameters?: Record<string, unknown>): Record<string, unknown> => ({
@@ -1306,6 +1309,316 @@ describe("host-protection.js — rule list garbage, the branch-policy pair and a
   it("the strong fixture still gives 2 protected, 0 unprotected, 0 UNKNOWN - verify, exit 0", () => {
     const r = runCheck(base());
     expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.status).toBe(0);
+  });
+});
+
+// ── Plan 33.1-22 red-team round (brief 33.1-GAP-PLANNING-BRIEF.md §3, DC-1, D-30) ──────────────
+// A separate agent attacked the committed .js with only the class rules. Each finding below is
+// tested as a class, not only at the site it was found: absent, oddly shaped or contradicted by the
+// same run is `UNKNOWN - verify`, never `protected`.
+const HOSTILE = { toString: 1 }; // JSON-safe; String(HOSTILE) and `${HOSTILE}` throw a TypeError
+const ADMIN_BYPASS_ENV = (): unknown => envs({ name: "production", can_admins_bypass: true });
+const MAIN_PROTECTION_URL = "https://api.github.com/repos/octo/repo/branches/main/protection";
+// A 200 answer from `GET rulesets/1` built from the strong body; `undefined` removes a key.
+function rulesetBodyWith(over: Record<string, unknown>): unknown {
+  const body: Record<string, unknown> = { id: 1, target: "branch", enforcement: "active", current_user_can_bypass: "never" };
+  for (const [k, v] of Object.entries(over)) {
+    if (v === undefined) delete body[k];
+    else body[k] = v;
+  }
+  return { status: 200, body };
+}
+
+describe("host-protection.js — red-team: a ruleset binds only when its body says it is active and targets branches (D-30)", () => {
+  it("the strong fixture's ruleset answer carries enforcement \"active\" and target \"branch\", and reads protected", () => {
+    const body = (base()[RULESET(1)] as { body: Record<string, unknown> }).body;
+    expect(body.enforcement).toBe("active");
+    expect(body.target).toBe("branch");
+    const r = runCheck(base(), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  // Every enforcement value other than the string "active": the documented other two, other
+  // spellings, and absent, null and garbled values.
+  const ENFORCEMENT_NOT_ACTIVE: Array<[string, unknown]> = [
+    ['"disabled"', "disabled"],
+    ['"evaluate"', "evaluate"],
+    ['"Active" (other case)', "Active"],
+    ['"active " (trailing space)', "active "],
+    ['"" (empty)', ""],
+    ["absent", undefined],
+    ["null", null],
+    ["true", true],
+    ["1", 1],
+    ["{}", {}],
+    ['["active"]', ["active"]],
+  ];
+  for (const [name, value] of ENFORCEMENT_NOT_ACTIVE) {
+    it(`a ruleset whose body says enforcement ${name} binds nothing → UNKNOWN - verify, never protected`, () => {
+      const r = runCheck(
+        base({ [RULESET(1)]: rulesetBodyWith({ enforcement: value }), [PROTECTION("main")]: NOT_PROTECTED_404 }),
+        ["--json"],
+      );
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      for (const requirement of jsonBlock(r.stdout).floor.branch) {
+        expect(factOf(r.stdout, "main", requirement), requirement).toBe("unknown");
+      }
+      expect(branchLine(r.stdout)).toContain("enforcement");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  const TARGET_NOT_BRANCH: Array<[string, unknown]> = [
+    ['"tag"', "tag"],
+    ['"push"', "push"],
+    ['"repository"', "repository"],
+    ['"Branch" (other case)', "Branch"],
+    ["absent", undefined],
+    ["null", null],
+    ["1", 1],
+    ['["branch"]', ["branch"]],
+  ];
+  for (const [name, value] of TARGET_NOT_BRANCH) {
+    it(`a ruleset whose body says target ${name} cannot bind for a branch → UNKNOWN - verify, never protected`, () => {
+      const r = runCheck(
+        base({ [RULESET(1)]: rulesetBodyWith({ target: value }), [PROTECTION("main")]: NOT_PROTECTED_404 }),
+        ["--json"],
+      );
+      expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+      expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+      expect(branchLine(r.stdout)).toContain("target");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it('the red-team case A2: target "tag" with an empty rules list → UNKNOWN - verify', () => {
+    const r = runCheck(base({ [RULESET(1)]: rulesetBodyWith({ target: "tag", rules: [] }) }), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it('a bypassable ruleset ("always") that is not active is not read as bypassable either → UNKNOWN - verify, not unprotected', () => {
+    const r = runCheck(
+      base({
+        [RULESET(1)]: rulesetBodyWith({ enforcement: "evaluate", current_user_can_bypass: "always" }),
+        [PROTECTION("main")]: NOT_PROTECTED_404,
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+  });
+});
+
+describe("host-protection.js — red-team: a branch the same run saw under another name is UNKNOWN - verify (D-30)", () => {
+  it("the red-team case E: master renamed to main (branches/master answers `main`), --branch master → master UNKNOWN - verify, never re-added as a target", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, url: MAIN_PROTECTION_URL }),
+        [BRANCH("master")]: { status: 200, body: { name: "main", protected: true } },
+        [RULES("master")]: NO_RULES,
+        // No `url` here, so only the same-run rename evidence can keep master from protected.
+        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
+      }),
+      ["--branch", "master", "--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    expect(branchLine(r.stdout, "master")).toContain("main");
+    for (const requirement of jsonBlock(r.stdout).floor.branch) {
+      expect(factOf(r.stdout, "master", requirement), requirement).toBe("unknown");
+    }
+    expect(r.status).toBe(2);
+  });
+
+  it("a classic protection body whose url names a different branch's protection endpoint → every row of that branch unknown", () => {
+    const r = runCheck(
+      base({ [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf({ ...CLASSIC_STRONG, url: MAIN_PROTECTION_URL }) }),
+      ["--branch", "release", "--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+    for (const requirement of jsonBlock(r.stdout).floor.branch) {
+      expect(factOf(r.stdout, "release", requirement), requirement).toBe("unknown");
+    }
+    expect(r.status).toBe(2);
+  });
+
+  // A url that is present but of another shape is not about this branch either.
+  const BAD_URLS: Array<[string, unknown]> = [
+    ["a number", 5],
+    ["null", null],
+    ["not a URL", "not a url"],
+    ["a protection endpoint with a trailing segment", "https://api.github.com/repos/octo/repo/branches/release/protection/extra"],
+    ["the branch endpoint, not its protection", "https://api.github.com/repos/octo/repo/branches/release"],
+    ["a malformed percent escape", "https://api.github.com/repos/octo/repo/branches/rel%E0%A4%A/protection"],
+  ];
+  for (const [name, url] of BAD_URLS) {
+    it(`a classic protection body whose url is ${name} → UNKNOWN - verify, never protected`, () => {
+      const r = runCheck(
+        base({ [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf({ ...CLASSIC_STRONG, url }) }),
+        ["--branch", "release"],
+      );
+      expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
+    });
+  }
+
+  // The comparison is made after percent-decoding, so a branch with `/` or a special character
+  // is not falsely made unknown.
+  const GOOD_URLS: Array<[string, string, string]> = [
+    ["release/1.0", "release/1.0", "https://api.github.com/repos/octo/repo/branches/release/1.0/protection"],
+    ["release/1.0", "release/1.0", "https://api.github.com/repos/octo/repo/branches/release%2F1.0/protection"],
+    ["feat#1", "feat%231", "https://api.github.com/repos/octo/repo/branches/feat%231/protection"],
+    ["release", "release", "https://ghe.example.com/api/v3/repos/octo/repo/branches/release/protection"],
+  ];
+  for (const [name, pathName, url] of GOOD_URLS) {
+    it(`a classic protection body whose url names ${url.slice(url.indexOf("/branches/"))} for branch ${name} → protected`, () => {
+      const r = runCheck(
+        base({ [RULES(pathName)]: NO_RULES, [PROTECTION(pathName)]: classicOf({ ...CLASSIC_STRONG, url }) }),
+        ["--branch", name],
+      );
+      expect(verdictOf(r.stdout, "branch", name)).toBe("protected");
+      expect(r.status).toBe(0);
+    });
+  }
+
+  // An ABSENT url is not required: absence says nothing about which branch the body describes, and
+  // the check's rename evidence comes from the branches/<b> answer (the main/master probe and the
+  // 404 `Not Found` path). Only a url that is present and disagrees is contradicting evidence.
+  it("a classic protection body with no url key → still protected (absence of url is not required evidence)", () => {
+    const r = runCheck(base({ [RULES("release")]: NO_RULES, [PROTECTION("release")]: classicOf(CLASSIC_STRONG) }), ["--branch", "release"]);
+    expect(verdictOf(r.stdout, "branch", "release")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("404 `Not Found` and branches/<b> answering about another name → every row unknown, including rows the ruleset arm shows", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(PR_RULE(1)),
+        [PROTECTION("main")]: { status: 404, body: { message: "Not Found" } },
+        [BRANCH("main")]: { status: 200, body: { name: "trunk", protected: true } },
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    for (const requirement of jsonBlock(r.stdout).floor.branch) {
+      expect(factOf(r.stdout, "main", requirement), requirement).toBe("unknown");
+    }
+  });
+});
+
+describe("host-protection.js — red-team: more than one match in a host list is UNKNOWN - verify, never first-match-wins (D-30)", () => {
+  const WEAK_PRODUCTION = { name: "production", can_admins_bypass: true, deployment_branch_policy: null, protection_rules: [] };
+  // Every host list the check selects one entry from, each given two matching entries in both
+  // orders: the environments list (by name) and an environment's required_reviewers rules.
+  const DUPLICATES: Array<[string, Fixture, string[]]> = [
+    ["two environments named production, strong first", { [ENVS]: envs({ name: "production" }, WEAK_PRODUCTION) }, []],
+    ["two environments named production, weak first", { [ENVS]: envs(WEAK_PRODUCTION, { name: "production" }) }, []],
+    ["two identical strong environments named production", { [ENVS]: envs({ name: "production" }, { name: "production" }) }, []],
+    [
+      "two required_reviewers rules, strong first",
+      { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE(), REVIEWER_RULE({ prevent_self_review: false, reviewers: [] })] }) },
+      ["requires at least one reviewer", "prevents self-review"],
+    ],
+    [
+      "two required_reviewers rules, weak first",
+      { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ prevent_self_review: false, reviewers: [] }), REVIEWER_RULE()] }) },
+      ["requires at least one reviewer", "prevents self-review"],
+    ],
+    [
+      "two identical strong required_reviewers rules",
+      { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE(), REVIEWER_RULE()] }) },
+      ["requires at least one reviewer", "prevents self-review"],
+    ],
+  ];
+  for (const [name, over, rows] of DUPLICATES) {
+    it(`${name} → UNKNOWN - verify, the affected rows unknown`, () => {
+      const r = runCheck(base(over), ["--json"]);
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+      const facts = envFacts(r.stdout, "production");
+      const affected = rows.length === 0 ? facts.map((f) => f.requirement) : rows;
+      for (const requirement of affected) expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it("a header block with two HTTP status lines is not read by its first line → UNKNOWN - verify", () => {
+    const body = JSON.stringify(RULESET_PROTECTED);
+    const r = runCheck(base({ [RULES("main")]: { raw: `HTTP/2.0 200 X\nHTTP/2.0 404 X\nContent-Type: application/json\n\n${body}` } }));
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+});
+
+describe("host-protection.js — red-team: a host value that cannot be printed never hides another target's verdict", () => {
+  // Every host value the evidence text quotes, set to an object whose toString is not callable.
+  // The environment is unprotected (can_admins_bypass true), so the run must exit 1, never the
+  // "could not run" exit 2 that would hide it.
+  // [where, override, the branch that placement weakens].
+  const PLACES: Array<[string, Fixture, string]> = [
+    ["a ruleset approval count", { [RULES("main")]: rulesOf(PR_RULE(HOSTILE), RULE("non_fast_forward"), RULE("deletion")) }, "main"],
+    ["current_user_can_bypass", { [RULESET(1)]: rulesetBodyWith({ current_user_can_bypass: HOSTILE }) }, "main"],
+    ["the ruleset enforcement", { [RULESET(1)]: rulesetBodyWith({ enforcement: HOSTILE }) }, "main"],
+    ["the ruleset target", { [RULESET(1)]: rulesetBodyWith({ target: HOSTILE }) }, "main"],
+    [
+      "a classic approval count",
+      {
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: classicOf({
+          ...CLASSIC_STRONG,
+          required_pull_request_reviews: { required_approving_review_count: HOSTILE, bypass_pull_request_allowances: NO_ALLOWANCES },
+        }),
+      },
+      "main",
+    ],
+    ["a classic url", { [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, url: HOSTILE }) }, "main"],
+    ["classic enforce_admins.enabled", { [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, enforce_admins: { enabled: HOSTILE } }) }, "main"],
+    ["a host message", { [RULES("main")]: { status: 500, body: { message: HOSTILE } } }, "main"],
+    ["a rule's ruleset_id", { [RULES("main")]: rulesOf(...ALL_ROWS_IN(HOSTILE)) }, "main"],
+    ["a branch name answered by the branch endpoint", { [BRANCH("master")]: { status: 200, body: { name: HOSTILE } } }, "master"],
+  ];
+  for (const [name, over, branch] of PLACES) {
+    it(`${name} set to { toString: 1 } → the run still reports the unprotected environment, exit 1`, () => {
+      const r = runCheck(base({ ...over, [ENVS]: ADMIN_BYPASS_ENV() }));
+      expect(r.stdout).not.toContain("could not run");
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+      expect(verdictOf(r.stdout, "branch", branch)).toBe("UNKNOWN - verify");
+      expect(r.status).toBe(1);
+    });
+  }
+});
+
+describe("host-protection.js — red-team: gh's exit status must agree with the HTTP status it printed (D-30)", () => {
+  it("the red-team case O: the ruleset read prints a 200 but gh exits 1 → UNKNOWN - verify, never protected", () => {
+    const r = runCheck(base({ [RULESET(1)]: { ...(rulesetAnswer(1, "never") as object), exit: 1 } }), ["--json"]);
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(factOf(r.stdout, "main", NO_BYPASS)).toBe("unknown");
+    expect(r.status).toBe(2);
+  });
+
+  // Every endpoint of the strong fixture, one at a time, with gh's exit status flipped against the
+  // HTTP status it printed (a 200 with exit 1, the master 404 with exit 0). Never protected-all.
+  const endpoints = Object.keys(base()).filter((k) => k.startsWith("api "));
+  it("the strong fixture has the five endpoints this class covers (repository, rules, ruleset, master probe, environments)", () => {
+    expect(endpoints.length).toBe(5);
+  });
+  for (const key of endpoints) {
+    it(`${key.slice("api --method GET -i ".length)} answering with gh's exit status contradicting its HTTP status → exit 2, never all protected`, () => {
+      const fx = base();
+      const entry = fx[key] as { status: number };
+      fx[key] = { ...entry, exit: entry.status < 400 ? 1 : 0 };
+      const r = runCheck(fx);
+      expect(r.stdout).toMatch(/UNKNOWN - verify — /);
+      expect(r.stdout).not.toMatch(/^HOST-PROTECTION: \d+ protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it("a 404 printed with gh's usual exit 1 is still read (the master probe omits the branch), exit 0", () => {
+    const r = runCheck(base());
+    expect(verdictOf(r.stdout, "branch", "master")).toBeUndefined();
     expect(r.status).toBe(0);
   });
 });
