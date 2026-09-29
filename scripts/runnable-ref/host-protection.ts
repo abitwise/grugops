@@ -26,8 +26,11 @@
 //
 // THE REPOSITORY (re-review WR-04, plan 33.1-25, D-19). The run is about a named repository only
 // when the `repos/{owner}/{repo}` answer is a 200 object whose `full_name` is a plain `owner/name`
-// (usableRepositoryName) and whose `url` names exactly that owner and name (repositoryIdentity, the
-// one authority; the same url is what every classic protection url is compared with). Otherwise
+// (usableRepositoryName) and whose `url` is a canonical repository endpoint (readApiUrl, the one url
+// authority: exactly its own parsed form, https, no query or fragment, api.github.com or a GitHub
+// Enterprise Server `/api/v3` prefix, owner and name with no percent-encoding; red-team B3 of plan
+// 33.1-25) naming exactly that owner and name (repositoryIdentity, the one authority; the same url
+// is what every host url naming a repository is compared with). Otherwise
 // every target (the default branch, each `--branch`, the environment) is `UNKNOWN - verify` with
 // the reason, the run exits 2, and no further endpoint is asked.
 //
@@ -51,9 +54,10 @@
 //   - the classic arm, `branches/<b>/protection`, asked only when the ruleset arm leaves some row
 //     not shown. 200 with a protection record (ACCEPT.classicProtectionRecord: an enforce_admins
 //     object with a boolean `enabled`, and no `message` or `protected` key) → its body is read field
-//     by field; a 200 that is not a record is not readable (a `url` that is present must name this
-//     branch's protection endpoint under the repository the `repos/{owner}/{repo}` answer's own
-//     `url` names, same host included; an absent `url` is not required). 404 `Branch not protected`
+//     by field; a 200 that is not a record is not readable (a `url` that is present must be read by
+//     readApiUrl and name this branch's protection endpoint under the repository the
+//     `repos/{owner}/{repo}` answer's own `url` names, same host included; an absent `url` is not
+//     required). 404 `Branch not protected`
 //     (what an admin sees) → the host shows no classic protection. 404 `Not Found` (what a
 //     non-admin sees, protected or not) → ask `branches/<b>`: `.protected === false` about the
 //     branch asked for → no classic protection; `.protected === true` → classic protection exists
@@ -1130,16 +1134,37 @@ function readRulesetArm(name: string, bp: string): RulesetArm {
   return { read: "none", rules: [], entries: [], morePages: false, why: `the rules endpoint answered ${answered(res)}` };
 }
 
-// The repository API url this run asked about (red-team finding 4 of plan 33.1-23), from the
-// `url` of the `repos/{owner}/{repo}` answer the main flow reads first. The check's own paths carry
-// gh's `{owner}/{repo}` placeholders, so the check does not know the owner and name it asked
-// about; this same-run answer is what names them. Readable only as an http(s) URL with no
-// credentials, query or fragment, whose path ends in `/repos/<owner>/<name>` (any prefix before it,
-// such as GitHub Enterprise Server's `/api/v3`, is kept and must match). It is set only by
-// repositoryIdentity() below, which also requires the answer's `full_name` to name the same
-// repository (plan 33.1-25, re-review WR-04).
-let repositoryApi: URL | undefined;
-function readRepositoryApi(v: unknown): URL | undefined {
+// One owner or repository-name segment: letters, digits, `.`, `_` or `-`, and not `.` or `..`. No
+// percent-encoding, no other character. Both the printed repository name and every url segment that
+// names an owner or a repository are read through it.
+const PLAIN_SEGMENT = /^[A-Za-z0-9._-]+$/;
+function plainSegment(s: string): boolean {
+  return PLAIN_SEGMENT.test(s) && s !== "." && s !== "..";
+}
+
+// THE ONE URL AUTHORITY (red-team B3 of plan 33.1-25, DC-1). Every host API url the check compares
+// is read here: the repository answer's `url`, a classic protection body's `url`, an environment's
+// `url` and the protected-branch list's `protection_url`. It is read only in canonical form:
+//   - the raw string is exactly its own parsed `href` (WHATWG URL), so a tab, newline, leading or
+//     trailing control character, backslash, dot segment (`..` or `%2e%2e`), upper-case host,
+//     spelled-out default port, or any other spelling that parses to something else is refused;
+//   - the scheme is https, with no credentials and no `?` or `#` at all (an empty query or fragment
+//     included);
+//   - the path is `<prefix>/repos/<owner>/<name><rest>`. The prefix is empty or exactly `/api/v3`
+//     (GitHub Enterprise Server), the host is api.github.com unless that prefix is present, and
+//     owner and name are plain segments (plainSegment: no percent-encoding).
+// Anything else is not a url this check reads, and every caller treats it as UNKNOWN - verify. The
+// url's `rest` (the part after `/repos/<owner>/<name>`) is for the caller to compare.
+interface ApiUrl {
+  host: string; // host, with any non-default port
+  prefix: string; // "" or "/api/v3"
+  owner: string;
+  name: string;
+  rest: string; // "" for the repository endpoint itself
+  href: string;
+}
+const API_PATH = /^(\/api\/v3)?\/repos\/([^/]+)\/([^/]+)(\/.*)?$/;
+function readApiUrl(v: unknown): ApiUrl | undefined {
   if (typeof v !== "string") return undefined;
   let u: URL;
   try {
@@ -1147,19 +1172,39 @@ function readRepositoryApi(v: unknown): URL | undefined {
   } catch {
     return undefined;
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return undefined;
-  if (u.username !== "" || u.password !== "" || u.search !== "" || u.hash !== "") return undefined;
-  return /\/repos\/[^/]+\/[^/]+$/.test(u.pathname) ? u : undefined;
+  if (u.href !== v || u.protocol !== "https:" || u.username !== "" || u.password !== "") return undefined;
+  if (v.includes("?") || v.includes("#")) return undefined;
+  const m = API_PATH.exec(u.pathname);
+  if (m === null) return undefined;
+  const [, prefix = "", owner, name, rest = ""] = m;
+  if (!plainSegment(owner) || !plainSegment(name)) return undefined;
+  if (prefix === "" && u.host !== "api.github.com") return undefined;
+  return { host: u.host, prefix, owner, name, rest, href: u.href };
 }
 
+// Whether an API url sits under this run's repository: the same host (port included), the same
+// prefix and the same owner and name, compared exactly (case included).
+function underRepository(loc: ApiUrl, repo: ApiUrl): boolean {
+  return loc.host === repo.host && loc.prefix === repo.prefix && loc.owner === repo.owner && loc.name === repo.name;
+}
+
+// The repository this run proved (red-team finding 4 of plan 33.1-23), from the `url` of the
+// `repos/{owner}/{repo}` answer the main flow reads first, read through readApiUrl with no `rest`.
+// The check's own paths carry gh's `{owner}/{repo}` placeholders, so the check does not know the
+// owner and name it asked about; this same-run answer is what names them. It is set only by
+// repositoryIdentity() below, which also requires the answer's `full_name` to name the same
+// repository (plan 33.1-25, re-review WR-04). Every host field that names a repository is compared
+// with it (red-team B1 of plan 33.1-25).
+let repositoryApi: ApiUrl | undefined;
+
 // A repository name this check will print and publish (re-review WR-04, plan 33.1-25, D-19): a
-// plain `owner/name` string of at most 200 characters, each part letters, digits, `.`, `_` or `-`,
-// and neither part `.` or `..`. Anything else is not a name the check can vouch for. A plain
-// predicate: it produces no FactState and is not a floor row.
-const REPOSITORY_NAME = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+// plain `owner/name` string of at most 200 characters, each part a plain segment. Anything else is
+// not a name the check can vouch for. A plain predicate: it produces no FactState and is not a floor
+// row.
 function usableRepositoryName(v: unknown): v is string {
-  if (typeof v !== "string" || v.length > 200 || !REPOSITORY_NAME.test(v)) return false;
-  return v.split("/").every((part) => part !== "." && part !== "..");
+  if (typeof v !== "string" || v.length > 200) return false;
+  const parts = v.split("/");
+  return parts.length === 2 && parts.every(plainSegment);
 }
 
 // THE ONE AUTHORITY for "which repository this run is about" (re-review WR-04, plan 33.1-25,
@@ -1168,79 +1213,75 @@ function usableRepositoryName(v: unknown): v is string {
 // report must name what it inspected. The `repos/{owner}/{repo}` answer names it twice: `full_name`
 // (printed) and `url` (what every classic protection url is compared with). The run is about a
 // named repository only when the answer is a 200 object, `full_name` passes usableRepositoryName,
-// `url` is readable (readRepositoryApi), and the url's `/repos/<owner>/<name>` names exactly the
-// same owner and name. Anything else (not a 200, `full_name` absent or unusable, `url` absent or
-// unreadable, or the two disagreeing, case included) names no repository, and the run claims
-// nothing about any target.
+// `url` is a canonical repository endpoint (readApiUrl, with nothing after `/repos/<owner>/<name>`),
+// and that url names exactly the same owner and name. Anything else (not a 200, `full_name` absent
+// or unusable, `url` absent, garbled or not canonical, or the two disagreeing, case included) names
+// no repository, and the run claims nothing about any target.
 const UNNAMED_REPOSITORY = "so the check cannot say which repository it inspected";
-function repositoryIdentity(repo: ApiResult): { name: string; api: URL } | { why: string } {
+function repositoryIdentity(repo: ApiResult): { name: string; api: ApiUrl } | { why: string } {
   const fullName = repo.status === 200 ? hostField(repo.body, "full_name") : undefined;
   if (!usableRepositoryName(fullName)) {
     const how = repo.status === 200 && isObject(repo.body) ? "" : `; it answered ${answered(repo)}`;
     return { why: `the repository endpoint did not name the repository it answered for (full_name), ${UNNAMED_REPOSITORY}${how}` };
   }
   const url = hostField(repo.body, "url");
-  const api = readRepositoryApi(url);
-  if (api === undefined) {
-    return { why: `the repository endpoint names the repository ${fullName} (full_name) but carries no readable url for it (url ${hostText(url)}), ${UNNAMED_REPOSITORY}` };
+  const api = readApiUrl(url);
+  if (api === undefined || api.rest !== "") {
+    return {
+      why: `the repository endpoint names the repository ${fullName} (full_name) but carries no readable url for it (url ${hostText(url)}; a canonical https repository endpoint on api.github.com or under a GitHub Enterprise Server /api/v3 prefix was expected), ${UNNAMED_REPOSITORY}`,
+    };
   }
-  const parts = api.pathname.split("/").slice(-2);
-  let urlName: string | undefined;
-  try {
-    urlName = parts.map((part) => decodeURIComponent(part)).join("/");
-  } catch {
-    urlName = undefined;
-  }
-  if (urlName !== fullName) {
+  if (`${api.owner}/${api.name}` !== fullName) {
     return { why: `the repository endpoint names the repository ${fullName} (full_name) but its url ${hostText(url)} names another, ${UNNAMED_REPOSITORY}` };
   }
   return { name: fullName, api };
 }
 
-// Why a classic protection body's `url` shows it is NOT about branch `name` of this run's
-// repository, or undefined when it is (red-team finding 3 of plan 33.1-22 and finding 4 of plan
-// 33.1-23, D-30). The url must be on the same origin (scheme, host and port) as the repository
-// answer's url, carry no credentials, query or fragment, and its path must be exactly
-// `<repository path>/branches/<branch>/protection`; the branch segment is compared after
-// percent-decoding, so a branch whose name holds `/` or an escaped character is not falsely refused.
-// An ABSENT url is not required: its absence says nothing about which branch the body describes,
-// and the check's rename evidence comes from the branches/<b> answer (the main/master probe and the
-// 404 `Not Found` path). A url that is present and names another endpoint, another repository or
-// another host, or cannot be read, or cannot be compared because the repository answer named no
-// readable url, is evidence the same run does not agree with, so the branch is `UNKNOWN - verify`.
-function protectionUrlMismatch(url: unknown, name: string): string | undefined {
-  if (url === undefined) return undefined;
-  const says = `the protection endpoint's answer carries url ${hostText(url)}`;
-  if (typeof url !== "string") return `${says}, which is not a string`;
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    return `${says}, which is not a URL this check can read`;
-  }
+// Why a host API url that is PRESENT does not name `<this run's repository><rest>` for the expected
+// rest, or undefined when it does (red-team finding 3 of plan 33.1-22, finding 4 of plan 33.1-23,
+// and B1/B3 of plan 33.1-25, D-30). The one comparison behind every url that names a repository and
+// an object in it: the url is read through readApiUrl (canonical form only), must sit under this
+// run's repository (underRepository: same host, prefix, owner and name), and its rest must be
+// `/<collection>/<object>` plus `suffix`, where the object segment, percent-decoded, is exactly
+// `object`. So a branch or environment whose name holds `/` or an escaped character is not falsely
+// refused, while owner and name segments are never decoded. `says` opens the evidence text.
+function repositoryUrlMismatch(url: unknown, says: string, collection: string, object: string, suffix: string): string | undefined {
   const repo = repositoryApi;
-  // Not reached while a run judges branches only after repositoryIdentity() named the repository
+  // Not reached while a run judges targets only after repositoryIdentity() named the repository
   // (plan 33.1-25); kept so no caller can ever compare a present url with nothing.
   if (repo === undefined) {
     return `${says}, but the repository answer names no readable url to compare it with, so which repository it describes is not shown`;
   }
   const where = `this run's repository ${hostText(repo.href)}`;
-  if (u.origin !== repo.origin || u.username !== "" || u.password !== "" || u.search !== "" || u.hash !== "") {
-    return `${says}, which is not on the host of ${where}`;
+  const loc = readApiUrl(url);
+  if (loc === undefined) {
+    return `${says}, which is not a url this check can read (a canonical https API url with no query or fragment, under ${where}, was expected)`;
   }
-  const prefix = `${repo.pathname}/branches/`;
-  const suffix = "/protection";
-  const path = u.pathname;
-  if (!path.startsWith(prefix) || !path.endsWith(suffix) || path.length <= prefix.length + suffix.length) {
-    return `${says}, which is not a branch protection endpoint of ${where}`;
+  if (!underRepository(loc, repo)) return `${says}, which is not under ${where}`;
+  const head = `/${collection}/`;
+  if (!loc.rest.startsWith(head) || !loc.rest.endsWith(suffix) || loc.rest.length <= head.length + suffix.length) {
+    return `${says}, which is not a ${collection} endpoint of ${where}`;
   }
   let about: string;
   try {
-    about = decodeURIComponent(path.slice(prefix.length, path.length - suffix.length));
+    about = decodeURIComponent(loc.rest.slice(head.length, loc.rest.length - suffix.length));
   } catch {
-    return `${says}, whose branch name cannot be decoded`;
+    return `${says}, whose ${collection} name cannot be decoded`;
   }
-  return about === name ? undefined : `${says}, which is about branch ${hostText(about)}, not this one`;
+  return about === object ? undefined : `${says}, which is about ${hostText(about)}, not ${hostText(object)}`;
+}
+
+// Why a classic protection body's `url` shows it is NOT about branch `name` of this run's
+// repository, or undefined when it is: `<repository>/branches/<branch>/protection`, compared by
+// repositoryUrlMismatch. An ABSENT url is not required: its absence says nothing about which branch
+// the body describes, and the check's rename evidence comes from the branches/<b> answer (the
+// main/master probe and the 404 `Not Found` path). A url that is present and names another endpoint,
+// another repository or another host, or cannot be read, or cannot be compared because the
+// repository answer named no readable url, is evidence the same run does not agree with, so the
+// branch is `UNKNOWN - verify`.
+function protectionUrlMismatch(url: unknown, name: string, says = `the protection endpoint's answer carries url ${hostText(url)}`): string | undefined {
+  if (url === undefined) return undefined;
+  return repositoryUrlMismatch(url, says, "branches", name, "/protection");
 }
 
 // One classic read per branch per run, whoever asks first (a branch target, or the environment's
