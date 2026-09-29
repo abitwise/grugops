@@ -30,7 +30,7 @@
             {
               "type": "required_reviewers",
               "prevent_self_review": true,
-              "reviewers": [{ "type": "User", "reviewer": { "login": "release-owner" } }]
+              "reviewers": [{ "type": "User", "reviewer": { "login": "release-owner", "id": 1 } }]
             }
           ]
         }

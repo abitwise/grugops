@@ -85,7 +85,9 @@ const RULES = (b: string): string => api(`repos/{owner}/{repo}/rules/branches/${
 const PROTECTION = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}/protection`);
 const BRANCH = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}`);
 const ENVS = api("repos/{owner}/{repo}/environments?per_page=100");
-const REVIEWERS = [{ type: "User", reviewer: { login: "release-owner" } }];
+// The documented reviewer element shape (WR-01): `type` User or Team, and a `reviewer` whose `id`
+// is a positive integer. `login` stays so the "identities are never printed" case has a name to miss.
+const REVIEWERS = [{ type: "User", reviewer: { login: "release-owner", id: 1 } }];
 // An explicit, empty pull request bypass allowance (D-30): a classic body that omits the key is not
 // readable (plan 33.1-22), so every classic body a case expects to be `protected` carries this.
 const NO_ALLOWANCES = { users: [], teams: [], apps: [] };
@@ -1158,6 +1160,153 @@ describe("host-protection.js — the production environment (D-19)", () => {
     const r = runCheck(base(), [], { cwd });
     expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
     expect(targetLines(r.stdout).find((l) => l.startsWith("environment production:"))).toContain("default");
+  });
+});
+
+// ── Plan 33.1-22 (D-30, re-review WR-01): garbage and oddly shaped host values ────────────────
+// Every case starts from the strong fixture and changes one value. An absent, null, wrong-typed or
+// garbage value may lower a row to `unknown`; it never makes a row `held`.
+describe("host-protection.js — reviewer element shape (WR-01, D-30)", () => {
+  const SELF_REVIEW = "prevents self-review";
+  const REVIEWER_ROW = "requires at least one reviewer";
+  const VALID = { type: "User", reviewer: { login: "release-owner", id: 1 } };
+  const GARBAGE_REVIEWERS: Array<[string, unknown[]]> = [
+    ["[null]", [null]],
+    ["[{}]", [{}]],
+    ['["x"]', ["x"]],
+    ['[{ type: "User" }] (no reviewer)', [{ type: "User" }]],
+    ['[{ type: "User", reviewer: {} }] (no id)', [{ type: "User", reviewer: {} }]],
+    ['[{ type: "Bot", reviewer: { id: 1 } }] (an undocumented type)', [{ type: "Bot", reviewer: { id: 1 } }]],
+    ['[{ type: "User", reviewer: { id: "1" } }] (a string id)', [{ type: "User", reviewer: { id: "1" } }]],
+    ['[{ type: "User", reviewer: { id: 0 } }] (a zero id)', [{ type: "User", reviewer: { id: 0 } }]],
+    ['[{ type: "User", reviewer: { id: 1.5 } }] (a fractional id)', [{ type: "User", reviewer: { id: 1.5 } }]],
+    ["[<a valid element>, null] (a mix)", [VALID, null]],
+  ];
+  for (const [name, reviewers] of GARBAGE_REVIEWERS) {
+    it(`reviewers ${name} → the reviewer row is unknown, self-review is not held, UNKNOWN - verify, exit 2`, () => {
+      const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers })] }) }), ["--json"]);
+      expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
+      expect(envFactOf(r.stdout, "production", SELF_REVIEW)).not.toBe("held");
+      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+      expect(r.status).toBe(2);
+    });
+  }
+
+  it('reviewers [{ type: "Team", reviewer: { id: 7 } }] → the reviewer row is held', () => {
+    const r = runCheck(
+      base({ [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers: [{ type: "Team", reviewer: { id: 7 } }] })] }) }),
+      ["--json"],
+    );
+    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("held");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+  });
+
+  it("reviewers [] → the reviewer row is failed (unchanged)", () => {
+    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers: [] })] }) }), ["--json"]);
+    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("failed");
+    expect(r.status).toBe(1);
+  });
+
+  it("protection_rules [null, <strong reviewer rule>] → the reviewer rows stay held", () => {
+    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [null, REVIEWER_RULE()] }) }), ["--json"]);
+    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("held");
+    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("held");
+  });
+
+  it("protection_rules [null] → the reviewer rows are unknown, not failed", () => {
+    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [null] }) }), ["--json"]);
+    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
+    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("protection_rules [{ type: 5 }] (an entry without a string type) → the reviewer rows are unknown, not failed", () => {
+    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [{ type: 5 }] }) }), ["--json"]);
+    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
+    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
+    expect(r.status).toBe(2);
+  });
+});
+
+describe("host-protection.js — rule list garbage, the branch-policy pair and approval counts (D-30)", () => {
+  const PR_ROW = "requires a pull request before merging";
+  const APPROVAL_ROW = "requires at least one approving review";
+  const POLICY_ROW = "allows deployments only from protected branches";
+
+  it("a rule list [null, non_fast_forward, deletion] read in full, classic 404 `Branch not protected` → pull request and approval unknown, UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({ [RULES("main")]: rulesOf(null, RULE("non_fast_forward"), RULE("deletion")), [PROTECTION("main")]: NOT_PROTECTED_404 }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", PR_ROW)).toBe("unknown");
+    expect(factOf(r.stdout, "main", APPROVAL_ROW)).toBe("unknown");
+    expect(factOf(r.stdout, "main", "blocks force pushes")).toBe("held");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(branchLine(r.stdout)).toContain("an entry of the rule list is not a readable rule");
+    expect(r.status).toBe(2);
+  });
+
+  it("a rule list holding an entry whose type is not a string → the rows it could show are unknown, not failed", () => {
+    const r = runCheck(
+      base({ [RULES("main")]: rulesOf({ type: 7 }, RULE("non_fast_forward"), RULE("deletion")), [PROTECTION("main")]: NOT_PROTECTED_404 }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", PR_ROW)).toBe("unknown");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+  });
+
+  const POLICIES: Array<[string, unknown, string]> = [
+    ["{ protected_branches: true } (no custom key)", { protected_branches: true }, "unknown"],
+    ["{ protected_branches: true, custom_branch_policies: true }", { protected_branches: true, custom_branch_policies: true }, "unknown"],
+    ['{ protected_branches: true, custom_branch_policies: "false" }', { protected_branches: true, custom_branch_policies: "false" }, "unknown"],
+    ["{ protected_branches: true, custom_branch_policies: false }", { protected_branches: true, custom_branch_policies: false }, "held"],
+  ];
+  for (const [name, policy, state] of POLICIES) {
+    it(`deployment_branch_policy ${name} → the branch-policy row is ${state}`, () => {
+      const r = runCheck(base({ [ENVS]: envs({ name: "production", deployment_branch_policy: policy }) }), ["--json"]);
+      expect(envFactOf(r.stdout, "production", POLICY_ROW)).toBe(state);
+      expect(verdictOf(r.stdout, "environment", "production")).toBe(state === "held" ? "protected" : "UNKNOWN - verify");
+    });
+  }
+
+  // [count, approval-row state] on the ruleset arm, with no classic protection.
+  const COUNTS: Array<[unknown, string]> = [
+    [-1, "unknown"],
+    [2 ** 60, "unknown"],
+    [0, "failed"],
+    [1, "held"],
+  ];
+  for (const [count, state] of COUNTS) {
+    it(`a ruleset approval count of ${String(count)} → the approval row is ${state}`, () => {
+      const r = runCheck(
+        base({ [RULES("main")]: rulesOf(PR_RULE(count), RULE("non_fast_forward"), RULE("deletion")), [PROTECTION("main")]: NOT_PROTECTED_404 }),
+        ["--json"],
+      );
+      expect(factOf(r.stdout, "main", APPROVAL_ROW)).toBe(state);
+    });
+  }
+
+  it("a classic approval count of -1 (explicit empty allowance, no rules) → the approval row is unknown, UNKNOWN - verify", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: NO_RULES,
+        [PROTECTION("main")]: classicOf({
+          ...CLASSIC_STRONG,
+          required_pull_request_reviews: { required_approving_review_count: -1, bypass_pull_request_allowances: NO_ALLOWANCES },
+        }),
+      }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", APPROVAL_ROW)).toBe("unknown");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
+  });
+
+  it("the strong fixture still gives 2 protected, 0 unprotected, 0 UNKNOWN - verify, exit 0", () => {
+    const r = runCheck(base());
+    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.status).toBe(0);
   });
 });
 
