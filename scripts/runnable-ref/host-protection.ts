@@ -169,7 +169,7 @@
 // else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
 // `agent-factory/config/factory.config.json` (both relative to the working directory; an
 // unparseable file or a non-array value falls through, and so does a candidate that is not a
-// regular file of at most 1 MiB, such as a FIFO, a directory or a device, which is never read:
+// regular file of at most 1 MiB, such as a FIFO, a directory or a device, which is never opened:
 // readConfigText, brief DC-3), else `production`. The line names the source.
 //
 // READ-ONLY BY CONSTRUCTION. Every call goes through runGh(), and there are exactly two argv
@@ -208,7 +208,7 @@
 // English. This is a safety surface.
 
 import { spawnSync } from "node:child_process";
-import { closeSync, constants as fsConstants, existsSync, fstatSync, openSync, readSync } from "node:fs";
+import { closeSync, constants as fsConstants, existsSync, fstatSync, openSync, readSync, statSync, type Stats } from "node:fs";
 import { join } from "node:path";
 
 // An unexpected failure must never surface as exit 1, which the contract reserves for "at least
@@ -1549,26 +1549,37 @@ function branchVerdict(name: string): Target {
 // THE ONE READER of a user-controlled path in this check (brief 33.1-GAP-PLANNING-BRIEF.md DC-3,
 // plan 33.1-25; D-19: the check must answer, and a check that hangs answers nothing). The config
 // candidates sit in the user's working tree, where a FIFO, a directory or a device may stand at the
-// path; reading one can block forever or never end. So the file is opened read-only and
-// non-blocking (a FIFO with no writer opens at once instead of waiting), the SAME descriptor is
-// fstat'ed, and the text is read only from a regular file (a symlink resolving to one included) of
-// at most CONFIG_MAX_BYTES, never past the size that fstat reported. Anything else (absent, not a
-// regular file, too large, or any error) is undefined: unreadable, and the caller falls through
+// path; reading one can block forever or never end, and even OPENING one changes it: opening a FIFO
+// to read releases a writer blocked in open() there (which then dies writing to a closed pipe), and
+// opening a terminal device can make it the controlling terminal (red-team B2 of plan 33.1-25). So
+// the path is stat'ed FIRST (following a symlink) and anything that is not a regular file of at most
+// CONFIG_MAX_BYTES is never opened. Only then is it opened read-only, non-blocking and with
+// O_NOCTTY, and the SAME descriptor is fstat'ed: it must still be a regular file within the bound,
+// and the same file (device and inode) the stat saw, which catches a path swapped between the two.
+// The text is read never past the size that fstat reported. Anything else (absent, not a regular
+// file, too large, swapped, or any error) is undefined: unreadable, and the caller falls through
 // exactly as for an unparseable file. This file may import only node builtins (it is copied alone
 // into tools/grugops/), so it restates scripts/context-io.ts readRegularFileOrNull's rule rather
-// than importing it. `O_NONBLOCK` is absent on win32, where the flag is 0 (D-15 keeps Windows
-// behaviour out of scope).
+// than importing it. `O_NONBLOCK` and `O_NOCTTY` are absent on win32, where each flag is 0 (D-15
+// keeps Windows behaviour out of scope).
 const CONFIG_MAX_BYTES = 1024 * 1024;
 function readConfigText(path: string): string | undefined {
+  let before: Stats;
+  try {
+    before = statSync(path);
+  } catch {
+    return undefined;
+  }
+  if (!before.isFile() || before.size > CONFIG_MAX_BYTES) return undefined;
   let fd: number;
   try {
-    fd = openSync(path, fsConstants.O_RDONLY | (fsConstants.O_NONBLOCK ?? 0));
+    fd = openSync(path, fsConstants.O_RDONLY | (fsConstants.O_NONBLOCK ?? 0) | (fsConstants.O_NOCTTY ?? 0));
   } catch {
     return undefined;
   }
   try {
     const st = fstatSync(fd);
-    if (!st.isFile() || st.size > CONFIG_MAX_BYTES) return undefined;
+    if (!st.isFile() || st.size > CONFIG_MAX_BYTES || st.dev !== before.dev || st.ino !== before.ino) return undefined;
     const buf = Buffer.alloc(st.size);
     let off = 0;
     while (off < buf.length) {
