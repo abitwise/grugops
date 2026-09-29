@@ -42,7 +42,9 @@
 //     non-admin sees, protected or not) → ask `branches/<b>`: `.protected === false` about the
 //     branch asked for → no classic protection; `.protected === true` → classic protection exists
 //     but its rules are not readable with this token; an answer about another branch → the whole
-//     branch is `UNKNOWN - verify`. Anything else → not readable, quoting the status.
+//     branch is `UNKNOWN - verify`. Anything else → not readable, quoting the status. A protection
+//     body for a branch the main/master probe read as `protected: false` → the whole branch is
+//     `UNKNOWN - verify` (the same run contradicts itself).
 //     (Measured endpoint behaviour: 33.1-RESEARCH.md § Q4.)
 // Each arm gives each row one of three states: `held` (positively shown), `failed` (read, and not
 // shown) or `unknown` (not readable). THE UNION RULE: GitHub enforces rulesets and classic branch
@@ -75,7 +77,9 @@
 // shows nothing. Each distinct id is read once per run through `rulesets/<id>`, at most
 // MAX_RULESET_READS per branch (the rest show nothing). The rule binds only when that read is a
 // 200 about the same ruleset reporting `enforcement: "active"`, `target: "branch"` (any other or
-// absent value of either is not readable) and `current_user_can_bypass: "never"`; `always`,
+// absent value of either is not readable), `source` and `source_type` agreeing with the rule list's
+// `ruleset_source` and `ruleset_source_type` for that id (a disagreement, or either side absent or
+// garbled, is not readable), and `current_user_can_bypass: "never"`; `always`,
 // `pull_requests_only` and `exempt` are read as bypassable; any other answer is not readable. So
 // an item is `held` on the ruleset arm when at least one binding rule shows it. Classic arm: the
 // body binds only with `enforce_admins.enabled === true` (`false` is read as bypassable, since a
@@ -321,6 +325,17 @@ const ACCEPT = {
     rulesetTarget: {
         held: (v) => v === "branch",
     },
+    // `source` on `GET rulesets/<id>` and `ruleset_source` on each rule of the rule list: the owner
+    // of the ruleset, readable only as a non-empty string. Both sides must name the same one (red-team
+    // case P of plan 33.1-22); readFact reads each side, and the agreement is compared after.
+    rulesetSource: {
+        held: (v) => typeof v === "string" && v.length > 0,
+    },
+    // `source_type` on the ruleset body and `ruleset_source_type` on its rules, compared the same way
+    // whenever either side carries it.
+    rulesetSourceType: {
+        held: (v) => typeof v === "string" && v.length > 0,
+    },
     // The environment object `GET environments` listed under the configured name.
     environmentPresent: {
         held: (v) => isObject(v),
@@ -548,7 +563,6 @@ const FLOOR_ITEMS = BRANCH_FLOOR.filter((row) => row.kind === "item");
 // with a 20 s timeout). A rule from a ruleset beyond the bound shows nothing: its binding is
 // `unknown`.
 const MAX_RULESET_READS = 20;
-// One read per ruleset per run, whichever branch asks first.
 const rulesetBindingCache = new Map();
 // `GET rulesets/<id>`: GitHub documents `current_user_can_bypass` as one of `always`,
 // `pull_requests_only`, `never` and `exempt`. Only `never` binds. The answer counts only when it
@@ -587,8 +601,39 @@ function readRulesetBinding(id) {
     else {
         b = { state: "unknown", evidence: `the read of ruleset ${id} answered ${answered(res)}` };
     }
-    rulesetBindingCache.set(id, b);
-    return b;
+    const read = { binding: b, source: hostField(res.body, "source"), sourceType: hostField(res.body, "source_type") };
+    rulesetBindingCache.set(id, read);
+    return read;
+}
+// SOURCE AGREEMENT (red-team case P of plan 33.1-22, D-30). The rule list names each rule's
+// ruleset by `ruleset_id` AND by owner (`ruleset_source`, `ruleset_source_type`); the ruleset's own
+// answer names its owner as `source` and `source_type`. They are two endpoints naming one fact, so
+// they must agree: every rule of that id and the body name the same readable `source` (exact
+// string comparison), and the same readable source type whenever either side carries one (absent
+// on both sides is not a disagreement). Anything else — a disagreement, or one side absent or
+// garbled — is why the ruleset binds nothing: its rows are `unknown`, never `failed`.
+function sourceDisagreement(id, rules, read) {
+    const mine = rules.filter((r) => hostField(r, "ruleset_id") === id);
+    const sources = [read.source, ...mine.map((r) => hostField(r, "ruleset_source"))];
+    if (!sources.every((v) => readFact(v, ACCEPT.rulesetSource) === "held") || new Set(sources).size !== 1) {
+        return `ruleset ${id} names its source as ${hostText(read.source)}, and its rules name ${hostText(mine.map((r) => hostField(r, "ruleset_source")))}: these do not agree, so it is not shown to bind`;
+    }
+    const types = [read.sourceType, ...mine.map((r) => hostField(r, "ruleset_source_type"))];
+    if (types.every((v) => v === undefined))
+        return undefined;
+    if (!types.every((v) => readFact(v, ACCEPT.rulesetSourceType) === "held") || new Set(types).size !== 1) {
+        return `ruleset ${id} names its source type as ${hostText(read.sourceType)}, and its rules name ${hostText(mine.map((r) => hostField(r, "ruleset_source_type")))}: these do not agree, so it is not shown to bind`;
+    }
+    return undefined;
+}
+// A ruleset's binding for this branch: its own read, unless its source disagrees with the rules
+// that name it here.
+function rulesetBindingFor(id, rules) {
+    const read = readRulesetBinding(id);
+    if (read.binding.state === "unknown")
+        return read.binding;
+    const why = sourceDisagreement(id, rules, read);
+    return why === undefined ? read.binding : { state: "unknown", evidence: why };
 }
 // The binding of every distinct ruleset whose rules could show an item on this branch, in the
 // order the rules name them; the first MAX_RULESET_READS are read, the rest are `unknown`.
@@ -604,7 +649,7 @@ function rulesetBindings(arm) {
     const out = new Map();
     ids.forEach((id, i) => {
         out.set(id, i < MAX_RULESET_READS
-            ? readRulesetBinding(id)
+            ? rulesetBindingFor(id, arm.rules)
             : { state: "unknown", evidence: `ruleset ${id} was not read (the check reads at most ${MAX_RULESET_READS} rulesets per branch)` });
     });
     return out;
@@ -842,7 +887,9 @@ function readClassicArm(name, bp) {
     return { kind: "unreadable", evidence: `the protection endpoint answered ${answered(prot)}` };
 }
 // --- branch verdict ---------------------------------------------------------------------------
-function branchVerdict(name) {
+// `probedProtected`: the `protected` value the main/master probe read from `branches/<b>` about
+// this branch in the same run (undefined when it was not probed).
+function branchVerdict(name, probedProtected) {
     if (!usableBranch(name))
         return branchUnknown(name, "this is not a branch name the check can ask the host about");
     const bp = branchPath(name);
@@ -854,6 +901,11 @@ function branchVerdict(name) {
     // An answer about another branch taints every read made under this name, the ruleset arm too.
     if (classicArm?.kind === "elsewhere")
         return branchUnknown(name, classicArm.evidence);
+    // Two endpoints naming one fact (D-30): the probe read `protected: false`, but the classic
+    // protection endpoint answered with a protection body. The same run contradicts itself.
+    if (classicArm?.kind === "body" && probedProtected === false) {
+        return branchUnknown(name, "the branch endpoint reports protected false, but the classic protection endpoint answered with a protection body");
+    }
     const fromClassic = FLOOR_ITEMS.map((row) => classicArm === undefined ? plain("unknown", "not read (the ruleset arm shows every item)") : classicReading(row, classicArm));
     const items = FLOOR_ITEMS.map((row, i) => ({
         fact: {
@@ -1133,6 +1185,8 @@ else {
     const names = [];
     // main/master names the host answered as another branch (the name it answered), this run.
     const renamed = new Map();
+    // The `protected` value each probed main/master answer carried about itself, for branchVerdict.
+    const probed = new Map();
     const repo = apiGet("repos/{owner}/{repo}");
     const defaultBranch = hostField(repo.body, "default_branch");
     if (repo.status === 200 && typeof defaultBranch === "string") {
@@ -1149,8 +1203,10 @@ else {
         // 2026-09-27: `branches/master` → 200 with `"name": "main"` on a repository whose master was
         // renamed). Only an answer about the branch that was asked for shows the branch exists.
         const answeredName = hostField(res.body, "name");
-        if (res.status === 200 && answeredName === b)
+        if (res.status === 200 && answeredName === b) {
             names.push(b);
+            probed.set(b, hostField(res.body, "protected"));
+        }
         else if (res.status === 200 && typeof answeredName === "string")
             renamed.set(b, answeredName);
         else if (res.status !== 404) {
@@ -1170,7 +1226,7 @@ else {
         }
     }
     for (const b of names)
-        targets.push(branchVerdict(b));
+        targets.push(branchVerdict(b, probed.get(b)));
     targets.push(environmentVerdict(env.name, env.source));
 }
 // --- report -----------------------------------------------------------------------------------
