@@ -1358,7 +1358,7 @@ function readClassicProtectionEvidence(): Shown {
   const list = downgrade(readFact(res.body, ACCEPT.protectedBranchList), res.next);
   // An empty list the same run contradicts cannot show "no protected branch" (finding 5).
   if (list === "failed" && protectionShown.length > 0) {
-    return { state: "unknown", evidence: `the host lists no protected branch, but the same run shows protection: ${protectionShown.join("; ")}` };
+    return { state: "unknown", evidence: `the host lists no protected branch, yet the same run shows protection: ${protectionShown.join("; ")}` };
   }
   if (list !== "held") {
     return says(list, {

@@ -1945,7 +1945,7 @@ describe("host-protection.js — the production branch policy needs classic prot
     expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
     const fact = branchPolicyFact(r.stdout);
     expect(fact?.state).toBe("unknown");
-    expect(fact?.evidence).toContain("the host lists no protected branch, but the same run shows");
+    expect(fact?.evidence).toContain("the host lists no protected branch, yet the same run shows");
     expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
   });
 
@@ -2343,7 +2343,7 @@ describe("host-protection.js — red-team 33.1-23 finding 5: an empty protected-
     const r = runCheck(fx, [...args, "--json"]);
     const fact = branchPolicyFact(r.stdout);
     expect(fact?.state).toBe("unknown");
-    expect(fact?.evidence).toContain("the host lists no protected branch, but the same run shows");
+    expect(fact?.evidence).toContain("the host lists no protected branch, yet the same run shows");
     expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
   });
 
