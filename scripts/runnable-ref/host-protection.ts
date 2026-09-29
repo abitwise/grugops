@@ -144,7 +144,7 @@ import { join } from "node:path";
 // one target is unprotected". Anything thrown is the "could not run" answer: exit 2.
 // The message is printed through printable() (IN-04): it may carry host text.
 process.on("uncaughtException", (err) => {
-  console.log(`HOST-PROTECTION: the check could not run (${printable(err instanceof Error ? err.message : String(err))}) — UNKNOWN - verify`);
+  console.log(`HOST-PROTECTION: the check could not run (${err instanceof Error ? printable(err.message) : hostText(err)}) — UNKNOWN - verify`);
   process.exit(2);
 });
 
@@ -441,6 +441,21 @@ function printable(s: string, max = 200): string {
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
+// THE ONE WAY A HOST VALUE ENTERS EVIDENCE TEXT (red-team finding 5 of plan 33.1-22). Never
+// `String(v)` or `${v}` on a host value: a parsed object such as `{ "toString": 1 }` throws there,
+// and a throw is the whole-run "could not run" (exit 2), which would hide another target's
+// `unprotected` (exit 1). The value is written as JSON (a string keeps its quotes), bounded and
+// cleaned by printable(); anything JSON cannot write falls back to a fixed phrase.
+function hostText(v: unknown, max = 200): string {
+  if (v === undefined) return "(absent)";
+  try {
+    const s: unknown = JSON.stringify(v);
+    return typeof s === "string" ? printable(s, max) : "(a value this check cannot print)";
+  } catch {
+    return "(a value this check cannot print)";
+  }
+}
+
 // A branch name this check will put in a REST path: git's own rules refuse the rest, and refusing
 // `.`/`..` segments keeps a crafted name from resolving to a different endpoint.
 function usableBranch(name: string): boolean {
@@ -526,7 +541,7 @@ function rulesetOf(rule: Record<string, unknown>): string {
 // A rule of the item's type shows it by being a readable rule entry.
 function ruleShows(rule: Record<string, unknown>): Shown {
   return says(readFact(rule, ACCEPT.ruleEntry), {
-    held: `${rulesetOf(rule)} has a ${String(hostField(rule, "type"))} rule`,
+    held: `${rulesetOf(rule)} has a ${hostText(hostField(rule, "type"))} rule`,
     failed: "an entry of the rule list does not show the item",
     unknown: "an entry of the rule list is not a readable rule",
   });
@@ -552,8 +567,8 @@ const CLASSIC_REVIEWS_SAYS = {
 // The approval count's evidence: the count when it is read, and what is expected when it is not.
 function approvalSays(where: string, count: unknown): { held: string; failed: string; unknown: string } {
   return {
-    held: `${where} requires ${String(count)} approving review(s)`,
-    failed: `${where} requires ${String(count)} approving review(s)`,
+    held: `${where} requires ${hostText(count)} approving review(s)`,
+    failed: `${where} requires ${hostText(count)} approving review(s)`,
     unknown: `${where} carries no required_approving_review_count this check can read (a whole number of 0 or more)`,
   };
 }
@@ -636,11 +651,11 @@ function readRulesetBinding(id: number): Binding {
     const v = hostField(res.body, "current_user_can_bypass");
     b = toBinding(readFact(v, ACCEPT.rulesetBypass), {
       held: `ruleset ${id} reports current_user_can_bypass "never"`,
-      failed: `ruleset ${id} reports current_user_can_bypass "${String(v)}"`,
+      failed: `ruleset ${id} reports current_user_can_bypass ${hostText(v)}`,
       unknown:
         v === undefined
           ? `ruleset ${id} carries no current_user_can_bypass`
-          : `ruleset ${id} reports a current_user_can_bypass this check does not recognize (${printable(String(JSON.stringify(v)))})`,
+          : `ruleset ${id} reports a current_user_can_bypass this check does not recognize (${hostText(v)})`,
     });
   } else if (res.status === 200 && isObject(res.body)) {
     b = { state: "unknown", evidence: `the read of ruleset ${id} answered about a different ruleset` };
@@ -658,7 +673,8 @@ function rulesetBindings(arm: RulesetArm): Map<number, Binding> {
   const ids: number[] = [];
   for (const rule of arm.rules) {
     const id = hostField(rule, "ruleset_id");
-    if (types.has(String(hostField(rule, "type"))) && usableRulesetId(id) && !ids.includes(id)) ids.push(id);
+    const type = hostField(rule, "type");
+    if (typeof type === "string" && types.has(type) && usableRulesetId(id) && !ids.includes(id)) ids.push(id);
   }
   const out = new Map<number, Binding>();
   ids.forEach((id, i) => {
@@ -677,7 +693,7 @@ function ruleBinding(rule: Record<string, unknown>, bindings: Map<number, Bindin
   if (!usableRulesetId(id)) {
     return {
       state: "unknown",
-      evidence: `a ${String(hostField(rule, "type"))} rule carries no usable ruleset_id, so its ruleset cannot be asked about bypass`,
+      evidence: `a ${hostText(hostField(rule, "type"))} rule carries no usable ruleset_id, so its ruleset cannot be asked about bypass`,
     };
   }
   return bindings.get(id) ?? { state: "unknown", evidence: `ruleset ${id} was not read` };
