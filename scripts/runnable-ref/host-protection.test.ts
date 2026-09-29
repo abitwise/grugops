@@ -1548,6 +1548,71 @@ describe("host-protection.js — red-team: a ruleset binds only when its body's 
   });
 });
 
+// Plan 33.1-24, found by the evidence-field pairs (host-protection-floor.test.ts section 6, DC-1).
+// Breaking a rule entry's `ruleset_source` alone makes the ruleset bind nothing (every branch row
+// unknown). Breaking it TOGETHER with the entry's `type` (the entry is then not a readable rule) or
+// its `ruleset_id` (the entry then names no ruleset) used to drop the entry from the source check,
+// so the ruleset's other rules bound again: more broken input gave a stronger reading. The rule
+// now covers every entry of the rule list that does not name another ruleset by a usable id.
+describe("host-protection.js — pairs: an entry that may belong to the ruleset must name its source (DC-1, plan 33.1-24)", () => {
+  // [case, the one entry's override]: two broken fields together, and the whole-entry shapes.
+  const PAIRED: Array<[string, Record<string, unknown>]> = [
+    ["type absent + ruleset_source absent", { type: undefined, ruleset_source: undefined }],
+    ["type absent + ruleset_source_type absent", { type: undefined, ruleset_source_type: undefined }],
+    ["ruleset_id absent + ruleset_source absent", { ruleset_id: undefined, ruleset_source: undefined }],
+    ["ruleset_id absent + ruleset_source_type absent", { ruleset_id: undefined, ruleset_source_type: undefined }],
+    ['type 7 + ruleset_source 7', { type: 7, ruleset_source: 7 }],
+    ['ruleset_id "x" + ruleset_source 7', { ruleset_id: "x", ruleset_source: 7 }],
+  ];
+  for (const only of [0, 1, 2]) {
+    for (const [name, over] of PAIRED) {
+      it(`rule ${only}: ${name} → every branch row unknown, UNKNOWN - verify`, () => {
+        const r = runCheck(base({ [RULES("main")]: rulesWithSource(over, only), [PROTECTION("main")]: NOT_PROTECTED_404 }), ["--json"]);
+        for (const requirement of jsonBlock(r.stdout).floor.branch) {
+          expect(factOf(r.stdout, "main", requirement), `${name}: ${requirement}`).toBe("unknown");
+        }
+        expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+        expect(r.status).toBe(2);
+      });
+    }
+  }
+
+  // An entry that is not an object names no ruleset and no source, like `{}`.
+  const WHOLE: Array<[string, unknown]> = [
+    ["{}", {}],
+    ["null", null],
+    ['"x"', "x"],
+  ];
+  for (const [name, entry] of WHOLE) {
+    it(`an entry ${name} beside the ruleset's three rules → every branch row unknown, UNKNOWN - verify`, () => {
+      const r = runCheck(base({ [RULES("main")]: rulesOf(...ALL_ROWS_IN(1), entry), [PROTECTION("main")]: NOT_PROTECTED_404 }), ["--json"]);
+      for (const requirement of jsonBlock(r.stdout).floor.branch) {
+        expect(factOf(r.stdout, "main", requirement), `${name}: ${requirement}`).toBe("unknown");
+      }
+      expect(r.status).toBe(2);
+    });
+  }
+
+  // Controls: each field alone keeps its plan 33.1-23 reading.
+  it("control: ruleset_id absent alone, source present and agreeing → only the entry's own rows are unknown", () => {
+    const r = runCheck(base({ [RULES("main")]: rulesWithSource({ ruleset_id: undefined }, 1), [PROTECTION("main")]: NOT_PROTECTED_404 }), ["--json"]);
+    const block = jsonBlock(r.stdout).floor.branch;
+    const held = block.filter((req) => factOf(r.stdout, "main", req) === "held");
+    expect(held.length, `rows held: ${held.join(", ")}`).toBe(3);
+    expect(r.status).toBe(2);
+  });
+
+  it("control: the three rules as the strong fixture has them → protected", () => {
+    const r = runCheck(base({ [RULES("main")]: rulesWithSource({}), [PROTECTION("main")]: NOT_PROTECTED_404 }));
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(r.status).toBe(0);
+  });
+
+  it("the case table has the pinned size (6 pair shapes × 3 rules, 3 whole-entry shapes)", () => {
+    expect(PAIRED.length * 3 + WHOLE.length).toBe(21);
+  });
+});
+
 describe("host-protection.js — red-team: a branch the same run saw under another name is UNKNOWN - verify (D-30)", () => {
   it("the red-team case E: master renamed to main (branches/master answers `main`), --branch master → master UNKNOWN - verify, never re-added as a target", () => {
     const r = runCheck(

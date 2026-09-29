@@ -761,15 +761,22 @@ function replacement(m: Exclude<Mutation, "absent" | "removed">, v: unknown): un
 
 function mutated(p: WalkedPath, m: Mutation): Fixture {
   const fx = BASELINES[BODIES[p.body].baseline]();
+  applyMutation(fx, p, m);
+  return fx;
+}
+
+// Applies one mutation to `fx` in place. The pairs matrix (plan 33.1-24, section 6) applies two to
+// one fixture through this same function, so a pair uses exactly the single-field mutations.
+function applyMutation(fx: Fixture, p: WalkedPath, m: Mutation): void {
   const key = BODIES[p.body].key;
   if (p.segs.length === 0) {
     if (m === "absent") {
       delete fx[key];
-      return fx;
+      return;
     }
     if (m === "removed") throw new Error("a root is never an array element");
     fx[key] = { ...(fx[key] as Record<string, unknown>), body: replacement(m, p.value) };
-    return fx;
+    return;
   }
   const entry = structuredClone(fx[key]) as Record<string, unknown>;
   fx[key] = entry;
@@ -786,7 +793,6 @@ function mutated(p: WalkedPath, m: Mutation): Fixture {
     else if (m === "removed") throw new Error("an object key is made absent, not removed");
     else obj[last] = replacement(m, p.value);
   }
-  return fx;
 }
 
 // ── The rows ─────────────────────────────────────────────────────────────────────────────────────
@@ -1028,6 +1034,127 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
         if (fedTargets.has("branch")) expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");
         if (fedTargets.has("environment")) expect(targetOf(r.json, "environment", "production")?.verdict, label).not.toBe("protected");
         expect(r.status, label).not.toBe(0);
+      }
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 6. Evidence-field pairs (plan 33.1-24, Gap A, D-30, brief 33.1-GAP-PLANNING-BRIEF.md DC-1 §2.1:
+//    "one at a time and in pairs, including cross-row cases").
+//
+// Two broken fields together can form a shape that looks legitimate where each alone does not (an
+// empty deployment_branch_policy object is the example: either key alone left present still reads
+// unknown). Section 5 covers every field alone; this section breaks two at once, reusing section
+// 5's baselines, walk, LEAVES, applyMutation and runHostCheck in place, so the pair universe is the
+// same field universe.
+//
+// SIBLING_PAIRS: every unordered pair of evidence (non-inert) walked paths with the same parent
+// (same body, same parent path; the elements of one array are siblings), each pair in the baseline
+// its body is taken from, under the four combinations of {absent, wrong type}. "Absent" is section
+// 5's: a key is deleted, an array element is removed. "Wrong type" is section 5's wrongType().
+//
+// The class rule asserted for every pair: every row either field feeds is not `held` (a pair may
+// mix an EXCEPTIONS path with another, so `unknown` versus `failed` is not asserted), every row fed
+// by neither stays `held`, a target either field feeds is not `protected`, and the run does not
+// exit 0. A pair that breaks this is a DC-1 defect in the check, fixed in host-protection.ts
+// through readFact / ACCEPT, never by dropping the pair or marking a path inert.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+type PairMutation = "absent" | "wrong-type";
+interface PairMember {
+  path: WalkedPath;
+  m: PairMutation;
+}
+
+const EVIDENCE_PATHS: readonly WalkedPath[] = WALKED.filter((p) => (LEAVES[p.key] ?? []).length > 0);
+const lastSeg = (p: WalkedPath): Seg | undefined => p.segs[p.segs.length - 1];
+const parentKey = (p: WalkedPath): string | undefined => (p.segs.length === 0 ? undefined : `${p.body}:${pathText(p.segs.slice(0, -1))}`);
+
+// Section 5's mutation for "absent": an array element is removed, a key is deleted.
+const asMutation = (x: PairMember): Mutation => (x.m === "wrong-type" ? "wrong-type" : typeof lastSeg(x.path) === "number" ? "removed" : "absent");
+
+// Both members' mutations applied to one fixture of their shared baseline. Deeper paths go first,
+// and within one array the higher index first, so removing one member never moves the other.
+function mutatedPair(members: readonly PairMember[]): Fixture {
+  const baselines = new Set(members.map((x) => BODIES[x.path.body].baseline));
+  if (baselines.size !== 1) throw new Error(`a pair spans two baselines: ${members.map((x) => x.path.key).join(" + ")}`);
+  const fx = BASELINES[[...baselines][0]]();
+  const index = (x: PairMember): number => {
+    const s = lastSeg(x.path);
+    return typeof s === "number" ? s : -1;
+  };
+  const order = [...members].sort((a, b) => b.path.segs.length - a.path.segs.length || index(b) - index(a));
+  for (const x of order) applyMutation(fx, x.path, asMutation(x));
+  return fx;
+}
+
+const pairLabel = (members: readonly PairMember[]): string => members.map((x) => `${x.path.key} ${asMutation(x)}`).join(" + ");
+
+// The class rule for one pair run.
+function expectPairClassRule(members: readonly PairMember[], r: MatrixRun): void {
+  const label = pairLabel(members);
+  const states = rowStates(r.json);
+  expect(states.size, `${label}: every row of both targets reported\n${r.stdout}`).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
+  const fed = new Set<string>(members.flatMap((x) => LEAVES[x.path.key]));
+  for (const [id, state] of states) {
+    if (fed.has(id)) expect(state, `${label}: row ${id} is fed and must not be held\n${r.stdout}`).not.toBe("held");
+    else expect(state, `${label}: row ${id} is not fed and must stay held\n${r.stdout}`).toBe("held");
+  }
+  const fedIds = [...fed] as RowId[];
+  if (fedIds.some(isBranchRow)) expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");
+  if (fedIds.some((id) => !isBranchRow(id))) expect(targetOf(r.json, "environment", "production")?.verdict, label).not.toBe("protected");
+  expect(r.status, label).not.toBe(0);
+}
+
+const PAIR_COMBOS: ReadonlyArray<readonly [PairMutation, PairMutation]> = [
+  ["absent", "absent"],
+  ["absent", "wrong-type"],
+  ["wrong-type", "absent"],
+  ["wrong-type", "wrong-type"],
+];
+
+function siblingPairs(): Array<readonly [WalkedPath, WalkedPath]> {
+  const out: Array<readonly [WalkedPath, WalkedPath]> = [];
+  EVIDENCE_PATHS.forEach((a, i) => {
+    for (const b of EVIDENCE_PATHS.slice(i + 1)) {
+      const pa = parentKey(a);
+      if (pa !== undefined && pa === parentKey(b)) out.push([a, b]);
+    }
+  });
+  return out;
+}
+const SIBLING_PAIRS = siblingPairs();
+// Pinned from the first green run (plan 33.1-24): the fixture's real sibling evidence fields. The
+// pairs by parent are rules $ 3, rules $[0] 10, rules $[1] 6, rules $[2] 6, ruleset $ 15, classic $
+// 6, classic reviews 1, classic bypass allowances 3, environment $[0] 6, its deployment branch
+// policy 1, its reviewer rule 3, the reviewer entry 1, and the protected-branch list element 1.
+const SIBLING_PAIR_COUNT = 62;
+
+describe("evidence-field pairs (DC-1, plan 33.1-24)", () => {
+  it("SIBLING_PAIRS is derived from the walk, holds no inert path, and has the pinned count", () => {
+    const byParent = countBy(SIBLING_PAIRS.map(([a]) => parentKey(a) ?? ""));
+    console.log(
+      `host-protection evidence-field pairs: ${SIBLING_PAIRS.length} sibling pairs (${[...byParent].map(([k, n]) => `${k} ${n}`).join(", ")})\n` +
+        SIBLING_PAIRS.map(([a, b]) => `  ${a.key} + ${b.key}`).join("\n"),
+    );
+    for (const [a, b] of SIBLING_PAIRS) {
+      expect(INERT[a.key], `${a.key} is inert`).toBeUndefined();
+      expect(INERT[b.key], `${b.key} is inert`).toBeUndefined();
+      expect(a.body).toBe(b.body);
+    }
+    expect(new Set(SIBLING_PAIRS.map(([a, b]) => `${a.key}|${b.key}`)).size, "a pair twice").toBe(SIBLING_PAIRS.length);
+    expect(SIBLING_PAIRS.length).toBe(SIBLING_PAIR_COUNT);
+  });
+
+  for (const [a, b] of SIBLING_PAIRS) {
+    it(`sibling pair ${a.key} + ${b.key}`, { timeout: 30_000 }, () => {
+      for (const [ma, mb] of PAIR_COMBOS) {
+        const members = [
+          { path: a, m: ma },
+          { path: b, m: mb },
+        ];
+        expectPairClassRule(members, runHostCheck(mutatedPair(members)));
       }
     });
   }
