@@ -6112,3 +6112,184 @@ describe("special file at a user path: install neither hangs on it nor writes to
     expect(r.status, r.stdout + r.stderr).toBe(3);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// DC-3, every install.js user-path read (plan 33.1-26 Task 2). One case per routed read site, with a
+// FIFO (a writer blocked on it must stay blocked, so the path was never opened, and the run must
+// finish, so it was never written) and with a directory (the run must not crash). The site list is
+// the plan's sibling search, by name; plan 33.1-27 replaces it with a set derived from the census.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+interface SpecialPathCase {
+  /** The user path, relative to the target. */
+  readonly rel: string;
+  /** The install.ts read site(s) it drives. */
+  readonly sites: string;
+  /** Run a normal install first, then plant the special file and run `--check` (the doctor). */
+  readonly doctor?: boolean;
+}
+
+const SPECIAL_PATH_CASES: readonly SpecialPathCase[] = [
+  { rel: ".github/copilot-instructions.md", sites: "ensureBlock (Copilot)" },
+  { rel: ".gemini/settings.json", sites: "mergeGemini" },
+  { rel: ".claude/settings.json", sites: "writeAskRules" },
+  { rel: ".claude/agents/grugops-orchestrator.md", sites: "materializeAdapter" },
+  // Not AGENTS.md: the installer skips an AGENTS.md the target already has on an existsSync check
+  // before linkOrCopy, so a special file there reaches no read. A copied skill reaches linkOrCopy.
+  { rel: ".claude/skills/grugops-gate/SKILL.md", sites: "linkOrCopy / sameContent" },
+  { rel: "tools/grugops/reference-check.js", sites: "materializeRunnable / sameContent" },
+  { rel: ".grugops/factory.config.json", sites: "the adapter-render mirror copy, reportRetiredConfigKeys, readCheckpointConfig" },
+  { rel: ".claude/settings.json", sites: "the doctor's ask-rule read", doctor: true },
+  { rel: ".claude/agents/grugops-orchestrator.md", sites: "the doctor's adapter byte-compare and readAdapterKit", doctor: true },
+  { rel: ".grugops/factory.config.json", sites: "the doctor's adapter-render mirror copy", doctor: true },
+];
+
+function plantSpecial(at: string, shape: "FIFO" | "directory", position: string): SkipEntry | null {
+  rmSync(at, { recursive: true, force: true });
+  mkdirSync(dirname(at), { recursive: true });
+  return stageShapeOrSkip(shape, at, position);
+}
+
+// The special file at `rel`, or where the run moved its parent (the in-repo agent-factory/ backup),
+// never renamed itself: no sibling named `<basename>.bak.<ISO>` may exist.
+function expectSpecialUntouched(target: string, rel: string, shape: "FIFO" | "directory"): void {
+  const at = join(target, rel);
+  const st = lstatSync(at);
+  expect(shape === "FIFO" ? st.isFIFO() : st.isDirectory(), `${rel} is no longer a ${shape}`).toBe(true);
+  if (shape === "directory") expect(readdirSync(at), `something was written into the directory at ${rel}`).toEqual([]);
+  const base = rel.split("/").pop()!;
+  const renamed = readdirSync(dirname(at)).filter((n) => n.startsWith(`${base}.bak.`));
+  expect(renamed, `${rel} was renamed aside`).toEqual([]);
+}
+
+const NO_STACK = /^\s+at .+\(.+:\d+:\d+\)$/m;
+
+describe("special file at every install.js user-path read site (DC-3, D-18, plan 33.1-26)", () => {
+  it("special file: the site table is the plan's twelve-site sibling search, by count", () => {
+    // Ten table rows plus CLAUDE.md (Task 1) and the two --migrate legacy configs below reach every
+    // one of the twelve routed read sites at least once.
+    expect(SPECIAL_PATH_CASES.length).toBe(10);
+  });
+
+  for (const c of SPECIAL_PATH_CASES) {
+    const mode = c.doctor ? "--check" : "install";
+    it(`special file: a FIFO at ${c.rel} (${c.sites}) — ${mode} finishes, never opens it, leaves it a FIFO`, async () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      if (c.doctor) expect(runInstall(target, home).status).toBe(0);
+      const at = join(target, c.rel);
+      const skip = plantSpecial(at, "FIFO", `install ${c.rel} case`);
+      if (skip !== null) {
+        console.log(skipLine(skip, `the directory case for ${c.rel}`));
+        return;
+      }
+      const writer = startBlockedFifoWriter(at);
+      try {
+        await pause(300);
+        expect(stillRunning(writer), "the writer did not block (premise)").toBe(true);
+        const r = c.doctor ? runInstallBounded(target, home, 60_000, "--check") : runInstallBounded(target, home, 60_000);
+        expect(r.error, `${mode} hung on a FIFO at ${c.rel}`).toBeUndefined();
+        expect(r.signal).toBeNull();
+        await pause(300);
+        expect(stillRunning(writer), `${mode} opened the FIFO at ${c.rel}: the blocked writer was released`).toBe(true);
+        expectSpecialUntouched(target, c.rel, "FIFO");
+        expect(r.stderr).not.toMatch(NO_STACK);
+      } finally {
+        writer.kill("SIGKILL");
+      }
+    });
+
+    it(`special file: a directory at ${c.rel} (${c.sites}) — ${mode} finishes without a crash and leaves it empty`, () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      if (c.doctor) expect(runInstall(target, home).status).toBe(0);
+      plantSpecial(join(target, c.rel), "directory", `install ${c.rel} case`);
+      const r = c.doctor ? runInstallBounded(target, home, 60_000, "--check") : runInstallBounded(target, home, 60_000);
+      expect(r.error).toBeUndefined();
+      expect(r.signal).toBeNull();
+      expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
+      if (!c.doctor) expect([0, 3], r.stdout + r.stderr).toContain(r.status);
+      expectSpecialUntouched(target, c.rel, "directory");
+    });
+  }
+
+  it("special file: the render reports its existing refusal for a FIFO at .grugops/factory.config.json, on install and --check", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rel = ".grugops/factory.config.json";
+    const skip = plantSpecial(join(target, rel), "FIFO", "render refusal case");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the directory render case"));
+      return;
+    }
+    for (const args of [[], ["--check"]]) {
+      const r = runInstallBounded(target, home, 60_000, ...args);
+      expect(r.error, `hung: ${args.join(" ")}`).toBeUndefined();
+      expect(r.stdout).toContain(`the model configuration at ${join(target, rel)} exists but could not be read as a file`);
+      expectSpecialUntouched(target, rel, "FIFO");
+    }
+  });
+});
+
+describe("special file at a --migrate legacy config (DC-3, D-18, plan 33.1-26)", () => {
+  const LEGACY = [
+    { rel: "factory.config.json", rootConfig: true },
+    { rel: "agent-factory/config/factory.config.json", rootConfig: false },
+  ] as const;
+
+  for (const leg of LEGACY) {
+    for (const shape of ["FIFO", "directory"] as const) {
+      it(`special file: --migrate with a ${shape} at ${leg.rel} finishes, leaves it in place, and does not seed from it`, async () => {
+        const target = makeOldLayoutFixture({ rootConfig: leg.rootConfig });
+        const home = mkTmp();
+        const at = join(target, leg.rel);
+        const skip = plantSpecial(at, shape, `--migrate ${leg.rel} case`);
+        if (skip !== null) {
+          console.log(skipLine(skip, `the directory case for ${leg.rel}`));
+          return;
+        }
+        const writer = shape === "FIFO" ? startBlockedFifoWriter(at) : null;
+        try {
+          if (writer) await pause(300);
+          const r = runInstallBounded(target, home, 60_000, "--migrate");
+          expect(r.error, `--migrate hung on a ${shape} at ${leg.rel}`).toBeUndefined();
+          expect(r.signal).toBeNull();
+          expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
+          expect(r.stdout).toMatch(new RegExp(`verify\\s+user config ${join(target, leg.rel).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} is not a regular file`));
+          if (writer) {
+            await pause(300);
+            expect(stillRunning(writer), `--migrate opened the FIFO at ${leg.rel}: the blocked writer was released`).toBe(true);
+          }
+          // The special file itself was never renamed to `.bak`. The in-repo agent-factory/ may have
+          // been backed up whole (migrate step 2), carrying the special file inside it untouched.
+          const moved = readdirSync(target).filter((n) => n.startsWith("agent-factory.bak."));
+          const where = existsSync(at) ? leg.rel : leg.rel.replace(/^agent-factory\//, `${moved[0]}/`);
+          expectSpecialUntouched(target, where, shape);
+          // `.grugops/factory.config.json` was not made from it: if it exists it is a regular file
+          // whose bytes are not a copy of the special file (it has none) — the kit-location config
+          // (root case) or the kit seed (kit-location case).
+          const seeded = join(target, ".grugops", "factory.config.json");
+          if (existsSync(seeded)) {
+            expect(lstatSync(seeded).isFile()).toBe(true);
+            if (leg.rootConfig) expect(readFileSync(seeded, "utf8")).toContain("OLD-USER-EDITED-CONFIG-KIT-LOCATION");
+          }
+          expect(r.status, r.stdout).toBe(3);
+        } finally {
+          writer?.kill("SIGKILL");
+        }
+      });
+    }
+  }
+
+  it("special file: a regular legacy config still migrates exactly as before (control)", () => {
+    const target = makeOldLayoutFixture({ rootConfig: true });
+    const home = mkTmp();
+    const r = runInstallBounded(target, home, 60_000, "--migrate");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(readFileSync(join(target, ".grugops", "factory.config.json"), "utf8")).toBe(
+      '{ "_edited": "OLD-USER-EDITED-CONFIG-ROOT-LOCATION" }\n',
+    );
+    expect(readdirSync(target).some((n) => n.startsWith("factory.config.json.bak."))).toBe(true);
+  });
+});
