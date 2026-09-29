@@ -441,6 +441,22 @@ your own pull requests, because GitHub does not let the author of a pull request
 add yourself to a bypass list to get around that, the check reports `unprotected`, because an agent
 working under your account could bypass the rule in the same way.
 
+The check counts a branch line only on evidence it can read. With classic branch protection, the
+pull-request and approval lines count only when the protection answer includes
+`bypass_pull_request_allowances` and that setting lists no user, team or app. GitHub does not
+document whether the key is left out when no allowance is set, so an answer without it reads
+`UNKNOWN - verify` for those lines and for the last line, never as "no one can bypass". So a branch
+protected by classic branch protection alone, whose answer leaves the key out, reads
+`UNKNOWN - verify` on those lines even when no one is listed; a ruleset that shows the same items is
+read as usual. The check reads up to 100 ruleset
+rules for a branch. When GitHub reports that the rule list has a further page, no ruleset counts for
+that branch, and only what classic protection shows is read. When GitHub's answer for `main` or
+`master` reports `protected` as `false` (or as a value that is neither true nor false) while the
+classic protection endpoint returns a protection record for it, the two answers disagree and that
+branch reads `UNKNOWN - verify`. GitHub does not document whether that `protected` value counts
+rulesets, so the check does not compare it with a branch's ruleset rules; that case is
+`UNKNOWN - verify` until it is measured on a live host.
+
 For production, keep a deployment environment that:
 
 - [ ] has the name your deploy jobs use;
@@ -453,15 +469,35 @@ On GitHub these are the environment's "Required reviewers" setting with at least
 and the option to prevent self-reviews turned on, "Allow administrators to bypass configured
 protection rules" turned off, and deployment branches set to "Protected branches only". A custom
 branch policy ("Selected branches and tags") is not read, so the check reports it as
-`UNKNOWN - verify`. GitHub documents that "Protected branches only" lets every branch deploy when no
-branch in the repository has branch protection, so the last line depends on the branch list above.
+`UNKNOWN - verify`. The check shows the last line only when the same run sees classic branch
+protection on at least one branch: a branch it inspects, or the first branch the host lists as
+protected. GitHub documents "Protected branches only" for branch protection rules and states that
+when no branch has them, every branch can deploy
+([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
+It does not say whether rulesets count there, although its protected-branch list includes branches
+protected by rulesets
+([REST API endpoints for branches](https://docs.github.com/en/rest/branches/branches)). So a
+repository protected by rulesets alone reads `UNKNOWN - verify` for this line; adding a classic
+branch protection rule to one branch lets the check show it. When the host lists no protected
+branch, the line is not met, because every branch can deploy then. When the host lists no protected
+branch but the same run shows protection on some branch (for example a ruleset on your default
+branch), the answers disagree and the line reads `UNKNOWN - verify`. A reviewer counts only when the
+host names a user or a team with an id; a reviewer entry of any other shape makes the reviewer and
+self-review lines `UNKNOWN - verify`. The check knows two other environment protection rule types
+from GitHub's REST description, `wait_timer` and `branch_policy`. A protection rule of any other type
+next to the required-reviewers rule might be a second reviewer rule, so the reviewer and self-review
+lines read `UNKNOWN - verify`. That includes a custom deployment protection rule if GitHub lists one
+there, which has not been measured. The check reads up to 100 environments: when GitHub reports that
+the list has a further page, or its `total_count` does not match the list, every production line
+reads `UNKNOWN - verify`.
 GitHub also documents that on the Free, Pro and Team plans required reviewers are available only for
 public repositories; on a private repository under those plans the check cannot report the
 production environment as `protected`. The check finds the environment name in this order: the
 `--env <name>` flag; else the last entry of `environments` in `.grugops/factory.config.json`; else
 the last entry of `environments` in `agent-factory/config/factory.config.json`; else `production`.
 Both files are read relative to the directory the check runs in. A file that cannot be parsed, or
-whose `environments` is not a list ending in a name, is skipped.
+whose `environments` is not a list ending in a name, is skipped. So is a path that is not a regular
+file of at most 1 MiB, such as a directory or a named pipe: the check does not read it.
 
 #### Check it
 
@@ -482,8 +518,15 @@ target with one of three words:
 - `UNKNOWN - verify` — the check could not tell: no `gh`, not authenticated, no permission to read
   the setting, or an ambiguous answer. Treat it as not verified. It never counts as protected.
 
+Before the target lines, the check prints the repository it inspected, `repository <owner>/<name>`,
+as gh resolved `{owner}/{repo}` (the `GH_REPO` variable, `gh repo set-default`, or the git remotes).
+In a fork clone, confirm that it names the repository your agent pushes to. When the host does not
+name the repository, or names it inconsistently (its `full_name` and `url` disagree), the line reads
+`repository UNKNOWN - verify` and every target reads `UNKNOWN - verify`.
+
 Exit codes: `0` every target is protected; `1` at least one target is unprotected; `2` otherwise,
-including when the check could not run. `--json` adds the full record of every call it made. The
+including when the check could not run. `--json` adds the repository name (`repository`, or null)
+and the full record of every call it made. The
 check is read-only and needs an authenticated `gh` (`gh auth status`). The PR quality gate
 (workflow 05) and the release (workflow 12) run it and record the result; the release still needs
 the named human confirmation whatever the check reports.

@@ -95,6 +95,17 @@ release, together with Phase 33.1, which retires the Bash command guard.
   `UNKNOWN - verify`, never as protected. Earlier builds could answer `protected` on weaker
   evidence, such as a single required reviewer on an environment that allowed self-review or
   administrator bypass. Re-run the check to confirm your host (33.1 gap round 1, CR-01).
+- The read-only git-host check reads the host more strictly (33.1 gap round 2). It no longer reads a
+  missing classic `bypass_pull_request_allowances` setting as "no one can bypass": the pull-request
+  and approval lines read `UNKNOWN - verify` unless the setting is present and lists no one. The
+  production line "allows deployments only from protected branches" needs classic branch protection
+  shown in the same run, so a repository protected by rulesets alone reads `UNKNOWN - verify` for
+  it. A reviewer counts only when the host names a user or a team with an id. A host list with a
+  further page (more than 100 rules or environments), or an environment protection rule of a type
+  the check does not know next to the reviewer rule, reads `UNKNOWN - verify`. The report names the
+  repository it inspected on its first line, and `--json` carries it as `repository`; a run that
+  cannot name the repository reports every target `UNKNOWN - verify`. A `factory.config.json` that
+  is not a regular file is skipped instead of waited on. Re-run the check to confirm your host.
 - The admission-guard hook's matcher now matches the plugin-scoped tool name
   (`mcp__(plugin_grugops_)?grugops__.*`). Before this change the matcher was the bare server family
   `mcp__grugops__.*`, and the platform's plugin reference states that for a plugin's bundled MCP
