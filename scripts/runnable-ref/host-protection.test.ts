@@ -2101,6 +2101,38 @@ describe("host-protection.js — red-team 33.1-23 sibling: the non-admin path's 
   });
 });
 
+// Sibling of finding 5 (a false `unprotected` the same run contradicts): the probe reads a branch
+// protected true, yet its rule list is read in full and empty and its classic endpoint says
+// `Branch not protected`. The run disagrees with itself, so the branch is UNKNOWN - verify.
+describe("host-protection.js — red-team 33.1-23 sibling: a probed protected-true branch whose arms show nothing is not unprotected (D-30)", () => {
+  it("master probed protected true, rules [] and classic 404 `Branch not protected` → master UNKNOWN - verify, not unprotected", () => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: answer({ name: "master", protected: true }),
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: NOT_PROTECTED_404,
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
+    expect(branchLine(r.stdout, "master")).toContain("reports protected true");
+    expect(r.status).toBe(2);
+  });
+
+  it("control: master probed protected false with the same arms → master unprotected", () => {
+    const r = runCheck(
+      base({
+        [BRANCH("master")]: answer({ name: "master", protected: false }),
+        [RULES("master")]: NO_RULES,
+        [PROTECTION("master")]: NOT_PROTECTED_404,
+      }),
+      ["--json"],
+    );
+    expect(verdictOf(r.stdout, "branch", "master")).toBe("unprotected");
+    expect(r.status).toBe(1);
+  });
+});
+
 // Finding 2: every way the main/master probe can fail to show that `master` is a branch.
 const MASTER_NOT_SHOWN: Array<[string, unknown]> = [
   ["404 `Branch not found`", answer({ message: "Branch not found" }, 404)],

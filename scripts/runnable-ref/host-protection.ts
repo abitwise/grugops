@@ -50,7 +50,9 @@
 //     branch is `UNKNOWN - verify`. Anything else → not readable, quoting the status. A protection
 //     body for a branch the main/master probe read as `protected` false, or as any present value
 //     that is not a boolean (ACCEPT.branchProtectedFlag) → the whole branch is `UNKNOWN - verify`
-//     (the same run contradicts itself); an absent `protected` stays neutral.
+//     (the same run contradicts itself); an absent `protected` stays neutral. A branch the probe
+//     read as `protected` true whose rule list, read in full, names no rule and whose classic
+//     endpoint reports none is `UNKNOWN - verify` too, never `unprotected`.
 //     (Measured endpoint behaviour: 33.1-RESEARCH.md § Q4.)
 // Each arm gives each row one of three states: `held` (positively shown), `failed` (read, and not
 // shown) or `unknown` (not readable). THE UNION RULE: GitHub enforces rulesets and classic branch
@@ -1140,6 +1142,16 @@ function probeContradictsBody(name: string): string | undefined {
   return `branch ${hostText(name)} ${says}, but its classic protection endpoint answered with a protection body`;
 }
 
+// The other side of the same check (sibling of red-team finding 5 of plan 33.1-23): the probe read
+// `protected` true, yet the rule list was read in full with no rule and the classic endpoint
+// reports no classic protection. Both arms say "nothing" while the branch's own answer says
+// "protected", so a `failed` from those arms would be a same-run contradiction.
+function probeContradictsNone(name: string, rules: RulesetArm, classic: ClassicArm | undefined): string | undefined {
+  if (probedProtected.get(name)?.state !== "held") return undefined;
+  if (rules.read !== "full" || rules.rules.length > 0 || classic?.kind !== "none") return undefined;
+  return `branch ${hostText(name)} reports protected true, but its rule list names no rule and ${classic.evidence}, so the same run disagrees with itself`;
+}
+
 function contradictedName(name: string): string | undefined {
   const renamedTo = renamedBranches.get(name);
   if (renamedTo !== undefined) {
@@ -1227,7 +1239,7 @@ function branchVerdict(name: string): Target {
   if (classicArm?.kind === "elsewhere") return branchUnknown(name, classicArm.evidence);
   // Two endpoints naming one fact (D-30): the probe read `protected` false or unreadable, but the
   // classic protection endpoint answered with a protection body. The same run contradicts itself.
-  const probeSays = classicArm?.kind === "body" ? probeContradictsBody(name) : undefined;
+  const probeSays = classicArm?.kind === "body" ? probeContradictsBody(name) : probeContradictsNone(name, rulesetArm, classicArm);
   if (probeSays !== undefined) return branchUnknown(name, probeSays);
   const fromClassic = FLOOR_ITEMS.map((row): ArmReading =>
     classicArm === undefined ? plain("unknown", "not read (the ruleset arm shows every item)") : classicReading(row, classicArm),
