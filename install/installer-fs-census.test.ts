@@ -180,10 +180,10 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1554-1557 returns before the create at :1559; install.ts:1585-1588 returns before the merge write at :1589",
   },
   {
-    site: "install.ts:migratePreSteps:copyFileSync",
+    site: "install.ts:migratePreSteps:writeFileSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1429-1432 `if (DRY_RUN)` reports would-move and continues before copyFileSync at :1436",
+    why: "install.ts:1479-1482 `if (DRY_RUN)` reports would-move and continues before writeFileSync at :1487, which writes the legacy config's readUserFile bytes (plan 33.1-26, DC-3; it replaced copyFileSync); the earlier continues (:1471, :1477) only read",
   },
   {
     site: "install.ts:migratePreSteps:renameSync",
@@ -208,12 +208,6 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     count: 1,
     gate: "dry-run-return-above",
     why: "install.ts:1329-1332 `if (DRY_RUN)` reports would-remove and returns before rmSync at :1333",
-  },
-  {
-    site: "install.ts:renderAdaptersInMirror:copyFileSync",
-    count: 1,
-    gate: "scratch-outside-roots",
-    why: "install.ts:1789-1790 copies the target config INTO the mkdtemp mirror `dir` (install.ts:1719, under os.tmpdir()); removed in the finally at :1973",
   },
   {
     site: "install.ts:renderAdaptersInMirror:cpSync",
@@ -241,9 +235,9 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
   },
   {
     site: "install.ts:renderAdaptersInMirror:writeFileSync",
-    count: 2,
+    count: 3,
     gate: "scratch-outside-roots",
-    why: "install.ts:1745 and :1756 write package.json and the resolution probe under the mkdtemp mirror `dir` (:1719); removed in the finally at :1973",
+    why: "install.ts:1819 and :1830 write package.json and the resolution probe, and :1870 writes the target config's readUserFile bytes (plan 33.1-26, DC-3; it replaced copyFileSync), all under the mkdtemp mirror `dir` (:1793); removed in the finally at :2053",
   },
   {
     site: "install.ts:seedFile:copyFileSync",

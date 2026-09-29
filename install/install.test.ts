@@ -2491,9 +2491,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const mBody = src.slice(mStart, mEnd);
     expect(mBody).toContain("adapterDestHazard(dest)");
     // ...and it is asked BEFORE the destination is read, which is what makes the refusal precede
-    // D-11's skip-if-identical arm rather than follow it.
+    // D-11's skip-if-identical arm rather than follow it. Since plan 33.1-26 (DC-3) the destination
+    // is read through readUserFile, and no direct readFileSync of it remains.
+    expect(mBody).not.toContain("readFileSync(dest");
     expect(
-      `hazard asked before dest is read: ${mBody.indexOf("adapterDestHazard(dest)") < mBody.indexOf("readFileSync(dest")}`,
+      `hazard asked before dest is read: ${mBody.indexOf("adapterDestHazard(dest)") < mBody.indexOf("readUserFile(dest)")}`,
     ).toBe("hazard asked before dest is read: true");
 
     // THE TEMPORAL DEAD ZONE. `--check` calls the doctor at an early exit part-way down this file;

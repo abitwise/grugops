@@ -463,12 +463,14 @@ const mkdirp = (dir: string): void => {
   }
 };
 
+// sameContent reads BOTH sides through readUserFile (DC-3, plan 33.1-26): one side is usually a path
+// in the user's repository (a linkOrCopy or materializeRunnable destination, a file inside the
+// in-repo agent-factory/ that --migrate compares). Anything but two readable regular files within
+// the bound is "not the same", the existing fail-safe-to-differs answer, and nothing blocks.
 const sameContent = (a: string, b: string): boolean => {
-  try {
-    return readFileSync(a, "utf8") === readFileSync(b, "utf8");
-  } catch {
-    return false;
-  }
+  const ra = readUserFile(a);
+  const rb = readUserFile(b);
+  return ra.state === "ok" && rb.state === "ok" && ra.text === rb.text;
 };
 
 // TEMP_MIRROR_DISCLAIMER (plan 29.2-05, WR-05) — ONE WORDING, THREE CONSUMERS.
@@ -594,10 +596,11 @@ const adapterDestHazard = (dest: string): string | null => {
   // WHAT THIS PREDICATE DOES NOT REACH, STATED PLAINLY RATHER THAN LEFT TO BE INFERRED. A
   // destination that is ITSELF A DIRECTORY (EISDIR) or is UNWRITABLE (EACCES) is NOT caught here:
   // arm 2 resolves the destination's DIRECTORY, which for both of those shapes is an ordinary
-  // directory inside the target, so both still reach writeFileSync and both still throw uncaught
-  // exactly as they did before this phase. That is a loud crash, never a silent write, and it is
-  // pre-existing and deliberately not re-opened by this plan: `.planning/WINDOWS.md` ledger row 111
-  // and this phase's deferred-items.md row 2 carry it.
+  // directory inside the target. Since plan 33.1-26 (DC-3), materializeAdapter reads the
+  // destination through readUserFile after this predicate, and refuses a directory, FIFO, socket or
+  // device, or an unreadable or too-large file, with a counted `verify` and no write. A READABLE
+  // regular file that is UNWRITABLE still reaches writeFileSync and still throws uncaught: that is a
+  // loud crash, never a silent write, and `.planning/WINDOWS.md` ledger row 111 carries it.
   return null;
 };
 
@@ -674,13 +677,13 @@ function readMarker(markerFile: string): InstallMarker | null {
 // readAdapterKit: extract the materialized KIT="…" line from the grugops:materialized-kit
 // sentinel block (source (c) of D-03). Split on "\n", track inblk between MAT_OPEN/MAT_CLOSE,
 // capture the KIT= line, strip the quotes. Fail-closed: absent file / no KIT line → "".
+//
+// DC-3 (plan 33.1-26): the target adapter is read through readUserFile. Anything but a readable
+// regular file within the bound is the same fail-closed "" an absent file was, never a blocking read.
 function readAdapterKit(adapterFile: string): string {
-  let text: string;
-  try {
-    text = readFileSync(adapterFile, "utf8");
-  } catch {
-    return "";
-  }
+  const read = readUserFile(adapterFile);
+  if (read.state !== "ok") return "";
+  const text = read.text;
   let inblk = false;
   let line = "";
   for (const l of text.split("\n")) {
@@ -955,21 +958,18 @@ function doctor(): number {
             if (hazardReason === "") hazardReason = `${name} — ${destHazard}`;
             continue;
           }
-          let actual: string | null = null;
-          try {
-            actual = readFileSync(destPath, "utf8");
-          } catch (e) {
-            // IN-03. This catch used to collapse EVERY read failure to "absent from the target",
-            // which is only true of ENOENT. A directory at that path, or an EACCES, is a PRESENT
-            // thing this run could not read, and calling it missing names the wrong remedy — one
-            // says "re-install", the other says "look at what is sitting there". `absent` keeps its
-            // narrow meaning and everything else is reported separately.
-            actual = null;
-            if ((e as NodeJS.ErrnoException)?.code !== "ENOENT") {
-              unreadable.push(name);
-              continue;
-            }
+          // IN-03. Every read failure used to collapse to "absent from the target", which is only
+          // true of ENOENT. A directory at that path, or an EACCES, is a PRESENT thing this run
+          // could not read, and calling it missing names the wrong remedy — one says "re-install",
+          // the other says "look at what is sitting there". `absent` keeps its narrow meaning and
+          // everything else is reported separately. DC-3 (plan 33.1-26): the read goes through
+          // readUserFile, so a FIFO, socket or device there is reported unreadable and never opened.
+          const destRead = readUserFile(destPath);
+          if (destRead.state !== "ok" && destRead.state !== "absent") {
+            unreadable.push(name);
+            continue;
           }
+          const actual: string | null = destRead.state === "ok" ? destRead.text : null;
           if (actual === null) absent.push(name);
           else if (actual !== expected) stale.push(name);
         }
@@ -1046,8 +1046,14 @@ function doctor(): number {
   } else {
     let presentAsk: string[] | null = null;
     const askFile = join(TARGET, ".claude", "settings.json");
+    // DC-3 (plan 33.1-26): read through readUserFile. A settings file that is not a readable regular
+    // file is reported by its state below; an absent one keeps the existing "could not be read" line.
+    const settingsRead = readUserFile(askFile);
+    const askUnread =
+      settingsRead.state !== "ok" && settingsRead.state !== "absent" ? unreadState(settingsRead) : null;
     try {
-      const parsed: unknown = JSON.parse(readFileSync(askFile, "utf8"));
+      if (settingsRead.state !== "ok") throw new Error("not a readable regular file");
+      const parsed: unknown = JSON.parse(settingsRead.text);
       const perms =
         parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
           ? (parsed as Record<string, unknown>).permissions
@@ -1060,7 +1066,12 @@ function doctor(): number {
     } catch {
       presentAsk = null;
     }
-    if (presentAsk === null && askLedger.added.length > 0) {
+    if (askUnread !== null && askLedger.added.length > 0) {
+      docWarn(
+        `.claude/settings.json ${askUnread} — it was not read, and the ${askLedger.added.length} ask rule(s) in the ` +
+          `install ledger could not be checked`,
+      );
+    } else if (presentAsk === null && askLedger.added.length > 0) {
       docWarn(
         `.claude/settings.json could not be read as JSON — the ${askLedger.added.length} ask rule(s) in the ` +
           `install ledger could not be checked`,
@@ -1452,15 +1463,28 @@ function migratePreSteps(): void {
     join(TARGET, "agent-factory", "config", "factory.config.json"),
   ];
   for (const legacy of legacyConfigs) {
-    if (!existsSync(legacy)) continue;
+    // DC-3 / D-18 (plan 33.1-26): the legacy config is read through readUserFile and the copy is
+    // written from those bytes, never by a copy call that reopens the path. A legacy config that is
+    // not a readable regular file within the bound is neither copied nor renamed: it is left where
+    // it is and reported as a counted `verify`.
+    const legacyRead = readUserFile(legacy);
+    if (legacyRead.state === "absent") continue;
+    if (legacyRead.state !== "ok") {
+      verify(
+        `user config ${legacy} ${unreadState(legacyRead)}. It was left in place: it was not copied to ` +
+          `${seededConfig} and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.`,
+      );
+      continue;
+    }
     if (DRY_RUN) {
       report("would-move", `user config ${legacy} → ${seededConfig} (original left as .bak)`);
       continue;
     }
     // COPY forward to the seeded .grugops/ location only if absent (never-overwrite seeded state).
-    if (!existsSync(seededConfig)) {
+    // The destination is asked through readUserFile too, so only a path it reads as absent is written.
+    if (readUserFile(seededConfig).state === "absent") {
       mkdirp(dirname(seededConfig));
-      copyFileSync(legacy, seededConfig);
+      writeFileSync(seededConfig, legacyRead.bytes);
       report("moved", `user config → ${seededConfig} (carried forward, D-04)`);
     } else {
       report("skipped", `user config (.grugops/factory.config.json already present — kept, D-04)`);
@@ -1550,7 +1574,14 @@ function linkOrCopy(src: string, dest: string, label: string): void {
     report("skipped", `${label} (symlink present)`);
     return;
   }
-  if (existsSync(dest) && sameContent(src, dest)) {
+  // DC-3 / D-18 (plan 33.1-26): the destination is read before anything is written to it. A FIFO,
+  // directory, socket or device there, or a file too large or unreadable, is left untouched.
+  const destRead = readUserFile(dest);
+  if (destRead.state !== "ok" && destRead.state !== "absent") {
+    verify(`${label}: ${dest} ${unreadState(destRead)}. It was left untouched and nothing was copied over it.`);
+    return;
+  }
+  if (destRead.state === "ok" && sameContent(src, dest)) {
     report("skipped", `${label} (identical copy present)`);
     return;
   }
@@ -1586,7 +1617,14 @@ interface GeminiSettings {
 function mergeGemini(): void {
   const file = join(TARGET, ".gemini", "settings.json");
   const want = "AGENTS.md";
-  if (!existsSync(file)) {
+  // DC-3 / D-18 (plan 33.1-26): read through readUserFile before any write. A settings file that is
+  // not a readable regular file within the bound is left untouched and reported.
+  const cur = readUserFile(file);
+  if (cur.state !== "ok" && cur.state !== "absent") {
+    verify(`.gemini/settings.json ${unreadState(cur)} — left untouched; add AGENTS.md to context.fileName manually`);
+    return;
+  }
+  if (cur.state === "absent") {
     if (DRY_RUN) {
       report("would-add", ".gemini/settings.json (context.fileName: [AGENTS.md, GEMINI.md])");
       return;
@@ -1601,7 +1639,7 @@ function mergeGemini(): void {
   }
   let json: GeminiSettings;
   try {
-    json = JSON.parse(readFileSync(file, "utf8")) as GeminiSettings;
+    json = JSON.parse(cur.text) as GeminiSettings;
   } catch {
     report("verify", ".gemini/settings.json is not valid JSON — left untouched; add AGENTS.md to context.fileName manually");
     return;
@@ -1818,12 +1856,18 @@ function renderAdaptersInMirror(use: (result: MirrorResult) => void): void {
     //    exit 1 with no other install class completed, which is exactly the crash-where-a-finding-
     //    belongs shape the twins pre-check above was added to delete. Reproduced against the
     //    committed build before this guard existed, on both the install and the --check path.
+    //
+    //    DC-3 (plan 33.1-26): the configuration is read through readUserFile and the mirror copy is
+    //    written from those bytes. A copy call would reopen the path by name, and on a FIFO it
+    //    blocks. A path that is not a readable regular file within the bound gets the same refusal.
     const targetConfig = join(TARGET, ".grugops", "factory.config.json");
     let configPath: string | null = null;
-    if (existsSync(targetConfig)) {
+    const configRead = readUserFile(targetConfig);
+    if (configRead.state !== "absent") {
       try {
+        if (configRead.state !== "ok") throw new Error(`it ${unreadState(configRead)}`);
         mkdirSync(join(dir, ".grugops"), { recursive: true });
-        copyFileSync(targetConfig, join(dir, ".grugops", "factory.config.json"));
+        writeFileSync(join(dir, ".grugops", "factory.config.json"), configRead.bytes);
       } catch (e) {
         use({
           ok: false,
@@ -2187,12 +2231,15 @@ function materializeAdapter(src: string, dest: string, label: string, alias?: st
     return;
   }
   const final = transformAdapter(readFileSync(src, "utf8")).text;
-  let current: string | null = null;
-  try {
-    current = readFileSync(dest, "utf8");
-  } catch {
-    current = null; // absent or unreadable → a write, never a silent skip
+  // DC-3 / D-18 (plan 33.1-26): the destination is read through readUserFile. Absent → a write.
+  // A FIFO, directory, socket or device there, or a file too large or unreadable, is refused: it is
+  // neither read nor written, and the run reports a counted `verify`.
+  const destRead = readUserFile(dest);
+  if (destRead.state !== "ok" && destRead.state !== "absent") {
+    verify(`${label} — ${dest} ${unreadState(destRead)}. It was left untouched and nothing was written.`);
+    return;
   }
+  const current: string | null = destRead.state === "ok" ? destRead.text : null;
   if (current === final) {
     // The identical wording linkOrCopy already prints for an identical copy — one sentence for one
     // fact, so a reader meeting either line reads the same thing.
@@ -2959,10 +3006,20 @@ const RETIRED_CONFIG_KEYS: ReadonlyArray<readonly [string, string]> = [
 
 function reportRetiredConfigKeys(): void {
   const cfgPath = join(TARGET, ".grugops", "factory.config.json");
-  if (!existsSync(cfgPath)) return; // nothing configured here; nothing to report about
+  // DC-3 (plan 33.1-26): read through readUserFile.
+  const cfgRead = readUserFile(cfgPath);
+  if (cfgRead.state === "absent") return; // nothing configured here; nothing to report about
+  if (cfgRead.state !== "ok") {
+    report(
+      "skipped",
+      `retired-key check (${cfgPath} ${unreadState(cfgRead)} — it was not read, so the check was NOT ` +
+        `performed and this run says nothing about whether it carries a retired key)`,
+    );
+    return;
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(cfgPath, "utf8"));
+    parsed = JSON.parse(cfgRead.text);
   } catch {
     report(
       "skipped",
@@ -3018,10 +3075,13 @@ const ASK_CONFIG_CANDIDATES: ReadonlyArray<readonly string[]> = [
 
 function readCheckpointConfig(): unknown {
   for (const parts of ASK_CONFIG_CANDIDATES) {
-    const p = join(TARGET, ...parts);
-    if (!existsSync(p)) continue;
+    // DC-3 (plan 33.1-26): read through readUserFile. Absent → the next candidate. Any other state
+    // that is not a readable regular file is "unreadable", which writes every rule (fail closed).
+    const read = readUserFile(join(TARGET, ...parts));
+    if (read.state === "absent") continue;
+    if (read.state !== "ok") return undefined;
     try {
-      return JSON.parse(readFileSync(p, "utf8"));
+      return JSON.parse(read.text);
     } catch {
       return undefined;
     }
@@ -3089,11 +3149,19 @@ function writeAskRules(): void {
   let json: Record<string, unknown> = {};
   let permissions: Record<string, unknown> | null = null;
   let ask: unknown[] | null = null;
-  const exists = existsSync(file);
-  if (exists) {
+  // DC-3 / D-18 (plan 33.1-26): read through readUserFile before any write. A settings file that is
+  // not a readable regular file within the bound is left untouched, and the ledger stays as it was.
+  const settingsRead = readUserFile(file);
+  if (settingsRead.state !== "ok" && settingsRead.state !== "absent") {
+    verify(`${rel} ${unreadState(settingsRead)} — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
+    ASK_LEDGER = previous;
+    return;
+  }
+  const exists = settingsRead.state === "ok";
+  if (settingsRead.state === "ok") {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(readFileSync(file, "utf8"));
+      parsed = JSON.parse(settingsRead.text);
     } catch {
       verify(`${rel} is not valid JSON — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
       ASK_LEDGER = previous;
