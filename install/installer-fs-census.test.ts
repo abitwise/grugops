@@ -126,6 +126,18 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1426-1429 `if (DRY_RUN)` reports would-backup and returns before renameSync at :1430; the earlier returns (:1405-1425, including the wayTo refusal of a link or non-directory on the way added by the red-team fixes of plan 33.1-26) only read",
   },
   {
+    site: "install.ts:backupEditedKitFiles:symlinkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:3155 `if (DRY_RUN) return true` is the first statement, before symlinkSync at :3159 (plan 33.1-32, D-32: the backup of an edited kit file that is a link is a link with the same target, made before the first kit write). It is reached only from the kit step's KIT_WRITE decision after the human consented; kitPreflight found the backup path free (readForWrite `create`), and symlink(2) refuses anything at the path",
+  },
+  {
+    site: "install.ts:backupEditedKitFiles:writeFileSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:3155 `if (DRY_RUN) return true` returns before writeFileSync at :3160 (plan 33.1-32, D-32/D-18: the byte backup of an edited kit file, written with flag \"wx\" from the bytes kitPreflight read through readOwnedContent; it makes no content read of its own). A throw is a counted verify and no kit file is written",
+  },
+  {
     site: "install.ts:backupIfDiffers:renameSync",
     count: 1,
     gate: "dry-run-return-above",

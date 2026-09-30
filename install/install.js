@@ -36,6 +36,8 @@
 //   node install/install.js --allow-self            (override the D-07 self-checkout guard)
 //   node install/install.js --check                 (doctor: verify a target install, mutate nothing)
 //   node install/install.js --check --strict        (doctor: promote warnings to a nonzero exit)
+//   node install/install.js --backup-edited-kit     (D-32: back up every kit file you edited, then
+//                                                    refresh the whole kit, without a terminal prompt)
 //   GRUGOPS_HOME=/path node install/install.js      (override the shared kit home; default ~/.grugops)
 //   GRUGOPS_SRC=/path/to/grugops TARGET=/path/to/repo node install/install.js
 //
@@ -57,6 +59,7 @@ import { homedir, tmpdir } from "node:os";
 // it buys the whole render path: the generator stays the single renderer of the `model:` line, and
 // install/ reaches it as a child process rather than as a module.
 import { spawnSync } from "node:child_process";
+import { isatty } from "node:tty";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with uninstall.ts. It
 // used to be defined here and hand-synced into uninstall.ts; that pair drifted twice inside phase 27
 // (CR-02), so it was collapsed into a single sibling module. kit-source.ts is inside install/ by
@@ -72,7 +75,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpo
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, jsonValueRecord, } from "./install-marker.js";
+import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -102,6 +105,10 @@ let STRICT = false;
 let MIGRATE = false;
 let UPDATE = false;
 let PRUNE_OLD_KIT = false;
+// D-32 (plan 33.1-32): the explicit, non-interactive consent to back up every grugops kit file the
+// user edited and then refresh the whole kit. `--yes` is NOT this consent: it answers the target
+// question, never the question of whether a user's edit may be overwritten.
+let BACKUP_EDITED_KIT = false;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -135,6 +142,9 @@ for (let i = 0; i < argv.length; i++) {
     else if (a === "--prune-old-kit") {
         PRUNE_OLD_KIT = true;
     }
+    else if (a === "--backup-edited-kit") {
+        BACKUP_EDITED_KIT = true;
+    }
     else {
         process.stderr.write(`install.js: unknown argument: ${a}\n`);
         process.exit(2);
@@ -159,7 +169,15 @@ const GRUGOPS_HOME = toPosix(process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOM
     : resolve(homedir(), ".grugops"));
 const KIT_ROOT = toPosix(resolve(GRUGOPS_HOME, "agent-factory"));
 // readlineSync: read a single line from stdin (fd 0) synchronously, byte by byte until newline or
-// EOF. Used only for the interactive prompt; --yes / non-TTY never reach it.
+// EOF. Used only for the interactive prompts (the target question, and D-32's edited-kit question);
+// --yes / non-TTY never reach the first, and the second is asked only at a terminal.
+//
+// EAGAIN IS WAITED OUT, NOT READ AS END OF INPUT (plan 33.1-32). Once anything touches
+// process.stdin, libuv puts a terminal's fd 0 into non-blocking mode, and a read with no key pressed
+// yet throws EAGAIN. Before, that throw ended the loop, so the answer read as "" (the default) before
+// the human typed anything. Measured under script(1) on darwin. The wait is a synchronous sleep on
+// a private SharedArrayBuffer (Atomics.wait), so nothing else runs meanwhile.
+const STDIN_WAIT = new Int32Array(new SharedArrayBuffer(4));
 function readlineSync() {
     const chunks = [];
     const buf = Buffer.alloc(1);
@@ -168,7 +186,11 @@ function readlineSync() {
         try {
             n = readSync(0, buf, 0, 1, null);
         }
-        catch {
+        catch (e) {
+            if (e.code === "EAGAIN") {
+                Atomics.wait(STDIN_WAIT, 0, 0, 25);
+                continue;
+            }
             break;
         }
         if (n <= 0)
@@ -452,6 +474,10 @@ const recordCreatedFile = (path, record) => {
 // marker as `kitFiles`, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
 // preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
 const KIT_FILES = new Map();
+// KIT_WRITTEN (plan 33.1-32, D-32): true once executeKitPlan ran in this run. When the kit was not
+// written (no consent, a hazard, a kit-plan refusal), writeMarker keeps the previous marker's
+// kitVersion, so the marker never claims a kit version the target's kit is not at.
+let KIT_WRITTEN = false;
 // The target's configuration file, and the two legacy locations --migrate carries one forward from
 // (D-04). Declared here, above the doctor's early exit, because the doctor's render asks
 // renderConfigInput (red-team B3 of plan 33.1-31); see THE LEGACY CONFIG CARRY below.
@@ -2469,10 +2495,11 @@ function kitDestDecision(e) {
 // final bytes differ from what the destination already holds (D-11). The write bound, the
 // identical-skip and the preview are kitDestDecision's, asked again here at the write.
 //
-// OWNERSHIP (D-13). A target's `.claude/agents/grugops-*.md` files are KIT-OWNED DERIVED ARTIFACTS. A
-// differing one is rewritten on re-run and reported by name, and a hand-edited model line is lost
-// DELIBERATELY, because the configuration file is the one place to set it. (D-32's edited-file
-// pre-flight, plan 33.1-32, runs over the finished plan before any of this.)
+// OWNERSHIP (D-13, D-32). A target's `.claude/agents/grugops-*.md` files are KIT-OWNED DERIVED
+// ARTIFACTS, and the configuration file is the one place to set a model. A differing one is rewritten
+// on re-run and reported by name, but never silently: D-32's edited-file pre-flight (kitPreflight,
+// plan 33.1-32) runs over the finished plan before any of this, and a file that no longer holds what
+// install wrote is rewritten only after the human consented and it was backed up.
 //
 // `alias` is reporting-only (D-04): an agent adapter's line names the model it was rendered with; a
 // skill carries none and its line is byte-unchanged. The alias never reaches the written bytes.
@@ -2606,6 +2633,180 @@ function writeKitEntry(e) {
         report("skipped", `${e.label} (source missing: ${e.src})`);
     else
         copyKitFile(e);
+}
+// One UTC stamp per run, from the stamp helper every other grugops backup uses (isoStamp).
+const KIT_BACKUP_INFIX = ".grugops-edited-";
+let KIT_BACKUP_STAMP = null;
+const kitBackupPath = (dest) => {
+    KIT_BACKUP_STAMP ??= isoStamp();
+    return `${dest}${KIT_BACKUP_INFIX}${KIT_BACKUP_STAMP}`;
+};
+// A path under TARGET as the report shows it (POSIX, relative), or the path itself outside TARGET.
+const shownPath = (p) => targetRel(p) ?? p;
+function kitPreflight(plan) {
+    const edited = [];
+    const hazards = [];
+    const marker = readInstallMarker(TARGET);
+    const ledger = readKitFiles(marker.state === "ok" ? marker.marker : null);
+    const records = ledger.state === "ok" ? ledger.files : null;
+    const noRecord = marker.state === "unreadable"
+        ? "the install marker could not be read"
+        : marker.state === "absent"
+            ? "there is no install marker"
+            : ledger.state === "malformed"
+                ? "the install marker's kit-file ledger is malformed"
+                : ledger.state === "absent"
+                    ? "the install marker predates the kit-file ledger"
+                    : "the install marker's kit-file ledger has no entry for it";
+    for (const e of [...plan.skills, ...plan.adapters]) {
+        if (e.kind === "missing")
+            continue;
+        const d = e.planned;
+        if (d === undefined || d.act === "refuse") {
+            hazards.push(`${e.label} — ${e.dest} has no kit-plan answer, so whether it holds an edit is unknown. No kit file was written.`);
+            continue;
+        }
+        // Nothing is replaced: the destination already holds install's content, or nothing is there.
+        if (d.act === "skip" || (d.act === "write" && d.how === "create"))
+            continue;
+        const rel = targetRel(e.dest);
+        const record = records === null || rel === null ? null : (records.get(rel) ?? null);
+        let why;
+        let bytes;
+        let linkTarget;
+        if (d.act === "unlink") {
+            // The plan found install's own link here (isOwnLink against THIS checkout's kit source).
+            if (!isOwnLink(e.dest, e.src)) {
+                hazards.push(`${e.label} — ${e.dest} changed after the kit plan was built (it is no longer install's own link). No kit file was written.`);
+                continue;
+            }
+            linkTarget = e.src;
+            why =
+                record === null || checkRecord(TARGET, e.dest, record).holds
+                    ? null
+                    : "it is a symbolic link where install recorded that it wrote something else";
+        }
+        else {
+            // The plan will rewrite an existing regular file (readForWrite `ok`, not a hard link).
+            const cur = readOwnedContent(TARGET, e.dest);
+            if (cur.state !== "ok") {
+                hazards.push(`${e.label} — ${e.dest} ${cur.why ?? "is no longer the regular file the kit plan read"}. It was left untouched and no kit file was written.`);
+                continue;
+            }
+            bytes = cur.bytes;
+            if (record !== null) {
+                why = checkRecord(TARGET, e.dest, record).holds
+                    ? null
+                    : "it has changed since install wrote it: it does not hold what the install marker's kit-file ledger records";
+            }
+            else {
+                // No usable record: unedited only when it is byte-identical to the kit source file.
+                let srcBytes = e.bytes ?? null;
+                if (e.kind === "materialize") {
+                    const src = readUserFile(e.src);
+                    srcBytes = src.state === "ok" ? src.bytes : null;
+                }
+                why = srcBytes !== null && srcBytes.equals(cur.bytes) ? null : `${noRecord}, and it differs from the kit source`;
+            }
+        }
+        if (why === null)
+            continue;
+        const backup = kitBackupPath(e.dest);
+        const tooLong = pathLimitProblem(backup);
+        if (tooLong !== null) {
+            hazards.push(`${e.label} — its backup ${backup} ${tooLong}. Nothing was backed up and no kit file was written.`);
+            continue;
+        }
+        const at = readForWrite(TARGET, backup);
+        if (at.state !== "create") {
+            const what = at.state === "ok" ? `${backup} already holds a file` : blockedAt(at, backup);
+            hazards.push(`${e.label} — its backup path is taken: ${what}. It was left untouched, nothing was backed up and no kit file was written.`);
+            continue;
+        }
+        edited.push({ dest: e.dest, label: e.label, backup, why, bytes, linkTarget });
+    }
+    return { edited, hazards };
+}
+// The one KIT_WRITE decision (see above). It prints the edited list, the DRY_RUN preview and the
+// prompt; its refusals are returned as verify texts, so a --migrate pre-check can count them among
+// its own refusals (the migration is whole or not at all) and the install run prints them the same.
+function kitWriteDecision(plan) {
+    const pre = kitPreflight(plan);
+    if (pre.hazards.length > 0)
+        return { go: "no", verifies: pre.hazards };
+    if (pre.edited.length === 0)
+        return { go: "write" };
+    for (const f of pre.edited)
+        report("edited-kit", `${f.label} (${f.why})`);
+    const n = pre.edited.length;
+    const list = pre.edited.map((f) => f.label).join(", ");
+    const remedy = "re-run with --backup-edited-kit to back them up and refresh the whole kit, or restore them first";
+    const nothing = `No kit file was written: the whole kit, these files included, was left exactly as it was (D-32)`;
+    if (DRY_RUN) {
+        for (const f of pre.edited)
+            report("would-back-up", `${shownPath(f.dest)} → ${shownPath(f.backup)}`);
+        if (BACKUP_EDITED_KIT)
+            return { go: "backup-then-write", files: pre.edited };
+        return {
+            go: "no",
+            verifies: [
+                `${n} grugops kit file(s) hold edits install did not write: ${list}. DRY_RUN asks nothing. A real run ` +
+                    `asks at a terminal whether to back them up and overwrite the whole kit; without a terminal (or with ` +
+                    `--yes) it needs --backup-edited-kit, and without an answer it writes no kit file. To preview the ` +
+                    `backups and the kit write together, add --backup-edited-kit to this DRY_RUN.`,
+            ],
+        };
+    }
+    if (BACKUP_EDITED_KIT)
+        return { go: "backup-then-write", files: pre.edited };
+    if (!YES && isatty(0) && isatty(1)) {
+        process.stdout.write(`\n  These grugops kit files hold edits install did not write. Each would be backed up next to itself ` +
+            `as <file>${KIT_BACKUP_INFIX}<UTC stamp> before the whole kit is refreshed:\n` +
+            pre.edited.map((f) => `    ${f.label}\n`).join("") +
+            `Back up these files and overwrite the whole grugops kit? [y/N] `);
+        const ans = readlineSync().trim().toLowerCase();
+        if (ans === "y" || ans === "yes")
+            return { go: "backup-then-write", files: pre.edited };
+        return {
+            go: "no",
+            verifies: [`${n} grugops kit file(s) hold edits install did not write: ${list}. You answered no. ${nothing}; ${remedy}.`],
+        };
+    }
+    const why = YES
+        ? "--yes answers only the target question, never whether an edit may be overwritten"
+        : "there is no terminal on stdin and stdout to ask";
+    return {
+        go: "no",
+        verifies: [
+            `${n} grugops kit file(s) hold edits install did not write: ${list}. This run cannot ask whether to ` +
+                `overwrite them (${why}), and the answer is not assumed. ${nothing}; ${remedy}.`,
+        ],
+    };
+}
+// backupEditedKitFiles: every backup, before the first kit write (see above). Returns false, after a
+// counted verify, when any backup could not be made; the caller then writes no kit file.
+function backupEditedKitFiles(files) {
+    // DRY_RUN listed each backup in kitWriteDecision (`would-back-up`) and makes none.
+    if (DRY_RUN)
+        return true;
+    let made = 0;
+    for (const f of files) {
+        try {
+            if (f.linkTarget !== undefined)
+                symlinkSync(f.linkTarget, f.backup);
+            else
+                writeFileSync(f.backup, f.bytes ?? Buffer.alloc(0), { flag: "wx" });
+        }
+        catch (err) {
+            verify(`${f.label} — its backup ${f.backup} could not be written (${errCode(err)}). No kit file was written: the ` +
+                `whole kit, this file included, was left as it was, and the ${made} backup(s) made before this one ` +
+                `(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.`);
+            return false;
+        }
+        made += 1;
+        report("backed-up", `${shownPath(f.dest)} → ${shownPath(f.backup)}`);
+    }
+    return true;
 }
 // seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04).
 //
@@ -2806,17 +3007,31 @@ function writeMarker() {
     // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3): the kit home and
     // the checkout are user-controlled paths. An absent kit VERSION falls back to the checkout's, as
     // before; any other unread state is a counted verify and the marker records an empty version.
+    //
+    // A KIT NOT WRITTEN KEEPS ITS VERSION (plan 33.1-32, D-32). When this run wrote no kit file (no
+    // consent, a hazard, a kit-plan refusal), the target's kit is still at the previous marker's version,
+    // so that version is written back and the kit home's is not claimed; `--check` then reports the
+    // skew. With no previous string to keep, the version is read as before.
+    const prevVer = previousMarker.state === "ok" && typeof previousMarker.marker.kitVersion === "string"
+        ? previousMarker.marker.kitVersion
+        : null;
     let ver = "";
-    const kitVerFile = join(KIT_ROOT, "VERSION");
-    const srcVerFile = join(GRUGOPS_SRC, "agent-factory", "VERSION");
-    const kitVer = readKitVersion(kitVerFile);
-    const useVer = kitVer.present ? kitVer : readKitVersion(srcVerFile);
-    if (useVer.problem !== null) {
-        verify(`${markerRel}: the kit VERSION at ${kitVer.present ? kitVerFile : srcVerFile} ${useVer.problem}. It was not read, ` +
-            `so the marker records an empty kitVersion.`);
+    if (!KIT_WRITTEN && prevVer !== null) {
+        ver = prevVer;
+        report("note", `${markerRel}: kitVersion kept at "${prevVer}", because this run wrote no kit file`);
     }
     else {
-        ver = useVer.firstLine;
+        const kitVerFile = join(KIT_ROOT, "VERSION");
+        const srcVerFile = join(GRUGOPS_SRC, "agent-factory", "VERSION");
+        const kitVer = readKitVersion(kitVerFile);
+        const useVer = kitVer.present ? kitVer : readKitVersion(srcVerFile);
+        if (useVer.problem !== null) {
+            verify(`${markerRel}: the kit VERSION at ${kitVer.present ? kitVerFile : srcVerFile} ${useVer.problem}. It was not read, ` +
+                `so the marker records an empty kitVersion.`);
+        }
+        else {
+            ver = useVer.firstLine;
+        }
     }
     // The marker path itself is asked through readForWrite (red-team of plan 33.1-26, D-18): a link
     // there, or a non-directory where .grugops/ should be, is never written through.
@@ -3076,6 +3291,9 @@ const START_HELD_DIRS = (() => {
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
 // install run below executes it instead of building a second one (there is one render per run).
 let MIGRATE_KIT_PLAN = null;
+// MIGRATE_KIT_WRITE: that run's KIT_WRITE decision (D-32, plan 33.1-32), taken in the pre-check so a
+// kit the human did not consent to refuses the whole migration, and so the prompt is asked once.
+let MIGRATE_KIT_WRITE = null;
 if (MIGRATE) {
     const layout = detectOldLayout();
     // A --MIGRATE IS WHOLE OR NOT AT ALL, TOO (red-team B1 of plan 33.1-31, D-32, D-18). Everything the
@@ -3091,6 +3309,11 @@ if (MIGRATE) {
         const carry = planConfigCarry();
         MIGRATE_KIT_PLAN = buildKitPlan();
         const refusals = [...carry.refusals, ...(MIGRATE_KIT_PLAN.ok ? [] : MIGRATE_KIT_PLAN.refusals)];
+        if (refusals.length === 0 && MIGRATE_KIT_PLAN.ok) {
+            MIGRATE_KIT_WRITE = kitWriteDecision(MIGRATE_KIT_PLAN);
+            if (MIGRATE_KIT_WRITE.go === "no")
+                refusals.push(...MIGRATE_KIT_WRITE.verifies);
+        }
         if (refusals.length > 0) {
             console.log("== grugops migrate (old in-repo layout → two-root) ==");
             console.log(`target: ${TARGET}`);
@@ -3471,7 +3694,7 @@ function buildKitPlan() {
         const d = kitDestDecision(e);
         if (d.act === "refuse")
             refusals.push(d.why);
-        return d.act === "unlink" ? { ...e, unlinkFirst: true } : e;
+        return d.act === "unlink" ? { ...e, unlinkFirst: true, planned: d } : { ...e, planned: d };
     };
     const plannedSkills = skills.map(decide);
     const plannedAdapters = adapters.map(decide);
@@ -3482,7 +3705,23 @@ function buildKitPlan() {
 {
     const kitPlan = MIGRATE_KIT_PLAN ?? buildKitPlan();
     if (kitPlan.ok) {
-        executeKitPlan(kitPlan);
+        // KIT_WRITE (D-32, plan 33.1-32): the one decision, taken once. A --migrate over an old layout
+        // took it in its pre-check (the prompt is never asked twice).
+        const go = MIGRATE_KIT_WRITE ?? kitWriteDecision(kitPlan);
+        if (go.go === "no") {
+            for (const why of go.verifies)
+                verify(why);
+            report("kit", `no skill or adapter was written, linked or unlinked: the kit is written whole or not at all (D-32), and ` +
+                `every kit file already in ${join(TARGET, ".claude")} was left exactly as it was. Resolve each verify above and re-run.`);
+        }
+        else if (go.go === "write" || backupEditedKitFiles(go.files)) {
+            KIT_WRITTEN = true;
+            executeKitPlan(kitPlan);
+        }
+        else {
+            report("kit", `no skill or adapter was written, linked or unlinked: a backup failed, and no kit file is written until every ` +
+                `edited file is backed up (D-32, D-18). Every kit file in ${join(TARGET, ".claude")} was left exactly as it was.`);
+        }
     }
     else {
         for (const why of kitPlan.refusals)

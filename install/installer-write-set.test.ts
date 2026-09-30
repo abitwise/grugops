@@ -335,9 +335,11 @@ describe("the write set is derived from a real baseline install (red-team of pla
     // shape case with a misleading message.
     expect(WRITE_FILES, "the union holds a file path a default install does not write").toEqual([...BASE_VARIANT.files]);
     expect(WRITE_DIRS, "the union holds a directory a default install does not create").toEqual([...BASE_VARIANT.dirs]);
-    // The timestamped --migrate backups, declared and counted: 3 files and 4 directories.
+    // The timestamped --migrate backups, declared and counted: 5 files (3 `.bak.<ISO>` and, since
+    // plan 33.1-32, the 2 D-32 `.grugops-edited-<ISO>` backups of the old layout's kit files) and 4
+    // directories.
     console.log(`write set: ${TIMESTAMPED.length} timestamped --migrate path(s) not asked here: ${TIMESTAMPED.join(", ")}`);
-    expect(TIMESTAMPED.length).toBe(7);
+    expect(TIMESTAMPED.length).toBe(9);
     expect(WRITE_FILES).toContain(MARKER_REL);
   });
 });

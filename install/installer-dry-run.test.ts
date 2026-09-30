@@ -167,7 +167,16 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
   it("flow 4: DRY_RUN --migrate over an old-layout fixture (home absent)", () => {
     const target = makeOldLayoutFixture();
     const home = join(mkTmp(), "home-never-created");
-    const r = expectDryRunUnchanged(target, home, () => runInstall(target, home, true, "--migrate"), 0, "DRY_RUN — nothing changed");
+    // --backup-edited-kit: the old layout's kit files have no install record, so D-32 (plan 33.1-32)
+    // needs consent; with it the preview names the backups and the kit write, and still changes nothing.
+    const r = expectDryRunUnchanged(
+      target,
+      home,
+      () => runInstall(target, home, true, "--migrate", "--backup-edited-kit"),
+      0,
+      "DRY_RUN — nothing changed",
+    );
+    expect(r.stdout).toMatch(/would-back-up/);
     expect(r.stdout).toMatch(/would-/);
   });
 

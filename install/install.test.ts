@@ -1887,8 +1887,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(rels.length).toBe(17);
 
     // A user hand-edits ONE adapter's model line. D-13: an installed agent adapter is a kit-owned
-    // derived artifact, so the edit is lost on the next run — deliberately, because the
-    // configuration file is the one place to set it — and the rewrite is REPORTED BY NAME.
+    // derived artifact, and the configuration file is the one place to set a model, so the next run
+    // rewrites it and REPORTS THE REWRITE BY NAME. D-32 (plan 33.1-32): never silently — the rewrite
+    // needs the human's consent (here --backup-edited-kit), and the edit is backed up first.
     const edited = rels[0];
     const editedPath = join(target, ".claude", "agents", edited);
     const original = readFileSync(editedPath, "utf8");
@@ -1899,10 +1900,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
     writeFileSync(editedPath, tampered);
 
-    const second = runInstall(target, home);
+    const second = runInstall(target, home, "--backup-edited-kit");
     expect(second.status).toBe(0);
     // The edited file is back to what the kit renders...
     expect(readFileSync(editedPath, "utf8")).toBe(original);
+    // ...after its edit was backed up next to it (D-32)...
+    const backups = readdirSync(join(target, ".claude", "agents")).filter((n) => n.startsWith(`${edited}.grugops-edited-`));
+    expect(backups.length).toBe(1);
+    expect(readFileSync(join(target, ".claude", "agents", backups[0]), "utf8")).toBe(tampered);
     // ...it is named as a rewrite...
     const rewritten = adapterReportLines(second.stdout, "materialized");
     expect(rewritten.length).toBe(1);
@@ -3274,6 +3279,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // orchestration around the unchanged install run (D-02): migratePreSteps (config-move + backup +
   // symlink-unlink) then FALL THROUGH into the existing copyKit→materializeAdapter→seedState→
   // materializeRunnable→writeMarker sequence. Helper: glob the timestamped backups in a target.
+  // D-32 (plan 33.1-32): an old layout's kit files carry no install record and differ from the kit
+  // source, so they count as possibly edited, and a --migrate over one needs the human's consent.
+  // These cases are about the migration, so each gives that consent with --backup-edited-kit; the
+  // "kit re-install (D-32)" block covers the consent itself.
   const backupGlob = (dir: string, prefix: string): string[] => {
     if (!existsSync(dir)) return [];
     return readdirSync(dir).filter((n) => n.startsWith(`${prefix}.bak.`));
@@ -3285,7 +3294,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   it("migrate: converts old in-repo layout to two-root", () => {
     const target = makeOldLayoutFixture();
     const home = mkTmp();
-    const r = runInstall(target, home, "--migrate");
+    const r = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r.status).toBe(0);
 
     // two-root: the shared kit is now under $GRUGOPS_HOME (fresh from source, D-01).
@@ -3306,12 +3315,12 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   it("migrate: a second migrate is a no-op", () => {
     const target = makeOldLayoutFixture();
     const home = mkTmp();
-    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    expect(runInstall(target, home, "--migrate", "--backup-edited-kit").status).toBe(0);
     const t1 = snapshot(target);
     const h1 = snapshot(home);
     const bak1 = backupGlob(target, "agent-factory").length;
 
-    const r2 = runInstall(target, home, "--migrate");
+    const r2 = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r2.status).toBe(0);
     expect(snapshot(target)).toBe(t1); // target unchanged by the second migrate
     expect(snapshot(home)).toBe(h1); // home unchanged
@@ -3326,7 +3335,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const targetA = mkTmp(); // bare: no agent-factory/, no marker → isClean
     writeFileSync(join(targetA, "CLAUDE.md"), "# User Project\n");
     const homeA = mkTmp();
-    expect(runInstall(targetA, homeA, "--migrate").status).toBe(0);
+    expect(runInstall(targetA, homeA, "--migrate", "--backup-edited-kit").status).toBe(0);
 
     // A --migrate on a clean repo produces a plain-install target shape (no migrate backups fired).
     expect(backupGlob(targetA, "agent-factory").length).toBe(0);
@@ -3349,7 +3358,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const t0 = snapshot(target);
     const h0 = snapshot(home);
 
-    const r = runInstall(target, home, "--migrate");
+    const r = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r.status).toBe(0);
     // Honest guidance (WR-01): tell the user to remove the live leftover by hand, and do NOT point
     // them at --prune-old-kit, which only clears timestamped .bak.<ISO> backups, never a live kit.
@@ -3374,7 +3383,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // in-repo kit is renamed aside by step 2), so the original content is preserved twice over.
     const targetK = makeOldLayoutFixture();
     const homeK = mkTmp();
-    expect(runInstall(targetK, homeK, "--migrate").status).toBe(0);
+    expect(runInstall(targetK, homeK, "--migrate", "--backup-edited-kit").status).toBe(0);
     // the edited config is carried forward to the two-root .grugops/ location.
     const seededK = readFileSync(join(targetK, ".grugops", "factory.config.json"), "utf8");
     expect(seededK).toContain("OLD-USER-EDITED-CONFIG-KIT-LOCATION");
@@ -3389,7 +3398,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // at the repo root (it is NOT inside agent-factory/, so it does not travel with the kit backup).
     const targetR = makeOldLayoutFixture({ rootConfig: true });
     const homeR = mkTmp();
-    expect(runInstall(targetR, homeR, "--migrate").status).toBe(0);
+    expect(runInstall(targetR, homeR, "--migrate", "--backup-edited-kit").status).toBe(0);
     const seededR = readFileSync(join(targetR, ".grugops", "factory.config.json"), "utf8");
     // the repo-root config is the user-edited one carried forward (root checked too).
     expect(seededR).toMatch(/OLD-USER-EDITED-CONFIG-(ROOT|KIT)-LOCATION/);
@@ -3426,7 +3435,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const target = makeOldLayoutFixture();
     const home = mkTmp();
-    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit"], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -3467,7 +3476,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
     writeFileSync(join(target, "plans", "handoffs", "T-001-implementation.md"), "user handoff — must be preserved\n");
 
-    const r = runInstall(target, home, "--migrate");
+    const r = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r.status).toBe(0);
     // The original is RENAMED aside, not deleted — the dir is gone but the backup exists.
     expect(existsSync(join(target, "plans", "handoffs"))).toBe(false);
@@ -3485,11 +3494,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = mkTmp();
     mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
     writeFileSync(join(target, "plans", "handoffs", "T-002-qe.md"), "handoff\n");
-    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    expect(runInstall(target, home, "--migrate", "--backup-edited-kit").status).toBe(0);
     expect(handoffsBackupGlob(target).length).toBe(1); // first migrate made exactly one backup
 
     // Second migrate: plans/handoffs/ is gone now → nothing to migrate, no new backup.
-    const r2 = runInstall(target, home, "--migrate");
+    const r2 = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r2.status).toBe(0);
     expect(r2.stdout).toMatch(/nothing to migrate/);
     expect(handoffsBackupGlob(target).length).toBe(1); // count did NOT grow
@@ -3503,7 +3512,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
     writeFileSync(join(target, "plans", "handoffs", "T-003-uat.md"), "handoff\n");
 
-    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit"], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -3546,7 +3555,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
         `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});\n`,
     );
-    const r = spawnSync("node", [wrapper, "--yes", "--migrate"], {
+    const r = spawnSync("node", [wrapper, "--yes", "--migrate", "--backup-edited-kit"], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -3584,7 +3593,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const before = readFileSync(srcClone, "utf8");
     expect(before).toContain("SENTINEL-SOURCE-CLONE");
 
-    const r = runInstall(target, home, "--migrate");
+    const r = runInstall(target, home, "--migrate", "--backup-edited-kit");
     expect(r.status, r.stdout).toBe(3);
     // Red-team B1 of plan 33.1-31: install replaces only its own link, on every run, and a --migrate
     // whose pre-check refuses changes nothing at all.
@@ -3606,7 +3615,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     rmSync(home, { recursive: true, force: true }); // start with home ABSENT
     const tPre = snapshot(target);
 
-    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit"], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -3676,7 +3685,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const pre = snapshot(join(target, "agent-factory"));
     expect(pre).toContain("config/factory.config.json"); // the edited config is part of pre-migrate state
 
-    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    expect(runInstall(target, home, "--migrate", "--backup-edited-kit").status).toBe(0);
     expect(runUninstall(target, home).status).toBe(0);
 
     // DOCUMENTED MANUAL RESTORE (exactly the README ### Migrating an existing install rollback steps):
@@ -3808,7 +3817,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = mkTmp();
     // migrate creates the grugops backups: agent-factory.bak.<ISO> (the displaced in-repo kit) and
     // a config .bak (inside that backup, since the in-repo kit is renamed aside).
-    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    expect(runInstall(target, home, "--migrate", "--backup-edited-kit").status).toBe(0);
     expect(backupGlob(target, "agent-factory").length).toBe(1); // the grugops kit backup exists
 
     // plant a USER-owned backup that is NOT grugops-shaped (no .bak.<ISO> stamp) — must survive.
@@ -3979,7 +3988,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
     expect(readdirSync(join(target, ".claude", "agents"))).toEqual(["grugops-orchestrator.md"]);
 
-    expect(runInstallFrom(src, target, home).status).toBe(0);
+    // D-32 (plan 33.1-32): the old adapter has no install record and differs from the kit source, so
+    // it counts as possibly edited; the update needs the human's consent, and backs it up first.
+    expect(runInstallFrom(src, target, home, "--backup-edited-kit").status).toBe(0);
 
     // All SEVENTEEN destination paths are asserted — never a sampled subset.
     for (const a of SYNTH_ADAPTERS) {
@@ -3992,8 +4003,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       expectMaterializedKit(body, home);
     }
     expect(SYNTH_ADAPTERS.length).toBe(17);
-    // The target's adapter dir holds EXACTLY the derived set — nothing extra, nothing missing.
-    expect(readdirSync(join(target, ".claude", "agents")).sort()).toEqual([...SYNTH_ADAPTERS].sort());
+    // The target's adapter dir holds EXACTLY the derived set — nothing extra, nothing missing — plus
+    // the one D-32 backup of the old adapter (plan 33.1-32), which is not an adapter (no `.md` end).
+    const agentNames = readdirSync(join(target, ".claude", "agents")).sort();
+    const backupNames = agentNames.filter((n) => n.includes(".grugops-edited-"));
+    expect(backupNames.length).toBe(1);
+    expect(backupNames[0].startsWith("grugops-orchestrator.md.grugops-edited-")).toBe(true);
+    expect(readFileSync(join(target, ".claude", "agents", backupNames[0]), "utf8")).toContain("/stale/previous/kit");
+    expect(agentNames.filter((n) => !backupNames.includes(n))).toEqual([...SYNTH_ADAPTERS].sort());
     // The stale KIT= the old layout carried is gone (strip-then-inject, not append).
     expect(readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8")).not.toContain(
       "/stale/previous/kit",
@@ -7231,7 +7248,7 @@ describe("special file at a --migrate legacy config (DC-3, D-18, plan 33.1-26)",
         const writer = shape === "FIFO" ? startBlockedFifoWriter(at) : null;
         try {
           if (writer) await pause(300);
-          const r = runInstallBounded(target, home, 60_000, "--migrate");
+          const r = runInstallBounded(target, home, 60_000, "--migrate", "--backup-edited-kit");
           expect(r.error, `--migrate hung on a ${shape} at ${leg.rel}`).toBeUndefined();
           expect(r.signal).toBeNull();
           expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
@@ -7264,7 +7281,7 @@ describe("special file at a --migrate legacy config (DC-3, D-18, plan 33.1-26)",
   it("special file: a regular legacy config still migrates exactly as before (control)", () => {
     const target = makeOldLayoutFixture({ rootConfig: true });
     const home = mkTmp();
-    const r = runInstallBounded(target, home, 60_000, "--migrate");
+    const r = runInstallBounded(target, home, 60_000, "--migrate", "--backup-edited-kit");
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(readFileSync(join(target, ".grugops", "factory.config.json"), "utf8")).toBe(
       '{ "_edited": "OLD-USER-EDITED-CONFIG-ROOT-LOCATION" }\n',
@@ -8271,7 +8288,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const f = migrateFixture();
     if (f === null) return;
     const ownBefore = readFileSync(f.own, "utf8");
-    const r = run(f.src, f.target, f.home, ["--migrate"]);
+    const r = run(f.src, f.target, f.home, ["--migrate", "--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(0);
     expect(r.stdout.split("\n").some((l) => /^ {2}unlinked\s/.test(l) && l.includes(f.dest)), r.stdout).toBe(true);
     expect(lstatSync(f.dest).isSymbolicLink()).toBe(false);
@@ -8287,7 +8304,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     writeFileSync(join(f.target, "agent-factory", "config", "factory.config.json"), BAD_CONFIG);
     const kit = kitState(f.target);
     const ownBefore = readFileSync(f.own, "utf8");
-    const r = run(f.src, f.target, f.home, ["--migrate"]);
+    const r = run(f.src, f.target, f.home, ["--migrate", "--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(3);
     expect(r.stdout).toContain(BAD_MODEL);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
@@ -8310,7 +8327,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const cloneBefore = readFileSync(clone, "utf8");
     const linkBefore = readlinkSync(dest);
     const kit = kitState(target);
-    const r = run(src, target, mkTmp(), ["--migrate"]);
+    const r = run(src, target, mkTmp(), ["--migrate", "--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(3);
     expect(verifyLines(r.stdout).some((l) => l.includes(dest)), r.stdout).toBe(true);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
@@ -8483,7 +8500,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
       writeFileSync(atRel(f.target, LEGACY), BAD_CONFIG);
       const before = treeState(f.target);
       const srcBefore = sourceAdapters(f.src);
-      const r = run(f.src, f.target, f.home, ["--migrate"], dry ? { DRY_RUN: "1" } : {});
+      const r = run(f.src, f.target, f.home, ["--migrate", "--backup-edited-kit"], dry ? { DRY_RUN: "1" } : {});
       expect(r.status, r.stdout).toBe(3);
       expect(r.stdout).toContain(BAD_MODEL);
       expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
@@ -8495,7 +8512,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
       if (dry) return;
       // The fix, then --migrate again: the full migration runs.
       writeFileSync(atRel(f.target, LEGACY), GOOD_LEGACY);
-      const r2 = run(f.src, f.target, f.home, ["--migrate"]);
+      const r2 = run(f.src, f.target, f.home, ["--migrate", "--backup-edited-kit"]);
       expect(r2.status, r2.stdout).toBe(0);
       expect(r2.stdout).not.toContain("already migrated");
       expect(everyAdapterMaterialized(f.target), r2.stdout).toEqual([]);
@@ -8515,14 +8532,14 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     rmSync(foreign);
     symlinkSync(join(outside, "victim.md"), foreign);
     const before = treeState(f.target);
-    const r = run(f.src, f.target, f.home, ["--migrate"]);
+    const r = run(f.src, f.target, f.home, ["--migrate", "--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(3);
     expect(verifyLines(r.stdout).some((l) => l.includes(foreign)), r.stdout).toBe(true);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
     expect(treeState(f.target), r.stdout).toBe(before);
     expect(readFileSync(join(outside, "victim.md"), "utf8")).toBe("outside file\n");
     rmSync(foreign);
-    const r2 = run(f.src, f.target, f.home, ["--migrate"]);
+    const r2 = run(f.src, f.target, f.home, ["--migrate", "--backup-edited-kit"]);
     expect(r2.status, r2.stdout).toBe(0);
     expect(everyAdapterMaterialized(f.target), r2.stdout).toEqual([]);
     expect(readFileSync(join(outside, "victim.md"), "utf8")).toBe("outside file\n");
@@ -8551,8 +8568,10 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     expect(rf.status, rf.stdout).toBe(3);
     expect(kitWriteLines(rf.stdout), rf.stdout).toEqual([]);
     expect(kitState(t2)).toBe(kit2);
-    // Own links only: each is unlinked and materialized, and the kit source is untouched.
-    const r = run(src, target, home);
+    // Own links only: each is unlinked and materialized, and the kit source is untouched. D-32 (plan
+    // 33.1-32): the marker records the regular files install wrote here, so a link now is possibly
+    // edited, and the run needs consent (each backup is a link with the same target).
+    const r = run(src, target, home, ["--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(0);
     const unlinked = r.stdout.split("\n").filter((l) => /^ {2}unlinked\s/.test(l));
     expect(unlinked.length, r.stdout).toBe(resolverRels.length);
@@ -8567,7 +8586,9 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const f = ownLinkOldLayout();
     if (f === null) return;
     const srcBefore = sourceAdapters(f.src);
-    const r = run(f.src, f.target, f.home);
+    // D-32 (plan 33.1-32): the old layout's regular kit files have no record and differ from the kit
+    // source, so the run needs consent.
+    const r = run(f.src, f.target, f.home, ["--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(0);
     expect(everyAdapterMaterialized(f.target), r.stdout).toEqual([]);
     expect(sourceAdapters(f.src)).toBe(srcBefore);
@@ -8588,8 +8609,8 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const b = mkTmp();
     cpSync(a, b, { recursive: true });
     const src = makeSyntheticSrc();
-    const dry = run(src, a, mkTmp(), ["--migrate"], { DRY_RUN: "1" });
-    const real = run(src, b, mkTmp(), ["--migrate"]);
+    const dry = run(src, a, mkTmp(), ["--migrate", "--backup-edited-kit"], { DRY_RUN: "1" });
+    const real = run(src, b, mkTmp(), ["--migrate", "--backup-edited-kit"]);
     expect(real.status, real.stdout).toBe(0);
     expect(dry.status, dry.stdout).toBe(0);
     const realModels = modelsOf(real.stdout, /materialized/);
@@ -8604,8 +8625,8 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const b = mkTmp();
     cpSync(a, b, { recursive: true });
     const src = makeSyntheticSrc();
-    const dry = run(src, a, mkTmp(), ["--migrate"], { DRY_RUN: "1" });
-    const real = run(src, b, mkTmp(), ["--migrate"]);
+    const dry = run(src, a, mkTmp(), ["--migrate", "--backup-edited-kit"], { DRY_RUN: "1" });
+    const real = run(src, b, mkTmp(), ["--migrate", "--backup-edited-kit"]);
     expect(real.status, real.stdout).toBe(3);
     expect(dry.status, dry.stdout).toBe(3);
     expect(dry.stdout).toContain(BAD_MODEL);
@@ -8806,7 +8827,8 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       if (!n.endsWith(".md")) continue;
       const p = join(roles, n);
       const text = readFileSync(p, "utf8");
-      const next = text.replace(/(## One job\n)([^\n]+)/, "$1$2 Kit update.");
+      // Prefixed, so the first sentence (the adapter description) changes.
+      const next = text.replace(/(## One job\n)([^\n]+)/, "$1Updated: $2");
       if (next !== text) {
         writeFileSync(p, next);
         changed += 1;
@@ -8914,6 +8936,11 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     kitUpdate(src);
     const r = run(src, target, home);
     expect(r.status, r.stdout).toBe(0);
+    // Premise: the kit update reaches every adapter and every skill, so a run that skipped any file
+    // would leave a mixed kit.
+    const written = kitWriteLines(r.stdout);
+    expect(written.filter((l) => l.includes(".claude/agents/")).length, r.stdout).toBe(SYNTH_ADAPTERS.length);
+    expect(written.filter((l) => l.includes(".claude/skills/")).length, r.stdout).toBe(SYNTH_SKILLS.length);
     expect(backupsIn(target)).toEqual([]);
     expect(r.stdout).not.toContain("--backup-edited-kit");
     const fresh = freshKit(src, home);
@@ -8938,7 +8965,17 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
   }
 
   it("the marker after a refusal keeps the previous kitVersion, and --check reports the target's kit behind the kit home", () => {
-    const { src, target, home } = installed();
+    // The doctor reaches its kit-version check only when every kit path an adapter names resolves, so
+    // this source carries the real kit tree (with the synthetic VERSION).
+    const src = makeSyntheticSrc();
+    cpSync(join(REPO_ROOT, "agent-factory"), join(src, "agent-factory"), { recursive: true });
+    writeFileSync(join(src, "agent-factory", "VERSION"), `${V1}\n`);
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(run(src, target, home).status).toBe(0);
+    expect(markerOf(target).kitVersion).toBe(V1);
+    const c0 = run(src, target, home, ["--check"]);
+    expect(c0.stdout, "premise: the doctor reaches the kit-version check").not.toMatch(/FAILURE\(S\)/);
     kitUpdate(src);
     editAdapter(target);
     const r = run(src, target, home);

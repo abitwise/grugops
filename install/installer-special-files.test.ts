@@ -67,15 +67,17 @@ const READ_ONLY_INPUTS: ReadonlyArray<{ readonly path: string; readonly why: str
 ];
 
 const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_INPUTS.map((r) => r.path)])].sort();
-// Pinned: 56 files and links the four install variants write (53 by a default install, plus the
-// three timestamped --migrate backups), and the two read-only inputs above.
-const READ_PATH_COUNT = 58;
+// Pinned: 58 files and links the four install variants write (53 by a default install, plus the
+// three timestamped --migrate backups and the two timestamped D-32 backups of the old layout's
+// unrecorded kit files, plan 33.1-32), and the two read-only inputs above.
+const READ_PATH_COUNT = 60;
 
-// A path that carries the run's timestamp names a rename destination that does not exist before the
-// run, so nothing can be planted at it; the special file at its SOURCE (the in-repo agent-factory/
-// and the root legacy config, both in READ_PATHS under their own names) is what the run reads.
+// A path that carries the run's timestamp names a rename or backup destination that does not exist
+// before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo
+// agent-factory/, the root legacy config and the two kit files, all in READ_PATHS under their own
+// names) is what the run reads.
 const NOT_PLANTABLE: readonly string[] = READ_PATHS.filter((p) => p.includes(ISO_PLACEHOLDER));
-const NOT_PLANTABLE_COUNT = 3;
+const NOT_PLANTABLE_COUNT = 5;
 const PLANTABLE: readonly string[] = READ_PATHS.filter((p) => !p.includes(ISO_PLACEHOLDER));
 
 type Shape = "FIFO" | "directory";

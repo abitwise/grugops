@@ -12,9 +12,11 @@
 //   - `default`             copy mode, `--yes`, the default checkpoint configuration (both
 //                           checkpoints at block), so `.claude/settings.json` gets the ask rules;
 //   - `symlink`             `--symlink` writes links instead of copies at the kit paths;
-//   - `migrate`             `--yes --migrate` over an old-layout target seeds the per-repo config from
-//                           a legacy file and moves the in-repo kit and the root config aside to
-//                           timestamped `.bak.<ISO>` backups;
+//   - `migrate`             `--yes --migrate --backup-edited-kit` over an old-layout target seeds the
+//                           per-repo config from a legacy file and moves the in-repo kit and the root
+//                           config aside to timestamped `.bak.<ISO>` backups; the old layout's kit files
+//                           have no install record, so D-32 (plan 33.1-32) needs consent and backs each
+//                           one up to a timestamped `<file>.grugops-edited-<ISO>` first;
 //   - `checkpoints-notify`  both checkpoints at notify in `.grugops/factory.config.json`, so no ask
 //                           rule and no `.claude/settings.json` is written (a subset, recorded so the
 //                           set says which variants write that file).
@@ -245,8 +247,11 @@ export const VARIANTS: readonly VariantSpec[] = [
   { name: "symlink", why: "--symlink writes links at the kit paths", args: ["--symlink"], prepare: () => {} },
   {
     name: "migrate",
-    why: "--migrate over an old layout seeds the config from a legacy file and writes timestamped backups",
-    args: ["--migrate"],
+    why:
+      "--migrate over an old layout seeds the config from a legacy file and writes timestamped backups; " +
+      "with the consent D-32 needs for the old layout's unrecorded kit files (--backup-edited-kit), it also " +
+      "writes their <file>.grugops-edited-<ISO> backups",
+    args: ["--migrate", "--backup-edited-kit"],
     prepare: (t) => {
       makeOldLayoutFixture(t, { rootConfig: true });
     },
