@@ -63,6 +63,7 @@ import {
   rmSync,
   unlinkSync,
   renameSync,
+  linkSync,
   readSync,
   readdirSync,
   lstatSync,
@@ -545,17 +546,11 @@ const recordCreatedFile = (path: string, record: string): void => {
 // preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
 const KIT_FILES = new Map<string, string>();
 // KIT_WRITTEN (plan 33.1-32, D-32): true once executeKitPlan ran in this run. When the kit was not
-// written (no consent, a hazard, a kit-plan refusal), writeMarker keeps the previous marker's
-// kitVersion, so the marker never claims a kit version the target's kit is not at.
+// written, for any reason (no consent, a pre-flight hazard, a failed backup, a kit-plan refusal), the
+// kit in the target is still the one the previous marker describes, so writeMarker writes every kit
+// field back from that marker and learns nothing from this run (see A RUN THAT WROTE NO KIT FILE in
+// writeMarker's header).
 let KIT_WRITTEN = false;
-// KIT_EDITED_RECORDED (plan 33.1-32, D-32): the kit files (POSIX, relative to TARGET) the pre-flight
-// found edited AGAINST A kitFiles RECORD. When this run writes no kit file, writeMarker carries each of
-// those records forward even though the file no longer holds it. The record is what install last wrote
-// there, and the D-32 remedy "restore them first" depends on it: a file restored to those bytes holds
-// its record again, so the next run is not asked about it. Every other entry follows the plan-31 rule
-// (carried only while its file still holds it). Uninstall leaves an edited file whether or not its
-// record is carried, and with the record it says truthfully that the file changed since install wrote it.
-const KIT_EDITED_RECORDED = new Set<string>();
 // The target's configuration file, and the two legacy locations --migrate carries one forward from
 // (D-04). Declared here, above the doctor's early exit, because the doctor's render asks
 // renderConfigInput (red-team B3 of plan 33.1-31); see THE LEGACY CONFIG CARRY below.
@@ -1065,7 +1060,20 @@ function doctor(): number {
     // or release a writer blocked on it and print the writer's bytes as the verdict, and a link to
     // /dev/zero grew memory without bound. Anything but a readable regular file is a WARN saying no
     // skew verdict was reached, never a version.
-    const mver = marker.kitVersion ? String(marker.kitVersion) : "";
+    //
+    // A MARKER WITH NO USABLE kitVersion IS NO VERDICT, NEVER A PASS (red-team B2 of plan 33.1-32, brief
+    // DC-1). Install writes no kitVersion when a run wrote no kit file and had no earlier version to
+    // keep, and an empty one when the kit VERSION could not be read; a hand-edited marker can hold
+    // anything. In each case the version of the kit files in the target is not known, which is a WARN.
+    const mver = typeof marker.kitVersion === "string" ? marker.kitVersion : "";
+    if (mver.trim() === "") {
+      docWarn(
+        `kit-version unknown: the install marker ${markerFile} records no kit version ` +
+          `(${marker.kitVersion === undefined ? "the field is absent" : `it holds ${JSON.stringify(marker.kitVersion).slice(0, 60)}`}), so the ` +
+          `version of the grugops kit files in ${join(TARGET, ".claude")} is not known and NO VERDICT on kit-version skew was ` +
+          `reached. A re-install that writes the kit records it`,
+      );
+    }
     const verFile = join(KIT_ROOT, "VERSION");
     const kitVer = readKitVersion(verFile);
     const kver = kitVer.version;
@@ -2991,6 +2999,16 @@ type KitPlan = KitPlanReady | { readonly ok: false; readonly refusals: readonly 
 // end in `.md`, so no tool loads it as an agent or a skill, and nothing records it: uninstall never
 // removes or claims a backup (uninstall.ts reportKitBackups reports each one `left`). If any backup
 // fails, no kit file is written, and every backup already made is kept and was reported.
+//
+// A BACKUP NAME ONLY EVER HOLDS A WHOLE COPY (red-team W1 of plan 33.1-32, D-18). A byte backup is first
+// written, with the exclusive create, to `<backup>.incomplete`, and only when every byte is written is
+// it given the backup name, by link(2), which refuses a name that exists (a filesystem without hard
+// links falls back to rename(2) after checking the name is still free). A write that fails partway
+// (ENOSPC on a nearly full volume) therefore never leaves a truncated file under a backup name: the
+// incomplete copy is removed (discardIncompleteBackup: the exclusive create proves this run made it),
+// and if that removal fails too, the verify names the file INCOMPLETE and its name still says so, so
+// uninstall reports it as an incomplete copy, never as a backup of the edit. kitPreflight checks that
+// both names are free and within the path limit.
 
 interface EditedKitFile {
   readonly dest: string;
@@ -3017,6 +3035,10 @@ const kitBackupPath = (dest: string): string => {
   KIT_BACKUP_STAMP ??= isoStamp();
   return `${dest}${KIT_BACKUP_INFIX}${KIT_BACKUP_STAMP}`;
 };
+// The name a byte backup is written under until it is whole (see A BACKUP NAME ONLY EVER HOLDS A WHOLE
+// COPY above). uninstall.ts reports a name with this suffix as an incomplete copy.
+const KIT_BACKUP_INCOMPLETE = ".incomplete";
+const kitBackupStaging = (backup: string): string => `${backup}${KIT_BACKUP_INCOMPLETE}`;
 // A path under TARGET as the report shows it (POSIX, relative), or the path itself outside TARGET.
 const shownPath = (p: string): string => targetRel(p) ?? p;
 
@@ -3086,17 +3108,24 @@ function kitPreflight(plan: KitPlanReady): KitPreflight {
       }
     }
     if (why === null) continue;
-    if (record !== null && rel !== null) KIT_EDITED_RECORDED.add(rel);
     const backup = kitBackupPath(e.dest);
-    const tooLong = pathLimitProblem(backup);
-    if (tooLong !== null) {
-      hazards.push(`${e.label} — its backup ${backup} ${tooLong}. Nothing was backed up and no kit file was written.`);
-      continue;
-    }
-    const at = readForWrite(TARGET, backup);
-    if (at.state !== "create") {
-      const what = at.state === "ok" ? `${backup} already holds a file` : blockedAt(at, backup);
-      hazards.push(`${e.label} — its backup path is taken: ${what}. It was left untouched, nothing was backed up and no kit file was written.`);
+    // A byte backup is written under its incomplete name first (red-team W1), so both names must be free.
+    const names = linkTarget === undefined ? [backup, kitBackupStaging(backup)] : [backup];
+    const problem = ((): string | null => {
+      for (const p of names) {
+        const tooLong = pathLimitProblem(p);
+        if (tooLong !== null) return `its backup ${p} ${tooLong}. Nothing was backed up and no kit file was written.`;
+      }
+      for (const p of names) {
+        const at = readForWrite(TARGET, p);
+        if (at.state === "create") continue;
+        const what = at.state === "ok" ? `${p} already holds a file` : blockedAt(at, p);
+        return `its backup path is taken: ${what}. It was left untouched, nothing was backed up and no kit file was written.`;
+      }
+      return null;
+    })();
+    if (problem !== null) {
+      hazards.push(`${e.label} — ${problem}`);
       continue;
     }
     edited.push({ dest: e.dest, label: e.label, backup, why, bytes, linkTarget });
@@ -3164,21 +3193,80 @@ function backupEditedKitFiles(files: readonly EditedKitFile[]): boolean {
   if (DRY_RUN) return true;
   let made = 0;
   for (const f of files) {
-    try {
-      if (f.linkTarget !== undefined) symlinkSync(f.linkTarget, f.backup);
-      else writeFileSync(f.backup, f.bytes ?? Buffer.alloc(0), { flag: "wx" });
-    } catch (err) {
+    const failed = (why: string, after = ""): false => {
       verify(
-        `${f.label} — its backup ${f.backup} could not be written (${errCode(err)}). No kit file was written: the ` +
-          `whole kit, this file included, was left as it was, and the ${made} backup(s) made before this one ` +
+        `${f.label} — its backup ${f.backup} could not be written (${why}).${after} No kit file was written: the ` +
+          `whole kit, this file included, was left as it was, and the ${made} complete backup(s) made before this one ` +
           `(listed above) were kept. Fix the cause and re-run with --backup-edited-kit, or restore the edited files first.`,
       );
       return false;
+    };
+    if (f.linkTarget !== undefined) {
+      // symlink(2) makes the whole link or nothing, and refuses a name that exists.
+      try {
+        symlinkSync(f.linkTarget, f.backup);
+      } catch (err) {
+        return failed(errCode(err));
+      }
+    } else {
+      const staging = kitBackupStaging(f.backup);
+      try {
+        writeFileSync(staging, f.bytes ?? Buffer.alloc(0), { flag: "wx" });
+      } catch (err) {
+        // An exclusive create that fails at open(2) created nothing (EEXIST is a file this run did not
+        // make). A failure after it (a write or the close) is in a file this call created.
+        if ((err as NodeJS.ErrnoException).syscall === "open") return failed(errCode(err));
+        return failed(errCode(err), ` ${discardIncompleteBackup(staging)}`);
+      }
+      // Give the whole copy its backup name. link(2) refuses a name that exists; where the filesystem
+      // has no hard links, rename(2) is used only while the name is still free.
+      try {
+        try {
+          linkSync(staging, f.backup);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === "EEXIST" || !gone(f.backup)) throw err;
+          renameSync(staging, f.backup);
+        }
+      } catch (err) {
+        return failed(errCode(err), ` ${discardIncompleteBackup(staging)}`);
+      }
+      if (!gone(staging)) {
+        try {
+          unlinkSync(staging);
+        } catch (err) {
+          verify(
+            `${shownPath(staging)} — the second name of the backup ${f.backup} could not be removed (${errCode(err)}). ` +
+              `The backup is whole; this name holds the same bytes. Remove it by hand.`,
+          );
+        }
+      }
     }
     made += 1;
     report("backed-up", `${shownPath(f.dest)} → ${shownPath(f.backup)}`);
   }
   return true;
+}
+
+// discardIncompleteBackup: remove the incomplete copy backupEditedKitFiles created with an exclusive
+// create in this run (red-team W1 of plan 33.1-32). lstat never follows a link; only a regular file
+// with one name is removed (anything else is no longer the file this run made). Returns the sentence
+// the caller's verify carries: removed, or INCOMPLETE and left under its `.incomplete` name.
+function discardIncompleteBackup(path: string): string {
+  let why: string | null = null;
+  try {
+    const st = lstatSync(path);
+    if (!st.isFile() || st.nlink !== 1) why = "it is no longer the single-name regular file this run created";
+    else unlinkSync(path);
+  } catch (err) {
+    why = errCode(err);
+  }
+  if (why === null && gone(path)) return `The incomplete copy this run had started, ${path}, was removed.`;
+  if (gone(path)) return `The incomplete copy this run had started, ${path}, is no longer there.`;
+  return (
+    `The incomplete copy this run had started, ${path}, could not be removed (${why ?? "it is still present"}): ` +
+    `it is INCOMPLETE, not a full copy of the edit, and its name ends in ${KIT_BACKUP_INCOMPLETE} so that no later ` +
+    `run reads it as a backup. Remove it by hand.`
+  );
 }
 
 // seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04).
@@ -3341,12 +3429,29 @@ function materializeRunnable(): void {
 // previous marker's entries that still hold exactly what their record says install wrote
 // (recordHolds) and that this run did not append a block to (APPENDED_FILES), each keeping its record,
 // sorted by path. A file the user deleted, edited or replaced since is dropped.
-// kitFiles (plan 33.1-30): what this run wrote to each kit file (KIT_FILES), united with the previous
-// marker's entries this run did not write that still hold exactly their record (recordHolds), sorted
-// by path. Never by presence: a kit file this run could not write (a directory, a FIFO, a link there)
-// is dropped, and so is one the user edited since, except in a run that wrote no kit file: there the
-// record of a file D-32's pre-flight found edited is carried unchanged (KIT_EDITED_RECORDED, plan
-// 33.1-32), so restoring the file is a true remedy.
+// kitFiles (plan 33.1-30): in a run that wrote the kit, what this run wrote to each kit file
+// (KIT_FILES), united with the previous marker's entries this run did not write that still hold
+// exactly their record (recordHolds), sorted by path. Never by presence: a kit file this run could not
+// write (a directory, a FIFO, a link there) is dropped, and so is one the user edited since.
+//
+// A RUN THAT WROTE NO KIT FILE (red-team B1/B2 of plan 33.1-32, brief DC-1/DC-2). No consent, a
+// pre-flight hazard, a failed backup or a kit-plan refusal: the kit in the target is still the one the
+// previous marker describes, and this run learned nothing about it that the next run cannot learn
+// again. So every kit field is written back from the previous marker, never from this run:
+//   kitFiles: written back VERBATIM, exactly as read (an absent one stays absent; with no previous
+//     marker it is `{}`, because this run is the whole history and it wrote no kit file). Plan 31's
+//     rule for a refused run ("drop only entries proved stale") is replaced: its staleness proof was
+//     wrong about a file the user then restored (the red-team's break: an edited adapter and a
+//     directory at another one dropped both entries, and uninstall then left the restored file with
+//     "no record"). Dropping is safe only when the kit is written, because then the entry is replaced.
+//   kitVersion: the previous string, kept. With none (no previous marker, or a value that is not a
+//     string) the field is NOT written: this run has no evidence of the version of the kit in the
+//     target, and the kit home's version would be a claim about files it did not write. `--check`
+//     warns that the kit version is unknown.
+//   kitRoot, grugopsHome, installMode: the previous strings, kept (the adapters in the target still
+//     name the previous kit root, and were made in the previous mode). With none, this run's values
+//     are written: they are what the next kit write will use, and the doctor's three-source kit-root
+//     cross-check (rule, marker, adapter KIT= line) reports any adapter that disagrees.
 //
 // ONE RULE FOR AN ABSENT LEDGER FIELD (plan 33.1-28): an absent record stays absent unless this run
 // itself performed the recorded action. With NO previous marker this run is the whole history, so
@@ -3394,18 +3499,23 @@ function writeMarker(): void {
   // the checkout are user-controlled paths. An absent kit VERSION falls back to the checkout's, as
   // before; any other unread state is a counted verify and the marker records an empty version.
   //
-  // A KIT NOT WRITTEN KEEPS ITS VERSION (plan 33.1-32, D-32). When this run wrote no kit file (no
-  // consent, a hazard, a kit-plan refusal), the target's kit is still at the previous marker's version,
-  // so that version is written back and the kit home's is not claimed; `--check` then reports the
-  // skew. With no previous string to keep, the version is read as before.
-  const prevVer =
-    previousMarker.state === "ok" && typeof previousMarker.marker.kitVersion === "string"
-      ? previousMarker.marker.kitVersion
-      : null;
-  let ver = "";
-  if (!KIT_WRITTEN && prevVer !== null) {
+  // A KIT NOT WRITTEN KEEPS ITS VERSION (plan 33.1-32, D-32; red-team B2). When this run wrote no kit
+  // file, the target's kit is still at the previous marker's version, so that version is written back
+  // and the kit home's is not claimed; `--check` then reports the skew. With no previous string to
+  // keep, no version is claimed at all (`ver` null: the field is not written; see the header).
+  const prevString = (k: "kitVersion" | "kitRoot" | "grugopsHome" | "installMode"): string | null =>
+    previousMarker.state === "ok" && typeof previousMarker.marker[k] === "string" ? (previousMarker.marker[k] as string) : null;
+  const prevVer = prevString("kitVersion");
+  let ver: string | null = "";
+  if (!KIT_WRITTEN) {
     ver = prevVer;
-    report("note", `${markerRel}: kitVersion kept at "${prevVer}", because this run wrote no kit file`);
+    report(
+      "note",
+      prevVer !== null
+        ? `${markerRel}: kitVersion kept at "${prevVer}", because this run wrote no kit file`
+        : `${markerRel}: no kitVersion recorded, because this run wrote no kit file and there is no earlier ` +
+            `kit version to keep, so the version of the kit files in .claude is not known (install.js --check warns)`,
+    );
   } else {
     const kitVerFile = join(KIT_ROOT, "VERSION");
     const srcVerFile = join(GRUGOPS_SRC, "agent-factory", "VERSION");
@@ -3437,11 +3547,14 @@ function writeMarker(): void {
     verify(`${markerRel}: ${markerDirWhy}. The marker was not written.`);
     return;
   }
+  // The kit fields describe the kit in the target: from this run when it wrote the kit, else from the
+  // previous marker (see A RUN THAT WROTE NO KIT FILE above). Field order is kept stable.
+  const kept = (k: "kitRoot" | "grugopsHome" | "installMode", current: string): string => (KIT_WRITTEN ? current : (prevString(k) ?? current));
   const marker: InstallMarker = {
-    kitVersion: ver,
-    grugopsHome: GRUGOPS_HOME,
-    kitRoot: KIT_ROOT,
-    installMode: INSTALL_MODE,
+    ...(ver === null ? {} : { kitVersion: ver }),
+    grugopsHome: kept("grugopsHome", GRUGOPS_HOME),
+    kitRoot: kept("kitRoot", KIT_ROOT),
+    installMode: kept("installMode", INSTALL_MODE),
   };
   if (ASK_LEDGER_KEEP_RAW) {
     // WR-05: a malformed ask-rule ledger is written back exactly as it was found.
@@ -3527,17 +3640,18 @@ function writeMarker(): void {
   }
   // kitFiles (plan 33.1-30), by the one rule for an absent ledger above: written on a fresh install
   // (possibly `{}`), carried and overlaid when the previous record is `ok`, written over a legacy marker
-  // (no field) only when this run recorded kit files, and written back as found when malformed.
+  // (no field) only when this run recorded kit files, and written back as found when malformed. A run
+  // that wrote no kit file writes the previous value back verbatim (red-team B1 of plan 33.1-32).
   if (previousKit.state === "malformed") {
     marker.kitFiles = previousKit.raw;
+  } else if (!KIT_WRITTEN) {
+    if (previousKit.state === "ok") marker.kitFiles = previousKit.raw;
+    else if (freshMarker) marker.kitFiles = {};
   } else if (previousKit.state === "ok" || freshMarker || KIT_FILES.size > 0) {
     const union = new Map<string, string>(KIT_FILES);
     for (const [rel, record] of previousKit.files) {
       if (union.has(rel)) continue;
-      // A kit file the pre-flight found edited keeps its record while the kit was not written (see
-      // KIT_EDITED_RECORDED): it is the record a restored file is compared with.
-      const keptEdited = !KIT_WRITTEN && KIT_EDITED_RECORDED.has(rel);
-      if (keptEdited || recordHolds(TARGET, join(TARGET, ...rel.split("/")), record)) union.set(rel, record);
+      if (recordHolds(TARGET, join(TARGET, ...rel.split("/")), record)) union.set(rel, record);
     }
     marker.kitFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   }

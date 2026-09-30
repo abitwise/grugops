@@ -126,16 +126,40 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1426-1429 `if (DRY_RUN)` reports would-backup and returns before renameSync at :1430; the earlier returns (:1405-1425, including the wayTo refusal of a link or non-directory on the way added by the red-team fixes of plan 33.1-26) only read",
   },
   {
+    site: "install.ts:backupEditedKitFiles:linkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:3193 `if (DRY_RUN) return true` returns before linkSync at :3225 (red-team W1 of plan 33.1-32: the whole byte copy, written under `<backup>.incomplete`, is given its backup name by link(2), which refuses a name that exists). A throw other than EEXIST, with the name still free, falls back to the rename row; any other throw is a counted verify, the incomplete copy is discarded and no kit file is written",
+  },
+  {
+    site: "install.ts:backupEditedKitFiles:renameSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:3193 returns before renameSync at :3228 (red-team W1 of plan 33.1-32: on a filesystem without hard links, the whole copy is renamed to its backup name, only after gone() found that name still free). A throw is a counted verify, the copy is discarded and no kit file is written",
+  },
+  {
     site: "install.ts:backupEditedKitFiles:symlinkSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:3155 `if (DRY_RUN) return true` is the first statement, before symlinkSync at :3159 (plan 33.1-32, D-32: the backup of an edited kit file that is a link is a link with the same target, made before the first kit write). It is reached only from the kit step's KIT_WRITE decision after the human consented; kitPreflight found the backup path free (readForWrite `create`), and symlink(2) refuses anything at the path",
+    why: "install.ts:3193 `if (DRY_RUN) return true` is the first statement, before symlinkSync at :3207 (plan 33.1-32, D-32: the backup of an edited kit file that is a link is a link with the same target, made before the first kit write). It is reached only from the kit step's KIT_WRITE decision after the human consented; kitPreflight found the backup path free (readForWrite `create`), and symlink(2) refuses anything at the path",
+  },
+  {
+    site: "install.ts:backupEditedKitFiles:unlinkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:3193 returns before unlinkSync at :3235, which removes the `<backup>.incomplete` name once link(2) gave the same file its backup name (red-team W1 of plan 33.1-32). A throw is a counted verify; the backup stays whole",
   },
   {
     site: "install.ts:backupEditedKitFiles:writeFileSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:3155 `if (DRY_RUN) return true` returns before writeFileSync at :3160 (plan 33.1-32, D-32/D-18: the byte backup of an edited kit file, written with flag \"wx\" from the bytes kitPreflight read through readOwnedContent; it makes no content read of its own). A throw is a counted verify and no kit file is written",
+    why: "install.ts:3193 `if (DRY_RUN) return true` returns before writeFileSync at :3214 (plan 33.1-32, D-32/D-18: the byte backup of an edited kit file, written with flag \"wx\" from the bytes kitPreflight read through readOwnedContent; it makes no content read of its own). Since red-team W1 it writes `<backup>.incomplete`, which kitPreflight found free, never the backup name itself. A throw is a counted verify and no kit file is written",
+  },
+  {
+    site: "install.ts:discardIncompleteBackup:unlinkSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:3259 (red-team W1 of plan 33.1-32) removes the incomplete copy only after lstat (no link followed) shows a regular file with one name. Its one caller, backupEditedKitFiles, returns under DRY_RUN at :3193 before calling it (:3219 after a write that failed past open(2), so the exclusive create made the file in this run; :3231 after the link or rename failed)",
   },
   {
     site: "install.ts:backupIfDiffers:renameSync",

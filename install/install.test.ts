@@ -7838,17 +7838,26 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(naming(real.stdout, "left", edited).length).toBe(1);
   });
 
-  it("kit-file ownership: a re-install never carries a kitFiles entry by presence — a kit path this run could not write (a directory there) is dropped from the record", () => {
+  // Changed by the red-team fixes of plan 33.1-32 (B1): this used to assert that the entry is DROPPED.
+  // A directory at a kit path refuses the whole kit, so this run wrote no kit file, and a run that
+  // writes no kit file writes kitFiles back verbatim: dropping the entry was a staleness proof that is
+  // wrong once the user removes the directory (the record is what install last wrote there). Keeping it
+  // is still not a carry by presence at uninstall: uninstall removes a kit path only while it holds
+  // its record, so the directory is left.
+  it("kit-file ownership: a re-install that could not write a kit path (a directory there) writes no kit file and keeps kitFiles verbatim; uninstall still leaves the directory", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const rel = ".claude/agents/grugops-orchestrator.md";
-    expect(Object.keys(readMarkerJson(target).kitFiles as object)).toContain(rel);
+    const before = readMarkerJson(target).kitFiles;
+    expect(Object.keys(before as object)).toContain(rel);
     rmSync(at(target, rel));
     mkdirSync(at(target, rel));
     const r = runInstall(target, home);
     expect(r.status, r.stdout).toBe(3);
-    expect(Object.keys(readMarkerJson(target).kitFiles as object)).not.toContain(rel);
+    expect(readMarkerJson(target).kitFiles).toEqual(before);
+    const u = runUninstall(target, home);
+    expect(lstatSync(at(target, rel)).isDirectory(), u.stdout).toBe(true);
   });
 
   it("kit-file ownership: over a legacy marker (no kitFiles), a re-install that writes no kit file leaves kitFiles absent, never {}; a re-install that writes the kit records it", () => {
@@ -9771,6 +9780,25 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(backupsIn(target), r.stdout).toEqual([`${EDITED_REL}${BACKUP_MARK}${PINNED_STAMP}`]);
     expect(readFileSync(atRel(target, `${EDITED_REL}${BACKUP_MARK}${PINNED_STAMP}`)).equals(edited)).toBe(true);
+  });
+
+  it("W1: a file that appears at the incomplete name after the pre-flight (the exclusive create fails at open) is never removed", () => {
+    const { src, target, home, kit } = editedOverUpdate();
+    const staged = `${atRel(target, EDITED_REL)}${BACKUP_MARK}${PINNED_STAMP}.incomplete`;
+    const seam = join(mkTmp(), "fs-seam-race.mjs");
+    writeFileSync(
+      seam,
+      `import fs from "node:fs";\nimport { syncBuiltinESMExports } from "node:module";\n` +
+        `const orig = fs.writeFileSync;\n` +
+        `fs.writeFileSync = function (p, data, o) { if (String(p) === ${JSON.stringify(staged)}) orig(p, "a file made in the race\\n"); return orig.apply(this, arguments); };\n` +
+        `syncBuiltinESMExports();\n`,
+    );
+    const r = runPinned(src, target, home, ["--backup-edited-kit"], [seam]);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(3);
+    expect(verifyLines(r.stdout).some((l) => l.includes(EDITED_REL) && /EEXIST/.test(l)), r.stdout).toBe(true);
+    expect(readFileSync(staged, "utf8")).toBe("a file made in the race\n");
+    expect(kitState(target)).toBe(kit);
+    expect(leftUnderBackupNames(target, EDITED_REL), r.stdout).toEqual([`${EDITED_REL}${BACKUP_MARK}${PINNED_STAMP}.incomplete`]);
   });
 
   it("W1: a user file where the backup's incomplete copy would be written is a pre-flight hazard: no backup, no kit write, the file untouched", () => {

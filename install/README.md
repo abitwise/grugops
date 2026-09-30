@@ -96,14 +96,22 @@ Windows default filesystems), and a kit source directory the installer could not
 unreadable nested directory, a symbolic-link cycle, or its walk bound). A symbolic link at a
 resolver skill or adapter is replaced by the rendered file only when it is install's own link (the
 link an earlier `--symlink` install made, pointing at this checkout's source for that file), on any
-run; any other link there refuses the kit. A run that refuses the kit keeps every earlier `kitFiles`
-entry whose file still holds what install wrote and drops only an entry this run found no longer
-holds (the uninstaller would leave that file anyway). A re-install never overwrites a kit file you
+run; any other link there refuses the kit. A run that writes no kit file, for any reason (a
+refusal, no answer, a failed backup), writes the marker's kit record back exactly as it found it: the
+`kitFiles` ledger unchanged (absent if it was absent), and the previous kit version, kit root, kit
+home and install mode, because the kit in `.claude` is still the previous one. So undoing what caused
+the refusal (removing what you put at a kit path, restoring an edited file to what install wrote) is
+enough for the next run and for the uninstaller. With no earlier kit version to keep (no marker, or
+a marker whose `kitVersion` is not a string), none is recorded, and `--check` warns that the kit
+version is unknown. A re-install never overwrites a kit file you
 edited without your answer (D-32): at a terminal it lists the edited files and asks whether to back
 them up (as `<file>.grugops-edited-<UTC stamp>`, which the uninstaller never removes) and refresh the
 whole kit; without a terminal, or with `--yes`, it writes no kit file and names
-`--backup-edited-kit`, the flag that gives that answer. An edited file keeps its `kitFiles` entry,
-so restoring it to what install wrote is also enough for the next run. The one gap is an error while the kit is being
+`--backup-edited-kit`, the flag that gives that answer. A backup is written in full under a name
+ending in `.incomplete` and only then given its backup name, so a backup name never holds a partial
+copy. If a backup fails partway (a full disk), the partial copy is removed and no kit file is
+written; if it cannot be removed, the `verify` line names it as incomplete, and the uninstaller
+reports it as an incomplete copy, not as a backup. The one gap is an error while the kit is being
 written that the checks could not see (a disk that fills up, for example): that file is a `verify`
 line and the run goes on to the next. The uninstaller applies the same rule to every file it edits, and it never reads a
 hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops
@@ -236,8 +244,9 @@ The grugops skills and adapters (`.claude/skills/<name>/SKILL.md` and `.claude/a
 are removed the same way, on install's `kitFiles` record. Install records what it wrote to each
 one: a sha256 of the bytes it wrote (or found already identical), or the target of the link a
 `--symlink` install made. The uninstaller removes a skill or adapter only while it still holds
-exactly that, so one you edited is left byte for byte and reported `left`. A re-install keeps an
-earlier entry only while the file still holds it. In a repository with no marker (you never ran the
+exactly that, so one you edited is left byte for byte and reported `left`. A re-install that writes
+the kit keeps an earlier entry only while the file still holds it; one that writes no kit file keeps
+the whole ledger as it was. In a repository with no marker (you never ran the
 installer there) no skill or adapter is removed, not even a byte-identical copy of the kit's. An
 install made before this release has a marker without `kitFiles`: the uninstaller then removes a
 skill that is byte-identical to the kit source it runs from and leaves every other one, which

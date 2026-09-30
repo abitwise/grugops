@@ -1422,6 +1422,7 @@ function removeKitAdapters(): void {
 // each only when it is a real directory inside the target (no link on the way or at it). A directory
 // holding a backup is not empty, so rmdirIfEmpty keeps it.
 const KIT_BACKUP_INFIX = ".grugops-edited-";
+const KIT_BACKUP_INCOMPLETE = ".incomplete";
 function reportKitBackups(): void {
   const realDir = (d: string): boolean => wayTo(TARGET, d) === null && isDir(d);
   const names = (d: string): string[] => {
@@ -1442,7 +1443,17 @@ function reportKitBackups(): void {
   }
   for (const d of dirs) {
     for (const n of names(d)) {
-      if (n.includes(KIT_BACKUP_INFIX)) report("left", `${d}/${n} (a backup install made of your edited kit file)`);
+      if (!n.includes(KIT_BACKUP_INFIX)) continue;
+      // A name ending in `.incomplete` is a copy install could not finish (red-team W1 of plan 33.1-32:
+      // install writes a byte backup under this name and gives it the backup name only when it is
+      // whole). It is not a backup of the edit, so it is never called one.
+      if (n.endsWith(KIT_BACKUP_INCOMPLETE)) {
+        report(
+          "left",
+          `${d}/${n} (an incomplete copy install could not finish while backing up an edited kit file: it is NOT a ` +
+            `full copy of the edit; remove it by hand)`,
+        );
+      } else report("left", `${d}/${n} (a backup install made of your edited kit file)`);
     }
   }
 }
