@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Retirement First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 33.1-31-PLAN.md
-last_updated: "2026-09-30T04:27:15.660Z"
-state_head: 891d5af027b963119473390dc71bc06225d53788
+stopped_at: Completed 33.1-32-PLAN.md
+last_updated: "2026-09-30T07:03:56.184Z"
+state_head: 200cd464fe58190d53746ff4759267d9dd8fc2d8
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 347
-  completed_plans: 343
+  completed_plans: 344
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33.1 (Phase 33 Leftovers: Guard Retirement First (INSERTED)) — EXECUTING (gap-closure round 2 of 4: plans 22-35)
-Plan: 32 of 35 (gap-closure round 2 of 4: plans 22-35)
+Plan: 33 of 35 (gap-closure round 2 of 4: plans 22-35)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -603,6 +603,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33.1 P29 | 49 min | 2 tasks | 13 files |
 | Phase 33.1 P30 | 48 min | 2 tasks | 10 files |
 | Phase 33.1 P31 | 51 min | 2 tasks | 5 files |
+| Phase 33.1 P32 | 92 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -1655,6 +1656,9 @@ Recent decisions affecting current work:
 - [Phase 33.1]: 33.1-30: uninstall removes a grugops skill or adapter only while it holds its kitFiles record (sha256 or link target); a marker without kitFiles falls back to byte identity with the kit source; no marker at all removes no kit file (deviation from the plan's no-marker bullet, brief DC-2)
 - [Phase 33.1]: 33.1-31: the kit (every skill and adapter) is written whole or not at all. buildKitPlan finds every refusal (render, source directory, any kit destination: link, FIFO, hard link, non-directory on the way) before the first kit write; executeKitPlan writes from memory only when none (D-32).
 - [Phase 33.1]: 33.1-31: --migrate unlinks only install's own link (isOwnLink against the kit source path), in the write phase; any other link at a resolver destination is a kit refusal (closes the dc2 --migrate carry).
+- [Phase 33.1]: 33.1-32: D-32 edited-kit consent applies to --migrate too; a refused consent refuses the whole migration
+- [Phase 33.1]: 33.1-32: an edited kit file keeps its kitFiles record when no kit file is written, so 'restore them first' is a true remedy
+- [Phase 33.1]: 33.1-32: --yes never consents; only a terminal [y/N] answer or --backup-edited-kit does; backups are <file>.grugops-edited-<UTC stamp>, never removed by uninstall
 
 ### Pending Todos
 
@@ -1785,8 +1789,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-30T04:27:15.182Z
-Stopped at: Completed 33.1-31-PLAN.md
+Last session: 2026-09-30T07:03:55.709Z
+Stopped at: Completed 33.1-32-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
