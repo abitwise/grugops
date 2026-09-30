@@ -24,8 +24,11 @@
 // 33.1-27). install/installer-fs-census.test.ts holds the rule.
 //
 // Removes ONLY what install.ts added:
-//   - the skills install.ts laid down: .claude/skills/<name>/SKILL.md (and the now-empty dirs)
-//   - the adapters install.ts laid down: .claude/agents/<file>.md (and the now-empty dir)
+//   - the skills install.ts laid down: .claude/skills/<name>/SKILL.md (and the now-empty dirs), and
+//   - the adapters install.ts laid down: .claude/agents/<file>.md (and the now-empty dir), each ONLY
+//     while it still holds what the install marker's `kitFiles` ledger records install wrote there
+//     (plan 33.1-30, Gap B completed): a user's edit to a kit file is user content, so an edited one is
+//     left and reported (ownsKitFile). See removeKitSkills for the rule without a record.
 //   - the AGENTS.md grugops laid down  (ONLY if the install marker's `createdFiles` ledger records
 //     that install created it AND it is still the exact link install makes or a copy byte-identical
 //     to the source — a user's own AGENTS.md, including a byte-identical copy install did not
@@ -84,6 +87,7 @@ import {
   readInstallMarker,
   readCreatedDirs,
   readCreatedFiles,
+  readKitFiles,
   readAskRuleLedger,
   readGeminiLedger,
   geminiLedgerJson,
@@ -96,6 +100,7 @@ import {
   type NoEntryReason,
   type CreatedDirsRead,
   type CreatedFilesRead,
+  type KitFilesRead,
   type GeminiLedgerRead,
   type InstallMarkerRead,
   type LedgerState,
@@ -347,7 +352,8 @@ function rewritePath(f: string, text: string, label: string, remedy = "make the 
 //            install's, so it is left in place and counted: removing it would delete content this
 //            run cannot show install made, and following it would reach outside the target;
 //   left     a directory or a special file at the path: not something install writes;
-//   remove   a regular file (plan 33.1-30 adds the content record for it) or install's own link.
+//   remove   a regular file or install's own link (a kit file also needs its content record: removeFile
+//            asks ownsKitFile after this decision, plan 33.1-30).
 type RemovalDecision =
   | { readonly act: "refused" | "absent" | "verify" | "left"; readonly line: string }
   | { readonly act: "remove" };
@@ -388,9 +394,20 @@ function reportDecision(d: RemovalDecision): d is Exclude<RemovalDecision, { act
 }
 
 // remove_file: delete a single file or install's own link, by the one decision above. Never recursive.
-function removeFile(f: string, label: string, ownLink: string | null): void {
+// `owns` (plan 33.1-30) is the content-record question for a path that needs one (a kit file:
+// ownsKitFile). It is asked only for a path the decision would remove (a regular file inside the
+// target, or install's own link), and before the DRY_RUN branch, so the preview decides as the real
+// run does; a path it does not own is left and reported with its reason.
+function removeFile(f: string, label: string, ownLink: string | null, owns?: () => FileOwnership): void {
   const d = removalDecision(f, label, ownLink);
   if (reportDecision(d)) return;
+  if (owns !== undefined) {
+    const own = owns();
+    if (!own.owned) {
+      report("left", `${label} (${own.reason})`);
+      return;
+    }
+  }
   if (DRY_RUN) {
     report("would-remove", label);
     markGone(f);
@@ -503,6 +520,43 @@ function ownsFile(rel: string, holds: (record: string) => boolean): FileOwnershi
 /** ownsFile for a file read now, at `rel` under the target. */
 const ownsFileNow = (rel: string): FileOwnership =>
   ownsFile(rel, (record) => recordHolds(TARGET, join(TARGET, ...rel.split("/")), record));
+
+// ownsKitFile (plan 33.1-30, Gap B completed, brief DC-2, D-18): a grugops skill or adapter file at
+// `rel` (`path` in the target, `src` its kit source) is install's to remove only on a content record.
+// A user's edit to a kit file is user content, and the file's name is not evidence of anything.
+//   - KIT_LEDGER `ok` with a record for `rel`: owned only while the path still holds it (recordHolds,
+//     the one predicate: a `sha256:` record holds for a regular file inside the target, read without
+//     following a link, whose bytes hash to it; a `link:` record for the link at the path whose
+//     readlink equals it). Otherwise it has changed since install wrote it, and it is left.
+//   - KIT_LEDGER `ok` without a record for `rel`: install has no record of writing it; left.
+//   - KIT_LEDGER `malformed`, or an unreadable marker: fail closed, nothing is removed (the one verify at
+//     the top of the removal sequence said why).
+//   - no kit-file record at all: see the absent arm below.
+// The ledger is only ever ASKED about the fixed kit paths this file visits; it is never iterated to
+// decide what to delete.
+function ownsKitFile(rel: string, path: string, src: string): FileOwnership {
+  void src;
+  if (MARKER.state === "unreadable" || KIT_LEDGER.state === "malformed") {
+    return { owned: false, reason: "the kit-file ledger could not be used (see the verify line above) — left in place" };
+  }
+  if (KIT_LEDGER.state === "ok") {
+    const record = KIT_LEDGER.files.get(rel);
+    if (record === undefined) {
+      return {
+        owned: false,
+        reason: "install has no record of writing it — it is not in the install marker's kit-file ledger; left in place",
+      };
+    }
+    if (recordHolds(TARGET, path, record)) return { owned: true };
+    return {
+      owned: false,
+      reason:
+        "it has changed since install wrote it (it does not hold what the install marker's kit-file ledger records " +
+        "install wrote there) — left in place; remove it by hand once you have kept any edit you want",
+    };
+  }
+  return { owned: false, reason: "the install marker has no kit-file record — left in place" };
+}
 
 // notRecordedReason (re-review IN-01, plan 33.1-28): the ONE wording of "there is no install record
 // for this path", for a directory (createdDirs) or a file (createdFiles), chosen from the state of the
@@ -1203,6 +1257,11 @@ function updateKeptMarker(
     for (const [rel] of FILE_LEDGER.files) if (goneRel(rel)) stale.push(rel);
     if (keep.length !== FILE_LEDGER.files.size) next.createdFiles = Object.fromEntries(keep);
   }
+  if (!bad.includes("kitFiles") && KIT_LEDGER.state === "ok") {
+    const keep = [...KIT_LEDGER.files].filter(([rel]) => !goneRel(rel));
+    for (const [rel] of KIT_LEDGER.files) if (goneRel(rel)) stale.push(rel);
+    if (keep.length !== KIT_LEDGER.files.size) next.kitFiles = Object.fromEntries(keep);
+  }
   if (!bad.includes("createdDirs") && DIR_LEDGER.state === "ok") {
     const keep = DIR_LEDGER.dirs.filter((rel) => !goneRel(rel));
     for (const rel of DIR_LEDGER.dirs) if (goneRel(rel)) stale.push(`${rel}/`);
@@ -1240,6 +1299,49 @@ function updateKeptMarker(
   if (rewritePath(m, JSON.stringify(next, null, 2) + "\n", MARKER_REL, remedy)) {
     report("edited", `${MARKER_REL} (kept; the entries this run removed were taken out of its ledgers: ${what})`);
   }
+}
+
+// removeKitSkills (plan 33.1-30): the skills pass, at its old place in the removal sequence. Every
+// removal asks removeFile's one decision and then ownsKitFile.
+function removeKitSkills(): void {
+  if (SRC_SKILLS === null) {
+    verify(
+      `.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the removal set is unknown. ` +
+        `No skill was removed. Remove any leftover grugops skill directories by hand.`,
+    );
+    return;
+  }
+  for (const s of SRC_SKILLS) {
+    const rel = `.claude/skills/${s}/SKILL.md`;
+    const f = `${TARGET}/${rel}`;
+    const src = join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md");
+    // The link install makes here (--symlink, a skill with no resolver slot) points at exactly this.
+    if (pathExists(f)) removeFile(f, rel, src, () => ownsKitFile(rel, f, src));
+    else report("skipped", `${rel} (not present in the target — outside the removal set)`);
+    rmdirIfEmpty(`${TARGET}/.claude/skills/${s}`);
+  }
+  rmdirIfEmpty(`${TARGET}/.claude/skills`);
+}
+
+// removeKitAdapters (plan 33.1-30): the adapters pass, at its old place in the removal sequence.
+function removeKitAdapters(): void {
+  if (SRC_ADAPTERS === null) {
+    verify(
+      `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the removal set is unknown. ` +
+        `No adapter was removed. Remove any leftover grugops adapters by hand.`,
+    );
+    return;
+  }
+  for (const a of SRC_ADAPTERS) {
+    const rel = `.claude/agents/${a}`;
+    const f = `${TARGET}/${rel}`;
+    const src = join(GRUGOPS_SRC, ".claude", "agents", a);
+    // Today install renders every adapter to a regular file; an install made before the render
+    // linked an adapter to exactly this kit source path (linkOrCopy), so that link is still install's.
+    if (pathExists(f)) removeFile(f, rel, src, () => ownsKitFile(rel, f, src));
+    else report("skipped", `${rel} (not present in the target — outside the removal set)`);
+  }
+  rmdirIfEmpty(`${TARGET}/.claude/agents`);
 }
 
 // sameFileBytes: byte-identical content compare following symlinks (mirrors `cmp -s`). Used for
@@ -1335,12 +1437,17 @@ const FILE_LEDGER: CreatedFilesRead = readCreatedFiles(MARKER.state === "ok" ? M
 // marker read. unmergeGemini() edits or deletes .gemini/settings.json only as it records. A malformed
 // one is one verify finding, and the settings file is left untouched.
 const GEMINI_LEDGER: GeminiLedgerRead = readGeminiLedger(MARKER.state === "ok" ? MARKER.marker : null);
+// The kit-file ledger (plan 33.1-30, Gap B completed), read ONCE here from the same marker read.
+// ownsKitFile() consults it before any grugops skill or adapter file is removed. A malformed one is one
+// verify finding, and no kit file is removed.
+const KIT_LEDGER: KitFilesRead = readKitFiles(MARKER.state === "ok" ? MARKER.marker : null);
 if (MARKER.state === "unreadable") {
   verify(
     `.grugops/install.json could not be read as a JSON object (${MARKER.why}), so the directory ledger (createdDirs), ` +
-      `the file ledger (createdFiles) and the Gemini settings ledger (geminiSettings) are unknown. No empty directory ` +
-      `and no file install may have created is removed, and .gemini/settings.json is not edited — remove them by hand ` +
-      `once you have confirmed they are yours to remove.`,
+      `the file ledger (createdFiles), the Gemini settings ledger (geminiSettings) and the kit-file ledger (kitFiles) ` +
+      `are unknown. No empty directory, no file install may have created and no grugops skill or adapter file is ` +
+      `removed, and .gemini/settings.json is not edited — remove them by hand once you have confirmed they are yours ` +
+      `to remove.`,
   );
 } else {
   if (DIR_LEDGER.state === "malformed") {
@@ -1364,49 +1471,27 @@ if (MARKER.state === "unreadable") {
         `context.fileName, remove that entry by hand.`,
     );
   }
+  if (KIT_LEDGER.state === "malformed") {
+    verify(
+      `.grugops/install.json has a malformed kit-file ledger (kitFiles), so what install wrote to the grugops ` +
+        `skill and adapter files is unknown. No grugops skill or adapter file is removed — remove each by hand ` +
+        `once you have kept any edit you want.`,
+    );
+  }
 }
 
 console.log("\n-- removing grugops adapters (only what install.js added) --");
 
 // 1. Skills + empty dirs. Derived from the kit source, intersected with the target: a skill the
-//    kit ships but the target never had is reported and skipped, never "removed".
-if (SRC_SKILLS === null) {
-  verify(
-    `.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the removal set is unknown. ` +
-      `No skill was removed. Remove any leftover grugops skill directories by hand.`,
-  );
-} else {
-  for (const s of SRC_SKILLS) {
-    const rel = `.claude/skills/${s}/SKILL.md`;
-    const f = `${TARGET}/${rel}`;
-    // The link install makes here (--symlink, a skill with no resolver slot) points at exactly this.
-    if (pathExists(f)) removeFile(f, rel, join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md"));
-    else report("skipped", `${rel} (not present in the target — outside the removal set)`);
-    rmdirIfEmpty(`${TARGET}/.claude/skills/${s}`);
-  }
-  rmdirIfEmpty(`${TARGET}/.claude/skills`);
-}
+//    kit ships but the target never had is reported and skipped, never "removed". Each one present is
+//    removed only while ownsKitFile allows it (plan 33.1-30): an edited skill is left and reported.
+removeKitSkills();
 
 // 2. Adapters + empty dir. Same contract: the set comes from the kit source and is intersected with
 //    the target, so a user-authored file in .claude/agents/ is never in the removal set and
-//    survives. The directory itself is only rmdir'd when it is empty, so a surviving user file also
-//    keeps the directory.
-if (SRC_ADAPTERS === null) {
-  verify(
-    `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the removal set is unknown. ` +
-      `No adapter was removed. Remove any leftover grugops adapters by hand.`,
-  );
-} else {
-  for (const a of SRC_ADAPTERS) {
-    const rel = `.claude/agents/${a}`;
-    const f = `${TARGET}/${rel}`;
-    // Today install renders every adapter to a regular file; an install made before the render
-    // linked an adapter to exactly this kit source path (linkOrCopy), so that link is still install's.
-    if (pathExists(f)) removeFile(f, rel, join(GRUGOPS_SRC, ".claude", "agents", a));
-    else report("skipped", `${rel} (not present in the target — outside the removal set)`);
-  }
-  rmdirIfEmpty(`${TARGET}/.claude/agents`);
-}
+//    survives; an adapter at a kit path is removed only while ownsKitFile allows it (plan 33.1-30).
+//    The directory itself is only rmdir'd when it is empty, so a surviving file also keeps it.
+removeKitAdapters();
 rmdirIfEmpty(`${TARGET}/.claude`);
 
 // 3. AGENTS.md — remove ONLY a grugops-laid-down one (symlink into source, or byte-identical

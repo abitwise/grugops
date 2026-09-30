@@ -1,5 +1,6 @@
-// install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the three
-// ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B; plan 33.1-29, CR-03).
+// install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the five
+// ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B; plan 33.1-29, CR-03; plan
+// 33.1-30, Gap B completed).
 //
 // Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path and
 // ./user-file.ts. A
@@ -17,7 +18,7 @@
 // (not a regular file, too large, unreadable) is `unreadable` here, and each caller already has a
 // fail-closed answer for an unreadable marker.
 //
-// WHY ONE READER. The marker holds four ledgers the uninstaller depends on to reverse an install
+// WHY ONE READER. The marker holds five ledgers the uninstaller depends on to reverse an install
 // without deleting user content:
 //   - `claudeAskRules` — the Claude Code ask rules install added to .claude/settings.json (D-18);
 //   - `createdDirs`    — the directories install itself created under the target (CR-02);
@@ -32,6 +33,11 @@
 //                        with a content record of what install wrote there (red-team of plan
 //                        33.1-28: see CONTENT RECORDS below). Uninstall deletes one of those files
 //                        only when this ledger lists it AND the file still holds what it records.
+//   - `kitFiles`       — what install wrote to each grugops skill and adapter file
+//                        (.claude/skills/<name>/SKILL.md, .claude/agents/<file>.md; plan 33.1-30,
+//                        Gap B completed): the same path → content record shape as createdFiles. A
+//                        user's edit to a kit file is user content, so uninstall removes a kit file
+//                        only while it still holds what this ledger records install wrote there.
 // Each binary used to hold its own reader of the ask-rule ledger, and the two disagreed about a
 // malformed one: install read it as "no previous install" and relabelled every grugops rule as the
 // user's own (fail open), while uninstall refused (fail closed). That is WR-05. A second ledger
@@ -58,7 +64,7 @@
 //   malformedLedgers:  the names of the ledgers in an `ok` marker that are present but malformed.
 //                      A caller that would act on the marker as a whole (uninstall's removal of it)
 //                      does so only when this is empty.
-//   readCreatedDirs / readCreatedFiles / readAskRuleLedger / readGeminiLedger:
+//   readCreatedDirs / readCreatedFiles / readKitFiles / readAskRuleLedger / readGeminiLedger:
 //                      `absent`     the marker has no such field (an install made before the
 //                                   ledger existed);
 //                      `malformed`  the field is present but not the exact ledger shape;
@@ -66,9 +72,11 @@
 // `raw` is always the field's value as found, so a caller that must leave a malformed ledger as it
 // was can write it back verbatim.
 //
-// THE createdDirs AND createdFiles SHAPE (isLedgerPath, one rule for both). createdDirs is an array of
-// paths; createdFiles is an object from path to content record. Each path is relative to the target
-// in POSIX form: non-empty, not starting with `/`, containing no `\` and no `:`, and every
+// THE createdDirs, createdFiles AND kitFiles SHAPE (isLedgerPath, one rule for all three). createdDirs
+// is an array of paths; createdFiles and kitFiles are each an object from path to content record, read
+// by one reader (readPathRecords) so the two cannot disagree about what a well-formed record is. Each
+// path is relative to the target in POSIX form: non-empty, not starting with `/`, containing no `\` and
+// no `:`, and every
 // `/`-separated segment is non-empty and is neither `.` nor `..`. So no entry can name a path outside
 // the target. The uninstaller only asks whether one of its own fixed candidate paths is IN a ledger;
 // it never iterates a ledger to decide what to delete, and it never removes recursively.
@@ -167,7 +175,19 @@ export function readCreatedDirs(marker) {
 // Anything else, the plan-28 array of bare paths included, is `malformed`: a path with no record of
 // what install wrote there proves nothing about what is there now.
 export function readCreatedFiles(marker) {
-    const { present, raw } = fieldOf(marker, "createdFiles");
+    return readPathRecords(marker, "createdFiles");
+}
+// readKitFiles (plan 33.1-30, Gap B completed, brief DC-2): the `kitFiles` ledger, what install wrote
+// to each grugops skill and adapter file. The same shape and the same reader as createdFiles: a plain
+// JSON object whose every key has the isLedgerPath shape and whose every value is a content record
+// (`sha256:<64 lowercase hex>` for a copy or a rendered file, `link:<target>` for a --symlink install's
+// link). Anything else is `malformed`, and uninstall then removes no kit file.
+export function readKitFiles(marker) {
+    return readPathRecords(marker, "kitFiles");
+}
+// readPathRecords: the one reader of a path → content record ledger (createdFiles, kitFiles).
+function readPathRecords(marker, name) {
+    const { present, raw } = fieldOf(marker, name);
     if (!present)
         return { state: "absent", files: new Map(), raw };
     if (raw === null || typeof raw !== "object" || Array.isArray(raw))
@@ -291,8 +311,8 @@ export function geminiLedgerJson(l) {
 // file inside `root`, read without following a link on the way or at the path (readForWrite, so a
 // FIFO, a directory or a device is never opened, brief DC-3), whose bytes hash to the record. A
 // `link:` record holds only for a symbolic link at the path, with nothing but real directories on the
-// way, whose readlink equals the target (isOwnLink). Anything else does not hold. Plan 33.1-30's
-// kitFiles uses the same grammar and the same predicate.
+// way, whose readlink equals the target (isOwnLink). Anything else does not hold. kitFiles (plan
+// 33.1-30) uses the same grammar and the same predicate.
 const SHA256_RECORD = /^sha256:[0-9a-f]{64}$/;
 const LINK_RECORD = /^link:[^\u0000-\u001f\u007f]+$/;
 const isSha256Record = (v) => typeof v === "string" && SHA256_RECORD.test(v);
@@ -342,5 +362,7 @@ export function malformedLedgers(marker) {
         out.push("claudeAskRules");
     if (readGeminiLedger(marker).state === "malformed")
         out.push("geminiSettings");
+    if (readKitFiles(marker).state === "malformed")
+        out.push("kitFiles");
     return out;
 }

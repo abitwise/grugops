@@ -76,7 +76,7 @@ const POSITION = "install/uninstall-removal.test.ts";
 const SET = deriveWritePaths(fresh("derive"));
 const KIT_PATH = /^\.claude\/(skills\/[^/]+\/SKILL\.md|agents\/[^/]+\.md)$/;
 const RUNNABLE_PATH = /^tools\/grugops\/[^/]+\.js$/;
-/** The grugops skills and adapters: removed by name when present (plan 33.1-30 adds the content record). */
+/** The grugops skills and adapters: removed only while each holds its kitFiles record (plan 33.1-30). */
 const KIT_PATHS = SET.files.filter((p) => KIT_PATH.test(p));
 /** The runnables: removed only when byte-identical to their kit source. */
 const RUNNABLE_PATHS = SET.files.filter((p) => RUNNABLE_PATH.test(p));
@@ -267,7 +267,7 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
     });
   }
 
-  it("the link install makes (to the exact kit source) is removed at every kit path and AGENTS.md, and is gone; a link at a runnable is left", () => {
+  it("the own-shape link put at every kit path and AGENTS.md of a copy install is left (the record is the copy's bytes, plan 33.1-30); a link at a runnable is left", () => {
     const decisions = new Map<string, Map<string, string>>();
     for (const dry of [true, false]) {
       const t = installedTree(`own-${dry ? "dry" : "real"}`);
@@ -294,19 +294,14 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
         if (RUNNABLE_PATHS.includes(rel)) {
           expect(gone, `${what}: the link at runnable ${rel} was removed`).toBe(false);
           expect(labels, `${what}: ${rel}`).toContain("verify");
-        } else if (rel === AGENTS) {
-          // Red-team of plan 33.1-28 (R1): this copy install recorded the bytes it copied to AGENTS.md.
-          // A link put there since is not what install made at that path, so it is left, even though
-          // it is the shape of link a --symlink install makes (that install records the link, and its
-          // uninstall removes it: install.test.ts "file ownership ... AGENTS.md link").
-          expect(gone, `${what}: AGENTS.md was removed although it no longer holds what install wrote`).toBe(false);
-          expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("left");
-        } else if (dry) {
-          expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("would-remove");
-          expect(gone, `${what}: the preview removed ${rel}`).toBe(false);
         } else {
-          expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("removed");
-          expect(gone, `${what}: ${rel} was reported removed and is still there`).toBe(true);
+          // Red-team of plan 33.1-28 (R1) for AGENTS.md, plan 33.1-30 for the kit files: this copy
+          // install recorded the bytes it copied or rendered at each path (createdFiles, kitFiles). A
+          // link put there since is not what install made at that path, so it is left, even though it
+          // is the shape of link a --symlink install makes (that install records the link, and its
+          // uninstall removes it: the next case, and install.test.ts "file ownership ... AGENTS.md link").
+          expect(gone, `${what}: ${rel} was removed although it no longer holds what install wrote`).toBe(false);
+          expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("left");
         }
         byPath.set(rel, decisionOf(r.stdout, rel, t.target));
       }
@@ -316,6 +311,36 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
     const dry = decisions.get("dry")!;
     const differ = [...decisions.get("real")!].filter(([rel, d]) => dry.get(rel) !== d).map(([rel, d]) => `${rel}\n  real: ${d}\n  dry:  ${dry.get(rel)}`);
     expect(differ, `the preview and the real run decided differently:\n${differ.join("\n")}`).toEqual([]);
+  });
+
+  it("the links a --symlink install made (recorded as link:<target> in kitFiles and createdFiles) are removed and gone, real and DRY_RUN decide alike", () => {
+    const decisions = new Map<string, Map<string, string>>();
+    let linked: string[] = [];
+    for (const dry of [true, false]) {
+      const t = installedTree(`symlink-${dry ? "dry" : "real"}`, ["--symlink"]);
+      linked = REMOVED_BY_NAME.filter((rel) => lstatSync(join(t.target, ...rel.split("/")), { throwIfNoEntry: false })?.isSymbolicLink() === true);
+      if (linked.length === 0) {
+        console.log(`SKIP: ${POSITION} the --symlink install made no link here (symlink creation refused); the copy cases above still ran`);
+        return;
+      }
+      const r = runUninstall(t.target, t.grugopsHome, { home: t.home, dryRun: dry, timeoutMs: 60_000 });
+      const what = `${dry ? "DRY_RUN " : ""}uninstall after a --symlink install`;
+      expectFinished(r, what);
+      expect(r.status, `${what}: exit ${r.status}\n${r.stdout}`).toBe(0);
+      const byPath = new Map<string, string>();
+      for (const rel of linked) {
+        const gone = lstatSync(join(t.target, ...rel.split("/")), { throwIfNoEntry: false }) === undefined;
+        const labels = linesFor(r.stdout, rel, t.target).map((l) => l.label);
+        expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain(dry ? "would-remove" : "removed");
+        expect(gone, `${what}: ${rel}`).toBe(!dry);
+        byPath.set(rel, decisionOf(r.stdout, rel, t.target));
+      }
+      decisions.set(dry ? "dry" : "real", byPath);
+    }
+    expect(linked.length).toBeGreaterThan(0);
+    const dry = decisions.get("dry")!;
+    const differ = [...decisions.get("real")!].filter(([rel, d]) => dry.get(rel) !== d);
+    expect(differ).toEqual([]);
   });
 });
 

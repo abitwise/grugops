@@ -72,7 +72,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpo
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, jsonValueRecord, } from "./install-marker.js";
+import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -443,6 +443,22 @@ const recordCreatedFile = (path, record) => {
     const rel = targetRel(path);
     if (rel !== null)
         CREATED_FILES.set(rel, record);
+};
+// KIT_FILES (plan 33.1-30, Gap B completed, brief DC-2, D-18): what THIS run wrote to each grugops
+// skill and adapter file (.claude/skills/<name>/SKILL.md, .claude/agents/<file>.md), as a POSIX path
+// relative to TARGET mapped to the content record of what is there now because of this run:
+// materializeAdapter records `sha256:` of the final bytes it wrote or found identical, and the skills
+// linkOrCopy call (its `isKitFile` argument) records `sha256:` of a copy or `link:<source>` of the link
+// install makes. A user's edit to a kit file is user content: writeMarker() records this map in the
+// marker as `kitFiles`, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
+// preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
+const KIT_FILES = new Map();
+const recordKitFile = (path, record) => {
+    if (DRY_RUN)
+        return;
+    const rel = targetRel(path);
+    if (rel !== null)
+        KIT_FILES.set(rel, record);
 };
 // APPENDED_FILES (red-team of plan 33.1-28, R1): every file ensureBlock APPENDED its block to in this
 // run. The file was there without a grugops block when this run started, so it is the user's, whatever
@@ -1701,7 +1717,14 @@ function ensureBlock(file, open, body, close, label) {
 // link: linkRecord(src); a new copy through the exclusive create: contentRecord of the bytes written),
 // so a caller that records created files (the AGENTS.md step, plan 33.1-28) records exactly those,
 // with what was written. Every other outcome returns null.
-function linkOrCopy(src, dest, label) {
+//
+// `isKitFile` (plan 33.1-30) is passed only by the skills loop: `dest` is then a kit file, and every
+// outcome that leaves install's content at `dest` is recorded in KIT_FILES (recordKitFile): the link
+// install makes (made now, or already there and exactly install's link) as `link:<src>`, and a copy
+// (written now, or already byte-for-byte the source by this function's own comparison) as `sha256:` of
+// the source bytes. A link or file that is not install's, a refusal and a DRY_RUN preview record
+// nothing.
+function linkOrCopy(src, dest, label, isKitFile) {
     const srcRead = readUserFile(src);
     if (srcRead.state === "absent") {
         report("skipped", `${label} (source missing: ${src})`);
@@ -1712,6 +1735,8 @@ function linkOrCopy(src, dest, label) {
         return null;
     }
     if (isOwnLink(dest, src)) {
+        if (isKitFile === true)
+            recordKitFile(dest, linkRecord(src));
         report("skipped", `${label} (symlink present)`);
         return null;
     }
@@ -1723,6 +1748,8 @@ function linkOrCopy(src, dest, label) {
         return null;
     }
     if (destRead.state === "ok" && destRead.text === srcRead.text) {
+        if (isKitFile === true)
+            recordKitFile(dest, contentRecord(srcRead.bytes));
         report("skipped", `${label} (identical copy present)`);
         return null;
     }
@@ -1739,6 +1766,8 @@ function linkOrCopy(src, dest, label) {
         try {
             symlinkSync(src, dest);
             if (isSymlink(dest)) {
+                if (isKitFile === true)
+                    recordKitFile(dest, linkRecord(src));
                 report("linked", label);
                 return linkRecord(src);
             }
@@ -1749,6 +1778,8 @@ function linkOrCopy(src, dest, label) {
     }
     if (!writeTargetFile(dest, srcRead.bytes, destRead.state, label))
         return null;
+    if (isKitFile === true)
+        recordKitFile(dest, contentRecord(srcRead.bytes));
     report("copied(verify)", label);
     return destRead.state === "create" ? contentRecord(srcRead.bytes) : null;
 }
@@ -2433,6 +2464,9 @@ function materializeAdapter(src, dest, label, alias) {
     }
     const current = destRead.state === "ok" ? destRead.text : null;
     if (current === final) {
+        // Plan 33.1-30: the destination holds exactly what install writes there, so it is recorded as
+        // install's (kitFiles), with the record of those bytes.
+        recordKitFile(dest, contentRecord(final));
         // The identical wording linkOrCopy already prints for an identical copy — one sentence for one
         // fact, so a reader meeting either line reads the same thing.
         report("skipped", `${label} (identical copy present)`);
@@ -2460,8 +2494,11 @@ function materializeAdapter(src, dest, label, alias) {
         report("would-materialize", `${label} ${suffix}`);
         return;
     }
-    if (writeTargetFile(dest, final, destRead.state, label))
+    if (writeTargetFile(dest, final, destRead.state, label)) {
+        // Plan 33.1-30: what install wrote to this kit file, so uninstall removes it only while it holds it.
+        recordKitFile(dest, contentRecord(final));
         report("materialized", `${label} ${suffix}`);
+    }
 }
 // seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04).
 //
@@ -2602,7 +2639,8 @@ function materializeRunnable() {
 }
 // writeMarker: write .grugops/install.json. Four stable fields in fixed order, then the
 // claudeAskRules ledger (D-18) when writeAskRules() produced one, then the createdDirs ledger
-// (CR-02), then the createdFiles ledger (plan 33.1-28); the install-time timestamp is deliberately
+// (CR-02), then the createdFiles ledger (plan 33.1-28), then geminiSettings (plan 33.1-29), then the
+// kitFiles ledger (plan 33.1-30); the install-time timestamp is deliberately
 // OMITTED (RESOLVED Q1, Option b) — overwrite unconditionally, idempotent. The ledgers are carried
 // forward from the previous marker (see writeAskRules for the ask rules), so the unconditional
 // overwrite cannot orphan rules, directories or files an earlier run recorded.
@@ -2617,6 +2655,10 @@ function materializeRunnable() {
 // previous marker's entries that still hold exactly what their record says install wrote
 // (recordHolds) and that this run did not append a block to (APPENDED_FILES), each keeping its record,
 // sorted by path. A file the user deleted, edited or replaced since is dropped.
+// kitFiles (plan 33.1-30): what this run wrote to each kit file (KIT_FILES), united with the previous
+// marker's entries this run did not write that still hold exactly their record (recordHolds), sorted
+// by path. Never by presence: a kit file this run could not write (a directory, a FIFO, a link there)
+// or one the user edited since is dropped.
 //
 // ONE RULE FOR AN ABSENT LEDGER FIELD (plan 33.1-28): an absent record stays absent unless this run
 // itself performed the recorded action. With NO previous marker this run is the whole history, so
@@ -2647,6 +2689,12 @@ function writeMarker() {
         verify(`${markerRel} — the file ledger (createdFiles) is malformed, so it was written back unchanged and ` +
             `the files this run created were not recorded. Uninstall will delete no file install may have ` +
             `created; fix or delete the createdFiles field to restore the ledger.`);
+    }
+    const previousKit = readKitFiles(previousMarker.state === "ok" ? previousMarker.marker : null);
+    if (previousKit.state === "malformed") {
+        verify(`${markerRel} — the kit-file ledger (kitFiles) is malformed, so it was written back unchanged and ` +
+            `what this run wrote to the grugops skill and adapter files was not recorded. Uninstall will remove ` +
+            `no grugops skill or adapter file; fix or delete the kitFiles field to restore the ledger.`);
     }
     // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3): the kit home and
     // the checkout are user-controlled paths. An absent kit VERSION falls back to the checkout's, as
@@ -2774,6 +2822,22 @@ function writeMarker() {
     }
     else if (freshMarker) {
         marker.geminiSettings = geminiLedgerJson(claimsNothing(GEMINI_SEEN.listed ? "already-listed" : "refused", GEMINI_SEEN.fileNameContent));
+    }
+    // kitFiles (plan 33.1-30), by the one rule for an absent ledger above: written on a fresh install
+    // (possibly `{}`), carried and overlaid when the previous record is `ok`, written over a legacy marker
+    // (no field) only when this run recorded kit files, and written back as found when malformed.
+    if (previousKit.state === "malformed") {
+        marker.kitFiles = previousKit.raw;
+    }
+    else if (previousKit.state === "ok" || freshMarker || KIT_FILES.size > 0) {
+        const union = new Map(KIT_FILES);
+        for (const [rel, record] of previousKit.files) {
+            if (union.has(rel))
+                continue;
+            if (recordHolds(TARGET, join(TARGET, ...rel.split("/")), record))
+                union.set(rel, record);
+        }
+        marker.kitFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     }
     if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
         report("created", ".grugops/install.json (marker)");
@@ -2977,7 +3041,7 @@ else {
         if (srcCarriesSlot(src))
             materializeAdapter(src, dest, label);
         else
-            linkOrCopy(src, dest, label);
+            linkOrCopy(src, dest, label, true);
     }
 }
 if (SRC_ADAPTERS === null) {
