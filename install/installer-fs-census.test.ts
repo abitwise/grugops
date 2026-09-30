@@ -28,6 +28,11 @@
 // content-reading exports is derived from node:fs's own export list, not typed. The same census
 // runs over each committed `.js`, so what tsc emitted is held to the same rule as its source.
 //
+// A THIRD AXIS, OWNERSHIP (plan 33.1-33, brief DC-2). Every mutating call on the path uninstall runs
+// (uninstall.ts and the modules it imports, derived) names the install record it acts on: a ledger
+// gate, a helper whose callers are each classified, or a read-only open. See THE OWNERSHIP AXIS below,
+// whose header also names the brief §2.2 interim set of ownership gates.
+//
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect } from "vitest";
@@ -285,7 +290,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:560, call :564; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), unmergeGemini (:810, call :815; plan 33.1-29: only the recorded append is reversed, after the geminiSettings ledger and the file's shape were asked), removeAskRules (:833, call :846)",
+    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (plan 33.1-28 computes the post-removal text before that return; since plan 33.1-33 it removes only the one span the appendedBlocks record names and writes nothing otherwise), updateKeptMarker (it writes nothing under DRY_RUN, plan 33.1-28 R2), unmergeGemini (:810, call :815; plan 33.1-29: only the recorded append is reversed, after the geminiSettings ledger and the file's shape were asked), removeAskRules (:833, call :846)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
@@ -887,5 +892,509 @@ describe("installer fs census — the read axis (DC-3, plan 33.1-27)", () => {
   it("a content-reading binding is only ever the callee of a direct call (no stored or passed reader)", () => {
     const refused = [...CENSUS, ...CENSUS_JS].flatMap((c) => c.refusals.filter((r) => r.includes("content-reading fs binding")));
     expect(refused, refused.join("\n")).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE OWNERSHIP AXIS (plan 33.1-33, brief DC-2: a delete or an edit by presence or shape, not by
+// install record).
+//
+// The DRY_RUN axis above proved the Gemini and Copilot paths DRY_RUN-safe and said nothing about
+// OWNERSHIP, which is how Gap B survived round 1: a call kept off the preview path can still delete a
+// user's file in the real run. This axis asks the DC-2 question of every mutating call on the path
+// uninstall runs: on which install record does it act?
+//
+// THE SCANNED SET IS DERIVED. UNINSTALL_PATH_FILES is uninstall.ts plus every module it imports
+// through a relative `./x.js` specifier, transitively, each mapped to `x.ts` under install/.
+//
+// TWO LEVELS, BOTH TWO-SIDED WITH COUNTS.
+//   OWNERSHIP_SITES  one row per census site (`<file>:<scope>:<fs name>`) in those modules, classed in
+//                    the closed vocabulary Ownership.
+//   CALLER_OWNERSHIP one row per call of a `helper-gated` function (`<file>:<scope>→<helper>`), found
+//                    from the syntax tree, classed in the closed vocabulary CallerOwnership. A caller
+//                    classed `helper-gated` is itself a helper, and its callers are rows too, so no
+//                    delete or edit rests on a name alone at any depth.
+// THE CLASSES ARE CHECKED STRUCTURALLY, not taken from a row's `why`: a `ledger` row's function names
+// its gate (LEDGER_GATES) before the call, a `kit-record` caller names ownsKitFile before it, a
+// `source-identical` caller names ownsFileNow and one of sameFileBytes / isOwnLink before it, and a
+// `read-only` site is a `read-only-open` row whose flags the DRY_RUN axis checks. Each gate's own
+// definition must name its record.
+//
+// THE INTERIM SET (brief §2.2). The brief asks for one owns(path) authority over one install record.
+// This round leaves these ownership gates in place as the interim set, pending that single authority,
+// which plan 33.1-35 ledgers with its reason for a later round to build. The records are createdDirs
+// (ownsDir), createdFiles (ownsFile, ownsFileNow), geminiSettings (GEMINI_LEDGER), kitFiles
+// (ownsKitFile), claudeAskRules (readAskRuleLedger), appendedBlocks (ownsBlock, plan 33.1-33) and the
+// marker's own shape (ownsMarker, plan 33.1-33).
+//
+// NO `sentinel-block` CLASS (plan 33.1-33, a deviation from the plan text). The plan proposed a class
+// for a rewrite identified by the exact grugops sentinel lines alone. Red-team carry items 4, 6 and 11
+// showed that rule is presence, not provenance: a line the user added inside the block was lost, their
+// trailing blank lines were trimmed, and a never-installed target was rewritten. removeSentinelBlock
+// now acts on the appendedBlocks record (ownsBlock), so it is a `ledger` row and the class has no
+// member; an empty class in a closed vocabulary would only be a place for presence to come back.
+//
+// KNOWN EXCEPTIONS (red-team carry items 12 and 13; a human decision is pending at plan 33.1-35, so
+// their behaviour is unchanged). They are counted here so this census is honest about what `ledger`
+// means at those rows.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The closed ownership vocabulary for a census site. */
+type Ownership =
+  // ledger: the function acts only on what an install record says (a ledger field, or the marker's
+  // own shape); its gate is named in LEDGER_GATES and checked by position.
+  | "ledger"
+  // helper-gated: the function deletes or rewrites whatever its caller names, so each of its callers
+  // is a CALLER_OWNERSHIP row.
+  | "helper-gated"
+  // read-only: an open whose flags name only O_RDONLY, O_NONBLOCK and O_NOCTTY (user-file.ts
+  // readUserFile); it creates, truncates and writes nothing.
+  | "read-only";
+const OWNERSHIP_CLASSES: ReadonlySet<string> = new Set<Ownership>(["ledger", "helper-gated", "read-only"]);
+
+/** The closed vocabulary for a caller of a helper-gated function. */
+type CallerOwnership =
+  // ledger: as above, the caller names its LEDGER_GATES gate before the call.
+  | "ledger"
+  // helper-gated: the caller is itself a helper; its own callers are rows.
+  | "helper-gated"
+  // kit-record: a grugops skill or adapter; ownsKitFile allows the removal only while the kitFiles
+  // record still holds, or, for an install made before that record, byte identity with the kit
+  // source (plan 33.1-30).
+  | "kit-record"
+  // source-identical: AGENTS.md and the runnables; removed only when the createdFiles record holds
+  // (ownsFileNow) AND the file is still install's link to the kit source or byte-identical to it.
+  | "source-identical";
+const CALLER_OWNERSHIP_CLASSES: ReadonlySet<string> = new Set<CallerOwnership>(["ledger", "helper-gated", "kit-record", "source-identical"]);
+
+/** Each ledger gate, the record it reads, and a token its own definition must name. */
+const LEDGER_GATES: ReadonlyMap<string, { readonly record: string; readonly defines: string }> = new Map([
+  ["ownsDir", { record: "createdDirs (install created the directory)", defines: "DIR_LEDGER" }],
+  ["ownsFile", { record: "createdFiles (install created the file, and what it wrote there)", defines: "FILE_LEDGER" }],
+  ["ownsFileNow", { record: "createdFiles, for a file read now (through ownsFile)", defines: "ownsFile" }],
+  ["ownsBlock", { record: "appendedBlocks (the exact block install appended; plan 33.1-33)", defines: "BLOCK_LEDGER" }],
+  ["GEMINI_LEDGER", { record: "geminiSettings (what install did to .gemini/settings.json)", defines: "readGeminiLedger" }],
+  ["readAskRuleLedger", { record: "claudeAskRules (the ask rules install added)", defines: "./install-marker.js" }],
+  ["ownsMarker", { record: "the marker's own shape (install's own marker fields; plan 33.1-33)", defines: "installMarkerProblems" }],
+]);
+
+interface OwnershipSite {
+  readonly site: string;
+  readonly count: number;
+  readonly ownership: Ownership;
+  /** The LEDGER_GATES gate of a `ledger` row. */
+  readonly gate?: string;
+  readonly why: string;
+}
+
+const OWNERSHIP_SITES: readonly OwnershipSite[] = [
+  {
+    site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
+    count: 1,
+    ownership: "ledger",
+    gate: "ownsDir",
+    why: "an empty directory is removed only when the createdDirs ledger lists it (ownsDir) and this run emptied it (GONE_THIS_RUN); a name is not a record (plan 33.1-28)",
+  },
+  {
+    site: "uninstall.ts:unlinkPath:unlinkSync",
+    count: 1,
+    ownership: "helper-gated",
+    why: "the one removal of a file or a link (plan 33.1-27); it removes whatever its caller names, so each caller is a CALLER_OWNERSHIP row",
+  },
+  {
+    site: "uninstall.ts:rewritePath:writeFileSync",
+    count: 1,
+    ownership: "helper-gated",
+    why: "the one rewrite of a file this run edits (plan 33.1-27); it writes whatever its caller computed, so each caller is a CALLER_OWNERSHIP row",
+  },
+  {
+    site: "user-file.ts:readUserFile:openSync",
+    count: 1,
+    ownership: "read-only",
+    why: "the one bounded reader's open, O_RDONLY | O_NONBLOCK | O_NOCTTY with no mode (plan 33.1-26); the DRY_RUN axis checks the flags structurally",
+  },
+];
+
+interface CallerRow {
+  /** `<file>:<calling scope>→<helper>`. */
+  readonly caller: string;
+  readonly count: number;
+  readonly ownership: CallerOwnership;
+  readonly gate?: string;
+  readonly why: string;
+}
+
+const CALLER_OWNERSHIP: readonly CallerRow[] = [
+  {
+    caller: "uninstall.ts:removeFile→unlinkPath",
+    count: 1,
+    ownership: "helper-gated",
+    why: "removeFile removes the path its caller names after the one removal decision; its callers are the rows below",
+  },
+  {
+    caller: "uninstall.ts:removeOwnedEmptyFile→unlinkPath",
+    count: 1,
+    ownership: "ledger",
+    gate: "ownsFile",
+    why: "a pointer file install created, blank after this run removed its recorded block, and holding what the createdFiles record says (plan 33.1-28)",
+  },
+  {
+    caller: "uninstall.ts:unmergeGemini→unlinkPath",
+    count: 2,
+    ownership: "ledger",
+    gate: "GEMINI_LEDGER",
+    why: "the Gemini settings file install created, removed only while it holds the recorded bytes, or when nothing is left once the recorded entry is removed (plan 33.1-29)",
+  },
+  {
+    caller: "uninstall.ts:removeAskRules→unlinkPath",
+    count: 1,
+    ownership: "ledger",
+    gate: "readAskRuleLedger",
+    why: "the settings file install created, empty once the ledger's rules are removed (D-18). Known exception: carry item 12",
+  },
+  {
+    caller: "uninstall.ts:removeMarker→unlinkPath",
+    count: 1,
+    ownership: "ledger",
+    gate: "ownsMarker",
+    why: "the marker, only when it reads as install's own and every ledger in it is well-formed (plans 33.1-27 and 33.1-33)",
+  },
+  {
+    caller: "uninstall.ts:removeSentinelBlock→rewritePath",
+    count: 1,
+    ownership: "ledger",
+    gate: "ownsBlock",
+    why: "exactly the one span whose bytes hash to the appendedBlocks record is removed; every other byte is written back (plan 33.1-33, carry 4, 6, 11)",
+  },
+  {
+    caller: "uninstall.ts:unmergeGemini→rewritePath",
+    count: 1,
+    ownership: "ledger",
+    gate: "GEMINI_LEDGER",
+    why: "only the recorded append is reversed, while context.fileName still equals the record (plan 33.1-29)",
+  },
+  {
+    caller: "uninstall.ts:removeAskRules→rewritePath",
+    count: 1,
+    ownership: "ledger",
+    gate: "readAskRuleLedger",
+    why: "only the ledger's rules and the containers install created are removed (D-18). Known exception: carry item 12",
+  },
+  {
+    caller: "uninstall.ts:updateKeptMarker→rewritePath",
+    count: 1,
+    ownership: "ledger",
+    gate: "ownsMarker",
+    why: "install's own kept marker, rewritten without the entries this run removed (plan 33.1-28 R2), only after the same bytes are read again",
+  },
+  {
+    caller: "uninstall.ts:removeKitSkills→removeFile",
+    count: 1,
+    ownership: "kit-record",
+    why: "ownsKitFile allows removal only while the kitFiles record, or for a pre-record install byte identity with the kit source, still matches (plan 33.1-30)",
+  },
+  {
+    caller: "uninstall.ts:removeKitAdapters→removeFile",
+    count: 1,
+    ownership: "kit-record",
+    why: "ownsKitFile, as for the skills (plan 33.1-30)",
+  },
+  {
+    caller: "uninstall.ts:removeGrugopsAgentsMd→removeFile",
+    count: 2,
+    ownership: "source-identical",
+    why: "AGENTS.md, only when the createdFiles record holds and it is install's link to the kit source (isOwnLink) or a byte-identical copy (sameFileBytes) (plan 33.1-28)",
+  },
+  {
+    caller: "uninstall.ts:removeMaterializedRunnables→removeFile",
+    count: 1,
+    ownership: "source-identical",
+    why: "a runnable, only when it is byte-identical to its source (sameFileBytes) and the createdFiles record holds (plan 33.1-28)",
+  },
+];
+
+/** Red-team carry items 12 and 13: declared, counted, their behaviour unchanged pending the human. */
+const KNOWN_EXCEPTIONS: readonly { readonly carry: number; readonly where: readonly string[]; readonly reason: string }[] = [
+  {
+    carry: 12,
+    where: ["uninstall.ts:removeAskRules→unlinkPath", "uninstall.ts:removeAskRules→rewritePath"],
+    reason:
+      "removeAskRules removes a rule by its NAME in the claudeAskRules ledger and never checks askContent against the " +
+      "current permissions.ask, so a user who deletes install's rule and later adds the same rule string loses it. A " +
+      "whole-list check would strand all rules on any user addition; a per-rule check needs a different record shape",
+  },
+  {
+    carry: 13,
+    where: ["install.ts:writeAskRules"],
+    reason:
+      "a re-install over an unreadable .claude/settings.json resets the ask ledger (plan 33.1-28 M8); keeping it " +
+      "verbatim is unsafe until item 12's check exists",
+  },
+];
+
+const parseInstall = (file: string): ts.SourceFile =>
+  ts.createSourceFile(file, readFileSync(join(INSTALL_DIR, file), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+/** uninstall.ts and every module it imports through `./x.js`, transitively (x.ts under install/). */
+function deriveUninstallPathFiles(): { files: string[]; problems: string[] } {
+  const seen = new Set<string>();
+  const problems: string[] = [];
+  const queue = ["uninstall.ts"];
+  while (queue.length > 0) {
+    const f = queue.shift()!;
+    if (seen.has(f)) continue;
+    seen.add(f);
+    const sf = parseInstall(f);
+    for (const st of sf.statements) {
+      if (!(ts.isImportDeclaration(st) || ts.isExportDeclaration(st))) continue;
+      const spec = st.moduleSpecifier;
+      if (spec === undefined || !ts.isStringLiteral(spec) || !spec.text.startsWith(".")) continue;
+      const m = /^\.\/([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)\.js$/.exec(spec.text);
+      if (m === null) problems.push(`${f}: relative import "${spec.text}" is not of the ./x.js form`);
+      else queue.push(`${m[1]}.ts`);
+    }
+  }
+  return { files: [...seen].sort(), problems };
+}
+
+const UNINSTALL_PATH = deriveUninstallPathFiles();
+const UNINSTALL_PATH_FILES = UNINSTALL_PATH.files;
+
+/** The function named `name` in `sf`: a function declaration, or a const bound to an arrow/function. */
+function functionNamed(sf: ts.SourceFile, name: string): ts.Node | null {
+  let found: ts.Node | null = null;
+  const visit = (n: ts.Node): void => {
+    if (found !== null) return;
+    if (ts.isFunctionDeclaration(n) && n.name?.text === name) found = n;
+    else if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === name && n.initializer !== undefined) found = n;
+    else ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/** Positions of every identifier `name` inside `scope` that is a reference, not a property name. */
+function referencesIn(scope: ts.Node, name: string, sf: ts.SourceFile): number[] {
+  const out: number[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n) && n.text === name && !isNonReferencePosition(n)) out.push(n.getStart(sf));
+    ts.forEachChild(n, visit);
+  };
+  visit(scope);
+  return out;
+}
+
+interface HelperCall {
+  readonly key: string;
+  readonly file: string;
+  readonly scope: string;
+  readonly helper: string;
+  readonly pos: number;
+  /** The end of the call expression: a gate handed to the helper as an argument lies before it. */
+  readonly end: number;
+  readonly line: number;
+}
+
+/** Every reference to a helper name in the uninstall-path modules: calls keyed, anything else refused. */
+function helperCalls(helpers: ReadonlySet<string>): { calls: HelperCall[]; refused: string[] } {
+  const calls: HelperCall[] = [];
+  const refused: string[] = [];
+  for (const file of UNINSTALL_PATH_FILES) {
+    const sf = parseInstall(file);
+    const visit = (n: ts.Node): void => {
+      if (ts.isIdentifier(n) && helpers.has(n.text) && !isNonReferencePosition(n)) {
+        const p = n.parent;
+        const isDecl = (ts.isFunctionDeclaration(p) && p.name === n) || (ts.isVariableDeclaration(p) && p.name === n);
+        if (ts.isCallExpression(p) && p.expression === n) {
+          const scope = scopeOf(p);
+          calls.push({ key: `${file}:${scope}→${n.text}`, file, scope, helper: n.text, pos: p.getStart(sf), end: p.getEnd(), line: lineOf(sf, p) });
+        } else if (!isDecl) {
+          refused.push(`${file}:${lineOf(sf, n)} helper ${n.text} used other than as a direct callee`);
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  return { calls, refused };
+}
+
+// The helpers: the scope of every helper-gated fs site, and every caller classed helper-gated.
+const HELPERS: ReadonlySet<string> = new Set([
+  ...OWNERSHIP_SITES.filter((r) => r.ownership === "helper-gated").map((r) => r.site.split(":")[1]),
+  ...CALLER_OWNERSHIP.filter((r) => r.ownership === "helper-gated").map((r) => r.caller.split(":")[1].split("→")[0]),
+]);
+
+/** The problem, if any, with the gates named before `pos` inside `scopeName` of `file`. */
+function gateProblem(file: string, scopeName: string, pos: number, needs: readonly (readonly string[])[]): string | null {
+  const sf = parseInstall(file);
+  const fn = functionNamed(sf, scopeName);
+  if (fn === null) return `no function ${scopeName} in ${file}`;
+  for (const anyOf of needs) {
+    const ok = anyOf.some((g) => referencesIn(fn, g, sf).some((p) => p < pos));
+    if (!ok) return `${scopeName} names none of ${anyOf.join(" / ")} before the call at line ${sf.getLineAndCharacterOfPosition(pos).line + 1}`;
+  }
+  return null;
+}
+
+/** The position of each call of fs name `fsName` inside `scopeName` of `file`. */
+function fsCallPositions(file: string, scopeName: string, fsName: string): number[] {
+  const sf = parseInstall(file);
+  const fn = functionNamed(sf, scopeName);
+  if (fn === null) return [];
+  const out: number[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === fsName) out.push(n.getStart(sf));
+    ts.forEachChild(n, visit);
+  };
+  visit(fn);
+  return out;
+}
+
+describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () => {
+  it("UNINSTALL_PATH_FILES is derived from uninstall.ts's relative imports, transitively", () => {
+    console.log(`installer fs census: UNINSTALL_PATH_FILES (${UNINSTALL_PATH_FILES.length}): ${UNINSTALL_PATH_FILES.join(", ")}`);
+    expect(UNINSTALL_PATH.problems, UNINSTALL_PATH.problems.join("\n")).toEqual([]);
+    for (const f of ["uninstall.ts", "install-marker.ts", "user-file.ts"]) expect(UNINSTALL_PATH_FILES).toContain(f);
+    expect(UNINSTALL_PATH_FILES).not.toContain("install.ts");
+    for (const f of UNINSTALL_PATH_FILES) expect(FILES, `${f} is not in the census's scanned set`).toContain(f);
+  });
+
+  it("the vocabularies are closed: Ownership and CallerOwnership are exactly the stated classes", () => {
+    expect([...OWNERSHIP_CLASSES].sort()).toEqual(["helper-gated", "ledger", "read-only"]);
+    expect([...CALLER_OWNERSHIP_CLASSES].sort()).toEqual(["helper-gated", "kit-record", "ledger", "source-identical"]);
+    expect([...LEDGER_GATES.keys()].sort()).toEqual(["GEMINI_LEDGER", "ownsBlock", "ownsDir", "ownsFile", "ownsFileNow", "ownsMarker", "readAskRuleLedger"]);
+    for (const r of OWNERSHIP_SITES) {
+      expect(OWNERSHIP_CLASSES.has(r.ownership), `${r.site}: ${r.ownership}`).toBe(true);
+      expect(r.why.trim().length, `${r.site}: empty why`).toBeGreaterThan(0);
+      expect((r.ownership === "ledger") === (r.gate !== undefined), `${r.site}: a gate goes with ledger, and only with ledger`).toBe(true);
+      if (r.gate !== undefined) expect(LEDGER_GATES.has(r.gate), `${r.site}: gate ${r.gate}`).toBe(true);
+    }
+    for (const r of CALLER_OWNERSHIP) {
+      expect(CALLER_OWNERSHIP_CLASSES.has(r.ownership), `${r.caller}: ${r.ownership}`).toBe(true);
+      expect(r.why.trim().length, `${r.caller}: empty why`).toBeGreaterThan(0);
+      expect((r.ownership === "ledger") === (r.gate !== undefined), `${r.caller}: a gate goes with ledger, and only with ledger`).toBe(true);
+      if (r.gate !== undefined) expect(LEDGER_GATES.has(r.gate), `${r.caller}: gate ${r.gate}`).toBe(true);
+    }
+  });
+
+  it("every census site in an UNINSTALL_PATH_FILES module has exactly one OWNERSHIP_SITES row, two-sided with counts", () => {
+    const inPath = (site: string): boolean => UNINSTALL_PATH_FILES.includes(site.split(":")[0]);
+    const found = countBy(CENSUS.flatMap((c) => c.sites).filter(inPath));
+    const pinned = new Map(OWNERSHIP_SITES.map((r) => [r.site, r.count]));
+    expect(pinned.size, "duplicate OWNERSHIP_SITES row").toBe(OWNERSHIP_SITES.length);
+    const problems: string[] = [];
+    for (const [site, n] of [...found].sort()) {
+      const want = pinned.get(site);
+      if (want === undefined) problems.push(`UNCLASSIFIED (ownership) ${site} x${n}`);
+      else if (want !== n) problems.push(`COUNT ${site}: found ${n}, pinned ${want}`);
+    }
+    for (const [site, n] of [...pinned].sort()) if (!found.has(site)) problems.push(`STALE ROW ${site} x${n}`);
+    console.log(`installer fs census: ownership axis: ${[...found.values()].reduce((a, b) => a + b, 0)} site(s) in ${found.size} row(s)`);
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  it("every call of a helper-gated function is a CALLER_OWNERSHIP row, keyed by its calling scope, two-sided with counts", () => {
+    console.log(`installer fs census: helpers: ${[...HELPERS].sort().join(", ")}`);
+    expect([...HELPERS].sort()).toEqual(["removeFile", "rewritePath", "unlinkPath"]);
+    const { calls, refused } = helperCalls(HELPERS);
+    expect(refused, refused.join("\n")).toEqual([]);
+    const found = countBy(calls.map((c) => c.key));
+    const pinned = new Map(CALLER_OWNERSHIP.map((r) => [r.caller, r.count]));
+    expect(pinned.size, "duplicate CALLER_OWNERSHIP row").toBe(CALLER_OWNERSHIP.length);
+    const problems: string[] = [];
+    for (const [key, n] of [...found].sort()) {
+      const want = pinned.get(key);
+      if (want === undefined) problems.push(`UNCLASSIFIED CALLER ${key} x${n}`);
+      else if (want !== n) problems.push(`COUNT ${key}: found ${n}, pinned ${want}`);
+    }
+    for (const [key, n] of [...pinned].sort()) if (!found.has(key)) problems.push(`STALE CALLER ROW ${key} x${n}`);
+    console.log(`installer fs census: ${calls.length} helper call(s) in ${found.size} caller row(s)`);
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  it("the classes hold structurally: each gate is named before the call it guards, and each gate's definition names its record", () => {
+    const problems: string[] = [];
+    for (const r of OWNERSHIP_SITES) {
+      const [file, scope, fsName] = r.site.split(":");
+      if (r.ownership === "ledger") {
+        const positions = fsCallPositions(file, scope, fsName);
+        if (positions.length !== r.count) problems.push(`${r.site}: ${positions.length} call(s) found in ${scope}, pinned ${r.count}`);
+        for (const pos of positions) {
+          const p = gateProblem(file, scope, pos, [[r.gate!]]);
+          if (p !== null) problems.push(`LEDGER GATE ${r.site}: ${p}`);
+        }
+      } else if (r.ownership === "read-only") {
+        const dry = CLASSIFIED_SITES.find((c) => c.site === r.site);
+        if (dry === undefined || dry.gate !== "read-only-open") problems.push(`READ-ONLY ${r.site}: not a read-only-open row on the DRY_RUN axis`);
+      }
+    }
+    const { calls } = helperCalls(HELPERS);
+    for (const r of CALLER_OWNERSHIP) {
+      const needs: readonly (readonly string[])[] =
+        r.ownership === "ledger"
+          ? [[r.gate!]]
+          : r.ownership === "kit-record"
+            ? [["ownsKitFile"]]
+            : r.ownership === "source-identical"
+              ? [["ownsFileNow"], ["sameFileBytes", "isOwnLink"]]
+              : [];
+      for (const c of calls.filter((x) => x.key === r.caller)) {
+        // A kit-record caller hands ownsKitFile to removeFile as its `owns` argument; removeFile asks it
+        // before its own removal (checked below), so the gate may lie inside the call's arguments.
+        const p = gateProblem(c.file, c.scope, r.ownership === "kit-record" ? c.end : c.pos, needs);
+        if (p !== null) problems.push(`${r.ownership.toUpperCase()} ${r.caller}: ${p}`);
+      }
+    }
+    // removeFile asks the `owns` question it was handed before its removal (plan 33.1-30).
+    const un = parseInstall("uninstall.ts");
+    const removeFileFn = functionNamed(un, "removeFile");
+    const callsIn = (fn: ts.Node, name: string): number[] => {
+      const out: number[] = [];
+      const visit = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === name) out.push(n.getStart(un));
+        ts.forEachChild(n, visit);
+      };
+      visit(fn);
+      return out;
+    };
+    const unlinkInRemoveFile = removeFileFn === null ? [] : callsIn(removeFileFn, "unlinkPath");
+    if (removeFileFn === null || unlinkInRemoveFile.length !== 1) problems.push("removeFile: expected exactly one unlinkPath call");
+    else if (!callsIn(removeFileFn, "owns").some((p) => p < unlinkInRemoveFile[0])) problems.push("removeFile: `owns()` is not asked before unlinkPath");
+    // Each gate's own definition names its record, so a gate cannot be kept by name while its body
+    // stops reading the ledger.
+    for (const [gate, { defines }] of LEDGER_GATES) {
+      if (defines.startsWith("./")) {
+        const imported = un.statements.some(
+          (st) =>
+            ts.isImportDeclaration(st) &&
+            ts.isStringLiteral(st.moduleSpecifier) &&
+            st.moduleSpecifier.text === defines &&
+            st.importClause?.namedBindings !== undefined &&
+            ts.isNamedImports(st.importClause.namedBindings) &&
+            st.importClause.namedBindings.elements.some((e) => e.name.text === gate),
+        );
+        if (!imported) problems.push(`GATE ${gate}: not imported from ${defines}`);
+        continue;
+      }
+      const fn = functionNamed(un, gate);
+      if (fn === null) problems.push(`GATE ${gate}: no definition in uninstall.ts`);
+      else if (referencesIn(fn, defines, un).length === 0) problems.push(`GATE ${gate}: its definition does not name ${defines}`);
+    }
+    expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  it("the known exceptions (carry items 12 and 13) are declared, counted and present, so the census is honest", () => {
+    expect(KNOWN_EXCEPTIONS.map((e) => e.carry)).toEqual([12, 13]);
+    const callerKeys = new Set(CALLER_OWNERSHIP.map((r) => r.caller));
+    const install = parseInstall("install.ts");
+    for (const e of KNOWN_EXCEPTIONS) {
+      expect(e.reason.trim().length).toBeGreaterThan(0);
+      for (const w of e.where) {
+        if (w.includes("→")) expect(callerKeys.has(w), `carry ${e.carry}: ${w} is not a CALLER_OWNERSHIP row`).toBe(true);
+        else expect(functionNamed(install, w.split(":")[1]), `carry ${e.carry}: ${w} does not exist`).not.toBeNull();
+      }
+      console.log(`installer fs census: known exception, carry ${e.carry}: ${e.where.join(", ")} — ${e.reason}`);
+    }
   });
 });
