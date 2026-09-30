@@ -9394,4 +9394,396 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(existsSync(atRel(target, ".claude/skills/grugops-gate"))).toBe(true);
     expect(existsSync(atRel(target, ".claude/agents"))).toBe(true);
   });
+
+  // ── Red-team fixes of plan 33.1-32 (brief §3) ─────────────────────────────────────────────────
+  //
+  // B1 (DC-2): a run that writes NO kit file, for any reason, writes the previous `kitFiles` back
+  // exactly as it read it. The red-team's break: an edited adapter plus a directory at another adapter
+  // → the kit plan refused, the pre-flight never ran, and kitFiles lost both entries (24 → 22); after
+  // the user removed the directory and restored the edit, uninstall left the restored file with "no
+  // record". A refused run's staleness proof can be wrong about a file the user will restore, so it is
+  // not asked at all (this replaces plan 31's "drop only entries proved stale" for a refused run).
+  // B2 (DC-1): such a run claims no kit version, kit root, kit home or install mode it has no evidence
+  // for: it keeps the previous marker's values, and with no string kitVersion to keep it writes none,
+  // and --check warns that the kit version is unknown.
+  // W1 (D-18): a backup that fails partway leaves no partial file under a backup name.
+
+  // The kitFiles field as the marker's own bytes: install writes it last, so it runs to the end of
+  // the file. undefined when the marker has no kitFiles field.
+  const kitFilesBytes = (t: string): string | undefined => {
+    const text = readFileSync(atRel(t, ".grugops/install.json"), "utf8");
+    const i = text.indexOf('\n  "kitFiles": ');
+    return i < 0 ? undefined : text.slice(i);
+  };
+  // An unedited kit file the user deleted: its record no longer holds (the proved-stale case).
+  const GONE_REL = ".claude/skills/grugops-map/SKILL.md";
+  const OTHER_REL = `.claude/agents/${SYNTH_ADAPTERS[1]}`;
+  // Runs install.js with the clock pinned (the wrapper pattern of the backup-path cases above), so
+  // the backup stamp is known before the run.
+  const PINNED_STAMP = "2026-06-22T12-00-00.000Z";
+  const runPinned = (src: string, target: string, home: string, args: string[], preload: string[] = [], extra: Record<string, string> = {}): Run => {
+    const wrapper = join(mkTmp(), "pin-clock.mjs");
+    writeFileSync(
+      wrapper,
+      `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
+        `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});\n`,
+    );
+    const r = spawnSync("node", [...preload.flatMap((p) => ["--import", pathToFileURL(p).href]), wrapper, "--yes", ...args], {
+      encoding: "utf8",
+      timeout: 120_000,
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target, ...extra },
+    });
+    expect(r.error, `the run did not finish: ${r.error?.message}`).toBeUndefined();
+    expect(r.stdout !== "", `the wrapper printed nothing; stderr: ${r.stderr}`).toBe(true);
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  };
+  const rootOrWin = (): boolean => process.platform === "win32" || (typeof process.getuid === "function" && process.getuid() === 0);
+
+  // Each arm that writes no kit file, over the same fixture: installed at v1, the kit updated to v2,
+  // one adapter edited, and one unedited skill deleted by the user.
+  type Arm = {
+    readonly name: string;
+    readonly setup: (x: { target: string }) => string | null; // a skip reason, or null
+    readonly go: (x: { src: string; target: string; home: string }) => Run;
+    readonly cleanup?: (x: { target: string }) => void;
+  };
+  const ARMS: readonly Arm[] = [
+    {
+      name: "kit-plan refusal: a directory at another adapter",
+      setup: ({ target }) => {
+        const s = plantSpecial(atRel(target, OTHER_REL), "directory", "B1 arm");
+        return s === null ? null : skipLine(s, "B1 directory arm");
+      },
+      go: ({ src, target, home }) => run(src, target, home),
+    },
+    {
+      name: "kit-plan refusal: a symbolic link to a file outside the target at another adapter",
+      setup: ({ target }) => {
+        const outside = join(mkTmp(), "hosts");
+        writeFileSync(outside, "127.0.0.1 localhost\n");
+        rmSync(atRel(target, OTHER_REL), { force: true });
+        const s = stageSymlinkOrSkip(outside, atRel(target, OTHER_REL), "symlink at an adapter (outside file)", "B1 link arm");
+        return s === null ? null : skipLine(s, "B1 link arm");
+      },
+      go: ({ src, target, home }) => run(src, target, home, ["--backup-edited-kit"]),
+    },
+    {
+      name: "kit-plan refusal: a FIFO at another adapter",
+      setup: ({ target }) => {
+        const s = plantSpecial(atRel(target, OTHER_REL), "FIFO", "B1 arm");
+        return s === null ? null : skipLine(s, "B1 FIFO arm");
+      },
+      go: ({ src, target, home }) => run(src, target, home, ["--backup-edited-kit"]),
+    },
+    {
+      name: "kit-plan refusal: a read-only unedited adapter the kit update must rewrite",
+      setup: ({ target }) => {
+        if (rootOrWin()) return "mode bits are not a fixture as root or on win32";
+        chmodSync(atRel(target, OTHER_REL), 0o444);
+        return null;
+      },
+      go: ({ src, target, home }) => run(src, target, home, ["--backup-edited-kit"]),
+      cleanup: ({ target }) => chmodSync(atRel(target, OTHER_REL), 0o644),
+    },
+    {
+      name: "pre-flight hazard: the backup path is taken",
+      setup: ({ target }) => {
+        writeFileSync(`${atRel(target, EDITED_REL)}${BACKUP_MARK}${PINNED_STAMP}`, "the user's own file\n");
+        return null;
+      },
+      go: ({ src, target, home }) => runPinned(src, target, home, ["--backup-edited-kit"]),
+    },
+    {
+      name: "consent refused: no terminal (--yes)",
+      setup: () => null,
+      go: ({ src, target, home }) => run(src, target, home),
+    },
+    {
+      name: "a failed backup: an unwritable adapter directory, with the flag",
+      setup: ({ target }) => {
+        if (rootOrWin()) return "mode bits are not a fixture as root or on win32";
+        chmodSync(atRel(target, ".claude/agents"), 0o555);
+        return null;
+      },
+      go: ({ src, target, home }) => run(src, target, home, ["--backup-edited-kit"]),
+      cleanup: ({ target }) => chmodSync(atRel(target, ".claude/agents"), 0o755),
+    },
+  ];
+  for (const arm of ARMS) {
+    it(`B1 (${arm.name}): exit 3, no kit write, and kitFiles is written back byte for byte as it was read`, () => {
+      const { src, target, home } = installed();
+      const before = kitFilesBytes(target);
+      expect(before, "premise: the install recorded kitFiles").toBeDefined();
+      kitUpdate(src);
+      editAdapter(target);
+      rmSync(atRel(target, GONE_REL));
+      const skip = arm.setup({ target });
+      if (skip !== null) {
+        console.log(`SKIP B1 arm "${arm.name}": ${skip}`);
+        return;
+      }
+      let r: Run;
+      try {
+        r = arm.go({ src, target, home });
+      } finally {
+        arm.cleanup?.({ target });
+      }
+      expect(r.status, r.stdout).toBe(3);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      expect(r.stdout, "premise: the marker was rewritten").toMatch(/\.grugops\/install\.json \(marker\)/);
+      expect(kitFilesBytes(target), r.stdout).toBe(before);
+    });
+  }
+
+  it("B1 (consent refused at a terminal, answer n): kitFiles is written back byte for byte as it was read", () => {
+    const why = ptyUnavailable();
+    if (why !== null) {
+      console.log(`SKIP interactive B1 case: ${why}`);
+      return;
+    }
+    const { src, target, home } = installed();
+    const before = kitFilesBytes(target);
+    kitUpdate(src);
+    editAdapter(target);
+    rmSync(atRel(target, GONE_REL));
+    const r = runPty(src, target, home, "n");
+    expect(r.stdout, "premise: the run asked").toContain("[y/N]");
+    expect(r.status, r.stdout).toBe(3);
+    expect(kitFilesBytes(target)).toBe(before);
+  });
+
+  it("B1: a refused run over a target with no marker records kitFiles as {} (this run is the whole history, and it wrote no kit file)", () => {
+    const { src, target, home } = installed();
+    rmSync(atRel(target, ".grugops/install.json"));
+    kitUpdate(src);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitFilesOf(target)).toEqual({});
+  });
+
+  for (const shape of ["directory", "symbolic link to a file outside the target"] as const) {
+    for (const next of ["uninstall", "re-install"] as const) {
+      it(`B1 remedy (${shape} at another adapter, then ${next}): after the refusal, removing the ${shape} and restoring the edit is enough`, () => {
+        const { src, target, home } = installed();
+        const before = kitFilesBytes(target);
+        const original = readFileSync(atRel(target, EDITED_REL));
+        editAdapter(target);
+        const other = atRel(target, OTHER_REL);
+        rmSync(other, { force: true });
+        if (shape === "directory") mkdirSync(other);
+        else {
+          const outside = join(mkTmp(), "hosts");
+          writeFileSync(outside, "127.0.0.1 localhost\n");
+          const s = stageSymlinkOrSkip(outside, other, "symlink at an adapter (outside file)", "B1 remedy link");
+          if (s !== null) {
+            console.log(skipLine(s, "B1 remedy link case"));
+            return;
+          }
+        }
+        const r = run(src, target, home);
+        expect(r.status, r.stdout).toBe(3);
+        expect(kitFilesBytes(target), r.stdout).toBe(before);
+        // The user's remedy: remove what they put there, and restore the edited file exactly.
+        rmSync(other, { recursive: true, force: true });
+        writeFileSync(atRel(target, EDITED_REL), original);
+        if (next === "uninstall") {
+          const u = runUninstallFrom(src, target, home);
+          expect(existsSync(atRel(target, EDITED_REL)), `the restored file was left: ${u.stdout}`).toBe(false);
+          expect(u.stdout.split("\n").filter((l) => l.includes(EDITED_REL) && /no record/.test(l)), u.stdout).toEqual([]);
+        } else {
+          const r2 = run(src, target, home);
+          expect(r2.status, r2.stdout).toBe(0);
+          expect(r2.stdout).not.toMatch(/edited-kit|--backup-edited-kit/);
+          expect(existsSync(other)).toBe(true);
+          expect(Object.keys(kitFilesOf(target) ?? {}).length).toBe(SYNTH_ADAPTERS.length + SYNTH_SKILLS.length);
+        }
+      });
+    }
+  }
+
+  // B2: the doctor reaches its kit-version check only when every kit path an adapter names resolves,
+  // so this source carries the real kit tree (with the synthetic VERSION), as the kitVersion case does.
+  const realKitInstalled = (): { src: string; target: string; home: string } => {
+    const src = makeSyntheticSrc();
+    cpSync(join(REPO_ROOT, "agent-factory"), join(src, "agent-factory"), { recursive: true });
+    writeFileSync(join(src, "agent-factory", "VERSION"), `${V1}\n`);
+    const target = makeFixture();
+    const home = mkTmp();
+    const r0 = run(src, target, home);
+    expect(r0.status, r0.stdout).toBe(0);
+    const c0 = run(src, target, home, ["--check"]);
+    expect(c0.stdout, "premise: the doctor reaches the kit-version check").not.toMatch(/FAILURE\(S\)/);
+    expect(c0.stdout, "premise: no unknown-version warning on a clean install").not.toMatch(/kit-version unknown/);
+    return { src, target, home };
+  };
+  const hasKey = (o: Record<string, unknown>, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+  it("B2: a refused run over a target with NO marker claims no kitVersion, and --check warns that the kit version is unknown", () => {
+    const { src, target, home } = realKitInstalled();
+    rmSync(atRel(target, ".grugops/install.json"));
+    kitUpdate(src);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(readFileSync(join(home, "agent-factory", "VERSION"), "utf8").trim(), "premise: the kit home is at V2").toBe(V2);
+    const m = markerOf(target);
+    expect(m.kitVersion, "the marker claims the new kit version").not.toBe(V2);
+    expect(hasKey(m, "kitVersion"), "a kit version with no evidence is not written").toBe(false);
+    const c = run(src, target, home, ["--check"]);
+    expect(c.status, c.stdout).toBe(0);
+    expect(c.stdout.split("\n").some((l) => /WARN/.test(l) && /kit-version unknown/.test(l)), c.stdout).toBe(true);
+    const cs = run(src, target, home, ["--check", "--strict"]);
+    expect(cs.status, "--strict turns the warning into a failing exit").not.toBe(0);
+  });
+
+  for (const bad of [5, null, ["2.1.0"], ""] as const) {
+    it(`B2: a previous kitVersion of ${JSON.stringify(bad)} (no usable version): a refused run does not claim the new one`, () => {
+      const { src, target, home } = bad === 5 ? realKitInstalled() : installed();
+      writeMarkerJson(target, { ...markerOf(target), kitVersion: bad });
+      kitUpdate(src);
+      editAdapter(target);
+      const r = run(src, target, home);
+      expect(r.status, r.stdout).toBe(3);
+      const m = markerOf(target);
+      expect(m.kitVersion).not.toBe(V2);
+      if (bad === "") expect(m.kitVersion, "an empty string claims nothing and is kept").toBe("");
+      else expect(hasKey(m, "kitVersion"), r.stdout).toBe(false);
+      if (bad === 5) {
+        const c = run(src, target, home, ["--check"]);
+        expect(c.stdout.split("\n").some((l) => /WARN/.test(l) && /kit-version unknown/.test(l)), c.stdout).toBe(true);
+      }
+    });
+  }
+
+  it("B2: a refused run keeps the previous kitRoot, grugopsHome and installMode (the kit in the target is still the previous one)", () => {
+    const { src, target } = installed();
+    const m0 = markerOf(target);
+    kitUpdate(src);
+    editAdapter(target);
+    const home2 = mkTmp();
+    const r = run(src, target, home2, ["--symlink"]);
+    expect(r.status, r.stdout).toBe(3);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    const m = markerOf(target);
+    for (const k of ["kitVersion", "grugopsHome", "kitRoot", "installMode"]) expect(m[k], k).toEqual(m0[k]);
+    expect(m.installMode).toBe("copy");
+    // A run that does write the kit records this run's values.
+    const r2 = run(src, target, home2, ["--symlink", "--backup-edited-kit"]);
+    expect(r2.status, r2.stdout).toBe(0);
+    const m2 = markerOf(target);
+    expect(m2.installMode).toBe("symlink");
+    expect(m2.grugopsHome).not.toEqual(m0.grugopsHome);
+    expect(m2.kitVersion).toBe(V2);
+  });
+
+  // W1: the partial-write failure is injected through a preload module (node --import) that wraps
+  // node:fs's exports and calls syncBuiltinESMExports, so install.js's own named imports see the
+  // wrapper. It fails only the backup whose path holds the edited adapter's name: it writes the first
+  // half of the bytes (with the caller's flags) and then throws ENOSPC from `write`, which is what a
+  // nearly full volume does. A real full volume is exercised in the scratch replay (disk image).
+  const writeSeam = (opts: { failUnlink?: boolean }): string => {
+    const p = join(mkTmp(), "fs-seam.mjs");
+    writeFileSync(
+      p,
+      [
+        `import fs from "node:fs";`,
+        `import { syncBuiltinESMExports } from "node:module";`,
+        `const MATCH = ${JSON.stringify(`${EDITED}${BACKUP_MARK}`)};`,
+        `const hit = (p) => String(p).includes(MATCH);`,
+        `const err = (code, syscall, p) => Object.assign(new Error(code + ": injected, " + syscall + " '" + p + "'"), { code, syscall, path: String(p) });`,
+        `const origWrite = fs.writeFileSync;`,
+        `fs.writeFileSync = function (p, data, o) {`,
+        `  if (!hit(p)) return origWrite.apply(this, arguments);`,
+        `  const b = Buffer.from(data);`,
+        `  origWrite(p, b.subarray(0, Math.floor(b.length / 2)), o);`,
+        `  throw err("ENOSPC", "write", p);`,
+        `};`,
+        opts.failUnlink
+          ? `const origUnlink = fs.unlinkSync; fs.unlinkSync = function (p) { if (hit(p)) throw err("EACCES", "unlink", p); return origUnlink.apply(this, arguments); };`
+          : ``,
+        `syncBuiltinESMExports();`,
+      ].join("\n") + "\n",
+    );
+    return p;
+  };
+  // A seam that fails only the link step (the write succeeds): a filesystem without hard links.
+  const linkOnlySeam = (): string => {
+    const p = join(mkTmp(), "fs-seam-link.mjs");
+    writeFileSync(
+      p,
+      `import fs from "node:fs";\nimport { syncBuiltinESMExports } from "node:module";\n` +
+        `const origLink = fs.linkSync;\n` +
+        `fs.linkSync = function (a, b) { if (String(a).includes(${JSON.stringify(BACKUP_MARK)})) throw Object.assign(new Error("ENOTSUP: injected"), { code: "ENOTSUP", syscall: "link" }); return origLink.apply(this, arguments); };\n` +
+        `syncBuiltinESMExports();\n`,
+    );
+    return p;
+  };
+  const leftUnderBackupNames = (t: string, rel: string): string[] => backupsIn(t).filter((b) => b.startsWith(`${rel}${BACKUP_MARK}`));
+
+  it("W1: a backup that fails partway (ENOSPC) leaves no partial file under a backup name; the completed backup is kept; no kit write", () => {
+    const { src, target, home, edited } = editedOverUpdate();
+    const skillRel = ".claude/skills/grugops-gate/SKILL.md";
+    const skillEdited = editAdapter(target, skillRel);
+    const kit = kitState(target);
+    const r = runPinned(src, target, home, ["--backup-edited-kit"], [writeSeam({})]);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(3);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(target)).toBe(kit);
+    expect(readFileSync(atRel(target, EDITED_REL)).equals(edited)).toBe(true);
+    // No partial copy of the adapter's edit under any backup-shaped name.
+    expect(leftUnderBackupNames(target, EDITED_REL), r.stdout).toEqual([]);
+    // The skill's backup, made first, is complete and kept.
+    const skillBackups = leftUnderBackupNames(target, skillRel);
+    expect(skillBackups, r.stdout).toEqual([`${skillRel}${BACKUP_MARK}${PINNED_STAMP}`]);
+    expect(readFileSync(atRel(target, skillBackups[0])).equals(skillEdited)).toBe(true);
+    const v = verifyLines(r.stdout).filter((l) => l.includes(EDITED_REL));
+    expect(v.some((l) => /ENOSPC/.test(l) && /incomplete/i.test(l) && /removed/.test(l)), r.stdout).toBe(true);
+  });
+
+  it("W1: when the incomplete copy cannot be removed either, the verify names it incomplete, and uninstall never calls it a backup of the edit", () => {
+    const { src, target, home, edited } = editedOverUpdate();
+    const kit = kitState(target);
+    const r = runPinned(src, target, home, ["--backup-edited-kit"], [writeSeam({ failUnlink: true })]);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(3);
+    expect(kitState(target)).toBe(kit);
+    expect(readFileSync(atRel(target, EDITED_REL)).equals(edited)).toBe(true);
+    const left = leftUnderBackupNames(target, EDITED_REL);
+    expect(left.length, r.stdout).toBe(1);
+    // The file holds half the edit: whatever its name, it must not read as a complete backup.
+    expect(readFileSync(atRel(target, left[0])).length).toBeLessThan(edited.length);
+    expect(left[0], "an incomplete copy keeps a name that says so").toMatch(/incomplete/);
+    const v = verifyLines(r.stdout).filter((l) => l.includes(left[0]));
+    expect(v.some((l) => /INCOMPLETE/.test(l) && /not a (full|complete) copy/.test(l)), r.stdout).toBe(true);
+    const u = runUninstallFrom(src, target, home);
+    const lines = u.stdout.split("\n").filter((l) => l.includes(left[0]));
+    expect(lines.length, u.stdout).toBe(1);
+    expect(lines[0]).toMatch(/^ {2}left\s/);
+    expect(lines[0]).toMatch(/incomplete/);
+    expect(lines[0]).not.toContain("(a backup install made of your edited kit file)");
+    expect(existsSync(atRel(target, left[0])), "uninstall never removes it").toBe(true);
+  });
+
+  it("W1: on a filesystem without hard links the backup is still made whole (a rename after the write), and nothing incomplete is left", () => {
+    const { src, target, home, edited } = editedOverUpdate();
+    const r = runPinned(src, target, home, ["--backup-edited-kit"], [linkOnlySeam()]);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(backupsIn(target), r.stdout).toEqual([`${EDITED_REL}${BACKUP_MARK}${PINNED_STAMP}`]);
+    expect(readFileSync(atRel(target, `${EDITED_REL}${BACKUP_MARK}${PINNED_STAMP}`)).equals(edited)).toBe(true);
+  });
+
+  it("W1: a user file where the backup's incomplete copy would be written is a pre-flight hazard: no backup, no kit write, the file untouched", () => {
+    const { src, target, home, kit } = editedOverUpdate();
+    const staged = `${atRel(target, EDITED_REL)}${BACKUP_MARK}${PINNED_STAMP}.incomplete`;
+    writeFileSync(staged, "the user's own file\n");
+    const planted = treeState(atRel(target, ".claude"));
+    const r = runPinned(src, target, home, ["--backup-edited-kit"]);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).some((l) => l.includes(staged) && /backup path is taken/.test(l)), r.stdout).toBe(true);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(r.stdout).not.toMatch(/^ {2}backed-up\s/m);
+    expect(kitState(target)).toBe(kit);
+    expect(treeState(atRel(target, ".claude"))).toBe(planted);
+  });
 });
