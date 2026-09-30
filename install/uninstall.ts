@@ -1734,32 +1734,35 @@ rmdirIfEmpty(`${TARGET}/.claude`);
 //    created it (ownsFile) AND it is still install's link or a byte-identical copy; with no record it is
 //    left and the reason is said. The ownership question is asked before removeFile's DRY_RUN branch,
 //    so the preview decides as the real run does.
-const agents = `${TARGET}/AGENTS.md`;
-const srcAgents = join(GRUGOPS_SRC, "AGENTS.md");
-const agentsNotOwned = (reason: string): void => report("left", `AGENTS.md (it matches the grugops kit, but ${reason})`);
-if (isProtected(agents)) {
-  // never
-} else if (isSymlink(agents)) {
-  // A symlink is removed ONLY if it is the link install makes: readlink equals exactly the source
-  // AGENTS.md path (isOwnLink, the predicate install uses; red-team of plan 33.1-27, B2). It used to
-  // follow the link and compare what it resolved to, so any link whose target held the same bytes
-  // was removed. A user's own AGENTS.md symlink (e.g. AGENTS.md -> docs/agents.md) is left untouched,
-  // as is any other link, and it is never followed.
-  const own = ownsFileNow("AGENTS.md");
-  if (!isOwnLink(agents, srcAgents)) {
-    report("skipped", "AGENTS.md (user-owned symlink — left untouched)");
-  } else if (!own.owned) {
-    agentsNotOwned(own.reason);
+function removeGrugopsAgentsMd(): void {
+  const agents = `${TARGET}/AGENTS.md`;
+  const srcAgents = join(GRUGOPS_SRC, "AGENTS.md");
+  const agentsNotOwned = (reason: string): void => report("left", `AGENTS.md (it matches the grugops kit, but ${reason})`);
+  if (isProtected(agents)) {
+    // never
+  } else if (isSymlink(agents)) {
+    // A symlink is removed ONLY if it is the link install makes: readlink equals exactly the source
+    // AGENTS.md path (isOwnLink, the predicate install uses; red-team of plan 33.1-27, B2). It used to
+    // follow the link and compare what it resolved to, so any link whose target held the same bytes
+    // was removed. A user's own AGENTS.md symlink (e.g. AGENTS.md -> docs/agents.md) is left untouched,
+    // as is any other link, and it is never followed.
+    const own = ownsFileNow("AGENTS.md");
+    if (!isOwnLink(agents, srcAgents)) {
+      report("skipped", "AGENTS.md (user-owned symlink — left untouched)");
+    } else if (!own.owned) {
+      agentsNotOwned(own.reason);
+    } else {
+      removeFile(agents, "AGENTS.md (grugops symlink into source)", srcAgents);
+    }
+  } else if (isFile(agents) && isFile(srcAgents) && sameFileBytes(srcAgents, agents)) {
+    const own = ownsFileNow("AGENTS.md");
+    if (!own.owned) agentsNotOwned(own.reason);
+    else removeFile(agents, "AGENTS.md (grugops copy, byte-identical to source)", null);
   } else {
-    removeFile(agents, "AGENTS.md (grugops symlink into source)", srcAgents);
+    report("skipped", "AGENTS.md (user-owned or modified — left untouched)");
   }
-} else if (isFile(agents) && isFile(srcAgents) && sameFileBytes(srcAgents, agents)) {
-  const own = ownsFileNow("AGENTS.md");
-  if (!own.owned) agentsNotOwned(own.reason);
-  else removeFile(agents, "AGENTS.md (grugops copy, byte-identical to source)", null);
-} else {
-  report("skipped", "AGENTS.md (user-owned or modified — left untouched)");
 }
+removeGrugopsAgentsMd();
 
 // 4. CLAUDE.md sentinel block (preserve the rest of the user's file), and the file itself only when
 //    install created it (createdFiles), this run removed its block and it is blank afterwards: the
@@ -1819,62 +1822,65 @@ const RUNNABLES_MIRROR: Array<[string, string]> = [
 ];
 
 console.log("\n-- removing grugops runnables (only what install.js materialized) --");
-for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
-  const src = `${GRUGOPS_SRC}/${srcRel}`;
-  const dest = `${TARGET}/${destRel}`;
-  // Red-team of plan 33.1-27 (B2, B3): the one removal decision is asked FIRST, without following a
-  // link. install writes a runnable as a regular file and never links one, so a link here (even to a
-  // byte-identical file, which the compare below would follow) is not install's and is left and
-  // counted; a link or non-directory on the way is a verify; a special file is left and said. Only a
-  // regular file inside the target reaches the byte compare.
-  const decision = removalDecision(dest, destRel, null);
-  if (reportDecision(decision)) continue;
-  // DC-3 (plan 33.1-27): a dest that is not a readable regular file is never opened and never a
-  // candidate for removal; say what it is rather than calling it user-modified.
-  const destRead = readUserFile(dest);
-  if (destRead.state !== "ok" && destRead.state !== "absent") {
-    report("left", `${destRel} (${unreadState(destRead)} — it was not read, and it was left in place)`);
-    continue;
+function removeMaterializedRunnables(): void {
+  for (const [srcRel, destRel] of RUNNABLES_MIRROR) {
+    const src = `${GRUGOPS_SRC}/${srcRel}`;
+    const dest = `${TARGET}/${destRel}`;
+    // Red-team of plan 33.1-27 (B2, B3): the one removal decision is asked FIRST, without following a
+    // link. install writes a runnable as a regular file and never links one, so a link here (even to a
+    // byte-identical file, which the compare below would follow) is not install's and is left and
+    // counted; a link or non-directory on the way is a verify; a special file is left and said. Only a
+    // regular file inside the target reaches the byte compare.
+    const decision = removalDecision(dest, destRel, null);
+    if (reportDecision(decision)) continue;
+    // DC-3 (plan 33.1-27): a dest that is not a readable regular file is never opened and never a
+    // candidate for removal; say what it is rather than calling it user-modified.
+    const destRead = readUserFile(dest);
+    if (destRead.state !== "ok" && destRead.state !== "absent") {
+      report("left", `${destRel} (${unreadState(destRead)} — it was not read, and it was left in place)`);
+      continue;
+    }
+    if (!isFile(src)) {
+      verify(
+        `${destRel} — cannot read the source it was installed from (${src}), so byte identity cannot ` +
+          `be established and the file was NOT removed. Remove it by hand once you have confirmed it ` +
+          `is unmodified.`,
+      );
+      continue;
+    }
+    if (!sameFileBytes(src, dest)) {
+      report("skipped", `${destRel} (user-modified — left untouched, never-delete-user-content)`);
+      continue;
+    }
+    // Plan 33.1-28 (brief DC-2): byte identity is not provenance. A runnable is removed only when the
+    // `createdFiles` ledger records that install created it; a byte-identical copy with no record is
+    // left and the reason is said.
+    const own = ownsFileNow(destRel);
+    if (!own.owned) {
+      report("left", `${destRel} (it is byte-identical to its source, but ${own.reason})`);
+      continue;
+    }
+    removeFile(dest, `${destRel} (grugops runnable, byte-identical to source)`, null);
   }
-  if (!isFile(src)) {
-    verify(
-      `${destRel} — cannot read the source it was installed from (${src}), so byte identity cannot ` +
-        `be established and the file was NOT removed. Remove it by hand once you have confirmed it ` +
-        `is unmodified.`,
+  // Only the CONTAINING directory, and only when empty — never a recursive removal.
+  rmdirIfEmpty(`${TARGET}/tools/grugops`);
+  // tools/ itself is deliberately NOT removed, even when the pass above just left it empty, and even
+  // when the install marker's `createdDirs` ledger records that install created it (re-review IN-01,
+  // plan 33.1-28). tools/ is an ordinary directory name a project is very likely to own itself: install
+  // created it only as a side effect of creating tools/grugops/, and a project may start using it for
+  // its own files between the install and the uninstall without that showing in any record. So the
+  // ledger entry is not used for tools/, and the line says so rather than implying there is no record.
+  // It is REPORTED as left rather than passing silently, so the one artifact this pass cannot reverse
+  // is visible to the reader.
+  if (isDir(`${TARGET}/tools`)) {
+    report(
+      "left",
+      "tools/ (grugops owns tools/grugops/ only — the directory itself is left in place, even when the install " +
+        "marker records that install created it)",
     );
-    continue;
   }
-  if (!sameFileBytes(src, dest)) {
-    report("skipped", `${destRel} (user-modified — left untouched, never-delete-user-content)`);
-    continue;
-  }
-  // Plan 33.1-28 (brief DC-2): byte identity is not provenance. A runnable is removed only when the
-  // `createdFiles` ledger records that install created it; a byte-identical copy with no record is
-  // left and the reason is said.
-  const own = ownsFileNow(destRel);
-  if (!own.owned) {
-    report("left", `${destRel} (it is byte-identical to its source, but ${own.reason})`);
-    continue;
-  }
-  removeFile(dest, `${destRel} (grugops runnable, byte-identical to source)`, null);
 }
-// Only the CONTAINING directory, and only when empty — never a recursive removal.
-rmdirIfEmpty(`${TARGET}/tools/grugops`);
-// tools/ itself is deliberately NOT removed, even when the pass above just left it empty, and even
-// when the install marker's `createdDirs` ledger records that install created it (re-review IN-01,
-// plan 33.1-28). tools/ is an ordinary directory name a project is very likely to own itself: install
-// created it only as a side effect of creating tools/grugops/, and a project may start using it for
-// its own files between the install and the uninstall without that showing in any record. So the
-// ledger entry is not used for tools/, and the line says so rather than implying there is no record.
-// It is REPORTED as left rather than passing silently, so the one artifact this pass cannot reverse
-// is visible to the reader.
-if (isDir(`${TARGET}/tools`)) {
-  report(
-    "left",
-    "tools/ (grugops owns tools/grugops/ only — the directory itself is left in place, even when the install " +
-      "marker records that install created it)",
-  );
-}
+removeMaterializedRunnables();
 
 // 8. The grugops-owned install marker (D-06). Removes ONLY .grugops/install.json via the narrow
 //    named exception; the rest of .grugops/ (seeded user state) is protected and survives. The
