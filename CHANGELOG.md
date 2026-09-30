@@ -124,8 +124,26 @@ release, together with Phase 33.1, which retires the Bash command guard.
   a path they use, including `.grugops/install.json` and the kit `VERSION`; the path is skipped and
   reported (33.1 gap round 2, IN-04).
 - Install and uninstall no longer write through a symbolic link they did not make, or a hard link:
-  such a path is a counted `verify` finding (exit `3`) and is left as it was, so nothing outside the
-  repository is changed through it.
+  such a path is left as it was, so nothing outside the repository is changed through it. Install
+  reports it as a counted `verify` finding (exit `3`). Uninstall does so only for a path install has a
+  record for; at a path with no record (a `CLAUDE.md -> AGENTS.md` link, in a repository you never
+  installed into or after an install that refused that link) it reports the path `left` or `skipped`
+  and the exit code is unaffected.
+- A file uninstall removes on its record is now left when only its mode changed: the records keep the
+  file mode install left (a record written before this has the bytes only, and the uninstaller says
+  so). An install-created `.claude/settings.json` is deleted only when what is left once the grugops
+  rules are removed is byte for byte what install's own file leaves, so a whitespace or line-end edit
+  keeps it.
+- `install.js --check` now fails (exit `1`) on a marker that holds a malformed ledger and names each
+  one, as install and uninstall already refused it; it used to print `ALL CHECKS PASSED`.
+- A first `DRY_RUN=1` install (no shared kit yet) now previews the per-repo state it would seed; it
+  used to say there was no seed.
+- Uninstall no longer says a file named like a `.grugops-edited-` backup was made by install, or tells
+  you to remove an `.incomplete`-named one: install records no backups, so the line says only that
+  the name matches. A runnable or `AGENTS.md` that differs from this kit version is reported as
+  differing from it, not as edited by you.
+- `--target` with no value (`--target` last, `--target=`, or followed by another option) is now bad
+  usage (exit `2`) in both binaries; it used to fall back to the current directory.
 - Install fails closed on a malformed or unreadable ask-rule ledger in `.grugops/install.json`: it
   reports a `verify` finding, adds no rule and leaves the ledger as it found it, instead of
   relabelling the grugops rules as your own and overwriting the ledger (WR-05). Install and
@@ -236,12 +254,12 @@ read-only live board.
   builder, and both hand-drawn classification tables were deleted for a single two-sided
   published-equals-owned equality.
 
-### Known open at this release
-
-- Phase 33 (the captured live spawning run that discharges GAP-D1, and a green `windows-latest` CI
-  leg) is not in this release.
-- Phases 29.1, 31 and 32.1 were closed by named human override with items accepted open; each is
-  recorded in `.planning/ROADMAP.md` and the WINDOWS register with a named owner.
+> **Known open at this release** (a note, not a change entry):
+>
+> - Phase 33 (the captured live spawning run that discharges GAP-D1, and a green `windows-latest` CI
+>   leg) is not in this release.
+> - Phases 29.1, 31 and 32.1 were closed by named human override with items accepted open; each is
+>   recorded in `.planning/ROADMAP.md` and the WINDOWS register with a named owner.
 
 ## [2.0] - 2026-07-28
 
@@ -376,7 +394,9 @@ Factory v2 spec, proved end-to-end by an idea-to-PR dogfood across both dispatch
   fails closed.
 - A structure validator that never fabricates a pass, plus brand and legal collateral.
 
-[Unreleased]: https://github.com/abitwise/grugops/compare/v1.2...HEAD
+[Unreleased]: https://github.com/abitwise/grugops/compare/v2.1...HEAD
+[2.1.0]: https://github.com/abitwise/grugops/compare/v2.0...v2.1
+[2.0]: https://github.com/abitwise/grugops/compare/v1.2...v2.0
 [1.2]: https://github.com/abitwise/grugops/compare/v1.1...v1.2
 [1.1]: https://github.com/abitwise/grugops/compare/v1.0...v1.1
 [1.0]: https://github.com/abitwise/grugops/releases/tag/v1.0

@@ -75,7 +75,9 @@ the whole kit, `[y/N]`, default no.
 
 - **Yes:** each edited file is first copied next to itself as `<file>.grugops-edited-<UTC stamp>`
   (for example `grugops-qe-e2e.md.grugops-edited-2026-09-30T10-54-21.203Z`), then the whole kit is
-  refreshed. Uninstall never removes a backup; it reports each one `left`.
+  refreshed. Uninstall never removes a backup. Install keeps no record of its backups, so uninstall
+  reports each file with a backup name `left` as one whose name matches the pattern, without claiming
+  install made it.
 - **No:** nothing in the kit changes. The run exits `3` with a `verify` line naming the files.
 - **No terminal, or `--yes`:** install asks nothing and changes nothing in the kit. `--yes` answers
   only the target question, never whether an edit may be overwritten. The run exits `3` and tells you
@@ -116,7 +118,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 |------|---------|
 | `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==`, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo reports *nothing was changed*. All four are **`install.js` only**. So do not test for the install banner to decide a run succeeded; test the exit code. |
 | `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
-| `2` | **bad usage** — an unknown argument. Nothing was read or written. |
+| `2` | **bad usage** — an unknown argument, or `--target` with no value. Nothing was read or written. |
 | `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
 
 Code `3` is the important one: grug not lie about finish. A run that could not read a source
@@ -156,8 +158,10 @@ whole kit; without a terminal, or with `--yes`, it writes no kit file and names
 `--backup-edited-kit`, the flag that gives that answer. A backup is written in full under a name
 ending in `.incomplete` and only then given its backup name, so a backup name never holds a partial
 copy. If a backup fails partway (a full disk), the partial copy is removed and no kit file is
-written; if it cannot be removed, the `verify` line names it as incomplete, and the uninstaller
-reports it as an incomplete copy, not as a backup. The one gap is an error while the kit is being
+written; if it cannot be removed, the `verify` line names it as incomplete. The uninstaller does not
+claim either kind of file: nothing records the backups install makes, so it reports a file with a
+backup name, or with the `.incomplete` name, only as one whose name matches that pattern, and leaves
+it. The one gap is an error while the kit is being
 written that the checks could not see (a disk that fills up, for example): that file is a `verify`
 line and the run goes on to the next. The uninstaller applies the same rule to every file it edits, and it never reads a
 hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops
@@ -180,6 +184,11 @@ Where the install lands is resolved in this precedence: **`--target <repo>`** wi
 **`TARGET=` env var**, then a **prompt** (defaulting to the current directory). The `--target`
 flag means you can install into any repo from any working directory — you no longer have to
 `cd` into the repo first.
+
+`--target` needs a value. `--target` given last, `--target=` with nothing after it, and `--target`
+followed by another option are bad usage in both binaries (exit `2`, with a usage line), and nothing
+is read or written; neither falls back to `TARGET=` or the current directory. For a path that begins
+with `--`, write `--target=<path>`.
 
 When run interactively without `--target`, the installer asks *"Install grugops into which
 repo? [<default>]"* and waits for confirmation. For unattended runs (CI, scripts), pass
@@ -226,7 +235,8 @@ In the **target repo**:
   `appendedBlocks`. A `CLAUDE.md` that is a symbolic link (the common `CLAUDE.md -> AGENTS.md`
   setup included) or a hard link is not written through: install reports a `verify` line (exit
   `3`), leaves it and the file it points at unchanged, and adds no pointer; add the line by hand if
-  you want it
+  you want it. Install records no block for it, so the uninstaller leaves it too, reports it `left`,
+  and that does not change its exit code
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"`, and what install did is
   recorded in `.grugops/install.json` as `geminiSettings` so the uninstaller can reverse exactly
   that. The entry is inserted into the file's text in place: every other byte of the file (numbers
@@ -288,9 +298,12 @@ it copied or linked in, and the runnables under `tools/grugops/`. The uninstalle
 or the Copilot file only when that record lists it, it removed the grugops block from it in this
 run, and the file is blank afterwards. It deletes `AGENTS.md` or a runnable only when the record
 lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. The record keeps
-what install wrote to each file (a sha256 of the bytes, or the target of the link), and a file is
-deleted only while it still holds exactly that: a file you edited or replaced since is left and
-reported. A re-install keeps an earlier entry only while the file still holds what the record says
+what install wrote to each file (a sha256 of the bytes and the file's mode as install left it, or the
+target of the link), and a file is deleted only while it still holds exactly that: a file you edited
+or replaced since, or whose mode you changed (`chmod`), is left and reported. A record written before
+the mode was recorded has only the sha256; the uninstaller then compares the bytes alone and its
+`removed` line says so. The same holds for the skill and adapter records (`kitFiles`) and for a Gemini
+settings file install created. A re-install keeps an earlier entry only while the file still holds what the record says
 and the re-install did not have to add its pointer block to it, so a file you deleted and then made
 again yourself is dropped from the record and left by the uninstaller. A file whose bytes are
 exactly the ones install wrote holds nothing of yours, so it is treated as install's. A file the
@@ -371,8 +384,14 @@ install's record names that link (a copy install records the copy, so a link put
 left). Any
 other link (a dangling one, a loop, a link to a device, to a FIFO, or to a file or directory
 elsewhere) is left in place, is not followed, and is reported as a `verify` finding (exit `3`);
-remove it by hand if it is grugops's. A runnable is never a link, so a link under `tools/grugops/` is
-always left. A path is reported `removed` only when it is gone afterwards.
+remove it by hand if it is grugops's. That `verify` is reported only for a path install has a record
+for. At a path with no record (a repository you never ran the installer on, or a path the record does
+not list) a link, a special file, or a path under a linked directory (a `.claude` or `tools` that is
+a link to a directory of yours, for example) is left, reported `left` or `skipped` with the reason,
+and does not change the exit code; the same holds for `CLAUDE.md` or the Copilot file (the common `CLAUDE.md ->
+AGENTS.md` link), and for `.claude/settings.json` when the ask-rule record claims no rule. A runnable
+is never a link, so a link under `tools/grugops/` is always left. A path is reported `removed` only
+when it is gone afterwards.
 
 The marker is install's record for one directory. Install writes into it `target`, the real path of
 the directory it installed into (every symbolic link on the way resolved). Both the installer and the
@@ -400,8 +419,9 @@ FIFO, a directory, a link) or that holds a malformed ledger is reported as a `ve
 left in place, and the run exits `3`. When the marker is kept because one ledger in it is malformed,
 the uninstaller takes every entry it removed in this run out of the other ledgers, so a later run
 cannot act on a record of something already removed; if it cannot rewrite the marker, that is a
-`verify` finding that names those entries. `--check` names such a marker as present but unreadable (a
-doctor FAIL, exit `1`), not as "not installed".
+`verify` finding that names those entries. `--check` fails on such a marker (a doctor FAIL, exit
+`1`): one that cannot be read is named as present but unreadable, not as "not installed", and each
+malformed ledger is named in a `FAIL` line of its own.
 
 A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It counts each file it would
 remove as removed, so it names the directories the real run would empty and then remove, and never
@@ -431,17 +451,22 @@ of that name itself.
   exactly what install appended.
 - It removes a grugops skill or adapter file (`.claude/skills/grugops*/SKILL.md`,
   `.claude/agents/grugops-*.md`) only while that file is still exactly what install wrote: its
-  recorded content, or its recorded link (`kitFiles`). A file you edited is left in place and reported
-  `left`, and so is every `.grugops-edited-` backup a re-install made; uninstall never removes a
-  backup.
+  recorded content, or its recorded link (`kitFiles`). A file you edited, or whose mode you changed,
+  is left in place and reported `left`. So is every file whose name matches the backup name a
+  re-install gives an edited kit file (`<file>.grugops-edited-<UTC stamp>`); nothing records those
+  backups, so uninstall never removes or claims one and says only that the name matches.
 - It removes the Claude Code ask rules install recorded adding (`claudeAskRules`), and deletes
-  `.claude/settings.json` only when install created it and nothing else is left in it.
+  `.claude/settings.json` only when install created it, its mode is the one install recorded, and
+  once those rules are removed what is left is byte for byte what is left of the file install wrote.
+  A whitespace or line-end edit of yours (an extra final newline, CRLF) keeps the file.
 - It removes `.grugops/install.json` only when it reads as grugops's install marker for this
   directory and every ledger in it is well-formed.
-- A file with no install record is left untouched and reported, with what to remove by hand.
+- A file with no install record is left untouched and reported (`left` or `skipped`, with the
+  reason), whatever is at the path (a link, a special file), and that does not change the exit code.
 - A path uninstall reads that is not a regular file (a FIFO, a directory, a device) is skipped and
   reported, never read, so install and uninstall cannot hang on it.
-- An unreadable record, or a malformed one, is a `verify` finding and exit `3`.
+- An unreadable record, or a malformed one, is a `verify` finding and exit `3`, and so is a path
+  install has a record for that the uninstaller cannot read.
 
 Two known exceptions in the ask-rule record are open, pending a human decision (red-team items 12
 and 13 of phase 33.1, stated here so the list above is not read as covering them). The uninstaller
@@ -476,7 +501,8 @@ It deliberately does **not** touch:
   or changing** — it is left byte for byte
 - a **grugops skill or adapter file you edited** — it no longer holds what `kitFiles` records, so it
   is left and reported
-- every **`.grugops-edited-` backup** a re-install made of an edited kit file
+- every file with a **`.grugops-edited-` backup name** (a re-install's backup of an edited kit file,
+  or a file of yours with that name)
 - `agent-factory/`, `.planning/`, `docs/`, `src/`, or any file you own
 
 ### Migrating an existing install (`--migrate`)
