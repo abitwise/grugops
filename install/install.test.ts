@@ -8033,3 +8033,366 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(present(target, rel), "the skill was removed although its kit source could not be read").toBe(true);
   });
 });
+
+// ── The kit write is all-or-nothing (plan 33.1-31, D-32, D-18) ──────────────────────────────────
+//
+// D-32's reason, in the human's words: it "would be risky if some kit files are updated and the ones
+// that were edited are not". Before this plan the skills loop wrote first and the adapters block
+// could then refuse (a render refusal, a routing-floor refusal, an unreadable source directory, a
+// blocked destination), leaving new skills beside old adapters. install now builds the whole kit
+// plan (every skill and every adapter destination with the exact bytes or link target, and every
+// check that can refuse) before its first kit write, and writes only when nothing refused.
+//
+// Every case drives the committed install.js over a synthetic kit source. A "kit update" is an edit
+// to every skill source between two installs, so a run that wrote any skill before refusing is seen
+// as a changed skill.
+describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
+  const BAD_MODEL = "claude-opus-4-1-20250805";
+  const BAD_CONFIG = `{"models":{"roles":{"orchestrator":"${BAD_MODEL}"}}}\n`;
+  const atRel = (t: string, rel: string): string => join(t, ...rel.split("/"));
+  // Every line that says a kit file was (or would be) written, linked or unlinked.
+  const KIT_WRITE_LINE = /^ {2}(materialized|copied\(verify\)|linked|unlinked|would-materialize|would-copy|would-link|would-unlink)\s/;
+  const kitWriteLines = (out: string): string[] =>
+    out.split("\n").filter((l) => KIT_WRITE_LINE.test(l) && /\.claude\/(skills|agents)\b/.test(l));
+  const verifyLines = (out: string): string[] => out.split("\n").filter((l) => /^ {2}verify\s/.test(l));
+  // The kit tree by lstat, never following a link: every directory, file (sha256 and name count),
+  // link (its target) and special file under .claude/skills and .claude/agents.
+  const kitState = (t: string): string => {
+    const rows: string[] = [];
+    const walk = (rel: string): void => {
+      const abs = atRel(t, rel);
+      const st = lstatSync(abs, { throwIfNoEntry: false });
+      if (st === undefined) return;
+      if (st.isSymbolicLink()) rows.push(`${rel} LINK ${readlinkSync(abs)}`);
+      else if (st.isDirectory()) {
+        rows.push(`${rel}/ DIR`);
+        for (const n of readdirSync(abs).sort()) walk(`${rel}/${n}`);
+      } else if (st.isFile()) {
+        rows.push(`${rel} ${createHash("sha256").update(readFileSync(abs)).digest("hex")} nlink=${st.nlink}`);
+      } else rows.push(`${rel} ${st.isFIFO() ? "FIFO" : "SPECIAL"}`);
+    };
+    walk(".claude/skills");
+    walk(".claude/agents");
+    return rows.join("\n");
+  };
+  const kitFilesOf = (t: string): string => {
+    const m = JSON.parse(readFileSync(atRel(t, ".grugops/install.json"), "utf8")) as { kitFiles?: unknown };
+    return JSON.stringify(m.kitFiles ?? null);
+  };
+  const kitUpdate = (src: string): void => {
+    for (const s of SYNTH_SKILLS) {
+      const p = join(src, ".claude", "skills", s, "SKILL.md");
+      writeFileSync(p, readFileSync(p, "utf8") + "> kit update (plan 33.1-31 fixture)\n");
+    }
+  };
+  const writeConfig = (t: string, body: string): void => {
+    mkdirSync(join(t, ".grugops"), { recursive: true });
+    writeFileSync(join(t, ".grugops", "factory.config.json"), body);
+  };
+  const patchGenerator = (src: string, from: string, to: string): void => {
+    const p = join(src, "scripts", "generate-role-adapters.js");
+    const text = readFileSync(p, "utf8");
+    if (!text.includes(from)) throw new Error(`the generator twin has no patch anchor ${JSON.stringify(from)}`);
+    writeFileSync(p, text.replace(from, to));
+  };
+  const run = (
+    src: string,
+    target: string,
+    home: string,
+    args: string[] = [],
+    extra: Record<string, string> = {},
+  ): { status: number | null; stdout: string; stderr: string } => {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+      encoding: "utf8",
+      timeout: 120_000,
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target, ...extra },
+    });
+    expect(r.error, `install did not finish: ${r.error?.message}`).toBeUndefined();
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  };
+  // An installed synthetic target, and its kit state and kitFiles right after that install.
+  const installed = (): { src: string; target: string; home: string; kit: string; kitFiles: string } => {
+    const src = makeSyntheticSrc();
+    const target = makeFixture();
+    const home = mkTmp();
+    const r0 = run(src, target, home);
+    expect(r0.status, r0.stdout).toBe(0);
+    const kitFiles = kitFilesOf(target);
+    expect(Object.keys(JSON.parse(kitFiles) as object).length, "premise: every kit file is recorded").toBe(
+      SYNTH_ADAPTERS.length + SYNTH_SKILLS.length,
+    );
+    return { src, target, home, kit: kitState(target), kitFiles };
+  };
+  const rootish = typeof process.getuid === "function" && process.getuid() === 0;
+
+  // ── Task 1: the render refusal (the tracer) ───────────────────────────────────────────────────
+  it("a render refusal on a re-install after a kit update leaves every installed kit file byte-identical and kitFiles unchanged", () => {
+    const { src, target, home, kit, kitFiles } = installed();
+    kitUpdate(src);
+    writeConfig(target, BAD_CONFIG);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(r.stdout).toContain(BAD_MODEL);
+    expect(verifyLines(r.stdout).some((l) => l.includes(".claude/agents/")), r.stdout).toBe(true);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(target)).toBe(kit);
+    expect(kitFilesOf(target)).toBe(kitFiles);
+  });
+
+  it("the same render refusal on a fresh install writes no kit file at all, and the non-kit steps still run", () => {
+    const src = makeSyntheticSrc();
+    const target = makeFixture();
+    const home = mkTmp();
+    writeConfig(target, BAD_CONFIG);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(r.stdout).toContain(BAD_MODEL);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(target)).toBe("");
+    // The non-kit steps: the pointer block, the marker (claiming no kit file), the runnables' step.
+    expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("<!-- GSD:grugops-start-here -->");
+    expect(kitFilesOf(target)).toBe("{}");
+  });
+
+  it("a slot-less render (the routing floor) on a re-install after a kit update leaves every kit file byte-identical", () => {
+    const { src, target, home, kit, kitFiles } = installed();
+    kitUpdate(src);
+    patchGenerator(src, "        ...RESOLVER,", '        "(resolver block removed by this fixture)",');
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(r.stdout).toContain("was rendered without the installer's kit slot line");
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(target)).toBe(kit);
+    expect(kitFilesOf(target)).toBe(kitFiles);
+  });
+
+  // ── Task 2: every other refusal on the kit path ───────────────────────────────────────────────
+  for (const which of ["agents", "skills"] as const) {
+    it(`an unreadable ${which} source directory: no kit file is written or changed, and a verify names the directory`, () => {
+      if (process.platform === "win32" || rootish) return; // chmod 000 is not a fixture there
+      const { src, target, home, kit, kitFiles } = installed();
+      kitUpdate(src);
+      const dir = join(src, ".claude", which);
+      chmodSync(dir, 0o000);
+      try {
+        let readable = true;
+        try {
+          readdirSync(dir);
+        } catch {
+          readable = false;
+        }
+        expect(readable, "premise: chmod 000 made the directory unreadable").toBe(false);
+        const r = run(src, target, home);
+        expect(r.status, r.stdout).toBe(3);
+        expect(verifyLines(r.stdout).some((l) => l.includes(`cannot read ${dir}`)), r.stdout).toBe(true);
+        expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+        expect(kitState(target)).toBe(kit);
+        expect(kitFilesOf(target)).toBe(kitFiles);
+        // A fresh target: nothing of the kit at all.
+        const fresh = makeFixture();
+        const rf = run(src, fresh, mkTmp());
+        expect(rf.status, rf.stdout).toBe(3);
+        expect(kitState(fresh)).toBe("");
+      } finally {
+        chmodSync(dir, 0o755);
+      }
+    });
+  }
+
+  // The --migrate symlink step (Pitfall 1). Install's own link at a resolver adapter is the link an
+  // install made before the render: readlink equals this checkout's adapter source (uninstall's
+  // removeKitAdapters names the same path). It is unlinked in the write phase, just before the file
+  // is materialized, and only when nothing refused.
+  const migrateFixture = (): { src: string; target: string; home: string; dest: string; own: string } | null => {
+    const src = makeSyntheticSrc();
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    const adapter = SYNTH_ADAPTERS.includes("grugops-orchestrator.md") ? "grugops-orchestrator.md" : SYNTH_ADAPTERS[0];
+    const dest = join(target, ".claude", "agents", adapter);
+    const own = join(src, ".claude", "agents", adapter);
+    rmSync(dest, { force: true });
+    const skip = stageSymlinkOrSkip(own, dest, "install's own link at a resolver adapter", "plan 33.1-31 --migrate cases");
+    if (skip !== null) {
+      console.warn(skipLine(skip, "the --migrate all-or-nothing cases"));
+      return null;
+    }
+    return { src, target, home, dest, own };
+  };
+
+  it("--migrate: install's own link at a resolver adapter is unlinked and re-materialized on success", () => {
+    const f = migrateFixture();
+    if (f === null) return;
+    const ownBefore = readFileSync(f.own, "utf8");
+    const r = run(f.src, f.target, f.home, ["--migrate"]);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout.split("\n").some((l) => /^ {2}unlinked\s/.test(l) && l.includes(f.dest)), r.stdout).toBe(true);
+    expect(lstatSync(f.dest).isSymbolicLink()).toBe(false);
+    expect(readFileSync(f.dest, "utf8")).toContain("grugops:materialized-kit");
+    expect(readFileSync(f.own, "utf8")).toBe(ownBefore);
+  });
+
+  it("--migrate with a render refusal: install's own link is NOT unlinked, and no kit file changes", () => {
+    const f = migrateFixture();
+    if (f === null) return;
+    // The legacy config is carried forward to .grugops/factory.config.json by pre-step 1, and the
+    // render then refuses its models value.
+    writeFileSync(join(f.target, "agent-factory", "config", "factory.config.json"), BAD_CONFIG);
+    const kit = kitState(f.target);
+    const ownBefore = readFileSync(f.own, "utf8");
+    const r = run(f.src, f.target, f.home, ["--migrate"]);
+    expect(r.status, r.stdout).toBe(3);
+    expect(r.stdout).toContain(BAD_MODEL);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(lstatSync(f.dest).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(f.dest)).toBe(f.own);
+    expect(kitState(f.target)).toBe(kit);
+    expect(readFileSync(f.own, "utf8")).toBe(ownBefore);
+  });
+
+  it("--migrate: a link at a resolver adapter that is not install's own is a refusal — nothing is unlinked, nothing is written through it, and no kit file changes", () => {
+    const src = makeSyntheticSrc();
+    const target = makeOldLayoutFixture({ symlink: true });
+    const skip = stageOldLayoutSymlinkAdapter(target, "plan 33.1-31: a foreign link under --migrate");
+    if (skip !== null) {
+      console.warn(skipLine(skip, "the --migrate all-or-nothing cases"));
+      return;
+    }
+    const dest = join(target, ".claude", "agents", "grugops-orchestrator.md");
+    const clone = join(target, "source-clone", "orchestrator-src.md");
+    const cloneBefore = readFileSync(clone, "utf8");
+    const linkBefore = readlinkSync(dest);
+    const kit = kitState(target);
+    const r = run(src, target, mkTmp(), ["--migrate"]);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).some((l) => l.includes(dest)), r.stdout).toBe(true);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(readlinkSync(dest)).toBe(linkBefore);
+    expect(readFileSync(clone, "utf8")).toBe(cloneBefore);
+    expect(kitState(target)).toBe(kit);
+  });
+
+  it("DRY_RUN with a refusal: the preview reports the refusal and names no would-write line for any kit file", () => {
+    const { src, target, home, kit } = installed();
+    kitUpdate(src);
+    writeConfig(target, BAD_CONFIG);
+    const r = run(src, target, home, [], { DRY_RUN: "1" });
+    expect(r.stdout).toContain(BAD_MODEL);
+    expect(r.status, r.stdout).toBe(3);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(target)).toBe(kit);
+    // A fresh target's preview too.
+    const fresh = makeFixture();
+    writeConfig(fresh, BAD_CONFIG);
+    const rf = run(src, fresh, mkTmp(), [], { DRY_RUN: "1" });
+    expect(kitWriteLines(rf.stdout), rf.stdout).toEqual([]);
+  });
+
+  // ── THE CLASS CASE: a refusal at ANY kit destination refuses the whole kit write ─────────────────
+  //
+  // The kit paths come from the baseline install's own record (kitFiles), never typed here, and the
+  // count is asserted. At each path, one shape at a time: a FIFO, a dangling link, a link to a file
+  // outside the target, and a hard link to a file outside the target. On the way: each skill
+  // directory replaced by a regular file, .claude/skills replaced by a FIFO, and .claude/agents
+  // replaced by a link to a directory outside the target. Every run must exit 3 with a verify naming
+  // the path, write or unlink no kit file, and leave the whole kit tree (the planted object included)
+  // and every outside file exactly as it was.
+  it("a link, FIFO, hard link or non-directory at or on the way to ANY kit path refuses the whole kit write", () => {
+    const { src, target: base, home, kitFiles } = installed();
+    const paths = Object.keys(JSON.parse(kitFiles) as object).sort();
+    expect(paths.length).toBe(SYNTH_ADAPTERS.length + SYNTH_SKILLS.length);
+    kitUpdate(src);
+    const outside = mkTmp();
+    const failures: string[] = [];
+    const skips: string[] = [];
+    let n = 0;
+    const one = (name: string, named: string, plant: (t: string) => string | null): void => {
+      const t = mkTmp();
+      cpSync(base, t, { recursive: true });
+      const skipped = plant(t);
+      if (skipped !== null) {
+        skips.push(`${name}: ${skipped}`);
+        return;
+      }
+      n += 1;
+      const before = kitState(t);
+      const outBefore = kitStateOf(outside);
+      const r = run(src, t, home);
+      const problems: string[] = [];
+      if (r.status !== 3) problems.push(`exit ${r.status}`);
+      if (!verifyLines(r.stdout).some((l) => l.includes(named))) problems.push(`no verify names ${named}`);
+      const writes = kitWriteLines(r.stdout);
+      if (writes.length > 0) problems.push(`kit write lines: ${writes.length} (first: ${writes[0].trim()})`);
+      if (kitState(t) !== before) problems.push("the kit tree changed");
+      if (kitStateOf(outside) !== outBefore) problems.push("a file outside the target changed");
+      if (/\n\s+at .+\(.+:\d+:\d+\)/.test(r.stderr)) problems.push("a stack trace");
+      if (problems.length > 0) failures.push(`${name}: ${problems.join("; ")}`);
+    };
+    for (const [i, rel] of paths.entries()) {
+      one(`${rel} FIFO`, rel, (t) => {
+        rmSync(atRel(t, rel), { force: true });
+        const s = stageShapeOrSkip("FIFO", atRel(t, rel), "plan 33.1-31 kit class case");
+        return s === null ? null : s.reason;
+      });
+      one(`${rel} dangling link`, rel, (t) => {
+        rmSync(atRel(t, rel), { force: true });
+        symlinkSync(join(outside, `nothing-${i}`), atRel(t, rel));
+        return null;
+      });
+      one(`${rel} link to an outside file`, rel, (t) => {
+        writeFileSync(join(outside, `victim-${i}.md`), `outside file ${i}\n`);
+        rmSync(atRel(t, rel), { force: true });
+        symlinkSync(join(outside, `victim-${i}.md`), atRel(t, rel));
+        return null;
+      });
+      one(`${rel} hard link`, rel, (t) => {
+        const other = join(outside, `hard-${i}-${n}.md`);
+        writeFileSync(other, readFileSync(atRel(t, rel)));
+        rmSync(atRel(t, rel), { force: true });
+        linkSync(other, atRel(t, rel));
+        return null;
+      });
+    }
+    for (const s of SYNTH_SKILLS) {
+      const dir = `.claude/skills/${s}`;
+      one(`${dir} is a regular file`, dir, (t) => {
+        rmSync(atRel(t, dir), { recursive: true, force: true });
+        writeFileSync(atRel(t, dir), "not a directory\n");
+        return null;
+      });
+    }
+    one(".claude/skills is a FIFO", ".claude/skills", (t) => {
+      rmSync(atRel(t, ".claude/skills"), { recursive: true, force: true });
+      const s = stageShapeOrSkip("FIFO", atRel(t, ".claude/skills"), "plan 33.1-31 kit class case");
+      return s === null ? null : s.reason;
+    });
+    one(".claude/agents is a link to an outside directory", ".claude/agents", (t) => {
+      const moved = join(outside, `agents-${n}`);
+      cpSync(atRel(t, ".claude/agents"), moved, { recursive: true });
+      rmSync(atRel(t, ".claude/agents"), { recursive: true, force: true });
+      symlinkSync(moved, atRel(t, ".claude/agents"));
+      return null;
+    });
+    for (const s of skips) console.warn(`SKIPPED ${s}`);
+    expect(n, "no case ran").toBeGreaterThan(0);
+    expect(failures, failures.join("\n")).toEqual([]);
+  }, 900_000);
+
+  // The state of a directory outside the target (files, links, special files), by lstat.
+  function kitStateOf(dir: string): string {
+    const rows: string[] = [];
+    const walk = (rel: string): void => {
+      const abs = rel === "" ? dir : join(dir, rel);
+      for (const n of readdirSync(abs).sort()) {
+        const r = rel === "" ? n : `${rel}/${n}`;
+        const st = lstatSync(join(dir, r));
+        if (st.isSymbolicLink()) rows.push(`${r} LINK ${readlinkSync(join(dir, r))}`);
+        else if (st.isDirectory()) walk(r);
+        else if (st.isFile()) rows.push(`${r} ${createHash("sha256").update(readFileSync(join(dir, r))).digest("hex")}`);
+        else rows.push(`${r} SPECIAL`);
+      }
+    };
+    walk("");
+    return rows.join("\n");
+  }
+});
