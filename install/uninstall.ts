@@ -811,9 +811,9 @@ function unmergeGemini(): void {
     }
     report(
       "left",
-      `${rel} (context.fileName is not the list install recorded leaving there — it changed after install wrote it, so ` +
-        `which AGENTS.md entry is install's is not known — left untouched; remove AGENTS.md from context.fileName by ` +
-        `hand if grugops added it)`,
+      `${rel} (context.fileName is not the list install recorded leaving there — it changed after install wrote it, or ` +
+        `the record does not describe it — so which AGENTS.md entry is install's is not known; left untouched. Remove ` +
+        `AGENTS.md from context.fileName by hand if grugops added it)`,
     );
     return;
   }
