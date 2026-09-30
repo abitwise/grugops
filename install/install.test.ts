@@ -7523,6 +7523,376 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     const m1 = readFileSync(markerPathOf(target));
     expect(runInstall(target, home).status).toBe(0);
     expect(readFileSync(markerPathOf(target)).equals(m1), "a second install changed the marker").toBe(true);
-    void writeMarkerJson;
+  });
+
+  // ── Task 2: the legacy fallback, no marker, --symlink, malformed records, DRY_RUN, special files ──
+  const srcOf = (rel: string): string => join(REPO_ROOT, ...rel.split("/"));
+  const sameAsSource = (t: string, rel: string): boolean => {
+    try {
+      return readFileSync(at(t, rel)).equals(readFileSync(srcOf(rel)));
+    } catch {
+      return false;
+    }
+  };
+  // A directory-aware snapshot: every directory, file (sha256) and link (its target), by path.
+  const treeOf = (root: string): string => {
+    if (!existsSync(root)) return "";
+    const rows: string[] = [];
+    const walk = (rel: string): void => {
+      for (const name of readdirSync(join(root, rel)).sort()) {
+        const r = rel === "" ? name : `${rel}/${name}`;
+        const st = lstatSync(join(root, r));
+        if (st.isSymbolicLink()) rows.push(`L ${r} -> ${readlinkSync(join(root, r))}`);
+        else if (st.isDirectory()) {
+          rows.push(`D ${r}`);
+          walk(r);
+        } else if (st.isFile()) rows.push(`F ${r} ${sha(readFileSync(join(root, r)))}`);
+        else rows.push(`S ${r}`);
+      }
+    };
+    walk("");
+    return rows.join("\n");
+  };
+  const runUninstallDry = (target: string, home: string): { status: number | null; stdout: string; stderr: string } => {
+    const r = spawnSync("node", [UNINSTALL_JS], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  };
+  const dropKitFiles = (t: string): void => {
+    const m = readMarkerJson(t);
+    delete m.kitFiles;
+    writeMarkerJson(t, m);
+  };
+  // A copy of the kit's own skill and adapter sources (all uninstall derives its kit set from), for the
+  // cases that need a second checkout or a special file in the kit source.
+  const kitCopy = (): string => {
+    const k = mkTmp();
+    cpSync(join(REPO_ROOT, ".claude", "skills"), join(k, ".claude", "skills"), { recursive: true });
+    cpSync(join(REPO_ROOT, ".claude", "agents"), join(k, ".claude", "agents"), { recursive: true });
+    return k;
+  };
+
+  it("kit-file ownership: a legacy marker (no kitFiles) — uninstall removes every kit file byte-identical to its kit source and leaves every other one with the manual remedy, exit 0", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    dropKitFiles(target);
+    const kit = kitFilesIn(target);
+    const identical = kit.filter((rel) => sameAsSource(target, rel));
+    const differing = kit.filter((rel) => !identical.includes(rel));
+    // PREMISE: the verbatim-copied skills are identical, and every rendered file (all adapters and the
+    // resolver skill) differs, because install writes the kit path into it.
+    expect(identical.length, "no kit file is a verbatim copy").toBeGreaterThan(0);
+    expect(differing).toContain(".claude/skills/grugops/SKILL.md");
+    expect(differing.filter((rel) => rel.startsWith(".claude/agents/")).length).toBe(17);
+    const before = new Map(differing.map((rel) => [rel, readFileSync(at(target, rel))]));
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of identical) {
+      expect(present(target, rel), `${rel} (byte-identical to the kit source) was not removed`).toBe(false);
+      expect(naming(r.stdout, "removed", rel).length, `${rel}\n${r.stdout}`).toBe(1);
+    }
+    for (const [rel, bytes] of before) {
+      expect(present(target, rel), `${rel} was removed with no record`).toBe(true);
+      expect(readFileSync(at(target, rel)).equals(bytes), `${rel} changed`).toBe(true);
+      const left = naming(r.stdout, "left", rel);
+      expect(left.length, `no left line for ${rel}\n${r.stdout}`).toBe(1);
+      expect(left[0]).toMatch(/no install record of what was written/);
+      expect(left[0]).toMatch(/remove it by hand/);
+    }
+  });
+
+  it("kit-file ownership: no marker at all — a kit file byte-identical to the kit source and one with user text are both left, and the target changes by zero bytes (never-installed, brief DC-2)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const skill = ".claude/skills/grugops-plan/SKILL.md";
+    const adapter = ".claude/agents/grugops-orchestrator.md";
+    mkdirSync(dirname(at(target, skill)), { recursive: true });
+    mkdirSync(dirname(at(target, adapter)), { recursive: true });
+    writeFileSync(at(target, skill), readFileSync(srcOf(skill)));
+    writeFileSync(at(target, adapter), "# my own orchestrator notes\n");
+    const before = treeOf(target);
+    for (const dry of [true, false]) {
+      const r = dry ? runUninstallDry(target, home) : runUninstall(target, home);
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(treeOf(target), `${dry ? "DRY_RUN " : ""}uninstall changed a never-installed target\n${r.stdout}`).toBe(before);
+      for (const rel of [skill, adapter]) {
+        const left = naming(r.stdout, "left", rel);
+        expect(left.length, `${rel}\n${r.stdout}`).toBe(1);
+        expect(left[0]).toMatch(/there is no install marker/);
+      }
+    }
+  });
+
+  it("kit-file ownership (brief DC-2 class): a never-installed target with a user file, or a verbatim kit copy, at EVERY kit path changes by zero bytes, real and DRY_RUN", () => {
+    // The kit path set comes from a real install's own record, never typed.
+    const probe = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(probe, home).status).toBe(0);
+    const paths = Object.keys(readMarkerJson(probe).kitFiles as Record<string, string>);
+    expect(paths.length).toBe(24);
+    for (const variant of ["user text", "verbatim kit source"] as const) {
+      const target = makeFixture();
+      for (const rel of paths) {
+        mkdirSync(dirname(at(target, rel)), { recursive: true });
+        writeFileSync(at(target, rel), variant === "user text" ? `user file at ${rel}\n` : readFileSync(srcOf(rel)));
+      }
+      const before = treeOf(target);
+      for (const dry of [true, false]) {
+        const r = dry ? runUninstallDry(target, home) : runUninstall(target, home);
+        const tag = `${variant}, ${dry ? "DRY_RUN" : "real"}`;
+        expect(r.status, `${tag}\n${r.stdout}${r.stderr}`).toBe(0);
+        expect(treeOf(target), `${tag}: uninstall changed a never-installed target\n${r.stdout}`).toBe(before);
+        for (const rel of paths) expect(naming(r.stdout, "left", rel).length, `${tag}: ${rel}`).toBe(1);
+      }
+    }
+  });
+
+  it("kit-file ownership (brief DC-2 class): install, edit EVERY kit file, uninstall — every edit survives byte-identical and is reported left", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const kit = kitFilesIn(target);
+    expect(kit.length).toBe(24);
+    for (const rel of kit) writeFileSync(at(target, rel), readFileSync(at(target, rel), "utf8") + EDIT);
+    const edited = new Map(kit.map((rel) => [rel, readFileSync(at(target, rel))]));
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const [rel, bytes] of edited) {
+      expect(present(target, rel) && readFileSync(at(target, rel)).equals(bytes), `${rel} was not kept byte-identical`).toBe(true);
+      expect(naming(r.stdout, "left", rel).length, `${rel}\n${r.stdout}`).toBe(1);
+    }
+  });
+
+  it("kit-file ownership: a --symlink install records link:<target> for each linked skill and sha256 for each rendered file; uninstall removes the links; a link the user re-pointed is left and its file untouched", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, "--symlink").status).toBe(0);
+    const rec = readMarkerJson(target).kitFiles as Record<string, string>;
+    const kit = kitFilesIn(target);
+    expect(Object.keys(rec)).toEqual(kit);
+    const links = kit.filter((rel) => lstatSync(at(target, rel)).isSymbolicLink());
+    if (links.length === 0) {
+      console.log("SKIP: install/install.test.ts --symlink made no link on this host (symlink creation refused)");
+      return;
+    }
+    for (const rel of kit) {
+      if (links.includes(rel)) expect(rec[rel], rel).toBe(`link:${readlinkSync(at(target, rel))}`);
+      else expect(rec[rel], rel).toBe(sha(readFileSync(at(target, rel))));
+    }
+    // The user re-points one skill link to another file of theirs.
+    const repointed = links[0];
+    const theirs = join(target, "my-notes.md");
+    writeFileSync(theirs, "the user's own notes\n");
+    rmSync(at(target, repointed));
+    symlinkSync(theirs, at(target, repointed));
+    const r = runUninstall(target, home);
+    expect([0, 3], r.stdout + r.stderr).toContain(r.status);
+    expect(lstatSync(at(target, repointed)).isSymbolicLink(), "the re-pointed link was removed").toBe(true);
+    expect(readlinkSync(at(target, repointed))).toBe(theirs);
+    expect(readFileSync(theirs, "utf8")).toBe("the user's own notes\n");
+    for (const rel of kit.filter((k) => k !== repointed)) expect(present(target, rel), `${rel} was not removed`).toBe(false);
+  });
+
+  it("kit-file ownership: a link re-pointed to another checkout's copy of the same kit file is left when uninstall runs from that checkout (the record names the link install made)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, "--symlink").status).toBe(0);
+    const rec = readMarkerJson(target).kitFiles as Record<string, string>;
+    const link = Object.keys(rec).find((rel) => rec[rel].startsWith("link:"));
+    if (link === undefined) {
+      console.log("SKIP: install/install.test.ts --symlink made no link on this host (symlink creation refused)");
+      return;
+    }
+    const other = kitCopy();
+    rmSync(at(target, link));
+    symlinkSync(join(other, ...link.split("/")), at(target, link));
+    const r = runUninstallFrom(other, target, home);
+    expect([0, 3], r.stdout + r.stderr).toContain(r.status);
+    expect(lstatSync(at(target, link)).isSymbolicLink(), `${link} was removed although it is not the link install recorded`).toBe(true);
+    const left = naming(r.stdout, "left", link);
+    expect(left.length, r.stdout).toBe(1);
+    expect(left[0]).toMatch(/it has changed since install wrote it/);
+  });
+
+  const MALFORMED_KIT: ReadonlyArray<readonly [string, unknown]> = [
+    ["a string", "x"],
+    ["an array", []],
+    ["a key outside the target", { "../x": `sha256:${"a".repeat(64)}` }],
+    ["an md5 value", { ".claude/agents/grugops-orchestrator.md": "md5:1" }],
+    ["upper-case hex", { ".claude/agents/grugops-orchestrator.md": "sha256:ABC" }],
+  ];
+  for (const [what, bad] of MALFORMED_KIT) {
+    it(`kit-file ownership: a malformed kitFiles (${what}) — uninstall exits 3 with one verify and removes no kit file; install over it exits 3 and writes it back unchanged`, () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      const kit = kitFilesIn(target);
+      const m = readMarkerJson(target);
+      m.kitFiles = bad;
+      writeMarkerJson(target, m);
+      const ri = runInstall(target, home);
+      expect(ri.status, ri.stdout).toBe(3);
+      expect(linesUnder(ri.stdout, "verify").filter((l) => /kit-file ledger \(kitFiles\)/.test(l)).length, ri.stdout).toBe(1);
+      expect(readMarkerJson(target).kitFiles).toEqual(bad);
+      const before = new Map(kit.map((rel) => [rel, readFileSync(at(target, rel))]));
+      const ru = runUninstall(target, home);
+      expect(ru.status, ru.stdout).toBe(3);
+      expect(linesUnder(ru.stdout, "verify").filter((l) => /kit-file ledger \(kitFiles\)/.test(l)).length, ru.stdout).toBe(1);
+      for (const [rel, bytes] of before) {
+        expect(present(target, rel) && readFileSync(at(target, rel)).equals(bytes), `${rel} was removed or changed`).toBe(true);
+        expect(naming(ru.stdout, "left", rel).length, `${rel}\n${ru.stdout}`).toBe(1);
+      }
+      // The marker holds a ledger nobody could use, so it is kept.
+      expect(existsSync(markerPathOf(target))).toBe(true);
+      expect(readMarkerJson(target).kitFiles).toEqual(bad);
+    });
+  }
+
+  it("kit-file ownership: DRY_RUN after install with one adapter edited changes neither root; the real run removes exactly what the preview named", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const kit = kitFilesIn(target);
+    const edited = ".claude/agents/grugops-orchestrator.md";
+    writeFileSync(at(target, edited), readFileSync(at(target, edited), "utf8") + EDIT);
+    const t0 = treeOf(target);
+    const h0 = treeOf(home);
+    const dry = runUninstallDry(target, home);
+    expect(dry.status, dry.stdout).toBe(0);
+    expect(treeOf(target)).toBe(t0);
+    expect(treeOf(home)).toBe(h0);
+    const previewed = kit.filter((rel) => naming(dry.stdout, "would-remove", rel).length === 1);
+    expect(previewed).toEqual(kit.filter((rel) => rel !== edited));
+    expect(naming(dry.stdout, "left", edited).length, dry.stdout).toBe(1);
+    const real = runUninstall(target, home);
+    expect(real.status, real.stdout).toBe(0);
+    expect(kit.filter((rel) => !present(target, rel))).toEqual(previewed);
+    expect(naming(real.stdout, "left", edited).length).toBe(1);
+  });
+
+  it("kit-file ownership: a re-install never carries a kitFiles entry by presence — a kit path this run could not write (a directory there) is dropped from the record", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const rel = ".claude/agents/grugops-orchestrator.md";
+    expect(Object.keys(readMarkerJson(target).kitFiles as object)).toContain(rel);
+    rmSync(at(target, rel));
+    mkdirSync(at(target, rel));
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(Object.keys(readMarkerJson(target).kitFiles as object)).not.toContain(rel);
+  });
+
+  it("kit-file ownership: a marker kept for another malformed ledger drops the kit files this run removed and keeps the one it left", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const edited = ".claude/skills/grugops-plan/SKILL.md";
+    writeFileSync(at(target, edited), readFileSync(at(target, edited), "utf8") + EDIT);
+    const m = readMarkerJson(target);
+    m.createdDirs = "garbage";
+    writeMarkerJson(target, m);
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout).toBe(3);
+    const kept = readMarkerJson(target);
+    expect(kept.createdDirs).toBe("garbage");
+    expect(Object.keys(kept.kitFiles as object)).toEqual([edited]);
+  });
+
+  // ── special files: never read, never a hang (brief DC-3, plan 33.1-26's mkfifo-or-skip precedent) ──
+  const finishedWith = (r: ReturnType<typeof spawnSync>, rel: string, what: string): void => {
+    expect(r.error, `${what}: uninstall did not finish (${r.error?.message})`).toBeUndefined();
+    expect(r.signal, what).toBeNull();
+    const out = String(r.stdout ?? "");
+    const named = out.split("\n").filter((l) => /^ {2}(left|skipped|verify)\s/.test(l) && l.includes(rel));
+    expect(named.length, `${what}: no left/skipped/verify line names ${rel}\n${out}`).toBeGreaterThan(0);
+  };
+  const withBlockedWriter = async (fifo: string, body: () => void): Promise<void> => {
+    const writer = startBlockedFifoWriter(fifo);
+    try {
+      await pause(300);
+      expect(stillRunning(writer), "the writer did not block (premise)").toBe(true);
+      body();
+      await pause(300);
+      expect(stillRunning(writer), `the FIFO at ${fifo} was opened: the blocked writer was released`).toBe(true);
+      expect(lstatSync(fifo).isFIFO(), `the FIFO at ${fifo} was replaced or removed`).toBe(true);
+    } finally {
+      writer.kill("SIGKILL");
+    }
+  };
+  const SPECIAL_CASES: ReadonlyArray<{ readonly name: string; readonly rel: string; readonly shape: "FIFO" | "directory"; readonly legacy: boolean }> = [
+    { name: "(1) legacy marker, a FIFO at an adapter", rel: ".claude/agents/grugops-orchestrator.md", shape: "FIFO", legacy: true },
+    { name: "(2) legacy marker, a directory at a skill", rel: ".claude/skills/grugops-plan/SKILL.md", shape: "directory", legacy: true },
+    { name: "(3) an ok kitFiles record, the recorded adapter replaced by a FIFO", rel: ".claude/agents/grugops-orchestrator.md", shape: "FIFO", legacy: false },
+    { name: "(5) a FIFO at a runnable", rel: "tools/grugops/host-protection.js", shape: "FIFO", legacy: false },
+  ];
+  for (const c of SPECIAL_CASES) {
+    it(`kit-file ownership special file ${c.name}: uninstall finishes, the special file stays, and its path is reported`, async () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      if (c.legacy) dropKitFiles(target);
+      const p = at(target, c.rel);
+      const skip = plantSpecial(p, c.shape, `kit-file ownership ${c.name}`);
+      if (skip !== null) {
+        console.log(skipLine(skip, "the directory cases"));
+        return;
+      }
+      if (c.shape === "directory") {
+        const r = runUninstallBounded(target, home, 20_000);
+        finishedWith(r, c.rel, c.name);
+        expect(lstatSync(p).isDirectory()).toBe(true);
+        return;
+      }
+      await withBlockedWriter(p, () => finishedWith(runUninstallBounded(target, home, 20_000), c.rel, c.name));
+    });
+  }
+
+  it("kit-file ownership special file (4) AGENTS.md is a symlink to a FIFO: uninstall finishes and never opens it", async () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const fifo = join(target, "a-fifo");
+    const skip = plantSpecial(fifo, "FIFO", "kit-file ownership (4)");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the directory cases"));
+      return;
+    }
+    rmSync(join(target, "AGENTS.md"), { force: true });
+    symlinkSync(fifo, join(target, "AGENTS.md"));
+    await withBlockedWriter(fifo, () => finishedWith(runUninstallBounded(target, home, 20_000), "AGENTS.md", "(4)"));
+    expect(lstatSync(join(target, "AGENTS.md")).isSymbolicLink()).toBe(true);
+  });
+
+  it("kit-file ownership special file (6) legacy marker, the KIT SOURCE of a skill is a FIFO: the byte-identity fallback never opens it, and the skill is left", async () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    dropKitFiles(target);
+    const rel = ".claude/skills/grugops-plan/SKILL.md";
+    expect(sameAsSource(target, rel), "premise: the installed skill is a verbatim copy").toBe(true);
+    const other = kitCopy();
+    const fifo = join(other, ...rel.split("/"));
+    const skip = plantSpecial(fifo, "FIFO", "kit-file ownership (6)");
+    if (skip !== null) {
+      console.log(skipLine(skip, "the directory cases"));
+      return;
+    }
+    await withBlockedWriter(fifo, () => {
+      const r = spawnSync("node", [UNINSTALL_JS], {
+        encoding: "utf8",
+        timeout: 20_000,
+        env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: other, GRUGOPS_HOME: home, TARGET: target },
+      });
+      finishedWith(r, rel, "(6)");
+      const left = naming(String(r.stdout), "left", rel);
+      expect(left.length, String(r.stdout)).toBe(1);
+      expect(left[0]).toMatch(/kit source/);
+    });
+    expect(present(target, rel), "the skill was removed although its kit source could not be read").toBe(true);
   });
 });
