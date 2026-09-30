@@ -478,6 +478,14 @@ const KIT_FILES = new Map();
 // written (no consent, a hazard, a kit-plan refusal), writeMarker keeps the previous marker's
 // kitVersion, so the marker never claims a kit version the target's kit is not at.
 let KIT_WRITTEN = false;
+// KIT_EDITED_RECORDED (plan 33.1-32, D-32): the kit files (POSIX, relative to TARGET) the pre-flight
+// found edited AGAINST A kitFiles RECORD. When this run writes no kit file, writeMarker carries each of
+// those records forward even though the file no longer holds it. The record is what install last wrote
+// there, and the D-32 remedy "restore them first" depends on it: a file restored to those bytes holds
+// its record again, so the next run is not asked about it. Every other entry follows the plan-31 rule
+// (carried only while its file still holds it). Uninstall leaves an edited file whether or not its
+// record is carried, and with the record it says truthfully that the file changed since install wrote it.
+const KIT_EDITED_RECORDED = new Set();
 // The target's configuration file, and the two legacy locations --migrate carries one forward from
 // (D-04). Declared here, above the doctor's early exit, because the doctor's render asks
 // renderConfigInput (red-team B3 of plan 33.1-31); see THE LEGACY CONFIG CARRY below.
@@ -2711,6 +2719,8 @@ function kitPreflight(plan) {
         }
         if (why === null)
             continue;
+        if (record !== null && rel !== null)
+            KIT_EDITED_RECORDED.add(rel);
         const backup = kitBackupPath(e.dest);
         const tooLong = pathLimitProblem(backup);
         if (tooLong !== null) {
@@ -2966,7 +2976,9 @@ function materializeRunnable() {
 // kitFiles (plan 33.1-30): what this run wrote to each kit file (KIT_FILES), united with the previous
 // marker's entries this run did not write that still hold exactly their record (recordHolds), sorted
 // by path. Never by presence: a kit file this run could not write (a directory, a FIFO, a link there)
-// or one the user edited since is dropped.
+// is dropped, and so is one the user edited since, except in a run that wrote no kit file: there the
+// record of a file D-32's pre-flight found edited is carried unchanged (KIT_EDITED_RECORDED, plan
+// 33.1-32), so restoring the file is a true remedy.
 //
 // ONE RULE FOR AN ABSENT LEDGER FIELD (plan 33.1-28): an absent record stays absent unless this run
 // itself performed the recorded action. With NO previous marker this run is the whole history, so
@@ -3156,7 +3168,10 @@ function writeMarker() {
         for (const [rel, record] of previousKit.files) {
             if (union.has(rel))
                 continue;
-            if (recordHolds(TARGET, join(TARGET, ...rel.split("/")), record))
+            // A kit file the pre-flight found edited keeps its record while the kit was not written (see
+            // KIT_EDITED_RECORDED): it is the record a restored file is compared with.
+            const keptEdited = !KIT_WRITTEN && KIT_EDITED_RECORDED.has(rel);
+            if (keptEdited || recordHolds(TARGET, join(TARGET, ...rel.split("/")), record))
                 union.set(rel, record);
         }
         marker.kitFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));

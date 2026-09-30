@@ -98,7 +98,12 @@ resolver skill or adapter is replaced by the rendered file only when it is insta
 link an earlier `--symlink` install made, pointing at this checkout's source for that file), on any
 run; any other link there refuses the kit. A run that refuses the kit keeps every earlier `kitFiles`
 entry whose file still holds what install wrote and drops only an entry this run found no longer
-holds (the uninstaller would leave that file anyway). The one gap is an error while the kit is being
+holds (the uninstaller would leave that file anyway). A re-install never overwrites a kit file you
+edited without your answer (D-32): at a terminal it lists the edited files and asks whether to back
+them up (as `<file>.grugops-edited-<UTC stamp>`, which the uninstaller never removes) and refresh the
+whole kit; without a terminal, or with `--yes`, it writes no kit file and names
+`--backup-edited-kit`, the flag that gives that answer. An edited file keeps its `kitFiles` entry,
+so restoring it to what install wrote is also enough for the next run. The one gap is an error while the kit is being
 written that the checks could not see (a disk that fills up, for example): that file is a `verify`
 line and the run goes on to the next. The uninstaller applies the same rule to every file it edits, and it never reads a
 hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops

@@ -8876,11 +8876,6 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(r.status, r.stdout).toBe(0);
     return { kit: kitState(t), kitFiles: kitFilesOf(t) };
   };
-  const without = (rec: Record<string, string> | null, rel: string): Record<string, string> => {
-    const out = { ...(rec ?? {}) };
-    delete out[rel];
-    return out;
-  };
 
   // ── Task 1: the tracer ────────────────────────────────────────────────────────────────────────
   it("no terminal, --yes: an edited adapter over a kit update → exit 3, a verify naming it and --backup-edited-kit, and NO kit file changes (no mixed kit)", () => {
@@ -8899,12 +8894,29 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(kitState(target)).toBe(kit);
     expect(readFileSync(atRel(target, EDITED_REL)).equals(edited)).toBe(true);
     expect(backupsIn(target)).toEqual([]);
-    // kitFiles keeps every entry that still holds; only the edited file's record (proved stale) is
-    // dropped (the plan-31 rule for a run that writes no kit file).
-    expect(kitFilesOf(target)).toEqual(without(before, EDITED_REL));
+    // kitFiles is unchanged: every entry still holds, and the edited file keeps its record (what
+    // install last wrote there), so restoring the file is a true remedy (see the restore case).
+    expect(kitFilesOf(target)).toEqual(before);
     // The non-kit steps still ran: the marker was rewritten, and the CLAUDE.md pointer is there.
     expect(r.stdout).toMatch(/\.grugops\/install\.json \(marker\)/);
     expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("<!-- GSD:grugops-start-here -->");
+  });
+
+  it("the remedy 'restore them first' is true: after a refusal, the file restored to what install wrote holds its record again, and the next run refreshes the whole kit with no flag", () => {
+    const { src, target, home } = installed();
+    const original = readFileSync(atRel(target, EDITED_REL));
+    kitUpdate(src);
+    editAdapter(target);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    writeFileSync(atRel(target, EDITED_REL), original);
+    const r2 = run(src, target, home);
+    expect(r2.status, r2.stdout).toBe(0);
+    expect(r2.stdout).not.toMatch(/edited-kit|--backup-edited-kit/);
+    expect(backupsIn(target)).toEqual([]);
+    const fresh = freshKit(src, home);
+    expect(kitState(target)).toBe(fresh.kit);
+    expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
   });
 
   it("--backup-edited-kit: the edited adapter is backed up byte-for-byte BEFORE the first kit write, then the whole kit is the updated render", () => {
@@ -9044,22 +9056,33 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     return w.status === 0 && (w.stdout ?? "").trim() !== "" ? null : "script(1) is not installed";
   };
   const shq = (a: string): string => `'${a.replace(/'/g, `'\\''`)}'`;
-  const runPty = (src: string, target: string, home: string, answer: string, args: string[] = []): Run => {
+  // `answer` is typed when `[y/N]` appears. `steps` (optional) types earlier answers first, each when
+  // its fixed string appears (the target question, for a run without --target).
+  const runPty = (
+    src: string,
+    target: string,
+    home: string,
+    answer: string,
+    args: string[] = [],
+    steps: ReadonlyArray<readonly [string, string]> = [],
+    withTarget = true,
+  ): Run => {
     const log = join(mkTmp(), "pty.log");
-    const cmd = ["node", INSTALL_JS, "--target", target, ...args];
+    const cmd = ["node", INSTALL_JS, ...(withTarget ? ["--target", target] : []), ...args];
     const scriptCmd =
       process.platform === "darwin"
         ? `script -q /dev/null ${cmd.map(shq).join(" ")}`
         : `script -qec ${shq(cmd.map(shq).join(" "))} /dev/null`;
-    const sh =
-      `( i=0; while [ $i -lt 600 ]; do ` +
-      `if grep -q '\\[y/N\\]' ${shq(log)} 2>/dev/null; then printf '%s\\n' "$ANSWER"; sleep 1; exit 0; fi; ` +
-      `if grep -Eq '^== (install|migrate) (complete|INCOMPLETE)' ${shq(log)} 2>/dev/null; then exit 0; fi; ` +
-      `sleep 0.1; i=$((i+1)); done ) | ${scriptCmd} > ${shq(log)} 2>&1`;
-    const r = spawnSync("sh", ["-c", sh], {
+    const ended = `grep -Eq '^== (install|migrate) (complete|INCOMPLETE)' ${shq(log)} 2>/dev/null`;
+    const waitFor = (fixed: string, ans: string): string =>
+      `i=0; while [ $i -lt 600 ]; do ` +
+      `if grep -Fq ${shq(fixed)} ${shq(log)} 2>/dev/null; then printf '%s\\n' ${shq(ans)}; break; fi; ` +
+      `if ${ended}; then exit 0; fi; sleep 0.1; i=$((i+1)); done; `;
+    const feeder = `( ${steps.map(([f, a]) => waitFor(f, a)).join("")}${waitFor("[y/N]", answer)}sleep 1 )`;
+    const r = spawnSync("sh", ["-c", `${feeder} | ${scriptCmd} > ${shq(log)} 2>&1`], {
       encoding: "utf8",
       timeout: 120_000,
-      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, ANSWER: answer },
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
     });
     expect(r.error, `the pty run did not finish: ${r.error?.message}`).toBeUndefined();
     const out = existsSync(log) ? readFileSync(log, "utf8").replace(/\r/g, "") : "";
@@ -9109,10 +9132,28 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
         expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
         expect(kitState(target)).toBe(kit);
         expect(backupsIn(target)).toEqual([]);
-        expect(kitFilesOf(target)).toEqual(without(kitFiles, EDITED_REL));
+        expect(kitFilesOf(target)).toEqual(kitFiles);
       }
     });
   }
+
+  it("interactive without --target: the target question and then D-32's question are both answered at the terminal (a non-blocking stdin is waited on, not read as no answer)", () => {
+    const why = ptyUnavailable();
+    if (why !== null) {
+      console.log(`SKIP interactive D-32 case: ${why}`);
+      return;
+    }
+    const { src, target, home, edited } = editedOverUpdate();
+    // TARGET is the default the target question offers; an empty answer takes it.
+    const r = runPty(src, target, home, "y", [], [["Install grugops into which repo?", ""]], false);
+    expect(r.stdout, "premise: the target question was asked").toContain("Install grugops into which repo?");
+    expect(r.stdout, "premise: D-32's question was asked").toContain("[y/N]");
+    expect(r.status, r.stdout).toBe(0);
+    const backups = backupsIn(target);
+    expect(backups.length, r.stdout).toBe(1);
+    expect(readFileSync(atRel(target, backups[0])).equals(edited)).toBe(true);
+    expect(kitState(target)).toBe(freshKit(src, home).kit);
+  });
 
   it("--yes at a terminal never consents: the prompt is not shown and nothing in the kit changes", () => {
     const why = ptyUnavailable();
