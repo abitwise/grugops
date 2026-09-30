@@ -5383,7 +5383,7 @@ describe("ask rules: install side (D-18)", () => {
     expect(ledger.createdAsk).toBe(true);
     // The marker keeps a fixed field order with the ledger after installMode.
     const markerKeys = Object.keys(JSON.parse(readFileSync(join(target, ".grugops", "install.json"), "utf8")));
-    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings"]);
+    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles"]);
     expect(r.stdout).toContain("-- permission rules --");
     expect(r.stdout).toContain("speed bump");
     expect(r.stdout).toContain("not a security boundary");
@@ -5797,6 +5797,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       "createdDirs",
       "createdFiles",
       "geminiSettings",
+      "kitFiles",
     ]);
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
@@ -5929,7 +5930,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     expect(runInstall(first, home).status).toBe(0);
     const m = readMarkerJson(first);
-    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings"]);
+    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles"]);
     const created = fileKeys(m.createdFiles);
     expect(created).toEqual([...created].sort());
     expect(created.length).toBeGreaterThan(0);
@@ -6308,7 +6309,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(existsSync(join(target, ".gemini")), ".gemini/ (install created it) was not removed").toBe(false);
   });
 
-  it("Gemini settings ownership: the marker keys end with geminiSettings after createdFiles; a second install leaves the marker byte-identical", () => {
+  it("Gemini settings ownership: the marker keys put geminiSettings after createdFiles (kitFiles last, plan 33.1-30); a second install leaves the marker byte-identical", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -6321,6 +6322,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       "createdDirs",
       "createdFiles",
       "geminiSettings",
+      "kitFiles",
     ]);
     const m1 = readFileSync(markerPathOf(target));
     const g1 = readFileSync(gemPath(target));
@@ -7390,5 +7392,137 @@ describe("uninstall reads every user path through readUserFile (DC-3, plan 33.1-
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(r.stdout).toContain("CLAUDE.md start-here pointer (sentinel block only; rest of file preserved)");
     expect(existsSync(join(target, ".grugops", "install.json"))).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// KIT-FILE OWNERSHIP (plan 33.1-30, Gap B completed, brief DC-2, D-18).
+//
+// Uninstall used to remove every grugops skill and adapter file at a kit-derived path without
+// comparing its content, so a user's edit to one of them was deleted with it. Install now records
+// in the marker (as `kitFiles`) what it wrote to each kit file: the sha256 of the bytes, or the link
+// target of a --symlink install. Uninstall removes a kit file only while it still holds that record.
+// The kit-file set is derived from the target tree a real install wrote, never typed as a list.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
+  const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
+  const readMarkerJson = (t: string): Record<string, unknown> => JSON.parse(readFileSync(markerPathOf(t), "utf8"));
+  const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
+    writeFileSync(markerPathOf(t), JSON.stringify(m, null, 2) + "\n");
+  const sha = (b: string | Buffer): string => `sha256:${createHash("sha256").update(b).digest("hex")}`;
+  const linesUnder = (stdout: string, label: string): string[] =>
+    stdout
+      .split("\n")
+      .map((l) => /^ {2}(\S+)\s+(.+)$/.exec(l))
+      .filter((m): m is RegExpExecArray => m !== null && m[1] === label)
+      .map((m) => m[2]);
+  const naming = (stdout: string, label: string, rel: string): string[] =>
+    linesUnder(stdout, label).filter((l) => l === rel || l.startsWith(`${rel} `) || l.startsWith(`${rel}:`));
+  // Every kit file in a target: .claude/skills/<name>/SKILL.md and .claude/agents/<file>.md, read from
+  // the tree (lstat, so a link counts as the file it is). A fresh fixture has no .claude/, so after a
+  // fresh install every one of these is install's.
+  const kitFilesIn = (t: string): string[] => {
+    const out: string[] = [];
+    const skills = join(t, ".claude", "skills");
+    if (existsSync(skills)) {
+      for (const s of readdirSync(skills)) {
+        const p = join(skills, s, "SKILL.md");
+        try {
+          lstatSync(p);
+          out.push(`.claude/skills/${s}/SKILL.md`);
+        } catch {
+          // no SKILL.md in this directory
+        }
+      }
+    }
+    const agents = join(t, ".claude", "agents");
+    if (existsSync(agents)) for (const a of readdirSync(agents)) if (a.endsWith(".md")) out.push(`.claude/agents/${a}`);
+    return out.sort();
+  };
+  const at = (t: string, rel: string): string => join(t, ...rel.split("/"));
+  const present = (t: string, rel: string): boolean => {
+    try {
+      lstatSync(at(t, rel));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const EDIT = "\n<!-- the user's own line, added after install -->\n";
+
+  it("kit-file ownership: a copy-mode install records every kit file in kitFiles with the sha256 of its bytes", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const kit = kitFilesIn(target);
+    // 7 skills and 17 adapters today; the set itself comes from the tree.
+    expect(kit.length).toBe(24);
+    const m = readMarkerJson(target);
+    expect(m.kitFiles, "the marker has no kitFiles record").toBeTypeOf("object");
+    const rec = m.kitFiles as Record<string, string>;
+    expect(Object.keys(rec)).toEqual(kit);
+    for (const rel of kit) expect(rec[rel], rel).toBe(sha(readFileSync(at(target, rel))));
+  });
+
+  it("kit-file ownership: an edited adapter and an edited skill survive a real uninstall byte-identical and are reported left; every other kit file is removed", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const kit = kitFilesIn(target);
+    const adapter = ".claude/agents/grugops-orchestrator.md";
+    const skill = ".claude/skills/grugops-plan/SKILL.md";
+    expect(kit).toContain(adapter);
+    expect(kit).toContain(skill);
+    for (const rel of [adapter, skill]) writeFileSync(at(target, rel), readFileSync(at(target, rel), "utf8") + EDIT);
+    const edited = new Map([adapter, skill].map((rel) => [rel, readFileSync(at(target, rel))]));
+
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const [rel, bytes] of edited) {
+      expect(present(target, rel), `${rel} (edited by the user) was deleted`).toBe(true);
+      expect(readFileSync(at(target, rel)).equals(bytes), `${rel} changed`).toBe(true);
+      const left = naming(r.stdout, "left", rel);
+      expect(left.length, `no left line for ${rel}\n${r.stdout}`).toBe(1);
+      expect(left[0]).toMatch(/it has changed since install wrote it/);
+    }
+    for (const rel of kit.filter((k) => !edited.has(k))) expect(present(target, rel), `${rel} was not removed`).toBe(false);
+    // The skill's directory keeps the user's file, so it stays.
+    expect(existsSync(join(target, ".claude", "skills", "grugops-plan"))).toBe(true);
+  });
+
+  it("kit-file ownership: an unedited install then a real uninstall removes every kit file (the round trip is unchanged)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const kit = kitFilesIn(target);
+    const r = runUninstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of kit) {
+      expect(present(target, rel), `${rel} was not removed`).toBe(false);
+      expect(naming(r.stdout, "removed", rel).length, `${rel}\n${r.stdout}`).toBe(1);
+    }
+    expect(kitFilesIn(target)).toEqual([]);
+  });
+
+  it("kit-file ownership: the marker keys end with kitFiles after geminiSettings, and a second install leaves the marker byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(Object.keys(readMarkerJson(target))).toEqual([
+      "kitVersion",
+      "grugopsHome",
+      "kitRoot",
+      "installMode",
+      "claudeAskRules",
+      "createdDirs",
+      "createdFiles",
+      "geminiSettings",
+      "kitFiles",
+    ]);
+    const m1 = readFileSync(markerPathOf(target));
+    expect(runInstall(target, home).status).toBe(0);
+    expect(readFileSync(markerPathOf(target)).equals(m1), "a second install changed the marker").toBe(true);
+    void writeMarkerJson;
   });
 });
