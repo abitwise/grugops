@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 238
+open_count: 239
 waived_count: 27
 fixed_count: 47
-total_count: 312
-last_updated: 2026-09-28T16:54:01.583Z
+total_count: 313
+last_updated: 2026-09-30T02:42:44.400Z
 ---
 
 # Broken Windows Ledger
@@ -327,6 +327,7 @@ last_updated: 2026-09-28T16:54:01.583Z
 | 310 | 33.1 | deviation | install/install.ts | 155 | 33-R5-DIAGNOSIS section 1.2 and section 5 decision 1 (human), recorded by plan 33.1-16: on an installed kit, role agents have no granted write route into the shared context. The copy-mode install ships only agent-factory/ into the kit home (install/install.ts:155, KIT_ROOT), so scripts/claim.js (WF17 claimTask) and scripts/context-io.js (WF16, the only sanctioned writer) are absent; the role adapters do not list propose_note (.claude/agents/grugops-brownfield-mapper.md:4, grugops-security-nfr.md:4); a plain Write is forbidden by WF16. Round-5 capture (33.1-15, b35d4aed) CAP-03 side (b) failed on both paths for this reason (A:185 to A:190, B:169 to B:174 'No files found'). Class KIT. Options (ship scripts/ with their import closure into the kit home; grant propose_note to role adapters; point WF16/WF17 at CLAUDE_PLUGIN_ROOT/scripts) each change an installer or adapter contract, so none is chosen here. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:53:49.224Z |  |
 | 311 | 33.1 | deviation | agent-factory/workflows/17-task-claim.md | 26 | 33-R5-DIAGNOSIS section 1.2 and section 5 decision 2 (human), recorded by plan 33.1-16: the capture grant and the WF17 claim protocol do not fit together. WF17 claims by an atomic mkdir (agent-factory/workflows/17-task-claim.md:26); the round-5 capture pins --permission-mode default with the grant Bash(node *) (scripts/capture-live.ts:333, :1848, D-33-R4-05), under which mkdir and the ls/test/find discovery commands need approval that -p mode cannot give (A:476, A:491, A:552; A:84, A:365, B:29). Round 4 reached the plugin-cache scripts only under permissionMode auto (R4-A:173, R4-A:213). A node-driven claim (node <kit>/scripts/claim.js) would fit inside the grant only if the script ships (the KIT row above). Class SUITE. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:54:01.485Z |  |
 | 312 | 33.1 | unrun-verify | scripts/capture-live.ts | 1848 | 33-R5-DIAGNOSIS section 1.3 and section 5 decision 3 (human), recorded by plan 33.1-16: on round-5 path B (--agent grugops-orchestrator) every Bash call by a role agent was denied with decision_reason_type asyncAgent, 'Permission prompts are not available in this context' (B:384, B:451), though the Agent calls at B:358 and B:386 do not set run_in_background; B carries system/background_tasks_changed frames from B:363. Whether --agent makes the coordinator's spawns asynchronous is UNKNOWN - verify. On this evidence a path-B role agent cannot run even the granted Bash(node *), so a path-B pass needs a non-Bash write route (the propose_note option of the KIT row) or a measured answer on how --agent spawns behave. Class platform. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:54:01.583Z |  |
+| 313 | 33.1 | deviation | install/uninstall.ts |  | 33.1-30: with no install marker at all, uninstall leaves every kit file (a byte-identical kit copy included), where the plan's no-marker bullet removed a byte-identical skill; brief DC-2 (never-installed target changes by zero bytes) and plan 28's AGENTS.md/runnables rule | open |  | 2026-09-30T02:42:44.400Z |  |
 
 ````json
 [
@@ -4207,6 +4208,19 @@ last_updated: 2026-09-28T16:54:01.583Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-28T16:54:01.583Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 313,
+    "kind": "deviation",
+    "phase": "33.1",
+    "file": "install/uninstall.ts",
+    "line": null,
+    "description": "33.1-30: with no install marker at all, uninstall leaves every kit file (a byte-identical kit copy included), where the plan's no-marker bullet removed a byte-identical skill; brief DC-2 (never-installed target changes by zero bytes) and plan 28's AGENTS.md/runnables rule",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-30T02:42:44.400Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
