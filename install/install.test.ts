@@ -9008,4 +9008,349 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(u.stdout.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(EDITED_REL) && /no install record/.test(l)), u.stdout).toBe(true);
     expect(u.stdout).not.toMatch(/not in the install marker's kit-file ledger/);
   });
+
+  // ── Task 2: the prompt, DRY_RUN, legacy installs, hazards, failed backups, uninstall ─────────────
+
+  // A directory-aware state of a whole tree by lstat (files by sha256, links by target, special files
+  // by kind), for the "nothing changed" cases.
+  const treeState = (dir: string): string => {
+    const rows: string[] = [];
+    const walk = (rel: string): void => {
+      const abs = rel === "" ? dir : join(dir, rel);
+      const st = lstatSync(abs, { throwIfNoEntry: false });
+      if (st === undefined) return;
+      if (st.isSymbolicLink()) rows.push(`${rel} LINK ${readlinkSync(abs)}`);
+      else if (st.isDirectory()) {
+        rows.push(`${rel}/ DIR`);
+        for (const n of readdirSync(abs).sort()) walk(rel === "" ? n : `${rel}/${n}`);
+      } else if (st.isFile()) rows.push(`${rel} ${createHash("sha256").update(readFileSync(abs)).digest("hex")}`);
+      else rows.push(`${rel} SPECIAL`);
+    };
+    walk("");
+    return rows.join("\n");
+  };
+
+  // THE PSEUDO-TERMINAL DRIVER. install asks D-32's question only with a terminal on stdin AND
+  // stdout, so these cases run the committed install.js under script(1): `script -q /dev/null <cmd>`
+  // on darwin, `script -qec "<cmd>" /dev/null` on linux. script(1) needs a real pipe on its stdin (a
+  // Node pipe is a socket, which darwin's script refuses), so a shell pipeline feeds it: the feeder
+  // waits until the prompt `[y/N]` appears in the output (or the run ended), then types the answer,
+  // and keeps the pipe open a moment so the answer is read before end of input. No --yes: --yes never
+  // consents. `--target` is given, so the target question is not asked.
+  const ptyUnavailable = (): string | null => {
+    if (process.platform === "win32") return "win32 has no script(1) pseudo-terminal";
+    if (process.platform !== "darwin" && process.platform !== "linux") return `no script(1) form known for ${process.platform}`;
+    const w = spawnSync("sh", ["-c", "command -v script"], { encoding: "utf8" });
+    return w.status === 0 && (w.stdout ?? "").trim() !== "" ? null : "script(1) is not installed";
+  };
+  const shq = (a: string): string => `'${a.replace(/'/g, `'\\''`)}'`;
+  const runPty = (src: string, target: string, home: string, answer: string, args: string[] = []): Run => {
+    const log = join(mkTmp(), "pty.log");
+    const cmd = ["node", INSTALL_JS, "--target", target, ...args];
+    const scriptCmd =
+      process.platform === "darwin"
+        ? `script -q /dev/null ${cmd.map(shq).join(" ")}`
+        : `script -qec ${shq(cmd.map(shq).join(" "))} /dev/null`;
+    const sh =
+      `( i=0; while [ $i -lt 600 ]; do ` +
+      `if grep -q '\\[y/N\\]' ${shq(log)} 2>/dev/null; then printf '%s\\n' "$ANSWER"; sleep 1; exit 0; fi; ` +
+      `if grep -Eq '^== (install|migrate) (complete|INCOMPLETE)' ${shq(log)} 2>/dev/null; then exit 0; fi; ` +
+      `sleep 0.1; i=$((i+1)); done ) | ${scriptCmd} > ${shq(log)} 2>&1`;
+    const r = spawnSync("sh", ["-c", sh], {
+      encoding: "utf8",
+      timeout: 120_000,
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, ANSWER: answer },
+    });
+    expect(r.error, `the pty run did not finish: ${r.error?.message}`).toBeUndefined();
+    const out = existsSync(log) ? readFileSync(log, "utf8").replace(/\r/g, "") : "";
+    return { status: r.status, stdout: out, stderr: r.stderr ?? "" };
+  };
+
+  // The shared fixture: installed at v1, kit updated to v2, one adapter edited.
+  const editedOverUpdate = (): { src: string; target: string; home: string; edited: Buffer; kit: string; kitFiles: Record<string, string> | null } => {
+    const { src, target, home } = installed();
+    const kitFiles = kitFilesOf(target);
+    kitUpdate(src);
+    const edited = editAdapter(target);
+    return { src, target, home, edited, kit: kitState(target), kitFiles };
+  };
+
+  for (const [answer, label] of [
+    ["y", "y"],
+    ["YES", "YES"],
+    ["n", "n"],
+    ["", "an empty answer"],
+  ] as const) {
+    it(`interactive (pseudo-terminal), answer ${label}: the prompt lists every edited file and ends [y/N]; the result equals the ${
+      answer.toLowerCase().startsWith("y") ? "--backup-edited-kit" : "no-terminal"
+    } case`, () => {
+      const why = ptyUnavailable();
+      if (why !== null) {
+        console.log(`SKIP interactive D-32 case: ${why}`);
+        return;
+      }
+      const { src, target, home, edited, kit, kitFiles } = editedOverUpdate();
+      const r = runPty(src, target, home, answer);
+      expect(r.stdout, "premise: the run saw a terminal and asked").toContain("[y/N]");
+      const prompt = r.stdout.slice(r.stdout.indexOf("These grugops kit files"), r.stdout.indexOf("[y/N]") + 5);
+      expect(prompt, r.stdout).toContain(EDITED_REL);
+      expect(prompt.trimEnd().endsWith("[y/N]")).toBe(true);
+      if (answer.toLowerCase().startsWith("y")) {
+        expect(r.status, r.stdout).toBe(0);
+        const backups = backupsIn(target);
+        expect(backups.length, r.stdout).toBe(1);
+        expect(readFileSync(atRel(target, backups[0])).equals(edited)).toBe(true);
+        const fresh = freshKit(src, home);
+        expect(kitState(target)).toBe(fresh.kit);
+        expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
+      } else {
+        expect(r.status, r.stdout).toBe(3);
+        expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit") && l.includes(EDITED_REL)), r.stdout).toBe(true);
+        expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+        expect(kitState(target)).toBe(kit);
+        expect(backupsIn(target)).toEqual([]);
+        expect(kitFilesOf(target)).toEqual(without(kitFiles, EDITED_REL));
+      }
+    });
+  }
+
+  it("--yes at a terminal never consents: the prompt is not shown and nothing in the kit changes", () => {
+    const why = ptyUnavailable();
+    if (why !== null) {
+      console.log(`SKIP interactive D-32 case: ${why}`);
+      return;
+    }
+    const { src, target, home, kit } = editedOverUpdate();
+    const r = runPty(src, target, home, "y", ["--yes"]);
+    expect(r.stdout).not.toContain("[y/N]");
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit") && l.includes("--yes answers only the target question")), r.stdout).toBe(true);
+    expect(kitState(target)).toBe(kit);
+    expect(backupsIn(target)).toEqual([]);
+  });
+
+  it("DRY_RUN over an edited adapter: both roots unchanged, a would-back-up line per edited file, and the ask-or-flag sentence", () => {
+    const { src, target, home } = editedOverUpdate();
+    const t0 = treeState(target);
+    const h0 = treeState(home);
+    for (const flag of [[], ["--backup-edited-kit"]]) {
+      const r = run(src, target, home, flag, { DRY_RUN: "1" });
+      expect(treeState(target), r.stdout).toBe(t0);
+      expect(treeState(home), r.stdout).toBe(h0);
+      const would = r.stdout.split("\n").filter((l) => /^ {2}would-back-up\s/.test(l));
+      expect(would.length, r.stdout).toBe(1);
+      expect(would[0]).toMatch(
+        new RegExp(`${EDITED_REL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} → ${EDITED_REL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.grugops-edited-\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}\\.\\d{3}Z$`),
+      );
+      if (flag.length === 0) {
+        expect(r.status, r.stdout).toBe(3);
+        expect(verifyLines(r.stdout).some((l) => /DRY_RUN asks nothing/.test(l) && /asks at a terminal/.test(l) && l.includes("--backup-edited-kit")), r.stdout).toBe(true);
+        expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      } else {
+        expect(r.status, r.stdout).toBe(0);
+        // The preview then names the whole kit write, as the real run would do it.
+        expect(kitWriteLines(r.stdout).length, r.stdout).toBe(SYNTH_ADAPTERS.length + SYNTH_SKILLS.length);
+      }
+    }
+  });
+
+  it("legacy marker (kitFiles deleted) over an adapter update: every materialized adapter and the resolver skill are possibly edited; with the flag they are backed up and the next re-install asks nothing", () => {
+    const { src, target, home } = installed();
+    const m = markerOf(target);
+    delete m.kitFiles;
+    writeMarkerJson(target, m);
+    // An update of what is materialized: every role (so every adapter) and the resolver skill. The
+    // verbatim skills are unchanged, so they are identical to their source and not asked about.
+    const roles = join(src, "agent-factory", "roles");
+    for (const n of readdirSync(roles)) {
+      if (!n.endsWith(".md")) continue;
+      const p = join(roles, n);
+      writeFileSync(p, readFileSync(p, "utf8").replace(/(## One job\n)([^\n]+)/, "$1Updated: $2"));
+    }
+    const resolver = join(src, ".claude", "skills", "grugops", "SKILL.md");
+    writeFileSync(resolver, readFileSync(resolver, "utf8") + "> resolver update\n");
+    const kit = kitState(target);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    const listed = r.stdout
+      .split("\n")
+      .filter((l) => /^ {2}edited-kit\s/.test(l))
+      .map((l) => l.replace(/^ {2}edited-kit\s+(\S+).*$/, "$1"))
+      .sort();
+    const expected = [...SYNTH_ADAPTERS.map((a) => `.claude/agents/${a}`), ".claude/skills/grugops/SKILL.md"].sort();
+    expect(listed, r.stdout).toEqual(expected);
+    expect(r.stdout).toMatch(/predates the kit-file ledger/);
+    expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit")), r.stdout).toBe(true);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(target)).toBe(kit);
+    // With the flag: every one backed up, the whole kit refreshed, and a record written.
+    const r2 = run(src, target, home, ["--backup-edited-kit"]);
+    expect(r2.status, r2.stdout).toBe(0);
+    expect(backupsIn(target).map((b) => b.replace(/\.grugops-edited-.*$/, "")).sort()).toEqual(expected);
+    expect(Object.keys(kitFilesOf(target) ?? {}).length).toBe(SYNTH_ADAPTERS.length + SYNTH_SKILLS.length);
+    // The next re-install has a record: nothing is asked, nothing is backed up.
+    const r3 = run(src, target, home);
+    expect(r3.status, r3.stdout).toBe(0);
+    expect(r3.stdout).not.toMatch(/edited-kit|--backup-edited-kit/);
+    expect(backupsIn(target).length).toBe(expected.length);
+  });
+
+  for (const shape of ["FIFO", "directory"] as const) {
+    it(`hazard: a ${shape} at one adapter path (another adapter edited) — finishes, writes no kit file, a verify names the path, no prompt`, () => {
+      const { src, target, home } = editedOverUpdate();
+      const at = atRel(target, `.claude/agents/${SYNTH_ADAPTERS[1]}`);
+      const skip = plantSpecial(at, shape, `D-32 hazard at ${SYNTH_ADAPTERS[1]}`);
+      if (skip !== null) {
+        console.log(skipLine(skip, "the D-32 hazard case"));
+        return;
+      }
+      const kit = kitState(target);
+      const t0 = Date.now();
+      const r = run(src, target, home, ["--backup-edited-kit"]);
+      expect(Date.now() - t0, "the run took longer than 60 s").toBeLessThan(60_000);
+      expect(r.status, r.stdout).toBe(3);
+      expect(verifyLines(r.stdout).some((l) => l.includes(at)), r.stdout).toBe(true);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      expect(r.stdout).not.toContain("[y/N]");
+      expect(backupsIn(target)).toEqual([]);
+      expect(kitState(target)).toBe(kit);
+      const pty = ptyUnavailable();
+      if (pty === null) {
+        const rp = runPty(src, target, home, "y");
+        expect(rp.stdout, "a hazard is refused before the question").not.toContain("[y/N]");
+        expect(rp.status, rp.stdout).toBe(3);
+        expect(kitState(target)).toBe(kit);
+      } else console.log(`SKIP the pseudo-terminal half: ${pty}`);
+    });
+  }
+
+  it("failed backup: an unwritable adapter directory with --backup-edited-kit → exit 3, a verify naming the backup, every kit file as it was, and the completed backup kept and reported", () => {
+    if (process.platform === "win32" || (typeof process.getuid === "function" && process.getuid() === 0)) {
+      console.log("SKIP failed-backup case: mode bits are not a fixture as root or on win32");
+      return;
+    }
+    const { src, target, home, edited } = editedOverUpdate();
+    // A second edited file in another directory, backed up first (skills precede adapters).
+    const skillRel = ".claude/skills/grugops-gate/SKILL.md";
+    const skillEdited = editAdapter(target, skillRel);
+    const kit = kitState(target);
+    const agents = atRel(target, ".claude/agents");
+    chmodSync(agents, 0o555);
+    let r: Run;
+    try {
+      r = run(src, target, home, ["--backup-edited-kit"]);
+    } finally {
+      chmodSync(agents, 0o755);
+    }
+    expect(r.status, r.stdout).toBe(3);
+    expect(
+      verifyLines(r.stdout).some((l) => l.includes(`${atRel(target, EDITED_REL)}${BACKUP_MARK}`) && /could not be written/.test(l)),
+      r.stdout,
+    ).toBe(true);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(target)).toBe(kit);
+    expect(readFileSync(atRel(target, EDITED_REL)).equals(edited)).toBe(true);
+    const backups = backupsIn(target);
+    expect(backups.length, r.stdout).toBe(1);
+    expect(backups[0].startsWith(`${skillRel}${BACKUP_MARK}`)).toBe(true);
+    expect(readFileSync(atRel(target, backups[0])).equals(skillEdited)).toBe(true);
+    expect(r.stdout.split("\n").some((l) => /^ {2}backed-up\s/.test(l) && l.includes(`${skillRel} → ${backups[0]}`)), r.stdout).toBe(true);
+    expect(markerOf(target).kitVersion).toBe(V1);
+  });
+
+  // The backup path is taken (red-team shapes at `<file>.grugops-edited-<stamp>`): the clock is pinned
+  // with the wrapper pattern the handoffs-backup case uses, so the stamp is known before the run.
+  for (const shape of ["regular file", "dangling link", "FIFO"] as const) {
+    it(`backup path taken by a ${shape}: no backup, no kit write, a verify naming it, and the ${shape} untouched`, () => {
+      const { src, target, home, kit } = editedOverUpdate();
+      const at = `${atRel(target, EDITED_REL)}${BACKUP_MARK}2026-06-22T12-00-00.000Z`;
+      if (shape === "regular file") writeFileSync(at, "the user's own file\n");
+      else if (shape === "dangling link") symlinkSync(join(mkTmp(), "nowhere"), at);
+      else {
+        const skip = stageShapeOrSkip("FIFO", at, "D-32 backup path");
+        if (skip !== null) {
+          console.log(skipLine(skip, "the D-32 backup-path FIFO case"));
+          return;
+        }
+      }
+      const planted = treeState(atRel(target, ".claude"));
+      const wrapper = join(mkTmp(), "pin-clock.mjs");
+      writeFileSync(
+        wrapper,
+        `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
+          `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});\n`,
+      );
+      const r = spawnSync("node", [wrapper, "--yes", "--backup-edited-kit"], {
+        encoding: "utf8",
+        timeout: 60_000,
+        env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
+      });
+      expect(r.error, `the run did not finish: ${r.error?.message}`).toBeUndefined();
+      expect(r.stdout !== "", `the wrapper printed nothing; stderr: ${r.stderr}`).toBe(true);
+      expect(r.status, r.stdout).toBe(3);
+      expect(verifyLines(r.stdout).some((l) => l.includes(at) && /backup path is taken/.test(l)), r.stdout).toBe(true);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      expect(r.stdout).not.toMatch(/^ {2}backed-up\s/m);
+      expect(kitState(target)).toBe(kit);
+      expect(treeState(atRel(target, ".claude"))).toBe(planted);
+    });
+  }
+
+  it("a backup path over the platform path limit (the adapter path itself fits) refuses before any backup or kit write", () => {
+    const pathMax = process.platform === "linux" ? 4096 : 1024;
+    const longest = [...SYNTH_ADAPTERS].sort((x, y) => y.length - x.length)[0];
+    const tail = `/.claude/agents/${longest}`;
+    const suffix = `${BACKUP_MARK}2026-06-22T12-00-00.000Z`;
+    const base = mkTmp();
+    // The adapter path is 10 bytes under PATH_MAX; its backup is over it.
+    const want = pathMax - 10 - Buffer.byteLength(tail);
+    let t = base;
+    while (Buffer.byteLength(t) < want - 120) t = join(t, "d".repeat(100));
+    t = join(t, "e".repeat(want - Buffer.byteLength(t) - 1));
+    expect(Buffer.byteLength(t + tail)).toBe(pathMax - 10);
+    expect(Buffer.byteLength(t + tail + suffix)).toBeGreaterThanOrEqual(pathMax);
+    mkdirSync(t, { recursive: true });
+    const src = makeSyntheticSrc();
+    const home = mkTmp();
+    const r0 = run(src, t, home);
+    expect(r0.status, r0.stdout).toBe(0);
+    kitUpdate(src);
+    editAdapter(t, `.claude/agents/${longest}`);
+    const kit = kitState(t);
+    const r = run(src, t, home, ["--backup-edited-kit"]);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).some((l) => l.includes(longest) && /path limit/.test(l) && /backup/.test(l)), r.stdout).toBe(true);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(kitState(t)).toBe(kit);
+  });
+
+  it("uninstall after a flagged re-install: every backup is still present and reported left, and the skill directory holding one is not removed", () => {
+    const { src, target, home } = editedOverUpdate();
+    const skillRel = ".claude/skills/grugops-gate/SKILL.md";
+    editAdapter(target, skillRel);
+    const r = run(src, target, home, ["--backup-edited-kit"]);
+    expect(r.status, r.stdout).toBe(0);
+    const backups = backupsIn(target);
+    expect(backups.length).toBe(2);
+    const before = backups.map((b) => readFileSync(atRel(target, b)));
+    const leftLine = (out: string, b: string): boolean =>
+      out.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(b) && l.includes("(a backup install made of your edited kit file)"));
+    // DRY_RUN first: it reports each backup left and changes nothing.
+    const t0 = treeState(target);
+    const udry = spawnSync("node", [UNINSTALL_JS], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target, DRY_RUN: "1" },
+    });
+    expect(treeState(target)).toBe(t0);
+    for (const b of backups) expect(leftLine(udry.stdout ?? "", b), udry.stdout).toBe(true);
+    // The real uninstall: every backup kept byte-for-byte and reported, its directory kept.
+    const u = runUninstallFrom(src, target, home);
+    for (const [i, b] of backups.entries()) {
+      expect(existsSync(atRel(target, b)), `${b}: ${u.stdout}`).toBe(true);
+      expect(readFileSync(atRel(target, b)).equals(before[i])).toBe(true);
+      expect(leftLine(u.stdout, b), u.stdout).toBe(true);
+    }
+    expect(existsSync(atRel(target, ".claude/skills/grugops-gate"))).toBe(true);
+    expect(existsSync(atRel(target, ".claude/agents"))).toBe(true);
+  });
 });
