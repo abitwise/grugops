@@ -977,7 +977,7 @@ function doctor() {
             docWarn(`kit-version skew: the kit VERSION at ${verFile} ${kitVer.problem} — it was not read, so NO VERDICT on ` +
                 `kit-version skew was reached`);
         }
-        if (mver !== "" && kver !== "" && mver !== kver) {
+        if (mver.trim() !== "" && kver !== "" && mver !== kver) {
             docWarn(`kit-version skew: marker=${mver} kit VERSION=${kver}`);
         }
         // missing optional seed: a seed file the user may have pruned (e.g. memory-bank/00-index.md).

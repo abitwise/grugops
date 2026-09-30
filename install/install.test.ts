@@ -9666,6 +9666,17 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     });
   }
 
+  for (const bad of [5, null, "", "   ", ["2.1.0"]] as const) {
+    it(`B2 (doctor, DC-1): a marker whose kitVersion is ${JSON.stringify(bad)} is no verdict: --check warns kit-version unknown, never a skew against a stringified value`, () => {
+      const { src, target, home } = realKitInstalled();
+      writeMarkerJson(target, { ...markerOf(target), kitVersion: bad });
+      const c = run(src, target, home, ["--check"]);
+      expect(c.status, c.stdout).toBe(0);
+      expect(c.stdout.split("\n").some((l) => /WARN/.test(l) && /kit-version unknown/.test(l)), c.stdout).toBe(true);
+      expect(c.stdout).not.toMatch(/kit-version skew: marker=/);
+    });
+  }
+
   it("B2: a refused run keeps the previous kitRoot, grugopsHome and installMode (the kit in the target is still the previous one)", () => {
     const { src, target } = installed();
     const m0 = markerOf(target);

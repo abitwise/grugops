@@ -1083,7 +1083,7 @@ function doctor(): number {
           `kit-version skew was reached`,
       );
     }
-    if (mver !== "" && kver !== "" && mver !== kver) {
+    if (mver.trim() !== "" && kver !== "" && mver !== kver) {
       docWarn(`kit-version skew: marker=${mver} kit VERSION=${kver}`);
     }
     // missing optional seed: a seed file the user may have pruned (e.g. memory-bank/00-index.md).
