@@ -88,8 +88,19 @@ whole or not at all: the installer checks every kit source, the adapter render a
 destination before it writes the first kit file, and if any of them is refused, no skill or adapter
 is written, linked or unlinked in that run and every kit file already there is left exactly as it
 was. A mix of new skills and old adapters is never left behind. The other classes still run. The
-one gap is an error while the kit is being written (a permission error on one file, for example):
-that file is a `verify` line and the run goes on to the next. The uninstaller applies the same rule to every file it edits, and it never reads a
+checks before the first kit write also cover a kit destination this process cannot write (a
+read-only file, or a read-only directory it would be created in), a destination longer than the
+platform allows (a path of 1024 bytes or more on macOS, 4096 on Linux, or a name over 255 bytes),
+two kit names that differ only by letter case or Unicode normalisation (one file on the macOS and
+Windows default filesystems), and a kit source directory the installer could not fully examine (an
+unreadable nested directory, a symbolic-link cycle, or its walk bound). A symbolic link at a
+resolver skill or adapter is replaced by the rendered file only when it is install's own link (the
+link an earlier `--symlink` install made, pointing at this checkout's source for that file), on any
+run; any other link there refuses the kit. A run that refuses the kit keeps every earlier `kitFiles`
+entry whose file still holds what install wrote and drops only an entry this run found no longer
+holds (the uninstaller would leave that file anyway). The one gap is an error while the kit is being
+written that the checks could not see (a disk that fills up, for example): that file is a `verify`
+line and the run goes on to the next. The uninstaller applies the same rule to every file it edits, and it never reads a
 hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops
 here.** That is deliberate: proceeding over a partial install is how a broken install reaches
 production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
@@ -336,8 +347,19 @@ DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
   A resolver adapter or skill that is a symbolic link is replaced by a real file only when it is
   the link an earlier `--symlink` install made (it points at this checkout's own source for that
   file). That link is removed only in a run that writes the kit. Any other link there is left in
-  place, nothing is written through it, and the kit write is refused (exit 3): remove the link by
-  hand if it is grugops's, then re-run.
+  place and nothing is written through it.
+
+`--migrate` is **whole or not at all**. Before it changes anything, it checks the config it would
+carry forward and builds the whole kit plan, rendering the adapters with that carried config (so a
+`DRY_RUN=1` preview shows the models the real run installs). If anything is refused (a `models`
+value the resolver refuses, a link at an adapter path that is not install's own, a config path that
+is not a regular file, or any other kit refusal above), **nothing is migrated**: no config is moved,
+`agent-factory/` and `plans/handoffs/` are not backed up, no kit file is written and no marker is
+written, and the run exits `3` with a `verify` line for each refusal. The repository is still the
+old layout, so fix what the `verify` lines name (edit the legacy config, or remove the link if it is
+yours to remove) and re-run `--migrate`: it then performs the whole migration. A plain re-install
+(without `--migrate`) also replaces install's own links, so a repository an earlier release left
+half-migrated (a marker, the old links still in place) is completed by re-running the installer.
 
 The `plans/handoffs/` backup runs on **every** `--migrate` (whether your repo is on the old layout
 or already on the current two-root layout), because the handoffs dir can accumulate regardless of

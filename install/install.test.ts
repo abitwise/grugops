@@ -3561,11 +3561,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // LANDMINE (Pitfall 1): a symlink .claude adapter migrate does NOT write through the symlink and
-  // corrupt the source clone (HIGH-severity). Since plan 33.1-31 --migrate unlinks only install's OWN
-  // link (readlink equals the kit source path, the predicate uninstall uses); this link points into a
-  // source clone, so it may be the user's, and it is a refusal: left in place, not followed, not
-  // unlinked, and the whole kit write is refused (D-32). The own-link unlink-and-materialize path is
-  // pinned in "kit write all-or-nothing (plan 33.1-31, D-32)".
+  // corrupt the source clone (HIGH-severity). Since plan 33.1-31 install replaces only its OWN link
+  // (readlink equals the kit source path, the predicate uninstall uses), on every run; this link points
+  // into a source clone, so it may be the user's, and it is a refusal: left in place, not followed, not
+  // unlinked, and the whole kit write is refused (D-32), and so is the whole migration (red-team B1).
+  // The own-link unlink-and-materialize path is pinned in "kit write all-or-nothing (plan 33.1-31, D-32)".
   it("migrate: symlink adapter does not corrupt source clone", () => {
     const target = makeOldLayoutFixture({ symlink: true });
     // The LANDMINE link is staged through the D-16 helper; a host that refuses it prints one
@@ -3586,7 +3586,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const r = runInstall(target, home, "--migrate");
     expect(r.status, r.stdout).toBe(3);
-    expect(r.stdout).toContain("--migrate unlinks only install's own link");
+    // Red-team B1 of plan 33.1-31: install replaces only its own link, on every run, and a --migrate
+    // whose pre-check refuses changes nothing at all.
+    expect(r.stdout).toContain("Install replaces only its own link");
+    expect(r.stdout).toContain("nothing was migrated");
 
     // THE PROOF: the planted source-clone file is byte-unchanged — the write never followed the link.
     expect(readFileSync(srcClone, "utf8")).toBe(before);
@@ -4925,16 +4928,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // THE COUNT IS TAKEN OVER COMMENT-FILTERED LINES, DELIBERATELY. A raw count returns SEVEN, because
   // the residual note's own prose must spell the call once to describe what it is describing. The
   // filtered count is the one that means "call sites", and it is the one asserted.
-  it("the six MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
+  it("the seven MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
     const codeLines = src.split("\n").filter((l) => !/^\s*\/\//.test(l));
     const callSites = codeLines.filter((l) => l.includes("process.exit(")).length;
-    // SIX, the MEASURED pre-task number, unchanged by this plan's conversions.
-    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 6");
-    // ...and the raw count is SEVEN, which is the fact that makes the filter necessary rather than
+    // SIX, the MEASURED pre-task number, plus ONE added by the red-team fixes of plan 33.1-31: a
+    // --migrate whose pre-check refuses must stop before the handoffs backup and the install run
+    // (red-team B1). SEVEN, all mid-script and relying on stop-here semantics.
+    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 7");
+    // ...and the raw count is one more, which is the fact that makes the filter necessary rather than
     // cosmetic. Pinned so a future author who deletes the filter sees why it was there.
     const raw = src.split("\n").filter((l) => l.includes("process.exit(")).length;
-    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 7");
+    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 8");
     // THE ROTTED LIST IS GONE, NOT SOFTENED — and not quoted back as evidence either. A note that
     // reprints the stale numbers to explain why it deleted them still puts numbers in front of a
     // reader who may trust them. The measurement lives in 27-35-SUMMARY.md; this asserts that no

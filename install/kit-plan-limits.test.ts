@@ -47,9 +47,9 @@ describe("kit plan: two destinations that fold to one name (red-team B2 of plan 
   });
 
   it("names equal after Unicode NFC normalisation are a collision (NFC versus NFD)", () => {
-    const nfc = "café";
-    const nfd = "café";
-    expect(nfc === nfd).toBe(false);
+    const nfc: string = "caf\u00e9";
+    const nfd: string = "cafe\u0301";
+    expect(nfc).not.toBe(nfd);
     const pairs = kitNameCollisions([`.claude/agents/${nfc}.md`, `.claude/agents/${nfd}.md`]);
     expect(pairs.length).toBe(1);
   });
@@ -92,6 +92,6 @@ describe("kit plan: a destination over the platform path limits (red-team border
     expect(pathLimitProblem(`/t/${"n".repeat(NAME_MAX_BYTES)}`)).toBeNull();
     expect(pathLimitProblem(`/t/${"n".repeat(NAME_MAX_BYTES + 1)}`)).toMatch(/name limit/);
     // 128 two-byte characters are 256 bytes: over, though only 128 characters.
-    expect(pathLimitProblem(`/t/${"é".repeat(128)}`)).toMatch(/name limit/);
+    expect(pathLimitProblem(`/t/${"\u00e9".repeat(128)}`)).toMatch(/name limit/);
   });
 });

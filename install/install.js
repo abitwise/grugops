@@ -63,7 +63,7 @@ import { spawnSync } from "node:child_process";
 // design — D-18's decoupling of the installer from the scripts/ layout is unchanged, and the module
 // still does NOT import scripts/kit-model.ts. Node stdlib only, so both binaries still run on a host
 // with nothing installed. Every call passes the source root explicitly (D-22).
-import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers, } from "./kit-source.js";
+import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers, kitNameCollisions, } from "./kit-source.js";
 // D-18 / D-29: the ONE declaration of the Claude Code ask rules the installer derives from the
 // checkpoints configuration. A pure sibling module inside install/ (the kit-source.ts precedent), so
 // install/ still imports nothing from scripts/. The rules are a speed bump, not a security boundary;
@@ -86,7 +86,7 @@ import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElem
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -452,10 +452,19 @@ const recordCreatedFile = (path, record) => {
 // marker as `kitFiles`, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
 // preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
 const KIT_FILES = new Map();
-// KIT_MIGRATE_OWN_LINKS (plan 33.1-31): true only in a --migrate run over an old layout, after its
-// pre-steps. The kit plan then plans the unlink of install's own link at a materialize destination
-// (Pitfall 1) instead of refusing it; any other link there is still a refusal.
-let KIT_MIGRATE_OWN_LINKS = false;
+// The target's configuration file, and the two legacy locations --migrate carries one forward from
+// (D-04). Declared here, above the doctor's early exit, because the doctor's render asks
+// renderConfigInput (red-team B3 of plan 33.1-31); see THE LEGACY CONFIG CARRY below.
+const SEEDED_CONFIG = join(TARGET, ".grugops", "factory.config.json");
+const LEGACY_CONFIGS = [
+    join(TARGET, "factory.config.json"),
+    join(TARGET, "agent-factory", "config", "factory.config.json"),
+];
+// MIGRATE_CARRY_PENDING: true in a --migrate run over an old layout, from before its kit plan is built.
+// That run builds its kit plan ONCE, before its pre-steps move anything, so the configuration the
+// render reads is the one planConfigCarry says will be carried (red-team B3 of plan 33.1-31: DRY_RUN
+// moved nothing and rendered with no configuration, while the real run rendered with the moved one).
+let MIGRATE_CARRY_PENDING = false;
 const recordKitFile = (path, record) => {
     if (DRY_RUN)
         return;
@@ -1529,63 +1538,100 @@ function detectOldLayout() {
         leftoverKit: hasInRepoKit,
     };
 }
-// migratePreSteps: the one-time relocation safety work, run ONLY when isOldLayout. After it the
-// install run proceeds verbatim (D-02). Three steps, all never-delete-first and DRY_RUN-safe:
-//   1. Carry the user's edited config forward. BOTH legacy locations are checked (the v1.0 in-repo
-//      agent-factory/config/factory.config.json AND the repo-root factory.config.json — the planner
-//      resolved the CONTEXT/history discrepancy by HANDLING BOTH, D-04). For whichever exists, COPY
-//      it to .grugops/factory.config.json only if that seeded target does not already exist
-//      (never-overwrite seeded state, D-04), then rename the original aside to `${original}.bak.<ISO>`.
+// `seededHeld`: an earlier legacy config of this same run is carried into the seeded path (asked by
+// a caller that has not written it yet: the plan, or a DRY_RUN preview).
+function configCarryStep(legacy, seededHeld) {
+    const legacyRead = readForWrite(TARGET, legacy);
+    if (legacyRead.state === "create")
+        return { act: "none" };
+    if (legacyRead.state === "blocked") {
+        return {
+            act: "refuse",
+            at: "legacy",
+            why: `user config ${blockedAt(legacyRead, legacy)}. It was left in place: it was not copied to ` +
+                `${SEEDED_CONFIG} and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.`,
+        };
+    }
+    if (seededHeld)
+        return { act: "keep" };
+    const seeded = readForWrite(TARGET, SEEDED_CONFIG);
+    if (seeded.state === "blocked") {
+        return {
+            act: "refuse",
+            at: "seeded",
+            why: `user config ${legacy} was not carried forward: ${blockedAt(seeded, SEEDED_CONFIG)}. Both were left ` +
+                `in place and ${legacy} was not renamed to a .bak. Make ${SEEDED_CONFIG} a regular file (or remove it) ` +
+                `and re-run --migrate.`,
+        };
+    }
+    return seeded.state === "create" ? { act: "carry", bytes: legacyRead.bytes, text: legacyRead.text } : { act: "keep" };
+}
+function planConfigCarry() {
+    const refusals = [];
+    let carried = null;
+    for (const legacy of LEGACY_CONFIGS) {
+        const step = configCarryStep(legacy, carried !== null);
+        if (step.act === "refuse")
+            refusals.push(step.why);
+        else if (step.act === "carry")
+            carried = { legacy, bytes: step.bytes, text: step.text };
+    }
+    return {
+        refusals,
+        render: carried === null
+            ? { label: SEEDED_CONFIG, read: readUserFile(SEEDED_CONFIG) }
+            : {
+                label: `${carried.legacy} (the configuration this --migrate carries forward to ${SEEDED_CONFIG})`,
+                read: { state: "ok", bytes: carried.bytes, text: carried.text },
+            },
+    };
+}
+// MIGRATE_CARRY_PENDING is declared above the doctor's early exit, with KIT_FILES.
+// renderConfigInput: THE ONE ANSWER to "which configuration does the adapter render read", for the
+// install run (real and DRY_RUN alike) and the doctor. `label` is the path the bytes come from, as
+// every finding and the resolution line name it.
+function renderConfigInput() {
+    if (MIGRATE_CARRY_PENDING)
+        return planConfigCarry().render;
+    return { label: SEEDED_CONFIG, read: readUserFile(SEEDED_CONFIG) };
+}
+// migratePreSteps: the one-time relocation safety work, run ONLY when isOldLayout, and only after the
+// --migrate pre-check (the config carry and the whole kit plan) refused nothing. After it the install
+// run proceeds verbatim (D-02). Two steps, both never-delete-first and DRY_RUN-safe:
+//   1. Carry the user's edited config forward (configCarryStep, above).
 //   2. Back up the displaced in-repo agent-factory/ via backupIfDiffers (timestamped, differs-only,
 //      D-08/D-09). The in-repo kit is NOT at KIT_ROOT, so copyKit's retainBackup does not cover it.
-//   3. LANDMINE (Pitfall 1): unlink any resolver-adapter dest that is a live SYMLINK BEFORE the
-//      install run re-materializes it — never writeFileSync THROUGH a symlink into the source clone.
+// The LANDMINE (Pitfall 1: never write through a live link at a resolver destination) is no longer a
+// step here. Since plan 33.1-31 the kit plan (kitDestDecision) plans the unlink of install's OWN link
+// for the write phase, on every run, and refuses any other link.
 function migratePreSteps() {
-    // 1. config-move (BOTH legacy locations, D-04).
-    const seededConfig = join(TARGET, ".grugops", "factory.config.json");
-    const legacyConfigs = [
-        join(TARGET, "factory.config.json"),
-        join(TARGET, "agent-factory", "config", "factory.config.json"),
-    ];
-    for (const legacy of legacyConfigs) {
-        // DC-3 / D-18 (plan 33.1-26): the legacy config is read through readUserFile and the copy is
-        // written from those bytes, never by a copy call that reopens the path. A legacy config that is
-        // not a readable regular file within the bound is neither copied nor renamed: it is left where
-        // it is and reported as a counted `verify`.
-        //
-        // Red-team of plan 33.1-26: it is asked through readForWrite, because it is RENAMED below. A link
-        // or a non-directory on the way to it would carry the rename out of the target, and a link at the
-        // path itself is not a config this run may move; both are left and reported the same way.
-        const legacyRead = readForWrite(TARGET, legacy);
-        if (legacyRead.state === "create")
+    // 1. config-move (BOTH legacy locations, D-04). Each location is asked again here, live: the
+    // pre-check asked before anything moved, and a step that changed since is reported, not trusted.
+    let previewCarried = false;
+    for (const legacy of LEGACY_CONFIGS) {
+        const step = configCarryStep(legacy, DRY_RUN && previewCarried);
+        if (step.act === "none")
             continue;
-        if (legacyRead.state === "blocked") {
-            verify(`user config ${blockedAt(legacyRead, legacy)}. It was left in place: it was not copied to ` +
-                `${seededConfig} and not renamed to a .bak. Replace it with a regular file (or remove it) and re-run --migrate.`);
-            continue;
-        }
-        // COPY forward to the seeded .grugops/ location only if nothing is there (never-overwrite seeded
-        // state). The destination is asked through readForWrite BEFORE anything moves (red-team finding
-        // 5 of plan 33.1-26): a destination that is not a readable regular file (a FIFO, a directory, a
-        // link) is not "already present — kept". Nothing was carried forward into it, so the legacy
-        // config is NOT renamed to .bak either; both are left and reported.
-        const seeded = readForWrite(TARGET, seededConfig);
-        if (seeded.state === "blocked") {
-            verify(`user config ${legacy} was not carried forward: ${blockedAt(seeded, seededConfig)}. Both were left ` +
-                `in place and ${legacy} was not renamed to a .bak. Make ${seededConfig} a regular file (or remove it) ` +
-                `and re-run --migrate.`);
+        if (step.act === "refuse") {
+            verify(step.why);
             continue;
         }
         if (DRY_RUN) {
-            report("would-move", `user config ${legacy} → ${seededConfig} (original left as .bak)`);
+            if (step.act === "carry") {
+                previewCarried = true;
+                report("would-move", `user config ${legacy} → ${SEEDED_CONFIG} (original left as .bak)`);
+            }
+            else {
+                report("would-move", `user config ${legacy} → .bak (.grugops/factory.config.json already present — kept, D-04)`);
+            }
             continue;
         }
-        if (seeded.state === "create") {
-            if (!writeTargetFile(seededConfig, legacyRead.bytes, "create", `user config ${legacy}`)) {
+        if (step.act === "carry") {
+            if (!writeTargetFile(SEEDED_CONFIG, step.bytes, "create", `user config ${legacy}`)) {
                 // Not carried forward, so the original stays where it is, unrenamed (the verify says why).
                 continue;
             }
-            report("moved", `user config → ${seededConfig} (carried forward, D-04)`);
+            report("moved", `user config → ${SEEDED_CONFIG} (carried forward, D-04)`);
         }
         else {
             report("skipped", `user config (.grugops/factory.config.json already present — kept, D-04)`);
@@ -1603,16 +1649,6 @@ function migratePreSteps() {
     }
     // 2. back up the displaced in-repo agent-factory/ (timestamped, differs-only — D-08/D-09).
     backupIfDiffers(join(TARGET, "agent-factory"), join(GRUGOPS_SRC, "agent-factory"), "in-repo agent-factory/");
-    // 3. LANDMINE (Pitfall 1): never write through a live symlink at a resolver destination (every
-    // adapter, and every skill whose source carries the resolver slot). Since plan 33.1-31 (D-32) this
-    // step unlinks nothing: it marks the run as a --migrate conversion, and the kit plan
-    // (kitDestDecision) then plans the unlink of install's OWN link (isOwnLink: readlink equals the kit
-    // source path an install made before the render linked there) for the write phase, just before its
-    // file is written. Any other link there is a refusal, and a run that refuses anything unlinks
-    // nothing: an unlink here, before the kit plan was checked, used to leave the user without their
-    // link in a run that then wrote no adapter. An unreadable kit source directory is the kit plan's
-    // refusal too (it names the directory).
-    KIT_MIGRATE_OWN_LINKS = true;
 }
 // ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
 // if the open sentinel is already present; creates the file if absent. Never `>`-truncates.
@@ -2057,9 +2093,15 @@ function renderAdaptersInMirror(use) {
         //    DC-3 (plan 33.1-26): the configuration is read through readUserFile and the mirror copy is
         //    written from those bytes. A copy call would reopen the path by name, and on a FIFO it
         //    blocks. A path that is not a readable regular file within the bound gets the same refusal.
-        const targetConfig = join(TARGET, ".grugops", "factory.config.json");
+        //
+        //    WHICH configuration is renderConfigInput's answer, the one authority (red-team B3 of plan
+        //    33.1-31): the target's .grugops/factory.config.json, or, in a --migrate run over an old layout,
+        //    the legacy configuration that run carries forward there. The real run and the DRY_RUN preview
+        //    ask it at the same point (before the pre-steps move anything), so they render the same bytes.
+        const renderConfig = renderConfigInput();
+        const targetConfig = renderConfig.label;
         let configPath = null;
-        const configRead = readUserFile(targetConfig);
+        const configRead = renderConfig.read;
         if (configRead.state !== "absent") {
             try {
                 if (configRead.state !== "ok")
@@ -2350,33 +2392,49 @@ function transformAdapter(srcText) {
 // readForWrite (DC-3 / D-18: a FIFO, a directory, a hard link, an unreadable or too-large file, or a
 // link or non-directory on the way is refused), and only then compared (D-11: build, compare, write).
 //
-// REFUSE, DO NOT UNLINK, on the ordinary run: it is routine and must never delete a link the user put
-// there. `--migrate` (KIT_MIGRATE_OWN_LINKS) is a declared one-time conversion, and it removes a link
-// only when it is install's OWN link (isOwnLink, the predicate uninstall uses): any other link there
-// may be the user's or point into another checkout, and it is a refusal (dc2 carry, plan 33.1-27).
+// INSTALL'S OWN LINK IS REPLACED, ON EVERY RUN (red-team B1 of plan 33.1-31). A materialize
+// destination that is exactly the link an install made before the render (isOwnLink: readlink equals
+// THIS checkout's kit source path for that file, the predicate uninstall uses) is install's content,
+// and the kit write replaces it: it is unlinked in the write phase, just before its file is written,
+// and only in a run whose plan refused nothing. Before, only a --migrate over an old layout did this,
+// so a target whose --migrate refused (and wrote its marker) could never be completed by any run.
+// ANY OTHER LINK IS REFUSED, NEVER UNLINKED: it may be the user's, or point into another checkout.
+//
+// THE LIMITS ARE ASKED HERE TOO (red-team borderlines (a) and (b) of plan 33.1-31): a destination
+// over the platform path limits, or one this process cannot write (the nearest existing directory
+// for a create, the file for a rewrite, the holding directory for an unlink), is refused in the
+// plan. Before, each failed in the write phase, after other kit files had been written.
 function kitDestDecision(e) {
     const dest = e.dest;
     if (e.kind === "missing")
         return { act: "skip", line: `${e.label} (source missing: ${e.src})`, record: null };
+    const tooLong = pathLimitProblem(dest);
+    if (tooLong !== null)
+        return { act: "refuse", why: `${e.label} — ${dest} ${tooLong}. Nothing was written.` };
+    const writable = (how) => {
+        const why = writeAccessProblem(dest, how);
+        return why === null ? null : `${e.label} — ${dest} ${why}. It was left untouched and nothing was written.`;
+    };
     if (e.kind === "materialize") {
         const final = e.text ?? "";
-        if (KIT_MIGRATE_OWN_LINKS && isSymlink(dest)) {
-            if (!isOwnLink(dest, e.src)) {
-                return {
-                    act: "refuse",
-                    why: `${e.label} — ${dest} is a symbolic link that is not the one install makes (the link install ` +
-                        `makes here points at ${e.src}). --migrate unlinks only install's own link, so this one was left ` +
-                        `in place, not followed and not unlinked. Replace it with a regular file (or remove it) and re-run --migrate.`,
-                };
-            }
+        if (isOwnLink(dest, e.src)) {
             // The unlink happens inside the target or not at all: a link or non-directory on the way would
             // carry the removal out of it (red-team of plan 33.1-26).
             const way = wayTo(TARGET, dest);
             if (way !== null) {
                 const where = way === "absent" ? `${dest} could not be reached` : blockedAt(way, dest);
-                return { act: "refuse", why: `symlink adapter ${where}. Nothing was unlinked.` };
+                return { act: "refuse", why: `${e.label} — install's own link ${where}. Nothing was unlinked.` };
             }
-            return { act: "unlink" };
+            const cannot = writable("unlink");
+            return cannot === null ? { act: "unlink" } : { act: "refuse", why: cannot };
+        }
+        if (isSymlink(dest)) {
+            return {
+                act: "refuse",
+                why: `${e.label} — ${dest} is a symbolic link that is not the one install makes (install's own link here ` +
+                    `points at ${e.src}). Install replaces only its own link, so this one was left in place, not followed ` +
+                    `and not unlinked, and nothing was written. Replace it with a regular file (or remove it) and re-run.`,
+            };
         }
         const hazard = adapterDestHazard(dest);
         if (hazard !== null)
@@ -2390,7 +2448,8 @@ function kitDestDecision(e) {
             // (kitFiles, plan 33.1-30). The wording is linkOrCopy's for an identical copy: one sentence, one fact.
             return { act: "skip", line: `${e.label} (identical copy present)`, record: contentRecord(final) };
         }
-        return { act: "write", how: destRead.state };
+        const cannot = writable(destRead.state);
+        return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
     }
     // copy / link: a --symlink install's own link to this exact source is install's content.
     if (isOwnLink(dest, e.src))
@@ -2402,7 +2461,8 @@ function kitDestDecision(e) {
     if (destRead.state === "ok" && destRead.text === e.srcText) {
         return { act: "skip", line: `${e.label} (identical copy present)`, record: contentRecord(e.bytes ?? Buffer.alloc(0)) };
     }
-    return { act: "write", how: destRead.state };
+    const cannot = writable(destRead.state);
+    return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
 }
 // materializeAdapter: lay one materialize entry down from its FINAL text (captured in memory by
 // buildKitPlan; nothing here reads the render mirror, which is gone by now), writing ONLY when the
@@ -2958,6 +3018,18 @@ function updateKitHome() {
     }
     copyKit(true);
 }
+// The kit sets, derived ONCE by readdirSync over $GRUGOPS_SRC (KIT-02 / D-18). Declared here, above
+// the --migrate branch, because a --migrate over an old layout builds its kit plan before any
+// migration step (red-team B1 of plan 33.1-31), and buildKitPlan reads these.
+const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
+const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
+// The nested walk returns FOUR things, not one (D-35/D-36, and `unreadable` per D-41/CR-02): the
+// member set, the paths it declined to descend into, the paths it could not READ, and whether it
+// hit its work bound. All four are reported — a walk that reported only the first would be back to
+// dropping members without naming them, and for three rounds `unreadable` was the one of the four
+// that had no channel at all. The last three are kit-plan refusals (red-team (c) of plan 33.1-31).
+const SRC_NESTED = srcNestedAdapterFiles(GRUGOPS_SRC);
+const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 // --- --migrate branch (MIGR-01, Plan 17-02) --------------------------------------------------
 // Placed AFTER the always-on D-07 self-checkout guard and the doctor early-exit, BEFORE the run
 // banner + the `-- kit --` block, so migrate operates on a real user repo and keeps the guard
@@ -2967,7 +3039,8 @@ function updateKitHome() {
 //     LIVE in-repo agent-factory/ remains (half-state) warn in clear voice that it must be removed
 //     by hand — prune only removes .bak.<ISO> backups, never a live kit (WR-01) — else report
 //     already-migrated. Either way exit 0.
-//   - isOldLayout → run migratePreSteps() (config-move + in-repo-kit backup + symlink-unlink), then
+//   - isOldLayout → the pre-check first (the config carry and the whole kit plan; any refusal and
+//     nothing is migrated, exit 3), then migratePreSteps() (config-move + in-repo-kit backup), then
 //     FALL THROUGH into the existing install run (which copies the fresh kit, D-01).
 //   - isClean (or anything else) → FALL THROUGH into the existing install run unchanged (D-11).
 //
@@ -3000,8 +3073,43 @@ const START_HELD_DIRS = (() => {
     }
     return held;
 })();
+// MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
+// install run below executes it instead of building a second one (there is one render per run).
+let MIGRATE_KIT_PLAN = null;
 if (MIGRATE) {
     const layout = detectOldLayout();
+    // A --MIGRATE IS WHOLE OR NOT AT ALL, TOO (red-team B1 of plan 33.1-31, D-32, D-18). Everything the
+    // migration can refuse before it changes anything is asked first: the legacy config carry and the
+    // whole kit plan (built with the configuration the carry will put in place, so the DRY_RUN preview
+    // renders what the real run renders, B3). If anything refuses, NOTHING is migrated: no handoffs
+    // backup, no config moved, no agent-factory/ renamed, no kit written, no marker. The target is still
+    // the old layout, so fixing what the verify lines name and re-running --migrate performs the whole
+    // migration. Before, a refused kit plan still moved the config, renamed agent-factory/ and wrote the
+    // marker, and the next --migrate said "already migrated. Nothing to do" over install's own links.
+    if (layout.isOldLayout) {
+        MIGRATE_CARRY_PENDING = true;
+        const carry = planConfigCarry();
+        MIGRATE_KIT_PLAN = buildKitPlan();
+        const refusals = [...carry.refusals, ...(MIGRATE_KIT_PLAN.ok ? [] : MIGRATE_KIT_PLAN.refusals)];
+        if (refusals.length > 0) {
+            console.log("== grugops migrate (old in-repo layout → two-root) ==");
+            console.log(`target: ${TARGET}`);
+            if (DRY_RUN)
+                console.log("mode:   DRY_RUN (no filesystem changes)");
+            console.log("\n-- migrate pre-check (before any change) --");
+            for (const why of refusals)
+                verify(why);
+            report("migrate", `nothing was migrated: ${refusals.length} refusal(s) above were found before the first change, and ` +
+                `--migrate changes a target whole or not at all. No configuration was moved, agent-factory/ was not ` +
+                `backed up, plans/handoffs/ was not backed up, no skill or adapter was written, linked or unlinked, ` +
+                `and no marker was written: ${TARGET} is still the old layout. Resolve each verify above and re-run --migrate.`);
+            console.log(`\n== migrate INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
+                `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+            // A MID-SCRIPT EXIT, the seventh of the pinned count: the run must stop before the handoffs
+            // backup and the install run below. Its output is a few kilobytes.
+            process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
+        }
+    }
     // MIGR-04 (Phase 24, D-17 reconcile): back up a user's runtime-accumulated plans/handoffs/ on
     // EVERY --migrate path — the already-two-root isMigrated arm, the old-layout path, AND the clean
     // fall-through — because a user can have accumulated handoffs under the old relay regardless of
@@ -3065,15 +3173,8 @@ console.log("\n-- adapters --");
 //
 // ALL OR NOTHING (plan 33.1-31, D-32): buildKitPlan() finds every refusal before the first kit write,
 // and executeKitPlan() runs only when there is none. See "THE KIT WRITE PLAN" above materializeAdapter.
-const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
-const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
-// The nested walk returns FOUR things, not one (D-35/D-36, and `unreadable` per D-41/CR-02): the
-// member set, the paths it declined to descend into, the paths it could not READ, and whether it
-// hit its work bound. All four are reported below — a walk that reported only the first would be
-// back to dropping members without naming them, and for three rounds `unreadable` was the one of
-// the four that had no channel at all.
-const SRC_NESTED = srcNestedAdapterFiles(GRUGOPS_SRC);
-const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
+// SRC_SKILLS, SRC_ADAPTERS and SRC_NESTED are derived above the --migrate branch (red-team B1 of plan
+// 33.1-31): a --migrate over an old layout builds its kit plan before any migration step.
 // buildKitPlan: phase one. Reads every kit source (through readUserFile), renders the adapters and
 // reads each rendered file INSIDE the render callback, before the mirror is deleted, then asks
 // kitDestDecision about every destination. It writes, links, unlinks and creates nothing; every
@@ -3137,7 +3238,7 @@ function buildKitPlan() {
         renderAdaptersInMirror((render) => {
             // The REAL file on this machine. Named in every finding below because the generator's own
             // message names a temporary mirror path that does not exist on the user's filesystem.
-            const targetConfigFile = join(TARGET, ".grugops", "factory.config.json");
+            const targetConfigFile = renderConfigInput().label;
             if (!render.ok) {
                 // R-5: NO FALLBACK BYTE SOURCE. Falling back to the kit-shipped adapter bytes would be a
                 // second byte source and a silent downgrade of a configured target to `inherit` — the shape
@@ -3317,6 +3418,51 @@ function buildKitPlan() {
             ]);
         });
     }
+    // THE NESTED WALK'S THREE UNKNOWN-SET ARMS ARE KIT REFUSALS (red-team (c) of plan 33.1-31, D-32).
+    // A subtree the walk declined to descend into (a cycle), could not read, or stopped in at its work
+    // bound leaves the kit source NOT FULLY EXAMINED, the same fact as an unreadable source directory,
+    // which refuses the kit. Before, these were reported after the kit write, so a run that named them
+    // had already written the whole flat kit. A nested adapter the walk DID read (the flat-by-contract
+    // refusal after the kit step) is different: it is a known file the contract keeps out of the install
+    // set, so it cannot make the kit a mix of versions, and it stays a per-file verify.
+    for (const rel of SRC_NESTED.cycles) {
+        refusals.push(`.claude/agents/${rel} — the nested-adapter walk DECLINED TO DESCEND here: this directory ` +
+            `already appears on its own recursion path, so following it would not terminate. Anything ` +
+            `below it was therefore neither installed nor refused by name, so the kit source was not fully ` +
+            `examined and no skill or adapter was installed. Break the symlink cycle under the adapter ` +
+            `directory and re-run.`);
+    }
+    for (const rel of SRC_NESTED.unreadable) {
+        const at = rel === "" ? "" : `/${rel}`;
+        refusals.push(`.claude/agents${at} — the nested-adapter walk COULD NOT READ this directory, so anything below ` +
+            `it was NEITHER installed NOR refused by name. This is NOT the same fact as an empty ` +
+            `directory: an empty directory was read and held nothing, while this one was never read at ` +
+            `all, so its contents are unknown rather than known to be none, and no skill or adapter was ` +
+            `installed. Fix the permissions on it or restore the checkout, then re-run.`);
+    }
+    if (SRC_NESTED.overflow !== null) {
+        const at = SRC_NESTED.overflow.at === "" ? "" : `/${SRC_NESTED.overflow.at}`;
+        refusals.push(`.claude/agents${at} — the nested-adapter walk stopped after examining ` +
+            `MAX_WALK_ENTRIES=${SRC_NESTED.overflow.limit} directory entries, so the adapter directory ` +
+            `was NOT fully examined and anything past that point was neither installed nor refused by ` +
+            `name, and no skill or adapter was installed. A symlink DAG with no cycle at all can expand ` +
+            `into exponentially many distinct relative paths, which is what this bound exists to stop. ` +
+            `Remove the cross-linked symlinks under the adapter directory and re-run.`);
+    }
+    // TWO DESTINATIONS THAT FOLD TO ONE NAME (red-team B2 of plan 33.1-31). On a case-insensitive or a
+    // normalisation-insensitive target the second write would land on the first file. kitNameCollisions
+    // (kit-source.ts) folds every destination per component; any pair refuses the whole kit.
+    const planned = [...skills, ...adapters].filter((e) => e.kind !== "missing");
+    const relOf = (dest) => relative(TARGET, dest).split(sep).join("/");
+    for (const [a, b] of kitNameCollisions(planned.map((e) => relOf(e.dest)))) {
+        refusals.push(a === b
+            ? `${a} — the kit plan holds this destination twice, so two kit files would be written to one ` +
+                `path. Re-run the installer from a kit checkout whose skill and adapter names are distinct.`
+            : `${a} and ${b} — these two kit names differ only by letter case or Unicode normalisation, so on ` +
+                `a case-insensitive or normalisation-insensitive filesystem (the macOS and Windows defaults) ` +
+                `they are ONE path, and the second write would overwrite the first. Re-run the installer from ` +
+                `a kit checkout whose skill and adapter names are distinct after case folding.`);
+    }
     // EVERY DESTINATION IS ASKED BEFORE THE FIRST WRITE, with the decision the writer asks again at the
     // write: a link, a FIFO, a hard link, a directory, or a link or non-directory on the way to any kit
     // path refuses the whole kit. Under --migrate, install's own link at a materialize destination is
@@ -3334,7 +3480,7 @@ function buildKitPlan() {
     return { ok: true, skills: plannedSkills, adapters: plannedAdapters, resolution };
 }
 {
-    const kitPlan = buildKitPlan();
+    const kitPlan = MIGRATE_KIT_PLAN ?? buildKitPlan();
     if (kitPlan.ok) {
         executeKitPlan(kitPlan);
     }
@@ -3354,47 +3500,9 @@ for (const rel of SRC_NESTED_ADAPTERS) {
         `NOT installed. Claude Code would load it from a nested path, which is exactly why it is ` +
         `refused here by name instead of skipped. Move it to the top level of the adapter directory.`);
 }
-// THE CYCLE ARM, NAMED RATHER THAN SILENT (D-36, WR-04). The walk declined to descend into these
-// relative paths because each repeats on its own recursion path. Declining is correct — descending
-// would not terminate — but declining WITHOUT SAYING SO is the silent disappearance kit-source.ts's
-// header forbids. Reported through the same single `verify` channel every other refusal uses, so
-// the run reports INCOMPLETE instead of claiming a completion over a subtree it never examined.
-for (const rel of SRC_NESTED.cycles) {
-    verify(`.claude/agents/${rel} — the nested-adapter walk DECLINED TO DESCEND here: this directory ` +
-        `already appears on its own recursion path, so following it would not terminate. Anything ` +
-        `below it was therefore neither installed nor refused by name. Break the symlink cycle under ` +
-        `the adapter directory and re-run.`);
-}
-// THE UNREADABLE ARM, NAMED RATHER THAN SILENT (D-41, closing CR-02). A fourth peer of the loop
-// above, in the same voice, through the same single `verify` channel. The walk could not read these
-// directories, so it does not know what is below them — and until this loop existed it said so
-// nowhere. Reproduced with its control against the committed .js: `.claude/agents/nested` at mode
-// 000 produced `== install complete ==` at exit 0 with `nested` absent from the whole output, while
-// the SAME tree at mode 755 produced `== install INCOMPLETE ==` at exit 3 naming
-// `nested/hidden.md`. Making the directory less readable made this installer more confident, which
-// is the inversion this loop deletes.
-for (const rel of SRC_NESTED.unreadable) {
-    const at = rel === "" ? "" : `/${rel}`;
-    verify(`.claude/agents${at} — the nested-adapter walk COULD NOT READ this directory, so anything below ` +
-        `it was NEITHER installed NOR refused by name. This is NOT the same fact as an empty ` +
-        `directory: an empty directory was read and held nothing, while this one was never read at ` +
-        `all, so its contents are unknown rather than known to be none. Fix the permissions on it or ` +
-        `restore the checkout, then re-run.`);
-}
-// THE WORK BOUND, SURFACED THROUGH THE ONE REPORTING CHANNEL THIS INSTALLER HAS (D-35, WR-01). The
-// nested walk stopped after MAX_WALK_ENTRIES directory entries, so the adapter directory was NOT
-// fully examined and any member past that point was neither installed nor refused by name. That is
-// an incomplete run, and `verify` is what makes it print the INCOMPLETE banner and exit 3 rather
-// than claiming a completion it did not perform.
-if (SRC_NESTED.overflow !== null) {
-    const at = SRC_NESTED.overflow.at === "" ? "" : `/${SRC_NESTED.overflow.at}`;
-    verify(`.claude/agents${at} — the nested-adapter walk stopped after examining ` +
-        `MAX_WALK_ENTRIES=${SRC_NESTED.overflow.limit} directory entries, so the adapter directory ` +
-        `was NOT fully examined and anything past that point was neither installed nor refused by ` +
-        `name. A symlink DAG with no cycle at all can expand into exponentially many distinct ` +
-        `relative paths, which is what this bound exists to stop. Remove the cross-linked symlinks ` +
-        `under the adapter directory and re-run.`);
-}
+// THE CYCLE, UNREADABLE AND WORK-BOUND ARMS of the nested walk are kit-plan refusals since the
+// red-team fixes of plan 33.1-31 (see buildKitPlan): each leaves the kit source not fully examined,
+// so it refuses the whole kit before the first write.
 // AGENTS.md is never written when the target has one. "Has one" is a regular file (readForWrite
 // `ok`) or the link a --symlink install made to the checkout's AGENTS.md. Red-team of plan 33.1-26:
 // it used to be existsSync, so a FIFO or a directory there read as "has one", and a dangling link
@@ -3805,7 +3913,7 @@ if (VERIFY_FINDINGS > 0) {
     // this one's race observable — so what was fixed there is the INCOMPLETE FIX, not a measured
     // truncation, and the record says so rather than over-claiming.
     //
-    // THE STANDING RESIDUAL, SCOPED TO WHAT IT ACTUALLY COVERS. SIX `process.exit()` sites remain in
+    // THE STANDING RESIDUAL, SCOPED TO WHAT IT ACTUALLY COVERS. SEVEN `process.exit()` sites remain in
     // this file. Every one of them is MID-SCRIPT and relies on stop-here semantics, so a blind sweep
     // to `exitCode` would let the script RUN ON past a refusal — a worse defect than the one being
     // fixed. They carry the same truncation hazard in principle and none is proven to reach a flush

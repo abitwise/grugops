@@ -70,8 +70,8 @@
 // It only reads (lstat, and readUserFile for the final component), so it lives with the reader.
 //
 // Clear professional voice: this is a safety surface (installer reads of user content).
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readlinkSync, statSync } from "node:fs";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readlinkSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 /** The default size bound: no file the installer reads in a user repository is near this. */
 export const USER_FILE_MAX_BYTES = 8 * 1024 * 1024;
 function kindOf(st) {
@@ -302,4 +302,89 @@ export function gone(path) {
  */
 export function directoryComponent(path) {
     return componentProblem(path, true);
+}
+// ── THE KIT PLAN'S TWO LIMIT QUESTIONS (red-team of plan 33.1-31, borderline (a) and (b)) ──────────
+//
+// install.ts buildKitPlan asks both about every kit destination BEFORE the first kit write, so a
+// destination that cannot be written refuses the whole kit instead of failing in the write phase
+// after other kit files were already written (a mixed kit, D-32). Neither writes anything.
+/**
+ * The platform path limits, in bytes of the UTF-8 path string passed to the system call.
+ *
+ * NAME_MAX, the longest single path component: 255 bytes on Linux (<linux/limits.h> NAME_MAX 255)
+ * and on macOS (<sys/syslimits.h> NAME_MAX 255; APFS and HFS+ both cap a name at 255).
+ *
+ * PATH_MAX, the longest whole path, COUNTING THE TERMINATING NUL, so the longest usable path is one
+ * byte less: 4096 on Linux (<linux/limits.h> PATH_MAX 4096) and 1024 on macOS (<sys/syslimits.h>
+ * PATH_MAX 1024). Every other platform takes the smaller value, 1024, the conservative answer
+ * (FreeBSD's <sys/syslimits.h> is 1024 too; Windows is out of scope for 33.1, D-15).
+ */
+export const NAME_MAX_BYTES = 255;
+export const PATH_MAX_BYTES = process.platform === "linux" ? 4096 : 1024;
+/**
+ * Why `path` cannot be created on this platform, or null. The whole path must be shorter than
+ * PATH_MAX bytes and every component at most NAME_MAX bytes, counted in UTF-8. A write to a path over
+ * either limit fails with ENAMETOOLONG, and readForWrite cannot see that ahead of time when a
+ * directory on the way does not exist yet (it answers `create` at the first absent directory).
+ */
+export function pathLimitProblem(path) {
+    const bytes = Buffer.byteLength(path, "utf8");
+    if (bytes >= PATH_MAX_BYTES) {
+        return (`is ${bytes} bytes long, over this platform's path limit of ${PATH_MAX_BYTES - 1} bytes ` +
+            `(PATH_MAX ${PATH_MAX_BYTES}, which counts the terminating NUL), so it cannot be created`);
+    }
+    for (const part of path.split(sep)) {
+        const n = Buffer.byteLength(part, "utf8");
+        if (n > NAME_MAX_BYTES) {
+            return (`has a component of ${n} bytes, over this platform's name limit of ${NAME_MAX_BYTES} bytes ` +
+                `(NAME_MAX), so it cannot be created`);
+        }
+    }
+    return null;
+}
+/**
+ * Why this process cannot make the write readForWrite answered for `path`, or null. It only asks
+ * access(2); it opens and writes nothing.
+ *   `create`  the nearest directory that exists on the way to `path` must be writable and searchable:
+ *             every missing directory below it, and the file, are made in it.
+ *   `ok`      the regular file itself must be writable: a rewrite opens it for writing in place.
+ *   `unlink`  the directory holding `path` must be writable and searchable: the entry is removed from
+ *             it and the new file is created in it.
+ * The caller has already asked readForWrite (every existing component on the way is a real
+ * directory), so the walk up for `create` follows no link. As root, access(2) answers yes except on a
+ * read-only filesystem, which is the answer the write itself would give.
+ */
+export function writeAccessProblem(path, how) {
+    const ask = (p, mode) => {
+        try {
+            accessSync(p, mode);
+            return null;
+        }
+        catch (e) {
+            return codeOf(e);
+        }
+    };
+    if (how === "ok") {
+        const code = ask(path, constants.W_OK);
+        return code === null ? null : `is not writable by this process (${code}), so it cannot be rewritten in place`;
+    }
+    let dir = dirname(path);
+    if (how === "create") {
+        for (;;) {
+            try {
+                lstatSync(dir);
+                break;
+            }
+            catch (e) {
+                const up = dirname(dir);
+                if (codeOf(e) !== "ENOENT" || up === dir)
+                    return `could not be placed: ${dir} could not be read (${codeOf(e)})`;
+                dir = up;
+            }
+        }
+    }
+    const code = ask(dir, constants.W_OK | constants.X_OK);
+    return code === null
+        ? null
+        : `cannot be ${how === "create" ? "created" : "replaced"}: ${dir} is not writable by this process (${code})`;
 }

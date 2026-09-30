@@ -61,6 +61,9 @@ const FS_READ_ONLY = new Set([
   "fstatSync",
   "closeSync",
   "constants",
+  // red-team of plan 33.1-31 (borderline (b)): install/user-file.ts writeAccessProblem asks access(2)
+  // whether the kit plan's write can happen. It opens, reads and changes nothing.
+  "accessSync",
 ]);
 const FS_MUTATING = new Set([
   "writeFileSync",

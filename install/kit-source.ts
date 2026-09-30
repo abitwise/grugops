@@ -429,3 +429,56 @@ export function srcNestedAdapterFiles(srcRoot: string): NestedWalkResult {
     overflow: budget.overflow,
   };
 }
+
+// kitNameCollisions — the kit destinations that name ONE file on a case-insensitive or a
+// Unicode-normalisation-insensitive filesystem (red-team B2 of plan 33.1-31, D-32).
+//
+// The kit source may sit on a case-sensitive volume and carry two names that differ only by case
+// (`.claude/skills/GRUGOPS-GATE` beside `.claude/skills/grugops-gate`), or only by Unicode
+// normalisation (an NFC and an NFD spelling of one name). On the macOS and Windows defaults the
+// target folds both to one directory entry, so the second write lands on the first file: one
+// destination with two contents, and a kit record holding two entries for one file, one of which
+// can never hold. Whether the TARGET folds is not asked (a probe would have to create files there);
+// any two such names are refused on every target, which costs nothing for a kit whose names are
+// plain lowercase ASCII.
+//
+// PURE, PER COMPONENT. `rels` are target-relative, forward-slash destination paths. Every prefix of
+// every path (each parent directory and the path itself) is folded: NFC, then upper case, then lower
+// case, then NFC again (upper-then-lower also folds the characters whose lower case alone does not,
+// such as the German sharp s; folding more names together only refuses more). Two DIFFERENT raw
+// prefixes that fold to the same text are a pair, named at the shortest prefix where they meet; the
+// same destination listed twice is a pair too. Each pair is [the first spelling seen, the other],
+// once, in the order met.
+export function kitNameCollisions(rels: readonly string[]): Array<readonly [string, string]> {
+  const fold = (name: string): string => name.normalize("NFC").toUpperCase().toLowerCase().normalize("NFC");
+  const firstSpelling = new Map<string, string>();
+  const seenFull = new Set<string>();
+  const pairs: Array<readonly [string, string]> = [];
+  const said = new Set<string>();
+  const add = (a: string, b: string): void => {
+    const key = `${a}\u0000${b}`;
+    if (said.has(key)) return;
+    said.add(key);
+    pairs.push([a, b]);
+  };
+  for (const rel of rels) {
+    if (seenFull.has(rel)) {
+      add(rel, rel);
+      continue;
+    }
+    seenFull.add(rel);
+    const parts = rel.split("/");
+    for (let k = 1; k <= parts.length; k++) {
+      const raw = parts.slice(0, k).join("/");
+      const folded = parts.slice(0, k).map(fold).join("/");
+      const first = firstSpelling.get(folded);
+      if (first === undefined) {
+        firstSpelling.set(folded, raw);
+      } else if (first !== raw) {
+        add(first, raw);
+        break; // named where the two meet; the longer prefixes below it are the same collision
+      }
+    }
+  }
+  return pairs;
+}
