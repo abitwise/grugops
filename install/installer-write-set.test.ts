@@ -42,6 +42,7 @@ import {
   existsSync,
   linkSync,
   lstatSync,
+  statSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -660,7 +661,9 @@ describe("readUserFile and readForWrite: absent means nothing is there (red-team
     expect(callInChild("readForWrite", [d, join(d, "a", "b", "new.md")]).result).toEqual({ state: "create" });
     mkdirSync(join(d, "real"));
     writeFileSync(join(d, "real", "f.md"), "hello");
-    expect(callInChild("readForWrite", [d, join(d, "real", "f.md")]).result).toEqual({ state: "ok", bytes: 5 });
+    // `mode` since red-team L1 of plan 33.1-34: the permission bits a file record is compared with.
+    const okRead = callInChild("readForWrite", [d, join(d, "real", "f.md")]).result;
+    expect(okRead).toEqual({ state: "ok", bytes: 5, mode: statSync(join(d, "real", "f.md")).mode & 0o7777 });
   });
 
   it("readForWrite: a link, a special file or a non-directory at the path or on the way is `blocked`, naming where", () => {

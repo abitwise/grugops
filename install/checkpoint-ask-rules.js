@@ -125,3 +125,13 @@ export function checkpointsToWrite(config) {
     const checkpoints = isPlainObject(config) && isPlainObject(config.checkpoints) ? config.checkpoints : {};
     return ASK_RULE_CHECKPOINTS.filter((id) => canonicalizeCheckpointDisposition(Object.prototype.hasOwnProperty.call(checkpoints, id) ? checkpoints[id] : undefined) === "block");
 }
+/**
+ * THE TEXT INSTALL WRITES WHEN IT CREATES `.claude/settings.json` (red-team L1 of plan 33.1-34): the one
+ * serialisation both binaries use. install.ts writes exactly this for a new file. uninstall.ts deletes a
+ * settings file install created only when, once the recorded rules are removed, what is left is exactly
+ * what the same removal leaves of this text, so a whitespace or line-end edit of the user's (an extra
+ * final newline, CRLF) is a user edit and the file stays.
+ */
+export function createdSettingsText(rules) {
+    return JSON.stringify({ permissions: { ask: [...rules] } }, null, 2) + "\n";
+}

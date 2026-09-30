@@ -71,11 +71,11 @@ import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers
 // checkpoints configuration. A pure sibling module inside install/ (the kit-source.ts precedent), so
 // install/ still imports nothing from scripts/. The rules are a speed bump, not a security boundary;
 // the git host is the hard floor (see the module header).
-import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpoint-ask-rules.js";
+import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsText } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAppendedBlocks, appendedBlockJson, markerUnusableText, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
+import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAppendedBlocks, appendedBlockJson, malformedLedgers, markerUnusableText, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -109,14 +109,23 @@ let PRUNE_OLD_KIT = false;
 // user edited and then refresh the whole kit. `--yes` is NOT this consent: it answers the target
 // question, never the question of whether a user's edit may be overwritten.
 let BACKUP_EDITED_KIT = false;
+// A VALUE-TAKING FLAG WITH NO VALUE IS BAD USAGE (red-team L4 of plan 33.1-34). `--target` is the one
+// value-taking flag. With no value (the last argument, `--target=`, or followed by another flag) it used
+// to leave ARG_TARGET empty, and resolveTarget then fell back to TARGET or the current directory: the
+// run went ahead on a directory the human did not name. Every usage error reaches the one exit below.
+let USAGE_ERROR = null;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--target") {
-        ARG_TARGET = argv[++i] ?? "";
-    }
-    else if (a.startsWith("--target=")) {
-        ARG_TARGET = a.slice("--target=".length);
+    if (a === "--target" || a.startsWith("--target=")) {
+        const value = a === "--target" ? argv[++i] : a.slice("--target=".length);
+        if (value === undefined || value === "" || (a === "--target" && value.startsWith("--"))) {
+            USAGE_ERROR =
+                "--target needs a directory (usage: node install/install.js --target <repo>, or --target=<path> for a " +
+                    "path that begins with --)";
+            break;
+        }
+        ARG_TARGET = value;
     }
     else if (a === "--yes" || a === "-y") {
         YES = true;
@@ -146,9 +155,13 @@ for (let i = 0; i < argv.length; i++) {
         BACKUP_EDITED_KIT = true;
     }
     else {
-        process.stderr.write(`install.js: unknown argument: ${a}\n`);
-        process.exit(2);
+        USAGE_ERROR = `unknown argument: ${a}`;
+        break;
     }
+}
+if (USAGE_ERROR !== null) {
+    process.stderr.write(`install.js: ${USAGE_ERROR}\n`);
+    process.exit(2);
 }
 // import.meta.dirname (Node 22+) replaces the .mjs's dirname(fileURLToPath(import.meta.url)).
 const SCRIPT_DIR = import.meta.dirname;
@@ -183,6 +196,9 @@ const GRUGOPS_HOME = toPosix(process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOM
     ? resolve(process.env.GRUGOPS_HOME)
     : resolve(homedir(), ".grugops"));
 const KIT_ROOT = toPosix(resolve(GRUGOPS_HOME, "agent-factory"));
+// KIT_COPY_SOURCE: the directory copyKit copies to KIT_ROOT (copyKit spells the same join for the fs
+// census). seedRoot reads a DRY_RUN's seed from it (red-team L2 of plan 33.1-34).
+const KIT_COPY_SOURCE = join(GRUGOPS_SRC, "agent-factory");
 // readlineSync: read a single line from stdin (fd 0) synchronously, byte by byte until newline or
 // EOF. Used only for the interactive prompts (the target question, and D-32's edited-kit question);
 // --yes / non-TTY never reach the first, and the second is asked only at a terminal.
@@ -508,6 +524,18 @@ const LEGACY_CONFIGS = [
 // render reads is the one planConfigCarry says will be carried (red-team B3 of plan 33.1-31: DRY_RUN
 // moved nothing and rendered with no configuration, while the real run rendered with the moved one).
 let MIGRATE_CARRY_PENDING = false;
+// writtenFileRecord (red-team L1 of plan 33.1-34, brief DC-2): the record of a file THIS run has just
+// written at `path`, fileRecord of the bytes it wrote and the mode the file has now (install-marker.ts
+// THE FILE MODE), so uninstall treats a later chmod as a user edit. A path whose mode cannot be read back
+// is recorded by its bytes alone, as a record from before this rule was, and uninstall says so.
+function writtenFileRecord(path, bytes) {
+    try {
+        return fileRecord(bytes, lstatSync(path).mode);
+    }
+    catch {
+        return contentRecord(bytes);
+    }
+}
 const recordKitFile = (path, record) => {
     if (DRY_RUN)
         return;
@@ -913,6 +941,18 @@ function doctor() {
             `the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, which writes a marker for ` +
             `this directory and carries none of these records`);
     }
+    // A MALFORMED LEDGER IS A FAIL (red-team B1 of plan 33.1-34, brief DC-1). The doctor used to read the
+    // marker through readInstallMarker and never ask malformedLedgers, so a marker holding a ledger that
+    // uninstall uses none of (install and uninstall both report a verify, exit 3, and uninstall keeps the
+    // marker) printed ALL CHECKS PASSED at exit 0. It asks the same authority those two ask, and names each
+    // malformed ledger in its own FAIL line. The other checks still run: the kit fields are not ledgers.
+    if (markerRead.state === "ok") {
+        for (const name of malformedLedgers(markerRead.marker)) {
+            docFail(`the install marker ${markerFile} holds a malformed ${name} ledger — install writes it back as found, ` +
+                `uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). Fix the field ` +
+                `by hand`);
+        }
+    }
     const marker = (markerRead.state === "ok" ? markerRead.marker : markerRead.object);
     // --- D-03 three-source kit-root cross-check ------------------------------------------------
     // (a) the freshly re-resolved rule, (b) the marker kitRoot, (c) the adapter KIT=. Normalize all
@@ -1218,8 +1258,9 @@ function doctor() {
         docWarn(".grugops/install.json could not be read as a JSON object — the ask-rule ledger is unknown, so the ask rules were not checked");
     }
     else if (askRead.state === "malformed") {
-        docWarn("the ask-rule ledger (claudeAskRules) in .grugops/install.json is malformed — the ask rules were not checked, " +
-            "and neither the installer nor the uninstaller will change them until the field is fixed");
+        // Counted once, as the FAIL above (red-team B1 of plan 33.1-34); this line only says what was skipped.
+        docReport("info", "the ask-rule ledger (claudeAskRules) in .grugops/install.json is malformed (see the FAIL above) — the ask rules " +
+            "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed");
     }
     else if (!askLedger) {
         docReport("info", "no ask-rule ledger in the marker — this install predates the Claude Code ask rules; re-run the installer to write them");
@@ -1648,7 +1689,7 @@ function configCarryStep(legacy, seededHeld) {
                 `and re-run --migrate.`,
         };
     }
-    return seeded.state === "create" ? { act: "carry", bytes: legacyRead.bytes, text: legacyRead.text } : { act: "keep" };
+    return seeded.state === "create" ? { act: "carry", bytes: legacyRead.bytes, text: legacyRead.text, mode: legacyRead.mode } : { act: "keep" };
 }
 function planConfigCarry() {
     const refusals = [];
@@ -1658,7 +1699,7 @@ function planConfigCarry() {
         if (step.act === "refuse")
             refusals.push(step.why);
         else if (step.act === "carry")
-            carried = { legacy, bytes: step.bytes, text: step.text };
+            carried = { legacy, bytes: step.bytes, text: step.text, mode: step.mode };
     }
     return {
         refusals,
@@ -1666,7 +1707,7 @@ function planConfigCarry() {
             ? { label: SEEDED_CONFIG, read: readUserFile(SEEDED_CONFIG) }
             : {
                 label: `${carried.legacy} (the configuration this --migrate carries forward to ${SEEDED_CONFIG})`,
-                read: { state: "ok", bytes: carried.bytes, text: carried.text },
+                read: { state: "ok", bytes: carried.bytes, text: carried.text, mode: carried.mode },
             },
     };
 }
@@ -1772,7 +1813,7 @@ function ensureBlock(file, open, body, close, label) {
         // Plan 33.1-28: readForWrite said nothing was there and the exclusive create succeeded, so
         // install created this file. Uninstall deletes it only on this record (createdFiles), and only
         // while the file still holds these bytes (red-team R1).
-        recordCreatedFile(file, contentRecord(block));
+        recordCreatedFile(file, writtenFileRecord(file, block));
         recordAppendedBlock(file, lines, separator);
     }
     else {
@@ -1864,7 +1905,7 @@ function linkOrCopy(src, dest, label) {
     if (!writeTargetFile(dest, srcRead.bytes, destRead.state, label))
         return null;
     report("copied(verify)", label);
-    return destRead.state === "create" ? contentRecord(srcRead.bytes) : null;
+    return destRead.state === "create" ? writtenFileRecord(dest, srcRead.bytes) : null;
 }
 // GEMINI_RECORD (plan 33.1-29, Gap B / re-review CR-03, D-18): what THIS run did to
 // .gemini/settings.json, as the geminiSettings record (install-marker.ts states the shape), or null
@@ -1943,7 +1984,7 @@ function mergeGemini() {
             createdContext: true,
             fileNameBefore: "absent",
             fileNameContent: jsonValueRecord(fileName),
-            fileContent: contentRecord(text),
+            fileContent: writtenFileRecord(file, text),
         };
         report("created", `${rel} (context.fileName wiring)`);
         return;
@@ -2066,6 +2107,8 @@ function copyKit(retainBackup = false) {
     const tmp = `${GRUGOPS_HOME}/.agent-factory.tmp.${process.pid}`;
     const old = `${KIT_ROOT}.old.${process.pid}`;
     rmSync(tmp, { recursive: true, force: true });
+    // The source is spelled out (not KIT_COPY_SOURCE) because the fs census pins this read's source
+    // expression as a kit path; the two are the same path.
     cpSync(join(GRUGOPS_SRC, "agent-factory"), tmp, { recursive: true });
     // Move the existing kit aside (if any), put the new kit in place via a single atomic rename,
     // then handle the old copy. A concurrent reader sees either the old kit or the new — never an
@@ -2544,7 +2587,7 @@ function kitDestDecision(e) {
         if (destRead.state === "ok" && destRead.text === final) {
             // The destination holds exactly what install writes there, so it is recorded as install's
             // (kitFiles, plan 33.1-30). The wording is linkOrCopy's for an identical copy: one sentence, one fact.
-            return { act: "skip", line: `${e.label} (identical copy present)`, record: contentRecord(final) };
+            return { act: "skip", line: `${e.label} (identical copy present)`, record: fileRecord(final, destRead.mode) };
         }
         const cannot = writable(destRead.state);
         return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
@@ -2557,7 +2600,7 @@ function kitDestDecision(e) {
         return { act: "refuse", why: `${e.label}: ${blockedAt(destRead, dest)}. It was left untouched and nothing was copied over it.` };
     }
     if (destRead.state === "ok" && destRead.text === e.srcText) {
-        return { act: "skip", line: `${e.label} (identical copy present)`, record: contentRecord(e.bytes ?? Buffer.alloc(0)) };
+        return { act: "skip", line: `${e.label} (identical copy present)`, record: fileRecord(e.bytes ?? Buffer.alloc(0), destRead.mode) };
     }
     const cannot = writable(destRead.state);
     return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
@@ -2632,7 +2675,7 @@ function materializeAdapter(e) {
     const final = e.text ?? "";
     if (writeTargetFile(e.dest, final, d.how, e.label)) {
         // What install wrote to this kit file, so uninstall removes it only while it holds it (plan 33.1-30).
-        recordKitFile(e.dest, contentRecord(final));
+        recordKitFile(e.dest, writtenFileRecord(e.dest, final));
         report("materialized", `${e.label} ${suffix}`);
     }
 }
@@ -2683,7 +2726,7 @@ function copyKitFile(e) {
     }
     if (!writeTargetFile(e.dest, bytes, d.how, e.label))
         return;
-    recordKitFile(e.dest, contentRecord(bytes));
+    recordKitFile(e.dest, writtenFileRecord(e.dest, bytes));
     report("copied(verify)", e.label);
 }
 // executeKitPlan: the write phase. Only reached when buildKitPlan refused nothing. It writes the
@@ -3005,13 +3048,23 @@ function listSeedFiles(root, base = "") {
     }
     return out.sort();
 }
-// seedState: seed the full per-repo state plane from $KIT_ROOT/seed/** into $TARGET, per-file
+// seedState: seed the full per-repo state plane from seedRoot()/** into $TARGET, per-file
 // skip-if-exists (INSTALL-04, D-01/D-04). DRY_RUN mutates nothing. MIGR-02 (Phase 24): the old
 // relay's plans/handoffs/ runtime dir is NO LONGER created — the note-native trace replaces the
 // handoff relay, so fresh installs leave plans/handoffs/ absent (a user's accumulated dir is
 // backed up by --migrate, never recreated here).
+// seedRoot (red-team L2 of plan 33.1-34): the ONE answer to "where does this run's seed come from", for
+// the real run and the DRY_RUN preview alike. The real run seeds from the kit it has just copied
+// (copyKit runs first, unconditionally, and copies KIT_COPY_SOURCE to KIT_ROOT), so its seed is
+// KIT_ROOT/seed. A DRY_RUN copies nothing, so on a first install KIT_ROOT does not exist yet: the
+// preview used to read KIT_ROOT/seed, say "no seed subtree", and preview no seed file while the real
+// run then wrote nineteen. The preview therefore reads the seed from the source the real run's copy
+// would put there, which holds the same bytes the copy would.
+function seedRoot() {
+    return DRY_RUN ? join(KIT_COPY_SOURCE, "seed") : join(KIT_ROOT, "seed");
+}
 function seedState() {
-    const seed = join(KIT_ROOT, "seed");
+    const seed = seedRoot();
     if (!existsSync(seed)) {
         report("skipped", `state seed (no seed subtree at ${seed})`);
         return;
@@ -3094,7 +3147,7 @@ function materializeRunnable() {
             // Plan 33.1-28: a runnable install created is recorded with the bytes written; uninstall
             // removes one only on this record, while it still holds those bytes, and when it is still
             // byte-identical to its source.
-            recordCreatedFile(dest, contentRecord(srcRead.bytes));
+            recordCreatedFile(dest, writtenFileRecord(dest, srcRead.bytes));
             report("created", destRel);
         }
     }
@@ -3284,6 +3337,7 @@ function writeMarker() {
             createdPermissions: ASK_LEDGER.createdPermissions,
             createdAsk: ASK_LEDGER.createdAsk,
             askContent: ASK_LEDGER.askContent,
+            ...(ASK_LEDGER.fileMode === undefined ? {} : { fileMode: ASK_LEDGER.fileMode }),
         };
     }
     // Computed after the mkdirp above, so a .grugops/ this call created is recorded too.
@@ -4274,9 +4328,13 @@ function writeAskRules() {
     const willCreatePermissions = permissions === null && toAdd.length > 0;
     const willCreateAsk = ask === null && toAdd.length > 0;
     const addedNow = new Set([...[...prevAdded].filter((r) => present.has(r)), ...toAdd]);
+    // The file mode install recorded when it created the file (red-team L1 of plan 33.1-34) is carried with
+    // the createdFile claim it belongs to, and only then.
+    const carriedCreatedFile = !willCreateFile && proven && exists && previous !== null && previous.createdFile;
     ASK_LEDGER = {
+        ...(carriedCreatedFile && previous !== null && previous.fileMode !== undefined ? { fileMode: previous.fileMode } : {}),
         added: [...addedNow].sort(),
-        createdFile: willCreateFile || (proven && exists && previous !== null && previous.createdFile),
+        createdFile: willCreateFile || carriedCreatedFile,
         createdPermissions: willCreatePermissions || (proven && permissions !== null && previous !== null && previous.createdPermissions),
         createdAsk: willCreateAsk || (proven && ask !== null && previous !== null && previous.createdAsk),
         // The array as this run leaves it: the one it writes below, or the one it found.
@@ -4295,7 +4353,7 @@ function writeAskRules() {
     // rules added to its permissions.ask list (or the one member install adds) and nothing else.
     let newText;
     if (doc === null || !doc.ok) {
-        newText = JSON.stringify({ permissions: { ask: toAdd } }, null, 2) + "\n";
+        newText = createdSettingsText(toAdd);
     }
     else {
         const permsNode = memberNamed(doc.root, "permissions")?.value ?? null;
@@ -4322,6 +4380,16 @@ function writeAskRules() {
         // is still install's, and claims nothing otherwise (R3).
         ASK_LEDGER = proven ? previous : unclaimed(askNow);
         return;
+    }
+    if (willCreateFile && ASK_LEDGER !== null) {
+        // The mode the file install just created has (red-team L1 of plan 33.1-34): uninstall deletes the file
+        // only while it still has it. A mode that cannot be read back is not recorded, and uninstall says so.
+        try {
+            ASK_LEDGER = { ...ASK_LEDGER, fileMode: modeText(lstatSync(file).mode) };
+        }
+        catch {
+            // no mode recorded
+        }
     }
     report("created", `${rel} (${toAdd.length} ask rule(s) added to permissions.ask${willCreateFile ? "; file created" : ""})`);
 }

@@ -79,7 +79,10 @@ export type UserFileRead =
   | { readonly state: "not-regular"; readonly kind: string }
   | { readonly state: "too-large"; readonly size: number }
   | { readonly state: "unreadable"; readonly code: string }
-  | { readonly state: "ok"; readonly bytes: Buffer; readonly text: string };
+  // `mode` is the file's permission bits (st_mode & 0o7777) from the fstat of the descriptor the bytes
+  // were read through (red-team L1 of plan 33.1-34): an install record carries the mode install wrote,
+  // and install-marker.ts compares it with this one, so a chmod is a user edit like a byte change.
+  | { readonly state: "ok"; readonly bytes: Buffer; readonly text: string; readonly mode: number };
 
 /** The default size bound: no file the installer reads in a user repository is near this. */
 export const USER_FILE_MAX_BYTES = 8 * 1024 * 1024;
@@ -155,7 +158,7 @@ export function readUserFile(path: string, maxBytes: number = USER_FILE_MAX_BYTE
       off += n;
     }
     const bytes = buf.subarray(0, off);
-    return { state: "ok", bytes, text: bytes.toString("utf8") };
+    return { state: "ok", bytes, text: bytes.toString("utf8"), mode: st.mode & 0o7777 };
   } catch (e) {
     return { state: "unreadable", code: codeOf(e) };
   } finally {
@@ -180,7 +183,7 @@ export function unreadState(r: Exclude<UserFileRead, { state: "ok" } | { state: 
 
 export type UserWriteRead =
   | { readonly state: "create" }
-  | { readonly state: "ok"; readonly bytes: Buffer; readonly text: string }
+  | { readonly state: "ok"; readonly bytes: Buffer; readonly text: string; readonly mode: number }
   // `names` is set only when the path itself is a regular file with more than one name (a hard link):
   // how many names it has. A caller that words why it did not use the file (install-marker.ts
   // readOwnedContent, red-team of plan 33.1-30) names the hard link from it, not from `reason`'s text.

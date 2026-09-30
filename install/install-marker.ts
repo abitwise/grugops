@@ -131,8 +131,8 @@
 //                             carry a ledger entry forward by presence), and uninstall edits the file
 //                             only while it is (red-team B1 of plan 33.1-29). Required, and never null
 //                             when addedEntry is true;
-//   fileContent      record   present exactly when createdFile is true: the content record of the
-//                             bytes install wrote. Uninstall deletes the whole file only while it
+//   fileContent      record   present exactly when createdFile is true: the file record of the
+//                             bytes install wrote and the file's mode (THE FILE MODE below). Uninstall deletes the whole file only while it
 //                             holds them (recordHolds).
 // createdFile true also requires addedEntry true, createdContext true and fileNameBefore "absent"
 // (install writes the file with the entry in it). Anything else is `malformed`.
@@ -182,12 +182,18 @@ export type LedgerState = "absent" | "malformed" | "ok";
 // the content record (contentRecord) of the `permissions.ask` array exactly as install last left it,
 // or null when the file held no such array: the next install carries the claims and the flags
 // forward only while the array is still that one (see install.ts writeAskRules).
+//
+// `fileMode` (red-team L1 of plan 33.1-34) is present only with createdFile true: the permission bits,
+// four octal digits, the settings file had once install created it. Uninstall deletes a file install
+// created only while its mode is still that one; a ledger written before this field compares the text
+// only and says so.
 export interface AskRuleLedger {
   added: string[];
   createdFile: boolean;
   createdPermissions: boolean;
   createdAsk: boolean;
   askContent: string | null;
+  fileMode?: string;
 }
 
 // GeminiLedger (plan 33.1-29): the record of what install did to .gemini/settings.json. See THE
@@ -357,8 +363,9 @@ export function readCreatedFiles(marker: Readonly<Record<string, unknown>> | nul
 // readKitFiles (plan 33.1-30, Gap B completed, brief DC-2): the `kitFiles` ledger, what install wrote
 // to each grugops skill and adapter file. The same shape and the same reader as createdFiles: a plain
 // JSON object whose every key has the isLedgerPath shape and whose every value is a content record
-// (`sha256:<64 lowercase hex>` for a copy or a rendered file, `link:<target>` for a --symlink install's
-// link). Anything else is `malformed`, and uninstall then removes no kit file.
+// (`sha256:<64 lowercase hex>;mode=<octal>` for a copy or a rendered file, the `;mode=` part absent in
+// a record written before the mode was recorded, see THE FILE MODE; `link:<target>` for a --symlink
+// install's link). Anything else is `malformed`, and uninstall then removes no kit file.
 export function readKitFiles(marker: Readonly<Record<string, unknown>> | null): KitFilesRead {
   return readPathRecords(marker, "kitFiles");
 }
@@ -440,17 +447,18 @@ export function readAskRuleLedger(marker: Readonly<Record<string, unknown>> | nu
   if (!Object.prototype.hasOwnProperty.call(r, "askContent") || (r.askContent !== null && !isSha256Record(r.askContent))) {
     return { state: "malformed", ledger: null, raw };
   }
-  return {
-    state: "ok",
-    ledger: {
-      added: [...(r.added as string[])].sort(),
-      createdFile: r.createdFile,
-      createdPermissions: r.createdPermissions,
-      createdAsk: r.createdAsk,
-      askContent: r.askContent as string | null,
-    },
-    raw,
+  if (Object.prototype.hasOwnProperty.call(r, "fileMode") && (r.createdFile !== true || typeof r.fileMode !== "string" || !/^[0-7]{4}$/.test(r.fileMode))) {
+    return { state: "malformed", ledger: null, raw };
+  }
+  const ledger: AskRuleLedger = {
+    added: [...(r.added as string[])].sort(),
+    createdFile: r.createdFile,
+    createdPermissions: r.createdPermissions,
+    createdAsk: r.createdAsk,
+    askContent: r.askContent as string | null,
   };
+  if (typeof r.fileMode === "string") ledger.fileMode = r.fileMode;
+  return { state: "ok", ledger, raw };
 }
 
 // readGeminiLedger (plan 33.1-29, Gap B / re-review CR-03): the `geminiSettings` ledger, exactly the
@@ -480,7 +488,7 @@ export function readGeminiLedger(marker: Readonly<Record<string, unknown>> | nul
   }
   if (r.createdFile) {
     if (!r.addedEntry || r.createdContext !== true || r.fileNameBefore !== "absent") return bad;
-    if (!isSha256Record(r.fileContent)) return bad;
+    if (!isFileRecord(r.fileContent)) return bad;
   }
   const ledger: GeminiLedger = { createdFile: r.createdFile, addedEntry: r.addedEntry, fileNameContent: r.fileNameContent as string | null };
   if (r.addedEntry) {
@@ -523,14 +531,58 @@ export function geminiLedgerJson(l: GeminiLedger): Record<string, unknown> {
 // `link:` record holds only for a symbolic link at the path, with nothing but real directories on the
 // way, whose readlink equals the target (isOwnLink). Anything else does not hold. kitFiles (plan
 // 33.1-30) uses the same grammar and the same predicate.
+//
+// THE FILE MODE IS PART OF A FILE'S RECORD (red-team L1 of plan 33.1-34, brief DC-2). A record of the bytes
+// alone let a chmod-only edit through: uninstall deleted a file whose bytes were install's and whose mode
+// the user had changed, and the mode was lost. So the record of a FILE install wrote (createdFiles,
+// kitFiles, geminiSettings.fileContent) is now `sha256:<64 lowercase hex>;mode=<4 octal digits>`, the
+// sha256 of the bytes and the permission bits (st_mode & 0o7777) the file had once install wrote it
+// (fileRecord). It holds only while both still match. A record written before this rule, without
+// `;mode=`, is still well-formed: it compares the bytes only, and the check says so (modeChecked false),
+// so the caller's line says only the bytes were compared. The records of a VALUE (the block lines of
+// appendedBlocks, askContent, fileNameContent) are never a file's content, so they stay `sha256:<hex>`.
 const SHA256_RECORD = /^sha256:[0-9a-f]{64}$/;
+const FILE_RECORD = /^sha256:[0-9a-f]{64}(?:;mode=[0-7]{4})?$/;
 const LINK_RECORD = /^link:[^\u0000-\u001f\u007f]+$/;
 const isSha256Record = (v: unknown): v is string => typeof v === "string" && SHA256_RECORD.test(v);
+const isFileRecord = (v: unknown): v is string => typeof v === "string" && FILE_RECORD.test(v);
 
 /** The record of `bytes` install wrote: `sha256:<hex>`. A string is hashed as its UTF-8 bytes. */
 export function contentRecord(bytes: Buffer | string): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
+
+/** A file mode as a record writes it: the permission bits in four octal digits. */
+export const modeText = (mode: number): string => (mode & 0o7777).toString(8).padStart(4, "0");
+
+/**
+ * The record of a FILE install wrote: `sha256:<hex>;mode=<octal>` (see THE FILE MODE above). `mode` is the
+ * file's st_mode as it stood once install wrote it; only the permission bits are kept.
+ */
+export function fileRecord(bytes: Buffer | string, mode: number): string {
+  return `${contentRecord(bytes)};mode=${modeText(mode)}`;
+}
+
+/**
+ * THE ONE COMPARISON of a file's bytes and mode with a `sha256:` file record (checkRecord and uninstall's
+ * sentinel-file check both ask it). `mode` null means the caller has no mode for the file; a record that
+ * carries one then does not hold.
+ */
+export function recordMatches(record: string, bytes: Buffer, mode: number | null): RecordCheck {
+  const at = record.indexOf(";mode=");
+  const content = at === -1 ? record : record.slice(0, at);
+  if (contentRecord(bytes) !== content) return { holds: false, why: null };
+  if (at === -1) return { holds: true, modeChecked: false };
+  const want = record.slice(at + ";mode=".length);
+  if (mode === null) return { holds: false, why: "its file mode could not be read, so it could not be compared with the mode install wrote" };
+  if (modeText(mode) !== want) {
+    return { holds: false, why: null, modeChanged: `its file mode is ${modeText(mode)}, not the ${want} install wrote` };
+  }
+  return { holds: true, modeChecked: true };
+}
+
+/** The one wording a caller appends to its line when a record had no mode to compare (see THE FILE MODE). */
+export const NO_MODE_NOTE = "its record has no file mode, so only its bytes were compared";
 
 /**
  * The record of a JSON value as a file holds it: contentRecord of JSON.stringify(value), or null for
@@ -549,9 +601,9 @@ export function linkRecord(target: string): string {
   return `link:${target}`;
 }
 
-/** One value has the content-record grammar above. */
+/** One value has the file-record grammar above (a file record, with or without its mode, or a link record). */
 export function isContentRecord(v: unknown): v is string {
-  return typeof v === "string" && (SHA256_RECORD.test(v) || LINK_RECORD.test(v));
+  return typeof v === "string" && (FILE_RECORD.test(v) || LINK_RECORD.test(v));
 }
 
 // THE ONE CONTENT-OWNERSHIP READ (red-team RT2 of plan 33.1-30). Whether a file under the target still
@@ -565,7 +617,7 @@ export function isContentRecord(v: unknown): v is string {
 // reason a file was not read, as a clause the caller places in its line; it is null for a symbolic
 // link at the path, where install wrote a regular file: the path no longer holds what install wrote.
 export type OwnedContent =
-  | { readonly state: "ok"; readonly bytes: Buffer }
+  | { readonly state: "ok"; readonly bytes: Buffer; readonly mode: number }
   | { readonly state: "not-read"; readonly why: string | null };
 
 /** The one wording of a hard link that is not proof of what install wrote. */
@@ -578,7 +630,7 @@ export function hardLinkReason(names: number): string {
 
 export function readOwnedContent(root: string, path: string): OwnedContent {
   const r = readForWrite(root, path);
-  if (r.state === "ok") return { state: "ok", bytes: r.bytes };
+  if (r.state === "ok") return { state: "ok", bytes: r.bytes, mode: r.mode };
   if (r.state === "create") return { state: "not-read", why: "it is no longer there" };
   if (r.names !== undefined) return { state: "not-read", why: hardLinkReason(r.names) };
   if (r.at === path && kindAt(path) === "symbolic link") return { state: "not-read", why: null };
@@ -592,15 +644,22 @@ export function readOwnedContent(root: string, path: string): OwnedContent {
  * `why` is null when it simply does not (other bytes, another link, a link where a file was written),
  * and otherwise the true reason it could not be shown to (readOwnedContent).
  */
-export type RecordCheck = { readonly holds: true } | { readonly holds: false; readonly why: string | null };
+// `modeChecked` (red-team L1 of plan 33.1-34) is false when the record has no mode, so only the bytes were
+// compared (a link record has no mode to check and reports true). `modeChanged` is set when the bytes are
+// install's and only the file mode differs, and says how.
+export type RecordCheck =
+  | { readonly holds: true; readonly modeChecked: boolean }
+  | { readonly holds: false; readonly why: string | null; readonly modeChanged?: string };
 
 export function checkRecord(root: string, path: string, record: string): RecordCheck {
   if (record.startsWith("link:")) {
-    return wayTo(root, path) === null && isOwnLink(path, record.slice("link:".length)) ? { holds: true } : { holds: false, why: null };
+    return wayTo(root, path) === null && isOwnLink(path, record.slice("link:".length))
+      ? { holds: true, modeChecked: true }
+      : { holds: false, why: null };
   }
   const c = readOwnedContent(root, path);
   if (c.state !== "ok") return { holds: false, why: c.why };
-  return contentRecord(c.bytes) === record ? { holds: true } : { holds: false, why: null };
+  return recordMatches(record, c.bytes, c.mode);
 }
 
 /** `path` (strictly inside `root`) still holds exactly what `record` says install wrote there. */

@@ -5182,7 +5182,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // Preserved with UNCHANGED bytes, and the skip names the file and says why.
     expect(existsSync(edited)).toBe(true);
     expect(readFileSync(edited, "utf8")).toBe(editedBody);
-    expect(r.stdout).toContain(`${RUNNABLE_RELS[0]} (user-modified — left untouched`);
+    // Red-team L3 of plan 33.1-34: the line says what the record shows (install recorded other bytes
+    // there), not "user-modified", which nothing proved.
+    expect(r.stdout).toContain(`${RUNNABLE_RELS[0]} (it does not hold what the install marker's file ledger records install wrote there`);
     // The untouched one is still removed, so the guard is per-file and not a blanket bail-out.
     expect(existsSync(join(target, RUNNABLE_RELS[1]))).toBe(false);
     // The directory survives because it still holds the user's file (rmdirIfEmpty never forces).
@@ -5233,6 +5235,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     mkdirSync(join(target, "tools", "grugops"), { recursive: true });
     const planted = join(target, RUNNABLE_RELS[0]);
     writeFileSync(planted, "// installed earlier from a complete kit\n");
+    // Red-team B2 of plan 33.1-34: a runnable with no install record is left without a verify, so the
+    // earlier complete-kit install is represented by its record for the planted file.
+    const plantedMarkerPath = join(target, ".grugops", "install.json");
+    const plantedMarker = JSON.parse(readFileSync(plantedMarkerPath, "utf8"));
+    plantedMarker.createdFiles = {
+      ...(plantedMarker.createdFiles ?? {}),
+      [RUNNABLE_RELS[0]]: `sha256:${createHash("sha256").update(readFileSync(planted)).digest("hex")};mode=${(statSync(planted).mode & 0o7777).toString(8).padStart(4, "0")}`,
+    };
+    writeFileSync(plantedMarkerPath, JSON.stringify(plantedMarker, null, 2) + "\n");
 
     const r = runUninstallFrom(src, target, home);
     expect(r.status).toBe(3); // INCOMPLETE — the uninstaller mirrors install.ts's code list (27-21)
@@ -6002,10 +6013,12 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const created = fileKeys(m.createdFiles);
     expect(created).toEqual([...created].sort());
     expect(created.length).toBeGreaterThan(0);
-    // Each value is the record of what install wrote there: the sha256 of the file's bytes now.
+    // Each value is the record of what install wrote there: the sha256 of the file's bytes now and,
+    // since red-team L1 of plan 33.1-34, the file's mode.
     for (const rel of created) {
-      const sha = createHash("sha256").update(readFileSync(join(first, ...rel.split("/")))).digest("hex");
-      expect((m.createdFiles as Record<string, string>)[rel], rel).toBe(`sha256:${sha}`);
+      const p = join(first, ...rel.split("/"));
+      const sha = createHash("sha256").update(readFileSync(p)).digest("hex");
+      expect((m.createdFiles as Record<string, string>)[rel], rel).toBe(`sha256:${sha};mode=${(statSync(p).mode & 0o7777).toString(8).padStart(4, "0")}`);
     }
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
@@ -6365,7 +6378,8 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       createdContext: true,
       fileNameBefore: "absent",
       fileNameContent: sha(JSON.stringify(["AGENTS.md", "GEMINI.md"])),
-      fileContent: sha(bytes),
+      // The file record carries the file's mode since red-team L1 of plan 33.1-34.
+      fileContent: `${sha(bytes)};mode=${(statSync(gemPath(target)).mode & 0o7777).toString(8).padStart(4, "0")}`,
     });
     expect(Object.keys(ledger as object)).toEqual(["createdFile", "addedEntry", "createdContext", "fileNameBefore", "fileNameContent", "fileContent"]);
 
@@ -6843,7 +6857,9 @@ describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02,
     expect(readFileSync(settingsFile(target)).equals(settingsPre)).toBe(true);
   });
 
-  it("ask rules --check: a malformed ledger is a WARN naming the malformed ledger, not 'predates'", () => {
+  // Red-team B1 of plan 33.1-34: a malformed ledger is now a FAIL (exit 1) naming it, counted once;
+  // the ask-rule section adds an info line saying the rules were not checked.
+  it("ask rules --check: a malformed ledger is a FAIL naming the malformed ledger, not 'predates'", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -6854,7 +6870,9 @@ describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02,
       encoding: "utf8",
       env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT },
     });
-    expect(doc.stdout).toMatch(/WARN\s+.*ask-rule ledger.*malformed/);
+    expect(doc.status, doc.stdout).toBe(1);
+    expect(doc.stdout).toMatch(/FAIL\s+.*malformed claudeAskRules ledger/);
+    expect(doc.stdout).toMatch(/info\s+.*ask-rule ledger.*malformed/);
     expect(doc.stdout).not.toContain("predates the Claude Code ask rules");
     expect(doc.stdout).not.toContain("ask rule present:");
   });
@@ -6946,7 +6964,8 @@ describe("readUserFile: the one bounded reader of a user path (DC-3, plan 33.1-2
   it("readUserFile: a regular file, and a symlink to one, are `ok` with their bytes and text", () => {
     const d = mkTmp();
     writeFileSync(join(d, "f.md"), "hello — grug\n");
-    const want = { state: "ok", text: "hello — grug\n", bytes: Buffer.byteLength("hello — grug\n") };
+    // `mode` since red-team L1 of plan 33.1-34: the permission bits a file record is compared with.
+    const want = { state: "ok", text: "hello — grug\n", bytes: Buffer.byteLength("hello — grug\n"), mode: statSync(join(d, "f.md")).mode & 0o7777 };
     expect(readUserFileInChild(join(d, "f.md")).result).toEqual(want);
     const skip = stageSymlinkOrSkip(join(d, "f.md"), join(d, "link.md"), "symlink to a regular file", "readUserFile case");
     if (skip !== null) {
@@ -7044,7 +7063,7 @@ describe("readUserFile: the one bounded reader of a user path (DC-3, plan 33.1-2
     const d = mkTmp();
     writeFileSync(join(d, "big"), "y".repeat(100));
     expect(readUserFileInChild(join(d, "big"), 99).result).toEqual({ state: "too-large", size: 100 });
-    expect(readUserFileInChild(join(d, "big"), 100).result).toEqual({ state: "ok", text: "y".repeat(100), bytes: 100 });
+    expect(readUserFileInChild(join(d, "big"), 100).result).toEqual({ state: "ok", text: "y".repeat(100), bytes: 100, mode: statSync(join(d, "big")).mode & 0o7777 });
   });
 });
 
@@ -7533,7 +7552,8 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(m.kitFiles, "the marker has no kitFiles record").toBeTypeOf("object");
     const rec = m.kitFiles as Record<string, string>;
     expect(Object.keys(rec)).toEqual(kit);
-    for (const rel of kit) expect(rec[rel], rel).toBe(sha(readFileSync(at(target, rel))));
+    // The file record carries the file's mode since red-team L1 of plan 33.1-34.
+    for (const rel of kit) expect(rec[rel], rel).toBe(`${sha(readFileSync(at(target, rel)))};mode=${(statSync(at(target, rel)).mode & 0o7777).toString(8).padStart(4, "0")}`);
   });
 
   it("kit-file ownership: an edited adapter and an edited skill survive a real uninstall byte-identical and are reported left; every other kit file is removed", () => {
@@ -7754,7 +7774,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     }
     for (const rel of kit) {
       if (links.includes(rel)) expect(rec[rel], rel).toBe(`link:${readlinkSync(at(target, rel))}`);
-      else expect(rec[rel], rel).toBe(sha(readFileSync(at(target, rel))));
+      else expect(rec[rel], rel).toBe(`${sha(readFileSync(at(target, rel)))};mode=${(statSync(at(target, rel)).mode & 0o7777).toString(8).padStart(4, "0")}`);
     }
     // The user re-points one skill link to another file of theirs.
     const repointed = links[0];
@@ -9393,7 +9413,8 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(backups.length).toBe(2);
     const before = backups.map((b) => readFileSync(atRel(target, b)));
     const leftLine = (out: string, b: string): boolean =>
-      out.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(b) && l.includes("(a backup install made of your edited kit file)"));
+      // Red-team L3 of plan 33.1-34: install records no backup, so the line says only that the name matches.
+      out.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(b) && l.includes("its name matches the name install gives a backup"));
     // DRY_RUN first: it reports each backup left and changes nothing.
     const t0 = treeState(target);
     const udry = spawnSync("node", [UNINSTALL_JS], {

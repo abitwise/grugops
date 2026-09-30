@@ -143,7 +143,7 @@ export function readUserFile(path, maxBytes = USER_FILE_MAX_BYTES) {
             off += n;
         }
         const bytes = buf.subarray(0, off);
-        return { state: "ok", bytes, text: bytes.toString("utf8") };
+        return { state: "ok", bytes, text: bytes.toString("utf8"), mode: st.mode & 0o7777 };
     }
     catch (e) {
         return { state: "unreadable", code: codeOf(e) };
