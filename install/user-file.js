@@ -59,8 +59,14 @@
 //   `ok`       the path is a regular file (not a link) inside the root; its bytes come from
 //              readUserFile.
 //   `blocked`  something on the way, or at the path itself, is a symbolic link, is not a directory
-//              where one is needed, is not a regular file, or could not be read; `at` names it and
-//              `reason` says what it is. The caller writes nothing and reports it.
+//              where one is needed, is not a regular file, is a regular file with more than one name
+//              (a hard link: red-team carry #9, plan 33.1-29 — a write through it changes the file under
+//              every name, outside the target included), or could not be read; `at` names it and
+//              `reason` says what it is. The caller writes nothing and reports it. The readers that
+//              ask readForWrite so as not to follow a link (the install marker, recordHolds) get the
+//              same answer for a hard link, which is the safe one: a marker that is also another
+//              repository's marker is not this target's record, and a file with another name is not
+//              proof of what install wrote here.
 // It only reads (lstat, and readUserFile for the final component), so it lives with the reader.
 //
 // Clear professional voice: this is a safety surface (installer reads of user content).
@@ -160,7 +166,13 @@ export function unreadState(r) {
             return `could not be read (${r.code})`;
     }
 }
-/** What one existing path component is, by lstat: a real directory, nothing, or a reason it is neither. */
+/**
+ * What one existing path component is, by lstat: a real directory, nothing, or a reason it is neither.
+ * For the final component (`wantDirectory` false) a regular file with more than one name is a reason
+ * too (red-team carry #9, plan 33.1-29): a hard link is a second name for the same file, so a write,
+ * an append or a rewrite in place through this name would change the file under its other names as
+ * well, and one of them may be outside the target.
+ */
 function componentProblem(path, wantDirectory) {
     let st;
     try {
@@ -175,6 +187,10 @@ function componentProblem(path, wantDirectory) {
     }
     if (wantDirectory && !st.isDirectory())
         return `is not a directory (it is a ${kindOf(st)})`;
+    if (!wantDirectory && st.isFile() && st.nlink > 1) {
+        return (`is a hard link (the same file has ${st.nlink} names, and another may be outside the target), and the ` +
+            `installer never writes through a name that would change the file under its other names too`);
+    }
     return "fine";
 }
 /**

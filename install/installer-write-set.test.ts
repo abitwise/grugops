@@ -432,9 +432,13 @@ describe("a hard link at every file path install writes or uninstall edits (red-
     const i = runInstaller(a, home, 120_000);
     expect(i.status, i.stdout).toBe(0);
     const marker = JSON.parse(readFileSync(join(a, ...MARKER_REL.split("/")), "utf8")) as { createdFiles: Record<string, string> };
-    // B holds its own copies of exactly the files A's ledgers govern (no kit skill or adapter, which
-    // are removed by name until plan 33.1-30), and A's marker under a second name.
-    const governed = [...Object.keys(marker.createdFiles), ".gemini/settings.json", ".claude/settings.json"];
+    // B holds its own copies of exactly the files A's ledgers govern, and A's marker under a second
+    // name. Not the kit skills and adapters (removed by name until plan 33.1-30) and not the two
+    // pointer files (a sentinel block is removed by presence on a target with no usable marker until
+    // plan 33.1-33, red-team carry #11): neither decision reads the marker, so neither is this case's.
+    const POINTER_FILES = ["CLAUDE.md", ".github/copilot-instructions.md"];
+    const governed = [...Object.keys(marker.createdFiles).filter((rel) => !POINTER_FILES.includes(rel)), ".gemini/settings.json", ".claude/settings.json"];
+    expect(governed.length, governed.join(", ")).toBeGreaterThanOrEqual(7);
     for (const rel of governed) {
       const to = join(b, ...rel.split("/"));
       mkdirSync(dirname(to), { recursive: true });

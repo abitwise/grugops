@@ -79,9 +79,12 @@ not render the adapters at all (a partial checkout missing the modules the rende
 installed **nothing for that class** — so it does not
 claim completion, and it does not return the success code either. A path the installer would write
 that is not what it expects is another way: a FIFO, a directory, a device or a symbolic link where a
-file goes (a dangling link included), or a regular file, a FIFO or a symbolic link where a directory
-goes. That path is skipped with a `verify` line naming it and left exactly as it was, nothing is
-written through it, and the rest of the install still runs. **A chained command stops
+file goes (a dangling link included), a file with more than one name (a hard link: a write through
+one name would change the file under the others, which may be outside the repository), or a regular
+file, a FIFO or a symbolic link where a directory goes. That path is skipped with a `verify` line
+naming it and left exactly as it was, nothing is written through it, and the rest of the install
+still runs. The uninstaller applies the same rule to every file it edits, and it never reads a
+hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops
 here.** That is deliberate: proceeding over a partial install is how a broken install reaches
 production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
 idempotent, so re-running is safe).
