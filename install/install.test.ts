@@ -8732,3 +8732,243 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     return rows.join("\n");
   }
 });
+
+// ── kit re-install (D-32, plan 33.1-32) ───────────────────────────────────────────────────────────
+//
+// D-32, the human's answer on the install-side kit overwrite: re-install never silently overwrites a
+// grugops kit file (`.claude/agents/grugops-*.md`, `.claude/skills/grugops*/SKILL.md`) the user
+// edited. Before any kit write a pre-flight finds every edited kit file: one that no longer holds its
+// `kitFiles` record, or, with no usable record, one that differs from the current kit source. Then
+// install either backs up every edited file and writes the whole kit, or writes no kit file at all.
+// Only a terminal answer or `--backup-edited-kit` consents; `--yes` never does.
+//
+// Every case drives the committed install.js over a synthetic kit source. A "kit update" changes
+// every skill source, every role's `One job` line (so every rendered adapter's description changes)
+// and the kit VERSION, so a run that refreshed any unedited kit file is seen as a changed file.
+describe("kit re-install (D-32, plan 33.1-32)", () => {
+  const atRel = (t: string, rel: string): string => join(t, ...rel.split("/"));
+  const BACKUP_MARK = ".grugops-edited-";
+  const KIT_WRITE_LINE = /^ {2}(materialized|copied\(verify\)|linked|unlinked|would-materialize|would-copy|would-link|would-unlink)\s/;
+  const kitWriteLines = (out: string): string[] =>
+    out.split("\n").filter((l) => KIT_WRITE_LINE.test(l) && /\.claude\/(skills|agents)\b/.test(l));
+  const verifyLines = (out: string): string[] => out.split("\n").filter((l) => /^ {2}verify\s/.test(l));
+  // The kit tree by lstat, never following a link. Backups are listed separately (withBackups).
+  const kitState = (t: string, withBackups = false): string => {
+    const rows: string[] = [];
+    const walk = (rel: string): void => {
+      const abs = atRel(t, rel);
+      const st = lstatSync(abs, { throwIfNoEntry: false });
+      if (st === undefined) return;
+      if (!withBackups && rel.includes(BACKUP_MARK)) return;
+      if (st.isSymbolicLink()) rows.push(`${rel} LINK ${readlinkSync(abs)}`);
+      else if (st.isDirectory()) {
+        rows.push(`${rel}/ DIR`);
+        for (const n of readdirSync(abs).sort()) walk(`${rel}/${n}`);
+      } else if (st.isFile()) {
+        rows.push(`${rel} ${createHash("sha256").update(readFileSync(abs)).digest("hex")} nlink=${st.nlink}`);
+      } else rows.push(`${rel} ${st.isFIFO() ? "FIFO" : "SPECIAL"}`);
+    };
+    walk(".claude/skills");
+    walk(".claude/agents");
+    return rows.join("\n");
+  };
+  // Every backup install made under the kit directories (relative paths, sorted).
+  const backupsIn = (t: string): string[] => {
+    const out: string[] = [];
+    const walk = (rel: string): void => {
+      const st = lstatSync(atRel(t, rel), { throwIfNoEntry: false });
+      if (st === undefined) return;
+      if (rel.includes(BACKUP_MARK)) out.push(rel);
+      else if (st.isDirectory() && !st.isSymbolicLink()) for (const n of readdirSync(atRel(t, rel))) walk(`${rel}/${n}`);
+    };
+    walk(".claude");
+    return out.sort();
+  };
+  const markerOf = (t: string): Record<string, unknown> =>
+    JSON.parse(readFileSync(atRel(t, ".grugops/install.json"), "utf8")) as Record<string, unknown>;
+  const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
+    writeFileSync(atRel(t, ".grugops/install.json"), JSON.stringify(m, null, 2) + "\n");
+  const kitFilesOf = (t: string): Record<string, string> | null => {
+    const k = markerOf(t).kitFiles;
+    return k === undefined ? null : (k as Record<string, string>);
+  };
+  const V1 = "0.0.0-synthetic";
+  const V2 = "0.0.1-synthetic";
+  // A kit update: every skill source, every role's `One job` line, and the kit VERSION.
+  const kitUpdate = (src: string): void => {
+    for (const s of SYNTH_SKILLS) {
+      const p = join(src, ".claude", "skills", s, "SKILL.md");
+      writeFileSync(p, readFileSync(p, "utf8") + "> kit update (plan 33.1-32 fixture)\n");
+    }
+    const roles = join(src, "agent-factory", "roles");
+    let changed = 0;
+    for (const n of readdirSync(roles)) {
+      if (!n.endsWith(".md")) continue;
+      const p = join(roles, n);
+      const text = readFileSync(p, "utf8");
+      const next = text.replace(/(## One job\n)([^\n]+)/, "$1$2 Kit update.");
+      if (next !== text) {
+        writeFileSync(p, next);
+        changed += 1;
+      }
+    }
+    expect(changed, "premise: the kit update changed role files").toBeGreaterThan(0);
+    writeFileSync(join(src, "agent-factory", "VERSION"), `${V2}\n`);
+  };
+  const EDITED = SYNTH_ADAPTERS[0];
+  const EDITED_REL = `.claude/agents/${EDITED}`;
+  const EDIT_LINE = "> my own note, kept by D-32\n";
+  const editAdapter = (t: string, rel = EDITED_REL): Buffer => {
+    const p = atRel(t, rel);
+    writeFileSync(p, readFileSync(p, "utf8") + EDIT_LINE);
+    return readFileSync(p);
+  };
+  type Run = { status: number | null; stdout: string; stderr: string };
+  const run = (src: string, target: string, home: string, args: string[] = [], extra: Record<string, string> = {}): Run => {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+      encoding: "utf8",
+      timeout: 120_000,
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target, ...extra },
+    });
+    expect(r.error, `install did not finish: ${r.error?.message}`).toBeUndefined();
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  };
+  // An installed synthetic target (kit v1).
+  const installed = (): { src: string; target: string; home: string } => {
+    const src = makeSyntheticSrc();
+    const target = makeFixture();
+    const home = mkTmp();
+    const r0 = run(src, target, home);
+    expect(r0.status, r0.stdout).toBe(0);
+    expect(Object.keys(kitFilesOf(target) ?? {}).length, "premise: every kit file is recorded").toBe(
+      SYNTH_ADAPTERS.length + SYNTH_SKILLS.length,
+    );
+    expect(markerOf(target).kitVersion).toBe(V1);
+    return { src, target, home };
+  };
+  // What a fresh install of `src` writes (the reference for "the whole kit is the updated render").
+  const freshKit = (src: string, home: string): { kit: string; kitFiles: Record<string, string> | null } => {
+    const t = makeFixture();
+    const r = run(src, t, home);
+    expect(r.status, r.stdout).toBe(0);
+    return { kit: kitState(t), kitFiles: kitFilesOf(t) };
+  };
+  const without = (rec: Record<string, string> | null, rel: string): Record<string, string> => {
+    const out = { ...(rec ?? {}) };
+    delete out[rel];
+    return out;
+  };
+
+  // ── Task 1: the tracer ────────────────────────────────────────────────────────────────────────
+  it("no terminal, --yes: an edited adapter over a kit update → exit 3, a verify naming it and --backup-edited-kit, and NO kit file changes (no mixed kit)", () => {
+    const { src, target, home } = installed();
+    const before = kitFilesOf(target);
+    kitUpdate(src);
+    const edited = editAdapter(target);
+    const kit = kitState(target);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    const v = verifyLines(r.stdout).filter((l) => l.includes("--backup-edited-kit"));
+    expect(v.length, r.stdout).toBe(1);
+    expect(v[0]).toContain(EDITED_REL);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    // Every kit file, edited and unedited, is byte-identical to its state before the re-install.
+    expect(kitState(target)).toBe(kit);
+    expect(readFileSync(atRel(target, EDITED_REL)).equals(edited)).toBe(true);
+    expect(backupsIn(target)).toEqual([]);
+    // kitFiles keeps every entry that still holds; only the edited file's record (proved stale) is
+    // dropped (the plan-31 rule for a run that writes no kit file).
+    expect(kitFilesOf(target)).toEqual(without(before, EDITED_REL));
+    // The non-kit steps still ran: the marker was rewritten, and the CLAUDE.md pointer is there.
+    expect(r.stdout).toMatch(/\.grugops\/install\.json \(marker\)/);
+    expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("<!-- GSD:grugops-start-here -->");
+  });
+
+  it("--backup-edited-kit: the edited adapter is backed up byte-for-byte BEFORE the first kit write, then the whole kit is the updated render", () => {
+    const { src, target, home } = installed();
+    kitUpdate(src);
+    const edited = editAdapter(target);
+    const r = run(src, target, home, ["--backup-edited-kit"]);
+    expect(r.status, r.stdout).toBe(0);
+    const backups = backupsIn(target);
+    expect(backups.length, r.stdout).toBe(1);
+    expect(backups[0].startsWith(`${EDITED_REL}${BACKUP_MARK}`)).toBe(true);
+    expect(backups[0]).toMatch(/\.grugops-edited-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/);
+    expect(backups[0].endsWith(".md")).toBe(false);
+    expect(readFileSync(atRel(target, backups[0])).equals(edited)).toBe(true);
+    const fresh = freshKit(src, home);
+    expect(kitState(target)).toBe(fresh.kit);
+    expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
+    const lines = r.stdout.split("\n");
+    const firstBackup = lines.findIndex((l) => /^ {2}backed-up\s/.test(l));
+    const firstWrite = lines.findIndex((l) => KIT_WRITE_LINE.test(l) && /\.claude\/(skills|agents)\b/.test(l));
+    expect(firstBackup, r.stdout).toBeGreaterThanOrEqual(0);
+    expect(lines[firstBackup]).toContain(`${EDITED_REL} → ${backups[0]}`);
+    expect(firstWrite, r.stdout).toBeGreaterThan(firstBackup);
+    expect(markerOf(target).kitVersion).toBe(V2);
+  });
+
+  it("no edit: a re-install over a kit update refreshes the whole kit with no flag and no backup (exit 0)", () => {
+    const { src, target, home } = installed();
+    kitUpdate(src);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(backupsIn(target)).toEqual([]);
+    expect(r.stdout).not.toContain("--backup-edited-kit");
+    const fresh = freshKit(src, home);
+    expect(kitState(target)).toBe(fresh.kit);
+    expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
+  });
+
+  for (const how of ["kitFiles malformed", "marker unreadable"] as const) {
+    it(`untrusted record (${how}): an UNEDITED install from an older kit is treated as possibly edited — no kit write, a verify naming the flag`, () => {
+      const { src, target, home } = installed();
+      if (how === "kitFiles malformed") writeMarkerJson(target, { ...markerOf(target), kitFiles: "garbage" });
+      else writeFileSync(atRel(target, ".grugops/install.json"), "{ not json\n");
+      kitUpdate(src);
+      const kit = kitState(target);
+      const r = run(src, target, home);
+      expect(r.status, r.stdout).toBe(3);
+      expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit") && l.includes(EDITED_REL)), r.stdout).toBe(true);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      expect(kitState(target)).toBe(kit);
+      expect(backupsIn(target)).toEqual([]);
+    });
+  }
+
+  it("the marker after a refusal keeps the previous kitVersion, and --check reports the target's kit behind the kit home", () => {
+    const { src, target, home } = installed();
+    kitUpdate(src);
+    editAdapter(target);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(markerOf(target).kitVersion).toBe(V1);
+    expect(readFileSync(join(home, "agent-factory", "VERSION"), "utf8").trim(), "premise: the kit home is at V2").toBe(V2);
+    const c = run(src, target, home, ["--check"]);
+    expect(c.stdout).toContain(`kit-version skew: marker=${V1} kit VERSION=${V2}`);
+  });
+
+  it("a refused re-install over a legacy marker (no kitFiles) keeps kitFiles ABSENT, and the next uninstall applies the legacy fallback", () => {
+    const { src, target, home } = installed();
+    const m = markerOf(target);
+    delete m.kitFiles;
+    writeMarkerJson(target, m);
+    editAdapter(target);
+    const kit = kitState(target);
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit") && l.includes(EDITED_REL)), r.stdout).toBe(true);
+    expect(kitState(target)).toBe(kit);
+    expect(Object.prototype.hasOwnProperty.call(markerOf(target), "kitFiles"), "kitFiles stays absent").toBe(false);
+    const u = runUninstallFrom(src, target, home);
+    // The verbatim skills (byte-identical to the kit source) are removed by the legacy fallback.
+    for (const s of SYNTH_SKILLS.filter((x) => x !== "grugops")) {
+      expect(existsSync(join(target, ".claude", "skills", s, "SKILL.md")), `${s}: ${u.stdout}`).toBe(false);
+    }
+    // The adapters are left with the "no install record" reason, never an empty-record reading.
+    expect(existsSync(atRel(target, EDITED_REL))).toBe(true);
+    expect(u.stdout.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(EDITED_REL) && /no install record/.test(l)), u.stdout).toBe(true);
+    expect(u.stdout).not.toMatch(/not in the install marker's kit-file ledger/);
+  });
+});
