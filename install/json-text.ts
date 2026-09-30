@@ -234,6 +234,34 @@ export function keyCount(obj: JsonNode, key: string): number {
   return obj.kind === "object" ? obj.members.filter((m) => m.key === key).length : 0;
 }
 
+/**
+ * The first key that appears twice in one object anywhere in `node` (depth first, in text order), or
+ * null when no object repeats a key. For a caller that refuses a whole document with a duplicate
+ * (install-marker.ts: the marker is install's own file, written by JSON.stringify, which never repeats
+ * a key). The depth is bounded by the tokenizer (MAX_DEPTH).
+ */
+export function firstDuplicateKey(node: JsonNode): string | null {
+  if (node.kind === "object") {
+    const seen = new Set<string>();
+    for (const m of node.members) {
+      if (seen.has(m.key)) return m.key;
+      seen.add(m.key);
+    }
+    for (const m of node.members) {
+      const d = firstDuplicateKey(m.value);
+      if (d !== null) return d;
+    }
+    return null;
+  }
+  if (node.kind === "array") {
+    for (const e of node.elements) {
+      const d = firstDuplicateKey(e);
+      if (d !== null) return d;
+    }
+  }
+  return null;
+}
+
 /** The member of `obj` named `key` (the caller has refused duplicates), or null. */
 export function memberNamed(obj: JsonNode, key: string): JsonMember | null {
   if (obj.kind !== "object") return null;

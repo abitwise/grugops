@@ -181,7 +181,10 @@ export function unreadState(r: Exclude<UserFileRead, { state: "ok" } | { state: 
 export type UserWriteRead =
   | { readonly state: "create" }
   | { readonly state: "ok"; readonly bytes: Buffer; readonly text: string }
-  | { readonly state: "blocked"; readonly at: string; readonly reason: string };
+  // `names` is set only when the path itself is a regular file with more than one name (a hard link):
+  // how many names it has. A caller that words why it did not use the file (install-marker.ts
+  // readOwnedContent, red-team of plan 33.1-30) names the hard link from it, not from `reason`'s text.
+  | { readonly state: "blocked"; readonly at: string; readonly reason: string; readonly names?: number };
 
 /**
  * What one existing path component is, by lstat: a real directory, nothing, or a reason it is neither.
@@ -191,6 +194,12 @@ export type UserWriteRead =
  * well, and one of them may be outside the target.
  */
 function componentProblem(path: string, wantDirectory: boolean): "absent" | "fine" | string {
+  const p = componentState(path, wantDirectory);
+  return typeof p === "string" ? p : p.reason;
+}
+
+/** componentProblem, keeping the name count of a hard link (the one place both are decided). */
+function componentState(path: string, wantDirectory: boolean): "absent" | "fine" | string | { readonly reason: string; readonly names: number } {
   let st: StatShape;
   try {
     st = lstatSync(path);
@@ -203,10 +212,12 @@ function componentProblem(path: string, wantDirectory: boolean): "absent" | "fin
   }
   if (wantDirectory && !st.isDirectory()) return `is not a directory (it is a ${kindOf(st)})`;
   if (!wantDirectory && st.isFile() && st.nlink > 1) {
-    return (
-      `is a hard link (the same file has ${st.nlink} names, and another may be outside the target), and the ` +
-      `installer never writes through a name that would change the file under its other names too`
-    );
+    return {
+      reason:
+        `is a hard link (the same file has ${st.nlink} names, and another may be outside the target), and the ` +
+        `installer never writes through a name that would change the file under its other names too`,
+      names: st.nlink,
+    };
   }
   return "fine";
 }
@@ -244,8 +255,9 @@ export function readForWrite(root: string, path: string, maxBytes: number = USER
   const way = wayTo(root, path);
   if (way === "absent") return { state: "create" };
   if (way !== null) return way;
-  const leaf = componentProblem(path, false);
+  const leaf = componentState(path, false);
   if (leaf === "absent") return { state: "create" };
+  if (typeof leaf !== "string") return { state: "blocked", at: path, reason: leaf.reason, names: leaf.names };
   if (leaf !== "fine") return { state: "blocked", at: path, reason: leaf };
   const r = readUserFile(path, maxBytes);
   if (r.state === "ok") return r;

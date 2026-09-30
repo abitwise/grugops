@@ -174,6 +174,11 @@ export function unreadState(r) {
  * well, and one of them may be outside the target.
  */
 function componentProblem(path, wantDirectory) {
+    const p = componentState(path, wantDirectory);
+    return typeof p === "string" ? p : p.reason;
+}
+/** componentProblem, keeping the name count of a hard link (the one place both are decided). */
+function componentState(path, wantDirectory) {
     let st;
     try {
         st = lstatSync(path);
@@ -188,8 +193,11 @@ function componentProblem(path, wantDirectory) {
     if (wantDirectory && !st.isDirectory())
         return `is not a directory (it is a ${kindOf(st)})`;
     if (!wantDirectory && st.isFile() && st.nlink > 1) {
-        return (`is a hard link (the same file has ${st.nlink} names, and another may be outside the target), and the ` +
-            `installer never writes through a name that would change the file under its other names too`);
+        return {
+            reason: `is a hard link (the same file has ${st.nlink} names, and another may be outside the target), and the ` +
+                `installer never writes through a name that would change the file under its other names too`,
+            names: st.nlink,
+        };
     }
     return "fine";
 }
@@ -226,9 +234,11 @@ export function readForWrite(root, path, maxBytes = USER_FILE_MAX_BYTES) {
         return { state: "create" };
     if (way !== null)
         return way;
-    const leaf = componentProblem(path, false);
+    const leaf = componentState(path, false);
     if (leaf === "absent")
         return { state: "create" };
+    if (typeof leaf !== "string")
+        return { state: "blocked", at: path, reason: leaf.reason, names: leaf.names };
     if (leaf !== "fine")
         return { state: "blocked", at: path, reason: leaf };
     const r = readUserFile(path, maxBytes);

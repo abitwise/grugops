@@ -220,8 +220,13 @@ installer there) no skill or adapter is removed, not even a byte-identical copy 
 install made before this release has a marker without `kitFiles`: the uninstaller then removes a
 skill that is byte-identical to the kit source it runs from and leaves every other one, which
 includes every adapter and the resolver skill, because install writes the kit path into them. Remove
-those by hand once you have kept any edit you want. A malformed `kitFiles` is a `verify` finding on
-both sides (exit `3`), and the uninstaller then removes no skill or adapter.
+those by hand once you have kept any edit you want. That byte-identity rule is used once: when the
+uninstaller keeps such a marker (another record in it is malformed), it writes `"kitFiles": {}` into
+it, so a later run removes no skill you copied in by hand. A skill or adapter that is a hard link (the
+same file under a second name) is left and reported, with or without a record. A malformed `kitFiles`
+is a `verify` finding on both sides (exit `3`), and the uninstaller then removes no skill or adapter.
+A marker with a duplicate key is not read at all, by either side: which of the two values is the
+record is not known.
 
 The Gemini settings file is changed only as install's `geminiSettings` record says. Install
 records whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape

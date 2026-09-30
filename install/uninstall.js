@@ -81,7 +81,7 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, malformedLedgers, contentRecord, recordHolds, jsonValueRecord, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, malformedLedgers, contentRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue } from "./json-text.js";
@@ -448,28 +448,31 @@ function ownsDir(d) {
         return false;
     return DIR_LEDGER.dirs.includes(relative(TARGET, d).split(sep).join("/"));
 }
-function ownsFile(rel, holds) {
+function ownsFile(rel, check) {
     const record = FILE_LEDGER.state === "ok" ? FILE_LEDGER.files.get(rel) : undefined;
     if (record === undefined)
         return { owned: false, reason: notRecordedReason(FILE_LEDGER, "file") };
-    if (!holds(record)) {
-        return {
-            owned: false,
-            reason: "it does not hold what the install marker's file ledger records install wrote there (it was edited " +
-                "or replaced since), so there is no record that install created this content; left in place",
-        };
-    }
-    return { owned: true };
+    const c = check(record);
+    if (c.holds)
+        return { owned: true };
+    if (c.why !== null)
+        return { owned: false, reason: `${c.why}; left in place` };
+    return {
+        owned: false,
+        reason: "it does not hold what the install marker's file ledger records install wrote there (it was edited " +
+            "or replaced since), so there is no record that install created this content; left in place",
+    };
 }
-/** ownsFile for a file read now, at `rel` under the target. */
-const ownsFileNow = (rel) => ownsFile(rel, (record) => recordHolds(TARGET, join(TARGET, ...rel.split("/")), record));
+/** ownsFile for a file read now, at `rel` under the target (install-marker.ts checkRecord). */
+const ownsFileNow = (rel) => ownsFile(rel, (record) => checkRecord(TARGET, join(TARGET, ...rel.split("/")), record));
 // ownsKitFile (plan 33.1-30, Gap B completed, brief DC-2, D-18): a grugops skill or adapter file at
 // `rel` (`path` in the target, `src` its kit source) is install's to remove only on a content record.
 // A user's edit to a kit file is user content, and the file's name is not evidence of anything.
-//   - KIT_LEDGER `ok` with a record for `rel`: owned only while the path still holds it (recordHolds,
+//   - KIT_LEDGER `ok` with a record for `rel`: owned only while the path still holds it (checkRecord,
 //     the one predicate: a `sha256:` record holds for a regular file inside the target, read without
-//     following a link, whose bytes hash to it; a `link:` record for the link at the path whose
-//     readlink equals it). Otherwise it has changed since install wrote it, and it is left.
+//     following a link and not a hard link (readOwnedContent), whose bytes hash to it; a `link:` record
+//     for the link at the path whose readlink equals it). Otherwise it has changed since install wrote
+//     it, and it is left; a file that could not be compared (a hard link) is left with that reason.
 //   - KIT_LEDGER `ok` without a record for `rel`: install has no record of writing it; left.
 //   - KIT_LEDGER `malformed`, or an unreadable marker: fail closed, nothing is removed (the one verify at
 //     the top of the removal sequence said why).
@@ -480,11 +483,16 @@ const ownsFileNow = (rel) => ownsFile(rel, (record) => recordHolds(TARGET, join(
 //     runnables: byte identity is not provenance.
 //   - a marker without the field (an install made before this ledger existed): the marker records
 //     that install ran here, so the fallback is a content record the kit already has, byte identity
-//     with the kit source file `src` (sameFileBytes, the rule this file applies to the runnables).
-//     A verbatim-copied skill is removed; every rendered file (each adapter, the resolver skill) and
-//     every edited one differs, and is left with the manual remedy. A path or a kit source that is
-//     not a readable regular file is never opened (readUserFile, brief DC-3) and is left, with its
-//     state named.
+//     with the kit source file `src`. The file is read by the SAME content read the recorded arm uses
+//     (readOwnedContent: no link followed, a hard link refused; red-team RT2 of plan 33.1-30), and the
+//     kit source, which is outside the target, through readUserFile. A verbatim-copied skill is
+//     removed; every rendered file (each adapter, the resolver skill) and every edited one differs,
+//     and is left with the manual remedy. A path or a kit source that is not a readable regular file
+//     is never opened (brief DC-3) and is left, with its state named. install's own link to `src`
+//     (removalDecision has already shown the link at the path is that one) is owned while `src` reads.
+//     THE FALLBACK IS SPENT BY THE RUN THAT USES IT (red-team RT1 of plan 33.1-30): a marker this run
+//     keeps is rewritten with `kitFiles: {}` (updateKeptMarker), so the next run cannot remove a kit
+//     file the user copies in later.
 // The ledger is only ever ASKED about the fixed kit paths this file visits; it is never iterated to
 // decide what to delete.
 function ownsKitFile(rel, path, src) {
@@ -499,8 +507,11 @@ function ownsKitFile(rel, path, src) {
                 reason: "install has no record of writing it — it is not in the install marker's kit-file ledger; left in place",
             };
         }
-        if (recordHolds(TARGET, path, record))
+        const c = checkRecord(TARGET, path, record);
+        if (c.holds)
             return { owned: true };
+        if (c.why !== null)
+            return { owned: false, reason: `${c.why} — left in place; remove it by hand if it is grugops's` };
         return {
             owned: false,
             reason: "it has changed since install wrote it (it does not hold what the install marker's kit-file ledger records " +
@@ -515,8 +526,6 @@ function ownsKitFile(rel, path, src) {
         };
     }
     // A marker without the kitFiles field: the legacy fallback, byte identity with the kit source.
-    if (sameFileBytes(path, src))
-        return { owned: true };
     const noRecord = "there is no install record of what was written";
     const remedy = "remove it by hand once you have kept any edit you want";
     const srcRead = readUserFile(src);
@@ -527,11 +536,13 @@ function ownsKitFile(rel, path, src) {
             reason: `${noRecord}, and its kit source ${src} ${what}, so byte identity could not be established — left in place; ${remedy}`,
         };
     }
-    const cur = readUserFile(path);
-    if (cur.state !== "ok") {
-        const what = cur.state === "absent" ? "is no longer there" : unreadState(cur);
-        return { owned: false, reason: `${noRecord}, and it ${what} — left in place` };
-    }
+    if (isOwnLink(path, src))
+        return { owned: true };
+    const cur = readOwnedContent(TARGET, path);
+    if (cur.state === "ok" && cur.bytes.equals(srcRead.bytes))
+        return { owned: true };
+    if (cur.state !== "ok" && cur.why !== null)
+        return { owned: false, reason: `${noRecord}, and ${cur.why} — left in place; ${remedy}` };
     return { owned: false, reason: `${noRecord}, and it differs from the kit source — left in place; ${remedy}` };
 }
 // notRecordedReason (re-review IN-01, plan 33.1-28): the ONE wording of "there is no install record
@@ -662,7 +673,7 @@ function removeOwnedEmptyFile(rel, label, result) {
         report("refused", `${label} (protected path — never removed)`);
         return;
     }
-    const own = ownsFile(rel, (record) => result.before !== null && contentRecord(result.before) === record);
+    const own = ownsFile(rel, (record) => result.before !== null && contentRecord(result.before) === record ? { holds: true } : { holds: false, why: null });
     if (!own.owned) {
         report("left", `${rel} (it is blank after the block removal, but ${own.reason})`);
         return;
@@ -1158,6 +1169,7 @@ function removeMarker() {
 function updateKeptMarker(m, marker, readBytes, bad) {
     const next = { ...marker };
     const stale = [];
+    const spent = [];
     const goneRel = (rel) => GONE_THIS_RUN.has(resolve(TARGET, ...rel.split("/")));
     if (!bad.includes("createdFiles") && FILE_LEDGER.state === "ok") {
         const keep = [...FILE_LEDGER.files].filter(([rel]) => !goneRel(rel));
@@ -1174,6 +1186,19 @@ function updateKeptMarker(m, marker, readBytes, bad) {
                 stale.push(rel);
         if (keep.length !== KIT_LEDGER.files.size)
             next.kitFiles = Object.fromEntries(keep);
+    }
+    // A SPENT FALLBACK IS RECORDED (red-team RT1 of plan 33.1-30, brief DC-2). A marker without kitFiles
+    // (an install made before that ledger) grants the byte-identity fallback (ownsKitFile). This run has
+    // been through the kit files under it: each was removed, or left with its reason and the manual
+    // remedy. Kept as it was, the marker would grant the fallback again, and a kit file the user copies
+    // in by hand afterwards (README §1's minimal path) would be removed by the next run. So the kept
+    // marker records `kitFiles: {}`, a record that claims nothing: the fallback's authority ends here.
+    // Every other ledger's absence grants nothing (createdDirs, createdFiles: no record, left;
+    // geminiSettings, claudeAskRules: left untouched), so kitFiles is the one ledger this applies to.
+    if (!bad.includes("kitFiles") && KIT_LEDGER.state === "absent") {
+        next.kitFiles = {};
+        spent.push("kitFiles recorded as {} — the marker had no kit-file ledger, and the byte-identity fallback it granted " +
+            "is spent by this run");
     }
     if (!bad.includes("createdDirs") && DIR_LEDGER.state === "ok") {
         const keep = DIR_LEDGER.dirs.filter((rel) => !goneRel(rel));
@@ -1202,8 +1227,10 @@ function updateKeptMarker(m, marker, readBytes, bad) {
     }
     if (JSON.stringify(next) === JSON.stringify(marker))
         return;
-    const what = stale.length > 0 ? stale.join(", ") : "the ask-rule ledger's created-file flags";
-    const remedy = `it still lists what this run removed (${what}); take those entries out of it by hand, or a later run may act on them.`;
+    const what = stale.length > 0 || spent.length > 0 ? [...stale, ...spent].join(", ") : "the ask-rule ledger's created-file flags";
+    const remedy = spent.length > 0
+        ? `it still lists what this run removed (${what}); take those entries out of it and add "kitFiles": {} by hand, or a later run may act on them.`
+        : `it still lists what this run removed (${what}); take those entries out of it by hand, or a later run may act on them.`;
     if (DRY_RUN) {
         report("would-edit", `${MARKER_REL} (kept; the entries this run would remove would be taken out of its ledgers: ${what})`);
         return;
@@ -1259,8 +1286,9 @@ function removeKitAdapters() {
     rmdirIfEmpty(`${TARGET}/.claude/agents`);
 }
 // sameFileBytes: byte-identical content compare following symlinks (mirrors `cmp -s`). Used for
-// the grugops-owned-AGENTS.md test, the runnables and the legacy kit-file fallback (ownsKitFile, plan
-// 33.1-30). DC-3 (plan 33.1-27): both sides are read through readUserFile, so a FIFO, directory or
+// the grugops-owned-AGENTS.md test and the runnables, each followed by the createdFiles record check
+// (ownsFileNow → checkRecord), which refuses a hard link. The legacy kit-file fallback no longer uses
+// it (red-team RT2 of plan 33.1-30): it reads the target file through readOwnedContent. DC-3 (plan 33.1-27): both sides are read through readUserFile, so a FIFO, directory or
 // device on either side (the kit source included) is never opened; the answer is "the same" only when
 // BOTH reads are `ok` and their bytes are equal. That one guard serves every caller.
 function sameFileBytes(a, b) {

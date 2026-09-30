@@ -2,8 +2,8 @@
 // ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B; plan 33.1-29, CR-03; plan
 // 33.1-30, Gap B completed).
 //
-// Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path and
-// ./user-file.ts. A
+// Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path,
+// ./user-file.ts and ./json-text.ts (no I/O; the strict tokenizer that refuses a duplicate key). A
 // sibling of install.js and uninstall.js inside install/, imported by BOTH binaries, so both still
 // run on a host with nothing installed. This module never writes and imports nothing from node:fs;
 // install/installer-fs-census.test.ts scans it with the rest of install/ and asserts it makes no
@@ -124,7 +124,8 @@
 
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { isOwnLink, readForWrite, wayTo } from "./user-file.js";
+import { firstDuplicateKey, readJsonText } from "./json-text.js";
+import { isOwnLink, kindAt, readForWrite, wayTo } from "./user-file.js";
 
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
@@ -205,15 +206,36 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   if (read.state === "blocked") {
     return { state: "unreadable", marker: null, why: read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}` };
   }
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(read.text);
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { state: "unreadable", marker: null, why: "it is JSON but not a JSON object" };
-    }
-    return { state: "ok", marker: parsed as Record<string, unknown>, bytes: read.bytes };
+    parsed = JSON.parse(read.text);
   } catch {
     return { state: "unreadable", marker: null, why: "it is not valid JSON" };
   }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { state: "unreadable", marker: null, why: "it is JSON but not a JSON object" };
+  }
+  // A DUPLICATE KEY IS REFUSED, NOT RESOLVED (red-team RT3 of plan 33.1-30). JSON.parse keeps the last
+  // of two equal keys and says nothing, so `"kitFiles": {}, "kitFiles": {...}` read as the second
+  // record, and a duplicate path inside a ledger read as its last record. Install writes the marker
+  // with JSON.stringify, which never repeats a key, so a duplicate is a hand edit and which value is
+  // the record is not known. Refusing only the ledger that holds it would not hold: every writer of
+  // the marker (install's writeMarker, uninstall's kept-marker rewrite) re-serialises the parsed value,
+  // which drops the duplicate and turns the ledger well-formed for the next run. So the whole marker
+  // is `unreadable` (fail closed): install leaves it unchanged and uninstall uses none of its ledgers.
+  // The strict tokenizer (json-text.ts) also refuses bytes that are not UTF-8 and nesting past its
+  // bound, which JSON.parse of the decoded text would have accepted.
+  const doc = readJsonText(read.bytes);
+  if (!doc.ok) return { state: "unreadable", marker: null, why: `it ${doc.why}` };
+  const dup = firstDuplicateKey(doc.root);
+  if (dup !== null) {
+    return {
+      state: "unreadable",
+      marker: null,
+      why: `it has a duplicate key (${JSON.stringify(dup).slice(0, 120)}), so which of its values is install's record is not known`,
+    };
+  }
+  return { state: "ok", marker: parsed as Record<string, unknown>, bytes: read.bytes };
 }
 
 function fieldOf(marker: Readonly<Record<string, unknown>> | null, name: string): { present: boolean; raw: unknown } {
@@ -394,13 +416,58 @@ export function isContentRecord(v: unknown): v is string {
   return typeof v === "string" && (SHA256_RECORD.test(v) || LINK_RECORD.test(v));
 }
 
+// THE ONE CONTENT-OWNERSHIP READ (red-team RT2 of plan 33.1-30). Whether a file under the target still
+// holds what install wrote there is asked of its bytes read through readForWrite: a regular file inside
+// the target, no link followed on the way or at the path, and not a hard link. A hard link is refused on
+// every arm that asks (a kitFiles or createdFiles record, and the legacy byte-identity fallback for a
+// marker without kitFiles): a file that has another name, which may be outside the target, shows
+// nothing about what install wrote at THIS path. The legacy arm used to compare through readUserFile,
+// which reads a hard link, so it removed a hard-linked kit file that the recorded arm left, and the
+// recorded arm said "it has changed since install wrote it", which was not true. `why` is the true
+// reason a file was not read, as a clause the caller places in its line; it is null for a symbolic
+// link at the path, where install wrote a regular file: the path no longer holds what install wrote.
+export type OwnedContent =
+  | { readonly state: "ok"; readonly bytes: Buffer }
+  | { readonly state: "not-read"; readonly why: string | null };
+
+/** The one wording of a hard link that is not proof of what install wrote. */
+export function hardLinkReason(names: number): string {
+  return (
+    `it is a hard link (the same file has ${names} names, and another may be outside the target), so what it ` +
+    `holds is not proof of what install wrote at this path`
+  );
+}
+
+export function readOwnedContent(root: string, path: string): OwnedContent {
+  const r = readForWrite(root, path);
+  if (r.state === "ok") return { state: "ok", bytes: r.bytes };
+  if (r.state === "create") return { state: "not-read", why: "it is no longer there" };
+  if (r.names !== undefined) return { state: "not-read", why: hardLinkReason(r.names) };
+  if (r.at === path && kindAt(path) === "symbolic link") return { state: "not-read", why: null };
+  const where = r.at === path ? "it" : r.at;
+  return { state: "not-read", why: `${where} ${r.reason}, so it could not be compared with what install wrote there` };
+}
+
+
+/**
+ * Whether `path` (strictly inside `root`) still holds exactly what `record` says install wrote there.
+ * `why` is null when it simply does not (other bytes, another link, a link where a file was written),
+ * and otherwise the true reason it could not be shown to (readOwnedContent).
+ */
+export type RecordCheck = { readonly holds: true } | { readonly holds: false; readonly why: string | null };
+
+export function checkRecord(root: string, path: string, record: string): RecordCheck {
+  if (record.startsWith("link:")) {
+    return wayTo(root, path) === null && isOwnLink(path, record.slice("link:".length)) ? { holds: true } : { holds: false, why: null };
+  }
+  const c = readOwnedContent(root, path);
+  if (c.state !== "ok") return { holds: false, why: c.why };
+  return contentRecord(c.bytes) === record ? { holds: true } : { holds: false, why: null };
+}
+
 /** `path` (strictly inside `root`) still holds exactly what `record` says install wrote there. */
 export function recordHolds(root: string, path: string, record: string): boolean {
-  if (record.startsWith("link:")) {
-    return wayTo(root, path) === null && isOwnLink(path, record.slice("link:".length));
-  }
-  const r = readForWrite(root, path);
-  return r.state === "ok" && contentRecord(r.bytes) === record;
+  return checkRecord(root, path, record).holds;
 }
 
 // malformedLedgers (red-team of plan 33.1-27, B4): every ledger field the marker carries that is

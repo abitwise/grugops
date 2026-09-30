@@ -7928,7 +7928,8 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
       const before = new Map(kit.map((rel) => [rel, readFileSync(at(target, rel))]));
       const ru = runUninstall(target, home);
       expect(ru.status, `${what}\n${ru.stdout}`).toBe(3);
-      expect(linesUnder(ru.stdout, "verify").filter((l) => /duplicate key/.test(l)).length, `${what}\n${ru.stdout}`).toBe(1);
+      // The marker-wide verify and the ask-rule pass's own verify both name the reason.
+      expect(linesUnder(ru.stdout, "verify").filter((l) => /duplicate key/.test(l)).length, `${what}\n${ru.stdout}`).toBeGreaterThan(0);
       for (const [rel, b] of before) {
         expect(present(target, rel) && readFileSync(at(target, rel)).equals(b), `${what}: ${rel} was removed or changed\n${ru.stdout}`).toBe(true);
       }
