@@ -29,6 +29,9 @@
 //     while it still holds what the install marker's `kitFiles` ledger records install wrote there
 //     (plan 33.1-30, Gap B completed): a user's edit to a kit file is user content, so an edited one is
 //     left and reported (ownsKitFile). See removeKitSkills for the rule without a record.
+//     NEVER a backup: the `<file>.grugops-edited-<UTC stamp>` copies install makes of an edited kit
+//     file before it refreshes the kit (D-32, plan 33.1-32) are user content. They are reported
+//     `left` (reportKitBackups) and never removed or claimed.
 //   - the AGENTS.md grugops laid down  (ONLY if the install marker's `createdFiles` ledger records
 //     that install created it AND it is still the exact link install makes or a copy byte-identical
 //     to the source — a user's own AGENTS.md, including a byte-identical copy install did not
@@ -1285,6 +1288,42 @@ function removeKitAdapters() {
     }
     rmdirIfEmpty(`${TARGET}/.claude/agents`);
 }
+// reportKitBackups (plan 33.1-32, D-32, D-18): the backups install made of the user's edited kit
+// files before it refreshed the kit, `<file>.grugops-edited-<UTC stamp>` beside the file. They hold
+// the user's edits, so they are the user's: nothing records them, uninstall never removes or claims
+// one, and each is reported `left` so the human knows where the edits are. It lists the names in
+// .claude/agents/ and in each .claude/skills/grugops*/ (readdirSync: names only, no content read),
+// each only when it is a real directory inside the target (no link on the way or at it). A directory
+// holding a backup is not empty, so rmdirIfEmpty keeps it.
+const KIT_BACKUP_INFIX = ".grugops-edited-";
+function reportKitBackups() {
+    const realDir = (d) => wayTo(TARGET, d) === null && isDir(d);
+    const names = (d) => {
+        try {
+            return readdirSync(d).sort();
+        }
+        catch {
+            return [];
+        }
+    };
+    const dirs = [];
+    const agents = `${TARGET}/.claude/agents`;
+    if (realDir(agents))
+        dirs.push(agents);
+    const skills = `${TARGET}/.claude/skills`;
+    if (realDir(skills)) {
+        for (const n of names(skills)) {
+            if (n.startsWith("grugops") && realDir(`${skills}/${n}`))
+                dirs.push(`${skills}/${n}`);
+        }
+    }
+    for (const d of dirs) {
+        for (const n of names(d)) {
+            if (n.includes(KIT_BACKUP_INFIX))
+                report("left", `${d}/${n} (a backup install made of your edited kit file)`);
+        }
+    }
+}
 // sameFileBytes: byte-identical content compare following symlinks (mirrors `cmp -s`). Used for
 // the grugops-owned-AGENTS.md test and the runnables, each followed by the createdFiles record check
 // (ownsFileNow → checkRecord), which refuses a hard link. The legacy kit-file fallback no longer uses
@@ -1420,6 +1459,8 @@ removeKitSkills();
 //    survives; an adapter at a kit path is removed only while ownsKitFile allows it (plan 33.1-30).
 //    The directory itself is only rmdir'd when it is empty, so a surviving file also keeps it.
 removeKitAdapters();
+// Every backup install made of an edited kit file (D-32, plan 33.1-32) is reported left, never removed.
+reportKitBackups();
 rmdirIfEmpty(`${TARGET}/.claude`);
 // 3. AGENTS.md — remove ONLY a grugops-laid-down one (symlink into source, or byte-identical
 //    copy of the source AGENTS.md). A user's own AGENTS.md is never removed.
