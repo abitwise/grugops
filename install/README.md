@@ -139,8 +139,11 @@ In the **target repo**:
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved)
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"` (read-modify-write; other
-  keys are preserved, never clobbered). A settings file that is not a valid JSON object is left
-  untouched and reported as a `verify` finding (exit `3`), by the installer and the uninstaller alike
+  keys are preserved, never clobbered), and what install did is recorded in `.grugops/install.json`
+  as `geminiSettings` so the uninstaller can reverse exactly that. A settings file that is not a
+  valid JSON object, or whose `context` is not an object or whose `context.fileName` is neither a
+  string nor an array of strings, is left untouched and reported as a `verify` finding (exit `3`),
+  by the installer and the uninstaller alike
 - `.claude/settings.json` — the Claude Code ask rules described in §5 are added to
   `permissions.ask` (additive; your own rules and keys are kept, and the added rules are recorded
   so uninstall removes exactly those)
@@ -199,6 +202,22 @@ so the blank pointer files, `AGENTS.md` and the runnables it created are left an
 them by hand if you do not want them. A malformed file ledger is a `verify` finding on both sides
 (exit `3`), and the uninstaller then deletes none of these files. A `CLAUDE.md` or Copilot file whose
 grugops open marker has no close marker on a later line is left exactly as it is and reported.
+
+The Gemini settings file is changed only as install's `geminiSettings` record says. Install
+records whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape
+it found there (no `fileName`, a string, or an array; and whether `context` was there). The
+uninstaller then removes the last `"AGENTS.md"` element from an array `fileName` and restores that
+shape: a string becomes the string again, and a `fileName` or `context` install added is removed
+again. Every other key stays. It deletes the whole file only when install created it and it still
+holds exactly the bytes install wrote, or nothing is left in it once that entry is removed. With no
+record, nothing in the file is changed and it is reported `left`: a repository you never ran the
+installer on (with no marker), an install made before this release (remove the entry by hand if
+grugops added it), and a file that already listed `AGENTS.md` when install ran. A `context.fileName`
+that is no longer an array is left and reported. A re-install keeps an earlier record only while
+`context.fileName` is exactly what install last left there; if you changed it, the record claims
+nothing more and the uninstaller leaves the file. A malformed `geminiSettings` is a `verify` finding
+on both sides (exit `3`): install does not merge and writes it back as found, and the uninstaller
+leaves the file.
 
 A symbolic link at one of those paths is removed only when it is exactly the link a `--symlink`
 install makes: it points at the kit source file of the checkout you run the uninstaller from. Any

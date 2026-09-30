@@ -180,7 +180,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:writeTargetFile:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772), mergeGemini (:1797, call :1801; :1829, call :1833), materializeAdapter (:2447, call :2451), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
+    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the geminiSettings ledger and the file's shape before either), materializeAdapter (:2447, call :2451), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
   },
   {
     site: "install.ts:removeBackup:rmSync",
@@ -234,13 +234,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "uninstall.ts:unlinkPath:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:753, call :759; plan 33.1-29: reached only when the geminiSettings ledger records that install created the file and the file still holds the bytes install wrote), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
+    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:760, call :766; :801, call :807; plan 33.1-29: reached only when the geminiSettings ledger records that install created the file, and either it still holds the bytes install wrote or nothing is left in it once the recorded AGENTS.md entry is removed), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
   },
   {
     site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:560, call :564; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), removeAskRules (:833, call :846)",
+    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (:560, call :564; plan 33.1-28 computes the post-removal text before that return and writes nothing when no terminated block was found), unmergeGemini (:810, call :815; plan 33.1-29: only the recorded append is reversed, after the geminiSettings ledger and the file's shape were asked), removeAskRules (:833, call :846)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",

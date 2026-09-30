@@ -605,7 +605,9 @@ function removeOwnedEmptyFile(rel, label, result) {
 //   addedEntry false               → skipped (install did not add the entry).
 // Only then is the file read and parsed. A file that is not a readable regular file, does not parse
 // or is not a JSON object is a counted verify and is left untouched, with no `removed` line. A file
-// install created that still holds exactly the bytes install wrote is removed whole.
+// install created that still holds exactly the bytes install wrote is removed whole. Otherwise the
+// recorded append is reversed exactly: the last "AGENTS.md" element is removed from an array fileName
+// and the shape install found is restored (see the rules at the reversal below).
 // GEMINI_LEDGER_AFTER (plan 33.1-29, with red-team R2 of plan 33.1-28): the geminiSettings record as it
 // stands once unmergeGemini has acted, for removeMarker to write into a marker it keeps. Set only when
 // the recorded change was reversed (or found already reversed): the record then claims nothing, and
@@ -666,31 +668,85 @@ function unmergeGemini() {
             `adding was not removed. Remove it from context.fileName by hand.`);
         return;
     }
-    void j;
+    const claimsNothing = (fileName) => ({
+        createdFile: false,
+        addedEntry: false,
+        fileNameContent: fileName === undefined ? null : contentRecord(JSON.stringify(fileName)),
+    });
     // Install created the file, and it holds exactly the bytes install wrote: it holds nothing of the
     // user's, so it is removed whole.
     if (ledger.createdFile && ledger.fileContent !== undefined && recordHolds(TARGET, f, ledger.fileContent)) {
+        const line = `${rel} (install created it and it is unchanged — recorded as geminiSettings)`;
         if (DRY_RUN) {
-            report("would-remove", `${rel} (install created it and it is unchanged — recorded as geminiSettings)`);
+            report("would-remove", line);
             markGone(f);
-            GEMINI_LEDGER_AFTER = { createdFile: false, addedEntry: false, fileNameContent: null };
+            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
             return;
         }
-        if (unlinkPath(f, rel, `${rel} (install created it and it is unchanged — recorded as geminiSettings)`)) {
-            GEMINI_LEDGER_AFTER = { createdFile: false, addedEntry: false, fileNameContent: null };
-        }
+        if (unlinkPath(f, rel, line))
+            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
         return;
     }
-    // Interim (plan 33.1-29 Task 1): a merged or edited file is left until its exact reversal lands.
-    report("left", `${rel} (install recorded adding AGENTS.md to it; the exact reversal of that entry is not available in this build — left untouched)`);
+    // THE EXACT REVERSAL OF THE RECORDED APPEND. The interim rules of 33.1-VERIFICATION hold here for
+    // good: nothing is deleted from a file that does not parse (above); only an exact "AGENTS.md"
+    // element is removed, and only from an array fileName; a fileName that is no longer an array is left.
+    const ctxValue = j.context;
+    if (ctxValue === null || typeof ctxValue !== "object" || Array.isArray(ctxValue) || !Array.isArray(ctxValue.fileName)) {
+        report("left", `${rel} (context.fileName is no longer an array — left untouched; remove AGENTS.md from it by hand if grugops added it)`);
+        return;
+    }
+    const ctx = ctxValue;
+    const list = [...ctx.fileName];
+    // The LAST exact element is the one install appended: install appends at the end, and only when no
+    // "AGENTS.md" element was there. An earlier one is the user's own, added since.
+    const at = list.lastIndexOf("AGENTS.md");
+    if (at < 0) {
+        report("skipped", `${rel} (context.fileName no longer lists AGENTS.md — the entry install added was already removed)`);
+        GEMINI_LEDGER_AFTER = claimsNothing(ctx.fileName);
+        return;
+    }
+    list.splice(at, 1);
+    // Restore the shape install found: an absent fileName is removed again, a string becomes the
+    // string again, and a context install added is removed when nothing else is in it.
+    if (ledger.fileNameBefore === "absent" && list.length === 0)
+        delete ctx.fileName;
+    else if (ledger.fileNameBefore === "string" && list.length === 1 && typeof list[0] === "string")
+        ctx.fileName = list[0];
+    else
+        ctx.fileName = list;
+    if (ledger.createdContext === true && Object.keys(ctx).length === 0)
+        delete j.context;
+    const after = claimsNothing(Object.prototype.hasOwnProperty.call(ctx, "fileName") ? ctx.fileName : undefined);
+    // Install created the file, and with the entry it added removed nothing is left in it.
+    if (ledger.createdFile && Object.keys(j).length === 0) {
+        const line = `${rel} (install created it, and with the AGENTS.md entry it added removed nothing is left in it — recorded as geminiSettings)`;
+        if (DRY_RUN) {
+            report("would-remove", line);
+            markGone(f);
+            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
+            return;
+        }
+        if (unlinkPath(f, rel, line))
+            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
+        return;
+    }
+    if (DRY_RUN) {
+        report("would-edit", `${rel} (remove the AGENTS.md entry install added — recorded as geminiSettings)`);
+        GEMINI_LEDGER_AFTER = after;
+        return;
+    }
+    if (rewritePath(f, JSON.stringify(j, null, 2) + "\n", rel, "remove AGENTS.md from context.fileName by hand.")) {
+        report("removed", `${rel} AGENTS.md entry (install added it — recorded as geminiSettings; every other key preserved)`);
+        GEMINI_LEDGER_AFTER = after;
+    }
 }
 // removeAskRules (D-18): reverse install.ts writeAskRules() BY PROVENANCE, not by presence.
 //
 // The ledger is the claudeAskRules field of .grugops/install.json, so this runs BEFORE
 // removeMarker(). It removes exactly (ledger ∩ present) from permissions.ask. A user may hold a rule
 // identical to one of ours; presence alone cannot say who added it, so a present rule that is not in
-// the ledger is LEFT and reported (this is the opposite of unmergeGemini's removal-by-presence, which
-// is deliberately not copied). A container is removed only when install created it (the ledger's
+// the ledger is LEFT and reported (unmergeGemini follows the same rule since plan 33.1-29: it acts only
+// on the geminiSettings record). A container is removed only when install created it (the ledger's
 // created* flags) and it is empty again: the `ask` array, then the `permissions` object, then the
 // file. Nothing is written when nothing changes, so a file this pass does not need to touch keeps
 // its bytes.

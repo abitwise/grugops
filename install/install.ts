@@ -106,6 +106,7 @@ import {
   recordHolds,
   type AskRuleLedger,
   type GeminiLedger,
+  type FileNameBefore,
 } from "./install-marker.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
@@ -1875,12 +1876,6 @@ function linkOrCopy(src: string, dest: string, label: string): string | null {
   return destRead.state === "create" ? contentRecord(srcRead.bytes) : null;
 }
 
-// Gemini settings shape — the JSON merge target. context.fileName is the array we add AGENTS.md to.
-interface GeminiSettings {
-  context?: { fileName?: string[] | string };
-  [key: string]: unknown;
-}
-
 // GEMINI_RECORD (plan 33.1-29, Gap B / re-review CR-03, D-18): what THIS run did to
 // .gemini/settings.json, as the geminiSettings record (install-marker.ts states the shape), or null
 // when this run changed nothing there. mergeGemini sets it after a successful create or append, and
@@ -1895,31 +1890,60 @@ let GEMINI_RECORD: GeminiLedger | null = null;
 let GEMINI_SEEN: { readonly listed: boolean; readonly fileNameContent: string | null } | null = null;
 
 // merge_gemini: additive read-modify-write of .gemini/settings.json context.fileName. Node can
-// safely JSON.parse/merge. Never `>`-clobbers a user's file blindly: a parse failure leaves the
-// file untouched and flags verify.
+// safely JSON.parse/merge. Never `>`-clobbers a user's file blindly.
+//
+// RECORDED, AND ONLY WHERE IT CAN BE RECORDED (plan 33.1-29, Gap B / re-review CR-03, D-18). What this
+// run does to the file is recorded as GEMINI_RECORD (created it, or appended "AGENTS.md" and the shape
+// it found), so uninstall can reverse exactly that. So the ledger is asked first: an unreadable marker
+// or a malformed geminiSettings record means the change could not be recorded, and nothing is merged
+// (a counted verify says so).
+//
+// ONLY A SHAPE IT CAN MERGE AND REVERSE (CR-03 point 3, install side). A file that does not parse, is
+// not a JSON object, has a `context` that is not a JSON object, or has a context.fileName that is
+// neither a string nor an array of strings is a COUNTED verify and is left untouched. It used to be an
+// uncounted line (exit 0 over a merge that did not happen), `null` crashed the merge, `{"context":"x"}`
+// threw a TypeError, and an empty-string fileName was silently dropped.
 function mergeGemini(): void {
   const file = join(TARGET, ".gemini", "settings.json");
+  const rel = ".gemini/settings.json";
   const want = "AGENTS.md";
+  const byHand = "add AGENTS.md to context.fileName by hand if you want Gemini CLI to read it";
+  const previousMarker = readInstallMarker(TARGET);
+  if (previousMarker.state === "unreadable") {
+    verify(
+      `${rel}: .grugops/install.json could not be read as a JSON object (${previousMarker.why}), so the Gemini ` +
+        `settings ledger cannot be updated; AGENTS.md was not added — ${byHand}.`,
+    );
+    return;
+  }
+  if (readGeminiLedger(previousMarker.state === "ok" ? previousMarker.marker : null).state === "malformed") {
+    verify(
+      `${rel}: the Gemini settings ledger (geminiSettings) in .grugops/install.json is malformed, so it cannot be ` +
+        `updated and was written back unchanged; AGENTS.md was not added — ${byHand}. Fix or delete the field, ` +
+        `then re-run the installer.`,
+    );
+    return;
+  }
   // DC-3 / D-18 (plan 33.1-26): read before any write. A settings file that is not a readable
   // regular file within the bound is left untouched and reported. Red-team of plan 33.1-26: asked
   // through readForWrite, so a link at the path (dangling or not) or a non-directory where .gemini/
   // should be is refused the same way, and a new file is made with an exclusive create.
   const cur = readForWrite(TARGET, file);
   if (cur.state === "blocked") {
-    verify(`.gemini/settings.json: ${blockedAt(cur, file)} — left untouched; add AGENTS.md to context.fileName manually`);
+    verify(`${rel}: ${blockedAt(cur, file)} — left untouched; ${byHand}.`);
     return;
   }
   if (cur.state === "create") {
     if (DRY_RUN) {
-      report("would-add", ".gemini/settings.json (context.fileName: [AGENTS.md, GEMINI.md])");
+      report("would-add", `${rel} (context.fileName: [AGENTS.md, GEMINI.md])`);
       return;
     }
     const fileName = ["AGENTS.md", "GEMINI.md"];
     const text = JSON.stringify({ context: { fileName } }, null, 2) + "\n";
-    if (!writeTargetFile(file, text, "create", ".gemini/settings.json")) return;
+    if (!writeTargetFile(file, text, "create", rel)) return;
     // Plan 33.1-29: readForWrite said nothing was there and the exclusive create succeeded, so this
-    // run created the file. Uninstall deletes it only on this record, and only while it holds these
-    // bytes.
+    // run created the file. Uninstall deletes it whole only on this record, and only while it holds
+    // these bytes.
     GEMINI_RECORD = {
       createdFile: true,
       addedEntry: true,
@@ -1928,41 +1952,58 @@ function mergeGemini(): void {
       fileNameContent: contentRecord(JSON.stringify(fileName)),
       fileContent: contentRecord(text),
     };
-    report("created", ".gemini/settings.json (context.fileName wiring)");
+    report("created", `${rel} (context.fileName wiring)`);
     return;
   }
-  // Red-team of plan 33.1-27 (B5 sibling): a file that does not parse, or parses to something other
-  // than a JSON object (an array, null, a string), is a COUNTED verify and is left untouched. It used
-  // to be an uncounted report line (exit 0 over a merge that did not happen), and `null` crashed the
-  // merge below. The types of `context` and `fileName` inside an object are plan 33.1-29's.
-  let json: GeminiSettings;
+  let json: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(cur.text);
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
-    json = parsed as GeminiSettings;
+    json = parsed as Record<string, unknown>;
   } catch {
-    verify(".gemini/settings.json is not a valid JSON object — left untouched; add AGENTS.md to context.fileName manually");
+    verify(`${rel} is not a valid JSON object — left untouched; ${byHand}.`);
     return;
   }
-  json.context = json.context || {};
-  const list = Array.isArray(json.context.fileName)
-    ? json.context.fileName
-    : json.context.fileName
-      ? [json.context.fileName]
-      : [];
-  if (list.includes(want)) {
-    GEMINI_SEEN = { listed: true, fileNameContent: contentRecord(JSON.stringify(json.context.fileName)) };
-    report("skipped", ".gemini/settings.json (context.fileName already lists AGENTS.md)");
+  const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+  const hasContext = has(json, "context");
+  const ctxValue = json.context;
+  if (hasContext && (ctxValue === null || typeof ctxValue !== "object" || Array.isArray(ctxValue))) {
+    verify(`${rel} has a "context" value that is not a JSON object — left untouched; ${byHand}.`);
     return;
   }
-  list.push(want);
-  json.context.fileName = list;
+  const ctx: Record<string, unknown> = hasContext ? (ctxValue as Record<string, unknown>) : {};
+  const hasFileName = has(ctx, "fileName");
+  const fileName = ctx.fileName;
+  const isStringArray = Array.isArray(fileName) && fileName.every((x) => typeof x === "string");
+  if (hasFileName && typeof fileName !== "string" && !isStringArray) {
+    verify(`${rel} has a "context.fileName" value that is neither a string nor an array of strings — left untouched; ${byHand}.`);
+    return;
+  }
+  if (fileName === want || (isStringArray && (fileName as string[]).includes(want))) {
+    // Plan 33.1-29: this run changed nothing; what it saw is what writeMarker() needs to decide whether
+    // an earlier record still describes the file (the carry needs proof).
+    GEMINI_SEEN = { listed: true, fileNameContent: contentRecord(JSON.stringify(fileName)) };
+    report("skipped", `${rel} (context.fileName already lists AGENTS.md)`);
+    return;
+  }
+  const fileNameBefore: FileNameBefore = !hasFileName ? "absent" : typeof fileName === "string" ? "string" : "array";
+  const next: string[] =
+    fileNameBefore === "absent" ? [want] : fileNameBefore === "string" ? [fileName as string, want] : [...(fileName as string[]), want];
+  ctx.fileName = next;
+  if (!hasContext) json.context = ctx;
   if (DRY_RUN) {
-    report("would-add", ".gemini/settings.json (merge AGENTS.md into context.fileName)");
+    report("would-add", `${rel} (merge AGENTS.md into context.fileName)`);
     return;
   }
-  if (writeTargetFile(file, JSON.stringify(json, null, 2) + "\n", "ok", ".gemini/settings.json")) {
-    report("created", ".gemini/settings.json (merged AGENTS.md into context.fileName)");
+  if (writeTargetFile(file, JSON.stringify(json, null, 2) + "\n", "ok", rel)) {
+    GEMINI_RECORD = {
+      createdFile: false,
+      addedEntry: true,
+      createdContext: !hasContext,
+      fileNameBefore,
+      fileNameContent: contentRecord(JSON.stringify(next)),
+    };
+    report("created", `${rel} (merged AGENTS.md into context.fileName)`);
   }
 }
 
