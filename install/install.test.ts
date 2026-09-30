@@ -5447,7 +5447,7 @@ describe("ask rules: install side (D-18)", () => {
     expect(ledger.createdAsk).toBe(true);
     // The marker keeps a fixed field order with the ledger after installMode.
     const markerKeys = Object.keys(JSON.parse(readFileSync(join(target, ".grugops", "install.json"), "utf8")));
-    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles"]);
+    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
     expect(r.stdout).toContain("-- permission rules --");
     expect(r.stdout).toContain("speed bump");
     expect(r.stdout).toContain("not a security boundary");
@@ -5862,6 +5862,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       "createdFiles",
       "geminiSettings",
       "kitFiles",
+      "appendedBlocks",
     ]);
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
@@ -5994,7 +5995,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     expect(runInstall(first, home).status).toBe(0);
     const m = readMarkerJson(first);
-    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles"]);
+    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
     const created = fileKeys(m.createdFiles);
     expect(created).toEqual([...created].sort());
     expect(created.length).toBeGreaterThan(0);
@@ -6387,6 +6388,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       "createdFiles",
       "geminiSettings",
       "kitFiles",
+      "appendedBlocks",
     ]);
     const m1 = readFileSync(markerPathOf(target));
     const g1 = readFileSync(gemPath(target));
@@ -7583,6 +7585,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
       "createdFiles",
       "geminiSettings",
       "kitFiles",
+      "appendedBlocks",
     ]);
     const m1 = readFileSync(markerPathOf(target));
     expect(runInstall(target, home).status).toBe(0);

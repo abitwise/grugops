@@ -237,8 +237,20 @@ or byte-identical to the kit: in a repository you never ran the installer on (fo
 minimal copy path in §1) nothing is removed. An install made before this release has no file ledger,
 so the blank pointer files, `AGENTS.md` and the runnables it created are left and reported; remove
 them by hand if you do not want them. A malformed file ledger is a `verify` finding on both sides
-(exit `3`), and the uninstaller then deletes none of these files. A `CLAUDE.md` or Copilot file whose
-grugops open marker has no close marker on a later line is left exactly as it is and reported.
+(exit `3`), and the uninstaller then deletes none of these files.
+
+The pointer blocks are removed only on install's record as well. Install records in
+`.grugops/install.json`, as `appendedBlocks`, a sha256 of the exact block it appended to `CLAUDE.md`
+and to the Copilot file: a newline, the open marker line, the pointer line and the close marker line.
+The uninstaller removes a block only when that record lists the file and the file holds exactly one
+copy of those bytes, and it removes exactly those bytes. Everything before and after them stays as it
+was, blank lines included, so install followed by uninstall gives back the file byte for byte. A block
+is left exactly as it is and reported `left` when you changed it (a line added or edited inside it, a
+missing close marker), when the file holds two copies of it, or when there is no record of it: a
+repository you never ran the installer on (no marker), or an install made before this release. Remove
+the grugops lines by hand in that case, keeping any line of your own. A re-install that finds its block
+already there keeps the record as it was. A malformed `appendedBlocks` is a `verify` finding on both
+sides (exit `3`), and the uninstaller then removes no block.
 
 The grugops skills and adapters (`.claude/skills/<name>/SKILL.md` and `.claude/agents/<file>.md`)
 are removed the same way, on install's `kitFiles` record. Install records what it wrote to each
@@ -291,8 +303,11 @@ elsewhere) is left in place, is not followed, and is reported as a `verify` find
 remove it by hand if it is grugops's. A runnable is never a link, so a link under `tools/grugops/` is
 always left. A path is reported `removed` only when it is gone afterwards.
 
-The marker is removed only when the uninstaller could read it as the target's own JSON object and
-every ledger in it is well-formed. It is never read through a symbolic link: a link at
+The marker is removed only when the uninstaller could read it as the target's own JSON object, that
+object carries install's own marker fields (`grugopsHome`, `kitRoot` and `installMode` as strings, and
+`kitVersion` as a string when it is there), and every ledger in it is well-formed. A JSON object at
+`.grugops/install.json` without those fields is not install's marker: the uninstaller uses none of the
+records in it, removes nothing on it, leaves it in place, and reports a `verify` finding (exit `3`). It is never read through a symbolic link: a link at
 `.grugops/install.json`, or a `.grugops` that is itself a link, makes the marker unreadable, so no
 ledger from another repository is believed. A marker that cannot be read (not JSON, too large, a
 FIFO, a directory, a link) or that holds a malformed ledger is reported as a `verify` finding, is

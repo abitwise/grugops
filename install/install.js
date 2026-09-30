@@ -75,7 +75,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpo
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
+import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAppendedBlocks, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -507,6 +507,13 @@ const recordKitFile = (path, record) => {
 // rule does not depend on the bytes (appending the block to an empty file produces exactly the bytes a
 // create writes, so a content record alone could not tell the two apart).
 const APPENDED_FILES = new Set();
+// APPENDED_BLOCKS (plan 33.1-33, brief DC-2, red-team carry items 4, 6 and 11): the content record
+// (contentRecord: sha256 of the bytes) of the exact block ensureBlock wrote to each file in this run,
+// by POSIX path relative to TARGET, on a create and on an append alike (a created file holds only the
+// block). writeMarker() records it as `appendedBlocks`, and uninstall removes a block only on this record
+// and only as the exact span of these bytes, so a user's line inside the block, their trailing blank
+// lines and a file that held only blank lines all survive, and a repository with no record is left.
+const APPENDED_BLOCKS = new Map();
 // mkdirp (red-team of plan 33.1-26, D-18): make `dir` and every missing directory on the way to it.
 // Returns null on success, or a sentence naming the component that stopped it; it never throws.
 //
@@ -1723,6 +1730,7 @@ function ensureBlock(file, open, body, close, label) {
         // install created this file. Uninstall deletes it only on this record (createdFiles), and only
         // while the file still holds these bytes (red-team R1).
         recordCreatedFile(file, contentRecord(block));
+        recordAppendedBlock(file, block);
     }
     else {
         try {
@@ -1736,8 +1744,16 @@ function ensureBlock(file, open, body, close, label) {
         const rel = targetRel(file);
         if (rel !== null)
             APPENDED_FILES.add(rel);
+        recordAppendedBlock(file, block);
     }
     report("created", label);
+}
+// recordAppendedBlock (plan 33.1-33): APPENDED_BLOCKS gets the record of the block this run wrote to
+// `file`. Called only after the write succeeded, never in DRY_RUN (ensureBlock returns before).
+function recordAppendedBlock(file, block) {
+    const rel = targetRel(file);
+    if (rel !== null)
+        APPENDED_BLOCKS.set(rel, contentRecord(block));
 }
 // link_or_copy: D-30 symlink-with-copy-fallback, idempotent. Never clobbers a non-grugops
 // user file (destinations are all grugops-owned paths).
@@ -3039,7 +3055,7 @@ function materializeRunnable() {
 // writeMarker: write .grugops/install.json. Four stable fields in fixed order, then the
 // claudeAskRules ledger (D-18) when writeAskRules() produced one, then the createdDirs ledger
 // (CR-02), then the createdFiles ledger (plan 33.1-28), then geminiSettings (plan 33.1-29), then the
-// kitFiles ledger (plan 33.1-30); the install-time timestamp is deliberately
+// kitFiles ledger (plan 33.1-30), then the appendedBlocks ledger (plan 33.1-33); the install-time timestamp is deliberately
 // OMITTED (RESOLVED Q1, Option b) — overwrite unconditionally, idempotent. The ledgers are carried
 // forward from the previous marker (see writeAskRules for the ask rules), so the unconditional
 // overwrite cannot orphan rules, directories or files an earlier run recorded.
@@ -3107,6 +3123,12 @@ function writeMarker() {
         verify(`${markerRel} — the file ledger (createdFiles) is malformed, so it was written back unchanged and ` +
             `the files this run created were not recorded. Uninstall will delete no file install may have ` +
             `created; fix or delete the createdFiles field to restore the ledger.`);
+    }
+    const previousBlocks = readAppendedBlocks(previousMarker.state === "ok" ? previousMarker.marker : null);
+    if (previousBlocks.state === "malformed") {
+        verify(`${markerRel} — the appended-block ledger (appendedBlocks) is malformed, so it was written back unchanged ` +
+            `and the pointer blocks this run appended were not recorded. Uninstall will remove no pointer block; fix ` +
+            `or delete the appendedBlocks field to restore the ledger.`);
     }
     const previousKit = readKitFiles(previousMarker.state === "ok" ? previousMarker.marker : null);
     if (previousKit.state === "malformed") {
@@ -3282,6 +3304,30 @@ function writeMarker() {
                 union.set(rel, record);
         }
         marker.kitFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    }
+    // appendedBlocks (plan 33.1-33), by the one rule for an absent ledger above. A run that appended no
+    // block writes the previous ledger back VERBATIM (the plan 33.1-32 rule for a run that writes nothing:
+    // the blocks in the files are still the ones the previous record describes, and this run learned
+    // nothing about them). A run that appended a block to a file records that block for it, over any
+    // earlier entry for the same file (install appends only where no grugops block was, so an earlier
+    // entry there names a block that is gone). Entries are never added or dropped because of what is in a
+    // file now: uninstall checks each record against the file before it removes anything. Written on a
+    // fresh install (possibly `{}`), over a legacy marker only when this run appended a block, and back as
+    // found when malformed.
+    if (previousBlocks.state === "malformed") {
+        marker.appendedBlocks = previousBlocks.raw;
+    }
+    else if (APPENDED_BLOCKS.size === 0) {
+        if (previousBlocks.state === "ok")
+            marker.appendedBlocks = previousBlocks.raw;
+        else if (freshMarker)
+            marker.appendedBlocks = {};
+    }
+    else {
+        const union = new Map(previousBlocks.files);
+        for (const [rel, record] of APPENDED_BLOCKS)
+            union.set(rel, record);
+        marker.appendedBlocks = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     }
     if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
         report("created", ".grugops/install.json (marker)");

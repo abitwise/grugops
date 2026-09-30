@@ -1,6 +1,6 @@
-// install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the five
+// install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the six
 // ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B; plan 33.1-29, CR-03; plan
-// 33.1-30, Gap B completed).
+// 33.1-30, Gap B completed; plan 33.1-33, the appended sentinel blocks).
 //
 // Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path,
 // ./user-file.ts and ./json-text.ts (no I/O; the strict tokenizer that refuses a duplicate key). A
@@ -18,7 +18,7 @@
 // (not a regular file, too large, unreadable) is `unreadable` here, and each caller already has a
 // fail-closed answer for an unreadable marker.
 //
-// WHY ONE READER. The marker holds five ledgers the uninstaller depends on to reverse an install
+// WHY ONE READER. The marker holds six ledgers the uninstaller depends on to reverse an install
 // without deleting user content:
 //   - `claudeAskRules` — the Claude Code ask rules install added to .claude/settings.json (D-18);
 //   - `createdDirs`    — the directories install itself created under the target (CR-02);
@@ -38,6 +38,15 @@
 //                        Gap B completed): the same path → content record shape as createdFiles. A
 //                        user's edit to a kit file is user content, so uninstall removes a kit file
 //                        only while it still holds what this ledger records install wrote there.
+//   - `appendedBlocks` — the sentinel block install appended to CLAUDE.md and to
+//                        .github/copilot-instructions.md (plan 33.1-33, red-team carry items 4, 6 and
+//                        11): the same path → content record shape, where the record is the sha256 of
+//                        the exact bytes install appended (`\n<open>\n<body>\n<close>\n`). Uninstall
+//                        removes a block only when this ledger records one for that file and the file
+//                        holds exactly one span with those bytes, and it removes exactly that span, so
+//                        every byte of the user's (a line inside the block, trailing blank lines, a
+//                        file that was only blank lines) survives. A block with no record (a
+//                        repository with no marker, an install made before this ledger) is left.
 // Each binary used to hold its own reader of the ask-rule ledger, and the two disagreed about a
 // malformed one: install read it as "no previous install" and relabelled every grugops rule as the
 // user's own (fail open), while uninstall refused (fail closed). That is WR-05. A second ledger
@@ -64,7 +73,11 @@
 //   malformedLedgers:  the names of the ledgers in an `ok` marker that are present but malformed.
 //                      A caller that would act on the marker as a whole (uninstall's removal of it)
 //                      does so only when this is empty.
-//   readCreatedDirs / readCreatedFiles / readKitFiles / readAskRuleLedger / readGeminiLedger:
+//   installMarkerProblems: the install-owned fields an `ok` marker lacks or holds with the wrong type
+//                      (plan 33.1-33, ownsMarker). Empty only for an object that carries install's own
+//                      marker fields; a user's JSON object at the marker path is not install's marker.
+//   readCreatedDirs / readCreatedFiles / readKitFiles / readAppendedBlocks / readAskRuleLedger /
+//   readGeminiLedger:
 //                      `absent`     the marker has no such field (an install made before the
 //                                   ledger existed);
 //                      `malformed`  the field is present but not the exact ledger shape;
@@ -276,13 +289,26 @@ export function readKitFiles(marker: Readonly<Record<string, unknown>> | null): 
   return readPathRecords(marker, "kitFiles");
 }
 
-// readPathRecords: the one reader of a path → content record ledger (createdFiles, kitFiles).
-function readPathRecords(marker: Readonly<Record<string, unknown>> | null, name: "createdFiles" | "kitFiles"): CreatedFilesRead {
+// readAppendedBlocks (plan 33.1-33, brief DC-2, red-team carry items 4, 6 and 11): the `appendedBlocks`
+// ledger, the block install appended to each pointer file. The createdFiles shape with one narrowing:
+// every record is `sha256:<64 lowercase hex>` (a block is bytes appended to a file, never a link), so a
+// `link:` record here is `malformed`. Uninstall asks it only about CLAUDE.md and the Copilot file.
+export function readAppendedBlocks(marker: Readonly<Record<string, unknown>> | null): CreatedFilesRead {
+  return readPathRecords(marker, "appendedBlocks");
+}
+
+// readPathRecords: the one reader of a path → content record ledger (createdFiles, kitFiles,
+// appendedBlocks).
+function readPathRecords(
+  marker: Readonly<Record<string, unknown>> | null,
+  name: "createdFiles" | "kitFiles" | "appendedBlocks",
+): CreatedFilesRead {
   const { present, raw } = fieldOf(marker, name);
   if (!present) return { state: "absent", files: new Map(), raw };
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { state: "malformed", files: new Map(), raw };
   const entries = Object.entries(raw as Record<string, unknown>);
-  if (!entries.every(([k, v]) => isLedgerPath(k) && isContentRecord(v))) return { state: "malformed", files: new Map(), raw };
+  const recordOk = name === "appendedBlocks" ? isSha256Record : isContentRecord;
+  if (!entries.every(([k, v]) => isLedgerPath(k) && recordOk(v))) return { state: "malformed", files: new Map(), raw };
   return { state: "ok", files: new Map((entries as Array<[string, string]>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), raw };
 }
 
@@ -482,5 +508,26 @@ export function malformedLedgers(marker: Readonly<Record<string, unknown>>): str
   if (readAskRuleLedger(marker).state === "malformed") out.push("claudeAskRules");
   if (readGeminiLedger(marker).state === "malformed") out.push("geminiSettings");
   if (readKitFiles(marker).state === "malformed") out.push("kitFiles");
+  if (readAppendedBlocks(marker).state === "malformed") out.push("appendedBlocks");
+  return out;
+}
+
+// installMarkerProblems (plan 33.1-33, brief DC-2, ownsMarker): the reasons an `ok` marker object is
+// not install's own marker, empty when it is. install's writeMarker always writes `grugopsHome`,
+// `kitRoot` and `installMode` as strings, and writes `kitVersion` as a string or, since plan 33.1-32's
+// red-team B2, not at all (a run that wrote no kit file and had no earlier version to keep). A JSON
+// object the user put at `.grugops/install.json` does not carry these fields, and reading it as install's
+// marker would make it an install made before every ledger: uninstall deleted it by its name, and the
+// kit-file fallback removed the verbatim skills. So a caller that would act on the marker (uninstall's
+// ownsMarker) asks this first; a marker with a problem is not install's, and nothing is done on it.
+export function installMarkerProblems(marker: Readonly<Record<string, unknown>>): string[] {
+  const out: string[] = [];
+  for (const k of ["grugopsHome", "kitRoot", "installMode"]) {
+    if (!Object.prototype.hasOwnProperty.call(marker, k)) out.push(`no ${k}`);
+    else if (typeof marker[k] !== "string") out.push(`${k} is not a string`);
+  }
+  if (Object.prototype.hasOwnProperty.call(marker, "kitVersion") && typeof marker.kitVersion !== "string") {
+    out.push("kitVersion is not a string");
+  }
   return out;
 }
