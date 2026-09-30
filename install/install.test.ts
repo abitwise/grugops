@@ -6327,6 +6327,343 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(readFileSync(markerPathOf(target)).equals(m1), "a second install changed the marker").toBe(true);
     expect(readFileSync(gemPath(target)).equals(g1), "a second install changed the settings file").toBe(true);
   });
+
+  // ── Task 2: the exact reversal, the install-side shape guard, legacy, malformed, supersession ──
+  const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
+    writeFileSync(markerPathOf(t), JSON.stringify(m, null, 2) + "\n");
+  const gemBytes = (t: string): Buffer => readFileSync(gemPath(t));
+  const ledgerOf = (t: string): unknown => readMarkerJson(t).geminiSettings;
+  const verifyNaming = (stdout: string): string[] => linesUnder(stdout, "verify").filter((l) => l.includes(GEM));
+  const NO_STACK_TRACE = /^\s+at .+\(.+:\d+:\d+\)$/m;
+  const install = (t: string, home: string): void => {
+    const r = runInstall(t, home);
+    expect(r.status, `install: exit ${r.status}\n${r.stdout}${r.stderr}`).toBe(0);
+  };
+  // The labels a run printed for the settings file, in order.
+  const gemLabels = (stdout: string): string[] =>
+    stdout
+      .split("\n")
+      .map((l) => /^ {2}(\S+)\s+(.+)$/.exec(l))
+      .filter((m): m is RegExpExecArray => m !== null && (m[2] === GEM || m[2].startsWith(`${GEM} `) || m[2].startsWith(`${GEM}:`)))
+      .map((m) => m[1]);
+  // Uninstall twice over the same tree: DRY_RUN first (it must change nothing, and name would-edit or
+  // would-remove exactly where the real run edits or removes), then the real run, which is returned.
+  const uninstallBoth = (t: string, home: string): { status: number | null; stdout: string; stderr: string } => {
+    const pre = snapshot(t);
+    const dry = runUninstallDry(t, home);
+    expect(snapshot(t), `DRY_RUN changed the tree\n${dry.stdout}`).toBe(pre);
+    const r = runUninstall(t, home);
+    expect(dry.status, `DRY_RUN exit ${dry.status}, real exit ${r.status}\n${dry.stdout}`).toBe(r.status);
+    const want = gemLabels(r.stdout).map((l) => (l === "removed" ? (existsSync(gemPath(t)) ? "would-edit" : "would-remove") : l));
+    expect(gemLabels(dry.stdout), `the preview decided differently from the real run\nDRY:\n${dry.stdout}\nREAL:\n${r.stdout}`).toEqual(want);
+    return r;
+  };
+
+  const MERGES: ReadonlyArray<{
+    readonly name: string;
+    readonly before: unknown;
+    readonly after: unknown;
+    readonly createdContext: boolean;
+    readonly fileNameBefore: string;
+  }> = [
+    { name: "no context", before: { theme: "dark" }, after: { theme: "dark", context: { fileName: ["AGENTS.md"] } }, createdContext: true, fileNameBefore: "absent" },
+    { name: "a string fileName", before: { context: { fileName: "GEMINI.md" } }, after: { context: { fileName: ["GEMINI.md", "AGENTS.md"] } }, createdContext: false, fileNameBefore: "string" },
+    { name: "an empty-string fileName", before: { context: { fileName: "" } }, after: { context: { fileName: ["", "AGENTS.md"] } }, createdContext: false, fileNameBefore: "string" },
+    { name: "an array fileName beside a key", before: { context: { fileName: ["GEMINI.md"] }, x: 1 }, after: { context: { fileName: ["GEMINI.md", "AGENTS.md"] }, x: 1 }, createdContext: false, fileNameBefore: "array" },
+    { name: "an empty array fileName", before: { context: { fileName: [] } }, after: { context: { fileName: ["AGENTS.md"] } }, createdContext: false, fileNameBefore: "array" },
+    { name: "a context with no fileName", before: { context: { other: true } }, after: { context: { other: true, fileName: ["AGENTS.md"] } }, createdContext: false, fileNameBefore: "absent" },
+  ];
+  for (const c of MERGES) {
+    it(`Gemini settings ownership: merge into ${c.name} is recorded, and uninstall (real and DRY_RUN) restores the exact bytes`, () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      const before = plant(target, asInstaller(c.before));
+      install(target, home);
+      expect(gemBytes(target).toString("utf8"), "the merge wrote an unexpected file").toBe(asInstaller(c.after));
+      const fileName = (c.after as { context: { fileName: unknown } }).context.fileName;
+      expect(ledgerOf(target)).toEqual({
+        createdFile: false,
+        addedEntry: true,
+        createdContext: c.createdContext,
+        fileNameBefore: c.fileNameBefore,
+        fileNameContent: sha(JSON.stringify(fileName)),
+      });
+      const r = uninstallBoth(target, home);
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(gemBytes(target).equals(before), `the round trip did not restore the bytes\n${gemBytes(target).toString("utf8")}\n${r.stdout}`).toBe(true);
+      expect(naming(r.stdout, "removed").some((l) => /AGENTS\.md entry/.test(l) && /geminiSettings/.test(l)), r.stdout).toBe(true);
+    });
+  }
+
+  it("Gemini settings ownership: the recommended shape before install is recorded as not changed, and uninstall leaves it byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const before = plant(target, asInstaller(RECOMMENDED));
+    const i = runInstall(target, home);
+    expect(i.status, i.stdout).toBe(0);
+    expect(naming(i.stdout, "skipped").some((l) => /already lists AGENTS\.md/.test(l)), i.stdout).toBe(true);
+    expect(gemBytes(target).equals(before)).toBe(true);
+    expect(ledgerOf(target)).toEqual({ createdFile: false, addedEntry: false, fileNameContent: sha(JSON.stringify(RECOMMENDED.context.fileName)) });
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(before), r.stdout).toBe(true);
+    expect(naming(r.stdout, "skipped").some((l) => /install did not add/.test(l)), r.stdout).toBe(true);
+  });
+
+  it("Gemini settings ownership: created by install, then the user adds a key — uninstall removes only the AGENTS.md element and keeps the file", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    install(target, home);
+    writeFileSync(gemPath(target), asInstaller({ ...RECOMMENDED, theme: "dark" }));
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).toString("utf8")).toBe(asInstaller({ context: { fileName: ["GEMINI.md"] }, theme: "dark" }));
+  });
+
+  it("Gemini settings ownership: created by install, then the user removes GEMINI.md — uninstall restores the absent shape and deletes the file, then .gemini/", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    install(target, home);
+    writeFileSync(gemPath(target), asInstaller({ context: { fileName: ["AGENTS.md"] } }));
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(existsSync(gemPath(target)), r.stdout).toBe(false);
+    expect(existsSync(join(target, ".gemini")), r.stdout).toBe(false);
+  });
+
+  it("Gemini settings ownership: created by install, then the user writes invalid JSON — uninstall exits 3 with a verify and the file byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    install(target, home);
+    writeFileSync(gemPath(target), "{not json");
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyNaming(r.stdout).length, r.stdout).toBe(1);
+    expect(naming(r.stdout, "removed"), r.stdout).toEqual([]);
+    expect(gemBytes(target).toString("utf8")).toBe("{not json");
+  });
+
+  it("Gemini settings ownership: a recorded append whose fileName the user turned back into a string is left byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plant(target, asInstaller({ context: { fileName: ["GEMINI.md"] } }));
+    install(target, home);
+    const edited = plant(target, asInstaller({ context: { fileName: "GEMINI.md" } }));
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(edited), r.stdout).toBe(true);
+    expect(naming(r.stdout, "left").some((l) => /no longer an array/.test(l)), r.stdout).toBe(true);
+  });
+
+  it("Gemini settings ownership: two AGENTS.md entries (the user's own first) — uninstall removes only the last one, the one install appended", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plant(target, asInstaller({ context: { fileName: ["GEMINI.md"] } }));
+    install(target, home);
+    plant(target, asInstaller({ context: { fileName: ["AGENTS.md", "GEMINI.md", "AGENTS.md"] } }));
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).toString("utf8")).toBe(asInstaller({ context: { fileName: ["AGENTS.md", "GEMINI.md"] } }));
+  });
+
+  const BAD_SHAPES: ReadonlyArray<{ readonly name: string; readonly body: string }> = [
+    { name: "invalid JSON", body: "{not json" },
+    { name: "null", body: "null\n" },
+    { name: "an array", body: "[]\n" },
+    { name: "a string context", body: '{"context":"x"}\n' },
+    { name: "a null context", body: '{"context":null}\n' },
+    { name: "a number fileName", body: '{"context":{"fileName":7}}\n' },
+    { name: "a null fileName", body: '{"context":{"fileName":null}}\n' },
+    { name: "an array fileName holding a number", body: '{"context":{"fileName":["GEMINI.md",1]}}\n' },
+  ];
+  for (const c of BAD_SHAPES) {
+    it(`Gemini settings ownership: install over ${c.name} exits 3 with a counted verify, no stack trace, and the file byte-identical`, () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      const before = plant(target, c.body);
+      const r = runInstall(target, home);
+      expect(r.status, `exit ${r.status}\n${r.stdout}${r.stderr}`).toBe(3);
+      expect(verifyNaming(r.stdout).length, r.stdout).toBe(1);
+      expect(r.stderr).not.toMatch(NO_STACK_TRACE);
+      expect(gemBytes(target).equals(before)).toBe(true);
+      expect(readMarkerJson(target).geminiSettings, "a refused file must not be recorded").toBeUndefined();
+    });
+  }
+
+  it("Gemini settings ownership: an install over an unreadable marker merges nothing and says so (counted verify)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const before = plant(target, asInstaller({ theme: "dark" }));
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    writeFileSync(markerPathOf(target), "not a marker");
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyNaming(r.stdout).length, r.stdout).toBe(1);
+    expect(gemBytes(target).equals(before)).toBe(true);
+  });
+
+  it("Gemini settings ownership: an absent record stays absent — a legacy marker plus a re-install that changes nothing, then uninstall says the marker predates the ledger", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    install(target, home);
+    const m = readMarkerJson(target);
+    delete m.geminiSettings;
+    writeMarkerJson(target, m);
+    install(target, home);
+    expect(Object.prototype.hasOwnProperty.call(readMarkerJson(target), "geminiSettings"), "the absent record was written").toBe(false);
+    const before = gemBytes(target);
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(before)).toBe(true);
+    expect(naming(r.stdout, "left").some((l) => /predates the Gemini settings ledger/.test(l)), r.stdout).toBe(true);
+    expect(r.stdout).not.toMatch(/install did not add/);
+  });
+
+  it("Gemini settings ownership: a legacy marker (no geminiSettings) — uninstall leaves the file byte-identical with the predates line, exit 0", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plant(target, asInstaller({ theme: "dark" }));
+    install(target, home);
+    const m = readMarkerJson(target);
+    delete m.geminiSettings;
+    writeMarkerJson(target, m);
+    const before = gemBytes(target);
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(before)).toBe(true);
+    expect(naming(r.stdout, "left").some((l) => /predates the Gemini settings ledger/.test(l) && /remove that entry by hand/.test(l)), r.stdout).toBe(true);
+  });
+
+  const MALFORMED: ReadonlyArray<{ readonly name: string; readonly value: unknown }> = [
+    { name: "a string", value: "x" },
+    { name: "an empty object", value: {} },
+    { name: "createdFile alone", value: { createdFile: true } },
+    { name: "createdFile without addedEntry", value: { createdFile: true, addedEntry: false, fileNameContent: null, fileContent: `sha256:${"0".repeat(64)}` } },
+    { name: "addedEntry without its shape", value: { createdFile: false, addedEntry: true, fileNameContent: `sha256:${"0".repeat(64)}` } },
+    { name: "an extra key", value: { createdFile: false, addedEntry: false, fileNameContent: null, extra: 1 } },
+    { name: "no fileNameContent", value: { createdFile: false, addedEntry: false } },
+    { name: "a bad fileNameBefore", value: { createdFile: false, addedEntry: true, createdContext: false, fileNameBefore: "object", fileNameContent: `sha256:${"0".repeat(64)}` } },
+  ];
+  for (const c of MALFORMED) {
+    it(`Gemini settings ownership: a malformed geminiSettings (${c.name}) is one verify on uninstall and a verify on install; nothing is merged or edited, and install writes it back as found`, () => {
+      const target = makeFixture();
+      const home = mkTmp();
+      plant(target, asInstaller({ theme: "dark" }));
+      install(target, home);
+      const m = readMarkerJson(target);
+      m.geminiSettings = c.value;
+      writeMarkerJson(target, m);
+      const merged = gemBytes(target);
+      const r = uninstallBoth(target, home);
+      expect(r.status, r.stdout).toBe(3);
+      expect(linesUnder(r.stdout, "verify").filter((l) => /geminiSettings/.test(l)).length, r.stdout).toBe(1);
+      expect(gemBytes(target).equals(merged), r.stdout).toBe(true);
+
+      // Install over the same marker, with a settings file a merge would change: no merge, the field back as found.
+      const t2 = makeFixture();
+      const pre = plant(t2, asInstaller({ theme: "light" }));
+      install(t2, home);
+      const m2 = readMarkerJson(t2);
+      m2.geminiSettings = c.value;
+      writeMarkerJson(t2, m2);
+      writeFileSync(gemPath(t2), pre);
+      const i = runInstall(t2, home);
+      expect(i.status, i.stdout).toBe(3);
+      expect(verifyNaming(i.stdout).length, i.stdout).toBeGreaterThanOrEqual(1);
+      expect(gemBytes(t2).equals(pre), "install merged over a malformed ledger").toBe(true);
+      expect(readMarkerJson(t2).geminiSettings).toEqual(c.value);
+    });
+  }
+
+  it("Gemini settings ownership: supersession (a) — created, the user removes AGENTS.md, a re-install appends it: the record is the append, and uninstall restores the bytes before the re-install", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    install(target, home);
+    const before = plant(target, asInstaller({ context: { fileName: ["GEMINI.md"] } }));
+    install(target, home);
+    expect(ledgerOf(target)).toEqual({
+      createdFile: false,
+      addedEntry: true,
+      createdContext: false,
+      fileNameBefore: "array",
+      fileNameContent: sha(JSON.stringify(["GEMINI.md", "AGENTS.md"])),
+    });
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(before), gemBytes(target).toString("utf8")).toBe(true);
+  });
+
+  it("Gemini settings ownership: supersession (b) — merged into a string fileName, the user deletes the file, a re-install creates it: uninstall deletes it", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plant(target, asInstaller({ context: { fileName: "GEMINI.md" } }));
+    install(target, home);
+    rmSync(gemPath(target));
+    install(target, home);
+    expect(ledgerOf(target)).toMatchObject({ createdFile: true });
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(existsSync(gemPath(target)), r.stdout).toBe(false);
+  });
+
+  it("Gemini settings ownership: supersession (c) — the user's own entry, then removed, then a re-install appends it: uninstall removes only that entry", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plant(target, asInstaller(RECOMMENDED));
+    install(target, home);
+    expect(ledgerOf(target)).toMatchObject({ addedEntry: false });
+    const before = plant(target, asInstaller({ context: { fileName: ["GEMINI.md"] } }));
+    install(target, home);
+    expect(ledgerOf(target)).toEqual({
+      createdFile: false,
+      addedEntry: true,
+      createdContext: false,
+      fileNameBefore: "array",
+      fileNameContent: sha(JSON.stringify(["GEMINI.md", "AGENTS.md"])),
+    });
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(before)).toBe(true);
+  });
+
+  it("Gemini settings ownership: supersession (d) — an append is recorded, and the next install finds AGENTS.md listed: the record is carried and the marker is byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const before = plant(target, asInstaller({ theme: "dark" }));
+    install(target, home);
+    const m1 = readFileSync(markerPathOf(target));
+    install(target, home);
+    expect(readFileSync(markerPathOf(target)).equals(m1), "the second install changed the marker").toBe(true);
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(before)).toBe(true);
+  });
+
+  it("Gemini settings ownership: the carry needs proof — after an append the user replaces fileName with their own AGENTS.md list; a re-install claims nothing and uninstall leaves it byte-identical", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plant(target, asInstaller({ context: { fileName: ["GEMINI.md"] } }));
+    install(target, home);
+    const users = plant(target, asInstaller({ context: { fileName: ["AGENTS.md"] }, mine: true }));
+    install(target, home);
+    expect(ledgerOf(target)).toEqual({ createdFile: false, addedEntry: false, fileNameContent: sha(JSON.stringify(["AGENTS.md"])) });
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).equals(users), r.stdout).toBe(true);
+  });
+
+  it("Gemini settings ownership: the carry keeps a claim when the user only adds a key beside fileName", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    plant(target, asInstaller({ context: { fileName: ["GEMINI.md"] } }));
+    install(target, home);
+    plant(target, asInstaller({ context: { fileName: ["GEMINI.md", "AGENTS.md"] }, theme: "dark" }));
+    install(target, home);
+    expect(ledgerOf(target)).toMatchObject({ addedEntry: true });
+    const r = uninstallBoth(target, home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(gemBytes(target).toString("utf8")).toBe(asInstaller({ context: { fileName: ["GEMINI.md"] }, theme: "dark" }));
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────

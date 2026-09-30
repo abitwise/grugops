@@ -206,7 +206,7 @@ describe("R1 (DC-2): an empty directory is removed only when this run emptied it
 
 // ── R2: a marker uninstall keeps goes on naming what it removed ─────────────────────────────────
 describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run removed", () => {
-  const LEDGERS = ["claudeAskRules", "createdDirs", "createdFiles"] as const;
+  const LEDGERS = ["claudeAskRules", "createdDirs", "createdFiles", "geminiSettings"] as const;
   const RUNNABLE = "tools/grugops/reference-check.js";
 
   // What the user makes after the first uninstall: README §1's AGENTS.md copy, a runnable copy, blank
@@ -220,6 +220,10 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
     for (const rel of POINTER) if (!existsSync(abs(target, rel))) writeFileSync(abs(target, rel), "\n");
     if (!existsSync(abs(target, ".claude/settings.json"))) {
       writeFileSync(abs(target, ".claude/settings.json"), '{"permissions":{"ask":["Bash(git push *)"]}}\n');
+    }
+    // Plan 33.1-29: the user's own Gemini settings, holding their own AGENTS.md entry.
+    if (!existsSync(abs(target, ".gemini/settings.json"))) {
+      writeFileSync(abs(target, ".gemini/settings.json"), '{"context":{"fileName":["AGENTS.md"]}}\n');
     }
   }
 
@@ -250,6 +254,10 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
       if (garbled !== "claudeAskRules") {
         const led = kept.claudeAskRules as { added: string[] };
         expect(led.added, "the kept marker still lists the ask rules the run removed").toEqual([]);
+      }
+      if (garbled !== "geminiSettings") {
+        const g = kept.geminiSettings as { createdFile: boolean; addedEntry: boolean };
+        expect([g.createdFile, g.addedEntry], "the kept marker still claims the Gemini change the run reversed").toEqual([false, false]);
       }
 
       recreate(target);
