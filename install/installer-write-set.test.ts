@@ -40,6 +40,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import {
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -54,7 +55,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
-import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, runInstall } from "./installer-paths.test-support.js";
+import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, runInstall, runUninstall } from "./installer-paths.test-support.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
 
@@ -359,6 +360,97 @@ describe("a special file or a link where every directory install writes into sho
       });
     }
   }
+});
+
+// ── Hard links (red-team carry #9, plan 33.1-29) ───────────────────────────────────────────────
+// A hard link is a second name for the same file. A write, an append or a rewrite in place through
+// one name changes the file under every name, including a name outside the target. readForWrite is
+// the one question every write asks first, so the rule lives there: a regular file with more than
+// one name is `blocked`, and nothing is written, appended or rewritten through it. The path set is
+// the derived write set; one run covers every path at once, and every outside name must keep its
+// bytes. Each case links every path, then runs the binary once.
+describe("a hard link at every file path install writes or uninstall edits (red-team carry #9, plan 33.1-29)", () => {
+  // Link `rel` under `target` to a new file under `outside` that holds `bytes`; returns the outside path.
+  const hardLink = (target: string, outside: string, rel: string, bytes: Buffer | string): string => {
+    const out = join(outside, rel.split("/").join("__"));
+    writeFileSync(out, bytes);
+    const at = join(target, ...rel.split("/"));
+    mkdirSync(dirname(at), { recursive: true });
+    rmSync(at, { force: true });
+    linkSync(out, at);
+    return out;
+  };
+  const outsideBytes = (outside: string): Map<string, string> =>
+    new Map(readdirSync(outside).map((n) => [n, readFileSync(join(outside, n)).toString("base64")]));
+
+  it("hard links: install over a hard link at every file path it writes changes no outside name (exit 3, no stack trace)", () => {
+    const root = fresh("hl-install");
+    const target = join(root, "target");
+    const outside = join(root, "outside");
+    const home = join(root, "home");
+    for (const d of [target, outside, home]) mkdirSync(d);
+    // A JSON path gets a JSON object install would merge into (.gemini/settings.json,
+    // .claude/settings.json), so the refusal is asked of the merge and not of a parse failure.
+    for (const rel of WRITE_FILES) hardLink(target, outside, rel, rel.endsWith(".json") ? `{"outside":${JSON.stringify(rel)}}\n` : `OUTSIDE ${rel}\n`);
+    const before = outsideBytes(outside);
+    expect(before.size).toBe(WRITE_FILES.length);
+    const r = runInstaller(target, home, 120_000);
+    expect(r.error, "the run did not finish").toBeUndefined();
+    expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
+    const changed = [...outsideBytes(outside)].filter(([n, b]) => before.get(n) !== b).map(([n]) => n);
+    expect(changed, `install wrote through a hard link, changing the outside name(s)\n${r.stdout.slice(-3000)}`).toEqual([]);
+    expect(r.status, `${r.stdout.slice(-3000)}\n${r.stderr}`).toBe(3);
+  });
+
+  it("hard links: uninstall over an installed tree whose every file is hard-linked outside changes no outside name (real and DRY_RUN)", () => {
+    for (const dry of [false, true]) {
+      const root = fresh(`hl-uninstall-${dry ? "dry" : "real"}`);
+      const target = join(root, "target");
+      const outside = join(root, "outside");
+      const home = join(root, "home");
+      for (const d of [target, outside, home]) mkdirSync(d);
+      const i = runInstaller(target, home, 120_000);
+      expect(i.status, i.stdout).toBe(0);
+      const files = walk(target).files.filter((rel) => rel !== MARKER_REL);
+      expect(files.length).toBe(WRITE_FILES.length - 1);
+      for (const rel of files) hardLink(target, outside, rel, readFileSync(join(target, ...rel.split("/"))));
+      const before = outsideBytes(outside);
+      const r = runUninstall(target, join(home, ".grugops"), { home, dryRun: dry, timeoutMs: 120_000 });
+      expect(r.error, "the run did not finish").toBeUndefined();
+      expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
+      const changed = [...outsideBytes(outside)].filter(([n, b]) => before.get(n) !== b).map(([n]) => n);
+      expect(changed, `${dry ? "DRY_RUN " : ""}uninstall rewrote through a hard link\n${r.stdout.slice(-3000)}`).toEqual([]);
+    }
+  });
+
+  it("hard links: a never-installed repository whose marker is a hard link to an installed repository's marker is changed by zero bytes", () => {
+    const root = fresh("hl-marker");
+    const a = join(root, "a");
+    const b = join(root, "b");
+    const home = join(root, "home");
+    for (const d of [a, b, home]) mkdirSync(d);
+    const i = runInstaller(a, home, 120_000);
+    expect(i.status, i.stdout).toBe(0);
+    const marker = JSON.parse(readFileSync(join(a, ...MARKER_REL.split("/")), "utf8")) as { createdFiles: Record<string, string> };
+    // B holds its own copies of exactly the files A's ledgers govern (no kit skill or adapter, which
+    // are removed by name until plan 33.1-30), and A's marker under a second name.
+    const governed = [...Object.keys(marker.createdFiles), ".gemini/settings.json", ".claude/settings.json"];
+    for (const rel of governed) {
+      const to = join(b, ...rel.split("/"));
+      mkdirSync(dirname(to), { recursive: true });
+      writeFileSync(to, readFileSync(join(a, ...rel.split("/"))));
+    }
+    mkdirSync(join(b, ".grugops"));
+    linkSync(join(a, ...MARKER_REL.split("/")), join(b, ...MARKER_REL.split("/")));
+    const aMarker = readFileSync(join(a, ...MARKER_REL.split("/")));
+    const bBefore = walk(b).files.map((rel) => `${rel} ${readFileSync(join(b, ...rel.split("/"))).toString("base64")}`);
+    const r = runUninstall(b, join(home, ".grugops"), { home, timeoutMs: 120_000 });
+    expect(r.error).toBeUndefined();
+    expect(r.stderr).not.toMatch(NO_STACK);
+    const bAfter = existsSync(b) ? walk(b).files.map((rel) => `${rel} ${readFileSync(join(b, ...rel.split("/"))).toString("base64")}`) : [];
+    expect(bAfter, `uninstall acted on another repository's marker through a hard link\n${r.stdout.slice(-3000)}`).toEqual(bBefore);
+    expect(readFileSync(join(a, ...MARKER_REL.split("/"))).equals(aMarker), "A's marker changed").toBe(true);
+  });
 });
 
 // ── The shared kit's VERSION (finding 1) ───────────────────────────────────────────────────────

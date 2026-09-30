@@ -45,6 +45,7 @@ import {
   symlinkSync,
   cpSync,
   readlinkSync,
+  linkSync,
 } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -6650,6 +6651,35 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
     expect(gemBytes(target).equals(users), r.stdout).toBe(true);
+  });
+
+  it("Gemini settings ownership: a settings file hard-linked outside the target is never merged or rewritten through the link (red-team carry #9)", () => {
+    const home = mkTmp();
+    const outsideDir = mkTmp();
+    // Install: the user's file is a second name for a file outside the target.
+    const t1 = makeFixture();
+    const out1 = join(outsideDir, "one.json");
+    writeFileSync(out1, asInstaller({ theme: "dark" }));
+    mkdirSync(join(t1, ".gemini"));
+    linkSync(out1, gemPath(t1));
+    const b1 = readFileSync(out1);
+    const i = runInstall(t1, home);
+    expect(i.status, i.stdout).toBe(3);
+    expect(verifyNaming(i.stdout).length, i.stdout).toBe(1);
+    expect(readFileSync(out1).equals(b1), "install merged through a hard link").toBe(true);
+    // Uninstall: a recorded append, and the merged file then hard-linked outside.
+    const t2 = makeFixture();
+    plant(t2, asInstaller({ theme: "dark" }));
+    install(t2, home);
+    const out2 = join(outsideDir, "two.json");
+    writeFileSync(out2, gemBytes(t2));
+    rmSync(gemPath(t2));
+    linkSync(out2, gemPath(t2));
+    const b2 = readFileSync(out2);
+    const r = uninstallBoth(t2, home);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyNaming(r.stdout).length, r.stdout).toBe(1);
+    expect(readFileSync(out2).equals(b2), "uninstall rewrote through a hard link").toBe(true);
   });
 
   it("Gemini settings ownership: the carry keeps a claim when the user only adds a key beside fileName", () => {
