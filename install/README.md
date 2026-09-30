@@ -59,7 +59,53 @@ DRY_RUN=1 node install/install.js
 
 # Put the shared kit somewhere other than ~/.grugops:
 GRUGOPS_HOME=/opt/grugops node install/install.js --target /path/to/repo
+
+# Re-install with no terminal (an agent, CI) over grugops skills or adapters you edited:
+# back each edited file up next to itself, then refresh the whole kit (see "Re-installing"):
+node install/install.js --yes --backup-edited-kit --target /path/to/repo
 ```
+
+### Re-installing over an existing install (your edits to the kit files, D-32)
+
+Before it writes any grugops skill or adapter file (`.claude/skills/grugops*/SKILL.md` and
+`.claude/agents/grugops-*.md`), install checks each one it would replace against its record of what
+it wrote there (the `kitFiles` ledger in `.grugops/install.json`). If you edited any of them, install
+lists them (an `edited-kit` line each) and, at a terminal, asks whether to back them up and overwrite
+the whole kit, `[y/N]`, default no.
+
+- **Yes:** each edited file is first copied next to itself as `<file>.grugops-edited-<UTC stamp>`
+  (for example `grugops-qe-e2e.md.grugops-edited-2026-09-30T10-54-21.203Z`), then the whole kit is
+  refreshed. Uninstall never removes a backup; it reports each one `left`.
+- **No:** nothing in the kit changes. The run exits `3` with a `verify` line naming the files.
+- **No terminal, or `--yes`:** install asks nothing and changes nothing in the kit. `--yes` answers
+  only the target question, never whether an edit may be overwritten. The run exits `3` and tells you
+  to re-run with **`--backup-edited-kit`**, the explicit opt-in that gives the yes answer without a
+  prompt.
+- **`DRY_RUN=1`** asks nothing and lists each backup it would make (`would-back-up`). Without
+  `--backup-edited-kit` it exits `3`, as the real unattended run would; with it, it previews the
+  backups and the kit write and exits `0`.
+
+With no usable record (no marker, a marker that is not this directory's record, including one written
+before this release, or a damaged `kitFiles`), a skill or adapter counts as edited when it differs from
+its kit source file, so the first re-install over an older install asks once. Measured on an install
+made by the 2.1.0 installer: one file, the Orchestrator wrapper, differs and is listed. A `--migrate`
+over the old single-root layout is the same case: its skills and adapters have no record, so an
+unattended `--migrate` needs `--backup-edited-kit` and refuses the whole migration without it.
+
+When the kit is not refreshed (no answer, the answer no, or a refusal), nothing in the kit changes,
+and the other steps still run (the runnables, the pointer blocks, the settings). The marker keeps
+the kit version it had, so after a newer kit was copied to the shared kit home, `install.js --check`
+warns `kit-version skew` until a refresh succeeds. Install checks every kit file and renders every
+adapter before it writes the first one, so a refusal never leaves some kit files new and others old.
+One residual remains (T-33.1-312): if the operating system itself fails partway through the kit write
+(a full disk, or a permission error after every check passed), some kit files can already be
+written. Install reports each file that failed as a counted `verify` line naming it, and the next
+run's checks see that state and check it again.
+
+The shared kit home is different. A re-install replaces `${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory`
+with a fresh copy of the kit, so an edit you made inside the shared kit home is overwritten, with no
+backup and no question. That is accepted for now (human decision, 2026-09-30); a backup of kit-home
+edits is deferred. Keep your own changes in the target repository, not in the shared kit home.
 
 ### Exit codes — what the installer tells a script
 
@@ -165,12 +211,22 @@ source checkout, pass **`--allow-self`** (or `--force`) to override it.
 In the **target repo**:
 
 - `.claude/skills/grugops*/SKILL.md` — the seven standalone skills
-- `.claude/agents/grugops-orchestrator.md` — the Orchestrator subagent wrapper
+- `.claude/agents/grugops-*.md` — the Orchestrator subagent wrapper and the role adapters (17
+  files in this release)
 - the two **resolver adapters** (`.claude/skills/grugops/SKILL.md` and the orchestrator
   wrapper) have the resolved absolute kit path **materialized** into them, so `/grugops`
   resolves the shared kit on first run with no path error
+- for every skill and adapter file above, install records in `.grugops/install.json`, as
+  `kitFiles`, what it wrote there (a sha256 of the bytes, or the target of a `--symlink` link), so
+  uninstall removes only a file that still holds exactly that, and a re-install asks before it
+  overwrites one you edited (see "Re-installing" above)
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
-  existing content is preserved)
+  existing content is preserved). When `CLAUDE.md` does not exist, install creates it and records
+  that in `.grugops/install.json` (`createdFiles`); the block it appended is recorded as
+  `appendedBlocks`. A `CLAUDE.md` that is a symbolic link (the common `CLAUDE.md -> AGENTS.md`
+  setup included) or a hard link is not written through: install reports a `verify` line (exit
+  `3`), leaves it and the file it points at unchanged, and adds no pointer; add the line by hand if
+  you want it
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"`, and what install did is
   recorded in `.grugops/install.json` as `geminiSettings` so the uninstaller can reverse exactly
   that. The entry is inserted into the file's text in place: every other byte of the file (numbers
@@ -185,17 +241,23 @@ In the **target repo**:
   rules are recorded so uninstall removes exactly those)
 - `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
   `tools/grugops/host-protection.js` (§5)
-- an optional `.github/copilot-instructions.md` pointer
+- an optional `.github/copilot-instructions.md` pointer, by the same rules as `CLAUDE.md`: when the
+  file does not exist, install creates it and records that (`createdFiles`), and the block is
+  recorded as `appendedBlocks`
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
 
 In the **shared kit root** (`${GRUGOPS_HOME:-$HOME/.grugops}`):
 
-- `agent-factory/` — the read-only kit, copied once and shared across repos
+- `agent-factory/` — the read-only kit, copied once and shared across repos. A re-install replaces
+  it with a fresh copy, so an edit made inside it is overwritten (see "Re-installing" above)
 
 It never overwrites or deletes any file you own. Existing seeded state is left byte-untouched on
 re-install (skip-if-exists), and `agent-factory/`, `plans/`, `.planning/`, `docs/`, and `src/`
-in your target are never modified beyond the additive edits above.
+in your target are never modified beyond the additive edits above. A path the installer reads or
+writes that is not what it expects (a FIFO, a directory, a device, a symbolic link it did not make,
+or a hard link) is skipped and reported as a `verify` line, never read or written through, so the
+installer cannot hang on it (see the exit-code paragraph above).
 
 ### Undo
 
@@ -358,6 +420,48 @@ cannot be read, the uninstaller reports a `verify` finding, removes no empty dir
 `3`. `tools/` is always left, even when install created it: a project is likely to use a directory
 of that name itself.
 
+**In short, uninstall acts only on a record, and leaves everything else:**
+
+- It changes `.gemini/settings.json` only as the `geminiSettings` record says: it removes the entry
+  install added and restores the shape install found, and it deletes the file only when install
+  created it and it is unchanged, or holds nothing else once that entry is removed.
+- It deletes `CLAUDE.md` or `.github/copilot-instructions.md` only when install created the file
+  (`createdFiles`), the file held exactly what install wrote, and it is blank once the grugops block
+  (`appendedBlocks`) is removed. Otherwise it removes only the block, and only while the block is
+  exactly what install appended.
+- It removes a grugops skill or adapter file (`.claude/skills/grugops*/SKILL.md`,
+  `.claude/agents/grugops-*.md`) only while that file is still exactly what install wrote: its
+  recorded content, or its recorded link (`kitFiles`). A file you edited is left in place and reported
+  `left`, and so is every `.grugops-edited-` backup a re-install made; uninstall never removes a
+  backup.
+- It removes the Claude Code ask rules install recorded adding (`claudeAskRules`), and deletes
+  `.claude/settings.json` only when install created it and nothing else is left in it.
+- It removes `.grugops/install.json` only when it reads as grugops's install marker for this
+  directory and every ledger in it is well-formed.
+- A file with no install record is left untouched and reported, with what to remove by hand.
+- A path uninstall reads that is not a regular file (a FIFO, a directory, a device) is skipped and
+  reported, never read, so install and uninstall cannot hang on it.
+- An unreadable record, or a malformed one, is a `verify` finding and exit `3`.
+
+Two known exceptions in the ask-rule record are open, pending a human decision (red-team items 12
+and 13 of phase 33.1, stated here so the list above is not read as covering them). The uninstaller
+removes an ask rule by its name in the record and does not check `permissions.ask` against what
+install left there, so a rule you deleted after install and later added again yourself, with the same
+text, is removed. And a re-install over a `.claude/settings.json` it cannot read (a hard link, for
+example) resets the ask-rule record to claim nothing, so the next uninstall leaves grugops's rules in
+the file and says there is no record that install added them; remove them by hand.
+
+**An install made before this release** (2.1.0 and earlier) wrote a marker with none of these
+records and no `target`. The uninstaller does not use it: it changes nothing, exits `3`, and its
+`verify` line gives the remedy. If it is this repository, set `"target"` in the marker to the path the
+line names and re-run the uninstaller: measured on an install made by the 2.1.0 installer, it then
+removes the six skills that are byte-identical to the kit source, and the marker, and leaves and
+reports the rest (every adapter and the resolver skill, which carry the kit path; the pointer blocks;
+`AGENTS.md`; the runnables; the Gemini entry; the directories), for you to remove by hand. Re-running
+the installer instead replaces the marker with one for this directory; what the earlier install made
+has no record in it, so a later uninstall leaves those files (the pointer blocks, `AGENTS.md`, the
+earlier runnables, the Gemini entry) and reports them.
+
 It deliberately does **not** touch:
 
 - the **shared kit** at `${GRUGOPS_HOME:-$HOME/.grugops}` — other repos depend on it, so
@@ -368,6 +472,11 @@ It deliberately does **not** touch:
   `createdDirs` in `.grugops/install.json`) is removed
 - a **file install did not create** — a blank `CLAUDE.md` or Copilot file, or a copy of the kit's
   `AGENTS.md` or runnables, is removed only when `createdFiles` records that install created it
+- a **Gemini settings, Copilot instructions or `CLAUDE.md` file install has no record of creating
+  or changing** — it is left byte for byte
+- a **grugops skill or adapter file you edited** — it no longer holds what `kitFiles` records, so it
+  is left and reported
+- every **`.grugops-edited-` backup** a re-install made of an edited kit file
 - `agent-factory/`, `.planning/`, `docs/`, `src/`, or any file you own
 
 ### Migrating an existing install (`--migrate`)

@@ -50,6 +50,37 @@ release, together with Phase 33.1, which retires the Bash command guard.
   PreToolUse parser (33.1 D-21).
 - The `open_pr` and `test_integrity` checkpoints are prose-tier rules. No hook enforces them, and
   every document says so (33.1 D-26).
+- A re-install no longer overwrites a grugops skill or adapter file you edited without asking
+  (33.1 D-32). At a terminal it lists the edited files and asks whether to back them up, as
+  `<file>.grugops-edited-<UTC stamp>`, and refresh the whole kit (default no). Without a terminal,
+  and with `--yes` (which answers only the target question), it writes no kit file and exits `3`;
+  the new flag `--backup-edited-kit` gives the answer explicitly. Backups are written whole and are
+  never removed by uninstall. The first re-install over an install made before this release asks
+  once, and an unattended `--migrate` over the old layout needs `--backup-edited-kit`.
+- The kit write is all or nothing: install checks every kit file and renders every adapter before it
+  writes the first one, and a refusal leaves every kit file as it was. `--migrate` is whole or not at
+  all in the same way. A run that writes no kit file keeps the marker's kit record and kit version,
+  so `--check` warns about the version skew until a refresh succeeds.
+- The install marker is bound to its directory: install records `target`, the real path of the
+  repository. A repository that is moved, renamed, copied or cloned with its marker reads as not
+  installed there: uninstall changes nothing and names the remedy (set `target` by hand for the same
+  repository, or re-run install), and `--check` warns. A re-install re-binds the marker and carries
+  none of the old records, so files the earlier install made are then left and reported by uninstall.
+- An install made before this release (2.1.0 and earlier) has no `target` and none of the new
+  records, so uninstall changes nothing on it and gives the remedy. After the remedy, it removes only
+  what it can prove (the skills byte-identical to the kit, and the marker) and leaves and reports the
+  rest for removal by hand. See `install/README.md`, "Undo".
+- `.claude/settings.json` and `.gemini/settings.json` are edited in place: only the entries install
+  adds or removes change, and every other byte (number spelling, key order, spacing, line ends) is
+  kept, so install followed by uninstall gives the file back byte for byte. A settings file with a
+  comment, a trailing comma, bytes that are not UTF-8 or a duplicate key on the edited path is
+  refused (`verify`, exit `3`) and left untouched.
+- A symbolic link at a path install writes, including the common `CLAUDE.md -> AGENTS.md` link, is
+  no longer written through: install reports a `verify` line (exit `3`) and adds no pointer there.
+- `INSTALL_MODE` other than `copy` or `symlink` is bad usage (exit `2`) before anything is written.
+- Known and accepted: a re-install replaces the shared kit home (`~/.grugops/agent-factory`) with a
+  fresh copy, so an edit made there is overwritten with no backup (human decision, 2026-09-30; a
+  backup of kit-home edits is deferred).
 
 - The coordinator adapter's `tools:` grant carries the plugin's MCP admission tool under the
   platform's scoped name, `mcp__plugin_grugops_grugops__propose_note`, through a new `admit`
@@ -66,9 +97,35 @@ release, together with Phase 33.1, which retires the Bash command guard.
 ### Fixed
 
 - A `DRY_RUN=1` uninstall no longer removes directories, and uninstall removes an empty directory
-  only when install created it (recorded as `createdDirs` in `.grugops/install.json`) or its own
-  name begins with `grugops`. An empty `.github/`, `.gemini/` or `.claude/` directory you made
-  yourself is left and reported (33.1 gap round 1, CR-02).
+  only when install created it (recorded as `createdDirs` in `.grugops/install.json`) and the same
+  run emptied it; a directory's name is not a record (33.1 gap round 2 dropped the round-1 rule that
+  a name beginning with `grugops` was enough). An empty `.github/`, `.gemini/` or `.claude/`
+  directory you made yourself is left and reported (33.1 gap round 1, CR-02).
+- Uninstall no longer deletes or edits a Gemini settings file it has no install record for, and
+  reverses exactly what install recorded as `geminiSettings`: it removes the entry install added,
+  restores the shape install found, and deletes the file only when install created it and it is
+  unchanged or holds nothing else. If `context.fileName` changed after install, the file is left
+  byte for byte (33.1 gap round 2, CR-03).
+- Uninstall deletes a blank Copilot instructions file or `CLAUDE.md` only when install created it
+  (`createdFiles`) and the file held exactly what install wrote; a blank file you made yourself is
+  left (33.1 gap round 2, WR-05). The pointer blocks are removed only on install's `appendedBlocks`
+  record, only while they are exactly what install appended, and without joining two of your lines.
+- Uninstall removes a grugops skill or adapter file only while it is exactly what install wrote
+  (the `kitFiles` record), so an edited one is left and reported; `AGENTS.md` and the runnables are
+  removed only on the `createdFiles` record. In a repository grugops was never installed into,
+  uninstall changes nothing.
+- Uninstall removes `.grugops/install.json` only when it is install's own marker for this directory
+  with well-formed ledgers; install no longer overwrites a JSON object at that path that is not its
+  marker.
+- Install reports an unreadable or oddly shaped Gemini settings file (not strict JSON, not UTF-8, a
+  duplicate key on the edited path, a `context` that is not an object) as a counted `verify` finding
+  (exit `3`) and leaves it untouched.
+- Install, uninstall and `--check` no longer read, write or hang on a FIFO or other special file at
+  a path they use, including `.grugops/install.json` and the kit `VERSION`; the path is skipped and
+  reported (33.1 gap round 2, IN-04).
+- Install and uninstall no longer write through a symbolic link they did not make, or a hard link:
+  such a path is a counted `verify` finding (exit `3`) and is left as it was, so nothing outside the
+  repository is changed through it.
 - Install fails closed on a malformed or unreadable ask-rule ledger in `.grugops/install.json`: it
   reports a `verify` finding, adds no rule and leaves the ledger as it found it, instead of
   relabelling the grugops rules as your own and overwriting the ledger (WR-05). Install and
