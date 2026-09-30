@@ -248,3 +248,158 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
     expect(r2.stdout).toMatch(/^ {2}left\s+CLAUDE\.md start-here pointer \(there is no record that install appended this block/m);
   });
 });
+
+// ── red-team B1 of plan 33.1-33: the separator newline ─────────────────────────────────────────────
+// Install appends `\n` + the block lines to the END of the file. The `\n` is a separator: it made a
+// blank line (the file was empty, absent, or ended with a newline) or it ended the user's last line
+// (the file ended without one). The plan-33 build removed `\n<open>…<close>\n` wherever it was, so
+// the `\n` it took could be the user's: moving the block lines between two lines joined them
+// (`L1L2`), deleting the blank line took the final newline (`L1\nL2`), and text added after a block
+// in a file with no final newline was glued to the last line (`L1MORE`).
+//
+// THE RULE (stated here, independently of the implementation, and checked for every case below):
+//   - the block LINES (open line through close line and its newline, exactly the bytes the record
+//     proves) are removed wherever the one matching copy is. They are whole lines, so removing them
+//     never joins two lines;
+//   - the separator newline before them is removed only when the block is still at the END of the
+//     file, where install appended it, and the record and the bytes before it agree that it is
+//     install's: for a `blank-line` separator the line before the block must be blank; for a
+//     `line-end` separator (the file had no final newline) the newline is install's by the record;
+//   - otherwise the separator stays: a moved block, or one with text after it, loses its lines and
+//     keeps the newline before it, because which newline install added can no longer be shown.
+// Every user byte survives, no two lines are joined, and a file the user did not touch comes back
+// byte for byte.
+describe("the separator newline is removed only when it is provably install's (red-team B1 of plan 33.1-33)", () => {
+  const COPILOT_CLOSE_LINE = "<!-- GSD:grugops-copilot-start-here-end -->";
+  const CLAUDE_CLOSE_LINE = "<!-- GSD:grugops-start-here-end -->";
+  const FILES = [
+    { rel: "CLAUDE.md", open: CLAUDE_OPEN, close: CLAUDE_CLOSE_LINE, label: "CLAUDE\\.md start-here pointer" },
+    { rel: COPILOT, open: COPILOT_OPEN, close: COPILOT_CLOSE_LINE, label: "\\.github\\/copilot-instructions\\.md pointer" },
+  ] as const;
+  // What the file held before install (null: absent, install creates it).
+  const SHAPES: ReadonlyArray<readonly [string, string | null]> = [
+    ["absent", null],
+    ["empty", ""],
+    ["ends with a newline", "L1\nL2\n"],
+    ["no final newline", "L1\nL2"],
+    ["ends with a blank line", "L1\n\n"],
+    ["CRLF", "L1\r\nL2\r\n"],
+  ];
+  type Mut = (orig: string, block: string) => string | null;
+  // Each mutation is applied to the installed file, `orig + "\n" + block`. null: not applicable.
+  const firstLineEnd = (orig: string): number => orig.indexOf("\n") + 1;
+  const MUTATIONS: ReadonlyArray<readonly [string, Mut]> = [
+    ["as installed", (o, b) => `${o}\n${b}`],
+    ["blank line before the block deleted", (o, b) => (o === "" || o.endsWith("\n") ? `${o}${b}` : null)],
+    ["block lines moved after the first line", (o, b) => (firstLineEnd(o) > 0 ? `${o.slice(0, firstLineEnd(o))}${b}${o.slice(firstLineEnd(o))}\n` : null)],
+    ["block moved with its blank line after the first line", (o, b) => (firstLineEnd(o) > 0 ? `${o.slice(0, firstLineEnd(o))}\n${b}${o.slice(firstLineEnd(o))}` : null)],
+    ["text added after the block", (o, b) => `${o}\n${b}MORE\n`],
+    ["a line added at the top", (o, b) => `TOP\n${o}\n${b}`],
+    ["block lines moved to the top of the file", (o, b) => `${b}${o}\n`],
+  ];
+
+  /** The rule above, as bytes: what uninstall must leave for `pre` (the file before uninstall). */
+  function expected(pre: string, block: string, orig: string): string {
+    const k = pre.indexOf(block);
+    const u = pre.slice(0, k) + pre.slice(k + block.length);
+    const atEnd = k + block.length === pre.length;
+    if (!atEnd || k === 0) return u;
+    const lineEnd = orig !== "" && !orig.endsWith("\n");
+    if (lineEnd) return u.slice(0, -1);
+    return u === "\n" || u.endsWith("\n\n") ? u.slice(0, -1) : u;
+  }
+
+  for (const [shapeName, orig] of SHAPES) {
+    for (const [mutName, mut] of MUTATIONS) {
+      const o = orig ?? "";
+      const probe = mut(o, "B\n");
+      if (probe === null) continue;
+      it(`${shapeName} + ${mutName}: every user byte survives, no line is joined, and the preview matches the real run (CLAUDE.md and Copilot)`, () => {
+        const b = box("sep");
+        for (const f of FILES) if (orig !== null) put(b, f.rel, orig);
+        install(b);
+        const pre = new Map<string, string>();
+        for (const f of FILES) {
+          const installed = bytes(b, f.rel).toString("utf8");
+          const k = installed.lastIndexOf(`${f.open}\n`);
+          expect(k, `PREMISE: install appended the block to ${f.rel}`).toBeGreaterThan(0);
+          const block = installed.slice(k);
+          expect(installed, `PREMISE: install appended "\\n" + block to ${f.rel}`).toBe(`${o}\n${block}`);
+          expect(block.endsWith(`${f.close}\n`)).toBe(true);
+          const p = mut(o, block) as string;
+          writeFileSync(at(b, f.rel), p);
+          pre.set(f.rel, p);
+        }
+        const before = snapshotTree(b.t);
+        const dry = uninstall(b, true);
+        expect(snapshotTree(b.t), `DRY_RUN changed the target\n${dry.stdout}`).toBe(before);
+        const r = uninstall(b);
+        expect([0, 3], r.stdout).toContain(r.status);
+        for (const f of FILES) {
+          const p = pre.get(f.rel) as string;
+          const block = p.slice(p.indexOf(`${f.open}\n`), p.indexOf(`${f.close}\n`) + f.close.length + 1);
+          const want = expected(p, block, o);
+          const gone = orig === null && mutName === "as installed";
+          if (gone) {
+            expect(existsSync(at(b, f.rel)), `${f.rel}: install created it and it holds only what install wrote\n${r.stdout}`).toBe(false);
+          } else {
+            expect(existsSync(at(b, f.rel)), `${f.rel} was deleted\n${r.stdout}`).toBe(true);
+            expect(JSON.stringify(bytes(b, f.rel).toString("utf8")), `${f.rel}: before uninstall ${JSON.stringify(p)}\n${r.stdout}`).toBe(JSON.stringify(want));
+          }
+          // The preview names what the real run did: a would-remove line exactly when a removed line.
+          const removedRe = new RegExp(`^ {2}removed\\s+${f.label} \\(sentinel block`, "m");
+          const wouldRe = new RegExp(`^ {2}would-remove\\s+${f.label} \\(sentinel block`, "m");
+          expect(removedRe.test(r.stdout), `${f.rel}: the block lines were not removed\n${r.stdout}`).toBe(true);
+          expect(wouldRe.test(dry.stdout), `${f.rel}: the preview does not name the removal\n${dry.stdout}`).toBe(true);
+        }
+      });
+    }
+  }
+
+  it("the three repros, literally: moved lines are not joined, a deleted blank line keeps the final newline, text after a block in a file with no final newline keeps its own line", () => {
+    const cases: ReadonlyArray<readonly [string, Mut, string]> = [
+      ["L1\nL2\n", (_o, b) => `L1\n${b}L2\n\n`, "L1\nL2\n\n"],
+      ["L1\nL2\n", (_o, b) => `L1\nL2\n${b}`, "L1\nL2\n"],
+      ["L1", (_o, b) => `L1\n${b}MORE\n`, "L1\nMORE\n"],
+    ];
+    for (const [orig, mut, want] of cases) {
+      const b = box("repro");
+      put(b, "CLAUDE.md", orig);
+      install(b);
+      const installed = bytes(b, "CLAUDE.md").toString("utf8");
+      writeFileSync(at(b, "CLAUDE.md"), mut(orig, installed.slice(installed.indexOf(`${CLAUDE_OPEN}\n`))) as string);
+      const r = uninstall(b);
+      expect(JSON.stringify(bytes(b, "CLAUDE.md").toString("utf8")), r.stdout).toBe(JSON.stringify(want));
+    }
+  });
+
+  it("install records the separator it supplied: `blank-line` after a newline or into an empty or new file, `line-end` after a last line with no newline", () => {
+    for (const [orig, sep] of [["L1\n", "blank-line"], ["", "blank-line"], [null, "blank-line"], ["L1", "line-end"]] as const) {
+      const b = box("sep-record");
+      if (orig !== null) put(b, "CLAUDE.md", orig);
+      install(b);
+      const rec = (marker(b).appendedBlocks as Record<string, { block: string; separator: string }>)["CLAUDE.md"];
+      const installed = bytes(b, "CLAUDE.md").toString("utf8");
+      const lines = installed.slice(installed.indexOf(`${CLAUDE_OPEN}\n`));
+      expect(rec, JSON.stringify(marker(b).appendedBlocks)).toEqual({ block: sha(lines), separator: sep });
+    }
+  });
+
+  for (const [what, edit] of [
+    ["converted to CRLF line ends", (s: string) => s.replace(/\n/g, "\r\n")],
+    ["with trailing spaces on the close line", (s: string) => s.replace(`${CLAUDE_CLOSE_LINE}\n`, `${CLAUDE_CLOSE_LINE}   \n`)],
+  ] as const) {
+    it(`wording: a block ${what} is left, and the reason says it no longer matches what install recorded (not "without a matching close marker")`, () => {
+      const b = box("wording");
+      put(b, "CLAUDE.md", "# Mine\n");
+      install(b);
+      writeFileSync(at(b, "CLAUDE.md"), edit(bytes(b, "CLAUDE.md").toString("utf8")));
+      const before = bytes(b, "CLAUDE.md");
+      const r = uninstall(b);
+      expect(bytes(b, "CLAUDE.md").equals(before), r.stdout).toBe(true);
+      const line = r.stdout.split("\n").find((l) => /^ {2}left\s+CLAUDE\.md start-here pointer/.test(l)) ?? "";
+      expect(line, r.stdout).toMatch(/no longer matches the block install recorded appending/);
+      expect(line).not.toMatch(/without a matching close marker/);
+    });
+  }
+});

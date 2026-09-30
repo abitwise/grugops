@@ -49,7 +49,7 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -211,6 +211,77 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(it does not read as a grugops install marker/m);
     });
   }
+
+  // Red-team B2 of plan 33.1-33 (brief DC-2): a marker is install's record for the directory it was
+  // written in. A marker that is not install's own for THIS directory proves nothing here, however
+  // well it is formed:
+  //   FC  a whole installed tree copied from another directory, marker and all (`cp -r`, or README
+  //       §1's copy path plus a `.grugops/` copied from another installed repository). Its ledgers
+  //       describe the other directory, and every file here holds install's bytes, so without a
+  //       binding the copied createdFiles, createdDirs and kitFiles records all "held".
+  //   FL  the same with the marker's `target` field taken out: a marker written before markers were
+  //       bound to their directory. It cannot show which directory it describes.
+  //   FH  a hand-made marker at the marker path: empty strings, an installMode that is not copy or
+  //       symlink, relative paths, a `target` naming another directory, and an install-shaped marker
+  //       with no `target`.
+  // Each is changed by zero bytes, real and DRY_RUN, and the marker is left.
+  const handMade = (t: string): ReadonlyArray<readonly [string, string]> => [
+    ["empty strings and installMode banana", JSON.stringify({ grugopsHome: "", kitRoot: "", installMode: "banana" })],
+    ["installMode banana with absolute paths", JSON.stringify({ grugopsHome: "/x", kitRoot: "/x/agent-factory", installMode: "banana" })],
+    ["relative paths", JSON.stringify({ kitVersion: "2.1.0", grugopsHome: "home", kitRoot: "home/agent-factory", installMode: "copy" })],
+    ["install-shaped, no target", JSON.stringify({ kitVersion: "2.1.0", grugopsHome: "/x", kitRoot: "/x/agent-factory", installMode: "copy" })],
+    ["install-shaped, target names another directory", JSON.stringify({ kitVersion: "2.1.0", grugopsHome: "/x", kitRoot: "/x/agent-factory", installMode: "copy", target: `${t}-elsewhere` })],
+    ["install-shaped, target not a string", JSON.stringify({ kitVersion: "2.1.0", grugopsHome: "/x", kitRoot: "/x/agent-factory", installMode: "copy", target: 5 })],
+  ];
+  for (const dryRun of [false, true]) {
+    const mode = dryRun ? "DRY_RUN" : "real";
+    for (const v of ["default", "symlink", "migrate", "checkpoints-notify"] as const) {
+      it(`FC (the ${v} variant's installed tree copied to another directory, marker and all), ${mode}: zero bytes changed, the marker is left`, () => {
+        const t = fresh(`fc-${v}-${mode}`);
+        cpSync(SET.variant(v).target, t, { recursive: true, verbatimSymlinks: true });
+        const o = uninstallAndDiff(t, dryRun);
+        expectZeroBytes(o, `FC ${v} ${mode}`);
+        expect(o.run.status, o.run.stdout).toBe(3);
+        expect(o.run.stdout).toMatch(/^ {2}left\s+\.grugops\/install\.json \(/m);
+      });
+      it(`FL (the ${v} variant's installed tree with a marker written before markers were bound), ${mode}: zero bytes changed`, () => {
+        const t = fresh(`fl-${v}-${mode}`);
+        cpSync(SET.variant(v).target, t, { recursive: true, verbatimSymlinks: true });
+        const mp = join(t, ...MARKER_REL.split("/"));
+        const m = JSON.parse(readFileSync(mp, "utf8")) as Record<string, unknown>;
+        delete m.target;
+        writeFileSync(mp, JSON.stringify(m, null, 2) + "\n");
+        const o = uninstallAndDiff(t, dryRun);
+        expectZeroBytes(o, `FL ${v} ${mode}`);
+        expect(o.run.status, o.run.stdout).toBe(3);
+      });
+    }
+    it(`FH (hand-made markers over the default install's bytes), ${mode}: zero bytes changed for every shape`, () => {
+      const probe = fresh(`fh-${mode}`);
+      for (const [what, body] of handMade(probe)) {
+        const t = fresh(`fh-${mode}`);
+        copyInstalled(t, "default", body.split(`${probe}-elsewhere`).join(`${t}-elsewhere`) + "\n");
+        const o = uninstallAndDiff(t, dryRun);
+        expectZeroBytes(o, `FH ${what} ${mode}`);
+        expect(o.run.status, `${what}\n${o.run.stdout}`).toBe(3);
+      }
+    });
+  }
+
+  it("the README §1 repro: AGENTS.md and a runnable copied by hand, plus .grugops/ copied from another installed repository: uninstall changes zero bytes, and the user's tools/grugops/ stays", () => {
+    const other = SET.variant("default").target;
+    for (const dryRun of [false, true]) {
+      const t = fresh(`readme1-${dryRun ? "dry" : "real"}`);
+      cpSync(join(other, "AGENTS.md"), join(t, "AGENTS.md"));
+      mkdirSync(join(t, "tools", "grugops"), { recursive: true });
+      cpSync(join(other, "tools", "grugops", "host-protection.js"), join(t, "tools", "grugops", "host-protection.js"));
+      mkdirSync(join(t, ".grugops"), { recursive: true });
+      cpSync(join(other, ".grugops", "install.json"), join(t, ".grugops", "install.json"));
+      cpSync(join(other, ".grugops", "factory.config.json"), join(t, ".grugops", "factory.config.json"));
+      const o = uninstallAndDiff(t, dryRun);
+      expectZeroBytes(o, `README §1 repro ${dryRun ? "DRY_RUN" : "real"}`);
+    }
+  });
 
   it("a real install followed by a real uninstall still removes the marker (the round trip is unchanged)", () => {
     const t = fresh("rt-marker");
