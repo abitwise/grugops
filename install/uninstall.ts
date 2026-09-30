@@ -878,7 +878,7 @@ function unmergeGemini(): void {
     return;
   }
   if (MARKER.state === "unreadable") {
-    report("left", `${rel} (the install marker could not be read, so there is no usable record of what install changed in it — left untouched)`);
+    report("left", `${rel} (the install marker could not be used (see the verify line above), so there is no usable record of what install changed in it — left untouched)`);
     return;
   }
   if (GEMINI_LEDGER.state === "absent") {
