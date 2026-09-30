@@ -206,8 +206,11 @@ describe("R1 (DC-2): an empty directory is removed only when this run emptied it
 
 // ── R2: a marker uninstall keeps goes on naming what it removed ─────────────────────────────────
 describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run removed", () => {
-  const LEDGERS = ["claudeAskRules", "createdDirs", "createdFiles", "geminiSettings"] as const;
+  const LEDGERS = ["claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles"] as const;
   const RUNNABLE = "tools/grugops/reference-check.js";
+  // Plan 33.1-30: a verbatim kit skill, which a stale kitFiles entry (its record is the source's bytes)
+  // would still match.
+  const KIT_SKILL = ".claude/skills/grugops-plan/SKILL.md";
 
   // What the user makes after the first uninstall: README §1's AGENTS.md copy, a runnable copy, blank
   // pointer files, every directory the run removed (empty), and their own settings file.
@@ -220,6 +223,11 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
     for (const rel of POINTER) if (!existsSync(abs(target, rel))) writeFileSync(abs(target, rel), "\n");
     if (!existsSync(abs(target, ".claude/settings.json"))) {
       writeFileSync(abs(target, ".claude/settings.json"), '{"permissions":{"ask":["Bash(git push *)"]}}\n');
+    }
+    // Plan 33.1-30: the user's own copy of a kit skill, byte-identical to the kit source.
+    if (!existsSync(abs(target, KIT_SKILL))) {
+      mkdirSync(abs(target, ".claude/skills/grugops-plan"), { recursive: true });
+      writeFileSync(abs(target, KIT_SKILL), readFileSync(join(REPO_ROOT, ...KIT_SKILL.split("/"))));
     }
     // Plan 33.1-29: the user's own Gemini settings, holding their own AGENTS.md entry.
     if (!existsSync(abs(target, ".gemini/settings.json"))) {
@@ -254,6 +262,11 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
       if (garbled !== "claudeAskRules") {
         const led = kept.claudeAskRules as { added: string[] };
         expect(led.added, "the kept marker still lists the ask rules the run removed").toEqual([]);
+      }
+      if (garbled !== "kitFiles") {
+        for (const rel of Object.keys(kept.kitFiles as object)) {
+          expect(existsSync(abs(target, rel)), `the kept marker still lists removed kit file ${rel}`).toBe(true);
+        }
       }
       if (garbled !== "geminiSettings") {
         const g = kept.geminiSettings as { createdFile: boolean; addedEntry: boolean };

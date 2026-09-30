@@ -531,11 +531,21 @@ const ownsFileNow = (rel: string): FileOwnership =>
 //   - KIT_LEDGER `ok` without a record for `rel`: install has no record of writing it; left.
 //   - KIT_LEDGER `malformed`, or an unreadable marker: fail closed, nothing is removed (the one verify at
 //     the top of the removal sequence said why).
-//   - no kit-file record at all: see the absent arm below.
+//   - no install marker at all: a repository grugops was never installed into (README §1's minimal
+//     copy path, or kit files the user copied by hand) holds nothing install recorded, and a
+//     never-installed target is changed by zero bytes (brief DC-2), so every kit file is left, even
+//     one byte-identical to the kit source. Plan 33.1-28 applies the same rule to AGENTS.md and the
+//     runnables: byte identity is not provenance.
+//   - a marker without the field (an install made before this ledger existed): the marker records
+//     that install ran here, so the fallback is a content record the kit already has, byte identity
+//     with the kit source file `src` (sameFileBytes, the rule this file applies to the runnables).
+//     A verbatim-copied skill is removed; every rendered file (each adapter, the resolver skill) and
+//     every edited one differs, and is left with the manual remedy. A path or a kit source that is
+//     not a readable regular file is never opened (readUserFile, brief DC-3) and is left, with its
+//     state named.
 // The ledger is only ever ASKED about the fixed kit paths this file visits; it is never iterated to
 // decide what to delete.
 function ownsKitFile(rel: string, path: string, src: string): FileOwnership {
-  void src;
   if (MARKER.state === "unreadable" || KIT_LEDGER.state === "malformed") {
     return { owned: false, reason: "the kit-file ledger could not be used (see the verify line above) — left in place" };
   }
@@ -555,7 +565,32 @@ function ownsKitFile(rel: string, path: string, src: string): FileOwnership {
         "install wrote there) — left in place; remove it by hand once you have kept any edit you want",
     };
   }
-  return { owned: false, reason: "the install marker has no kit-file record — left in place" };
+  if (MARKER.state === "absent") {
+    return {
+      owned: false,
+      reason:
+        "there is no install marker, so there is no record that install wrote it — left in place; remove it by " +
+        "hand if grugops put it there",
+    };
+  }
+  // A marker without the kitFiles field: the legacy fallback, byte identity with the kit source.
+  if (sameFileBytes(path, src)) return { owned: true };
+  const noRecord = "there is no install record of what was written";
+  const remedy = "remove it by hand once you have kept any edit you want";
+  const srcRead = readUserFile(src);
+  if (srcRead.state !== "ok") {
+    const what = srcRead.state === "absent" ? "is missing" : unreadState(srcRead);
+    return {
+      owned: false,
+      reason: `${noRecord}, and its kit source ${src} ${what}, so byte identity could not be established — left in place; ${remedy}`,
+    };
+  }
+  const cur = readUserFile(path);
+  if (cur.state !== "ok") {
+    const what = cur.state === "absent" ? "is no longer there" : unreadState(cur);
+    return { owned: false, reason: `${noRecord}, and it ${what} — left in place` };
+  }
+  return { owned: false, reason: `${noRecord}, and it differs from the kit source — left in place; ${remedy}` };
 }
 
 // notRecordedReason (re-review IN-01, plan 33.1-28): the ONE wording of "there is no install record
@@ -1345,9 +1380,10 @@ function removeKitAdapters(): void {
 }
 
 // sameFileBytes: byte-identical content compare following symlinks (mirrors `cmp -s`). Used for
-// the grugops-owned-AGENTS.md tests and the runnables. DC-3 (plan 33.1-27): both sides are read
-// through readUserFile, so a FIFO, directory or device on either side is never opened; the answer
-// is "the same" only when BOTH reads are `ok` and their bytes are equal.
+// the grugops-owned-AGENTS.md test, the runnables and the legacy kit-file fallback (ownsKitFile, plan
+// 33.1-30). DC-3 (plan 33.1-27): both sides are read through readUserFile, so a FIFO, directory or
+// device on either side (the kit source included) is never opened; the answer is "the same" only when
+// BOTH reads are `ok` and their bytes are equal. That one guard serves every caller.
 function sameFileBytes(a: string, b: string): boolean {
   const ra = readUserFile(a);
   if (ra.state !== "ok") return false;

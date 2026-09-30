@@ -182,7 +182,8 @@ there is the refusal, not a reversal with nothing to undo. To preview a reversal
 checkout, add **`--allow-self`** (or `--force`), the same override the installer takes.
 
 `uninstall.js` removes **only** the grugops-owned wiring it added to the target: the skills, the
-Orchestrator wrapper, the materialized resolver adapters, the sentinel-delimited `CLAUDE.md` and
+Orchestrator wrapper and the materialized resolver adapters that still hold what install wrote to
+them (see the kit-file record below), the sentinel-delimited `CLAUDE.md` and
 Copilot pointer blocks (the rest of those files stays exactly as it was), the `AGENTS.md` entry
 it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule you had before
 install stays), the runnable checks under `tools/grugops/` that are still byte-identical to what it
@@ -209,6 +210,19 @@ them by hand if you do not want them. A malformed file ledger is a `verify` find
 (exit `3`), and the uninstaller then deletes none of these files. A `CLAUDE.md` or Copilot file whose
 grugops open marker has no close marker on a later line is left exactly as it is and reported.
 
+The grugops skills and adapters (`.claude/skills/<name>/SKILL.md` and `.claude/agents/<file>.md`)
+are removed the same way, on install's `kitFiles` record. Install records what it wrote to each
+one: a sha256 of the bytes it wrote (or found already identical), or the target of the link a
+`--symlink` install made. The uninstaller removes a skill or adapter only while it still holds
+exactly that, so one you edited is left byte for byte and reported `left`. A re-install keeps an
+earlier entry only while the file still holds it. In a repository with no marker (you never ran the
+installer there) no skill or adapter is removed, not even a byte-identical copy of the kit's. An
+install made before this release has a marker without `kitFiles`: the uninstaller then removes a
+skill that is byte-identical to the kit source it runs from and leaves every other one, which
+includes every adapter and the resolver skill, because install writes the kit path into them. Remove
+those by hand once you have kept any edit you want. A malformed `kitFiles` is a `verify` finding on
+both sides (exit `3`), and the uninstaller then removes no skill or adapter.
+
 The Gemini settings file is changed only as install's `geminiSettings` record says. Install
 records whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape
 it found there (no `fileName`, a string, or an array; and whether `context` was there), and a sha256
@@ -233,7 +247,9 @@ finding on both sides (exit `3`): install does not merge and writes it back as f
 uninstaller leaves the file.
 
 A symbolic link at one of those paths is removed only when it is exactly the link a `--symlink`
-install makes: it points at the kit source file of the checkout you run the uninstaller from. Any
+install makes: it points at the kit source file of the checkout you run the uninstaller from, and
+install's record names that link (a copy install records the copy, so a link put there since is
+left). Any
 other link (a dangling one, a loop, a link to a device, to a FIFO, or to a file or directory
 elsewhere) is left in place, is not followed, and is reported as a `verify` finding (exit `3`);
 remove it by hand if it is grugops's. A runnable is never a link, so a link under `tools/grugops/` is
