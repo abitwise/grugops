@@ -1598,7 +1598,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // EVERY OTHER CLASS STILL COMPLETED (kit-source's report-don't-abort posture).
     expect(existsSync(join(fresh, ".grugops", "install.json"))).toBe(true);
     expect(existsSync(join(fresh, "memory-bank", "00-index.md"))).toBe(true);
-    expect(installedSkills(fresh).length).toBe(7);
+    // ...except the rest of the KIT: the kit is written whole or not at all (plan 33.1-31, D-32), so
+    // a refused render writes no skill either.
+    expect(installedSkills(fresh)).toEqual([]);
 
     // ── ARM 2: A TARGET THAT WAS ALREADY INSTALLED. Every pre-existing adapter is BYTE-UNCHANGED —
     // a refused render never half-writes and never rewrites.
@@ -1675,7 +1677,12 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // so this file asserts the two sites agree rather than authoring a third spelling of the word.
   function identicalCopyVerbs(): string[] {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
-    return [...src.matchAll(/report\("([^"]+)",\s*`\$\{label\} \(identical copy present\)`\)/g)].map((m) => m[1]);
+    const direct = [...src.matchAll(/report\("([^"]+)",\s*`\$\{label\} \(identical copy present\)`\)/g)].map((m) => m[1]);
+    // Plan 33.1-31: the kit's decision (kitDestDecision) carries the sentence as a `line`, one per
+    // route, and each kit writer prints a skip decision through report("<verb>", d.line).
+    const decided = [...src.matchAll(/line: `\$\{e\.label\} \(identical copy present\)`/g)];
+    const printers = [...new Set([...src.matchAll(/report\("([^"]+)", d\.line\)/g)].map((m) => m[1]))];
+    return [...direct, ...decided.flatMap(() => printers)];
   }
 
   // adapterMtimes — nanosecond mtimes of every installed adapter, DERIVED from the target listing.
@@ -1708,10 +1715,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(join(target, ".claude", "agents"))).toBe(beforeBytes);
     expect(adapterMtimes(target)).toEqual(beforeMtimes);
 
-    // ...and the run SAYS so, in the word linkOrCopy already uses for an identical copy.
+    // ...and the run SAYS so, in the word linkOrCopy already uses for an identical copy. Three sites
+    // since plan 33.1-31: linkOrCopy (AGENTS.md) and kitDestDecision's two routes, one wording.
     const verbs = identicalCopyVerbs();
     expect(`identical-copy report sites in install.ts: ${verbs.length}`).toBe(
-      "identical-copy report sites in install.ts: 2",
+      "identical-copy report sites in install.ts: 3",
     );
     expect([...new Set(verbs)].length).toBe(1);
     const skipped = adapterReportLines(second.stdout, verbs[0]).filter((l) =>
@@ -1961,8 +1969,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(rExtra.stdout).toContain("the render does not");
     // R-5: nothing at all is installed — not the seventeen that WOULD have matched.
     expect(installedAdapters(targetExtra)).toEqual([]);
-    // ...and the other classes still complete.
-    expect(installedSkills(targetExtra).length).toBe(7);
+    // ...and the other classes still complete, apart from the rest of the kit: no skill either
+    // (plan 33.1-31, D-32: the kit is written whole or not at all).
+    expect(installedSkills(targetExtra)).toEqual([]);
     expect(existsSync(join(targetExtra, ".grugops", "install.json"))).toBe(true);
 
     // ── DIRECTION 2: a member the render produces that the kit source does not carry.
@@ -2008,8 +2017,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       expect(r.stdout).not.toContain("== install complete");
       // R-5: no fallback byte source.
       expect(installedAdapters(target)).toEqual([]);
-      // ...and every other class still completed.
-      expect(installedSkills(target).length).toBe(7);
+      // ...and every other class still completed, apart from the rest of the kit: no skill either
+      // (plan 33.1-31, D-32: the kit is written whole or not at all).
+      expect(installedSkills(target)).toEqual([]);
       expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
     }
 
@@ -2487,10 +2497,19 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
     expect(src.slice(doctorStart, doctorEnd)).toContain("adapterDestHazard(");
 
-    const mStart = src.indexOf("function materializeAdapter(");
-    const mEnd = src.indexOf("\nfunction ", mStart + 1);
-    expect(`materializeAdapter is bounded: ${mStart >= 0 && mEnd > mStart}`).toBe(
+    // Since plan 33.1-31 the destination question is kitDestDecision's, asked by the kit plan before
+    // the first kit write and again by materializeAdapter at the write. The hazard and the read order
+    // are pinned in that one decision, and materializeAdapter must reach it.
+    const wStart = src.indexOf("function materializeAdapter(");
+    const wEnd = src.indexOf("\nfunction ", wStart + 1);
+    expect(`materializeAdapter is bounded: ${wStart >= 0 && wEnd > wStart}`).toBe(
       "materializeAdapter is bounded: true",
+    );
+    expect(src.slice(wStart, wEnd)).toContain("kitDestDecision(e)");
+    const mStart = src.indexOf("function kitDestDecision(");
+    const mEnd = src.indexOf("\nfunction ", mStart + 1);
+    expect(`kitDestDecision is bounded: ${mStart >= 0 && mEnd > mStart}`).toBe(
+      "kitDestDecision is bounded: true",
     );
     const mBody = src.slice(mStart, mEnd);
     expect(mBody).toContain("adapterDestHazard(dest)");
@@ -2502,7 +2521,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // the ordering vacuous.
     expect(mBody).not.toContain("readFileSync(dest");
     const destReadAt = mBody.indexOf("readForWrite(TARGET, dest)");
-    expect(destReadAt, "materializeAdapter no longer reads its destination through readForWrite").toBeGreaterThan(-1);
+    expect(destReadAt, "kitDestDecision no longer reads its destination through readForWrite").toBeGreaterThan(-1);
     expect(
       `hazard asked before dest is read: ${mBody.indexOf("adapterDestHazard(dest)") < destReadAt}`,
     ).toBe("hazard asked before dest is read: true");
@@ -2548,41 +2567,42 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   it("write bound: the agents write loop refuses a slot-less render rather than copying or linking raw mirror bytes (WR-04)", () => {
-    // THIS IS A STRUCTURAL PIN OVER A DELIBERATELY UNREACHABLE ARM, AND NOT A BEHAVIOURAL PROOF.
-    // Read it as exactly that. The routing floor above the loop refuses every slot-less render
-    // before the first write, so no fixture can honestly drive a slot-less file into this loop —
-    // manufacturing that state would mean patching the floor out, and the case would then be
-    // asserting something about a build nobody ships. What IS worth freezing is that the arm the
-    // floor guards is a REFUSAL rather than a `linkOrCopy` fallthrough, because `src` there points
-    // inside a temp mirror the run deletes: the fallthrough's success outcome was seventeen
-    // dangling links reported as `linked` at exit 0 (the reviewer's R2 reproduction).
+    // A STRUCTURAL PIN, NOT A BEHAVIOURAL PROOF (the routing-floor case below is the behaviour). The
+    // WR-04 hazard was an adapter reaching the target by linkOrCopy from a `src` inside the temp
+    // mirror, which the render helper deletes: seventeen dangling links reported as `linked` at exit
+    // 0. Since plan 33.1-31 the write phase holds no mirror path at all: buildKitPlan reads each
+    // rendered file INTO the plan inside the render callback, and the writers work from that text.
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
-
-    // The agents write loop is the LAST `for (const f of SRC_ADAPTERS) {` — the earlier one is the
-    // read-side pass. Bounded from there to the end of that block, derived rather than numbered.
-    const loopStart = src.lastIndexOf("for (const f of SRC_ADAPTERS) {");
-    expect(`the agents write loop was found: ${loopStart >= 0}`).toBe("the agents write loop was found: true");
-    const loopEnd = src.indexOf("\n    }\n", loopStart);
-    expect(`the agents write loop is bounded: ${loopEnd > loopStart}`).toBe(
-      "the agents write loop is bounded: true",
+    const body = (name: string): string => {
+      const start = src.indexOf(`function ${name}(`);
+      const end = src.indexOf("\nfunction ", start + 1);
+      expect(`${name} is bounded: ${start >= 0 && end > start}`).toBe(`${name} is bounded: true`);
+      return src
+        .slice(start, end)
+        .split("\n")
+        .filter((l) => !/^\s*\/\//.test(l))
+        .join("\n");
+    };
+    // NO PATH IN THE WRITE PHASE READS THE MIRROR OR COPIES/LINKS RAW BYTES FROM A PATH.
+    for (const name of ["executeKitPlan", "writeKitEntry", "materializeAdapter", "copyKitFile"]) {
+      const code = body(name);
+      expect(`${name} reads a path: ${/\breadUserFile\s*\(|render\.value\.dir/.test(code)}`).toBe(`${name} reads a path: false`);
+      expect(`${name} calls linkOrCopy: ${/\blinkOrCopy\s*\(/.test(code)}`).toBe(`${name} calls linkOrCopy: false`);
+    }
+    // ...an adapter enters the plan only as a materialize entry carrying its final text...
+    const plan = body("buildKitPlan");
+    const push = plan.indexOf("adapters.push({");
+    expect(`the adapter entry was found: ${push >= 0}`).toBe("the adapter entry was found: true");
+    const entry = plan.slice(push, plan.indexOf("});", push));
+    expect(entry).toContain('kind: "materialize"');
+    expect(entry).toContain("text: transformed.text");
+    // ...and the slot-less render is a refusal in the plan, asked before the entry is made.
+    const refusalAt = plan.indexOf("if (!carriesSlot(text)) {");
+    expect(`the slot-less arm is found before the entry: ${refusalAt >= 0 && refusalAt < push}`).toBe(
+      "the slot-less arm is found before the entry: true",
     );
-    const loop = src.slice(loopStart, loopEnd);
-
-    // PREMISE: the bounded region really is the loop that writes adapters, not some other block.
-    expect(loop).toContain('const dest = join(TARGET, ".claude", "agents", f);');
-
-    // NO PATH OUT OF THIS LOOP COPIES OR LINKS RAW MIRROR BYTES. Comment lines are filtered the
-    // way the D-09 structural case filters them: the arm's own comment must NAME the call it
-    // replaced in order to explain why, and prose about a call is not a call.
-    const loopCode = loop.split("\n").filter((l) => !/^\s*\/\//.test(l));
-    expect(loopCode.filter((l) => /\blinkOrCopy\s*\(/.test(l))).toEqual([]);
-    // ...the one way an adapter reaches a target is the bounded, transforming writer...
-    expect(loop).toContain("materializeAdapter(");
-    // ...and the slot-less arm is a finding, reached when srcCarriesSlot is false.
-    expect(loop).toContain("if (!srcCarriesSlot(src)) {");
-    const refusalAt = loop.indexOf("if (!srcCarriesSlot(src)) {");
-    expect(`the slot-less arm calls verify(): ${loop.indexOf("verify(", refusalAt) > refusalAt}`).toBe(
-      "the slot-less arm calls verify(): true",
+    expect(`the slot-less arm refuses: ${plan.indexOf("refusals.push(", refusalAt) > refusalAt}`).toBe(
+      "the slot-less arm refuses: true",
     );
   });
 
@@ -2697,10 +2717,16 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const named = SYNTH_ADAPTERS.filter((a) =>
       r.stdout.includes(`.claude/agents/${a} was rendered without`),
     );
+    // Since plan 33.1-31 the kit plan collects EVERY refusal instead of returning on the first, so
+    // every damaged member is named, each exactly once, and the undamaged member is not (the fixture
+    // is the MIXED shape). Before, the run named only the first damaged member.
     expect(
-      `named exactly one member: ${named.length}`,
-      `the refusal must name the damaged member; stdout was:\n${r.stdout}`,
-    ).toBe("named exactly one member: 1");
+      `named some but not all members: ${named.length > 0 && named.length < SYNTH_ADAPTERS.length}`,
+      `the refusal must name the damaged members; stdout was:\n${r.stdout}`,
+    ).toBe("named some but not all members: true");
+    for (const a of named) {
+      expect(r.stdout.split(`.claude/agents/${a} was rendered without`).length - 1, a).toBe(1);
+    }
 
     // AND THE CONSEQUENCE THE REFUSAL EXISTS FOR IS STATED: no target file may name a command the
     // target cannot run. Asserted over the whole target, not only over the damaged member.
@@ -2825,7 +2851,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // asking about a class that was never in the run.
     expect(r.stdout).toContain("-- state seed --");
     expect(existsSync(join(target, ".grugops", "install.json"))).toBe(true);
-    expect(existsSync(join(target, ".claude", "skills", "grugops", "SKILL.md"))).toBe(true);
+    // The kit is written whole or not at all (plan 33.1-31, D-32): the refused render writes no skill.
+    expect(existsSync(join(target, ".claude", "skills", "grugops", "SKILL.md"))).toBe(false);
   });
 
   it("model delivery: a rendered adapter carrying ZERO or TWO recognised banner lines installs NOTHING and names the file (D-14)", () => {
@@ -3534,7 +3561,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // LANDMINE (Pitfall 1): a symlink .claude adapter migrate does NOT write through the symlink and
-  // corrupt the source clone — the symlink dest is unlinked before re-materialize (HIGH-severity).
+  // corrupt the source clone (HIGH-severity). Since plan 33.1-31 --migrate unlinks only install's OWN
+  // link (readlink equals the kit source path, the predicate uninstall uses); this link points into a
+  // source clone, so it may be the user's, and it is a refusal: left in place, not followed, not
+  // unlinked, and the whole kit write is refused (D-32). The own-link unlink-and-materialize path is
+  // pinned in "kit write all-or-nothing (plan 33.1-31, D-32)".
   it("migrate: symlink adapter does not corrupt source clone", () => {
     const target = makeOldLayoutFixture({ symlink: true });
     // The LANDMINE link is staged through the D-16 helper; a host that refuses it prints one
@@ -3545,21 +3576,23 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       return;
     }
     // PREMISE: the adapter IS a link, or the case below measures a regular-file migrate twice.
-    expect(lstatSync(join(target, ".claude", "agents", "grugops-orchestrator.md")).isSymbolicLink(), "PREMISE: the LANDMINE link was not staged").toBe(true);
+    const adapter = join(target, ".claude", "agents", "grugops-orchestrator.md");
+    expect(lstatSync(adapter).isSymbolicLink(), "PREMISE: the LANDMINE link was not staged").toBe(true);
+    const linkBefore = readlinkSync(adapter);
     const home = mkTmp();
     const srcClone = join(target, "source-clone", "orchestrator-src.md");
     const before = readFileSync(srcClone, "utf8");
     expect(before).toContain("SENTINEL-SOURCE-CLONE");
 
-    expect(runInstall(target, home, "--migrate").status).toBe(0);
+    const r = runInstall(target, home, "--migrate");
+    expect(r.status, r.stdout).toBe(3);
+    expect(r.stdout).toContain("--migrate unlinks only install's own link");
 
-    // THE PROOF: the planted source-clone file is byte-unchanged — migrate unlinked the symlink
-    // dest before materializeAdapter, so the write never followed the link into the clone.
+    // THE PROOF: the planted source-clone file is byte-unchanged — the write never followed the link.
     expect(readFileSync(srcClone, "utf8")).toBe(before);
-    // and the adapter is now a real materialized file (not a symlink) carrying the KIT= block.
-    expect(lstatSync(join(target, ".claude", "agents", "grugops-orchestrator.md")).isSymbolicLink()).toBe(false);
-    const agent = readFileSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), "utf8");
-    expect(agent).toContain("grugops:materialized-kit");
+    // ...and the link is still there, pointing where it did (a refusal, not an unlink).
+    expect(lstatSync(adapter).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(adapter)).toBe(linkBefore);
   });
 
   // DRY_RUN: --migrate / --update / --prune-old-kit mutate nothing and narrate would-* lines.
@@ -4246,8 +4279,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).not.toContain("== install complete");
     expect(r.stdout).toContain("install INCOMPLETE");
     expect(installedAdapters(target)).toEqual([]);
-    // The skill class is UNAFFECTED — one unreadable directory does not suppress the other class.
-    expect(installedSkills(target).length).toBe(7);
+    // The skills are part of the same kit, and the kit is written whole or not at all (plan 33.1-31,
+    // D-32): an unknown adapter set writes no skill either.
+    expect(installedSkills(target)).toEqual([]);
   });
 
   it("source derivation: an unreadable-by-PERMISSIONS adapter directory is reported the same way", () => {
@@ -5210,8 +5244,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).toContain(join(src, ".claude", "skills"));
     expect(r.stdout).not.toContain("== install complete");
     expect(installedSkills(target)).toEqual([]);
-    // The adapter class is unaffected — the two derivations fail independently.
-    expect(installedAdapters(target).length).toBe(17);
+    // The two derivations still fail independently (only the skills refusal is named), but the kit is
+    // written whole or not at all (plan 33.1-31, D-32): no adapter either.
+    expect(r.stdout).not.toContain(`cannot read ${join(src, ".claude", "agents")}`);
+    expect(installedAdapters(target)).toEqual([]);
   });
   // ── R-04 (plan 31-30) — THE INSTALLER ROUND-TRIP ON A PRE-EXISTING HOST INSTALL ───────────────
   //

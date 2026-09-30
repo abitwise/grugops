@@ -419,20 +419,19 @@ const RESOLUTION_PROBE_SOURCE = [
 // different points in the process, so a cached snapshot could go stale.
 // ---------------------------------------------------------------------------
 
-// srcCarriesSlot: the ROUTING signal (D-06). Whether a source file is materialized or plain-copied
-// is decided by the presence of the resolver slot line in its OWN body — never by a hard-coded
-// filename. That is what makes all seventeen adapters resolvers with no name list anywhere, and it
-// removes the by-name special case the old call site used to carve out for one skill. The test is
-// whole-line equality, matching materializeAdapter's own `line === MAT_SLOT` injection test exactly,
-// so routing and injection can never disagree. Fail-closed: an unreadable source is NOT treated as
-// a resolver (it falls through to linkOrCopy, which reports the missing source).
+// carriesSlot: the ROUTING signal (D-06). Whether a source file is materialized or plain-copied is
+// decided by the presence of the resolver slot line in its OWN body — never by a hard-coded filename.
+// That is what makes all seventeen adapters resolvers with no name list anywhere, and it removes the
+// by-name special case the old call site used to carve out for one skill. The test is whole-line
+// equality, matching transformAdapter's own `line === MAT_SLOT` injection test exactly, so routing
+// and injection can never disagree.
 //
-// The source is read through readUserFile (red-team of plan 33.1-26, DC-3): GRUGOPS_SRC and the
-// render mirror are paths the user controls too, and a FIFO or a /dev/zero link there must neither
-// hang nor flood this read. Anything but a readable regular file is "not a resolver", as before.
-function srcCarriesSlot(src: string): boolean {
-  const read = readUserFile(src);
-  return read.state === "ok" && read.text.split("\n").includes(MAT_SLOT);
+// It is asked over text already read (plan 33.1-31): the kit plan reads each source ONCE through
+// readUserFile (red-team of plan 33.1-26, DC-3: GRUGOPS_SRC and the render mirror are paths the user
+// controls too, so a FIFO or a /dev/zero link there must neither hang nor flood the read), and routes
+// on those bytes. It replaced srcCarriesSlot(path), which read the source a second time.
+function carriesSlot(text: string): boolean {
+  return text.split("\n").includes(MAT_SLOT);
 }
 
 // targetAdapterFiles: the derived adapter set mapped into the TARGET's .claude/agents directory.
@@ -504,12 +503,16 @@ const recordCreatedFile = (path: string, record: string): void => {
 // KIT_FILES (plan 33.1-30, Gap B completed, brief DC-2, D-18): what THIS run wrote to each grugops
 // skill and adapter file (.claude/skills/<name>/SKILL.md, .claude/agents/<file>.md), as a POSIX path
 // relative to TARGET mapped to the content record of what is there now because of this run:
-// materializeAdapter records `sha256:` of the final bytes it wrote or found identical, and the skills
-// linkOrCopy call (its `isKitFile` argument) records `sha256:` of a copy or `link:<source>` of the link
-// install makes. A user's edit to a kit file is user content: writeMarker() records this map in the
+// materializeAdapter records `sha256:` of the final bytes it wrote or found identical, and copyKitFile
+// (a skill without the slot line; linkOrCopy's job before plan 33.1-31) records `sha256:` of a copy or
+// `link:<source>` of the link install makes. A user's edit to a kit file is user content: writeMarker() records this map in the
 // marker as `kitFiles`, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
 // preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
 const KIT_FILES = new Map<string, string>();
+// KIT_MIGRATE_OWN_LINKS (plan 33.1-31): true only in a --migrate run over an old layout, after its
+// pre-steps. The kit plan then plans the unlink of install's own link at a materialize destination
+// (Pitfall 1) instead of refusing it; any other link there is still a refusal.
+let KIT_MIGRATE_OWN_LINKS = false;
 const recordKitFile = (path: string, record: string): void => {
   if (DRY_RUN) return;
   const rel = targetRel(path);
@@ -1743,59 +1746,16 @@ function migratePreSteps(): void {
     "in-repo agent-factory/",
   );
 
-  // 3. LANDMINE (Pitfall 1): unlink any SYMLINK resolver-adapter dest before re-materialize.
-  // KIT-02: the membership of this list is DERIVED — every adapter destination, plus every derived
-  // skill destination whose source body carries the resolver slot. The behaviour is unchanged (never
-  // write through a live symlink; report would-unlink under DRY_RUN); only the set is derived, so all
-  // seventeen destinations get the same protection the two hand-named ones had (T-27-07).
-  //
-  // FAIL-LOUD (27-13): an unreadable source directory here means the unlink pre-step cannot know
-  // which destinations to protect. That is REPORTED rather than silently degrading into a
-  // zero-iteration loop, because the very next step writes through whatever symlinks it missed.
-  const migrateAdapterDests = targetAdapterFiles();
-  const migrateSkillNames = srcSkillNames(GRUGOPS_SRC);
-  if (migrateAdapterDests === null || migrateSkillNames === null) {
-    verify(
-      `symlink pre-step — cannot read ${join(GRUGOPS_SRC, ".claude")}, so the resolver-adapter ` +
-        `destination set is unknown. No symlink destination was unlinked. Re-run the installer from ` +
-        `a complete kit checkout before continuing.`,
-    );
-  }
-  const adapterDests = [
-    ...(migrateAdapterDests ?? []),
-    ...(migrateSkillNames ?? [])
-      .filter((s) => srcCarriesSlot(join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md")))
-      .map((s) => join(TARGET, ".claude", "skills", s, "SKILL.md")),
-  ];
-  for (const dest of adapterDests) {
-    if (!isSymlink(dest)) continue;
-    // Red-team of plan 33.1-26 (D-18): the unlink happens inside the target or not at all. A link or a
-    // non-directory on the way to `dest` would carry the removal out of the target.
-    const way = wayTo(TARGET, dest);
-    if (way !== null && way !== "absent") {
-      verify(`symlink adapter ${dest}: ${blockedAt(way, dest)}. Nothing was unlinked.`);
-      continue;
-    }
-    if (DRY_RUN) {
-      report("would-unlink", `symlink adapter ${dest} (never write through a live symlink — Pitfall 1)`);
-      continue;
-    }
-    // Red-team of plan 33.1-27 (sibling of B1/B2): unlinkSync removes the link itself, whatever it
-    // points at. rmSync did not: on Node 24 a link to a directory threw ERR_FS_EISDIR (an uncaught
-    // exit 1 in the middle of --migrate), and a dangling link was left in place under an `unlinked`
-    // line. A failure is a counted verify, and `unlinked` is printed only when the link is gone.
-    try {
-      unlinkSync(dest);
-    } catch (e) {
-      verify(`symlink adapter ${dest} could not be unlinked (${errCode(e)}). It was left in place and nothing was written through it.`);
-      continue;
-    }
-    if (!gone(dest)) {
-      verify(`symlink adapter ${dest} is still present after it was unlinked. Nothing was written through it; remove it by hand.`);
-      continue;
-    }
-    report("unlinked", `symlink adapter ${dest} (re-materialized as a real file — Pitfall 1)`);
-  }
+  // 3. LANDMINE (Pitfall 1): never write through a live symlink at a resolver destination (every
+  // adapter, and every skill whose source carries the resolver slot). Since plan 33.1-31 (D-32) this
+  // step unlinks nothing: it marks the run as a --migrate conversion, and the kit plan
+  // (kitDestDecision) then plans the unlink of install's OWN link (isOwnLink: readlink equals the kit
+  // source path an install made before the render linked there) for the write phase, just before its
+  // file is written. Any other link there is a refusal, and a run that refuses anything unlinks
+  // nothing: an unlink here, before the kit plan was checked, used to leave the user without their
+  // link in a run that then wrote no adapter. An unreadable kit source directory is the kit plan's
+  // refusal too (it names the directory).
+  KIT_MIGRATE_OWN_LINKS = true;
 }
 
 // ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
@@ -1859,13 +1819,10 @@ function ensureBlock(file: string, open: string, body: string, close: string, la
 // so a caller that records created files (the AGENTS.md step, plan 33.1-28) records exactly those,
 // with what was written. Every other outcome returns null.
 //
-// `isKitFile` (plan 33.1-30) is passed only by the skills loop: `dest` is then a kit file, and every
-// outcome that leaves install's content at `dest` is recorded in KIT_FILES (recordKitFile): the link
-// install makes (made now, or already there and exactly install's link) as `link:<src>`, and a copy
-// (written now, or already byte-for-byte the source by this function's own comparison) as `sha256:` of
-// the source bytes. A link or file that is not install's, a refusal and a DRY_RUN preview record
-// nothing.
-function linkOrCopy(src: string, dest: string, label: string, isKitFile?: boolean): string | null {
+// Since plan 33.1-31 the only caller is the AGENTS.md step. The kit skills it used to lay down (with
+// the plan 33.1-30 `isKitFile` recording) go through the kit plan's copyKitFile, which takes the same
+// decisions before the first kit write (D-32).
+function linkOrCopy(src: string, dest: string, label: string): string | null {
   const srcRead = readUserFile(src);
   if (srcRead.state === "absent") {
     report("skipped", `${label} (source missing: ${src})`);
@@ -1876,7 +1833,6 @@ function linkOrCopy(src: string, dest: string, label: string, isKitFile?: boolea
     return null;
   }
   if (isOwnLink(dest, src)) {
-    if (isKitFile === true) recordKitFile(dest, linkRecord(src));
     report("skipped", `${label} (symlink present)`);
     return null;
   }
@@ -1888,7 +1844,6 @@ function linkOrCopy(src: string, dest: string, label: string, isKitFile?: boolea
     return null;
   }
   if (destRead.state === "ok" && destRead.text === srcRead.text) {
-    if (isKitFile === true) recordKitFile(dest, contentRecord(srcRead.bytes));
     report("skipped", `${label} (identical copy present)`);
     return null;
   }
@@ -1905,7 +1860,6 @@ function linkOrCopy(src: string, dest: string, label: string, isKitFile?: boolea
     try {
       symlinkSync(src, dest);
       if (isSymlink(dest)) {
-        if (isKitFile === true) recordKitFile(dest, linkRecord(src));
         report("linked", label);
         return linkRecord(src);
       }
@@ -1914,7 +1868,6 @@ function linkOrCopy(src: string, dest: string, label: string, isKitFile?: boolea
     }
   }
   if (!writeTargetFile(dest, srcRead.bytes, destRead.state, label)) return null;
-  if (isKitFile === true) recordKitFile(dest, contentRecord(srcRead.bytes));
   report("copied(verify)", label);
   return destRead.state === "create" ? contentRecord(srcRead.bytes) : null;
 }
@@ -2539,7 +2492,7 @@ interface AdapterTransform {
 // two grammars over the same bytes, which is the failure class this milestone exists to delete.
 //
 // ONE STATE MACHINE OVER BOTH SLOTS, whole-line equality throughout and never a pattern — the same
-// test srcCarriesSlot uses to ROUTE a file here, so routing and injection cannot disagree:
+// test carriesSlot uses to ROUTE a file here, so routing and injection cannot disagree:
 //   - a line equal to either open sentinel starts a buffered block; the matching close drops the
 //     buffer; anything else inside is buffered;
 //   - a line equal to the kit slot line injects the kit block above it and keeps the slot line;
@@ -2605,112 +2558,262 @@ function transformAdapter(srcText: string): AdapterTransform {
   return { text: out.join("\n"), banners };
 }
 
-// materializeAdapter: lay a file down through transformAdapter, writing ONLY when the final bytes
-// differ from what the destination already holds (D-11). Preserves the blockquote (SC2) and
-// self-heal line (gate Assertion 3).
+// ── THE KIT WRITE PLAN (plan 33.1-31, D-32, D-18) ─────────────────────────────────────────────────
 //
-// THE COMPARISON IS TAKEN OVER THE FINAL BYTES, ON BOTH SIDES. Not between the source file and the
-// destination file: the destination carries an injected kit block and a replaced banner that the
-// source never did, so a source-versus-destination comparison reports every re-run as a rewrite;
-// and a comparison taken against the wrong side reports a genuinely stale file as identical. Build,
-// then compare, then write. The doctor's staleness verdict compares the same two things the same
-// way, which is what makes "would a re-run change this file?" one question with one answer.
+// The kit (every grugops skill and every rendered adapter under the target) is written WHOLE OR NOT AT
+// ALL. D-32's reason, in the human's words: it "would be risky if some kit files are updated and the
+// ones that were edited are not". Before this plan the skills loop wrote first, and the adapters block
+// could then refuse (a render refusal, the routing floor, an unreadable source directory, a link or a
+// special file at a destination), leaving new skills beside old adapters.
 //
-// OWNERSHIP (D-13). A target's `.claude/agents/grugops-*.md` files are KIT-OWNED DERIVED ARTIFACTS.
-// A differing one is rewritten on re-run and reported by name, and a hand-edited model line is lost
-// DELIBERATELY, because the configuration file is the one place to set it. This is NOT the
-// never-overwrite contract materializeRunnable holds for user-editable files, and the difference is
-// not an oversight: under never-overwrite a models edit could never reach an adapter someone had
-// once touched, the file would stay wrong forever, and the doctor would warn about it forever.
-// CLAUDE.md's never-overwrite rule protects USER content; a generated file whose own banner says
-// "do not hand-edit" is not that.
+// So the write is two-phase. buildKitPlan() (in the run section below) reads every kit source, renders
+// the adapters, captures each final text IN MEMORY while the render mirror still exists, and asks
+// kitDestDecision() about every destination. It writes, links, unlinks and creates nothing. Only when
+// it refused nothing does executeKitPlan() write, from memory, in the old order: skills, then the
+// resolution lines, then adapters. A refusal is a counted `verify`, and no kit file changes.
 //
-// `alias` is OPTIONAL and reporting-only (D-04). An agent adapter is laid down from bytes this run
-// rendered, so its report line names the model it was rendered with; a skill is laid down from the
-// kit source and carries no model, so it passes nothing and its line is byte-unchanged. The alias
-// never reaches the written bytes — it is read OUT of them.
-function materializeAdapter(src: string, dest: string, label: string, alias?: string): void {
-  const suffix = alias === undefined ? `(KIT=${KIT_ROOT})` : `(KIT=${KIT_ROOT}, model=${alias})`;
-  // The source (a kit skill or a rendered mirror file) is read through readUserFile (red-team of
-  // plan 33.1-26, DC-3): absent is the existing "source missing"; any other unread state is refused.
-  const srcRead = readUserFile(src);
-  if (srcRead.state === "absent") {
-    report("skipped", `${label} (source missing: ${src})`);
-    return;
+// THE RESIDUAL, STATED: a filesystem error in the write phase (a permission error on the twelfth
+// adapter) can still leave a partly written kit. A true transaction needs a staging directory and a
+// rename over existing files, the Windows EPERM class D-15 keeps out of 33.1. Such an error is a
+// counted `verify` naming the file, and the next run's pre-flight sees what is there.
+//
+// One entry per kit destination:
+//   materialize  `text` is the FINAL text (transformAdapter already applied): every rendered adapter
+//                and every skill whose source carries the resolver slot line. `src` is the kit source
+//                path an install made BEFORE the render linked this destination to (uninstall's
+//                removeKitAdapters names the same path); under --migrate that link, and only that link,
+//                is unlinked in the write phase (`unlinkFirst`).
+//   copy / link  a skill without the slot line: `bytes`/`srcText` are the kit source's bytes, and
+//                `src` is the path a --symlink install links it to.
+//   missing      a skill directory whose SKILL.md is absent: reported `skipped`, as before.
+interface KitEntry {
+  readonly dest: string;
+  readonly label: string;
+  readonly kind: "materialize" | "copy" | "link" | "missing";
+  readonly src: string;
+  readonly text?: string;
+  readonly bytes?: Buffer;
+  readonly srcText?: string;
+  readonly alias?: string;
+  readonly unlinkFirst?: boolean;
+}
+
+// What may happen at one kit destination. ONE decision, asked by the plan before any write and asked
+// again by the writer at the write (the plan's answer is not trusted across the gap):
+//   refuse  a counted verify, nothing written (the plan refuses the whole kit on any of these);
+//   skip    the destination already holds install's content (`record` goes to kitFiles), or the
+//           source is missing (`record` null);
+//   unlink  --migrate only: install's own link at a materialize destination, removed just before the
+//           file is written (Pitfall 1: never write through a live link);
+//   write   `how` is readForWrite's answer: `create` (exclusive) or `ok` (rewrite the regular file).
+type KitDecision =
+  | { readonly act: "refuse"; readonly why: string }
+  | { readonly act: "skip"; readonly line: string; readonly record: string | null }
+  | { readonly act: "unlink" }
+  | { readonly act: "write"; readonly how: "create" | "ok" };
+
+// kitDestDecision: the one question about a kit destination. THE WRITE BOUND (plan 29.2-04, CR-01) is
+// asked first for a materialize destination: a link, or a path that resolves outside the target
+// through a linked directory, is refused before the destination is read, so `skipped (identical copy
+// present)` is never printed about bytes outside the target. Then the destination is read through
+// readForWrite (DC-3 / D-18: a FIFO, a directory, a hard link, an unreadable or too-large file, or a
+// link or non-directory on the way is refused), and only then compared (D-11: build, compare, write).
+//
+// REFUSE, DO NOT UNLINK, on the ordinary run: it is routine and must never delete a link the user put
+// there. `--migrate` (KIT_MIGRATE_OWN_LINKS) is a declared one-time conversion, and it removes a link
+// only when it is install's OWN link (isOwnLink, the predicate uninstall uses): any other link there
+// may be the user's or point into another checkout, and it is a refusal (dc2 carry, plan 33.1-27).
+function kitDestDecision(e: KitEntry): KitDecision {
+  const dest = e.dest;
+  if (e.kind === "missing") return { act: "skip", line: `${e.label} (source missing: ${e.src})`, record: null };
+  if (e.kind === "materialize") {
+    const final = e.text ?? "";
+    if (KIT_MIGRATE_OWN_LINKS && isSymlink(dest)) {
+      if (!isOwnLink(dest, e.src)) {
+        return {
+          act: "refuse",
+          why:
+            `${e.label} — ${dest} is a symbolic link that is not the one install makes (the link install ` +
+            `makes here points at ${e.src}). --migrate unlinks only install's own link, so this one was left ` +
+            `in place, not followed and not unlinked. Replace it with a regular file (or remove it) and re-run --migrate.`,
+        };
+      }
+      // The unlink happens inside the target or not at all: a link or non-directory on the way would
+      // carry the removal out of it (red-team of plan 33.1-26).
+      const way = wayTo(TARGET, dest);
+      if (way !== null) {
+        const where = way === "absent" ? `${dest} could not be reached` : blockedAt(way, dest);
+        return { act: "refuse", why: `symlink adapter ${where}. Nothing was unlinked.` };
+      }
+      return { act: "unlink" };
+    }
+    const hazard = adapterDestHazard(dest);
+    if (hazard !== null) return { act: "refuse", why: `${e.label} — ${hazard}` };
+    const destRead = readForWrite(TARGET, dest);
+    if (destRead.state === "blocked") {
+      return { act: "refuse", why: `${e.label} — ${blockedAt(destRead, dest)}. It was left untouched and nothing was written.` };
+    }
+    if (destRead.state === "ok" && destRead.text === final) {
+      // The destination holds exactly what install writes there, so it is recorded as install's
+      // (kitFiles, plan 33.1-30). The wording is linkOrCopy's for an identical copy: one sentence, one fact.
+      return { act: "skip", line: `${e.label} (identical copy present)`, record: contentRecord(final) };
+    }
+    return { act: "write", how: destRead.state };
   }
-  if (srcRead.state !== "ok") {
-    verify(`${label} — the source ${src} ${unreadState(srcRead)}. Nothing was written.`);
-    return;
-  }
-  // THE WRITE BOUND (plan 29.2-04, CR-01). Ask what `dest` IS before reading it, before comparing
-  // it and before writing it. This function used to read and writeFileSync a destination nothing
-  // had bounded, and on the ordinary re-run — the re-run D-07 and D-15 made the documented way to
-  // deliver a `models` edit — a link at that path carried the write to whatever it pointed at.
-  //
-  // REFUSE, DO NOT UNLINK. migratePreSteps() unlinks the same shape, and the difference is not an
-  // inconsistency: a `--migrate` run is a declared one-time conversion the user asked for, while
-  // the ordinary re-run is routine and must never silently delete a link the user put there.
-  //
-  // THIS PRECEDES D-11's SKIP-IF-IDENTICAL ARM ON PURPOSE. The refusal comes before the read, so
-  // `skipped (identical copy present)` can never be printed about bytes that live outside the
-  // target — a reassuring sentence about a file this installer was never entitled to read.
-  //
-  // IT BOUNDS D-13 RATHER THAN WITHDRAWING IT (see the ownership paragraph above): a regular file
-  // inside the target is still kit-owned, still rewritten on difference, and still reported by name.
-  const hazard = adapterDestHazard(dest);
-  if (hazard !== null) {
-    verify(`${label} — ${hazard}`);
-    return;
-  }
-  const final = transformAdapter(srcRead.text).text;
-  // DC-3 / D-18 (plan 33.1-26): the destination is read before it is compared or written. Absent → a
-  // write. A FIFO, directory, socket or device there, or a file too large or unreadable, is refused:
-  // it is neither read nor written, and the run reports a counted `verify`. Red-team of plan
-  // 33.1-26: asked through readForWrite, so a FIFO or a regular file where .claude/agents/ should be,
-  // or a link inside the target on the way, is refused the same way instead of crashing the write.
+  // copy / link: a --symlink install's own link to this exact source is install's content.
+  if (isOwnLink(dest, e.src)) return { act: "skip", line: `${e.label} (symlink present)`, record: linkRecord(e.src) };
   const destRead = readForWrite(TARGET, dest);
   if (destRead.state === "blocked") {
-    verify(`${label} — ${blockedAt(destRead, dest)}. It was left untouched and nothing was written.`);
+    return { act: "refuse", why: `${e.label}: ${blockedAt(destRead, dest)}. It was left untouched and nothing was copied over it.` };
+  }
+  if (destRead.state === "ok" && destRead.text === e.srcText) {
+    return { act: "skip", line: `${e.label} (identical copy present)`, record: contentRecord(e.bytes ?? Buffer.alloc(0)) };
+  }
+  return { act: "write", how: destRead.state };
+}
+
+// materializeAdapter: lay one materialize entry down from its FINAL text (captured in memory by
+// buildKitPlan; nothing here reads the render mirror, which is gone by now), writing ONLY when the
+// final bytes differ from what the destination already holds (D-11). The write bound, the
+// identical-skip and the preview are kitDestDecision's, asked again here at the write.
+//
+// OWNERSHIP (D-13). A target's `.claude/agents/grugops-*.md` files are KIT-OWNED DERIVED ARTIFACTS. A
+// differing one is rewritten on re-run and reported by name, and a hand-edited model line is lost
+// DELIBERATELY, because the configuration file is the one place to set it. (D-32's edited-file
+// pre-flight, plan 33.1-32, runs over the finished plan before any of this.)
+//
+// `alias` is reporting-only (D-04): an agent adapter's line names the model it was rendered with; a
+// skill carries none and its line is byte-unchanged. The alias never reaches the written bytes.
+//
+// THE PREVIEW IS TAKEN FROM THE SAME DECISION AS THE RUN (plan 29.2-05, WR-01): `would-materialize` is
+// printed only where the real run would write.
+function materializeAdapter(e: KitEntry): void {
+  const suffix = e.alias === undefined ? `(KIT=${KIT_ROOT})` : `(KIT=${KIT_ROOT}, model=${e.alias})`;
+  let d: KitDecision = kitDestDecision(e);
+  if (d.act === "unlink" && e.unlinkFirst !== true) {
+    // The plan did not mark this destination: what is there changed since the plan asked.
+    verify(`${e.label} — ${e.dest} became a symbolic link after the kit plan was built. It was left in place and nothing was written.`);
     return;
   }
-  const current: string | null = destRead.state === "ok" ? destRead.text : null;
-  if (current === final) {
-    // Plan 33.1-30: the destination holds exactly what install writes there, so it is recorded as
-    // install's (kitFiles), with the record of those bytes.
-    recordKitFile(dest, contentRecord(final));
-    // The identical wording linkOrCopy already prints for an identical copy — one sentence for one
-    // fact, so a reader meeting either line reads the same thing.
-    report("skipped", `${label} (identical copy present)`);
+  if (d.act === "unlink") {
+    // Pitfall 1, in the write phase (plan 33.1-31): install's own link is removed just before its file
+    // is written, and only in a run whose plan refused nothing. unlinkSync removes the link itself,
+    // whatever it points at; a failure is a counted verify, and `unlinked` is printed only when the
+    // link is gone (red-team of plan 33.1-27).
+    if (DRY_RUN) {
+      // The preview names both halves of what the run would do, and does neither.
+      report("would-unlink", `symlink adapter ${e.dest} (never write through a live symlink — Pitfall 1)`);
+      report("would-materialize", `${e.label} ${suffix}`);
+      return;
+    }
+    try {
+      unlinkSync(e.dest);
+    } catch (err) {
+      verify(`symlink adapter ${e.dest} could not be unlinked (${errCode(err)}). It was left in place and nothing was written through it.`);
+      return;
+    }
+    if (!gone(e.dest)) {
+      verify(`symlink adapter ${e.dest} is still present after it was unlinked. Nothing was written through it; remove it by hand.`);
+      return;
+    }
+    report("unlinked", `symlink adapter ${e.dest} (re-materialized as a real file — Pitfall 1)`);
+    d = kitDestDecision(e);
+  }
+  if (d.act === "unlink") {
+    verify(`${e.label} — ${e.dest} is still a symbolic link after it was unlinked. Nothing was written through it.`);
     return;
   }
-  // THE PREVIEW IS TAKEN FROM THE SAME COMPARISON AS THE RUN (plan 29.2-05, WR-01).
-  //
-  // This branch used to sit ABOVE the build-then-compare, so a preview reported `would-materialize`
-  // for every adapter whether or not the final bytes already matched. Measured against that build:
-  // over an unchanged target the preview printed 18 `would-materialize` and the real run printed 24
-  // `skipped` moments later. D-11's whole point — a re-run is a visible no-op and a refresh a
-  // visible change — was therefore invisible in exactly the place a user looks for it, which is
-  // before touching a money-adjacent dial.
-  //
-  // THIS REMOVES A DISAGREEMENT, IT DOES NOT ADD A RULE. linkOrCopy has always checked identity
-  // before its own DRY_RUN branch; the two write paths now answer "would this change?" the same way.
-  //
-  // BOTH READS ABOVE ARE SAFE UNDER A PREVIEW. The mirror exists under DRY_RUN (the run reports the
-  // resolution it read from it), and reading the destination is a read. `mkdirp` is already
-  // DRY_RUN-aware and now sits below this return, so it is not reached at all.
-  //
-  // THE PLAN-04 HAZARD GUARD STAYS ABOVE THIS. A preview over a hazardous destination is still a
-  // refusal: a preview that reads through a link is a read this installer was never entitled to.
+  if (d.act === "refuse") {
+    verify(d.why);
+    return;
+  }
+  if (d.act === "skip") {
+    if (d.record !== null) recordKitFile(e.dest, d.record);
+    report("skipped", d.line);
+    return;
+  }
   if (DRY_RUN) {
-    report("would-materialize", `${label} ${suffix}`);
+    report("would-materialize", `${e.label} ${suffix}`);
     return;
   }
-  if (writeTargetFile(dest, final, destRead.state, label)) {
-    // Plan 33.1-30: what install wrote to this kit file, so uninstall removes it only while it holds it.
-    recordKitFile(dest, contentRecord(final));
-    report("materialized", `${label} ${suffix}`);
+  const final = e.text ?? "";
+  if (writeTargetFile(e.dest, final, d.how, e.label)) {
+    // What install wrote to this kit file, so uninstall removes it only while it holds it (plan 33.1-30).
+    recordKitFile(e.dest, contentRecord(final));
+    report("materialized", `${e.label} ${suffix}`);
   }
 }
+
+// copyKitFile: lay one copy/link entry (a skill without the slot line) down from the kit source bytes
+// buildKitPlan read, D-30 symlink-with-copy-fallback under a non-copy INSTALL_MODE. What linkOrCopy
+// did for the skills before plan 33.1-31, with the decision taken by kitDestDecision: a --symlink
+// install's own link is skipped as install's; any other link, special file or non-directory on the way
+// is refused; a new file is made with an exclusive create. Every outcome that leaves install's content
+// at the destination is recorded in kitFiles (`link:<src>` or `sha256:` of the source bytes).
+function copyKitFile(e: KitEntry): void {
+  const d = kitDestDecision(e);
+  if (d.act === "refuse") {
+    verify(d.why);
+    return;
+  }
+  if (d.act === "skip") {
+    if (d.record !== null) recordKitFile(e.dest, d.record);
+    report("skipped", d.line);
+    return;
+  }
+  if (d.act === "unlink") {
+    verify(`${e.label} — ${e.dest}: an unlink was asked for a file that is copied, not materialized. Nothing was written.`);
+    return;
+  }
+  if (DRY_RUN) {
+    report(INSTALL_MODE === "copy" ? "would-copy" : "would-link", e.label);
+    return;
+  }
+  const bytes = e.bytes ?? Buffer.alloc(0);
+  if (e.kind === "link" && d.how === "create") {
+    const why = mkdirp(dirname(e.dest));
+    if (why !== null) {
+      verify(`${e.label}: ${why}. Nothing was linked or copied to ${e.dest}.`);
+      return;
+    }
+    try {
+      symlinkSync(e.src, e.dest);
+      if (isSymlink(e.dest)) {
+        recordKitFile(e.dest, linkRecord(e.src));
+        report("linked", e.label);
+        return;
+      }
+    } catch {
+      // fall through to copy
+    }
+  }
+  if (!writeTargetFile(e.dest, bytes, d.how, e.label)) return;
+  recordKitFile(e.dest, contentRecord(bytes));
+  report("copied(verify)", e.label);
+}
+
+// executeKitPlan: the write phase. Only reached when buildKitPlan refused nothing. It writes the
+// entries from memory in the order the installer always used: skills, then the render's resolution
+// lines, then adapters. A filesystem error on one entry is a counted verify naming it, and the phase
+// continues to the next entry (the residual stated above).
+function executeKitPlan(plan: KitPlanReady): void {
+  for (const e of plan.skills) writeKitEntry(e);
+  for (const [label, msg] of plan.resolution) report(label, msg);
+  for (const e of plan.adapters) writeKitEntry(e);
+}
+function writeKitEntry(e: KitEntry): void {
+  if (e.kind === "materialize") materializeAdapter(e);
+  else if (e.kind === "missing") report("skipped", `${e.label} (source missing: ${e.src})`);
+  else copyKitFile(e);
+}
+
+interface KitPlanReady {
+  readonly ok: true;
+  readonly skills: readonly KitEntry[];
+  readonly adapters: readonly KitEntry[];
+  readonly resolution: ReadonlyArray<readonly [string, string]>;
+}
+type KitPlan = KitPlanReady | { readonly ok: false; readonly refusals: readonly string[] };
 
 // seedFile: copy ONE bundled seed file into the target, skip-if-exists (D-04).
 //
@@ -3263,6 +3366,9 @@ console.log("\n-- adapters --");
 // all three of its states, mirroring uninstall.ts's wording so a reader moving between the two files
 // sees ONE contract rather than two. Before this the helpers returned [] on an unreadable directory,
 // these loops ran zero times, and the run still printed a completion banner — a silent no-op install.
+//
+// ALL OR NOTHING (plan 33.1-31, D-32): buildKitPlan() finds every refusal before the first kit write,
+// and executeKitPlan() runs only when there is none. See "THE KIT WRITE PLAN" above materializeAdapter.
 const SRC_SKILLS = srcSkillNames(GRUGOPS_SRC);
 const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 // The nested walk returns FOUR things, not one (D-35/D-36, and `unreadable` per D-41/CR-02): the
@@ -3273,284 +3379,305 @@ const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 const SRC_NESTED = srcNestedAdapterFiles(GRUGOPS_SRC);
 const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 
-if (SRC_SKILLS === null) {
-  verify(
-    `.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the install set is ` +
-      `unknown. No skill was installed. Re-run the installer from a complete kit checkout.`,
-  );
-} else if (SRC_SKILLS.length === 0) {
-  verify(
-    `.claude/skills/ — ${join(GRUGOPS_SRC, ".claude", "skills")} was read successfully but holds no ` +
-      `skill, so there was nothing to install. This is a different condition from an unreadable ` +
-      `directory and needs a different remedy: check the kit source, not the checkout.`,
-  );
-} else {
-  for (const s of SRC_SKILLS) {
-    const src = join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md");
-    const dest = join(TARGET, ".claude", "skills", s, "SKILL.md");
-    const label = `.claude/skills/${s}/SKILL.md`;
-    if (srcCarriesSlot(src)) materializeAdapter(src, dest, label);
-    else linkOrCopy(src, dest, label, true);
+// buildKitPlan: phase one. Reads every kit source (through readUserFile), renders the adapters and
+// reads each rendered file INSIDE the render callback, before the mirror is deleted, then asks
+// kitDestDecision about every destination. It writes, links, unlinks and creates nothing; every
+// refusal is collected rather than returned on, so one run names them all.
+function buildKitPlan(): KitPlan {
+  const refusals: string[] = [];
+  const skills: KitEntry[] = [];
+  const adapters: KitEntry[] = [];
+  const resolution: Array<readonly [string, string]> = [];
+
+  if (SRC_SKILLS === null) {
+    refusals.push(
+      `.claude/skills/ — cannot read ${join(GRUGOPS_SRC, ".claude", "skills")}, so the install set is ` +
+        `unknown. No skill was installed. Re-run the installer from a complete kit checkout.`,
+    );
+  } else if (SRC_SKILLS.length === 0) {
+    refusals.push(
+      `.claude/skills/ — ${join(GRUGOPS_SRC, ".claude", "skills")} was read successfully but holds no ` +
+        `skill, so there was nothing to install. This is a different condition from an unreadable ` +
+        `directory and needs a different remedy: check the kit source, not the checkout.`,
+    );
+  } else {
+    for (const s of SRC_SKILLS) {
+      const src = join(GRUGOPS_SRC, ".claude", "skills", s, "SKILL.md");
+      const dest = join(TARGET, ".claude", "skills", s, "SKILL.md");
+      const label = `.claude/skills/${s}/SKILL.md`;
+      // The source is read ONCE, and the route is taken from those bytes (carriesSlot, the rule
+      // the router applies everywhere), so routing and injection cannot disagree about one file.
+      const read = readUserFile(src);
+      if (read.state === "absent") {
+        skills.push({ dest, label, kind: "missing", src });
+      } else if (read.state !== "ok") {
+        refusals.push(`${label}: the kit source ${src} ${unreadState(read)}. Nothing was installed for it.`);
+      } else if (carriesSlot(read.text)) {
+        skills.push({ dest, label, kind: "materialize", src, text: transformAdapter(read.text).text });
+      } else {
+        skills.push({ dest, label, kind: INSTALL_MODE === "copy" ? "copy" : "link", src, bytes: read.bytes, srcText: read.text });
+      }
+    }
   }
+
+  if (SRC_ADAPTERS === null) {
+    refusals.push(
+      `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the install set is ` +
+        `unknown. No adapter was installed. Re-run the installer from a complete kit checkout.`,
+    );
+  } else if (SRC_ADAPTERS.length === 0) {
+    refusals.push(
+      `.claude/agents/ — ${join(GRUGOPS_SRC, ".claude", "agents")} was read successfully but holds no ` +
+        `adapter, so there was nothing to install. This is a different condition from an unreadable ` +
+        `directory and needs a different remedy: check the kit source, not the checkout.`,
+    );
+  } else {
+    // THE BYTE SOURCE IS THE RENDER; THE SET IS STILL srcAdapterFiles(GRUGOPS_SRC) (D-01, phase 29.2).
+    //
+    // Keeping SRC_ADAPTERS as the install SET is not a detail. install/uninstall.ts derives its
+    // removal set from that SAME call, so an install set taken from the mirror instead would place a
+    // file the reversal cannot see — the CR-02/D-28 defect that shipped once already. The mirror is
+    // the per-member BYTE source and nothing more.
+    //
+    // EVERY RENDERED FILE IS READ INTO THE PLAN INSIDE THIS CALLBACK, so the mirror exists for exactly
+    // the span that reads it, and the write phase never reads it: it is gone by then (plan 33.1-31).
+    const adapterSet = SRC_ADAPTERS;
+    renderAdaptersInMirror((render) => {
+      // The REAL file on this machine. Named in every finding below because the generator's own
+      // message names a temporary mirror path that does not exist on the user's filesystem.
+      const targetConfigFile = join(TARGET, ".grugops", "factory.config.json");
+
+      if (!render.ok) {
+        // R-5: NO FALLBACK BYTE SOURCE. Falling back to the kit-shipped adapter bytes would be a
+        // second byte source and a silent downgrade of a configured target to `inherit` — the shape
+        // D-03 and D-11 both reject. A render that did not complete installs nothing, names the
+        // condition, lets every other install class finish, and the run reports itself INCOMPLETE.
+        refusals.push(
+          `.claude/agents/ — ${render.reason}\n` +
+            `                 No adapter was installed, and every adapter already in ` +
+            `${join(TARGET, ".claude", "agents")} was left exactly as it was. The model configuration ` +
+            `this run reads is ${targetConfigFile}; ${TEMP_MIRROR_DISCLAIMER}`,
+        );
+        return;
+      }
+
+      // SET EQUALITY IN BOTH DIRECTIONS, BEFORE THE FIRST WRITE. Asserted with every extra and every
+      // missing member NAMED: a bare count disagreement would say that the two sets differ and never
+      // which member is the problem. The render runs to completion and is checked here, so rendering
+      // and materializing are never interleaved.
+      const rendered = render.value.files;
+      const extra = adapterSet.filter((name) => !rendered.includes(name));
+      const missing = rendered.filter((name) => !adapterSet.includes(name));
+      if (extra.length > 0 || missing.length > 0) {
+        let why =
+          `.claude/agents/ — the install set derived from ${join(GRUGOPS_SRC, ".claude", "agents")} ` +
+          `(${adapterSet.length} member(s)) is not the set the render produced ` +
+          `(${rendered.length} member(s)), so this run cannot vouch for the bytes it would write.`;
+        if (extra.length > 0) {
+          why +=
+            `\n                 ${extra.length} member(s) in the kit source that the render does not ` +
+            `produce: ${extra.join(", ")}`;
+        }
+        if (missing.length > 0) {
+          why +=
+            `\n                 ${missing.length} member(s) the render produces that the kit source ` +
+            `does not carry: ${missing.join(", ")}`;
+        }
+        refusals.push(
+          `${why}\n` +
+            `                 No adapter was installed and every pre-existing target adapter was left ` +
+            `as it was. Re-run the installer from a complete kit checkout whose adapter directory ` +
+            `matches its role corpus.`,
+        );
+        return;
+      }
+
+      // THE MEMBER-COUNT CROSS-CHECK, AGAINST A LISTING THIS SIDE DERIVED ITSELF.
+      //
+      // PLACED AFTER THE SET HALF, DELIBERATELY. An extra or a missing member also moves this number,
+      // and the set half names WHICH member — a strictly better finding for the same defect. By this
+      // line the two listings are provably set-equal, so the number below is the one the announcing
+      // run actually produced.
+      //
+      // AND IT IS CHECKED AGAINST A DERIVATION, NOT AGAINST THE ANNOUNCEMENT ALONE, because a vacuity
+      // floor catches an EMPTY resolution and never a silently SHORT one.
+      const announced = render.value.assignment;
+      if (announced.roles !== rendered.length) {
+        refusals.push(
+          `.claude/agents/ — the render announced a resolution covering ${announced.roles} role(s), ` +
+            `while this run derived ${rendered.length} rendered adapter(s) from the render's own ` +
+            `output directory. The two numbers must agree: a run installing over a disagreement ` +
+            `would be installing a set it cannot vouch for.\n` +
+            `                 No adapter was installed and every pre-existing target adapter was left ` +
+            `as it was. The model configuration this run reads is ${targetConfigFile}.`,
+        );
+        return;
+      }
+
+      // THE ALIAS EVERY RENDERED ADAPTER CARRIES, READ OUT OF THE BYTES ABOUT TO BE WRITTEN, for ALL
+      // members before any write: a refusal on the last member still leaves the target untouched.
+      const aliasOf = new Map<string, string>();
+      let memberRefused = false;
+      for (const f of adapterSet) {
+        const label = `.claude/agents/${f}`;
+        // Read through readUserFile (the census floor: install.js holds no raw content read). This is
+        // the ONE read of the rendered file; the plan keeps its final text in memory.
+        const renderedRead = readUserFile(join(render.value.dir, ".claude", "agents", f));
+        if (renderedRead.state !== "ok") {
+          refusals.push(
+            `.claude/agents/ — ${label} was rendered but could not be read back ` +
+              `(it ${renderedRead.state === "absent" ? "is missing" : unreadState(renderedRead)}), so the model it would be installed ` +
+              `with is unknown. No adapter was installed and every pre-existing target adapter was ` +
+              `left as it was.`,
+          );
+          memberRefused = true;
+          continue;
+        }
+        const text = renderedRead.text;
+        const alias = readRenderedAlias(text, label);
+        if (!alias.ok) {
+          refusals.push(
+            `.claude/agents/ — ${alias.reason}\n` +
+              `                 No adapter was installed and every pre-existing target adapter was ` +
+              `left as it was.`,
+          );
+          memberRefused = true;
+          continue;
+        }
+        aliasOf.set(f, alias.value);
+
+        // THE ROUTING FLOOR, ASKED BEFORE THE BANNER FLOOR BECAUSE IT BOUNDS WHAT THAT FLOOR MEANS.
+        //
+        // FOUND BY REPRODUCTION, NOT BY READING (29.2-03 task 2). A rendered adapter carrying exactly
+        // one recognised banner and NO kit slot line was once copied RAW, so the target received a
+        // file still naming the generator command, and the run exited 0 claiming completion. Nothing
+        // in a target may name a command the target cannot run, so a rendered agent adapter that
+        // cannot be materialized is a refusal rather than a copy. Asked through the router's own rule
+        // (carriesSlot) on the bytes that will be written, so the refusal and the routing cannot come
+        // to two different answers about one file. RENDERED AGENT ADAPTERS ONLY: a skill without the
+        // slot line is legitimately copied.
+        if (!carriesSlot(text)) {
+          refusals.push(
+            `.claude/agents/ — ${label} was rendered without the installer's kit slot line, so it ` +
+              `cannot be materialized: its provenance banner would not be rewritten and it would ` +
+              `reach the target still naming a command the target cannot run. A rendered agent ` +
+              `adapter that this installer cannot materialize is refused rather than copied raw.\n` +
+              `                 No adapter was installed and every pre-existing target adapter was ` +
+              `left as it was. Re-run the installer from a kit checkout whose generator and installer ` +
+              `are the same version.`,
+          );
+          memberRefused = true;
+          continue;
+        }
+
+        // THE BANNER COUNT FLOOR (D-14), ASKED HERE AND ONLY HERE: about bytes THIS RUN rendered for
+        // an AGENT adapter. The one slot-carrying skill legitimately carries ZERO banner lines, so the
+        // assertion belongs at the call site that knows what it is looking at. A COUNT, not a boolean:
+        // zero (the generator's wording moved, so every target adapter would keep naming a command it
+        // cannot run) and two-or-more (a shape this installer cannot rewrite) are different defects.
+        const transformed = transformAdapter(text);
+        if (transformed.banners !== 1) {
+          refusals.push(
+            `.claude/agents/ — ${label} was rendered carrying ${transformed.banners} recognised provenance ` +
+              `banner line(s) where exactly one was required, so the banner this installer would ` +
+              `write into the target cannot be placed. Zero means the generator's wording moved away ` +
+              `from the line this installer recognises, which would leave every target adapter naming ` +
+              `a command the target cannot run; two or more means the rendered file is not the shape ` +
+              `this installer knows how to rewrite.\n` +
+              `                 No adapter was installed and every pre-existing target adapter was ` +
+              `left as it was. Re-run the installer from a kit checkout whose generator and installer ` +
+              `are the same version.`,
+          );
+          memberRefused = true;
+          continue;
+        }
+        adapters.push({
+          dest: join(TARGET, ".claude", "agents", f),
+          label,
+          kind: "materialize",
+          // Today every adapter is rendered to a regular file; an install made before the render
+          // linked it to exactly this kit source path, so that link is install's own.
+          src: join(GRUGOPS_SRC, ".claude", "agents", f),
+          text: transformed.text,
+          alias: alias.value,
+        });
+      }
+      if (memberRefused) return;
+
+      // THE ALIAS-SET CROSS-CHECK — THE CLOSING OF THE LOOP. The report below is derived from the
+      // BYTES about to be written; the announcement is derived from the map the generator rendered
+      // FROM. Neither side alone proves the other, so they are required to agree.
+      const readAliases = [...new Set(aliasOf.values())].sort();
+      const saidAliases = [...announced.aliases].sort();
+      if (readAliases.join(",") !== saidAliases.join(",")) {
+        refusals.push(
+          `.claude/agents/ — the aliases read out of the rendered adapters are ` +
+            `[${readAliases.join(", ")}], while the render announced [${saidAliases.join(", ")}]. ` +
+            `The bytes and the announcement describe the same resolution, so a disagreement means one ` +
+            `of them is wrong and this run cannot say which.\n` +
+            `                 No adapter was installed and every pre-existing target adapter was left ` +
+            `as it was. The model configuration this run reads is ${targetConfigFile}.`,
+        );
+        return;
+      }
+
+      // THE RESOLUTION REPORT (D-04), CAPTURED FOR THE WRITE PHASE. The generator's own announcement
+      // lines are relayed VERBATIM — the installer authors no preset wording of its own and holds no
+      // copy of either marker. They are relayed through the padded report channel, so the relayed text
+      // is a MENTION rather than a second announcement (T-29.2-08). executeKitPlan prints them between
+      // the skills and the adapters, where this callback used to.
+      for (const line of render.value.stdout.split("\n")) {
+        if (line.trim() === "") continue;
+        resolution.push(["render", line]);
+      }
+      // ...followed by the SAME disclaimer the doctor's NO VERDICT arm and the render-refusal arm
+      // carry (WR-05): the relayed lines name the temp mirror, which this run deletes. THE GENERATOR'S
+      // OWN LINE IS NOT REWRITTEN; the disclaimer is added BESIDE it, from the one wording authority.
+      resolution.push([
+        "resolution",
+        `the adapters were written to ${join(TARGET, ".claude", "agents")}; ${TEMP_MIRROR_DISCLAIMER}`,
+      ]);
+      // ...plus ONE line of the installer's own, naming the configuration file it read, or stating
+      // plainly that none was found. A run that resolved nothing says so.
+      resolution.push([
+        "resolution",
+        render.value.configPath === null
+          ? `no configuration file was found at ${targetConfigFile}, so every role took the ` +
+              `generator's zero-config answer and this run resolved nothing of its own`
+          : `read from ${render.value.configPath}`,
+      ]);
+    });
+  }
+
+  // EVERY DESTINATION IS ASKED BEFORE THE FIRST WRITE, with the decision the writer asks again at the
+  // write: a link, a FIFO, a hard link, a directory, or a link or non-directory on the way to any kit
+  // path refuses the whole kit. Under --migrate, install's own link at a materialize destination is
+  // marked to be unlinked in the write phase, never here.
+  const decide = (e: KitEntry): KitEntry => {
+    const d = kitDestDecision(e);
+    if (d.act === "refuse") refusals.push(d.why);
+    return d.act === "unlink" ? { ...e, unlinkFirst: true } : e;
+  };
+  const plannedSkills = skills.map(decide);
+  const plannedAdapters = adapters.map(decide);
+  if (refusals.length > 0) return { ok: false, refusals };
+  return { ok: true, skills: plannedSkills, adapters: plannedAdapters, resolution };
 }
 
-if (SRC_ADAPTERS === null) {
-  verify(
-    `.claude/agents/ — cannot read ${join(GRUGOPS_SRC, ".claude", "agents")}, so the install set is ` +
-      `unknown. No adapter was installed. Re-run the installer from a complete kit checkout.`,
-  );
-} else if (SRC_ADAPTERS.length === 0) {
-  verify(
-    `.claude/agents/ — ${join(GRUGOPS_SRC, ".claude", "agents")} was read successfully but holds no ` +
-      `adapter, so there was nothing to install. This is a different condition from an unreadable ` +
-      `directory and needs a different remedy: check the kit source, not the checkout.`,
-  );
-} else {
-  // THE BYTE SOURCE IS THE RENDER; THE SET IS STILL srcAdapterFiles(GRUGOPS_SRC) (D-01, phase 29.2).
-  //
-  // Keeping SRC_ADAPTERS as the install SET is not a detail. install/uninstall.ts derives its
-  // removal set from that SAME call, so an install set taken from the mirror instead would place a
-  // file the reversal cannot see — the CR-02/D-28 defect that shipped once already. The mirror is
-  // the per-member BYTE source and nothing more.
-  //
-  // The whole arm runs INSIDE the render callback, so the mirror exists for exactly the span that
-  // reads it and is removed on every path out.
-  renderAdaptersInMirror((render) => {
-    // The REAL file on this machine. Named in every finding below because the generator's own
-    // message names a temporary mirror path that does not exist on the user's filesystem.
-    const targetConfigFile = join(TARGET, ".grugops", "factory.config.json");
-
-    if (!render.ok) {
-      // R-5: NO FALLBACK BYTE SOURCE. Falling back to the kit-shipped adapter bytes would be a
-      // second byte source and a silent downgrade of a configured target to `inherit` — the shape
-      // D-03 and D-11 both reject. A render that did not complete installs nothing, names the
-      // condition, lets every other install class finish, and the run reports itself INCOMPLETE.
-      verify(
-        `.claude/agents/ — ${render.reason}\n` +
-          `                 No adapter was installed, and every adapter already in ` +
-          `${join(TARGET, ".claude", "agents")} was left exactly as it was. The model configuration ` +
-          `this run reads is ${targetConfigFile}; ${TEMP_MIRROR_DISCLAIMER}`,
-      );
-      return;
-    }
-
-    // SET EQUALITY IN BOTH DIRECTIONS, BEFORE THE FIRST WRITE. Asserted with every extra and every
-    // missing member NAMED: a bare count disagreement would say that the two sets differ and never
-    // which member is the problem. The render runs to completion and is checked here, so rendering
-    // and materializing are never interleaved.
-    const rendered = render.value.files;
-    const extra = SRC_ADAPTERS.filter((name) => !rendered.includes(name));
-    const missing = rendered.filter((name) => !SRC_ADAPTERS.includes(name));
-    if (extra.length > 0 || missing.length > 0) {
-      let why =
-        `.claude/agents/ — the install set derived from ${join(GRUGOPS_SRC, ".claude", "agents")} ` +
-        `(${SRC_ADAPTERS.length} member(s)) is not the set the render produced ` +
-        `(${rendered.length} member(s)), so this run cannot vouch for the bytes it would write.`;
-      if (extra.length > 0) {
-        why +=
-          `\n                 ${extra.length} member(s) in the kit source that the render does not ` +
-          `produce: ${extra.join(", ")}`;
-      }
-      if (missing.length > 0) {
-        why +=
-          `\n                 ${missing.length} member(s) the render produces that the kit source ` +
-          `does not carry: ${missing.join(", ")}`;
-      }
-      verify(
-        `${why}\n` +
-          `                 No adapter was installed and every pre-existing target adapter was left ` +
-          `as it was. Re-run the installer from a complete kit checkout whose adapter directory ` +
-          `matches its role corpus.`,
-      );
-      return;
-    }
-
-    // THE MEMBER-COUNT CROSS-CHECK, AGAINST A LISTING THIS SIDE DERIVED ITSELF.
-    //
-    // PLACED AFTER THE SET HALF, DELIBERATELY. An extra or a missing member also moves this number,
-    // and the set half names WHICH member — a strictly better finding for the same defect. By this
-    // line the two listings are provably set-equal, so the number below is the one the announcing
-    // run actually produced.
-    //
-    // AND IT IS CHECKED AGAINST A DERIVATION, NOT AGAINST THE ANNOUNCEMENT ALONE, because a vacuity
-    // floor catches an EMPTY resolution and never a silently SHORT one.
-    const announced = render.value.assignment;
-    if (announced.roles !== rendered.length) {
-      verify(
-        `.claude/agents/ — the render announced a resolution covering ${announced.roles} role(s), ` +
-          `while this run derived ${rendered.length} rendered adapter(s) from the render's own ` +
-          `output directory. The two numbers must agree: a run installing over a disagreement ` +
-          `would be installing a set it cannot vouch for.\n` +
-          `                 No adapter was installed and every pre-existing target adapter was left ` +
-          `as it was. The model configuration this run reads is ${targetConfigFile}.`,
-      );
-      return;
-    }
-
-    // THE ALIAS EVERY RENDERED ADAPTER CARRIES, READ OUT OF THE BYTES ABOUT TO BE WRITTEN. Read for
-    // ALL members BEFORE the first write, so a refusal on the last member still leaves the target
-    // untouched — the generator's own all-or-nothing posture carried through the install side.
-    const aliasOf = new Map<string, string>();
-    for (const f of SRC_ADAPTERS) {
-      const label = `.claude/agents/${f}`;
-      // Read through readUserFile (the census floor: install.js holds no raw content read).
-      const renderedRead = readUserFile(join(render.value.dir, ".claude", "agents", f));
-      if (renderedRead.state !== "ok") {
-        verify(
-          `.claude/agents/ — ${label} was rendered but could not be read back ` +
-            `(it ${renderedRead.state === "absent" ? "is missing" : unreadState(renderedRead)}), so the model it would be installed ` +
-            `with is unknown. No adapter was installed and every pre-existing target adapter was ` +
-            `left as it was.`,
-        );
-        return;
-      }
-      const text = renderedRead.text;
-      const alias = readRenderedAlias(text, label);
-      if (!alias.ok) {
-        verify(
-          `.claude/agents/ — ${alias.reason}\n` +
-            `                 No adapter was installed and every pre-existing target adapter was ` +
-            `left as it was.`,
-        );
-        return;
-      }
-      aliasOf.set(f, alias.value);
-
-      // THE ROUTING FLOOR, ASKED BEFORE THE BANNER FLOOR BECAUSE IT BOUNDS WHAT THAT FLOOR MEANS.
-      //
-      // FOUND BY REPRODUCTION, NOT BY READING (29.2-03 task 2). The banner floor below counts the
-      // banners a transform WOULD rewrite — but the transform only runs on the materialize route,
-      // and the route is chosen by srcCarriesSlot further down. A rendered adapter carrying exactly
-      // one recognised banner and NO kit slot line therefore passed the floor and was then copied
-      // RAW, so the target received a file still naming the generator command, and the run exited 0
-      // claiming completion. Measured against the committed build: 17 installed, 0 target banners,
-      // exit 0. Nothing in a target may name a command the target cannot run, so a rendered agent
-      // adapter that cannot be materialized is a refusal rather than a copy.
-      //
-      // ASKED THROUGH THE ROUTER'S OWN PREDICATE, on the same path the router will hand it, so the
-      // refusal and the routing cannot come to two different answers about one file. This is a
-      // statement about RENDERED AGENT ADAPTERS ONLY: the skills loop legitimately carries files
-      // that do not route here, and it is not asked.
-      if (!srcCarriesSlot(join(render.value.dir, ".claude", "agents", f))) {
-        verify(
-          `.claude/agents/ — ${label} was rendered without the installer's kit slot line, so it ` +
-            `cannot be materialized: its provenance banner would not be rewritten and it would ` +
-            `reach the target still naming a command the target cannot run. A rendered agent ` +
-            `adapter that this installer cannot materialize is refused rather than copied raw.\n` +
-            `                 No adapter was installed and every pre-existing target adapter was ` +
-            `left as it was. Re-run the installer from a kit checkout whose generator and installer ` +
-            `are the same version.`,
-        );
-        return;
-      }
-
-      // THE BANNER COUNT FLOOR (D-14), ASKED HERE AND ONLY HERE.
-      //
-      // WHAT BOUNDS THE PREDICATE'S INPUT: bytes THIS RUN rendered for an AGENT adapter. It is not
-      // asked about a skill, about a file already in the target, or about arbitrary markdown.
-      // materializeAdapter also serves the skills loop, and the one slot-carrying skill legitimately
-      // carries ZERO banner lines, so a blanket assertion inside the transform would be wrong; the
-      // assertion belongs at the call site that knows what it is looking at.
-      //
-      // WHY A COUNT AND NOT A BOOLEAN. The dangerous direction is silent: a generator rewording
-      // makes the recogniser match NOTHING, every target keeps a banner naming a command it cannot
-      // run, and nothing goes red. Zero and two-or-more are different defects with different
-      // remedies and neither is read as the other. Checked BEFORE the first write, with the same
-      // all-or-nothing posture every other cross-check above takes.
-      const banners = transformAdapter(text).banners;
-      if (banners !== 1) {
-        verify(
-          `.claude/agents/ — ${label} was rendered carrying ${banners} recognised provenance ` +
-            `banner line(s) where exactly one was required, so the banner this installer would ` +
-            `write into the target cannot be placed. Zero means the generator's wording moved away ` +
-            `from the line this installer recognises, which would leave every target adapter naming ` +
-            `a command the target cannot run; two or more means the rendered file is not the shape ` +
-            `this installer knows how to rewrite.\n` +
-            `                 No adapter was installed and every pre-existing target adapter was ` +
-            `left as it was. Re-run the installer from a kit checkout whose generator and installer ` +
-            `are the same version.`,
-        );
-        return;
-      }
-    }
-
-    // THE ALIAS-SET CROSS-CHECK — THE CLOSING OF THE LOOP. The report below is derived from the
-    // BYTES about to be written; the announcement is derived from the map the generator rendered
-    // FROM. Neither side alone proves the other, so they are required to agree.
-    const readAliases = [...new Set(aliasOf.values())].sort();
-    const saidAliases = [...announced.aliases].sort();
-    if (readAliases.join(",") !== saidAliases.join(",")) {
-      verify(
-        `.claude/agents/ — the aliases read out of the rendered adapters are ` +
-          `[${readAliases.join(", ")}], while the render announced [${saidAliases.join(", ")}]. ` +
-          `The bytes and the announcement describe the same resolution, so a disagreement means one ` +
-          `of them is wrong and this run cannot say which.\n` +
-          `                 No adapter was installed and every pre-existing target adapter was left ` +
-          `as it was. The model configuration this run reads is ${targetConfigFile}.`,
-      );
-      return;
-    }
-
-    // THE RESOLUTION REPORT (D-04). The generator's own announcement lines are relayed VERBATIM —
-    // the installer authors no preset wording of its own and holds no copy of either marker. They
-    // are relayed through the padded report channel, so the relayed text is a MENTION rather than a
-    // second announcement and the two authorities stay distinguishable (T-29.2-08).
-    for (const line of render.value.stdout.split("\n")) {
-      if (line.trim() === "") continue;
-      report("render", line);
-    }
-    // ...followed by the SAME disclaimer the doctor's NO VERDICT arm and the render-refusal arm
-    // already carry (WR-05). The relayed lines above name the temp mirror the generator wrote into,
-    // and this run deletes that directory before the closing banner prints. The failure arms said so
-    // and the success path — the one every user reads — did not.
-    //
-    // THE GENERATOR'S OWN LINE IS NOT REWRITTEN. It is the one-authority announcement; editing it
-    // here would be a second grammar over the same sentence, which is precisely the failure this
-    // repository's own rule names. The disclaimer is added BESIDE it, from the one wording
-    // authority, and it names the directory the adapters were actually written to.
+{
+  const kitPlan = buildKitPlan();
+  if (kitPlan.ok) {
+    executeKitPlan(kitPlan);
+  } else {
+    for (const why of kitPlan.refusals) verify(why);
     report(
-      "resolution",
-      `the adapters were written to ${join(TARGET, ".claude", "agents")}; ${TEMP_MIRROR_DISCLAIMER}`,
+      "kit",
+      `no skill or adapter was written, linked or unlinked: ${kitPlan.refusals.length} refusal(s) above ` +
+        `were found before the first kit write, and the kit is written whole or not at all (D-32). ` +
+        `Every kit file already in ${join(TARGET, ".claude")} was left exactly as it was. Resolve each ` +
+        `verify above and re-run.`,
     );
-    // ...plus ONE line of the installer's own, naming the configuration file it read, or stating
-    // plainly that none was found. A run that resolved nothing says so.
-    report(
-      "resolution",
-      render.value.configPath === null
-        ? `no configuration file was found at ${targetConfigFile}, so every role took the ` +
-            `generator's zero-config answer and this run resolved nothing of its own`
-        : `read from ${render.value.configPath}`,
-    );
-
-    for (const f of SRC_ADAPTERS) {
-      // The src is the RENDERED file. Routing stays srcCarriesSlot on the src that is actually
-      // being read, so routing and injection still cannot disagree about the same bytes.
-      const src = join(render.value.dir, ".claude", "agents", f);
-      const dest = join(TARGET, ".claude", "agents", f);
-      const label = `.claude/agents/${f}`;
-      // WR-04 — A HARD REFUSAL WHERE A FALLTHROUGH USED TO BE. This arm is UNREACHABLE: the
-      // routing floor above refuses every slot-less render before the first write, so nothing can
-      // arrive here without the slot line. It is kept as a STRUCTURAL BACKSTOP against a future
-      // edit to that floor, not as a live branch.
-      //
-      // WHY IT IS A REFUSAL AND NOT `linkOrCopy`. `src` points INSIDE THE TEMP RENDER MIRROR that
-      // this helper's own `finally` deletes moments later. Under INSTALL_MODE !== "copy" the
-      // fallthrough's SUCCESS outcome was therefore seventeen dangling links in the user's target,
-      // reported as `linked`, at exit 0 — the reviewer's R2 reproduction. Raw mirror bytes are
-      // never copied or linked into a target; the only way an adapter reaches a target is
-      // materializeAdapter, which transforms, bounds its destination and reports by name.
-      if (!srcCarriesSlot(src)) {
-        verify(
-          `.claude/agents/ — ${label} reached the write loop without the kit slot line, so this ` +
-            `run refuses to copy or link raw mirror bytes into the target. The rendered file lives ` +
-            `in a temporary mirror this run deletes, and linking a target at it would leave a ` +
-            `dangling adapter reported as installed. No adapter was installed for this name.`,
-        );
-        continue;
-      }
-      materializeAdapter(src, dest, label, aliasOf.get(f));
-    }
-  });
+  }
 }
 
 // The flat-directory contract, refused BY NAME rather than silently skipped (T-27-62). See

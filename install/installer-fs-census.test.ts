@@ -147,6 +147,12 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1617-1620 returns at the top of copyKit before the removals at :1624 and :1642",
   },
   {
+    site: "install.ts:copyKitFile:symlinkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:2768-2771 `if (DRY_RUN)` reports would-copy/would-link and returns before symlinkSync at :2780 (reached only for a link entry that kitDestDecision answered create). Plan 33.1-31: the kit skills' link moved here from linkOrCopy; copyKitFile runs only in executeKitPlan, after buildKitPlan refused nothing",
+  },
+  {
     site: "install.ts:ensureBlock:appendFileSync",
     count: 1,
     gate: "dry-run-return-above",
@@ -159,16 +165,16 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1821-1824 returns before symlinkSync at :1832 (reached only when readForWrite answered create)",
   },
   {
+    site: "install.ts:materializeAdapter:unlinkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:2703-2708 `if (DRY_RUN)` reports would-unlink and would-materialize and returns before unlinkSync at :2710. Plan 33.1-31 moved the --migrate Pitfall-1 unlink here from migratePreSteps: it runs in the write phase, only for an entry the kit plan marked unlinkFirst (install's own link, isOwnLink), only when the plan refused nothing. A throw is a counted verify and `unlinked` needs gone()",
+  },
+  {
     site: "install.ts:migratePreSteps:renameSync",
     count: 1,
     gate: "dry-run-return-above",
     why: "install.ts:1606-1609 continues before the config backup rename at :1622 (after readForWrite read both the legacy config and its destination; red-team of plan 33.1-26)",
-  },
-  {
-    site: "install.ts:migratePreSteps:unlinkSync",
-    count: 1,
-    gate: "dry-run-return-above",
-    why: "install.ts:1703-1706 `if (DRY_RUN)` reports would-unlink and continues before unlinkSync at :1712 (after wayTo refused a link or non-directory on the way; red-team of plan 33.1-26). It replaced rmSync in the red-team fixes of plan 33.1-27: a throw is a counted verify and `unlinked` needs gone()",
   },
   {
     site: "install.ts:mkdirp:mkdirSync",
@@ -180,7 +186,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:writeTargetFile:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the geminiSettings ledger and the file's shape before either), materializeAdapter (:2447, call :2451), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
+    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the geminiSettings ledger and the file's shape before either), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
   },
   {
     site: "install.ts:removeBackup:rmSync",
