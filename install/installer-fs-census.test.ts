@@ -975,7 +975,14 @@ const LEDGER_GATES: ReadonlyMap<string, { readonly record: string; readonly defi
   ["ownsBlock", { record: "appendedBlocks (the exact block install appended; plan 33.1-33)", defines: "BLOCK_LEDGER" }],
   ["GEMINI_LEDGER", { record: "geminiSettings (what install did to .gemini/settings.json)", defines: "readGeminiLedger" }],
   ["readAskRuleLedger", { record: "claudeAskRules (the ask rules install added)", defines: "./install-marker.js" }],
-  ["ownsMarker", { record: "the marker's own shape (install's own marker fields; plan 33.1-33)", defines: "installMarkerProblems" }],
+  [
+    "ownsMarker",
+    {
+      record:
+        "install's own marker for this directory: readInstallMarker's `ok` read, held in MARKER_READ (its fields hold install's values and its target is this directory's real path; plan 33.1-33 and its red-team B2)",
+      defines: "MARKER_READ",
+    },
+  ],
 ]);
 
 interface OwnershipSite {

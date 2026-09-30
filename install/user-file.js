@@ -70,7 +70,7 @@
 // It only reads (lstat, and readUserFile for the final component), so it lives with the reader.
 //
 // Clear professional voice: this is a safety surface (installer reads of user content).
-import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readlinkSync, statSync } from "node:fs";
+import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 /** The default size bound: no file the installer reads in a user repository is near this. */
 export const USER_FILE_MAX_BYTES = 8 * 1024 * 1024;
@@ -248,6 +248,21 @@ export function readForWrite(root, path, maxBytes = USER_FILE_MAX_BYTES) {
     if (r.state === "absent")
         return { state: "create" };
     return { state: "blocked", at: path, reason: unreadState(r) };
+}
+// realTargetPath (red-team B2 of plan 33.1-33, brief DC-2): the one spelling of "which directory is this"
+// that the install marker is bound to. The operating system's own real path (realpath(3) through
+// realpathSync.native): every symbolic link on the way resolved and, on a case-insensitive volume, the
+// case the directory really has, so `--target /tmp/x`, `--target /private/tmp/x` and a differently cased
+// spelling of the same directory all give one answer. POSIX separators, as the marker's other paths are
+// written. null when the path cannot be resolved (it does not exist, or a component cannot be searched):
+// a directory with no real path cannot be shown to be the one a marker names. It reads no file content.
+export function realTargetPath(target) {
+    try {
+        return realpathSync.native(target).replace(/\\/g, "/");
+    }
+    catch {
+        return null;
+    }
 }
 /**
  * What is at `path` itself, by lstat (a link is not followed): the kind wording readUserFile uses

@@ -27,6 +27,7 @@ import {
   type Run as SharedRun,
   makeFixture as sharedMakeFixture,
   makeOldLayoutFixture as sharedMakeOldLayoutFixture,
+  rebindMarker,
   snapshotTree,
   spawnBin,
 } from "./installer-paths.test-support.js";
@@ -246,7 +247,11 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
 function expectPreviewSubsetOfRealRun(target: string, home: string): { would: string[]; done: string[] } {
   const copy = join(mkTmp(), "copy");
   cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
-  expect(snapshotTree(copy)).toBe(snapshotTree(target)); // the copy is faithful
+  // The marker is bound to the directory install wrote it in (red-team B2 of plan 33.1-33); the copy is
+  // re-bound as the same install moved, the remedy uninstall names. Only the marker's target differs.
+  rebindMarker(copy);
+  const noMarker = (s: string): string => s.split("\n").filter((row) => !row.startsWith(".grugops/install.json ")).join("\n");
+  expect(noMarker(snapshotTree(copy))).toBe(noMarker(snapshotTree(target))); // the copy is faithful
 
   const rel = (root: string, p: string): string => (p.startsWith(root) ? p.slice(root.length) : `OUTSIDE:${p}`);
   const tPre = snapshotTree(target);

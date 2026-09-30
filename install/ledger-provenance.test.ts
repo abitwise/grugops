@@ -38,7 +38,7 @@ import {
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MARKER_REL, REPO_ROOT, type Run, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { MARKER_REL, REPO_ROOT, type Run, rebindMarker, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-provenance-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -390,14 +390,23 @@ describe("R3 (DC-2): the ask-rule ledger claims a rule or the file only with pro
   });
 });
 
-// A copy of an installed tree keeps the record meaningful (no timestamps or inode numbers decide).
-describe("R1/R2 portability: the decisions depend on the tree's content, not on when or where it was copied", () => {
-  it("a copied installed tree uninstalls completely", () => {
+// A copy of an installed tree: the records are content records (no timestamps or inode numbers decide),
+// but the marker is bound to the directory install wrote it in (red-team B2 of plan 33.1-33). A copy is
+// another directory until the human re-binds it (the remedy the verify line names); then it uninstalls
+// completely.
+describe("R1/R2 portability: a copied installed tree is another directory until re-bound, and then the decisions depend only on its content", () => {
+  it("a copied installed tree is changed by zero bytes (exit 3, the remedy named); re-bound, it uninstalls completely", () => {
     const { target, home } = emptyTarget("copy");
     ok(runInstall(target, home), "install");
     const copy = join(fresh("copy-dest"), "t");
     cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
-    ok(runUninstall(copy, home), "uninstall of the copy");
+    const before = snapshotTree(copy);
+    const unbound = runUninstall(copy, home);
+    expect(unbound.status, unbound.stdout).toBe(3);
+    expect(snapshotTree(copy), unbound.stdout).toBe(before);
+    expect(unbound.stdout).toMatch(/set "target" in the marker to/);
+    rebindMarker(copy);
+    ok(runUninstall(copy, home), "uninstall of the re-bound copy");
     for (const rel of [...CREATED, ...REMOVED_DIRS]) expect(existsSync(abs(copy, rel)), rel).toBe(false);
     expect(readdirSync(copy).sort()).toEqual([".grugops", "memory-bank", "plans", "tools"]);
   });

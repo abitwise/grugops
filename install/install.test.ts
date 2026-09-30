@@ -4945,18 +4945,20 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // THE COUNT IS TAKEN OVER COMMENT-FILTERED LINES, DELIBERATELY. A raw count returns SEVEN, because
   // the residual note's own prose must spell the call once to describe what it is describing. The
   // filtered count is the one that means "call sites", and it is the one asserted.
-  it("the seven MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
+  it("the eight MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
     const codeLines = src.split("\n").filter((l) => !/^\s*\/\//.test(l));
     const callSites = codeLines.filter((l) => l.includes("process.exit(")).length;
     // SIX, the MEASURED pre-task number, plus ONE added by the red-team fixes of plan 33.1-31: a
     // --migrate whose pre-check refuses must stop before the handoffs backup and the install run
-    // (red-team B1). SEVEN, all mid-script and relying on stop-here semantics.
-    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 7");
+    // (red-team B1). SEVEN, all mid-script and relying on stop-here semantics. EIGHT since the red-team
+    // fixes of plan 33.1-33 (B2): an INSTALL_MODE other than copy or symlink is bad usage, refused with
+    // exit 2 while the arguments are read, before anything is written.
+    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 8");
     // ...and the raw count is one more, which is the fact that makes the filter necessary rather than
     // cosmetic. Pinned so a future author who deletes the filter sees why it was there.
     const raw = src.split("\n").filter((l) => l.includes("process.exit(")).length;
-    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 8");
+    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 9");
     // THE ROTTED LIST IS GONE, NOT SOFTENED — and not quoted back as evidence either. A note that
     // reprints the stale numbers to explain why it deleted them still puts numbers in front of a
     // reader who may trust them. The measurement lives in 27-35-SUMMARY.md; this asserts that no
@@ -5447,7 +5449,7 @@ describe("ask rules: install side (D-18)", () => {
     expect(ledger.createdAsk).toBe(true);
     // The marker keeps a fixed field order with the ledger after installMode.
     const markerKeys = Object.keys(JSON.parse(readFileSync(join(target, ".grugops", "install.json"), "utf8")));
-    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
+    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
     expect(r.stdout).toContain("-- permission rules --");
     expect(r.stdout).toContain("speed bump");
     expect(r.stdout).toContain("not a security boundary");
@@ -5857,6 +5859,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       "grugopsHome",
       "kitRoot",
       "installMode",
+      "target",
       "claudeAskRules",
       "createdDirs",
       "createdFiles",
@@ -5995,7 +5998,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     expect(runInstall(first, home).status).toBe(0);
     const m = readMarkerJson(first);
-    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
+    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
     const created = fileKeys(m.createdFiles);
     expect(created).toEqual([...created].sort());
     expect(created.length).toBeGreaterThan(0);
@@ -6252,7 +6255,8 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
       expect(naming(r.stdout, dry ? "would-remove" : "removed", "CLAUDE.md start-here pointer"), r.stdout).toEqual([]);
       const left = naming(r.stdout, "left", "CLAUDE.md start-here pointer");
       expect(left.length, r.stdout).toBe(1);
-      expect(left[0]).toMatch(/without a matching close marker/);
+      // Red-team B1 of plan 33.1-33: one true reason for every way a block stops matching the record.
+      expect(left[0]).toMatch(/no longer matches the block install recorded appending/);
     }
   });
 
@@ -6383,6 +6387,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       "grugopsHome",
       "kitRoot",
       "installMode",
+      "target",
       "claudeAskRules",
       "createdDirs",
       "createdFiles",
@@ -7580,6 +7585,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
       "grugopsHome",
       "kitRoot",
       "installMode",
+      "target",
       "claudeAskRules",
       "createdDirs",
       "createdFiles",
@@ -9661,10 +9667,17 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       const m = markerOf(target);
       expect(m.kitVersion).not.toBe(V2);
       if (bad === "") expect(m.kitVersion, "an empty string claims nothing and is kept").toBe("");
-      else expect(hasKey(m, "kitVersion"), r.stdout).toBe(false);
+      else {
+        // Red-team B2 of plan 33.1-33: a kitVersion that is not a string is not a value install writes,
+        // so the marker is not install's own (the one reader, readInstallMarker). Install leaves it byte
+        // for byte and writes no marker over it; the run is still refused (exit 3) and claims nothing.
+        expect(m.kitVersion, r.stdout).toEqual(bad);
+        expect(r.stdout).toMatch(/^ {2}skipped\s+\.grugops\/install\.json \(left unchanged — it is a JSON object that is not install's marker/m);
+      }
       if (bad === 5) {
         const c = run(src, target, home, ["--check"]);
-        expect(c.stdout.split("\n").some((l) => /WARN/.test(l) && /kit-version unknown/.test(l)), c.stdout).toBe(true);
+        expect(c.stdout, c.stdout).toMatch(/FAIL\s+the install marker .* is a JSON object but could not be used as install's marker \(.*kitVersion is not a string/);
+        expect(c.stdout).not.toMatch(/kit-version skew: marker=/);
       }
     });
   }
@@ -9674,8 +9687,15 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       const { src, target, home } = realKitInstalled();
       writeMarkerJson(target, { ...markerOf(target), kitVersion: bad });
       const c = run(src, target, home, ["--check"]);
-      expect(c.status, c.stdout).toBe(0);
-      expect(c.stdout.split("\n").some((l) => /WARN/.test(l) && /kit-version unknown/.test(l)), c.stdout).toBe(true);
+      if (typeof bad === "string") {
+        expect(c.status, c.stdout).toBe(0);
+        expect(c.stdout.split("\n").some((l) => /WARN/.test(l) && /kit-version unknown/.test(l)), c.stdout).toBe(true);
+      } else {
+        // Red-team B2 of plan 33.1-33: not a value install writes, so not install's marker — a FAIL that
+        // names the field, and still never a skew against a stringified value.
+        expect(c.status, c.stdout).toBe(1);
+        expect(c.stdout, c.stdout).toMatch(/FAIL\s+the install marker .* could not be used as install's marker \(.*kitVersion is not a string/);
+      }
       expect(c.stdout).not.toMatch(/kit-version skew: marker=/);
     });
   }

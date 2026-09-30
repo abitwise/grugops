@@ -60,6 +60,7 @@ import {
   deriveWritePaths,
   describeWritePaths,
   normalizeIso,
+  rebindMarker,
   runUninstall,
   snapshotTree,
 } from "./installer-paths.test-support.js";
@@ -166,6 +167,7 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
     for (const v of SET.variants) {
       const t = fresh(`roundtrip-${v.name}`);
       cpSync(v.target, t, { recursive: true, verbatimSymlinks: true });
+      rebindMarker(t); // the copy is this install, moved (red-team B2: the marker is bound to its directory)
       const o = uninstallAndDiff(t, false);
       expect(o.run.stderr, `${v.name}: stack trace`).not.toMatch(NO_STACK);
       expect(o.changed.length, `${v.name}: the round trip changed nothing, so it proves nothing\n${o.run.stdout}`).toBeGreaterThan(0);
@@ -286,6 +288,7 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
   it("a real install followed by a real uninstall still removes the marker (the round trip is unchanged)", () => {
     const t = fresh("rt-marker");
     cpSync(SET.variant("default").target, t, { recursive: true, verbatimSymlinks: true });
+    rebindMarker(t);
     const o = uninstallAndDiff(t, false);
     expect(o.run.status, o.run.stdout).toBe(0);
     expect(o.changed.some((r) => r.startsWith(`${MARKER_REL} `))).toBe(true);

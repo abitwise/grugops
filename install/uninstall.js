@@ -88,7 +88,7 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAppendedBlocks, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, malformedLedgers, installMarkerProblems, contentRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAppendedBlocks, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, malformedLedgers, markerUnusableText, appendedBlockJson, contentRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue } from "./json-text.js";
@@ -574,18 +574,32 @@ const NO_BLOCK_REMOVED = { removed: false, blankAfter: false, before: null };
 // removed or, in DRY_RUN, would remove. updateKeptMarker takes them out of a kept marker's appendedBlocks,
 // so a later run cannot remove a block the user pastes back on a record this run already used.
 const BLOCKS_GONE = new Set();
-/** Every span of `buf` shaped like an appended block: `\n<open>\n` through the first `\n<close>\n` after it. */
-function appendedBlockSpans(buf, open, close) {
-    const head = Buffer.from(`\n${open}\n`, "utf8");
+/** Every copy of the block lines in `buf`: an open line at a line start through the first `\n<close>\n` after it. */
+function blockLineSpans(buf, open, close) {
+    const head = Buffer.from(`${open}\n`, "utf8");
     const tail = Buffer.from(`\n${close}\n`, "utf8");
     const spans = [];
     for (let i = buf.indexOf(head); i !== -1; i = buf.indexOf(head, i + 1)) {
+        if (i > 0 && buf[i - 1] !== 0x0a)
+            continue; // not on a line of its own
         const j = buf.indexOf(tail, i + head.length - 1);
         if (j === -1)
             break;
         spans.push({ start: i, end: j + tail.length });
     }
     return spans;
+}
+/**
+ * The bytes to remove for the one matching copy at `sp` (red-team B1 of plan 33.1-33): the block lines,
+ * and the newline before them only when it is install's by the record and the bytes (see THE SEPARATOR).
+ */
+function blockRemovalSpan(buf, sp, rec) {
+    const atEnd = sp.end === buf.length;
+    if (!atEnd || sp.start === 0)
+        return { ...sp, separator: false };
+    // sp.start > 0, so buf[sp.start - 1] is the newline that ends the line before the block.
+    const sepIsInstalls = rec.separator === "line-end" ? true : sp.start === 1 || buf[sp.start - 2] === 0x0a;
+    return sepIsInstalls ? { start: sp.start - 1, end: sp.end, separator: true } : { ...sp, separator: false };
 }
 // ownsBlock (plan 33.1-33, D-18): the record of the block install appended to `rel`, or the reason there is
 // none. Only the ledger answers; the file's content never does. The ledger is only ever ASKED about the two
@@ -610,7 +624,7 @@ function ownsBlock(rel) {
     if (BLOCK_LEDGER.state === "malformed") {
         return { record: null, reason: `the appended-block ledger could not be used (see the verify line above) — left in place; ${remedy}` };
     }
-    const record = BLOCK_LEDGER.files.get(rel);
+    const record = BLOCK_LEDGER.blocks.get(rel);
     if (record === undefined) {
         return {
             record: null,
@@ -651,20 +665,14 @@ function removeSentinelBlock(rel, open, close, label) {
         return NO_BLOCK_REMOVED;
     }
     const record = own.record;
-    const spans = appendedBlockSpans(buf, open, close);
-    if (spans.length === 0) {
-        // Plan 33.1-28 (carry #5): an open marker with no close line after it is not a block install wrote
-        // whole. The same wording as before this record existed.
-        report("left", `${label} (the file holds a grugops open marker without a matching close marker on a later line, or not on ` +
-            `a line of its own, so no complete grugops block was found; nothing was removed and the file was left as ` +
-            `it is — remove the grugops lines by hand)`);
-        return NO_BLOCK_REMOVED;
-    }
-    const matches = spans.filter((sp) => contentRecord(buf.subarray(sp.start, sp.end)) === record);
+    const matches = blockLineSpans(buf, open, close).filter((sp) => contentRecord(buf.subarray(sp.start, sp.end)) === record.block);
     if (matches.length === 0) {
-        report("left", `${label} (no grugops block in it is exactly the block install recorded appending — a line inside it was added ` +
-            `or edited, or it was written by hand — so nothing was removed and the file was left as it is; remove the ` +
-            `grugops lines by hand, keeping any line of yours)`);
+        // One reason for every way a copy stops matching (red-team B1 wording): a line inside it added,
+        // edited or removed, CRLF line ends, trailing spaces, a missing open or close line. Each is "the
+        // block no longer matches what install recorded", never a claim about which line is missing.
+        report("left", `${label} (the grugops block in it no longer matches the block install recorded appending — a line inside it ` +
+            `was added, edited or removed, its line ends or spacing changed, or a marker line is missing — so nothing ` +
+            `was removed and the file was left as it is; remove the grugops lines by hand, keeping any line of yours)`);
         return NO_BLOCK_REMOVED;
     }
     if (matches.length > 1) {
@@ -672,18 +680,23 @@ function removeSentinelBlock(rel, open, close, label) {
             `appended is not known; nothing was removed and the file was left as it is — remove the grugops lines by hand)`);
         return NO_BLOCK_REMOVED;
     }
-    const sp = matches[0];
-    const result = Buffer.concat([buf.subarray(0, sp.start), buf.subarray(sp.end)]);
+    const cut = blockRemovalSpan(buf, matches[0], record);
+    const result = Buffer.concat([buf.subarray(0, cut.start), buf.subarray(cut.end)]);
     const blankAfter = result.every(isBlankByte);
+    const how = cut.separator || matches[0].start === 0
+        ? "sentinel block only; rest of file preserved"
+        : matches[0].end === buf.length
+            ? "sentinel block only; rest of file preserved, including the newline before the block, which ends a line of yours"
+            : "sentinel block only; rest of file preserved, including the newline before the block — the block is no longer at the end of the file, where install appended it, so which newline install added is not known";
     if (DRY_RUN) {
-        report("would-remove", `${label} (sentinel block only)`);
+        report("would-remove", `${label} (${how})`);
         BLOCKS_GONE.add(rel);
         return { removed: true, blankAfter, before: buf };
     }
     if (!rewritePath(f, result, label))
         return NO_BLOCK_REMOVED;
     BLOCKS_GONE.add(rel);
-    report("removed", `${label} (sentinel block only; rest of file preserved)`);
+    report("removed", `${label} (${how})`);
     return { removed: true, blankAfter, before: buf };
 }
 // removeOwnedEmptyFile (plan 33.1-28, Gap B / re-review WR-05, brief DC-2, D-18): delete a file that
@@ -1155,10 +1168,11 @@ function removeAskRules() {
 // could not be used. So it is left, with the reason, next to the verify line that already counted
 // it. The decision is taken before the DRY_RUN branch, so the preview decides as the real run does.
 //
-// AND ONLY WHEN IT IS INSTALL'S OWN MARKER (plan 33.1-33, brief DC-2, ownsMarker). A JSON object at this
-// path that does not carry install's own marker fields (installMarkerProblems) is a file the user put
-// there. It used to be deleted by its name alone, in a repository grugops was never installed into. It
-// is left, and the line names the fields it lacks.
+// AND ONLY WHEN IT IS INSTALL'S OWN MARKER FOR THIS DIRECTORY (plan 33.1-33, brief DC-2, ownsMarker;
+// red-team B2). A JSON object at this path whose fields do not hold install's values is a file the user
+// put there; it used to be deleted by its name alone, in a repository grugops was never installed into.
+// Install's marker for another directory (copied, moved, or written before markers were bound) is not
+// this directory's record. Each is left, and the line says why.
 function removeMarker() {
     const m = `${TARGET}/${MARKER_REL}`;
     if (!pathExists(m)) {
@@ -1176,9 +1190,12 @@ function removeMarker() {
         return;
     }
     if (!ownsMarker()) {
-        if (MARKER_READ.state === "ok") {
-            report("left", `${MARKER_REL} (it does not read as a grugops install marker — ${installMarkerProblems(MARKER_READ.marker).join(", ")} — ` +
-                `so it is not install's; left in place)`);
+        if (MARKER_READ.state === "unreadable" && MARKER_READ.jsonObject) {
+            report("left", `${MARKER_REL} (${MARKER_READ.why} — so it is not install's; left in place)`);
+            return;
+        }
+        if (MARKER_READ.state === "unbound") {
+            report("left", `${MARKER_REL} (it is not this directory's record: ${MARKER_READ.why}; left in place — see the verify line above)`);
             return;
         }
         const why = MARKER_READ.state === "unreadable" ? MARKER_READ.why : "it was not present when this run started";
@@ -1252,12 +1269,12 @@ function updateKeptMarker(m, marker, readBytes, bad) {
     }
     // The appended-block ledger (plan 33.1-33): a block this run removed is no longer install's to remove.
     if (!bad.includes("appendedBlocks") && BLOCK_LEDGER.state === "ok") {
-        const keep = [...BLOCK_LEDGER.files].filter(([rel]) => !BLOCKS_GONE.has(rel));
-        for (const [rel] of BLOCK_LEDGER.files)
+        const keep = [...BLOCK_LEDGER.blocks].filter(([rel]) => !BLOCKS_GONE.has(rel));
+        for (const [rel] of BLOCK_LEDGER.blocks)
             if (BLOCKS_GONE.has(rel))
                 stale.push(`${rel} (appendedBlocks)`);
-        if (keep.length !== BLOCK_LEDGER.files.size)
-            next.appendedBlocks = Object.fromEntries(keep);
+        if (keep.length !== BLOCK_LEDGER.blocks.size)
+            next.appendedBlocks = Object.fromEntries(keep.map(([rel, b]) => [rel, appendedBlockJson(b)]));
     }
     if (!bad.includes("createdDirs") && DIR_LEDGER.state === "ok") {
         const keep = DIR_LEDGER.dirs.filter((rel) => !goneRel(rel));
@@ -1473,21 +1490,26 @@ const SRC_ADAPTERS = srcAdapterFiles(GRUGOPS_SRC);
 // at the marker or on the way to it is `unreadable`, so no ledger that is not this target's own is
 // ever believed.
 //
-// THE MARKER MUST BE INSTALL'S OWN (plan 33.1-33, brief DC-2). MARKER_READ is what is at the path;
-// ownsMarker() is true only when it is an `ok` read of an object carrying install's own marker fields
-// (install-marker.ts installMarkerProblems). A JSON object the user put at .grugops/install.json is not
-// install's: read as a marker, it had no ledger and so looked like an install made before every ledger,
-// and the kit-file fallback removed the verbatim skills while removeMarker deleted the file by its name.
-// So MARKER, the read every pass consults, treats such an object as a marker that could not be used: no
-// ledger in it is believed, nothing is removed on it, and it is left in place.
+// THE MARKER MUST BE INSTALL'S OWN, FOR THIS DIRECTORY (plan 33.1-33, brief DC-2; red-team B2 of plan
+// 33.1-33). MARKER_READ is what is at the path, as the one reader both binaries ask
+// (install-marker.ts readInstallMarker) classifies it: `ok` only for a marker whose fields hold
+// install's values AND whose `target` is this directory's real path. ownsMarker() is that `ok`.
+//   - A JSON object whose fields do not hold install's values (a user's file, a hand-made marker with
+//     empty strings or an installMode of "banana") is `unreadable` with jsonObject: it is not install's.
+//     Read as a marker, it used to look like an install made before every ledger: the kit-file fallback
+//     removed the verbatim skills while removeMarker deleted the file by its name.
+//   - Install's marker shape for ANOTHER directory, or one written before markers carried `target`, is
+//     `unbound`. Its ledgers describe the directory it was written in: a `.grugops/` copied from another
+//     installed repository into one that took README §1's copy path made this run remove the user's
+//     AGENTS.md, their runnable and their tools/grugops/ on the copied records. The binding is the real
+//     path, so a moved or renamed repository reads as unbound too; the verify below gives the remedy.
+// MARKER, the read every pass consults, treats both as a marker that could not be used: no ledger in it
+// is believed, nothing is removed on it, and it is left in place.
 const MARKER_READ = readInstallMarker(TARGET);
 function ownsMarker() {
-    return MARKER_READ.state === "ok" && installMarkerProblems(MARKER_READ.marker).length === 0;
+    return MARKER_READ.state === "ok";
 }
-const NOT_INSTALLS_MARKER = MARKER_READ.state === "ok" && !ownsMarker() ? installMarkerProblems(MARKER_READ.marker).join(", ") : null;
-const MARKER = NOT_INSTALLS_MARKER !== null
-    ? { state: "unreadable", marker: null, why: `it does not read as a grugops install marker — ${NOT_INSTALLS_MARKER}` }
-    : MARKER_READ;
+const MARKER = MARKER_READ.state === "unbound" ? { state: "unreadable", marker: null, why: MARKER_READ.why, jsonObject: true } : MARKER_READ;
 const DIR_LEDGER = readCreatedDirs(MARKER.state === "ok" ? MARKER.marker : null);
 // The file ledger (plan 33.1-28, Gap B / re-review WR-05), read ONCE here with the directory ledger
 // and from the same marker read. ownsFile() consults it before any file install may have created is
@@ -1505,9 +1527,19 @@ const KIT_LEDGER = readKitFiles(MARKER.state === "ok" ? MARKER.marker : null);
 // marker read. removeSentinelBlock() removes a pointer block only as it records. A malformed one is one
 // verify finding, and no pointer block is removed.
 const BLOCK_LEDGER = readAppendedBlocks(MARKER.state === "ok" ? MARKER.marker : null);
-if (MARKER.state === "unreadable") {
-    verify(`.grugops/install.json ${NOT_INSTALLS_MARKER !== null ? "is a JSON object but could not be used as install's marker" : "could not be read as a JSON object"} ` +
-        `(${MARKER.why}), so the directory ledger (createdDirs), ` +
+const LEDGER_NAMES = `the directory ledger (createdDirs), the file ledger (createdFiles), the Gemini settings ledger (geminiSettings), ` +
+    `the kit-file ledger (kitFiles) and the appended-block ledger (appendedBlocks)`;
+if (MARKER_READ.state === "unbound") {
+    const here = MARKER_READ.here ?? TARGET;
+    verify(`.grugops/install.json is install's marker, but not this directory's record: ${MARKER_READ.why}. So none of its ` +
+        `records is used here (${LEDGER_NAMES}), and this run removes and edits nothing on it. If this is the same ` +
+        `repository moved or renamed${MARKER_READ.boundTo !== null ? ` from ${MARKER_READ.boundTo}` : ""}, set "target" in the marker to ` +
+        `${JSON.stringify(here)} and re-run uninstall. Otherwise re-run install.js here: it writes a marker for this ` +
+        `directory and carries none of these records, so what an earlier install made here is then left and reported, ` +
+        `for you to remove by hand.`);
+}
+else if (MARKER.state === "unreadable") {
+    verify(`.grugops/install.json ${markerUnusableText(MARKER)}, so the directory ledger (createdDirs), ` +
         `the file ledger (createdFiles), the Gemini settings ledger (geminiSettings), the kit-file ledger (kitFiles) ` +
         `and the appended-block ledger (appendedBlocks) are unknown. No empty directory, no file install may have ` +
         `created, no grugops skill or adapter file and no pointer block is removed, and .gemini/settings.json is not ` +

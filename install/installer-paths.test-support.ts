@@ -36,7 +36,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -144,6 +144,19 @@ export function makeOldLayoutFixture(d: string, opts: { rootConfig?: boolean } =
 
 /** The factory configuration with both ask-rule checkpoints at notify: install writes no ask rule. */
 export const NOTIFY_CONFIG = '{ "checkpoints": { "protected_branch_merge": "notify", "production_requires_human_confirmation": "notify" } }\n';
+
+/**
+ * Re-bind the marker of an installed tree copied to `t` to its new directory: the remedy uninstall and
+ * `--check` name for the same repository moved (red-team B2 of plan 33.1-33). The marker is bound to the
+ * real path of the directory install wrote it in, so a copy reads as another directory's record until
+ * this is done. A test that copies an installed tree to act on the copy as an install calls this.
+ */
+export function rebindMarker(t: string): void {
+  const p = join(t, ".grugops", "install.json");
+  const m = JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
+  m.target = realpathSync.native(t);
+  writeFileSync(p, JSON.stringify(m, null, 2) + "\n");
+}
 
 // ── the hermetic runners ────────────────────────────────────────────────────────────────────────
 

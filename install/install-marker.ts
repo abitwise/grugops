@@ -40,12 +40,14 @@
 //                        only while it still holds what this ledger records install wrote there.
 //   - `appendedBlocks` — the sentinel block install appended to CLAUDE.md and to
 //                        .github/copilot-instructions.md (plan 33.1-33, red-team carry items 4, 6 and
-//                        11): the same path → content record shape, where the record is the sha256 of
-//                        the exact bytes install appended (`\n<open>\n<body>\n<close>\n`). Uninstall
+//                        11; red-team B1 of plan 33.1-33): path → { block, separator }, the sha256 of
+//                        the block LINES install appended (`<open>\n<body>\n<close>\n`) and what the
+//                        one newline it wrote before them did (see readAppendedBlocks). Uninstall
 //                        removes a block only when this ledger records one for that file and the file
-//                        holds exactly one span with those bytes, and it removes exactly that span, so
-//                        every byte of the user's (a line inside the block, trailing blank lines, a
-//                        file that was only blank lines) survives. A block with no record (a
+//                        holds exactly one copy of those lines; it removes those lines, and the newline
+//                        before them only when the record and the bytes show it is install's, so every
+//                        byte of the user's (a line inside the block, trailing blank lines, their final
+//                        newline, a file that was only blank lines) survives. A block with no record (a
 //                        repository with no marker, an install made before this ledger) is left.
 // Each binary used to hold its own reader of the ask-rule ledger, and the two disagreed about a
 // malformed one: install read it as "no previous install" and relabelled every grugops rule as the
@@ -69,13 +71,22 @@
 //                                   within the bound (a FIFO, a directory, a symbolic link, a path
 //                                   under a non-directory or under a link, ...), or it is not JSON,
 //                                   or it is not a plain JSON object; `why` says which;
-//                      `ok`         a plain object.
+//                      `unbound`    install's marker shape (installMarkerProblems is empty) but not
+//                                   bound to THIS directory: its `target` names another directory, or
+//                                   it has no `target` (written before markers were bound; red-team B2
+//                                   of plan 33.1-33). Not this directory's record: no ledger is read
+//                                   from it;
+//                      `ok`         install's own marker for this directory: a plain object whose
+//                                   fields hold install's values and whose `target` is this
+//                                   directory's real path (user-file.ts realTargetPath).
+//                      A JSON object whose fields do not hold install's values is `unreadable` with
+//                      `jsonObject` true (a user's file, a hand-made marker).
 //   malformedLedgers:  the names of the ledgers in an `ok` marker that are present but malformed.
 //                      A caller that would act on the marker as a whole (uninstall's removal of it)
 //                      does so only when this is empty.
-//   installMarkerProblems: the install-owned fields an `ok` marker lacks or holds with the wrong type
-//                      (plan 33.1-33, ownsMarker). Empty only for an object that carries install's own
-//                      marker fields; a user's JSON object at the marker path is not install's marker.
+//   installMarkerProblems: the install-owned fields a JSON object lacks or holds with a value install
+//                      never writes (plan 33.1-33, ownsMarker; values since red-team B2). Empty only for
+//                      an object that carries install's own marker fields; readInstallMarker asks it.
 //   readCreatedDirs / readCreatedFiles / readKitFiles / readAppendedBlocks / readAskRuleLedger /
 //   readGeminiLedger:
 //                      `absent`     the marker has no such field (an install made before the
@@ -138,14 +149,28 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
-import { isOwnLink, kindAt, readForWrite, wayTo } from "./user-file.js";
+import { isOwnLink, kindAt, readForWrite, realTargetPath, wayTo } from "./user-file.js";
 
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
 
+// `jsonObject` on `unreadable` is true when the file IS a JSON object, but not install's marker (its
+// fields do not hold install's values; installMarkerProblems says which), so a caller can say that
+// rather than "could not be read". `unbound` is install's marker shape for ANOTHER directory, or one
+// written before markers carried `target`: `object` is the parsed file, for reporting its kit fields
+// only (the doctor); no ledger is ever read from it. `here` is this directory's real path, or null
+// when it could not be resolved.
 export type InstallMarkerRead =
   | { readonly state: "absent"; readonly marker: null }
-  | { readonly state: "unreadable"; readonly marker: null; readonly why: string }
+  | { readonly state: "unreadable"; readonly marker: null; readonly why: string; readonly jsonObject: boolean }
+  | {
+      readonly state: "unbound";
+      readonly marker: null;
+      readonly why: string;
+      readonly boundTo: string | null;
+      readonly here: string | null;
+      readonly object: Readonly<Record<string, unknown>>;
+    }
   | { readonly state: "ok"; readonly marker: Readonly<Record<string, unknown>>; readonly bytes: Buffer };
 
 export type LedgerState = "absent" | "malformed" | "ok";
@@ -217,16 +242,21 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   const read = readForWrite(target, path);
   if (read.state === "create") return { state: "absent", marker: null };
   if (read.state === "blocked") {
-    return { state: "unreadable", marker: null, why: read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}` };
+    return {
+      state: "unreadable",
+      marker: null,
+      why: read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`,
+      jsonObject: false,
+    };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(read.text);
   } catch {
-    return { state: "unreadable", marker: null, why: "it is not valid JSON" };
+    return { state: "unreadable", marker: null, why: "it is not valid JSON", jsonObject: false };
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { state: "unreadable", marker: null, why: "it is JSON but not a JSON object" };
+    return { state: "unreadable", marker: null, why: "it is JSON but not a JSON object", jsonObject: false };
   }
   // A DUPLICATE KEY IS REFUSED, NOT RESOLVED (red-team RT3 of plan 33.1-30). JSON.parse keeps the last
   // of two equal keys and says nothing, so `"kitFiles": {}, "kitFiles": {...}` read as the second
@@ -239,16 +269,60 @@ export function readInstallMarker(target: string): InstallMarkerRead {
   // The strict tokenizer (json-text.ts) also refuses bytes that are not UTF-8 and nesting past its
   // bound, which JSON.parse of the decoded text would have accepted.
   const doc = readJsonText(read.bytes);
-  if (!doc.ok) return { state: "unreadable", marker: null, why: `it ${doc.why}` };
+  if (!doc.ok) return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false };
   const dup = firstDuplicateKey(doc.root);
   if (dup !== null) {
     return {
       state: "unreadable",
       marker: null,
       why: `it has a duplicate key (${JSON.stringify(dup).slice(0, 120)}), so which of its values is install's record is not known`,
+      jsonObject: false,
     };
   }
-  return { state: "ok", marker: parsed as Record<string, unknown>, bytes: read.bytes };
+  // INSTALL'S OWN MARKER, FOR THIS DIRECTORY (red-team B2 of plan 33.1-33, brief DC-2). A JSON object here
+  // is used only when its fields hold install's values (installMarkerProblems) AND its `target` is this
+  // directory's real path (markerBinding). Anything else is not this directory's record, however well
+  // formed its ledgers are: a user's object, a hand-made marker, a `.grugops/` copied from another
+  // installed repository, a marker written before markers were bound. This is the one place both
+  // binaries learn whether a marker is install's own; every ledger reader is handed only an `ok` marker.
+  const marker = parsed as Record<string, unknown>;
+  const problems = installMarkerProblems(marker);
+  if (problems.length > 0) {
+    return {
+      state: "unreadable",
+      marker: null,
+      why: `it does not read as a grugops install marker — ${problems.join(", ")}`,
+      jsonObject: true,
+    };
+  }
+  const here = realTargetPath(target);
+  const binding = markerBinding(marker, here);
+  if (binding !== null) return { state: "unbound", marker: null, why: binding, boundTo: typeof marker.target === "string" ? marker.target : null, here, object: marker };
+  return { state: "ok", marker, bytes: read.bytes };
+}
+
+// markerBinding: null when `marker` (whose fields hold install's values) is bound to the directory whose
+// real path is `here`; otherwise why it is not this directory's record.
+function markerBinding(marker: Readonly<Record<string, unknown>>, here: string | null): string | null {
+  if (!Object.prototype.hasOwnProperty.call(marker, "target")) {
+    return (
+      "it was written before install bound its marker to a directory (it has no target), so which directory its " +
+      "records describe is not known"
+    );
+  }
+  const boundTo = marker.target as string;
+  if (here === null) return `the real path of this directory could not be read, so it cannot be shown to be ${boundTo}, where the marker was written`;
+  if (boundTo !== here) {
+    return `it was written for another directory (${boundTo}), not this one (${here}), so its records describe that directory`;
+  }
+  return null;
+}
+
+/** The one wording of a marker a caller cannot use: "could not be read …" or "is a JSON object but …". */
+export function markerUnusableText(read: { readonly why: string; readonly jsonObject: boolean }): string {
+  return read.jsonObject
+    ? `is a JSON object but could not be used as install's marker (${read.why})`
+    : `could not be read as a JSON object (${read.why})`;
 }
 
 function fieldOf(marker: Readonly<Record<string, unknown>> | null, name: string): { present: boolean; raw: unknown } {
@@ -289,26 +363,64 @@ export function readKitFiles(marker: Readonly<Record<string, unknown>> | null): 
   return readPathRecords(marker, "kitFiles");
 }
 
-// readAppendedBlocks (plan 33.1-33, brief DC-2, red-team carry items 4, 6 and 11): the `appendedBlocks`
-// ledger, the block install appended to each pointer file. The createdFiles shape with one narrowing:
-// every record is `sha256:<64 lowercase hex>` (a block is bytes appended to a file, never a link), so a
-// `link:` record here is `malformed`. Uninstall asks it only about CLAUDE.md and the Copilot file.
-export function readAppendedBlocks(marker: Readonly<Record<string, unknown>> | null): CreatedFilesRead {
-  return readPathRecords(marker, "appendedBlocks");
+// readAppendedBlocks (plan 33.1-33, brief DC-2, red-team carry items 4, 6 and 11; red-team B1 of plan
+// 33.1-33): the `appendedBlocks` ledger, what install appended to each pointer file. A plain JSON object
+// from path (isLedgerPath) to a plain object with exactly two keys:
+//   block      `sha256:<64 lowercase hex>`, the content record of the block LINES install wrote: the
+//              open line through the close line and its newline, `<open>\n<body>\n<close>\n` (a block
+//              is bytes appended to a file, never a link, so a `link:` record is malformed);
+//   separator  the one newline install wrote BEFORE those lines, and what it did there:
+//                "blank-line"  the file was absent, empty or ended with a newline, so the newline made
+//                              a blank line between the user's text and the block;
+//                "line-end"    the file's last line had no newline, so the newline ended that line.
+// Uninstall removes the block lines wherever the one matching copy is, and removes the separator only
+// when the block is still at the end of the file and the bytes before it agree with this record
+// (uninstall.ts removeSentinelBlock). Anything else, the plan-33 string records included, is
+// `malformed`. Uninstall asks it only about CLAUDE.md and the Copilot file.
+export type BlockSeparator = "blank-line" | "line-end";
+export interface AppendedBlock {
+  readonly block: string;
+  readonly separator: BlockSeparator;
+}
+export interface AppendedBlocksRead {
+  readonly state: LedgerState;
+  /** Path → the record when `ok` (keys sorted); empty otherwise. */
+  readonly blocks: ReadonlyMap<string, AppendedBlock>;
+  readonly raw: unknown;
+}
+const isAppendedBlock = (v: unknown): v is AppendedBlock => {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
+  const o = v as Record<string, unknown>;
+  const keys = Object.keys(o).sort();
+  return (
+    keys.length === 2 &&
+    keys[0] === "block" &&
+    keys[1] === "separator" &&
+    isSha256Record(o.block) &&
+    (o.separator === "blank-line" || o.separator === "line-end")
+  );
+};
+export function readAppendedBlocks(marker: Readonly<Record<string, unknown>> | null): AppendedBlocksRead {
+  const { present, raw } = fieldOf(marker, "appendedBlocks");
+  if (!present) return { state: "absent", blocks: new Map(), raw };
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { state: "malformed", blocks: new Map(), raw };
+  const entries = Object.entries(raw as Record<string, unknown>);
+  if (!entries.every(([k, v]) => isLedgerPath(k) && isAppendedBlock(v))) return { state: "malformed", blocks: new Map(), raw };
+  const sorted = (entries as Array<[string, AppendedBlock]>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return { state: "ok", blocks: new Map(sorted.map(([k, v]) => [k, { block: v.block, separator: v.separator }])), raw };
+}
+/** An appendedBlocks record as the marker holds it (key order fixed). */
+export function appendedBlockJson(b: AppendedBlock): Record<string, unknown> {
+  return { block: b.block, separator: b.separator };
 }
 
-// readPathRecords: the one reader of a path → content record ledger (createdFiles, kitFiles,
-// appendedBlocks).
-function readPathRecords(
-  marker: Readonly<Record<string, unknown>> | null,
-  name: "createdFiles" | "kitFiles" | "appendedBlocks",
-): CreatedFilesRead {
+// readPathRecords: the one reader of a path → content record ledger (createdFiles, kitFiles).
+function readPathRecords(marker: Readonly<Record<string, unknown>> | null, name: "createdFiles" | "kitFiles"): CreatedFilesRead {
   const { present, raw } = fieldOf(marker, name);
   if (!present) return { state: "absent", files: new Map(), raw };
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { state: "malformed", files: new Map(), raw };
   const entries = Object.entries(raw as Record<string, unknown>);
-  const recordOk = name === "appendedBlocks" ? isSha256Record : isContentRecord;
-  if (!entries.every(([k, v]) => isLedgerPath(k) && recordOk(v))) return { state: "malformed", files: new Map(), raw };
+  if (!entries.every(([k, v]) => isLedgerPath(k) && isContentRecord(v))) return { state: "malformed", files: new Map(), raw };
   return { state: "ok", files: new Map((entries as Array<[string, string]>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), raw };
 }
 
@@ -512,22 +624,34 @@ export function malformedLedgers(marker: Readonly<Record<string, unknown>>): str
   return out;
 }
 
-// installMarkerProblems (plan 33.1-33, brief DC-2, ownsMarker): the reasons an `ok` marker object is
+// installMarkerProblems (plan 33.1-33, brief DC-2, ownsMarker): the reasons a parsed JSON object is
 // not install's own marker, empty when it is. install's writeMarker always writes `grugopsHome`,
 // `kitRoot` and `installMode` as strings, and writes `kitVersion` as a string or, since plan 33.1-32's
 // red-team B2, not at all (a run that wrote no kit file and had no earlier version to keep). A JSON
 // object the user put at `.grugops/install.json` does not carry these fields, and reading it as install's
 // marker would make it an install made before every ledger: uninstall deleted it by its name, and the
-// kit-file fallback removed the verbatim skills. So a caller that would act on the marker (uninstall's
-// ownsMarker) asks this first; a marker with a problem is not install's, and nothing is done on it.
+// kit-file fallback removed the verbatim skills. So readInstallMarker asks this before it answers `ok`
+// (for both binaries); a marker with a problem is not install's, and nothing is done on it.
+//
+// VALUES, NOT ONLY TYPES (red-team B2 of plan 33.1-33). Strings were enough before, so empty strings and
+// an installMode of "banana" passed. install writes grugopsHome and kitRoot as absolute paths
+// (toPosix(resolve(...))), installMode as "copy" or "symlink" (install.ts refuses any other INSTALL_MODE
+// as bad usage), and `target` as this directory's real path. A field holding anything else is not
+// install's value, and the marker is not install's. `target` may be absent here (a marker written before
+// the binding existed); markerBinding then says the marker is not bound.
+const isAbsoluteMarkerPath = (v: unknown): boolean =>
+  typeof v === "string" && v.trim() === v && v !== "" && (v.startsWith("/") || /^[A-Za-z]:[\\/]/.test(v));
 export function installMarkerProblems(marker: Readonly<Record<string, unknown>>): string[] {
   const out: string[] = [];
-  for (const k of ["grugopsHome", "kitRoot", "installMode"]) {
-    if (!Object.prototype.hasOwnProperty.call(marker, k)) out.push(`no ${k}`);
+  const has = (k: string): boolean => Object.prototype.hasOwnProperty.call(marker, k);
+  for (const k of ["grugopsHome", "kitRoot"]) {
+    if (!has(k)) out.push(`no ${k}`);
     else if (typeof marker[k] !== "string") out.push(`${k} is not a string`);
+    else if (!isAbsoluteMarkerPath(marker[k])) out.push(`${k} is not an absolute path`);
   }
-  if (Object.prototype.hasOwnProperty.call(marker, "kitVersion") && typeof marker.kitVersion !== "string") {
-    out.push("kitVersion is not a string");
-  }
+  if (!has("installMode")) out.push("no installMode");
+  else if (marker.installMode !== "copy" && marker.installMode !== "symlink") out.push("installMode is neither copy nor symlink");
+  if (has("kitVersion") && typeof marker.kitVersion !== "string") out.push("kitVersion is not a string");
+  if (has("target") && !isAbsoluteMarkerPath(marker.target)) out.push("target is not an absolute path");
   return out;
 }

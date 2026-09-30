@@ -12,13 +12,15 @@
 //             file rewritten: nothing recorded that install appended it.
 //
 // THE RULE NOW. Install records, in the marker's `appendedBlocks` ledger, the content record
-// (install-marker.ts contentRecord: sha256 of the bytes) of the exact block it appended to each file,
-// the bytes `\n<open>\n<body>\n<close>\n`. Uninstall removes a block only when the ledger records one
-// for that file AND the file holds exactly one span with those bytes, a newline followed by the open
-// line through the close line's newline. It removes exactly that span and writes every other byte back
-// unchanged, so install followed by uninstall gives back the file byte for byte. No marker, a marker
-// without the ledger, a malformed ledger, no entry, a block the user edited inside, or two matching
-// spans: nothing is removed, and the file is left and reported.
+// (install-marker.ts contentRecord: sha256 of the bytes) of the block LINES it appended to each file,
+// `<open>\n<body>\n<close>\n`, and what the one newline it wrote before them did (`blank-line` or
+// `line-end`; red-team B1 of plan 33.1-33). Uninstall removes a block only when the ledger records one
+// for that file AND the file holds exactly one copy of those lines. It removes exactly those lines, and
+// the newline before them only when the block is still at the end of the file and the bytes agree with
+// the record (the rule is stated and checked as a class at the end of this file), and writes every
+// other byte back unchanged, so install followed by uninstall gives back an untouched file byte for
+// byte. No marker, a marker without the ledger, a malformed ledger, no entry, a block the user edited
+// inside, or two matching copies: nothing is removed, and the file is left and reported.
 //
 // Drives the COMMITTED install/install.js and install/uninstall.js (npm run build first), with HOME,
 // GRUGOPS_HOME and TARGET in scratch directories removed at the end. Clear professional voice: this is a
@@ -85,17 +87,19 @@ function appendedBlock(b: Box, rel: string, before: Buffer): Buffer {
 }
 
 describe("sentinel blocks are removed by install's appendedBlocks record (plan 33.1-33, carry 4, 6, 11)", () => {
-  it("install records the exact block it appended to CLAUDE.md and the Copilot file, as a content record", () => {
+  it("install records the exact block it appended to CLAUDE.md and the Copilot file, as a content record of its lines and the separator it wrote", () => {
     const b = box("record");
     const claude = Buffer.from("# Mine\n\nkeep me\n");
     put(b, "CLAUDE.md", claude);
     install(b);
     const m = marker(b);
-    const blocks = m.appendedBlocks as Record<string, string>;
+    const blocks = m.appendedBlocks as Record<string, { block: string; separator: string }>;
     expect(Object.keys(blocks).sort()).toEqual([COPILOT, "CLAUDE.md"].sort());
-    expect(blocks["CLAUDE.md"]).toBe(sha(appendedBlock(b, "CLAUDE.md", claude)));
-    // install created the Copilot file: the whole file is the block it appended.
-    expect(blocks[COPILOT]).toBe(sha(bytes(b, COPILOT)));
+    const appended = appendedBlock(b, "CLAUDE.md", claude);
+    expect(appended[0], "install wrote one separator newline before the block lines").toBe(0x0a);
+    expect(blocks["CLAUDE.md"]).toEqual({ block: sha(appended.subarray(1)), separator: "blank-line" });
+    // install created the Copilot file: the whole file is the separator and the block lines.
+    expect(blocks[COPILOT]).toEqual({ block: sha(bytes(b, COPILOT).subarray(1)), separator: "blank-line" });
   });
 
   for (const [name, body] of [
@@ -129,7 +133,7 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
     expect(bytes(b, COPILOT).toString()).toBe("\n\n");
   });
 
-  it("the user's lines before and after the block survive exactly; only the appended bytes go", () => {
+  it("the user's lines before and after the block survive exactly; the block lines go, and the newline before them stays (red-team B1: text follows the block, so which newline install added is not known)", () => {
     const b = box("around");
     const claude = "# Mine\n";
     put(b, "CLAUDE.md", claude);
@@ -138,7 +142,8 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
     writeFileSync(at(b, "CLAUDE.md"), `# A line the user added at the top\n${installed}## Added after the block\n\n`);
     const r = uninstall(b);
     expect(r.status, r.stdout).toBe(0);
-    expect(bytes(b, "CLAUDE.md").toString()).toBe(`# A line the user added at the top\n${claude}## Added after the block\n\n`);
+    expect(bytes(b, "CLAUDE.md").toString()).toBe(`# A line the user added at the top\n${claude}\n## Added after the block\n\n`);
+    expect(r.stdout).toMatch(/^ {2}removed\s+CLAUDE\.md start-here pointer \(sentinel block only; rest of file preserved, including the newline before the block — the block is no longer at the end of the file/m);
   });
 
   for (const dryRun of [false, true]) {
@@ -157,8 +162,8 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
       expect(bytes(b, "CLAUDE.md").equals(beforeClaude), r.stdout).toBe(true);
       expect(existsSync(at(b, COPILOT)), `${COPILOT} was deleted with the user's line in it\n${r.stdout}`).toBe(true);
       expect(bytes(b, COPILOT).equals(beforeCopilot), r.stdout).toBe(true);
-      expect(r.stdout).toMatch(/^ {2}left\s+CLAUDE\.md start-here pointer \(no grugops block in it is exactly the block install recorded appending/m);
-      expect(r.stdout).toMatch(/^ {2}left\s+\.github\/copilot-instructions\.md pointer \(no grugops block in it is exactly the block install recorded appending/m);
+      expect(r.stdout).toMatch(/^ {2}left\s+CLAUDE\.md start-here pointer \(the grugops block in it no longer matches the block install recorded appending/m);
+      expect(r.stdout).toMatch(/^ {2}left\s+\.github\/copilot-instructions\.md pointer \(the grugops block in it no longer matches the block install recorded appending/m);
     });
 
     it(`carry 11 (${mode}): with no install marker, a hand-copied grugops block is left and the target changes by zero bytes`, () => {
@@ -190,7 +195,8 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
       put(b, "CLAUDE.md", "# Mine\n");
       install(b);
       const m = marker(b);
-      m.appendedBlocks = { "CLAUDE.md": "not a record" };
+      // A string record (the plan-33 format, before the separator was recorded) is malformed too.
+      m.appendedBlocks = { "CLAUDE.md": `sha256:${"0".repeat(64)}`, [COPILOT]: { block: "not a record", separator: "blank-line" } };
       writeMarker(b, m);
       const beforeClaude = bytes(b, "CLAUDE.md");
       const beforeMarker = bytes(b, MARKER_REL);
@@ -221,9 +227,9 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
     const claude = "# Mine\n\n\n";
     put(b, "CLAUDE.md", claude);
     install(b);
-    const first = (marker(b).appendedBlocks as Record<string, string>)["CLAUDE.md"];
+    const first = (marker(b).appendedBlocks as Record<string, unknown>)["CLAUDE.md"];
     install(b);
-    expect((marker(b).appendedBlocks as Record<string, string>)["CLAUDE.md"]).toBe(first);
+    expect((marker(b).appendedBlocks as Record<string, unknown>)["CLAUDE.md"]).toEqual(first);
     const r = uninstall(b);
     expect(r.status, r.stdout).toBe(0);
     expect(bytes(b, "CLAUDE.md").toString()).toBe(claude);
