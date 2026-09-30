@@ -281,6 +281,39 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
     });
   }
 
+  // Red-team of plan 33.1-30 (RT1, brief DC-2 class): a ledger whose ABSENCE (a marker made before it
+  // existed) grants a fallback authority must not keep granting it after a run that keeps the marker.
+  // Every ledger in turn is removed from the marker, another is garbled so the marker is kept, and a
+  // second uninstall after the user re-makes their own files must change nothing. The class is tested
+  // without a list of which ledgers have a fallback: each one is asked.
+  for (const absent of LEDGERS) {
+    it(`${absent} absent (a marker made before that ledger), marker kept for another malformed ledger: no fallback outlives the run — a second uninstall changes no byte of what the user re-made`, () => {
+      const garbled = LEDGERS.find((l) => l !== absent)!;
+      const { target, home } = emptyTarget(`spent-${absent}`);
+      ok(runInstall(target, home), "install");
+      const m = readMarker(target);
+      delete m[absent];
+      m[garbled] = "garbled";
+      writeMarker(target, m);
+
+      const preDry = snapshotTree(target);
+      const dry = runUninstall(target, home, { dryRun: true });
+      expect(dry.status, dry.stdout).toBe(3);
+      expect(snapshotTree(target), "the DRY_RUN preview changed the tree").toBe(preDry);
+
+      const r1 = runUninstall(target, home);
+      expect(r1.status, r1.stdout).toBe(3);
+      expect(existsSync(abs(target, MARKER_REL)), "PREMISE: the marker is kept").toBe(true);
+      expect(readMarker(target)[garbled], "the malformed ledger is written back as it was").toBe("garbled");
+
+      recreate(target);
+      const before = snapshotTree(target);
+      const r2 = runUninstall(target, home);
+      expect(r2.status, r2.stdout).toBe(3);
+      expect(snapshotTree(target), `the second uninstall changed what the user re-made\n${r2.stdout}`).toBe(before);
+    });
+  }
+
   it("a kept marker that cannot be rewritten is a counted verify naming the entries it still lists", () => {
     if (process.platform === "win32" || (typeof process.getuid === "function" && process.getuid() === 0)) {
       console.log("SKIPPED: a read-only file is writable to root, and win32 is out of scope (D-15)");

@@ -7821,6 +7821,124 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(Object.keys(kept.kitFiles as object)).toEqual([edited]);
   });
 
+  // ── Red-team of plan 33.1-30 (brief §3) ──────────────────────────────────────────────────────────
+  // RT1 (DC-2): a legacy marker (no kitFiles) that uninstall keeps went on granting the byte-identity
+  // fallback, so a kit file the user copied in after the first uninstall was removed by the second.
+  it("kit-file ownership (red-team RT1, DC-2): a kept legacy marker records kitFiles {} after its one use, so a verbatim kit file the user copies in later survives the next uninstall; DRY_RUN previews the same edit and changes nothing", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const m = readMarkerJson(target);
+    delete m.kitFiles;
+    m.createdDirs = "g";
+    writeMarkerJson(target, m);
+    const identical = kitFilesIn(target).filter((rel) => sameAsSource(target, rel));
+    expect(identical.length, "premise: some kit files are verbatim copies").toBeGreaterThan(0);
+
+    const preDry = treeOf(target);
+    const dry = runUninstallDry(target, home);
+    expect(dry.status, dry.stdout).toBe(3);
+    expect(treeOf(target), `the DRY_RUN preview changed the tree\n${dry.stdout}`).toBe(preDry);
+    const dryEdit = linesUnder(dry.stdout, "would-edit").filter((l) => l.startsWith(".grugops/install.json") && /kitFiles/.test(l));
+    expect(dryEdit.length, `the preview does not name the kitFiles edit\n${dry.stdout}`).toBe(1);
+
+    const r1 = runUninstall(target, home);
+    expect(r1.status, r1.stdout).toBe(3);
+    // PREMISE: the fallback was used once, and removed the verbatim copies.
+    for (const rel of identical) expect(present(target, rel), `${rel} was not removed by the legacy fallback`).toBe(false);
+    const kept = readMarkerJson(target);
+    expect(kept.createdDirs, "the malformed ledger is written back as it was").toBe("g");
+    expect(kept.kitFiles, "the kept legacy marker still grants the byte-identity fallback").toEqual({});
+    expect(linesUnder(r1.stdout, "edited").filter((l) => l.startsWith(".grugops/install.json") && /kitFiles/.test(l)).length, r1.stdout).toBe(1);
+
+    // The user copies the kit files in by hand afterwards (README §1's minimal path).
+    for (const rel of identical) {
+      mkdirSync(dirname(at(target, rel)), { recursive: true });
+      writeFileSync(at(target, rel), readFileSync(srcOf(rel)));
+    }
+    const before = treeOf(target);
+    for (const dry2 of [true, false]) {
+      const r2 = dry2 ? runUninstallDry(target, home) : runUninstall(target, home);
+      expect(r2.status, r2.stdout).toBe(3);
+      expect(treeOf(target), `${dry2 ? "DRY_RUN " : ""}the second uninstall removed the user's later copy\n${r2.stdout}`).toBe(before);
+      for (const rel of identical) expect(naming(r2.stdout, "left", rel).length, `${rel}\n${r2.stdout}`).toBe(1);
+    }
+  });
+
+  // RT2: a hard link at a kit path was removed by the legacy arm (byte identity read through a reader
+  // that allows a second name) and left by the recorded arm with a false reason ("it has changed since
+  // install wrote it"). One content check now decides both arms, and a createdFiles path (a runnable),
+  // the same way: left, with a reason that names the hard link.
+  it("kit-file ownership (red-team RT2): a hard-linked kit file is left on BOTH arms (recorded and legacy), and a hard-linked runnable too, each with a reason naming the hard link; DRY_RUN decides alike", () => {
+    const skill = ".claude/skills/grugops-gate/SKILL.md";
+    const runnable = "tools/grugops/reference-check.js";
+    for (const legacy of [false, true]) {
+      for (const dry of [true, false]) {
+        const what = `${legacy ? "legacy marker" : "kitFiles record"}, ${dry ? "DRY_RUN" : "real run"}`;
+        const target = makeFixture();
+        const home = mkTmp();
+        expect(runInstall(target, home).status).toBe(0);
+        if (legacy) dropKitFiles(target);
+        expect(sameAsSource(target, skill), "premise: the skill is a verbatim copy").toBe(true);
+        const outside = mkTmp();
+        const outsideOf = new Map<string, string>();
+        for (const rel of [skill, runnable]) {
+          const out = join(outside, rel.split("/").join("__"));
+          writeFileSync(out, readFileSync(at(target, rel)));
+          rmSync(at(target, rel));
+          linkSync(out, at(target, rel));
+          outsideOf.set(rel, out);
+        }
+        const bytes = new Map([...outsideOf].map(([rel, out]) => [rel, readFileSync(out)]));
+        const r = dry ? runUninstallDry(target, home) : runUninstall(target, home);
+        expect(r.status, `${what}\n${r.stdout}`).toBe(0);
+        for (const [rel, out] of outsideOf) {
+          expect(present(target, rel), `${what}: the hard-linked ${rel} was removed\n${r.stdout}`).toBe(true);
+          expect(lstatSync(at(target, rel)).nlink, `${what}: ${rel}`).toBe(2);
+          expect(readFileSync(out).equals(bytes.get(rel)!), `${what}: ${out} changed`).toBe(true);
+          const left = naming(r.stdout, "left", rel);
+          expect(left.length, `${what}: no left line for ${rel}\n${r.stdout}`).toBe(1);
+          expect(left[0], what).toMatch(/hard link/);
+          expect(left[0], what).not.toMatch(/changed since|edited or replaced|differs from/);
+        }
+      }
+    }
+  });
+
+  // RT3: duplicate keys in the marker were resolved by JSON.parse (the last one wins) instead of refused.
+  // The marker is install's own file, written by JSON.stringify, so a duplicate key is a hand edit and
+  // which value is the record is not known: the marker is refused as unreadable (fail closed).
+  it("kit-file ownership (red-team RT3): a marker with a duplicate key is refused as unreadable — uninstall removes no kit file and leaves the marker byte-identical; install over it leaves it unchanged", () => {
+    const gate = ".claude/skills/grugops-gate/SKILL.md";
+    const SHAPES: ReadonlyArray<readonly [string, (text: string) => string]> = [
+      ["a second kitFiles key (the first claims nothing)", (t) => t.replace('"kitFiles": {', '"kitFiles": {},\n  "kitFiles": {')],
+      ["a duplicate path inside kitFiles", (t) => t.replace('"kitFiles": {', `"kitFiles": {\n    "${gate}": "sha256:${"0".repeat(64)}",`)],
+      ["a duplicate key inside geminiSettings", (t) => t.replace('"geminiSettings": {', '"geminiSettings": {\n    "createdFile": true,')],
+    ];
+    for (const [what, edit] of SHAPES) {
+      const target = makeFixture();
+      const home = mkTmp();
+      expect(runInstall(target, home).status).toBe(0);
+      const text = readFileSync(markerPathOf(target), "utf8");
+      const forged = edit(text);
+      expect(forged, `premise (${what}): the edit applied`).not.toBe(text);
+      expect(() => JSON.parse(forged), `premise (${what}): JSON.parse accepts it`).not.toThrow();
+      writeFileSync(markerPathOf(target), forged);
+      const kit = kitFilesIn(target);
+      const before = new Map(kit.map((rel) => [rel, readFileSync(at(target, rel))]));
+      const ru = runUninstall(target, home);
+      expect(ru.status, `${what}\n${ru.stdout}`).toBe(3);
+      expect(linesUnder(ru.stdout, "verify").filter((l) => /duplicate key/.test(l)).length, `${what}\n${ru.stdout}`).toBe(1);
+      for (const [rel, b] of before) {
+        expect(present(target, rel) && readFileSync(at(target, rel)).equals(b), `${what}: ${rel} was removed or changed\n${ru.stdout}`).toBe(true);
+      }
+      expect(readFileSync(markerPathOf(target), "utf8"), `${what}: the marker changed`).toBe(forged);
+      const ri = runInstall(target, home);
+      expect(ri.status, `${what}\n${ri.stdout}`).toBe(3);
+      expect(readFileSync(markerPathOf(target), "utf8"), `${what}: install rewrote the marker`).toBe(forged);
+    }
+  });
+
   // ── special files: never read, never a hang (brief DC-3, plan 33.1-26's mkfifo-or-skip precedent) ──
   const finishedWith = (r: ReturnType<typeof spawnSync>, rel: string, what: string): void => {
     expect(r.error, `${what}: uninstall did not finish (${r.error?.message})`).toBeUndefined();
