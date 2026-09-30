@@ -82,17 +82,35 @@
 //   fileNameBefore   string   present exactly when addedEntry is true: what context.fileName was
 //                             before the append — "absent", "string" (a string, which install turned
 //                             into [string, "AGENTS.md"]) or "array";
-//   fileNameContent  record   the content record (contentRecord, sha256 form) of JSON.stringify of
-//                             context.fileName as install last left it, or null when install left no
-//                             fileName it could record. A re-install carries this record forward only
-//                             while the file's fileName is still exactly that (red-team of plan
-//                             33.1-28: never carry a ledger entry forward by presence). Required, and
-//                             never null when addedEntry is true;
+//   noEntryReason    string   present exactly when addedEntry is false: why the record claims no
+//                             entry (red-team B2 of plan 33.1-29, so uninstall says only what is true):
+//                               "already-listed" install found AGENTS.md already in context.fileName;
+//                               "refused"        install could not read or merge the file (that run's
+//                                                verify said why) and added nothing;
+//                               "reset"          an earlier record no longer held: context.fileName
+//                                                changed after install wrote it, so whether an
+//                                                AGENTS.md entry in it is install's is not known;
+//                               "reversed"       uninstall removed the entry install added (a marker
+//                                                uninstall kept);
+//   fileNameContent  record   jsonValueRecord of context.fileName as install last left it (the ONE
+//                             serialisation both binaries use), or null when there was no fileName or
+//                             the file was not read. A re-install carries the record forward only while
+//                             the file's fileName is still exactly that (red-team of plan 33.1-28: never
+//                             carry a ledger entry forward by presence), and uninstall edits the file
+//                             only while it is (red-team B1 of plan 33.1-29). Required, and never null
+//                             when addedEntry is true;
 //   fileContent      record   present exactly when createdFile is true: the content record of the
 //                             bytes install wrote. Uninstall deletes the whole file only while it
 //                             holds them (recordHolds).
 // createdFile true also requires addedEntry true, createdContext true and fileNameBefore "absent"
 // (install writes the file with the entry in it). Anything else is `malformed`.
+//
+// A RUN THAT READ NOTHING KEEPS THE RECORD (red-team B2 of plan 33.1-29). A re-install that could not
+// read the file (a link, a hard link, a FIFO, mode 000, too large, not UTF-8, not JSON, a duplicate key
+// on the path) has no evidence either way, so it writes the earlier record back verbatim and says so. A
+// record that claims nothing is written only by a run that READ the file and found the record no
+// longer holds ("reset"), or that found AGENTS.md already listed. The field is absent only in a marker
+// written before this ledger existed (or by a re-install over one that changed nothing).
 //
 // Clear professional voice: this is a safety surface (installer reversal).
 
@@ -128,11 +146,14 @@ export interface AskRuleLedger {
 // GeminiLedger (plan 33.1-29): the record of what install did to .gemini/settings.json. See THE
 // geminiSettings SHAPE in the header.
 export type FileNameBefore = "absent" | "string" | "array";
+export type NoEntryReason = "already-listed" | "refused" | "reset" | "reversed";
+const NO_ENTRY_REASONS: readonly string[] = ["already-listed", "refused", "reset", "reversed"];
 export interface GeminiLedger {
   createdFile: boolean;
   addedEntry: boolean;
   createdContext?: boolean;
   fileNameBefore?: FileNameBefore;
+  noEntryReason?: NoEntryReason;
   fileNameContent: string | null;
   fileContent?: string;
 }
@@ -260,6 +281,7 @@ export function readGeminiLedger(marker: Readonly<Record<string, unknown>> | nul
   if (typeof r.createdFile !== "boolean" || typeof r.addedEntry !== "boolean") return bad;
   const want = ["createdFile", "addedEntry", "fileNameContent"];
   if (r.addedEntry) want.push("createdContext", "fileNameBefore");
+  else want.push("noEntryReason");
   if (r.createdFile) want.push("fileContent");
   const keys = Object.keys(r);
   if (keys.length !== want.length || !want.every((k) => Object.prototype.hasOwnProperty.call(r, k))) return bad;
@@ -268,6 +290,8 @@ export function readGeminiLedger(marker: Readonly<Record<string, unknown>> | nul
     if (typeof r.createdContext !== "boolean") return bad;
     if (r.fileNameBefore !== "absent" && r.fileNameBefore !== "string" && r.fileNameBefore !== "array") return bad;
     if (r.fileNameContent === null) return bad;
+  } else if (typeof r.noEntryReason !== "string" || !NO_ENTRY_REASONS.includes(r.noEntryReason)) {
+    return bad;
   }
   if (r.createdFile) {
     if (!r.addedEntry || r.createdContext !== true || r.fileNameBefore !== "absent") return bad;
@@ -277,6 +301,8 @@ export function readGeminiLedger(marker: Readonly<Record<string, unknown>> | nul
   if (r.addedEntry) {
     ledger.createdContext = r.createdContext as boolean;
     ledger.fileNameBefore = r.fileNameBefore as FileNameBefore;
+  } else {
+    ledger.noEntryReason = r.noEntryReason as NoEntryReason;
   }
   if (r.createdFile) ledger.fileContent = r.fileContent as string;
   return { state: "ok", ledger, raw };
@@ -291,6 +317,8 @@ export function geminiLedgerJson(l: GeminiLedger): Record<string, unknown> {
   if (l.addedEntry) {
     out.createdContext = l.createdContext;
     out.fileNameBefore = l.fileNameBefore;
+  } else {
+    out.noEntryReason = l.noEntryReason;
   }
   out.fileNameContent = l.fileNameContent;
   if (l.createdFile) out.fileContent = l.fileContent;
@@ -317,6 +345,18 @@ const isSha256Record = (v: unknown): v is string => typeof v === "string" && SHA
 /** The record of `bytes` install wrote: `sha256:<hex>`. A string is hashed as its UTF-8 bytes. */
 export function contentRecord(bytes: Buffer | string): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+/**
+ * The record of a JSON value as a file holds it: contentRecord of JSON.stringify(value), or null for
+ * no value (undefined). THE ONE SERIALISATION for geminiSettings.fileNameContent and
+ * claudeAskRules.askContent: install writes the record with it and both install (the carry) and
+ * uninstall (before any edit) compare the current value with it, so the two sides cannot disagree
+ * about what "the same list" means. The value comes from the parsed file (json-text.ts valueOf), so
+ * spacing and escapes in the file do not change it.
+ */
+export function jsonValueRecord(value: unknown): string | null {
+  return value === undefined ? null : contentRecord(JSON.stringify(value));
 }
 
 /** The record of a symbolic link install made to `target`: `link:<target>`. */

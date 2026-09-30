@@ -141,15 +141,18 @@ In the **target repo**:
   resolves the shared kit on first run with no path error
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved)
-- `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"` (read-modify-write; other
-  keys are preserved, never clobbered), and what install did is recorded in `.grugops/install.json`
-  as `geminiSettings` so the uninstaller can reverse exactly that. A settings file that is not a
-  valid JSON object, or whose `context` is not an object or whose `context.fileName` is neither a
-  string nor an array of strings, is left untouched and reported as a `verify` finding (exit `3`),
-  by the installer and the uninstaller alike
+- `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"`, and what install did is
+  recorded in `.grugops/install.json` as `geminiSettings` so the uninstaller can reverse exactly
+  that. The entry is inserted into the file's text in place: every other byte of the file (numbers
+  as written, key order, spacing, line ends, a byte order mark, the final newline or its absence)
+  stays as it was, and install followed by uninstall gives back the file byte for byte. A settings
+  file that is not a valid JSON object, is not strict JSON (a comment, a trailing comma), is not
+  valid UTF-8, has more than one `context` or `context.fileName` key, or whose `context` is not an
+  object or whose `context.fileName` is neither a string nor an array of strings, is left untouched
+  and reported as a `verify` finding (exit `3`), by the installer and the uninstaller alike
 - `.claude/settings.json` — the Claude Code ask rules described in §5 are added to
-  `permissions.ask` (additive; your own rules and keys are kept, and the added rules are recorded
-  so uninstall removes exactly those)
+  `permissions.ask` (additive and in place: every other byte of the file is kept, and the added
+  rules are recorded so uninstall removes exactly those)
 - `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
   `tools/grugops/host-protection.js` (§5)
 - an optional `.github/copilot-instructions.md` pointer
@@ -208,19 +211,26 @@ grugops open marker has no close marker on a later line is left exactly as it is
 
 The Gemini settings file is changed only as install's `geminiSettings` record says. Install
 records whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape
-it found there (no `fileName`, a string, or an array; and whether `context` was there). The
-uninstaller then removes the last `"AGENTS.md"` element from an array `fileName` and restores that
-shape: a string becomes the string again, and a `fileName` or `context` install added is removed
-again. Every other key stays. It deletes the whole file only when install created it and it still
-holds exactly the bytes install wrote, or nothing is left in it once that entry is removed. With no
-record, nothing in the file is changed and it is reported `left`: a repository you never ran the
-installer on (with no marker), an install made before this release (remove the entry by hand if
-grugops added it), and a file that already listed `AGENTS.md` when install ran. A `context.fileName`
-that is no longer an array is left and reported. A re-install keeps an earlier record only while
-`context.fileName` is exactly what install last left there; if you changed it, the record claims
-nothing more and the uninstaller leaves the file. A malformed `geminiSettings` is a `verify` finding
-on both sides (exit `3`): install does not merge and writes it back as found, and the uninstaller
-leaves the file.
+it found there (no `fileName`, a string, or an array; and whether `context` was there), and a sha256
+of `context.fileName` as it left it. The uninstaller acts only while `context.fileName` is still
+exactly that list. It then removes the last `"AGENTS.md"` element from the array and restores the
+shape install found: a string becomes the string again, and a `fileName` or `context` install added
+is removed again. Only that entry and the separator next to it are removed; every other byte stays.
+It deletes the whole file only when install created it and it still holds exactly the bytes install
+wrote. If you changed `context.fileName` after install (for example removed install's entry and
+later wrote your own list, even one that names `AGENTS.md`), which entry is install's is not known:
+the file is left byte-identical and reported `left`, and you remove the entry by hand if grugops
+added it. With no record of an added entry, nothing in the file is changed: a repository you never
+ran the installer on (with no marker), an install made before this release (`left`; remove the
+entry by hand if grugops added it), a file that already listed `AGENTS.md` when install found it,
+and a file install could not read or merge when it ran (both reported `skipped`). A re-install
+keeps an earlier record only while `context.fileName` is exactly what install last left there; if
+you changed it, the record claims nothing more, says so, and the uninstaller leaves the file. A
+re-install that cannot read the file at all (a link, a hard link, a special file, no read
+permission, too large, not UTF-8, not strict JSON, a duplicate key) has no evidence either way, so
+it keeps the earlier record as it was and says so. A malformed `geminiSettings` is a `verify`
+finding on both sides (exit `3`): install does not merge and writes it back as found, and the
+uninstaller leaves the file.
 
 A symbolic link at one of those paths is removed only when it is exactly the link a `--symlink`
 install makes: it points at the kit source file of the checkout you run the uninstaller from. Any
@@ -643,9 +653,13 @@ wrote your own, every rule already in it is treated as yours, reported so, and l
 key you add beside the list does not change this. If `.claude/settings.json` cannot be parsed, the
 installer leaves it untouched, records no rule as its own, and exits `3`. If `.grugops/install.json` cannot be
 read, or its ask-rule ledger is malformed, that is a `verify` finding (exit `3`) on both sides:
-install then adds no rule and leaves the ledger as it found it, and uninstall removes no rule. One formatting note: when the installer adds rules to an existing
-`.claude/settings.json`, it writes the file back as 2-space JSON. Your values and key order are
-kept; your original whitespace is not.
+install then adds no rule and leaves the ledger as it found it, and uninstall removes no rule. When
+the installer adds rules to an existing `.claude/settings.json`, it inserts them into the file's
+text in place: every other byte (numbers as written, key order, spacing, line ends) is kept, and
+uninstall removes exactly what install inserted, so install followed by uninstall gives back the
+file byte for byte. A settings file with a comment, a trailing comma, bytes that are not UTF-8, or
+more than one `permissions` or `permissions.ask` key is left untouched and is a `verify` finding
+(exit `3`).
 
 **What an ask rule does.** Claude Code asks you before it runs a matching command. In a
 non-interactive `claude -p` run, where nobody can answer, a matching command is denied. This was

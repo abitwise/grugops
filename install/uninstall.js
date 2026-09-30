@@ -78,7 +78,10 @@ import { srcSkillNames, srcAdapterFiles, hasSourceMarkers } from "./kit-source.j
 // removal set itself comes from the ledger, never from this list and never from string presence.
 import { allAskRules } from "./checkpoint-ask-rules.js";
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers, shared with install.ts.
-import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, malformedLedgers, contentRecord, recordHolds, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, malformedLedgers, contentRecord, recordHolds, jsonValueRecord, } from "./install-marker.js";
+// Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
+// removal deletes exactly the span install's insertion added; see the module header. No I/O.
+import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue } from "./json-text.js";
 // DC-3 (plan 33.1-27): the ONE bounded reader of a user path, shared with install.ts. readForWrite is
 // its no-follow form for a path this run may edit, wayTo the same walk for a path removed by name,
 // kindAt names what is at a path, and unreadState is the one wording of an unread state. isOwnLink is
@@ -645,7 +648,21 @@ function unmergeGemini() {
         return;
     }
     if (!ledger.addedEntry) {
-        report("skipped", `${rel} (install did not add an AGENTS.md entry to it — AGENTS.md was already listed when install last ran; left untouched)`);
+        // Red-team B2 of plan 33.1-29: say why the record claims no entry, and only what is true.
+        const why = ledger.noEntryReason;
+        if (why === "reset") {
+            report("left", `${rel} (the record of what install changed in it was reset: context.fileName changed after install wrote it, ` +
+                `so whether an AGENTS.md entry in it is install's is not known — left untouched; remove AGENTS.md from ` +
+                `context.fileName by hand if grugops added it)`);
+        }
+        else {
+            const found = why === "already-listed"
+                ? "AGENTS.md was already listed when install found the file"
+                : why === "refused"
+                    ? "install could not read or merge the file when it ran (that run printed a verify line) and added nothing"
+                    : "an earlier uninstall already removed the entry install added";
+            report("skipped", `${rel} (install did not add an AGENTS.md entry to it — ${found}; left untouched)`);
+        }
         return;
     }
     if (read.state === "blocked") {
@@ -655,23 +672,26 @@ function unmergeGemini() {
     }
     // Red-team of plan 33.1-27 (B5): the file is parsed BEFORE the preview branch, so the preview and
     // the real run decide alike, and a file that does not parse, or is not a JSON object, is a COUNTED
-    // verify with no `removed` line.
-    let j;
-    try {
-        const parsed = JSON.parse(read.text);
-        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-            throw new Error("not an object");
-        j = parsed;
-    }
-    catch {
-        verify(`${rel} is not a valid JSON object — it was left untouched, so the AGENTS.md entry install recorded ` +
+    // verify with no `removed` line. Red-team B3 of plan 33.1-29: it is read as text (json-text.ts), so
+    // the edit below removes only the recorded entry and keeps every other byte.
+    const doc = readJsonText(read.bytes);
+    if (!doc.ok || doc.root.kind !== "object") {
+        verify(`${rel} ${doc.ok ? "is not a JSON object" : doc.why} — it was left untouched, so the AGENTS.md entry install recorded ` +
             `adding was not removed. Remove it from context.fileName by hand.`);
         return;
     }
-    const claimsNothing = (fileName) => ({
+    const root = doc.root;
+    const ctxAt = memberNamed(root, "context");
+    if (keyCount(root, "context") > 1 || (ctxAt !== null && keyCount(ctxAt.value, "fileName") > 1)) {
+        verify(`${rel} has more than one "context" or "context.fileName" key, so which one Gemini CLI reads is not known — ` +
+            `it was left untouched, so the AGENTS.md entry install recorded adding was not removed. Remove it by hand.`);
+        return;
+    }
+    const claimsNothing = (noEntryReason, fileName) => ({
         createdFile: false,
         addedEntry: false,
-        fileNameContent: fileName === undefined ? null : contentRecord(JSON.stringify(fileName)),
+        noEntryReason,
+        fileNameContent: jsonValueRecord(fileName),
     });
     // Install created the file, and it holds exactly the bytes install wrote: it holds nothing of the
     // user's, so it is removed whole.
@@ -680,54 +700,87 @@ function unmergeGemini() {
         if (DRY_RUN) {
             report("would-remove", line);
             markGone(f);
-            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
+            GEMINI_LEDGER_AFTER = claimsNothing("reversed", undefined);
             return;
         }
         if (unlinkPath(f, rel, line))
-            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
+            GEMINI_LEDGER_AFTER = claimsNothing("reversed", undefined);
         return;
     }
-    // THE EXACT REVERSAL OF THE RECORDED APPEND. The interim rules of 33.1-VERIFICATION hold here for
-    // good: nothing is deleted from a file that does not parse (above); only an exact "AGENTS.md"
-    // element is removed, and only from an array fileName; a fileName that is no longer an array is left.
-    const ctxValue = j.context;
-    if (ctxValue === null || typeof ctxValue !== "object" || Array.isArray(ctxValue) || !Array.isArray(ctxValue.fileName)) {
+    const ctxNode = ctxAt === null ? null : ctxAt.value;
+    const fnAt = ctxNode === null || ctxNode.kind !== "object" ? null : memberNamed(ctxNode, "fileName");
+    const current = fnAt === null ? undefined : valueOf(doc.text, fnAt.value);
+    // THE RECORD MUST HOLD (red-team B1 of plan 33.1-29, brief DC-2). The ledger's fileNameContent is
+    // context.fileName as install left it, in the one serialisation (jsonValueRecord) install used. A
+    // fileName that is not exactly that list — the user removed install's entry and wrote their own, or
+    // the record was forged — proves nothing about which entry is install's, so nothing is edited.
+    if (jsonValueRecord(current) !== ledger.fileNameContent) {
+        const listsIt = current === "AGENTS.md" || (Array.isArray(current) && current.includes("AGENTS.md"));
+        if (!listsIt) {
+            report("skipped", `${rel} (context.fileName no longer lists AGENTS.md — the entry install added was already removed)`);
+            GEMINI_LEDGER_AFTER = claimsNothing("reset", current);
+            return;
+        }
+        report("left", `${rel} (context.fileName is not the list install recorded leaving there — it changed after install wrote it, so ` +
+            `which AGENTS.md entry is install's is not known — left untouched; remove AGENTS.md from context.fileName by ` +
+            `hand if grugops added it)`);
+        return;
+    }
+    // THE EXACT REVERSAL OF THE RECORDED APPEND. The record holds, so fileName is the array install left.
+    // Only an exact "AGENTS.md" element is removed, and only from an array fileName.
+    if (ctxNode === null || fnAt === null || fnAt.value.kind !== "array" || !Array.isArray(current)) {
         report("left", `${rel} (context.fileName is no longer an array — left untouched; remove AGENTS.md from it by hand if grugops added it)`);
         return;
     }
-    const ctx = ctxValue;
-    const list = [...ctx.fileName];
+    const arrNode = fnAt.value;
+    const list = [...current];
     // The LAST exact element is the one install appended: install appends at the end, and only when no
-    // "AGENTS.md" element was there. An earlier one is the user's own, added since.
+    // "AGENTS.md" element was there. (A file install created lists it first; it is the only one there.)
     const at = list.lastIndexOf("AGENTS.md");
-    if (at < 0) {
-        report("skipped", `${rel} (context.fileName no longer lists AGENTS.md — the entry install added was already removed)`);
-        GEMINI_LEDGER_AFTER = claimsNothing(ctx.fileName);
-        return;
-    }
     list.splice(at, 1);
     // Restore the shape install found: an absent fileName is removed again, a string becomes the
-    // string again, and a context install added is removed when nothing else is in it.
-    if (ledger.fileNameBefore === "absent" && list.length === 0)
+    // string again, and a context install added is removed when nothing else is in it. The same
+    // decision is made twice: on the parsed value (the oracle) and as one text edit.
+    const j = documentValue(doc);
+    const ctx = j.context;
+    let newText;
+    if (ledger.fileNameBefore === "absent" && list.length === 0) {
         delete ctx.fileName;
-    else if (ledger.fileNameBefore === "string" && list.length === 1 && typeof list[0] === "string")
+        if (ledger.createdContext === true && Object.keys(ctx).length === 0) {
+            delete j.context;
+            newText = removeItems(doc.text, root, new Set([root.members.findIndex((m) => m.key === "context")]));
+        }
+        else {
+            newText = removeItems(doc.text, ctxNode, new Set([ctxNode.kind === "object" ? ctxNode.members.findIndex((m) => m.key === "fileName") : -1]));
+        }
+    }
+    else if (ledger.fileNameBefore === "string" && list.length === 1 && typeof list[0] === "string" && arrNode.kind === "array") {
         ctx.fileName = list[0];
-    else
+        newText = replaceWithText(doc.text, arrNode, arrNode.elements[at === 0 ? 1 : 0]);
+    }
+    else {
         ctx.fileName = list;
-    if (ledger.createdContext === true && Object.keys(ctx).length === 0)
-        delete j.context;
-    const after = claimsNothing(Object.prototype.hasOwnProperty.call(ctx, "fileName") ? ctx.fileName : undefined);
+        newText = removeItems(doc.text, arrNode, new Set([at]));
+    }
+    const after = claimsNothing("reversed", Object.prototype.hasOwnProperty.call(ctx, "fileName") ? ctx.fileName : undefined);
     // Install created the file, and with the entry it added removed nothing is left in it.
     if (ledger.createdFile && Object.keys(j).length === 0) {
         const line = `${rel} (install created it, and with the AGENTS.md entry it added removed nothing is left in it — recorded as geminiSettings)`;
         if (DRY_RUN) {
             report("would-remove", line);
             markGone(f);
-            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
+            GEMINI_LEDGER_AFTER = claimsNothing("reversed", undefined);
             return;
         }
         if (unlinkPath(f, rel, line))
-            GEMINI_LEDGER_AFTER = claimsNothing(undefined);
+            GEMINI_LEDGER_AFTER = claimsNothing("reversed", undefined);
+        return;
+    }
+    // THE ORACLE: the edited text must hold exactly the reversed value; otherwise nothing is written.
+    const check = readJsonText(Buffer.from(newText, "utf8"));
+    if (!check.ok || !sameJsonValue(documentValue(check), j)) {
+        verify(`${rel} could not be edited in place without changing anything but context.fileName — it was left untouched, ` +
+            `so the AGENTS.md entry install recorded adding was not removed. Remove it by hand.`);
         return;
     }
     if (DRY_RUN) {
@@ -735,8 +788,8 @@ function unmergeGemini() {
         GEMINI_LEDGER_AFTER = after;
         return;
     }
-    if (rewritePath(f, JSON.stringify(j, null, 2) + "\n", rel, "remove AGENTS.md from context.fileName by hand.")) {
-        report("removed", `${rel} AGENTS.md entry (install added it — recorded as geminiSettings; every other key preserved)`);
+    if (rewritePath(f, newText, rel, "remove AGENTS.md from context.fileName by hand.")) {
+        report("removed", `${rel} AGENTS.md entry (install added it — recorded as geminiSettings; every other byte preserved)`);
         GEMINI_LEDGER_AFTER = after;
     }
 }
@@ -771,7 +824,7 @@ const askLedgerAfter = (ask) => ({
     createdFile: false,
     createdPermissions: false,
     createdAsk: false,
-    askContent: ask === null ? null : contentRecord(JSON.stringify(ask)),
+    askContent: jsonValueRecord(ask === null ? undefined : ask),
 });
 function removeAskRules() {
     const rel = ".claude/settings.json";
@@ -812,18 +865,22 @@ function removeAskRules() {
             `rule(s) grugops added were NOT removed. Remove them by hand.`);
         return;
     }
-    let json;
-    try {
-        const parsed = JSON.parse(read.text);
-        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-            throw new Error("not an object");
-        json = parsed;
-    }
-    catch {
-        verify(`${rel} is not a JSON object — left untouched; the ${ledger.size} ask rule(s) grugops added were NOT ` +
-            `removed. Fix the file, then re-run the uninstaller or remove them by hand.`);
+    // Red-team B3 of plan 33.1-29 (D-18): read as text (json-text.ts), so the edit below removes only the
+    // recorded rules (or the containers install created) and keeps every other byte of the user's file.
+    const doc = readJsonText(read.bytes);
+    if (!doc.ok || doc.root.kind !== "object") {
+        verify(`${rel} ${doc.ok ? "is not a JSON object" : doc.why} — left untouched; the ${ledger.size} ask rule(s) grugops ` +
+            `added were NOT removed. Fix the file, then re-run the uninstaller or remove them by hand.`);
         return;
     }
+    const rootNode = doc.root;
+    const permsAt = memberNamed(rootNode, "permissions");
+    if (keyCount(rootNode, "permissions") > 1 || (permsAt !== null && keyCount(permsAt.value, "ask") > 1)) {
+        verify(`${rel} has more than one "permissions" or "permissions.ask" key, so which one Claude Code reads is not known — ` +
+            `left untouched; the ${ledger.size} ask rule(s) grugops added were NOT removed. Remove them by hand.`);
+        return;
+    }
+    const json = documentValue(doc);
     const hasPermissions = Object.prototype.hasOwnProperty.call(json, "permissions");
     const perms = json.permissions;
     if (hasPermissions && (perms === null || typeof perms !== "object" || Array.isArray(perms))) {
@@ -840,12 +897,14 @@ function removeAskRules() {
     // IN-02: walk permissions.ask in order and take only the FIRST occurrence of each ledger rule.
     const toRemove = new Set(ledger);
     const removing = [];
+    const removingAt = new Set();
     const keptAsk = [];
     const userCopies = [];
-    for (const x of ask) {
+    for (const [k, x] of ask.entries()) {
         if (typeof x === "string" && toRemove.has(x)) {
             toRemove.delete(x);
             removing.push(x);
+            removingAt.add(k);
             continue;
         }
         if (typeof x === "string" && ledger.has(x))
@@ -888,6 +947,32 @@ function removeAskRules() {
         ASK_LEDGER_AFTER = askLedgerAfter(askLeft);
         return;
     }
+    // THE TEXT EDIT: the outermost container install created and that is now empty goes as one member;
+    // otherwise only the removed rules go, each with its separator (json-text.ts removeItems).
+    const permsNode = permsAt === null ? null : permsAt.value;
+    const askAt = permsNode === null ? null : memberNamed(permsNode, "ask");
+    const indexOf = (node, key) => new Set([node.kind === "object" ? node.members.findIndex((m) => m.key === key) : -1]);
+    let newText = doc.text;
+    if (deleteFile) {
+        // The whole file goes; no text edit.
+    }
+    else if (permsNode !== null && !Object.prototype.hasOwnProperty.call(next, "permissions")) {
+        newText = removeItems(doc.text, rootNode, indexOf(rootNode, "permissions"));
+    }
+    else if (permsNode !== null && askAt !== null && nextPerms !== undefined && !Object.prototype.hasOwnProperty.call(nextPerms, "ask")) {
+        newText = removeItems(doc.text, permsNode, indexOf(permsNode, "ask"));
+    }
+    else if (askAt !== null) {
+        newText = removeItems(doc.text, askAt.value, removingAt);
+    }
+    // THE ORACLE: the edited text must hold exactly the value computed above; otherwise nothing is written.
+    // Decided before the DRY_RUN branch, so the preview and the real run agree.
+    const check = readJsonText(Buffer.from(newText, "utf8"));
+    if (!deleteFile && (!check.ok || !sameJsonValue(documentValue(check), next))) {
+        verify(`${rel} could not be edited in place without changing anything but the ask rules — left untouched; the ` +
+            `${removing.length} ask rule(s) grugops added were NOT removed. Remove them by hand.`);
+        return;
+    }
     if (DRY_RUN) {
         report("would-remove", `${rel} (${removing.length} ask rule(s) grugops added${deleteFile ? "; the file grugops created would be deleted" : ""})`);
         ASK_LEDGER_AFTER = askLedgerAfter(deleteFile ? null : askLeft);
@@ -904,9 +989,9 @@ function removeAskRules() {
         }
         return;
     }
-    if (rewritePath(f, JSON.stringify(next, null, 2) + "\n", rel)) {
+    if (rewritePath(f, newText, rel)) {
         ASK_LEDGER_AFTER = askLedgerAfter(askLeft);
-        report("removed", `${rel} (${removing.length} ask rule(s) grugops added; every other entry and key preserved)`);
+        report("removed", `${rel} (${removing.length} ask rule(s) grugops added; every other byte preserved)`);
     }
 }
 // remove_marker: remove ONLY the grugops-owned install marker .grugops/install.json (D-06). This

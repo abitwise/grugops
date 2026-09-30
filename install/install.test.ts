@@ -6380,7 +6380,9 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       const home = mkTmp();
       const before = plant(target, asInstaller(c.before));
       install(target, home);
-      expect(gemBytes(target).toString("utf8"), "the merge wrote an unexpected file").toBe(asInstaller(c.after));
+      // Red-team B3 of plan 33.1-29: the merge splices the entry into the user's text, so the file
+      // holds the merged value and every other byte of the user's file (the round trip below proves it).
+      expect(JSON.parse(gemBytes(target).toString("utf8")), "the merge wrote an unexpected value").toEqual(c.after);
       const fileName = (c.after as { context: { fileName: unknown } }).context.fileName;
       expect(ledgerOf(target)).toEqual({
         createdFile: false,
@@ -6404,11 +6406,16 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(i.status, i.stdout).toBe(0);
     expect(naming(i.stdout, "skipped").some((l) => /already lists AGENTS\.md/.test(l)), i.stdout).toBe(true);
     expect(gemBytes(target).equals(before)).toBe(true);
-    expect(ledgerOf(target)).toEqual({ createdFile: false, addedEntry: false, fileNameContent: sha(JSON.stringify(RECOMMENDED.context.fileName)) });
+    expect(ledgerOf(target)).toEqual({
+      createdFile: false,
+      addedEntry: false,
+      noEntryReason: "already-listed",
+      fileNameContent: sha(JSON.stringify(RECOMMENDED.context.fileName)),
+    });
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
     expect(gemBytes(target).equals(before), r.stdout).toBe(true);
-    expect(naming(r.stdout, "skipped").some((l) => /install did not add/.test(l)), r.stdout).toBe(true);
+    expect(naming(r.stdout, "skipped").some((l) => /install did not add/.test(l) && /already listed when install found the file/.test(l)), r.stdout).toBe(true);
   });
 
   it("Gemini settings ownership: created by install, then the user adds a key — uninstall removes only the AGENTS.md element and keeps the file", () => {
@@ -6421,15 +6428,15 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(gemBytes(target).toString("utf8")).toBe(asInstaller({ context: { fileName: ["GEMINI.md"] }, theme: "dark" }));
   });
 
-  it("Gemini settings ownership: created by install, then the user removes GEMINI.md — uninstall restores the absent shape and deletes the file, then .gemini/", () => {
+  it("Gemini settings ownership: created by install, then the user removes GEMINI.md — context.fileName no longer holds the record, so uninstall leaves the file byte-identical (red-team B1 of plan 33.1-29)", () => {
     const target = makeFixture();
     const home = mkTmp();
     install(target, home);
-    writeFileSync(gemPath(target), asInstaller({ context: { fileName: ["AGENTS.md"] } }));
+    const users = plant(target, asInstaller({ context: { fileName: ["AGENTS.md"] } }));
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
-    expect(existsSync(gemPath(target)), r.stdout).toBe(false);
-    expect(existsSync(join(target, ".gemini")), r.stdout).toBe(false);
+    expect(gemBytes(target).equals(users), r.stdout).toBe(true);
+    expect(naming(r.stdout, "left").some((l) => /not the list install recorded/.test(l) && /by hand/.test(l)), r.stdout).toBe(true);
   });
 
   it("Gemini settings ownership: created by install, then the user writes invalid JSON — uninstall exits 3 with a verify and the file byte-identical", () => {
@@ -6453,18 +6460,20 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
     expect(gemBytes(target).equals(edited), r.stdout).toBe(true);
-    expect(naming(r.stdout, "left").some((l) => /no longer an array/.test(l)), r.stdout).toBe(true);
+    // Red-team B1 of plan 33.1-29: the fileName is not the list install recorded, and it does not list
+    // AGENTS.md, so there is nothing to remove.
+    expect(naming(r.stdout, "skipped").some((l) => /no longer lists AGENTS\.md/.test(l)), r.stdout).toBe(true);
   });
 
-  it("Gemini settings ownership: two AGENTS.md entries (the user's own first) — uninstall removes only the last one, the one install appended", () => {
+  it("Gemini settings ownership: two AGENTS.md entries (the user's own added) — the list is not the one install recorded, so uninstall leaves it byte-identical (red-team B1 of plan 33.1-29)", () => {
     const target = makeFixture();
     const home = mkTmp();
     plant(target, asInstaller({ context: { fileName: ["GEMINI.md"] } }));
     install(target, home);
-    plant(target, asInstaller({ context: { fileName: ["AGENTS.md", "GEMINI.md", "AGENTS.md"] } }));
+    const users = plant(target, asInstaller({ context: { fileName: ["AGENTS.md", "GEMINI.md", "AGENTS.md"] } }));
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
-    expect(gemBytes(target).toString("utf8")).toBe(asInstaller({ context: { fileName: ["AGENTS.md", "GEMINI.md"] } }));
+    expect(gemBytes(target).equals(users), r.stdout).toBe(true);
   });
 
   const BAD_SHAPES: ReadonlyArray<{ readonly name: string; readonly body: string }> = [
@@ -6487,7 +6496,13 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       expect(verifyNaming(r.stdout).length, r.stdout).toBe(1);
       expect(r.stderr).not.toMatch(NO_STACK_TRACE);
       expect(gemBytes(target).equals(before)).toBe(true);
-      expect(readMarkerJson(target).geminiSettings, "a refused file must not be recorded").toBeUndefined();
+      // Red-team B2 of plan 33.1-29: a fresh install records that it added no entry and why, so no
+      // uninstall line can say the marker predates the ledger.
+      expect(readMarkerJson(target).geminiSettings, "a refused file must be recorded as claiming nothing").toMatchObject({
+        createdFile: false,
+        addedEntry: false,
+        noEntryReason: "refused",
+      });
     });
   }
 
@@ -6541,7 +6556,15 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     { name: "createdFile alone", value: { createdFile: true } },
     { name: "createdFile without addedEntry", value: { createdFile: true, addedEntry: false, fileNameContent: null, fileContent: `sha256:${"0".repeat(64)}` } },
     { name: "addedEntry without its shape", value: { createdFile: false, addedEntry: true, fileNameContent: `sha256:${"0".repeat(64)}` } },
-    { name: "an extra key", value: { createdFile: false, addedEntry: false, fileNameContent: null, extra: 1 } },
+    { name: "an extra key", value: { createdFile: false, addedEntry: false, noEntryReason: "reset", fileNameContent: null, extra: 1 } },
+    // Red-team B2 of plan 33.1-29: a record that claims nothing says why; without the reason, or with
+    // one outside the four, or with a reason beside a claimed entry, it is malformed (fail closed).
+    { name: "no noEntryReason", value: { createdFile: false, addedEntry: false, fileNameContent: null } },
+    { name: "a bad noEntryReason", value: { createdFile: false, addedEntry: false, noEntryReason: "maybe", fileNameContent: null } },
+    {
+      name: "a noEntryReason beside a claimed entry",
+      value: { createdFile: false, addedEntry: true, createdContext: false, fileNameBefore: "array", noEntryReason: "reset", fileNameContent: `sha256:${"0".repeat(64)}` },
+    },
     { name: "no fileNameContent", value: { createdFile: false, addedEntry: false } },
     { name: "a bad fileNameBefore", value: { createdFile: false, addedEntry: true, createdContext: false, fileNameBefore: "object", fileNameContent: `sha256:${"0".repeat(64)}` } },
   ];
@@ -6647,7 +6670,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     install(target, home);
     const users = plant(target, asInstaller({ context: { fileName: ["AGENTS.md"] }, mine: true }));
     install(target, home);
-    expect(ledgerOf(target)).toEqual({ createdFile: false, addedEntry: false, fileNameContent: sha(JSON.stringify(["AGENTS.md"])) });
+    expect(ledgerOf(target)).toEqual({ createdFile: false, addedEntry: false, noEntryReason: "reset", fileNameContent: sha(JSON.stringify(["AGENTS.md"])) });
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
     expect(gemBytes(target).equals(users), r.stdout).toBe(true);

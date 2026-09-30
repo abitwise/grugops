@@ -72,7 +72,10 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite } from "./checkpo
 // CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
 // added, the directories install created), shared with uninstall.ts so the two binaries cannot read
 // one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, } from "./install-marker.js";
+import { readInstallMarker, readCreatedDirs, readCreatedFiles, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, linkRecord, recordHolds, jsonValueRecord, } from "./install-marker.js";
+// Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
+// the value that changes is spliced into the original bytes; see the module header. No I/O.
+import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -1754,15 +1757,19 @@ function linkOrCopy(src, dest, label) {
 // when this run changed nothing there. mergeGemini sets it after a successful create or append, and
 // writeMarker() records it: the most recent change is the one uninstall must reverse.
 let GEMINI_RECORD = null;
-// GEMINI_SEEN (plan 33.1-29): what THIS run read in the settings file when it changed nothing, or
-// null when it read nothing it could use (no file, a refused file, a malformed ledger). `listed` is
-// true when context.fileName already named AGENTS.md; `fileNameContent` is the content record of
-// JSON.stringify(context.fileName), or null when there is none. writeMarker() carries an earlier
-// record forward only when this equals the fileName that record describes (the carry needs proof),
-// and on a fresh install it records {createdFile:false, addedEntry:false} only from this observation.
+// GEMINI_SEEN (plan 33.1-29; red-team B2): what THIS run learned from the settings file when it
+// changed nothing there. null: it read nothing usable (a blocked path, bytes that are not UTF-8 or not
+// JSON, a duplicate key on the path), or it never reached the file (an unreadable marker, a malformed
+// ledger) — the run has no evidence either way, and writeMarker() writes the earlier record back
+// verbatim. Otherwise the file was read: `listed` says context.fileName already named AGENTS.md,
+// `fileNameContent` is jsonValueRecord(context.fileName) (null when there is none), and `refused` says
+// this run refused to merge (a shape it cannot merge, or a failed write). writeMarker() carries an
+// earlier record forward only when this equals the fileName that record describes (the carry needs
+// proof); otherwise it records a claim of nothing, with the reason.
 let GEMINI_SEEN = null;
-// merge_gemini: additive read-modify-write of .gemini/settings.json context.fileName. Node can
-// safely JSON.parse/merge. Never `>`-clobbers a user's file blindly.
+// merge_gemini: additive edit of .gemini/settings.json context.fileName. Never `>`-clobbers a user's
+// file, and never rewrites it either (red-team B3 of plan 33.1-29): json-text.ts splices only the
+// fileName value into the original text, so every other byte of the user's file stays as it was.
 //
 // RECORDED, AND ONLY WHERE IT CAN BE RECORDED (plan 33.1-29, Gap B / re-review CR-03, D-18). What this
 // run does to the file is recorded as GEMINI_RECORD (created it, or appended "AGENTS.md" and the shape
@@ -1770,11 +1777,12 @@ let GEMINI_SEEN = null;
 // or a malformed geminiSettings record means the change could not be recorded, and nothing is merged
 // (a counted verify says so).
 //
-// ONLY A SHAPE IT CAN MERGE AND REVERSE (CR-03 point 3, install side). A file that does not parse, is
-// not a JSON object, has a `context` that is not a JSON object, or has a context.fileName that is
-// neither a string nor an array of strings is a COUNTED verify and is left untouched. It used to be an
-// uncounted line (exit 0 over a merge that did not happen), `null` crashed the merge, `{"context":"x"}`
-// threw a TypeError, and an empty-string fileName was silently dropped.
+// ONLY A SHAPE IT CAN MERGE AND REVERSE (CR-03 point 3, install side). A file that is not valid UTF-8,
+// is not strict JSON (comments, a trailing comma), is not a JSON object, has a duplicate `context` key
+// or a duplicate context.fileName key, has a `context` that is not a JSON object, or has a
+// context.fileName that is neither a string nor an array of strings is a COUNTED verify and is left
+// untouched. The spliced text is parsed again and must hold exactly the value the merge intends
+// (sameJsonValue); anything else is refused too, so a defect in the splice cannot write a wrong file.
 function mergeGemini() {
     const file = join(TARGET, ".gemini", "settings.json");
     const rel = ".gemini/settings.json";
@@ -1808,8 +1816,10 @@ function mergeGemini() {
         }
         const fileName = ["AGENTS.md", "GEMINI.md"];
         const text = JSON.stringify({ context: { fileName } }, null, 2) + "\n";
-        if (!writeTargetFile(file, text, "create", rel))
+        if (!writeTargetFile(file, text, "create", rel)) {
+            GEMINI_SEEN = { listed: false, fileNameContent: null, refused: true };
             return;
+        }
         // Plan 33.1-29: readForWrite said nothing was there and the exclusive create succeeded, so this
         // run created the file. Uninstall deletes it whole only on this record, and only while it holds
         // these bytes.
@@ -1818,64 +1828,93 @@ function mergeGemini() {
             addedEntry: true,
             createdContext: true,
             fileNameBefore: "absent",
-            fileNameContent: contentRecord(JSON.stringify(fileName)),
+            fileNameContent: jsonValueRecord(fileName),
             fileContent: contentRecord(text),
         };
         report("created", `${rel} (context.fileName wiring)`);
         return;
     }
-    let json;
-    try {
-        const parsed = JSON.parse(cur.text);
-        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-            throw new Error("not an object");
-        json = parsed;
-    }
-    catch {
-        verify(`${rel} is not a valid JSON object — left untouched; ${byHand}.`);
+    const doc = readJsonText(cur.bytes);
+    if (!doc.ok) {
+        verify(`${rel} ${doc.why} — left untouched; ${byHand}.`);
         return;
     }
-    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-    const hasContext = has(json, "context");
-    const ctxValue = json.context;
-    if (hasContext && (ctxValue === null || typeof ctxValue !== "object" || Array.isArray(ctxValue))) {
-        verify(`${rel} has a "context" value that is not a JSON object — left untouched; ${byHand}.`);
+    const refuse = (why, seen) => {
+        verify(`${rel} ${why} — left untouched; ${byHand}.`);
+        GEMINI_SEEN = seen === null ? null : { ...seen, refused: true };
+    };
+    const root = doc.root;
+    if (root.kind !== "object") {
+        refuse("is not a JSON object", { listed: false, fileNameContent: null });
         return;
     }
-    const ctx = hasContext ? ctxValue : {};
-    const hasFileName = has(ctx, "fileName");
-    const fileName = ctx.fileName;
+    if (keyCount(root, "context") > 1) {
+        refuse('has more than one "context" key, so which one Gemini CLI reads is not known', null);
+        return;
+    }
+    const ctxMember = memberNamed(root, "context");
+    const ctxNode = ctxMember === null ? null : ctxMember.value;
+    if (ctxNode !== null && ctxNode.kind !== "object") {
+        refuse('has a "context" value that is not a JSON object', { listed: false, fileNameContent: null });
+        return;
+    }
+    if (ctxNode !== null && keyCount(ctxNode, "fileName") > 1) {
+        refuse('has more than one "context.fileName" key, so which one Gemini CLI reads is not known', null);
+        return;
+    }
+    const fnMember = ctxNode === null ? null : memberNamed(ctxNode, "fileName");
+    const hasFileName = fnMember !== null;
+    const fileName = fnMember === null ? undefined : valueOf(doc.text, fnMember.value);
+    const seenContent = jsonValueRecord(fileName);
     const isStringArray = Array.isArray(fileName) && fileName.every((x) => typeof x === "string");
     if (hasFileName && typeof fileName !== "string" && !isStringArray) {
-        verify(`${rel} has a "context.fileName" value that is neither a string nor an array of strings — left untouched; ${byHand}.`);
+        refuse('has a "context.fileName" value that is neither a string nor an array of strings', { listed: false, fileNameContent: seenContent });
         return;
     }
     if (fileName === want || (isStringArray && fileName.includes(want))) {
         // Plan 33.1-29: this run changed nothing; what it saw is what writeMarker() needs to decide whether
         // an earlier record still describes the file (the carry needs proof).
-        GEMINI_SEEN = { listed: true, fileNameContent: contentRecord(JSON.stringify(fileName)) };
+        GEMINI_SEEN = { listed: true, fileNameContent: seenContent, refused: false };
         report("skipped", `${rel} (context.fileName already lists AGENTS.md)`);
         return;
     }
     const fileNameBefore = !hasFileName ? "absent" : typeof fileName === "string" ? "string" : "array";
     const next = fileNameBefore === "absent" ? [want] : fileNameBefore === "string" ? [fileName, want] : [...fileName, want];
-    ctx.fileName = next;
-    if (!hasContext)
-        json.context = ctx;
+    // THE SPLICE (red-team B3): the one change, made to the original text.
+    const newText = ctxNode === null
+        ? addMember(doc.text, root, "context", { fileName: next })
+        : fnMember === null
+            ? addMember(doc.text, ctxNode, "fileName", next)
+            : fileNameBefore === "string"
+                ? wrapInArray(doc.text, ctxNode, fnMember.value, [want])
+                : appendElements(doc.text, fnMember.value, [want]);
+    // THE ORACLE: the spliced text must hold exactly the merged value, and nothing else may differ.
+    const expected = documentValue(doc);
+    if (ctxNode === null)
+        expected.context = { fileName: next };
+    else
+        expected.context.fileName = next;
+    const check = readJsonText(Buffer.from(newText, "utf8"));
+    if (!check.ok || !sameJsonValue(documentValue(check), expected)) {
+        refuse("could not be edited in place without changing anything but context.fileName", { listed: false, fileNameContent: seenContent });
+        return;
+    }
     if (DRY_RUN) {
         report("would-add", `${rel} (merge AGENTS.md into context.fileName)`);
         return;
     }
-    if (writeTargetFile(file, JSON.stringify(json, null, 2) + "\n", "ok", rel)) {
-        GEMINI_RECORD = {
-            createdFile: false,
-            addedEntry: true,
-            createdContext: !hasContext,
-            fileNameBefore,
-            fileNameContent: contentRecord(JSON.stringify(next)),
-        };
-        report("created", `${rel} (merged AGENTS.md into context.fileName)`);
+    if (!writeTargetFile(file, newText, "ok", rel)) {
+        GEMINI_SEEN = { listed: false, fileNameContent: seenContent, refused: true };
+        return;
     }
+    GEMINI_RECORD = {
+        createdFile: false,
+        addedEntry: true,
+        createdContext: ctxNode === null,
+        fileNameBefore,
+        fileNameContent: jsonValueRecord(next),
+    };
+    report("created", `${rel} (merged AGENTS.md into context.fileName)`);
 }
 function detectTools() {
     const found = [];
@@ -2688,33 +2727,53 @@ function writeMarker() {
         }
         marker.createdFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     }
-    // geminiSettings (plan 33.1-29, Gap B / re-review CR-03). The record always describes the most
-    // recent install that changed the file: this run's record when it created the file or appended the
-    // entry. When this run changed nothing, an earlier `ok` record is carried forward only while the
-    // file's context.fileName is exactly the one that record describes (GEMINI_SEEN, read this run);
-    // otherwise it is replaced by a record that claims nothing (red-team of plan 33.1-28: never carry an
-    // entry forward by presence). An absent record stays absent unless this run itself acted, or, on a
-    // fresh install (no previous marker: this run is the whole history), observed AGENTS.md already
-    // listed. A malformed record is written back as found; mergeGemini() reported it and merged nothing.
+    // geminiSettings (plan 33.1-29, Gap B / re-review CR-03; red-team B2). The record always describes
+    // the most recent install that changed the file: this run's record when it created the file or
+    // appended the entry. When this run changed nothing:
+    //   - it read nothing usable (GEMINI_SEEN null: a blocked path, not UTF-8, not JSON, a duplicate key
+    //     on the path): it has no evidence either way, so an earlier `ok` record is written back
+    //     VERBATIM and a note says so. That is not a carry by presence: nothing was learned that could
+    //     prove or disprove the record. A fresh install records that it added no entry ("refused");
+    //   - it read the file: an earlier `ok` record is carried forward only while context.fileName is
+    //     exactly the one that record describes (the carry needs proof); otherwise the record claims
+    //     nothing, with the reason ("reset" when an earlier claim of an entry no longer holds,
+    //     "already-listed" when this run found AGENTS.md listed, "refused" when it refused to merge).
+    // An absent record (a marker written before this ledger) stays absent unless this run itself acted:
+    // the uninstaller's "predates" line is then still true. A malformed record is written back as
+    // found; mergeGemini() reported it and merged nothing.
     const previousGemini = readGeminiLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
-    const unclaimedGemini = () => ({
+    const claimsNothing = (noEntryReason, fileNameContent) => ({
         createdFile: false,
         addedEntry: false,
-        fileNameContent: GEMINI_SEEN === null ? null : GEMINI_SEEN.fileNameContent,
+        noEntryReason,
+        fileNameContent,
     });
+    const prevGemini = previousGemini.state === "ok" ? previousGemini.ledger : null;
     if (previousGemini.state === "malformed") {
         marker.geminiSettings = previousGemini.raw;
     }
     else if (GEMINI_RECORD !== null) {
         marker.geminiSettings = geminiLedgerJson(GEMINI_RECORD);
     }
-    else if (previousGemini.state === "ok" && previousGemini.ledger !== null) {
-        const prev = previousGemini.ledger;
-        const proven = GEMINI_SEEN !== null && GEMINI_SEEN.fileNameContent !== null && GEMINI_SEEN.fileNameContent === prev.fileNameContent;
-        marker.geminiSettings = geminiLedgerJson(proven ? prev : unclaimedGemini());
+    else if (GEMINI_SEEN === null) {
+        if (prevGemini !== null) {
+            marker.geminiSettings = geminiLedgerJson(prevGemini);
+            report("note", ".gemini/settings.json: this run could not read the file, so it has no evidence about the earlier " +
+                "install's geminiSettings record, which was written back as it was");
+        }
+        else if (freshMarker) {
+            marker.geminiSettings = geminiLedgerJson(claimsNothing("refused", null));
+        }
     }
-    else if (freshMarker && GEMINI_SEEN !== null && GEMINI_SEEN.listed) {
-        marker.geminiSettings = geminiLedgerJson(unclaimedGemini());
+    else if (prevGemini !== null) {
+        const seen = GEMINI_SEEN;
+        const proven = seen.fileNameContent !== null && seen.fileNameContent === prevGemini.fileNameContent;
+        marker.geminiSettings = geminiLedgerJson(proven
+            ? prevGemini
+            : claimsNothing(prevGemini.addedEntry ? "reset" : seen.listed ? "already-listed" : seen.refused ? "refused" : "reset", seen.fileNameContent));
+    }
+    else if (freshMarker) {
+        marker.geminiSettings = geminiLedgerJson(claimsNothing(GEMINI_SEEN.listed ? "already-listed" : "refused", GEMINI_SEEN.fileNameContent));
     }
     if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
         report("created", ".grugops/install.json (marker)");
@@ -3381,9 +3440,12 @@ function writeAskRules() {
         report("skipped", `${checkpoint} is set to ${String(value)} in the factory configuration — no ask rule was written for it`);
     }
     // Parse and type-check the existing file. Nothing is written unless every level has the right type.
+    // Red-team B3 of plan 33.1-29 (D-18): the file is read as text through json-text.ts, and the rules
+    // are spliced into it below, so every other byte of the user's file is kept.
     let json = {};
     let permissions = null;
     let ask = null;
+    let doc = null;
     // DC-3 / D-18 (plan 33.1-26): read before any write. A settings file that is not a readable
     // regular file within the bound is left untouched, and the ledger stays as it was. Red-team of
     // plan 33.1-26: asked through readForWrite, so a link at the path (a dangling one used to be
@@ -3397,12 +3459,17 @@ function writeAskRules() {
     }
     const exists = settingsRead.state === "ok";
     if (settingsRead.state === "ok") {
-        let parsed;
-        try {
-            parsed = JSON.parse(settingsRead.text);
+        doc = readJsonText(settingsRead.bytes);
+        if (!doc.ok) {
+            verify(`${rel} ${doc.why} — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
+            ASK_LEDGER = unclaimed(null);
+            return;
         }
-        catch {
-            verify(`${rel} is not valid JSON — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
+        const parsed = documentValue(doc);
+        const permsAt = memberNamed(doc.root, "permissions");
+        if (keyCount(doc.root, "permissions") > 1 || (permsAt !== null && keyCount(permsAt.value, "ask") > 1)) {
+            verify(`${rel} has more than one "permissions" or "permissions.ask" key, so which one Claude Code reads is not ` +
+                `known — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
             ASK_LEDGER = unclaimed(null);
             return;
         }
@@ -3434,7 +3501,7 @@ function writeAskRules() {
     const toAdd = rules.filter((r) => !present.has(r));
     // THE CARRY NEEDS PROOF (R3): the previous claims hold only while the ask array is the one install
     // last left there.
-    const askNow = ask === null ? null : contentRecord(JSON.stringify(ask));
+    const askNow = jsonValueRecord(ask === null ? undefined : ask);
     const proven = previous !== null && previous.askContent !== null && previous.askContent === askNow;
     const prevAdded = new Set(proven && previous !== null ? previous.added : []);
     const unprovenClaims = new Set(previous !== null && !proven ? previous.added : []);
@@ -3473,7 +3540,7 @@ function writeAskRules() {
         createdPermissions: willCreatePermissions || (proven && permissions !== null && previous !== null && previous.createdPermissions),
         createdAsk: willCreateAsk || (proven && ask !== null && previous !== null && previous.createdAsk),
         // The array as this run leaves it: the one it writes below, or the one it found.
-        askContent: toAdd.length > 0 ? contentRecord(JSON.stringify([...(ask ?? []), ...toAdd])) : askNow,
+        askContent: toAdd.length > 0 ? jsonValueRecord([...(ask ?? []), ...toAdd]) : askNow,
     };
     if (toAdd.length === 0) {
         if (rules.length === 0)
@@ -3484,12 +3551,33 @@ function writeAskRules() {
         report("would-add", `${rel} (${toAdd.length} ask rule(s) to permissions.ask)`);
         return;
     }
-    if (permissions === null) {
-        permissions = {};
-        json.permissions = permissions;
+    // THE SPLICE (red-team B3): a new file is install's own and written whole; an existing one gets the
+    // rules added to its permissions.ask list (or the one member install adds) and nothing else.
+    let newText;
+    if (doc === null || !doc.ok) {
+        newText = JSON.stringify({ permissions: { ask: toAdd } }, null, 2) + "\n";
     }
-    permissions.ask = [...(ask ?? []), ...toAdd];
-    if (!writeTargetFile(file, JSON.stringify(json, null, 2) + "\n", settingsRead.state, rel)) {
+    else {
+        const permsNode = memberNamed(doc.root, "permissions")?.value ?? null;
+        const askNode = permsNode === null ? null : (memberNamed(permsNode, "ask")?.value ?? null);
+        newText =
+            permsNode === null
+                ? addMember(doc.text, doc.root, "permissions", { ask: toAdd })
+                : askNode === null
+                    ? addMember(doc.text, permsNode, "ask", toAdd)
+                    : appendElements(doc.text, askNode, toAdd);
+        // THE ORACLE: the spliced text must hold exactly the value the old parse-and-modify gave.
+        const expected = documentValue(doc);
+        const expPerms = (Object.prototype.hasOwnProperty.call(expected, "permissions") ? expected.permissions : (expected.permissions = {}));
+        expPerms.ask = [...(ask ?? []), ...toAdd];
+        const check = readJsonText(Buffer.from(newText, "utf8"));
+        if (!check.ok || !sameJsonValue(documentValue(check), expected)) {
+            verify(`${rel} could not be edited in place without changing anything but permissions.ask — left untouched; no ask rule was written.`);
+            ASK_LEDGER = proven ? previous : unclaimed(askNow);
+            return;
+        }
+    }
+    if (!writeTargetFile(file, newText, settingsRead.state, rel)) {
         // Nothing was written, so this run added no rule: the ledger stays as it was when the array found
         // is still install's, and claims nothing otherwise (R3).
         ASK_LEDGER = proven ? previous : unclaimed(askNow);

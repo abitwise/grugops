@@ -2165,8 +2165,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     grant and renders no spawn verdict.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 92 with this module tracked.
+ *
+ * 92 -> 93 (red-team fixes of plan 33.1-29, B3, D-18), ONE INSTALLER LIBRARY MODULE:
+ *   - `install/json-text.ts` — the one way the installer edits a JSON file the user owns
+ *     (`.gemini/settings.json`, `.claude/settings.json`): a strict JSON tokenizer that keeps each
+ *     value's span, and splice edits that change only the value install adds or removes, so every
+ *     other byte of the user's file is kept and install -> uninstall is byte-identical. Imported by
+ *     `install/install.ts` and `install/uninstall.ts`. It imports nothing and does no I/O.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict. Its committed `.js` twin lands in the same commit.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 93 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 92;
+const NON_TEST_MODULE_COUNT = 93;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
