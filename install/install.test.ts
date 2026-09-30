@@ -7787,6 +7787,24 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(Object.keys(readMarkerJson(target).kitFiles as object)).not.toContain(rel);
   });
 
+  it("kit-file ownership: over a legacy marker (no kitFiles), a re-install that writes no kit file leaves kitFiles absent, never {}; a re-install that writes the kit records it", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    dropKitFiles(target);
+    // Every kit path is blocked: .claude/ is a regular file, so this run writes no kit file.
+    rmSync(join(target, ".claude"), { recursive: true, force: true });
+    writeFileSync(join(target, ".claude"), "the user's own file named .claude\n");
+    const r1 = runInstall(target, home);
+    expect(r1.status, r1.stdout).toBe(3);
+    expect(Object.prototype.hasOwnProperty.call(readMarkerJson(target), "kitFiles"), "an empty kitFiles replaced the legacy answer").toBe(false);
+    // The user removes the file; the next re-install writes the kit, so its record is complete.
+    rmSync(join(target, ".claude"));
+    const r2 = runInstall(target, home);
+    expect(r2.status, r2.stdout).toBe(0);
+    expect(Object.keys(readMarkerJson(target).kitFiles as object)).toEqual(kitFilesIn(target));
+  });
+
   it("kit-file ownership: a marker kept for another malformed ledger drops the kit files this run removed and keeps the one it left", () => {
     const target = makeFixture();
     const home = mkTmp();
