@@ -4490,8 +4490,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // The leaf below the cycle's own directory is still seen and still refused by name — the cycle
     // arm stops the DESCENT, it does not narrow the rest of the walk.
     expect(r.stdout).toContain("real/x.md");
-    // Membership is untouched: the flat seventeen install, neither planted path lands.
-    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+    // ALL OR NOTHING (red-team (c) of plan 33.1-31, D-32): a subtree the walk declined to descend
+    // into leaves the kit source not fully examined, so the kit plan refuses the whole kit before the
+    // first write. No flat adapter and no skill is installed; neither planted path lands.
+    expect(installedAdapters(target)).toEqual([]);
+    expect(installedSkills(target)).toEqual([]);
     expect(existsSync(join(target, ".claude", "agents", "real"))).toBe(false);
 
     // THE TWO SIDES NAME THE SAME PATH THROUGH THEIR OWN FLOORS — reported here, thrown there.
@@ -4556,9 +4559,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
         expect(r.stdout).toContain("NOT the same fact as an empty directory");
         expect(r.stdout).toContain("Fix the permissions");
         expect(r.stdout).not.toContain("== install complete");
-        // The flat seventeen are unaffected: the unreadable arm refuses a subtree, it does not
-        // narrow the install.
-        expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+        // ALL OR NOTHING (red-team (c) of plan 33.1-31, D-32): a directory never read leaves the kit
+        // source not fully examined, so the kit plan refuses the whole kit before the first write.
+        expect(installedAdapters(target)).toEqual([]);
+        expect(installedSkills(target)).toEqual([]);
       }
 
       // ── ARM 2: THE READABLE CONTROL, over the IDENTICAL tree. It also exits 3, but for the
@@ -4844,8 +4848,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).toContain(`MAX_WALK_ENTRIES=${MAX_WALK_ENTRIES}`);
     expect(r.stdout).toContain("NOT fully examined");
     expect(r.stdout).not.toContain("== install complete");
-    // The flat seventeen still install — the bound refused the walk, it did not narrow the install.
-    expect(installedAdapters(target)).toEqual([...SYNTH_ADAPTERS].sort());
+    // ALL OR NOTHING (red-team (c) of plan 33.1-31, D-32): a walk stopped by the work bound leaves
+    // the kit source not fully examined, so the kit plan refuses the whole kit before the first write.
+    expect(installedAdapters(target)).toEqual([]);
+    expect(installedSkills(target)).toEqual([]);
   }, 120_000);
 
   // ── THE REPORT ABOVE MUST SURVIVE THE EXIT THAT FOLLOWS IT (D-35, WR-01) ──────────────────────
@@ -8413,6 +8419,295 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     expect(n, "no case ran").toBeGreaterThan(0);
     expect(failures, failures.join("\n")).toEqual([]);
   }, 900_000);
+
+  // ── RED-TEAM FIXES OF PLAN 33.1-31 (brief §3) ────────────────────────────────────────────────────
+  //
+  // The whole target by lstat (never following a link): every directory, file (sha256), link (its
+  // target) and special file. A refused --migrate must leave it exactly as it was.
+  const treeState = (t: string): string => {
+    const rows: string[] = [];
+    const walk = (rel: string): void => {
+      const abs = rel === "" ? t : atRel(t, rel);
+      for (const n of readdirSync(abs).sort()) {
+        const r = rel === "" ? n : `${rel}/${n}`;
+        const st = lstatSync(atRel(t, r));
+        if (st.isSymbolicLink()) rows.push(`${r} LINK ${readlinkSync(atRel(t, r))}`);
+        else if (st.isDirectory()) {
+          rows.push(`${r}/ DIR`);
+          walk(r);
+        } else if (st.isFile()) rows.push(`${r} ${createHash("sha256").update(readFileSync(atRel(t, r))).digest("hex")}`);
+        else rows.push(`${r} SPECIAL`);
+      }
+    };
+    walk("");
+    return rows.join("\n");
+  };
+  // An old in-repo layout whose every adapter is install's OWN link (the link a pre-render --symlink
+  // install made: readlink equals this checkout's adapter source), as the red-team built it.
+  const ownLinkOldLayout = (): { src: string; target: string; home: string } | null => {
+    const src = makeSyntheticSrc();
+    const target = makeOldLayoutFixture();
+    rmSync(join(target, ".claude", "agents", "grugops-orchestrator.md"), { force: true });
+    for (const a of SYNTH_ADAPTERS) {
+      const skip = stageSymlinkOrSkip(join(src, ".claude", "agents", a), join(target, ".claude", "agents", a), "install's own adapter link", "red-team B1 of plan 33.1-31");
+      if (skip !== null) {
+        console.warn(skipLine(skip, "the B1 fix-and-re-run cases"));
+        return null;
+      }
+    }
+    return { src, target, home: mkTmp() };
+  };
+  const everyAdapterMaterialized = (t: string): string[] => {
+    const bad: string[] = [];
+    for (const a of SYNTH_ADAPTERS) {
+      const p = join(t, ".claude", "agents", a);
+      const st = lstatSync(p, { throwIfNoEntry: false });
+      if (st === undefined || !st.isFile()) bad.push(`${a}: ${st === undefined ? "absent" : "not a regular file"}`);
+      else if (!readFileSync(p, "utf8").includes("grugops:materialized-kit")) bad.push(`${a}: not materialized`);
+    }
+    return bad;
+  };
+  const sourceAdapters = (src: string): string => kitStateOf(join(src, ".claude", "agents"));
+  const LEGACY = "agent-factory/config/factory.config.json";
+  const GOOD_LEGACY = '{ "_edited": "FIXED-BY-THE-USER" }\n';
+
+  for (const dry of [false, true]) {
+    it(`B1: a --migrate whose kit plan refuses (a bad legacy models value) changes NOTHING${dry ? " (DRY_RUN)" : ""}, and after the fix a re-run of --migrate completes`, () => {
+      const f = ownLinkOldLayout();
+      if (f === null) return;
+      writeFileSync(atRel(f.target, LEGACY), BAD_CONFIG);
+      const before = treeState(f.target);
+      const srcBefore = sourceAdapters(f.src);
+      const r = run(f.src, f.target, f.home, ["--migrate"], dry ? { DRY_RUN: "1" } : {});
+      expect(r.status, r.stdout).toBe(3);
+      expect(r.stdout).toContain(BAD_MODEL);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      // Nothing of the migration happened: the legacy config is where it was (no .bak), the in-repo
+      // agent-factory/ was not renamed, no marker was written, every own link is still in place.
+      expect(treeState(f.target), r.stdout).toBe(before);
+      expect(readdirSync(f.home), "the kit home was not written").toEqual([]);
+      expect(sourceAdapters(f.src)).toBe(srcBefore);
+      if (dry) return;
+      // The fix, then --migrate again: the full migration runs.
+      writeFileSync(atRel(f.target, LEGACY), GOOD_LEGACY);
+      const r2 = run(f.src, f.target, f.home, ["--migrate"]);
+      expect(r2.status, r2.stdout).toBe(0);
+      expect(r2.stdout).not.toContain("already migrated");
+      expect(everyAdapterMaterialized(f.target), r2.stdout).toEqual([]);
+      expect(readFileSync(atRel(f.target, ".grugops/factory.config.json"), "utf8")).toBe(GOOD_LEGACY);
+      expect(existsSync(atRel(f.target, LEGACY)), "the legacy config was renamed aside").toBe(false);
+      expect(existsSync(atRel(f.target, ".grugops/install.json"))).toBe(true);
+      expect(sourceAdapters(f.src)).toBe(srcBefore);
+    });
+  }
+
+  it("B1: a --migrate whose kit plan refuses (a foreign link at one adapter path) changes NOTHING, and after the link is removed a re-run of --migrate completes", () => {
+    const f = ownLinkOldLayout();
+    if (f === null) return;
+    const outside = mkTmp();
+    writeFileSync(join(outside, "victim.md"), "outside file\n");
+    const foreign = join(f.target, ".claude", "agents", SYNTH_ADAPTERS[0]);
+    rmSync(foreign);
+    symlinkSync(join(outside, "victim.md"), foreign);
+    const before = treeState(f.target);
+    const r = run(f.src, f.target, f.home, ["--migrate"]);
+    expect(r.status, r.stdout).toBe(3);
+    expect(verifyLines(r.stdout).some((l) => l.includes(foreign)), r.stdout).toBe(true);
+    expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+    expect(treeState(f.target), r.stdout).toBe(before);
+    expect(readFileSync(join(outside, "victim.md"), "utf8")).toBe("outside file\n");
+    rmSync(foreign);
+    const r2 = run(f.src, f.target, f.home, ["--migrate"]);
+    expect(r2.status, r2.stdout).toBe(0);
+    expect(everyAdapterMaterialized(f.target), r2.stdout).toEqual([]);
+    expect(readFileSync(join(outside, "victim.md"), "utf8")).toBe("outside file\n");
+  });
+
+  it("B1: a plain re-install replaces install's own link at every resolver path (one rule, not only under --migrate); a foreign link among them still refuses the whole kit", () => {
+    // The state the committed build left after a refused --migrate: a marker, and install's own
+    // links at every adapter and at the resolver skill.
+    const { src, target, home } = installed();
+    const own = (rel: string): string => join(src, ...rel.split("/"));
+    const resolverRels = [...SYNTH_ADAPTERS.map((a) => `.claude/agents/${a}`), ".claude/skills/grugops/SKILL.md"];
+    for (const rel of resolverRels) {
+      rmSync(atRel(target, rel));
+      symlinkSync(own(rel), atRel(target, rel));
+    }
+    const srcBefore = kitStateOf(join(src, ".claude"));
+    // A foreign link among them: the whole kit is refused, every own link stays.
+    const outside = mkTmp();
+    writeFileSync(join(outside, "victim.md"), "outside file\n");
+    const t2 = mkTmp();
+    cpSync(target, t2, { recursive: true, verbatimSymlinks: true });
+    rmSync(atRel(t2, resolverRels[0]));
+    symlinkSync(join(outside, "victim.md"), atRel(t2, resolverRels[0]));
+    const kit2 = kitState(t2);
+    const rf = run(src, t2, home);
+    expect(rf.status, rf.stdout).toBe(3);
+    expect(kitWriteLines(rf.stdout), rf.stdout).toEqual([]);
+    expect(kitState(t2)).toBe(kit2);
+    // Own links only: each is unlinked and materialized, and the kit source is untouched.
+    const r = run(src, target, home);
+    expect(r.status, r.stdout).toBe(0);
+    const unlinked = r.stdout.split("\n").filter((l) => /^ {2}unlinked\s/.test(l));
+    expect(unlinked.length, r.stdout).toBe(resolverRels.length);
+    expect(everyAdapterMaterialized(target), r.stdout).toEqual([]);
+    expect(lstatSync(atRel(target, ".claude/skills/grugops/SKILL.md")).isFile()).toBe(true);
+    expect(kitStateOf(join(src, ".claude"))).toBe(srcBefore);
+    const kf = JSON.parse(kitFilesOf(target)) as Record<string, string>;
+    for (const rel of resolverRels) expect(kf[rel], rel).toMatch(/^sha256:/);
+  });
+
+  it("B1: a plain install over an old layout with install's own links completes (no dead end outside --migrate)", () => {
+    const f = ownLinkOldLayout();
+    if (f === null) return;
+    const srcBefore = sourceAdapters(f.src);
+    const r = run(f.src, f.target, f.home);
+    expect(r.status, r.stdout).toBe(0);
+    expect(everyAdapterMaterialized(f.target), r.stdout).toEqual([]);
+    expect(sourceAdapters(f.src)).toBe(srcBefore);
+  });
+
+  // B3: the DRY_RUN preview of --migrate renders with exactly the configuration the real run renders
+  // with (the legacy config --migrate carries forward), so its decisions are the real run's.
+  const modelsOf = (out: string, verb: RegExp): string[] =>
+    out
+      .split("\n")
+      .map((l) => new RegExp(`^ {2}${verb.source}\\s+(\\.claude/agents/\\S+) \\(KIT=.*, model=([^)]+)\\)`).exec(l))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => `${m[1]} ${m[2]}`)
+      .sort();
+  it("B3: DRY_RUN --migrate previews the adapters with the models the real --migrate installs (a valid legacy preset)", () => {
+    const a = makeOldLayoutFixture();
+    writeFileSync(atRel(a, LEGACY), '{"models":{"preset":"tiered"}}\n');
+    const b = mkTmp();
+    cpSync(a, b, { recursive: true });
+    const src = makeSyntheticSrc();
+    const dry = run(src, a, mkTmp(), ["--migrate"], { DRY_RUN: "1" });
+    const real = run(src, b, mkTmp(), ["--migrate"]);
+    expect(real.status, real.stdout).toBe(0);
+    expect(dry.status, dry.stdout).toBe(0);
+    const realModels = modelsOf(real.stdout, /materialized/);
+    expect(realModels.length, real.stdout).toBe(SYNTH_ADAPTERS.length);
+    expect(realModels.some((l) => !l.endsWith(" inherit")), "premise: the preset resolves some role to a non-inherit model").toBe(true);
+    expect(modelsOf(dry.stdout, /would-materialize/)).toEqual(realModels);
+  });
+
+  it("B3: DRY_RUN --migrate with a legacy models value the render refuses exits 3, as the real run does", () => {
+    const a = makeOldLayoutFixture();
+    writeFileSync(atRel(a, LEGACY), BAD_CONFIG);
+    const b = mkTmp();
+    cpSync(a, b, { recursive: true });
+    const src = makeSyntheticSrc();
+    const dry = run(src, a, mkTmp(), ["--migrate"], { DRY_RUN: "1" });
+    const real = run(src, b, mkTmp(), ["--migrate"]);
+    expect(real.status, real.stdout).toBe(3);
+    expect(dry.status, dry.stdout).toBe(3);
+    expect(dry.stdout).toContain(BAD_MODEL);
+    expect(kitWriteLines(dry.stdout), dry.stdout).toEqual([]);
+  });
+
+  // B2, end to end. Two kit names that differ only by case name one file on a case-insensitive
+  // target. The pure predicate is tested in install/kit-plan-limits.test.ts; this runs only where the
+  // local filesystem holds two such names (so the synthetic kit source can carry both).
+  it("B2: two kit skills whose names differ only by case refuse the whole kit (copy, --symlink and DRY_RUN)", () => {
+    const probe = mkTmp();
+    writeFileSync(join(probe, "a"), "a");
+    let caseSensitive = false;
+    try {
+      writeFileSync(join(probe, "A"), "A", { flag: "wx" });
+      caseSensitive = readdirSync(probe).length === 2;
+    } catch {
+      caseSensitive = false;
+    }
+    if (!caseSensitive) {
+      console.warn(
+        `SKIPPED B2 end-to-end: the temporary filesystem at ${tmpdir()} is case-insensitive, so a synthetic kit ` +
+          `source cannot hold two names that differ only by case. The collision predicate is covered by ` +
+          `install/kit-plan-limits.test.ts.`,
+      );
+      return;
+    }
+    const src = makeSyntheticSrc();
+    mkdirSync(join(src, ".claude", "skills", "GRUGOPS-GATE"), { recursive: true });
+    writeFileSync(join(src, ".claude", "skills", "GRUGOPS-GATE", "SKILL.md"), "> a second gate skill\n");
+    for (const [label, args, extra] of [
+      ["copy", [], {}],
+      ["--symlink", ["--symlink"], { INSTALL_MODE: "symlink" }],
+      ["DRY_RUN", [], { DRY_RUN: "1" }],
+    ] as const) {
+      const t = makeFixture();
+      const r = run(src, t, mkTmp(), [...args], { ...extra });
+      expect(r.status, `${label}: ${r.stdout}`).toBe(3);
+      expect(verifyLines(r.stdout).some((l) => l.includes("GRUGOPS-GATE") && l.includes("grugops-gate")), `${label}: ${r.stdout}`).toBe(true);
+      expect(kitWriteLines(r.stdout), label).toEqual([]);
+      expect(kitState(t), label).toBe("");
+    }
+  });
+
+  // Borderline (a): a target so deep that some kit destinations are over the platform path limit.
+  // The limit is PATH_MAX including the terminating NUL (install/kit-plan-limits.test.ts pins the
+  // constant install uses to this value).
+  it("borderline (a): a kit destination over the platform path limit refuses the whole kit before the first write", () => {
+    const pathMax = process.platform === "linux" ? 4096 : 1024;
+    const longest = [...SYNTH_ADAPTERS].sort((x, y) => y.length - x.length)[0];
+    const tail = `/.claude/agents/${longest}`;
+    const base = mkTmp();
+    // Deep enough that the longest adapter path is exactly one byte over, while every skill path
+    // (shorter) still fits: the case a per-write refusal would turn into a mixed kit.
+    let t = base;
+    const want = pathMax - Buffer.byteLength(tail); // the target length that puts `tail` at PATH_MAX bytes
+    while (Buffer.byteLength(t) < want - 120) t = join(t, "d".repeat(100));
+    t = join(t, "e".repeat(want - Buffer.byteLength(t) - 1));
+    expect(Buffer.byteLength(t + tail)).toBe(pathMax);
+    expect(Buffer.byteLength(t + "/.claude/skills/grugops/SKILL.md")).toBeLessThan(pathMax);
+    mkdirSync(t, { recursive: true });
+    const src = makeSyntheticSrc();
+    for (const dry of [false, true]) {
+      const r = run(src, t, mkTmp(), [], dry ? { DRY_RUN: "1" } : {});
+      expect(r.status, r.stdout).toBe(3);
+      expect(verifyLines(r.stdout).some((l) => l.includes(longest) && /path limit/.test(l)), r.stdout).toBe(true);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      expect(existsSync(join(t, ".claude", "skills")), "no skill was written").toBe(false);
+    }
+  });
+
+  // Borderline (b): a kit destination this process cannot write. The plan checks writability (the
+  // nearest existing directory for a create, the file for a rewrite) before the first write.
+  it("borderline (b): an unwritable existing .claude/agents (a create) or an unwritable skill file (a rewrite) refuses the whole kit", () => {
+    if (process.platform === "win32" || rootish) return; // mode bits are not a fixture there
+    // A create into a directory mode 555.
+    const src = makeSyntheticSrc();
+    const t = makeFixture();
+    mkdirSync(join(t, ".claude", "agents"), { recursive: true });
+    chmodSync(join(t, ".claude", "agents"), 0o555);
+    try {
+      const r = run(src, t, mkTmp());
+      expect(r.status, r.stdout).toBe(3);
+      expect(verifyLines(r.stdout).some((l) => l.includes(join(t, ".claude", "agents")) && /not writable/.test(l)), r.stdout).toBe(true);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      expect(existsSync(join(t, ".claude", "skills")), "no skill was written").toBe(false);
+    } finally {
+      chmodSync(join(t, ".claude", "agents"), 0o755);
+    }
+    // A rewrite of a skill file mode 444 after a kit update.
+    const { src: s2, target, home, kit, kitFiles } = installed();
+    kitUpdate(s2);
+    const ro = join(target, ".claude", "skills", "grugops-gate", "SKILL.md");
+    chmodSync(ro, 0o444);
+    const kitRo = kitState(target);
+    try {
+      const r = run(s2, target, home);
+      expect(r.status, r.stdout).toBe(3);
+      expect(verifyLines(r.stdout).some((l) => l.includes(ro) && /not writable/.test(l)), r.stdout).toBe(true);
+      expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
+      expect(kitState(target)).toBe(kitRo);
+      expect(kitRo, "premise: kitState does not see the mode, so the 444 file reads as the installed one").toBe(kit);
+      expect(kitFilesOf(target)).toBe(kitFiles);
+    } finally {
+      chmodSync(ro, 0o644);
+    }
+  });
 
   // The state of a directory outside the target (files, links, special files), by lstat.
   function kitStateOf(dir: string): string {
