@@ -83,7 +83,13 @@ file goes (a dangling link included), a file with more than one name (a hard lin
 one name would change the file under the others, which may be outside the repository), or a regular
 file, a FIFO or a symbolic link where a directory goes. That path is skipped with a `verify` line
 naming it and left exactly as it was, nothing is written through it, and the rest of the install
-still runs. The uninstaller applies the same rule to every file it edits, and it never reads a
+still runs. The skills and adapters under `.claude/` are one class, the kit, and the kit is written
+whole or not at all: the installer checks every kit source, the adapter render and every kit
+destination before it writes the first kit file, and if any of them is refused, no skill or adapter
+is written, linked or unlinked in that run and every kit file already there is left exactly as it
+was. A mix of new skills and old adapters is never left behind. The other classes still run. The
+one gap is an error while the kit is being written (a permission error on one file, for example):
+that file is a `verify` line and the run goes on to the next. The uninstaller applies the same rule to every file it edits, and it never reads a
 hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops
 here.** That is deliberate: proceeding over a partial install is how a broken install reaches
 production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
@@ -327,6 +333,11 @@ DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
   the in-repo `agent-factory/config/factory.config.json` and a repo-root `factory.config.json`;
 - copies the fresh shared kit to `${GRUGOPS_HOME:-$HOME/.grugops}` and materializes the resolver
   adapters, exactly like a normal install (it is orchestration around the same install run).
+  A resolver adapter or skill that is a symbolic link is replaced by a real file only when it is
+  the link an earlier `--symlink` install made (it points at this checkout's own source for that
+  file). That link is removed only in a run that writes the kit. Any other link there is left in
+  place, nothing is written through it, and the kit write is refused (exit 3): remove the link by
+  hand if it is grugops's, then re-run.
 
 The `plans/handoffs/` backup runs on **every** `--migrate` (whether your repo is on the old layout
 or already on the current two-root layout), because the handoffs dir can accumulate regardless of
