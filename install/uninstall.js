@@ -919,7 +919,8 @@ function removeAskRules() {
     const ours = new Set(allAskRules());
     for (const r of presentSet) {
         if (ours.has(r) && !ledger.has(r)) {
-            report("left", `${r} (present in ${rel} but not in the install ledger — the user's own rule, left in place)`);
+            report("left", `${r} (present in ${rel} but not in the install ledger — there is no record that install added this copy, so it ` +
+                `is left in place; remove it by hand if grugops added it)`);
         }
     }
     for (const r of userCopies) {
