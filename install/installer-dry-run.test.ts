@@ -12,21 +12,36 @@
 // install/installer-paths.test-support.ts since plan 33.1-27, shared with the DC-2 and DC-3 class
 // tests; install/install.test.ts keeps its own copies (it exports nothing).
 //
+// THE PREVIEW HAS TWO HALVES (plan 33.1-34). The FILE half (would-remove, would-edit) is computed in
+// memory since plan 33.1-28: uninstall works out the text each file would hold after the run and
+// decides on that, so the preview names the files the real run removes or edits, including a
+// CLAUDE.md or Copilot file install created that would be blank once its block is gone. The DIRECTORY
+// half (would-rmdir) names a directory only when the files this run would remove are all it holds
+// (plan 33.1-28's red-team fix counts each previewed removal as gone); a directory that would be
+// emptied by anything else is not named (the re-review's IN-02, ledgered by plan 33.1-35). Both halves
+// are checked below as a subset of what the real run does on a copy of the same tree, over flows 7, 8
+// and 10, and every path the preview names must be one install writes (the shared derivation,
+// deriveWritePaths, plan 33.1-27).
+//
 // Every case drives the COMMITTED install/install.js and install/uninstall.js (rebuild with
 // `npm run build` before running), hermetically, into mkdtemp directories removed by afterEach.
 //
 // Vitest globals:false (the repo default) → import test fns explicitly.
 
-import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync, existsSync, cpSync } from "node:fs";
+import { describe, it, expect, afterEach, afterAll } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync, existsSync, cpSync, lstatSync, realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   INSTALL_JS,
+  MARKER_REL,
   UNINSTALL_JS,
   type Run as SharedRun,
+  deriveWritePaths,
   makeFixture as sharedMakeFixture,
   makeOldLayoutFixture as sharedMakeOldLayoutFixture,
+  normalizeIso,
   rebindMarker,
   snapshotTree,
   spawnBin,
@@ -51,6 +66,13 @@ afterEach(() => {
 const makeFixture = (): string => sharedMakeFixture(mkTmp());
 const makeOldLayoutFixture = (): string => sharedMakeOldLayoutFixture(mkTmp());
 
+// Every path any install variant writes (files, links and directories), from the ONE shared derivation
+// (plan 33.1-27). A path the preview names must be in it: uninstall acts only on install's paths.
+const DERIVE_ROOT = realpathSync(mkdtempSync(join(tmpdir(), "grugops-dry-derive-")));
+afterAll(() => rmSync(DERIVE_ROOT, { recursive: true, force: true }));
+const SET = deriveWritePaths(DERIVE_ROOT);
+const WRITE_PATHS: ReadonlySet<string> = new Set([...SET.files, ...SET.dirs]);
+
 // The EMPTY directories a user may already hold at the paths uninstall's rmdirIfEmpty visits.
 const USER_EMPTY_DIRS = [".github", ".gemini", ".claude", ".claude/skills", ".claude/agents", "tools/grugops"];
 
@@ -74,6 +96,14 @@ function reported(stdout: string, label: string): string[] {
   }
   return out;
 }
+
+/** The path a report message is about: its first token (a file line may go on with a reason). */
+const subject = (msg: string): string => msg.split(" ")[0];
+
+// The files a fresh install into an EMPTY target creates and a DRY_RUN uninstall must name for
+// removal (flow 10): the pointer files install created (createdFiles, appendedBlocks) and the Gemini
+// settings file it created (geminiSettings).
+const FLOW10_CREATED = ["CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json"] as const;
 
 describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
   it("DRY_RUN uninstall of a never-installed target over empty user directories leaves every directory in place", () => {
@@ -233,18 +263,50 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
     expect(runInstall(target, home, false).status).toBe(0);
     expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, UNINSTALL_BANNER);
   });
+
+  it("flow 10: DRY_RUN uninstall after a fresh install into an EMPTY target (no CLAUDE.md): nothing changes, and the preview names the removal of the files install created", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    const r = expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, UNINSTALL_BANNER);
+    const whole = reported(r.stdout, "would-remove").map(subject);
+    for (const f of FLOW10_CREATED) expect(whole, `the preview does not name the removal of ${f}\n${r.stdout}`).toContain(f);
+  });
 });
 
-// The subset invariant for flows 7 and 8: the preview runs on the installed tree; the real
-// uninstall runs next on a COPY of that same tree (so the real run's result cannot depend on
-// anything the preview did). Paths are compared relative to each run's own target root.
+// The subset invariant for flows 7, 8 and 10: the preview runs on the installed tree; the real
+// uninstall runs next on a COPY of that same tree (so the real run's result cannot depend on anything
+// the preview did). Paths are compared relative to each run's own target root.
 //
-// Red-team of plan 33.1-28: a directory is removed only when the run empties it, and the preview
-// counts each file it would remove as removed, so on flow 7's and flow 8's trees the preview names
-// the directories the real run empties and removes. The third case is an installed tree whose
-// .github/ the user has since emptied themselves: neither run removes it (this run did not empty it),
-// and the preview still names the others.
-function expectPreviewSubsetOfRealRun(target: string, home: string): { would: string[]; done: string[] } {
+// The DIRECTORY half: every would-rmdir path is an rmdir path of the real run. Red-team of plan
+// 33.1-28: a directory is removed only when the run empties it, and the preview counts each file it
+// would remove as removed, so on these trees the preview names the directories the real run empties
+// and removes. The third case is an installed tree whose .github/ the user has since emptied
+// themselves: neither run removes it (this run did not empty it), and the preview still names the
+// others.
+//
+// The FILE half (plan 33.1-34): every path the preview names as would-remove or would-edit is removed
+// or changed by the real run: absent afterwards, or holding other bytes. The marker is compared after
+// re-binding, so a would-remove of it must leave it absent. Every path named in either half is one
+// install writes (WRITE_PATHS, the shared derivation).
+interface Named {
+  readonly would: string[];
+  readonly done: string[];
+  readonly files: string[];
+  /** The copy the real run ran on. */
+  readonly copy: string;
+}
+const fileState = (p: string): string => {
+  try {
+    const st = lstatSync(p);
+    if (st.isSymbolicLink()) return "link";
+    if (!st.isFile()) return "other";
+    return createHash("sha256").update(readFileSync(p)).digest("hex");
+  } catch {
+    return "absent";
+  }
+};
+function expectPreviewSubsetOfRealRun(target: string, home: string): Named {
   const copy = join(mkTmp(), "copy");
   cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
   // The marker is bound to the directory install wrote it in (red-team B2 of plan 33.1-33); the copy is
@@ -261,13 +323,31 @@ function expectPreviewSubsetOfRealRun(target: string, home: string): { would: st
   expect(snapshotTree(target)).toBe(tPre); // the preview changed nothing
   expect(snapshotTree(home)).toBe(hPre);
   const would = reported(preview.stdout, "would-rmdir").map((p) => rel(target, p));
+  // A file line names the path relative to the target (or, in principle, absolute under it).
+  const fileRel = (msg: string): string => {
+    const s = subject(msg);
+    return s.startsWith("/") ? rel(target, s).replace(/^\//, "") : s;
+  };
+  const files = [...new Set([...reported(preview.stdout, "would-remove"), ...reported(preview.stdout, "would-edit")].map(fileRel))];
+  expect(files.length).toBeGreaterThan(0); // non-vacuous: the preview named files
+  const before = new Map(files.map((f) => [f, fileState(join(copy, ...f.split("/")))]));
 
   const real = runUninstall(copy, home, false);
   expect(real.status, real.stderr).toBe(0);
   const done = reported(real.stdout, "rmdir").map((p) => rel(copy, p));
   expect(done.length).toBeGreaterThan(0); // the real run removed directories, so the comparison is not empty on both sides
+  for (const f of files) {
+    const b = before.get(f)!;
+    const a = fileState(join(copy, ...f.split("/")));
+    expect(b, `preview named ${f}, which is not a file in the tree`).not.toBe("absent");
+    expect(a === "absent" || a !== b, `preview named ${f} for removal or edit; the real run left it byte-identical\n${preview.stdout}`).toBe(true);
+  }
   for (const p of would) expect(done.includes(p), `preview named ${p}; the real run did not remove it`).toBe(true);
-  return { would, done };
+  // Every path either half names is one install writes.
+  for (const p of [...files, ...would.map((d) => d.replace(/^\//, ""))]) {
+    expect(WRITE_PATHS.has(normalizeIso(p)), `the preview named ${p}, which no install variant writes`).toBe(true);
+  }
+  return { would, done, files, copy };
 }
 
 describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real run's rmdir", () => {
@@ -297,5 +377,39 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
     expect(would).toContain("/.claude");
     expect(would).not.toContain("/.github");
     expect(done).not.toContain("/.github");
+  });
+
+  it("subset: uninstall after a fresh install into an EMPTY target (flow 10's tree): the files install created are named and removed, and every ledger's paths are named", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    const m = JSON.parse(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
+    const { would, done, files, copy } = expectPreviewSubsetOfRealRun(target, home);
+    // The files install created are named, and the real run removed each whole (the helper checks only
+    // "removed or changed").
+    for (const f of FLOW10_CREATED) {
+      expect(files, `the preview does not name ${f}`).toContain(f);
+      expect(existsSync(join(copy, ...f.split("/"))), `the real run did not remove ${f}`).toBe(false);
+    }
+    // Every file path each file ledger records is named by the preview (an untouched install holds
+    // every record), and every directory the preview names is in createdDirs; the real run removes
+    // exactly the directories the preview names.
+    const keysOf = (k: string): string[] => Object.keys((m[k] ?? {}) as Record<string, unknown>);
+    const ledgerFiles: ReadonlyArray<readonly [string, readonly string[]]> = [
+      ["createdFiles", keysOf("createdFiles")],
+      ["kitFiles", keysOf("kitFiles")],
+      ["appendedBlocks", keysOf("appendedBlocks")],
+      ["geminiSettings", m.geminiSettings === undefined ? [] : [".gemini/settings.json"]],
+      ["claudeAskRules", m.claudeAskRules === undefined ? [] : [".claude/settings.json"]],
+      ["the marker", [MARKER_REL]],
+    ];
+    for (const [name, paths] of ledgerFiles) {
+      expect(paths.length, `the marker has no ${name} entry`).toBeGreaterThan(0);
+      for (const p of paths) expect(files, `${name} records ${p}; the preview does not name it`).toContain(p);
+    }
+    const createdDirs = new Set((m.createdDirs ?? []) as string[]);
+    expect(createdDirs.size).toBeGreaterThan(0);
+    for (const d of would) expect(createdDirs.has(d.replace(/^\//, "")), `the preview names ${d}, which createdDirs does not record`).toBe(true);
+    expect([...done].sort()).toEqual([...would].sort());
   });
 });
