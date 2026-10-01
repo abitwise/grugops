@@ -1,10 +1,10 @@
 ---
 schema_version: 1
 open_count: 239
-waived_count: 27
+waived_count: 28
 fixed_count: 47
-total_count: 313
-last_updated: 2026-09-30T02:42:44.400Z
+total_count: 314
+last_updated: 2026-10-01T19:12:43.663Z
 ---
 
 # Broken Windows Ledger
@@ -328,6 +328,7 @@ last_updated: 2026-09-30T02:42:44.400Z
 | 311 | 33.1 | deviation | agent-factory/workflows/17-task-claim.md | 26 | 33-R5-DIAGNOSIS section 1.2 and section 5 decision 2 (human), recorded by plan 33.1-16: the capture grant and the WF17 claim protocol do not fit together. WF17 claims by an atomic mkdir (agent-factory/workflows/17-task-claim.md:26); the round-5 capture pins --permission-mode default with the grant Bash(node *) (scripts/capture-live.ts:333, :1848, D-33-R4-05), under which mkdir and the ls/test/find discovery commands need approval that -p mode cannot give (A:476, A:491, A:552; A:84, A:365, B:29). Round 4 reached the plugin-cache scripts only under permissionMode auto (R4-A:173, R4-A:213). A node-driven claim (node <kit>/scripts/claim.js) would fit inside the grant only if the script ships (the KIT row above). Class SUITE. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:54:01.485Z |  |
 | 312 | 33.1 | unrun-verify | scripts/capture-live.ts | 1848 | 33-R5-DIAGNOSIS section 1.3 and section 5 decision 3 (human), recorded by plan 33.1-16: on round-5 path B (--agent grugops-orchestrator) every Bash call by a role agent was denied with decision_reason_type asyncAgent, 'Permission prompts are not available in this context' (B:384, B:451), though the Agent calls at B:358 and B:386 do not set run_in_background; B carries system/background_tasks_changed frames from B:363. Whether --agent makes the coordinator's spawns asynchronous is UNKNOWN - verify. On this evidence a path-B role agent cannot run even the granted Bash(node *), so a path-B pass needs a non-Bash write route (the propose_note option of the KIT row) or a measured answer on how --agent spawns behave. Class platform. Owner: the human, then a new plan and a new go (D-12). | open |  | 2026-09-28T16:54:01.583Z |  |
 | 313 | 33.1 | deviation | install/uninstall.ts |  | 33.1-30: with no install marker at all, uninstall leaves every kit file (a byte-identical kit copy included), where the plan's no-marker bullet removed a byte-identical skill; brief DC-2 (never-installed target changes by zero bytes) and plan 28's AGENTS.md/runnables rule | open |  | 2026-09-30T02:42:44.400Z |  |
+| 314 | 33.1 | deviation | install/install.ts |  | Round-2 red-team item 14 (plan 33.1-32): a re-install (copyKit(false)) moves the shared kit home ~/.grugops/agent-factory aside and removes it, so a user's edit there is overwritten with no diff and no backup; only --update (copyKit(true)) keeps a differing kit home. Human decision 2026-09-30, recorded in 33.1 D-31: accepted for now; a backup of kit-home edits is deferred (deferred-items.md row 'Item 14'). | waived | Accepted by the named human on 2026-09-30 (recorded in 33.1 D-31): overwriting the shared kit home on re-install is kept for now; kit-home backup deferred. | 2026-10-01T19:12:38.633Z | 2026-10-01T19:12:43.663Z |
 
 ````json
 [
@@ -4222,6 +4223,19 @@ last_updated: 2026-09-30T02:42:44.400Z
     "reason": "",
     "recorded_at": "2026-09-30T02:42:44.400Z",
     "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 314,
+    "kind": "deviation",
+    "phase": "33.1",
+    "file": "install/install.ts",
+    "line": null,
+    "description": "Round-2 red-team item 14 (plan 33.1-32): a re-install (copyKit(false)) moves the shared kit home ~/.grugops/agent-factory aside and removes it, so a user's edit there is overwritten with no diff and no backup; only --update (copyKit(true)) keeps a differing kit home. Human decision 2026-09-30, recorded in 33.1 D-31: accepted for now; a backup of kit-home edits is deferred (deferred-items.md row 'Item 14').",
+    "status": "waived",
+    "reason": "Accepted by the named human on 2026-09-30 (recorded in 33.1 D-31): overwriting the shared kit home on re-install is kept for now; kit-home backup deferred.",
+    "recorded_at": "2026-10-01T19:12:38.633Z",
+    "resolved_at": "2026-10-01T19:12:43.663Z",
     "milestone": "v2.1"
   }
 ]
