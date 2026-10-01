@@ -66,10 +66,18 @@ release, together with Phase 33.1, which retires the Bash command guard.
   installed there: uninstall changes nothing and names the remedy (set `target` by hand for the same
   repository, or re-run install), and `--check` warns. A re-install re-binds the marker and carries
   none of the old records, so files the earlier install made are then left and reported by uninstall.
-- An install made before this release (2.1.0 and earlier) has no `target` and none of the new
-  records, so uninstall changes nothing on it and gives the remedy. After the remedy, it removes only
-  what it can prove (the skills byte-identical to the kit, and the marker) and leaves and reports the
-  rest for removal by hand. See `install/README.md`, "Undo".
+- **Breaking change for installs made with 2.1.0 or earlier.** Their marker has no `target` and
+  none of the new records, so uninstall changes nothing on such an install, exits `3`, and prints
+  the remedy. To remove one, re-install with this release, then uninstall. The re-install binds the
+  marker to the repository and records what it writes; the uninstall then removes the skills, the
+  adapters, the ask rules and runnables that install recorded, and the marker. Measured on an
+  install made by the 2.1.0 installer: an unattended re-install needs `--backup-edited-kit`,
+  because the 2.1.0 orchestrator adapter differs from this release's and has no record, so it counts
+  as possibly edited and is kept as a backup; and the uninstall leaves what the earlier install made
+  and this one did not record (`AGENTS.md`, the `CLAUDE.md` and Copilot pointer blocks, the Gemini
+  entry, the earlier runnables, the backup) and reports each for removal by hand. Setting `target`
+  in the marker by hand instead removes only the skills byte-identical to the kit, and the marker.
+  See `install/README.md`, "Undo".
 - `.claude/settings.json` and `.gemini/settings.json` are edited in place: only the entries install
   adds or removes change, and every other byte (number spelling, key order, spacing, line ends) is
   kept, so install followed by uninstall gives the file back byte for byte. A settings file with a

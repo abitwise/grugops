@@ -236,7 +236,11 @@ In the **target repo**:
   setup included) or a hard link is not written through: install reports a `verify` line (exit
   `3`), leaves it and the file it points at unchanged, and adds no pointer; add the line by hand if
   you want it. Install records no block for it, so the uninstaller leaves it too, reports it `left`,
-  and that does not change its exit code
+  and that does not change its exit code. To have install add the pointer instead, replace the link
+  with a regular file before you install: Claude Code documents a `CLAUDE.md` holding the import
+  line `@AGENTS.md` as the alternative to a `CLAUDE.md -> AGENTS.md` link
+  ([code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory)), and install appends
+  its block to that file as to any other
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"`, and what install did is
   recorded in `.grugops/install.json` as `geminiSettings` so the uninstaller can reverse exactly
   that. The entry is inserted into the file's text in place: every other byte of the file (numbers
@@ -468,8 +472,9 @@ of that name itself.
 - An unreadable record, or a malformed one, is a `verify` finding and exit `3`, and so is a path
   install has a record for that the uninstaller cannot read.
 
-Two known exceptions in the ask-rule record are open, pending a human decision (red-team items 12
-and 13 of phase 33.1, stated here so the list above is not read as covering them). The uninstaller
+Two known exceptions in the ask-rule record are kept by the repository owner's decision (red-team
+items 12 and 13 of phase 33.1, decision D-31 of 2026-10-01, stated here so the list above is not
+read as covering them). The uninstaller
 removes an ask rule by its name in the record and does not check `permissions.ask` against what
 install left there, so a rule you deleted after install and later added again yourself, with the same
 text, is removed. And a re-install over a `.claude/settings.json` it cannot read (a hard link, for
@@ -780,11 +785,13 @@ that branch, and only what classic protection shows is read. When GitHub's answe
 `master` reports `protected` as `false` (or as a value that is neither true nor false) while the
 classic protection endpoint returns a protection record for it, the two answers disagree and that
 branch reads `UNKNOWN - verify`. GitHub does not document whether that `protected` value counts
-rulesets, so the check does not compare it with a branch's ruleset rules; that case is
-`UNKNOWN - verify` until it is measured on a live host. A ruleset counts only when it belongs to
-the repository the check inspected: a repository ruleset must name that repository (`owner/name`)
-as its source, and an organization ruleset its owner, spelled exactly as the repository line spells
-them. A ruleset whose source is an enterprise or any other owner reads `UNKNOWN - verify` for the
+rulesets, so the check does not compare it with a branch's ruleset rules. When that answer reports
+`false` and the classic protection endpoint returns no protection record, the branch is judged by
+its ruleset rules alone: if they show every item, it reads `protected`. Whether GitHub's
+`protected` value counts rulesets has not been measured on a live host. A ruleset counts only when
+it belongs to the repository the check inspected: a repository ruleset must name that repository
+(`owner/name`) as its source, and an organization ruleset its owner, spelled exactly as the
+repository line spells them. A ruleset whose source is an enterprise or any other owner reads `UNKNOWN - verify` for the
 lines it would show.
 
 For production, keep a deployment environment that:
