@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Retirement First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 33.1-34-PLAN.md
-last_updated: "2026-09-30T11:30:14.681Z"
-state_head: 61715b7c0e607d6cc36714b3d0ef17d1f1abb485
+stopped_at: Completed 33.1-35-PLAN.md
+last_updated: "2026-10-01T19:35:54.163Z"
+state_head: 8ce28510de46326412c805b7c6ed0ead1a7bf0cc
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 347
-  completed_plans: 346
+  completed_plans: 347
   percent: 100
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -606,6 +606,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33.1 P32 | 92 min | 2 tasks | 11 files |
 | Phase 33.1 P33 | 67 min | 2 tasks | 11 files |
 | Phase 33.1 P34 | 49min | 3 tasks | 4 files |
+| Phase 33.1 P35 | 50min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -1665,6 +1666,7 @@ Recent decisions affecting current work:
 - [Phase 33.1]: 33.1-33: ownsMarker - a marker is used only when it carries grugopsHome, kitRoot, installMode as strings (kitVersion a string when present); a user JSON object at .grugops/install.json is an unusable marker for the whole run and is left
 - [Phase 33.1]: 33.1-33: the fs census ownership axis has no sentinel-block class (presence, disproved by carry 4/6/11); carry 12 and 13 declared as counted known exceptions pending the human at plan 35
 - [Phase 33.1]: 33.1-34: README/CHANGELOG publish measured behaviour, not the plan text: a pre-release (2.1.0) install is unbound, so uninstall changes nothing and gives the remedy; known exceptions 12/13 counted in installer-user-edit.test.ts and asserted to still reproduce pending plan 35
+- [Phase 33.1]: 33.1 D-31 (2026-10-01, Olger Oeselg): Q4 narrow-scope, Q1 narrow-line, Q2 add-rows amend D-30 and are implemented in gap round 3; Q3a keep-fail-closed; Q3b moot; all 14 round-2 behaviour items kept (README item 1 fix, item 4 workaround, CHANGELOG item 5 breaking note); kit-home overwrite accepted, backup deferred
 
 ### Pending Todos
 
@@ -1795,8 +1797,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-09-30T11:30:14.188Z
-Stopped at: Completed 33.1-34-PLAN.md
+Last session: 2026-10-01T19:35:53.566Z
+Stopped at: Completed 33.1-35-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
