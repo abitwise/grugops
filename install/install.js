@@ -90,7 +90,7 @@ import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElem
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -1400,6 +1400,57 @@ if (!ALLOW_SELF) {
     const looksLikeSource = TARGET === toPosix(GRUGOPS_SRC) || hasSourceMarkers(TARGET);
     if (looksLikeSource) {
         process.stderr.write("refusing: target looks like the grugops source checkout — you probably meant --target <your-repo>. Pass --allow-self to override.\n");
+        process.exit(1);
+    }
+}
+// --- THE KIT HOME MUST NOT OVERLAP THE TARGET (plan 33.1-37, review CR-01, D-33 (b)). ALWAYS ON: it runs
+// right after the self-checkout guard, before the --migrate branch, the run banner and every write, and
+// neither --allow-self nor DRY_RUN exempts it (the self-checkout guard's rule). KIT_ROOT is
+// `<GRUGOPS_HOME>/agent-factory`, and copyKit moves whatever is there aside before it puts the new kit in
+// place. Nothing used to compare that with the target: with GRUGOPS_HOME set to the target, install moved
+// the user's in-repo agent-factory/ aside and deleted it, exit 0, with no backup and no warning, and a
+// DRY_RUN preview said only `would-copy`. So the three are compared by REAL path (realPathThroughExisting:
+// a kit home that does not exist yet still has a real location, links on the way resolved), and the run
+// is refused when the kit root is the target, when either lies inside the other, or when the kit home is
+// the target or lies inside it. A path whose real location cannot be read is refused too, because the
+// overlap cannot be ruled out. A target inside the kit home but outside the kit root
+// (GRUGOPS_HOME=$HOME, target $HOME/code/repo) is not an overlap: install writes in the kit home only
+// the kit root, its record (.grugops-kit.json), its backups and its own mkdtemp directories.
+//
+// It does not run on --check, --update or --prune-old-kit, which branch off above. --check writes
+// nothing. --update has no target, and the kit-home record (copyKit) keeps it from deleting anything
+// install did not record writing at the kit root. Prune acts only on records (plan 33.1-40).
+//
+// The refusal is one stderr sentence and exit 1, before anything reaches stdout.
+{
+    const realKit = realPathThroughExisting(KIT_ROOT);
+    const realHome = realPathThroughExisting(GRUGOPS_HOME);
+    const realTarget = realPathThroughExisting(TARGET);
+    const within = (child, parent) => child.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
+    let overlap = null;
+    if (realKit === null || realHome === null || realTarget === null) {
+        const unread = [
+            ...(realKit === null ? [`the kit root ${KIT_ROOT}`] : []),
+            ...(realHome === null ? [`the kit home ${GRUGOPS_HOME}`] : []),
+            ...(realTarget === null ? [`the target ${TARGET}`] : []),
+        ];
+        overlap =
+            `install.js: the real path of ${unread.join(" and of ")} could not be read, so it cannot be shown that the kit ` +
+                `home ${GRUGOPS_HOME} lies outside the target ${TARGET}; the kit could be written into, or replace, your ` +
+                `repository. Set GRUGOPS_HOME to a directory outside the repository that can be resolved. Nothing was written.`;
+    }
+    else if (realKit === realTarget ||
+        within(realKit, realTarget) ||
+        within(realTarget, realKit) ||
+        realHome === realTarget ||
+        within(realHome, realTarget)) {
+        overlap =
+            `install.js: the kit home ${KIT_ROOT} overlaps the target ${TARGET} (real paths ${realKit} and ${realTarget}); ` +
+                `the kit would be written into, or replace, your repository. Set GRUGOPS_HOME to a directory outside the ` +
+                `repository. Nothing was written.`;
+    }
+    if (overlap !== null) {
+        process.stderr.write(`${overlap}\n`);
         process.exit(1);
     }
 }

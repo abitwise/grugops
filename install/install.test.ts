@@ -4951,7 +4951,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // THE COUNT IS TAKEN OVER COMMENT-FILTERED LINES, DELIBERATELY. A raw count returns SEVEN, because
   // the residual note's own prose must spell the call once to describe what it is describing. The
   // filtered count is the one that means "call sites", and it is the one asserted.
-  it("the eight MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
+  it("the nine MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
     const codeLines = src.split("\n").filter((l) => !/^\s*\/\//.test(l));
     const callSites = codeLines.filter((l) => l.includes("process.exit(")).length;
@@ -4959,12 +4959,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // --migrate whose pre-check refuses must stop before the handoffs backup and the install run
     // (red-team B1). SEVEN, all mid-script and relying on stop-here semantics. EIGHT since the red-team
     // fixes of plan 33.1-33 (B2): an INSTALL_MODE other than copy or symlink is bad usage, refused with
-    // exit 2 while the arguments are read, before anything is written.
-    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 8");
+    // exit 2 while the arguments are read, before anything is written. NINE since plan 33.1-37 (review
+    // CR-01): a kit home that overlaps the target is refused with exit 1, after the self-checkout guard
+    // and before anything reaches stdout or anything is written.
+    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 9");
     // ...and the raw count is one more, which is the fact that makes the filter necessary rather than
     // cosmetic. Pinned so a future author who deletes the filter sees why it was there.
     const raw = src.split("\n").filter((l) => l.includes("process.exit(")).length;
-    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 9");
+    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 10");
     // THE ROTTED LIST IS GONE, NOT SOFTENED — and not quoted back as evidence either. A note that
     // reprints the stale numbers to explain why it deleted them still puts numbers in front of a
     // reader who may trust them. The measurement lives in 27-35-SUMMARY.md; this asserts that no

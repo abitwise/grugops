@@ -37,6 +37,8 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -61,6 +63,26 @@ for (const [name, path] of Object.entries(BINS)) {
 
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
+/** Every entry under `root` (not following links): `<rel> <kind> <sha256|readlink>`, sorted; "" when absent. */
+function tree(root) {
+  if (!existsSync(root)) return "";
+  const rows = [];
+  const walk = (rel) => {
+    for (const ent of readdirSync(rel === "" ? root : join(root, rel), { withFileTypes: true })) {
+      const r = rel === "" ? ent.name : `${rel}/${ent.name}`;
+      const abs = join(root, r);
+      if (ent.isSymbolicLink()) rows.push(`${r} LINK ${readlinkSync(abs)}`);
+      else if (ent.isDirectory()) {
+        rows.push(`${r}/ DIR`);
+        walk(r);
+      } else if (ent.isFile()) rows.push(`${r} ${sha256(abs)}`);
+      else rows.push(`${r} OTHER`);
+    }
+  };
+  walk("");
+  return rows.sort().join("\n");
+}
+
 class CaseFailure extends Error {}
 function check(cond, why) {
   if (!cond) throw new CaseFailure(why);
@@ -83,12 +105,21 @@ function makeWorld() {
 
   /** Run a committed binary against this world's target. */
   function run(bin, args = [], opts = {}) {
-    const env = { ...process.env, HOME: home, GRUGOPS_HOME: kitHome, TARGET: target, INSTALL_MODE: "copy", GRUGOPS_SRC: opts.src ?? REPO_ROOT };
+    // opts.grugopsHome and opts.target override the world's kit home and target (plan 33.1-37: the
+    // CR-01 cases point GRUGOPS_HOME at, or around, the target). Both still lie inside the scratch dir.
+    const env = {
+      ...process.env,
+      HOME: home,
+      GRUGOPS_HOME: opts.grugopsHome ?? kitHome,
+      TARGET: opts.target ?? target,
+      INSTALL_MODE: "copy",
+      GRUGOPS_SRC: opts.src ?? REPO_ROOT,
+    };
     if (opts.dryRun) env.DRY_RUN = "1";
     else delete env.DRY_RUN;
     const r = spawnSync(process.execPath, [BINS[bin], ...args], { encoding: "utf8", env, cwd: target, timeout: 300_000, maxBuffer: 64 * 1024 * 1024 });
     const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
-    return { status: r.status, out, lines: out.split(/\r?\n/) };
+    return { status: r.status, out, stdout: r.stdout ?? "", stderr: r.stderr ?? "", lines: out.split(/\r?\n/) };
   }
   const install = (args = [], opts = {}) => run("install", ["--yes", ...args], opts);
   const uninstall = (opts = {}) => run("uninstall", [], opts);
@@ -177,6 +208,31 @@ const CASES = {
     const u2 = w.uninstall({ src });
     check(existsSync(w.at(rel)) && sha256(w.at(rel)) === edited, `the edited ${rel} did not survive byte for byte`);
     check(w.lineFor(u2, "left", rel) !== undefined, `no 'left ${rel}' line for the edited runnable`);
+  },
+
+  // Plan 33.1-37, review CR-01 (the verifier's reproduction): GRUGOPS_HOME set to the target used to make
+  // install move the user's in-repo agent-factory/ aside and delete it, exit 0. Now it exits 1, before any
+  // write and before anything reaches stdout, and a DRY_RUN preview is refused the same way.
+  "cr-01-kit-home-is-target"(w) {
+    const cfgRel = "agent-factory/config/factory.config.json";
+    const notesRel = "agent-factory/MYNOTES.md";
+    mkdirSync(w.at("agent-factory/config"), { recursive: true });
+    writeFileSync(w.at(cfgRel), '{"environments":["production"],"mine":"edited"}');
+    writeFileSync(w.at(notesRel), "the user's own notes\n");
+    const before = tree(w.target);
+    const cfg = sha256(w.at(cfgRel));
+    const notes = sha256(w.at(notesRel));
+    for (const dryRun of [false, true]) {
+      const r = w.install([], { grugopsHome: w.target, dryRun });
+      const tag = dryRun ? "DRY_RUN " : "";
+      check(r.status === 1, `${tag}install exited ${r.status}, expected 1\n${r.out.slice(0, 2000)}`);
+      check(r.stdout === "", `${tag}install printed on stdout: ${r.stdout.slice(0, 400)}`);
+      check(/overlaps the target/.test(r.stderr), `${tag}no overlap refusal on stderr: ${r.stderr}`);
+      check(!/would-copy/.test(r.out), `${tag}a would-copy line was printed`);
+      check(existsSync(w.at(notesRel)) && sha256(w.at(notesRel)) === notes, `${tag}${notesRel} is gone or changed`);
+      check(existsSync(w.at(cfgRel)) && sha256(w.at(cfgRel)) === cfg, `${tag}${cfgRel} is gone or changed`);
+      check(tree(w.target) === before, `${tag}something new exists in the repository, or something changed`);
+    }
   },
 };
 

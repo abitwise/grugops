@@ -71,7 +71,7 @@
 //
 // Clear professional voice: this is a safety surface (installer reads of user content).
 import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readlinkSync, realpathSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 /** The default size bound: no file the installer reads in a user repository is near this. */
 export const USER_FILE_MAX_BYTES = 8 * 1024 * 1024;
 function kindOf(st) {
@@ -259,6 +259,42 @@ export function readForWrite(root, path, maxBytes = USER_FILE_MAX_BYTES) {
 export function realTargetPath(target) {
     try {
         return realpathSync.native(target).replace(/\\/g, "/");
+    }
+    catch {
+        return null;
+    }
+}
+// realPathThroughExisting (plan 33.1-37, review CR-01): the real location of a path that may not exist
+// yet. install.ts compares the kit root, the kit home and the target by real path before any write, and
+// on a first install the kit home (and often the kit root) does not exist: realTargetPath would answer
+// null for it, and a check that gave up there would have to refuse every first install or skip the
+// comparison. So the path is resolved, the deepest ancestor that exists (by lstat) is found, its real path
+// is taken with realpathSync.native (every link on the way to it resolved, and on a case-insensitive
+// volume the case the directory really has), and the missing remainder is appended unchanged. Nothing
+// below that ancestor exists, so no link can hide in the remainder. POSIX separators, as realTargetPath.
+// null when the ancestor's real path cannot be read (a dangling link, a component that cannot be
+// searched, a non-directory on the way): the caller cannot show where the path is, and refuses. It reads
+// no file content.
+export function realPathThroughExisting(p) {
+    let cur = resolve(p);
+    const rest = [];
+    for (;;) {
+        try {
+            lstatSync(cur);
+            break;
+        }
+        catch (e) {
+            if (codeOf(e) !== "ENOENT")
+                return null;
+            const up = dirname(cur);
+            if (up === cur)
+                return null;
+            rest.unshift(basename(cur));
+            cur = up;
+        }
+    }
+    try {
+        return join(realpathSync.native(cur), ...rest).replace(/\\/g, "/");
     }
     catch {
         return null;
