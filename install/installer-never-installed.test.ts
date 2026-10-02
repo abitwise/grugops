@@ -25,7 +25,7 @@
 //       away (README §1's minimal copy path, or a copied tree). Every file holds exactly what install
 //       wrote, so this is the case where content alone looks like install's. It holds the sentinel
 //       blocks: a CLAUDE.md or Copilot block used to be removed by its presence, rewriting a file in a
-//       repository with no marker (red-team carry item 11). The appendedBlocks ledger (plan 33.1-33)
+//       repository with no marker (red-team carry item 11). The block entries of the install ledger (plan 33.1-33)
 //       is the record uninstall now needs.
 //   FM  install's own bytes under a foreign marker: the default variant's installed tree with the
 //       marker replaced by a user's JSON object. Without ownsMarker that object read as an install
@@ -35,7 +35,7 @@
 // 33.1-35, so their behaviour is not changed here). They are on the INSTALLED side, where the record
 // exists, and cannot change a never-installed target: with no marker the ask-rule pass removes
 // nothing. They are listed so the census of this class is honest:
-//   12  removeAskRules removes a rule by its NAME in the claudeAskRules ledger and never checks
+//   12  removeAskRules removes a rule by its NAME in the ask-rules entry of the ledger and never checks
 //       askContent against the current permissions.ask, so a user who deletes install's rule and later
 //       adds the same rule string loses it at uninstall. A whole-list check would strand all rules on
 //       any user addition; a per-rule check needs a different record shape.
@@ -64,6 +64,7 @@ import {
   runUninstall,
   snapshotTree,
 } from "./installer-paths.test-support.js";
+import { RETIRED_RECORD_NAMES, sixRecordShape } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-never-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -220,7 +221,7 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
   //   FC  a whole installed tree copied from another directory, marker and all (`cp -r`, or README
   //       §1's copy path plus a `.grugops/` copied from another installed repository). Its ledgers
   //       describe the other directory, and every file here holds install's bytes, so without a
-  //       binding the copied createdFiles, createdDirs and kitFiles records all "held".
+  //       binding the copied file and dir records all "held".
   //   FL  the same with the marker's `target` field taken out: a marker written before markers were
   //       bound to their directory. It cannot show which directory it describes.
   //   FH  a hand-made marker at the marker path: empty strings, an installMode that is not copy or
@@ -284,6 +285,27 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       expectZeroBytes(o, `README §1 repro ${dryRun ? "DRY_RUN" : "real"}`);
     }
   });
+
+  // FN (plan 33.1-36, D-33 (b)): the default install's bytes under a marker in the round-2 six-record
+  // shape (the one ledger rebuilt as the six retired records by sixRecordShape), re-bound to THIS
+  // directory. No released version wrote that shape, and this build reads it as no record (`unbound` by
+  // no-ledger), so uninstall changes zero bytes, real and DRY_RUN, and exits 3 with the remedy.
+  for (const dryRun of [false, true]) {
+    const mode = dryRun ? "DRY_RUN" : "real";
+    it(`FN (the default install's bytes under a bound six-record marker), ${mode}: zero bytes changed, exit 3, the remedy named`, () => {
+      const t = fresh(`fn-${mode}`);
+      cpSync(SET.variant("default").target, t, { recursive: true, verbatimSymlinks: true });
+      rebindMarker(t);
+      const mp = join(t, ...MARKER_REL.split("/"));
+      const six = sixRecordShape(JSON.parse(readFileSync(mp, "utf8")) as Record<string, unknown>);
+      for (const name of RETIRED_RECORD_NAMES) expect(Object.prototype.hasOwnProperty.call(six, name), name).toBe(true);
+      writeFileSync(mp, JSON.stringify(six, null, 2) + "\n");
+      const o = uninstallAndDiff(t, dryRun);
+      expectZeroBytes(o, `FN ${mode}`);
+      expect(o.run.status, o.run.stdout).toBe(3);
+      expect(o.run.stdout).toMatch(/re-run install\.js here, then uninstall/i);
+    });
+  }
 
   it("a real install followed by a real uninstall still removes the marker (the round trip is unchanged)", () => {
     const t = fresh("rt-marker");

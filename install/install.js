@@ -72,10 +72,11 @@ import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers
 // install/ still imports nothing from scripts/. The rules are a speed bump, not a security boundary;
 // the git host is the hard floor (see the module header).
 import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsText } from "./checkpoint-ask-rules.js";
-// CR-02 / WR-05: the ONE reader of the install marker and its two ledgers (the ask rules install
-// added, the directories install created), shared with uninstall.ts so the two binaries cannot read
-// one malformed ledger two ways again. Node stdlib only, read-only, sibling module inside install/.
-import { readInstallMarker, readCreatedDirs, readCreatedFiles, readKitFiles, readAppendedBlocks, appendedBlockJson, malformedLedgers, markerUnusableText, readAskRuleLedger, readGeminiLedger, geminiLedgerJson, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
+// D-33 (b), plan 33.1-36: the ONE reader of the install marker and of the one install ledger it carries
+// (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
+// binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
+// module inside install/.
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -468,7 +469,7 @@ const errCode = (e) => {
     return typeof code === "string" && code !== "" ? code : "UNKNOWN";
 };
 // CREATED_DIRS (CR-02, D-18): every directory under TARGET that mkdirp itself created in this run,
-// as a POSIX path relative to TARGET. writeMarker() records it in the marker as `createdDirs`, and
+// as a POSIX path relative to TARGET. writeMarker() records each as a `dir` entry of the install ledger, and
 // uninstall removes an empty shared-name directory (.claude/, .gemini/, .github/, ...) only when it
 // is in that ledger — so an empty directory the user made before the install is never removed.
 // Directories outside TARGET (the kit home) are not recorded. The DRY_RUN guard is unchanged: a
@@ -479,7 +480,7 @@ const CREATED_DIRS = new Set();
 // of what this run wrote there (install-marker.ts contentRecord / linkRecord): the files ensureBlock
 // creates to hold a sentinel block (CLAUDE.md, .github/copilot-instructions.md), the AGENTS.md
 // linkOrCopy lays down, and the runnables materializeRunnable writes. writeMarker() records it in the
-// marker as `createdFiles`, and uninstall deletes one of those files only when that ledger lists it
+// install ledger as kit-false `file` entries, and uninstall deletes one of those files only when the ledger lists it
 // and the file still holds what the record says, so a file the user had before the install (a blank
 // Copilot file, a byte-identical AGENTS.md from the minimal copy path) is never deleted. Only a
 // successful create is recorded: an append, a skip and a DRY_RUN preview record nothing. The
@@ -502,7 +503,7 @@ const recordCreatedFile = (path, record) => {
 // materializeAdapter records `sha256:` of the final bytes it wrote or found identical, and copyKitFile
 // (a skill without the slot line; linkOrCopy's job before plan 33.1-31) records `sha256:` of a copy or
 // `link:<source>` of the link install makes. A user's edit to a kit file is user content: writeMarker() records this map in the
-// marker as `kitFiles`, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
+// install ledger as kit-true `file` entries, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
 // preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
 const KIT_FILES = new Map();
 // KIT_WRITTEN (plan 33.1-32, D-32): true once executeKitPlan ran in this run. When the kit was not
@@ -546,7 +547,7 @@ const recordKitFile = (path, record) => {
 // APPENDED_FILES (red-team of plan 33.1-28, R1): every file ensureBlock APPENDED its block to in this
 // run. The file was there without a grugops block when this run started, so it is the user's, whatever
 // an earlier record says: a user who deleted a file install created and made their own at the same
-// name has a file install did not create. writeMarker() drops such a path from createdFiles, and this
+// name has a file install did not create. writeMarker() drops such a path's kit-false file entry, and this
 // rule does not depend on the bytes (appending the block to an empty file produces exactly the bytes a
 // create writes, so a content record alone could not tell the two apart).
 const APPENDED_FILES = new Set();
@@ -554,7 +555,7 @@ const APPENDED_FILES = new Set();
 // 33.1-33): what ensureBlock appended to each file in this run, by POSIX path relative to TARGET, on a
 // create and on an append alike: the content record of the block LINES (`<open>\n<body>\n<close>\n`)
 // and what the one newline written before them did (`blank-line` or `line-end`; install-marker.ts
-// readAppendedBlocks). writeMarker() records it as `appendedBlocks`. Uninstall removes the block lines
+// the `block` entry). writeMarker() records each as a `block` entry of the install ledger. Uninstall removes the block lines
 // only on this record, and the newline before them only when the record and the bytes around it show
 // it is install's, so a user's line inside the block, their trailing blank lines, their final newline
 // and a file that held only blank lines all survive, and a repository with no record is left.
@@ -811,8 +812,8 @@ const docWarn = (msg) => {
     docReport("WARN", msg);
     DOC_WARNS += 1;
 };
-// AskRuleLedger (D-18) and its reader live in ./install-marker.ts, shared with uninstall.ts (WR-05):
-// a local reader here used to read a malformed ledger as "no ledger" while uninstall refused on it.
+// The ledger's reader lives in ./install-marker.ts, shared with uninstall.ts (WR-05): a local reader
+// here used to read a malformed ask-rule record as "no record" while uninstall refused on it.
 // readMarker: fail-closed read of the byte-stable .grugops/install.json the installer wrote
 // (writeMarker schema), for the callers that need only "a usable marker or none" (the doctor's
 // version and kit checks, old-layout detection) — source (b) of D-03. It delegates to the shared
@@ -936,21 +937,27 @@ function doctor() {
     // uses none of its records here, so that is a WARN with the remedy; the kit checks below still read
     // its kit fields, which say which kit laid this target out.
     if (markerRead.state === "unbound") {
-        docWarn(`the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of ` +
-            `its records here and changes nothing. If this is the same repository moved or renamed, set "target" in ` +
-            `the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, which writes a marker for ` +
-            `this directory and carries none of these records`);
+        docWarn(markerRead.unboundBy === "other-directory"
+            ? `the install marker ${markerFile} is not this directory's record: ${markerRead.why}. Uninstall uses none of ` +
+                `its records here and changes nothing. If this is the same repository moved or renamed, set "target" in ` +
+                `the marker to ${JSON.stringify(markerRead.here ?? TARGET)}; otherwise re-run install.js here, which writes a marker for ` +
+                `this directory and carries none of these records`
+            : `the install marker ${markerFile} is not a record uninstall can use: ${markerRead.why}. Uninstall uses none of ` +
+                `its records here and changes nothing. Re-run install.js here, then uninstall: install writes a marker with ` +
+                `the install ledger for this directory and carries none of these records`);
     }
     // A MALFORMED LEDGER IS A FAIL (red-team B1 of plan 33.1-34, brief DC-1). The doctor used to read the
-    // marker through readInstallMarker and never ask malformedLedgers, so a marker holding a ledger that
-    // uninstall uses none of (install and uninstall both report a verify, exit 3, and uninstall keeps the
-    // marker) printed ALL CHECKS PASSED at exit 0. It asks the same authority those two ask, and names each
-    // malformed ledger in its own FAIL line. The other checks still run: the kit fields are not ledgers.
+    // marker through readInstallMarker and never ask whether its records could be read, so a marker holding
+    // a record uninstall uses none of (install and uninstall both report a verify, exit 3, and uninstall
+    // keeps the marker) printed ALL CHECKS PASSED at exit 0. It asks the one reader those two ask
+    // (readLedger) and says why the install ledger is malformed in one FAIL line. The other checks still
+    // run: the kit fields are not the ledger.
     if (markerRead.state === "ok") {
-        for (const name of malformedLedgers(markerRead.marker)) {
-            docFail(`the install marker ${markerFile} holds a malformed ${name} ledger — install writes it back as found, ` +
-                `uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). Fix the field ` +
-                `by hand`);
+        const ledgerRead = readLedger(markerRead.marker);
+        if (ledgerRead.state === "malformed") {
+            docFail(`the install marker ${markerFile} holds a malformed install ledger (${ledgerRead.why}) — install writes it ` +
+                `back as found, uninstall uses none of it and keeps the marker, and both report a verify finding (exit 3). ` +
+                `Fix the ledger field by hand`);
         }
     }
     const marker = (markerRead.state === "ok" ? markerRead.marker : markerRead.object);
@@ -1247,23 +1254,23 @@ function doctor() {
     // --- Claude Code ask rules (D-18): report each ledger rule present or absent; never repair ---
     // The rules are a speed bump, not a security boundary; the git host is the hard floor. A missing
     // rule is a WARN (someone removed it), not a FAIL, and the doctor writes nothing either way.
-    // One reader, three states (WR-05): a malformed ledger is a WARN naming it, never "predates".
+    // One reader, three states (WR-05): a malformed ledger is named, never read as "no ask rules".
     const askMarker = readInstallMarker(TARGET);
-    const askRead = readAskRuleLedger(askMarker.state === "ok" ? askMarker.marker : null);
-    const askLedger = askRead.ledger;
+    const askRead = readLedger(askMarker.state === "ok" ? askMarker.marker : null);
+    const askLedger = entryAt(askRead, ASK_RULES_REL, "ask-rules") ?? null;
     if (askMarker.state === "unbound") {
-        docReport("info", "the install marker is not this directory's record (see the WARN above), so its ask-rule ledger was not used and the ask rules were not checked");
+        docReport("info", "the install marker is not a record uninstall can use here (see the WARN above), so its ask-rule entry was not used and the ask rules were not checked");
     }
     else if (askMarker.state === "unreadable") {
-        docWarn(".grugops/install.json could not be read as a JSON object — the ask-rule ledger is unknown, so the ask rules were not checked");
+        docWarn(".grugops/install.json could not be read as a JSON object — the install ledger is unknown, so the ask rules were not checked");
     }
     else if (askRead.state === "malformed") {
         // Counted once, as the FAIL above (red-team B1 of plan 33.1-34); this line only says what was skipped.
-        docReport("info", "the ask-rule ledger (claudeAskRules) in .grugops/install.json is malformed (see the FAIL above) — the ask rules " +
+        docReport("info", "the install ledger in .grugops/install.json is malformed (see the FAIL above) — the ask rules " +
             "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed");
     }
     else if (!askLedger) {
-        docReport("info", "no ask-rule ledger in the marker — this install predates the Claude Code ask rules; re-run the installer to write them");
+        docReport("info", "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them");
     }
     else {
         let presentAsk = null;
@@ -1811,7 +1818,7 @@ function ensureBlock(file, open, body, close, label) {
         if (!writeTargetFile(file, block, "create", label))
             return;
         // Plan 33.1-28: readForWrite said nothing was there and the exclusive create succeeded, so
-        // install created this file. Uninstall deletes it only on this record (createdFiles), and only
+        // install created this file. Uninstall deletes it only on this record (its file entry), and only
         // while the file still holds these bytes (red-team R1).
         recordCreatedFile(file, writtenFileRecord(file, block));
         recordAppendedBlock(file, lines, separator);
@@ -1908,7 +1915,7 @@ function linkOrCopy(src, dest, label) {
     return destRead.state === "create" ? writtenFileRecord(dest, srcRead.bytes) : null;
 }
 // GEMINI_RECORD (plan 33.1-29, Gap B / re-review CR-03, D-18): what THIS run did to
-// .gemini/settings.json, as the geminiSettings record (install-marker.ts states the shape), or null
+// .gemini/settings.json, as the gemini entry of the install ledger (install-marker.ts states the shape), or null
 // when this run changed nothing there. mergeGemini sets it after a successful create or append, and
 // writeMarker() records it: the most recent change is the one uninstall must reverse.
 let GEMINI_RECORD = null;
@@ -1929,7 +1936,7 @@ let GEMINI_SEEN = null;
 // RECORDED, AND ONLY WHERE IT CAN BE RECORDED (plan 33.1-29, Gap B / re-review CR-03, D-18). What this
 // run does to the file is recorded as GEMINI_RECORD (created it, or appended "AGENTS.md" and the shape
 // it found), so uninstall can reverse exactly that. So the ledger is asked first: an unreadable marker
-// or a malformed geminiSettings record means the change could not be recorded, and nothing is merged
+// or a malformed install ledger means the change could not be recorded, and nothing is merged
 // (a counted verify says so).
 //
 // ONLY A SHAPE IT CAN MERGE AND REVERSE (CR-03 point 3, install side). A file that is not valid UTF-8,
@@ -1949,9 +1956,10 @@ function mergeGemini() {
             `settings ledger cannot be updated; AGENTS.md was not added — ${byHand}.`);
         return;
     }
-    if (readGeminiLedger(previousMarker.state === "ok" ? previousMarker.marker : null).state === "malformed") {
-        verify(`${rel}: the Gemini settings ledger (geminiSettings) in .grugops/install.json is malformed, so it cannot be ` +
-            `updated and was written back unchanged; AGENTS.md was not added — ${byHand}. Fix or delete the field, ` +
+    const previousLedger = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
+    if (previousLedger.state === "malformed") {
+        verify(`${rel}: the install ledger in .grugops/install.json is malformed (${previousLedger.why}), so it cannot be ` +
+            `updated and is written back unchanged; AGENTS.md was not added — ${byHand}. Fix the ledger field, ` +
             `then re-run the installer.`);
         return;
     }
@@ -2586,7 +2594,7 @@ function kitDestDecision(e) {
         }
         if (destRead.state === "ok" && destRead.text === final) {
             // The destination holds exactly what install writes there, so it is recorded as install's
-            // (kitFiles, plan 33.1-30). The wording is linkOrCopy's for an identical copy: one sentence, one fact.
+            // (a kit-true file entry, plan 33.1-30). The wording is linkOrCopy's for an identical copy: one sentence, one fact.
             return { act: "skip", line: `${e.label} (identical copy present)`, record: fileRecord(final, destRead.mode) };
         }
         const cannot = writable(destRead.state);
@@ -2684,7 +2692,7 @@ function materializeAdapter(e) {
 // did for the skills before plan 33.1-31, with the decision taken by kitDestDecision: a --symlink
 // install's own link is skipped as install's; any other link, special file or non-directory on the way
 // is refused; a new file is made with an exclusive create. Every outcome that leaves install's content
-// at the destination is recorded in kitFiles (`link:<src>` or `sha256:` of the source bytes).
+// at the destination is recorded as a kit-true file entry (`link:<src>` or `sha256:` of the source bytes).
 function copyKitFile(e) {
     const d = kitDestDecision(e);
     if (d.act === "refuse") {
@@ -2766,21 +2774,22 @@ function kitPreflight(plan) {
     const edited = [];
     const hazards = [];
     const marker = readInstallMarker(TARGET);
-    const ledger = readKitFiles(marker.state === "ok" ? marker.marker : null);
-    const records = ledger.state === "ok" ? ledger.files : null;
+    const ledger = readLedger(marker.state === "ok" ? marker.marker : null);
+    // D-32 reads each kit file's record from the one ledger: a `file` entry with `kit: true`.
+    const records = ledger.state === "ok" ? new Map(entriesOfKind(ledger, "file").filter((e) => e.kit).map((e) => [e.path, e.content])) : null;
     const noRecord = marker.state === "unreadable"
         ? marker.jsonObject
             ? "the file at the install marker's path is not install's marker"
             : "the install marker could not be read"
         : marker.state === "unbound"
-            ? "the install marker is not this directory's record (it was written for another directory, or before markers were bound)"
+            ? marker.unboundBy === "no-ledger"
+                ? "the install marker has no install ledger (it was written before the one ledger)"
+                : "the install marker is not this directory's record (it was written for another directory, or before markers were bound)"
             : marker.state === "absent"
                 ? "there is no install marker"
                 : ledger.state === "malformed"
-                    ? "the install marker's kit-file ledger is malformed"
-                    : ledger.state === "absent"
-                        ? "the install marker predates the kit-file ledger"
-                        : "the install marker's kit-file ledger has no entry for it";
+                    ? "the install ledger is malformed"
+                    : "the install ledger has no kit-file entry for it";
     for (const e of [...plan.skills, ...plan.adapters]) {
         if (e.kind === "missing")
             continue;
@@ -3152,39 +3161,44 @@ function materializeRunnable() {
         }
     }
 }
-// writeMarker: write .grugops/install.json. Four stable fields in fixed order, then the
-// claudeAskRules ledger (D-18) when writeAskRules() produced one, then the createdDirs ledger
-// (CR-02), then the createdFiles ledger (plan 33.1-28), then geminiSettings (plan 33.1-29), then the
-// kitFiles ledger (plan 33.1-30), then the appendedBlocks ledger (plan 33.1-33); the install-time timestamp is deliberately
-// OMITTED (RESOLVED Q1, Option b) — overwrite unconditionally, idempotent. The ledgers are carried
-// forward from the previous marker (see writeAskRules for the ask rules), so the unconditional
-// overwrite cannot orphan rules, directories or files an earlier run recorded.
+// writeMarker: write .grugops/install.json. Fields in fixed order: kitVersion (when written),
+// grugopsHome, kitRoot, installMode, target, then `ledger`, the ONE install ledger (D-33 (b), plan
+// 33.1-36; install-marker.ts states its kinds and their keys), serialized by the one serializer
+// (ledgerJson). The install-time timestamp is deliberately OMITTED (RESOLVED Q1, Option b) — overwrite
+// unconditionally, idempotent. The previous ledger's entries are carried forward by the rules below, so
+// the unconditional overwrite cannot orphan rules, directories or files an earlier run recorded.
 //
-// A PREVIOUS ENTRY IS CARRIED ONLY WITH PROOF (red-team of plan 33.1-28, R1, brief DC-2). A record
+// A PREVIOUS ENTRY IS CARRIED ONLY WITH PROOF (red-team of plan 33.1-28, R1, brief DC-2). An entry
 // names a path; the path can have been deleted and made again by the user since, so its presence is
-// not proof. Each ledger states what this run must see to carry an entry forward:
-// createdDirs: the directories this run created (CREATED_DIRS), united with the previous marker's
-// entries that were a real, non-empty directory when this run started (START_HELD_DIRS) and are still
-// a real directory now, sorted.
-// createdFiles: the files this run created (CREATED_FILES, with what this run wrote), united with the
-// previous marker's entries that still hold exactly what their record says install wrote
-// (recordHolds) and that this run did not append a block to (APPENDED_FILES), each keeping its record,
-// sorted by path. A file the user deleted, edited or replaced since is dropped.
-// kitFiles (plan 33.1-30): in a run that wrote the kit, what this run wrote to each kit file
-// (KIT_FILES), united with the previous marker's entries this run did not write that still hold
-// exactly their record (recordHolds), sorted by path. Never by presence: a kit file this run could not
-// write (a directory, a FIFO, a link there) is dropped, and so is one the user edited since.
+// not proof. Each kind states what this run must see to carry an entry forward:
+//   dir: the directories this run created (CREATED_DIRS), united with the previous ledger's dir entries
+//     that were a real, non-empty directory when this run started (START_HELD_DIRS) and are still a
+//     real directory now.
+//   file, kit false: the files this run created (CREATED_FILES, with what this run wrote), united with
+//     the previous ledger's kit-false file entries that still hold exactly their content record
+//     (recordHolds) and that this run did not append a block to (APPENDED_FILES). A file the user
+//     deleted, edited or replaced since is dropped.
+//   file, kit true (plan 33.1-30): in a run that wrote the kit, what this run wrote to each kit file
+//     (KIT_FILES), united with the previous ledger's kit-true entries this run did not write that still
+//     hold exactly their record (recordHolds). Never by presence: a kit file this run could not write
+//     (a directory, a FIFO, a link there) is dropped, and so is one the user edited since.
+//   block (plan 33.1-33): the previous ledger's block entries, with this run's APPENDED_BLOCKS over
+//     them (install appends only where no grugops block was, so an earlier entry for the same file
+//     names a block that is gone). Entries are never added or dropped because of what is in a file
+//     now: uninstall checks each record against the file before it removes anything.
+//   gemini (plan 33.1-29): see the rules at the gemini entry below.
+//   ask-rules (D-18): ASK_LEDGER, as writeAskRules() computed it.
+// One path has at most one file entry: what this run wrote is kept over a carried entry.
 //
 // A RUN THAT WROTE NO KIT FILE (red-team B1/B2 of plan 33.1-32, brief DC-1/DC-2). No consent, a
 // pre-flight hazard, a failed backup or a kit-plan refusal: the kit in the target is still the one the
 // previous marker describes, and this run learned nothing about it that the next run cannot learn
 // again. So every kit field is written back from the previous marker, never from this run:
-//   kitFiles: written back VERBATIM, exactly as read (an absent one stays absent; with no previous
-//     marker it is `{}`, because this run is the whole history and it wrote no kit file). Plan 31's
-//     rule for a refused run ("drop only entries proved stale") is replaced: its staleness proof was
-//     wrong about a file the user then restored (the red-team's break: an edited adapter and a
-//     directory at another one dropped both entries, and uninstall then left the restored file with
-//     "no record"). Dropping is safe only when the kit is written, because then the entry is replaced.
+//   the kit-true file entries: carried VERBATIM, exactly as read (with no previous marker there are
+//     none, because this run is the whole history and it wrote no kit file). Plan 31's rule for a
+//     refused run ("drop only entries proved stale") is replaced: its staleness proof was wrong about a
+//     file the user then restored. Dropping is safe only when the kit is written, because then the
+//     entry is replaced.
 //   kitVersion: the previous string, kept. With none (no previous marker, or a value that is not a
 //     string) the field is NOT written: this run has no evidence of the version of the kit in the
 //     target, and the kit home's version would be a claim about files it did not write. `--check`
@@ -3194,15 +3208,10 @@ function materializeRunnable() {
 //     are written: they are what the next kit write will use, and the doctor's three-source kit-root
 //     cross-check (rule, marker, adapter KIT= line) reports any adapter that disagrees.
 //
-// ONE RULE FOR AN ABSENT LEDGER FIELD (plan 33.1-28): an absent record stays absent unless this run
-// itself performed the recorded action. With NO previous marker this run is the whole history, so
-// both fields are written (an empty array when install created nothing). With a previous marker that
-// lacks a field (an install made before that ledger existed), the field is written only when this run
-// created at least one directory (or file); otherwise it stays absent, so the next uninstall keeps the
-// legacy answer ("the install marker predates the ... ledger") instead of reading an empty ledger as
-// "install created nothing". A previous ledger that is present but malformed is a `verify` finding and
-// is written back unchanged (fail closed, WR-05's rule for every ledger): install never replaces a
-// ledger it could not read with one that forgets what it recorded.
+// A MALFORMED LEDGER IS WRITTEN BACK VERBATIM (WR-05's rule, D-33 (b)). A previous ledger that is
+// present but malformed (readLedger) is one `verify` finding naming why, and it is written back exactly
+// as found; this run records nothing new in it. Install never replaces a ledger it could not read with
+// one that forgets what it recorded.
 //
 // ONLY INSTALL'S OWN MARKER IS REPLACED, AND EVERY MARKER IS BOUND (red-team B2/B3 of plan 33.1-33,
 // brief DC-2). The marker records `target`, the real path of this directory (user-file.ts
@@ -3210,20 +3219,22 @@ function materializeRunnable() {
 // both binaries ask (install-marker.ts readInstallMarker):
 //   ok          install's own marker for this directory: carried as described above;
 //   absent      a fresh marker;
-//   unbound     install's marker shape for another directory, or one written before markers carried
-//               `target` (a copied .grugops/, a moved repository, an older install): it is not this
-//               directory's record, so NONE of its records is carried, as if there were no marker, and
-//               it is replaced by a marker bound to this directory; a note says so. Carrying it would
-//               launder another directory's records into this one's (a copied createdFiles entry for
-//               README §1's hand-copied AGENTS.md would then remove the user's file);
-//   unreadable  not a readable JSON object, or a JSON object whose fields do not hold install's values
-//               (a user's `{"mine":1}`, `{}`): it is never written over. It is left byte for byte, and
-//               mergeGemini() and writeAskRules() have each counted a verify for it (exit 3). It used to
-//               be replaced, every key lost, and reported `created`.
+//   unbound     install's marker shape that is not this directory's record: written for another
+//               directory, before markers carried `target`, or before the one ledger (a copied
+//               .grugops/, a moved repository, an earlier build): NONE of its records is carried, as if
+//               there were no marker, and it is replaced by a marker bound to this directory with the
+//               one ledger; a note says so. Carrying it would launder another directory's records into
+//               this one's (a copied file entry for README §1's hand-copied AGENTS.md would then remove
+//               the user's file);
+//   unreadable  not a readable JSON object, or a JSON object that is not install's marker (a user's
+//               `{"mine":1}`, `{}`, or one that mixes the one ledger with a retired record): it is never
+//               written over. It is left byte for byte, and mergeGemini() and writeAskRules() have each
+//               counted a verify for it (exit 3). It used to be replaced, every key lost, and reported
+//               `created`.
 function writeMarker() {
     const markerRel = ".grugops/install.json";
     const previousMarker = readInstallMarker(TARGET);
-    // WR-05: a marker that exists but cannot be read holds ledgers this run cannot see. Overwriting it
+    // WR-05: a marker that exists but cannot be read holds records this run cannot see. Overwriting it
     // would forget them, so it is left exactly as it is; writeAskRules() reported the verify finding.
     if (previousMarker.state === "unreadable") {
         report("skipped", previousMarker.jsonObject
@@ -3237,36 +3248,22 @@ function writeMarker() {
         return;
     }
     if (previousMarker.state === "unbound") {
-        report("note", previousMarker.boundTo !== null
+        report("note", previousMarker.unboundBy === "other-directory" && previousMarker.boundTo !== null
             ? `${markerRel}: the marker there was written for another directory (${previousMarker.boundTo}), so none of its ` +
                 `records was carried; it is replaced by a marker for this directory (${here})`
-            : `${markerRel}: the marker there was written before install bound its marker to a directory, so none of its ` +
-                `records was carried; it is replaced by a marker for this directory (${here}). What an earlier install made ` +
-                `here has no record, and uninstall leaves it and says so`);
+            : previousMarker.unboundBy === "no-ledger"
+                ? `${markerRel}: the marker there has no install ledger (${previousMarker.why}), so none of its records was ` +
+                    `carried; it is replaced by a marker for this directory (${here}) with the install ledger. What an earlier ` +
+                    `install made here has no record, and uninstall leaves it and says so`
+                : `${markerRel}: the marker there was written before install bound its marker to a directory, so none of its ` +
+                    `records was carried; it is replaced by a marker for this directory (${here}). What an earlier install made ` +
+                    `here has no record, and uninstall leaves it and says so`);
     }
-    const previousDirs = readCreatedDirs(previousMarker.state === "ok" ? previousMarker.marker : null);
-    if (previousDirs.state === "malformed") {
-        verify(`${markerRel} — the directory ledger (createdDirs) is malformed, so it was written back unchanged and ` +
-            `the directories this run created were not recorded. Uninstall will remove no empty directory ` +
-            `install may have created; fix or delete the createdDirs field to restore the ledger.`);
-    }
-    const previousFiles = readCreatedFiles(previousMarker.state === "ok" ? previousMarker.marker : null);
-    if (previousFiles.state === "malformed") {
-        verify(`${markerRel} — the file ledger (createdFiles) is malformed, so it was written back unchanged and ` +
-            `the files this run created were not recorded. Uninstall will delete no file install may have ` +
-            `created; fix or delete the createdFiles field to restore the ledger.`);
-    }
-    const previousBlocks = readAppendedBlocks(previousMarker.state === "ok" ? previousMarker.marker : null);
-    if (previousBlocks.state === "malformed") {
-        verify(`${markerRel} — the appended-block ledger (appendedBlocks) is malformed, so it was written back unchanged ` +
-            `and the pointer blocks this run appended were not recorded. Uninstall will remove no pointer block; fix ` +
-            `or delete the appendedBlocks field to restore the ledger.`);
-    }
-    const previousKit = readKitFiles(previousMarker.state === "ok" ? previousMarker.marker : null);
-    if (previousKit.state === "malformed") {
-        verify(`${markerRel} — the kit-file ledger (kitFiles) is malformed, so it was written back unchanged and ` +
-            `what this run wrote to the grugops skill and adapter files was not recorded. Uninstall will remove ` +
-            `no grugops skill or adapter file; fix or delete the kitFiles field to restore the ledger.`);
+    const previousLedger = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
+    if (previousLedger.state === "malformed") {
+        verify(`${markerRel} — the install ledger is malformed (${previousLedger.why}), so it was written back unchanged and ` +
+            `nothing this run did was recorded. Uninstall will remove and edit nothing on it; fix the ledger field by hand ` +
+            `to restore the record.`);
     }
     // The kit VERSION is read through readUserFile (red-team of plan 33.1-26, DC-3): the kit home and
     // the checkout are user-controlled paths. An absent kit VERSION falls back to the checkout's, as
@@ -3326,147 +3323,110 @@ function writeMarker() {
         installMode: kept("installMode", INSTALL_MODE),
         target: here,
     };
-    if (ASK_LEDGER_KEEP_RAW) {
-        // WR-05: a malformed ask-rule ledger is written back exactly as it was found.
-        marker.claudeAskRules = ASK_LEDGER_KEEP_RAW.raw;
+    if (previousLedger.state === "malformed") {
+        marker.ledger = previousLedger.raw;
     }
-    else if (ASK_LEDGER !== null) {
-        marker.claudeAskRules = {
-            added: ASK_LEDGER.added,
-            createdFile: ASK_LEDGER.createdFile,
-            createdPermissions: ASK_LEDGER.createdPermissions,
-            createdAsk: ASK_LEDGER.createdAsk,
-            askContent: ASK_LEDGER.askContent,
-            ...(ASK_LEDGER.fileMode === undefined ? {} : { fileMode: ASK_LEDGER.fileMode }),
-        };
+    else {
+        marker.ledger = ledgerJson(nextLedgerEntries(previousLedger));
     }
-    // Computed after the mkdirp above, so a .grugops/ this call created is recorded too.
-    // An unbound marker is not this directory's record (see above): this run is the whole history.
-    const freshMarker = previousMarker.state === "absent" || previousMarker.state === "unbound";
-    if (previousDirs.state === "malformed") {
-        marker.createdDirs = previousDirs.raw;
+    if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
+        report("created", ".grugops/install.json (marker)");
     }
-    else if (previousDirs.state === "ok" || freshMarker || CREATED_DIRS.size > 0) {
-        const union = new Set(CREATED_DIRS);
-        for (const rel of previousDirs.dirs) {
-            if (!START_HELD_DIRS.has(rel))
-                continue; // empty, gone or not a real directory at the start: no proof
-            if (directoryComponent(join(TARGET, ...rel.split("/"))) === "fine")
-                union.add(rel);
+}
+// nextLedgerEntries: the entries writeMarker records, from this run's maps and the previous `ok` (or
+// absent) ledger, by the carry rules in writeMarker's header. Computed after writeMarker's mkdirp, so a
+// .grugops/ that call created is recorded too.
+function nextLedgerEntries(previous) {
+    const out = [];
+    // dir
+    const dirs = new Set(CREATED_DIRS);
+    for (const e of entriesOfKind(previous, "dir")) {
+        if (!START_HELD_DIRS.has(e.path))
+            continue; // empty, gone or not a real directory at the start: no proof
+        if (directoryComponent(join(TARGET, ...e.path.split("/"))) === "fine")
+            dirs.add(e.path);
+    }
+    for (const path of dirs)
+        out.push({ path, kind: "dir" });
+    // file: what this run wrote first, then the carried entries for paths it did not write.
+    const files = new Map();
+    for (const [path, content] of CREATED_FILES)
+        files.set(path, { path, kind: "file", content, kit: false });
+    if (KIT_WRITTEN)
+        for (const [path, content] of KIT_FILES)
+            if (!files.has(path))
+                files.set(path, { path, kind: "file", content, kit: true });
+    const holds = (e) => recordHolds(TARGET, join(TARGET, ...e.path.split("/")), e.content);
+    for (const e of entriesOfKind(previous, "file")) {
+        if (files.has(e.path))
+            continue;
+        if (e.kit) {
+            // A run that wrote no kit file carries every kit entry verbatim; one that wrote the kit carries an
+            // entry it did not write only while it still holds its record.
+            if (!KIT_WRITTEN || holds(e))
+                files.set(e.path, e);
         }
-        marker.createdDirs = [...union].sort();
-    }
-    if (previousFiles.state === "malformed") {
-        marker.createdFiles = previousFiles.raw;
-    }
-    else if (previousFiles.state === "ok" || freshMarker || CREATED_FILES.size > 0) {
-        const union = new Map(CREATED_FILES);
-        for (const [rel, record] of previousFiles.files) {
-            if (union.has(rel) || APPENDED_FILES.has(rel))
-                continue;
-            if (recordHolds(TARGET, join(TARGET, ...rel.split("/")), record))
-                union.set(rel, record);
+        else if (!APPENDED_FILES.has(e.path) && holds(e)) {
+            files.set(e.path, e);
         }
-        marker.createdFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     }
-    // geminiSettings (plan 33.1-29, Gap B / re-review CR-03; red-team B2). The record always describes
-    // the most recent install that changed the file: this run's record when it created the file or
-    // appended the entry. When this run changed nothing:
+    out.push(...files.values());
+    // block
+    const blocks = new Map(entriesOfKind(previous, "block").map((e) => [e.path, { block: e.block, separator: e.separator }]));
+    for (const [path, record] of APPENDED_BLOCKS)
+        blocks.set(path, record);
+    for (const [path, b] of blocks)
+        out.push({ path, kind: "block", block: b.block, separator: b.separator });
+    // gemini (plan 33.1-29, Gap B / re-review CR-03; red-team B2). The entry always describes the most
+    // recent install that changed the file: this run's record when it created the file or appended the
+    // entry. When this run changed nothing:
     //   - it read nothing usable (GEMINI_SEEN null: a blocked path, not UTF-8, not JSON, a duplicate key
-    //     on the path): it has no evidence either way, so an earlier `ok` record is written back
-    //     VERBATIM and a note says so. That is not a carry by presence: nothing was learned that could
-    //     prove or disprove the record. A fresh install records that it added no entry ("refused");
-    //   - it read the file: an earlier `ok` record is carried forward only while context.fileName is
-    //     exactly the one that record describes (the carry needs proof); otherwise the record claims
-    //     nothing, with the reason ("reset" when an earlier claim of an entry no longer holds,
-    //     "already-listed" when this run found AGENTS.md listed, "refused" when it refused to merge).
-    // An absent record (a marker written before this ledger) stays absent unless this run itself acted:
-    // the uninstaller's "predates" line is then still true. A malformed record is written back as
-    // found; mergeGemini() reported it and merged nothing.
-    const previousGemini = readGeminiLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
+    //     on the path): it has no evidence either way, so an earlier entry is written back VERBATIM and a
+    //     note says so. That is not a carry by presence: nothing was learned that could prove or disprove
+    //     the record. A fresh install records that it added no entry ("refused");
+    //   - it read the file: an earlier entry is carried forward only while context.fileName is exactly the
+    //     one that entry describes (the carry needs proof); otherwise the entry claims nothing, with the
+    //     reason ("reset" when an earlier claim of an entry no longer holds, "already-listed" when this run
+    //     found AGENTS.md listed, "refused" when it refused to merge).
+    // A previous ledger with no gemini entry gets one only when this run acted, or on a fresh marker.
+    const freshMarker = previous.state === "absent";
     const claimsNothing = (noEntryReason, fileNameContent) => ({
         createdFile: false,
         addedEntry: false,
         noEntryReason,
         fileNameContent,
     });
-    const prevGemini = previousGemini.state === "ok" ? previousGemini.ledger : null;
-    if (previousGemini.state === "malformed") {
-        marker.geminiSettings = previousGemini.raw;
-    }
-    else if (GEMINI_RECORD !== null) {
-        marker.geminiSettings = geminiLedgerJson(GEMINI_RECORD);
+    const prevGemini = entryAt(previous, GEMINI_SETTINGS_REL, "gemini") ?? null;
+    let gemini = null;
+    if (GEMINI_RECORD !== null) {
+        gemini = GEMINI_RECORD;
     }
     else if (GEMINI_SEEN === null) {
         if (prevGemini !== null) {
-            marker.geminiSettings = geminiLedgerJson(prevGemini);
+            gemini = prevGemini;
             report("note", ".gemini/settings.json: this run could not read the file, so it has no evidence about the earlier " +
-                "install's geminiSettings record, which was written back as it was");
+                "install's gemini entry in the install ledger, which was written back as it was");
         }
         else if (freshMarker) {
-            marker.geminiSettings = geminiLedgerJson(claimsNothing("refused", null));
+            gemini = claimsNothing("refused", null);
         }
     }
     else if (prevGemini !== null) {
         const seen = GEMINI_SEEN;
         const proven = seen.fileNameContent !== null && seen.fileNameContent === prevGemini.fileNameContent;
-        marker.geminiSettings = geminiLedgerJson(proven
+        gemini = proven
             ? prevGemini
-            : claimsNothing(prevGemini.addedEntry ? "reset" : seen.listed ? "already-listed" : seen.refused ? "refused" : "reset", seen.fileNameContent));
+            : claimsNothing(prevGemini.addedEntry ? "reset" : seen.listed ? "already-listed" : seen.refused ? "refused" : "reset", seen.fileNameContent);
     }
     else if (freshMarker) {
-        marker.geminiSettings = geminiLedgerJson(claimsNothing(GEMINI_SEEN.listed ? "already-listed" : "refused", GEMINI_SEEN.fileNameContent));
+        gemini = claimsNothing(GEMINI_SEEN.listed ? "already-listed" : "refused", GEMINI_SEEN.fileNameContent);
     }
-    // kitFiles (plan 33.1-30), by the one rule for an absent ledger above: written on a fresh install
-    // (possibly `{}`), carried and overlaid when the previous record is `ok`, written over a legacy marker
-    // (no field) only when this run recorded kit files, and written back as found when malformed. A run
-    // that wrote no kit file writes the previous value back verbatim (red-team B1 of plan 33.1-32).
-    if (previousKit.state === "malformed") {
-        marker.kitFiles = previousKit.raw;
-    }
-    else if (!KIT_WRITTEN) {
-        if (previousKit.state === "ok")
-            marker.kitFiles = previousKit.raw;
-        else if (freshMarker)
-            marker.kitFiles = {};
-    }
-    else if (previousKit.state === "ok" || freshMarker || KIT_FILES.size > 0) {
-        const union = new Map(KIT_FILES);
-        for (const [rel, record] of previousKit.files) {
-            if (union.has(rel))
-                continue;
-            if (recordHolds(TARGET, join(TARGET, ...rel.split("/")), record))
-                union.set(rel, record);
-        }
-        marker.kitFiles = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-    }
-    // appendedBlocks (plan 33.1-33), by the one rule for an absent ledger above. A run that appended no
-    // block writes the previous ledger back VERBATIM (the plan 33.1-32 rule for a run that writes nothing:
-    // the blocks in the files are still the ones the previous record describes, and this run learned
-    // nothing about them). A run that appended a block to a file records that block for it, over any
-    // earlier entry for the same file (install appends only where no grugops block was, so an earlier
-    // entry there names a block that is gone). Entries are never added or dropped because of what is in a
-    // file now: uninstall checks each record against the file before it removes anything. Written on a
-    // fresh install (possibly `{}`), over a legacy marker only when this run appended a block, and back as
-    // found when malformed.
-    if (previousBlocks.state === "malformed") {
-        marker.appendedBlocks = previousBlocks.raw;
-    }
-    else if (APPENDED_BLOCKS.size === 0) {
-        if (previousBlocks.state === "ok")
-            marker.appendedBlocks = previousBlocks.raw;
-        else if (freshMarker)
-            marker.appendedBlocks = {};
-    }
-    else {
-        const union = new Map(previousBlocks.blocks);
-        for (const [rel, record] of APPENDED_BLOCKS)
-            union.set(rel, record);
-        marker.appendedBlocks = Object.fromEntries([...union].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([rel, b]) => [rel, appendedBlockJson(b)]));
-    }
-    if (writeTargetFile(markerPath, JSON.stringify(marker, null, 2) + "\n", markerGate.state, markerRel)) {
-        report("created", ".grugops/install.json (marker)");
-    }
+    if (gemini !== null)
+        out.push(geminiEntry(gemini));
+    // ask-rules (D-18): what writeAskRules() computed (null: no entry).
+    if (ASK_LEDGER !== null)
+        out.push(askRulesEntry(ASK_LEDGER));
+    return out;
 }
 function readKitVersion(verFile) {
     const read = readUserFile(verFile);
@@ -3564,8 +3524,8 @@ const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 //
 // START_HELD_DIRS (red-team of plan 33.1-28, R1, brief DC-2) is taken HERE, before this run's first
 // change to the target (the --migrate pre-steps below are the earliest). It is the set of the previous
-// marker's createdDirs entries that are, right now, a real directory (not a link, nothing but real
-// directories on the way) holding at least one entry. writeMarker() carries a previous createdDirs
+// ledger's dir entries that are, right now, a real directory (not a link, nothing but real
+// directories on the way) holding at least one entry. writeMarker() carries a previous dir
 // entry forward only when it is in this set. Install never leaves a directory it created empty, so
 // one found empty at the start of a run was emptied, or deleted and made again, since the record was
 // written; nothing is left to show it is still the directory install created, so the entry is
@@ -3574,10 +3534,8 @@ const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 const START_HELD_DIRS = (() => {
     const held = new Set();
     const m = readInstallMarker(TARGET);
-    const dirs = readCreatedDirs(m.state === "ok" ? m.marker : null);
-    if (dirs.state !== "ok")
-        return held;
-    for (const rel of dirs.dirs) {
+    const ledger = readLedger(m.state === "ok" ? m.marker : null);
+    for (const { path: rel } of entriesOfKind(ledger, "dir")) {
         const p = join(TARGET, ...rel.split("/"));
         if (wayTo(TARGET, p) !== null || directoryComponent(p) !== "fine")
             continue;
@@ -4190,10 +4148,9 @@ function readCheckpointConfig() {
     }
     return undefined;
 }
+// The ask-rules entry writeMarker() records, or null for none. A malformed install ledger is written
+// back verbatim by writeMarker() itself (WR-05), so no entry of it is computed here.
 let ASK_LEDGER = null;
-// Set when the previous ledger is present but malformed (WR-05): writeMarker() writes `raw` back
-// unchanged instead of ASK_LEDGER.
-let ASK_LEDGER_KEEP_RAW = null;
 function writeAskRules() {
     const rel = ".claude/settings.json";
     const file = join(TARGET, ".claude", "settings.json");
@@ -4201,22 +4158,21 @@ function writeAskRules() {
         "the git host is the hard floor (install/README.md §5)");
     // FAIL CLOSED ON THE LEDGER (WR-05), exactly as uninstall does. Without a readable ledger this run
     // cannot tell a rule an earlier install added from the user's own identical rule, so it adds no
-    // rule, relabels none, and leaves the ledger as it found it. A marker with no ledger field (an
-    // install that predates the ask rules, or no marker at all) is not a defect: nothing was recorded.
+    // rule, relabels none, and leaves the ledger as it found it. A ledger with no ask-rules entry, or no
+    // marker at all, is not a defect: nothing was recorded.
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
-        verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so the ask-rule ledger is unknown — no ask rule ` +
+        verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — no ask rule ` +
             `was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.`);
         return;
     }
-    const previousRead = readAskRuleLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
+    const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
     if (previousRead.state === "malformed") {
-        verify(`${rel} — the ask-rule ledger (claudeAskRules) in .grugops/install.json is malformed, so no ask rule was ` +
-            `added and the ledger was written back unchanged. Fix the field, then re-run the installer.`);
-        ASK_LEDGER_KEEP_RAW = { raw: previousRead.raw };
+        verify(`${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was ` +
+            `added and the ledger is written back unchanged. Fix the ledger field, then re-run the installer.`);
         return;
     }
-    const previous = previousRead.ledger;
+    const previous = entryAt(previousRead, ASK_RULES_REL, "ask-rules") ?? null;
     // The ledger to write when the previous claims cannot be carried (see THE CARRY NEEDS PROOF).
     const unclaimed = (askContent) => previous === null ? null : { added: [], createdFile: false, createdPermissions: false, createdAsk: false, askContent };
     const config = readCheckpointConfig();

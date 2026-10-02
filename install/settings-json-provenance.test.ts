@@ -4,7 +4,7 @@
 //
 // WHAT IS HELD HERE.
 //   B1 (DC-2) Uninstall edits `.gemini/settings.json` only while `context.fileName` still holds the
-//      record install wrote (`geminiSettings.fileNameContent`, one serialisation on both sides). A
+//      record install wrote (the gemini entry's `fileNameContent`, one serialisation on both sides). A
 //      user who removed install's entry and later wrote their own list (with their own "AGENTS.md",
 //      other keys, other formatting) keeps it byte-identical, and so does a file under a forged,
 //      well-formed record whose content record describes other content. DRY_RUN decides the same.
@@ -12,7 +12,7 @@
 //      (mode 000, a hard link, a FIFO, too large, not JSON, not UTF-8, duplicate keys) has no
 //      evidence either way, so it writes the earlier record back verbatim; a later uninstall still
 //      removes install's entry. A fresh install over a file it could not read records that it did not
-//      add an entry and why, so no uninstall line claims the marker predates the ledger, and "already
+//      add an entry and why, so no uninstall line claims there is no record, and "already
 //      listed" is said only where install found AGENTS.md already listed.
 //   B3 (D-18, never overwrite user content) Install edits a user's JSON file by splicing only the
 //      value it changes into the original text; every other byte (big integers, trailing zeros,
@@ -33,6 +33,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { hostCapabilityOrSkip, skipLine, stageShapeOrSkip } from "../scripts/check-platform-shapes.js";
 import { MARKER_REL, type Run, makeFixture, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { geminiRecord, withLedger } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-settings-json-")));
 afterAll(() => {
@@ -126,7 +127,7 @@ describe("B1 (DC-2): uninstall edits the Gemini settings only while context.file
       const { t, home } = newTarget("b1-lapsed");
       plant(t, GEM, COMPACT);
       status(runInstall(t, home), 0, "install");
-      expect(readMarker(t).geminiSettings, "PREMISE: install recorded its append").toMatchObject({ addedEntry: true });
+      expect(geminiRecord(readMarker(t)), "PREMISE: install recorded its append").toMatchObject({ addedEntry: true });
       const user = plant(t, GEM, c.body);
       const { dry, real } = uninstallBoth(t, home, 0);
       expect(bytesOf(t, GEM).equals(user), `the user's settings file changed\n${bytesOf(t, GEM).toString("utf8")}\n${real.stdout}`).toBe(true);
@@ -145,14 +146,18 @@ describe("B1 (DC-2): uninstall edits the Gemini settings only while context.file
     const { t, home } = newTarget("b1-forged");
     plant(t, GEM, COMPACT);
     status(runInstall(t, home), 0, "install");
-    const m = readMarker(t);
-    m.geminiSettings = {
-      createdFile: false,
-      addedEntry: true,
-      createdContext: false,
-      fileNameBefore: "array",
-      fileNameContent: sha(JSON.stringify(["OTHER.md", "AGENTS.md"])),
-    };
+    const m = withLedger(readMarker(t), (l) => [
+      ...l.filter((e) => e.kind !== "gemini"),
+      {
+        path: GEM,
+        kind: "gemini",
+        createdFile: false,
+        addedEntry: true,
+        createdContext: false,
+        fileNameBefore: "array",
+        fileNameContent: sha(JSON.stringify(["OTHER.md", "AGENTS.md"])),
+      },
+    ]);
     writeMarker(t, m);
     const merged = bytesOf(t, GEM);
     const { dry, real } = uninstallBoth(t, home, 0);
@@ -256,7 +261,7 @@ describe("B2: a re-install that cannot read the Gemini settings keeps install's 
       const outside = fresh("b2-outside");
       const before = plant(t, GEM, ORIGINAL);
       status(runInstall(t, home), 0, "install");
-      const record = readMarker(t).geminiSettings;
+      const record = geminiRecord(readMarker(t));
       expect(record, "PREMISE: install recorded its append").toMatchObject({ addedEntry: true });
       const installed = bytesOf(t, GEM);
       const skip = c.make(t, outside);
@@ -267,7 +272,7 @@ describe("B2: a re-install that cannot read the Gemini settings keeps install's 
       const re = runInstall(t, home, [], { timeoutMs: 120_000 });
       status(re, 3, "re-install");
       expect(re.stderr).not.toMatch(NO_STACK_TRACE);
-      expect(readMarker(t).geminiSettings, `the re-install replaced install's record\n${re.stdout}`).toEqual(record);
+      expect(geminiRecord(readMarker(t)), `the re-install replaced install's record\n${re.stdout}`).toEqual(record);
       c.undo(t, installed, outside);
       const r = runUninstall(t, home, { timeoutMs: 60_000 });
       status(r, 0, "uninstall");
@@ -275,17 +280,17 @@ describe("B2: a re-install that cannot read the Gemini settings keeps install's 
     });
   }
 
-  it("a fresh install over a file it cannot read records that it added no entry, and uninstall says neither 'predates' nor 'already listed'", () => {
+  it("a fresh install over a file it cannot read records that it added no entry, and uninstall says neither 'no gemini entry' nor 'already listed'", () => {
     const { t, home } = newTarget("b2-fresh");
     const body = plant(t, GEM, "{not json");
     status(runInstall(t, home), 3, "install");
-    const rec = readMarker(t).geminiSettings as Record<string, unknown> | undefined;
+    const rec = geminiRecord(readMarker(t));
     expect(rec, "a fresh install that could not read the file recorded nothing").toBeDefined();
     expect(rec).toMatchObject({ createdFile: false, addedEntry: false, fileNameContent: null });
     const { dry, real } = uninstallBoth(t, home, 0);
     expect(bytesOf(t, GEM).equals(body)).toBe(true);
     for (const out of [dry.stdout, real.stdout]) {
-      expect(out).not.toMatch(/predates the Gemini settings ledger/);
+      expect(out).not.toMatch(/the install ledger has no gemini entry/);
       expect(out).not.toMatch(/already listed/);
       expect(naming(out, "skipped", GEM).some((l) => /could not read or merge/.test(l)), out).toBe(true);
     }
@@ -306,7 +311,7 @@ describe("B2: a re-install that cannot read the Gemini settings keeps install's 
     status(runInstall(b.t, b.home), 0, "install");
     const users = plant(b.t, GEM, '{"context":{"fileName":["AGENTS.md","CONTEXT.md"]}}\n');
     status(runInstall(b.t, b.home), 0, "re-install");
-    expect(readMarker(b.t).geminiSettings).toMatchObject({ addedEntry: false });
+    expect(geminiRecord(readMarker(b.t))).toMatchObject({ addedEntry: false });
     const rb = runUninstall(b.t, b.home);
     status(rb, 0, "uninstall");
     expect(bytesOf(b.t, GEM).equals(users)).toBe(true);

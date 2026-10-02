@@ -69,7 +69,7 @@ node install/install.js --yes --backup-edited-kit --target /path/to/repo
 
 Before it writes any grugops skill or adapter file (`.claude/skills/grugops*/SKILL.md` and
 `.claude/agents/grugops-*.md`), install checks each one it would replace against its record of what
-it wrote there (the `kitFiles` ledger in `.grugops/install.json`). If you edited any of them, install
+it wrote there (its entry in the install ledger in `.grugops/install.json`). If you edited any of them, install
 lists them (an `edited-kit` line each) and, at a terminal, asks whether to back them up and overwrite
 the whole kit, `[y/N]`, default no.
 
@@ -88,7 +88,7 @@ the whole kit, `[y/N]`, default no.
   backups and the kit write and exits `0`.
 
 With no usable record (no marker, a marker that is not this directory's record, including one written
-before this release, or a damaged `kitFiles`), a skill or adapter counts as edited when it differs from
+before this release, or a damaged install ledger in `.grugops/install.json`), a skill or adapter counts as edited when it differs from
 its kit source file, so the first re-install over an older install asks once. Measured on an install
 made by the 2.1.0 installer: one file, the Orchestrator wrapper, differs and is listed. A `--migrate`
 over the old single-root layout is the same case: its skills and adapters have no record, so an
@@ -146,7 +146,7 @@ resolver skill or adapter is replaced by the rendered file only when it is insta
 link an earlier `--symlink` install made, pointing at this checkout's source for that file), on any
 run; any other link there refuses the kit. A run that writes no kit file, for any reason (a
 refusal, no answer, a failed backup), writes the marker's kit record back exactly as it found it: the
-`kitFiles` ledger unchanged (absent if it was absent), and the previous kit version, kit root, kit
+kit-file entries of the install ledger in `.grugops/install.json` unchanged, and the previous kit version, kit root, kit
 home and install mode, because the kit in `.claude` is still the previous one. So undoing what caused
 the refusal (removing what you put at a kit path, restoring an edited file to what install wrote) is
 enough for the next run and for the uninstaller. With no earlier kit version to keep (no marker, or
@@ -225,14 +225,14 @@ In the **target repo**:
 - the two **resolver adapters** (`.claude/skills/grugops/SKILL.md` and the orchestrator
   wrapper) have the resolved absolute kit path **materialized** into them, so `/grugops`
   resolves the shared kit on first run with no path error
-- for every skill and adapter file above, install records in `.grugops/install.json`, as
-  `kitFiles`, what it wrote there (a sha256 of the bytes, or the target of a `--symlink` link), so
+- for every skill and adapter file above, install records in the install ledger in
+  `.grugops/install.json` what it wrote there (a sha256 of the bytes, or the target of a `--symlink` link), so
   uninstall removes only a file that still holds exactly that, and a re-install asks before it
   overwrites one you edited (see "Re-installing" above)
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved). When `CLAUDE.md` does not exist, install creates it and records
-  that in `.grugops/install.json` (`createdFiles`); the block it appended is recorded as
-  `appendedBlocks`. A `CLAUDE.md` that is a symbolic link (the common `CLAUDE.md -> AGENTS.md`
+  that in the install ledger in `.grugops/install.json`; the block it appended is recorded there
+  too. A `CLAUDE.md` that is a symbolic link (the common `CLAUDE.md -> AGENTS.md`
   setup included) or a hard link is not written through: install reports a `verify` line (exit
   `3`), leaves it and the file it points at unchanged, and adds no pointer; add the line by hand if
   you want it. Install records no block for it, so the uninstaller leaves it too, reports it `left`,
@@ -242,7 +242,7 @@ In the **target repo**:
   ([code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory)), and install appends
   its block to that file as to any other
 - `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"`, and what install did is
-  recorded in `.grugops/install.json` as `geminiSettings` so the uninstaller can reverse exactly
+  recorded in the install ledger in `.grugops/install.json` so the uninstaller can reverse exactly
   that. The entry is inserted into the file's text in place: every other byte of the file (numbers
   as written, key order, spacing, line ends, a byte order mark, the final newline or its absence)
   stays as it was, and install followed by uninstall gives back the file byte for byte. A settings
@@ -256,8 +256,8 @@ In the **target repo**:
 - `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
   `tools/grugops/host-protection.js` (§5)
 - an optional `.github/copilot-instructions.md` pointer, by the same rules as `CLAUDE.md`: when the
-  file does not exist, install creates it and records that (`createdFiles`), and the block is
-  recorded as `appendedBlocks`
+  file does not exist, install creates it and records that, and the block, in the install ledger in
+  `.grugops/install.json`
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
 
@@ -295,32 +295,36 @@ it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule
 install stays), the runnable checks under `tools/grugops/` that are still byte-identical to what it
 wrote, and the `.grugops/install.json` marker.
 
-A file is deleted only on install's own record. Install records in `.grugops/install.json`, as
-`createdFiles`, each file it created where nothing was before: `CLAUDE.md` and
+A file is deleted only on install's own record. Install records in the install ledger in
+`.grugops/install.json` each file it created where nothing was before: `CLAUDE.md` and
 `.github/copilot-instructions.md` when it created them to hold its pointer block, the `AGENTS.md`
 it copied or linked in, and the runnables under `tools/grugops/`. The uninstaller deletes `CLAUDE.md`
 or the Copilot file only when that record lists it, it removed the grugops block from it in this
 run, and the file is blank afterwards. It deletes `AGENTS.md` or a runnable only when the record
-lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. The record keeps
+lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. The record decides a
+runnable alone: one that still holds what install wrote is removed even when the checkout you run the
+uninstaller from no longer ships it or ships other bytes, and one that does not is left. The record keeps
 what install wrote to each file (a sha256 of the bytes and the file's mode as install left it, or the
 target of the link), and a file is deleted only while it still holds exactly that: a file you edited
 or replaced since, or whose mode you changed (`chmod`), is left and reported. A record written before
 the mode was recorded has only the sha256; the uninstaller then compares the bytes alone and its
-`removed` line says so. The same holds for the skill and adapter records (`kitFiles`) and for a Gemini
+`removed` line says so. The same holds for the skill and adapter records in the install ledger in
+`.grugops/install.json` and for a Gemini
 settings file install created. A re-install keeps an earlier entry only while the file still holds what the record says
 and the re-install did not have to add its pointer block to it, so a file you deleted and then made
 again yourself is dropped from the record and left by the uninstaller. A file whose bytes are
 exactly the ones install wrote holds nothing of yours, so it is treated as install's. A file the
 record does not list is left in place and reported as `left` with the reason, even when it is blank
 or byte-identical to the kit: in a repository you never ran the installer on (for example after the
-minimal copy path in §1) nothing is removed. An install made before this release has no file ledger,
-so the blank pointer files, `AGENTS.md` and the runnables it created are left and reported; remove
-them by hand if you do not want them. A malformed file ledger is a `verify` finding on both sides
-(exit `3`), and the uninstaller then deletes none of these files.
+minimal copy path in §1) nothing is removed. A marker with no install ledger (an install made before
+this release, or by an earlier build of it) is not a record the uninstaller can use, so the blank
+pointer files, `AGENTS.md` and the runnables it created are left; remove them by hand if you do not
+want them. A malformed install ledger is a `verify` finding on both sides (exit `3`), and the
+uninstaller then deletes none of these files.
 
 The pointer blocks are removed only on install's record as well. Install appends a newline and then
 the block lines (the open marker line, the pointer line and the close marker line) to the end of
-`CLAUDE.md` and of the Copilot file. It records in `.grugops/install.json`, as `appendedBlocks`, a
+`CLAUDE.md` and of the Copilot file. It records in the install ledger in `.grugops/install.json` a
 sha256 of the block lines and what that newline did: it made a blank line (the file was absent, empty
 or ended with a newline) or it ended your last line (the file had no final newline). The uninstaller
 removes a block only when that record lists the file and the file holds exactly one copy of those
@@ -336,30 +340,27 @@ edited or removed inside it, its line ends converted, spaces added, a marker lin
 file holds two copies of it, or when there is no record of it: a repository you never ran the
 installer on (no marker), or a marker that is not this directory's record (see the marker paragraph
 below). Remove the grugops lines by hand in that case, keeping any line of your own. A re-install that
-finds its block already there keeps the record as it was. A malformed `appendedBlocks` is a `verify`
+finds its block already there keeps the record as it was. A malformed install ledger is a `verify`
 finding on both sides (exit `3`), and the uninstaller then removes no block.
 
 The grugops skills and adapters (`.claude/skills/<name>/SKILL.md` and `.claude/agents/<file>.md`)
-are removed the same way, on install's `kitFiles` record. Install records what it wrote to each
+are removed the same way, on install's record in the install ledger in `.grugops/install.json`.
+Install records what it wrote to each
 one: a sha256 of the bytes it wrote (or found already identical), or the target of the link a
 `--symlink` install made. The uninstaller removes a skill or adapter only while it still holds
 exactly that, so one you edited is left byte for byte and reported `left`. A re-install that writes
 the kit keeps an earlier entry only while the file still holds it; one that writes no kit file keeps
-the whole ledger as it was. In a repository with no marker (you never ran the
-installer there) no skill or adapter is removed, not even a byte-identical copy of the kit's. A
-marker that is this directory's record but has no `kitFiles` (this release always writes it, so only a
-hand-edited marker lacks it) makes the uninstaller remove a skill that is byte-identical to the kit
-source it runs from and leave every other one, which includes every adapter and the resolver skill,
-because install writes the kit path into them. That byte-identity rule is used once: when the
-uninstaller keeps such a marker (another record in it is malformed), it writes `"kitFiles": {}` into
-it, so a later run removes no skill you copied in by hand. A marker written before this release is not
-this directory's record (see the marker paragraph below), so the rule never runs on it. A skill or adapter that is a hard link (the
-same file under a second name) is left and reported, with or without a record. A malformed `kitFiles`
-is a `verify` finding on both sides (exit `3`), and the uninstaller then removes no skill or adapter.
+the kit-file records as they were. In a repository with no marker (you never ran the
+installer there) no skill or adapter is removed, not even a byte-identical copy of the kit's, and the
+same holds for a skill or adapter the install ledger has no record of: byte identity with the kit
+source is never a record. A skill or adapter that is a hard link (the
+same file under a second name) is left and reported, with or without a record. A malformed install
+ledger is a `verify` finding on both sides (exit `3`), and the uninstaller then removes no skill or adapter.
 A marker with a duplicate key is not read at all, by either side: which of the two values is the
 record is not known.
 
-The Gemini settings file is changed only as install's `geminiSettings` record says. Install
+The Gemini settings file is changed only as install's record in the install ledger in
+`.grugops/install.json` says. Install
 records whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape
 it found there (no `fileName`, a string, or an array; and whether `context` was there), and a sha256
 of `context.fileName` as it left it. The uninstaller acts only while `context.fileName` is still
@@ -378,7 +379,7 @@ keeps an earlier record only while `context.fileName` is exactly what install la
 you changed it, the record claims nothing more, says so, and the uninstaller leaves the file. A
 re-install that cannot read the file at all (a link, a hard link, a special file, no read
 permission, too large, not UTF-8, not strict JSON, a duplicate key) has no evidence either way, so
-it keeps the earlier record as it was and says so. A malformed `geminiSettings` is a `verify`
+it keeps the earlier record as it was and says so. A malformed install ledger is a `verify`
 finding on both sides (exit `3`): install does not merge and writes it back as found, and the
 uninstaller leaves the file.
 
@@ -406,65 +407,68 @@ those values is not install's marker: the uninstaller uses none of the records i
 on it, leaves it in place, and reports a `verify` finding (exit `3`); the installer leaves it byte for
 byte, writes no marker, adds no Gemini entry and no ask rule, and exits `3` too. Install's marker for
 another directory is not this directory's record either: a `.grugops/` copied from another repository,
-a repository you moved, renamed or copied after installing, and a marker written before this release
-(it has no `target`). The uninstaller then uses none of its records, changes nothing, and exits `3`
-with a `verify` line that names both directories. If it is the same repository moved or renamed, set
-`"target"` in the marker to the path the line names and re-run the uninstaller. Otherwise re-run the
+a repository you moved, renamed or copied after installing, a marker written before this release
+(it has no `target`), and a marker with no install ledger. The uninstaller then uses none of its
+records, changes nothing, and exits `3` with a `verify` line that gives the remedy. If it is the same
+repository moved or renamed, set `"target"` in the marker to the path the line names and re-run the
+uninstaller; for a marker with no `target` or no install ledger, re-run the installer here, then the
+uninstaller. Otherwise re-run the
 installer: it replaces that marker with one for this directory and carries none of its records (it
 says so in a `note` line), so what an earlier install made here has no record and the uninstaller
 leaves it and says so; remove it by hand. `--check` warns about such a marker. `INSTALL_MODE` other
 than `copy` or `symlink` is refused as bad usage (exit `2`) before anything is written.
 
-The marker is removed only when it is install's marker for this directory and every ledger in it is
+The marker is removed only when it is install's marker for this directory and its install ledger is
 well-formed. It is never read through a symbolic link: a link at
 `.grugops/install.json`, or a `.grugops` that is itself a link, makes the marker unreadable, so no
-ledger from another repository is believed. A marker that cannot be read (not JSON, too large, a
-FIFO, a directory, a link) or that holds a malformed ledger is reported as a `verify` finding, is
-left in place, and the run exits `3`. When the marker is kept because one ledger in it is malformed,
-the uninstaller takes every entry it removed in this run out of the other ledgers, so a later run
-cannot act on a record of something already removed; if it cannot rewrite the marker, that is a
-`verify` finding that names those entries. `--check` fails on such a marker (a doctor FAIL, exit
-`1`): one that cannot be read is named as present but unreadable, not as "not installed", and each
-malformed ledger is named in a `FAIL` line of its own.
+record from another repository is believed. A marker that cannot be read (not JSON, too large, a
+FIFO, a directory, a link) or that holds a malformed install ledger is reported as a `verify` finding,
+is left in place byte for byte, and the run exits `3`: one malformed entry makes the whole ledger
+unusable, so nothing is removed or edited on it. `--check` fails on such a marker (a doctor FAIL,
+exit `1`): one that cannot be read is named as present but unreadable, not as "not installed", and a
+malformed install ledger is named in a `FAIL` line with the entry and the reason.
 
 A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It counts each file it would
 remove as removed, so it names the directories the real run would empty and then remove, and never
 a directory the real run keeps.
 
 The uninstaller removes an empty directory only when install created it, which install records in
-`.grugops/install.json` as `createdDirs`, and only when the same run emptied it by removing what
+the install ledger in `.grugops/install.json`, and only when the same run emptied it by removing what
 install put there. A directory's name is not a record: an empty directory you made yourself, for
 example `.github/`, `.gemini/` or even `.claude/skills/grugops/`, is left in place and reported as
 `left`, in the real run and in the preview. A recorded directory that is already empty when the
 uninstaller reaches it (you emptied it, or deleted it and made it again) is left and reported too,
-and a re-install that finds a recorded directory empty drops it from the record. An install made before the
-directory ledger has none, so every empty directory it created is left and reported; remove them by
-hand if they are empty and you do not want them. If the directory ledger is malformed or the marker
-cannot be read, the uninstaller reports a `verify` finding, removes no empty directory, and exits
-`3`. `tools/` is always left, even when install created it: a project is likely to use a directory
+and a re-install that finds a recorded directory empty drops it from the record. An install whose
+marker has no install ledger has no record of its directories, so every empty directory it created is
+left; remove them by hand if they are empty and you do not want them. If the install ledger is
+malformed or the marker cannot be read, the uninstaller reports a `verify` finding, removes no empty
+directory, and exits `3`. `tools/` is always left, even when install created it: a project is likely to use a directory
 of that name itself.
 
 **In short, uninstall acts only on a record, and leaves everything else:**
 
-- It changes `.gemini/settings.json` only as the `geminiSettings` record says: it removes the entry
+- It changes `.gemini/settings.json` only as its record in the install ledger in `.grugops/install.json`
+  says: it removes the entry
   install added and restores the shape install found, and it deletes the file only when install
   created it and it is unchanged, or holds nothing else once that entry is removed.
 - It deletes `CLAUDE.md` or `.github/copilot-instructions.md` only when install created the file
-  (`createdFiles`), the file held exactly what install wrote, and it is blank once the grugops block
-  (`appendedBlocks`) is removed. Otherwise it removes only the block, and only while the block is
+  (recorded in the install ledger in `.grugops/install.json`), the file held exactly what install
+  wrote, and it is blank once the recorded grugops block is removed. Otherwise it removes only the block, and only while the block is
   exactly what install appended.
 - It removes a grugops skill or adapter file (`.claude/skills/grugops*/SKILL.md`,
   `.claude/agents/grugops-*.md`) only while that file is still exactly what install wrote: its
-  recorded content, or its recorded link (`kitFiles`). A file you edited, or whose mode you changed,
+  recorded content, or its recorded link (in the install ledger in `.grugops/install.json`). A file you
+  edited, or whose mode you changed,
   is left in place and reported `left`. So is every file whose name matches the backup name a
   re-install gives an edited kit file (`<file>.grugops-edited-<UTC stamp>`); nothing records those
   backups, so uninstall never removes or claims one and says only that the name matches.
-- It removes the Claude Code ask rules install recorded adding (`claudeAskRules`), and deletes
+- It removes the Claude Code ask rules install recorded adding (in the install ledger in
+  `.grugops/install.json`), and deletes
   `.claude/settings.json` only when install created it, its mode is the one install recorded, and
   once those rules are removed what is left is byte for byte what is left of the file install wrote.
   A whitespace or line-end edit of yours (an extra final newline, CRLF) keeps the file.
 - It removes `.grugops/install.json` only when it reads as grugops's install marker for this
-  directory and every ledger in it is well-formed.
+  directory and its install ledger is well-formed.
 - A file with no install record is left untouched and reported (`left` or `skipped`, with the
   reason), whatever is at the path (a link, a special file), and that does not change the exit code.
 - A path uninstall reads that is not a regular file (a FIFO, a directory, a device) is skipped and
@@ -481,16 +485,19 @@ text, is removed. And a re-install over a `.claude/settings.json` it cannot read
 example) resets the ask-rule record to claim nothing, so the next uninstall leaves grugops's rules in
 the file and says there is no record that install added them; remove them by hand.
 
-**An install made before this release** (2.1.0 and earlier) wrote a marker with none of these
-records and no `target`. The uninstaller does not use it: it changes nothing, exits `3`, and its
-`verify` line gives the remedy. If it is this repository, set `"target"` in the marker to the path the
-line names and re-run the uninstaller: measured on an install made by the 2.1.0 installer, it then
-removes the six skills that are byte-identical to the kit source, and the marker, and leaves and
-reports the rest (every adapter and the resolver skill, which carry the kit path; the pointer blocks;
-`AGENTS.md`; the runnables; the Gemini entry; the directories), for you to remove by hand. Re-running
-the installer instead replaces the marker with one for this directory; what the earlier install made
-has no record in it, so a later uninstall leaves those files (the pointer blocks, `AGENTS.md`, the
-earlier runnables, the Gemini entry) and reports them.
+**An install made before this release** (2.1.0 and earlier) wrote a marker with no install ledger
+and no `target`. The uninstaller does not use it: it changes nothing, exits `3`, and its `verify`
+line gives the remedy: re-run the installer here, then the uninstaller. Re-running the installer
+replaces the marker with one for this directory that carries the install ledger; what the earlier
+install made has no record in it, so a later uninstall leaves those files (the pointer blocks,
+`AGENTS.md`, the earlier runnables, the Gemini entry, the kit files it did not rewrite) and reports
+them, for you to remove by hand.
+
+**One install ledger (D-33).** The marker keeps one install ledger, the field `ledger` in
+`.grugops/install.json`, a list of what install created, wrote or changed. A marker written by an
+earlier build of this release, before the ledger, is read as no record: uninstall changes nothing
+and exits `3` with the remedy (re-run the installer, then the uninstaller). No released version wrote
+that shape.
 
 It deliberately does **not** touch:
 
@@ -498,13 +505,15 @@ It deliberately does **not** touch:
   removing it is a manual `rm -rf ~/.grugops` you run yourself when you want it gone everywhere
 - your **seeded per-repo state** — `.grugops/factory.config.json`, `plans/`, and `memory-bank/`
   become your content once seeded (they may hold real work), so they survive uninstall
-- an **empty directory you made yourself** — only a directory install created (recorded as
-  `createdDirs` in `.grugops/install.json`) is removed
+- an **empty directory you made yourself** — only a directory install created (recorded in the
+  install ledger in `.grugops/install.json`) is removed
 - a **file install did not create** — a blank `CLAUDE.md` or Copilot file, or a copy of the kit's
-  `AGENTS.md` or runnables, is removed only when `createdFiles` records that install created it
+  `AGENTS.md` or runnables, is removed only when the install ledger in `.grugops/install.json`
+  records that install created it
 - a **Gemini settings, Copilot instructions or `CLAUDE.md` file install has no record of creating
   or changing** — it is left byte for byte
-- a **grugops skill or adapter file you edited** — it no longer holds what `kitFiles` records, so it
+- a **grugops skill or adapter file you edited** — it no longer holds what the install ledger in
+  `.grugops/install.json` records, so it
   is left and reported
 - every file with a **`.grugops-edited-` backup name** (a re-install's backup of an edited kit file,
   or a file of yours with that name)

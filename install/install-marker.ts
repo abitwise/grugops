@@ -1,6 +1,7 @@
-// install-marker.ts — the ONE reader of the install marker `.grugops/install.json` and of the six
-// ledgers it carries (plan 33.1-21, CR-02 and WR-05; plan 33.1-28, Gap B; plan 33.1-29, CR-03; plan
-// 33.1-30, Gap B completed; plan 33.1-33, the appended sentinel blocks).
+// install-marker.ts — ONE marker, ONE ledger, ONE reader, ONE authority (plan 33.1-36, D-33 (b), brief
+// 33.1-GAP-PLANNING-BRIEF.md §2.2). The marker `.grugops/install.json` is read here and nowhere else; the
+// install ledger it carries is read here (readLedger) and written through the one serializer here
+// (ledgerJson); and whether install owns a path is answered here (owns).
 //
 // Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path,
 // ./user-file.ts and ./json-text.ts (no I/O; the strict tokenizer that refuses a duplicate key). A
@@ -8,6 +9,75 @@
 // run on a host with nothing installed. This module never writes and imports nothing from node:fs;
 // install/installer-fs-census.test.ts scans it with the rest of install/ and asserts it makes no
 // content read of its own.
+//
+// WHY SIX RECORDS BECAME ONE (D-33 (b), brief §2.2, review WR-01). Rounds 1 and 2 of phase 33.1 added
+// one record per class of path install writes: createdDirs, createdFiles, geminiSettings, kitFiles,
+// claudeAskRules and appendedBlocks, each with its own reader, its own "absent" meaning and its own
+// verify. Each round's review then found the same defect class (DC-2: a delete or an edit decided by
+// presence or shape, not by install record) one record over, because the six were checked site by
+// site and no one place answered "does install own this path". So the six are merged into ONE field,
+// `ledger`, a list of entries, read by ONE reader and asked through ONE authority. Those six names are
+// RETIRED_RECORDS: install never writes them, and no code in either binary reads them.
+//
+// THE LEDGER. `ledger` is a JSON array. Each entry is a plain object with `path` (isLedgerPath: a POSIX
+// path relative to the target that cannot leave it) and `kind`, plus EXACTLY the keys its kind has:
+//   dir        (none)                    install created this directory;
+//   file       content, kit              install wrote this file or link: `content` is its content
+//                                        record (isContentRecord, see CONTENT RECORDS), and `kit` is
+//                                        true for a grugops skill or adapter file (D-32 governs those);
+//   block      block, separator          install appended the sentinel block to this file (CLAUDE.md or
+//                                        .github/copilot-instructions.md only): `block` is the sha256
+//                                        record of the block LINES `<open>\n<body>\n<close>\n`, and
+//                                        `separator` says what the one newline install wrote before
+//                                        them did ("blank-line" or "line-end");
+//   gemini     the Gemini fields         what install did to .gemini/settings.json (that path only); see
+//                                        THE gemini ENTRY below;
+//   ask-rules  the ask-rule fields       the Claude Code ask rules install added to .claude/settings.json
+//                                        (that path only, D-18); see AskRuleLedger below.
+// Two entries with the same (path, kind) are refused: which one is install's record is not known. One
+// path can hold entries of two kinds (CLAUDE.md: the file install created, and the block it appended).
+//
+// THE STATES.
+//   readInstallMarker: `absent`     nothing is at the marker path (no install, or a removed one);
+//                      `unreadable` something is there and it is not a readable regular file
+//                                   within the bound (a FIFO, a directory, a symbolic link, a path
+//                                   under a non-directory or under a link, ...), or it is not JSON,
+//                                   or it is not a plain JSON object; `why` says which. A JSON object
+//                                   whose fields do not hold install's values (a user's file, a
+//                                   hand-made marker), or one that carries `ledger` next to a retired
+//                                   record, is `unreadable` with `jsonObject` true;
+//                      `unbound`    install's marker shape, but not this directory's record, and
+//                                   `unboundBy` says why: `other-directory` (its `target` names another
+//                                   directory), `no-target` (written before markers were bound;
+//                                   red-team B2 of plan 33.1-33), or `no-ledger` (written before the
+//                                   one ledger; see A MARKER WITHOUT THE LEDGER). No record is read
+//                                   from it;
+//                      `ok`         install's own marker for this directory, carrying `ledger`.
+//   readLedger:        `absent`     the holder is null (no usable marker) or has no `ledger`;
+//                      `malformed`  `ledger` is there but is not exactly the shape above; `why` names
+//                                   the entry index and the reason; nothing in it is used;
+//                      `ok`         the exact shape; the entries are returned in ledgerJson's order.
+// `raw` is always the field's value as found, so a caller that must leave a malformed ledger as it was
+// can write it back verbatim.
+//
+// A MARKER WITHOUT THE LEDGER FAILS CLOSED (plan 33.1-36, the planner's reading of D-33 (b); the
+// SUMMARY lists it for the human). A marker bound to this directory with no `ledger` was written by an
+// earlier build of this release, which carried the six retired records. No released version wrote that
+// shape: v2.1's install.ts has none of the six names, and CHANGELOG [Unreleased] is where they were
+// introduced. A reader kept only for those scratch installs would be a second reader of the same
+// record, so the marker reads `unbound` by `no-ledger`: uninstall changes nothing and exits 3 with
+// D-31 item 5's remedy (re-run install.js here, then uninstall), and install replaces it and carries
+// none of its records. A marker that holds `ledger` AND a retired record is not one install wrote at
+// all, so it is `unreadable` and is left byte for byte.
+//
+// THE ONE AUTHORITY (owns). owns(ledger, root, rel, kind) answers whether install has a usable record
+// of `kind` for `rel` and, for a `file` entry, whether the path still holds it (checkRecord: bytes and
+// mode for a file, the exact readlink for a link, no link followed on the way, a hard link refused). For
+// a dir, block, gemini or ask-rules entry it returns the entry, and the caller compares that entry's
+// own content record (the directory's emptiness and this run's removals, the block hash,
+// fileNameContent, askContent) with the file before it edits anything, as each pass did before the
+// merge. The uninstaller only asks owns about paths it visits; plan 33.1-38 turns its removal sequence
+// into a walk over the ledger itself.
 //
 // WHY THE MARKER IS READ THROUGH readUserFile (plan 33.1-27, IN-04, brief DC-3; by way of readForWrite). The marker is a
 // path in the user's repository, so it may be a FIFO, a directory, a device or a symlink to one.
@@ -18,95 +88,20 @@
 // (not a regular file, too large, unreadable) is `unreadable` here, and each caller already has a
 // fail-closed answer for an unreadable marker.
 //
-// WHY ONE READER. The marker holds six ledgers the uninstaller depends on to reverse an install
-// without deleting user content:
-//   - `claudeAskRules` — the Claude Code ask rules install added to .claude/settings.json (D-18);
-//   - `createdDirs`    — the directories install itself created under the target (CR-02);
-//   - `geminiSettings` — what install did to .gemini/settings.json (plan 33.1-29, Gap B / re-review
-//                        CR-03): created it, or appended "AGENTS.md" to its context.fileName, and the
-//                        shape it found; see THE geminiSettings SHAPE below. Uninstall edits or deletes
-//                        that file only as this record says.
-//   - `createdFiles`   — the files install itself created under the target (plan 33.1-28, Gap B /
-//                        re-review WR-05): the files ensureBlock creates to hold a sentinel block
-//                        (CLAUDE.md, .github/copilot-instructions.md), the AGENTS.md install copies
-//                        or links in, and the runnables it materializes under tools/grugops/, each
-//                        with a content record of what install wrote there (red-team of plan
-//                        33.1-28: see CONTENT RECORDS below). Uninstall deletes one of those files
-//                        only when this ledger lists it AND the file still holds what it records.
-//   - `kitFiles`       — what install wrote to each grugops skill and adapter file
-//                        (.claude/skills/<name>/SKILL.md, .claude/agents/<file>.md; plan 33.1-30,
-//                        Gap B completed): the same path → content record shape as createdFiles. A
-//                        user's edit to a kit file is user content, so uninstall removes a kit file
-//                        only while it still holds what this ledger records install wrote there.
-//   - `appendedBlocks` — the sentinel block install appended to CLAUDE.md and to
-//                        .github/copilot-instructions.md (plan 33.1-33, red-team carry items 4, 6 and
-//                        11; red-team B1 of plan 33.1-33): path → { block, separator }, the sha256 of
-//                        the block LINES install appended (`<open>\n<body>\n<close>\n`) and what the
-//                        one newline it wrote before them did (see readAppendedBlocks). Uninstall
-//                        removes a block only when this ledger records one for that file and the file
-//                        holds exactly one copy of those lines; it removes those lines, and the newline
-//                        before them only when the record and the bytes show it is install's, so every
-//                        byte of the user's (a line inside the block, trailing blank lines, their final
-//                        newline, a file that was only blank lines) survives. A block with no record (a
-//                        repository with no marker, an install made before this ledger) is left.
-// Each binary used to hold its own reader of the ask-rule ledger, and the two disagreed about a
-// malformed one: install read it as "no previous install" and relabelled every grugops rule as the
-// user's own (fail open), while uninstall refused (fail closed). That is WR-05. A second ledger
-// with two readers would repeat the defect, so both binaries now read the marker and both ledgers
-// here, as tri-states, and neither can read a malformed ledger as an empty one. The third and fourth
-// ledgers follow the same rule, so each has one reader too.
-//
 // THE MARKER IS READ WITHOUT FOLLOWING A LINK (red-team of plan 33.1-27, B3, brief DC-2). The marker
-// holds the ledgers uninstall deletes by, so it must be THIS target's own record. readUserFile follows
+// holds the ledger uninstall deletes by, so it must be THIS target's own record. readUserFile follows
 // a symbolic link, which is right for reading content and wrong here: a never-installed repository
 // whose `.grugops` (or whose marker) was a link into another, installed repository had that other
-// install's ledgers believed, and uninstall deleted the user's own `.claude/settings.json` and two
-// directories on them. So the marker is asked through readForWrite(target, marker), which walks every
-// component from the target down with lstat: a link at the marker or on the way to it, or a
+// install's records believed. So the marker is asked through readForWrite(target, marker), which walks
+// every component from the target down with lstat: a link at the marker or on the way to it, or a
 // non-directory where `.grugops/` goes, makes the marker `unreadable`, with the reason in `why`.
 //
-// THE STATES.
-//   readInstallMarker: `absent`     nothing is at the marker path (no install, or a removed one);
-//                      `unreadable` something is there and it is not a readable regular file
-//                                   within the bound (a FIFO, a directory, a symbolic link, a path
-//                                   under a non-directory or under a link, ...), or it is not JSON,
-//                                   or it is not a plain JSON object; `why` says which;
-//                      `unbound`    install's marker shape (installMarkerProblems is empty) but not
-//                                   bound to THIS directory: its `target` names another directory, or
-//                                   it has no `target` (written before markers were bound; red-team B2
-//                                   of plan 33.1-33). Not this directory's record: no ledger is read
-//                                   from it;
-//                      `ok`         install's own marker for this directory: a plain object whose
-//                                   fields hold install's values and whose `target` is this
-//                                   directory's real path (user-file.ts realTargetPath).
-//                      A JSON object whose fields do not hold install's values is `unreadable` with
-//                      `jsonObject` true (a user's file, a hand-made marker).
-//   malformedLedgers:  the names of the ledgers in an `ok` marker that are present but malformed.
-//                      A caller that would act on the marker as a whole (uninstall's removal of it)
-//                      does so only when this is empty.
-//   installMarkerProblems: the install-owned fields a JSON object lacks or holds with a value install
-//                      never writes (plan 33.1-33, ownsMarker; values since red-team B2). Empty only for
-//                      an object that carries install's own marker fields; readInstallMarker asks it.
-//   readCreatedDirs / readCreatedFiles / readKitFiles / readAppendedBlocks / readAskRuleLedger /
-//   readGeminiLedger:
-//                      `absent`     the marker has no such field (an install made before the
-//                                   ledger existed);
-//                      `malformed`  the field is present but not the exact ledger shape;
-//                      `ok`         the exact shape; the parsed value is returned.
-// `raw` is always the field's value as found, so a caller that must leave a malformed ledger as it
-// was can write it back verbatim.
+// ONE READER FOR BOTH BINARIES (re-review WR-05). Each binary used to hold its own reader of the
+// ask-rule record, and the two disagreed about a malformed one: install read it as "no previous
+// install" (fail open), while uninstall refused (fail closed). Both binaries now read the marker and the
+// ledger here, as tri-states, and neither can read a malformed ledger as an empty one.
 //
-// THE createdDirs, createdFiles AND kitFiles SHAPE (isLedgerPath, one rule for all three). createdDirs
-// is an array of paths; createdFiles and kitFiles are each an object from path to content record, read
-// by one reader (readPathRecords) so the two cannot disagree about what a well-formed record is. Each
-// path is relative to the target in POSIX form: non-empty, not starting with `/`, containing no `\` and
-// no `:`, and every
-// `/`-separated segment is non-empty and is neither `.` nor `..`. So no entry can name a path outside
-// the target. The uninstaller only asks whether one of its own fixed candidate paths is IN a ledger;
-// it never iterates a ledger to decide what to delete, and it never removes recursively.
-//
-// THE geminiSettings SHAPE (readGeminiLedger, plan 33.1-29). A plain JSON object with exactly these
-// keys and no others:
+// THE gemini ENTRY (plan 33.1-29; re-review CR-03). Besides `path` and `kind`, exactly these keys:
 //   createdFile      boolean  install created the file (nothing was at the path);
 //   addedEntry       boolean  install appended "AGENTS.md" to context.fileName;
 //   createdContext   boolean  present exactly when addedEntry is true: `context` was absent and
@@ -127,22 +122,20 @@
 //   fileNameContent  record   jsonValueRecord of context.fileName as install last left it (the ONE
 //                             serialisation both binaries use), or null when there was no fileName or
 //                             the file was not read. A re-install carries the record forward only while
-//                             the file's fileName is still exactly that (red-team of plan 33.1-28: never
-//                             carry a ledger entry forward by presence), and uninstall edits the file
-//                             only while it is (red-team B1 of plan 33.1-29). Required, and never null
-//                             when addedEntry is true;
-//   fileContent      record   present exactly when createdFile is true: the file record of the
-//                             bytes install wrote and the file's mode (THE FILE MODE below). Uninstall deletes the whole file only while it
-//                             holds them (recordHolds).
+//                             the file's fileName is still exactly that (never carry an entry forward by
+//                             presence), and uninstall edits the file only while it is. Never null when
+//                             addedEntry is true;
+//   fileContent      record   present exactly when createdFile is true: the file record of the bytes
+//                             install wrote and the file's mode (THE FILE MODE below). Uninstall deletes
+//                             the whole file only while it holds them (recordHolds).
 // createdFile true also requires addedEntry true, createdContext true and fileNameBefore "absent"
 // (install writes the file with the entry in it). Anything else is `malformed`.
 //
 // A RUN THAT READ NOTHING KEEPS THE RECORD (red-team B2 of plan 33.1-29). A re-install that could not
-// read the file (a link, a hard link, a FIFO, mode 000, too large, not UTF-8, not JSON, a duplicate key
-// on the path) has no evidence either way, so it writes the earlier record back verbatim and says so. A
-// record that claims nothing is written only by a run that READ the file and found the record no
-// longer holds ("reset"), or that found AGENTS.md already listed. The field is absent only in a marker
-// written before this ledger existed (or by a re-install over one that changed nothing).
+// read the Gemini file (a link, a hard link, a FIFO, mode 000, too large, not UTF-8, not JSON, a
+// duplicate key on the path) has no evidence either way, so it writes the earlier gemini entry back
+// verbatim and says so. An entry that claims nothing is written only by a run that READ the file and
+// found the record no longer holds ("reset"), or that found AGENTS.md already listed.
 //
 // Clear professional voice: this is a safety surface (installer reversal).
 
@@ -154,12 +147,25 @@ import { isOwnLink, kindAt, readForWrite, realTargetPath, wayTo } from "./user-f
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
 
+/** The marker field that holds the one install ledger (D-33 (b)). */
+export const LEDGER_FIELD = "ledger";
+
+/**
+ * The six records the one ledger replaced (D-33 (b)). Install never writes them and no code in either
+ * binary reads them: a marker that has them and no `ledger` is `unbound` by `no-ledger`, and a marker
+ * that has them next to `ledger` is `unreadable`.
+ */
+export const RETIRED_RECORDS = ["createdDirs", "createdFiles", "geminiSettings", "kitFiles", "claudeAskRules", "appendedBlocks"] as const;
+
+/** Why an `unbound` marker is not this directory's record. */
+export type UnboundBy = "other-directory" | "no-target" | "no-ledger";
+
 // `jsonObject` on `unreadable` is true when the file IS a JSON object, but not install's marker (its
-// fields do not hold install's values; installMarkerProblems says which), so a caller can say that
-// rather than "could not be read". `unbound` is install's marker shape for ANOTHER directory, or one
-// written before markers carried `target`: `object` is the parsed file, for reporting its kit fields
-// only (the doctor); no ledger is ever read from it. `here` is this directory's real path, or null
-// when it could not be resolved.
+// fields do not hold install's values; installMarkerProblems says which; or it carries `ledger` next to
+// a retired record), so a caller can say that rather than "could not be read". `unbound` is install's
+// marker shape that is not this directory's record (`unboundBy` says why): `object` is the parsed file,
+// for reporting its kit fields only (the doctor); no record is ever read from it. `here` is this
+// directory's real path, or null when it could not be resolved.
 export type InstallMarkerRead =
   | { readonly state: "absent"; readonly marker: null }
   | { readonly state: "unreadable"; readonly marker: null; readonly why: string; readonly jsonObject: boolean }
@@ -167,6 +173,7 @@ export type InstallMarkerRead =
       readonly state: "unbound";
       readonly marker: null;
       readonly why: string;
+      readonly unboundBy: UnboundBy;
       readonly boundTo: string | null;
       readonly here: string | null;
       readonly object: Readonly<Record<string, unknown>>;
@@ -175,18 +182,19 @@ export type InstallMarkerRead =
 
 export type LedgerState = "absent" | "malformed" | "ok";
 
-// AskRuleLedger (D-18): what install added to the target's .claude/settings.json, so uninstall can
-// remove exactly that and nothing else. `added` is sorted. Each created* flag records that install
-// created the file, the `permissions` object or the `ask` array, so uninstall removes a container
-// only when install created it and it is empty again. `askContent` (red-team of plan 33.1-28, R3) is
-// the content record (contentRecord) of the `permissions.ask` array exactly as install last left it,
-// or null when the file held no such array: the next install carries the claims and the flags
-// forward only while the array is still that one (see install.ts writeAskRules).
+// AskRuleLedger (D-18): the fields of an `ask-rules` entry, what install added to the target's
+// .claude/settings.json, so uninstall can remove exactly that and nothing else. `added` is sorted. Each
+// created* flag records that install created the file, the `permissions` object or the `ask` array, so
+// uninstall removes a container only when install created it and it is empty again. `askContent`
+// (red-team of plan 33.1-28, R3) is the content record (contentRecord) of the `permissions.ask` array
+// exactly as install last left it, or null when the file held no such array: the next install carries
+// the claims and the flags forward only while the array is still that one (see install.ts
+// writeAskRules).
 //
 // `fileMode` (red-team L1 of plan 33.1-34) is present only with createdFile true: the permission bits,
 // four octal digits, the settings file had once install created it. Uninstall deletes a file install
-// created only while its mode is still that one; a ledger written before this field compares the text
-// only and says so.
+// created only while its mode is still that one; an entry without this field compares the text only
+// and says so.
 export interface AskRuleLedger {
   added: string[];
   createdFile: boolean;
@@ -196,8 +204,7 @@ export interface AskRuleLedger {
   fileMode?: string;
 }
 
-// GeminiLedger (plan 33.1-29): the record of what install did to .gemini/settings.json. See THE
-// geminiSettings SHAPE in the header.
+// GeminiLedger (plan 33.1-29): the fields of a `gemini` entry. See THE gemini ENTRY in the header.
 export type FileNameBefore = "absent" | "string" | "array";
 export type NoEntryReason = "already-listed" | "refused" | "reset" | "reversed";
 const NO_ENTRY_REASONS: readonly string[] = ["already-listed", "refused", "reset", "reversed"];
@@ -209,37 +216,6 @@ export interface GeminiLedger {
   noEntryReason?: NoEntryReason;
   fileNameContent: string | null;
   fileContent?: string;
-}
-
-export interface GeminiLedgerRead {
-  readonly state: LedgerState;
-  /** The parsed ledger when `ok`; null otherwise. */
-  readonly ledger: GeminiLedger | null;
-  readonly raw: unknown;
-}
-
-export interface CreatedDirsRead {
-  readonly state: LedgerState;
-  /** Sorted, de-duplicated entries when `ok`; empty otherwise. */
-  readonly dirs: readonly string[];
-  readonly raw: unknown;
-}
-
-export interface CreatedFilesRead {
-  readonly state: LedgerState;
-  /** Path → content record when `ok` (keys sorted); empty otherwise. */
-  readonly files: ReadonlyMap<string, string>;
-  readonly raw: unknown;
-}
-
-/** The kitFiles ledger (plan 33.1-30) has the createdFiles shape; see readKitFiles. */
-export type KitFilesRead = CreatedFilesRead;
-
-export interface AskRuleLedgerRead {
-  readonly state: LedgerState;
-  /** The parsed ledger when `ok`; null otherwise. */
-  readonly ledger: AskRuleLedger | null;
-  readonly raw: unknown;
 }
 
 /** Read `<target>/.grugops/install.json` without following a link (see the header). */
@@ -265,15 +241,14 @@ export function readInstallMarker(target: string): InstallMarkerRead {
     return { state: "unreadable", marker: null, why: "it is JSON but not a JSON object", jsonObject: false };
   }
   // A DUPLICATE KEY IS REFUSED, NOT RESOLVED (red-team RT3 of plan 33.1-30). JSON.parse keeps the last
-  // of two equal keys and says nothing, so `"kitFiles": {}, "kitFiles": {...}` read as the second
-  // record, and a duplicate path inside a ledger read as its last record. Install writes the marker
-  // with JSON.stringify, which never repeats a key, so a duplicate is a hand edit and which value is
-  // the record is not known. Refusing only the ledger that holds it would not hold: every writer of
-  // the marker (install's writeMarker, uninstall's kept-marker rewrite) re-serialises the parsed value,
-  // which drops the duplicate and turns the ledger well-formed for the next run. So the whole marker
-  // is `unreadable` (fail closed): install leaves it unchanged and uninstall uses none of its ledgers.
-  // The strict tokenizer (json-text.ts) also refuses bytes that are not UTF-8 and nesting past its
-  // bound, which JSON.parse of the decoded text would have accepted.
+  // of two equal keys and says nothing, so `"ledger": [], "ledger": [...]` would read as the second
+  // record. Install writes the marker with JSON.stringify, which never repeats a key, so a duplicate is
+  // a hand edit and which value is the record is not known. Refusing only the field that holds it would
+  // not hold: every writer of the marker (install's writeMarker, uninstall's kept-marker rewrite)
+  // re-serialises the parsed value, which drops the duplicate and turns the field well-formed for the
+  // next run. So the whole marker is `unreadable` (fail closed): install leaves it unchanged and
+  // uninstall uses none of it. The strict tokenizer (json-text.ts) also refuses bytes that are not UTF-8
+  // and nesting past its bound, which JSON.parse of the decoded text would have accepted.
   const doc = readJsonText(read.bytes);
   if (!doc.ok) return { state: "unreadable", marker: null, why: `it ${doc.why}`, jsonObject: false };
   const dup = firstDuplicateKey(doc.root);
@@ -286,12 +261,14 @@ export function readInstallMarker(target: string): InstallMarkerRead {
     };
   }
   // INSTALL'S OWN MARKER, FOR THIS DIRECTORY (red-team B2 of plan 33.1-33, brief DC-2). A JSON object here
-  // is used only when its fields hold install's values (installMarkerProblems) AND its `target` is this
-  // directory's real path (markerBinding). Anything else is not this directory's record, however well
-  // formed its ledgers are: a user's object, a hand-made marker, a `.grugops/` copied from another
-  // installed repository, a marker written before markers were bound. This is the one place both
-  // binaries learn whether a marker is install's own; every ledger reader is handed only an `ok` marker.
+  // is used only when its fields hold install's values (installMarkerProblems), it does not mix the one
+  // ledger with a retired record, its `target` is this directory's real path (markerBinding), and it
+  // carries the one ledger. Anything else is not this directory's record, however well formed: a user's
+  // object, a hand-made marker, a `.grugops/` copied from another installed repository, a marker written
+  // before markers were bound or before the one ledger. This is the one place both binaries learn whether
+  // a marker is install's own; readLedger is handed only an `ok` marker.
   const marker = parsed as Record<string, unknown>;
+  const has = (k: string): boolean => Object.prototype.hasOwnProperty.call(marker, k);
   const problems = installMarkerProblems(marker);
   if (problems.length > 0) {
     return {
@@ -301,25 +278,47 @@ export function readInstallMarker(target: string): InstallMarkerRead {
       jsonObject: true,
     };
   }
+  const retired = RETIRED_RECORDS.filter(has);
+  if (has(LEDGER_FIELD) && retired.length > 0) {
+    return {
+      state: "unreadable",
+      marker: null,
+      why: `it carries both the one ledger and a retired record (${retired.join(", ")}), which install never writes`,
+      jsonObject: true,
+    };
+  }
   const here = realTargetPath(target);
   const binding = markerBinding(marker, here);
-  if (binding !== null) return { state: "unbound", marker: null, why: binding, boundTo: typeof marker.target === "string" ? marker.target : null, here, object: marker };
+  const boundTo = typeof marker.target === "string" ? marker.target : null;
+  if (binding !== null) return { state: "unbound", marker: null, why: binding.why, unboundBy: binding.by, boundTo, here, object: marker };
+  if (!has(LEDGER_FIELD)) {
+    const why =
+      retired.length > 0
+        ? `it has no install ledger: it was written by an earlier build of this release, before the one ledger, and ` +
+          `holds the retired records ${retired.join(", ")}, which this build does not read`
+        : "it has no install ledger, so it holds no record of what install did here";
+    return { state: "unbound", marker: null, why, unboundBy: "no-ledger", boundTo, here, object: marker };
+  }
   return { state: "ok", marker, bytes: read.bytes };
 }
 
 // markerBinding: null when `marker` (whose fields hold install's values) is bound to the directory whose
-// real path is `here`; otherwise why it is not this directory's record.
-function markerBinding(marker: Readonly<Record<string, unknown>>, here: string | null): string | null {
+// real path is `here`; otherwise why it is not this directory's record, and which way.
+function markerBinding(marker: Readonly<Record<string, unknown>>, here: string | null): { why: string; by: UnboundBy } | null {
   if (!Object.prototype.hasOwnProperty.call(marker, "target")) {
-    return (
-      "it was written before install bound its marker to a directory (it has no target), so which directory its " +
-      "records describe is not known"
-    );
+    return {
+      by: "no-target",
+      why:
+        "it was written before install bound its marker to a directory (it has no target), so which directory its " +
+        "records describe is not known",
+    };
   }
   const boundTo = marker.target as string;
-  if (here === null) return `the real path of this directory could not be read, so it cannot be shown to be ${boundTo}, where the marker was written`;
+  if (here === null) {
+    return { by: "other-directory", why: `the real path of this directory could not be read, so it cannot be shown to be ${boundTo}, where the marker was written` };
+  }
   if (boundTo !== here) {
-    return `it was written for another directory (${boundTo}), not this one (${here}), so its records describe that directory`;
+    return { by: "other-directory", why: `it was written for another directory (${boundTo}), not this one (${here}), so its records describe that directory` };
   }
   return null;
 }
@@ -331,191 +330,15 @@ export function markerUnusableText(read: { readonly why: string; readonly jsonOb
     : `could not be read as a JSON object (${read.why})`;
 }
 
-function fieldOf(marker: Readonly<Record<string, unknown>> | null, name: string): { present: boolean; raw: unknown } {
-  if (marker === null || !Object.prototype.hasOwnProperty.call(marker, name)) return { present: false, raw: undefined };
-  return { present: true, raw: marker[name] };
-}
-
-// isLedgerPath: one createdDirs or createdFiles entry has the shape stated in the header. The same
-// rule serves both ledgers, because a file path and a directory path under the target have the same
-// shape.
+// isLedgerPath: the `path` of one ledger entry has the shape stated in the header. The same rule serves
+// every kind, because a file path and a directory path under the target have the same shape: relative
+// to the target in POSIX form, non-empty, not starting with `/`, containing no `\` and no `:`, and every
+// `/`-separated segment non-empty and neither `.` nor `..`. So no entry can name a path outside the
+// target.
 export function isLedgerPath(entry: unknown): entry is string {
   if (typeof entry !== "string" || entry === "") return false;
   if (entry.startsWith("/") || entry.includes("\\") || entry.includes(":")) return false;
   return entry.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
-}
-
-export function readCreatedDirs(marker: Readonly<Record<string, unknown>> | null): CreatedDirsRead {
-  const { present, raw } = fieldOf(marker, "createdDirs");
-  if (!present) return { state: "absent", dirs: [], raw };
-  if (!Array.isArray(raw) || !raw.every(isLedgerPath)) return { state: "malformed", dirs: [], raw };
-  return { state: "ok", dirs: [...new Set(raw as string[])].sort(), raw };
-}
-
-// readCreatedFiles (plan 33.1-28; red-team R1): the `createdFiles` ledger. A plain JSON object whose
-// every key has the isLedgerPath shape and whose every value is a content record (isContentRecord).
-// Anything else, the plan-28 array of bare paths included, is `malformed`: a path with no record of
-// what install wrote there proves nothing about what is there now.
-export function readCreatedFiles(marker: Readonly<Record<string, unknown>> | null): CreatedFilesRead {
-  return readPathRecords(marker, "createdFiles");
-}
-
-// readKitFiles (plan 33.1-30, Gap B completed, brief DC-2): the `kitFiles` ledger, what install wrote
-// to each grugops skill and adapter file. The same shape and the same reader as createdFiles: a plain
-// JSON object whose every key has the isLedgerPath shape and whose every value is a content record
-// (`sha256:<64 lowercase hex>;mode=<octal>` for a copy or a rendered file, the `;mode=` part absent in
-// a record written before the mode was recorded, see THE FILE MODE; `link:<target>` for a --symlink
-// install's link). Anything else is `malformed`, and uninstall then removes no kit file.
-export function readKitFiles(marker: Readonly<Record<string, unknown>> | null): KitFilesRead {
-  return readPathRecords(marker, "kitFiles");
-}
-
-// readAppendedBlocks (plan 33.1-33, brief DC-2, red-team carry items 4, 6 and 11; red-team B1 of plan
-// 33.1-33): the `appendedBlocks` ledger, what install appended to each pointer file. A plain JSON object
-// from path (isLedgerPath) to a plain object with exactly two keys:
-//   block      `sha256:<64 lowercase hex>`, the content record of the block LINES install wrote: the
-//              open line through the close line and its newline, `<open>\n<body>\n<close>\n` (a block
-//              is bytes appended to a file, never a link, so a `link:` record is malformed);
-//   separator  the one newline install wrote BEFORE those lines, and what it did there:
-//                "blank-line"  the file was absent, empty or ended with a newline, so the newline made
-//                              a blank line between the user's text and the block;
-//                "line-end"    the file's last line had no newline, so the newline ended that line.
-// Uninstall removes the block lines wherever the one matching copy is, and removes the separator only
-// when the block is still at the end of the file and the bytes before it agree with this record
-// (uninstall.ts removeSentinelBlock). Anything else, the plan-33 string records included, is
-// `malformed`. Uninstall asks it only about CLAUDE.md and the Copilot file.
-export type BlockSeparator = "blank-line" | "line-end";
-export interface AppendedBlock {
-  readonly block: string;
-  readonly separator: BlockSeparator;
-}
-export interface AppendedBlocksRead {
-  readonly state: LedgerState;
-  /** Path → the record when `ok` (keys sorted); empty otherwise. */
-  readonly blocks: ReadonlyMap<string, AppendedBlock>;
-  readonly raw: unknown;
-}
-const isAppendedBlock = (v: unknown): v is AppendedBlock => {
-  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
-  const o = v as Record<string, unknown>;
-  const keys = Object.keys(o).sort();
-  return (
-    keys.length === 2 &&
-    keys[0] === "block" &&
-    keys[1] === "separator" &&
-    isSha256Record(o.block) &&
-    (o.separator === "blank-line" || o.separator === "line-end")
-  );
-};
-export function readAppendedBlocks(marker: Readonly<Record<string, unknown>> | null): AppendedBlocksRead {
-  const { present, raw } = fieldOf(marker, "appendedBlocks");
-  if (!present) return { state: "absent", blocks: new Map(), raw };
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { state: "malformed", blocks: new Map(), raw };
-  const entries = Object.entries(raw as Record<string, unknown>);
-  if (!entries.every(([k, v]) => isLedgerPath(k) && isAppendedBlock(v))) return { state: "malformed", blocks: new Map(), raw };
-  const sorted = (entries as Array<[string, AppendedBlock]>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return { state: "ok", blocks: new Map(sorted.map(([k, v]) => [k, { block: v.block, separator: v.separator }])), raw };
-}
-/** An appendedBlocks record as the marker holds it (key order fixed). */
-export function appendedBlockJson(b: AppendedBlock): Record<string, unknown> {
-  return { block: b.block, separator: b.separator };
-}
-
-// readPathRecords: the one reader of a path → content record ledger (createdFiles, kitFiles).
-function readPathRecords(marker: Readonly<Record<string, unknown>> | null, name: "createdFiles" | "kitFiles"): CreatedFilesRead {
-  const { present, raw } = fieldOf(marker, name);
-  if (!present) return { state: "absent", files: new Map(), raw };
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { state: "malformed", files: new Map(), raw };
-  const entries = Object.entries(raw as Record<string, unknown>);
-  if (!entries.every(([k, v]) => isLedgerPath(k) && isContentRecord(v))) return { state: "malformed", files: new Map(), raw };
-  return { state: "ok", files: new Map((entries as Array<[string, string]>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), raw };
-}
-
-export function readAskRuleLedger(marker: Readonly<Record<string, unknown>> | null): AskRuleLedgerRead {
-  const { present, raw } = fieldOf(marker, "claudeAskRules");
-  if (!present) return { state: "absent", ledger: null, raw };
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { state: "malformed", ledger: null, raw };
-  const r = raw as Record<string, unknown>;
-  if (!Array.isArray(r.added) || !r.added.every((x) => typeof x === "string")) {
-    return { state: "malformed", ledger: null, raw };
-  }
-  if (typeof r.createdFile !== "boolean" || typeof r.createdPermissions !== "boolean" || typeof r.createdAsk !== "boolean") {
-    return { state: "malformed", ledger: null, raw };
-  }
-  // Red-team of plan 33.1-28 (R3): the ask array's content record is part of the shape. A ledger
-  // without it (written before this field existed, never released) is malformed, so it fails closed.
-  if (!Object.prototype.hasOwnProperty.call(r, "askContent") || (r.askContent !== null && !isSha256Record(r.askContent))) {
-    return { state: "malformed", ledger: null, raw };
-  }
-  if (Object.prototype.hasOwnProperty.call(r, "fileMode") && (r.createdFile !== true || typeof r.fileMode !== "string" || !/^[0-7]{4}$/.test(r.fileMode))) {
-    return { state: "malformed", ledger: null, raw };
-  }
-  const ledger: AskRuleLedger = {
-    added: [...(r.added as string[])].sort(),
-    createdFile: r.createdFile,
-    createdPermissions: r.createdPermissions,
-    createdAsk: r.createdAsk,
-    askContent: r.askContent as string | null,
-  };
-  if (typeof r.fileMode === "string") ledger.fileMode = r.fileMode;
-  return { state: "ok", ledger, raw };
-}
-
-// readGeminiLedger (plan 33.1-29, Gap B / re-review CR-03): the `geminiSettings` ledger, exactly the
-// shape the header states. The key set is checked first, so a record with an extra key, or with a
-// conditional key where it does not belong, is malformed; a partial record never reads as a smaller
-// claim.
-export function readGeminiLedger(marker: Readonly<Record<string, unknown>> | null): GeminiLedgerRead {
-  const { present, raw } = fieldOf(marker, "geminiSettings");
-  if (!present) return { state: "absent", ledger: null, raw };
-  const bad: GeminiLedgerRead = { state: "malformed", ledger: null, raw };
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return bad;
-  const r = raw as Record<string, unknown>;
-  if (typeof r.createdFile !== "boolean" || typeof r.addedEntry !== "boolean") return bad;
-  const want = ["createdFile", "addedEntry", "fileNameContent"];
-  if (r.addedEntry) want.push("createdContext", "fileNameBefore");
-  else want.push("noEntryReason");
-  if (r.createdFile) want.push("fileContent");
-  const keys = Object.keys(r);
-  if (keys.length !== want.length || !want.every((k) => Object.prototype.hasOwnProperty.call(r, k))) return bad;
-  if (r.fileNameContent !== null && !isSha256Record(r.fileNameContent)) return bad;
-  if (r.addedEntry) {
-    if (typeof r.createdContext !== "boolean") return bad;
-    if (r.fileNameBefore !== "absent" && r.fileNameBefore !== "string" && r.fileNameBefore !== "array") return bad;
-    if (r.fileNameContent === null) return bad;
-  } else if (typeof r.noEntryReason !== "string" || !NO_ENTRY_REASONS.includes(r.noEntryReason)) {
-    return bad;
-  }
-  if (r.createdFile) {
-    if (!r.addedEntry || r.createdContext !== true || r.fileNameBefore !== "absent") return bad;
-    if (!isFileRecord(r.fileContent)) return bad;
-  }
-  const ledger: GeminiLedger = { createdFile: r.createdFile, addedEntry: r.addedEntry, fileNameContent: r.fileNameContent as string | null };
-  if (r.addedEntry) {
-    ledger.createdContext = r.createdContext as boolean;
-    ledger.fileNameBefore = r.fileNameBefore as FileNameBefore;
-  } else {
-    ledger.noEntryReason = r.noEntryReason as NoEntryReason;
-  }
-  if (r.createdFile) ledger.fileContent = r.fileContent as string;
-  return { state: "ok", ledger, raw };
-}
-
-/**
- * The geminiSettings record in the order install writes its keys (the header's order), so a record
- * carried forward and a record written new serialize the same way.
- */
-export function geminiLedgerJson(l: GeminiLedger): Record<string, unknown> {
-  const out: Record<string, unknown> = { createdFile: l.createdFile, addedEntry: l.addedEntry };
-  if (l.addedEntry) {
-    out.createdContext = l.createdContext;
-    out.fileNameBefore = l.fileNameBefore;
-  } else {
-    out.noEntryReason = l.noEntryReason;
-  }
-  out.fileNameContent = l.fileNameContent;
-  if (l.createdFile) out.fileContent = l.fileContent;
-  return out;
 }
 
 // ── CONTENT RECORDS (red-team of plan 33.1-28, brief DC-2) ────────────────────────────────────
@@ -529,18 +352,18 @@ export function geminiLedgerJson(l: GeminiLedger): Record<string, unknown> {
 // file inside `root`, read without following a link on the way or at the path (readForWrite, so a
 // FIFO, a directory or a device is never opened, brief DC-3), whose bytes hash to the record. A
 // `link:` record holds only for a symbolic link at the path, with nothing but real directories on the
-// way, whose readlink equals the target (isOwnLink). Anything else does not hold. kitFiles (plan
-// 33.1-30) uses the same grammar and the same predicate.
+// way, whose readlink equals the target (isOwnLink). Anything else does not hold. Every `file` entry of the
+// ledger, a kit file or not, uses the same grammar and the same predicate.
 //
 // THE FILE MODE IS PART OF A FILE'S RECORD (red-team L1 of plan 33.1-34, brief DC-2). A record of the bytes
 // alone let a chmod-only edit through: uninstall deleted a file whose bytes were install's and whose mode
-// the user had changed, and the mode was lost. So the record of a FILE install wrote (createdFiles,
-// kitFiles, geminiSettings.fileContent) is now `sha256:<64 lowercase hex>;mode=<4 octal digits>`, the
+// the user had changed, and the mode was lost. So the record of a FILE install wrote (a `file` entry
+// `content`, a `gemini` entry `fileContent`) is now `sha256:<64 lowercase hex>;mode=<4 octal digits>`, the
 // sha256 of the bytes and the permission bits (st_mode & 0o7777) the file had once install wrote it
 // (fileRecord). It holds only while both still match. A record written before this rule, without
 // `;mode=`, is still well-formed: it compares the bytes only, and the check says so (modeChecked false),
-// so the caller's line says only the bytes were compared. The records of a VALUE (the block lines of
-// appendedBlocks, askContent, fileNameContent) are never a file's content, so they stay `sha256:<hex>`.
+// so the caller's line says only the bytes were compared. The records of a VALUE (a `block` entry
+// `block`, askContent, fileNameContent) are never a file's content, so they stay `sha256:<hex>`.
 const SHA256_RECORD = /^sha256:[0-9a-f]{64}$/;
 const FILE_RECORD = /^sha256:[0-9a-f]{64}(?:;mode=[0-7]{4})?$/;
 const LINK_RECORD = /^link:[^\u0000-\u001f\u007f]+$/;
@@ -586,8 +409,8 @@ export const NO_MODE_NOTE = "its record has no file mode, so only its bytes were
 
 /**
  * The record of a JSON value as a file holds it: contentRecord of JSON.stringify(value), or null for
- * no value (undefined). THE ONE SERIALISATION for geminiSettings.fileNameContent and
- * claudeAskRules.askContent: install writes the record with it and both install (the carry) and
+ * no value (undefined). THE ONE SERIALISATION for a `gemini` entry fileNameContent and
+ * an `ask-rules` entry askContent: install writes the record with it and both install (the carry) and
  * uninstall (before any edit) compare the current value with it, so the two sides cannot disagree
  * about what "the same list" means. The value comes from the parsed file (json-text.ts valueOf), so
  * spacing and escapes in the file do not change it.
@@ -609,11 +432,10 @@ export function isContentRecord(v: unknown): v is string {
 // THE ONE CONTENT-OWNERSHIP READ (red-team RT2 of plan 33.1-30). Whether a file under the target still
 // holds what install wrote there is asked of its bytes read through readForWrite: a regular file inside
 // the target, no link followed on the way or at the path, and not a hard link. A hard link is refused on
-// every arm that asks (a kitFiles or createdFiles record, and the legacy byte-identity fallback for a
-// marker without kitFiles): a file that has another name, which may be outside the target, shows
-// nothing about what install wrote at THIS path. The legacy arm used to compare through readUserFile,
-// which reads a hard link, so it removed a hard-linked kit file that the recorded arm left, and the
-// recorded arm said "it has changed since install wrote it", which was not true. `why` is the true
+// every arm that asks (a `file` entry of the ledger): a file that has another name, which may be outside the target, shows
+// nothing about what install wrote at THIS path. A comparison through readUserFile, which reads a hard
+// link, once removed a hard-linked kit file that the recorded arm left, and the recorded arm said "it
+// has changed since install wrote it", which was not true. `why` is the true
 // reason a file was not read, as a clause the caller places in its line; it is null for a symbolic
 // link at the path, where install wrote a regular file: the path no longer holds what install wrote.
 export type OwnedContent =
@@ -667,20 +489,327 @@ export function recordHolds(root: string, path: string, record: string): boolean
   return checkRecord(root, path, record).holds;
 }
 
-// malformedLedgers (red-team of plan 33.1-27, B4): every ledger field the marker carries that is
-// present but malformed, by the same readers every caller already trusts. uninstall removes the
-// marker only when the marker is `ok` and this is empty: a marker holding a ledger it could not read
-// is a record the human still needs, not a file to delete. A plan that adds a ledger to the marker
-// adds its reader here, so the marker is never removed over a ledger nobody could read.
-export function malformedLedgers(marker: Readonly<Record<string, unknown>>): string[] {
-  const out: string[] = [];
-  if (readCreatedDirs(marker).state === "malformed") out.push("createdDirs");
-  if (readCreatedFiles(marker).state === "malformed") out.push("createdFiles");
-  if (readAskRuleLedger(marker).state === "malformed") out.push("claudeAskRules");
-  if (readGeminiLedger(marker).state === "malformed") out.push("geminiSettings");
-  if (readKitFiles(marker).state === "malformed") out.push("kitFiles");
-  if (readAppendedBlocks(marker).state === "malformed") out.push("appendedBlocks");
-  return out;
+// ── THE ONE LEDGER (plan 33.1-36, D-33 (b)) ─────────────────────────────────────────────────────
+// The kinds, their exact key sets, the path rules and the reader, serializer and authority. See the
+// header for what each kind records.
+
+/**
+ * The kinds an entry of the one ledger can have, in ledgerJson's order. Plan 33.1-37 adds `kit` and
+ * `backup` for the kit-home record, and plan 33.1-40 records target backups with `backup`.
+ */
+export const LEDGER_KINDS = ["dir", "file", "block", "gemini", "ask-rules"] as const;
+export type LedgerKind = (typeof LEDGER_KINDS)[number];
+
+/** The one path a `gemini` entry may name, and the one path an `ask-rules` entry may name. */
+export const GEMINI_SETTINGS_REL = ".gemini/settings.json";
+export const ASK_RULES_REL = ".claude/settings.json";
+/** The only paths a `block` entry may name: the two pointer files install appends its block to. */
+export const BLOCK_RELS: readonly string[] = ["CLAUDE.md", ".github/copilot-instructions.md"];
+
+export type BlockSeparator = "blank-line" | "line-end";
+export interface AppendedBlock {
+  readonly block: string;
+  readonly separator: BlockSeparator;
+}
+
+export interface DirEntry {
+  readonly path: string;
+  readonly kind: "dir";
+}
+export interface FileEntry {
+  readonly path: string;
+  readonly kind: "file";
+  /** The content record (isContentRecord) of what install wrote at the path. */
+  readonly content: string;
+  /** True for a grugops skill or adapter file, which D-32 governs. */
+  readonly kit: boolean;
+}
+export interface BlockEntry extends AppendedBlock {
+  readonly path: string;
+  readonly kind: "block";
+}
+export type GeminiEntry = GeminiLedger & { readonly path: string; readonly kind: "gemini" };
+export type AskRulesEntry = AskRuleLedger & { readonly path: string; readonly kind: "ask-rules" };
+export type LedgerEntry = DirEntry | FileEntry | BlockEntry | GeminiEntry | AskRulesEntry;
+export type EntryOf<K extends LedgerKind> = Extract<LedgerEntry, { readonly kind: K }>;
+
+export interface LedgerRead {
+  readonly state: LedgerState;
+  /** The entries when `ok`, in ledgerJson's order; empty otherwise. */
+  readonly entries: readonly LedgerEntry[];
+  /** Why a `malformed` ledger is malformed (the entry index and the reason); null otherwise. */
+  readonly why: string | null;
+  /** The field's value as found. */
+  readonly raw: unknown;
+}
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+// keyProblem: the reason `o`'s key set is not exactly `want` (missing or extra), or null.
+function keyProblem(o: Record<string, unknown>, want: readonly string[]): string | null {
+  const missing = want.filter((k) => !hasOwn(o, k));
+  if (missing.length > 0) return `it lacks ${missing.join(", ")}`;
+  const extra = Object.keys(o).filter((k) => !want.includes(k));
+  if (extra.length > 0) return `it has a key no entry of its kind has (${extra.map((k) => JSON.stringify(k).slice(0, 60)).join(", ")})`;
+  return null;
+}
+
+// geminiProblem: the reason the fields of a `gemini` entry break THE gemini ENTRY rules, or null. The key
+// set is checked first, so an entry with a conditional key where it does not belong is malformed; a
+// partial record never reads as a smaller claim.
+function geminiProblem(r: Record<string, unknown>): string | null {
+  if (typeof r.createdFile !== "boolean" || typeof r.addedEntry !== "boolean") return "createdFile and addedEntry must be booleans";
+  const want = ["path", "kind", "createdFile", "addedEntry", "fileNameContent"];
+  if (r.addedEntry) want.push("createdContext", "fileNameBefore");
+  else want.push("noEntryReason");
+  if (r.createdFile) want.push("fileContent");
+  const keys = keyProblem(r, want);
+  if (keys !== null) return keys;
+  if (r.fileNameContent !== null && !isSha256Record(r.fileNameContent)) return "fileNameContent is neither null nor a sha256 record";
+  if (r.addedEntry) {
+    if (typeof r.createdContext !== "boolean") return "createdContext is not a boolean";
+    if (r.fileNameBefore !== "absent" && r.fileNameBefore !== "string" && r.fileNameBefore !== "array") return "fileNameBefore is not absent, string or array";
+    if (r.fileNameContent === null) return "fileNameContent is null although addedEntry is true";
+  } else if (typeof r.noEntryReason !== "string" || !NO_ENTRY_REASONS.includes(r.noEntryReason)) {
+    return "noEntryReason is not one of already-listed, refused, reset, reversed";
+  }
+  if (r.createdFile) {
+    if (!r.addedEntry || r.createdContext !== true || r.fileNameBefore !== "absent") {
+      return "createdFile true needs addedEntry true, createdContext true and fileNameBefore absent";
+    }
+    if (!isFileRecord(r.fileContent)) return "fileContent is not a file record";
+  }
+  return null;
+}
+
+// askProblem: the reason the fields of an `ask-rules` entry break the AskRuleLedger rules, or null.
+function askProblem(r: Record<string, unknown>): string | null {
+  const want = ["path", "kind", "added", "createdFile", "createdPermissions", "createdAsk", "askContent"];
+  if (hasOwn(r, "fileMode")) want.push("fileMode");
+  const keys = keyProblem(r, want);
+  if (keys !== null) return keys;
+  if (!Array.isArray(r.added) || !r.added.every((x) => typeof x === "string")) return "added is not a list of strings";
+  if (typeof r.createdFile !== "boolean" || typeof r.createdPermissions !== "boolean" || typeof r.createdAsk !== "boolean") {
+    return "createdFile, createdPermissions and createdAsk must be booleans";
+  }
+  // Red-team of plan 33.1-28 (R3): the ask array's content record is part of the shape.
+  if (r.askContent !== null && !isSha256Record(r.askContent)) return "askContent is neither null nor a sha256 record";
+  if (hasOwn(r, "fileMode") && (r.createdFile !== true || typeof r.fileMode !== "string" || !/^[0-7]{4}$/.test(r.fileMode))) {
+    return "fileMode is not four octal digits on an entry whose createdFile is true";
+  }
+  return null;
+}
+
+// entryProblem: the reason one raw entry is not exactly its kind's shape, or null. The rules are the
+// ones each retired record's reader applied, now asked of one entry.
+function entryProblem(e: unknown): string | null {
+  if (!isPlainObject(e)) return "it is not a JSON object";
+  if (!isLedgerPath(e.path)) return "its path is not a relative POSIX path inside the target";
+  if (typeof e.kind !== "string" || !(LEDGER_KINDS as readonly string[]).includes(e.kind)) {
+    return `its kind is not one of ${LEDGER_KINDS.join(", ")}`;
+  }
+  switch (e.kind as LedgerKind) {
+    case "dir":
+      return keyProblem(e, ["path", "kind"]);
+    case "file": {
+      const keys = keyProblem(e, ["path", "kind", "content", "kit"]);
+      if (keys !== null) return keys;
+      if (!isContentRecord(e.content)) return "its content is not a content record";
+      if (typeof e.kit !== "boolean") return "its kit is not a boolean";
+      return null;
+    }
+    case "block": {
+      if (!BLOCK_RELS.includes(e.path as string)) return `a block entry may name only ${BLOCK_RELS.join(" or ")}`;
+      const keys = keyProblem(e, ["path", "kind", "block", "separator"]);
+      if (keys !== null) return keys;
+      if (!isSha256Record(e.block)) return "its block is not a sha256 record";
+      if (e.separator !== "blank-line" && e.separator !== "line-end") return "its separator is neither blank-line nor line-end";
+      return null;
+    }
+    case "gemini":
+      if (e.path !== GEMINI_SETTINGS_REL) return `a gemini entry may name only ${GEMINI_SETTINGS_REL}`;
+      return geminiProblem(e);
+    case "ask-rules":
+      if (e.path !== ASK_RULES_REL) return `an ask-rules entry may name only ${ASK_RULES_REL}`;
+      return askProblem(e);
+  }
+}
+
+// normalize: the typed entry of a raw entry entryProblem accepted, holding only its kind's keys.
+function normalize(e: Record<string, unknown>): LedgerEntry {
+  const path = e.path as string;
+  switch (e.kind as LedgerKind) {
+    case "dir":
+      return { path, kind: "dir" };
+    case "file":
+      return { path, kind: "file", content: e.content as string, kit: e.kit as boolean };
+    case "block":
+      return { path, kind: "block", block: e.block as string, separator: e.separator as BlockSeparator };
+    case "gemini": {
+      const g: GeminiEntry = { path, kind: "gemini", createdFile: e.createdFile as boolean, addedEntry: e.addedEntry as boolean, fileNameContent: e.fileNameContent as string | null };
+      if (g.addedEntry) {
+        g.createdContext = e.createdContext as boolean;
+        g.fileNameBefore = e.fileNameBefore as FileNameBefore;
+      } else {
+        g.noEntryReason = e.noEntryReason as NoEntryReason;
+      }
+      if (g.createdFile) g.fileContent = e.fileContent as string;
+      return g;
+    }
+    case "ask-rules": {
+      const a: AskRulesEntry = {
+        path,
+        kind: "ask-rules",
+        added: [...(e.added as string[])].sort(),
+        createdFile: e.createdFile as boolean,
+        createdPermissions: e.createdPermissions as boolean,
+        createdAsk: e.createdAsk as boolean,
+        askContent: e.askContent as string | null,
+      };
+      if (typeof e.fileMode === "string") a.fileMode = e.fileMode;
+      return a;
+    }
+  }
+}
+
+const KIND_ORDER = (k: LedgerKind): number => LEDGER_KINDS.indexOf(k);
+const byPathThenKind = (a: LedgerEntry, b: LedgerEntry): number =>
+  a.path < b.path ? -1 : a.path > b.path ? 1 : KIND_ORDER(a.kind) - KIND_ORDER(b.kind);
+
+/**
+ * THE ONE READER of the install ledger. `holder` is install's `ok` marker (or null when there is none
+ * a caller can use). Every entry must have exactly its kind's shape; one that does not, two entries
+ * with the same (path, kind), or a value that is not a list make the whole ledger `malformed`, and
+ * nothing in it is used.
+ */
+export function readLedger(holder: Readonly<Record<string, unknown>> | null): LedgerRead {
+  if (holder === null || !hasOwn(holder, LEDGER_FIELD)) return { state: "absent", entries: [], why: null, raw: undefined };
+  const raw = holder[LEDGER_FIELD];
+  const bad = (why: string): LedgerRead => ({ state: "malformed", entries: [], why, raw });
+  if (!Array.isArray(raw)) return bad("the install ledger is not a list");
+  const entries: LedgerEntry[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < raw.length; i += 1) {
+    const problem = entryProblem(raw[i]);
+    if (problem !== null) return bad(`entry ${i}: ${problem}`);
+    const entry = normalize(raw[i] as Record<string, unknown>);
+    const key = `${entry.kind}\u0000${entry.path}`;
+    if (seen.has(key)) return bad(`entry ${i}: a second ${entry.kind} entry for ${JSON.stringify(entry.path).slice(0, 120)}, so which one is install's record is not known`);
+    seen.add(key);
+    entries.push(entry);
+  }
+  return { state: "ok", entries: entries.sort(byPathThenKind), why: null, raw };
+}
+
+/**
+ * THE ONE SERIALIZER of the install ledger: the entries sorted by path, then by kind in LEDGER_KINDS
+ * order, each with its kind's keys in a fixed order, so an entry carried forward and an entry written
+ * new serialize the same way. readLedger(ledgerJson(x)) gives back x for a ledger readLedger returned.
+ */
+export function ledgerJson(entries: readonly LedgerEntry[]): Record<string, unknown>[] {
+  return [...entries].sort(byPathThenKind).map((e): Record<string, unknown> => {
+    switch (e.kind) {
+      case "dir":
+        return { path: e.path, kind: e.kind };
+      case "file":
+        return { path: e.path, kind: e.kind, content: e.content, kit: e.kit };
+      case "block":
+        return { path: e.path, kind: e.kind, block: e.block, separator: e.separator };
+      case "gemini": {
+        const out: Record<string, unknown> = { path: e.path, kind: e.kind, createdFile: e.createdFile, addedEntry: e.addedEntry };
+        if (e.addedEntry) {
+          out.createdContext = e.createdContext;
+          out.fileNameBefore = e.fileNameBefore;
+        } else {
+          out.noEntryReason = e.noEntryReason;
+        }
+        out.fileNameContent = e.fileNameContent;
+        if (e.createdFile) out.fileContent = e.fileContent;
+        return out;
+      }
+      case "ask-rules":
+        return {
+          path: e.path,
+          kind: e.kind,
+          added: [...e.added].sort(),
+          createdFile: e.createdFile,
+          createdPermissions: e.createdPermissions,
+          createdAsk: e.createdAsk,
+          askContent: e.askContent,
+          ...(e.fileMode === undefined ? {} : { fileMode: e.fileMode }),
+        };
+    }
+  });
+}
+
+/** The entry of `kind` for `rel` in an `ok` ledger, or undefined. */
+export function entryAt<K extends LedgerKind>(ledger: LedgerRead, rel: string, kind: K): EntryOf<K> | undefined {
+  if (ledger.state !== "ok") return undefined;
+  return ledger.entries.find((e): e is EntryOf<K> => e.kind === kind && e.path === rel);
+}
+
+/** Every entry of `kind` in an `ok` ledger, in ledgerJson's order; empty otherwise. */
+export function entriesOfKind<K extends LedgerKind>(ledger: LedgerRead, kind: K): readonly EntryOf<K>[] {
+  if (ledger.state !== "ok") return [];
+  return ledger.entries.filter((e): e is EntryOf<K> => e.kind === kind);
+}
+
+/** A `gemini` entry for `fields` (the one path such an entry may name). */
+export const geminiEntry = (fields: GeminiLedger): GeminiEntry => ({ ...fields, path: GEMINI_SETTINGS_REL, kind: "gemini" });
+/** An `ask-rules` entry for `fields` (the one path such an entry may name). */
+export const askRulesEntry = (fields: AskRuleLedger): AskRulesEntry => ({ ...fields, path: ASK_RULES_REL, kind: "ask-rules" });
+
+// notRecordedReason (re-review IN-01, plan 33.1-28; moved here with owns, plan 33.1-36): the ONE wording
+// of "there is no install record for this path", chosen from the ledger's state. It says what the record
+// shows, never more: a path missing from a readable ledger has no record that install created it, which
+// is not the same as "install did not create it".
+export function notRecordedReason(ledger: LedgerRead, what: "directory" | "file" | "entry"): string {
+  if (ledger.state === "ok") {
+    return `there is no record that install created it — it is not in the install ledger as a ${what}; left in place`;
+  }
+  if (ledger.state === "malformed") {
+    return "the install ledger could not be used (see the verify line above), so there is no record that install created it; left in place";
+  }
+  return "there is no install marker this run can use, so there is no record that install created it; left in place";
+}
+
+/** The answer of owns: install's entry and whether the path still holds it, or why it is not install's. */
+export type Ownership<K extends LedgerKind> =
+  | { readonly owned: true; readonly entry: EntryOf<K>; readonly note: string | null }
+  | { readonly owned: false; readonly recorded: boolean; readonly entry: EntryOf<K> | null; readonly reason: string };
+
+/**
+ * THE ONE AUTHORITY (brief §2.2, D-33 (b)): does install own `rel` (a POSIX path relative to `root`)
+ * as an entry of `kind`? `recorded` false means there is no usable entry (no marker, a malformed
+ * ledger, or no entry for the path). A `file` entry is owned only while the path still holds its
+ * content record (checkRecord: the bytes and the mode for a file, NO_MODE_NOTE when the record has no
+ * mode; the exact readlink for a link; no link followed; a hard link refused). An entry of any other
+ * kind is returned as owned: the caller compares that entry's own content record with the path before
+ * it edits anything (see THE ONE AUTHORITY in the header).
+ */
+// The typed signature (the entry returned is of the kind asked), then the one implementation.
+export function owns<K extends LedgerKind>(ledger: LedgerRead, root: string, rel: string, kind: K): Ownership<K>;
+export function owns(ledger: LedgerRead, root: string, rel: string, kind: LedgerKind): Ownership<LedgerKind> {
+  const entry = entryAt(ledger, rel, kind);
+  if (entry === undefined) {
+    return { owned: false, recorded: false, entry: null, reason: notRecordedReason(ledger, kind === "dir" ? "directory" : kind === "file" ? "file" : "entry") };
+  }
+  if (entry.kind !== "file") return { owned: true, entry, note: null };
+  const c = checkRecord(root, join(root, ...rel.split("/")), entry.content);
+  if (c.holds) return { owned: true, entry, note: c.modeChecked ? null : NO_MODE_NOTE };
+  if (c.modeChanged !== undefined) {
+    return { owned: false, recorded: true, entry, reason: `${c.modeChanged} there (a change made since), so it is not what install wrote; left in place` };
+  }
+  if (c.why !== null) return { owned: false, recorded: true, entry, reason: `${c.why}; left in place` };
+  return {
+    owned: false,
+    recorded: true,
+    entry,
+    reason:
+      "it does not hold what the install ledger records install wrote there (it was edited or replaced since), so " +
+      "there is no record that install wrote this content; left in place",
+  };
 }
 
 // installMarkerProblems (plan 33.1-33, brief DC-2, ownsMarker): the reasons a parsed JSON object is

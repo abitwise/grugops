@@ -38,6 +38,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync,
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { dirList, fileRecords } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-binding-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -111,9 +112,9 @@ describe("install's marker is bound to its directory, and only install's own mar
     expect(r.status, r.stdout).toBe(0);
     const m = markerOf(t);
     expect(m.target, r.stdout).toBe(realpathSync.native(t));
-    expect(Object.keys(m.createdFiles as Record<string, string>), r.stdout).not.toContain("AGENTS.md");
-    expect(Object.keys(m.createdFiles as Record<string, string>), r.stdout).not.toContain("tools/grugops/host-protection.js");
-    expect(m.createdDirs as string[], r.stdout).not.toContain("tools/grugops");
+    expect(Object.keys(fileRecords(m, false)), r.stdout).not.toContain("AGENTS.md");
+    expect(Object.keys(fileRecords(m, false)), r.stdout).not.toContain("tools/grugops/host-protection.js");
+    expect(dirList(m), r.stdout).not.toContain("tools/grugops");
     expect(r.stdout).toMatch(/^ {2}note\s+\.grugops\/install\.json: .*written for another directory/m);
     const agents = readFileSync(at(t, "AGENTS.md"));
     const runnable = readFileSync(at(t, "tools/grugops/host-protection.js"));

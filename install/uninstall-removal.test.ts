@@ -47,6 +47,7 @@ import {
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
+import { askRecord, dirList, withLedger } from "./ledger.test-support.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -76,7 +77,7 @@ const POSITION = "install/uninstall-removal.test.ts";
 const SET = deriveWritePaths(fresh("derive"));
 const KIT_PATH = /^\.claude\/(skills\/[^/]+\/SKILL\.md|agents\/[^/]+\.md)$/;
 const RUNNABLE_PATH = /^tools\/grugops\/[^/]+\.js$/;
-/** The grugops skills and adapters: removed only while each holds its kitFiles record (plan 33.1-30). */
+/** The grugops skills and adapters: removed only while each holds its kit-file entry (plan 33.1-30). */
 const KIT_PATHS = SET.files.filter((p) => KIT_PATH.test(p));
 /** The runnables: removed only when byte-identical to their kit source. */
 const RUNNABLE_PATHS = SET.files.filter((p) => RUNNABLE_PATH.test(p));
@@ -296,7 +297,7 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
           expect(labels, `${what}: ${rel}`).toContain("verify");
         } else {
           // Red-team of plan 33.1-28 (R1) for AGENTS.md, plan 33.1-30 for the kit files: this copy
-          // install recorded the bytes it copied or rendered at each path (createdFiles, kitFiles). A
+          // install recorded the bytes it copied or rendered at each path (its file entry). A
           // link put there since is not what install made at that path, so it is left, even though it
           // is the shape of link a --symlink install makes (that install records the link, and its
           // uninstall removes it: the next case, and install.test.ts "file ownership ... AGENTS.md link").
@@ -313,7 +314,7 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
     expect(differ, `the preview and the real run decided differently:\n${differ.join("\n")}`).toEqual([]);
   });
 
-  it("the links a --symlink install made (recorded as link:<target> in kitFiles and createdFiles) are removed and gone, real and DRY_RUN decide alike", () => {
+  it("the links a --symlink install made (recorded as link:<target> in their file entries) are removed and gone, real and DRY_RUN decide alike", () => {
     const decisions = new Map<string, Map<string, string>>();
     let linked: string[] = [];
     for (const dry of [true, false]) {
@@ -349,14 +350,12 @@ describe.skipIf(!canSymlink)("B3: a link at the marker, or on the way to it, mak
   for (const where of [".grugops", MARKER_REL] as const) {
     it(`a never-installed repository whose ${where} is a link into an installed one changes by zero bytes (real and DRY_RUN), and --check says the marker is unreadable`, () => {
       const a = installedTree("marker-a");
-      const aMarker = JSON.parse(readFileSync(join(a.target, ".grugops", "install.json"), "utf8")) as {
-        claudeAskRules: { added: string[]; createdFile: boolean };
-        createdDirs: string[];
-      };
+      const aMarker = JSON.parse(readFileSync(join(a.target, ".grugops", "install.json"), "utf8")) as Record<string, unknown>;
+      const aAsk = askRecord(aMarker) as { added: string[]; createdFile: boolean };
       // PREMISE: A's ledger is the one that would delete B's files if it were believed.
-      expect(aMarker.claudeAskRules.createdFile).toBe(true);
-      expect(aMarker.createdDirs).toEqual(expect.arrayContaining([".claude", ".github"]));
-      const userRule = aMarker.claudeAskRules.added[0];
+      expect(aAsk.createdFile).toBe(true);
+      expect(dirList(aMarker)).toEqual(expect.arrayContaining([".claude", ".github"]));
+      const userRule = aAsk.added[0];
       const aBefore = snapshotTree(a.target);
 
       for (const dry of [false, true]) {
@@ -400,19 +399,21 @@ describe.skipIf(!canSymlink)("B3: a link at the marker, or on the way to it, mak
 });
 
 // ── B4: a marker the run could not use is never deleted ─────────────────────────────────────────
-type MarkerDamage = "not JSON" | "createdDirs not an array" | "claudeAskRules not an object" | "larger than the read bound";
-const MARKER_DAMAGE: readonly MarkerDamage[] = ["not JSON", "createdDirs not an array", "claudeAskRules not an object", "larger than the read bound"];
+type MarkerDamage = "not JSON" | "a dir entry with a path outside the target" | "a ledger that is not a list" | "larger than the read bound";
+const MARKER_DAMAGE: readonly MarkerDamage[] = ["not JSON", "a dir entry with a path outside the target", "a ledger that is not a list", "larger than the read bound"];
 
 function damageMarker(target: string, damage: MarkerDamage): void {
   const m = join(target, ".grugops", "install.json");
   const marker = JSON.parse(readFileSync(m, "utf8")) as Record<string, unknown>;
   if (damage === "not JSON") writeFileSync(m, "user notes, not json\n");
-  if (damage === "createdDirs not an array") writeFileSync(m, JSON.stringify({ ...marker, createdDirs: "garbage" }, null, 2) + "\n");
-  if (damage === "claudeAskRules not an object") writeFileSync(m, JSON.stringify({ ...marker, claudeAskRules: 5 }, null, 2) + "\n");
+  if (damage === "a dir entry with a path outside the target") {
+    writeFileSync(m, JSON.stringify(withLedger(marker, (l) => [...l, { path: "../outside", kind: "dir" }]), null, 2) + "\n");
+  }
+  if (damage === "a ledger that is not a list") writeFileSync(m, JSON.stringify({ ...marker, ledger: 5 }, null, 2) + "\n");
   if (damage === "larger than the read bound") truncateSync(m, 3 * 1024 * 1024 * 1024); // sparse: nothing is written
 }
 
-describe("B4: uninstall deletes the marker only when it read it and every ledger in it is well-formed (red-team of plan 33.1-27)", () => {
+describe("B4: uninstall deletes the marker only when it read it and its one ledger is well-formed (red-team of plan 33.1-27)", () => {
   for (const damage of MARKER_DAMAGE) {
     it(`a marker that is ${damage}: left in place and reported, real and DRY_RUN decide alike, exit 3`, () => {
       const decisions: string[] = [];
@@ -430,19 +431,10 @@ describe("B4: uninstall deletes the marker only when it read it and every ledger
         expect(labels, `${what}: the marker was removed`).not.toContain("removed");
         expect(labels, `${what}: the marker was previewed as removed`).not.toContain("would-remove");
         const after = damage === "larger than the read bound" ? `size ${statSync(m).size}` : readFileSync(m, "utf8");
-        if (dry || damage === "not JSON" || damage === "larger than the read bound") {
-          expect(after, `${what}: the marker changed`).toBe(before);
-        } else {
-          // Red-team of plan 33.1-28 (R2): a marker kept for a malformed ledger is rewritten without
-          // the entries this run removed. The malformed ledger and the identity fields are as found.
-          const a = JSON.parse(after) as Record<string, unknown>;
-          const b = JSON.parse(before) as Record<string, unknown>;
-          expect(Object.keys(a), what).toEqual(Object.keys(b));
-          for (const k of ["kitVersion", "grugopsHome", "kitRoot", "installMode"]) expect(a[k], `${what}: ${k}`).toEqual(b[k]);
-          const bad = damage === "createdDirs not an array" ? "createdDirs" : "claudeAskRules";
-          expect(a[bad], `${what}: the malformed ledger changed`).toEqual(b[bad]);
-          expect(labels, `${what}\n${r.stdout}`).toContain("edited");
-        }
+        // Plan 33.1-36: a marker kept for a malformed ledger is written back verbatim (the one ledger is
+        // malformed as a whole, so nothing in it was used and nothing in it is rewritten).
+        expect(after, `${what}: the marker changed`).toBe(before);
+        expect(labels, `${what}\n${r.stdout}`).not.toContain("edited");
         decisions.push(
           linesFor(r.stdout, MARKER_REL, t.target)
             .filter((l) => l.label === "left")

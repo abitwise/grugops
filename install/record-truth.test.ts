@@ -3,7 +3,7 @@
 // Every claim either binary makes, and every change uninstall makes, rests on what a record proves.
 //
 // WHAT THE RED TEAM FOUND against 5b55f40d (Node 24.12 and 22.23):
-//   B1  `--check` read the marker through readInstallMarker but never asked malformedLedgers, so a
+//   B1  `--check` read the marker through readInstallMarker but never asked whether its records could be read, so a
 //       marker holding a malformed ledger printed ALL CHECKS PASSED, exit 0, while install and
 //       uninstall both reported it as a verify (exit 3). README said `--check` names such a marker.
 //   B2  uninstall asked readForWrite about CLAUDE.md or the Copilot file before it asked whether any
@@ -48,7 +48,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { malformedLedgers } from "./install-marker.js";
+import { LEDGER_KINDS, readLedger } from "./install-marker.js";
+import { askRecord, blockRecords, fileRecords, withLedger } from "./ledger.test-support.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -109,49 +110,57 @@ function installedCopy(tag: string): string {
   return t;
 }
 
-// ── B1: the doctor asks the one authority about every ledger ────────────────────────────────────
-// The marker fields that are not ledgers (install-marker.ts installMarkerProblems and the binding).
-// Every other key of install's own marker is a ledger, so the ledger list is taken from the marker.
+// ── B1: the doctor asks the one reader about the one ledger ─────────────────────────────────────
+// The marker fields that are not the ledger (install-marker.ts installMarkerProblems and the binding).
+// Since plan 33.1-36 (D-33 (b)) every other key of install's own marker is the one ledger, so the list
+// is taken from the marker and asserted to be exactly `ledger`; the kinds are install-marker.ts
+// LEDGER_KINDS, and each kind is garbled in turn.
 const NOT_LEDGERS = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target"]);
 const LEDGERS: readonly string[] = BASE_RUN.status === 0 ? Object.keys(markerOf(BASE)).filter((k) => !NOT_LEDGERS.has(k)) : [];
-const LEDGER_COUNT = 6;
+const LEDGER_COUNT = 1;
 
-describe("B1: `--check` FAILs on a marker that holds a malformed ledger, naming it (brief DC-1)", () => {
-  it("the base install exits 0, `--check` passes on it, and the ledger list taken from its marker has LEDGER_COUNT entries, each malformed by the one authority when set to 'x'", () => {
+describe("B1: `--check` FAILs on a marker that holds a malformed ledger, naming why (brief DC-1)", () => {
+  it("the base install exits 0, `--check` passes on it, the marker carries exactly the one ledger, and readLedger reads it ok and refuses it as 'x'", () => {
     expect(BASE_RUN.status, BASE_RUN.stdout).toBe(0);
-    expect(LEDGERS.length, `ledgers: ${LEDGERS.join(", ")}`).toBe(LEDGER_COUNT);
+    expect(LEDGERS, `ledgers: ${LEDGERS.join(", ")}`).toEqual(["ledger"]);
+    expect(LEDGERS.length).toBe(LEDGER_COUNT);
     const m = markerOf(BASE);
-    expect(malformedLedgers(m)).toEqual([]);
-    for (const k of LEDGERS) expect(malformedLedgers({ ...m, [k]: "x" }), k).toEqual([k]);
+    expect(readLedger(m).state).toBe("ok");
+    expect(readLedger({ ...m, ledger: "x" }).state).toBe("malformed");
     const c = check(installedCopy("check-clean"));
     expect(c.status, c.stdout).toBe(0);
     expect(c.stdout).toContain("ALL CHECKS PASSED");
   });
 
-  for (const k of ["createdDirs", "createdFiles", "claudeAskRules", "geminiSettings", "kitFiles", "appendedBlocks"]) {
-    it(`${k} = 'x': --check exits 1 with a FAIL that names ${k}, and does not print ALL CHECKS PASSED`, () => {
-      expect(LEDGERS, "the typed case list must be the derived ledger list").toContain(k);
-      const t = installedCopy(`b1-${k}`);
-      writeMarker(t, { ...markerOf(t), [k]: "x" });
+  for (const kind of LEDGER_KINDS) {
+    it(`a malformed ${kind} entry: --check exits 1 with a FAIL that names the malformed install ledger and the entry, and does not print ALL CHECKS PASSED`, () => {
+      const t = installedCopy(`b1-${kind}`);
+      let garbled = -1;
+      writeMarker(
+        t,
+        withLedger(markerOf(t), (l) => {
+          garbled = l.findIndex((e) => e.kind === kind);
+          if (garbled >= 0) l[garbled].extra = "x";
+        }),
+      );
+      expect(garbled, `PREMISE: the base install wrote a ${kind} entry`).toBeGreaterThanOrEqual(0);
       const before = snapshotTree(t);
       const c = check(t);
       expect(c.status, c.stdout).toBe(1);
       expect(c.stdout).not.toContain("ALL CHECKS PASSED");
       const fails = lines(c.stdout, "FAIL");
-      expect(fails.some((l) => l.includes(k) && /malformed/.test(l)), c.stdout).toBe(true);
+      expect(fails.some((l) => /malformed install ledger/.test(l) && l.includes(`entry ${garbled}:`)), c.stdout).toBe(true);
       expect(snapshotTree(t), "--check changed the target").toBe(before);
     });
   }
 
-  it("every ledger malformed at once: one run names all of them, exit 1", () => {
+  it("a ledger that is not a list: one run names it, exit 1", () => {
     const t = installedCopy("b1-all");
-    const m = markerOf(t);
-    for (const k of LEDGERS) m[k] = "x";
-    writeMarker(t, m);
+    writeMarker(t, { ...markerOf(t), ledger: "x" });
     const c = check(t);
     expect(c.status, c.stdout).toBe(1);
     const failText = lines(c.stdout, "FAIL").join("\n");
-    for (const k of LEDGERS) expect(failText, k).toContain(k);
+    expect(failText).toMatch(/malformed install ledger \(the install ledger is not a list\)/);
   });
 });
 
@@ -191,7 +200,7 @@ describe("B2: uninstall asks the record before it reports a path it cannot read 
       symlinkSync(rel.includes("/") ? "../AGENTS.md" : "AGENTS.md", at(t, rel));
       const i = install(t);
       expect(i.status, i.stdout).toBe(3);
-      expect(Object.keys((markerOf(t).appendedBlocks ?? {}) as Record<string, unknown>)).not.toContain(rel);
+      expect(Object.keys(blockRecords(markerOf(t)))).not.toContain(rel);
       const d = uninstall(t, true);
       expect(d.status, d.stdout).toBe(0);
       const u = uninstall(t);
@@ -203,7 +212,7 @@ describe("B2: uninstall asks the record before it reports a path it cannot read 
 
   it("guard: a recorded CLAUDE.md replaced by a link is still a verify (the record exists and the path cannot be read)", () => {
     const t = installedCopy("b2-recorded-link");
-    expect(Object.keys(markerOf(t).appendedBlocks as Record<string, unknown>)).toContain("CLAUDE.md");
+    expect(Object.keys(blockRecords(markerOf(t)))).toContain("CLAUDE.md");
     rmSync(at(t, "CLAUDE.md"));
     symlinkSync("AGENTS.md", at(t, "CLAUDE.md"));
     const u = uninstall(t);
@@ -252,7 +261,7 @@ describe("B2: uninstall asks the record before it reports a path it cannot read 
     writeFileSync(at(t, ".grugops/factory.config.json"), NOTIFY_CONFIG);
     const i = install(t);
     expect(i.status, i.stdout).toBe(0);
-    const led = markerOf(t).claudeAskRules as { added: unknown[]; createdFile: boolean };
+    const led = askRecord(markerOf(t)) as { added: unknown[]; createdFile: boolean };
     expect(led.added).toEqual([]);
     expect(led.createdFile).toBe(false);
     writeFileSync(at(t, "mysettings.json"), '{ "mine": true }\n');
@@ -285,14 +294,13 @@ describe("B2: uninstall asks the record before it reports a path it cannot read 
 });
 
 // ── L1: the record carries the mode; "empty" means install's own emptied shape ─────────────────
-/** Every file uninstall removes whole from an untouched default install, taken from the marker's records. */
+/** Every file uninstall removes whole from an untouched default install, taken from the marker's one ledger. */
 function removableFiles(m: Record<string, unknown>): string[] {
-  const out = new Set<string>([
-    ...Object.keys((m.createdFiles ?? {}) as Record<string, unknown>),
-    ...Object.keys((m.kitFiles ?? {}) as Record<string, unknown>),
-  ]);
-  if ((m.geminiSettings as { createdFile?: boolean } | undefined)?.createdFile === true) out.add(".gemini/settings.json");
-  if ((m.claudeAskRules as { createdFile?: boolean } | undefined)?.createdFile === true) out.add(".claude/settings.json");
+  const out = new Set<string>(Object.keys(fileRecords(m)));
+  const ledger = m.ledger as Array<Record<string, unknown>>;
+  for (const e of ledger) {
+    if ((e.kind === "gemini" || e.kind === "ask-rules") && e.createdFile === true) out.add(e.path as string);
+  }
   return [...out].sort();
 }
 const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(markerOf(BASE)) : [];
@@ -340,15 +348,14 @@ describe("L1: a mode change or a whitespace edit is a user edit, and the file is
 
   it("a record written without a mode (before the mode was recorded) compares the bytes only, removes the untouched file, and says so", () => {
     const t = installedCopy("l1-old-record");
-    const m = markerOf(t);
     const strip = (v: unknown): unknown => (typeof v === "string" ? v.replace(/;mode=[0-7]+$/, "") : v);
-    for (const k of ["createdFiles", "kitFiles"]) {
-      const led = m[k] as Record<string, unknown>;
-      for (const f of Object.keys(led)) led[f] = strip(led[f]);
-    }
-    const g = m.geminiSettings as Record<string, unknown>;
-    if (typeof g.fileContent === "string") g.fileContent = strip(g.fileContent);
-    delete (m.claudeAskRules as Record<string, unknown>).fileMode;
+    const m = withLedger(markerOf(t), (l) => {
+      for (const e of l) {
+        if (e.kind === "file") e.content = strip(e.content);
+        if (e.kind === "gemini" && typeof e.fileContent === "string") e.fileContent = strip(e.fileContent);
+        if (e.kind === "ask-rules") delete e.fileMode;
+      }
+    });
     writeMarker(t, m);
     const u = uninstall(t);
     expect(u.status, u.stdout).toBe(0);
@@ -424,11 +431,9 @@ describe("L3: uninstall's wording asserts only what the run proved", () => {
     expectHonestBackupLines(u.stdout);
   });
 
-  it("a marker with no file ledger (the pre-release remedy): a differing runnable and AGENTS.md are said to differ from this kit version, not to be the user's", () => {
+  it("an install ledger with no kit-false file entries: a differing runnable and AGENTS.md are said to differ from this kit version, not to be the user's", () => {
     const t = installedCopy("l3-kitversion");
-    const m = markerOf(t);
-    delete m.createdFiles;
-    writeMarker(t, m);
+    writeMarker(t, withLedger(markerOf(t), (l) => l.filter((e) => !(e.kind === "file" && e.kit === false))));
     writeFileSync(at(t, "tools/grugops/host-protection.js"), readFileSync(at(t, "tools/grugops/host-protection.js"), "utf8") + "// earlier version\n");
     writeFileSync(at(t, "AGENTS.md"), readFileSync(at(t, "AGENTS.md"), "utf8") + "earlier version\n");
     const u = uninstall(t);

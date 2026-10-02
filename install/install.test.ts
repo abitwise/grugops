@@ -126,6 +126,12 @@ import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "
 // count. install.ts itself still imports nothing from scripts/ (the spawn-not-import case pins it).
 import { canonicalizeDisposition } from "../scripts/checkpoints.js";
 import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./checkpoint-ask-rules.js";
+// THE ONE INSTALL LEDGER, TEST SIDE (plan 33.1-36, D-33 (b)): the marker carries one `ledger` list in
+// place of six records. These views read and forge it from the marker JSON itself (no production
+// reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
+import { askRecord, dirList, fileRecords, geminiRecord, withLedger, type RawEntry } from "./ledger.test-support.js";
+/** The marker key order install writes since plan 33.1-36. */
+const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "ledger"];
 
 // The repo root (install/ is one level under it) and the committed compiled installer/uninstaller.
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -3935,7 +3941,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const r = runUninstall(target, home);
     expect(r.status).toBe(0);
     expect(existsSync(join(target, HOST_CHECK_REL))).toBe(false);
-    expect(r.stdout).toContain("tools/grugops/host-protection.js (grugops runnable, byte-identical to source)");
+    expect(r.stdout).toContain("tools/grugops/host-protection.js (grugops runnable, recorded in the install ledger)");
   });
 
   // The stub answers from the ONE all-protected fixture host-protection.test.ts also uses
@@ -5156,7 +5162,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.status).toBe(0);
     for (const rel of RUNNABLE_RELS) {
       expect(existsSync(join(target, rel))).toBe(false);
-      expect(r.stdout).toContain(`${rel} (grugops runnable, byte-identical to source)`);
+      expect(r.stdout).toContain(`${rel} (grugops runnable, recorded in the install ledger)`);
     }
     // Asserted by LISTING the destination directory, not only by per-file existence: the directory
     // is gone because it is empty, and tools/ itself (the user's directory) is left alone.
@@ -5184,7 +5190,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(readFileSync(edited, "utf8")).toBe(editedBody);
     // Red-team L3 of plan 33.1-34: the line says what the record shows (install recorded other bytes
     // there), not "user-modified", which nothing proved.
-    expect(r.stdout).toContain(`${RUNNABLE_RELS[0]} (it does not hold what the install marker's file ledger records install wrote there`);
+    expect(r.stdout).toContain(`${RUNNABLE_RELS[0]} (it does not hold what the install ledger records install wrote there`);
     // The untouched one is still removed, so the guard is per-file and not a blanket bail-out.
     expect(existsSync(join(target, RUNNABLE_RELS[1]))).toBe(false);
     // The directory survives because it still holds the user's file (rmdirIfEmpty never forces).
@@ -5221,7 +5227,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(readFileSync(join(target, "plans", "board.md"), "utf8")).toBe("user board\n");
   });
 
-  it("runnable removal: an unreadable SOURCE is a verify finding, and the run does not claim completion", () => {
+  it("runnable removal: a recorded runnable whose SOURCE this kit no longer ships is removed by its record (plan 33.1-36)", () => {
     const src = makeSyntheticSrc();
     const target = mkTmp();
     const home = mkTmp();
@@ -5230,8 +5236,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     // The synthetic source ships no runnables, so materializeRunnable() skipped them on install.
     // Plant one at the destination anyway — the shape of a repo installed from a complete kit and
-    // then uninstalled against an incomplete one. Byte identity cannot be established, so the file
-    // must be LEFT and the human told, never removed on a guess.
+    // then uninstalled against an incomplete one. It used to be left with a verify (byte identity with
+    // the source could not be established); since plan 33.1-36 the install ledger's file entry decides.
     mkdirSync(join(target, "tools", "grugops"), { recursive: true });
     const planted = join(target, RUNNABLE_RELS[0]);
     writeFileSync(planted, "// installed earlier from a complete kit\n");
@@ -5239,19 +5245,18 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // earlier complete-kit install is represented by its record for the planted file.
     const plantedMarkerPath = join(target, ".grugops", "install.json");
     const plantedMarker = JSON.parse(readFileSync(plantedMarkerPath, "utf8"));
-    plantedMarker.createdFiles = {
-      ...(plantedMarker.createdFiles ?? {}),
-      [RUNNABLE_RELS[0]]: `sha256:${createHash("sha256").update(readFileSync(planted)).digest("hex")};mode=${(statSync(planted).mode & 0o7777).toString(8).padStart(4, "0")}`,
-    };
-    writeFileSync(plantedMarkerPath, JSON.stringify(plantedMarker, null, 2) + "\n");
+    const plantedRecord = `sha256:${createHash("sha256").update(readFileSync(planted)).digest("hex")};mode=${(statSync(planted).mode & 0o7777).toString(8).padStart(4, "0")}`;
+    const rebound = withLedger(plantedMarker, (l) => {
+      l.push({ path: RUNNABLE_RELS[0], kind: "file", content: plantedRecord, kit: false });
+    });
+    writeFileSync(plantedMarkerPath, JSON.stringify(rebound, null, 2) + "\n");
 
+    // Plan 33.1-36 (D-33 (b), review WR-01): the record is the authority. A runnable whose file entry
+    // still holds is removed even though this kit source does not ship it; the source is not asked.
     const r = runUninstallFrom(src, target, home);
-    expect(r.status).toBe(3); // INCOMPLETE — the uninstaller mirrors install.ts's code list (27-21)
-    expect(existsSync(planted)).toBe(true);
-    expect(r.stdout).toContain("cannot read the source it was installed from");
-    expect(r.stdout).toContain(RUNNABLE_RELS[0]);
-    expect(r.stdout).not.toContain("== uninstall complete");
-    expect(r.stdout).toContain("uninstall INCOMPLETE");
+    expect(existsSync(planted), r.stdout).toBe(false);
+    expect(r.stdout).not.toContain("cannot read the source it was installed from");
+    expect(r.stdout.split("\n").some((l) => /^ {2}removed\s/.test(l) && l.includes(RUNNABLE_RELS[0])), r.stdout).toBe(true);
   });
 
   it("runnable removal: DRY_RUN narrates the removal and deletes nothing", () => {
@@ -5266,7 +5271,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     });
     expect(r.status).toBe(0);
     expect(r.stdout ?? "").toContain("would-remove");
-    expect(r.stdout ?? "").toContain(`${RUNNABLE_RELS[0]} (grugops runnable, byte-identical to source)`);
+    expect(r.stdout ?? "").toContain(`${RUNNABLE_RELS[0]} (grugops runnable, recorded in the install ledger)`);
     expect(snapshot(target)).toBe(before);
   });
 
@@ -5389,7 +5394,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.status).toBe(0);
     expect(existsSync(join(target, PHASE31_RUNNABLE))).toBe(false);
     expect(materializedSet(target)).toEqual([]);
-    expect(r.stdout).toContain(`${PHASE31_RUNNABLE} (grugops runnable, byte-identical to source)`);
+    expect(r.stdout).toContain(`${PHASE31_RUNNABLE} (grugops runnable, recorded in the install ledger)`);
     // The user's own content is untouched — reversibility that destroys user data is not
     // reversibility (CLAUDE.md installer constraint).
     expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toContain("My own dev instructions");
@@ -5424,7 +5429,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 const settingsFile = (t: string): string => join(t, ".claude", "settings.json");
 const readAsk = (t: string): string[] => JSON.parse(readFileSync(settingsFile(t), "utf8")).permissions.ask;
 const readAskLedger = (t: string): { added: string[]; createdFile: boolean; createdPermissions: boolean; createdAsk: boolean } =>
-  JSON.parse(readFileSync(join(t, ".grugops", "install.json"), "utf8")).claudeAskRules;
+  askRecord(JSON.parse(readFileSync(join(t, ".grugops", "install.json"), "utf8"))) as { added: string[]; createdFile: boolean; createdPermissions: boolean; createdAsk: boolean };
 function writeCheckpointConfig(t: string, checkpoints: Record<string, unknown>): void {
   mkdirSync(join(t, ".grugops"), { recursive: true });
   writeFileSync(join(t, ".grugops", "factory.config.json"), JSON.stringify({ checkpoints }, null, 2) + "\n");
@@ -5458,9 +5463,9 @@ describe("ask rules: install side (D-18)", () => {
     expect(ledger.createdFile).toBe(true);
     expect(ledger.createdPermissions).toBe(true);
     expect(ledger.createdAsk).toBe(true);
-    // The marker keeps a fixed field order with the ledger after installMode.
+    // The marker keeps a fixed field order with the one ledger last (plan 33.1-36).
     const markerKeys = Object.keys(JSON.parse(readFileSync(join(target, ".grugops", "install.json"), "utf8")));
-    expect(markerKeys).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
+    expect(markerKeys).toEqual(MARKER_KEY_ORDER);
     expect(r.stdout).toContain("-- permission rules --");
     expect(r.stdout).toContain("speed bump");
     expect(r.stdout).toContain("not a security boundary");
@@ -5596,19 +5601,18 @@ describe("ask rules: install side (D-18)", () => {
     expect(doc2.stdout).toMatch(/WARN\s+ask rule absent from \.claude\/settings\.json: Bash\(git push \*\)/);
   });
 
-  it("ask rules: --check on a marker without the ledger says the install predates the ask rules", () => {
+  it("ask rules: --check on an install ledger with no ask-rules entry says it records no ask rules", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const markerPath = join(target, ".grugops", "install.json");
-    const marker = JSON.parse(readFileSync(markerPath, "utf8"));
-    delete marker.claudeAskRules;
+    const marker = withLedger(JSON.parse(readFileSync(markerPath, "utf8")), (l) => l.filter((e) => e.kind !== "ask-rules"));
     writeFileSync(markerPath, JSON.stringify(marker, null, 2) + "\n");
     const doc = spawnSync("node", [INSTALL_JS, "--check"], {
       encoding: "utf8",
       env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT },
     });
-    expect(doc.stdout).toContain("predates the Claude Code ask rules");
+    expect(doc.stdout).toContain("the install ledger records no ask rules for .claude/settings.json");
     expect(doc.stdout).not.toContain("ask rule present:");
   });
 });
@@ -5704,14 +5708,13 @@ describe("ask rules: uninstall side (D-18)", () => {
     const home2 = mkTmp();
     expect(runInstall(target2, home2).status).toBe(0);
     const markerPath = join(target2, ".grugops", "install.json");
-    const marker = JSON.parse(readFileSync(markerPath, "utf8"));
-    delete marker.claudeAskRules;
+    const marker = withLedger(JSON.parse(readFileSync(markerPath, "utf8")), (l) => l.filter((e) => e.kind !== "ask-rules"));
     writeFileSync(markerPath, JSON.stringify(marker, null, 2) + "\n");
     const pre = readFileSync(settingsFile(target2));
     const r2 = runUninstall(target2, home2);
     expect(r2.status).toBe(0);
     expect(readFileSync(settingsFile(target2)).equals(pre)).toBe(true);
-    expect(r2.stdout).toMatch(/skipped\s+\.claude\/settings\.json ask rules \(the install marker has no ask-rule ledger/);
+    expect(r2.stdout).toMatch(/skipped\s+\.claude\/settings\.json ask rules \(the install ledger has no ask-rules entry/);
   });
 
   it("ask rules reversal: DRY_RUN=1 uninstall names what it would remove and changes no byte", () => {
@@ -5732,11 +5735,11 @@ describe("ask rules: uninstall side (D-18)", () => {
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // DIRECTORY OWNERSHIP (plan 33.1-21, CR-02 ownership half / D-18 / D-20 part (c)).
 //
-// Uninstall removes an empty directory only when grugops owns it: its path is in the install
-// marker's `createdDirs` ledger (a directory install itself created). Its name is not evidence
+// Uninstall removes an empty directory only when grugops owns it: the install ledger has a `dir`
+// entry for it (a directory install itself created). Its name is not evidence
 // (plan 33.1-28 removed the `grugops`-name rule, brief DC-2 carry #7). An empty `.github/`,
 // `.gemini/`, `.claude/` or `.claude/agents/` the user made survives and is reported `left`. The expected removals below are DERIVED from the
-// marker's `createdDirs` and the uninstaller's fixed candidate shape, never hard-coded as a list.
+// ledger's dir entries and the uninstaller's fixed candidate shape, never hard-coded as a list.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe("directory ownership (CR-02, plan 33.1-21)", () => {
   const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
@@ -5767,9 +5770,8 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
     const USER_DIRS = [".github", ".gemini", ".claude/agents"];
     for (const rel of USER_DIRS) mkdirSync(join(target, ...rel.split("/")), { recursive: true });
     expect(runInstall(target, home).status).toBe(0);
-    // A marker without the field counts as "created nothing" here, so this case reads the ownership
-    // behaviour, not the ledger's presence (that is the next case).
-    const created = (readMarkerJson(target).createdDirs ?? []) as string[];
+    // This case reads the ownership behaviour of the dir entries install wrote.
+    const created = dirList(readMarkerJson(target));
     for (const rel of [...USER_DIRS, ".claude"]) expect(created, `install did not create ${rel}`).not.toContain(rel);
 
     const r = runUninstall(target, home);
@@ -5787,7 +5789,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const marker = readMarkerJson(target);
-    const created = marker.createdDirs as string[];
+    const created = dirList(marker);
     expect(Array.isArray(created)).toBe(true);
     expect(created).toEqual([...created].sort());
     for (const rel of created) expect(lstatSync(join(target, ...rel.split("/"))).isDirectory(), rel).toBe(true);
@@ -5803,7 +5805,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
     expect(r.stdout).toMatch(/left\s+tools\/ \(/);
   });
 
-  it("directory ownership: a legacy marker (no createdDirs) removes no empty directory, grugops-named ones included, and says why each is left", () => {
+  it("directory ownership: an install ledger with no dir entries removes no empty directory, grugops-named ones included, and says why each is left", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -5813,8 +5815,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       .filter((n) => n.startsWith("grugops"))
       .map((n) => `.claude/skills/${n}`);
     expect(skillDirs.length).toBeGreaterThan(0);
-    delete marker.createdDirs;
-    writeMarkerJson(target, marker);
+    writeMarkerJson(target, withLedger(marker, (l) => l.filter((e) => e.kind !== "dir")));
 
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
@@ -5825,7 +5826,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       expect(isEmptyDir(p), `${rel} is not empty — the case measures nothing`).toBe(true);
       const lines = leftFor(r.stdout, target, rel);
       expect(lines.length, `no left line for ${rel}`).toBe(1);
-      expect(lines[0]).toMatch(/predates the directory ledger/);
+      expect(lines[0]).toMatch(/not in the install ledger as a directory/);
     }
     for (const rel of SHARED_NAME_DIRS) {
       const p = join(target, ...rel.split("/"));
@@ -5833,71 +5834,67 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       if (isEmptyDir(p)) {
         const lines = leftFor(r.stdout, target, rel);
         expect(lines.length, `no left line for ${rel}`).toBe(1);
-        expect(lines[0]).toMatch(/predates the directory ledger/);
+        expect(lines[0]).toMatch(/not in the install ledger as a directory/);
       }
     }
   });
 
-  it("directory ownership: a malformed createdDirs is a verify finding on both sides; install writes it back verbatim and uninstall removes no shared-name directory", () => {
-    const MALFORMED: unknown[] = ["x", [1], ["../outside"], ["/abs"], ["a//b"], ["a\\b"], ["c:x"], ["."], [""], null, {}];
+  it("directory ownership: a malformed dir entry (or a ledger that is not a list) is a verify finding on both sides; install writes the ledger back verbatim and uninstall removes no shared-name directory", () => {
+    // A malformed dir entry appended to the real ledger, or a `ledger` value that is not a list.
+    const MALFORMED: Array<{ entry?: unknown; ledger?: unknown }> = [
+      { ledger: "x" },
+      { entry: { path: 1, kind: "dir" } },
+      ...["../outside", "/abs", "a//b", "a\\b", "c:x", ".", ""].map((path) => ({ entry: { path, kind: "dir" } })),
+      { entry: { path: "a", kind: "dir", extra: true } },
+      { ledger: null },
+      { ledger: {} },
+    ];
     for (const bad of MALFORMED) {
       const target = makeFixture();
       const home = mkTmp();
       expect(runInstall(target, home).status).toBe(0);
       const marker = readMarkerJson(target);
-      marker.createdDirs = bad;
-      writeMarkerJson(target, marker);
+      const forged = "ledger" in bad ? { ...marker, ledger: bad.ledger } : withLedger(marker, (l) => [...l, bad.entry]);
+      writeMarkerJson(target, forged);
 
       const ri = runInstall(target, home);
       const tag = JSON.stringify(bad);
       expect(ri.status, `${tag}: install ${ri.stdout}`).toBe(3);
-      expect(linesUnder(ri.stdout, "verify").filter((l) => /directory ledger/.test(l)).length, tag).toBe(1);
-      expect(readMarkerJson(target).createdDirs, tag).toEqual(bad);
+      expect(linesUnder(ri.stdout, "verify").filter((l) => /install\.json — the install ledger is malformed/.test(l)).length, tag).toBe(1);
+      expect(readMarkerJson(target).ledger, tag).toEqual(forged.ledger);
 
       const ru = runUninstall(target, home);
       expect(ru.status, `${tag}: uninstall ${ru.stdout}`).toBe(3);
-      expect(linesUnder(ru.stdout, "verify").filter((l) => /directory ledger/.test(l)).length, tag).toBe(1);
+      expect(linesUnder(ru.stdout, "verify").filter((l) => /malformed install ledger/.test(l)).length, tag).toBe(1);
       for (const rel of SHARED_NAME_DIRS) expect(existsSync(join(target, ...rel.split("/"))), `${tag}: ${rel}`).toBe(true);
     }
   });
 
-  it("directory ownership: the marker keeps a fixed key order, always writes createdDirs, and a second install is byte-identical", () => {
+  it("directory ownership: the marker keeps a fixed key order, always writes the ledger, and a second install is byte-identical", () => {
     const first = makeFixture();
     const home = mkTmp();
     expect(runInstall(first, home).status).toBe(0);
-    expect(Object.keys(readMarkerJson(first))).toEqual([
-      "kitVersion",
-      "grugopsHome",
-      "kitRoot",
-      "installMode",
-      "target",
-      "claudeAskRules",
-      "createdDirs",
-      "createdFiles",
-      "geminiSettings",
-      "kitFiles",
-      "appendedBlocks",
-    ]);
+    expect(Object.keys(readMarkerJson(first))).toEqual(MARKER_KEY_ORDER);
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
     expect(readFileSync(markerPathOf(first)).equals(m1)).toBe(true);
 
     // A target that already holds every directory the first install created: install creates none,
-    // and still writes the field, as an empty array.
+    // and records no dir entry.
     const second = makeFixture();
-    for (const rel of JSON.parse(m1.toString("utf8")).createdDirs as string[]) {
+    for (const rel of dirList(JSON.parse(m1.toString("utf8")))) {
       mkdirSync(join(second, ...rel.split("/")), { recursive: true });
     }
     expect(runInstall(second, home).status).toBe(0);
-    expect(readMarkerJson(second).createdDirs).toEqual([]);
+    expect(dirList(readMarkerJson(second))).toEqual([]);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // FILE OWNERSHIP (plan 33.1-28, Gap B / re-review WR-05, brief DC-2, D-18).
 //
-// Uninstall deletes a file only on an install record: the install marker's `createdFiles` ledger
-// lists it (install created it), and, for a file that held a sentinel block, THIS run removed a
+// Uninstall deletes a file only on an install record: the install ledger has a kit-false `file`
+// entry for it (install created it), and, for a file that held a sentinel block, THIS run removed a
 // block from it and the file is blank afterwards. Presence or shape is never proof: a blank
 // `.github/copilot-instructions.md` in a repository grugops never installed into is the user's, and
 // survives byte-identical. The expected ledger entries are read from the marker a real install
@@ -5905,10 +5902,10 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
   const COPILOT = ".github/copilot-instructions.md";
-  // createdFiles is an object from path to the content record of what install wrote (red-team of
-  // plan 33.1-28); these cases ask which paths it lists.
+  // The kit-false file entries, as path → the content record of what install wrote (red-team of plan
+  // 33.1-28; fileRecords); these cases ask which paths they list.
   const fileKeys = (v: unknown): string[] => {
-    expect(v !== null && typeof v === "object" && !Array.isArray(v), `createdFiles is not an object: ${JSON.stringify(v)}`).toBe(true);
+    expect(v !== null && typeof v === "object" && !Array.isArray(v), `the file records are not an object: ${JSON.stringify(v)}`).toBe(true);
     return Object.keys(v as Record<string, unknown>);
   };
   const markerPathOf = (t: string): string => join(t, ".grugops", "install.json");
@@ -5969,18 +5966,18 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     expect(readFileSync(copilotPath(target)).equals(before)).toBe(true);
   });
 
-  it("file ownership: a Copilot file install created is recorded as createdFiles and reversed, then .github/", () => {
+  it("file ownership: a Copilot file install created is recorded as a file entry and reversed, then .github/", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(existsSync(join(target, ".github")), "PREMISE: the fixture has no .github/").toBe(false);
     expect(runInstall(target, home).status).toBe(0);
-    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain(COPILOT);
+    expect(fileKeys(fileRecords(readMarkerJson(target), false))).toContain(COPILOT);
 
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(existsSync(copilotPath(target)), "the Copilot file install created was not reversed").toBe(false);
     const removed = naming(r.stdout, "removed", COPILOT);
-    expect(removed.some((l) => /install created it/.test(l) && /createdFiles/.test(l)), r.stdout).toBe(true);
+    expect(removed.some((l) => /install created it/.test(l) && /recorded in the install ledger/.test(l)), r.stdout).toBe(true);
     expect(existsSync(join(target, ".github")), ".github/ (install created it) was not removed").toBe(false);
     expect(r.stdout).not.toContain("grugops-created");
   });
@@ -5991,7 +5988,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     mkdirSync(join(target, ".github"));
     writeFileSync(copilotPath(target), "\n");
     expect(runInstall(target, home).status).toBe(0);
-    expect(fileKeys(readMarkerJson(target).createdFiles)).not.toContain(COPILOT);
+    expect(fileKeys(fileRecords(readMarkerJson(target), false))).not.toContain(COPILOT);
     expect(readFileSync(copilotPath(target), "utf8")).toContain("GSD:grugops-copilot-start-here"); // non-vacuous
 
     const r = runUninstall(target, home);
@@ -6004,13 +6001,13 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     expect(left[0]).toMatch(/there is no record that install created it/);
   });
 
-  it("file ownership: the marker keys are in fixed order with createdFiles before geminiSettings; a second install is byte-identical; a run that creates no file writes {}", () => {
+  it("file ownership: the marker keys are in fixed order ending with the ledger; a second install is byte-identical; a run that creates no file records no kit-false file entry", () => {
     const first = makeFixture();
     const home = mkTmp();
     expect(runInstall(first, home).status).toBe(0);
     const m = readMarkerJson(first);
-    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles", "appendedBlocks"]);
-    const created = fileKeys(m.createdFiles);
+    expect(Object.keys(m)).toEqual(MARKER_KEY_ORDER);
+    const created = fileKeys(fileRecords(m, false));
     expect(created).toEqual([...created].sort());
     expect(created.length).toBeGreaterThan(0);
     // Each value is the record of what install wrote there: the sha256 of the file's bytes now and,
@@ -6018,14 +6015,14 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     for (const rel of created) {
       const p = join(first, ...rel.split("/"));
       const sha = createHash("sha256").update(readFileSync(p)).digest("hex");
-      expect((m.createdFiles as Record<string, string>)[rel], rel).toBe(`sha256:${sha};mode=${(statSync(p).mode & 0o7777).toString(8).padStart(4, "0")}`);
+      expect(fileRecords(m, false)[rel], rel).toBe(`sha256:${sha};mode=${(statSync(p).mode & 0o7777).toString(8).padStart(4, "0")}`);
     }
     const m1 = readFileSync(markerPathOf(first));
     expect(runInstall(first, home).status).toBe(0);
     expect(readFileSync(markerPathOf(first)).equals(m1), "a second install changed the marker").toBe(true);
 
     // A target that already holds every file the first install created (the same bytes): install
-    // creates none, and still writes the field, as an empty object (a fresh install is the whole history).
+    // creates none, and records no kit-false file entry (a fresh install is the whole history).
     const second = makeFixture();
     for (const rel of created) {
       const dest = join(second, ...rel.split("/"));
@@ -6033,7 +6030,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
       writeFileSync(dest, readFileSync(join(first, ...rel.split("/"))));
     }
     expect(runInstall(second, home).status).toBe(0);
-    expect(readMarkerJson(second).createdFiles).toEqual({});
+    expect(fileRecords(readMarkerJson(second), false)).toEqual({});
   });
   // ── Task 2: every file install creates goes through the same record (plan 33.1-28) ──────────
   const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
@@ -6071,7 +6068,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
       const t = fixtureWithoutClaude();
       expect(runInstall(t, mkTmp()).status).toBe(0);
       const m = readMarkerJson(t);
-      memo = { files: fileKeys(m.createdFiles), dirs: m.createdDirs as string[], source: t };
+      memo = { files: fileKeys(fileRecords(m, false)), dirs: dirList(m), source: t };
       return memo;
     };
   })();
@@ -6080,7 +6077,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const target = fixtureWithoutClaude();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain("CLAUDE.md");
+    expect(fileKeys(fileRecords(readMarkerJson(target), false))).toContain("CLAUDE.md");
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(existsSync(join(target, "CLAUDE.md")), "the CLAUDE.md install created was left behind").toBe(false);
@@ -6092,7 +6089,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     writeFileSync(join(target, "CLAUDE.md"), "\n");
     expect(runInstall(target, home).status).toBe(0);
-    expect(fileKeys(readMarkerJson(target).createdFiles)).not.toContain("CLAUDE.md");
+    expect(fileKeys(fileRecords(readMarkerJson(target), false))).not.toContain("CLAUDE.md");
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(existsSync(join(target, "CLAUDE.md")), "the user's pre-existing blank CLAUDE.md was deleted").toBe(true);
@@ -6102,92 +6099,85 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     expect(left[0]).toMatch(/there is no record that install created it/);
   });
 
-  it("file ownership: a legacy marker (no createdFiles) removes both blocks, deletes neither created file, and says the marker predates the file ledger", () => {
+  it("file ownership: an install ledger with no kit-false file entries removes both blocks, deletes neither created file, and says why", () => {
     const target = fixtureWithoutClaude();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const m = readMarkerJson(target);
-    expect(fileKeys(m.createdFiles)).toEqual(expect.arrayContaining(["CLAUDE.md", COPILOT])); // non-vacuous
-    delete m.createdFiles;
-    writeMarkerJson(target, m);
+    expect(fileKeys(fileRecords(m, false))).toEqual(expect.arrayContaining(["CLAUDE.md", COPILOT])); // non-vacuous
+    writeMarkerJson(target, withLedger(m, (l) => l.filter((e) => !(e.kind === "file" && e.kit === false))));
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     for (const rel of ["CLAUDE.md", COPILOT]) {
       const p = join(target, ...rel.split("/"));
-      expect(existsSync(p), `${rel} was deleted without a file ledger`).toBe(true);
+      expect(existsSync(p), `${rel} was deleted without a file entry`).toBe(true);
       const text = readFileSync(p, "utf8");
       expect(isBlank(text), `${rel}: ${JSON.stringify(text)}`).toBe(true);
       const left = naming(r.stdout, "left", rel);
       expect(left.length, `${rel}\n${r.stdout}`).toBe(1);
-      expect(left[0]).toMatch(/the install marker predates the file ledger/);
+      expect(left[0]).toMatch(/not in the install ledger as a file/);
     }
   });
 
-  it("file ownership: an absent record stays absent — a re-install over a legacy marker that creates nothing leaves both ledgers absent, and uninstall says 'predates'", () => {
-    const target = makeFixture();
-    const home = mkTmp();
-    expect(runInstall(target, home).status).toBe(0);
-    const m = readMarkerJson(target);
-    delete m.createdFiles;
-    delete m.createdDirs;
-    writeMarkerJson(target, m);
-    expect(runInstall(target, home).status).toBe(0);
-    const m2 = readMarkerJson(target);
-    expect(Object.prototype.hasOwnProperty.call(m2, "createdFiles"), "createdFiles was written as a record of nothing").toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(m2, "createdDirs"), "createdDirs was written as a record of nothing").toBe(false);
+  // Plan 33.1-36, category (iii): "an absent record stays absent — a re-install over a legacy marker
+  // that creates nothing leaves both ledgers absent" was deleted. The one ledger is always written, so
+  // there is no partial ledger whose absence a re-install could keep; the round-2 six-record marker is
+  // covered by the class test over RETIRED_RECORDS in install/ledger.test.ts.
 
-    const r = runUninstall(target, home);
-    expect(r.status, r.stdout + r.stderr).toBe(0);
-    expect(r.stdout).not.toMatch(/not in the install marker's/);
-    const copilotLeft = naming(r.stdout, "left", COPILOT);
-    expect(copilotLeft.length, r.stdout).toBe(1);
-    expect(copilotLeft[0]).toMatch(/predates the file ledger/);
-    const geminiLeft = linesUnder(r.stdout, "left").filter((l) => l.replace(/\\/g, "/").startsWith(`${join(target, ".gemini").replace(/\\/g, "/")} (`));
-    expect(geminiLeft.length, r.stdout).toBe(1);
-    expect(geminiLeft[0]).toMatch(/predates the directory ledger/);
-  });
-
-  it("file ownership: a malformed createdFiles is a verify finding on both sides; install writes it back verbatim and uninstall deletes neither created file", () => {
-    // The plan-28 array of bare paths is malformed too: a path with no content record proves nothing
-    // (red-team of plan 33.1-28). So are a bad key and a bad record value.
-    const MALFORMED: unknown[] = ["x", [1], ["CLAUDE.md"], null, { "../outside": `sha256:${"0".repeat(64)}` }, { "CLAUDE.md": "sha256:XYZ" }, { "CLAUDE.md": 1 }];
+  it("file ownership: a malformed file entry is a verify finding on both sides; install writes the ledger back verbatim and uninstall deletes neither created file", () => {
+    // A file entry with no content record proves nothing (red-team of plan 33.1-28; the plan-28 bare
+    // path), and neither does a bad path, a bad record value or a wrong-typed one. Each replaces the
+    // real CLAUDE.md file entry; "x" and null replace the whole ledger.
+    const z = `sha256:${"0".repeat(64)}`;
+    const MALFORMED: Array<{ entry?: Record<string, unknown>; ledger?: unknown }> = [
+      { ledger: "x" },
+      { entry: { path: "CLAUDE.md", kind: "file", content: 1, kit: false } },
+      { entry: { path: "CLAUDE.md", kind: "file", kit: false } },
+      { ledger: null },
+      { entry: { path: "../outside", kind: "file", content: z, kit: false } },
+      { entry: { path: "CLAUDE.md", kind: "file", content: "sha256:XYZ", kit: false } },
+      { entry: { path: "CLAUDE.md", kind: "file", content: z } },
+    ];
     for (const bad of MALFORMED) {
       const target = fixtureWithoutClaude();
       const home = mkTmp();
       expect(runInstall(target, home).status).toBe(0);
       const m = readMarkerJson(target);
-      m.createdFiles = bad;
-      writeMarkerJson(target, m);
+      const forged =
+        "ledger" in bad
+          ? { ...m, ledger: bad.ledger }
+          : withLedger(m, (l) => [...l.filter((e) => !(e.kind === "file" && e.path === "CLAUDE.md")), bad.entry]);
+      writeMarkerJson(target, forged);
       const tag = JSON.stringify(bad);
 
       const ri = runInstall(target, home);
       expect(ri.status, `${tag}: install ${ri.stdout}`).toBe(3);
-      expect(verifyLinesMatching(ri.stdout, /file ledger/).length, `${tag}\n${ri.stdout}`).toBe(1);
-      expect(readMarkerJson(target).createdFiles, tag).toEqual(bad);
+      expect(verifyLinesMatching(ri.stdout, /install\.json — the install ledger is malformed/).length, `${tag}\n${ri.stdout}`).toBe(1);
+      expect(readMarkerJson(target).ledger, tag).toEqual(forged.ledger);
 
       const ru = runUninstall(target, home);
       expect(ru.status, `${tag}: uninstall ${ru.stdout}`).toBe(3);
-      expect(verifyLinesMatching(ru.stdout, /file ledger/).length, `${tag}\n${ru.stdout}`).toBe(1);
+      expect(verifyLinesMatching(ru.stdout, /malformed install ledger/).length, `${tag}\n${ru.stdout}`).toBe(1);
       for (const rel of ["CLAUDE.md", COPILOT]) expect(existsSync(join(target, ...rel.split("/"))), `${tag}: ${rel}`).toBe(true);
     }
   });
 
-  it("file ownership: a created file that is no longer a file is dropped from createdFiles by the next install", () => {
+  it("file ownership: a created file that is no longer a file loses its file entry at the next install", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain(COPILOT);
+    expect(fileKeys(fileRecords(readMarkerJson(target), false))).toContain(COPILOT);
     rmSync(copilotPath(target));
     mkdirSync(copilotPath(target)); // the path now holds a directory, which install refuses (exit 3)
     expect(runInstall(target, home).status).toBe(3);
-    expect(fileKeys(readMarkerJson(target).createdFiles)).not.toContain(COPILOT);
+    expect(fileKeys(fileRecords(readMarkerJson(target), false))).not.toContain(COPILOT);
   });
 
   it("file ownership: a created Copilot file whose block the user removed, leaving it blank, is kept (this run removed no block)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(fileKeys(readMarkerJson(target).createdFiles)).toContain(COPILOT);
+    expect(fileKeys(fileRecords(readMarkerJson(target), false))).toContain(COPILOT);
     writeFileSync(copilotPath(target), "\n");
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
@@ -6247,7 +6237,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // AGENTS.md and records the link's target; its uninstall removes that link.
     expect(runInstall(installedT, home, "--symlink").status).toBe(0);
     expect(lstatSync(join(installedT, "AGENTS.md")).isSymbolicLink(), "PREMISE: the --symlink install linked AGENTS.md").toBe(true);
-    expect((readMarkerJson(installedT).createdFiles as Record<string, string>)["AGENTS.md"]).toBe(`link:${join(REPO_ROOT, "AGENTS.md")}`);
+    expect(fileRecords(readMarkerJson(installedT), false)["AGENTS.md"]).toBe(`link:${join(REPO_ROOT, "AGENTS.md")}`);
     expect(runUninstall(installedT, home).status).toBe(0);
     expect(lstatSync(join(installedT, "AGENTS.md"), { throwIfNoEntry: false }), "install's own AGENTS.md link was not removed").toBeUndefined();
   });
@@ -6278,7 +6268,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const home = mkTmp();
     mkdirSync(join(target, ".gemini")); // the user's own, empty before install
     expect(runInstall(target, home).status).toBe(0);
-    expect(readMarkerJson(target).createdDirs as string[]).toContain("tools");
+    expect(dirList(readMarkerJson(target))).toContain("tools");
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(existsSync(join(target, ".gemini"))).toBe(true);
@@ -6298,7 +6288,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
 // Uninstall used to edit or delete `.gemini/settings.json` by substring presence and shape: any file
 // holding the text "AGENTS.md" anywhere was parsed and its context.fileName rewritten, and a file of
 // the shape CLAUDE.md itself recommends was deleted outright, in a repository grugops was never
-// installed into. Install now records what it did to the file in the marker's `geminiSettings`
+// installed into. Install now records what it did to the file in the `gemini` entry of the install
 // ledger, and uninstall reverses only that. A file with no record is left untouched and reported.
 // Every pre-existing file in the round-trip cases is written as JSON.stringify(v, null, 2) + "\n",
 // the installer's own formatting, so the round trip is compared as raw bytes.
@@ -6371,7 +6361,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(runInstall(target, home).status).toBe(0);
     const bytes = readFileSync(gemPath(target));
     expect(bytes.toString("utf8")).toBe(asInstaller(RECOMMENDED));
-    const ledger = readMarkerJson(target).geminiSettings;
+    const ledger = geminiRecord(readMarkerJson(target));
     expect(ledger).toEqual({
       createdFile: true,
       addedEntry: true,
@@ -6392,23 +6382,11 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(existsSync(join(target, ".gemini")), ".gemini/ (install created it) was not removed").toBe(false);
   });
 
-  it("Gemini settings ownership: the marker keys put geminiSettings after createdFiles (kitFiles last, plan 33.1-30); a second install leaves the marker byte-identical", () => {
+  it("Gemini settings ownership: the marker keys end with the one ledger (plan 33.1-36); a second install leaves the marker byte-identical", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(Object.keys(readMarkerJson(target))).toEqual([
-      "kitVersion",
-      "grugopsHome",
-      "kitRoot",
-      "installMode",
-      "target",
-      "claudeAskRules",
-      "createdDirs",
-      "createdFiles",
-      "geminiSettings",
-      "kitFiles",
-      "appendedBlocks",
-    ]);
+    expect(Object.keys(readMarkerJson(target))).toEqual(MARKER_KEY_ORDER);
     const m1 = readFileSync(markerPathOf(target));
     const g1 = readFileSync(gemPath(target));
     expect(runInstall(target, home).status).toBe(0);
@@ -6420,7 +6398,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
   const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
     writeFileSync(markerPathOf(t), JSON.stringify(m, null, 2) + "\n");
   const gemBytes = (t: string): Buffer => readFileSync(gemPath(t));
-  const ledgerOf = (t: string): unknown => readMarkerJson(t).geminiSettings;
+  const ledgerOf = (t: string): unknown => geminiRecord(readMarkerJson(t));
   const verifyNaming = (stdout: string): string[] => linesUnder(stdout, "verify").filter((l) => l.includes(GEM));
   const NO_STACK_TRACE = /^\s+at .+\(.+:\d+:\d+\)$/m;
   const install = (t: string, home: string): void => {
@@ -6481,7 +6459,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       const r = uninstallBoth(target, home);
       expect(r.status, r.stdout + r.stderr).toBe(0);
       expect(gemBytes(target).equals(before), `the round trip did not restore the bytes\n${gemBytes(target).toString("utf8")}\n${r.stdout}`).toBe(true);
-      expect(naming(r.stdout, "removed").some((l) => /AGENTS\.md entry/.test(l) && /geminiSettings/.test(l)), r.stdout).toBe(true);
+      expect(naming(r.stdout, "removed").some((l) => /AGENTS\.md entry/.test(l) && /recorded in the install ledger/.test(l)), r.stdout).toBe(true);
     });
   }
 
@@ -6585,7 +6563,7 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
       expect(gemBytes(target).equals(before)).toBe(true);
       // Red-team B2 of plan 33.1-29: a fresh install records that it added no entry and why, so no
       // uninstall line can say the marker predates the ledger.
-      expect(readMarkerJson(target).geminiSettings, "a refused file must be recorded as claiming nothing").toMatchObject({
+      expect(geminiRecord(readMarkerJson(target)), "a refused file must be recorded as claiming nothing").toMatchObject({
         createdFile: false,
         addedEntry: false,
         noEntryReason: "refused",
@@ -6605,36 +6583,34 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(gemBytes(target).equals(before)).toBe(true);
   });
 
-  it("Gemini settings ownership: an absent record stays absent — a legacy marker plus a re-install that changes nothing, then uninstall says the marker predates the ledger", () => {
+  const withoutGemini = (m: Record<string, unknown>): Record<string, unknown> => withLedger(m, (l) => l.filter((e) => e.kind !== "gemini"));
+
+  it("Gemini settings ownership: an absent entry stays absent — a ledger with no gemini entry plus a re-install that changes nothing, then uninstall says there is no record", () => {
     const target = makeFixture();
     const home = mkTmp();
     install(target, home);
-    const m = readMarkerJson(target);
-    delete m.geminiSettings;
-    writeMarkerJson(target, m);
+    writeMarkerJson(target, withoutGemini(readMarkerJson(target)));
     install(target, home);
-    expect(Object.prototype.hasOwnProperty.call(readMarkerJson(target), "geminiSettings"), "the absent record was written").toBe(false);
+    expect(geminiRecord(readMarkerJson(target)), "the absent entry was written").toBeUndefined();
     const before = gemBytes(target);
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
     expect(gemBytes(target).equals(before)).toBe(true);
-    expect(naming(r.stdout, "left").some((l) => /predates the Gemini settings ledger/.test(l)), r.stdout).toBe(true);
+    expect(naming(r.stdout, "left").some((l) => /the install ledger has no gemini entry/.test(l)), r.stdout).toBe(true);
     expect(r.stdout).not.toMatch(/install did not add/);
   });
 
-  it("Gemini settings ownership: a legacy marker (no geminiSettings) — uninstall leaves the file byte-identical with the predates line, exit 0", () => {
+  it("Gemini settings ownership: a ledger with no gemini entry — uninstall leaves the file byte-identical with the no-record line, exit 0", () => {
     const target = makeFixture();
     const home = mkTmp();
     plant(target, asInstaller({ theme: "dark" }));
     install(target, home);
-    const m = readMarkerJson(target);
-    delete m.geminiSettings;
-    writeMarkerJson(target, m);
+    writeMarkerJson(target, withoutGemini(readMarkerJson(target)));
     const before = gemBytes(target);
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
     expect(gemBytes(target).equals(before)).toBe(true);
-    expect(naming(r.stdout, "left").some((l) => /predates the Gemini settings ledger/.test(l) && /remove that entry by hand/.test(l)), r.stdout).toBe(true);
+    expect(naming(r.stdout, "left").some((l) => /the install ledger has no gemini entry/.test(l) && /remove that entry by hand/.test(l)), r.stdout).toBe(true);
   });
 
   const MALFORMED: ReadonlyArray<{ readonly name: string; readonly value: unknown }> = [
@@ -6656,33 +6632,36 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     { name: "a bad fileNameBefore", value: { createdFile: false, addedEntry: true, createdContext: false, fileNameBefore: "object", fileNameContent: `sha256:${"0".repeat(64)}` } },
   ];
   for (const c of MALFORMED) {
-    it(`Gemini settings ownership: a malformed geminiSettings (${c.name}) is one verify on uninstall and a verify on install; nothing is merged or edited, and install writes it back as found`, () => {
+    it(`Gemini settings ownership: a malformed gemini entry (${c.name}) is one verify on uninstall and a verify on install; nothing is merged or edited, and install writes the ledger back as found`, () => {
+      // The malformed value becomes the gemini entry's fields (an object), or the entry itself (a string).
+      const forge = (m: Record<string, unknown>): Record<string, unknown> =>
+        withLedger(m, (l) => [
+          ...l.filter((e) => e.kind !== "gemini"),
+          typeof c.value === "object" && c.value !== null ? { path: GEM, kind: "gemini", ...(c.value as object) } : c.value,
+        ]);
       const target = makeFixture();
       const home = mkTmp();
       plant(target, asInstaller({ theme: "dark" }));
       install(target, home);
-      const m = readMarkerJson(target);
-      m.geminiSettings = c.value;
-      writeMarkerJson(target, m);
+      writeMarkerJson(target, forge(readMarkerJson(target)));
       const merged = gemBytes(target);
       const r = uninstallBoth(target, home);
       expect(r.status, r.stdout).toBe(3);
-      expect(linesUnder(r.stdout, "verify").filter((l) => /geminiSettings/.test(l)).length, r.stdout).toBe(1);
+      expect(linesUnder(r.stdout, "verify").filter((l) => /malformed install ledger/.test(l)).length, r.stdout).toBe(1);
       expect(gemBytes(target).equals(merged), r.stdout).toBe(true);
 
-      // Install over the same marker, with a settings file a merge would change: no merge, the field back as found.
+      // Install over the same marker, with a settings file a merge would change: no merge, the ledger back as found.
       const t2 = makeFixture();
       const pre = plant(t2, asInstaller({ theme: "light" }));
       install(t2, home);
-      const m2 = readMarkerJson(t2);
-      m2.geminiSettings = c.value;
-      writeMarkerJson(t2, m2);
+      const forged = forge(readMarkerJson(t2));
+      writeMarkerJson(t2, forged);
       writeFileSync(gemPath(t2), pre);
       const i = runInstall(t2, home);
       expect(i.status, i.stdout).toBe(3);
       expect(verifyNaming(i.stdout).length, i.stdout).toBeGreaterThanOrEqual(1);
       expect(gemBytes(t2).equals(pre), "install merged over a malformed ledger").toBe(true);
-      expect(readMarkerJson(t2).geminiSettings).toEqual(c.value);
+      expect(readMarkerJson(t2).ledger).toEqual(forged.ledger);
     });
   }
 
@@ -6822,23 +6801,26 @@ describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02,
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    const marker = JSON.parse(readFileSync(markerPathOf(target), "utf8"));
-    delete marker.claudeAskRules.createdAsk;
-    const malformed = marker.claudeAskRules;
+    // A malformed ask-rules entry (createdAsk missing) makes the one install ledger malformed.
+    const marker = withLedger(JSON.parse(readFileSync(markerPathOf(target), "utf8")), (l) => {
+      for (const e of l) if (e.kind === "ask-rules") delete (e as RawEntry).createdAsk;
+    });
+    const malformed = marker.ledger;
     writeFileSync(markerPathOf(target), JSON.stringify(marker, null, 2) + "\n");
     const settingsPre = readFileSync(settingsFile(target));
 
     const r = runInstall(target, home);
     expect(r.status, r.stdout).toBe(3);
-    expect(verifyLines(r.stdout).filter((l) => /ask-rule ledger/.test(l) && /malformed/.test(l)).length).toBe(1);
+    expect(verifyLines(r.stdout).filter((l) => /\.claude\/settings\.json — the install ledger/.test(l) && /malformed/.test(l)).length).toBe(1);
     expect(r.stdout).not.toContain("kept as the user's own rule");
     expect(readFileSync(settingsFile(target)).equals(settingsPre)).toBe(true);
-    expect(JSON.parse(readFileSync(markerPathOf(target), "utf8")).claudeAskRules).toEqual(malformed);
+    expect(JSON.parse(readFileSync(markerPathOf(target), "utf8")).ledger).toEqual(malformed);
 
-    // Uninstall's fail-closed refusal is unchanged.
+    // Uninstall's fail-closed refusal: the one verify for the malformed ledger, and no ask rule removed.
     const u = runUninstall(target, home);
     expect(u.status, u.stdout).toBe(3);
-    expect(u.stdout).toMatch(/verify\s+\.claude\/settings\.json ask rules — the ask-rule ledger in \.grugops\/install\.json is malformed/);
+    expect(u.stdout).toMatch(/verify\s+\.grugops\/install\.json holds a malformed install ledger/);
+    expect(u.stdout).toMatch(/left\s+\.claude\/settings\.json ask rules \(the install ledger could not be used/);
     expect(readFileSync(settingsFile(target)).equals(settingsPre)).toBe(true);
   });
 
@@ -6863,16 +6845,17 @@ describe("ask rules: one ledger reader, fail closed on both sides (WR-05, IN-02,
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    const marker = JSON.parse(readFileSync(markerPathOf(target), "utf8"));
-    marker.claudeAskRules.added = "not-an-array";
+    const marker = withLedger(JSON.parse(readFileSync(markerPathOf(target), "utf8")), (l) => {
+      for (const e of l) if (e.kind === "ask-rules") (e as RawEntry).added = "not-an-array";
+    });
     writeFileSync(markerPathOf(target), JSON.stringify(marker, null, 2) + "\n");
     const doc = spawnSync("node", [INSTALL_JS, "--check"], {
       encoding: "utf8",
       env: { ...process.env, GRUGOPS_HOME: home, TARGET: target, GRUGOPS_SRC: REPO_ROOT },
     });
     expect(doc.status, doc.stdout).toBe(1);
-    expect(doc.stdout).toMatch(/FAIL\s+.*malformed claudeAskRules ledger/);
-    expect(doc.stdout).toMatch(/info\s+.*ask-rule ledger.*malformed/);
+    expect(doc.stdout).toMatch(/FAIL\s+.*malformed install ledger \(entry \d+: added is not a list of strings\)/);
+    expect(doc.stdout).toMatch(/info\s+.*install ledger.*malformed/);
     expect(doc.stdout).not.toContain("predates the Claude Code ask rules");
     expect(doc.stdout).not.toContain("ask rule present:");
   });
@@ -7490,7 +7473,7 @@ describe("uninstall reads every user path through readUserFile (DC-3, plan 33.1-
 //
 // Uninstall used to remove every grugops skill and adapter file at a kit-derived path without
 // comparing its content, so a user's edit to one of them was deleted with it. Install now records
-// in the marker (as `kitFiles`) what it wrote to each kit file: the sha256 of the bytes, or the link
+// in the install ledger (a kit-true `file` entry) what it wrote to each kit file: the sha256 of the bytes, or the link
 // target of a --symlink install. Uninstall removes a kit file only while it still holds that record.
 // The kit-file set is derived from the target tree a real install wrote, never typed as a list.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -7540,7 +7523,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
   };
   const EDIT = "\n<!-- the user's own line, added after install -->\n";
 
-  it("kit-file ownership: a copy-mode install records every kit file in kitFiles with the sha256 of its bytes", () => {
+  it("kit-file ownership: a copy-mode install records every kit file as a kit-true file entry with the sha256 of its bytes", () => {
     const target = makeFixture();
     const home = mkTmp();
     const r = runInstall(target, home);
@@ -7549,8 +7532,8 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     // 7 skills and 17 adapters today; the set itself comes from the tree.
     expect(kit.length).toBe(24);
     const m = readMarkerJson(target);
-    expect(m.kitFiles, "the marker has no kitFiles record").toBeTypeOf("object");
-    const rec = m.kitFiles as Record<string, string>;
+    expect(Array.isArray(m.ledger), "the marker has no install ledger").toBe(true);
+    const rec = fileRecords(m, true);
     expect(Object.keys(rec)).toEqual(kit);
     // The file record carries the file's mode since red-team L1 of plan 33.1-34.
     for (const rel of kit) expect(rec[rel], rel).toBe(`${sha(readFileSync(at(target, rel)))};mode=${(statSync(at(target, rel)).mode & 0o7777).toString(8).padStart(4, "0")}`);
@@ -7596,29 +7579,17 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(kitFilesIn(target)).toEqual([]);
   });
 
-  it("kit-file ownership: the marker keys end with kitFiles after geminiSettings, and a second install leaves the marker byte-identical", () => {
+  it("kit-file ownership: the marker keys end with the one ledger, and a second install leaves the marker byte-identical", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
-    expect(Object.keys(readMarkerJson(target))).toEqual([
-      "kitVersion",
-      "grugopsHome",
-      "kitRoot",
-      "installMode",
-      "target",
-      "claudeAskRules",
-      "createdDirs",
-      "createdFiles",
-      "geminiSettings",
-      "kitFiles",
-      "appendedBlocks",
-    ]);
+    expect(Object.keys(readMarkerJson(target))).toEqual(MARKER_KEY_ORDER);
     const m1 = readFileSync(markerPathOf(target));
     expect(runInstall(target, home).status).toBe(0);
     expect(readFileSync(markerPathOf(target)).equals(m1), "a second install changed the marker").toBe(true);
   });
 
-  // ── Task 2: the legacy fallback, no marker, --symlink, malformed records, DRY_RUN, special files ──
+  // ── Task 2: no kit-file entries, no marker, --symlink, malformed records, DRY_RUN, special files ──
   const srcOf = (rel: string): string => join(REPO_ROOT, ...rel.split("/"));
   const sameAsSource = (t: string, rel: string): boolean => {
     try {
@@ -7653,10 +7624,10 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     });
     return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   };
+  // An install ledger with every kit-true file entry taken out (plan 33.1-36: the one ledger has no
+  // partial form, so this is the closest shape to the retired "marker without kitFiles").
   const dropKitFiles = (t: string): void => {
-    const m = readMarkerJson(t);
-    delete m.kitFiles;
-    writeMarkerJson(t, m);
+    writeMarkerJson(t, withLedger(readMarkerJson(t), (l) => l.filter((e) => !(e.kind === "file" && e.kit === true))));
   };
   // A copy of the kit's own skill and adapter sources (all uninstall derives its kit set from), for the
   // cases that need a second checkout or a special file in the kit source.
@@ -7667,7 +7638,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     return k;
   };
 
-  it("kit-file ownership: a legacy marker (no kitFiles) — uninstall removes every kit file byte-identical to its kit source and leaves every other one with the manual remedy, exit 0", () => {
+  it("kit-file ownership: an install ledger with no kit-file entries — uninstall removes no kit file, byte-identical copies included (the byte-identity fallback is gone, plan 33.1-36), exit 0", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -7682,20 +7653,17 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(differing.filter((rel) => rel.startsWith(".claude/agents/")).length).toBe(17);
     const before = new Map(differing.map((rel) => [rel, readFileSync(at(target, rel))]));
 
+    for (const rel of identical) before.set(rel, readFileSync(at(target, rel)));
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
-    for (const rel of identical) {
-      expect(present(target, rel), `${rel} (byte-identical to the kit source) was not removed`).toBe(false);
-      expect(naming(r.stdout, "removed", rel).length, `${rel}\n${r.stdout}`).toBe(1);
-    }
     for (const [rel, bytes] of before) {
       expect(present(target, rel), `${rel} was removed with no record`).toBe(true);
       expect(readFileSync(at(target, rel)).equals(bytes), `${rel} changed`).toBe(true);
       const left = naming(r.stdout, "left", rel);
       expect(left.length, `no left line for ${rel}\n${r.stdout}`).toBe(1);
-      expect(left[0]).toMatch(/no install record of what was written/);
-      expect(left[0]).toMatch(/remove it by hand/);
+      expect(left[0]).toMatch(/install has no record of writing it — it is not in the install ledger/);
     }
+    expect(r.stdout).not.toMatch(/no install record of what was written/);
   });
 
   it("kit-file ownership: no marker at all — a kit file byte-identical to the kit source and one with user text are both left, and the target changes by zero bytes (never-installed, brief DC-2)", () => {
@@ -7725,7 +7693,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     const probe = makeFixture();
     const home = mkTmp();
     expect(runInstall(probe, home).status).toBe(0);
-    const paths = Object.keys(readMarkerJson(probe).kitFiles as Record<string, string>);
+    const paths = Object.keys(fileRecords(readMarkerJson(probe), true));
     expect(paths.length).toBe(24);
     for (const variant of ["user text", "verbatim kit source"] as const) {
       const target = makeFixture();
@@ -7764,7 +7732,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home, "--symlink").status).toBe(0);
-    const rec = readMarkerJson(target).kitFiles as Record<string, string>;
+    const rec = fileRecords(readMarkerJson(target), true);
     const kit = kitFilesIn(target);
     expect(Object.keys(rec)).toEqual(kit);
     const links = kit.filter((rel) => lstatSync(at(target, rel)).isSymbolicLink());
@@ -7794,7 +7762,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home, "--symlink").status).toBe(0);
-    const rec = readMarkerJson(target).kitFiles as Record<string, string>;
+    const rec = fileRecords(readMarkerJson(target), true);
     const link = Object.keys(rec).find((rel) => rec[rel].startsWith("link:"));
     if (link === undefined) {
       console.log("SKIP: install/install.test.ts --symlink made no link on this host (symlink creation refused)");
@@ -7811,37 +7779,39 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(left[0]).toMatch(/it has changed since install wrote it/);
   });
 
+  // A malformed kit-file entry: an entry that is not an object, a path outside the target, or a content
+  // record outside the grammar. Each replaces the real orchestrator adapter entry.
+  const ORCH = ".claude/agents/grugops-orchestrator.md";
   const MALFORMED_KIT: ReadonlyArray<readonly [string, unknown]> = [
-    ["a string", "x"],
-    ["an array", []],
-    ["a key outside the target", { "../x": `sha256:${"a".repeat(64)}` }],
-    ["an md5 value", { ".claude/agents/grugops-orchestrator.md": "md5:1" }],
-    ["upper-case hex", { ".claude/agents/grugops-orchestrator.md": "sha256:ABC" }],
+    ["a string entry", "x"],
+    ["an array entry", []],
+    ["a path outside the target", { path: "../x", kind: "file", content: `sha256:${"a".repeat(64)}`, kit: true }],
+    ["an md5 value", { path: ORCH, kind: "file", content: "md5:1", kit: true }],
+    ["upper-case hex", { path: ORCH, kind: "file", content: "sha256:ABC", kit: true }],
   ];
   for (const [what, bad] of MALFORMED_KIT) {
-    it(`kit-file ownership: a malformed kitFiles (${what}) — uninstall exits 3 with one verify and removes no kit file; install over it exits 3 and writes it back unchanged`, () => {
+    it(`kit-file ownership: a malformed kit-file entry (${what}) — uninstall exits 3 with one verify and removes no kit file; install over it exits 3 and writes the ledger back unchanged`, () => {
       const target = makeFixture();
       const home = mkTmp();
       expect(runInstall(target, home).status).toBe(0);
       const kit = kitFilesIn(target);
-      const m = readMarkerJson(target);
-      m.kitFiles = bad;
-      writeMarkerJson(target, m);
+      const forged = withLedger(readMarkerJson(target), (l) => [...l.filter((e) => !(e.kind === "file" && e.path === ORCH)), bad]);
+      writeMarkerJson(target, forged);
       const ri = runInstall(target, home);
       expect(ri.status, ri.stdout).toBe(3);
-      expect(linesUnder(ri.stdout, "verify").filter((l) => /kit-file ledger \(kitFiles\)/.test(l)).length, ri.stdout).toBe(1);
-      expect(readMarkerJson(target).kitFiles).toEqual(bad);
+      expect(linesUnder(ri.stdout, "verify").filter((l) => /install\.json — the install ledger is malformed/.test(l)).length, ri.stdout).toBe(1);
+      expect(readMarkerJson(target).ledger).toEqual(forged.ledger);
       const before = new Map(kit.map((rel) => [rel, readFileSync(at(target, rel))]));
       const ru = runUninstall(target, home);
       expect(ru.status, ru.stdout).toBe(3);
-      expect(linesUnder(ru.stdout, "verify").filter((l) => /kit-file ledger \(kitFiles\)/.test(l)).length, ru.stdout).toBe(1);
+      expect(linesUnder(ru.stdout, "verify").filter((l) => /malformed install ledger/.test(l)).length, ru.stdout).toBe(1);
       for (const [rel, bytes] of before) {
         expect(present(target, rel) && readFileSync(at(target, rel)).equals(bytes), `${rel} was removed or changed`).toBe(true);
         expect(naming(ru.stdout, "left", rel).length, `${rel}\n${ru.stdout}`).toBe(1);
       }
       // The marker holds a ledger nobody could use, so it is kept.
       expect(existsSync(markerPathOf(target))).toBe(true);
-      expect(readMarkerJson(target).kitFiles).toEqual(bad);
+      expect(readMarkerJson(target).ledger).toEqual(forged.ledger);
     });
   }
 
@@ -7873,114 +7843,48 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
   // wrong once the user removes the directory (the record is what install last wrote there). Keeping it
   // is still not a carry by presence at uninstall: uninstall removes a kit path only while it holds
   // its record, so the directory is left.
-  it("kit-file ownership: a re-install that could not write a kit path (a directory there) writes no kit file and keeps kitFiles verbatim; uninstall still leaves the directory", () => {
+  it("kit-file ownership: a re-install that could not write a kit path (a directory there) writes no kit file and keeps the kit-file entries verbatim; uninstall still leaves the directory", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
     const rel = ".claude/agents/grugops-orchestrator.md";
-    const before = readMarkerJson(target).kitFiles;
-    expect(Object.keys(before as object)).toContain(rel);
+    const before = fileRecords(readMarkerJson(target), true);
+    expect(Object.keys(before)).toContain(rel);
     rmSync(at(target, rel));
     mkdirSync(at(target, rel));
     const r = runInstall(target, home);
     expect(r.status, r.stdout).toBe(3);
-    expect(readMarkerJson(target).kitFiles).toEqual(before);
+    expect(fileRecords(readMarkerJson(target), true)).toEqual(before);
     const u = runUninstall(target, home);
     expect(lstatSync(at(target, rel)).isDirectory(), u.stdout).toBe(true);
   });
 
-  it("kit-file ownership: over a legacy marker (no kitFiles), a re-install that writes no kit file leaves kitFiles absent, never {}; a re-install that writes the kit records it", () => {
-    const target = makeFixture();
-    const home = mkTmp();
-    expect(runInstall(target, home).status).toBe(0);
-    dropKitFiles(target);
-    // Every kit path is blocked: .claude/ is a regular file, so this run writes no kit file.
-    rmSync(join(target, ".claude"), { recursive: true, force: true });
-    writeFileSync(join(target, ".claude"), "the user's own file named .claude\n");
-    const r1 = runInstall(target, home);
-    expect(r1.status, r1.stdout).toBe(3);
-    expect(Object.prototype.hasOwnProperty.call(readMarkerJson(target), "kitFiles"), "an empty kitFiles replaced the legacy answer").toBe(false);
-    // The user removes the file; the next re-install writes the kit, so its record is complete.
-    rmSync(join(target, ".claude"));
-    const r2 = runInstall(target, home);
-    expect(r2.status, r2.stdout).toBe(0);
-    expect(Object.keys(readMarkerJson(target).kitFiles as object)).toEqual(kitFilesIn(target));
-  });
-
-  it("kit-file ownership: a marker kept for another malformed ledger drops the kit files this run removed and keeps the one it left", () => {
-    const target = makeFixture();
-    const home = mkTmp();
-    expect(runInstall(target, home).status).toBe(0);
-    const edited = ".claude/skills/grugops-plan/SKILL.md";
-    writeFileSync(at(target, edited), readFileSync(at(target, edited), "utf8") + EDIT);
-    const m = readMarkerJson(target);
-    m.createdDirs = "garbage";
-    writeMarkerJson(target, m);
-    const r = runUninstall(target, home);
-    expect(r.status, r.stdout).toBe(3);
-    const kept = readMarkerJson(target);
-    expect(kept.createdDirs).toBe("garbage");
-    expect(Object.keys(kept.kitFiles as object)).toEqual([edited]);
-  });
-
+  // Plan 33.1-36, category (iii), three tests deleted here:
+  //   - "over a legacy marker (no kitFiles), a re-install that writes no kit file leaves kitFiles absent,
+  //     never {}": the one ledger is always written, so there is no absent record to keep absent;
+  //   - "a marker kept for another malformed ledger drops the kit files this run removed and keeps the
+  //     one it left": there is no other ledger; a malformed entry makes the one ledger malformed, and it
+  //     is written back verbatim (the kept-marker rewrite applies again once plan 33.1-39 keeps a marker
+  //     with left entries);
+  //   - "(red-team RT1) a kept legacy marker records kitFiles {} after its one use": the byte-identity
+  //     fallback it spent is gone; "an install ledger with no kit-file entries" above shows no kit file
+  //     is removed without a record.
   // ── Red-team of plan 33.1-30 (brief §3) ──────────────────────────────────────────────────────────
-  // RT1 (DC-2): a legacy marker (no kitFiles) that uninstall keeps went on granting the byte-identity
-  // fallback, so a kit file the user copied in after the first uninstall was removed by the second.
-  it("kit-file ownership (red-team RT1, DC-2): a kept legacy marker records kitFiles {} after its one use, so a verbatim kit file the user copies in later survives the next uninstall; DRY_RUN previews the same edit and changes nothing", () => {
-    const target = makeFixture();
-    const home = mkTmp();
-    expect(runInstall(target, home).status).toBe(0);
-    const m = readMarkerJson(target);
-    delete m.kitFiles;
-    m.createdDirs = "g";
-    writeMarkerJson(target, m);
-    const identical = kitFilesIn(target).filter((rel) => sameAsSource(target, rel));
-    expect(identical.length, "premise: some kit files are verbatim copies").toBeGreaterThan(0);
-
-    const preDry = treeOf(target);
-    const dry = runUninstallDry(target, home);
-    expect(dry.status, dry.stdout).toBe(3);
-    expect(treeOf(target), `the DRY_RUN preview changed the tree\n${dry.stdout}`).toBe(preDry);
-    const dryEdit = linesUnder(dry.stdout, "would-edit").filter((l) => l.startsWith(".grugops/install.json") && /kitFiles/.test(l));
-    expect(dryEdit.length, `the preview does not name the kitFiles edit\n${dry.stdout}`).toBe(1);
-
-    const r1 = runUninstall(target, home);
-    expect(r1.status, r1.stdout).toBe(3);
-    // PREMISE: the fallback was used once, and removed the verbatim copies.
-    for (const rel of identical) expect(present(target, rel), `${rel} was not removed by the legacy fallback`).toBe(false);
-    const kept = readMarkerJson(target);
-    expect(kept.createdDirs, "the malformed ledger is written back as it was").toBe("g");
-    expect(kept.kitFiles, "the kept legacy marker still grants the byte-identity fallback").toEqual({});
-    expect(linesUnder(r1.stdout, "edited").filter((l) => l.startsWith(".grugops/install.json") && /kitFiles/.test(l)).length, r1.stdout).toBe(1);
-
-    // The user copies the kit files in by hand afterwards (README §1's minimal path).
-    for (const rel of identical) {
-      mkdirSync(dirname(at(target, rel)), { recursive: true });
-      writeFileSync(at(target, rel), readFileSync(srcOf(rel)));
-    }
-    const before = treeOf(target);
-    for (const dry2 of [true, false]) {
-      const r2 = dry2 ? runUninstallDry(target, home) : runUninstall(target, home);
-      expect(r2.status, r2.stdout).toBe(3);
-      expect(treeOf(target), `${dry2 ? "DRY_RUN " : ""}the second uninstall removed the user's later copy\n${r2.stdout}`).toBe(before);
-      for (const rel of identical) expect(naming(r2.stdout, "left", rel).length, `${rel}\n${r2.stdout}`).toBe(1);
-    }
-  });
-
   // RT2: a hard link at a kit path was removed by the legacy arm (byte identity read through a reader
   // that allows a second name) and left by the recorded arm with a false reason ("it has changed since
-  // install wrote it"). One content check now decides both arms, and a createdFiles path (a runnable),
-  // the same way: left, with a reason that names the hard link.
-  it("kit-file ownership (red-team RT2): a hard-linked kit file is left on BOTH arms (recorded and legacy), and a hard-linked runnable too, each with a reason naming the hard link; DRY_RUN decides alike", () => {
+  // install wrote it"). One content check now decides, for a kit file and a file entry (a runnable) the
+  // same way: left, with a reason that names the hard link. Plan 33.1-36, category (iii): the legacy arm
+  // (a marker without kitFiles, read by the byte-identity fallback) is gone with the fallback, so only
+  // the recorded arm is run.
+  it("kit-file ownership (red-team RT2): a hard-linked kit file is left on the recorded arm, and a hard-linked runnable too, each with a reason naming the hard link; DRY_RUN decides alike", () => {
     const skill = ".claude/skills/grugops-gate/SKILL.md";
     const runnable = "tools/grugops/reference-check.js";
-    for (const legacy of [false, true]) {
+    for (const legacy of [false]) {
       for (const dry of [true, false]) {
-        const what = `${legacy ? "legacy marker" : "kitFiles record"}, ${dry ? "DRY_RUN" : "real run"}`;
+        const what = `${legacy ? "legacy marker" : "kit-file entry"}, ${dry ? "DRY_RUN" : "real run"}`;
         const target = makeFixture();
         const home = mkTmp();
         expect(runInstall(target, home).status).toBe(0);
-        if (legacy) dropKitFiles(target);
         expect(sameAsSource(target, skill), "premise: the skill is a verbatim copy").toBe(true);
         const outside = mkTmp();
         const outsideOf = new Map<string, string>();
@@ -8013,9 +7917,9 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
   it("kit-file ownership (red-team RT3): a marker with a duplicate key is refused as unreadable — uninstall removes no kit file and leaves the marker byte-identical; install over it leaves it unchanged", () => {
     const gate = ".claude/skills/grugops-gate/SKILL.md";
     const SHAPES: ReadonlyArray<readonly [string, (text: string) => string]> = [
-      ["a second kitFiles key (the first claims nothing)", (t) => t.replace('"kitFiles": {', '"kitFiles": {},\n  "kitFiles": {')],
-      ["a duplicate path inside kitFiles", (t) => t.replace('"kitFiles": {', `"kitFiles": {\n    "${gate}": "sha256:${"0".repeat(64)}",`)],
-      ["a duplicate key inside geminiSettings", (t) => t.replace('"geminiSettings": {', '"geminiSettings": {\n    "createdFile": true,')],
+      ["a second ledger key (the first claims nothing)", (t) => t.replace('"ledger": [', '"ledger": [],\n  "ledger": [')],
+      ["a duplicate key inside a kit-file entry", (t) => t.replace(`"path": "${gate}",`, `"path": "${gate}",\n      "path": "${gate}",`)],
+      ["a duplicate key inside the gemini entry", (t) => t.replace('"kind": "gemini",', '"kind": "gemini",\n      "createdFile": true,')],
     ];
     for (const [what, edit] of SHAPES) {
       const target = makeFixture();
@@ -8064,9 +7968,9 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     }
   };
   const SPECIAL_CASES: ReadonlyArray<{ readonly name: string; readonly rel: string; readonly shape: "FIFO" | "directory"; readonly legacy: boolean }> = [
-    { name: "(1) legacy marker, a FIFO at an adapter", rel: ".claude/agents/grugops-orchestrator.md", shape: "FIFO", legacy: true },
-    { name: "(2) legacy marker, a directory at a skill", rel: ".claude/skills/grugops-plan/SKILL.md", shape: "directory", legacy: true },
-    { name: "(3) an ok kitFiles record, the recorded adapter replaced by a FIFO", rel: ".claude/agents/grugops-orchestrator.md", shape: "FIFO", legacy: false },
+    { name: "(1) a ledger with no kit-file entries, a FIFO at an adapter", rel: ".claude/agents/grugops-orchestrator.md", shape: "FIFO", legacy: true },
+    { name: "(2) a ledger with no kit-file entries, a directory at a skill", rel: ".claude/skills/grugops-plan/SKILL.md", shape: "directory", legacy: true },
+    { name: "(3) a kit-file entry, the recorded adapter replaced by a FIFO", rel: ".claude/agents/grugops-orchestrator.md", shape: "FIFO", legacy: false },
     { name: "(5) a FIFO at a runnable", rel: "tools/grugops/host-protection.js", shape: "FIFO", legacy: false },
   ];
   for (const c of SPECIAL_CASES) {
@@ -8107,7 +8011,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     expect(lstatSync(join(target, "AGENTS.md")).isSymbolicLink()).toBe(true);
   });
 
-  it("kit-file ownership special file (6) legacy marker, the KIT SOURCE of a skill is a FIFO: the byte-identity fallback never opens it, and the skill is left", async () => {
+  it("kit-file ownership special file (6) a ledger with no kit-file entries, the KIT SOURCE of a skill is a FIFO: it is never opened, and the skill is left", async () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home).status).toBe(0);
@@ -8130,9 +8034,9 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
       finishedWith(r, rel, "(6)");
       const left = naming(String(r.stdout), "left", rel);
       expect(left.length, String(r.stdout)).toBe(1);
-      expect(left[0]).toMatch(/kit source/);
+      expect(left[0]).toMatch(/install has no record of writing it/);
     });
-    expect(present(target, rel), "the skill was removed although its kit source could not be read").toBe(true);
+    expect(present(target, rel), "the skill was removed although install has no record of it").toBe(true);
   });
 });
 
@@ -8177,9 +8081,10 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     walk(".claude/agents");
     return rows.join("\n");
   };
+  // The kit-true file entries of the install ledger, as path → content record, serialized.
   const kitFilesOf = (t: string): string => {
-    const m = JSON.parse(readFileSync(atRel(t, ".grugops/install.json"), "utf8")) as { kitFiles?: unknown };
-    return JSON.stringify(m.kitFiles ?? null);
+    const m = JSON.parse(readFileSync(atRel(t, ".grugops/install.json"), "utf8")) as Record<string, unknown>;
+    return JSON.stringify(fileRecords(m, true));
   };
   const kitUpdate = (src: string): void => {
     for (const s of SYNTH_SKILLS) {
@@ -8229,7 +8134,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
   const rootish = typeof process.getuid === "function" && process.getuid() === 0;
 
   // ── Task 1: the render refusal (the tracer) ───────────────────────────────────────────────────
-  it("a render refusal on a re-install after a kit update leaves every installed kit file byte-identical and kitFiles unchanged", () => {
+  it("a render refusal on a re-install after a kit update leaves every installed kit file byte-identical and the kit-file entries unchanged", () => {
     const { src, target, home, kit, kitFiles } = installed();
     kitUpdate(src);
     writeConfig(target, BAD_CONFIG);
@@ -8847,10 +8752,8 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     JSON.parse(readFileSync(atRel(t, ".grugops/install.json"), "utf8")) as Record<string, unknown>;
   const writeMarkerJson = (t: string, m: Record<string, unknown>): void =>
     writeFileSync(atRel(t, ".grugops/install.json"), JSON.stringify(m, null, 2) + "\n");
-  const kitFilesOf = (t: string): Record<string, string> | null => {
-    const k = markerOf(t).kitFiles;
-    return k === undefined ? null : (k as Record<string, string>);
-  };
+  // The kit-true file entries of the install ledger, as path → content record.
+  const kitFilesOf = (t: string): Record<string, string> | null => fileRecords(markerOf(t), true);
   const V1 = "0.0.0-synthetic";
   const V2 = "0.0.1-synthetic";
   // A kit update: every skill source, every role's `One job` line, and the kit VERSION.
@@ -8908,11 +8811,11 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     return { src, target, home };
   };
   // What a fresh install of `src` writes (the reference for "the whole kit is the updated render").
-  const freshKit = (src: string, home: string): { kit: string; kitFiles: Record<string, string> | null } => {
+  const freshKit = (src: string, home: string): { kit: string; kitRecords: Record<string, string> | null } => {
     const t = makeFixture();
     const r = run(src, t, home);
     expect(r.status, r.stdout).toBe(0);
-    return { kit: kitState(t), kitFiles: kitFilesOf(t) };
+    return { kit: kitState(t), kitRecords: kitFilesOf(t) };
   };
 
   // ── Task 1: the tracer ────────────────────────────────────────────────────────────────────────
@@ -8954,7 +8857,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(backupsIn(target)).toEqual([]);
     const fresh = freshKit(src, home);
     expect(kitState(target)).toBe(fresh.kit);
-    expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
+    expect(kitFilesOf(target)).toEqual(fresh.kitRecords);
   });
 
   it("--backup-edited-kit: the edited adapter is backed up byte-for-byte BEFORE the first kit write, then the whole kit is the updated render", () => {
@@ -8971,7 +8874,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(readFileSync(atRel(target, backups[0])).equals(edited)).toBe(true);
     const fresh = freshKit(src, home);
     expect(kitState(target)).toBe(fresh.kit);
-    expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
+    expect(kitFilesOf(target)).toEqual(fresh.kitRecords);
     const lines = r.stdout.split("\n");
     const firstBackup = lines.findIndex((l) => /^ {2}backed-up\s/.test(l));
     const firstWrite = lines.findIndex((l) => KIT_WRITE_LINE.test(l) && /\.claude\/(skills|agents)\b/.test(l));
@@ -8995,13 +8898,13 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(r.stdout).not.toContain("--backup-edited-kit");
     const fresh = freshKit(src, home);
     expect(kitState(target)).toBe(fresh.kit);
-    expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
+    expect(kitFilesOf(target)).toEqual(fresh.kitRecords);
   });
 
-  for (const how of ["kitFiles malformed", "marker unreadable"] as const) {
+  for (const how of ["install ledger malformed", "marker unreadable"] as const) {
     it(`untrusted record (${how}): an UNEDITED install from an older kit is treated as possibly edited — no kit write, a verify naming the flag`, () => {
       const { src, target, home } = installed();
-      if (how === "kitFiles malformed") writeMarkerJson(target, { ...markerOf(target), kitFiles: "garbage" });
+      if (how === "install ledger malformed") writeMarkerJson(target, { ...markerOf(target), ledger: "garbage" });
       else writeFileSync(atRel(target, ".grugops/install.json"), "{ not json\n");
       kitUpdate(src);
       const kit = kitState(target);
@@ -9036,28 +8939,10 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(c.stdout).toContain(`kit-version skew: marker=${V1} kit VERSION=${V2}`);
   });
 
-  it("a refused re-install over a legacy marker (no kitFiles) keeps kitFiles ABSENT, and the next uninstall applies the legacy fallback", () => {
-    const { src, target, home } = installed();
-    const m = markerOf(target);
-    delete m.kitFiles;
-    writeMarkerJson(target, m);
-    editAdapter(target);
-    const kit = kitState(target);
-    const r = run(src, target, home);
-    expect(r.status, r.stdout).toBe(3);
-    expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit") && l.includes(EDITED_REL)), r.stdout).toBe(true);
-    expect(kitState(target)).toBe(kit);
-    expect(Object.prototype.hasOwnProperty.call(markerOf(target), "kitFiles"), "kitFiles stays absent").toBe(false);
-    const u = runUninstallFrom(src, target, home);
-    // The verbatim skills (byte-identical to the kit source) are removed by the legacy fallback.
-    for (const s of SYNTH_SKILLS.filter((x) => x !== "grugops")) {
-      expect(existsSync(join(target, ".claude", "skills", s, "SKILL.md")), `${s}: ${u.stdout}`).toBe(false);
-    }
-    // The adapters are left with the "no install record" reason, never an empty-record reading.
-    expect(existsSync(atRel(target, EDITED_REL))).toBe(true);
-    expect(u.stdout.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(EDITED_REL) && /no install record/.test(l)), u.stdout).toBe(true);
-    expect(u.stdout).not.toMatch(/not in the install marker's kit-file ledger/);
-  });
+  // Plan 33.1-36, category (iii): "a refused re-install over a legacy marker (no kitFiles) keeps kitFiles
+  // ABSENT, and the next uninstall applies the legacy fallback" was deleted. There is no partial ledger
+  // to keep absent, and the byte-identity fallback is gone; the round-2 six-record marker is covered by
+  // the class test over RETIRED_RECORDS in install/ledger.test.ts.
 
   // ── Task 2: the prompt, DRY_RUN, legacy installs, hazards, failed backups, uninstall ─────────────
 
@@ -9163,7 +9048,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
         expect(readFileSync(atRel(target, backups[0])).equals(edited)).toBe(true);
         const fresh = freshKit(src, home);
         expect(kitState(target)).toBe(fresh.kit);
-        expect(kitFilesOf(target)).toEqual(fresh.kitFiles);
+        expect(kitFilesOf(target)).toEqual(fresh.kitRecords);
       } else {
         expect(r.status, r.stdout).toBe(3);
         expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit") && l.includes(EDITED_REL)), r.stdout).toBe(true);
@@ -9233,11 +9118,9 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     }
   });
 
-  it("legacy marker (kitFiles deleted) over an adapter update: every materialized adapter and the resolver skill are possibly edited; with the flag they are backed up and the next re-install asks nothing", () => {
+  it("an install ledger with no kit-file entries over an adapter update: every materialized adapter and the resolver skill are possibly edited; with the flag they are backed up and the next re-install asks nothing", () => {
     const { src, target, home } = installed();
-    const m = markerOf(target);
-    delete m.kitFiles;
-    writeMarkerJson(target, m);
+    writeMarkerJson(target, withLedger(markerOf(target), (l) => l.filter((e) => !(e.kind === "file" && e.kit === true))));
     // An update of what is materialized: every role (so every adapter) and the resolver skill. The
     // verbatim skills are unchanged, so they are identical to their source and not asked about.
     const roles = join(src, "agent-factory", "roles");
@@ -9258,7 +9141,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       .sort();
     const expected = [...SYNTH_ADAPTERS.map((a) => `.claude/agents/${a}`), ".claude/skills/grugops/SKILL.md"].sort();
     expect(listed, r.stdout).toEqual(expected);
-    expect(r.stdout).toMatch(/predates the kit-file ledger/);
+    expect(r.stdout).toMatch(/the install ledger has no kit-file entry for it/);
     expect(verifyLines(r.stdout).some((l) => l.includes("--backup-edited-kit")), r.stdout).toBe(true);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
     expect(kitState(target)).toBe(kit);
@@ -9447,12 +9330,13 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
   // and --check warns that the kit version is unknown.
   // W1 (D-18): a backup that fails partway leaves no partial file under a backup name.
 
-  // The kitFiles field as the marker's own bytes: install writes it last, so it runs to the end of
-  // the file. undefined when the marker has no kitFiles field.
+  // The kit-true file entries as the marker holds them, serialized in the order the marker lists them
+  // (plan 33.1-36: one ledger; a verbatim carry keeps every kit entry, so this does not change).
+  // undefined when the marker has no ledger list.
   const kitFilesBytes = (t: string): string | undefined => {
-    const text = readFileSync(atRel(t, ".grugops/install.json"), "utf8");
-    const i = text.indexOf('\n  "kitFiles": ');
-    return i < 0 ? undefined : text.slice(i);
+    const m = JSON.parse(readFileSync(atRel(t, ".grugops/install.json"), "utf8")) as Record<string, unknown>;
+    if (!Array.isArray(m.ledger)) return undefined;
+    return JSON.stringify((m.ledger as RawEntry[]).filter((e) => e.kind === "file" && e.kit === true));
   };
   // An unedited kit file the user deleted: its record no longer holds (the proved-stale case).
   const GONE_REL = ".claude/skills/grugops-map/SKILL.md";
@@ -9550,10 +9434,10 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     },
   ];
   for (const arm of ARMS) {
-    it(`B1 (${arm.name}): exit 3, no kit write, and kitFiles is written back byte for byte as it was read`, () => {
+    it(`B1 (${arm.name}): exit 3, no kit write, and the kit-file entries are written back as they were read`, () => {
       const { src, target, home } = installed();
       const before = kitFilesBytes(target);
-      expect(before, "premise: the install recorded kitFiles").toBeDefined();
+      expect(before, "premise: the install recorded kit-file entries").toBeDefined();
       kitUpdate(src);
       editAdapter(target);
       rmSync(atRel(target, GONE_REL));
@@ -9575,7 +9459,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     });
   }
 
-  it("B1 (consent refused at a terminal, answer n): kitFiles is written back byte for byte as it was read", () => {
+  it("B1 (consent refused at a terminal, answer n): the kit-file entries are written back as they were read", () => {
     const why = ptyUnavailable();
     if (why !== null) {
       console.log(`SKIP interactive B1 case: ${why}`);
@@ -9592,7 +9476,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(kitFilesBytes(target)).toBe(before);
   });
 
-  it("B1: a refused run over a target with no marker records kitFiles as {} (this run is the whole history, and it wrote no kit file)", () => {
+  it("B1: a refused run over a target with no marker records no kit-file entry (this run is the whole history, and it wrote no kit file)", () => {
     const { src, target, home } = installed();
     rmSync(atRel(target, ".grugops/install.json"));
     kitUpdate(src);

@@ -2132,7 +2132,7 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *
  * 89 -> 90 (plan 33.1-21, task 1, CR-02 and WR-05), ONE INSTALLER LIBRARY MODULE:
  *   - `install/install-marker.ts` — the one reader of the install marker `.grugops/install.json`
- *     and of its two ledgers (`claudeAskRules`, `createdDirs`), as tri-states, imported by both
+ *     and of the records it then carried (two then; since plan 33.1-36 the one install ledger), as tri-states, imported by both
  *     `install/install.ts` and `install/uninstall.ts` (a sibling of `install/kit-source.ts`). It
  *     imports read-only `node:fs` names only and writes nothing.
  *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
@@ -2177,8 +2177,22 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     grant and renders no spawn verdict. Its committed `.js` twin lands in the same commit.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 93 with this module tracked.
+ *
+ * 93 -> 94 (plan 33.1-36, task 3, D-33 (b)), ONE TEST-SUPPORT MODULE:
+ *   - `install/ledger.test-support.ts` — the test-side view of the one install ledger: it parses the
+ *     marker JSON itself (markerLedger, kindView, fileRecords, dirList, blockRecords, geminiRecord,
+ *     askRecord) and builds forged ledgers (withLedger, sixRecordShape), so the tests that read or forged
+ *     the six retired records move to the one ledger without importing the production reader. A
+ *     TEST-ONLY module, counted here for the reason recorded at 83 -> 85 (this set is enumerated by file
+ *     shape). It is excluded from emit (tsconfig.json), so it has no `.js` twin, and it imports only
+ *     node: builtins.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 94 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 93;
+const NON_TEST_MODULE_COUNT = 94;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.

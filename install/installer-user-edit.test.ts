@@ -17,14 +17,15 @@
 // install moved). Its size is pinned as INSTALLED_FILE_COUNT, the excluded file included: a change that
 // makes install write a new file turns this file red until the count is re-pinned with a reason.
 //
-// THE LEDGERS THIS COVERS. The derived set reaches every ledger install now writes in
-// `.grugops/install.json`: createdFiles (AGENTS.md, the runnables, the pointer files install created),
-// createdDirs (every directory, edited by adding a user file inside it), geminiSettings
-// (`.gemini/settings.json`), claudeAskRules (`.claude/settings.json`), kitFiles (every skill and adapter),
-// appendedBlocks (CLAUDE.md and the Copilot file, edited after the block and, separately, inside it),
-// and the marker's `target` binding (an edited copy that is NOT re-bound is changed by zero bytes). The
-// test asserts that each ledger names at least one path in the set, so the coverage cannot silently
-// lose a ledger.
+// THE KINDS THIS COVERS. The derived set reaches every kind of entry install writes in the one install
+// ledger of `.grugops/install.json` (plan 33.1-36, D-33 (b)): file entries (kit false: AGENTS.md, the
+// runnables, the pointer files install created; kit true: every skill and adapter), dir entries (every
+// directory, edited by adding a user file inside it), the gemini entry (`.gemini/settings.json`), the
+// ask-rules entry (`.claude/settings.json`), block entries (CLAUDE.md and the Copilot file, edited after
+// the block and, separately, inside it), and the marker's `target` binding (an edited copy that is NOT
+// re-bound is changed by zero bytes). The test takes the kind list from install-marker.ts LEDGER_KINDS,
+// asserts its count, and asserts that each kind names at least one path in the set, so the coverage
+// cannot silently lose a kind.
 //
 // DECLARED EXCLUSIONS, COUNTED:
 //   - the `--symlink` variant. Editing one of its links edits the kit source in the shared kit home, not
@@ -40,7 +41,7 @@
 // plan 33.1-35, so their behaviour is NOT changed here). Each has a case below that asserts the exception
 // still reproduces, so the count stays honest: when plan 33.1-35 changes the behaviour, that case turns
 // red and the exception is taken off this list.
-//   12  removeAskRules removes an ask rule by its NAME in the claudeAskRules ledger and never checks
+//   12  removeAskRules removes an ask rule by its NAME in the ask-rules entry and never checks
 //       askContent against the current permissions.ask. A user who deletes install's rule and later adds
 //       the same rule string loses it at uninstall.
 //   13  a re-install over an unreadable .claude/settings.json (here: a hard link, which install refuses
@@ -72,6 +73,8 @@ import {
   runUninstall,
   snapshotTree,
 } from "./installer-paths.test-support.js";
+import { LEDGER_KINDS } from "./install-marker.js";
+import { askRecord, blockRecords, ledgerOf } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-useredit-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -229,26 +232,29 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     expect(symlinkOnly, `paths only the ${EXCLUDED_VARIANT.name} variant writes`).toEqual([]);
   });
 
-  it("every ledger in the default install's marker names at least one path in the set (the coverage cannot lose a ledger)", () => {
+  it("each LEDGER_KINDS kind in the default install's ledger names at least one path in the derived set (the coverage cannot lose a kind)", () => {
     const m = markerLedgers(SET.variant("default").target);
     const files = new Set(INSTALLED_FILES);
     const dirs = new Set(INSTALLED_DIRS.map((d) => d.path));
-    const keysOf = (k: string): string[] => Object.keys((m[k] ?? {}) as Record<string, unknown>);
-    const ledgers: ReadonlyArray<readonly [string, readonly string[], ReadonlySet<string>]> = [
-      ["createdFiles", keysOf("createdFiles"), files],
-      ["kitFiles", keysOf("kitFiles"), files],
-      ["appendedBlocks", keysOf("appendedBlocks"), files],
-      ["createdDirs", (m.createdDirs ?? []) as string[], dirs],
-      ["geminiSettings", m.geminiSettings === undefined ? [] : [".gemini/settings.json"], files],
-      ["claudeAskRules", m.claudeAskRules === undefined ? [] : [".claude/settings.json"], files],
-      ["target (the binding)", typeof m.target === "string" ? [MARKER_REL] : [], files],
-    ];
-    for (const [name, paths, set] of ledgers) {
-      expect(paths.length, `the marker has no ${name} entry`).toBeGreaterThan(0);
-      for (const p of paths) expect(set.has(p), `${name} names ${p}, which is not in the derived set`).toBe(true);
+    const entries = ledgerOf(m);
+    // The kind list comes from install-marker.ts, and its count is asserted, so a new kind is noticed.
+    expect(LEDGER_KINDS.length).toBe(5);
+    for (const kind of LEDGER_KINDS) {
+      const paths = entries.filter((e) => e.kind === kind).map((e) => e.path);
+      const set = kind === "dir" ? dirs : files;
+      expect(paths.length, `the ledger has no ${kind} entry`).toBeGreaterThan(0);
+      for (const p of paths) expect(set.has(p), `a ${kind} entry names ${p}, which is not in the derived set`).toBe(true);
     }
-    // The ledger keys found in the marker are exactly the ones listed above, so a new ledger is noticed.
-    const known = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "createdFiles", "kitFiles", "appendedBlocks", "createdDirs", "geminiSettings", "claudeAskRules"]);
+    // Both halves of the file kind (what install created, and the kit files D-32 governs) are reached.
+    for (const kit of [false, true]) {
+      expect(entries.some((e) => e.kind === "file" && e.kit === kit), `no file entry with kit ${kit}`).toBe(true);
+    }
+    // Every entry's kind is one of LEDGER_KINDS.
+    expect(entries.filter((e) => !(LEDGER_KINDS as readonly string[]).includes(e.kind)).map((e) => e.kind)).toEqual([]);
+    // The binding.
+    expect(typeof m.target === "string" && files.has(MARKER_REL), "the marker's target binding").toBe(true);
+    // The marker keys are exactly install's, so a new field is noticed.
+    const known = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "ledger"]);
     expect(Object.keys(m).filter((k) => !known.has(k)), "a marker key this test does not cover").toEqual([]);
   });
 
@@ -267,11 +273,11 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     }, 30_000);
   }
 
-  // appendedBlocks: a line the user writes INSIDE the grugops block (red-team carry item 4). The set is
-  // the default install's appendedBlocks ledger, not a typed list.
-  const BLOCK_FILES = Object.keys((markerLedgers(SET.variant("default").target).appendedBlocks ?? {}) as Record<string, unknown>);
+  // Block entries: a line the user writes INSIDE the grugops block (red-team carry item 4). The set is
+  // the default install's block entries, not a typed list.
+  const BLOCK_FILES = Object.keys(blockRecords(markerLedgers(SET.variant("default").target)));
   for (const rel of BLOCK_FILES) {
-    it(`${rel}: a line the user writes inside the grugops block survives uninstall (appendedBlocks)`, () => {
+    it(`${rel}: a line the user writes inside the grugops block survives uninstall (its block entry)`, () => {
       const v = SET.variant("default");
       const t = copyOf(v, "inside-block");
       const p = at(t, rel);
@@ -289,7 +295,7 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     }, 30_000);
   }
 
-  // createdDirs: a file the user adds inside a directory install created.
+  // Dir entries: a file the user adds inside a directory install created.
   for (const { path: rel, variant } of INSTALLED_DIRS) {
     it(`${rel}/ (created by the ${variant} install): a file the user adds inside it survives uninstall, and so does the directory`, () => {
       const v = SET.variant(variant);
@@ -345,7 +351,7 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     expect(re.stderr).not.toMatch(NO_STACK);
     expect(re.status, re.stdout).toBe(3);
     rmSync(second);
-    const ledger = markerLedgers(t).claudeAskRules as { added: unknown[] };
+    const ledger = askRecord(markerLedgers(t)) as { added: unknown[] };
     expect(ledger.added.length, "exception 13 no longer reproduces: the re-install kept the ask ledger. Take item 13 off KNOWN_EXCEPTIONS.").toBe(0);
     const u = uninstall(v, t);
     expect([0, 3]).toContain(u.status);

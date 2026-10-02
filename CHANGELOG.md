@@ -45,6 +45,13 @@ release, together with Phase 33.1, which retires the Bash command guard.
 
 ### Changed
 
+- The install marker `.grugops/install.json` keeps one install ledger, the field `ledger`, in place of
+  the six records `createdDirs`, `createdFiles`, `geminiSettings`, `kitFiles`, `claudeAskRules` and
+  `appendedBlocks`, behind one ownership check (33.1 D-33). A marker written by an earlier build of
+  this release, before the ledger, is read as no record: uninstall changes nothing and exits `3` with
+  the remedy (re-run the installer, then the uninstaller). No released version wrote that shape. A
+  runnable install recorded is removed by its record, even when the checkout you uninstall from no
+  longer ships it.
 - The CLAUDE.md "Safety (hard)" constraint now defines mechanical enforcement as the git host
   (branch protection and deployment environments) plus host CLI permission prompts, not a grugops
   PreToolUse parser (33.1 D-21).
@@ -105,22 +112,22 @@ release, together with Phase 33.1, which retires the Bash command guard.
 ### Fixed
 
 - A `DRY_RUN=1` uninstall no longer removes directories, and uninstall removes an empty directory
-  only when install created it (recorded as `createdDirs` in `.grugops/install.json`) and the same
+  only when install created it (recorded in the install ledger in `.grugops/install.json`) and the same
   run emptied it; a directory's name is not a record (33.1 gap round 2 dropped the round-1 rule that
   a name beginning with `grugops` was enough). An empty `.github/`, `.gemini/` or `.claude/`
   directory you made yourself is left and reported (33.1 gap round 1, CR-02).
 - Uninstall no longer deletes or edits a Gemini settings file it has no install record for, and
-  reverses exactly what install recorded as `geminiSettings`: it removes the entry install added,
+  reverses exactly what install recorded in the install ledger in `.grugops/install.json`: it removes the entry install added,
   restores the shape install found, and deletes the file only when install created it and it is
   unchanged or holds nothing else. If `context.fileName` changed after install, the file is left
   byte for byte (33.1 gap round 2, CR-03).
 - Uninstall deletes a blank Copilot instructions file or `CLAUDE.md` only when install created it
-  (`createdFiles`) and the file held exactly what install wrote; a blank file you made yourself is
-  left (33.1 gap round 2, WR-05). The pointer blocks are removed only on install's `appendedBlocks`
-  record, only while they are exactly what install appended, and without joining two of your lines.
+  (recorded in the install ledger in `.grugops/install.json`) and the file held exactly what install
+  wrote; a blank file you made yourself is left (33.1 gap round 2, WR-05). The pointer blocks are
+  removed only on install's record of them in the install ledger in `.grugops/install.json`, only while they are exactly what install appended, and without joining two of your lines.
 - Uninstall removes a grugops skill or adapter file only while it is exactly what install wrote
-  (the `kitFiles` record), so an edited one is left and reported; `AGENTS.md` and the runnables are
-  removed only on the `createdFiles` record. In a repository grugops was never installed into,
+  (its record in the install ledger in `.grugops/install.json`), so an edited one is left and reported;
+  `AGENTS.md` and the runnables are removed only on their record in the install ledger. In a repository grugops was never installed into,
   uninstall changes nothing.
 - Uninstall removes `.grugops/install.json` only when it is install's own marker for this directory
   with well-formed ledgers; install no longer overwrites a JSON object at that path that is not its

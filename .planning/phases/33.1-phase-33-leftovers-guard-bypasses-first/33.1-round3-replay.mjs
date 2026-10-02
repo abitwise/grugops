@@ -146,6 +146,38 @@ const CASES = {
     }
     check(!existsSync(w.at(untouched)), `the unedited adapter ${untouched} is still there`);
   },
+
+  // Plan 33.1-36, the D-33 (b) tracer: the one ledger is the authority. A runnable install recorded is
+  // removed by its record even when the uninstalling kit source no longer ships it; the same runnable
+  // edited by one byte is left byte for byte and named.
+  "tracer-runnable-cross-source"(w) {
+    const rel = "tools/grugops/host-protection.js";
+    // A kit source with .claude/, AGENTS.md and scripts/runnable-ref/ from this checkout, without the runnable.
+    const src = join(w.dir, "kit-source");
+    cpSync(join(REPO_ROOT, ".claude"), join(src, ".claude"), { recursive: true });
+    cpSync(join(REPO_ROOT, "AGENTS.md"), join(src, "AGENTS.md"));
+    cpSync(join(REPO_ROOT, "scripts", "runnable-ref"), join(src, "scripts", "runnable-ref"), { recursive: true });
+    rmSync(join(src, "scripts", "runnable-ref", "host-protection.js"));
+    check(!existsSync(join(src, "scripts", "runnable-ref", "host-protection.js")), "the scratch kit source still ships the runnable");
+
+    // Run 1: recorded and unedited → removed by its record.
+    const i = w.install();
+    check(i.status === 0, `install exited ${i.status}, expected 0`);
+    check(existsSync(w.at(rel)), `install did not write ${rel}`);
+    const u = w.uninstall({ src });
+    check(!existsSync(w.at(rel)), `${rel} is still there after uninstall with a kit source that lacks it`);
+    check(w.lineFor(u, "removed", rel) !== undefined, `no 'removed ${rel}' line`);
+
+    // Run 2: recorded and edited by one byte → left byte for byte and named.
+    const i2 = w.install();
+    check(i2.status === 0, `re-install exited ${i2.status}, expected 0`);
+    check(existsSync(w.at(rel)), `the re-install did not write ${rel}`);
+    appendFileSync(w.at(rel), "\n");
+    const edited = sha256(w.at(rel));
+    const u2 = w.uninstall({ src });
+    check(existsSync(w.at(rel)) && sha256(w.at(rel)) === edited, `the edited ${rel} did not survive byte for byte`);
+    check(w.lineFor(u2, "left", rel) !== undefined, `no 'left ${rel}' line for the edited runnable`);
+  },
 };
 
 // ── the runner ───────────────────────────────────────────────────────────────────────────────────

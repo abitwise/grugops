@@ -21,7 +21,7 @@
 // file plants into an EMPTY target and runs a default install, so it takes the union's paths that do
 // not carry a --migrate run timestamp, and asserts that they are exactly what the default variant
 // wrote. Its size is cross-checked against two independent derivations — the default install's own
-// write-report lines, and the `createdDirs` ledger it recorded — so a derivation that silently
+// write-report lines, and the dir entries of the install ledger it recorded — so a derivation that silently
 // shrinks fails the count. Then, one fresh target per (path, shape): a FIFO with a writer blocked on it, a dangling
 // link to a file outside the target, a dangling link into a missing directory, a link loop, a link
 // to a regular file outside the target, and a link to /dev/zero at every FILE path; and a FIFO with
@@ -57,6 +57,7 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, runInstall, runUninstall } from "./installer-paths.test-support.js";
+import { dirList, fileRecords } from "./ledger.test-support.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
 
@@ -126,13 +127,11 @@ const WRITE_DIRS = SET.dirs.filter((p) => !p.includes(ISO_PLACEHOLDER));
 const REPORTED_WRITES = (BASE.stdout ?? "")
   .split("\n")
   .filter((l) => /^ {2}(created|materialized|copied\(verify\)|linked)\s/.test(l)).length;
-// Independent derivation 2: the directory ledger install recorded.
+// Independent derivation 2: the dir entries install recorded in the one install ledger.
 function baseCreatedDirs(): string[] {
   try {
-    const marker = JSON.parse(readFileSync(join(BASE_TARGET, ".grugops", "install.json"), "utf8")) as {
-      createdDirs?: unknown;
-    };
-    return Array.isArray(marker.createdDirs) ? (marker.createdDirs as string[]).slice().sort() : [];
+    const marker = JSON.parse(readFileSync(join(BASE_TARGET, ".grugops", "install.json"), "utf8")) as Record<string, unknown>;
+    return dirList(marker);
   } catch {
     return [];
   }
@@ -328,7 +327,7 @@ describe("the write set is derived from a real baseline install (red-team of pla
     // linked), and the only unreported write is none: the counts are equal.
     expect(WRITE_FILES.length, "the baseline wrote no file: the class test would ask nothing").toBeGreaterThan(0);
     expect(WRITE_FILES.length, "the file walk and the install's write report disagree").toBe(REPORTED_WRITES);
-    // Directories: exactly the createdDirs ledger install recorded.
+    // Directories: exactly the dir entries install recorded.
     expect(WRITE_DIRS.length).toBeGreaterThan(0);
     expect(WRITE_DIRS).toEqual(baseCreatedDirs());
     // The union's untimestamped part is exactly what a default install writes: a path only another
@@ -434,13 +433,13 @@ describe("a hard link at every file path install writes or uninstall edits (red-
     for (const d of [a, b, home]) mkdirSync(d);
     const i = runInstaller(a, home, 120_000);
     expect(i.status, i.stdout).toBe(0);
-    const marker = JSON.parse(readFileSync(join(a, ...MARKER_REL.split("/")), "utf8")) as { createdFiles: Record<string, string> };
+    const marker = JSON.parse(readFileSync(join(a, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
     // B holds its own copies of exactly the files A's ledgers govern, and A's marker under a second
     // name. Not the kit skills and adapters (removed by name until plan 33.1-30) and not the two
     // pointer files (a sentinel block is removed by presence on a target with no usable marker until
     // plan 33.1-33, red-team carry #11): neither decision reads the marker, so neither is this case's.
     const POINTER_FILES = ["CLAUDE.md", ".github/copilot-instructions.md"];
-    const governed = [...Object.keys(marker.createdFiles).filter((rel) => !POINTER_FILES.includes(rel)), ".gemini/settings.json", ".claude/settings.json"];
+    const governed = [...Object.keys(fileRecords(marker, false)).filter((rel) => !POINTER_FILES.includes(rel)), ".gemini/settings.json", ".claude/settings.json"];
     expect(governed.length, governed.join(", ")).toBeGreaterThanOrEqual(7);
     for (const rel of governed) {
       const to = join(b, ...rel.split("/"));

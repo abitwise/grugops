@@ -11,7 +11,7 @@
 //   carry 11  on a target with no install marker, a block was removed because it was there, and the
 //             file rewritten: nothing recorded that install appended it.
 //
-// THE RULE NOW. Install records, in the marker's `appendedBlocks` ledger, the content record
+// THE RULE NOW. Install records, in a `block` entry of the marker's one install ledger, the content record
 // (install-marker.ts contentRecord: sha256 of the bytes) of the block LINES it appended to each file,
 // `<open>\n<body>\n<close>\n`, and what the one newline it wrote before them did (`blank-line` or
 // `line-end`; red-team B1 of plan 33.1-33). Uninstall removes a block only when the ledger records one
@@ -34,6 +34,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MARKER_REL, type Run, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { blockRecords, withLedger } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-blocks-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -86,14 +87,14 @@ function appendedBlock(b: Box, rel: string, before: Buffer): Buffer {
   return now.subarray(before.length);
 }
 
-describe("sentinel blocks are removed by install's appendedBlocks record (plan 33.1-33, carry 4, 6, 11)", () => {
+describe("sentinel blocks are removed by install's block entry (plan 33.1-33, carry 4, 6, 11)", () => {
   it("install records the exact block it appended to CLAUDE.md and the Copilot file, as a content record of its lines and the separator it wrote", () => {
     const b = box("record");
     const claude = Buffer.from("# Mine\n\nkeep me\n");
     put(b, "CLAUDE.md", claude);
     install(b);
     const m = marker(b);
-    const blocks = m.appendedBlocks as Record<string, { block: string; separator: string }>;
+    const blocks = blockRecords(m) as Record<string, { block: string; separator: string }>;
     expect(Object.keys(blocks).sort()).toEqual([COPILOT, "CLAUDE.md"].sort());
     const appended = appendedBlock(b, "CLAUDE.md", claude);
     expect(appended[0], "install wrote one separator newline before the block lines").toBe(0x0a);
@@ -177,34 +178,38 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
       expect(r.stdout).toMatch(/^ {2}left\s+CLAUDE\.md start-here pointer \(there is no install marker, so there is no record that install appended this block/m);
     });
 
-    it(`a marker without the appendedBlocks ledger (an install made before it) leaves the block and says so (${mode})`, () => {
+    it(`an install ledger with no block entries leaves the block and says there is no record (${mode})`, () => {
       const b = box(`legacy-${mode}`);
       put(b, "CLAUDE.md", "# Mine\n");
       install(b);
-      const m = marker(b);
-      delete m.appendedBlocks;
-      writeMarker(b, m);
+      writeMarker(b, withLedger(marker(b), (l) => l.filter((e) => e.kind !== "block")));
       const beforeClaude = bytes(b, "CLAUDE.md");
       const r = uninstall(b, dryRun);
       expect(bytes(b, "CLAUDE.md").equals(beforeClaude), r.stdout).toBe(true);
-      expect(r.stdout).toMatch(/^ {2}left\s+CLAUDE\.md start-here pointer \(the install marker predates the appended-block ledger/m);
+      expect(r.stdout).toMatch(/^ {2}left\s+CLAUDE\.md start-here pointer \(there is no record that install appended this block — it is not in the install ledger/m);
     });
 
-    it(`a malformed appendedBlocks ledger is a verify: no block is removed and the marker is kept (${mode})`, () => {
+    it(`a malformed block entry is a verify: no block is removed and the marker is kept (${mode})`, () => {
       const b = box(`malformed-${mode}`);
       put(b, "CLAUDE.md", "# Mine\n");
       install(b);
-      const m = marker(b);
-      // A string record (the plan-33 format, before the separator was recorded) is malformed too.
-      m.appendedBlocks = { "CLAUDE.md": `sha256:${"0".repeat(64)}`, [COPILOT]: { block: "not a record", separator: "blank-line" } };
-      writeMarker(b, m);
+      // A block entry without its separator (the plan-33 format, before the separator was recorded), and
+      // one whose block is not a record, are malformed.
+      writeMarker(
+        b,
+        withLedger(marker(b), (l) => [
+          ...l.filter((e) => e.kind !== "block"),
+          { path: "CLAUDE.md", kind: "block", block: `sha256:${"0".repeat(64)}` },
+          { path: COPILOT, kind: "block", block: "not a record", separator: "blank-line" },
+        ]),
+      );
       const beforeClaude = bytes(b, "CLAUDE.md");
       const beforeMarker = bytes(b, MARKER_REL);
       const r = uninstall(b, dryRun);
       expect(r.status, r.stdout).toBe(3);
       expect(bytes(b, "CLAUDE.md").equals(beforeClaude), r.stdout).toBe(true);
       expect(existsSync(at(b, MARKER_REL)), r.stdout).toBe(true);
-      expect(r.stdout).toMatch(/malformed appended-block ledger \(appendedBlocks\)/);
+      expect(r.stdout).toMatch(/malformed install ledger/);
       if (dryRun) expect(bytes(b, MARKER_REL).equals(beforeMarker)).toBe(true);
     });
   }
@@ -227,32 +232,19 @@ describe("sentinel blocks are removed by install's appendedBlocks record (plan 3
     const claude = "# Mine\n\n\n";
     put(b, "CLAUDE.md", claude);
     install(b);
-    const first = (marker(b).appendedBlocks as Record<string, unknown>)["CLAUDE.md"];
+    const first = blockRecords(marker(b))["CLAUDE.md"];
     install(b);
-    expect((marker(b).appendedBlocks as Record<string, unknown>)["CLAUDE.md"]).toEqual(first);
+    expect(blockRecords(marker(b))["CLAUDE.md"]).toEqual(first);
     const r = uninstall(b);
     expect(r.status, r.stdout).toBe(0);
     expect(bytes(b, "CLAUDE.md").toString()).toBe(claude);
   });
 
-  it("a kept marker drops the blocks this run removed, so a block the user pastes back later is left by the next run", () => {
-    const b = box("kept");
-    put(b, "CLAUDE.md", "# Mine\n");
-    install(b);
-    const installed = bytes(b, "CLAUDE.md");
-    const m = marker(b);
-    m.createdDirs = "garbage";
-    writeMarker(b, m);
-    const r1 = uninstall(b);
-    expect(r1.status, r1.stdout).toBe(3);
-    expect(bytes(b, "CLAUDE.md").toString(), r1.stdout).toBe("# Mine\n");
-    const kept = marker(b);
-    expect(kept.appendedBlocks, r1.stdout).toEqual({});
-    writeFileSync(at(b, "CLAUDE.md"), installed);
-    const r2 = uninstall(b);
-    expect(bytes(b, "CLAUDE.md").equals(installed), r2.stdout).toBe(true);
-    expect(r2.stdout).toMatch(/^ {2}left\s+CLAUDE\.md start-here pointer \(there is no record that install appended this block/m);
-  });
+  // Plan 33.1-36, category (iii): "a kept marker drops the blocks this run removed, so a block the user
+  // pastes back later is left by the next run" was deleted. Its premise was a marker kept for ANOTHER
+  // malformed ledger while the block record stayed usable; with one ledger, a malformed entry makes the
+  // whole ledger malformed, so no block is removed and the marker is kept verbatim (the malformed-entry
+  // case above). Plan 33.1-39 keeps a marker with left entries and brings the kept-marker rewrite back.
 });
 
 // ── red-team B1 of plan 33.1-33: the separator newline ─────────────────────────────────────────────
@@ -384,10 +376,10 @@ describe("the separator newline is removed only when it is provably install's (r
       const b = box("sep-record");
       if (orig !== null) put(b, "CLAUDE.md", orig);
       install(b);
-      const rec = (marker(b).appendedBlocks as Record<string, { block: string; separator: string }>)["CLAUDE.md"];
+      const rec = blockRecords(marker(b))["CLAUDE.md"];
       const installed = bytes(b, "CLAUDE.md").toString("utf8");
       const lines = installed.slice(installed.indexOf(`${CLAUDE_OPEN}\n`));
-      expect(rec, JSON.stringify(marker(b).appendedBlocks)).toEqual({ block: sha(lines), separator: sep });
+      expect(rec, JSON.stringify(blockRecords(marker(b)))).toEqual({ block: sha(lines), separator: sep });
     }
   });
 

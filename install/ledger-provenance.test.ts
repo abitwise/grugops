@@ -5,7 +5,7 @@
 // about whatever sits at that path later.
 //
 // WHAT IS HELD HERE.
-//   R1 A record carried forward by presence. writeMarker kept a createdFiles entry whenever something
+//   R1 A record carried forward by presence. writeMarker kept a file entry whenever something
 //      was still at the path, so a file the user deleted and re-made was re-claimed by the next
 //      install and deleted by the next uninstall. The same carry re-claimed an edited AGENTS.md or
 //      runnable (deleted once the edit was reverted) and a directory the user re-made. The class
@@ -13,6 +13,9 @@
 //      a real uninstall's own output, never from a typed list, and asserts their counts.
 //   R2 A marker uninstall keeps (another ledger in it is malformed) went on listing everything the
 //      run had just removed, so a later uninstall deleted what the user re-created at those paths.
+//      Since plan 33.1-36 (D-33 (b)) there is one ledger: a malformed entry of any kind makes the whole
+//      ledger malformed, so the run removes nothing, keeps the marker verbatim, and a second uninstall
+//      after the user re-makes their files changes nothing either.
 //   R3 The ask-rule ledger carried by presence: a settings file the user re-made was deleted as
 //      "grugops created the file", and the user's own rule in it was removed as install's.
 //
@@ -23,7 +26,6 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import {
-  chmodSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -39,6 +41,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MARKER_REL, REPO_ROOT, type Run, rebindMarker, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { askRecord, fileRecords, withLedger, type RawEntry } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-provenance-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -65,12 +68,9 @@ function under(stdout: string, label: string): string[] {
   }
   return out;
 }
-/** The keys of a createdFiles record, whatever its shape (plan 33.1-28 wrote an array). */
+/** The paths of the install ledger's kit-false file entries (the files install created), sorted. */
 function createdFileKeys(m: Record<string, unknown>): string[] {
-  const v = m.createdFiles;
-  if (Array.isArray(v)) return (v as string[]).slice().sort();
-  if (v !== null && typeof v === "object") return Object.keys(v).sort();
-  return [];
+  return Object.keys(fileRecords(m, false)).sort();
 }
 const ok = (r: Run, what: string): void => {
   expect(r.error, `${what}: ${String(r.error)}`).toBeUndefined();
@@ -99,7 +99,7 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
 });
 
 // ── R1: a record carried forward by presence (files) ────────────────────────────────────────────
-describe("R1 (DC-2): a createdFiles entry survives a re-install only while the path is provably still install's", () => {
+describe("R1 (DC-2): a file entry survives a re-install only while the path is provably still install's", () => {
   for (const rel of CREATED) {
     it(`${rel}: deleted and re-made by the user as an empty file, then re-installed and uninstalled — the user's file survives`, () => {
       const { target, home } = emptyTarget("recreate");
@@ -145,11 +145,14 @@ describe("R1 (DC-2): a createdFiles entry survives a re-install only while the p
     const { target, home } = emptyTarget("forged");
     ok(runInstall(target, home), "install");
     const m = readMarker(target);
-    const cf = m.createdFiles;
-    expect(cf !== null && typeof cf === "object" && !Array.isArray(cf), `createdFiles records no content: ${JSON.stringify(cf)}`).toBe(true);
+    expect(createdFileKeys(m), "the install ledger records no created file").toEqual(CREATED);
     const other = `sha256:${sha("not what install wrote")}`;
-    m.createdFiles = Object.fromEntries(CREATED.map((rel) => [rel, other]));
-    writeMarker(target, m);
+    writeMarker(
+      target,
+      withLedger(m, (l) => {
+        for (const e of l) if (e.kind === "file" && e.kit === false) e.content = other;
+      }),
+    );
     const r = runUninstall(target, home);
     ok(r, "uninstall");
     for (const rel of CREATED) {
@@ -168,16 +171,19 @@ describe("R1 (DC-2): a createdFiles entry survives a re-install only while the p
     for (const rel of REMOVED_DIRS) expect(existsSync(abs(target, rel)), `${rel} was left`).toBe(false);
   });
 
-  it("the plan-28 array shape and a bad record value are malformed: a verify on both sides and no created file is deleted", () => {
-    for (const bad of [[...CREATED], Object.fromEntries(CREATED.map((rel) => [rel, "sha256:XYZ"]))]) {
+  it("a file entry with no content record (the plan-28 bare path) and a bad record value are malformed: a verify on both sides and no created file is deleted", () => {
+    const edits: Array<(e: RawEntry) => void> = [(e) => void delete e.content, (e) => void (e.content = "sha256:XYZ")];
+    for (const edit of edits) {
       const { target, home } = emptyTarget("malformed");
       ok(runInstall(target, home), "install");
-      const m = readMarker(target);
-      m.createdFiles = bad;
-      writeMarker(target, m);
+      const forged = withLedger(readMarker(target), (l) => {
+        for (const e of l) if (e.kind === "file" && e.kit === false) edit(e);
+      });
+      const bad = forged.ledger;
+      writeMarker(target, forged);
       const ri = runInstall(target, home);
       expect(ri.status, ri.stdout).toBe(3);
-      expect(readMarker(target).createdFiles).toEqual(bad);
+      expect(readMarker(target).ledger).toEqual(bad);
       const ru = runUninstall(target, home);
       expect(ru.status, ru.stdout).toBe(3);
       for (const rel of CREATED) expect(existsSync(abs(target, rel)), `${JSON.stringify(bad).slice(0, 40)}: ${rel}`).toBe(true);
@@ -206,9 +212,17 @@ describe("R1 (DC-2): an empty directory is removed only when this run emptied it
 
 // ── R2: a marker uninstall keeps goes on naming what it removed ─────────────────────────────────
 describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run removed", () => {
-  const LEDGERS = ["claudeAskRules", "createdDirs", "createdFiles", "geminiSettings", "kitFiles"] as const;
+  // One malformed entry of each kind (a kit file is a file entry with kit true): the whole ledger is
+  // then malformed (plan 33.1-36).
+  const GARBLE: ReadonlyArray<readonly [string, (e: RawEntry) => boolean]> = [
+    ["ask-rules", (e) => e.kind === "ask-rules"],
+    ["dir", (e) => e.kind === "dir"],
+    ["file", (e) => e.kind === "file" && e.kit === false],
+    ["gemini", (e) => e.kind === "gemini"],
+    ["kit file", (e) => e.kind === "file" && e.kit === true],
+  ];
   const RUNNABLE = "tools/grugops/reference-check.js";
-  // Plan 33.1-30: a verbatim kit skill, which a stale kitFiles entry (its record is the source's bytes)
+  // Plan 33.1-30: a verbatim kit skill, which a stale kit-file entry (its record is the source's bytes)
   // would still match.
   const KIT_SKILL = ".claude/skills/grugops-plan/SKILL.md";
 
@@ -235,43 +249,35 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
     }
   }
 
-  for (const garbled of LEDGERS) {
-    it(`${garbled} garbled: the kept marker drops every entry the run removed, and a second uninstall changes no byte of what the user re-made`, () => {
-      const { target, home } = emptyTarget(`stale-${garbled}`);
+  for (const [kind, pick] of GARBLE) {
+    it(`a malformed ${kind} entry: the run removes and edits nothing, keeps the marker byte for byte, and a second uninstall changes no byte of what the user re-made`, () => {
+      const { target, home } = emptyTarget(`stale-${kind.replace(" ", "-")}`);
       ok(runInstall(target, home), "install");
-      const m = readMarker(target);
-      m[garbled] = "garbled";
-      writeMarker(target, m);
+      let garbled = 0;
+      writeMarker(
+        target,
+        withLedger(readMarker(target), (l) => {
+          const e = l.find(pick);
+          if (e !== undefined) {
+            e.extra = "garbled";
+            garbled += 1;
+          }
+        }),
+      );
+      expect(garbled, `PREMISE: the install wrote a ${kind} entry to garble`).toBe(1);
+      const markerBytes = readFileSync(abs(target, MARKER_REL));
 
       const preDry = snapshotTree(target);
       const dry = runUninstall(target, home, { dryRun: true });
       expect(dry.status, dry.stdout).toBe(3);
       expect(snapshotTree(target), "the DRY_RUN preview changed the tree").toBe(preDry);
 
+      const pre = snapshotTree(target);
       const r1 = runUninstall(target, home);
       expect(r1.status, r1.stdout).toBe(3);
-      expect(existsSync(abs(target, MARKER_REL)), "PREMISE: the marker is kept").toBe(true);
-      const kept = readMarker(target);
-      expect(kept[garbled], "the malformed ledger is written back as it was").toBe("garbled");
-      if (garbled !== "createdFiles") {
-        for (const rel of createdFileKeys(kept)) expect(existsSync(abs(target, rel)), `the kept marker still lists removed ${rel}`).toBe(true);
-      }
-      if (garbled !== "createdDirs") {
-        for (const rel of kept.createdDirs as string[]) expect(existsSync(abs(target, rel)), `the kept marker still lists removed ${rel}`).toBe(true);
-      }
-      if (garbled !== "claudeAskRules") {
-        const led = kept.claudeAskRules as { added: string[] };
-        expect(led.added, "the kept marker still lists the ask rules the run removed").toEqual([]);
-      }
-      if (garbled !== "kitFiles") {
-        for (const rel of Object.keys(kept.kitFiles as object)) {
-          expect(existsSync(abs(target, rel)), `the kept marker still lists removed kit file ${rel}`).toBe(true);
-        }
-      }
-      if (garbled !== "geminiSettings") {
-        const g = kept.geminiSettings as { createdFile: boolean; addedEntry: boolean };
-        expect([g.createdFile, g.addedEntry], "the kept marker still claims the Gemini change the run reversed").toEqual([false, false]);
-      }
+      expect(under(r1.stdout, "verify").filter((l) => /malformed install ledger/.test(l)).length, r1.stdout).toBe(1);
+      expect(snapshotTree(target), `the run changed the tree over a malformed ledger\n${r1.stdout}`).toBe(pre);
+      expect(readFileSync(abs(target, MARKER_REL)).equals(markerBytes), "the kept marker was rewritten").toBe(true);
 
       recreate(target);
       const before = snapshotTree(target);
@@ -281,59 +287,15 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
     });
   }
 
-  // Red-team of plan 33.1-30 (RT1, brief DC-2 class): a ledger whose ABSENCE (a marker made before it
-  // existed) grants a fallback authority must not keep granting it after a run that keeps the marker.
-  // Every ledger in turn is removed from the marker, another is garbled so the marker is kept, and a
-  // second uninstall after the user re-makes their own files must change nothing. The class is tested
-  // without a list of which ledgers have a fallback: each one is asked.
-  for (const absent of LEDGERS) {
-    it(`${absent} absent (a marker made before that ledger), marker kept for another malformed ledger: no fallback outlives the run — a second uninstall changes no byte of what the user re-made`, () => {
-      const garbled = LEDGERS.find((l) => l !== absent)!;
-      const { target, home } = emptyTarget(`spent-${absent}`);
-      ok(runInstall(target, home), "install");
-      const m = readMarker(target);
-      delete m[absent];
-      m[garbled] = "garbled";
-      writeMarker(target, m);
-
-      const preDry = snapshotTree(target);
-      const dry = runUninstall(target, home, { dryRun: true });
-      expect(dry.status, dry.stdout).toBe(3);
-      expect(snapshotTree(target), "the DRY_RUN preview changed the tree").toBe(preDry);
-
-      const r1 = runUninstall(target, home);
-      expect(r1.status, r1.stdout).toBe(3);
-      expect(existsSync(abs(target, MARKER_REL)), "PREMISE: the marker is kept").toBe(true);
-      expect(readMarker(target)[garbled], "the malformed ledger is written back as it was").toBe("garbled");
-
-      recreate(target);
-      const before = snapshotTree(target);
-      const r2 = runUninstall(target, home);
-      expect(r2.status, r2.stdout).toBe(3);
-      expect(snapshotTree(target), `the second uninstall changed what the user re-made\n${r2.stdout}`).toBe(before);
-    });
-  }
-
-  it("a kept marker that cannot be rewritten is a counted verify naming the entries it still lists", () => {
-    if (process.platform === "win32" || (typeof process.getuid === "function" && process.getuid() === 0)) {
-      console.log("SKIPPED: a read-only file is writable to root, and win32 is out of scope (D-15)");
-      return;
-    }
-    const { target, home } = emptyTarget("stale-ro");
-    ok(runInstall(target, home), "install");
-    const m = readMarker(target);
-    m.claudeAskRules = "garbled";
-    writeMarker(target, m);
-    chmodSync(abs(target, MARKER_REL), 0o444);
-    const pre = readFileSync(abs(target, MARKER_REL));
-    const r = runUninstall(target, home);
-    chmodSync(abs(target, MARKER_REL), 0o644);
-    expect(r.status, r.stdout).toBe(3);
-    expect(readFileSync(abs(target, MARKER_REL)).equals(pre)).toBe(true);
-    const v = under(r.stdout, "verify").filter((l) => l.includes(MARKER_REL) && /still lists/.test(l));
-    expect(v.length, r.stdout).toBe(1);
-    for (const rel of ["AGENTS.md", ".github", RUNNABLE]) expect(v[0], rel).toContain(rel);
-  });
+  // Plan 33.1-36, category (iii), deleted here:
+  //   - the five "<record> absent (a marker made before that ledger), marker kept for another malformed
+  //     ledger: no fallback outlives the run" cases: there is no partial ledger, and the byte-identity
+  //     fallback they guarded is gone; the round-2 six-record marker is covered by the class test over
+  //     RETIRED_RECORDS in install/ledger.test.ts;
+  //   - "a kept marker that cannot be rewritten is a counted verify naming the entries it still lists":
+  //     a marker is kept today only over a malformed ledger, which is written back verbatim, so the
+  //     kept-marker rewrite (and its verify) is not reached; plan 33.1-39 keeps a marker with left
+  //     entries and brings the rewrite back into reach.
 });
 
 // ── R3: the ask-rule ledger carried by presence ─────────────────────────────────────────────────
@@ -353,7 +315,7 @@ describe("R3 (DC-2): the ask-rule ledger claims a rule or the file only with pro
       writeFileSync(abs(target, SETTINGS), JSON.stringify(body));
       const ri = runInstall(target, home);
       ok(ri, "install 2");
-      const led = readMarker(target).claudeAskRules as { added: string[]; createdFile: boolean };
+      const led = askRecord(readMarker(target)) as { added: string[]; createdFile: boolean };
       expect(led.createdFile, "the re-install claims it created the user's file").toBe(false);
       if (JSON.stringify(body).includes("git push")) {
         expect(led.added, "the re-install claims the user's own rule").not.toContain("Bash(git push *)");

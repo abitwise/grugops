@@ -33,6 +33,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSyn
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { dirList, ledgerOf, type RawEntry } from "./ledger.test-support.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -101,8 +102,8 @@ function reported(stdout: string, label: string): string[] {
 const subject = (msg: string): string => msg.split(" ")[0];
 
 // The files a fresh install into an EMPTY target creates and a DRY_RUN uninstall must name for
-// removal (flow 10): the pointer files install created (createdFiles, appendedBlocks) and the Gemini
-// settings file it created (geminiSettings).
+// removal (flow 10): the pointer files install created (their file and block entries) and the Gemini
+// settings file it created (the gemini entry).
 const FLOW10_CREATED = ["CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json"] as const;
 
 describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
@@ -126,7 +127,7 @@ describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
     const target = makeFixture();
     const home = mkTmp();
     plantEmptyDirs(target, USER_EMPTY_DIRS);
-    // Plan 33.1-28: a directory is removed only on install's createdDirs record, never by its name,
+    // Plan 33.1-28: a directory is removed only on install's dir entry, never by its name,
     // so the preview can name a directory only in an installed target. Red-team of plan 33.1-28: and
     // only one this run empties, so the preview counts each file it would remove as removed and names
     // the directories it would empty. The preview changes nothing, so the real run below runs on the
@@ -391,25 +392,26 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
       expect(files, `the preview does not name ${f}`).toContain(f);
       expect(existsSync(join(copy, ...f.split("/"))), `the real run did not remove ${f}`).toBe(false);
     }
-    // Every file path each file ledger records is named by the preview (an untouched install holds
-    // every record), and every directory the preview names is in createdDirs; the real run removes
+    // Every file path each kind of ledger entry records is named by the preview (an untouched install
+    // holds every record), and every directory the preview names has a dir entry; the real run removes
     // exactly the directories the preview names.
-    const keysOf = (k: string): string[] => Object.keys((m[k] ?? {}) as Record<string, unknown>);
+    const entries = ledgerOf(m);
+    const pathsOf = (pick: (e: RawEntry) => boolean): string[] => entries.filter(pick).map((e) => e.path);
     const ledgerFiles: ReadonlyArray<readonly [string, readonly string[]]> = [
-      ["createdFiles", keysOf("createdFiles")],
-      ["kitFiles", keysOf("kitFiles")],
-      ["appendedBlocks", keysOf("appendedBlocks")],
-      ["geminiSettings", m.geminiSettings === undefined ? [] : [".gemini/settings.json"]],
-      ["claudeAskRules", m.claudeAskRules === undefined ? [] : [".claude/settings.json"]],
+      ["file (kit false)", pathsOf((e) => e.kind === "file" && e.kit === false)],
+      ["file (kit true)", pathsOf((e) => e.kind === "file" && e.kit === true)],
+      ["block", pathsOf((e) => e.kind === "block")],
+      ["gemini", pathsOf((e) => e.kind === "gemini")],
+      ["ask-rules", pathsOf((e) => e.kind === "ask-rules")],
       ["the marker", [MARKER_REL]],
     ];
     for (const [name, paths] of ledgerFiles) {
-      expect(paths.length, `the marker has no ${name} entry`).toBeGreaterThan(0);
-      for (const p of paths) expect(files, `${name} records ${p}; the preview does not name it`).toContain(p);
+      expect(paths.length, `the ledger has no ${name} entry`).toBeGreaterThan(0);
+      for (const p of paths) expect(files, `a ${name} entry records ${p}; the preview does not name it`).toContain(p);
     }
-    const createdDirs = new Set((m.createdDirs ?? []) as string[]);
-    expect(createdDirs.size).toBeGreaterThan(0);
-    for (const d of would) expect(createdDirs.has(d.replace(/^\//, "")), `the preview names ${d}, which createdDirs does not record`).toBe(true);
+    const dirEntries = new Set(dirList(m));
+    expect(dirEntries.size).toBeGreaterThan(0);
+    for (const d of would) expect(dirEntries.has(d.replace(/^\//, "")), `the preview names ${d}, which no dir entry records`).toBe(true);
     expect([...done].sort()).toEqual([...would].sort());
   });
 });

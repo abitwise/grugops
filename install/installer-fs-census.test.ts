@@ -200,7 +200,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:ensureBlock:appendFileSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1763-1766 `if (DRY_RUN)` reports would-add and returns before appendFileSync at :1775 (an existing regular file readForWrite read; red-team of plan 33.1-26). The create branch above it (writeTargetFile, then recordCreatedFile for the createdFiles ledger, plan 33.1-28) is after the same return",
+    why: "install.ts:1763-1766 `if (DRY_RUN)` reports would-add and returns before appendFileSync at :1775 (an existing regular file readForWrite read; red-team of plan 33.1-26). The create branch above it (writeTargetFile, then recordCreatedFile for a file entry of the install ledger, plan 33.1-28) is after the same return",
   },
   {
     site: "install.ts:linkOrCopy:symlinkSync",
@@ -230,7 +230,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:writeTargetFile:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the geminiSettings ledger and the file's shape before either), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
+    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the gemini entry of the install ledger and the file's shape before either), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
   },
   {
     site: "install.ts:removeBackup:rmSync",
@@ -284,19 +284,19 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "uninstall.ts:unlinkPath:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the createdFiles ledger lists the file), unmergeGemini (:760, call :766; :801, call :807; plan 33.1-29: reached only when the geminiSettings ledger records that install created the file, and either it still holds the bytes install wrote or nothing is left in it once the recorded AGENTS.md entry is removed), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
+    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the install ledger has a file entry for the file), unmergeGemini (:760, call :766; :801, call :807; plan 33.1-29: reached only when the gemini entry of the install ledger records that install created the file, and either it still holds the bytes install wrote or nothing is left in it once the recorded AGENTS.md entry is removed), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
   },
   {
     site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (plan 33.1-28 computes the post-removal text before that return; since plan 33.1-33 it removes only the one span the appendedBlocks record names and writes nothing otherwise), updateKeptMarker (it writes nothing under DRY_RUN, plan 33.1-28 R2), unmergeGemini (:810, call :815; plan 33.1-29: only the recorded append is reversed, after the geminiSettings ledger and the file's shape were asked), removeAskRules (:833, call :846)",
+    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (plan 33.1-28 computes the post-removal text before that return; since plan 33.1-33 it removes only the one span the block entry's record names and writes nothing otherwise), updateKeptMarker (it writes nothing under DRY_RUN, plan 33.1-28 R2), unmergeGemini (:810, call :815; plan 33.1-29: only the recorded append is reversed, after the gemini entry of the install ledger and the file's shape were asked), removeAskRules (:833, call :846)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "uninstall.ts:408-411 `if (DRY_RUN)` reports would-rmdir and returns before rmdirSync at :413; emptiness is read with readdirSync at :399, and ownership (the createdDirs ledger only, plan 33.1-28) is decided before that return (CR-02 fix)",
+    why: "uninstall.ts:408-411 `if (DRY_RUN)` reports would-rmdir and returns before rmdirSync at :413; emptiness is read with readdirSync at :399, and ownership (a dir entry of the install ledger only, plan 33.1-28) is decided before that return (CR-02 fix)",
   },
 
 ];
@@ -920,18 +920,20 @@ describe("installer fs census — the read axis (DC-3, plan 33.1-27)", () => {
 // `read-only` site is a `read-only-open` row whose flags the DRY_RUN axis checks. Each gate's own
 // definition must name its record.
 //
-// THE INTERIM SET (brief §2.2). The brief asks for one owns(path) authority over one install record.
-// This round leaves these ownership gates in place as the interim set, pending that single authority,
-// which plan 33.1-35 ledgers with its reason for a later round to build. The records are createdDirs
-// (ownsDir), createdFiles (ownsFile, ownsFileNow), geminiSettings (GEMINI_LEDGER), kitFiles
-// (ownsKitFile), claudeAskRules (readAskRuleLedger), appendedBlocks (ownsBlock, plan 33.1-33) and the
-// marker's own shape (ownsMarker, plan 33.1-33).
+// ONE LEDGER, ONE AUTHORITY (brief §2.2, D-33 (b), plan 33.1-36). The six records of rounds 1 and 2 are
+// merged into the one install ledger (install-marker.ts readLedger), read once in uninstall.ts as
+// LEDGER, and the one authority over it is install-marker.ts owns. The gates below are the passes'
+// questions of that one ledger: owns (the runnables pass decides by it alone), ownsDir, ownsFile,
+// ownsFileNow and ownsBlock (each asks LEDGER), GEMINI_LEDGER and ASK_LEDGER (the gemini and ask-rules
+// entries, from LEDGER), and the marker's own shape (ownsMarker, plan 33.1-33). Every gate's definition
+// must name LEDGER (or, for owns, be imported from install-marker.ts), so no gate reads a second record.
+// Plan 33.1-38 turns the rest of the removal sequence into a walk over the ledger.
 //
 // NO `sentinel-block` CLASS (plan 33.1-33, a deviation from the plan text). The plan proposed a class
 // for a rewrite identified by the exact grugops sentinel lines alone. Red-team carry items 4, 6 and 11
 // showed that rule is presence, not provenance: a line the user added inside the block was lost, their
 // trailing blank lines were trimmed, and a never-installed target was rewritten. removeSentinelBlock
-// now acts on the appendedBlocks record (ownsBlock), so it is a `ledger` row and the class has no
+// now acts on the block entry of the install ledger (ownsBlock), so it is a `ledger` row and the class has no
 // member; an empty class in a closed vocabulary would only be a place for presence to come back.
 //
 // KNOWN EXCEPTIONS (red-team carry items 12 and 13; a human decision is pending at plan 33.1-35, so
@@ -958,23 +960,23 @@ type CallerOwnership =
   | "ledger"
   // helper-gated: the caller is itself a helper; its own callers are rows.
   | "helper-gated"
-  // kit-record: a grugops skill or adapter; ownsKitFile allows the removal only while the kitFiles
-  // record still holds, or, for an install made before that record, byte identity with the kit
-  // source (plan 33.1-30).
+  // kit-record: a grugops skill or adapter; ownsKitFile allows the removal only while its file entry
+  // in the install ledger still holds (plan 33.1-30; the byte-identity fallback is gone, plan 33.1-36).
   | "kit-record"
-  // source-identical: AGENTS.md and the runnables; removed only when the createdFiles record holds
+  // source-identical: AGENTS.md; removed only when its file entry in the install ledger holds
   // (ownsFileNow) AND the file is still install's link to the kit source or byte-identical to it.
   | "source-identical";
 const CALLER_OWNERSHIP_CLASSES: ReadonlySet<string> = new Set<CallerOwnership>(["ledger", "helper-gated", "kit-record", "source-identical"]);
 
 /** Each ledger gate, the record it reads, and a token its own definition must name. */
 const LEDGER_GATES: ReadonlyMap<string, { readonly record: string; readonly defines: string }> = new Map([
-  ["ownsDir", { record: "createdDirs (install created the directory)", defines: "DIR_LEDGER" }],
-  ["ownsFile", { record: "createdFiles (install created the file, and what it wrote there)", defines: "FILE_LEDGER" }],
-  ["ownsFileNow", { record: "createdFiles, for a file read now (through ownsFile)", defines: "ownsFile" }],
-  ["ownsBlock", { record: "appendedBlocks (the exact block install appended; plan 33.1-33)", defines: "BLOCK_LEDGER" }],
-  ["GEMINI_LEDGER", { record: "geminiSettings (what install did to .gemini/settings.json)", defines: "readGeminiLedger" }],
-  ["readAskRuleLedger", { record: "claudeAskRules (the ask rules install added)", defines: "./install-marker.js" }],
+  ["owns", { record: "the one ledger, install-marker.ts owns (plan 33.1-36, D-33 (b))", defines: "./install-marker.js" }],
+  ["ownsDir", { record: "a dir entry of the one ledger (install created the directory), through owns", defines: "LEDGER" }],
+  ["ownsFile", { record: "a kit-false file entry of the one ledger (install created the file, and what it wrote there)", defines: "LEDGER" }],
+  ["ownsFileNow", { record: "a kit-false file entry of the one ledger, for a file read now (through owns)", defines: "LEDGER" }],
+  ["ownsBlock", { record: "a block entry of the one ledger (the exact block install appended; plan 33.1-33)", defines: "LEDGER" }],
+  ["GEMINI_LEDGER", { record: "the gemini entry of the one ledger (what install did to .gemini/settings.json)", defines: "LEDGER" }],
+  ["ASK_LEDGER", { record: "the ask-rules entry of the one ledger (the ask rules install added)", defines: "LEDGER" }],
   [
     "ownsMarker",
     {
@@ -1000,7 +1002,7 @@ const OWNERSHIP_SITES: readonly OwnershipSite[] = [
     count: 1,
     ownership: "ledger",
     gate: "ownsDir",
-    why: "an empty directory is removed only when the createdDirs ledger lists it (ownsDir) and this run emptied it (GONE_THIS_RUN); a name is not a record (plan 33.1-28)",
+    why: "an empty directory is removed only when the one ledger has a dir entry for it (ownsDir) and this run emptied it (GONE_THIS_RUN); a name is not a record (plan 33.1-28)",
   },
   {
     site: "uninstall.ts:unlinkPath:unlinkSync",
@@ -1043,7 +1045,7 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     count: 1,
     ownership: "ledger",
     gate: "ownsFile",
-    why: "a pointer file install created, blank after this run removed its recorded block, and holding what the createdFiles record says (plan 33.1-28)",
+    why: "a pointer file install created, blank after this run removed its recorded block, and holding what its file entry in the one ledger says (plan 33.1-28)",
   },
   {
     caller: "uninstall.ts:unmergeGemini→unlinkPath",
@@ -1056,7 +1058,7 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     caller: "uninstall.ts:removeAskRules→unlinkPath",
     count: 1,
     ownership: "ledger",
-    gate: "readAskRuleLedger",
+    gate: "ASK_LEDGER",
     why: "the settings file install created, empty once the ledger's rules are removed (D-18). Known exception: carry item 12",
   },
   {
@@ -1064,14 +1066,14 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     count: 1,
     ownership: "ledger",
     gate: "ownsMarker",
-    why: "the marker, only when it reads as install's own and every ledger in it is well-formed (plans 33.1-27 and 33.1-33)",
+    why: "the marker, only when it reads as install's own and its one ledger is well-formed (plans 33.1-27, 33.1-33 and 33.1-36)",
   },
   {
     caller: "uninstall.ts:removeSentinelBlock→rewritePath",
     count: 1,
     ownership: "ledger",
     gate: "ownsBlock",
-    why: "exactly the one span whose bytes hash to the appendedBlocks record is removed; every other byte is written back (plan 33.1-33, carry 4, 6, 11)",
+    why: "exactly the one span whose bytes hash to the block entry's record is removed; every other byte is written back (plan 33.1-33, carry 4, 6, 11)",
   },
   {
     caller: "uninstall.ts:unmergeGemini→rewritePath",
@@ -1084,7 +1086,7 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     caller: "uninstall.ts:removeAskRules→rewritePath",
     count: 1,
     ownership: "ledger",
-    gate: "readAskRuleLedger",
+    gate: "ASK_LEDGER",
     why: "only the ledger's rules and the containers install created are removed (D-18). Known exception: carry item 12",
   },
   {
@@ -1092,13 +1094,13 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     count: 1,
     ownership: "ledger",
     gate: "ownsMarker",
-    why: "install's own kept marker, rewritten without the entries this run removed (plan 33.1-28 R2), only after the same bytes are read again",
+    why: "install's own kept marker, its one ledger rewritten without the entries this run removed (plan 33.1-28 R2), only after the same bytes are read again",
   },
   {
     caller: "uninstall.ts:removeKitSkills→removeFile",
     count: 1,
     ownership: "kit-record",
-    why: "ownsKitFile allows removal only while the kitFiles record, or for a pre-record install byte identity with the kit source, still matches (plan 33.1-30)",
+    why: "ownsKitFile allows removal only while its file entry in the one ledger still matches (plan 33.1-30; no byte-identity fallback since plan 33.1-36)",
   },
   {
     caller: "uninstall.ts:removeKitAdapters→removeFile",
@@ -1110,13 +1112,14 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     caller: "uninstall.ts:removeGrugopsAgentsMd→removeFile",
     count: 2,
     ownership: "source-identical",
-    why: "AGENTS.md, only when the createdFiles record holds and it is install's link to the kit source (isOwnLink) or a byte-identical copy (sameFileBytes) (plan 33.1-28)",
+    why: "AGENTS.md, only when its file entry in the one ledger holds and it is install's link to the kit source (isOwnLink) or a byte-identical copy (sameFileBytes) (plan 33.1-28)",
   },
   {
     caller: "uninstall.ts:removeMaterializedRunnables→removeFile",
     count: 1,
-    ownership: "source-identical",
-    why: "a runnable, only when it is byte-identical to its source (sameFileBytes) and the createdFiles record holds (plan 33.1-28)",
+    ownership: "ledger",
+    gate: "owns",
+    why: "the tracer path of D-33 (b): a runnable is removed by owns alone, while its file entry in the one ledger holds, whether or not this kit source ships it (plan 33.1-36, review WR-01)",
   },
 ];
 
@@ -1126,7 +1129,7 @@ const KNOWN_EXCEPTIONS: readonly { readonly carry: number; readonly where: reado
     carry: 12,
     where: ["uninstall.ts:removeAskRules→unlinkPath", "uninstall.ts:removeAskRules→rewritePath"],
     reason:
-      "removeAskRules removes a rule by its NAME in the claudeAskRules ledger and never checks askContent against the " +
+      "removeAskRules removes a rule by its NAME in the ask-rules entry of the ledger and never checks askContent against the " +
       "current permissions.ask, so a user who deletes install's rule and later adds the same rule string loses it. A " +
       "whole-list check would strand all rules on any user addition; a per-rule check needs a different record shape",
   },
@@ -1270,7 +1273,7 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
   it("the vocabularies are closed: Ownership and CallerOwnership are exactly the stated classes", () => {
     expect([...OWNERSHIP_CLASSES].sort()).toEqual(["helper-gated", "ledger", "read-only"]);
     expect([...CALLER_OWNERSHIP_CLASSES].sort()).toEqual(["helper-gated", "kit-record", "ledger", "source-identical"]);
-    expect([...LEDGER_GATES.keys()].sort()).toEqual(["GEMINI_LEDGER", "ownsBlock", "ownsDir", "ownsFile", "ownsFileNow", "ownsMarker", "readAskRuleLedger"]);
+    expect([...LEDGER_GATES.keys()].sort()).toEqual(["ASK_LEDGER", "GEMINI_LEDGER", "owns", "ownsBlock", "ownsDir", "ownsFile", "ownsFileNow", "ownsMarker"]);
     for (const r of OWNERSHIP_SITES) {
       expect(OWNERSHIP_CLASSES.has(r.ownership), `${r.site}: ${r.ownership}`).toBe(true);
       expect(r.why.trim().length, `${r.site}: empty why`).toBeGreaterThan(0);
