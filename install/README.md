@@ -104,10 +104,16 @@ One residual remains (T-33.1-312): if the operating system itself fails partway 
 written. Install reports each file that failed as a counted `verify` line naming it, and the next
 run's checks see that state and check it again.
 
-The shared kit home is different. A re-install replaces `${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory`
-with a fresh copy of the kit, so an edit you made inside the shared kit home is overwritten, with no
-backup and no question. That is accepted for now (human decision, 2026-09-30); a backup of kit-home
-edits is deferred. Keep your own changes in the target repository, not in the shared kit home.
+The shared kit home is different. The kit home keeps a record of what install wrote there,
+`${GRUGOPS_HOME:-$HOME/.grugops}/.grugops-kit.json`. A re-install replaces the `agent-factory/` that
+record names with a fresh copy of the kit, so an edit you made inside the shared kit install wrote is
+overwritten, with no backup and no question. That is accepted for now (human decision, 2026-09-30); a
+backup of kit-home edits is deferred. Keep your own changes in the target repository, not in the
+shared kit home. Anything else at that path is kept: an `agent-factory/` the record does not name (one
+of your own, or a kit home written by an installer from before the record existed), a symbolic link,
+or a file is renamed aside to `agent-factory.bak.<ISO>` beside it, never deleted, and the backup is
+recorded in `.grugops-kit.json`. So the first re-install over a kit home written before this release
+leaves one such backup; remove it by hand once you no longer need it.
 
 ### Exit codes — what the installer tells a script
 
@@ -117,7 +123,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 | Code | Meaning |
 |------|---------|
 | `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==`, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo reports *nothing was changed*. All four are **`install.js` only**. So do not test for the install banner to decide a run succeeded; test the exit code. |
-| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
+| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below). `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, or `--target` with no value. Nothing was read or written. |
 | `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
 
@@ -169,8 +175,19 @@ here.** That is deliberate: proceeding over a partial install is how a broken in
 production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
 idempotent, so re-running is safe).
 
+Code `1` from `install.js` can also mean the **kit-home overlap refusal**. The kit is written to
+`${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory`, and install refuses, before it writes anything, when
+that kit home and the target overlap: the kit root is the target, either lies inside the other, or the
+kit home is the target or lies inside it (for example `GRUGOPS_HOME` set to the repository, or to a
+directory inside it). The paths are compared after resolving symbolic links, and a path whose real
+location cannot be read is refused as well. The refusal is always on: `DRY_RUN=1` does not exempt it
+and `--allow-self` does not override it. It writes one sentence to stderr, prints nothing on stdout,
+and changes nothing in the target or the kit home. The remedy is to set `GRUGOPS_HOME` to a directory
+outside the repository. A target inside the kit home but outside its `agent-factory/` (for example
+`GRUGOPS_HOME=$HOME` with the repository at `$HOME/code/repo`) is not an overlap.
+
 Code `1` from `uninstall.js` means the **self-checkout refusal**: the target you named is the
-grugops source checkout itself (or a second checkout of it — it carries `install/install.ts` and
+grugops source checkout itself (or a second checkout of it — it carries `install/install.js` and
 `agent-factory/VERSION`). Uninstalling there would delete the kit's own committed adapters and
 skills under `.claude/`, which are not wiring the installer added but files the repository ships,
 so the run stops before removing anything and writes the reason to stderr. Nothing is printed on
@@ -228,7 +245,7 @@ In the **target repo**:
 - for every skill and adapter file above, install records in the install ledger in
   `.grugops/install.json` what it wrote there (a sha256 of the bytes, or the target of a `--symlink` link), so
   uninstall removes only a file that still holds exactly that, and a re-install asks before it
-  overwrites one you edited (see "Re-installing" above)
+  overwrites one you edited (see "Re-installing" above).
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved). When `CLAUDE.md` does not exist, install creates it and records
   that in the install ledger in `.grugops/install.json`; the block it appended is recorded there
@@ -264,11 +281,22 @@ In the **target repo**:
 In the **shared kit root** (`${GRUGOPS_HOME:-$HOME/.grugops}`):
 
 - `agent-factory/` — the read-only kit, copied once and shared across repos. A re-install replaces
-  it with a fresh copy, so an edit made inside it is overwritten (see "Re-installing" above)
+  the kit the kit-home record names with a fresh copy, so an edit made inside it is overwritten (see
+  "Re-installing" above)
+- `.grugops-kit.json` — the kit-home record: the kit home's real path, and what install wrote there
+  (the kit, and each backup it made with a record of its content)
+- `agent-factory.bak.<ISO>` — anything at `agent-factory/` that the record does not name as install's
+  kit (a directory of yours, a link, a file) is renamed aside to this name and recorded, never deleted.
+  `--update` also keeps a recorded kit that differs from the new one under this name
+- `.agent-factory.tmp-XXXXXX` and `.agent-factory.old-XXXXXX` — directories install creates while it
+  swaps the kit in, and removes again; one is left only when a step fails, and the `verify` line names
+  it
 
 It never overwrites or deletes any file you own. Existing seeded state is left byte-untouched on
 re-install (skip-if-exists), and `agent-factory/`, `plans/`, `.planning/`, `docs/`, and `src/`
-in your target are never modified beyond the additive edits above. A path the installer reads or
+in your target are never modified beyond the additive edits above: install refuses to run when the
+kit home overlaps the target (see the exit-code section above), so the kit is never written into, and
+never replaces, anything in your repository. A path the installer reads or
 writes that is not what it expects (a FIFO, a directory, a device, a symbolic link it did not make,
 or a hard link) is skipped and reported as a `verify` line, never read or written through, so the
 installer cannot hang on it (see the exit-code paragraph above).
@@ -660,8 +688,13 @@ an edit has not reached yet without writing anything, run
 `node install/install.js --check --target /path/to/repo`; it names every stale adapter.
 
 It is **reversible**: the displaced kit is retained as a timestamped `agent-factory.bak.<ISO>`
-backup under the kit home (renamed aside, never deleted) whenever the new kit differs from it. If the
-kit is already identical, the update is a true no-op and leaves no backup behind.
+backup under the kit home (renamed aside, never deleted, and recorded in `.grugops-kit.json`)
+whenever the new kit differs from it. If the kit is already identical, the update leaves no backup
+behind. Anything at `agent-factory/` that the kit-home record does not name as install's kit (a
+directory of yours, a link, a file, or a kit written by an installer from before the record existed)
+is always kept the same way, whether or not it differs. `--update` has no target, so the kit-home
+overlap refusal does not apply to it; the record is what keeps it from deleting anything install did
+not write.
 
 If the checkout you run `--update` from is **older** than the kit already installed (a downgrade),
 `--update` prints a clear warning naming both versions and then **proceeds** — it refreshes the kit
@@ -694,6 +727,10 @@ This is the **single, opt-in deletion path** in grugops, and it is deliberately 
 - a match that is a symbolic link is removed as a link, never followed. A backup is reported
   `removed` only when it is gone afterwards; one that could not be removed is a `verify` finding,
   and the run prints `== prune INCOMPLETE — N item(s) need verification ==` and exits `3`.
+- it matches by that name shape, not by the record install now keeps of each kit-home backup
+  (`.grugops-kit.json`). So a kit-home `agent-factory.bak.<ISO>` that install made of something that
+  was not its kit (a directory of yours at `agent-factory/`; its `backed-up` line said so) matches as
+  well. Move anything you want to keep out of such a backup before you prune.
 
 ### Prove it yourself
 

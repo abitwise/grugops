@@ -33,7 +33,16 @@
 //   gemini     the Gemini fields         what install did to .gemini/settings.json (that path only); see
 //                                        THE gemini ENTRY below;
 //   ask-rules  the ask-rule fields       the Claude Code ask rules install added to .claude/settings.json
-//                                        (that path only, D-18); see AskRuleLedger below.
+//                                        (that path only, D-18); see AskRuleLedger below;
+//   backup     origin, of, content       install made this backup (plan 33.1-37): `origin` says what it
+//                                        was made from (BACKUP_ORIGINS), `of` the path it was made of,
+//                                        and `content` its file, link or tree record as install left it
+//                                        (user-file.ts treeRecord), or null when it could not be read in
+//                                        full (never proven unchanged);
+//   kit        (none)                    install wrote the kit at the kit root (KIT_ENTRY_PATH). Only in
+//                                        the kit-home record; see THE KIT-HOME RECORD below.
+// Which kinds a ledger may hold depends on the record it is read from (KINDS_BY_SCOPE): a target's
+// marker holds dir, file, block, gemini, ask-rules and backup; the kit-home record holds backup and kit.
 // Two entries with the same (path, kind) are refused: which one is install's record is not known. One
 // path can hold entries of two kinds (CLAUDE.md: the file install created, and the block it appended).
 //
@@ -141,7 +150,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
-import { isOwnLink, kindAt, readForWrite, realTargetPath, wayTo } from "./user-file.js";
+import { isOwnLink, kindAt, readForWrite, realTargetPath, treeRecord, wayTo } from "./user-file.js";
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
 /** The marker field that holds the one install ledger (D-33 (b)). */
@@ -302,6 +311,8 @@ export function isLedgerPath(entry) {
 const SHA256_RECORD = /^sha256:[0-9a-f]{64}$/;
 const FILE_RECORD = /^sha256:[0-9a-f]{64}(?:;mode=[0-7]{4})?$/;
 const LINK_RECORD = /^link:[^\u0000-\u001f\u007f]+$/;
+// A tree record (user-file.ts treeRecord, plan 33.1-37): a backup that is a directory.
+const TREE_RECORD = /^tree:sha256:[0-9a-f]{64}$/;
 const isSha256Record = (v) => typeof v === "string" && SHA256_RECORD.test(v);
 const isFileRecord = (v) => typeof v === "string" && FILE_RECORD.test(v);
 /** The record of `bytes` install wrote: `sha256:<hex>`. A string is hashed as its UTF-8 bytes. */
@@ -358,6 +369,8 @@ export function linkRecord(target) {
 export function isContentRecord(v) {
     return typeof v === "string" && (FILE_RECORD.test(v) || LINK_RECORD.test(v));
 }
+/** A `backup` entry's content: a file, link or tree record (plan 33.1-37). null is checked by the caller. */
+const isBackupContent = (v) => isContentRecord(v) || (typeof v === "string" && TREE_RECORD.test(v));
 /** The one wording of a hard link that is not proof of what install wrote. */
 export function hardLinkReason(names) {
     return (`it is a hard link (the same file has ${names} names, and another may be outside the target), so what it ` +
@@ -395,10 +408,26 @@ export function recordHolds(root, path, record) {
 // The kinds, their exact key sets, the path rules and the reader, serializer and authority. See the
 // header for what each kind records.
 /**
- * The kinds an entry of the one ledger can have, in ledgerJson's order. Plan 33.1-37 adds `kit` and
- * `backup` for the kit-home record, and plan 33.1-40 records target backups with `backup`.
+ * The kinds an entry of the one ledger can have, in ledgerJson's order. Plan 33.1-37 added `backup` and
+ * `kit` for the kit-home record (see THE KIT-HOME RECORD below); plan 33.1-40 records target backups with
+ * `backup` too.
  */
-export const LEDGER_KINDS = ["dir", "file", "block", "gemini", "ask-rules"];
+export const LEDGER_KINDS = ["dir", "file", "block", "gemini", "ask-rules", "backup", "kit"];
+export const KINDS_BY_SCOPE = {
+    target: ["dir", "file", "block", "gemini", "ask-rules", "backup"],
+    "kit-home": ["backup", "kit"],
+};
+/** The kit-home record's path relative to the kit home (plan 33.1-37). */
+export const KIT_HOME_RECORD_REL = ".grugops-kit.json";
+/** The one path a `kit` entry may name: the kit root, relative to the kit home. */
+export const KIT_ENTRY_PATH = "agent-factory";
+/**
+ * What a `backup` entry's backup was made from (plan 33.1-37). `kit-home` is the kit root copyKit moved
+ * aside, and is allowed only in the kit-home record; the others are target backups (plan 33.1-40):
+ * the in-repo agent-factory/ and the legacy config --migrate moves aside, the handoffs directory, and an
+ * edited kit file D-32 backs up. Each is allowed only in a target ledger.
+ */
+export const BACKUP_ORIGINS = ["in-repo-kit", "legacy-config", "handoffs", "edited-kit-file", "kit-home"];
 /** The one path a `gemini` entry may name, and the one path an `ask-rules` entry may name. */
 export const GEMINI_SETTINGS_REL = ".gemini/settings.json";
 export const ASK_RULES_REL = ".claude/settings.json";
@@ -476,14 +505,18 @@ function askProblem(r) {
     return null;
 }
 // entryProblem: the reason one raw entry is not exactly its kind's shape, or null. The rules are the
-// ones each retired record's reader applied, now asked of one entry.
-function entryProblem(e) {
+// ones each retired record's reader applied, now asked of one entry. `scope` (plan 33.1-37) says which
+// record the entry was read from; a kind or a backup origin outside it is refused.
+function entryProblem(e, scope) {
     if (!isPlainObject(e))
         return "it is not a JSON object";
     if (!isLedgerPath(e.path))
-        return "its path is not a relative POSIX path inside the target";
+        return `its path is not a relative POSIX path inside the ${scope === "target" ? "target" : "kit home"}`;
     if (typeof e.kind !== "string" || !LEDGER_KINDS.includes(e.kind)) {
         return `its kind is not one of ${LEDGER_KINDS.join(", ")}`;
+    }
+    if (!KINDS_BY_SCOPE[scope].includes(e.kind)) {
+        return `a ${e.kind} entry does not belong in the ${scope === "target" ? "target's install ledger" : "kit-home record"} (it holds only ${KINDS_BY_SCOPE[scope].join(" and ")} entries)`;
     }
     switch (e.kind) {
         case "dir":
@@ -518,6 +551,32 @@ function entryProblem(e) {
             if (e.path !== ASK_RULES_REL)
                 return `an ask-rules entry may name only ${ASK_RULES_REL}`;
             return askProblem(e);
+        case "kit":
+            if (e.path !== KIT_ENTRY_PATH)
+                return `a kit entry may name only ${KIT_ENTRY_PATH}`;
+            return keyProblem(e, ["path", "kind"]);
+        case "backup": {
+            const keys = keyProblem(e, ["path", "kind", "origin", "of", "content"]);
+            if (keys !== null)
+                return keys;
+            if (typeof e.origin !== "string" || !BACKUP_ORIGINS.includes(e.origin)) {
+                return `its origin is not one of ${BACKUP_ORIGINS.join(", ")}`;
+            }
+            if ((e.origin === "kit-home") !== (scope === "kit-home")) {
+                return scope === "kit-home"
+                    ? `a backup in the kit-home record must have origin kit-home, not ${e.origin}`
+                    : "a backup with origin kit-home belongs in the kit-home record, not the target's install ledger";
+            }
+            if (!isLedgerPath(e.of))
+                return "its `of` is not a relative POSIX path";
+            if (e.origin === "kit-home" && e.of !== KIT_ENTRY_PATH)
+                return `a kit-home backup must be of ${KIT_ENTRY_PATH}`;
+            if (e.of === e.path)
+                return "its `of` is its own path";
+            if (e.content !== null && !isBackupContent(e.content))
+                return "its content is neither null nor a file, link or tree record";
+            return null;
+        }
     }
 }
 // normalize: the typed entry of a raw entry entryProblem accepted, holding only its kind's keys.
@@ -557,17 +616,22 @@ function normalize(e) {
                 a.fileMode = e.fileMode;
             return a;
         }
+        case "backup":
+            return { path, kind: "backup", origin: e.origin, of: e.of, content: e.content };
+        case "kit":
+            return { path, kind: "kit" };
     }
 }
 const KIND_ORDER = (k) => LEDGER_KINDS.indexOf(k);
 const byPathThenKind = (a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : KIND_ORDER(a.kind) - KIND_ORDER(b.kind);
 /**
  * THE ONE READER of the install ledger. `holder` is install's `ok` marker (or null when there is none
- * a caller can use). Every entry must have exactly its kind's shape; one that does not, two entries
- * with the same (path, kind), or a value that is not a list make the whole ledger `malformed`, and
- * nothing in it is used.
+ * a caller can use), or the kit-home record with `scope` "kit-home" (plan 33.1-37). Every entry must
+ * have exactly its kind's shape and a kind its scope holds (KINDS_BY_SCOPE); one that does not, two
+ * entries with the same (path, kind), or a value that is not a list make the whole ledger `malformed`,
+ * and nothing in it is used.
  */
-export function readLedger(holder) {
+export function readLedger(holder, scope = "target") {
     if (holder === null || !hasOwn(holder, LEDGER_FIELD))
         return { state: "absent", entries: [], why: null, raw: undefined };
     const raw = holder[LEDGER_FIELD];
@@ -577,7 +641,7 @@ export function readLedger(holder) {
     const entries = [];
     const seen = new Set();
     for (let i = 0; i < raw.length; i += 1) {
-        const problem = entryProblem(raw[i]);
+        const problem = entryProblem(raw[i], scope);
         if (problem !== null)
             return bad(`entry ${i}: ${problem}`);
         const entry = normalize(raw[i]);
@@ -628,6 +692,10 @@ export function ledgerJson(entries) {
                     askContent: e.askContent,
                     ...(e.fileMode === undefined ? {} : { fileMode: e.fileMode }),
                 };
+            case "backup":
+                return { path: e.path, kind: e.kind, origin: e.origin, of: e.of, content: e.content };
+            case "kit":
+                return { path: e.path, kind: e.kind };
         }
     });
 }
@@ -665,6 +733,8 @@ export function owns(ledger, root, rel, kind) {
     if (entry === undefined) {
         return { owned: false, recorded: false, entry: null, reason: notRecordedReason(ledger, kind === "dir" ? "directory" : kind === "file" ? "file" : "entry") };
     }
+    if (entry.kind === "kit" || entry.kind === "backup")
+        return ownsKitHomePath(root, rel, entry);
     if (entry.kind !== "file")
         return { owned: true, entry, note: null };
     const c = checkRecord(root, join(root, ...rel.split("/")), entry.content);
@@ -682,6 +752,87 @@ export function owns(ledger, root, rel, kind) {
         reason: "it does not hold what the install ledger records install wrote there (it was edited or replaced since), so " +
             "there is no record that install wrote this content; left in place",
     };
+}
+// ownsKitHomePath: owns' answer for a `kit` or `backup` entry (plan 33.1-37; see THE KIT-HOME RECORD).
+//   kit     owned only while a real directory (by lstat, not a link, nothing but real directories on the
+//           way) sits at the path. ITS CONTENT IS NOT COMPARED. That is D-31 item 14's acceptance (the
+//           named human's decision of 2026-09-30): a re-install may overwrite edits inside the shared kit
+//           install wrote, and a backup of kit-home edits is deferred. It holds only for a kit the record
+//           names; anything at the kit root the record does not name is renamed aside, never deleted.
+//   backup  owned only while its content record is not null and the path still holds exactly it
+//           (treeRecord now equals the record: a file's bytes and mode, a link's target, or every entry of
+//           a tree). A null record can never be shown to hold, so it is never owned.
+function ownsKitHomePath(root, rel, entry) {
+    const path = join(root, ...rel.split("/"));
+    if (wayTo(root, path) !== null) {
+        return { owned: false, recorded: true, entry, reason: "something on the way to it is not a real directory, so it is not shown to be what install left there; left in place" };
+    }
+    if (entry.kind === "kit") {
+        const kind = kindAt(path);
+        if (kind === "directory")
+            return { owned: true, entry, note: null };
+        return {
+            owned: false,
+            recorded: true,
+            entry,
+            reason: kind === null ? "it is no longer there" : `it is not a real directory (it is a ${kind}), so it is not the kit install wrote`,
+        };
+    }
+    if (entry.content === null) {
+        return { owned: false, recorded: true, entry, reason: "its record holds no content record, so it can never be shown to be unchanged; left in place" };
+    }
+    if (treeRecord(root, rel) === entry.content)
+        return { owned: true, entry, note: null };
+    return {
+        owned: false,
+        recorded: true,
+        entry,
+        reason: "it does not hold what the record says install left there (it was changed since, or could not be read in full); left in place",
+    };
+}
+export function readKitHomeRecord(home) {
+    const none = { state: "absent", entries: [], why: null, raw: undefined };
+    const path = join(home, KIT_HOME_RECORD_REL);
+    const read = readForWrite(home, path);
+    if (read.state === "create")
+        return { state: "absent", ledger: none, why: null, boundTo: null };
+    const unreadable = (why) => ({ state: "unreadable", ledger: none, why, boundTo: null });
+    if (read.state === "blocked")
+        return unreadable(read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`);
+    const doc = readJsonText(read.bytes);
+    if (!doc.ok)
+        return unreadable(`it ${doc.why}`);
+    if (firstDuplicateKey(doc.root) !== null)
+        return unreadable("it has a duplicate key, so which value is install's record is not known");
+    let parsed;
+    try {
+        parsed = JSON.parse(read.text);
+    }
+    catch {
+        return unreadable("it is not valid JSON");
+    }
+    if (!isPlainObject(parsed))
+        return unreadable("it is not a JSON object");
+    const keys = keyProblem(parsed, ["grugopsHome", "ledger"]);
+    if (keys !== null)
+        return unreadable(`it is not install's kit-home record: ${keys}`);
+    if (typeof parsed.grugopsHome !== "string")
+        return unreadable("its grugopsHome is not a string");
+    const ledger = readLedger(parsed, "kit-home");
+    if (ledger.state !== "ok")
+        return unreadable(`its ledger is malformed (${ledger.why ?? "absent"})`);
+    const here = realTargetPath(home);
+    if (here === null || parsed.grugopsHome !== here) {
+        return {
+            state: "unbound",
+            ledger: none,
+            why: here === null
+                ? "the real path of the kit home could not be read, so the record cannot be shown to be this kit home's"
+                : `it was written for another kit home (${parsed.grugopsHome}), not this one (${here})`,
+            boundTo: parsed.grugopsHome,
+        };
+    }
+    return { state: "ok", ledger, why: null, boundTo: here };
 }
 // installMarkerProblems (plan 33.1-33, brief DC-2, ownsMarker): the reasons a parsed JSON object is
 // not install's own marker, empty when it is. install's writeMarker always writes `grugopsHome`,

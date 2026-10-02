@@ -22,6 +22,14 @@
 // Pass F skips, with the reason printed, only where a FIFO cannot be made (mkfifo unavailable, or
 // win32). Pass D always runs.
 //
+// THE KIT-HOME ROOT (plan 33.1-37). Install also reads under the kit home: the kit-home record and the
+// kit root, both by the names install-marker.js exports (KIT_HOME_RECORD_REL, KIT_ENTRY_PATH), imported
+// here and never typed. Passes F and D plant a FIFO, then an empty directory, at each of them under a
+// scratch GRUGOPS_HOME over an installed kit home, and run `install.js --yes` and `install.js --yes
+// --update`. Each run must finish within 60 s with a documented exit code, and the planted special file
+// must still be a special file of the same kind, at its path or (for the kit root) as the recorded
+// backup copyKit renamed it to, never opened. A site case keeps a FIFO inside an unrecorded kit tree.
+//
 // Drives the COMMITTED install/install.js and install/uninstall.js (npm run build first). Hermetic:
 // HOME, GRUGOPS_HOME and TARGET are scratch directories removed at the end.
 //
@@ -44,6 +52,7 @@ import {
   runUninstall,
   spawnBin,
 } from "./installer-paths.test-support.js";
+import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-special-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -230,3 +239,107 @@ for (const shape of ["FIFO", "directory"] as const) {
     }
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE KIT-HOME ROOT (plan 33.1-37, brief DC-3 by derivation). The read paths are install-marker.js's own
+// constants, so a third kit-home read path added there without a case here fails the pinned count.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const KIT_HOME_READ_PATHS: readonly string[] = [KIT_HOME_RECORD_REL, KIT_ENTRY_PATH];
+// Pinned: the kit-home record install reads (readKitHomeRecord) and the kit root copyKit decides on
+// (owns(kit), treeRecord, dirsSameContent, and --update's VERSION read under it).
+const KIT_HOME_READ_PATH_COUNT = 2;
+type KitHomeRun = "install --yes" | "install --yes --update";
+const KIT_HOME_RUNS: readonly KitHomeRun[] = ["install --yes", "install --yes --update"];
+
+// The tree: an installed kit home whose record was then taken away, the shape of every kit home written
+// before this release. Without a record nothing at the kit root is install's, so a planted directory there
+// must survive as the recorded backup. (Over a record that names the kit, a directory at the kit root is
+// the kit install wrote and is replaced, D-31 item 14; installer-kit-home.test.ts covers that arm, and the
+// record damages, a FIFO at the record over a recorded kit included.)
+function installedKitHome(): { target: string; home: string; grugopsHome: string } {
+  const root = fresh("kithome");
+  const target = join(root, "target");
+  const home = join(root, "home");
+  mkdirSync(target);
+  mkdirSync(home);
+  const grugopsHome = join(home, ".grugops");
+  const r = runInstall(target, grugopsHome, [], { home, timeoutMs: 120_000 });
+  expect(r.status, `the baseline install failed\n${r.stdout}\n${r.stderr}`).toBe(0);
+  rmSync(join(grugopsHome, KIT_HOME_RECORD_REL));
+  return { target, home, grugopsHome };
+}
+function kitHomeRun(kind: KitHomeRun, t: { target: string; home: string; grugopsHome: string }): Run {
+  return runInstall(t.target, t.grugopsHome, kind === "install --yes" ? [] : ["--update"], { home: t.home, timeoutMs: 60_000 });
+}
+// Where the planted path is now: in place, or (for the kit root) the one backup copyKit renamed it to.
+function kitHomeWhereNow(grugopsHome: string, rel: string): string {
+  if (rel === KIT_ENTRY_PATH) {
+    const baks = readdirSync(grugopsHome).filter((n) => n.startsWith(`${KIT_ENTRY_PATH}.bak.`));
+    if (baks.length === 1) return join(grugopsHome, baks[0]);
+  }
+  return join(grugopsHome, rel);
+}
+
+describe("the kit-home read paths are install-marker.js's own constants (plan 33.1-37)", () => {
+  it("KIT_HOME_READ_PATHS: imported, not typed, count pinned", () => {
+    console.log(`KIT_HOME_READ_PATHS (${KIT_HOME_READ_PATHS.length}): ${KIT_HOME_READ_PATHS.join(", ")}`);
+    expect(KIT_HOME_READ_PATHS.length).toBe(KIT_HOME_READ_PATH_COUNT);
+    expect(new Set(KIT_HOME_READ_PATHS).size).toBe(KIT_HOME_READ_PATH_COUNT);
+  });
+});
+
+for (const shape of ["FIFO", "directory"] as const) {
+  describe(`pass ${shape === "FIFO" ? "F" : "D"}: a ${shape} at every kit-home read path (DC-3, plan 33.1-37)`, () => {
+    for (const rel of KIT_HOME_READ_PATHS) {
+      for (const kind of KIT_HOME_RUNS) {
+        it(`${shape} at <GRUGOPS_HOME>/${rel}: ${kind} finishes and leaves it a ${shape}, never opened`, () => {
+          const t = installedKitHome();
+          const skip = plant(t.grugopsHome, rel, shape);
+          if (skip !== null) {
+            console.log(skip);
+            return;
+          }
+          const r = kitHomeRun(kind, t);
+          console.log(`${shape} at ${rel}, ${kind}: exit ${r.status}`);
+          expect(r.error, `${kind} did not finish within 60 s (${r.error?.message})`).toBeUndefined();
+          expect(r.signal, `${kind} was killed by ${r.signal}`).toBeNull();
+          expect(r.stderr, `${kind}: uncaught throw\n${r.stderr}`).not.toMatch(NO_STACK);
+          expect([0, 2, 3], `${kind}: exit ${r.status}\n${r.stdout.slice(-3000)}\n${r.stderr}`).toContain(r.status);
+          const at = kitHomeWhereNow(t.grugopsHome, rel);
+          const st = lstatSync(at);
+          if (shape === "FIFO") expect(st.isFIFO(), `${rel}: no longer a FIFO (looked at ${at})`).toBe(true);
+          else {
+            expect(st.isDirectory(), `${rel}: no longer a directory (looked at ${at})`).toBe(true);
+            expect(readdirSync(at), `${rel}: something was written into the planted directory`).toEqual([]);
+          }
+        });
+      }
+    }
+  });
+}
+
+describe("site case (plan 33.1-37): a FIFO inside an unrecorded kit tree", () => {
+  for (const kind of KIT_HOME_RUNS) {
+    it(`${kind}: the unrecorded kit root, with a FIFO at its VERSION, is kept as a backup; the FIFO is never opened`, () => {
+      const root = fresh("kit-fifo-inside");
+      const target = join(root, "target");
+      const home = join(root, "home");
+      mkdirSync(target);
+      mkdirSync(home);
+      const grugopsHome = join(home, ".grugops");
+      mkdirSync(join(grugopsHome, KIT_ENTRY_PATH), { recursive: true });
+      const skip = plant(grugopsHome, `${KIT_ENTRY_PATH}/VERSION`, "FIFO");
+      if (skip !== null) {
+        console.log(skip);
+        return;
+      }
+      const r = runInstall(target, grugopsHome, kind === "install --yes" ? [] : ["--update"], { home, timeoutMs: 60_000 });
+      expect(r.error, `${kind} did not finish within 60 s (${r.error?.message})`).toBeUndefined();
+      expect([0, 2, 3], `${kind}: exit ${r.status}\n${r.stdout.slice(-3000)}`).toContain(r.status);
+      const backup = kitHomeWhereNow(grugopsHome, KIT_ENTRY_PATH);
+      expect(backup, "the unrecorded kit root was not kept as a backup").not.toBe(join(grugopsHome, KIT_ENTRY_PATH));
+      expect(lstatSync(join(backup, "VERSION")).isFIFO(), "the FIFO is no longer a FIFO").toBe(true);
+    });
+  }
+});

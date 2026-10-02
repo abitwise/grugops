@@ -93,9 +93,16 @@ release, together with Phase 33.1, which retires the Bash command guard.
 - A symbolic link at a path install writes, including the common `CLAUDE.md -> AGENTS.md` link, is
   no longer written through: install reports a `verify` line (exit `3`) and adds no pointer there.
 - `INSTALL_MODE` other than `copy` or `symlink` is bad usage (exit `2`) before anything is written.
-- Known and accepted: a re-install replaces the shared kit home (`~/.grugops/agent-factory`) with a
-  fresh copy, so an edit made there is overwritten with no backup (human decision, 2026-09-30; a
-  backup of kit-home edits is deferred).
+- The shared kit home keeps a record, `~/.grugops/.grugops-kit.json` (or under `$GRUGOPS_HOME`), of
+  what install wrote there. Install replaces only a kit that record says it wrote; anything else at
+  `agent-factory/` (a directory it did not record writing, a symbolic link, a file) is renamed to
+  `agent-factory.bak.<ISO>` and recorded, never deleted (33.1 D-33, the sibling of review CR-01). Every
+  kit home written before this release has no record, so the first re-install or `--update` over it
+  leaves one such backup there; remove it by hand once you no longer need it. Install's temporary
+  directories in the kit home are exclusive `mkdtemp` directories and are never removed by a fixed name.
+- Known and accepted: a re-install replaces the kit the kit-home record names
+  (`~/.grugops/agent-factory`) with a fresh copy, so an edit made inside it is overwritten with no
+  backup (human decision, 2026-09-30; a backup of kit-home edits is deferred).
 
 - The coordinator adapter's `tools:` grant carries the plugin's MCP admission tool under the
   platform's scoped name, `mcp__plugin_grugops_grugops__propose_note`, through a new `admit`
@@ -111,6 +118,12 @@ release, together with Phase 33.1, which retires the Bash command guard.
 
 ### Fixed
 
+- An install whose kit home overlaps the target is refused before anything is written, under
+  `DRY_RUN=1` too: the kit root is the target, either lies inside the other, or `GRUGOPS_HOME` is the
+  target or lies inside it, compared after resolving symbolic links. Such an install used to move the
+  repository's own `agent-factory/` aside and delete it, exit `0`, with no backup and no warning (33.1
+  review CR-01). The refusal exits `1` with one sentence on stderr; set `GRUGOPS_HOME` outside the
+  repository.
 - A `DRY_RUN=1` uninstall no longer removes directories, and uninstall removes an empty directory
   only when install created it (recorded in the install ledger in `.grugops/install.json`) and the same
   run emptied it; a directory's name is not a record (33.1 gap round 2 dropped the round-1 rule that

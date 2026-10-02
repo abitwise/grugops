@@ -176,25 +176,43 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:copyKit:cpSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1617-1620 `if (DRY_RUN)` is the first statement and returns before cpSync at :1625",
+    why: "install.ts:2428 `if (DRY_RUN)` reports would-back-up / would-replace / would-copy and returns before cpSync at :2454, which copies the kit source into the `kit` subdirectory of this run's exclusive mkdtemp staging directory (plan 33.1-37)",
+  },
+  {
+    site: "install.ts:copyKit:mkdtempSync",
+    count: 2,
+    gate: "dry-run-return-above",
+    why: "install.ts:2428 returns before mkdtempSync at :2445 (the staging directory `.agent-factory.tmp-XXXXXX`) and :2463 (the holder `.agent-factory.old-XXXXXX` a recorded kit is moved into), both under GRUGOPS_HOME and created exclusively, so nothing that was there is reused or replaced (plan 33.1-37, rows D8 and D10 of plan 33.1-36). They replaced the fixed `.tmp.<pid>` and `.old.<pid>` names",
   },
   {
     site: "install.ts:copyKit:renameSync",
     count: 3,
     gate: "dry-run-return-above",
-    why: "install.ts:1617-1620 returns at the top of copyKit before the renames at :1630, :1631 and :1637",
+    why: "install.ts:2428 returns before the renames at :2464 (a recorded kit into this run's holder), :2474 (anything else at the kit root to `agent-factory.bak.<ISO>`, recorded; never-clobber: gone(backup) is asked first) and :2483 (the staged kit into place) (plan 33.1-37)",
+  },
+  {
+    site: "install.ts:copyKit:rmdirSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:2428 returns before rmdirSync at :2493, which removes this run's mkdtemp staging directory once the staged kit was renamed out of it; rmdir(2) removes only an empty directory (plan 33.1-37)",
   },
   {
     site: "install.ts:copyKit:rmSync",
-    count: 2,
+    count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1617-1620 returns at the top of copyKit before the removals at :1624 and :1642",
+    why: "install.ts:2428 returns before rmSync at :2501, which removes only this run's mkdtemp holder, holding only the displaced kit, and only after owns(kitHome, GRUGOPS_HOME, \"agent-factory\", \"kit\") answered owned for it (plan 33.1-37; the ownership check below asserts the order). The removal of the kit root by name (:1642) and of the staging name (:1624) are gone",
   },
   {
     site: "install.ts:copyKitFile:symlinkSync",
     count: 1,
     gate: "dry-run-return-above",
     why: "install.ts:2768-2771 `if (DRY_RUN)` reports would-copy/would-link and returns before symlinkSync at :2780 (reached only for a link entry that kitDestDecision answered create). Plan 33.1-31: the kit skills' link moved here from linkOrCopy; copyKitFile runs only in executeKitPlan, after buildKitPlan refused nothing",
+  },
+  {
+    site: "install.ts:writeKitHomeRecord:writeFileSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "install.ts:2562 writes <GRUGOPS_HOME>/.grugops-kit.json (plan 33.1-37): flag \"wx\" when readForWrite answered create, a rewrite only when it shows a regular file and the previous read was install's record. Its only caller is copyKit (:2489 after a failed move, :2507 at the end), both after copyKit's `if (DRY_RUN)` return at :2428",
   },
   {
     site: "install.ts:ensureBlock:appendFileSync",
@@ -1392,6 +1410,53 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
       else if (referencesIn(fn, defines, un).length === 0) problems.push(`GATE ${gate}: its definition does not name ${defines}`);
     }
     expect(problems, problems.join("\n")).toEqual([]);
+  });
+
+  // THE KIT-HOME ARM (plan 33.1-37, review CR-01's sibling, D-33 (b)). install.ts is not on uninstall's
+  // path, but copyKit is the one install-side removal of something install did not just create: the
+  // displaced kit at the kit root. The same structural rule as above applies to it. Its one rmSync (pinned
+  // on the DRY_RUN axis) must remove only `holder`, a variable assigned nothing but null or an mkdtempSync
+  // result, and an owns(..., "kit") call must come before it in copyKit, so the displaced kit is removed only
+  // on the kit-home record's answer. Every other displacement in copyKit is a rename.
+  it("copyKit removes the displaced kit only from its own mkdtemp holder, and only after owns(..., \"kit\") (plan 33.1-37)", () => {
+    const install = parseInstall("install.ts");
+    const fn = functionNamed(install, "copyKit");
+    expect(fn, "no copyKit in install.ts").not.toBeNull();
+    const calls = (name: string): ts.CallExpression[] => {
+      const out: ts.CallExpression[] = [];
+      const visit = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === name) out.push(n);
+        ts.forEachChild(n, visit);
+      };
+      visit(fn!);
+      return out;
+    };
+    const removals = calls("rmSync");
+    expect(removals.length, "copyKit's rmSync calls").toBe(1);
+    const rm = removals[0];
+    const arg0 = rm.arguments[0];
+    expect(arg0 !== undefined && ts.isIdentifier(arg0) && arg0.text === "holder", "copyKit's rmSync removes something other than `holder`").toBe(true);
+    // `holder` is assigned only null (its declaration) or an mkdtempSync(...) result.
+    const assigned: string[] = [];
+    const visit = (n: ts.Node): void => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "holder" && n.initializer !== undefined) {
+        assigned.push(n.initializer.getText(install));
+      }
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.left) && n.left.text === "holder") {
+        assigned.push(n.right.getText(install));
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(fn!);
+    expect(assigned.length, "assignments to holder").toBeGreaterThan(0);
+    for (const a of assigned) expect(a === "null" || a.startsWith("mkdtempSync("), `holder = ${a}`).toBe(true);
+    // An owns(..., "kit") call precedes the removal.
+    const kitOwns = calls("owns").filter((c) => {
+      const k = c.arguments[3];
+      return k !== undefined && ts.isStringLiteral(k) && k.text === "kit";
+    });
+    console.log(`installer fs census: copyKit asks owns(..., "kit") at line(s) ${kitOwns.map((c) => lineOf(install, c)).join(", ")}, removes at line ${lineOf(install, rm)}`);
+    expect(kitOwns.some((c) => c.getStart(install) < rm.getStart(install)), "copyKit's rmSync is not preceded by owns(..., \"kit\")").toBe(true);
   });
 
   it("the known exceptions (carry items 12 and 13) are declared, counted and present, so the census is honest", () => {

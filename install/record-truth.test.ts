@@ -48,7 +48,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { LEDGER_KINDS, readLedger } from "./install-marker.js";
+import { KINDS_BY_SCOPE, readLedger } from "./install-marker.js";
 import { askRecord, blockRecords, fileRecords, withLedger } from "./ledger.test-support.js";
 import {
   INSTALL_JS,
@@ -114,7 +114,7 @@ function installedCopy(tag: string): string {
 // The marker fields that are not the ledger (install-marker.ts installMarkerProblems and the binding).
 // Since plan 33.1-36 (D-33 (b)) every other key of install's own marker is the one ledger, so the list
 // is taken from the marker and asserted to be exactly `ledger`; the kinds are install-marker.ts
-// LEDGER_KINDS, and each kind is garbled in turn.
+// KINDS_BY_SCOPE.target but `backup` (the kinds a default install writes), and each is garbled in turn.
 const NOT_LEDGERS = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target"]);
 const LEDGERS: readonly string[] = BASE_RUN.status === 0 ? Object.keys(markerOf(BASE)).filter((k) => !NOT_LEDGERS.has(k)) : [];
 const LEDGER_COUNT = 1;
@@ -132,7 +132,13 @@ describe("B1: `--check` FAILs on a marker that holds a malformed ledger, naming 
     expect(c.stdout).toContain("ALL CHECKS PASSED");
   });
 
-  for (const kind of LEDGER_KINDS) {
+  // The kinds a default install writes into the target's ledger: the target scope but `backup`, which no
+  // install records in a target yet (plan 33.1-40). `kit` lives only in the kit-home record (plan 33.1-37).
+  const DEFAULT_INSTALL_KINDS = KINDS_BY_SCOPE.target.filter((k) => k !== "backup");
+  it("the kinds garbled below are the target scope but backup (count pinned)", () => {
+    expect([...DEFAULT_INSTALL_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules"]);
+  });
+  for (const kind of DEFAULT_INSTALL_KINDS) {
     it(`a malformed ${kind} entry: --check exits 1 with a FAIL that names the malformed install ledger and the entry, and does not print ALL CHECKS PASSED`, () => {
       const t = installedCopy(`b1-${kind}`);
       let garbled = -1;

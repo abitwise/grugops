@@ -29,6 +29,19 @@
 // caller passes in and removes; the real repository and the real home are never targeted. It drives
 // the COMMITTED install/install.js (npm run build first).
 //
+// THE KIT-HOME AXIS (plan 33.1-37, review IN-06). Every variant above runs with GRUGOPS_HOME outside the
+// target, and the install and uninstall halves always run from one GRUGOPS_SRC, so two axes install
+// depends on were never varied. That is how CR-01 (GRUGOPS_HOME set to the target: the in-repo
+// agent-factory/ was deleted) and WR-01 (a recorded file the uninstalling kit source does not ship)
+// escaped the class tests. This module now varies the kit home:
+//   REFUSAL_VARIANTS   the four ways the kit home and the target can overlap after realpath; each must
+//                      be refused before any write, real and DRY_RUN, with zero bytes changed in the
+//                      target and in the kit home (runRefusalVariant);
+//   KIT_HOME_VARIANTS  a kit home outside the target holding something install did not write at the
+//                      kit root (a user's agent-factory/, a link); the user's bytes must survive inside
+//                      the backup copyKit records (runKitHomeVariant).
+// The other axis, the kit source on the uninstall side, is plan 33.1-38's.
+//
 // Clear professional voice: this is test infrastructure for a safety surface.
 //
 // A `.test-support.ts` module is excluded from emit (tsconfig.json), type-checked by
@@ -36,7 +49,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -345,4 +358,182 @@ export function describeWritePaths(set: WritePathSet): string {
   return set.paths
     .map((w) => `${w.path}  [${w.variants.map((v) => `${v}:${w.kinds[v]}`).join(", ")}]`)
     .join("\n");
+}
+
+// ── the kit-home axis (plan 33.1-37, review IN-06 and CR-01) ─────────────────────────────────────
+
+/** The bytes of the user's own config, the verifier's CR-01 reproduction. */
+export const USER_CONFIG = '{"environments":["production"],"mine":"edited"}\n';
+
+/** A user's repository at `dir`: notes at the root, and an in-repo agent-factory/ with their config and notes. */
+export function userRepo(dir: string): void {
+  mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
+  writeFileSync(join(dir, "MYNOTES.md"), "the user's own notes at the repository root\n");
+  writeFileSync(join(dir, "agent-factory", "config", "factory.config.json"), USER_CONFIG);
+  writeFileSync(join(dir, "agent-factory", "MYNOTES.md"), "the user's own notes inside agent-factory/\n");
+}
+
+export type RefusalVariantName = "kit-home-is-target" | "kit-root-is-target" | "target-in-kit-root" | "kit-home-in-target";
+
+export interface RefusalVariantSpec {
+  readonly name: RefusalVariantName;
+  /** Why this layout overlaps. */
+  readonly why: string;
+  /** Lay the variant out under `root` (which the caller owns) and return the target and the kit home. */
+  readonly prepare: (root: string) => { readonly target: string; readonly grugopsHome: string };
+}
+
+/** The four ways the kit home and the target overlap (install.ts's overlap refusal, plan 33.1-37). */
+export const REFUSAL_VARIANTS: readonly RefusalVariantSpec[] = [
+  {
+    name: "kit-home-is-target",
+    why: "GRUGOPS_HOME is the target, so the kit root is the target's own agent-factory/ (review CR-01's reproduction)",
+    prepare: (root) => {
+      const target = join(root, "repo");
+      userRepo(target);
+      return { target, grugopsHome: target };
+    },
+  },
+  {
+    name: "kit-root-is-target",
+    why: "the target is <GRUGOPS_HOME>/agent-factory, so the kit would replace the repository itself",
+    prepare: (root) => {
+      const home = join(root, "kithome");
+      const target = join(home, "agent-factory");
+      userRepo(target);
+      return { target, grugopsHome: home };
+    },
+  },
+  {
+    name: "target-in-kit-root",
+    why: "the target lies inside the kit root, so replacing the kit would remove the repository",
+    prepare: (root) => {
+      const home = join(root, "kithome");
+      mkdirSync(join(home, "agent-factory"), { recursive: true });
+      writeFileSync(join(home, "agent-factory", "USER.md"), "a file the user keeps beside the repository\n");
+      const target = join(home, "agent-factory", "sub");
+      userRepo(target);
+      return { target, grugopsHome: home };
+    },
+  },
+  {
+    name: "kit-home-in-target",
+    why: "GRUGOPS_HOME lies inside the target (and does not exist yet), so the kit would be written into the repository",
+    prepare: (root) => {
+      const target = join(root, "repo");
+      userRepo(target);
+      return { target, grugopsHome: join(target, ".tools", "grugops") };
+    },
+  },
+];
+
+export interface RefusalVariantRun {
+  readonly name: RefusalVariantName;
+  readonly target: string;
+  readonly grugopsHome: string;
+  readonly run: Run;
+  readonly targetBefore: string;
+  readonly targetAfter: string;
+  readonly kitHomeBefore: string;
+  readonly kitHomeAfter: string;
+}
+
+/** Run one refusal variant under its own directory in `scratchRoot`, snapshotting the target and the kit home. */
+export function runRefusalVariant(scratchRoot: string, spec: RefusalVariantSpec, opts: { readonly dryRun: boolean }): RefusalVariantRun {
+  const root = join(scratchRoot, `refusal-${spec.name}-${opts.dryRun ? "dry" : "real"}`);
+  const home = join(root, "user-home");
+  mkdirSync(home, { recursive: true });
+  const { target, grugopsHome } = spec.prepare(root);
+  const targetBefore = snapshotTree(target);
+  const kitHomeBefore = snapshotTree(grugopsHome);
+  const run = runInstall(target, grugopsHome, [], { dryRun: opts.dryRun, home, timeoutMs: 120_000 });
+  return { name: spec.name, target, grugopsHome, run, targetBefore, targetAfter: snapshotTree(target), kitHomeBefore, kitHomeAfter: snapshotTree(grugopsHome) };
+}
+
+export type KitHomeVariantName = "unrecorded-kit-home" | "kit-root-link";
+
+export interface KitHomeVariantSpec {
+  readonly name: KitHomeVariantName;
+  readonly why: string;
+  /** Plant what the user has at `<grugopsHome>/agent-factory` (the kit home exists, outside the target). */
+  readonly plant: (grugopsHome: string, root: string) => void;
+  /** The problems with what is left once install ran, given the one backup's path (null: there is none). */
+  readonly check: (grugopsHome: string, root: string, backup: string | null) => string[];
+}
+
+const USER_KIT_NOTES = "the user's notes in a directory that happens to sit at the kit root\n";
+
+/** A kit home outside the target holding something install did not write at the kit root (plan 33.1-37). */
+export const KIT_HOME_VARIANTS: readonly KitHomeVariantSpec[] = [
+  {
+    name: "unrecorded-kit-home",
+    why: "a GRUGOPS_HOME holding a user's agent-factory/ that no kit-home record names (every kit home written before plan 33.1-37 too)",
+    plant: (grugopsHome) => {
+      mkdirSync(join(grugopsHome, "agent-factory"), { recursive: true });
+      writeFileSync(join(grugopsHome, "agent-factory", "MYNOTES.md"), USER_KIT_NOTES);
+    },
+    check: (_grugopsHome, _root, backup) => {
+      if (backup === null) return ["no backup was made of the user's agent-factory/"];
+      const notes = join(backup, "MYNOTES.md");
+      return existsSync(notes) && readFileSync(notes, "utf8") === USER_KIT_NOTES ? [] : [`${notes} is not the user's file byte for byte`];
+    },
+  },
+  {
+    name: "kit-root-link",
+    why: "a symbolic link at the kit root, pointing at a directory of the user's; it is renamed as a name, never followed",
+    plant: (grugopsHome, root) => {
+      const elsewhere = join(root, "users-directory");
+      mkdirSync(elsewhere, { recursive: true });
+      writeFileSync(join(elsewhere, "MYNOTES.md"), USER_KIT_NOTES);
+      mkdirSync(grugopsHome, { recursive: true });
+      symlinkSync(elsewhere, join(grugopsHome, "agent-factory"));
+    },
+    check: (_grugopsHome, root, backup) => {
+      const elsewhere = join(root, "users-directory");
+      const out: string[] = [];
+      if (backup === null) out.push("no backup was made of the link");
+      else if (!lstatSync(backup).isSymbolicLink() || readlinkSync(backup) !== elsewhere) out.push(`${backup} is not the user's link`);
+      if (readFileSync(join(elsewhere, "MYNOTES.md"), "utf8") !== USER_KIT_NOTES) out.push("the directory the link pointed at changed");
+      return out;
+    },
+  },
+];
+
+export interface KitHomeVariantRun {
+  readonly name: KitHomeVariantName;
+  readonly grugopsHome: string;
+  readonly run: Run;
+  /** The `agent-factory.bak.<ISO>` names in the kit home after the run. */
+  readonly backups: readonly string[];
+  /** The kit-home record after the run, parsed, or null. */
+  readonly record: { readonly grugopsHome: unknown; readonly ledger: ReadonlyArray<Record<string, unknown>> } | null;
+  /** The variant's own check, plus: the record names the one backup (origin kit-home, of agent-factory). */
+  readonly problems: readonly string[];
+}
+
+/** Run one kit-home variant: plant, install into a target outside the kit home, check what survived. */
+export function runKitHomeVariant(scratchRoot: string, spec: KitHomeVariantSpec): KitHomeVariantRun {
+  const root = join(scratchRoot, `kithome-${spec.name}`);
+  const home = join(root, "user-home");
+  const target = join(root, "repo");
+  const grugopsHome = join(home, ".grugops");
+  mkdirSync(home, { recursive: true });
+  mkdirSync(target, { recursive: true });
+  spec.plant(grugopsHome, root);
+  const run = runInstall(target, grugopsHome, [], { home, timeoutMs: 180_000 });
+  const backups = existsSync(grugopsHome) ? readdirSync(grugopsHome).filter((n) => n.startsWith("agent-factory.bak.")).sort() : [];
+  const backup = backups.length === 1 ? join(grugopsHome, backups[0]) : null;
+  const problems = [...spec.check(grugopsHome, root, backup)];
+  if (backups.length !== 1) problems.push(`expected one backup, found ${backups.length}: ${backups.join(", ")}`);
+  let record: KitHomeVariantRun["record"] = null;
+  try {
+    record = JSON.parse(readFileSync(join(grugopsHome, ".grugops-kit.json"), "utf8")) as NonNullable<KitHomeVariantRun["record"]>;
+  } catch {
+    problems.push("the kit-home record could not be read");
+  }
+  if (record !== null && backups.length === 1) {
+    const named = record.ledger.filter((e) => e.kind === "backup" && e.path === backups[0] && e.origin === "kit-home" && e.of === "agent-factory");
+    if (named.length !== 1) problems.push(`the kit-home record does not name the backup ${backups[0]}: ${JSON.stringify(record.ledger)}`);
+  }
+  return { name: spec.name, grugopsHome, run, backups, record, problems };
 }

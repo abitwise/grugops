@@ -31,10 +31,14 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import {
+  KINDS_BY_SCOPE,
+  KIT_ENTRY_PATH,
+  KIT_HOME_RECORD_REL,
   LEDGER_KINDS,
   RETIRED_RECORDS,
   NO_MODE_NOTE,
@@ -44,9 +48,14 @@ import {
   ledgerJson,
   owns,
   readInstallMarker,
+  readKitHomeRecord,
   readLedger,
   type LedgerEntry,
+  type LedgerKind,
+  type LedgerScope,
 } from "./install-marker.js";
+import { TREE_MAX_ENTRIES } from "./user-file.js";
+import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
 
@@ -85,20 +94,56 @@ const VALID: Record<(typeof LEDGER_KINDS)[number], Record<string, unknown>> = {
     createdAsk: true,
     askContent: SHA,
   },
+  // Plan 33.1-37: a target backup (plan 33.1-40 writes them) and the kit-home record's kit entry.
+  backup: { path: "agent-factory.bak.2026-01-02T03-04-05.678Z", kind: "backup", origin: "in-repo-kit", of: "agent-factory", content: null },
+  kit: { path: "agent-factory", kind: "kit" },
 };
 const holder = (ledger: unknown): Record<string, unknown> => ({ ledger });
+/** The scope a VALID entry of `kind` is read in: the kit entry lives only in the kit-home record. */
+const scopeOf = (kind: LedgerKind): LedgerScope => (KINDS_BY_SCOPE.target.includes(kind) ? "target" : "kit-home");
+/** A valid first entry in `scope`, so an entry under test sits at index 1. */
+const companionIn = (scope: LedgerScope): Record<string, unknown> =>
+  scope === "target" ? VALID.dir : { path: "agent-factory.bak.2026-01-02T03-04-05.678Z", kind: "backup", origin: "kit-home", of: "agent-factory", content: null };
 
 describe("the one ledger — grammar (readLedger)", () => {
-  it("LEDGER_KINDS is the five kinds, and the fixture covers each", () => {
-    expect([...LEDGER_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules"]);
+  it("LEDGER_KINDS is the seven kinds, each in at least one scope, and the fixture covers each", () => {
+    expect([...LEDGER_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "backup", "kit"]);
     expect(Object.keys(VALID).sort()).toEqual([...LEDGER_KINDS].sort());
+    expect([...KINDS_BY_SCOPE.target]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "backup"]);
+    expect([...KINDS_BY_SCOPE["kit-home"]]).toEqual(["backup", "kit"]);
+    for (const kind of LEDGER_KINDS) {
+      expect(KINDS_BY_SCOPE.target.includes(kind) || KINDS_BY_SCOPE["kit-home"].includes(kind), kind).toBe(true);
+    }
   });
 
-  it("accepts each kind's exact shape, and one path with entries of two kinds", () => {
-    const r = readLedger(holder([...Object.values(VALID), { path: "CLAUDE.md", kind: "file", content: FILE_REC, kit: false }]));
+  it("accepts each kind's exact shape in its scope, and one path with entries of two kinds", () => {
+    const targetKinds = LEDGER_KINDS.filter((k) => scopeOf(k) === "target");
+    const r = readLedger(holder([...targetKinds.map((k) => VALID[k]), { path: "CLAUDE.md", kind: "file", content: FILE_REC, kit: false }]));
     expect(r.state, String(r.why)).toBe("ok");
-    expect(r.entries.length).toBe(6);
+    expect(r.entries.length).toBe(targetKinds.length + 1);
     expect(r.why).toBeNull();
+    const k = readLedger(holder([VALID.kit, companionIn("kit-home")]), "kit-home");
+    expect(k.state, String(k.why)).toBe("ok");
+    expect(k.entries.length).toBe(2);
+  });
+
+  it("plan 33.1-37: a kind outside its scope, or a backup origin outside its scope, is refused", () => {
+    // The kit entry belongs only in the kit-home record; the target kinds only in a target's marker.
+    expect(readLedger(holder([VALID.kit])).why).toMatch(/^entry 0: a kit entry does not belong in the target's install ledger/);
+    for (const kind of ["dir", "file", "block", "gemini", "ask-rules"] as const) {
+      expect(readLedger(holder([VALID[kind]]), "kit-home").why, kind).toMatch(/does not belong in the kit-home record/);
+    }
+    expect(readLedger(holder([companionIn("kit-home")])).why).toMatch(/origin kit-home belongs in the kit-home record/);
+    expect(readLedger(holder([VALID.backup]), "kit-home").why).toMatch(/must have origin kit-home/);
+    expect(readLedger(holder([{ ...VALID.kit, path: "agent-factory/x" }]), "kit-home").why).toMatch(/kit entry may name only agent-factory/);
+    expect(readLedger(holder([{ ...companionIn("kit-home"), of: "other" }]), "kit-home").why).toMatch(/kit-home backup must be of agent-factory/);
+    expect(readLedger(holder([{ ...VALID.backup, of: VALID.backup.path }])).why).toMatch(/its `of` is its own path/);
+    for (const content of ["tree:sha256:abc", "sha256:x", 7, "tree:" + "0".repeat(64)]) {
+      expect(readLedger(holder([{ ...VALID.backup, content }])).state, JSON.stringify(content)).toBe("malformed");
+    }
+    for (const content of [FILE_REC, linkRecord("/x"), `tree:sha256:${"a".repeat(64)}`, null]) {
+      expect(readLedger(holder([{ ...VALID.backup, content }])).state, JSON.stringify(content)).toBe("ok");
+    }
   });
 
   it("absent: no holder, or a holder without `ledger`", () => {
@@ -117,7 +162,7 @@ describe("the one ledger — grammar (readLedger)", () => {
 
   it("refuses an extra key on every kind, naming the entry index", () => {
     for (const kind of LEDGER_KINDS) {
-      const r = readLedger(holder([VALID.dir, { ...VALID[kind], extra: 1 }]));
+      const r = readLedger(holder([companionIn(scopeOf(kind)), { ...VALID[kind], extra: 1 }]), scopeOf(kind));
       expect(r.state, kind).toBe("malformed");
       expect(r.why, kind).toMatch(/^entry 1: .*key no entry of its kind has/);
     }
@@ -130,7 +175,7 @@ describe("the one ledger — grammar (readLedger)", () => {
       for (const k of victims) {
         const e = { ...VALID[kind] };
         delete e[k];
-        const r = readLedger(holder([e]));
+        const r = readLedger(holder([e]), scopeOf(kind));
         expect(r.state, `${kind} without ${k}`).toBe("malformed");
         expect(r.why, `${kind} without ${k}`).toMatch(/^entry 0: /);
       }
@@ -150,6 +195,9 @@ describe("the one ledger — grammar (readLedger)", () => {
       ["ask added not a list", { ...VALID["ask-rules"], added: "Bash(git push *)" }],
       ["ask askContent not a record", { ...VALID["ask-rules"], askContent: 7 }],
       ["ask fileMode without createdFile", { ...VALID["ask-rules"], fileMode: "0644" }],
+      ["backup origin unknown", { ...VALID.backup, origin: "somewhere" }],
+      ["backup of not a path", { ...VALID.backup, of: "../x" }],
+      ["backup content a number", { ...VALID.backup, content: 1 }],
     ];
     for (const [name, e] of wrong) expect(readLedger(holder([e])).state, name).toBe("malformed");
   });
@@ -177,7 +225,9 @@ describe("the one ledger — grammar (readLedger)", () => {
 });
 
 describe("the one ledger — the one serializer (ledgerJson)", () => {
-  const entries = readLedger(holder([...Object.values(VALID), { path: "CLAUDE.md", kind: "file", content: FILE_REC, kit: false }, { path: "a", kind: "dir" }])).entries;
+  // The target kinds but `backup` (plan 33.1-37's backup and kit have their own case below).
+  const targetKinds = LEDGER_KINDS.filter((k) => scopeOf(k) === "target" && k !== "backup");
+  const entries = readLedger(holder([...targetKinds.map((k) => VALID[k]), { path: "CLAUDE.md", kind: "file", content: FILE_REC, kit: false }, { path: "a", kind: "dir" }])).entries;
 
   it("sorts by path, then by kind in LEDGER_KINDS order, with a fixed key order per kind", () => {
     const out = ledgerJson([...entries].reverse());
@@ -197,6 +247,17 @@ describe("the one ledger — the one serializer (ledgerJson)", () => {
     expect(keysOf("block")).toEqual(["path", "kind", "block", "separator"]);
     expect(keysOf("gemini")).toEqual(["path", "kind", "createdFile", "addedEntry", "createdContext", "fileNameBefore", "fileNameContent"]);
     expect(keysOf("ask-rules")).toEqual(["path", "kind", "added", "createdFile", "createdPermissions", "createdAsk", "askContent"]);
+  });
+
+  it("plan 33.1-37: backup and kit sort after the other kinds at one path, with their fixed key order", () => {
+    const k = readLedger(holder([companionIn("kit-home"), VALID.kit]), "kit-home").entries;
+    const out = ledgerJson([...k].reverse());
+    expect(out.map((e) => String(e.kind))).toEqual(["kit", "backup"]);
+    expect(Object.keys(out[0])).toEqual(["path", "kind"]);
+    expect(Object.keys(out[1])).toEqual(["path", "kind", "origin", "of", "content"]);
+    const both = ledgerJson([{ path: "x", kind: "kit" }, { path: "x", kind: "backup", origin: "kit-home", of: "agent-factory", content: null }, { path: "x", kind: "dir" }]);
+    expect(both.map((e) => String(e.kind))).toEqual(["dir", "backup", "kit"]);
+    expect(readLedger(holder(ledgerJson(k)), "kit-home").entries).toEqual(k);
   });
 
   it("readLedger(ledgerJson(x)) gives back x", () => {
@@ -289,6 +350,156 @@ describe("the one authority (owns)", () => {
       expect(o.owned, kind).toBe(true);
       if (o.owned) expect((o.entry as LedgerEntry).kind).toBe(kind);
     }
+  });
+});
+
+// ── the kit-home record, the tree record, and owns for kit and backup (plan 33.1-37) ───────────────
+
+const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
+const MARKER_JS = join(import.meta.dirname, "install-marker.js");
+
+/** Call `fn` of a committed module in a CHILD with a timeout, so a read that blocks (a FIFO) fails the case instead of hanging the runner. */
+function inChild(module: string, fn: string, args: readonly string[]): { timedOut: boolean; value: unknown; stderr: string } {
+  const script =
+    `import(${JSON.stringify(pathToFileURL(module).href)}).then((m) => {` +
+    `const v = m[${JSON.stringify(fn)}](...JSON.parse(process.argv[1]));` +
+    `process.stdout.write(JSON.stringify(v === undefined ? null : v));` +
+    `});`;
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", script, JSON.stringify(args)], { encoding: "utf8", timeout: 15_000 });
+  const timedOut = r.error !== undefined || r.signal !== null;
+  return { timedOut, value: timedOut || r.status !== 0 ? undefined : JSON.parse(r.stdout), stderr: r.stderr ?? "" };
+}
+const treeRecordOf = (root: string, rel: string): unknown => {
+  const r = inChild(USER_FILE_JS, "treeRecord", [root, rel]);
+  expect(r.timedOut, `treeRecord did not finish (a FIFO opened?)\n${r.stderr}`).toBe(false);
+  return r.value;
+};
+
+describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeRecord", () => {
+  function tree(tag: string): { root: string; rel: string; dir: string; fifoSkip: string | null } {
+    const root = fresh(tag);
+    const rel = "agent-factory.bak.2026-01-02T03-04-05.678Z";
+    const dir = join(root, rel);
+    mkdirSync(join(dir, "sub"), { recursive: true });
+    writeFileSync(join(dir, "a.md"), "a\n");
+    writeFileSync(join(dir, "sub", "b.md"), "b\n");
+    symlinkSync("/nowhere/target", join(dir, "sub", "link"));
+    const s = stageShapeOrSkip("FIFO", join(dir, "sub", "fifo"), "treeRecord FIFO inside a tree");
+    return { root, rel, dir, fifoSkip: s === null ? null : skipLine(s, "the tree cases without the FIFO") };
+  }
+
+  it("treeRecord walks with lstat: a FIFO inside is recorded `other` and never opened, a link is never followed, and any change moves the record", () => {
+    const t = tree("tree");
+    if (t.fifoSkip !== null) console.log(t.fifoSkip);
+    const first = treeRecordOf(t.root, t.rel);
+    expect(String(first)).toMatch(/^tree:sha256:[0-9a-f]{64}$/);
+    expect(treeRecordOf(t.root, t.rel), "the record is not stable").toBe(first);
+    if (t.fifoSkip === null) expect(lstatSync(join(t.dir, "sub", "fifo")).isFIFO(), "the FIFO is not a FIFO any more").toBe(true);
+    // Each kind of change moves the record: a byte, a mode, a link target, a new file.
+    appendFileSync(join(t.dir, "a.md"), "x");
+    const afterByte = treeRecordOf(t.root, t.rel);
+    expect(afterByte).not.toBe(first);
+    chmodSync(join(t.dir, "sub", "b.md"), 0o600);
+    const afterMode = treeRecordOf(t.root, t.rel);
+    expect(afterMode).not.toBe(afterByte);
+    unlinkSync(join(t.dir, "sub", "link"));
+    symlinkSync("/nowhere/else", join(t.dir, "sub", "link"));
+    const afterLink = treeRecordOf(t.root, t.rel);
+    expect(afterLink).not.toBe(afterMode);
+    writeFileSync(join(t.dir, "new.md"), "");
+    expect(treeRecordOf(t.root, t.rel)).not.toBe(afterLink);
+  });
+
+  it("treeRecord gives a file its file record, a link its link record, and null for a FIFO, nothing, or a walk past TREE_MAX_ENTRIES", () => {
+    const root = fresh("tree-shapes");
+    writeFileSync(join(root, "f"), "x");
+    chmodSync(join(root, "f"), 0o644);
+    expect(treeRecordOf(root, "f")).toBe(fileRecord("x", 0o644));
+    symlinkSync("/some/where", join(root, "l"));
+    expect(treeRecordOf(root, "l")).toBe(linkRecord("/some/where"));
+    expect(treeRecordOf(root, "absent")).toBeNull();
+    const s = stageShapeOrSkip("FIFO", join(root, "p"), "treeRecord of a FIFO");
+    if (s === null) expect(treeRecordOf(root, "p")).toBeNull();
+    else console.log(skipLine(s, "the other shapes in this case"));
+    const big = join(root, "big");
+    mkdirSync(big);
+    for (let i = 0; i <= TREE_MAX_ENTRIES; i += 1) writeFileSync(join(big, String(i)), "");
+    expect(treeRecordOf(root, "big"), "a walk past the bound must answer null").toBeNull();
+  });
+
+  it("owns(kit): owned only for a real directory at the path; a link or a file there is recorded, not owned", () => {
+    const root = fresh("owns-kit");
+    const l = readLedger(holder([VALID.kit]), "kit-home");
+    expect(owns(l, root, KIT_ENTRY_PATH, "kit").owned, "nothing there").toBe(false);
+    mkdirSync(join(root, KIT_ENTRY_PATH));
+    expect(owns(l, root, KIT_ENTRY_PATH, "kit").owned).toBe(true);
+    rmSync(join(root, KIT_ENTRY_PATH), { recursive: true });
+    mkdirSync(join(root, "elsewhere"));
+    symlinkSync(join(root, "elsewhere"), join(root, KIT_ENTRY_PATH));
+    const link = owns(l, root, KIT_ENTRY_PATH, "kit");
+    expect(link.owned).toBe(false);
+    if (!link.owned) expect(link.reason).toMatch(/symbolic link/);
+    const none = owns(readLedger(holder([companionIn("kit-home")]), "kit-home"), root, KIT_ENTRY_PATH, "kit");
+    expect(none.owned).toBe(false);
+    if (!none.owned) expect(none.recorded).toBe(false);
+  });
+
+  it("owns(backup): owned only while the tree still holds its record; a null record is never owned", () => {
+    const t = tree("owns-backup");
+    const rec = treeRecordOf(t.root, t.rel) as string;
+    const entry = { path: t.rel, kind: "backup", origin: "kit-home", of: KIT_ENTRY_PATH, content: rec };
+    const l = readLedger(holder([entry]), "kit-home");
+    expect(l.state, String(l.why)).toBe("ok");
+    expect(owns(l, t.root, t.rel, "backup").owned).toBe(true);
+    writeFileSync(join(t.dir, "sub", "added-by-user.md"), "mine\n");
+    const changed = owns(l, t.root, t.rel, "backup");
+    expect(changed.owned).toBe(false);
+    if (!changed.owned) expect(changed.recorded).toBe(true);
+    const nullRec = owns(readLedger(holder([{ ...entry, content: null }]), "kit-home"), t.root, t.rel, "backup");
+    expect(nullRec.owned).toBe(false);
+    if (!nullRec.owned) expect(nullRec.reason).toMatch(/no content record/);
+  });
+
+  it("readKitHomeRecord: absent, ok, unbound (another kit home), and unreadable (not JSON, an extra key, a malformed ledger, a link, a directory, a FIFO), never opening a FIFO", () => {
+    const read = (home: string): { state: string; why: string | null } => {
+      const r = inChild(MARKER_JS, "readKitHomeRecord", [home]);
+      expect(r.timedOut, `readKitHomeRecord did not finish\n${r.stderr}`).toBe(false);
+      return r.value as { state: string; why: string | null };
+    };
+    const home = fresh("record");
+    const at = join(home, KIT_HOME_RECORD_REL);
+    expect(read(home).state).toBe("absent");
+    const ok = { grugopsHome: realpathSync.native(home), ledger: [VALID.kit] };
+    writeFileSync(at, JSON.stringify(ok));
+    expect(read(home).state).toBe("ok");
+    expect(readKitHomeRecord(home).ledger.entries).toEqual([{ path: KIT_ENTRY_PATH, kind: "kit" }]);
+    writeFileSync(at, JSON.stringify({ ...ok, grugopsHome: "/another/home" }));
+    expect(read(home).state).toBe("unbound");
+    for (const [name, text] of [
+      ["not JSON", "nope"],
+      ["an extra key", JSON.stringify({ ...ok, extra: 1 })],
+      ["a malformed ledger", JSON.stringify({ ...ok, ledger: [VALID.dir] })],
+      ["a duplicate key", `{"grugopsHome": ${JSON.stringify(ok.grugopsHome)}, "ledger": [], "ledger": []}`],
+    ] as const) {
+      writeFileSync(at, text);
+      expect(read(home).state, name).toBe("unreadable");
+    }
+    rmSync(at);
+    const real = join(home, "real.json");
+    writeFileSync(real, JSON.stringify(ok));
+    symlinkSync(real, at);
+    expect(read(home).state, "a link").toBe("unreadable");
+    rmSync(at);
+    mkdirSync(at);
+    expect(read(home).state, "a directory").toBe("unreadable");
+    rmSync(at, { recursive: true });
+    const s = stageShapeOrSkip("FIFO", at, "readKitHomeRecord FIFO");
+    if (s !== null) {
+      console.log(skipLine(s, "the other record shapes in this case"));
+      return;
+    }
+    expect(read(home).state, "a FIFO").toBe("unreadable");
+    expect(lstatSync(at).isFIFO()).toBe(true);
   });
 });
 

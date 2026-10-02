@@ -73,7 +73,7 @@ import {
   runUninstall,
   snapshotTree,
 } from "./installer-paths.test-support.js";
-import { LEDGER_KINDS } from "./install-marker.js";
+import { KINDS_BY_SCOPE, LEDGER_KINDS } from "./install-marker.js";
 import { askRecord, blockRecords, ledgerOf } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-useredit-")));
@@ -237,9 +237,16 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     const files = new Set(INSTALLED_FILES);
     const dirs = new Set(INSTALLED_DIRS.map((d) => d.path));
     const entries = ledgerOf(m);
-    // The kind list comes from install-marker.ts, and its count is asserted, so a new kind is noticed.
-    expect(LEDGER_KINDS.length).toBe(5);
-    for (const kind of LEDGER_KINDS) {
+    // The kind list comes from install-marker.ts, and its count is asserted, so a new kind is noticed. Of
+    // the seven kinds (plan 33.1-37), `kit` lives only in the kit-home record, and `backup` is in a target's
+    // ledger only once install records the target backups it makes (plan 33.1-40; a default install makes
+    // none). Both are named here, so the five the default install writes are the rest.
+    expect(LEDGER_KINDS.length).toBe(7);
+    const notWritten = ["backup", "kit"];
+    const defaultKinds = KINDS_BY_SCOPE.target.filter((k) => !notWritten.includes(k));
+    expect(defaultKinds.length).toBe(5);
+    expect(LEDGER_KINDS.filter((k) => !defaultKinds.includes(k))).toEqual(notWritten);
+    for (const kind of defaultKinds) {
       const paths = entries.filter((e) => e.kind === kind).map((e) => e.path);
       const set = kind === "dir" ? dirs : files;
       expect(paths.length, `the ledger has no ${kind} entry`).toBeGreaterThan(0);

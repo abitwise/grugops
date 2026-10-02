@@ -234,6 +234,55 @@ const CASES = {
       check(tree(w.target) === before, `${tag}something new exists in the repository, or something changed`);
     }
   },
+
+  // Plan 33.1-37: the target inside the kit root is refused the same way, and nothing under the kit home changes.
+  "cr-01-target-in-kit-root"(w) {
+    const kh = join(w.dir, "kithome");
+    mkdirSync(join(kh, "agent-factory", "sub"), { recursive: true });
+    writeFileSync(join(kh, "agent-factory", "USER.md"), "a file the user keeps beside the repository\n");
+    writeFileSync(join(kh, "agent-factory", "sub", "MYNOTES.md"), "the user's own notes\n");
+    const target = join(kh, "agent-factory", "sub");
+    const before = tree(kh);
+    for (const dryRun of [false, true]) {
+      const r = w.install([], { grugopsHome: kh, target, dryRun });
+      const tag = dryRun ? "DRY_RUN " : "";
+      check(r.status === 1, `${tag}install exited ${r.status}, expected 1\n${r.out.slice(0, 2000)}`);
+      check(r.stdout === "", `${tag}install printed on stdout: ${r.stdout.slice(0, 400)}`);
+      check(/overlaps the target/.test(r.stderr), `${tag}no overlap refusal on stderr: ${r.stderr}`);
+      check(tree(kh) === before, `${tag}something under the kit home changed`);
+    }
+  },
+
+  // Plan 33.1-37: an unrecorded agent-factory/ at the kit root is renamed to a recorded backup, never deleted.
+  "kit-home-unrecorded"(w) {
+    mkdirSync(join(w.kitHome, "agent-factory"), { recursive: true });
+    const notes = join(w.kitHome, "agent-factory", "MYNOTES.md");
+    writeFileSync(notes, "the user's notes at the kit root\n");
+    const want = sha256(notes);
+    const r = w.install();
+    check(r.status === 0, `install exited ${r.status}, expected 0\n${r.out.slice(-2000)}`);
+    const baks = readdirSync(w.kitHome).filter((n) => n.startsWith("agent-factory.bak."));
+    check(baks.length === 1, `expected one agent-factory.bak.<ISO>, found ${baks.length}`);
+    const kept = join(w.kitHome, baks[0], "MYNOTES.md");
+    check(existsSync(kept) && sha256(kept) === want, "MYNOTES.md is not byte-identical inside the backup");
+    const rec = JSON.parse(readFileSync(join(w.kitHome, ".grugops-kit.json"), "utf8"));
+    const named = rec.ledger.filter((e) => e.kind === "backup" && e.path === baks[0] && e.origin === "kit-home" && e.of === "agent-factory");
+    check(named.length === 1, `the kit-home record does not name the backup: ${JSON.stringify(rec.ledger)}`);
+    check(/^tree:sha256:[0-9a-f]{64}$/.test(String(named[0].content)), `the backup's content record is ${named[0].content}`);
+    check(rec.ledger.some((e) => e.kind === "kit" && e.path === "agent-factory"), "the record does not name the kit");
+  },
+
+  // Plan 33.1-37: DRY_RUN over an unrecorded kit home previews the backup and changes zero bytes in the kit home.
+  "kit-home-dry-run"(w) {
+    mkdirSync(join(w.kitHome, "agent-factory"), { recursive: true });
+    writeFileSync(join(w.kitHome, "agent-factory", "MYNOTES.md"), "the user's notes at the kit root\n");
+    const before = tree(w.kitHome);
+    const r = w.install([], { dryRun: true });
+    check(r.status === 0, `DRY_RUN install exited ${r.status}, expected 0\n${r.out.slice(-2000)}`);
+    check(r.lines.some((l) => /^\s*would-back-up\s/.test(l)), "no would-back-up line");
+    check(r.lines.some((l) => /^\s*would-copy\s+kit/.test(l)), "no would-copy kit line");
+    check(tree(w.kitHome) === before, "DRY_RUN changed the kit home");
+  },
 };
 
 // ── the runner ───────────────────────────────────────────────────────────────────────────────────

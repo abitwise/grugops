@@ -1,7 +1,8 @@
 // user-file.ts — the ONE reader of a user-controlled path in the installer (plan 33.1-26, brief
 // 33.1-GAP-PLANNING-BRIEF.md DC-3: an unbounded read of a user-controlled path).
 //
-// Cross-platform. Node stdlib ONLY (node:fs) — ZERO npm dependencies. A sibling of install.js
+// Cross-platform. Node stdlib ONLY (node:fs, node:path, and node:crypto for treeRecord's hash, which
+// does no I/O) — ZERO npm dependencies. A sibling of install.js
 // inside install/, so the installer still runs on a host with nothing installed. This module never
 // writes: it imports read-only fs names and one openSync whose flags are read-only, and
 // install/installer-fs-census.test.ts scans it with the rest of install/ and checks those flags.
@@ -71,7 +72,8 @@
 //
 // Clear professional voice: this is a safety surface (installer reads of user content).
 
-import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readlinkSync, realpathSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export type UserFileRead =
@@ -315,6 +317,112 @@ export function realPathThroughExisting(p: string): string | null {
   } catch {
     return null;
   }
+}
+
+// ── THE TREE RECORD (plan 33.1-37, D-33 (c)) ──────────────────────────────────────────────────────
+//
+// WHY A BACKUP'S CONTENT RECORD COVERS A WHOLE TREE. Install records every backup it makes, so a later
+// prune (plan 33.1-40) can remove one only while it is still exactly what install left. A backup is
+// often a directory (the displaced kit at the kit root, the in-repo agent-factory/ --migrate moves
+// aside), and a user may add a file inside it, edit one, or swap one for a link after install made it.
+// A record of the directory's NAME would let prune delete those changes with it (brief DC-2). So the
+// record is the sha256 of one line per entry under the path, in sorted order, each naming the entry's
+// relative path and what it is:
+//   `<json rel>\tdir <mode>`            a directory (the path itself is `"."`);
+//   `<json rel>\tfile <sha256> <mode>`  a regular file, read through readUserFile within its bound;
+//   `<json rel>\tlink <json readlink>`  a symbolic link, never followed;
+//   `<json rel>\tother`                 a FIFO, socket or device, never opened.
+// The relative path is JSON-quoted, so a name holding a tab or a newline cannot forge a second line.
+//
+// WHY null MEANS "NEVER PROVE IT". treeRecord returns null when any entry cannot be read (lstat,
+// readdir, readlink or readUserFile fails), a file is over readUserFile's bound, the walk passes
+// TREE_MAX_ENTRIES entries or TREE_MAX_BYTES bytes of file content, or the path itself is a FIFO,
+// socket or device. A backup recorded with a null content record can never be shown to be unchanged,
+// so nothing that acts only on proof (prune) will ever remove it: the bound fails safe.
+//
+// A path that is a regular file gets the file record (`sha256:<hex>;mode=<octal>`) and a path that is a
+// link gets the link record (`link:<target>`), the same grammar install-marker.ts uses for a `file`
+// entry, so one backup entry can hold a file, a link or a tree. It walks with lstat and readdirSync
+// only, follows no link, and opens nothing but the regular files readUserFile reads.
+
+/** The most entries treeRecord walks before it answers null (a kit is a few hundred). */
+export const TREE_MAX_ENTRIES = 20_000;
+/** The most bytes of file content treeRecord hashes before it answers null. */
+export const TREE_MAX_BYTES = 256 * 1024 * 1024;
+
+const sha256Hex = (data: Buffer | string): string => createHash("sha256").update(data).digest("hex");
+const modeOctal = (mode: number): string => (mode & 0o7777).toString(8).padStart(4, "0");
+
+/**
+ * The content record of `rel` (a POSIX path relative to `root`) as it stands now: `tree:sha256:<hex>`
+ * for a directory, the file record for a regular file, the link record for a link, or null (see THE
+ * TREE RECORD above).
+ */
+export function treeRecord(root: string, rel: string): string | null {
+  const top = join(root, ...rel.split("/"));
+  let st: StatShape & { readonly mode: number };
+  try {
+    st = lstatSync(top);
+  } catch {
+    return null;
+  }
+  if (st.isSymbolicLink()) {
+    try {
+      return `link:${readlinkSync(top)}`;
+    } catch {
+      return null;
+    }
+  }
+  if (st.isFile()) {
+    const r = readUserFile(top);
+    return r.state === "ok" ? `sha256:${sha256Hex(r.bytes)};mode=${modeOctal(r.mode)}` : null;
+  }
+  if (!st.isDirectory()) return null;
+  const lines: string[] = [`${JSON.stringify(".")}\tdir ${modeOctal(st.mode)}`];
+  let entries = 0;
+  let bytes = 0;
+  const walk = (dirRel: string): boolean => {
+    let names: string[];
+    try {
+      names = readdirSync(dirRel === "" ? top : join(top, ...dirRel.split("/")));
+    } catch {
+      return false;
+    }
+    for (const name of names) {
+      entries += 1;
+      if (entries > TREE_MAX_ENTRIES) return false;
+      const childRel = dirRel === "" ? name : `${dirRel}/${name}`;
+      const abs = join(top, ...childRel.split("/"));
+      let cst: StatShape & { readonly mode: number };
+      try {
+        cst = lstatSync(abs);
+      } catch {
+        return false;
+      }
+      const q = JSON.stringify(childRel);
+      if (cst.isSymbolicLink()) {
+        try {
+          lines.push(`${q}\tlink ${JSON.stringify(readlinkSync(abs))}`);
+        } catch {
+          return false;
+        }
+      } else if (cst.isDirectory()) {
+        lines.push(`${q}\tdir ${modeOctal(cst.mode)}`);
+        if (!walk(childRel)) return false;
+      } else if (cst.isFile()) {
+        const r = readUserFile(abs);
+        if (r.state !== "ok") return false;
+        bytes += r.bytes.length;
+        if (bytes > TREE_MAX_BYTES) return false;
+        lines.push(`${q}\tfile ${sha256Hex(r.bytes)} ${modeOctal(r.mode)}`);
+      } else {
+        lines.push(`${q}\tother`);
+      }
+    }
+    return true;
+  };
+  if (!walk("")) return null;
+  return `tree:sha256:${sha256Hex(lines.sort().join("\n"))}`;
 }
 
 /**
