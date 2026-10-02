@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-10-02T18:37:25.197Z",
+  "phase": "33.1",
+  "phase_name": "Phase 33 Leftovers: Guard Retirement First (INSERTED)",
+  "phase_dir": ".planning/phases/33.1-phase-33-leftovers-guard-bypasses-first",
+  "plan": 37,
+  "task": 4,
+  "total_tasks": 4,
+  "status": "paused",
+  "run": "/gsd-execute-phase 33.1 --gaps-only (gap round 3 = plans 36-43, sequential on main, worktrees off)",
+  "completed_tasks": [
+    {"id": "36", "name": "Plan 36: one ledger behind owns(path), round-2 review snapshot, round-3 replay harness", "status": "done", "commit": "37491014..f359dc15", "red_team": "done: 4/5 claims HELD, 1 BROKEN (identical copy recorded by byte identity) -> folded into plan 37 Task 4 by human decision"},
+    {"id": "37.1", "name": "Plan 37 Task 1: refuse a kit home overlapping the target before any write (CR-01)", "status": "done", "commit": "a5be3ff4"},
+    {"id": "37.2+3", "name": "Plan 37 Tasks 2+3: kit-home record, copyKit renames aside instead of deleting, IN-06 class derivation, IN-01", "status": "done", "commit": "eab64394"},
+    {"id": "37.4", "name": "Plan 37 Task 4: identical copy recorded only by carry, never by byte identity", "status": "in_progress", "progress": "uncommitted edits in install.ts/.js, install-marker.ts/.js, tests (ledger, never-installed, user-edit, install.test), replay cases, README, CHANGELOG. Executor was stopped while appending carry cases to installer-user-edit.test.ts. Not verified: suite state unknown (may be red)."}
+  ],
+  "remaining_tasks": [
+    {"id": "37.4", "name": "Finish Task 4: carry cases, mutation proof, replay rt36-identical-copy-not-recorded + rt36-noledger-reinstall, full regression green, commit, SUMMARY", "status": "in_progress"},
+    {"id": "37-redteam", "name": "Red-team agent against plan 37 committed .js (DC-2/DC-3 via GRUGOPS_HOME, kit root, .grugops-kit.json, temp dirs, identical-copy carry)", "status": "not_started"},
+    {"id": "38", "name": "Plan 38: uninstall removal by ledger walk (remaining U1/U2/U3 sites)", "status": "not_started"},
+    {"id": "39", "name": "Plan 39: marker retention, settings provenance", "status": "not_started"},
+    {"id": "40", "name": "Plan 40: prune by record", "status": "not_started"},
+    {"id": "41", "name": "Plan 41: host-protection, D-31 Q4 doc scan", "status": "not_started"},
+    {"id": "42", "name": "Plan 42: host-protection Q1 / D-33 Q2 rows", "status": "not_started"},
+    {"id": "43", "name": "Plan 43: deferred items, WINDOWS.md, collect human decisions", "status": "not_started"},
+    {"id": "tail", "name": "post-merge build/test gate, code review (snapshot 33.1-REVIEW.md first), regression gate, verifier", "status": "not_started"}
+  ],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Confirm plan 36 decision: a round-2 six-record marker (no `ledger`) is read fail-closed as no record (one-way; alternative was a migration reader)", "context": "33.1-36-SUMMARY.md 'Decisions needed from the human'; plan 43 collects", "blocking": false},
+    {"action": "Confirm plan 36 README Undo change: the only 2.1.0 remedy is re-run install then uninstall (setting target no longer restores removal of byte-identical skills)", "context": "33.1-36-SUMMARY.md; plan 43 collects", "blocking": false},
+    {"action": "Confirm plan 37: renaming an unrecorded kit root aside (agent-factory.bak.<ISO>) goes beyond D-31's kit-home decision", "context": "plan 37 must_haves; will be in 33.1-37-SUMMARY.md", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Identical copy is recorded only by carry (prior ok ledger kit-true entry that owns() still answers owned), never by byte identity; added as plan 37 Task 4 (commit b769e4d2)", "rationale": "Red-team of 36 reproduced uninstall deleting a hand-copied byte-identical SKILL.md install never wrote (DC-2); human chose fix-in-plan-37 on 2026-10-02", "phase": "33.1"},
+    {"decision": "Executors get an explicit Read-list for protocol files and a bound root-pin script instead of inlined protocol text", "rationale": "keeps prompts small; worked across rounds", "phase": "33.1"}
+  ],
+  "uncommitted_files": [
+    " M .planning/phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-round3-replay.mjs",
+    " M CHANGELOG.md",
+    " M install/README.md",
+    " M install/install-marker.js",
+    " M install/install-marker.ts",
+    " M install/install.js",
+    " M install/install.test.ts",
+    " M install/install.ts",
+    " M install/installer-never-installed.test.ts",
+    " M install/installer-user-edit.test.ts",
+    " M install/ledger.test.ts"
+  ],
+  "next_action": "Run /gsd-execute-phase 33.1 --gaps-only. Before it dispatches plan 37 (no SUMMARY yet, commits a5be3ff4+eab64394 exist -> safe_resume_gate will fire): choose 'continue in place' by dispatching a continuation executor for plan 37 Task 4 ONLY, telling it Tasks 1-3 are committed and the uncommitted diff is its own partial Task 4 work to review, finish, verify green, and commit. Then red-team 37, then plans 38-43 each followed by a red-team.",
+  "context_notes": "Root-pin guard and red-team repro scripts lived in the old session scratchpad (/private/tmp/claude-501/.../94608f13-.../scratchpad/: pin-bound.sh, redteam-36/*.mjs); they may be gone after reboot — rebuild the pin from ~/.claude/gsd-core/references/worktree-path-safety.md step 0p (bind only the PINNED_ROOT= assignment line, not the case literal). Regression: npx vitest run --exclude '**/scripts/e2e/**' (never npm test). Plan 36 baseline 7302 passed / 2 skipped."
+}
