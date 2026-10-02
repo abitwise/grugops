@@ -1482,7 +1482,7 @@ Plans:
 **Goal:** Take over what Phase 33 carried at its human-override close (D-33-R4-08), guard first — REVISED 2026-09-26 (33.1 D-17): the canonical-form cutover is abandoned and the Bash command-parsing prod-deploy/merge guard is RETIRED. Wave 1 deletes the Bash PreToolUse matcher, `hooks/guard.*`, the command model in `scripts/checkpoints.ts` and its grant keys; the installer translates the checkpoints config into Claude Code `permissions.ask` rules (a speed bump, documented as such); git-host branch protection and deployment environments are the hard floor, with a setup checklist and a read-only `gh api` check in the gate and release roles; CLAUDE.md "Safety (hard)" is rewritten by recorded decision (D-21). CR-01, CR-02, the two zero-key deferred ALLOW forms, IN-02, WR-04 and row 269 close as dissolved by retirement. A blocking human checkpoint (D-20) follows. Then: D-33-R4-04 (row 297), D-33-R4-05 (the `--permission-mode default` pin, after its zero-token check; row 298), rows 303-305 and 307, the CLAUDE.md nesting correction (row 309), and the open non-windows deferred items; D-33-R4-07 (row 299) is moot. Last: exactly one live capture go toward GAP-D1 (CAP-01/CAP-03) with no prod-deploy probe case. Row 274 and the windows reds are out of this phase, so CAP-02 cannot be met here. Replanned 2026-09-26: plans 03-16 below supersede the pre-D-17 set.
 **Requirements**: TBD
 **Depends on:** Phase 33
-**Plans:** 35/35 plans executed (01-02 executed against the superseded canonical-form design; their code is deleted by D-23; 03-16 replanned 2026-09-26 for the retirement; 17-21 are gap-closure round 1 of 4 for CR-01 and CR-02, planned 2026-09-28; 22-35 are gap-closure round 2 of 4 for the re-verification's Gap A and Gap B, planned 2026-09-29 and revised the same day for the gap-planning brief (DC-1..DC-3) and D-32)
+**Plans:** 35/43 plans executed (01-02 executed against the superseded canonical-form design; their code is deleted by D-23; 03-16 replanned 2026-09-26 for the retirement; 17-21 are gap-closure round 1 of 4 for CR-01 and CR-02, planned 2026-09-28; 22-35 are gap-closure round 2 of 4 for the re-verification's Gap A and Gap B, planned 2026-09-29 and revised the same day for the gap-planning brief (DC-1..DC-3) and D-32; 36-43 are gap-closure round 3 of 4, the last under the cap, planned 2026-10-02 per D-33)
 
 Plans:
 **Executed before the replan (history)**
@@ -1622,6 +1622,40 @@ Plans:
 **Wave 14** *(blocked on 33.1-34)*
 
 - [x] 33.1-35-PLAN.md — ledger from a review snapshot (every re-review finding folded or ledgered, plus the owns(path) and DC-3 deferrals); BLOCKING decision on the D-30 questions (WR-02, WR-03, Q3a/Q3b) and the brief's scope lever (Q4), recorded as D-31; final scratch replay and regression (D-06, D-30)
+
+**Gap closure round 3 of 4 (D-06), the last under the cap. Scope per D-33: the D-31 amendments Q4, Q1 and Q2, and the gap-round-2 review's CR-01, CR-02, WR-01..WR-04 and IN-01..IN-06; finding ids below are that review's (snapshot 33.1-REVIEW-GAP-ROUND-2.md)**
+
+**Wave 15** *(blocked on 33.1-35)*
+
+- [ ] 33.1-36-PLAN.md — TRACER: one install ledger (`ledger`) behind one `owns(path)` authority, replacing the six records; the runnables pass removes by owns alone; a round-2 marker fails closed; review snapshot, two-round ledger checker, scratch replay harness; tests moved to the one ledger (D-33, D-32)
+
+**Wave 16** *(blocked on 33.1-36)*
+
+- [ ] 33.1-37-PLAN.md — CR-01: a kit home overlapping the target is refused before any write (DRY_RUN too); the kit-home record (`.grugops-kit.json`); copyKit replaces only a recorded kit and renames anything else aside, recorded; refusal variants in the DC-2 derivation (IN-06); IN-01 (D-33, D-31)
+
+**Wave 17** *(blocked on 33.1-37)*
+
+- [ ] 33.1-38-PLAN.md — WR-01: uninstall walks the ledger, every delete and edit through owns; kit-source passes report-only; one-gate census over derived sites; cross-version class test (IN-06); IN-05 (D-33)
+
+**Wave 18** *(blocked on 33.1-38)*
+
+- [ ] 33.1-39-PLAN.md — WR-02: the marker is kept and rewritten until recorded content is gone; WR-03: a Gemini file install created is reversed whole; IN-02 (D-33)
+
+**Wave 19** *(blocked on 33.1-39)*
+
+- [ ] 33.1-40-PLAN.md — CR-02: install records every backup it makes; `--prune-old-kit` removes only recorded, unchanged kit and config backups; prune class test over every `.bak.<ISO>` shape at both roots; IN-03 (D-33, D-32)
+
+**Wave 20** *(blocked on 33.1-40)*
+
+- [ ] 33.1-41-PLAN.md — D-31 Q4: the production environment reads UNKNOWN - verify by design and the exit counts branches; WR-04 (output arrives whole); IN-04 (strict arguments); DC-1 matrix re-derived; README §5 and every pointer (D-31, D-33)
+
+**Wave 21** *(blocked on 33.1-41)*
+
+- [ ] 33.1-42-PLAN.md — D-33 (d): both stale-approval rows required; D-31 Q1: the no-bypass line states what is measured; DC-1 matrix over the new fields; registers and COVERAGE (D-33, D-31, D-30)
+
+**Wave 22** *(blocked on 33.1-42)*
+
+- [ ] 33.1-43-PLAN.md — round close: every round-2 finding folded (per-finding ledger check), resolution rows for the deferrals this round closed, full replay of the verifier's reproductions against the build, final regression (D-06, D-33)
 
 ### Phase 34: Model Effort Dial & Pi Support
 
