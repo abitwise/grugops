@@ -58,8 +58,8 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { cpSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   MARKER_REL,
@@ -416,4 +416,60 @@ describe("the kit carry: an identical kit file keeps its record only by owns, ne
     expect([0, 3], u.stdout).toContain(u.status);
     expect(readFileSync(at(t, rel)).equals(bytes), `${rel} did not survive uninstall byte for byte`).toBe(true);
   });
+
+  // The --symlink route of the same rule: install's own link at a kit path is the identical case for a link.
+  // It keeps its record only as a carry; a link a user made to the same kit source is not install's.
+  it("--symlink: a re-install carries install's own links (owns answers owned), and uninstall removes them", () => {
+    const t = fresh("carry-link");
+    const home = fresh("home");
+    const kitHome = join(home, ".grugops");
+    const i0 = runInstall(t, kitHome, ["--symlink"], { home, timeoutMs: 180_000 });
+    expect(i0.status, i0.stdout).toBe(0);
+    const before = fileRecords(readMarkerObject(t), true);
+    const links = Object.keys(before).filter((rel) => before[rel].startsWith("link:"));
+    expect(links.length, "PREMISE: a --symlink install recorded links at kit paths").toBeGreaterThan(0);
+    const r = runInstall(t, kitHome, ["--symlink"], { home, timeoutMs: 180_000 });
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout, "a recorded kit link was reported left").not.toMatch(/^ {2}left\s+\.claude\//m);
+    expect(fileRecords(readMarkerObject(t), true)).toEqual(before);
+    const u = runUninstall(t, kitHome, { home, timeoutMs: 120_000 });
+    expect(u.status, u.stdout).toBe(0);
+    for (const rel of links) expect(existsSync(at(t, rel)) || isLink(at(t, rel)), `${rel} was not removed`).toBe(false);
+  });
+
+  it("--symlink: a link a user made to the kit source, with no record, is reported left, never recorded, and survives uninstall", () => {
+    const home = fresh("home");
+    const kitHome = join(home, ".grugops");
+    const ref = fresh("link-ref");
+    const i0 = runInstall(ref, kitHome, ["--symlink"], { home, timeoutMs: 180_000 });
+    expect(i0.status, i0.stdout).toBe(0);
+    const recs = fileRecords(readMarkerObject(ref), true);
+    const links = Object.keys(recs).filter((rel) => recs[rel].startsWith("link:")).sort();
+    expect(links.length, "PREMISE: the reference --symlink install recorded links").toBeGreaterThan(0);
+    const t = fresh("handlink");
+    for (const rel of links) {
+      mkdirSync(dirname(at(t, rel)), { recursive: true });
+      symlinkSync(recs[rel].slice("link:".length), at(t, rel));
+    }
+    const r = runInstall(t, kitHome, ["--symlink"], { home, timeoutMs: 180_000 });
+    expect(r.status, r.stdout).toBe(0);
+    for (const rel of links) {
+      expect(r.stdout.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(rel)), `no left line for ${rel}\n${r.stdout}`).toBe(true);
+    }
+    const recorded = Object.keys(fileRecords(readMarkerObject(t), true)).filter((rel) => links.includes(rel));
+    expect(recorded, "a link the user made was recorded as install's").toEqual([]);
+    const u = runUninstall(t, kitHome, { home, timeoutMs: 120_000 });
+    expect([0, 3], u.stdout).toContain(u.status);
+    for (const rel of links) {
+      expect(isLink(at(t, rel)) && readlinkSync(at(t, rel)) === recs[rel].slice("link:".length), `${rel}: the user's link did not survive uninstall`).toBe(true);
+    }
+  });
 });
+
+function isLink(p: string): boolean {
+  try {
+    return lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
