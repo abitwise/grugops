@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -500,9 +500,11 @@ const recordCreatedFile = (path, record) => {
 // KIT_FILES (plan 33.1-30, Gap B completed, brief DC-2, D-18): what THIS run wrote to each grugops
 // skill and adapter file (.claude/skills/<name>/SKILL.md, .claude/agents/<file>.md), as a POSIX path
 // relative to TARGET mapped to the content record of what is there now because of this run:
-// materializeAdapter records `sha256:` of the final bytes it wrote or found identical, and copyKitFile
-// (a skill without the slot line; linkOrCopy's job before plan 33.1-31) records `sha256:` of a copy or
-// `link:<source>` of the link install makes. A user's edit to a kit file is user content: writeMarker() records this map in the
+// materializeAdapter records `sha256:` of the final bytes it wrote, and copyKitFile (a skill without the
+// slot line; linkOrCopy's job before plan 33.1-31) records `sha256:` of a copy or `link:<source>` of the
+// link install makes. A destination that already held exactly those bytes (or that link) is recorded only
+// as a CARRY of the previous ledger's kit-true entry, while owns says it still holds (identicalKitDest,
+// plan 33.1-37 Task 4); identity with the kit source alone records nothing. A user's edit to a kit file is user content: writeMarker() records this map in the
 // install ledger as kit-true `file` entries, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
 // preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
 const KIT_FILES = new Map();
@@ -2774,7 +2776,7 @@ function transformAdapter(srcText) {
 function kitDestDecision(e) {
     const dest = e.dest;
     if (e.kind === "missing")
-        return { act: "skip", line: `${e.label} (source missing: ${e.src})`, record: null };
+        return { act: "skip", verb: "skipped", line: `${e.label} (source missing: ${e.src})`, record: null };
     const tooLong = pathLimitProblem(dest);
     if (tooLong !== null)
         return { act: "refuse", why: `${e.label} — ${dest} ${tooLong}. Nothing was written.` };
@@ -2811,25 +2813,41 @@ function kitDestDecision(e) {
             return { act: "refuse", why: `${e.label} — ${blockedAt(destRead, dest)}. It was left untouched and nothing was written.` };
         }
         if (destRead.state === "ok" && destRead.text === final) {
-            // The destination holds exactly what install writes there, so it is recorded as install's
-            // (a kit-true file entry, plan 33.1-30). The wording is linkOrCopy's for an identical copy: one sentence, one fact.
-            return { act: "skip", line: `${e.label} (identical copy present)`, record: fileRecord(final, destRead.mode) };
+            // The destination holds exactly what install writes there. That identity is not a record (plan 33.1-37
+            // Task 4): it keeps a record only as a carry, otherwise it is left.
+            return identicalKitDest(e, "identical copy");
         }
         const cannot = writable(destRead.state);
         return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
     }
-    // copy / link: a --symlink install's own link to this exact source is install's content.
+    // copy / link: a --symlink install's own link to this exact source holds install's content. It, too, keeps
+    // a record only as a carry (plan 33.1-37 Task 4): a link a user made to the same path is not install's.
     if (isOwnLink(dest, e.src))
-        return { act: "skip", line: `${e.label} (symlink present)`, record: linkRecord(e.src) };
+        return identicalKitDest(e, "symlink");
     const destRead = readForWrite(TARGET, dest);
     if (destRead.state === "blocked") {
         return { act: "refuse", why: `${e.label}: ${blockedAt(destRead, dest)}. It was left untouched and nothing was copied over it.` };
     }
-    if (destRead.state === "ok" && destRead.text === e.srcText) {
-        return { act: "skip", line: `${e.label} (identical copy present)`, record: fileRecord(e.bytes ?? Buffer.alloc(0), destRead.mode) };
-    }
+    if (destRead.state === "ok" && destRead.text === e.srcText)
+        return identicalKitDest(e, "identical copy");
     const cannot = writable(destRead.state);
     return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
+}
+// identicalKitDest: the ONE answer for a kit destination that already holds what install writes there (both
+// identical-copy branches of kitDestDecision and the --symlink own-link branch; plan 33.1-37 Task 4). A carry
+// keeps the earlier record and is `skipped`; anything else is `left`, unrecorded, so uninstall leaves it.
+function identicalKitDest(e, what) {
+    const rel = targetRel(e.dest);
+    const carried = rel === null ? null : carriedKitRecord(PREVIOUS_LEDGER, TARGET, rel);
+    if (carried !== null)
+        return { act: "skip", verb: "skipped", line: `${e.label} (${what} present)`, record: carried };
+    return {
+        act: "skip",
+        verb: "left",
+        line: `${e.label} (${what === "symlink" ? "the link install makes is already there" : "an identical copy is already there"}, ` +
+            `but the install ledger has no record that install wrote it, so it is not recorded and uninstall will leave it)`,
+        record: null,
+    };
 }
 // materializeAdapter: lay one materialize entry down from its FINAL text (captured in memory by
 // buildKitPlan; nothing here reads the render mirror, which is gone by now), writing ONLY when the
@@ -2891,7 +2909,7 @@ function materializeAdapter(e) {
     if (d.act === "skip") {
         if (d.record !== null)
             recordKitFile(e.dest, d.record);
-        report("skipped", d.line);
+        report(d.verb, d.line);
         return;
     }
     if (DRY_RUN) {
@@ -2920,7 +2938,7 @@ function copyKitFile(e) {
     if (d.act === "skip") {
         if (d.record !== null)
             recordKitFile(e.dest, d.record);
-        report("skipped", d.line);
+        report(d.verb, d.line);
         return;
     }
     if (d.act === "unlink") {
@@ -3749,10 +3767,16 @@ const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 // written; nothing is left to show it is still the directory install created, so the entry is
 // dropped and uninstall leaves the directory (the safe direction). Taken later in the run, the answer
 // would count what this run itself wrote into the directory.
+//
+// PREVIOUS_LEDGER (plan 33.1-37 Task 4) is the same read, kept: the target's install ledger as this run found
+// it, before any change. kitDestDecision asks it (carriedKitRecord) whether an identical kit file is a carry.
+const PREVIOUS_LEDGER = (() => {
+    const m = readInstallMarker(TARGET);
+    return readLedger(m.state === "ok" ? m.marker : null);
+})();
 const START_HELD_DIRS = (() => {
     const held = new Set();
-    const m = readInstallMarker(TARGET);
-    const ledger = readLedger(m.state === "ok" ? m.marker : null);
+    const ledger = PREVIOUS_LEDGER;
     for (const { path: rel } of entriesOfKind(ledger, "dir")) {
         const p = join(TARGET, ...rel.split("/"));
         if (wayTo(TARGET, p) !== null || directoryComponent(p) !== "fine")

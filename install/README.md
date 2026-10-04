@@ -115,6 +115,12 @@ or a file is renamed aside to `agent-factory.bak.<ISO>` beside it, never deleted
 recorded in `.grugops-kit.json`. So the first re-install over a kit home written before this release
 leaves one such backup; remove it by hand once you no longer need it.
 
+A grugops skill or adapter file that is already in the repository, byte for byte what install would
+write (a copy you made by hand, for example), is not install's unless an earlier install recorded
+writing it. Install leaves such a file as it is, reports it `left`, and records nothing for it, so
+the uninstaller leaves it too. Only a file the install ledger already lists, and that still holds what
+the ledger records, keeps its record on a re-install.
+
 ### Exit codes — what the installer tells a script
 
 If you chain anything after the installer (`node install/install.js --yes && next-step`, a CI
@@ -245,7 +251,9 @@ In the **target repo**:
 - for every skill and adapter file above, install records in the install ledger in
   `.grugops/install.json` what it wrote there (a sha256 of the bytes, or the target of a `--symlink` link), so
   uninstall removes only a file that still holds exactly that, and a re-install asks before it
-  overwrites one you edited (see "Re-installing" above).
+  overwrites one you edited (see "Re-installing" above). A file that was already there, byte for
+  byte what install would write, and that no earlier record of install's names, is left and not
+  recorded, so uninstall leaves it
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved). When `CLAUDE.md` does not exist, install creates it and records
   that in the install ledger in `.grugops/install.json`; the block it appended is recorded there
@@ -341,7 +349,10 @@ the mode was recorded has only the sha256; the uninstaller then compares the byt
 settings file install created. A re-install keeps an earlier entry only while the file still holds what the record says
 and the re-install did not have to add its pointer block to it, so a file you deleted and then made
 again yourself is dropped from the record and left by the uninstaller. A file whose bytes are
-exactly the ones install wrote holds nothing of yours, so it is treated as install's. A file the
+exactly the ones install wrote holds nothing of yours, so it is treated as install's. Byte identity is
+never the record, though: a skill or adapter file that was already in the repository, byte for byte
+what install would write, is not recorded by install (it reports it `left`), so the uninstaller
+leaves it too. A file the
 record does not list is left in place and reported as `left` with the reason, even when it is blank
 or byte-identical to the kit: in a repository you never ran the installer on (for example after the
 minimal copy path in §1) nothing is removed. A marker with no install ledger (an install made before

@@ -36,6 +36,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import {
+  carriedKitRecord,
   KINDS_BY_SCOPE,
   KIT_ENTRY_PATH,
   KIT_HOME_RECORD_REL,
@@ -137,6 +138,9 @@ describe("the one ledger — grammar (readLedger)", () => {
     expect(readLedger(holder([VALID.backup]), "kit-home").why).toMatch(/must have origin kit-home/);
     expect(readLedger(holder([{ ...VALID.kit, path: "agent-factory/x" }]), "kit-home").why).toMatch(/kit entry may name only agent-factory/);
     expect(readLedger(holder([{ ...companionIn("kit-home"), of: "other" }]), "kit-home").why).toMatch(/kit-home backup must be of agent-factory/);
+    for (const path of ["Documents", "agent-factory.bak", "agent-factory.bak.2026-01-02", "x/agent-factory.bak.2026-01-02T03-04-05.678Z"]) {
+      expect(readLedger(holder([{ ...companionIn("kit-home"), path }]), "kit-home").why, path).toMatch(/must be named agent-factory\.bak\.<ISO>/);
+    }
     expect(readLedger(holder([{ ...VALID.backup, of: VALID.backup.path }])).why).toMatch(/its `of` is its own path/);
     for (const content of ["tree:sha256:abc", "sha256:x", 7, "tree:" + "0".repeat(64)]) {
       expect(readLedger(holder([{ ...VALID.backup, content }])).state, JSON.stringify(content)).toBe("malformed");
@@ -500,6 +504,40 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
     }
     expect(read(home).state, "a FIFO").toBe("unreadable");
     expect(lstatSync(at).isFIFO()).toBe(true);
+  });
+});
+
+describe("the kit carry (carriedKitRecord, plan 33.1-37 Task 4): identity with the kit source is never a record", () => {
+  function kitFile(tag: string): { root: string; rel: string } {
+    const root = fresh(tag);
+    const rel = ".claude/skills/grugops-plan/SKILL.md";
+    mkdirSync(join(root, ".claude", "skills", "grugops-plan"), { recursive: true });
+    writeFileSync(join(root, ...rel.split("/")), "the kit's bytes\n");
+    chmodSync(join(root, ...rel.split("/")), 0o644);
+    return { root, rel };
+  }
+  const rec = fileRecord("the kit's bytes\n", 0o644);
+
+  it("carries the previous kit-true entry's own record while owns answers owned", () => {
+    const { root, rel } = kitFile("carry-yes");
+    const l = readLedger(holder([{ path: rel, kind: "file", content: rec, kit: true }]));
+    expect(carriedKitRecord(l, root, rel)).toBe(rec);
+    // A record without a mode is carried as it is: a carry never claims more than the earlier install wrote.
+    const noMode = contentRecord("the kit's bytes\n");
+    expect(carriedKitRecord(readLedger(holder([{ path: rel, kind: "file", content: noMode, kit: true }])), root, rel)).toBe(noMode);
+  });
+
+  it("answers null with no ledger, no entry, a kit-false entry, a malformed ledger, or a record that no longer holds", () => {
+    const { root, rel } = kitFile("carry-no");
+    const cases: Array<[string, ReturnType<typeof readLedger>]> = [
+      ["no marker", readLedger(null)],
+      ["no entry for the path", readLedger(holder([VALID.dir]))],
+      ["a kit-false entry", readLedger(holder([{ path: rel, kind: "file", content: rec, kit: false }]))],
+      ["a malformed ledger", readLedger(holder([{ path: rel, kind: "file", content: rec, kit: true, extra: 1 }]))],
+      ["a record of other bytes (the file is identical to the kit source, not to the record)", readLedger(holder([{ path: rel, kind: "file", content: fileRecord("other", 0o644), kit: true }]))],
+      ["a record of another mode", readLedger(holder([{ path: rel, kind: "file", content: fileRecord("the kit's bytes\n", 0o600), kit: true }]))],
+    ];
+    for (const [name, l] of cases) expect(carriedKitRecord(l, root, rel), name).toBeNull();
   });
 });
 

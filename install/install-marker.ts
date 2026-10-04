@@ -530,6 +530,8 @@ export const KINDS_BY_SCOPE: Readonly<Record<LedgerScope, readonly LedgerKind[]>
 export const KIT_HOME_RECORD_REL = ".grugops-kit.json";
 /** The one path a `kit` entry may name: the kit root, relative to the kit home. */
 export const KIT_ENTRY_PATH = "agent-factory";
+/** The name copyKit gives a kit-home backup: `agent-factory.bak.<isoStamp()>`. */
+const KIT_HOME_BACKUP_NAME = /^agent-factory\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/;
 
 /**
  * What a `backup` entry's backup was made from (plan 33.1-37). `kit-home` is the kit root copyKit moved
@@ -708,6 +710,11 @@ function entryProblem(e: unknown, scope: LedgerScope): string | null {
       }
       if (!isLedgerPath(e.of)) return "its `of` is not a relative POSIX path";
       if (e.origin === "kit-home" && e.of !== KIT_ENTRY_PATH) return `a kit-home backup must be of ${KIT_ENTRY_PATH}`;
+      // The one name copyKit gives a kit-home backup, so a record that names any other path in the kit home
+      // (a forged or hand-edited entry) is malformed rather than a claim a later prune could act on.
+      if (e.origin === "kit-home" && !KIT_HOME_BACKUP_NAME.test(e.path as string)) {
+        return `a kit-home backup must be named ${KIT_ENTRY_PATH}.bak.<ISO>, the name install gives it`;
+      }
       if (e.of === e.path) return "its `of` is its own path";
       if (e.content !== null && !isBackupContent(e.content)) return "its content is neither null nor a file, link or tree record";
       return null;
@@ -899,6 +906,21 @@ export function owns(ledger: LedgerRead, root: string, rel: string, kind: Ledger
       "it does not hold what the install ledger records install wrote there (it was edited or replaced since), so " +
       "there is no record that install wrote this content; left in place",
   };
+}
+
+// carriedKitRecord: THE KIT CARRY (red-team of plan 33.1-36, the named human's decision of 2026-10-02,
+// plan 33.1-37 Task 4, brief DC-2). A kit destination that already holds exactly what install would write
+// there (an identical copy, or a --symlink install's own link) was recorded as install's (`kit: true`) on
+// that identity alone, so a user's hand copy of a grugops skill became install's record, and the next
+// uninstall deleted it. Identity with the kit source is not a record. Such a destination keeps a record only
+// as a CARRY: the previous `ok` ledger holds a kit-true `file` entry for `rel`, and owns answers owned (the
+// path still holds that entry's content record). The record carried is that entry's own content record, so
+// a carry never claims more than the earlier install wrote. Anything else answers null: install records
+// nothing for the path, reports it `left`, and uninstall leaves it.
+export function carriedKitRecord(previous: LedgerRead, root: string, rel: string): string | null {
+  const e = entryAt(previous, rel, "file");
+  if (e === undefined || !e.kit) return null;
+  return owns(previous, root, rel, "file").owned ? e.content : null;
 }
 
 // ownsKitHomePath: owns' answer for a `kit` or `backup` entry (plan 33.1-37; see THE KIT-HOME RECORD).

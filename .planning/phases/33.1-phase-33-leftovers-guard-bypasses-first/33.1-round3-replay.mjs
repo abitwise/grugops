@@ -283,6 +283,57 @@ const CASES = {
     check(r.lines.some((l) => /^\s*would-copy\s+kit/.test(l)), "no would-copy kit line");
     check(tree(w.kitHome) === before, "DRY_RUN changed the kit home");
   },
+
+  // Red-team of plan 33.1-36 (handcopy.mjs), fixed by plan 33.1-37 Task 4: every grugops skill and adapter
+  // copied by hand, byte-identical to what install writes, is reported left, never recorded, and survives
+  // uninstall byte for byte.
+  "rt36-identical-copy-not-recorded"(w) {
+    const ref = join(w.dir, "reference");
+    mkdirSync(ref);
+    const i0 = w.install([], { target: ref });
+    check(i0.status === 0, `the reference install exited ${i0.status}`);
+    const kit = JSON.parse(readFileSync(join(ref, ".grugops", "install.json"), "utf8")).ledger.filter((e) => e.kind === "file" && e.kit).map((e) => e.path);
+    check(kit.length === 24, `the reference install recorded ${kit.length} kit files, expected 24`);
+    const want = {};
+    for (const rel of kit) {
+      mkdirSync(dirname(w.at(rel)), { recursive: true });
+      cpSync(join(ref, rel), w.at(rel));
+      want[rel] = sha256(w.at(rel));
+    }
+    const i = w.install();
+    check(i.status === 0, `install exited ${i.status}, expected 0\n${i.out.slice(-2000)}`);
+    const recorded = JSON.parse(readFileSync(w.at(".grugops/install.json"), "utf8")).ledger.filter((e) => e.kind === "file" && kit.includes(e.path));
+    check(recorded.length === 0, `install recorded hand copies as its own: ${recorded.map((e) => e.path).join(", ")}`);
+    for (const rel of kit) check(w.lineFor(i, "left", rel) !== undefined, `no 'left ${rel}' line from install`);
+    const u = w.uninstall();
+    check(u.status === 0 || u.status === 3, `uninstall exited ${u.status}`);
+    for (const rel of kit) check(existsSync(w.at(rel)) && sha256(w.at(rel)) === want[rel], `${rel} was removed or changed by uninstall`);
+  },
+
+  // Red-team of plan 33.1-36 (noledger-reinstall.mjs): a bound marker with no ledger, then re-install, then
+  // uninstall. The earlier install's 24 kit files are left and reported, none removed, so the remedy text
+  // ("re-run install, then uninstall; what an earlier install made is left and reported") is true.
+  "rt36-noledger-reinstall"(w) {
+    const i0 = w.install();
+    check(i0.status === 0, `install exited ${i0.status}`);
+    const markerPath = w.at(".grugops/install.json");
+    const m = JSON.parse(readFileSync(markerPath, "utf8"));
+    const kit = m.ledger.filter((e) => e.kind === "file" && e.kit).map((e) => e.path);
+    check(kit.length === 24, `the install recorded ${kit.length} kit files, expected 24`);
+    delete m.ledger;
+    writeFileSync(markerPath, JSON.stringify(m, null, 2) + "\n");
+    const i = w.install();
+    check(i.status === 0, `re-install exited ${i.status}\n${i.out.slice(-2000)}`);
+    const after = JSON.parse(readFileSync(markerPath, "utf8")).ledger.filter((e) => e.kind === "file" && e.kit);
+    check(after.length === 0, `the re-install recorded ${after.length} earlier kit files as its own`);
+    const want = Object.fromEntries(kit.map((rel) => [rel, sha256(w.at(rel))]));
+    const u = w.uninstall();
+    check(u.status === 0 || u.status === 3, `uninstall exited ${u.status}`);
+    for (const rel of kit) {
+      check(existsSync(w.at(rel)) && sha256(w.at(rel)) === want[rel], `${rel} was removed or changed`);
+      check(w.lineFor(u, "left", rel) !== undefined, `no 'left ${rel}' line from uninstall`);
+    }
+  },
 };
 
 // ── the runner ───────────────────────────────────────────────────────────────────────────────────

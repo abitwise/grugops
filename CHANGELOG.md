@@ -124,6 +124,12 @@ release, together with Phase 33.1, which retires the Bash command guard.
   repository's own `agent-factory/` aside and delete it, exit `0`, with no backup and no warning (33.1
   review CR-01). The refusal exits `1` with one sentence on stderr; set `GRUGOPS_HOME` outside the
   repository.
+- An identical copy that install did not write is no longer recorded as install's, and uninstall no
+  longer removes it. A grugops skill or adapter file already in the repository, byte for byte what
+  install would write, used to be recorded as install's by the next install, and the uninstall after it
+  deleted the file. Install now keeps a record for such a file only when an earlier install already
+  recorded it and the file still holds that record; otherwise it reports the file `left` (33.1 gap
+  round 3 red-team).
 - A `DRY_RUN=1` uninstall no longer removes directories, and uninstall removes an empty directory
   only when install created it (recorded in the install ledger in `.grugops/install.json`) and the same
   run emptied it; a directory's name is not a record (33.1 gap round 2 dropped the round-1 rule that

@@ -73,8 +73,8 @@ import {
   runUninstall,
   snapshotTree,
 } from "./installer-paths.test-support.js";
-import { KINDS_BY_SCOPE, LEDGER_KINDS } from "./install-marker.js";
-import { askRecord, blockRecords, ledgerOf } from "./ledger.test-support.js";
+import { KINDS_BY_SCOPE, LEDGER_KINDS, fileRecord } from "./install-marker.js";
+import { askRecord, blockRecords, fileRecords, ledgerOf, readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-useredit-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -365,5 +365,55 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     expectEditSurvives(p, ".claude/settings.json", u.stdout);
     const ask = (JSON.parse(readFileSync(p, "utf8")) as { permissions: { ask: string[] } }).permissions.ask;
     expect(ask.length, "install's rules are left in place (the ledger claims none of them)").toBeGreaterThan(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE KIT CARRY (red-team of plan 33.1-36, plan 33.1-37 Task 4). An identical kit file is recorded only
+// as a carry: the previous `ok` ledger holds a kit-true entry for the path AND owns answers owned. Byte
+// identity with the NEW kit source is never the proof.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("the kit carry: an identical kit file keeps its record only by owns, never by identity with the kit source (plan 33.1-37)", () => {
+  function installed(tag: string): { t: string; home: string; kitHome: string } {
+    const t = fresh(tag);
+    const home = fresh("home");
+    const kitHome = join(home, ".grugops");
+    const r = runInstall(t, kitHome, [], { home, timeoutMs: 180_000 });
+    expect(r.status, r.stdout).toBe(0);
+    return { t, home, kitHome };
+  }
+
+  it("a re-install over files that still hold their record carries every kit-true entry, and uninstall removes them as before", () => {
+    const { t, home, kitHome } = installed("carry");
+    const before = fileRecords(readMarkerObject(t), true);
+    expect(Object.keys(before).length, "PREMISE: the install recorded kit files").toBeGreaterThan(0);
+    const r = runInstall(t, kitHome, [], { home, timeoutMs: 180_000 });
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout, "a recorded kit file was reported left").not.toMatch(/^ {2}left\s+\.claude\//m);
+    expect(fileRecords(readMarkerObject(t), true)).toEqual(before);
+    const u = runUninstall(t, kitHome, { home, timeoutMs: 120_000 });
+    expect(u.status, u.stdout).toBe(0);
+    for (const rel of Object.keys(before)) expect(existsSync(at(t, rel)), `${rel} was not removed`).toBe(false);
+  });
+
+  it("a kit file identical to the kit source whose recorded content no longer holds is not carried: it is reported left, dropped from the ledger, and survives uninstall", () => {
+    const { t, home, kitHome } = installed("no-carry");
+    const kit = fileRecords(readMarkerObject(t), true);
+    const rel = Object.keys(kit).sort()[0];
+    // The record says install wrote other bytes; the file holds exactly what install would write now.
+    const forged = fileRecord("bytes install did not write here\n", 0o644);
+    const m = withLedger(readMarkerObject(t), (entries) => {
+      for (const e of entries) if (e.kind === "file" && e.path === rel) e.content = forged;
+    });
+    writeFileSync(at(t, MARKER_REL), JSON.stringify(m, null, 2) + "\n");
+    const bytes = readFileSync(at(t, rel));
+    const r = runInstall(t, kitHome, [], { home, timeoutMs: 180_000 });
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout.split("\n").some((l) => l.startsWith(`  left`) && l.includes(rel)), `no left line for ${rel}\n${r.stdout}`).toBe(true);
+    expect(Object.keys(fileRecords(readMarkerObject(t), true)), `${rel} is still recorded`).not.toContain(rel);
+    const u = runUninstall(t, kitHome, { home, timeoutMs: 120_000 });
+    expect([0, 3], u.stdout).toContain(u.status);
+    expect(readFileSync(at(t, rel)).equals(bytes), `${rel} did not survive uninstall byte for byte`).toBe(true);
   });
 });

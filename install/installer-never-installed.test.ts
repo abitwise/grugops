@@ -61,10 +61,11 @@ import {
   describeWritePaths,
   normalizeIso,
   rebindMarker,
+  runInstall,
   runUninstall,
   snapshotTree,
 } from "./installer-paths.test-support.js";
-import { RETIRED_RECORD_NAMES, sixRecordShape } from "./ledger.test-support.js";
+import { RETIRED_RECORD_NAMES, fileRecords, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-never-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -316,4 +317,54 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
     expect(o.changed.some((r) => r.startsWith(`${MARKER_REL} `))).toBe(true);
     expect(o.run.stdout).toMatch(/^ {2}removed\s+\.grugops\/install\.json \(grugops-owned marker/m);
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// RED-TEAM OF PLAN 33.1-36 (human decision 2026-10-02, plan 33.1-37 Task 4): A BYTE-IDENTICAL COPY IS
+// NEVER A RECORD BY IDENTITY ALONE. A user who copied a grugops skill or adapter by hand, byte-identical
+// to what install writes, used to have it recorded as install's (`kit: true`) by the next install, and
+// the uninstall after it deleted the user's file. Install now records an identical copy only as a CARRY
+// (the previous `ok` ledger holds a kit-true entry for the path and owns answers owned); otherwise it
+// records nothing and reports the path `left`, and uninstall leaves it byte for byte.
+//
+// THE PATH SET IS DERIVED: every kit-true file entry the default variant's install recorded, i.e. every
+// destination of the kit plan. Its size is pinned.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const KIT_PATHS: readonly string[] = Object.keys(fileRecords(readMarkerObject(SET.variant("default").target), true)).sort();
+// Pinned: the 7 skills and the 17 rendered adapters of a default install (24, the red-team's count).
+const KIT_PATH_COUNT = 24;
+
+describe("an identical copy install did not write is never recorded, and uninstall leaves it (red-team of 33.1-36)", () => {
+  it("KIT_PATHS: every kit-true file entry of the default install, count pinned", () => {
+    console.log(`KIT_PATHS (${KIT_PATHS.length}):\n${KIT_PATHS.join("\n")}`);
+    expect(KIT_PATHS.length).toBe(KIT_PATH_COUNT);
+  });
+
+  for (const dryRun of [false, true]) {
+    const mode = dryRun ? "DRY_RUN" : "real";
+    it(`${mode}: a hand copy of every kit file, byte-identical to install's, is reported left, never recorded, and survives uninstall`, () => {
+      const ref = SET.variant("default");
+      const t = fresh(`handcopy-${mode}`);
+      const home = fresh("home");
+      for (const rel of KIT_PATHS) {
+        const p = join(t, ...rel.split("/"));
+        mkdirSync(dirname(p), { recursive: true });
+        writeFileSync(p, readFileSync(join(ref.target, ...rel.split("/"))));
+      }
+      const handCopied = snapshotTree(join(t, ".claude"));
+      // The same kit home as the reference install, so a rendered adapter's KIT= line is byte-identical.
+      const i = runInstall(t, ref.grugopsHome, [], { dryRun, home, timeoutMs: 180_000 });
+      expect(i.status, `${i.stdout}\n${i.stderr}`).toBe(0);
+      const notLeft = KIT_PATHS.filter((rel) => !i.stdout.split("\n").some((l) => new RegExp(`^ {2}left\\s+${rel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s`).test(l)));
+      expect(notLeft, `kit paths install did not report \`left\`\n${i.stdout}`).toEqual([]);
+      if (!dryRun) {
+        const recorded = Object.keys(fileRecords(readMarkerObject(t), true)).filter((rel) => KIT_PATHS.includes(rel));
+        expect(recorded, "an identical copy install did not write was recorded as install's").toEqual([]);
+      }
+      const u = runUninstall(t, ref.grugopsHome, { dryRun, home, timeoutMs: 120_000 });
+      expect([0, 3], `${u.stdout}\n${u.stderr}`).toContain(u.status);
+      expect(snapshotTree(join(t, ".claude")), `uninstall changed a hand-copied kit file\n${u.stdout}`).toBe(handCopied);
+    });
+  }
 });

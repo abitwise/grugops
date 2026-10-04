@@ -1684,11 +1684,12 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   function identicalCopyVerbs(): string[] {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
     const direct = [...src.matchAll(/report\("([^"]+)",\s*`\$\{label\} \(identical copy present\)`\)/g)].map((m) => m[1]);
-    // Plan 33.1-31: the kit's decision (kitDestDecision) carries the sentence as a `line`, one per
-    // route, and each kit writer prints a skip decision through report("<verb>", d.line).
-    const decided = [...src.matchAll(/line: `\$\{e\.label\} \(identical copy present\)`/g)];
-    const printers = [...new Set([...src.matchAll(/report\("([^"]+)", d\.line\)/g)].map((m) => m[1]))];
-    return [...direct, ...decided.flatMap(() => printers)];
+    // Plan 33.1-37 Task 4: the kit's identical-copy answer is ONE helper, identicalKitDest, asked by both
+    // routes of kitDestDecision. A CARRY (an earlier install recorded the file and it still holds that
+    // record) returns `verb: "<verb>"` with the line `${e.label} (${what} present)`, and each kit writer
+    // prints it through report(d.verb, d.line); an identical copy with no record is `left` instead.
+    const carried = [...src.matchAll(/verb: "([^"]+)", line: `\$\{e\.label\} \(\$\{what\} present\)`/g)].map((m) => m[1]);
+    return [...direct, ...carried];
   }
 
   // adapterMtimes — nanosecond mtimes of every installed adapter, DERIVED from the target listing.
@@ -1721,11 +1722,13 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(join(target, ".claude", "agents"))).toBe(beforeBytes);
     expect(adapterMtimes(target)).toEqual(beforeMtimes);
 
-    // ...and the run SAYS so, in the word linkOrCopy already uses for an identical copy. Three sites
-    // since plan 33.1-31: linkOrCopy (AGENTS.md) and kitDestDecision's two routes, one wording.
+    // ...and the run SAYS so, in the word linkOrCopy already uses for an identical copy. Two sites since
+    // plan 33.1-37 Task 4: linkOrCopy (AGENTS.md) and identicalKitDest's carry, which both routes of
+    // kitDestDecision ask (three before, one per route), one wording. Each adapter here is a carry: the
+    // first install recorded it and it still holds that record.
     const verbs = identicalCopyVerbs();
     expect(`identical-copy report sites in install.ts: ${verbs.length}`).toBe(
-      "identical-copy report sites in install.ts: 3",
+      "identical-copy report sites in install.ts: 2",
     );
     expect([...new Set(verbs)].length).toBe(1);
     const skipped = adapterReportLines(second.stdout, verbs[0]).filter((l) =>
@@ -9151,7 +9154,13 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     const r2 = run(src, target, home, ["--backup-edited-kit"]);
     expect(r2.status, r2.stdout).toBe(0);
     expect(backupsIn(target).map((b) => b.replace(/\.grugops-edited-.*$/, "")).sort()).toEqual(expected);
-    expect(Object.keys(kitFilesOf(target) ?? {}).length).toBe(SYNTH_ADAPTERS.length + SYNTH_SKILLS.length);
+    // The record holds what this run wrote: every adapter and the resolver skill. The verbatim skills were
+    // identical to their source and had no record, so this run did not write them and records nothing for
+    // them; it reports each `left` (plan 33.1-37 Task 4: byte identity with the kit source is not a record).
+    expect(Object.keys(kitFilesOf(target) ?? {}).sort()).toEqual(expected);
+    const verbatim = SYNTH_SKILLS.map((sk) => `.claude/skills/${sk}/SKILL.md`).filter((rel) => !expected.includes(rel));
+    expect(verbatim.length, "PREMISE: the synthetic kit has verbatim skills").toBeGreaterThan(0);
+    for (const rel of verbatim) expect(r2.stdout.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(rel)), `${rel}: no left line\n${r2.stdout}`).toBe(true);
     // The next re-install has a record: nothing is asked, nothing is backed up.
     const r3 = run(src, target, home);
     expect(r3.status, r3.stdout).toBe(0);

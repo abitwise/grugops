@@ -123,6 +123,7 @@ import {
   readOwnedContent,
   jsonValueRecord,
   owns,
+  carriedKitRecord,
   readKitHomeRecord,
   KIT_ENTRY_PATH,
   KIT_HOME_RECORD_REL,
@@ -587,9 +588,11 @@ const recordCreatedFile = (path: string, record: string): void => {
 // KIT_FILES (plan 33.1-30, Gap B completed, brief DC-2, D-18): what THIS run wrote to each grugops
 // skill and adapter file (.claude/skills/<name>/SKILL.md, .claude/agents/<file>.md), as a POSIX path
 // relative to TARGET mapped to the content record of what is there now because of this run:
-// materializeAdapter records `sha256:` of the final bytes it wrote or found identical, and copyKitFile
-// (a skill without the slot line; linkOrCopy's job before plan 33.1-31) records `sha256:` of a copy or
-// `link:<source>` of the link install makes. A user's edit to a kit file is user content: writeMarker() records this map in the
+// materializeAdapter records `sha256:` of the final bytes it wrote, and copyKitFile (a skill without the
+// slot line; linkOrCopy's job before plan 33.1-31) records `sha256:` of a copy or `link:<source>` of the
+// link install makes. A destination that already held exactly those bytes (or that link) is recorded only
+// as a CARRY of the previous ledger's kit-true entry, while owns says it still holds (identicalKitDest,
+// plan 33.1-37 Task 4); identity with the kit source alone records nothing. A user's edit to a kit file is user content: writeMarker() records this map in the
 // install ledger as kit-true `file` entries, and uninstall removes a kit file only while it still holds its record. A DRY_RUN
 // preview, a refusal (verify) and a skip of a link or file that is not install's record nothing.
 const KIT_FILES = new Map<string, string>();
@@ -3078,14 +3081,16 @@ interface KitEntry {
 // What may happen at one kit destination. ONE decision, asked by the plan before any write and asked
 // again by the writer at the write (the plan's answer is not trusted across the gap):
 //   refuse  a counted verify, nothing written (the plan refuses the whole kit on any of these);
-//   skip    the destination already holds install's content (`record` goes to the kit-true file entries), or the
-//           source is missing (`record` null);
+//   skip    the destination already holds what install writes there, or the source is missing (`record`
+//           null). `record` is set only for a CARRY (carriedKitRecord, plan 33.1-37 Task 4): the previous
+//           ledger's kit-true entry for the path, which owns says the path still holds. An identical copy
+//           with no such entry is `left`: it is not install's, nothing is recorded, uninstall leaves it;
 //   unlink  install's own link at a materialize destination, removed just before the file is
 //           written (Pitfall 1: never write through a live link);
 //   write   `how` is readForWrite's answer: `create` (exclusive) or `ok` (rewrite the regular file).
 type KitDecision =
   | { readonly act: "refuse"; readonly why: string }
-  | { readonly act: "skip"; readonly line: string; readonly record: string | null }
+  | { readonly act: "skip"; readonly verb: "skipped" | "left"; readonly line: string; readonly record: string | null }
   | { readonly act: "unlink" }
   | { readonly act: "write"; readonly how: "create" | "ok" };
 
@@ -3110,7 +3115,7 @@ type KitDecision =
 // plan. Before, each failed in the write phase, after other kit files had been written.
 function kitDestDecision(e: KitEntry): KitDecision {
   const dest = e.dest;
-  if (e.kind === "missing") return { act: "skip", line: `${e.label} (source missing: ${e.src})`, record: null };
+  if (e.kind === "missing") return { act: "skip", verb: "skipped", line: `${e.label} (source missing: ${e.src})`, record: null };
   const tooLong = pathLimitProblem(dest);
   if (tooLong !== null) return { act: "refuse", why: `${e.label} — ${dest} ${tooLong}. Nothing was written.` };
   const writable = (how: "create" | "ok" | "unlink"): string | null => {
@@ -3146,24 +3151,40 @@ function kitDestDecision(e: KitEntry): KitDecision {
       return { act: "refuse", why: `${e.label} — ${blockedAt(destRead, dest)}. It was left untouched and nothing was written.` };
     }
     if (destRead.state === "ok" && destRead.text === final) {
-      // The destination holds exactly what install writes there, so it is recorded as install's
-      // (a kit-true file entry, plan 33.1-30). The wording is linkOrCopy's for an identical copy: one sentence, one fact.
-      return { act: "skip", line: `${e.label} (identical copy present)`, record: fileRecord(final, destRead.mode) };
+      // The destination holds exactly what install writes there. That identity is not a record (plan 33.1-37
+      // Task 4): it keeps a record only as a carry, otherwise it is left.
+      return identicalKitDest(e, "identical copy");
     }
     const cannot = writable(destRead.state);
     return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
   }
-  // copy / link: a --symlink install's own link to this exact source is install's content.
-  if (isOwnLink(dest, e.src)) return { act: "skip", line: `${e.label} (symlink present)`, record: linkRecord(e.src) };
+  // copy / link: a --symlink install's own link to this exact source holds install's content. It, too, keeps
+  // a record only as a carry (plan 33.1-37 Task 4): a link a user made to the same path is not install's.
+  if (isOwnLink(dest, e.src)) return identicalKitDest(e, "symlink");
   const destRead = readForWrite(TARGET, dest);
   if (destRead.state === "blocked") {
     return { act: "refuse", why: `${e.label}: ${blockedAt(destRead, dest)}. It was left untouched and nothing was copied over it.` };
   }
-  if (destRead.state === "ok" && destRead.text === e.srcText) {
-    return { act: "skip", line: `${e.label} (identical copy present)`, record: fileRecord(e.bytes ?? Buffer.alloc(0), destRead.mode) };
-  }
+  if (destRead.state === "ok" && destRead.text === e.srcText) return identicalKitDest(e, "identical copy");
   const cannot = writable(destRead.state);
   return cannot === null ? { act: "write", how: destRead.state } : { act: "refuse", why: cannot };
+}
+
+// identicalKitDest: the ONE answer for a kit destination that already holds what install writes there (both
+// identical-copy branches of kitDestDecision and the --symlink own-link branch; plan 33.1-37 Task 4). A carry
+// keeps the earlier record and is `skipped`; anything else is `left`, unrecorded, so uninstall leaves it.
+function identicalKitDest(e: KitEntry, what: "identical copy" | "symlink"): KitDecision {
+  const rel = targetRel(e.dest);
+  const carried = rel === null ? null : carriedKitRecord(PREVIOUS_LEDGER, TARGET, rel);
+  if (carried !== null) return { act: "skip", verb: "skipped", line: `${e.label} (${what} present)`, record: carried };
+  return {
+    act: "skip",
+    verb: "left",
+    line:
+      `${e.label} (${what === "symlink" ? "the link install makes is already there" : "an identical copy is already there"}, ` +
+      `but the install ledger has no record that install wrote it, so it is not recorded and uninstall will leave it)`,
+    record: null,
+  };
 }
 
 // materializeAdapter: lay one materialize entry down from its FINAL text (captured in memory by
@@ -3224,7 +3245,7 @@ function materializeAdapter(e: KitEntry): void {
   }
   if (d.act === "skip") {
     if (d.record !== null) recordKitFile(e.dest, d.record);
-    report("skipped", d.line);
+    report(d.verb, d.line);
     return;
   }
   if (DRY_RUN) {
@@ -3253,7 +3274,7 @@ function copyKitFile(e: KitEntry): void {
   }
   if (d.act === "skip") {
     if (d.record !== null) recordKitFile(e.dest, d.record);
-    report("skipped", d.line);
+    report(d.verb, d.line);
     return;
   }
   if (d.act === "unlink") {
@@ -4171,10 +4192,16 @@ const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 // written; nothing is left to show it is still the directory install created, so the entry is
 // dropped and uninstall leaves the directory (the safe direction). Taken later in the run, the answer
 // would count what this run itself wrote into the directory.
+//
+// PREVIOUS_LEDGER (plan 33.1-37 Task 4) is the same read, kept: the target's install ledger as this run found
+// it, before any change. kitDestDecision asks it (carriedKitRecord) whether an identical kit file is a carry.
+const PREVIOUS_LEDGER: LedgerRead = (() => {
+  const m = readInstallMarker(TARGET);
+  return readLedger(m.state === "ok" ? m.marker : null);
+})();
 const START_HELD_DIRS: ReadonlySet<string> = (() => {
   const held = new Set<string>();
-  const m = readInstallMarker(TARGET);
-  const ledger = readLedger(m.state === "ok" ? m.marker : null);
+  const ledger = PREVIOUS_LEDGER;
   for (const { path: rel } of entriesOfKind(ledger, "dir")) {
     const p = join(TARGET, ...rel.split("/"));
     if (wayTo(TARGET, p) !== null || directoryComponent(p) !== "fine") continue;
