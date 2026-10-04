@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "33.1"
 current_phase_name: "Phase 33 Leftovers: Guard Retirement First (INSERTED)"
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: "Completed 33.1-36-PLAN.md (gap round 3 tracer: one install ledger); next 33.1-37"
-last_updated: "2026-10-02T16:33:21.056Z"
-state_head: 20573acbff5b8ddb050697d55ae0a994dd59ec73
+stopped_at: "Completed 33.1-37-PLAN.md (kit-home record, CR-01 refusal, identical copy only by carry); next: red-team of 37, then 33.1-38"
+last_updated: "2026-10-04T12:03:44.264Z"
+state_head: a2b6956b0de56e334a2d7c4d42cba64ea772bc6c
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 355
-  completed_plans: 348
+  completed_plans: 349
   percent: 98
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 33.1 (Phase 33 Leftovers: Guard Retirement First (INSERTED)) — EXECUTING
-Plan: 36 of 43 (gap round 3: 33.1-36 complete, the D-33 (b) tracer; next 33.1-37)
+Plan: 37 of 43 (gap round 3: 33.1-37 complete, the kit-home record, CR-01 refusal and identical copy only by carry; next: red-team of 37, then 33.1-38)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -608,6 +608,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 33.1 P34 | 49min | 3 tasks | 4 files |
 | Phase 33.1 P35 | 50min | 3 tasks | 7 files |
 | Phase 33.1 P36 | 62 min | 3 tasks | 26 files |
+| Phase 33.1 P37 | about 2h over three sessions | 4 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -1669,6 +1670,9 @@ Recent decisions affecting current work:
 - [Phase 33.1]: 33.1-34: README/CHANGELOG publish measured behaviour, not the plan text: a pre-release (2.1.0) install is unbound, so uninstall changes nothing and gives the remedy; known exceptions 12/13 counted in installer-user-edit.test.ts and asserted to still reproduce pending plan 35
 - [Phase 33.1]: 33.1 D-31 (2026-10-01, Olger Oeselg): Q4 narrow-scope, Q1 narrow-line, Q2 add-rows amend D-30 and are implemented in gap round 3; Q3a keep-fail-closed; Q3b moot; all 14 round-2 behaviour items kept (README item 1 fix, item 4 workaround, CHANGELOG item 5 breaking note); kit-home overwrite accepted, backup deferred
 - [Phase 33.1]: 33.1-36: a bound round-2 six-record marker (no ledger) reads unbound by no-ledger and fails closed (uninstall changes nothing, exit 3, remedy: re-run install, then uninstall). Planner reading of D-33 (b); awaiting the human at 33.1-43.
+- [Phase 33.1]: 33.1-37: an identical kit copy is recorded only by carry (carriedKitRecord: a previous ok kit-true entry that owns still answers owned), never by byte identity; otherwise reported left and left by uninstall. Covers both identical-copy branches and the --symlink own-link branch.
+- [Phase 33.1]: 33.1-37: the kit home keeps a record (.grugops-kit.json); copyKit replaces only a recorded kit and renames anything else at the kit root to a recorded agent-factory.bak.<ISO>. The rename-aside of an unrecorded kit root goes beyond D-31 and awaits the human in plan 43.
+- [Phase 33.1]: 33.1-37: install refuses (exit 1, before any write, DRY_RUN included) when the kit home and the target overlap by real path (CR-01).
 
 ### Pending Todos
 
@@ -1799,8 +1803,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-02T16:33:06.692Z
-Stopped at: Completed 33.1-36-PLAN.md (gap round 3 tracer: one install ledger); next 33.1-37
+Last session: 2026-10-04T12:03:36.362Z
+Stopped at: Completed 33.1-37-PLAN.md (kit-home record, CR-01 refusal, identical copy only by carry); next: red-team of 37, then 33.1-38
 Resume file: None
 
 ## Operator Next Steps
