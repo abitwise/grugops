@@ -1721,3 +1721,14 @@ Plans:
 **v2.0 final:** all 7 phases (20–26) complete and archived 2026-07-28. Audit `tech_debt` — 28/28 requirements satisfied, 7/7 phases verified, 8/8 integration boundaries wired, 7/7 Nyquist compliant, no blockers. Closed as `override_closeout` (Phase 20's Windows-CI human item genuinely open; Phase 25's `unknown` is a frontmatter-parse artifact, not a gap). 11 open artifacts deferred, 9 of them pre-v2.0 carryover.
 
 **v2.1 coverage:** all **46** v2.1 requirements mapped to exactly one phase — 0 unmapped, 0 duplicated. (`REQUIREMENTS.md` prose says "all 41 requirements retained"; the enumerated set is 46. The count was written before the categories were finalized. Fittingly, this is the milestone's own founding defect — a hand-maintained count that drifted from the enumerated reality — caught here by counting instead of trusting.)
+
+## Backlog
+
+### Phase 999.1: Installer adversarial e2e lane — turn the per-plan red-team into a bounded, repeatable test flow (BACKLOG)
+
+**Goal:** [Captured for future planning] Replace the ad-hoc, open-ended red-team agent that phase 33.1 ran after every gap plan with a bounded, deterministic end-to-end test lane for `install.js` / `uninstall.js`. The lane drives the committed `.js` in throwaway git repos and kit homes, and runs on a fixed, enumerated scenario corpus with a severity/likelihood bar. Without that bar, every reproduced edge case became new in-scope work and phase 33.1 stalled. See `999.1-installer-adversarial-e2e-lane/999.1-IDEA.md`.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
