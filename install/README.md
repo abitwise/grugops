@@ -128,7 +128,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 
 | Code | Meaning |
 |------|---------|
-| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==`, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo reports *nothing was changed*. All four are **`install.js` only**. So do not test for the install banner to decide a run succeeded; test the exit code. |
+| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==`, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo reports *nothing was changed*. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
 | `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below). `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, or `--target` with no value. Nothing was read or written. |
 | `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
@@ -179,7 +179,9 @@ line and the run goes on to the next. The uninstaller applies the same rule to e
 hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops
 here.** That is deliberate: proceeding over a partial install is how a broken install reaches
 production looking fine. Read the `verify` lines, fix the source, re-run (the installer is
-idempotent, so re-running is safe).
+idempotent, so re-running is safe). The uninstaller keeps `.grugops/install.json` after a run that
+could not finish, so re-running it after the fix finishes the reversal (see "When uninstall keeps
+`.grugops/install.json`" under Undo).
 
 Code `1` from `install.js` can also mean the **kit-home overlap refusal**. The kit is written to
 `${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory`, and install refuses, before it writes anything, when
@@ -328,9 +330,10 @@ grugops version or checkout you run it from. It removes **only** the grugops-own
 added to the target: the skills, the Orchestrator wrapper and the materialized resolver adapters that
 still hold what install wrote to them (see the kit-file record below), the sentinel-delimited
 `CLAUDE.md` and Copilot pointer blocks (the rest of those files stays exactly as it was), the
-`AGENTS.md` entry it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule you
-had before install stays), the runnable checks under `tools/grugops/` that still hold what it wrote,
-and the `.grugops/install.json` marker.
+`AGENTS.md` entry it added to the Gemini settings (or, in a Gemini settings file it created, the
+`context.fileName` list it wrote), the Claude Code ask rules it added (§5; a rule you had before
+install stays), the runnable checks under `tools/grugops/` that still hold what it wrote, and the
+`.grugops/install.json` marker once nothing it records is left.
 
 **The record decides, not the kit source.** The uninstaller walks every entry of the install ledger
 and reverses each one only while it still holds what install recorded. A recorded file that still
@@ -416,11 +419,16 @@ The Gemini settings file is changed only as install's record in the install ledg
 records whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape
 it found there (no `fileName`, a string, or an array; and whether `context` was there), and a sha256
 of `context.fileName` as it left it. The uninstaller acts only while `context.fileName` is still
-exactly that list. It then removes the last `"AGENTS.md"` element from the array and restores the
-shape install found: a string becomes the string again, and a `fileName` or `context` install added
-is removed again. Only that entry and the separator next to it are removed; every other byte stays.
-It deletes the whole file only when install created it and it still holds exactly the bytes install
-wrote. If you changed `context.fileName` after install (for example removed install's entry and
+exactly that list. In a file install found, it then removes the last `"AGENTS.md"` element from the
+array and restores the shape install found: a string becomes the string again, and a `fileName` or
+`context` install added is removed again. In a file install created, the whole list is install's
+(install wrote `["AGENTS.md", "GEMINI.md"]` at once), so it removes `context.fileName`, with both
+`AGENTS.md` and `GEMINI.md`, and the `context` object too when nothing else is in it; every key you
+added stays. Only what install wrote and the separator next to it are removed; every other byte
+stays. It deletes the whole file only when install created it and it still holds exactly the bytes
+install wrote, or when nothing is left once install's list is removed and what is left is byte for
+byte what is left of the file install wrote, with the mode install recorded; after a whitespace or
+line-end edit or a `chmod` of yours, install's list is still removed and the file is kept. If you changed `context.fileName` after install (for example removed install's entry and
 later wrote your own list, even one that names `AGENTS.md`), which entry is install's is not known:
 the file is left byte-identical and reported `left`, and you remove the entry by hand if grugops
 added it. With no record of an added entry, nothing in the file is changed: a repository you never
@@ -470,8 +478,8 @@ says so in a `note` line), so what an earlier install made here has no record an
 leaves it and says so; remove it by hand. `--check` warns about such a marker. `INSTALL_MODE` other
 than `copy` or `symlink` is refused as bad usage (exit `2`) before anything is written.
 
-The marker is removed only when it is install's marker for this directory and its install ledger is
-well-formed. It is never read through a symbolic link: a link at
+The marker is removed only when it is install's marker for this directory, its install ledger is
+well-formed, and nothing it records is left (see the next paragraph). It is never read through a symbolic link: a link at
 `.grugops/install.json`, or a `.grugops` that is itself a link, makes the marker unreadable, so no
 record from another repository is believed. A marker that cannot be read (not JSON, too large, a
 FIFO, a directory, a link) or that holds a malformed install ledger is reported as a `verify` finding,
@@ -479,6 +487,30 @@ is left in place byte for byte, and the run exits `3`: one malformed entry makes
 unusable, so nothing is removed or edited on it. `--check` fails on such a marker (a doctor FAIL,
 exit `1`): one that cannot be read is named as present but unreadable, not as "not installed", and a
 malformed install ledger is named in a `FAIL` line with the entry and the reason.
+
+**When uninstall keeps `.grugops/install.json`.** The marker is the only record of what install
+wrote, so the uninstaller removes it only when everything install recorded writing is gone: every
+file it recorded was removed or was already gone, and every pointer block, Gemini entry and ask rule
+it recorded was reversed or was already gone. A run that could not remove something it has a record
+for (a `verify` line; for example under a directory you made read-only) keeps the marker and exits
+`3`. A run that left a recorded file because you edited it keeps the marker too, exits `0`, and ends
+with
+`== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==`.
+Either way the kept marker is rewritten to list only what is still there: what the run
+removed or reversed is taken out of it, so a later run cannot act on a record of it. Fix the cause,
+or remove or restore the file a `left` line names, and re-run the uninstaller: it finishes the
+reversal and then removes the marker. To keep an edited file for good, delete `.grugops/install.json`
+by hand after the run; the uninstaller then has no record and changes nothing more. A `CLAUDE.md` or
+Copilot file install created, whose grugops block was removed and which still holds lines of yours,
+does not keep the marker: what is left in it is yours. Directories and backups install recorded do
+not keep the marker either. A directory holds nothing of install's own (its files are their own
+entries), `tools/` is never removed, and a recorded directory that is not empty holds files that are
+not install's; a backup holds your content, which the uninstaller never removes. A kept marker still
+lists those that are present. Once the uninstaller removes the marker, the backups install recorded
+are on no record any more, so `--prune-old-kit` can no longer remove them; run `--prune-old-kit`
+before you uninstall if you want grugops to remove its backups. (This narrows decision D-33 (b),
+which keeps the marker while any recorded entry is left, to the entries that hold content install
+wrote; the repository owner has yet to confirm the narrowing.)
 
 A `DRY_RUN=1 node install/uninstall.js` preview changes nothing. It counts each file it would
 remove as removed, so it names the directories the real run would empty and then remove, and never
@@ -504,9 +536,12 @@ of that name itself.
   source of that checkout never decides what is removed.
 
 - It changes `.gemini/settings.json` only as its record in the install ledger in `.grugops/install.json`
-  says: it removes the entry
-  install added and restores the shape install found, and it deletes the file only when install
-  created it and it is unchanged, or holds nothing else once that entry is removed.
+  says: it removes the entry install added and restores the shape install found, or, in a file
+  install created, removes the `context.fileName` list it wrote (`AGENTS.md` and `GEMINI.md`) and
+  the `context` object when nothing else is in it, keeping every other key; or it leaves the file as
+  it is when the list was changed. It deletes the file only when install created it and it is
+  unchanged, or holds nothing else once what install wrote is removed (byte for byte, with the mode
+  install recorded).
 - It deletes `CLAUDE.md` or `.github/copilot-instructions.md` only when install created the file
   (recorded in the install ledger in `.grugops/install.json`), the file held exactly what install
   wrote, and it is blank once the recorded grugops block is removed. Otherwise it removes only the block, and only while the block is
@@ -524,7 +559,9 @@ of that name itself.
   once those rules are removed what is left is byte for byte what is left of the file install wrote.
   A whitespace or line-end edit of yours (an extra final newline, CRLF) keeps the file.
 - It removes `.grugops/install.json` only when it reads as grugops's install marker for this
-  directory and its install ledger is well-formed.
+  directory, its install ledger is well-formed, and nothing it records is left. A run that could not
+  finish, or that left a file you edited, keeps the marker, rewritten to list what is left, so a
+  re-run can finish the reversal.
 - A file with no install record is left untouched and reported (`left` or `skipped`, with the
   reason), whatever is at the path (a link, a special file), and that does not change the exit code.
 - A path uninstall reads that is not a regular file (a FIFO, a directory, a device) is skipped and

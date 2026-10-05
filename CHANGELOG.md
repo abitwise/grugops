@@ -45,6 +45,16 @@ release, together with Phase 33.1, which retires the Bash command guard.
 
 ### Changed
 
+- A file you edited, which uninstall leaves, now keeps the install marker `.grugops/install.json`.
+  Uninstall exits `0` and ends with `== uninstall complete — N recorded item(s) left in place;
+  .grugops/install.json kept to record them ==`, and the marker is rewritten to list only what is
+  still there. Remove or restore the file and re-run uninstall to finish, or delete the marker by hand
+  to keep the file without a record. Directories and backups install recorded do not keep the marker:
+  this narrows 33.1 D-33 (b), which keeps the marker while any recorded entry is left, to the entries
+  that hold content install wrote, and the repository owner has yet to confirm it. The consequence:
+  once uninstall removes the marker, a backup install recorded is on no record any more, so
+  `--prune-old-kit` can no longer remove it. Run `--prune-old-kit` before uninstall if you want
+  grugops to remove its backups.
 - The install marker `.grugops/install.json` keeps one install ledger, the field `ledger`, in place of
   the six records `createdDirs`, `createdFiles`, `geminiSettings`, `kitFiles`, `claudeAskRules` and
   `appendedBlocks`, behind one ownership check (33.1 D-33). A marker written by an earlier build of
@@ -118,6 +128,22 @@ release, together with Phase 33.1, which retires the Bash command guard.
 
 ### Fixed
 
+- An uninstall that could not finish keeps the install marker, so re-running it after fixing the cause
+  finishes the reversal. With `.claude/agents` read-only, uninstall exited `3` with a `verify` line per
+  adapter and still deleted the marker, so the re-run found no record and left every adapter in place
+  as unrecorded (33.1 review WR-02). The marker is now removed only when no `verify` was counted for a
+  recorded path and everything install recorded writing is removed, reversed or already gone;
+  otherwise it is kept and rewritten to list only what is left.
+- A Gemini settings file install created is reversed whole after a user edit. Install writes
+  `context.fileName: ["AGENTS.md", "GEMINI.md"]` into the file it creates; after you added a key,
+  uninstall removed only the `AGENTS.md` element and left install's own `["GEMINI.md"]`, with no record
+  left to reverse it (33.1 review WR-03). While the list is still the one install wrote, uninstall now
+  removes `context.fileName`, and `context` when nothing else is in it, and keeps every key you added
+  byte for byte; a list you changed is left as it is. After a whitespace or line-end edit, or a
+  `chmod`, the file is kept once install's list is removed.
+- A `DRY_RUN=1` install decides the Claude Code ask-rule edit, and its check that the edit changes
+  nothing else, before it prints its preview, so the preview and the real run reach the same answer
+  (33.1 review IN-02).
 - An install whose kit home overlaps the target is refused before anything is written, under
   `DRY_RUN=1` too: the kit root is the target, either lies inside the other, or `GRUGOPS_HOME` is the
   target or lies inside it, compared after resolving symbolic links. Such an install used to move the
