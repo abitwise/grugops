@@ -46,6 +46,15 @@ release, together with Phase 33.1, which retires the Bash command guard.
 
 ### Changed
 
+- **Breaking for repositories without the stale-approval settings.** The branch floor of the
+  read-only git-host check now also requires stale approvals to be dismissed when new commits are
+  pushed and the most recent push to be approved (33.1 D-33). Without them, an agent could push after
+  a human approved and merge on the old approval. A branch whose host shows either setting off reads
+  `unprotected`, and one whose host answer does not show the setting reads `UNKNOWN - verify`. The
+  no-bypass line now states what the check reads: "does not let the account the agent works under
+  bypass it" (33.1 D-31). On a ruleset the check reads only whether that account can bypass, so keep
+  the administrator role off the ruleset's bypass list yourself. The settings to turn on are named in
+  `install/README.md` §5.
 - A file you edited, which uninstall leaves, now keeps the install marker `.grugops/install.json`.
   Uninstall exits `0` and ends with `== uninstall complete — N recorded item(s) left in place;
   .grugops/install.json kept to record them ==`, and the marker is rewritten to list only what is
@@ -257,7 +266,8 @@ release, together with Phase 33.1, which retires the Bash command guard.
   on the git host yourself. Prose rules remain prose.
 - The read-only git-host check (`tools/grugops/host-protection.js`) now answers `protected` for a
   branch only when the host positively shows every branch item of the git-host setup checklist in
-  `install/README.md` §5: a required pull request with at least one approving review, blocked force
+  `install/README.md` §5: a required pull request with at least one approving review, stale
+  approvals dismissed on new commits and the most recent push approved (33.1 D-33), blocked force
   pushes, restricted deletions, and rules that the checked account cannot bypass. A missing or
   unreadable setting is reported as `UNKNOWN - verify`, never as protected. It does not read the
   production environment: its line reads `UNKNOWN - verify` by design, and the production list of
