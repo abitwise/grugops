@@ -625,7 +625,149 @@ const CASES = {
     check(r.stderr.includes("unknown argument: --brnach"), `stderr: ${r.stderr}`);
     check(r.calls.length === 0, `gh was called: ${r.calls.join(", ")}`);
   },
+
+  // ── plan 33.1-43: the host-check rows of 33.1-VERIFICATION.md's Independent Reproductions table
+  // that had no case. Each starts from the strong fixture (or the strong classic body the tests use)
+  // and changes one field. Where D-31 Q4 changed the expected outcome (the environment is no longer
+  // read), the case asserts the new outcome and says so; the branch verdicts are as the verifier saw.
+
+  // Verifier row "Baseline strong fixture": exit 0, branch main protected. The verifier saw environment
+  // `production` protected; under 33.1 D-31 Q4 the environment line reads UNKNOWN - verify by design and
+  // does not count toward the exit code, and no environment endpoint is asked.
+  "host-strong-baseline"(w) {
+    const r = hostRun(w, strongHostFixture());
+    check(r.status === 0, `host check exited ${r.status}, expected 0\n${r.stdout.slice(-2000)}`);
+    check(r.lines.some((l) => l.startsWith("branch main: protected — ")), "branch main is not protected");
+    expectEnvByDesign(r);
+  },
+
+  // Verifier row "Round-1 CR-01: classic body, absent bypass_pull_request_allowances" (also null and {}):
+  // the ruleset arm shows nothing (empty rule list), classic protection answers 200 with the strong body
+  // but the allowance key absent, null or {} → branch main UNKNOWN - verify, exit 2. The strong classic
+  // body itself is the control (protected, exit 0).
+  "r1-cr01-classic-allowances"(w) {
+    const control = hostRun(w, classicWorld(CLASSIC_STRONG()));
+    check(control.status === 0, `strong classic control exited ${control.status}, expected 0\n${control.stdout.slice(-2000)}`);
+    check(control.lines.some((l) => l.startsWith("branch main: protected — ")), "strong classic control: branch main is not protected");
+    for (const [label, value] of [["absent", undefined], ["null", null], ["{}", {}]]) {
+      const body = CLASSIC_STRONG();
+      if (value === undefined) delete body.required_pull_request_reviews.bypass_pull_request_allowances;
+      else body.required_pull_request_reviews.bypass_pull_request_allowances = value;
+      const r = hostRun(w, classicWorld(body));
+      check(r.status === 2, `allowances ${label}: host check exited ${r.status}, expected 2\n${r.stdout.slice(-2000)}`);
+      check(r.lines.some((l) => l.startsWith("branch main: UNKNOWN - verify — ")), `allowances ${label}: branch main is not UNKNOWN - verify`);
+      expectEnvByDesign(r);
+    }
+  },
+
+  // Verifier row "Classic body with an actor in allowances / enforce_admins absent / force-push enabled":
+  // UNKNOWN - verify (exit 2) / UNKNOWN - verify (exit 2) / unprotected (exit 1).
+  "r1-classic-variants"(w) {
+    const variants = [
+      ["an actor in the allowances", (b) => (b.required_pull_request_reviews.bypass_pull_request_allowances = { users: [{ login: "octocat" }], teams: [], apps: [] }), 2, "UNKNOWN - verify"],
+      ["enforce_admins absent", (b) => delete b.enforce_admins, 2, "UNKNOWN - verify"],
+      ["force-push enabled", (b) => (b.allow_force_pushes = { enabled: true }), 1, "unprotected"],
+    ];
+    for (const [label, mutate, exit, verdict] of variants) {
+      const body = CLASSIC_STRONG();
+      mutate(body);
+      const r = hostRun(w, classicWorld(body));
+      check(r.status === exit, `${label}: host check exited ${r.status}, expected ${exit}\n${r.stdout.slice(-2000)}`);
+      check(r.lines.some((l) => l.startsWith(`branch main: ${verdict} — `)), `${label}: branch main is not ${verdict}`);
+      expectEnvByDesign(r);
+    }
+  },
+
+  // Verifier row "Ruleset with current_user_can_bypass absent / enforcement evaluate": UNKNOWN - verify,
+  // exit 2. Classic protection answers 404 `Branch not protected`, so the unknown comes from the ruleset
+  // field alone; the same fixture with the field intact is the control (protected, exit 0).
+  "r1-ruleset-bypass-unreadable"(w) {
+    const rulesetKey = hostApi("repos/{owner}/{repo}/rulesets/1");
+    const variant = (mutate) => {
+      const fx = strongHostFixture();
+      fx[hostApi("repos/{owner}/{repo}/branches/main/protection")] = { status: 404, body: { message: "Branch not protected" } };
+      mutate(fx[rulesetKey].body);
+      return fx;
+    };
+    const control = hostRun(w, variant(() => {}));
+    check(control.status === 0, `control exited ${control.status}, expected 0\n${control.stdout.slice(-2000)}`);
+    for (const [label, mutate] of [
+      ["current_user_can_bypass absent", (b) => delete b.current_user_can_bypass],
+      ["enforcement evaluate", (b) => (b.enforcement = "evaluate")],
+    ]) {
+      const r = hostRun(w, variant(mutate));
+      check(r.status === 2, `${label}: host check exited ${r.status}, expected 2\n${r.stdout.slice(-2000)}`);
+      check(r.lines.some((l) => l.startsWith("branch main: UNKNOWN - verify — ")), `${label}: branch main is not UNKNOWN - verify`);
+      expectEnvByDesign(r);
+    }
+  },
+
+  // Verifier row "Round-1 CR-02: env branch_policy independent of branches": the rule list is empty, the
+  // classic endpoint gives no readable answer, and `branches?protected=true` lists nothing. Branch main:
+  // UNKNOWN - verify, exit 2, as the verifier saw. The verifier saw the environment line `unprotected`
+  // (allows deployments only from protected branches: not shown); under 33.1 D-31 Q4 the check no longer
+  // reads the protected-branch list or the environment, so the line is UNKNOWN - verify by design and
+  // neither endpoint is asked.
+  "r1-cr02-empty-rules"(w) {
+    const fx = strongHostFixture();
+    fx[hostApi("repos/{owner}/{repo}/rules/branches/main?per_page=100")] = { status: 200, body: [] };
+    fx[hostApi("repos/{owner}/{repo}/branches?protected=true&per_page=1")] = { status: 200, body: [] };
+    fx[hostApi("repos/{owner}/{repo}/environments?per_page=100")] = {
+      status: 200,
+      body: { total_count: 1, environments: [{ name: "production", deployment_branch_policy: { protected_branches: true, custom_branch_policies: false }, protection_rules: [] }] },
+    };
+    const r = hostRun(w, fx);
+    check(r.status === 2, `host check exited ${r.status}, expected 2\n${r.stdout.slice(-2000)}`);
+    check(r.lines.some((l) => l.startsWith("branch main: UNKNOWN - verify — ")), "branch main is not UNKNOWN - verify");
+    expectEnvByDesign(r);
+  },
+
+  // Verifier row "Round-1 WR-01: reviewers: [null]": the verifier saw the environment UNKNOWN - verify,
+  // exit 2. Under 33.1 D-31 Q4 the reviewer list is never read: the environment line is UNKNOWN - verify
+  // by design, it does not count toward the exit code, and with branch main protected the run exits 0.
+  "r1-wr01-reviewers-null"(w) {
+    const fx = strongHostFixture();
+    fx[hostApi("repos/{owner}/{repo}/environments?per_page=100")] = {
+      status: 200,
+      body: { total_count: 1, environments: [{ name: "production", can_admins_bypass: false, protection_rules: [{ type: "required_reviewers", prevent_self_review: true, reviewers: [null] }] }] },
+    };
+    const r = hostRun(w, fx);
+    check(r.status === 0, `host check exited ${r.status}, expected 0 (D-31 Q4: the environment line does not count)\n${r.stdout.slice(-2000)}`);
+    check(r.lines.some((l) => l.startsWith("branch main: protected — ")), "branch main is not protected");
+    expectEnvByDesign(r);
+  },
 };
+
+/** The strong classic protection body host-protection.test.ts uses (CLASSIC_STRONG), as a fresh copy. */
+function CLASSIC_STRONG() {
+  return {
+    enforce_admins: { enabled: true },
+    required_pull_request_reviews: {
+      required_approving_review_count: 1,
+      dismiss_stale_reviews: true,
+      require_last_push_approval: true,
+      bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
+    },
+    allow_force_pushes: { enabled: false },
+    allow_deletions: { enabled: false },
+  };
+}
+
+/** The strong fixture with an empty ruleset rule list and `body` as main's classic protection. */
+function classicWorld(body) {
+  const fx = strongHostFixture();
+  fx[hostApi("repos/{owner}/{repo}/rules/branches/main?per_page=100")] = { status: 200, body: [] };
+  fx[hostApi("repos/{owner}/{repo}/branches/main/protection")] = { status: 200, body };
+  return fx;
+}
+
+/** 33.1 D-31 Q4: the environment line is the by-design line, and no environment endpoint was asked. */
+function expectEnvByDesign(r) {
+  const env = r.lines.find((l) => l.startsWith("environment production: "));
+  check(env !== undefined && env.startsWith("environment production: UNKNOWN - verify — not checked by design"), `environment line: ${env}`);
+  const asked = r.calls.filter((c) => c.includes("environments") || c.includes("branches?protected="));
+  check(asked.length === 0, `the check asked for: ${asked.join(", ")}`);
+}
 
 // ── the runner ───────────────────────────────────────────────────────────────────────────────────
 
