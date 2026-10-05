@@ -801,6 +801,51 @@ export function carriedKitRecord(previous, root, rel) {
         return null;
     return owns(previous, root, rel, "file").owned ? e.content : null;
 }
+// ── THE TARGET'S BACKUP RECORDS (plan 33.1-40, D-33 (c), review CR-02, deferred row 45) ─────────────────
+// Install used to record none of the backups it makes in the target, so nothing could tell install's
+// `agent-factory.bak.<ISO>/` from a user's `thesis.bak.<ISO>/`, and --prune-old-kit removed both by the
+// name shape (DC-2). Now each backup install makes in the target is a `backup` entry of the install ledger,
+// at its final path, with the content record below taken once the backup is in place. Three pure rules
+// serve install.ts's recordBackup and writeMarker, so they are unit-tested here (install.ts runs on import):
+//   backupContentRecord  what a backup holds now: the file record (bytes and mode, read through
+//                        readOwnedContent, so no link is followed and a hard link is refused) for a regular
+//                        file, treeRecord for a directory or a link, and null for anything else, for a path
+//                        with a link or a non-directory on the way, or for anything that cannot be read in
+//                        full. null can never be shown to be unchanged, so a backup recorded with it is never
+//                        pruned;
+//   outermostBackups     only the outermost entries: an entry whose path lies inside another entry's path is
+//                        covered by that entry's record (the kit config backup --migrate leaves inside the
+//                        in-repo agent-factory/ travels inside `agent-factory.bak.<ISO>/`);
+//   carriedBackups       a previous ledger's backup entries whose path still holds something, with only real
+//                        directories on the way. One whose path is gone is dropped: the record would name
+//                        nothing, and a later file at that name would be someone else's.
+/** What the backup at `rel` (inside `root`) holds now, as a content record, or null (see above). */
+export function backupContentRecord(root, rel) {
+    const path = join(root, ...rel.split("/"));
+    if (wayTo(root, path) !== null)
+        return null;
+    const kind = kindAt(path);
+    if (kind === "regular file") {
+        const c = readOwnedContent(root, path);
+        return c.state === "ok" ? fileRecord(c.bytes, c.mode) : null;
+    }
+    if (kind === "directory" || kind === "symbolic link")
+        return treeRecord(root, rel);
+    return null;
+}
+/** `inner` lies strictly inside `outer` (both ledger paths). */
+const isInsidePath = (inner, outer) => inner.startsWith(`${outer}/`);
+/** The entries none of whose paths lies inside another entry's path, in their order. */
+export function outermostBackups(entries) {
+    return entries.filter((e) => !entries.some((o) => o !== e && isInsidePath(e.path, o.path)));
+}
+/** The previous ledger's backup entries whose path still holds something, nothing but real directories on the way. */
+export function carriedBackups(previous, root) {
+    return entriesOfKind(previous, "backup").filter((e) => {
+        const path = join(root, ...e.path.split("/"));
+        return wayTo(root, path) === null && kindAt(path) !== null;
+    });
+}
 // ownsKitHomePath: owns' answer for a `kit` or `backup` entry (plan 33.1-37; see THE KIT-HOME RECORD).
 //   kit     owned only while a real directory (by lstat, not a link, nothing but real directories on the
 //           way) sits at the path. ITS CONTENT IS NOT COMPARED. That is D-31 item 14's acceptance (the

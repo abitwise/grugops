@@ -454,9 +454,18 @@ function reverseFile(entry) {
     const ownLink = entry.content.startsWith("link:") ? entry.content.slice("link:".length) : null;
     setOutcome(entry, removeFile(`${TARGET}/${entry.path}`, entry.path, ownLink, () => own));
 }
-// reportBackup (plan 33.1-38): a `backup` entry names a backup install made of something of the user's
-// (plan 33.1-37's kinds; target backups are recorded from plan 33.1-40). A backup holds the user's
-// content, so uninstall never removes one: it is reported `left`, and nothing is read or changed.
+// reportBackup (plan 33.1-38): a `backup` entry names a backup install made of something of the user's.
+// Since plan 33.1-40 install records every backup it makes in the target (the in-repo agent-factory/ and
+// the legacy config --migrate moves aside, plans/handoffs/, and an edited kit file D-32 backs up). A backup
+// holds the user's content, so uninstall never removes one: it is reported `left` with its origin, and
+// nothing is read or changed.
+const BACKUP_ORIGIN_TEXT = {
+    "in-repo-kit": "the in-repo agent-factory/ --migrate moved aside",
+    "legacy-config": "a legacy config --migrate moved aside",
+    handoffs: "plans/handoffs/ --migrate moved aside",
+    "edited-kit-file": "a kit file you edited, backed up before the kit was refreshed",
+    "kit-home": "a kit-home kit",
+};
 function reportBackup(entry) {
     const f = `${TARGET}/${entry.path}`;
     if (!pathExists(f)) {
@@ -464,7 +473,7 @@ function reportBackup(entry) {
         setOutcome(entry, "gone");
         return;
     }
-    report("left", `${entry.path} (install's backup of your content (${entry.of}); uninstall never removes a backup)`);
+    report("left", `${entry.path} (install's backup of your content: ${BACKUP_ORIGIN_TEXT[entry.origin]}, from ${entry.of}; uninstall never removes a backup)`);
     setOutcome(entry, "left");
 }
 // SEEDED PER-REPO STATE (D-06): a directory install seeded for the user's own state. Install records the
@@ -1693,8 +1702,10 @@ function reportUnrecordedDir(d) {
 }
 // reportKitBackups (plan 33.1-32, D-32, D-18): the backups install made of the user's edited kit
 // files before it refreshed the kit, `<file>.grugops-edited-<UTC stamp>` beside the file. They hold
-// the user's edits, so they are the user's: nothing records them, uninstall never removes or claims
-// one, and each is reported `left` so the human knows where the edits are. It lists the names in
+// the user's edits, so they are the user's: uninstall never removes or claims one, and each is reported
+// `left` so the human knows where the edits are. Since plan 33.1-40 install records each one as a
+// `backup` entry, which reportBackup names; a name with an entry is skipped here, and this pass names
+// only a name with no record (made before this release, or by someone else). It lists the names in
 // .claude/agents/ and in each .claude/skills/grugops*/ (readdirSync: names only, no content read),
 // each only when it is a real directory inside the target (no link on the way or at it). A directory
 // holding a backup is not empty, so rmdirIfEmpty keeps it.
@@ -1725,16 +1736,17 @@ function reportKitBackups() {
         for (const n of names(d)) {
             if (!n.includes(KIT_BACKUP_INFIX))
                 continue;
+            // Recorded: reportBackup named it from the ledger.
+            if (entryAt(LEDGER, relative(TARGET, `${d}/${n}`).split(sep).join("/"), "backup") !== undefined)
+                continue;
             // A name ending in `.incomplete` is a copy install could not finish (red-team W1 of plan 33.1-32:
             // install writes a byte backup under this name and gives it the backup name only when it is
             // whole). It is not a backup of the edit, so it is never called one.
-            // WHAT THE RUN PROVED (red-team L3 of plan 33.1-34, "No fabrication"). Nothing records the backups
-            // install makes, so a name is all this run saw: the line says the name matches install's pattern and
-            // claims nothing about who made the file. It used to call any such file "a backup install made", in
-            // a repository with no marker too, and to tell the user to remove an `.incomplete`-named file by
-            // hand, which would delete a file of theirs that only shares the name. Install does not record its
-            // backups (the one record authority would need a sixth ledger; the brief asks for fewer), so the
-            // wording is what changed.
+            // WHAT THE RUN PROVED (red-team L3 of plan 33.1-34, "No fabrication"). A name with no record is all
+            // this run saw: the line says the name matches install's pattern and claims nothing about who made
+            // the file. It used to call any such file "a backup install made", in a repository with no marker
+            // too, and to tell the user to remove an `.incomplete`-named file by hand, which would delete a file
+            // of theirs that only shares the name.
             if (n.endsWith(KIT_BACKUP_INCOMPLETE)) {
                 report("left", `${d}/${n} (its name matches the name install gives a backup copy of an edited kit file that it could not ` +
                     `finish (<file>${KIT_BACKUP_INFIX}<UTC stamp>${KIT_BACKUP_INCOMPLETE}); nothing records that install made ` +

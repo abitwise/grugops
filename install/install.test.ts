@@ -9318,9 +9318,19 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     const backups = backupsIn(target);
     expect(backups.length).toBe(2);
     const before = backups.map((b) => readFileSync(atRel(target, b)));
+    // Plan 33.1-40: install records each backup it makes (a `backup` entry, origin edited-kit-file), so
+    // uninstall names it from the record, with its origin. (Before, install recorded no backup and the line
+    // said only that the name matched, red-team L3 of plan 33.1-34; a name with no record still gets that line.)
     const leftLine = (out: string, b: string): boolean =>
-      // Red-team L3 of plan 33.1-34: install records no backup, so the line says only that the name matches.
-      out.split("\n").some((l) => /^ {2}left\s/.test(l) && l.includes(b) && l.includes("its name matches the name install gives a backup"));
+      out
+        .split("\n")
+        .some(
+          (l) =>
+            /^ {2}left\s/.test(l) &&
+            l.includes(b) &&
+            l.includes("install's backup of your content: a kit file you edited") &&
+            !l.includes("its name matches the name install gives a backup"),
+        );
     // DRY_RUN first: it reports each backup left and changes nothing.
     const t0 = treeState(target);
     const udry = spawnSync("node", [UNINSTALL_JS], {

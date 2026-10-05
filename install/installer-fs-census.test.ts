@@ -131,6 +131,12 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1426-1429 `if (DRY_RUN)` reports would-backup and returns before renameSync at :1430; the earlier returns (:1405-1425, including the wayTo refusal of a link or non-directory on the way added by the red-team fixes of plan 33.1-26) only read",
   },
   {
+    site: "install.ts:backupEditedKitFiles:chmodSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:3695 `if (DRY_RUN) return true` (the top of backupEditedKitFiles) returns before chmodSync at :3729 (review IN-03, plan 33.1-40): it sets the staging copy this run just created with an exclusive create to the edited file's own permission bits, before link(2) gives it the backup name; a failure is a counted verify and the incomplete copy is discarded",
+  },
+  {
     site: "install.ts:backupEditedKitFiles:linkSync",
     count: 1,
     gate: "dry-run-return-above",
@@ -248,7 +254,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:writeTargetFile:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the gemini entry of the install ledger and the file's shape before either), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
+    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the gemini entry of the install ledger and the file's shape before either), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512), rewriteLedger (plan 33.1-40: :1861, call :1886; reached from prune and from an already-migrated --migrate). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
+  },
+  {
+    site: "install.ts:rewriteLedger:writeFileSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:1861-1864 `if (DRY_RUN)` reports would-edit and returns before writeFileSync at :1889 (plan 33.1-40): the one rewrite of the kit-home record's ledger outside writeKitHomeRecord (prune takes out the backups it removed), only after readForWrite shows a regular file holding exactly the bytes the ledger was read from; the target's marker goes through writeTargetFile (helper-gated) in the same function",
   },
   {
     site: "install.ts:removeBackup:rmSync",

@@ -52,7 +52,7 @@
 // user path or kit path, goes through ./user-file.ts readUserFile, and every copy is written from
 // its bytes: install/installer-fs-census.test.ts refuses readFileSync, copyFileSync,
 // createReadStream and openSync in this module and in the committed install.js.
-import { existsSync, mkdirSync, writeFileSync, appendFileSync, symlinkSync, cpSync, rmSync, rmdirSync, unlinkSync, renameSync, linkSync, readSync, readdirSync, lstatSync, statSync, mkdtempSync, realpathSync, } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, appendFileSync, symlinkSync, cpSync, rmSync, rmdirSync, unlinkSync, renameSync, linkSync, chmodSync, readSync, readdirSync, lstatSync, statSync, mkdtempSync, realpathSync, } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 // The mirror spawn (D-01). This is the ONLY import this file has ever needed beyond fs/path/os, and
@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, GEMINI_CREATED_FILE_NAME, createdGeminiText, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, GEMINI_CREATED_FILE_NAME, createdGeminiText, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, backupContentRecord, outermostBackups, carriedBackups, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -546,6 +546,35 @@ const recordKitFile = (path, record) => {
     if (rel !== null)
         KIT_FILES.set(rel, record);
 };
+// BACKUPS (plan 33.1-40, D-33 (c), review CR-02, deferred row 45): every backup THIS run made in the
+// target, by its final POSIX path relative to TARGET, as a `backup` entry of the install ledger: where it
+// came from (`origin`), what it was made of (`of`), and its content record taken once the backup is in
+// place (install-marker.ts backupContentRecord: a file record, a link record or a tree record, or null
+// when it could not be read in full, which prune never removes). writeMarker() records each one. The
+// origins: the in-repo agent-factory/ --migrate moves aside (in-repo-kit), a legacy config it renames
+// (legacy-config), plans/handoffs/ (handoffs) and a kit file the user edited, backed up before the kit is
+// refreshed (edited-kit-file, D-32). Kit-home backups are recorded in the kit-home record (copyKit,
+// plan 33.1-37), not here.
+//
+// ONLY THE OUTERMOST. A backup made of a path that holds an earlier backup of this run carries that one
+// inside it (--migrate renames agent-factory/config/factory.config.json to a .bak, then moves the whole
+// agent-factory/ aside), so the inner entry, whose path is gone, is dropped and the outer tree record
+// covers it. A DRY_RUN preview, a path outside the target and a failed backup record nothing.
+const BACKUPS = new Map();
+function recordBackup(path, origin, of) {
+    if (DRY_RUN)
+        return;
+    const rel = targetRel(path);
+    const ofRel = targetRel(of);
+    // An entry readLedger would refuse would make the whole ledger malformed, so such a path is not recorded.
+    if (rel === null || ofRel === null || rel === ofRel || !isLedgerPath(rel) || !isLedgerPath(ofRel))
+        return;
+    // What this run recorded inside the path it just moved now lives inside this backup.
+    for (const k of [...BACKUPS.keys()])
+        if (k === ofRel || k.startsWith(`${ofRel}/`))
+            BACKUPS.delete(k);
+    BACKUPS.set(rel, { path: rel, kind: "backup", origin, of: ofRel, content: backupContentRecord(TARGET, rel) });
+}
 // APPENDED_FILES (red-team of plan 33.1-28, R1): every file ensureBlock APPENDED its block to in this
 // run. The file was there without a grugops block when this run started, so it is the user's, whatever
 // an earlier record says: a user who deleted a file install created and made their own at the same
@@ -1541,7 +1570,9 @@ function dirsSameContent(a, b) {
 // `target` aside to `${target}.bak.<ISO>` (filesystem-safe via isoStamp) and report `backed-up`,
 // returning true. DRY_RUN mutates nothing and reports a `would-backup` line. Returns true iff a
 // backup was (or would be) made.
-function backupIfDiffers(target, replacement, label) {
+//
+// Plan 33.1-40: the backup is recorded (recordBackup, `origin` as the caller names it) once it has its name.
+function backupIfDiffers(target, replacement, label, origin) {
     if (!existsSync(target))
         return false;
     let identical = false;
@@ -1563,6 +1594,7 @@ function backupIfDiffers(target, replacement, label) {
         return true;
     }
     renameSync(target, backup);
+    recordBackup(backup, origin, target);
     report("backed-up", `${label} → ${backup}`);
     return true;
 }
@@ -1581,7 +1613,8 @@ function backupIfDiffers(target, replacement, label) {
 //     have been made), so the caller can report intent.
 //   - otherwise → renameSync the dir aside and report `backed-up`. Returns true.
 // Clear professional voice on every string (installer safety surface — CLAUDE.md hard constraint).
-function backupDir(target, label) {
+// Plan 33.1-40: the backup is recorded (recordBackup, `origin` as the caller names it) once it has its name.
+function backupDir(target, label, origin) {
     // Red-team of plan 33.1-26 (D-18): the rename happens INSIDE the target or not at all. A symbolic
     // link or a non-directory on the way to `target` (plans/ linked elsewhere, say) would carry the
     // rename out of the target, so it is refused and reported; the leaf itself is renamed as a name
@@ -1609,6 +1642,7 @@ function backupDir(target, label) {
         return true;
     }
     renameSync(target, backup);
+    recordBackup(backup, origin, target);
     report("backed-up", `${label} → ${backup}`);
     return true;
 }
@@ -1619,7 +1653,80 @@ function backupDir(target, label) {
 // already-two-root isMigrated arm AND the old-layout path) because a user can have accumulated
 // plans/handoffs/ regardless of layout state (D-17 reconcile).
 function migrateHandoffs() {
-    backupDir(join(TARGET, "plans", "handoffs"), "plans/handoffs/");
+    backupDir(join(TARGET, "plans", "handoffs"), "plans/handoffs/", "handoffs");
+}
+// recordBackupsInMarker (plan 33.1-40): an already-migrated --migrate stops before the install run, so
+// writeMarker() never runs and the handoffs backup it made would have no record. It is added to the
+// marker's install ledger here, through rewriteLedger. A marker this run cannot use (absent, not install's,
+// not this directory's, a malformed ledger) is not written; the backup stays unrecorded and a note says so.
+// Prune never removes a handoffs backup either way (it holds the user's handoffs).
+function recordBackupsInMarker() {
+    if (BACKUPS.size === 0)
+        return;
+    const made = [...BACKUPS.values()];
+    const m = readInstallMarker(TARGET);
+    const ledger = readLedger(m.state === "ok" ? m.marker : null);
+    if (m.state !== "ok" || ledger.state !== "ok") {
+        report("note", `${made.map((e) => e.path).join(", ")}: not recorded, because ${MARKER_REL} is not a marker with an install ledger ` +
+            `this run can use; uninstall and --prune-old-kit leave it, and it holds your content`);
+        return;
+    }
+    rewriteLedger(join(TARGET, ...MARKER_REL.split("/")), TARGET, "target", m.bytes, (entries) => [...entries.filter((e) => !(e.kind === "backup" && BACKUPS.has(e.path))), ...made], `record the backup(s) ${made.map((e) => e.path).join(", ")}`);
+}
+// rewriteLedger (plan 33.1-40): THE ONE REWRITE of a record's install ledger outside writeMarker() and
+// writeKitHomeRecord(): prune takes the backups it removed out of the record that held them
+// (rewriteLedgerWithout), and an already-migrated --migrate adds the backup it made (recordBackupsInMarker).
+// `holderPath` is the target's marker (scope "target") or the kit-home record (scope "kit-home"). It is
+// rewritten only when readForWrite (no link followed, no special file opened) shows a regular file holding
+// exactly `bytesAtStart`, the bytes the caller read its ledger from, and when that ledger is still well
+// formed; every other key of the record is kept as it is, and the ledger is serialized by the one
+// serializer (ledgerJson). The target's marker is written through writeTargetFile, the kit-home record by
+// the one writeFileSync below. Any refusal or failure is a counted verify naming what was not done.
+// DRY_RUN prints a would-edit line and changes nothing.
+function rewriteLedger(holderPath, root, scope, bytesAtStart, next, what) {
+    if (DRY_RUN) {
+        report("would-edit", `${holderPath} (${what})`);
+        return true;
+    }
+    const fail = (why) => {
+        verify(`${holderPath}: ${why}, so it was not rewritten and this was not done: ${what}. Re-run to finish it.`);
+        return false;
+    };
+    const now = readForWrite(root, holderPath);
+    if (now.state === "create")
+        return fail("it is no longer there");
+    if (now.state === "blocked")
+        return fail(now.at === holderPath ? `it ${now.reason}` : `${now.at} ${now.reason}`);
+    if (!now.bytes.equals(bytesAtStart))
+        return fail("it changed while this run was going");
+    let parsed;
+    try {
+        parsed = JSON.parse(now.text);
+    }
+    catch {
+        return fail("it is not valid JSON");
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+        return fail("it is not a JSON object");
+    const holder = parsed;
+    const ledger = readLedger(holder, scope);
+    if (ledger.state !== "ok")
+        return fail(`its install ledger could not be read (${ledger.why ?? "absent"})`);
+    const text = JSON.stringify({ ...holder, ledger: ledgerJson(next(ledger.entries)) }, null, 2) + "\n";
+    if (scope === "target") {
+        if (!writeTargetFile(holderPath, text, "ok", `${holderPath} (${what})`))
+            return false;
+    }
+    else {
+        try {
+            writeFileSync(holderPath, text, { flag: "w" });
+        }
+        catch (e) {
+            return fail(`it could not be written (${errCode(e)})`);
+        }
+    }
+    report("edited", `${holderPath} (${what})`);
+    return true;
 }
 // ---------------------------------------------------------------------------
 // Phase-17 Plan 03 — `--prune-old-kit` (D-10): the SINGLE, opt-in deletion path. It removes ONLY
@@ -1830,10 +1937,11 @@ function migratePreSteps() {
             verify(`user config ${legacy} could not be renamed to ${bak} (${errCode(e)}). It was left in place.`);
             continue;
         }
+        recordBackup(bak, "legacy-config", legacy);
         report("backed-up", `original config → ${bak}`);
     }
     // 2. back up the displaced in-repo agent-factory/ (timestamped, differs-only — D-08/D-09).
-    backupIfDiffers(join(TARGET, "agent-factory"), join(GRUGOPS_SRC, "agent-factory"), "in-repo agent-factory/");
+    backupIfDiffers(join(TARGET, "agent-factory"), join(GRUGOPS_SRC, "agent-factory"), "in-repo agent-factory/", "in-repo-kit");
 }
 // ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
 // if the open sentinel is already present; creates the file if absent. Never `>`-truncates.
@@ -3042,6 +3150,7 @@ function kitPreflight(plan) {
         const record = records === null || rel === null ? null : (records.get(rel) ?? null);
         let why;
         let bytes;
+        let mode;
         let linkTarget;
         if (d.act === "unlink") {
             // The plan found install's own link here (isOwnLink against THIS checkout's kit source).
@@ -3063,6 +3172,7 @@ function kitPreflight(plan) {
                 continue;
             }
             bytes = cur.bytes;
+            mode = cur.mode;
             if (record !== null) {
                 why = checkRecord(TARGET, e.dest, record).holds
                     ? null
@@ -3102,7 +3212,7 @@ function kitPreflight(plan) {
             hazards.push(`${e.label} — ${problem}`);
             continue;
         }
-        edited.push({ dest: e.dest, label: e.label, backup, why, bytes, linkTarget });
+        edited.push({ dest: e.dest, label: e.label, backup, why, bytes, mode, linkTarget });
     }
     return { edited, hazards };
 }
@@ -3187,8 +3297,13 @@ function backupEditedKitFiles(files) {
         }
         else {
             const staging = kitBackupStaging(f.backup);
+            // THE BACKUP KEEPS THE EDITED FILE'S PERMISSION BITS (review IN-03). The copy used to be created with
+            // the default mode, so a 0600 file got a world-readable backup. The staging file is created with the
+            // edited file's bits and then set to exactly those bits (the process umask narrows a create's mode),
+            // before it gets the backup name. A file whose mode could not be read is given 0600, never wider.
+            const bits = (f.mode ?? 0o600) & 0o7777;
             try {
-                writeFileSync(staging, f.bytes ?? Buffer.alloc(0), { flag: "wx" });
+                writeFileSync(staging, f.bytes ?? Buffer.alloc(0), { flag: "wx", mode: bits });
             }
             catch (err) {
                 // An exclusive create that fails at open(2) created nothing (EEXIST is a file this run did not
@@ -3196,6 +3311,12 @@ function backupEditedKitFiles(files) {
                 if (err.syscall === "open")
                     return failed(errCode(err));
                 return failed(errCode(err), ` ${discardIncompleteBackup(staging)}`);
+            }
+            try {
+                chmodSync(staging, bits);
+            }
+            catch (err) {
+                return failed(`its permission bits could not be set: ${errCode(err)}`, ` ${discardIncompleteBackup(staging)}`);
             }
             // Give the whole copy its backup name. link(2) refuses a name that exists; where the filesystem
             // has no hard links, rename(2) is used only while the name is still free.
@@ -3223,6 +3344,9 @@ function backupEditedKitFiles(files) {
             }
         }
         made += 1;
+        // Recorded once the backup has its name and its second name is gone (plan 33.1-40): a byte backup that
+        // still has two names reads as a hard link, which backupContentRecord refuses (recorded null).
+        recordBackup(f.backup, "edited-kit-file", f.dest);
         report("backed-up", `${shownPath(f.dest)} → ${shownPath(f.backup)}`);
     }
     return true;
@@ -3425,6 +3549,9 @@ function materializeRunnable() {
 //     now: uninstall checks each record against the file before it removes anything.
 //   gemini (plan 33.1-29): see the rules at the gemini entry below.
 //   ask-rules (D-18): ASK_LEDGER, as writeAskRules() computed it.
+//   backup (plan 33.1-40): the backups this run made (BACKUPS), united with the previous ledger's backup
+//     entries whose path still holds something (carriedBackups), each with the content record taken when
+//     install made it; only the outermost entries are kept. An entry whose path is gone is dropped.
 // One path has at most one file entry: what this run wrote is kept over a carried entry.
 //
 // A RUN THAT WROTE NO KIT FILE (red-team B1/B2 of plan 33.1-32, brief DC-1/DC-2). No consent, a
@@ -3663,6 +3790,14 @@ function nextLedgerEntries(previous) {
     // ask-rules (D-18): what writeAskRules() computed (null: no entry).
     if (ASK_LEDGER !== null)
         out.push(askRulesEntry(ASK_LEDGER));
+    // backup (plan 33.1-40): the previous ledger's backup entries whose path still holds something
+    // (carriedBackups), with this run's BACKUPS over them, outermost only. A carried entry keeps its own
+    // content record: prune compares the backup with what install recorded when it made it, never with what
+    // is there now.
+    const backups = new Map(carriedBackups(previous, TARGET).map((e) => [e.path, e]));
+    for (const [path, e] of BACKUPS)
+        backups.set(path, e);
+    out.push(...outermostBackups([...backups.values()]));
     return out;
 }
 function readKitVersion(verFile) {
@@ -3847,6 +3982,8 @@ if (MIGRATE) {
     console.log("\n-- handoffs backup (MIGR-04) --");
     migrateHandoffs();
     if (layout.isMigrated) {
+        // Plan 33.1-40: this arm writes no marker, so the backup it may have made is recorded here.
+        recordBackupsInMarker();
         if (layout.leftoverKit) {
             console.log("This repo is already migrated to the two-root layout, but a leftover LIVE in-repo agent-factory/ remains.");
             console.log(`Nothing was changed. Once you have confirmed the shared kit at ${GRUGOPS_HOME} is in use,`);

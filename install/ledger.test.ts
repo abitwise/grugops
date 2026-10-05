@@ -36,7 +36,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import {
+  backupContentRecord,
+  carriedBackups,
   carriedKitRecord,
+  outermostBackups,
   KINDS_BY_SCOPE,
   KIT_ENTRY_PATH,
   KIT_HOME_RECORD_REL,
@@ -52,6 +55,7 @@ import {
   readInstallMarker,
   readKitHomeRecord,
   readLedger,
+  type BackupEntry,
   type LedgerEntry,
   type LedgerKind,
   type LedgerScope,
@@ -558,6 +562,85 @@ describe("the kit carry (carriedKitRecord, plan 33.1-37 Task 4): identity with t
       ["a record of another mode", readLedger(holder([{ path: rel, kind: "file", content: fileRecord("the kit's bytes\n", 0o600), kit: true }]))],
     ];
     for (const [name, l] of cases) expect(carriedKitRecord(l, root, rel), name).toBeNull();
+  });
+});
+
+// ── the target's backup records (plan 33.1-40, D-33 (c), review CR-02) ───────────────────────────────
+// install.ts recordBackup and writeMarker ask these three pure rules; install.ts runs on import, so the
+// rules live in install-marker.ts and are tested here.
+
+describe("plan 33.1-40: backupContentRecord, outermostBackups and carriedBackups", () => {
+  const ISO = "2026-10-05T10-00-00.000Z";
+  const entry = (path: string, origin: BackupEntry["origin"] = "in-repo-kit", of = "agent-factory"): BackupEntry => ({
+    path,
+    kind: "backup",
+    origin,
+    of,
+    content: null,
+  });
+
+  it("outermostBackups keeps only the outermost entries: one inside another is covered by that one's record", () => {
+    const outer = entry(`agent-factory.bak.${ISO}`);
+    const inner = entry(`agent-factory.bak.${ISO}/config/factory.config.json.bak.${ISO}`, "legacy-config", "agent-factory/config/factory.config.json");
+    const sibling = entry(`factory.config.json.bak.${ISO}`, "legacy-config", "factory.config.json");
+    // A name that only starts with another entry's name is not inside it.
+    const prefixOnly = entry(`agent-factory.bak.${ISO}x`, "handoffs", "plans/handoffs");
+    expect(outermostBackups([inner, outer, sibling, prefixOnly]).map((e) => e.path)).toEqual([outer.path, sibling.path, prefixOnly.path]);
+    expect(outermostBackups([]), "an empty set").toEqual([]);
+    expect(outermostBackups([inner]).map((e) => e.path), "an inner entry alone is the outermost").toEqual([inner.path]);
+  });
+
+  it("carriedBackups carries an entry while its path holds something, and drops one that is gone or behind a link", () => {
+    const root = fresh("carry-backups");
+    const kept = `agent-factory.bak.${ISO}`;
+    mkdirSync(join(root, kept));
+    const file = `factory.config.json.bak.${ISO}`;
+    writeFileSync(join(root, file), "{}\n");
+    const gone = `plans/handoffs.bak.${ISO}`;
+    // Behind a link: plans2 is a link to a real directory that holds the name.
+    const real = fresh("carry-backups-real");
+    mkdirSync(join(real, `handoffs.bak.${ISO}`));
+    symlinkSync(real, join(root, "plans2"));
+    const behindLink = `plans2/handoffs.bak.${ISO}`;
+    const withRecord: BackupEntry = { ...entry(kept), content: "tree:sha256:" + "0".repeat(64) };
+    const l = readLedger(holder([withRecord, entry(file, "legacy-config", "factory.config.json"), entry(gone, "handoffs", "plans/handoffs"), entry(behindLink, "handoffs", "plans2/handoffs")]));
+    expect(l.state).toBe("ok");
+    const carried = carriedBackups(l, root);
+    expect(carried.map((e) => e.path).sort()).toEqual([file, kept].sort());
+    // The carried entry keeps its own content record (never the one of what is there now).
+    expect(carried.find((e) => e.path === kept)?.content).toBe(withRecord.content);
+    // No ledger, a malformed one: nothing is carried.
+    expect(carriedBackups(readLedger(null), root)).toEqual([]);
+    expect(carriedBackups(readLedger(holder([{ ...withRecord, extra: 1 }])), root)).toEqual([]);
+  });
+
+  it("backupContentRecord: a file's bytes and mode, a tree, a link; null for a hard link, a FIFO, nothing, or a link on the way", () => {
+    const root = fresh("backup-content");
+    writeFileSync(join(root, "f.bak"), "mine\n");
+    chmodSync(join(root, "f.bak"), 0o600);
+    expect(backupContentRecord(root, "f.bak")).toBe(fileRecord("mine\n", 0o600));
+    mkdirSync(join(root, "d.bak", "sub"), { recursive: true });
+    writeFileSync(join(root, "d.bak", "sub", "x"), "x");
+    expect(backupContentRecord(root, "d.bak")).toBe(treeRecordOf(root, "d.bak"));
+    expect(String(backupContentRecord(root, "d.bak"))).toMatch(/^tree:sha256:[0-9a-f]{64}$/);
+    symlinkSync("/some/where", join(root, "l.bak"));
+    expect(backupContentRecord(root, "l.bak")).toBe(linkRecord("/some/where"));
+    // A hard link: the same file has another name, so what it holds is not shown to be install's backup alone.
+    writeFileSync(join(root, "h.bak"), "h");
+    spawnSync("ln", [join(root, "h.bak"), join(root, "h2")]);
+    if (existsSync(join(root, "h2"))) expect(backupContentRecord(root, "h.bak"), "a hard link").toBeNull();
+    expect(backupContentRecord(root, "absent.bak"), "nothing there").toBeNull();
+    mkdirSync(join(root, "real", "in.bak"), { recursive: true });
+    symlinkSync(join(root, "real"), join(root, "via"));
+    expect(backupContentRecord(root, "via/in.bak"), "a link on the way").toBeNull();
+    const s = stageShapeOrSkip("FIFO", join(root, "p.bak"), "backupContentRecord FIFO");
+    if (s !== null) {
+      console.log(skipLine(s, "the FIFO case of backupContentRecord"));
+      return;
+    }
+    const r = inChild(MARKER_JS, "backupContentRecord", [root, "p.bak"]);
+    expect(r.timedOut, `backupContentRecord did not finish on a FIFO\n${r.stderr}`).toBe(false);
+    expect(r.value, "a FIFO").toBeNull();
   });
 });
 
