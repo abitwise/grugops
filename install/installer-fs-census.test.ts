@@ -933,19 +933,17 @@ describe("installer fs census — the read axis (DC-3, plan 33.1-27)", () => {
 //                    classed `helper-gated` is itself a helper, and its callers are rows too, so no
 //                    delete or edit rests on a name alone at any depth.
 // THE CLASSES ARE CHECKED STRUCTURALLY, not taken from a row's `why`: a `ledger` row's function names
-// its gate (LEDGER_GATES) before the call, a `kit-record` caller names ownsKitFile before it, a
-// `source-identical` caller names ownsFileNow and one of sameFileBytes / isOwnLink before it, and a
-// `read-only` site is a `read-only-open` row whose flags the DRY_RUN axis checks. Each gate's own
-// definition must name its record.
+// its gate (LEDGER_GATES) before the call, and a `read-only` site is a `read-only-open` row whose flags
+// the DRY_RUN axis checks. The gate must be imported from the module that defines it.
 //
-// ONE LEDGER, ONE AUTHORITY (brief §2.2, D-33 (b), plan 33.1-36). The six records of rounds 1 and 2 are
-// merged into the one install ledger (install-marker.ts readLedger), read once in uninstall.ts as
-// LEDGER, and the one authority over it is install-marker.ts owns. The gates below are the passes'
-// questions of that one ledger: owns (the runnables pass decides by it alone), ownsDir, ownsFile,
-// ownsFileNow and ownsBlock (each asks LEDGER), GEMINI_LEDGER and ASK_LEDGER (the gemini and ask-rules
-// entries, from LEDGER), and the marker's own shape (ownsMarker, plan 33.1-33). Every gate's definition
-// must name LEDGER (or, for owns, be imported from install-marker.ts), so no gate reads a second record.
-// Plan 33.1-38 turns the rest of the removal sequence into a walk over the ledger.
+// ONE LEDGER, ONE AUTHORITY, ONE GATE (brief §2.2, D-33 (b), plans 33.1-36 and 33.1-38). The six records
+// of rounds 1 and 2 are merged into the one install ledger (install-marker.ts readLedger), read once in
+// uninstall.ts as LEDGER, and the one authority over it is install-marker.ts owns. Since plan 33.1-38 the
+// removal sequence is a walk over that ledger (uninstall.ts walkLedger), and owns is the ONLY gate: the
+// per-pass gates of earlier rounds (ownsDir, ownsFile, ownsFileNow, ownsBlock, ownsKitFile, ownsMarker,
+// GEMINI_LEDGER, ASK_LEDGER) and the `kit-record` and `source-identical` caller classes are gone. The
+// last `it` of this axis derives EVERY delete and edit call on the uninstall path from the syntax tree
+// and asserts each is reached only after an owns reference in its calling scope, with a pinned count.
 //
 // NO `sentinel-block` CLASS (plan 33.1-33, a deviation from the plan text). The plan proposed a class
 // for a rewrite identified by the exact grugops sentinel lines alone. Red-team carry items 4, 6 and 11
@@ -954,9 +952,8 @@ describe("installer fs census — the read axis (DC-3, plan 33.1-27)", () => {
 // now acts on the block entry of the install ledger (ownsBlock), so it is a `ledger` row and the class has no
 // member; an empty class in a closed vocabulary would only be a place for presence to come back.
 //
-// KNOWN EXCEPTIONS (red-team carry items 12 and 13; a human decision is pending at plan 33.1-35, so
-// their behaviour is unchanged). They are counted here so this census is honest about what `ledger`
-// means at those rows.
+// KNOWN EXCEPTIONS (red-team carry items 12 and 13; the named human kept both, D-31 items 2 and 3).
+// They are counted here so this census is honest about what `ledger` means at those rows.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 /** The closed ownership vocabulary for a census site. */
@@ -972,37 +969,17 @@ type Ownership =
   | "read-only";
 const OWNERSHIP_CLASSES: ReadonlySet<string> = new Set<Ownership>(["ledger", "helper-gated", "read-only"]);
 
-/** The closed vocabulary for a caller of a helper-gated function. */
+/** The closed vocabulary for a caller of a helper-gated function (plan 33.1-38: two classes only). */
 type CallerOwnership =
-  // ledger: as above, the caller names its LEDGER_GATES gate before the call.
+  // ledger: as above, the caller names its LEDGER_GATES gate (owns) before the call.
   | "ledger"
   // helper-gated: the caller is itself a helper; its own callers are rows.
-  | "helper-gated"
-  // kit-record: a grugops skill or adapter; ownsKitFile allows the removal only while its file entry
-  // in the install ledger still holds (plan 33.1-30; the byte-identity fallback is gone, plan 33.1-36).
-  | "kit-record"
-  // source-identical: AGENTS.md; removed only when its file entry in the install ledger holds
-  // (ownsFileNow) AND the file is still install's link to the kit source or byte-identical to it.
-  | "source-identical";
-const CALLER_OWNERSHIP_CLASSES: ReadonlySet<string> = new Set<CallerOwnership>(["ledger", "helper-gated", "kit-record", "source-identical"]);
+  | "helper-gated";
+const CALLER_OWNERSHIP_CLASSES: ReadonlySet<string> = new Set<CallerOwnership>(["ledger", "helper-gated"]);
 
-/** Each ledger gate, the record it reads, and a token its own definition must name. */
+/** The one ledger gate (plan 33.1-38), the record it reads, and the module that defines it (imported). */
 const LEDGER_GATES: ReadonlyMap<string, { readonly record: string; readonly defines: string }> = new Map([
-  ["owns", { record: "the one ledger, install-marker.ts owns (plan 33.1-36, D-33 (b))", defines: "./install-marker.js" }],
-  ["ownsDir", { record: "a dir entry of the one ledger (install created the directory), through owns", defines: "LEDGER" }],
-  ["ownsFile", { record: "a kit-false file entry of the one ledger (install created the file, and what it wrote there)", defines: "LEDGER" }],
-  ["ownsFileNow", { record: "a kit-false file entry of the one ledger, for a file read now (through owns)", defines: "LEDGER" }],
-  ["ownsBlock", { record: "a block entry of the one ledger (the exact block install appended; plan 33.1-33)", defines: "LEDGER" }],
-  ["GEMINI_LEDGER", { record: "the gemini entry of the one ledger (what install did to .gemini/settings.json)", defines: "LEDGER" }],
-  ["ASK_LEDGER", { record: "the ask-rules entry of the one ledger (the ask rules install added)", defines: "LEDGER" }],
-  [
-    "ownsMarker",
-    {
-      record:
-        "install's own marker for this directory: readInstallMarker's `ok` read, held in MARKER_READ (its fields hold install's values and its target is this directory's real path; plan 33.1-33 and its red-team B2)",
-      defines: "MARKER_READ",
-    },
-  ],
+  ["owns", { record: "the one install ledger, install-marker.ts owns (plans 33.1-36 and 33.1-38, D-33 (b))", defines: "./install-marker.js" }],
 ]);
 
 interface OwnershipSite {
@@ -1019,8 +996,8 @@ const OWNERSHIP_SITES: readonly OwnershipSite[] = [
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
     count: 1,
     ownership: "ledger",
-    gate: "ownsDir",
-    why: "an empty directory is removed only when the one ledger has a dir entry for it (ownsDir) and this run emptied it (GONE_THIS_RUN); a name is not a record (plan 33.1-28)",
+    gate: "owns",
+    why: "an empty directory is removed only when owns(LEDGER, TARGET, rel, \"dir\") is owned (a dir entry) and this run emptied it (GONE_THIS_RUN); reached only from reverseDir; a name is not a record (plan 33.1-28)",
   },
   {
     site: "uninstall.ts:unlinkPath:unlinkSync",
@@ -1056,88 +1033,70 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     caller: "uninstall.ts:removeFile→unlinkPath",
     count: 1,
     ownership: "helper-gated",
-    why: "removeFile removes the path its caller names after the one removal decision; its callers are the rows below",
+    why: "removeFile removes the path its caller names, on the owns answer that caller handed it; its one caller is reverseFile",
+  },
+  {
+    caller: "uninstall.ts:reverseFile→removeFile",
+    count: 1,
+    ownership: "ledger",
+    gate: "owns",
+    why: "a recorded file (skill, adapter, AGENTS.md, runnable) is removed only while owns(LEDGER, TARGET, path, \"file\") answers owned, whatever the kit source ships (plan 33.1-38, review WR-01)",
   },
   {
     caller: "uninstall.ts:removeOwnedEmptyFile→unlinkPath",
     count: 1,
     ownership: "ledger",
-    gate: "ownsFile",
-    why: "a pointer file install created, blank after this run removed its recorded block, and holding what its file entry in the one ledger says (plan 33.1-28)",
+    gate: "owns",
+    why: "a pointer file install created, blank after this run removed its recorded block, whose pre-removal bytes hold the file entry owns returned (plan 33.1-28)",
   },
   {
     caller: "uninstall.ts:unmergeGemini→unlinkPath",
     count: 2,
     ownership: "ledger",
-    gate: "GEMINI_LEDGER",
-    why: "the Gemini settings file install created, removed only while it holds the recorded bytes, or when nothing is left once the recorded entry is removed (plan 33.1-29)",
+    gate: "owns",
+    why: "the Gemini settings file install created, removed only while it holds the recorded bytes, or when nothing is left once the recorded entry is removed (plan 33.1-29); the entry comes from owns",
   },
   {
     caller: "uninstall.ts:removeAskRules→unlinkPath",
     count: 1,
     ownership: "ledger",
-    gate: "ASK_LEDGER",
-    why: "the settings file install created, empty once the ledger's rules are removed (D-18). Known exception: carry item 12",
+    gate: "owns",
+    why: "the settings file install created, empty once the ask-rules entry's rules are removed (D-18); the entry comes from owns. Known exception: carry item 12",
   },
   {
     caller: "uninstall.ts:removeMarker→unlinkPath",
     count: 1,
     ownership: "ledger",
-    gate: "ownsMarker",
-    why: "the marker, only when it reads as install's own and its one ledger is well-formed (plans 33.1-27, 33.1-33 and 33.1-36)",
+    gate: "owns",
+    why: "the marker, only when owns(LEDGER, TARGET, MARKER_REL, \"marker\") is owned: install's own marker for this directory with a well-formed ledger (plans 33.1-33, 33.1-36, 33.1-38)",
   },
   {
     caller: "uninstall.ts:removeSentinelBlock→rewritePath",
     count: 1,
     ownership: "ledger",
-    gate: "ownsBlock",
-    why: "exactly the one span whose bytes hash to the block entry's record is removed; every other byte is written back (plan 33.1-33, carry 4, 6, 11)",
+    gate: "owns",
+    why: "exactly the one span whose bytes hash to the block entry owns returned is removed; every other byte is written back (plan 33.1-33, carry 4, 6, 11)",
   },
   {
     caller: "uninstall.ts:unmergeGemini→rewritePath",
     count: 1,
     ownership: "ledger",
-    gate: "GEMINI_LEDGER",
+    gate: "owns",
     why: "only the recorded append is reversed, while context.fileName still equals the record (plan 33.1-29)",
   },
   {
     caller: "uninstall.ts:removeAskRules→rewritePath",
     count: 1,
     ownership: "ledger",
-    gate: "ASK_LEDGER",
-    why: "only the ledger's rules and the containers install created are removed (D-18). Known exception: carry item 12",
+    gate: "owns",
+    why: "only the entry's rules and the containers install created are removed (D-18). Known exception: carry item 12",
   },
   {
     caller: "uninstall.ts:updateKeptMarker→rewritePath",
     count: 1,
     ownership: "ledger",
-    gate: "ownsMarker",
-    why: "install's own kept marker, its one ledger rewritten without the entries this run removed (plan 33.1-28 R2), only after the same bytes are read again",
-  },
-  {
-    caller: "uninstall.ts:removeKitSkills→removeFile",
-    count: 1,
-    ownership: "kit-record",
-    why: "ownsKitFile allows removal only while its file entry in the one ledger still matches (plan 33.1-30; no byte-identity fallback since plan 33.1-36)",
-  },
-  {
-    caller: "uninstall.ts:removeKitAdapters→removeFile",
-    count: 1,
-    ownership: "kit-record",
-    why: "ownsKitFile, as for the skills (plan 33.1-30)",
-  },
-  {
-    caller: "uninstall.ts:removeGrugopsAgentsMd→removeFile",
-    count: 2,
-    ownership: "source-identical",
-    why: "AGENTS.md, only when its file entry in the one ledger holds and it is install's link to the kit source (isOwnLink) or a byte-identical copy (sameFileBytes) (plan 33.1-28)",
-  },
-  {
-    caller: "uninstall.ts:removeMaterializedRunnables→removeFile",
-    count: 1,
-    ownership: "ledger",
     gate: "owns",
-    why: "the tracer path of D-33 (b): a runnable is removed by owns alone, while its file entry in the one ledger holds, whether or not this kit source ships it (plan 33.1-36, review WR-01)",
+    why: "install's own kept marker (owns \"marker\"), its one ledger rewritten without the entries this run removed (plan 33.1-28 R2), only after the same bytes are read again",
   },
 ];
 
@@ -1290,8 +1249,9 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
 
   it("the vocabularies are closed: Ownership and CallerOwnership are exactly the stated classes", () => {
     expect([...OWNERSHIP_CLASSES].sort()).toEqual(["helper-gated", "ledger", "read-only"]);
-    expect([...CALLER_OWNERSHIP_CLASSES].sort()).toEqual(["helper-gated", "kit-record", "ledger", "source-identical"]);
-    expect([...LEDGER_GATES.keys()].sort()).toEqual(["ASK_LEDGER", "GEMINI_LEDGER", "owns", "ownsBlock", "ownsDir", "ownsFile", "ownsFileNow", "ownsMarker"]);
+    expect([...CALLER_OWNERSHIP_CLASSES].sort()).toEqual(["helper-gated", "ledger"]);
+    // ONE GATE (plan 33.1-38, brief §2.2): owns, and nothing else.
+    expect([...LEDGER_GATES.keys()]).toEqual(["owns"]);
     for (const r of OWNERSHIP_SITES) {
       expect(OWNERSHIP_CLASSES.has(r.ownership), `${r.site}: ${r.ownership}`).toBe(true);
       expect(r.why.trim().length, `${r.site}: empty why`).toBeGreaterThan(0);
@@ -1325,6 +1285,9 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
   it("every call of a helper-gated function is a CALLER_OWNERSHIP row, keyed by its calling scope, two-sided with counts", () => {
     console.log(`installer fs census: helpers: ${[...HELPERS].sort().join(", ")}`);
     expect([...HELPERS].sort()).toEqual(["removeFile", "rewritePath", "unlinkPath"]);
+    // THE REPORT-ONLY PASSES HAVE NO ROW (plan 33.1-38): they call no helper, so no caller key names one.
+    const reportOnly = CALLER_OWNERSHIP.filter((r) => /^uninstall\.ts:report/.test(r.caller)).map((r) => r.caller);
+    expect(reportOnly, "a report-only pass calls a delete or edit helper").toEqual([]);
     const { calls, refused } = helperCalls(HELPERS);
     expect(refused, refused.join("\n")).toEqual([]);
     const found = countBy(calls.map((c) => c.key));
@@ -1359,22 +1322,14 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
     }
     const { calls } = helperCalls(HELPERS);
     for (const r of CALLER_OWNERSHIP) {
-      const needs: readonly (readonly string[])[] =
-        r.ownership === "ledger"
-          ? [[r.gate!]]
-          : r.ownership === "kit-record"
-            ? [["ownsKitFile"]]
-            : r.ownership === "source-identical"
-              ? [["ownsFileNow"], ["sameFileBytes", "isOwnLink"]]
-              : [];
+      const needs: readonly (readonly string[])[] = r.ownership === "ledger" ? [[r.gate!]] : [];
       for (const c of calls.filter((x) => x.key === r.caller)) {
-        // A kit-record caller hands ownsKitFile to removeFile as its `owns` argument; removeFile asks it
-        // before its own removal (checked below), so the gate may lie inside the call's arguments.
-        const p = gateProblem(c.file, c.scope, r.ownership === "kit-record" ? c.end : c.pos, needs);
+        const p = gateProblem(c.file, c.scope, c.pos, needs);
         if (p !== null) problems.push(`${r.ownership.toUpperCase()} ${r.caller}: ${p}`);
       }
     }
-    // removeFile asks the `owns` question it was handed before its removal (plan 33.1-30).
+    // removeFile acts only on the owns answer its caller handed it (plans 33.1-30 and 33.1-38): a required
+    // parameter `owns: () => Ownership<"file">`, called before its one unlinkPath call.
     const un = parseInstall("uninstall.ts");
     const removeFileFn = functionNamed(un, "removeFile");
     const callsIn = (fn: ts.Node, name: string): number[] => {
@@ -1388,7 +1343,14 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
     };
     const unlinkInRemoveFile = removeFileFn === null ? [] : callsIn(removeFileFn, "unlinkPath");
     if (removeFileFn === null || unlinkInRemoveFile.length !== 1) problems.push("removeFile: expected exactly one unlinkPath call");
-    else if (!callsIn(removeFileFn, "owns").some((p) => p < unlinkInRemoveFile[0])) problems.push("removeFile: `owns()` is not asked before unlinkPath");
+    else {
+      const param = removeFileFn !== null && ts.isFunctionDeclaration(removeFileFn) ? removeFileFn.parameters.find((q) => ts.isIdentifier(q.name) && q.name.text === "owns") : undefined;
+      if (param === undefined || param.type === undefined || param.type.getText(un) !== '() => Ownership<"file">' || param.questionToken !== undefined) {
+        problems.push('removeFile: no required parameter `owns: () => Ownership<"file">` (the owns answer its caller hands it)');
+      } else if (!callsIn(removeFileFn!, "owns").some((p) => p < unlinkInRemoveFile[0])) {
+        problems.push("removeFile: `owns()` is not asked before unlinkPath");
+      }
+    }
     // Each gate's own definition names its record, so a gate cannot be kept by name while its body
     // stops reading the ledger.
     for (const [gate, { defines }] of LEDGER_GATES) {
@@ -1459,8 +1421,71 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
     expect(kitOwns.some((c) => c.getStart(install) < rm.getStart(install)), "copyKit's rmSync is not preceded by owns(..., \"kit\")").toBe(true);
   });
 
+  // THE ONE-GATE RULE OVER EVERY DELETE AND EDIT, DERIVED (plan 33.1-38, brief §2.2, DC-2). The rows above are
+  // pinned by hand and checked two-sided; this case asks the class question of the syntax tree directly.
+  // The site set is DERIVED: every mutating fs call in an UNINSTALL_PATH_FILES module (a census site whose fs
+  // name is in FS_MUTATING) that is not inside a helper (whose callers stand for it) and is not a read-only
+  // open, plus every call of a helper-gated function (unlinkPath, rewritePath, removeFile) from a scope that is
+  // not itself a helper, at any depth. Each must have a reference to `owns` in its calling scope before it.
+  // The count is printed and pinned: a new delete or edit anywhere on the path changes it and must be classed.
+  it("every delete and edit on the uninstall path is reached only after owns in its calling scope, derived from the syntax tree, with a pinned count", () => {
+    // DELETE_EDIT_SITE_COUNT (plan 33.1-38): rmdirIfEmpty's rmdirSync (1); removeOwnedEmptyFile → unlinkPath (1);
+    // unmergeGemini → unlinkPath (2) and → rewritePath (1); removeAskRules → unlinkPath (1) and → rewritePath (1);
+    // removeMarker → unlinkPath (1); removeSentinelBlock → rewritePath (1); updateKeptMarker → rewritePath (1);
+    // reverseFile → removeFile (1). Eleven: the ledger walk's reversals and the marker's two.
+    const DELETE_EDIT_SITE_COUNT = 11;
+    const helperScopes = new Set(HELPERS);
+    const readOnly = new Set(OWNERSHIP_SITES.filter((r) => r.ownership === "read-only").map((r) => r.site));
+    const sites: { key: string; file: string; scope: string; pos: number }[] = [];
+    for (const c of CENSUS) {
+      if (!UNINSTALL_PATH_FILES.includes(c.file)) continue;
+      for (const site of new Set(c.sites)) {
+        const [file, scope, fsName] = site.split(":");
+        if (!FS_MUTATING.has(fsName) || readOnly.has(site) || helperScopes.has(scope)) continue;
+        for (const pos of fsCallPositions(file, scope, fsName)) sites.push({ key: site, file, scope, pos });
+      }
+    }
+    const { calls, refused } = helperCalls(HELPERS);
+    expect(refused, refused.join("\n")).toEqual([]);
+    for (const c of calls) if (!helperScopes.has(c.scope)) sites.push({ key: c.key, file: c.file, scope: c.scope, pos: c.pos });
+    const problems: string[] = [];
+    for (const s of sites) {
+      const p = gateProblem(s.file, s.scope, s.pos, [["owns"]]);
+      if (p !== null) problems.push(`NO OWNS ${s.key}: ${p}`);
+    }
+    console.log(`installer fs census: ${sites.length} delete/edit site(s) on the uninstall path, each after owns: ${[...countBy(sites.map((s) => s.key))].map(([k, n]) => `${k} x${n}`).join(", ")}`);
+    expect(problems, problems.join("\n")).toEqual([]);
+    expect(sites.length, `DELETE_EDIT_SITE_COUNT: the derived delete/edit sites changed`).toBe(DELETE_EDIT_SITE_COUNT);
+    // The census itself can see a bypass (mutation proof, run on a synthetic source): a scope that reaches
+    // unlinkPath with no owns reference is reported.
+    const probe = ts.createSourceFile(
+      "probe.ts",
+      "function reportUnrecordedX(): void { unlinkPath(\"/x\", \"x\", \"x\"); }\nfunction reverseY(): void { const o = owns(L, T, \"y\", \"dir\"); unlinkPath(\"/y\", \"y\", \"y\"); }",
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const probeProblems: string[] = [];
+    for (const name of ["reportUnrecordedX", "reverseY"]) {
+      const fn = functionNamed(probe, name)!;
+      const at = (() => {
+        let pos = -1;
+        const v = (n: ts.Node): void => {
+          if (pos === -1 && ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "unlinkPath") pos = n.getStart(probe);
+          ts.forEachChild(n, v);
+        };
+        v(fn);
+        return pos;
+      })();
+      if (!referencesIn(fn, "owns", probe).some((p) => p < at)) probeProblems.push(name);
+    }
+    expect(probeProblems, "the owns-before check does not tell a gated scope from an ungated one").toEqual(["reportUnrecordedX"]);
+  });
+
   it("the known exceptions (carry items 12 and 13) are declared, counted and present, so the census is honest", () => {
     expect(KNOWN_EXCEPTIONS.map((e) => e.carry)).toEqual([12, 13]);
+    // Plan 33.1-38: carry 12 points at the ask-rules reversal's caller keys (removeAskRules, reached only from
+    // the ledger walk's reverseAskRules), each a ledger row gated by owns.
     const callerKeys = new Set(CALLER_OWNERSHIP.map((r) => r.caller));
     const install = parseInstall("install.ts");
     for (const e of KNOWN_EXCEPTIONS) {

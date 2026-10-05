@@ -4994,10 +4994,13 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // Install first, so there is something to reverse and the run is a realistic one.
     expect(runInstallFrom(src, target, home).status).toBe(0);
 
-    // Now make the uninstaller's SOURCE unreadable, which is a removal class it must skip and
-    // REPORT — the documented way this binary reaches its INCOMPLETE branch.
-    rmSync(join(src, ".claude", "agents"), { recursive: true, force: true });
-    writeFileSync(join(src, ".claude", "agents"), "not a directory\n");
+    // Now make the install ledger malformed, which the uninstaller must report as a verify and act on
+    // nothing — the documented way this binary reaches its INCOMPLETE branch. (An unreadable kit SOURCE
+    // used to be the way; since plan 33.1-38 removal is decided by the ledger, and an unreadable source
+    // only skips the report of unrecorded paths, with a `note`.)
+    const markerPath = join(target, ".grugops", "install.json");
+    const marker = JSON.parse(readFileSync(markerPath, "utf8")) as Record<string, unknown>;
+    writeFileSync(markerPath, JSON.stringify({ ...marker, ledger: "not a list" }, null, 2) + "\n");
 
     const r = runUninstallFrom(src, target, home);
     // BOTH HALVES, ASSERTED SEPARATELY. The status alone always survived — that is precisely why
@@ -7563,7 +7566,8 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
       expect(readFileSync(at(target, rel)).equals(bytes), `${rel} changed`).toBe(true);
       const left = naming(r.stdout, "left", rel);
       expect(left.length, `no left line for ${rel}\n${r.stdout}`).toBe(1);
-      expect(left[0]).toMatch(/it has changed since install wrote it/);
+      // The one authority's wording (owns, plan 33.1-38): every recorded file is left with the same reason.
+      expect(left[0]).toMatch(/it does not hold what the install ledger records install wrote there \(it was edited or replaced since\)/);
     }
     for (const rel of kit.filter((k) => !edited.has(k))) expect(present(target, rel), `${rel} was not removed`).toBe(false);
     // The skill's directory keeps the user's file, so it stays.
@@ -7763,7 +7767,7 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     for (const rel of kit.filter((k) => k !== repointed)) expect(present(target, rel), `${rel} was not removed`).toBe(false);
   });
 
-  it("kit-file ownership: a link re-pointed to another checkout's copy of the same kit file is left when uninstall runs from that checkout (the record names the link install made)", () => {
+  it("kit-file ownership: a link re-pointed to another checkout's copy of the same kit file is left and counted when uninstall runs from that checkout (the record names the link install made)", () => {
     const target = makeFixture();
     const home = mkTmp();
     expect(runInstall(target, home, "--symlink").status).toBe(0);
@@ -7777,11 +7781,16 @@ describe("kit-file ownership (Gap B, plan 33.1-30)", () => {
     rmSync(at(target, link));
     symlinkSync(join(other, ...link.split("/")), at(target, link));
     const r = runUninstallFrom(other, target, home);
-    expect([0, 3], r.stdout + r.stderr).toContain(r.status);
     expect(lstatSync(at(target, link)).isSymbolicLink(), `${link} was removed although it is not the link install recorded`).toBe(true);
-    const left = naming(r.stdout, "left", link);
-    expect(left.length, r.stdout).toBe(1);
-    expect(left[0]).toMatch(/it has changed since install wrote it/);
+    // Plan 33.1-38: which link install made is read from the entry's own `link:` record, never from the kit
+    // source of the checkout running uninstall. The re-pointed link is not that link, so it is a link
+    // install did not make: left, never followed, and counted (the B1/B2 rule of uninstall-removal.test.ts).
+    // It used to be called install's own link because it pointed into the uninstalling checkout.
+    expect(r.status, r.stdout + r.stderr).toBe(3);
+    const counted = naming(r.stdout, "verify", link);
+    expect(counted.length, r.stdout).toBe(1);
+    expect(counted[0]).toMatch(/is a symbolic link that is not the one install makes \(the link install makes here points at /);
+    expect(naming(r.stdout, "removed", link), r.stdout).toEqual([]);
   });
 
   // A malformed kit-file entry: an entry that is not an object, a path outside the target, or a content

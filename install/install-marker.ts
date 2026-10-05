@@ -85,8 +85,11 @@
 // a dir, block, gemini or ask-rules entry it returns the entry, and the caller compares that entry's
 // own content record (the directory's emptiness and this run's removals, the block hash,
 // fileNameContent, askContent) with the file before it edits anything, as each pass did before the
-// merge. The uninstaller only asks owns about paths it visits; plan 33.1-38 turns its removal sequence
-// into a walk over the ledger itself.
+// merge. Since plan 33.1-38 the uninstaller's removal sequence IS a walk over the ledger (uninstall.ts
+// walkLedger): every entry is visited, whatever the uninstalling kit source ships, and every delete or
+// edit asks owns first. The pseudo-kind `marker` (plan 33.1-38) answers for the marker itself: it is
+// valid only for MARKER_REL and owned exactly when the ledger read is `ok`, which it is only for
+// install's own, bound marker (readInstallMarker `ok`) holding a well-formed ledger.
 //
 // WHY THE MARKER IS READ THROUGH readUserFile (plan 33.1-27, IN-04, brief DC-3; by way of readForWrite). The marker is a
 // path in the user's repository, so it may be a FIFO, a directory, a device or a symlink to one.
@@ -869,10 +872,20 @@ export function notRecordedReason(ledger: LedgerRead, what: "directory" | "file"
   return "there is no install marker this run can use, so there is no record that install created it; left in place";
 }
 
+/**
+ * The pseudo-kind owns answers for the marker itself (plan 33.1-38): not a ledger kind (no entry names
+ * it), valid only for MARKER_REL.
+ */
+export const MARKER_KIND = "marker";
+/** What owns can be asked about: a ledger kind, or the marker. */
+export type OwnsKind = LedgerKind | typeof MARKER_KIND;
+/** The entry owns returns for a kind: the ledger entry, or null for the marker (it has none). */
+type OwnedEntry<K extends OwnsKind> = K extends LedgerKind ? EntryOf<K> : null;
+
 /** The answer of owns: install's entry and whether the path still holds it, or why it is not install's. */
-export type Ownership<K extends LedgerKind> =
-  | { readonly owned: true; readonly entry: EntryOf<K>; readonly note: string | null }
-  | { readonly owned: false; readonly recorded: boolean; readonly entry: EntryOf<K> | null; readonly reason: string };
+export type Ownership<K extends OwnsKind> =
+  | { readonly owned: true; readonly entry: OwnedEntry<K>; readonly note: string | null }
+  | { readonly owned: false; readonly recorded: boolean; readonly entry: OwnedEntry<K> | null; readonly reason: string };
 
 /**
  * THE ONE AUTHORITY (brief §2.2, D-33 (b)): does install own `rel` (a POSIX path relative to `root`)
@@ -881,11 +894,19 @@ export type Ownership<K extends LedgerKind> =
  * content record (checkRecord: the bytes and the mode for a file, NO_MODE_NOTE when the record has no
  * mode; the exact readlink for a link; no link followed; a hard link refused). An entry of any other
  * kind is returned as owned: the caller compares that entry's own content record with the path before
- * it edits anything (see THE ONE AUTHORITY in the header).
+ * it edits anything (see THE ONE AUTHORITY in the header). The pseudo-kind `marker` (plan 33.1-38) is
+ * owned exactly when `rel` is MARKER_REL and the ledger read is `ok`; `entry` is then null.
  */
 // The typed signature (the entry returned is of the kind asked), then the one implementation.
-export function owns<K extends LedgerKind>(ledger: LedgerRead, root: string, rel: string, kind: K): Ownership<K>;
-export function owns(ledger: LedgerRead, root: string, rel: string, kind: LedgerKind): Ownership<LedgerKind> {
+export function owns<K extends OwnsKind>(ledger: LedgerRead, root: string, rel: string, kind: K): Ownership<K>;
+export function owns(ledger: LedgerRead, root: string, rel: string, kind: OwnsKind): Ownership<OwnsKind> {
+  if (kind === MARKER_KIND) {
+    if (rel !== MARKER_REL) {
+      return { owned: false, recorded: false, entry: null, reason: `only ${MARKER_REL} is install's marker; left in place` };
+    }
+    if (ledger.state === "ok") return { owned: true, entry: null, note: null };
+    return { owned: false, recorded: ledger.state === "malformed", entry: null, reason: notRecordedReason(ledger, "entry") };
+  }
   const entry = entryAt(ledger, rel, kind);
   if (entry === undefined) {
     return { owned: false, recorded: false, entry: null, reason: notRecordedReason(ledger, kind === "dir" ? "directory" : kind === "file" ? "file" : "entry") };

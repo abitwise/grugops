@@ -213,6 +213,39 @@ const CASES = {
   // Plan 33.1-37, review CR-01 (the verifier's reproduction): GRUGOPS_HOME set to the target used to make
   // install move the user's in-repo agent-factory/ aside and delete it, exit 0. Now it exits 1, before any
   // write and before anything reaches stdout, and a DRY_RUN preview is refused the same way.
+  // Plan 33.1-38, review WR-01, made stricter: install, then uninstall with a kit source that lacks one
+  // recorded adapter. The adapter is removed on its record and named, and every file entry the ledger held
+  // before the run is either gone or named on an output line; `== uninstall complete ==` is never printed
+  // over a recorded file left unnamed.
+  "wr-01-cross-source"(w) {
+    const rel = ".claude/agents/grugops-agents-md-scribe.md";
+    const src = join(w.dir, "kit-source");
+    cpSync(join(REPO_ROOT, ".claude"), join(src, ".claude"), { recursive: true });
+    cpSync(join(REPO_ROOT, "AGENTS.md"), join(src, "AGENTS.md"));
+    cpSync(join(REPO_ROOT, "scripts", "runnable-ref"), join(src, "scripts", "runnable-ref"), { recursive: true });
+    rmSync(join(src, rel));
+    check(!existsSync(join(src, rel)), "the scratch kit source still ships the adapter");
+
+    const i = w.install();
+    check(i.status === 0, `install exited ${i.status}, expected 0`);
+    check(existsSync(w.at(rel)), `install did not write ${rel}`);
+    const ledger = JSON.parse(readFileSync(w.at(".grugops/install.json"), "utf8")).ledger;
+    check(Array.isArray(ledger), "the marker holds no ledger list");
+    const files = ledger.filter((e) => e.kind === "file").map((e) => e.path);
+    check(files.includes(rel), `the ledger does not record ${rel}`);
+
+    const u = w.uninstall({ src });
+    check(!existsSync(w.at(rel)), `${rel} is still there after uninstall with a kit source that lacks it`);
+    check(w.lineFor(u, "removed", rel) !== undefined, `no 'removed ${rel}' line`);
+    const unnamed = files.filter((p) => existsSync(w.at(p)) && !u.lines.some((l) => l.includes(p)));
+    check(unnamed.length === 0, `recorded file(s) still present and named on no line: ${unnamed.join(", ")}`);
+    const lingering = files.filter((p) => existsSync(w.at(p)));
+    check(
+      !(lingering.length > 0 && u.out.includes("== uninstall complete ==") && unnamed.length > 0),
+      "uninstall printed complete over a recorded file left unnamed",
+    );
+    check(u.status === 0, `uninstall exited ${u.status}, expected 0 (every recorded file held its record)\n${u.out}`);
+  },
   "cr-01-kit-home-is-target"(w) {
     const cfgRel = "agent-factory/config/factory.config.json";
     const notesRel = "agent-factory/MYNOTES.md";

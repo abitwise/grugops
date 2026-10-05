@@ -268,7 +268,7 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
     });
   }
 
-  it("the own-shape link put at every kit path and AGENTS.md of a copy install is left (the record is the copy's bytes, plan 33.1-30); a link at a runnable is left", () => {
+  it("the own-shape link put at every kit path, AGENTS.md and runnable of a copy install is left and counted (the record is the copy's bytes, plans 33.1-30 and 33.1-38)", () => {
     const decisions = new Map<string, Map<string, string>>();
     for (const dry of [true, false]) {
       const t = installedTree(`own-${dry ? "dry" : "real"}`);
@@ -284,26 +284,23 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
       const r = runUninstall(t.target, t.grugopsHome, { home: t.home, dryRun: dry, timeoutMs: 60_000 });
       const what = `${dry ? "DRY_RUN " : ""}uninstall, own links`;
       expectFinished(r, what);
-      // Install never links a runnable (materializeRunnable writes a regular file), so a link there
-      // is not install's: it is left and counted.
+      // THE RECORD SAYS WHAT LINK INSTALL MADE (plan 33.1-38, review WR-01). This copy install recorded the
+      // bytes it copied or rendered at each path (its file entry, a `sha256:` record), so install made no
+      // link at any of them, whatever shape the link has. Install never links a runnable either. A link
+      // there is a link install did not make: it is left, never followed, and counted (the B1/B2 rule
+      // above), even though it is the shape of link a --symlink install makes from this checkout. Which
+      // link install makes is read from the entry's own `link:` record, never from the kit source of the
+      // checkout running uninstall, so this answer is the same from any checkout. (A --symlink install
+      // records the link, and its uninstall removes it: the next case.)
       expect(r.status, `${what}: exit ${r.status}\n${r.stdout}`).toBe(3);
       const byPath = new Map<string, string>();
       for (const rel of REMOVED_BY_NAME) {
         const at = join(t.target, ...rel.split("/"));
         const labels = linesFor(r.stdout, rel, t.target).map((l) => l.label);
         const gone = lstatSync(at, { throwIfNoEntry: false }) === undefined;
-        if (RUNNABLE_PATHS.includes(rel)) {
-          expect(gone, `${what}: the link at runnable ${rel} was removed`).toBe(false);
-          expect(labels, `${what}: ${rel}`).toContain("verify");
-        } else {
-          // Red-team of plan 33.1-28 (R1) for AGENTS.md, plan 33.1-30 for the kit files: this copy
-          // install recorded the bytes it copied or rendered at each path (its file entry). A
-          // link put there since is not what install made at that path, so it is left, even though it
-          // is the shape of link a --symlink install makes (that install records the link, and its
-          // uninstall removes it: the next case, and install.test.ts "file ownership ... AGENTS.md link").
-          expect(gone, `${what}: ${rel} was removed although it no longer holds what install wrote`).toBe(false);
-          expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("left");
-        }
+        expect(gone, `${what}: the link at ${rel} was removed although install recorded a regular file there`).toBe(false);
+        expect(labels, `${what}: ${rel}\n${r.stdout}`).toContain("verify");
+        expect(labels, `${what}: ${rel}`).not.toContain("removed");
         byPath.set(rel, decisionOf(r.stdout, rel, t.target));
       }
       expect(existsSync(ownLinkTarget(KIT_PATHS[0])), "the kit source itself was touched").toBe(true);
@@ -534,5 +531,67 @@ describe.skipIf(!canSymlink)("install.js removals of a link (siblings of B1/B2, 
     const present = lstatSync(bak, { throwIfNoEntry: false }) !== undefined;
     expect(removed && present, `reported removed and still present\n${r.stdout}`).toBe(false);
     expect(removed || present, "gone without a line").toBe(true);
+  });
+});
+
+// ── THE LEDGER WALK'S OTHER KINDS (plan 33.1-38, review WR-01, D-33 (b), brief DC-2) ─────────────────
+// Every delete and edit is a step of the walk over the install ledger, behind owns; a grugops-shaped path
+// with no ledger entry is reported only.
+describe("the ledger walk: blocks, settings, directories and backups (plan 33.1-38)", () => {
+  const CLAUDE_BLOCK = "<!-- GSD:grugops-start-here -->\n**grugops — start here:** a block the user pasted\n<!-- GSD:grugops-start-here-end -->\n";
+  const COPILOT_BLOCK = "<!-- GSD:grugops-copilot-start-here -->\nsee AGENTS.md\n<!-- GSD:grugops-copilot-start-here-end -->\n";
+  const EMPTY_DIRS = [".claude/agents", ".claude/skills/grugops", "tools/grugops"];
+
+  for (const dry of [false, true]) {
+    it(`${dry ? "DRY_RUN: " : ""}a never-installed target holding grugops blocks, both settings files and the fixed directories empty changes by zero bytes, and each is named`, () => {
+      const target = join(fresh(`never-${dry ? "dry" : "real"}`), "target");
+      mkdirSync(target, { recursive: true });
+      writeFileSync(join(target, "CLAUDE.md"), `# Mine\n\n${CLAUDE_BLOCK}`);
+      mkdirSync(join(target, ".github"), { recursive: true });
+      writeFileSync(join(target, ".github", "copilot-instructions.md"), COPILOT_BLOCK);
+      mkdirSync(join(target, ".gemini"), { recursive: true });
+      writeFileSync(join(target, ".gemini", "settings.json"), '{"context":{"fileName":["AGENTS.md"]}}\n');
+      mkdirSync(join(target, ".claude"), { recursive: true });
+      writeFileSync(join(target, ".claude", "settings.json"), '{"permissions":{"ask":["Bash(git push *)"]}}\n');
+      for (const d of EMPTY_DIRS) mkdirSync(join(target, ...d.split("/")), { recursive: true });
+      const before = snapshotTree(target);
+      const r = runUninstall(target, join(fresh("never-home"), ".grugops"), { dryRun: dry, timeoutMs: 60_000 });
+      const what = `${dry ? "DRY_RUN " : ""}uninstall of a never-installed target`;
+      expectFinished(r, what);
+      expect(snapshotTree(target), `${what} changed the target\n${r.stdout}`).toBe(before);
+      expect(r.status, `${what}: exit ${r.status}\n${r.stdout}`).toBe(0);
+      for (const label of ["CLAUDE.md start-here pointer", ".github/copilot-instructions.md pointer", ".gemini/settings.json"]) {
+        expect(linesFor(r.stdout, label, target).map((l) => l.label), `${what}: ${label}\n${r.stdout}`).toContain("left");
+      }
+      expect(r.stdout, `${what}: the ask rules`).toMatch(/\.claude\/settings\.json ask rules \(no install marker/);
+      for (const d of EMPTY_DIRS) {
+        const named = r.stdout.split("\n").filter((l) => /^ {2}left\s/.test(l) && l.includes(join(target, ...d.split("/")) + " ("));
+        expect(named.length, `${what}: no left line for the empty ${d}\n${r.stdout}`).toBe(1);
+      }
+      expect(r.stdout).not.toMatch(/^ {2}(removed|would-remove|rmdir|would-rmdir|would-edit|edited)\s/m);
+    });
+  }
+
+  it("a backup entry in the ledger is reported left and never removed, real and DRY_RUN", () => {
+    for (const dry of [true, false]) {
+      const t = installedTree(`backup-${dry ? "dry" : "real"}`);
+      const rel = "agent-factory.bak.2026-10-05T10-00-00.000Z";
+      mkdirSync(join(t.target, rel), { recursive: true });
+      writeFileSync(join(t.target, rel, "MINE.md"), "the user's kit, moved aside\n");
+      const markerPath = join(t.target, ...MARKER_REL.split("/"));
+      const marker = JSON.parse(readFileSync(markerPath, "utf8")) as Record<string, unknown>;
+      writeFileSync(
+        markerPath,
+        JSON.stringify(withLedger(marker, (e) => [...e, { path: rel, kind: "backup", origin: "in-repo-kit", of: "agent-factory", content: null }]), null, 2) + "\n",
+      );
+      const before = snapshotTree(join(t.target, rel));
+      const r = runUninstall(t.target, t.grugopsHome, { home: t.home, dryRun: dry, timeoutMs: 60_000 });
+      const what = `${dry ? "DRY_RUN " : ""}uninstall over a backup entry`;
+      expectFinished(r, what);
+      expect(snapshotTree(join(t.target, rel)), `${what}: the backup changed`).toBe(before);
+      const left = linesFor(r.stdout, rel, t.target);
+      expect(left.map((l) => l.label), `${what}\n${r.stdout}`).toEqual(["left"]);
+      expect(left[0].msg).toMatch(/uninstall never removes a backup/);
+    }
   });
 });

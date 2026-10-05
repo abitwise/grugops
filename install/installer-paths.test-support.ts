@@ -40,7 +40,13 @@
 //   KIT_HOME_VARIANTS  a kit home outside the target holding something install did not write at the
 //                      kit root (a user's agent-factory/, a link); the user's bytes must survive inside
 //                      the backup copyKit records (runKitHomeVariant).
-// The other axis, the kit source on the uninstall side, is plan 33.1-38's.
+// THE UNINSTALL-SOURCE AXIS (plan 33.1-38, review WR-01 and IN-06). Uninstall used to remove what the
+// checkout running it ships, so a recorded file that checkout does not ship was left unnamed. This module
+// now varies the kit source on the uninstall side:
+//   UNINSTALL_SOURCE_VARIANTS  an empty kit source, a kit source that cannot be read (a regular file), and
+//                              a --symlink install uninstalled from another checkout (a copy of the kit
+//                              elsewhere, so no link install made points at it);
+//   runUninstallWithSource     uninstall with GRUGOPS_SRC set to such a source.
 //
 // Clear professional voice: this is test infrastructure for a safety surface.
 //
@@ -49,7 +55,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -187,14 +193,16 @@ export interface RunOptions {
   readonly timeoutMs?: number;
   /** A scratch HOME; when omitted HOME is inherited (the kit home is always GRUGOPS_HOME). */
   readonly home?: string;
+  /** The kit source (GRUGOPS_SRC); this repository when omitted (plan 33.1-38). */
+  readonly src?: string;
 }
 
 /**
  * Run a committed installer binary against `target` with the kit home at `grugopsHome`. Copy mode
- * unless `args` says `--symlink`; GRUGOPS_SRC is this repository.
+ * unless `args` says `--symlink`; GRUGOPS_SRC is this repository unless `opts.src` names another.
  */
 export function spawnBin(bin: string, args: readonly string[], target: string, grugopsHome: string, opts: RunOptions = {}): Run {
-  const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: grugopsHome, TARGET: target };
+  const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: opts.src ?? REPO_ROOT, GRUGOPS_HOME: grugopsHome, TARGET: target };
   if (opts.home !== undefined) env.HOME = opts.home;
   if (opts.dryRun) env.DRY_RUN = "1";
   else delete env.DRY_RUN;
@@ -537,3 +545,64 @@ export function runKitHomeVariant(scratchRoot: string, spec: KitHomeVariantSpec)
   }
   return { name: spec.name, grugopsHome, run, backups, record, problems };
 }
+
+// ── THE UNINSTALL-SOURCE AXIS (plan 33.1-38, review WR-01 and IN-06) ────────────────────────────────
+
+export type UninstallSourceVariantName = "empty-source" | "unreadable-source" | "other-checkout-symlink";
+
+export interface UninstallSourceVariantSpec {
+  readonly name: UninstallSourceVariantName;
+  readonly why: string;
+  /** The install's extra arguments (after --yes); the install always runs from this repository. */
+  readonly installArgs: readonly string[];
+  /** Make the GRUGOPS_SRC the uninstall runs with, under `root`. It is never the checkout install ran from. */
+  readonly source: (root: string) => string;
+}
+
+/**
+ * The kit sources uninstall is run with after an install from this repository (plan 33.1-38). In each one
+ * the uninstalling source does not hold what install wrote, so only the install ledger can say what to
+ * remove.
+ */
+export const UNINSTALL_SOURCE_VARIANTS: readonly UninstallSourceVariantSpec[] = [
+  {
+    name: "empty-source",
+    why: "an empty directory: the uninstalling checkout ships nothing, so no kit source names any recorded file",
+    installArgs: [],
+    source: (root) => {
+      const d = join(root, "empty-source");
+      mkdirSync(d, { recursive: true });
+      return d;
+    },
+  },
+  {
+    name: "unreadable-source",
+    why: "a regular file where the kit source should be: no kit directory can be read at all",
+    installArgs: [],
+    source: (root) => {
+      mkdirSync(root, { recursive: true });
+      const f = join(root, "not-a-kit-source");
+      writeFileSync(f, "not a grugops kit source\n");
+      return f;
+    },
+  },
+  {
+    name: "other-checkout-symlink",
+    why:
+      "--symlink install from this repository, uninstalled from another checkout (a copy of the kit's .claude/ and " +
+      "AGENTS.md elsewhere), so no link install made points at the uninstalling source",
+    installArgs: ["--symlink"],
+    source: (root) => {
+      const d = join(root, "other-checkout");
+      mkdirSync(d, { recursive: true });
+      cpSync(join(REPO_ROOT, ".claude", "agents"), join(d, ".claude", "agents"), { recursive: true });
+      cpSync(join(REPO_ROOT, ".claude", "skills"), join(d, ".claude", "skills"), { recursive: true });
+      cpSync(join(REPO_ROOT, "AGENTS.md"), join(d, "AGENTS.md"));
+      return d;
+    },
+  },
+];
+
+/** Uninstall `target` with the kit source at `src` (plan 33.1-38): the cross-version, cross-checkout axis. */
+export const runUninstallWithSource = (target: string, grugopsHome: string, src: string, opts: RunOptions = {}): Run =>
+  spawnBin(UNINSTALL_JS, [], target, grugopsHome, { ...opts, src });

@@ -41,6 +41,7 @@ import {
   KIT_ENTRY_PATH,
   KIT_HOME_RECORD_REL,
   LEDGER_KINDS,
+  MARKER_KIND,
   RETIRED_RECORDS,
   NO_MODE_NOTE,
   contentRecord,
@@ -282,6 +283,25 @@ describe("the one authority (owns)", () => {
     return { root, rel, path };
   }
   const ledgerWith = (...e: Record<string, unknown>[]) => readLedger(holder(e));
+
+  // THE PSEUDO-KIND `marker` (plan 33.1-38): the one authority answers for the marker itself. Owned exactly
+  // when the rel is MARKER_REL and the ledger read is `ok`; a malformed ledger is recorded but not owned.
+  it("the marker pseudo-kind is owned only for MARKER_REL over an ok ledger", () => {
+    const root = fresh("owns-marker");
+    expect(MARKER_KIND).toBe("marker");
+    const ok = owns(ledgerWith(), root, MARKER_REL, "marker");
+    expect(ok.owned).toBe(true);
+    if (ok.owned) expect(ok.entry).toBeNull();
+    const other = owns(ledgerWith(), root, "CLAUDE.md", "marker");
+    expect(other.owned).toBe(false);
+    if (!other.owned) expect(other.recorded).toBe(false);
+    const malformed = owns(readLedger(holder("not a list")), root, MARKER_REL, "marker");
+    expect(malformed.owned).toBe(false);
+    if (!malformed.owned) expect(malformed.recorded).toBe(true);
+    const absent = owns(readLedger(null), root, MARKER_REL, "marker");
+    expect(absent.owned).toBe(false);
+    if (!absent.owned) expect(absent.recorded).toBe(false);
+  });
 
   it("a file entry whose bytes and mode still match is owned", () => {
     const { root, rel } = scratch();
