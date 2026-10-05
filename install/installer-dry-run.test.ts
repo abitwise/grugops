@@ -265,6 +265,34 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
     expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, UNINSTALL_BANNER);
   });
 
+  // Flow 11 (plan 33.1-39, review WR-02): an edited adapter is left, so the marker is kept. The preview
+  // changes nothing and reaches the real run's marker decision: the same banner, a would-edit of the marker
+  // and no would-remove of it; the real run (on a copy of the same tree) keeps and edits the marker.
+  it("flow 11: DRY_RUN uninstall after an install with one adapter edited: nothing changes, and the preview keeps the marker as the real run does", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    const adapter = ledgerOf(JSON.parse(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>)
+      .filter((e) => e.kind === "file" && e.path.startsWith(".claude/agents/"))
+      .map((e) => e.path)
+      .sort()[0];
+    const p = join(target, ...adapter.split("/"));
+    writeFileSync(p, readFileSync(p, "utf8") + "a line the user added\n");
+    const kept = "recorded item(s) left in place; .grugops/install.json kept to record them";
+    const r = expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, `${kept} (DRY_RUN — nothing changed) ==`);
+    expect(reported(r.stdout, "would-edit").map(subject), r.stdout).toContain(MARKER_REL);
+    expect(reported(r.stdout, "would-remove").map(subject), r.stdout).not.toContain(MARKER_REL);
+    const copy = join(mkTmp(), "copy");
+    cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
+    rebindMarker(copy);
+    const real = runUninstall(copy, home, false);
+    expect(real.status, real.stdout).toBe(0);
+    expect(real.stdout).toContain(`${kept} ==`);
+    expect(reported(real.stdout, "edited").map(subject), real.stdout).toContain(MARKER_REL);
+    expect(existsSync(join(copy, ...MARKER_REL.split("/")))).toBe(true);
+    expect(existsSync(join(copy, ...adapter.split("/")))).toBe(true);
+  });
+
   it("flow 10: DRY_RUN uninstall after a fresh install into an EMPTY target (no CLAUDE.md): nothing changes, and the preview names the removal of the files install created", () => {
     const target = mkTmp();
     const home = mkTmp();

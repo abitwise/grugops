@@ -239,11 +239,14 @@ describe.skipIf(!canSymlink)("B1/B2: a link install did not make, at every path 
         const what = `${dry ? "DRY_RUN " : ""}uninstall, ${shape}`;
         expectFinished(r, what);
         expect(r.status, `${what}: exit ${r.status}\n${r.stdout}`).toBe(3);
-        // The run went on past the links to its last step: the marker line and the closing banner.
+        // The run went on past the links to its last step: the marker line and the closing banner. Since plan
+        // 33.1-39 (review WR-02) a verify for a recorded path keeps the marker, rewritten to what is left, so a
+        // re-run after the links are dealt with can finish the reversal.
         expect(r.stdout, `${what}: the run stopped early\n${r.stdout}`).toMatch(/== uninstall INCOMPLETE/);
-        expect(linesFor(r.stdout, MARKER_REL, t.target).map((l) => l.label), `${what}: no marker line`).toContain(
-          dry ? "would-remove" : "removed",
-        );
+        const markerLabels = linesFor(r.stdout, MARKER_REL, t.target).map((l) => l.label);
+        expect(markerLabels, `${what}: no marker line`).toContain("left");
+        expect(markerLabels, `${what}: the marker was removed after an incomplete run`).not.toContain(dry ? "would-remove" : "removed");
+        expect(existsSync(join(t.target, ...MARKER_REL.split("/"))), `${what}: the marker is gone`).toBe(true);
         const byPath = new Map<string, string>();
         for (const { rel, link } of planted) {
           const at = join(t.target, ...rel.split("/"));

@@ -33,9 +33,17 @@
 //     covered by install/uninstall-removal.test.ts and plan 33.1-30's kit-file cases. The test asserts
 //     that the symlink variant writes no path the copy-mode variants do not, so excluding it drops no
 //     path from the set.
-//   - EXCLUDED = { .grugops/install.json }: install's own record. Uninstall removes it by design when it
-//     reads as install's marker for this directory (ownsMarker, plan 33.1-33); a key a user adds to it is
-//     not preserved. It is counted in INSTALLED_FILE_COUNT.
+//   - EXCLUDED = { .grugops/install.json }: install's own record. Uninstall removes it by design once it
+//     reads as install's marker for this directory and everything it records is discharged (plan 33.1-39);
+//     a key a user adds to it is not preserved then. It is counted in INSTALLED_FILE_COUNT.
+//
+// THE MARKER AFTER AN EDIT (plan 33.1-39, review WR-02, D-33 (b)). An edited file uninstall leaves holds the
+// marker: the run exits 0, the marker is kept and its ledger lists exactly the entries left. Which entries
+// those are is DERIVED from the edit and the installed ledger, never typed: the `file` entry at the edited
+// path, unless the ledger also has a `block` entry there (a pointer file, whose content of install's is the
+// block: the block is removed and what is left is the user's). An edit whose path holds no such entry
+// (a settings file, whose recorded change is reversed; seeded state; a backup) leaves no recorded item, so
+// the marker is removed.
 //
 // KNOWN EXCEPTIONS, DECLARED AND COUNTED (red-team carry items 12 and 13; a human decision is pending at
 // plan 33.1-35, so their behaviour is NOT changed here). Each has a case below that asserts the exception
@@ -74,7 +82,7 @@ import {
   snapshotTree,
 } from "./installer-paths.test-support.js";
 import { KINDS_BY_SCOPE, LEDGER_KINDS, fileRecord } from "./install-marker.js";
-import { askRecord, blockRecords, fileRecords, ledgerOf, readMarkerObject, withLedger } from "./ledger.test-support.js";
+import { askRecord, blockRecords, fileRecords, ledgerOf, readMarkerObject, withLedger, type RawEntry } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-useredit-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -206,6 +214,33 @@ function expectEditSurvives(p: string, rel: string, stdout: string): void {
 
 const markerLedgers = (t: string): Record<string, unknown> => JSON.parse(readFileSync(at(t, MARKER_REL), "utf8")) as Record<string, unknown>;
 
+/** A kept ledger's entries that hold the marker (file, block, and a gemini or ask-rules entry that claims something). */
+function holdingKeys(entries: readonly RawEntry[]): string[] {
+  return entries
+    .filter((e) => {
+      if (e.kind === "file" || e.kind === "block") return true;
+      if (e.kind === "gemini") return e.addedEntry === true || e.createdFile === true;
+      if (e.kind === "ask-rules") return (Array.isArray(e.added) && e.added.length > 0) || e.createdFile === true || e.createdPermissions === true || e.createdAsk === true;
+      return false;
+    })
+    .map((e) => `${e.path}#${e.kind}`)
+    .sort();
+}
+
+/** The marker rule after editing `rel` (plan 33.1-39): derived from the installed ledger, see the header. */
+function expectMarkerAfterEdit(installedLedger: readonly RawEntry[], t: string, rel: string, u: Run): void {
+  const pointer = installedLedger.some((e) => e.kind === "block" && e.path === rel);
+  const held = installedLedger.filter((e) => e.kind === "file" && e.path === rel && !pointer).map((e) => `${e.path}#${e.kind}`);
+  expect(u.status, `exit ${u.status}\n${u.stdout}`).toBe(0);
+  if (held.length === 0) {
+    expect(existsSync(at(t, MARKER_REL)), `no recorded item was left, but the marker was kept\n${u.stdout}`).toBe(false);
+    return;
+  }
+  expect(existsSync(at(t, MARKER_REL)), `${rel} was left, but the marker was removed\n${u.stdout}`).toBe(true);
+  expect(holdingKeys(ledgerOf(markerLedgers(t))), "the kept ledger's holding entries are not exactly the edited file's").toEqual(held);
+  expect(u.stdout).toContain(`== uninstall complete — ${held.length} recorded item(s) left in place; ${MARKER_REL} kept to record them ==`);
+}
+
 describe("every edit to every installed file survives uninstall (brief DC-2 user edit, plan 33.1-34)", () => {
   it("INSTALLED_FILES is the derived set of every copy-mode variant's files, its size is INSTALLED_FILE_COUNT, and the exclusions are declared", () => {
     for (const v of SET.variants) expect(v.run.status, `the ${v.name} install did not exit 0\n${v.run.stdout}`).toBe(0);
@@ -265,6 +300,16 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     expect(Object.keys(m).filter((k) => !known.has(k)), "a marker key this test does not cover").toEqual([]);
   });
 
+  it("the marker rule after an edit is reached both ways over the derived set (plan 33.1-39): some edits leave a recorded item, some leave none", () => {
+    const entries = ledgerOf(markerLedgers(SET.variant("default").target));
+    const pointers = new Set(entries.filter((e) => e.kind === "block").map((e) => e.path));
+    const holds = (rel: string): boolean => entries.some((e) => e.kind === "file" && e.path === rel && !pointers.has(rel));
+    const edited = INSTALLED_FILES.filter((rel) => !EXCLUDED.has(rel));
+    expect(edited.filter(holds).length, "no edited file leaves a recorded item").toBeGreaterThan(0);
+    expect(edited.filter((rel) => !holds(rel)).length, "every edited file leaves a recorded item").toBeGreaterThan(0);
+    expect(pointers.size, "the pointer-file arm is not reached").toBeGreaterThan(0);
+  });
+
   for (const { path: rel, variant } of INSTALLED) {
     if (EXCLUDED.has(rel)) continue;
     it(`${rel} (edited in the ${variant} install): the user's ${isJson(rel) ? "key" : "line"} survives uninstall, and the file is never reported removed whole`, () => {
@@ -272,11 +317,13 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
       const r = realRel(v, rel);
       const t = copyOf(v, `edit-${variant}`);
       const p = at(t, r);
+      const installedLedger = ledgerOf(markerLedgers(t));
       edit(p, rel);
       const u = uninstall(v, t);
       expect([0, 3], `exit ${u.status}\n${u.stdout}`).toContain(u.status);
       expectEditSurvives(p, rel, u.stdout);
       expectNoWholeFileRemoval(u.stdout, t, r);
+      expectMarkerAfterEdit(installedLedger, t, r, u);
     }, 30_000);
   }
 

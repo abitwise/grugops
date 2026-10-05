@@ -59,8 +59,27 @@
 // says the report was skipped, and that is not a verify, because no removal depends on it. Kit-file
 // backups (`<file>.grugops-edited-<UTC stamp>`, D-32) are reported `left` by reportKitBackups.
 // Finally the .grugops/install.json marker (the one grugops-owned file under .grugops/ — D-06) is
-// removed only when owns(LEDGER, TARGET, MARKER_REL, "marker") answers owned: install's own marker for
-// this directory, holding a well-formed ledger.
+// removed only when owns(LEDGER, TARGET, MARKER_REL, "marker") answers owned (install's own marker for
+// this directory, holding a well-formed ledger) AND its record is discharged (markerDischarged).
+//
+// THE MARKER RULE (plan 33.1-39, review WR-02; this applies D-33 (b)). The marker is the only record of
+// what install wrote. A run that could not finish used to delete it anyway (exit 3, a verify per adapter
+// under a read-only .claude/agents, and the marker gone), so the README's "fix the cause and re-run" found
+// no record and left everything as unrecorded. Now the marker is removed only when no verify was counted
+// inside the ledger walk for a recorded entry (RECORDED_VERIFIES) and every file, block, gemini and
+// ask-rules entry was removed, reversed, or found already gone, or claims nothing. Otherwise it is kept
+// and rewritten from OUTCOMES to list only what is still there (updateKeptMarker), so fixing the cause and
+// re-running uninstall finishes the reversal. A run that keeps it only because a recorded file was left by
+// design (an edited file), with no verify, exits 0 and its banner says how many recorded items were left.
+//
+// DIRECTORY AND BACKUP ENTRIES DO NOT HOLD THE MARKER (a named narrowing of D-33 (b)'s "while any recorded
+// entry is left", for the human to confirm at plan 33.1-43). A directory holds no content of install's own
+// (its files are their own entries); tools/ is never removed by design, and a recorded directory left
+// non-empty holds someone else's files, so counting directories would keep the marker after every clean
+// round trip. A backup holds the user's content, which uninstall never removes. Both are still reported,
+// and a kept marker still lists those that are present. The side effect: once uninstall removes the
+// marker, the recorded backups lose their record, so `--prune-old-kit` can no longer remove them (it then
+// reports them as unrecorded); install/README.md says to prune before uninstall.
 //
 // It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state
 // (.grugops/factory.config.json, plans/, memory-bank/), the shared kit at $GRUGOPS_HOME, or any
@@ -175,19 +194,52 @@ const verify = (msg) => {
     report("verify", msg);
 };
 // GONE_THIS_RUN (red-team of plan 33.1-28, R1/R2, brief DC-2): every path this run removed, or, in
-// DRY_RUN, would remove, resolved. Two decisions read it. rmdirIfEmpty removes an empty directory only
-// when this run emptied it (an entry of it is in this set), and in DRY_RUN it counts an entry this run
-// would remove as gone, so the preview decides as the real run does. removeMarker, when it keeps a
-// marker, takes every path in this set out of the marker's ledgers, so a later run cannot act on a
-// record of something this run already removed.
+// DRY_RUN, would remove, resolved. rmdirIfEmpty removes an empty directory only when this run emptied it
+// (an entry of it is in this set), and in DRY_RUN it counts an entry this run would remove as gone, so the
+// preview decides as the real run does. (A kept marker is rewritten from OUTCOMES, plan 33.1-39.)
 const GONE_THIS_RUN = new Set();
 const markGone = (p) => {
     GONE_THIS_RUN.add(resolve(p));
 };
 const OUTCOMES = new Map();
+const outcomeKey = (e) => `${e.path}#${e.kind}`;
 const setOutcome = (e, o) => {
-    OUTCOMES.set(`${e.path}#${e.kind}`, o);
+    OUTCOMES.set(outcomeKey(e), o);
 };
+// RECORDED_VERIFIES (plan 33.1-39, review WR-02): the verify lines counted inside the ledger walk, that is,
+// by a reversal of a recorded entry. It is kept apart from VERIFY_FINDINGS (every verify of the run) because
+// the marker rule asks only whether something install recorded could not be finished; walkLedger sets it.
+let RECORDED_VERIFIES = 0;
+// THE MARKER RULE (plan 33.1-39, review WR-02, D-33 (b)). The marker is the only record of what install
+// wrote, so it is removed only once that record is discharged: no verify was counted for a recorded entry,
+// and every entry whose content install wrote (file, block, gemini, ask-rules) was removed, reversed, or
+// found already gone, or claims nothing. Directory and backup entries do not hold it (see the header).
+const HOLDING_KINDS = new Set(["file", "block", "gemini", "ask-rules"]);
+const DISCHARGED = new Set(["removed", "gone", "reversed"]);
+/** A gemini or ask-rules entry that records nothing install added or created: there is nothing of install's to reverse. */
+function claimsNothing(e) {
+    if (e.kind === "gemini")
+        return !e.addedEntry && !e.createdFile;
+    if (e.kind === "ask-rules")
+        return e.added.length === 0 && !e.createdFile && !e.createdPermissions && !e.createdAsk;
+    return false;
+}
+/** The recorded entries still holding the marker: install wrote content there, and this run did not discharge it. */
+function heldEntries() {
+    return LEDGER.entries.filter((e) => {
+        if (!HOLDING_KINDS.has(e.kind) || claimsNothing(e))
+            return false;
+        const o = OUTCOMES.get(outcomeKey(e));
+        return o === undefined || !DISCHARGED.has(o);
+    });
+}
+/** True only when the marker's record is discharged: no recorded verify, and no entry still holds it. */
+function markerDischarged() {
+    return RECORDED_VERIFIES === 0 && heldEntries().length === 0;
+}
+// KEPT_FOR (plan 33.1-39): the number of recorded paths left in place by design (no verify) for which
+// removeMarker kept the marker; the closing banner says so. 0 when the marker was removed or not kept for that.
+let KEPT_FOR = 0;
 // ---------------------------------------------------------------------------
 // The kit source's skill and adapter names (KIT-02 / T-27-06, D-28). The derivation lives in
 // ./kit-source.ts and both installers import it, so this file never holds a hand-synced copy of it.
@@ -514,10 +566,6 @@ function reverseDir(entry) {
     setOutcome(entry, rmdirIfEmpty(`${TARGET}/${entry.path}`));
 }
 const NO_BLOCK_REMOVED = { removed: false, blankAfter: false, before: null, beforeMode: null };
-// BLOCKS_GONE (plan 33.1-33): every file (POSIX path relative to the target) whose recorded block this run
-// removed or, in DRY_RUN, would remove. updateKeptMarker takes them out of a kept marker's block entries,
-// so a later run cannot remove a block the user pastes back on a record this run already used.
-const BLOCKS_GONE = new Set();
 /** Every copy of the block lines in `buf`: an open line at a line start through the first `\n<close>\n` after it. */
 function blockLineSpans(buf, open, close) {
     const head = Buffer.from(`${open}\n`, "utf8");
@@ -624,12 +672,10 @@ function removeSentinelBlock(rel, open, close, label) {
             : "sentinel block only; rest of file preserved, including the newline before the block — the block is no longer at the end of the file, where install appended it, so which newline install added is not known";
     if (DRY_RUN) {
         report("would-remove", `${label} (${how})`);
-        BLOCKS_GONE.add(rel);
         return { removed: true, blankAfter, before: buf, beforeMode: read.mode, outcome: "reversed" };
     }
     if (!rewritePath(f, result, label))
         return { ...NO_BLOCK_REMOVED, outcome: "verify" };
-    BLOCKS_GONE.add(rel);
     report("removed", `${label} (${how})`);
     return { removed: true, blankAfter, before: buf, beforeMode: read.mode, outcome: "reversed" };
 }
@@ -678,9 +724,17 @@ function reportUnrecordedBlock(rel) {
 // (removalDecision). Ownership and the decision are taken before the DRY_RUN branch, so the preview
 // names exactly what the real run removes. When conditions 1 or 2 do not hold, the file stays and its
 // block line already named it (a removed block whose file keeps lines of the user's, or a block left).
+// THE FILE ENTRY'S OUTCOME (plan 33.1-39, the marker rule). The content install wrote into a pointer file
+// it created is the block. So when this run did not remove the block, the file entry is `gone` exactly when
+// the block entry is (the file is absent, or no grugops block is in it any more) and `left` otherwise (the
+// block is still there, and holds the marker itself). When this run removed the block and the file still
+// holds lines of the user's, the file entry is `reversed`: nothing of install's is left in it, and what
+// is left is the user's, so it does not hold the marker.
 function removeOwnedEmptyFile(rel, label, result) {
-    if (!result.removed || !result.blankAfter)
-        return "left";
+    if (!result.removed)
+        return result.outcome === "gone" ? "gone" : "left";
+    if (!result.blankAfter)
+        return "reversed";
     const f = `${TARGET}/${rel}`;
     if (isProtected(f)) {
         report("refused", `${label} (protected path — never removed)`);
@@ -1236,58 +1290,83 @@ function removeMarker() {
         updateKeptMarker(m, MARKER.marker, MARKER.bytes);
         return;
     }
+    // THE MARKER RULE (plan 33.1-39, review WR-02, D-33 (b)): owned is not enough. While a recorded entry is
+    // still in place, or a reversal of one counted a verify, the marker is the record a later run needs to
+    // finish, so it is kept and rewritten to list only what is still there. Decided before the DRY_RUN
+    // branch, so the preview decides as the real run does.
+    if (!markerDischarged()) {
+        const held = [...new Set(heldEntries().map((e) => e.path))].sort();
+        const why = held.length > 0
+            ? `${held.length} recorded item(s) are still in place (${held.join(", ")})`
+            : "this run could not finish a recorded reversal (see the verify lines above)";
+        report("left", `${MARKER_REL} (kept: ${why}, so the record a later run needs to finish the reversal is kept; remove or ` +
+            `restore what is named and re-run uninstall, or delete the marker by hand to keep them without a record)`);
+        if (RECORDED_VERIFIES === 0)
+            KEPT_FOR = held.length;
+        updateKeptMarker(m, MARKER.marker, MARKER.bytes);
+        return;
+    }
     if (DRY_RUN) {
         report("would-remove", `${MARKER_REL} (grugops-owned marker)`);
         return;
     }
     unlinkPath(m, MARKER_REL, `${MARKER_REL} (grugops-owned marker; seeded .grugops/ state preserved)`);
 }
-// updateKeptMarker (red-team of plan 33.1-28, R2, brief DC-2): a marker this run keeps must not go on
-// naming what this run removed. It used to: the kept marker still listed AGENTS.md, the pointer files,
-// the runnables, the directories and the ask rules the run had just removed, and when the user later
-// made their own at those paths (README §1's copy of AGENTS.md, an empty .github/, their own
-// `Bash(git push *)` rule) the next uninstall removed them on that record. So a well-formed install
-// ledger in it is rewritten without the entries this run removed (GONE_THIS_RUN and BLOCKS_GONE, the
-// ask-rules entry as removeAskRules left it, the gemini entry as unmergeGemini left it), through the one
-// serializer (ledgerJson); a malformed ledger and every other field are written back exactly as found,
-// in their order. Today the marker is kept only over a malformed ledger, which is written back verbatim;
-// plan 33.1-39 keeps it while a recorded entry is left, and this rewrite then applies. The write goes
-// through the one rewrite (rewritePath), only after readForWrite (no link followed at the marker or on
-// the way) shows the same regular file with the same bytes this run read at its start. When it cannot
-// be written, that is a counted verify naming each entry it still lists, so the human can take them out
-// by hand. The DRY_RUN preview says what it would take out and writes nothing.
+// updateKeptMarker (red-team of plan 33.1-28, R2, brief DC-2; plan 33.1-39, review WR-02): a marker this
+// run keeps must list what is still there, and nothing this run removed or reversed. A record of something
+// this run removed would let a later run act on it: when the user later made their own file at that path
+// (README §1's copy of AGENTS.md, an empty .github/, their own `Bash(git push *)` rule), the next uninstall
+// would remove it on that record. So a well-formed install ledger is rewritten FROM OUTCOMES, through the
+// one serializer (ledgerJson):
+//   removed, gone        the entry is dropped (nothing of install's is there any more);
+//   reversed             a file or block entry is dropped (install's content in it was taken out; what is
+//                        left is the user's); a gemini or ask-rules entry is replaced by its after-record,
+//                        which claims nothing (GEMINI_LEDGER_AFTER, ASK_LEDGER_AFTER);
+//   left, verify         the entry is kept exactly as found, so a later run can finish it;
+//   dir, backup          kept only while the path is still there (and not removed by this run).
+// Every other marker field is written back exactly as found, in its order; a malformed ledger is never
+// rewritten (nothing in it was used, so nothing in it is changed). The write goes through the one rewrite
+// (rewritePath), only after readForWrite (no link followed at the marker or on the way) shows the same
+// regular file with the same bytes this run read at its start. When it cannot be written, that is a counted
+// verify naming each entry it still lists that this run removed, so the human can take them out by hand.
+// The DRY_RUN preview says what it would take out and writes nothing.
 function updateKeptMarker(m, marker, readBytes) {
     // Only install's own marker, holding a well-formed ledger, is ever rewritten: the one authority answers for
-    // the marker (plan 33.1-38). A malformed ledger is written back verbatim: nothing in it was used, so
-    // nothing in it is changed.
+    // the marker (plan 33.1-38).
     if (!owns(LEDGER, TARGET, MARKER_REL, "marker").owned)
         return;
     const stale = [];
-    const goneRel = (rel) => GONE_THIS_RUN.has(resolve(TARGET, ...rel.split("/")));
     const kept = [];
+    const named = (e) => e.kind === "dir"
+        ? `${e.path}/`
+        : e.kind === "block"
+            ? `${e.path} (its block)`
+            : e.kind === "gemini"
+                ? `${e.path} (its AGENTS.md entry)`
+                : e.kind === "ask-rules"
+                    ? `${e.path} (its ask rules)`
+                    : e.kind === "backup"
+                        ? `${e.path} (a backup)`
+                        : e.path;
     for (const e of LEDGER.entries) {
-        if ((e.kind === "file" || e.kind === "dir") && goneRel(e.path)) {
-            stale.push(e.kind === "dir" ? `${e.path}/` : e.path);
+        const o = OUTCOMES.get(outcomeKey(e));
+        if (o === "removed" || o === "gone") {
+            stale.push(named(e));
             continue;
         }
-        if (e.kind === "block" && BLOCKS_GONE.has(e.path)) {
-            stale.push(`${e.path} (its block)`);
+        if (e.kind === "dir" || e.kind === "backup") {
+            if (pathExists(`${TARGET}/${e.path}`))
+                kept.push(e);
+            else
+                stale.push(named(e));
             continue;
         }
-        if (e.kind === "ask-rules" && ASK_LEDGER_AFTER !== null) {
-            // Only an entry that still claims something is rewritten; one that claims nothing stays as it is.
-            if (e.added.length > 0 || e.createdFile || e.createdPermissions || e.createdAsk) {
-                for (const r of e.added)
-                    stale.push(r);
+        if (o === "reversed") {
+            stale.push(named(e));
+            if (e.kind === "gemini" && GEMINI_LEDGER_AFTER !== null)
+                kept.push(geminiEntry(GEMINI_LEDGER_AFTER));
+            if (e.kind === "ask-rules" && ASK_LEDGER_AFTER !== null)
                 kept.push(askRulesEntry(ASK_LEDGER_AFTER));
-                continue;
-            }
-        }
-        if (e.kind === "gemini" && GEMINI_LEDGER_AFTER !== null) {
-            // Once unmergeGemini acted on the recorded change (removed the entry or the file, or found the entry
-            // already gone), the entry claims nothing more.
-            kept.push(geminiEntry(GEMINI_LEDGER_AFTER));
-            stale.push(`${GEMINI_SETTINGS_REL} (its AGENTS.md entry)`);
             continue;
         }
         kept.push(e);
@@ -1295,10 +1374,10 @@ function updateKeptMarker(m, marker, readBytes) {
     const next = { ...marker, ledger: ledgerJson(kept) };
     if (JSON.stringify(next) === JSON.stringify(marker))
         return;
-    const what = stale.length > 0 ? stale.join(", ") : "the ask-rules entry's created-file flags";
-    const remedy = `it still lists what this run removed (${what}); take those entries out of its install ledger by hand, or a later run may act on them.`;
+    const what = stale.length > 0 ? stale.join(", ") : "the entries' recorded claims";
+    const remedy = `it still lists what this run removed or reversed (${what}); take those entries out of its install ledger by hand, or a later run may act on them.`;
     if (DRY_RUN) {
-        report("would-edit", `${MARKER_REL} (kept; the entries this run would remove would be taken out of its install ledger: ${what})`);
+        report("would-edit", `${MARKER_REL} (kept; the entries this run would remove or reverse would be taken out of its install ledger: ${what})`);
         return;
     }
     const cur = readForWrite(TARGET, m);
@@ -1307,7 +1386,7 @@ function updateKeptMarker(m, marker, readBytes) {
         return;
     }
     if (rewritePath(m, JSON.stringify(next, null, 2) + "\n", MARKER_REL, remedy)) {
-        report("edited", `${MARKER_REL} (kept; the entries this run removed were taken out of its install ledger: ${what})`);
+        report("edited", `${MARKER_REL} (kept; the entries this run removed or reversed were taken out of its install ledger: ${what})`);
     }
 }
 // ── THE LEDGER WALK (plan 33.1-38, review WR-01, D-33 (b), brief §2.2) ──────────────────────────────
@@ -1332,6 +1411,8 @@ const depthOf = (rel) => rel.split("/").length;
 function walkLedger() {
     if (LEDGER.state !== "ok")
         return;
+    // Every verify counted from here to the end of the walk is a reversal's, for a recorded entry (plan 33.1-39).
+    const verifiesBefore = VERIFY_FINDINGS;
     for (const e of entriesOfKind(LEDGER, "ask-rules"))
         reverseAskRules(e);
     for (const e of entriesOfKind(LEDGER, "gemini"))
@@ -1352,6 +1433,7 @@ function walkLedger() {
     const dirs = [...entriesOfKind(LEDGER, "dir")].sort((a, b) => depthOf(b.path) - depthOf(a.path) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     for (const d of dirs)
         reverseDir(d);
+    RECORDED_VERIFIES = VERIFY_FINDINGS - verifiesBefore;
 }
 // ── THE REPORT-ONLY PASSES (plan 33.1-38) ─────────────────────────────────────────────────────────
 // Each names a present grugops-shaped path that has NO ledger entry, as `left`, with the reason, and
@@ -1837,6 +1919,15 @@ if (VERIFY_FINDINGS > 0) {
     // from a comment is a parser and a parser that can under-match is the failure this phase has
     // shipped repeatedly. The scan stays exact and the prose works around it.
     process.exitCode = 3;
+}
+else if (KEPT_FOR > 0) {
+    // COMPLETE, WITH RECORDED ITEMS LEFT BY DESIGN (plan 33.1-39, review WR-02). Nothing failed (no verify), so
+    // the status stays 0; but the marker was kept to record what is still in place (an edited file), and the
+    // banner says so on the same branch, with the two ways forward.
+    console.log(`\n== uninstall complete — ${KEPT_FOR} recorded item(s) left in place; ${MARKER_REL} kept to record them` +
+        `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    console.log(`  To finish: remove or restore what the \`left\` lines name and re-run uninstall; or, to keep them, delete ` +
+        `${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more).`);
 }
 else {
     console.log(`\n== uninstall complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);

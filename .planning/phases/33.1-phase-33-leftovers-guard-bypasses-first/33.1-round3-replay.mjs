@@ -32,6 +32,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   appendFileSync,
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -156,7 +157,8 @@ const CASES = {
   },
 
   // The DC-2 user-edit class: edits survive byte for byte and are named; an unedited adapter goes.
-  // Nothing is asserted about the marker here (plan 33.1-39 changes that rule).
+  // Plan 33.1-39: the edited files keep the marker (exit 0), rewritten to list them; asserted in
+  // wr-02-fix-and-rerun and install/installer-marker-retention.test.ts, not here.
   "user-edit-adapter"(w) {
     const i = w.install();
     check(i.status === 0, `install exited ${i.status}, expected 0`);
@@ -176,6 +178,43 @@ const CASES = {
       check(w.lineFor(r, "left", rel) !== undefined, `no 'left ${rel}' line`);
     }
     check(!existsSync(w.at(untouched)), `the unedited adapter ${untouched} is still there`);
+  },
+
+  // Plan 33.1-39, review WR-02 (the verifier's reproduction): with .claude/agents read-only, uninstall
+  // exits 3 with a verify per adapter and used to delete the marker anyway, so after the cause was fixed
+  // the second uninstall found no record and left every adapter. Now the marker is kept, and the re-run
+  // removes every adapter and the marker, exit 0.
+  "wr-02-fix-and-rerun"(w) {
+    check(process.platform !== "win32", "this case needs a directory mode that blocks a removal (not win32)");
+    check(typeof process.getuid !== "function" || process.getuid() !== 0, "this case cannot run as root: a mode does not block root");
+    const i = w.install();
+    check(i.status === 0, `install exited ${i.status}, expected 0`);
+    const marker = w.at(".grugops/install.json");
+    const adapters = JSON.parse(readFileSync(marker, "utf8"))
+      .ledger.filter((e) => e.kind === "file" && e.path.startsWith(".claude/agents/"))
+      .map((e) => e.path);
+    check(adapters.length > 10, `the install recorded ${adapters.length} adapters`);
+    const agents = w.at(".claude/agents");
+    chmodSync(agents, 0o555);
+    let u1;
+    try {
+      u1 = w.uninstall();
+    } finally {
+      chmodSync(agents, 0o755);
+    }
+    check(u1.status === 3, `the first uninstall exited ${u1.status}, expected 3`);
+    check(existsSync(marker), "the first uninstall deleted the marker after an incomplete run");
+    for (const a of adapters) {
+      check(existsSync(w.at(a)), `${a} was removed through a read-only directory`);
+      check(u1.lines.some((l) => /^\s*verify\s/.test(l) && l.includes(a)), `no verify line names ${a}`);
+    }
+    const kept = JSON.parse(readFileSync(marker, "utf8")).ledger.filter((e) => e.kind === "file").map((e) => e.path).sort();
+    check(JSON.stringify(kept) === JSON.stringify([...adapters].sort()), `the kept marker's file entries are not exactly the adapters left: ${kept.join(", ")}`);
+    const u2 = w.uninstall();
+    check(u2.status === 0, `the re-run exited ${u2.status}, expected 0\n${u2.out.slice(-2000)}`);
+    for (const a of adapters) check(!existsSync(w.at(a)), `${a} is still there after the re-run`);
+    check(!existsSync(marker), "the marker is still there after the re-run finished");
+    check(u2.out.includes("== uninstall complete =="), "the re-run did not print the complete banner");
   },
 
   // Plan 33.1-36, the D-33 (b) tracer: the one ledger is the authority. A runnable install recorded is
