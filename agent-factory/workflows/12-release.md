@@ -18,7 +18,7 @@ Each role reads the shared verified context before it works. Each role records i
 - `plans/nfr-catalog.md` — the NFR budgets and evidence to attach.
 - `agent-factory/checklists/release-readiness-checklist.md` — the enterprise readiness gate this workflow works through.
 - `.grugops/factory.config.json` for `mode`, `environments`, and `production_requires_human_confirmation`.
-- `tools/grugops/host-protection.js` — the read-only git-host check the installer materializes. It reports whether the production environment requires a reviewer.
+- `tools/grugops/host-protection.js` — the read-only git-host check the installer materializes. It reports on the protected branches and does not report on the production environment (33.1 D-31).
 
 ## Steps
 1. Set the version (SemVer) and pick the scope — the tickets included in this release.
@@ -26,7 +26,7 @@ Each role reads the shared verified context before it works. Each role records i
 3. Confirm the migration plan, the rollback plan, and the DR notes (RTO/RPO) for the `dev -> staging -> prod` path.
 4. Attach the NFR, security, and compliance evidence from `plans/nfr-catalog.md`.
 5. Walk `agent-factory/checklists/release-readiness-checklist.md` end to end. Record the result.
-6. Record a named human approval, then a named human confirms the production action. The step is keyed to `production_requires_human_confirmation: true`. Run `node tools/grugops/host-protection.js` before the named human confirms the production action. Record the production environment's verdict in the release record. Record the same verdict as an `observation` note. A verdict other than `protected` means the host does not gate the deploy. The release record then states that only the named human's confirmation protects the deploy. That confirmation stays mandatory whatever the verdict. Exit `2` is never read as a pass. Deploy to production happens only after a named human approves. The production action is always human-confirmed, and this workflow never deploys prod itself.
+6. Record a named human approval, then a named human confirms the production action. The step is keyed to `production_requires_human_confirmation: true`. Run `node tools/grugops/host-protection.js` before the named human confirms the production action. Record its branch verdicts in the release record, and the same as an `observation` note. The check does not report on the production environment (33.1 D-31): its environment line reads `UNKNOWN - verify` by design. The release record states that only the named human's confirmation protects the deploy. That confirmation stays mandatory whatever the check reports. Exit `2` is never read as a pass. Deploy to production happens only after a named human approves. The production action is always human-confirmed, and this workflow never deploys prod itself.
 
 ## Board moves
 On `plans/board.md`, the Release Manager owns the `Ready to Release` exit. While the release is being cut and approved, the ticket sits in `Ready to Release`. Only after a named human approves the deploy does the ticket move to `Done`.

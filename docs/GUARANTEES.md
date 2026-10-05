@@ -32,7 +32,8 @@ measured. A repository that configures nothing lands here: nothing is lowered by
 Each safety floor is held in up to three tiers. The **hard floor** is the git host: it is the
 only tier that sees every push and merge, and every deployment that runs through its deployment
 environments, whatever command spelled it. `tools/grugops/host-protection.js` reports read-only
-whether it is configured; grugops never configures it. The **speed bump** is the Claude Code ask
+on the branch items; its production line reads `UNKNOWN - verify` by design (33.1 D-31). grugops
+never configures the git host. The **speed bump** is the Claude Code ask
 rules the standalone installer writes: they cover the usual command spellings and are not a
 security boundary. **Prose** is the role and workflow text an agent reads; it is a written rule
 and nothing more. The Bash command guard earlier releases shipped was retired by 33.1 D-17,
@@ -43,7 +44,7 @@ that tier.
 |---|---|---|---|
 | `open_pr` | none | none | The roles stop at a pull request instead of carrying the change further. No mechanism enforces it (33.1 D-26). |
 | `test_integrity` | none | none | The gate's test-integrity step surfaces weakened or skipped tests. No mechanism enforces it (33.1 D-26). |
-| `production_requires_human_confirmation` | The git host: a production deployment environment meeting every production item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary). | Workflow 12 requires a named human to confirm the production action. |
+| `production_requires_human_confirmation` | The git host: a production deployment environment the human configures per the production items of the git-host setup checklist in `install/README.md` §5. `tools/grugops/host-protection.js` does not report on it: its production line reads `UNKNOWN - verify` by design (33.1 D-31), and workflow 12's named human confirms the deploy. | Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary). | Workflow 12 requires a named human to confirm the production action. |
 | `protected_branch_merge` | The git host: branch protection or a ruleset on each protected branch meeting every branch item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for `git push` and `gh pr merge`, written by the installer (standalone install only; not a security boundary). | The roles stop at the pull request; a human holds the merge. |
 
 ## Which public sentences rest on which floor

@@ -945,39 +945,28 @@ For production, keep a deployment environment that:
 - [ ] does not let administrators bypass its protection rules;
 - [ ] allows deployments only from protected branches.
 
-On GitHub these are the environment's "Required reviewers" setting with at least one reviewer named
-and the option to prevent self-reviews turned on, "Allow administrators to bypass configured
-protection rules" turned off, and deployment branches set to "Protected branches only". A custom
-branch policy ("Selected branches and tags") is not read, so the check reports it as
-`UNKNOWN - verify`. The check shows the last line only when the same run sees classic branch
-protection on at least one branch: a branch it inspects, or the first branch the host lists as
-protected. GitHub documents "Protected branches only" for branch protection rules and states that
-when no branch has them, every branch can deploy
+On GitHub these are the environment's "Required reviewers" setting with at least one reviewer
+named and "Prevent self-review" turned on, "Allow administrators to bypass configured protection
+rules" turned off, and deployment branches set to "Protected branches only". GitHub documents
+"Protected branches only" for branch protection rules, and states that when no branch has them,
+every branch can deploy
 ([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
-It does not say whether rulesets count there, although its protected-branch list includes branches
-protected by rulesets
-([REST API endpoints for branches](https://docs.github.com/en/rest/branches/branches)). So a
-repository protected by rulesets alone reads `UNKNOWN - verify` for this line; adding a classic
-branch protection rule to one branch lets the check show it. When the host lists no protected
-branch, the line is not met, because every branch can deploy then. When the host lists no protected
-branch but the same run shows protection on some branch (for example a ruleset on your default
-branch), the answers disagree and the line reads `UNKNOWN - verify`. A reviewer counts only when the
-host names a user or a team with an id; a reviewer entry of any other shape makes the reviewer and
-self-review lines `UNKNOWN - verify`. The check knows two other environment protection rule types
-from GitHub's REST description, `wait_timer` and `branch_policy`. A protection rule of any other type
-next to the required-reviewers rule might be a second reviewer rule, so the reviewer and self-review
-lines read `UNKNOWN - verify`. That includes a custom deployment protection rule if GitHub lists one
-there, which has not been measured. The check reads up to 100 environments: when GitHub reports that
-the list has a further page, or its `total_count` does not match the list, every production line
-reads `UNKNOWN - verify`.
 GitHub also documents that on the Free, Pro and Team plans required reviewers are available only for
-public repositories; on a private repository under those plans the check cannot report the
-production environment as `protected`. The check finds the environment name in this order: the
-`--env <name>` flag; else the last entry of `environments` in `.grugops/factory.config.json`; else
-the last entry of `environments` in `agent-factory/config/factory.config.json`; else `production`.
-Both files are read relative to the directory the check runs in. A file that cannot be parsed, or
-whose `environments` is not a list ending in a name, is skipped. So is a path that is not a regular
-file of at most 1 MiB, such as a directory or a named pipe: the check does not read it.
+public repositories.
+
+**The check does not read the production environment (decision 33.1 D-31).** Its environment line
+always reads `UNKNOWN - verify`, by design, whatever the environment's settings are. Confirm each
+line of the production list above yourself, in the environment's settings on your git host. The
+release record (workflow 12) states that only the named human's confirmation vouches for the deploy
+floor, and that confirmation stays mandatory.
+
+The environment line still names the environment it is about, although the check does not read that
+environment (33.1 D-31). The check finds the name in this order: the `--env <name>` flag; else the
+last entry of `environments` in `.grugops/factory.config.json`; else the last entry of
+`environments` in `agent-factory/config/factory.config.json`; else `production`. Both files are
+read relative to the directory the check runs in. A file that cannot be parsed, or whose
+`environments` is not a list ending in a name, is skipped. So is a path that is not a regular file of
+at most 1 MiB, such as a directory or a named pipe: the check does not read it.
 
 #### Check it
 
@@ -986,37 +975,43 @@ node tools/grugops/host-protection.js
 ```
 
 The installer places this script in your repository. It asks the git host, through read-only
-`gh api` GET requests, whether the default branch, `main`/`master`, any branch you name with
-`--branch <name>` (repeatable) and the production environment are protected. It prints one line per
-target with one of three words:
+`gh api` GET requests, whether the default branch, `main`/`master` and any branch you name with
+`--branch <name>` (repeatable) are protected. It prints one line per branch with one of three words:
 
-- `protected` — the host showed positive evidence for every item of the checklist above that
-  applies to the target (the branch list for a branch, the production list for the environment),
+- `protected` — the host showed positive evidence for every item of the branch checklist above,
   from rules the account the check runs under cannot bypass.
 - `unprotected` — the host answered, and at least one item is missing or can be bypassed by that
   account.
 - `UNKNOWN - verify` — the check could not tell: no `gh`, not authenticated, no permission to read
   the setting, or an ambiguous answer. Treat it as not verified. It never counts as protected.
 
+After the branch lines comes one line for the production environment,
+`environment <name>: UNKNOWN - verify — not checked by design …`. It is not a verdict: the check
+does not read the environment (decision 33.1 D-31), and the production list above is yours to
+confirm.
+
 Before the target lines, the check prints the repository it inspected, `repository <owner>/<name>`,
 as gh resolved `{owner}/{repo}` (the `GH_REPO` variable, `gh repo set-default`, or the git remotes).
 In a fork clone, confirm that it names the repository your agent pushes to. When the host does not
 name the repository, or names it inconsistently (its `full_name` and `url` disagree, or its `name`,
 `owner` or `html_url` names another), the line reads
-`repository UNKNOWN - verify` and every target reads `UNKNOWN - verify`. The check reads that `url`
+`repository UNKNOWN - verify` and every branch reads `UNKNOWN - verify`. The check reads that `url`
 only in its plain form, `https://api.github.com/repos/<owner>/<name>`, or
 `https://<host>/api/v3/repos/<owner>/<name>` on GitHub Enterprise Server; any other form, including
 an API host other than `api.github.com` without the `/api/v3` prefix, reads
 `repository UNKNOWN - verify`. Other urls in the host's answers that name a repository (a protection
-record's `url`, an environment's `url` and `html_url`, a branch's `protection_url`) must name
-the same one, or the lines they feed read `UNKNOWN - verify`.
+record's `url`, a branch's `protection_url`) must name the same one, or the lines they feed read
+`UNKNOWN - verify`.
 
-Exit codes: `0` every target is protected; `1` at least one target is unprotected; `2` otherwise,
-including when the check could not run. `--json` adds the repository name (`repository`, or null)
-and the full record of every call it made. The
-check is read-only and needs an authenticated `gh` (`gh auth status`). The PR quality gate
-(workflow 05) and the release (workflow 12) run it and record the result; the release still needs
-the named human confirmation whatever the check reports.
+Exit codes count branches: `0` every inspected branch is protected; `1` at least one branch is
+unprotected; `2` otherwise, including when the check could not run. The environment line does not
+change the exit code, so exit `0` says nothing about the production environment
+(decision 33.1 D-31). A command line the check cannot read (an unknown argument, or `--branch`, `--env` or
+`--gh-script` with no value) exits `2` before any request to the host. `--json` adds the repository
+name (`repository`, or null) and the full record of every call it made, and arrives whole when piped
+to another program. The check is read-only and needs an authenticated `gh` (`gh auth status`). The
+PR quality gate (workflow 05) and the release (workflow 12) run it and record the result; the
+release still needs the named human confirmation whatever the check reports.
 
 ### (b) Speed bump — Claude Code ask rules (standalone install only)
 

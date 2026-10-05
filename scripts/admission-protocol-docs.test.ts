@@ -138,8 +138,11 @@ describe("VFY-04: bounded self_fix_attempts loop and honest escape hatch", () =>
     const text = readFileSync(WF05, "utf8");
     expect(text).toContain("3. Run the read-only git-host check first: `node tools/grugops/host-protection.js`.");
     // The three exit branches, and the one that must never read as a pass.
-    expect(text).toContain("`0` → record an `observation` note naming each protected branch and the production environment.");
-    expect(text).toContain("`1` → record an `observation` note naming each `unprotected` target.");
+    // Plan 33.1-41 (33.1 D-31 Q4): the check does not read the production environment, so exit 0
+    // names the protected branches and says the environment is not checked.
+    expect(text).toContain("It does not read the production environment (33.1 D-31). Its environment line reads `UNKNOWN - verify` by design and does not change the exit code.");
+    expect(text).toContain("`0` → record an `observation` note naming each protected branch. The note says the production environment is not checked (`UNKNOWN - verify` by design, 33.1 D-31).");
+    expect(text).toContain("`1` → record an `observation` note naming each `unprotected` branch.");
     expect(text).toContain("`2` → record `UNKNOWN - verify` with the reason the check printed. Exit `2` is never read as a pass.");
     expect(text).toContain("No note claims the floor exists without a `protected` line.");
     // The retired banner is gone, by its prose name and by its fixed line. Its function name is not

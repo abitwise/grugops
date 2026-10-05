@@ -307,10 +307,10 @@ export const SAFETY_FLOORS: readonly SafetyFloor[] = [
   {
     id: "production_requires_human_confirmation",
     configPath: "checkpoints.production_requires_human_confirmation",
-    why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy. The hard floor is the git host: a production deployment environment meeting every production item of the git-host setup checklist in `install/README.md` §5, reported read-only by `tools/grugops/host-protection.js` (D-19). The installer's Claude Code ask rules for the deploy and publish tools are a speed bump in front of it (D-18). The config cell decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
+    why: "Whether a production deploy demands a named human confirmation. Lowering it falsifies every claim that humans hold the deploy. The hard floor is the git host: a production deployment environment the human configures per the production items of the git-host setup checklist in `install/README.md` §5 (D-19). `tools/grugops/host-protection.js` does not report on it: its production line reads `UNKNOWN - verify` by design (33.1 D-31), and workflow 12's named human confirms the deploy. The installer's Claude Code ask rules for the deploy and publish tools are a speed bump in front of it (D-18). The config cell decides whether those rules are written, and nothing at run time reads it (33.1 D-17, D-26).",
     enforcement: {
       hardFloor:
-        "The git host: a production deployment environment meeting every production item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`.",
+        "The git host: a production deployment environment the human configures per the production items of the git-host setup checklist in `install/README.md` §5. `tools/grugops/host-protection.js` does not report on it: its production line reads `UNKNOWN - verify` by design (33.1 D-31), and workflow 12's named human confirms the deploy.",
       speedBump:
         "Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary).",
       prose: "Workflow 12 requires a named human to confirm the production action.",

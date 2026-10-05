@@ -39,7 +39,8 @@ release, together with Phase 33.1, which retires the Bash command guard.
   pre-existing user rules are preserved, and uninstall removes only what install added.
 - A read-only git-host check, `tools/grugops/host-protection.js`, that the gate and release
   workflows run. It reports `protected`, `unprotected` or `UNKNOWN - verify` for each protected
-  branch and production environment, and never changes host settings (33.1 D-19).
+  branch, and never changes host settings (33.1 D-19). It does not read the production
+  environment: its environment line reads `UNKNOWN - verify` by design (33.1 D-31).
 - A "Where each floor is enforced" section in `docs/GUARANTEES.md`, generated from the audit model,
   that names the hard-floor, speed-bump and prose tier of every safety floor.
 
@@ -135,6 +136,12 @@ release, together with Phase 33.1, which retires the Bash command guard.
 
 ### Fixed
 
+- The host check's `--json` output now arrives whole when piped to a reader that is slow to read.
+  It was cut at 64 KiB, because the check exited before its output was flushed (33.1 gap round 2
+  review, WR-04).
+- The host check refuses a command line it cannot read. An unknown argument (such as
+  `--brnach release`), or `--branch`, `--env` or `--gh-script` with no value, exits 2 before any
+  request to the host; before, it was ignored or its value dropped (IN-04).
 - `--prune-old-kit` removes only backups install recorded, and only while they are unchanged since
   install made them: every file's bytes and permission bits, every link and every name in the backup.
   It used to remove any file or directory whose name ended in `.bak.<ISO>`, at the target root and in
@@ -244,34 +251,32 @@ release, together with Phase 33.1, which retires the Bash command guard.
   required reviewer are what stop an unapproved merge or deploy, whatever the agent types. The
   Claude Code ask rules are a speed bump and not a security boundary: they make Claude Code ask
   before a matched command, they do not match every way of writing one, and the plugin form carries
-  none. Configure host protection with the checklist in `install/README.md` §5, and confirm it
-  with the read-only host check. Prose rules remain prose.
-- The read-only git-host check (`tools/grugops/host-protection.js`) now answers `protected` only
-  when the host positively shows every item of the git-host setup checklist in `install/README.md`
-  §5. For a branch that includes a required pull request with at least one approving review,
-  blocked force pushes, restricted deletions, and rules that the checked account cannot bypass. For
-  production it includes a deployment environment under the configured name that requires a
-  reviewer, prevents self-review, does not let administrators bypass its protection rules, and
-  allows deployments only from protected branches. A missing or unreadable setting is reported as
-  `UNKNOWN - verify`, never as protected. Earlier builds could answer `protected` on weaker
-  evidence, such as a single required reviewer on an environment that allowed self-review or
-  administrator bypass. Re-run the check to confirm your host (33.1 gap round 1, CR-01).
+  none. Configure host protection with the checklist in `install/README.md` §5, and confirm the
+  branch items with the read-only host check. The check does not read the production environment,
+  whose line reads `UNKNOWN - verify` by design (33.1 D-31), so confirm the environment's settings
+  on the git host yourself. Prose rules remain prose.
+- The read-only git-host check (`tools/grugops/host-protection.js`) now answers `protected` for a
+  branch only when the host positively shows every branch item of the git-host setup checklist in
+  `install/README.md` §5: a required pull request with at least one approving review, blocked force
+  pushes, restricted deletions, and rules that the checked account cannot bypass. A missing or
+  unreadable setting is reported as `UNKNOWN - verify`, never as protected. It does not read the
+  production environment: its line reads `UNKNOWN - verify` by design, and the production list of
+  the checklist is the human's to confirm (33.1 D-31). Earlier, unreleased builds of the check read
+  the environment and could answer `protected` on weaker evidence. Re-run the check to confirm your
+  host (33.1 gap round 1, CR-01).
 - The read-only git-host check reads the host more strictly (33.1 gap round 2). It no longer reads a
   missing classic `bypass_pull_request_allowances` setting as "no one can bypass": the pull-request
-  and approval lines read `UNKNOWN - verify` unless the setting is present and lists no one. The
-  production line "allows deployments only from protected branches" needs classic branch protection
-  shown in the same run, so a repository protected by rulesets alone reads `UNKNOWN - verify` for
-  it. A reviewer counts only when the host names a user or a team with an id. A host list with a
-  further page (more than 100 rules or environments), or an environment protection rule of a type
-  the check does not know next to the reviewer rule, reads `UNKNOWN - verify`. The report names the
+  and approval lines read `UNKNOWN - verify` unless the setting is present and lists no one. A rule
+  list with a further page (more than 100 rules) reads `UNKNOWN - verify`. The report names the
   repository it inspected on its first line, and `--json` carries it as `repository`; a run that
-  cannot name the repository reports every target `UNKNOWN - verify`. The repository `url` is read
+  cannot name the repository reports every branch `UNKNOWN - verify`. The repository `url` is read
   only in its plain form on `api.github.com` or under a GitHub Enterprise Server `/api/v3` prefix, and
   every other url that names a repository must name the same one. A ruleset counts only when its
   source names the inspected repository, or its owner for an organization ruleset; an enterprise
   ruleset reads `UNKNOWN - verify`. Host text is printed with bidirectional and other invisible
   characters escaped. A `factory.config.json` that is not a regular file is skipped without being
-  opened. Re-run the check to confirm your host.
+  opened. The production environment checks this round added went with the rest of the environment
+  reading (33.1 D-31). Re-run the check to confirm your host.
 - The admission-guard hook's matcher now matches the plugin-scoped tool name
   (`mcp__(plugin_grugops_)?grugops__.*`). Before this change the matcher was the bare server family
   `mcp__grugops__.*`, and the platform's plugin reference states that for a plugin's bundled MCP

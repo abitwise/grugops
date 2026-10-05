@@ -100,8 +100,9 @@ tool. There are three tiers:
   production deployment environment, each meeting every item of the git-host setup checklist in
   `install/README.md` §5. It is the only tier that sees every
   push and merge, and every deployment that runs through its environments, whatever command
-  started it. grugops never configures it; `tools/grugops/host-protection.js` reports read-only
-  whether it is configured.
+  started it. grugops never configures it. `tools/grugops/host-protection.js` reports read-only on
+  the branch items; its production line reads `UNKNOWN - verify` by design (33.1 D-31), so the
+  human confirms the production environment's settings on the host.
 - **Speed bump — host CLI approval prompts.** They cover the usual command spellings and are
   not a security boundary.
 - **Prose — the role and workflow rules.** The Orchestrator and Release Manager stop at a pull

@@ -48,8 +48,10 @@ This dogfood runs at `autonomy=pr`. It NEVER deploys to production.
   production target. The agent opens a branch and a pull request and never merges.
 - **The git host is the hard floor.** Branch protection on the protected branches and a production
   deployment environment with a required reviewer are what stop an unapproved merge or deploy.
-  Check them read-only with `node tools/grugops/host-protection.js`, which prints `protected`,
-  `unprotected` or `UNKNOWN - verify` for each branch and environment. The setup checklist is in
+  Check the branches read-only with `node tools/grugops/host-protection.js`, which prints
+  `protected`, `unprotected` or `UNKNOWN - verify` for each branch. Its production environment line
+  always reads `UNKNOWN - verify`, by design (33.1 D-31): the check does not read the environment,
+  so confirm the environment's settings yourself on the git host. The setup checklist is in
   `install/README.md` §5.
 - **The Claude Code ask rules are a speed bump, not a security boundary.** The standalone installer
   writes them into `.claude/settings.json`, so Claude Code asks before a matched push, merge,
@@ -119,8 +121,10 @@ Where the two remaining safety tiers are evidenced instead:
   non-interactively was measured at zero tokens and is recorded in
   `.planning/phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-ASK-P-MODE-EVIDENCE.md`.
 - **Hard floor (git host).** Run `node tools/grugops/host-protection.js` in the sample repo. It is
-  read-only and reports `protected`, `unprotected` or `UNKNOWN - verify` for each protected
-  branch and production environment.
+  read-only and reports `protected`, `unprotected` or `UNKNOWN - verify` for each protected branch.
+  You will also see one `environment <name>: UNKNOWN - verify — not checked by design …` line: the
+  check does not read the production environment (33.1 D-31), so confirm its settings yourself on
+  the git host.
 
 **Record:** none. This check is retired.
 
