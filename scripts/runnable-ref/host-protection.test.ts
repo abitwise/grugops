@@ -2922,6 +2922,138 @@ describe("host-protection.js — red-team 33.1-25 B2: a writer blocked on a FIFO
   }
 });
 
+// ── WR-04 and IN-04 (plan 33.1-41) ─────────────────────────────────────────────────────────────────
+// WR-04: the D-12 block must reach its reader whole. stdout to a pipe is asynchronous on darwin, and
+// an immediate exit drops what is still queued there; the tail now sets process.exitCode instead.
+// Measured on the immediate-exit tail before this plan: 30 `--branch` flags with `--json`, piped
+// through `(sleep 2; wc -c)`, arrived as 65536 bytes against 122691 written to a file, in 5 of 5 runs.
+// IN-04: a command line the check cannot read is refused with exit 2 before any gh call.
+const SLOW_PIPE_BRANCHES = 30;
+const SLOW_PIPE_DELAY_S = 2;
+const SLOW_PIPE_RUNS = 3;
+const shQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
+// The same command through sh, once into a file and once through a reader that waits before it reads.
+function slowPipeBytes(extraEnv: Record<string, string> = {}): { file: number; piped: number[] } {
+  const scratch = mkTmp();
+  const fixture = join(scratch, "fixture.json");
+  writeFileSync(fixture, JSON.stringify(base()));
+  const branches = Array.from({ length: SLOW_PIPE_BRANCHES }, (_, i) => `--branch b${i + 1}`).join(" ");
+  const cmd = `${shQuote(process.execPath)} ${shQuote(CHECK_JS)} --gh-script ${shQuote(GH_STUB)} --json ${branches}`;
+  const env = { ...process.env, GH_STUB_FIXTURE: fixture, GH_STUB_LOG: "", ...extraEnv };
+  const out = join(scratch, "out.txt");
+  spawnSync("sh", ["-c", `${cmd} > ${shQuote(out)} 2>/dev/null`], { env, encoding: "utf8" });
+  const file = readFileSync(out).length;
+  const piped: number[] = [];
+  for (let i = 0; i < SLOW_PIPE_RUNS; i++) {
+    const r = spawnSync("sh", ["-c", `${cmd} 2>/dev/null | (sleep ${SLOW_PIPE_DELAY_S}; wc -c)`], { env, encoding: "utf8" });
+    piped.push(Number((r.stdout ?? "").trim()));
+  }
+  return { file, piped };
+}
+
+describe("host-protection.js — WR-04: the D-12 output reaches a slow reader whole (plan 33.1-41)", () => {
+  it.skipIf(process.platform === "win32")(
+    `--json with ${SLOW_PIPE_BRANCHES} --branch flags through a reader that waits ${SLOW_PIPE_DELAY_S} s: every run delivers the byte count the same run writes to a file (skipped on win32: no sh)`,
+    { timeout: 120_000 },
+    () => {
+      const { file, piped } = slowPipeBytes();
+      // Large enough that the old tail truncated it: more than one 64 KiB pipe buffer.
+      expect(file, "the run writes more than a pipe buffer").toBeGreaterThan(65536);
+      expect(piped).toEqual(Array.from({ length: SLOW_PIPE_RUNS }, () => file));
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "an exception during the run prints its one could-not-run line in full through a slow pipe and exits 2 (skipped on win32: no sh)",
+    { timeout: 60_000 },
+    () => {
+      const scratch = mkTmp();
+      // A preload that makes the ruleset read throw, so the uncaughtException handler answers.
+      const inject = join(scratch, "inject.cjs");
+      writeFileSync(
+        inject,
+        'const cp = require("node:child_process"); const real = cp.spawnSync; cp.spawnSync = function (c, a) { if (Array.isArray(a) && a.some((x) => typeof x === "string" && x.includes("rulesets/"))) throw new Error("injected failure in the ruleset read"); return real.apply(this, arguments); };\n',
+      );
+      const fixture = join(scratch, "fixture.json");
+      writeFileSync(fixture, JSON.stringify(base()));
+      const cmd = `${shQuote(process.execPath)} ${shQuote(CHECK_JS)} --gh-script ${shQuote(GH_STUB)} --json`;
+      const r = spawnSync("sh", ["-c", `${cmd} 2>/dev/null | (sleep 1; cat); exit $(( $? ))`], {
+        env: { ...process.env, GH_STUB_FIXTURE: fixture, GH_STUB_LOG: "", NODE_OPTIONS: `--require ${inject}` },
+        encoding: "utf8",
+      });
+      expect(r.stdout).toBe("HOST-PROTECTION: the check could not run (injected failure in the ruleset read) — UNKNOWN - verify\n");
+      const status = spawnSync("node", [CHECK_JS, "--gh-script", GH_STUB], {
+        env: { ...process.env, GH_STUB_FIXTURE: fixture, GH_STUB_LOG: "", NODE_OPTIONS: `--require ${inject}` },
+        encoding: "utf8",
+      }).status;
+      expect(status).toBe(2);
+    },
+  );
+
+  it("source and committed: the last statement sets process.exitCode, and exactly two immediate-exit calls remain", () => {
+    for (const [label, path] of [
+      ["host-protection.ts", join(HERE, "host-protection.ts")],
+      ["host-protection.js", CHECK_JS],
+    ] as const) {
+      const src = readFileSync(path, "utf8");
+      const code = src.split("\n").filter((l) => !/^\s*\/\//.test(l) && l.trim() !== "");
+      expect(`${label}: ${code[code.length - 1].trim()}`).toBe(`${label}: process.exitCode = exitCode;`);
+      // The defect, by name, anywhere in the file (prose included): the tail never exits with the code.
+      expect(`${label}: ${src.includes("process.exit(exitCode)")}`).toBe(`${label}: false`);
+      // TWO, pinned: the uncaughtException handler and the bad-usage check (IN-04). Each writes its
+      // one line synchronously first, and each runs when nothing larger than that line is queued.
+      const exits = code.filter((l) => l.includes("process.exit(")).length;
+      expect(`${label} immediate-exit calls: ${exits}`).toBe(`${label} immediate-exit calls: 2`);
+    }
+  });
+});
+
+describe("host-protection.js — IN-04: a command line the check cannot read exits 2 before any gh call (plan 33.1-41)", () => {
+  const BAD_USAGE: Array<[string, string[], string]> = [
+    ["a misspelled flag (--brnach release)", ["--brnach", "release"], "unknown argument: --brnach"],
+    ["--branch as the last argument", ["--branch"], "--branch needs a value"],
+    ["--branch followed by --json", ["--branch", "--json"], "--branch needs a value"],
+    ["--branch -x", ["--branch", "-x"], "--branch needs a value"],
+    ["--env with no value", ["--env"], "--env needs a value"],
+    ["--env -x (the review's case)", ["--env", "-x"], "--env needs a value"],
+    ["--env= (empty)", ["--env="], "--env needs a value"],
+    ["--branch= (empty)", ["--branch="], "--branch needs a value"],
+    ["--gh-script with no value", ["--gh-script"], "--gh-script needs a value"],
+    ["--json=1 (--json takes no value)", ["--json=1"], "unknown argument: --json=1"],
+    ["a bare word", ["release"], "unknown argument: release"],
+  ];
+  it("the bad-usage table has the pinned size (11)", () => {
+    expect(BAD_USAGE).toHaveLength(11);
+  });
+  it.each(BAD_USAGE)("%s → exit 2, no gh call, the reason on stderr and one bad-usage line on stdout", (_label, args, reason) => {
+    const r = runCheck(base(), args);
+    expect(r.status).toBe(2);
+    expect(r.calls).toEqual([]);
+    expect(r.stdout).toBe(`HOST-PROTECTION: the check could not run (bad usage: ${reason}${reason.includes("needs a value") ? ` (${reason.split(" ")[0]} <value>, or ${reason.split(" ")[0]}=<value> for a value that begins with -)` : ""}) — UNKNOWN - verify\n`);
+    expect(r.stderr).toContain(reason);
+    expect(r.stderr).toContain("usage: node tools/grugops/host-protection.js");
+  });
+
+  it("controls: --branch=release, --env=staging, repeated --branch and --json anywhere still work", () => {
+    const fx = base({ [RULES("release")]: { status: 200, body: RULESET_PROTECTED }, [RULES("hotfix")]: { status: 200, body: RULESET_PROTECTED } });
+    const eq = runCheck(fx, ["--branch=release", "--env=staging"]);
+    expect(verdictOf(eq.stdout, "branch", "release")).toBe("protected");
+    expect(verdictOf(eq.stdout, "environment", "staging")).toBe("UNKNOWN - verify");
+    expect(eq.status).toBe(0);
+    for (const args of [
+      ["--json", "--branch", "release", "--branch", "hotfix"],
+      ["--branch", "release", "--json", "--branch", "hotfix"],
+      ["--branch", "release", "--branch", "hotfix", "--json"],
+    ]) {
+      const r = runCheck(fx, args);
+      expect(verdictOf(r.stdout, "branch", "release"), args.join(" ")).toBe("protected");
+      expect(verdictOf(r.stdout, "branch", "hotfix"), args.join(" ")).toBe("protected");
+      expect(jsonBlock(r.stdout).ok, args.join(" ")).toBe(true);
+      expect(r.status, args.join(" ")).toBe(0);
+    }
+  });
+});
+
 // Runs LAST (vitest runs a file's tests in declaration order): aggregates the stub log of every
 // case above. This is the read-only proof (T-33.1-41): the check has two argv shapes and no other.
 describe("host-protection.js — read-only by construction", () => {

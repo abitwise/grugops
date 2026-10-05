@@ -154,7 +154,8 @@
 //     exit 0 → every inspected branch is `protected`
 //     exit 1 → at least one branch is `unprotected`
 //     exit 2 → no branch `unprotected`, but at least one `UNKNOWN - verify`, or the check could not
-//              run. Exit 2 is never a pass.
+//              run (bad usage included: an unknown argument, or `--branch`, `--env` or `--gh-script`
+//              with no value, is refused before any gh call, IN-04). Exit 2 is never a pass.
 //     The environment line reads `UNKNOWN - verify` by design (33.1 D-31) and does not change the
 //     exit code: the production environment is not checked, whatever the exit code says.
 //     stdout → human-readable lines in CLEAR PROFESSIONAL VOICE (the audit trail)
@@ -172,6 +173,8 @@
 //              evidence } per row of its table; the environment's facts are each `unknown`, with
 //              the evidence `not read by design (33.1 D-31)`), and `calls` is the argv of every gh
 //              call, so a recorded note shows how each verdict was reached
+//     stdout → arrives whole on a pipe: the run sets the exit code and ends, it does not exit while
+//              output is still queued (WR-04)
 //
 // TEST SEAM. `--gh-script <path>` runs `node <path> <args…>` in place of `gh`. It exists so the
 // test suite can drive a Node stub instead of the network; the gate and release workflows never
@@ -185,16 +188,37 @@
 // English. This is a safety surface.
 
 import { spawnSync } from "node:child_process";
-import { closeSync, constants as fsConstants, existsSync, fstatSync, openSync, readSync, statSync, type Stats } from "node:fs";
+import { closeSync, constants as fsConstants, existsSync, fstatSync, openSync, readSync, statSync, writeSync, type Stats } from "node:fs";
 import { join } from "node:path";
 
 // An unexpected failure must never surface as exit 1, which the contract reserves for "at least
 // one target is unprotected". Anything thrown is the "could not run" answer: exit 2.
 // The message is printed through printable() (IN-04): it may carry host text.
+// The line is written SYNCHRONOUSLY before the exit (WR-04, plan 33.1-41): stdout to a pipe is
+// asynchronous on darwin, and an immediate exit drops a line still queued there.
 process.on("uncaughtException", (err) => {
-  console.log(`HOST-PROTECTION: the check could not run (${err instanceof Error ? printable(err.message) : hostText(err)}) — UNKNOWN - verify`);
+  writeAllSync(1, `HOST-PROTECTION: the check could not run (${err instanceof Error ? printable(err.message) : hostText(err)}) — UNKNOWN - verify\n`);
   process.exit(2);
 });
+
+// Write all of `text` to file descriptor `fd` before returning (WR-04). libuv puts a pipe on stdout
+// into non-blocking mode, so a write to a pipe whose reader is slow can be refused with EAGAIN; the
+// rest is retried every 10 ms for at most 30 s. Any other error, or the deadline, ends the attempt
+// quietly: this runs on the way to an exit and must not throw.
+function writeAllSync(fd: number, text: string): void {
+  const buf = Buffer.from(text, "utf8");
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  const deadline = Date.now() + 30_000;
+  let off = 0;
+  while (off < buf.length) {
+    try {
+      off += writeSync(fd, buf, off, buf.length - off);
+    } catch (e) {
+      if (!(e instanceof Error && "code" in e && e.code === "EAGAIN") || Date.now() > deadline) return;
+      Atomics.wait(pause, 0, 0, 10);
+    }
+  }
+}
 
 type Verdict = "protected" | "unprotected" | "UNKNOWN - verify";
 
@@ -224,35 +248,42 @@ interface ApiResult {
   problem: string | undefined; // why the call could not be read, when it could not
 }
 
-// --- args -------------------------------------------------------------------------------------
+// --- args: one loop, every argument read or refused (IN-04, plan 33.1-41) ----------------------
+// Mirrors install/install.ts's argument loop. `--json` takes no value. `--branch`, `--env` and
+// `--gh-script` each take one, as `--flag value` or `--flag=value`. A value that is absent, empty,
+// or (in the two-token form) starts with `-` is bad usage, and so is any other argument: before this
+// loop `--brnach release` was ignored, so the run could exit 0 without inspecting the branch the
+// caller meant, and `--env -x` dropped its value silently. A bad command line is refused with exit 2
+// before any gh call (at the bad-usage check above the main flow, where printable() is ready).
+// `--branch` repeats; a repeated `--env` or `--gh-script` keeps the last value.
+const USAGE = "node tools/grugops/host-protection.js [--json] [--branch <name>]... [--env <name>]";
+const VALUE_FLAGS = ["--branch", "--env", "--gh-script"] as const;
+let wantJson = false;
+const extraBranches: string[] = [];
+let envFlag: string | undefined;
+let ghScript: string | undefined;
+let usageError: string | undefined;
 const argv = process.argv.slice(2);
-const wantJson = argv.includes("--json");
-
-// Every value of a "--flag value" or "--flag=value" pair; a value that is itself a flag is not
-// taken as a value.
-function flagValues(name: string): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === name) {
-      const v = argv[i + 1];
-      if (v !== undefined && !v.startsWith("-")) out.push(v);
-    } else if (a.startsWith(`${name}=`)) {
-      out.push(a.slice(name.length + 1));
-    }
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === "--json") {
+    wantJson = true;
+    continue;
   }
-  return out;
-}
-function flagValue(name: string): string | undefined {
-  const all = flagValues(name);
-  return all.length > 0 ? all[all.length - 1] : undefined;
-}
-
-const ghScript = flagValue("--gh-script");
-if (ghScript !== undefined) {
-  // Said on stderr so the stdout line contract is unchanged, and said every time, so a run that
-  // took its answers from a script rather than from gh is never mistaken for a host reading.
-  process.stderr.write(`host-protection: --gh-script test seam in use (${ghScript}); these verdicts do not come from gh.\n`);
+  const flag = VALUE_FLAGS.find((f) => a === f || a.startsWith(`${f}=`));
+  if (flag === undefined) {
+    usageError = `unknown argument: ${a}`;
+    break;
+  }
+  const twoToken = a === flag;
+  const value = twoToken ? argv[++i] : a.slice(flag.length + 1);
+  if (value === undefined || value === "" || (twoToken && value.startsWith("-"))) {
+    usageError = `${flag} needs a value (${flag} <value>, or ${flag}=<value> for a value that begins with -)`;
+    break;
+  }
+  if (flag === "--branch") extraBranches.push(value);
+  else if (flag === "--env") envFlag = value;
+  else ghScript = value;
 }
 
 // --- the one gh launcher ------------------------------------------------------------------------
@@ -1499,8 +1530,7 @@ function readConfigText(path: string): string | undefined {
 }
 
 function environmentName(): { name: string; source: string } {
-  const flag = flagValue("--env");
-  if (flag !== undefined && flag.length > 0) return { name: flag, source: "the --env flag" };
+  if (envFlag !== undefined && envFlag.length > 0) return { name: envFlag, source: "the --env flag" };
   for (const rel of [".grugops/factory.config.json", "agent-factory/config/factory.config.json"]) {
     // Through the one bounded reader: a candidate that is not a regular file within the bound is
     // skipped as unreadable (brief DC-3).
@@ -1562,9 +1592,25 @@ function environmentByDesign(name: string, source: string): Target {
   };
 }
 
+// --- bad usage (IN-04), then the test-seam notice ------------------------------------------------
+// A command line the loop above refused ends the run here, with exit 2, before any gh call. The
+// reason goes to stderr and one `HOST-PROTECTION: the check could not run (bad usage: …)` line to
+// stdout, each written synchronously. This mid-script exit is safe: nothing larger than one line has
+// been written yet, so nothing can still be queued on a pipe for the exit to drop (WR-04).
+if (usageError !== undefined) {
+  const why = printable(usageError);
+  writeAllSync(2, `host-protection: ${why} (usage: ${USAGE})\n`);
+  writeAllSync(1, `HOST-PROTECTION: the check could not run (bad usage: ${why}) — UNKNOWN - verify\n`);
+  process.exit(2);
+}
+if (ghScript !== undefined) {
+  // Said on stderr so the stdout line contract is unchanged, and said every time, so a run that
+  // took its answers from a script rather than from gh is never mistaken for a host reading.
+  process.stderr.write(`host-protection: --gh-script test seam in use (${printable(ghScript)}); these verdicts do not come from gh.\n`);
+}
+
 // --- the check --------------------------------------------------------------------------------
 const targets: Target[] = [];
-const extraBranches = flagValues("--branch");
 const env = environmentName();
 
 let cannotAsk: string | undefined;
@@ -1737,4 +1783,13 @@ if (wantJson) {
     ),
   );
 }
-process.exit(exitCode);
+// THE TAIL SETS THE CODE; IT DOES NOT EXIT (WR-04, plan 33.1-41). stdout to a pipe is asynchronous
+// on darwin, and an immediate exit drops whatever is still queued there. The gap-round-2 review
+// measured it: with 30 `--branch` flags and `--json`, piped through a reader that waits 2 s, the
+// block arrived cut at 65536 bytes while the same run wrote 96801 bytes to a file. The installer
+// measured and fixed the same class (install/install.ts, the `process.exitCode` note at its
+// INCOMPLETE tail). Setting the code and falling off the end lets Node flush stdout first, and the
+// code still reaches a chained caller (`node host-protection.js && next-step` still stops on 1 or
+// 2). This is the last statement of the module; the only immediate exits left are the
+// uncaughtException handler and the bad-usage check, and each writes synchronously first.
+process.exitCode = exitCode;

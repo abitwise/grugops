@@ -565,6 +565,34 @@ const CASES = {
     const target = block.targets.find((t) => t.kind === "environment");
     check(target?.verdict === "UNKNOWN - verify" && target.facts.every((f) => f.state === "unknown"), "the environment target is not UNKNOWN - verify with unknown facts");
   },
+
+  // Plan 33.1-41, review WR-04: the review's run (30 --branch flags, --json) through `(sleep 2; wc -c)`
+  // delivers the byte count the same run writes to a file. Before the fix: 65536 bytes every time.
+  "wr-04-slow-pipe"(w) {
+    if (process.platform === "win32") return;
+    const fixturePath = join(w.dir, "host-fixture.json");
+    writeFileSync(fixturePath, JSON.stringify(strongHostFixture()));
+    const q = (s) => `'${s.replace(/'/g, "'\\''")}'`;
+    const branches = Array.from({ length: 30 }, (_, i) => `--branch b${i + 1}`).join(" ");
+    const cmd = `${q(process.execPath)} ${q(BINS.hostProtection)} --gh-script ${q(GH_STUB)} --json ${branches}`;
+    const env = { ...process.env, HOME: w.home, GH_STUB_FIXTURE: fixturePath, GH_STUB_LOG: "" };
+    const out = join(w.dir, "host-out.txt");
+    spawnSync("sh", ["-c", `${cmd} > ${q(out)} 2>/dev/null`], { cwd: w.target, env, encoding: "utf8" });
+    const file = readFileSync(out).length;
+    check(file > 65536, `the run wrote ${file} bytes, not more than one pipe buffer`);
+    const r = spawnSync("sh", ["-c", `${cmd} 2>/dev/null | (sleep 2; wc -c)`], { cwd: w.target, env, encoding: "utf8" });
+    const piped = Number((r.stdout ?? "").trim());
+    check(piped === file, `the slow pipe delivered ${piped} bytes, the file ${file}`);
+  },
+
+  // Plan 33.1-41, review IN-04: `--brnach release` exits 2 with the bad-usage line, before any gh call.
+  "in-04-bad-usage"(w) {
+    const r = hostRun(w, strongHostFixture(), ["--brnach", "release"]);
+    check(r.status === 2, `host check exited ${r.status}, expected 2`);
+    check(r.stdout === "HOST-PROTECTION: the check could not run (bad usage: unknown argument: --brnach) — UNKNOWN - verify\n", `stdout: ${JSON.stringify(r.stdout)}`);
+    check(r.stderr.includes("unknown argument: --brnach"), `stderr: ${r.stderr}`);
+    check(r.calls.length === 0, `gh was called: ${r.calls.join(", ")}`);
+  },
 };
 
 // ── the runner ───────────────────────────────────────────────────────────────────────────────────
