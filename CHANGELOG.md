@@ -124,6 +124,15 @@ release, together with Phase 33.1, which retires the Bash command guard.
   repository's own `agent-factory/` aside and delete it, exit `0`, with no backup and no warning (33.1
   review CR-01). The refusal exits `1` with one sentence on stderr; set `GRUGOPS_HOME` outside the
   repository.
+- Uninstall now walks the install ledger, so a file a different grugops version or another checkout
+  installed is removed on its record and never left unnamed. Uninstall used to remove only the names the
+  checkout running it ships: a recorded adapter that checkout did not ship was left in place and named
+  nowhere, while the marker that recorded it was deleted, exit `0` (33.1 review WR-01). Every recorded
+  file that still holds what install wrote is now removed and named, one you edited is left byte for byte
+  and named, and a grugops-shaped file with no record is named and left. A `--symlink` install is
+  reversed from another checkout by its link record. The kit source is read only to word the report of
+  files without a record; when it cannot be read, a `note` line says so, and that is no longer a
+  `verify` finding.
 - An identical copy that install did not write is no longer recorded as install's, and uninstall no
   longer removes it. A grugops skill or adapter file already in the repository, byte for byte what
   install would write, used to be recorded as install's by the next install, and the uninstall after it

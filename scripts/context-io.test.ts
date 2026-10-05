@@ -2097,7 +2097,7 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
    */
   const CONFIG_PATH_SITES: Readonly<Record<string, string>> = {
     "install/install.ts":
-      "installer: seeds, migrates, preserves and mirrors the user's .grugops/factory.config.json. Handles the file; does not read a dial out of it.",
+      "installer: seeds, migrates, preserves and mirrors the user's .grugops/factory.config.json, and reads the two ask-rule checkpoints (`checkpoints.protected_branch_merge`, `checkpoints.production_requires_human_confirmation`) through its restated canonicalizer (install/checkpoint-ask-rules.ts) to decide which Claude Code ask rules to write (D-18; proven equal to scripts/checkpoints.ts canonicalizeDisposition in install/install.test.ts). It decides no other dial. It restates rather than imports the canonicalizer because install/ imports nothing from scripts/, so a host can run the committed installer without the CI-side tree.",
     "scripts/audit-model.ts":
       "reads the shipped kit config to report a SAFETY_FLOOR's live value, and throws rather than reporting a value it did not read.",
     "scripts/check-banned-claims.ts":

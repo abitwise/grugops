@@ -323,13 +323,26 @@ checkout — *including the preview above* — **exits `1` and prints nothing at
 there is the refusal, not a reversal with nothing to undo. To preview a reversal inside a grugops
 checkout, add **`--allow-self`** (or `--force`), the same override the installer takes.
 
-`uninstall.js` removes **only** the grugops-owned wiring it added to the target: the skills, the
-Orchestrator wrapper and the materialized resolver adapters that still hold what install wrote to
-them (see the kit-file record below), the sentinel-delimited `CLAUDE.md` and
-Copilot pointer blocks (the rest of those files stays exactly as it was), the `AGENTS.md` entry
-it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule you had before
-install stays), the runnable checks under `tools/grugops/` that are still byte-identical to what it
-wrote, and the `.grugops/install.json` marker.
+`uninstall.js` reverses what the install ledger in `.grugops/install.json` records, whichever
+grugops version or checkout you run it from. It removes **only** the grugops-owned wiring install
+added to the target: the skills, the Orchestrator wrapper and the materialized resolver adapters that
+still hold what install wrote to them (see the kit-file record below), the sentinel-delimited
+`CLAUDE.md` and Copilot pointer blocks (the rest of those files stays exactly as it was), the
+`AGENTS.md` entry it added to the Gemini settings, the Claude Code ask rules it added (§5; a rule you
+had before install stays), the runnable checks under `tools/grugops/` that still hold what it wrote,
+and the `.grugops/install.json` marker.
+
+**The record decides, not the kit source.** The uninstaller walks every entry of the install ledger
+and reverses each one only while it still holds what install recorded. A recorded file that still
+holds what install wrote (its bytes and mode, or its link) is removed and named on a `removed` line,
+even when the checkout you run the uninstaller from no longer ships it or ships other bytes (another
+grugops version, or another checkout). A recorded file you edited is left byte for byte and named on
+a `left` line. A grugops-shaped file with no record (a skill or adapter name, `AGENTS.md`, a
+runnable, a pointer block or a settings file install has no record of) is left and named on a `left`
+line, and nothing is removed on its name or its bytes. The kit source of the checkout you run the
+uninstaller from is read only to word those `left` lines; if it cannot be read, a `note` line says
+that report was skipped, and nothing else changes, because no removal depends on it. A `--symlink`
+install is reversed from any checkout: the record keeps each link's own target.
 
 A file is deleted only on install's own record. Install records in the install ledger in
 `.grugops/install.json` each file it created where nothing was before: `CLAUDE.md` and
@@ -337,8 +350,8 @@ A file is deleted only on install's own record. Install records in the install l
 it copied or linked in, and the runnables under `tools/grugops/`. The uninstaller deletes `CLAUDE.md`
 or the Copilot file only when that record lists it, it removed the grugops block from it in this
 run, and the file is blank afterwards. It deletes `AGENTS.md` or a runnable only when the record
-lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. The record decides a
-runnable alone: one that still holds what install wrote is removed even when the checkout you run the
+lists it and it is still the copy (or, for `AGENTS.md`, the link) install made. The record decides
+every file alone: one that still holds what install wrote is removed even when the checkout you run the
 uninstaller from no longer ships it or ships other bytes, and one that does not is left. The record keeps
 what install wrote to each file (a sha256 of the bytes and the file's mode as install left it, or the
 target of the link), and a file is deleted only while it still holds exactly that: a file you edited
@@ -422,13 +435,13 @@ it keeps the earlier record as it was and says so. A malformed install ledger is
 finding on both sides (exit `3`): install does not merge and writes it back as found, and the
 uninstaller leaves the file.
 
-A symbolic link at one of those paths is removed only when it is exactly the link a `--symlink`
-install makes: it points at the kit source file of the checkout you run the uninstaller from, and
-install's record names that link (a copy install records the copy, so a link put there since is
-left). Any
-other link (a dangling one, a loop, a link to a device, to a FIFO, or to a file or directory
-elsewhere) is left in place, is not followed, and is reported as a `verify` finding (exit `3`);
-remove it by hand if it is grugops's. That `verify` is reported only for a path install has a record
+A symbolic link at one of those paths is removed only when it is exactly the link install's record
+names: a `--symlink` install records the target of each link it made, and the link is removed while
+it still points there, whichever checkout you run the uninstaller from. A copy install records the
+copy, so any link put there since, even one that points at the kit source, is not the link install
+made. That link, and any other (a dangling one, a loop, a link to a device, to a FIFO, or to a file or
+directory elsewhere), is left in place, is not followed, and is reported as a `verify` finding (exit
+`3`); remove it by hand if it is grugops's. That `verify` is reported only for a path install has a record
 for. At a path with no record (a repository you never ran the installer on, or a path the record does
 not list) a link, a special file, or a path under a linked directory (a `.claude` or `tools` that is
 a link to a directory of yours, for example) is left, reported `left` or `skipped` with the reason,
@@ -485,6 +498,10 @@ directory, and exits `3`. `tools/` is always left, even when install created it:
 of that name itself.
 
 **In short, uninstall acts only on a record, and leaves everything else:**
+
+- It walks every entry of the install ledger in `.grugops/install.json`, so no recorded file is
+  removed or left without a line naming it, whichever grugops version or checkout runs it. The kit
+  source of that checkout never decides what is removed.
 
 - It changes `.gemini/settings.json` only as its record in the install ledger in `.grugops/install.json`
   says: it removes the entry
