@@ -259,3 +259,114 @@ describe("WR-02: an uninstall that could not finish keeps the marker, and a re-r
     300_000,
   );
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// WR-03 (plan 33.1-39, D-33 (b)): a `.gemini/settings.json` install created is reversed whole after a user
+// edit. Install writes `{ "context": { "fileName": ["AGENTS.md", "GEMINI.md"] } }` and records it with
+// createdFile true; the whole list is install's, not only its AGENTS.md element. While context.fileName is
+// still exactly the recorded list, uninstall removes `fileName`, and `context` when nothing else is in it,
+// keeping every other key and its bytes. A changed list is left byte for byte.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+const GEM = ".gemini/settings.json";
+
+/** Insert `member` as the first member of the top-level object of the JSON text at `p` (the user's own spacing kept). */
+function addTopMember(p: string, member: string): void {
+  const text = readFileSync(p, "utf8");
+  const at0 = text.indexOf("{");
+  writeFileSync(p, `${text.slice(0, at0 + 1)}\n  ${member},${text.slice(at0 + 1)}`);
+}
+
+describe("WR-03: a Gemini settings file install created is reversed whole (plan 33.1-39)", () => {
+  it("the user adds \"theme\": the file parses to exactly { theme: \"dark\" }, the user's member keeps its bytes, the line names what was removed, and the preview agrees", () => {
+    const w = installed("gem-theme");
+    const p = at(w.t, GEM);
+    const userMember = '"theme":   "dark"';
+    addTopMember(p, userMember);
+    const snap = snapshotTree(w.t);
+    const dry = uninstall(w, true);
+    expect(snapshotTree(w.t)).toBe(snap);
+    expect(lines(dry.stdout, "would-edit").some((l) => l.startsWith(GEM)), dry.stdout).toBe(true);
+    const r = uninstall(w);
+    expect(r.status, r.stdout).toBe(0);
+    expect(dry.status).toBe(r.status);
+    const text = readFileSync(p, "utf8");
+    expect(JSON.parse(text), `install's residue is left in ${GEM}:\n${text}`).toEqual({ theme: "dark" });
+    expect(text, "the user's member lost its bytes").toContain(userMember);
+    const line = lines(r.stdout, "removed").find((l) => l.startsWith(GEM));
+    expect(line, r.stdout).toBeDefined();
+    expect(line!).toMatch(/context/);
+    expect(line!).toMatch(/AGENTS\.md/);
+    expect(line!).toMatch(/GEMINI\.md/);
+    // The entry is reversed, so nothing holds the marker.
+    expect(present(at(w.t, MARKER_REL)), r.stdout).toBe(false);
+  }, 300_000);
+
+  it("the user adds \"model\" inside context: fileName is removed whole and context is kept with model", () => {
+    const w = installed("gem-model");
+    const p = at(w.t, GEM);
+    const text = readFileSync(p, "utf8");
+    const ctx = text.indexOf("{", text.indexOf('"context"'));
+    writeFileSync(p, `${text.slice(0, ctx + 1)}\n    "model": "x",${text.slice(ctx + 1)}`);
+    const r = uninstall(w);
+    expect(r.status, r.stdout).toBe(0);
+    expect(JSON.parse(readFileSync(p, "utf8"))).toEqual({ context: { model: "x" } });
+    expect(present(at(w.t, MARKER_REL)), r.stdout).toBe(false);
+  }, 300_000);
+
+  it("the user changes the list: the record no longer holds, so the file is left byte for byte, named, and the marker is kept", () => {
+    const w = installed("gem-list");
+    const p = at(w.t, GEM);
+    const o = JSON.parse(readFileSync(p, "utf8")) as { context: { fileName: string[] } };
+    o.context.fileName = [...o.context.fileName, "CONTEXT.md"];
+    writeFileSync(p, JSON.stringify(o, null, 2) + "\n");
+    const bytes = readFileSync(p);
+    const r = uninstall(w);
+    expect(r.status, r.stdout).toBe(0);
+    expect(readFileSync(p).equals(bytes), "the changed file was edited").toBe(true);
+    expect(lines(r.stdout, "left").some((l) => l.startsWith(GEM)), r.stdout).toBe(true);
+    expect(present(at(w.t, MARKER_REL)), r.stdout).toBe(true);
+    expect(ledgerOf(readMarkerObject(w.t)).filter((e) => HOLDING_KINDS.includes(e.kind) && claimsSomething(e)).map(key)).toEqual([`${GEM}#gemini`]);
+    expect(r.stdout).toContain(keptBanner(1));
+  }, 300_000);
+
+  it("the file install created, unchanged: it is removed whole (unchanged behaviour)", () => {
+    const w = installed("gem-unchanged");
+    const r = uninstall(w);
+    expect(r.status, r.stdout).toBe(0);
+    expect(present(at(w.t, GEM))).toBe(false);
+    expect(lines(r.stdout, "removed").some((l) => l.startsWith(`${GEM} (install created it and it is unchanged`)), r.stdout).toBe(true);
+  }, 300_000);
+
+  it.skipIf(CHMOD_SKIP !== null)(
+    "the file install created, only chmod'ed by the user: what install wrote is taken out and the file is kept with the user's mode (red-team L1 of plan 33.1-34)",
+    () => {
+      const w = installed("gem-chmod");
+      const p = at(w.t, GEM);
+      chmodSync(p, 0o600);
+      const r = uninstall(w);
+      expect(r.status, r.stdout).toBe(0);
+      expect(present(p), `${GEM} was removed after a mode change\n${r.stdout}`).toBe(true);
+      expect(lstatSync(p).mode & 0o777, "the user's mode was lost").toBe(0o600);
+      expect(JSON.parse(readFileSync(p, "utf8")), "install's context is still in the file").toEqual({});
+      const line = lines(r.stdout, "removed").find((l) => l.startsWith(GEM));
+      expect(line, r.stdout).toBeDefined();
+      expect(line!).toMatch(/file mode is 0600/);
+      expect(line!).toMatch(/the file was kept/);
+      // The entry is reversed: nothing of install's is left, so the marker goes.
+      expect(present(at(w.t, MARKER_REL)), r.stdout).toBe(false);
+    },
+    300_000,
+  );
+
+  it("the file install created, with an extra final newline (a whitespace edit): what install wrote is taken out and the file is kept", () => {
+    const w = installed("gem-ws");
+    const p = at(w.t, GEM);
+    writeFileSync(p, `${readFileSync(p, "utf8")}\n`);
+    const r = uninstall(w);
+    expect(r.status, r.stdout).toBe(0);
+    expect(present(p), `${GEM} was deleted as empty after a whitespace-only edit\n${r.stdout}`).toBe(true);
+    expect(JSON.parse(readFileSync(p, "utf8"))).toEqual({});
+    expect(lines(r.stdout, "removed").find((l) => l.startsWith(GEM)) ?? "", r.stdout).toMatch(/whitespace or line-end edit/);
+  }, 300_000);
+});

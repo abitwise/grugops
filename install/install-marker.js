@@ -436,6 +436,16 @@ export const BACKUP_ORIGINS = ["in-repo-kit", "legacy-config", "handoffs", "edit
 /** The one path a `gemini` entry may name, and the one path an `ask-rules` entry may name. */
 export const GEMINI_SETTINGS_REL = ".gemini/settings.json";
 export const ASK_RULES_REL = ".claude/settings.json";
+/**
+ * THE ONE TEXT install writes when it creates `.gemini/settings.json` (plan 33.1-39, review WR-03): the
+ * whole `context.fileName` list, AGENTS.md and GEMINI.md, and nothing else. install.ts writes it and
+ * uninstall.ts compares with it (the emptied shape it deletes), so the two binaries cannot disagree about
+ * what install wrote, the way checkpoint-ask-rules.ts createdSettingsText serves `.claude/settings.json`.
+ */
+export const GEMINI_CREATED_FILE_NAME = ["AGENTS.md", "GEMINI.md"];
+export function createdGeminiText() {
+    return JSON.stringify({ context: { fileName: [...GEMINI_CREATED_FILE_NAME] } }, null, 2) + "\n";
+}
 /** The only paths a `block` entry may name: the two pointer files install appends its block to. */
 export const BLOCK_RELS = ["CLAUDE.md", ".github/copilot-instructions.md"];
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

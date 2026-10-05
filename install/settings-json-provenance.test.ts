@@ -419,3 +419,37 @@ describe("B3 (D-18): install splices only the value it changes, and install → 
     }
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// IN-02 (plan 33.1-39): writeAskRules decides its splice and oracle before its DRY_RUN return, so over the
+// whole .claude/settings.json corpus a DRY_RUN install and the real install exit alike and report the same
+// outcome for the file (would-add ↔ created, verify ↔ verify, skipped ↔ skipped). The static order case
+// is in install/install.test.ts.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+describe("IN-02: a DRY_RUN install and the real install reach the same outcome for .claude/settings.json over the corpus", () => {
+  const ASK_OUTCOME: Readonly<Record<string, string>> = { "would-add": "added", created: "added", verify: "verify", skipped: "skipped" };
+  const outcomeOf = (stdout: string): string[] =>
+    Object.keys(ASK_OUTCOME)
+      .filter((label) => naming(stdout, label, CLA).length > 0)
+      .map((label) => ASK_OUTCOME[label])
+      .sort();
+  const cases: readonly CorpusCase[] = [{ name: "no settings file at all", body: "" }, ...CLAUDE_CORPUS, ...CLAUDE_REFUSED];
+  for (const c of cases) {
+    it(`${c.name}: the same exit status and the same outcome for ${CLA}, and the preview writes nothing`, () => {
+      const dryT = newTarget("in02-dry");
+      const realT = newTarget("in02-real");
+      if (c.body !== "") {
+        plant(dryT.t, CLA, c.body);
+        plant(realT.t, CLA, c.body);
+      }
+      const pre = snapshotTree(dryT.t);
+      const dry = runInstall(dryT.t, dryT.home, [], { dryRun: true });
+      expect(snapshotTree(dryT.t), `the DRY_RUN install changed the target\n${dry.stdout}`).toBe(pre);
+      const real = runInstall(realT.t, realT.home);
+      expect(dry.status, `DRY_RUN exit ${dry.status}, real exit ${real.status}\n${dry.stdout}\n----\n${real.stdout}`).toBe(real.status);
+      const want = outcomeOf(real.stdout);
+      expect(want.length, `PREMISE: the real install reported no outcome for ${CLA}\n${real.stdout}`).toBeGreaterThan(0);
+      expect(outcomeOf(dry.stdout), `the preview reported another outcome for ${CLA}\n${dry.stdout}`).toEqual(want);
+    });
+  }
+});

@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, GEMINI_CREATED_FILE_NAME, createdGeminiText, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
@@ -2030,8 +2030,9 @@ function mergeGemini() {
             report("would-add", `${rel} (context.fileName: [AGENTS.md, GEMINI.md])`);
             return;
         }
-        const fileName = ["AGENTS.md", "GEMINI.md"];
-        const text = JSON.stringify({ context: { fileName } }, null, 2) + "\n";
+        // The one created text (install-marker.ts createdGeminiText), which uninstall compares with.
+        const fileName = [...GEMINI_CREATED_FILE_NAME];
+        const text = createdGeminiText();
         if (!writeTargetFile(file, text, "create", rel)) {
             GEMINI_SEEN = { listed: false, fileNameContent: null, refused: true };
             return;
@@ -4543,12 +4544,11 @@ function writeAskRules() {
             report("skipped", `${rel} (no checkpoint is at block — no ask rule to write)`);
         return;
     }
-    if (DRY_RUN) {
-        report("would-add", `${rel} (${toAdd.length} ask rule(s) to permissions.ask)`);
-        return;
-    }
     // THE SPLICE (red-team B3): a new file is install's own and written whole; an existing one gets the
-    // rules added to its permissions.ask list (or the one member install adds) and nothing else.
+    // rules added to its permissions.ask list (or the one member install adds) and nothing else. The splice
+    // and its oracle are decided BEFORE the DRY_RUN return (plan 33.1-39, review IN-02), as mergeGemini and
+    // uninstall's removeAskRules do, so a preview reaches the real run's answer: a splice that fails the oracle
+    // is the same verify in both, and the preview still writes nothing.
     let newText;
     if (doc === null || !doc.ok) {
         newText = createdSettingsText(toAdd);
@@ -4572,6 +4572,10 @@ function writeAskRules() {
             ASK_LEDGER = proven ? previous : unclaimed(askNow);
             return;
         }
+    }
+    if (DRY_RUN) {
+        report("would-add", `${rel} (${toAdd.length} ask rule(s) to permissions.ask)`);
+        return;
     }
     if (!writeTargetFile(file, newText, settingsRead.state, rel)) {
         // Nothing was written, so this run added no rule: the ledger stays as it was when the array found

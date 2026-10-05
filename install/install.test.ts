@@ -6491,14 +6491,17 @@ describe("Gemini settings ownership (Gap B, CR-03, plan 33.1-29)", () => {
     expect(naming(r.stdout, "skipped").some((l) => /install did not add/.test(l) && /already listed when install found the file/.test(l)), r.stdout).toBe(true);
   });
 
-  it("Gemini settings ownership: created by install, then the user adds a key — uninstall removes only the AGENTS.md element and keeps the file", () => {
+  // Plan 33.1-39, review WR-03: the list install wrote into a file it created is install's whole, so with the
+  // record holding, uninstall removes `context` (nothing else is in it) and keeps the user's key. It used to
+  // remove only the AGENTS.md element and leave install's own `"fileName": ["GEMINI.md"]`.
+  it("Gemini settings ownership: created by install, then the user adds a key — uninstall removes the context install wrote and keeps the file with the user's key", () => {
     const target = makeFixture();
     const home = mkTmp();
     install(target, home);
     writeFileSync(gemPath(target), asInstaller({ ...RECOMMENDED, theme: "dark" }));
     const r = uninstallBoth(target, home);
     expect(r.status, r.stdout).toBe(0);
-    expect(gemBytes(target).toString("utf8")).toBe(asInstaller({ context: { fileName: ["GEMINI.md"] }, theme: "dark" }));
+    expect(JSON.parse(gemBytes(target).toString("utf8"))).toEqual({ theme: "dark" });
   });
 
   it("Gemini settings ownership: created by install, then the user removes GEMINI.md — context.fileName no longer holds the record, so uninstall leaves the file byte-identical (red-team B1 of plan 33.1-29)", () => {
@@ -9773,4 +9776,29 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     expect(kitState(target)).toBe(kit);
     expect(treeState(atRel(target, ".claude"))).toBe(planted);
   });
+});
+
+// IN-02 (plan 33.1-39, review IN-02): writeAskRules decides its text-splice oracle BEFORE its DRY_RUN
+// return, as mergeGemini and uninstall's removeAskRules do, so the preview and the real run reach the same
+// answer. No failing input is known, so the order itself is held: in the function's source (and in the
+// committed build users run), the oracle comparison comes before the one `if (DRY_RUN)`. The behavioural
+// half (DRY_RUN and the real run report the same outcome over the settings corpus) is in
+// install/settings-json-provenance.test.ts.
+describe("IN-02: writeAskRules decides its splice oracle before its DRY_RUN return (plan 33.1-39)", () => {
+  for (const file of ["install.ts", "install.js"]) {
+    it(`${file}: in writeAskRules, the oracle comparison (sameJsonValue) comes before the one DRY_RUN branch`, () => {
+      const src = readFileSync(join(import.meta.dirname, file), "utf8");
+      const start = src.indexOf("function writeAskRules(");
+      expect(start, `writeAskRules is not in ${file}`).toBeGreaterThan(-1);
+      const end = src.indexOf("\n}\n", start);
+      expect(end).toBeGreaterThan(start);
+      const body = src.slice(start, end);
+      const oracle = body.indexOf("sameJsonValue(");
+      const dry = body.indexOf("if (DRY_RUN)");
+      expect(oracle, "writeAskRules has no oracle comparison").toBeGreaterThan(-1);
+      expect(dry, "writeAskRules has no DRY_RUN branch").toBeGreaterThan(-1);
+      expect(body.split("if (DRY_RUN)").length - 1, "writeAskRules has more than one DRY_RUN branch").toBe(1);
+      expect(oracle < dry, "the DRY_RUN return comes before the splice oracle, so a preview can disagree with the real run").toBe(true);
+    });
+  }
 });

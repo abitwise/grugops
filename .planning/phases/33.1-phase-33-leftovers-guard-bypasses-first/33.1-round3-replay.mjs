@@ -217,6 +217,27 @@ const CASES = {
     check(u2.out.includes("== uninstall complete =="), "the re-run did not print the complete banner");
   },
 
+  // Plan 33.1-39, review WR-03 (the verifier's reproduction): install creates .gemini/settings.json, the
+  // user adds "theme", uninstall. It used to remove only the AGENTS.md element and leave install's own
+  // `"context": { "fileName": ["GEMINI.md"] }`. Now no `context` key remains and "theme" is intact.
+  "wr-03-gemini-created-edited"(w) {
+    const rel = ".gemini/settings.json";
+    const i = w.install();
+    check(i.status === 0, `install exited ${i.status}, expected 0`);
+    const g = JSON.parse(readFileSync(w.at(".grugops/install.json"), "utf8")).ledger.find((e) => e.kind === "gemini");
+    check(g !== undefined && g.createdFile === true, "the install did not record that it created the Gemini settings file");
+    const text = readFileSync(w.at(rel), "utf8");
+    const brace = text.indexOf("{");
+    writeFileSync(w.at(rel), `${text.slice(0, brace + 1)}\n  "theme": "dark",${text.slice(brace + 1)}`);
+    const u = w.uninstall();
+    check(u.status === 0, `uninstall exited ${u.status}, expected 0\n${u.out.slice(-2000)}`);
+    check(existsSync(w.at(rel)), `${rel} was removed, with the user's "theme" in it`);
+    const after = JSON.parse(readFileSync(w.at(rel), "utf8"));
+    check(!Object.prototype.hasOwnProperty.call(after, "context"), `a context key remains: ${JSON.stringify(after)}`);
+    check(after.theme === "dark" && Object.keys(after).length === 1, `the file is not exactly the user's {"theme":"dark"}: ${JSON.stringify(after)}`);
+    check(readFileSync(w.at(rel), "utf8").includes('"theme": "dark"'), "the user's member lost its bytes");
+  },
+
   // Plan 33.1-36, the D-33 (b) tracer: the one ledger is the authority. A runnable install recorded is
   // removed by its record even when the uninstalling kit source no longer ships it; the same runnable
   // edited by one byte is left byte for byte and named.

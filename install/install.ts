@@ -110,6 +110,8 @@ import {
   geminiEntry,
   askRulesEntry,
   GEMINI_SETTINGS_REL,
+  GEMINI_CREATED_FILE_NAME,
+  createdGeminiText,
   ASK_RULES_REL,
   type LedgerEntry,
   type LedgerRead,
@@ -2244,8 +2246,9 @@ function mergeGemini(): void {
       report("would-add", `${rel} (context.fileName: [AGENTS.md, GEMINI.md])`);
       return;
     }
-    const fileName = ["AGENTS.md", "GEMINI.md"];
-    const text = JSON.stringify({ context: { fileName } }, null, 2) + "\n";
+    // The one created text (install-marker.ts createdGeminiText), which uninstall compares with.
+    const fileName = [...GEMINI_CREATED_FILE_NAME];
+    const text = createdGeminiText();
     if (!writeTargetFile(file, text, "create", rel)) {
       GEMINI_SEEN = { listed: false, fileNameContent: null, refused: true };
       return;
@@ -5062,12 +5065,11 @@ function writeAskRules(): void {
     if (rules.length === 0) report("skipped", `${rel} (no checkpoint is at block — no ask rule to write)`);
     return;
   }
-  if (DRY_RUN) {
-    report("would-add", `${rel} (${toAdd.length} ask rule(s) to permissions.ask)`);
-    return;
-  }
   // THE SPLICE (red-team B3): a new file is install's own and written whole; an existing one gets the
-  // rules added to its permissions.ask list (or the one member install adds) and nothing else.
+  // rules added to its permissions.ask list (or the one member install adds) and nothing else. The splice
+  // and its oracle are decided BEFORE the DRY_RUN return (plan 33.1-39, review IN-02), as mergeGemini and
+  // uninstall's removeAskRules do, so a preview reaches the real run's answer: a splice that fails the oracle
+  // is the same verify in both, and the preview still writes nothing.
   let newText: string;
   if (doc === null || !doc.ok) {
     newText = createdSettingsText(toAdd);
@@ -5090,6 +5092,10 @@ function writeAskRules(): void {
       ASK_LEDGER = proven ? previous : unclaimed(askNow);
       return;
     }
+  }
+  if (DRY_RUN) {
+    report("would-add", `${rel} (${toAdd.length} ask rule(s) to permissions.ask)`);
+    return;
   }
   if (!writeTargetFile(file, newText, settingsRead.state, rel)) {
     // Nothing was written, so this run added no rule: the ledger stays as it was when the array found

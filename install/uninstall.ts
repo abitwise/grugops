@@ -34,9 +34,11 @@
 //   ask-rules  reverseAskRules → removeAskRules: exactly the rules the entry records as added (the first
 //              present copy of each), and the containers install created, once empty as install wrote
 //              them (D-18). A user's own identical rule is never removed.
-//   gemini     reverseGemini → unmergeGemini: the AGENTS.md entry install appended to context.fileName,
-//              only while fileName still equals the recorded list; the file only when install created
-//              it and it holds the recorded bytes, or nothing is left once the entry is removed.
+//   gemini     reverseGemini → unmergeGemini: only while context.fileName still equals the recorded list,
+//              the AGENTS.md entry install appended to a file it found, or, in a file install created,
+//              the whole list it wrote (and `context` when nothing else is in it; plan 33.1-39, WR-03);
+//              the file only when install created it and it holds the recorded bytes, or nothing is left
+//              once what install wrote is removed (and its mode is still the one install recorded).
 //   block      reverseBlock → removeSentinelBlock: the one span of CLAUDE.md or the Copilot file whose
 //              bytes hash to the recorded block, and every other byte written back (carry items 4, 6,
 //              11). When the ledger also has a `file` entry at that path (install created the pointer
@@ -121,6 +123,7 @@ import {
   geminiEntry,
   askRulesEntry,
   GEMINI_SETTINGS_REL,
+  createdGeminiText,
   ASK_RULES_REL,
   BLOCK_RELS,
   markerUnusableText,
@@ -268,7 +271,7 @@ let RECORDED_VERIFIES = 0;
 const HOLDING_KINDS: ReadonlySet<string> = new Set(["file", "block", "gemini", "ask-rules"]);
 const DISCHARGED: ReadonlySet<Outcome> = new Set<Outcome>(["removed", "gone", "reversed"]);
 /** A gemini or ask-rules entry that records nothing install added or created: there is nothing of install's to reverse. */
-function claimsNothing(e: LedgerEntry): boolean {
+function entryClaimsNothing(e: LedgerEntry): boolean {
   if (e.kind === "gemini") return !e.addedEntry && !e.createdFile;
   if (e.kind === "ask-rules") return e.added.length === 0 && !e.createdFile && !e.createdPermissions && !e.createdAsk;
   return false;
@@ -276,7 +279,7 @@ function claimsNothing(e: LedgerEntry): boolean {
 /** The recorded entries still holding the marker: install wrote content there, and this run did not discharge it. */
 function heldEntries(): LedgerEntry[] {
   return LEDGER.entries.filter((e) => {
-    if (!HOLDING_KINDS.has(e.kind) || claimsNothing(e)) return false;
+    if (!HOLDING_KINDS.has(e.kind) || entryClaimsNothing(e)) return false;
     const o = OUTCOMES.get(outcomeKey(e));
     return o === undefined || !DISCHARGED.has(o);
   });
@@ -953,9 +956,11 @@ function reversePointerFileWithoutBlock(entry: FileEntry): void {
 //   addedEntry false               → skipped (install did not add the entry), or left when reset.
 // Only then is the file read and parsed. A file that is not a readable regular file, does not parse
 // or is not a JSON object is a counted verify and is left untouched, with no `removed` line. A file
-// install created that still holds exactly the bytes install wrote is removed whole. Otherwise the
-// recorded append is reversed exactly: the last "AGENTS.md" element is removed from an array fileName
-// and the shape install found is restored (see the rules at the reversal below).
+// install created that still holds exactly the bytes install wrote is removed whole. Otherwise, while
+// context.fileName is still the recorded list: in a file install created, the whole list install wrote
+// is removed, and `context` with it when nothing else is in it (plan 33.1-39, review WR-03), so the user's
+// other keys are all that is left; in a file install found, the last "AGENTS.md" element is removed and
+// the shape install found is restored (see the rules at the reversal below).
 // GEMINI_LEDGER_AFTER (plan 33.1-29, with red-team R2 of plan 33.1-28): the gemini entry as it
 // stands once unmergeGemini has acted, for removeMarker to write into a marker it keeps. Set only when
 // the recorded change was reversed (or found already reversed): the record then claims nothing, and
@@ -1075,8 +1080,8 @@ function unmergeGemini(): Outcome {
     );
     return "left";
   }
-  // THE EXACT REVERSAL OF THE RECORDED APPEND. The record holds, so fileName is the array install left.
-  // Only an exact "AGENTS.md" element is removed, and only from an array fileName.
+  // THE RECORD HOLDS, so fileName is the array install left. Only from an array fileName is anything removed:
+  // the list install wrote whole into a file it created, or the one AGENTS.md element it appended.
   if (ctxNode === null || fnAt === null || fnAt.value.kind !== "array" || !Array.isArray(current)) {
     report(
       "left",
@@ -1085,62 +1090,111 @@ function unmergeGemini(): Outcome {
     return "left";
   }
   const arrNode = fnAt.value;
-  const list = [...current];
-  // The LAST exact element is the one install appended: install appends at the end, and only when no
-  // "AGENTS.md" element was there. (A file install created lists it first; it is the only one there.)
-  const at = list.lastIndexOf("AGENTS.md");
-  list.splice(at, 1);
-  // Restore the shape install found: an absent fileName is removed again, a string becomes the
-  // string again, and a context install added is removed when nothing else is in it. The same
-  // decision is made twice: on the parsed value (the oracle) and as one text edit.
   const j = documentValue(doc) as Record<string, unknown>;
   const ctx = j.context as Record<string, unknown>;
   let newText: string;
-  if (ledger.fileNameBefore === "absent" && list.length === 0) {
+  // The preview and the done line of the edit below, for the arm taken.
+  let previewLine = `${rel} (remove the AGENTS.md entry install added — recorded in the install ledger)`;
+  let doneLine = `${rel} AGENTS.md entry (install added it — recorded in the install ledger; every other byte preserved)`;
+  if (ledger.createdFile) {
+    // THE FILE INSTALL CREATED (plan 33.1-39, review WR-03, D-33 (b)). Install created this file with the
+    // whole list `["AGENTS.md", "GEMINI.md"]`, written at once, so its GEMINI.md element is install's as much
+    // as its AGENTS.md element. The record holds (fileName is still exactly the list install wrote), so every
+    // element of it is install's: `fileName` is removed whole, and `context` with it when nothing else is in
+    // it (install created it: createdContext is true for a created file). Removing only AGENTS.md used to
+    // leave install's own `"fileName": ["GEMINI.md"]` behind, and the record was then dropped, so that
+    // residue could never be reversed. Every other key the user added keeps its bytes: it is one text edit,
+    // held by the oracle below.
     delete ctx.fileName;
     if (ledger.createdContext === true && Object.keys(ctx).length === 0) {
       delete j.context;
       newText = removeItems(doc.text, root, new Set([root.members.findIndex((m) => m.key === "context")]));
+      previewLine =
+        `${rel} (remove the context object install wrote when it created the file, holding only its context.fileName ` +
+        `list, AGENTS.md and GEMINI.md — recorded in the install ledger)`;
+      doneLine =
+        `${rel} context (install wrote it when it created the file, holding only its context.fileName list, AGENTS.md ` +
+        `and GEMINI.md — recorded in the install ledger; every other byte preserved)`;
     } else {
       newText = removeItems(doc.text, ctxNode, new Set([ctxNode.kind === "object" ? ctxNode.members.findIndex((m) => m.key === "fileName") : -1]));
+      previewLine =
+        `${rel} (remove the context.fileName list install wrote when it created the file, AGENTS.md and GEMINI.md — ` +
+        `recorded in the install ledger; the rest of context is kept)`;
+      doneLine =
+        `${rel} context.fileName (install wrote this list, AGENTS.md and GEMINI.md, when it created the file — recorded ` +
+        `in the install ledger; the rest of context and every other byte preserved)`;
     }
-  } else if (ledger.fileNameBefore === "string" && list.length === 1 && typeof list[0] === "string" && arrNode.kind === "array") {
-    ctx.fileName = list[0];
-    newText = replaceWithText(doc.text, arrNode, arrNode.elements[at === 0 ? 1 : 0]);
   } else {
-    ctx.fileName = list;
-    newText = removeItems(doc.text, arrNode, new Set([at]));
+    // THE EXACT REVERSAL OF THE RECORDED APPEND to a file install found.
+    const list = [...current];
+    // The LAST exact element is the one install appended: install appends at the end, and only when no
+    // "AGENTS.md" element was there.
+    const at = list.lastIndexOf("AGENTS.md");
+    list.splice(at, 1);
+    // Restore the shape install found: an absent fileName is removed again, a string becomes the
+    // string again, and a context install added is removed when nothing else is in it. The same
+    // decision is made twice: on the parsed value (the oracle) and as one text edit.
+    if (ledger.fileNameBefore === "absent" && list.length === 0) {
+      delete ctx.fileName;
+      if (ledger.createdContext === true && Object.keys(ctx).length === 0) {
+        delete j.context;
+        newText = removeItems(doc.text, root, new Set([root.members.findIndex((m) => m.key === "context")]));
+      } else {
+        newText = removeItems(doc.text, ctxNode, new Set([ctxNode.kind === "object" ? ctxNode.members.findIndex((m) => m.key === "fileName") : -1]));
+      }
+    } else if (ledger.fileNameBefore === "string" && list.length === 1 && typeof list[0] === "string" && arrNode.kind === "array") {
+      ctx.fileName = list[0];
+      newText = replaceWithText(doc.text, arrNode, arrNode.elements[at === 0 ? 1 : 0]);
+    } else {
+      ctx.fileName = list;
+      newText = removeItems(doc.text, arrNode, new Set([at]));
+    }
   }
   const after = claimsNothing("reversed", Object.prototype.hasOwnProperty.call(ctx, "fileName") ? ctx.fileName : undefined);
-  // Install created the file, and with the entry it added removed nothing is left in it.
+  // Install created the file, and with what it wrote removed nothing is left in it. "NOTHING LEFT" MEANS
+  // INSTALL'S OWN EMPTIED FILE, EXACTLY (red-team L1 of plan 33.1-34, as removeAskRules applies it): the file
+  // is deleted only when what the edit above leaves is byte for byte what the same edit leaves of the file
+  // install writes (createdGeminiText), and its mode is the one install recorded. A whitespace or line-end
+  // edit, or a chmod, is the user's: what install wrote is still taken out, and the file is kept.
+  let keptWhy = "";
   if (ledger.createdFile && Object.keys(j).length === 0) {
-    const line = `${rel} (install created it, and with the AGENTS.md entry it added removed nothing is left in it — recorded in the install ledger)`;
-    if (DRY_RUN) {
-      report("would-remove", line);
-      markGone(f);
+    const recordedMode = ledger.fileContent === undefined ? undefined : /;mode=([0-7]{4})$/.exec(ledger.fileContent)?.[1];
+    const modeKept = recordedMode === undefined || modeText(read.mode) === recordedMode;
+    if (newText === emptiedCreatedGeminiText() && modeKept) {
+      const note = recordedMode === undefined ? `; ${NO_MODE_NOTE}` : "";
+      const line = `${rel} (install created it, and with what it wrote there removed nothing is left in it — recorded in the install ledger${note})`;
+      if (DRY_RUN) {
+        report("would-remove", line);
+        markGone(f);
+        GEMINI_LEDGER_AFTER = claimsNothing("reversed", undefined);
+        return "removed";
+      }
+      if (!unlinkPath(f, rel, line)) return "verify";
       GEMINI_LEDGER_AFTER = claimsNothing("reversed", undefined);
       return "removed";
     }
-    if (!unlinkPath(f, rel, line)) return "verify";
-    GEMINI_LEDGER_AFTER = claimsNothing("reversed", undefined);
-    return "removed";
+    keptWhy =
+      `; grugops created the file, but ${modeKept ? "its text is not what install wrote (a whitespace or line-end edit)" : `its file mode is ${modeText(read.mode)}, not the ${recordedMode} install wrote`}, ` +
+      `so the file was kept`;
+    previewLine = `${previewLine.slice(0, -1)}${keptWhy})`;
+    doneLine = `${doneLine.slice(0, -1)}${keptWhy})`;
   }
   // THE ORACLE: the edited text must hold exactly the reversed value; otherwise nothing is written.
   const check = readJsonText(Buffer.from(newText, "utf8"));
   if (!check.ok || !sameJsonValue(documentValue(check), j)) {
     verify(
-      `${rel} could not be edited in place without changing anything but context.fileName — it was left untouched, ` +
-        `so the AGENTS.md entry install recorded adding was not removed. Remove it by hand.`,
+      `${rel} could not be edited in place without changing anything but what install wrote in context — it was left ` +
+        `untouched, so what install recorded writing there was not removed. Remove it by hand.`,
     );
     return "verify";
   }
   if (DRY_RUN) {
-    report("would-edit", `${rel} (remove the AGENTS.md entry install added — recorded in the install ledger)`);
+    report("would-edit", previewLine);
     GEMINI_LEDGER_AFTER = after;
     return "reversed";
   }
-  if (!rewritePath(f, newText, rel, "remove AGENTS.md from context.fileName by hand.")) return "verify";
-  report("removed", `${rel} AGENTS.md entry (install added it — recorded in the install ledger; every other byte preserved)`);
+  if (!rewritePath(f, newText, rel, ledger.createdFile ? "remove context.fileName by hand." : "remove AGENTS.md from context.fileName by hand.")) return "verify";
+  report("removed", doneLine);
   GEMINI_LEDGER_AFTER = after;
   return "reversed";
 }
@@ -1179,6 +1233,16 @@ const askLedgerAfter = (ask: readonly unknown[] | null): AskRuleLedger => ({
   createdAsk: false,
   askContent: jsonValueRecord(ask === null ? undefined : ask),
 });
+
+// emptiedCreatedGeminiText (plan 33.1-39, review WR-03): what removing the `context` member leaves of the
+// file install writes when it creates .gemini/settings.json (createdGeminiText, the one text both binaries
+// use), by the same text edit unmergeGemini makes.
+function emptiedCreatedGeminiText(): string | null {
+  const created = readJsonText(Buffer.from(createdGeminiText(), "utf8"));
+  if (!created.ok || created.root.kind !== "object") return null;
+  const at = created.root.members.findIndex((m) => m.key === "context");
+  return removeItems(created.text, created.root, new Set([at]));
+}
 
 // emptiedCreatedSettingsText (red-team L1 of plan 33.1-34): what removing the `permissions` member
 // leaves of the file install writes when it creates .claude/settings.json (createdSettingsText, the one
