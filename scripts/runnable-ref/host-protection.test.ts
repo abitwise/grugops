@@ -91,6 +91,11 @@ const ENVS = api("repos/{owner}/{repo}/environments?per_page=100");
 // An explicit, empty pull request bypass allowance (D-30): a classic body that omits the key is not
 // readable (plan 33.1-22), so every classic body a case expects to be `protected` carries this.
 const NO_ALLOWANCES = { users: [], teams: [], apps: [] };
+// The two stale-approval settings on (33.1 D-33 (d)): every strong pull_request rule carries
+// STALE_ON in its parameters, and every strong classic required_pull_request_reviews carries
+// CLASSIC_STALE_ON. A branch needs both rows to read `protected`.
+const STALE_ON = { dismiss_stale_reviews_on_push: true, require_last_push_approval: true };
+const CLASSIC_STALE_ON = { dismiss_stale_reviews: true, require_last_push_approval: true };
 function base(over: Fixture = {}): Fixture {
   // A fresh parse per call, so no case can mutate what another case reads.
   return { ...(JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture), ...over };
@@ -129,7 +134,7 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
           status: 200,
           body: {
             enforce_admins: { enabled: true },
-            required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: NO_ALLOWANCES },
+            required_pull_request_reviews: { required_approving_review_count: 1, ...CLASSIC_STALE_ON, bypass_pull_request_allowances: NO_ALLOWANCES },
             allow_force_pushes: { enabled: false },
             allow_deletions: { enabled: false },
           },
@@ -311,20 +316,20 @@ const RULE = (type: string, parameters?: Record<string, unknown>): Record<string
   ruleset_source: "octo/repo",
   ruleset_id: 1,
 });
-const PR_RULE = (count: unknown): Record<string, unknown> => RULE("pull_request", { required_approving_review_count: count });
+const PR_RULE = (count: unknown): Record<string, unknown> => RULE("pull_request", { required_approving_review_count: count, ...STALE_ON });
 const rulesOf = (...list: unknown[]): unknown => ({ status: 200, body: list });
 // Classic protection that shows every floor row: it applies to administrators and grants no pull
 // request bypass allowance (D-30). NO_ALLOWANCES is declared with the shared fixtures near the top.
 const CLASSIC_STRONG = {
   enforce_admins: { enabled: true },
-  required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: NO_ALLOWANCES },
+  required_pull_request_reviews: { required_approving_review_count: 1, ...CLASSIC_STALE_ON, bypass_pull_request_allowances: NO_ALLOWANCES },
   allow_force_pushes: { enabled: false },
   allow_deletions: { enabled: false },
 };
 const classicOf = (body: Record<string, unknown>): unknown => ({ status: 200, body });
 const NOT_PROTECTED_404 = { status: 404, body: { message: "Branch not protected" } };
 // The qualifier row of the branch floor (D-30), last in the table.
-const NO_BYPASS = "does not let administrators or the account the agent works under bypass it";
+const NO_BYPASS = "does not let the account the agent works under bypass it";
 // `GET repos/{owner}/{repo}/rulesets/<id>` and a 200 answer carrying `current_user_can_bypass`.
 const RULESET = (id: number | string): string => api(`repos/{owner}/{repo}/rulesets/${id}`);
 // A ruleset answer that models a real host carries `enforcement: "active"` and `target: "branch"`:
@@ -351,7 +356,7 @@ const RULE_IN = (id: unknown, type: string, parameters?: Record<string, unknown>
 });
 // Every branch floor item from one ruleset.
 const ALL_ROWS_IN = (id: unknown): Record<string, unknown>[] => [
-  RULE_IN(id, "pull_request", { required_approving_review_count: 1 }),
+  RULE_IN(id, "pull_request", { required_approving_review_count: 1, ...STALE_ON }),
   RULE_IN(id, "non_fast_forward"),
   RULE_IN(id, "deletion"),
 ];
@@ -455,7 +460,7 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
         [RULES("main")]: NO_RULES,
         [PROTECTION("main")]: classicOf({
           ...CLASSIC_STRONG,
-          required_pull_request_reviews: { required_approving_review_count: 0 },
+          required_pull_request_reviews: { required_approving_review_count: 0, ...CLASSIC_STALE_ON },
         }),
       }),
     );
@@ -521,7 +526,7 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
         [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
         [PROTECTION("main")]: classicOf({
           ...CLASSIC_STRONG,
-          required_pull_request_reviews: { required_approving_review_count: 0 },
+          required_pull_request_reviews: { required_approving_review_count: 0, ...CLASSIC_STALE_ON },
         }),
       }),
     );
@@ -557,6 +562,8 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
     expect(block.floor.branch).toEqual([
       "requires a pull request before merging",
       "requires at least one approving review",
+      "dismisses stale approvals when new commits are pushed",
+      "requires approval of the most recent push",
       "blocks force pushes",
       "restricts deletions",
       NO_BYPASS,
@@ -566,7 +573,15 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
     for (const t of branches) {
       expect(t.facts, `facts on branch ${t.name}`).toBeDefined();
       expect(t.facts!.map((f) => f.requirement)).toEqual(block.floor.branch);
-      expect(t.facts!.map((f) => f.id)).toEqual(["pull_request", "approving_review", "no_force_push", "no_deletion", "no_bypass"]);
+      expect(t.facts!.map((f) => f.id)).toEqual([
+        "pull_request",
+        "approving_review",
+        "stale_dismissal",
+        "last_push_approval",
+        "no_force_push",
+        "no_deletion",
+        "no_bypass",
+      ]);
       for (const f of t.facts!) {
         expect(["held", "failed", "unknown"]).toContain(f.state);
         expect(typeof f.evidence).toBe("string");
@@ -604,7 +619,40 @@ describe("host-protection.js — the branch floor table (CR-01, D-19)", () => {
       [RULES("main")]: rulesOf(PR_RULE(0), RULE("non_fast_forward"), RULE("deletion")),
       [PROTECTION("main")]: classicOf({
         ...CLASSIC_STRONG,
-        required_pull_request_reviews: { required_approving_review_count: 0 },
+        required_pull_request_reviews: { required_approving_review_count: 0, ...CLASSIC_STALE_ON },
+      }),
+    },
+    // 33.1 D-33 (d): each stale-approval setting off on both arms.
+    "dismisses stale approvals when new commits are pushed": {
+      [RULES("main")]: rulesOf(
+        RULE("pull_request", { required_approving_review_count: 1, ...STALE_ON, dismiss_stale_reviews_on_push: false }),
+        RULE("non_fast_forward"),
+        RULE("deletion"),
+      ),
+      [PROTECTION("main")]: classicOf({
+        ...CLASSIC_STRONG,
+        required_pull_request_reviews: {
+          required_approving_review_count: 1,
+          ...CLASSIC_STALE_ON,
+          dismiss_stale_reviews: false,
+          bypass_pull_request_allowances: NO_ALLOWANCES,
+        },
+      }),
+    },
+    "requires approval of the most recent push": {
+      [RULES("main")]: rulesOf(
+        RULE("pull_request", { required_approving_review_count: 1, ...STALE_ON, require_last_push_approval: false }),
+        RULE("non_fast_forward"),
+        RULE("deletion"),
+      ),
+      [PROTECTION("main")]: classicOf({
+        ...CLASSIC_STRONG,
+        required_pull_request_reviews: {
+          required_approving_review_count: 1,
+          ...CLASSIC_STALE_ON,
+          require_last_push_approval: false,
+          bypass_pull_request_allowances: NO_ALLOWANCES,
+        },
       }),
     },
     "blocks force pushes": {
@@ -728,8 +776,8 @@ describe("host-protection.js — ruleset bypass (CR-01, D-30)", () => {
       const r = runCheck(
         base({
           [RULES("main")]: rulesOf(
-            RULE_IN(order[0], "pull_request", { required_approving_review_count: 1 }),
-            RULE_IN(order[1], "pull_request", { required_approving_review_count: 1 }),
+            RULE_IN(order[0], "pull_request", { required_approving_review_count: 1, ...STALE_ON }),
+            RULE_IN(order[1], "pull_request", { required_approving_review_count: 1, ...STALE_ON }),
             RULE_IN(2, "non_fast_forward"),
             RULE_IN(2, "deletion"),
           ),
@@ -750,8 +798,8 @@ describe("host-protection.js — ruleset bypass (CR-01, D-30)", () => {
     const r = runCheck(
       base({
         [RULES("main")]: rulesOf(
-          RULE_IN(2, "pull_request", { required_approving_review_count: 0 }),
-          RULE_IN(1, "pull_request", { required_approving_review_count: 1 }),
+          RULE_IN(2, "pull_request", { required_approving_review_count: 0, ...STALE_ON }),
+          RULE_IN(1, "pull_request", { required_approving_review_count: 1, ...STALE_ON }),
           RULE_IN(2, "non_fast_forward"),
           RULE_IN(2, "deletion"),
         ),
@@ -768,7 +816,7 @@ describe("host-protection.js — ruleset bypass (CR-01, D-30)", () => {
 
   it("more than 20 distinct rulesets: at most 20 are read, and a row shown only by an unread one is unknown", () => {
     const fx: Fixture = {};
-    const rules: Record<string, unknown>[] = [RULE_IN(1, "pull_request", { required_approving_review_count: 1 })];
+    const rules: Record<string, unknown>[] = [RULE_IN(1, "pull_request", { required_approving_review_count: 1, ...STALE_ON })];
     for (let id = 1; id <= 25; id++) {
       rules.push(RULE_IN(id, "non_fast_forward"));
       fx[RULESET(id)] = rulesetAnswer(id, "never");
@@ -838,7 +886,7 @@ describe("host-protection.js — classic protection bypass (CR-01, D-30)", () =>
 
   const withAllowances = (allowances: unknown): Record<string, unknown> => ({
     ...CLASSIC_STRONG,
-    required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: allowances },
+    required_pull_request_reviews: { required_approving_review_count: 1, ...CLASSIC_STALE_ON, bypass_pull_request_allowances: allowances },
   });
   const LISTED: Record<string, unknown> = {
     "a listed user": { users: [{ login: "octo-agent" }], teams: [], apps: [] },
@@ -873,7 +921,7 @@ describe("host-protection.js — classic protection bypass (CR-01, D-30)", () =>
     const r = runCheck(
       base({
         [RULES("main")]: NO_RULES,
-        [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, required_pull_request_reviews: { required_approving_review_count: 1 } }),
+        [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, required_pull_request_reviews: { required_approving_review_count: 1, ...CLASSIC_STALE_ON } }),
       }),
       ["--json"],
     );
@@ -898,6 +946,179 @@ describe("host-protection.js — classic protection bypass (CR-01, D-30)", () =>
     );
     expect(branchLine(r.stdout)).toContain("2 actor(s)");
     expect(r.stdout).not.toContain("octo-");
+  });
+});
+
+// ── 33.1 D-33 (d) and D-31 Q1 (plan 33.1-42): the stale-approval rows and the narrowed line ──────
+// Each stale-approval setting is read through ACCEPT.enabledFlag: true held, false failed, anything
+// else (absent, null, the string "true", a number) unknown. A branch needs both rows to read
+// `protected`. The ruleset arm reads the pull_request rule's parameters; the classic arm reads
+// required_pull_request_reviews.
+describe("host-protection.js — stale approvals are dismissed and the last push is approved (33.1 D-33 (d))", () => {
+  const STALE_ROW = "dismisses stale approvals when new commits are pushed";
+  const LAST_PUSH_ROW = "requires approval of the most recent push";
+  // [row, ruleset parameter, classic field].
+  const SETTINGS: Array<[string, string, string]> = [
+    [STALE_ROW, "dismiss_stale_reviews_on_push", "dismiss_stale_reviews"],
+    [LAST_PUSH_ROW, "require_last_push_approval", "require_last_push_approval"],
+  ];
+  const ABSENT = Symbol("absent");
+  // [label, value, the row's state, the verdict, the exit code].
+  const VALUES: Array<[string, unknown, string, string, number]> = [
+    ["false", false, "failed", "unprotected", 1],
+    ["absent", ABSENT, "unknown", "UNKNOWN - verify", 2],
+    ['the string "true"', "true", "unknown", "UNKNOWN - verify", 2],
+    ["null", null, "unknown", "UNKNOWN - verify", 2],
+    ["the number 1", 1, "unknown", "UNKNOWN - verify", 2],
+  ];
+  const withValue = (fields: Record<string, unknown>, key: string, value: unknown): Record<string, unknown> => {
+    const out = { ...fields };
+    if (value === ABSENT) delete out[key];
+    else out[key] = value;
+    return out;
+  };
+  // Ruleset only: the strong rule list with the parameter set, and no classic protection.
+  const rulesetOnly = (param: string, value: unknown): Fixture =>
+    base({
+      [RULES("main")]: rulesOf(
+        RULE("pull_request", withValue({ required_approving_review_count: 1, ...STALE_ON }, param, value)),
+        RULE("non_fast_forward"),
+        RULE("deletion"),
+      ),
+      [PROTECTION("main")]: NOT_PROTECTED_404,
+    });
+  // Classic only: no ruleset rule, and strong classic protection with the field set.
+  const classicOnly = (field: string, value: unknown, allowances: unknown = NO_ALLOWANCES): Fixture =>
+    base({
+      [RULES("main")]: NO_RULES,
+      [PROTECTION("main")]: classicOf({
+        ...CLASSIC_STRONG,
+        required_pull_request_reviews: withValue(
+          { required_approving_review_count: 1, ...CLASSIC_STALE_ON, bypass_pull_request_allowances: allowances },
+          field,
+          value,
+        ),
+      }),
+    });
+
+  it("both settings on, on each arm alone → protected, exit 0", () => {
+    for (const fx of [base(), rulesetOnly("dismiss_stale_reviews_on_push", true), classicOnly("dismiss_stale_reviews", true)]) {
+      const r = runCheck(fx, ["--json"]);
+      expect(verdictOf(r.stdout, "branch", "main"), r.stdout).toBe("protected");
+      expect(factOf(r.stdout, "main", STALE_ROW)).toBe("held");
+      expect(factOf(r.stdout, "main", LAST_PUSH_ROW)).toBe("held");
+      expect(r.status).toBe(0);
+    }
+  });
+
+  for (const [row, param, field] of SETTINGS) {
+    for (const [label, value, state, verdict, exit] of VALUES) {
+      it(`ruleset only, ${param} ${label} → ${row}: ${state}, main ${verdict}, exit ${exit}`, () => {
+        const r = runCheck(rulesetOnly(param, value), ["--json"]);
+        expect(factOf(r.stdout, "main", row), r.stdout).toBe(state);
+        expect(verdictOf(r.stdout, "branch", "main")).toBe(verdict);
+        expect(r.status).toBe(exit);
+        for (const [other] of SETTINGS.filter(([o]) => o !== row)) expect(factOf(r.stdout, "main", other), other).toBe("held");
+      });
+      it(`classic only, required_pull_request_reviews.${field} ${label} → ${row}: ${state}, main ${verdict}, exit ${exit}`, () => {
+        const r = runCheck(classicOnly(field, value), ["--json"]);
+        expect(factOf(r.stdout, "main", row), r.stdout).toBe(state);
+        expect(verdictOf(r.stdout, "branch", "main")).toBe(verdict);
+        expect(r.status).toBe(exit);
+        for (const [other] of SETTINGS.filter(([o]) => o !== row)) expect(factOf(r.stdout, "main", other), other).toBe("held");
+      });
+    }
+  }
+
+  it("classic only, required_pull_request_reviews absent → both rows failed, like the approval row, exit 1", () => {
+    const body: Record<string, unknown> = { ...CLASSIC_STRONG };
+    delete body.required_pull_request_reviews;
+    const r = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf(body) }), ["--json"]);
+    expect(factOf(r.stdout, "main", STALE_ROW)).toBe("failed");
+    expect(factOf(r.stdout, "main", LAST_PUSH_ROW)).toBe("failed");
+    expect(factOf(r.stdout, "main", "requires at least one approving review")).toBe("failed");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+    expect(r.status).toBe(1);
+  });
+
+  it("classic only, a bypass allowance listing an actor → both rows unknown (the review-item binding rule), UNKNOWN - verify", () => {
+    const r = runCheck(classicOnly("dismiss_stale_reviews", true, { users: [{ login: "octo-agent" }], teams: [], apps: [] }), ["--json"]);
+    expect(factOf(r.stdout, "main", STALE_ROW)).toBe("unknown");
+    expect(factOf(r.stdout, "main", LAST_PUSH_ROW)).toBe("unknown");
+    expect(factOf(r.stdout, "main", "blocks force pushes")).toBe("held");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(r.stdout).not.toContain("octo-agent");
+    expect(r.status).toBe(2);
+  });
+
+  it("classic only, enforce_admins.enabled false → both rows failed (bypassable), unprotected", () => {
+    const r = runCheck(
+      base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf({ ...CLASSIC_STRONG, enforce_admins: { enabled: false } }) }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", STALE_ROW)).toBe("failed");
+    expect(factOf(r.stdout, "main", LAST_PUSH_ROW)).toBe("failed");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+  });
+
+  it("union: the ruleset shows stale dismissal only and classic shows last-push approval only → both held, protected", () => {
+    const r = runCheck(
+      base({
+        [RULES("main")]: rulesOf(
+          RULE("pull_request", { required_approving_review_count: 1, dismiss_stale_reviews_on_push: true, require_last_push_approval: false }),
+          RULE("non_fast_forward"),
+          RULE("deletion"),
+        ),
+        [PROTECTION("main")]: classicOf({
+          ...CLASSIC_STRONG,
+          required_pull_request_reviews: {
+            required_approving_review_count: 1,
+            dismiss_stale_reviews: false,
+            require_last_push_approval: true,
+            bypass_pull_request_allowances: NO_ALLOWANCES,
+          },
+        }),
+      }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", STALE_ROW)).toBe("held");
+    expect(factOf(r.stdout, "main", LAST_PUSH_ROW)).toBe("held");
+    expect(verdictOf(r.stdout, "branch", "main"), r.stdout).toBe("protected");
+    expect(branchLine(r.stdout)).toContain(`${STALE_ROW} (ruleset)`);
+    expect(branchLine(r.stdout)).toContain(`${LAST_PUSH_ROW} (classic protection)`);
+    expect(r.status).toBe(0);
+  });
+
+  it("union: a bypassable ruleset showing both rows does not show them; classic with both off → unprotected", () => {
+    const r = runCheck(
+      base({
+        [RULESET(1)]: rulesetAnswer(1, "always"),
+        [PROTECTION("main")]: classicOf({
+          ...CLASSIC_STRONG,
+          required_pull_request_reviews: {
+            required_approving_review_count: 1,
+            dismiss_stale_reviews: false,
+            require_last_push_approval: false,
+            bypass_pull_request_allowances: NO_ALLOWANCES,
+          },
+        }),
+      }),
+      ["--json"],
+    );
+    expect(factOf(r.stdout, "main", STALE_ROW)).toBe("failed");
+    expect(factOf(r.stdout, "main", LAST_PUSH_ROW)).toBe("failed");
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
+  });
+
+  it("the no-bypass line reads what both arms measure (33.1 D-31 Q1), and floor.branch lists 7 strings equal to README's 7 branch lines", () => {
+    const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.branch;
+    expect(NO_BYPASS).toBe("does not let the account the agent works under bypass it");
+    expect(floor).toHaveLength(7);
+    expect(floor[floor.length - 1]).toBe(NO_BYPASS);
+    expect(floor.indexOf(STALE_ROW)).toBe(2);
+    expect(floor.indexOf(LAST_PUSH_ROW)).toBe(3);
+    expect(checklistLists()[0]).toEqual(floor);
+    expect(floor.join("\n")).not.toContain("administrators");
   });
 });
 
@@ -1202,7 +1423,7 @@ describe("host-protection.js — rule list garbage and approval counts (D-30)", 
         [RULES("main")]: NO_RULES,
         [PROTECTION("main")]: classicOf({
           ...CLASSIC_STRONG,
-          required_pull_request_reviews: { required_approving_review_count: -1, bypass_pull_request_allowances: NO_ALLOWANCES },
+          required_pull_request_reviews: { required_approving_review_count: -1, ...CLASSIC_STALE_ON, bypass_pull_request_allowances: NO_ALLOWANCES },
         }),
       }),
       ["--json"],
@@ -1494,7 +1715,10 @@ describe("host-protection.js — pairs: an entry that may belong to the ruleset 
     const r = runCheck(base({ [RULES("main")]: rulesWithSource({ ruleset_id: undefined }, 1), [PROTECTION("main")]: NOT_PROTECTED_404 }), ["--json"]);
     const block = jsonBlock(r.stdout).floor.branch;
     const held = block.filter((req) => factOf(r.stdout, "main", req) === "held");
-    expect(held.length, `rows held: ${held.join(", ")}`).toBe(3);
+    // 3 → 5 (plan 33.1-42, 33.1 D-33 (d)): the broken entry is rule 1 (non_fast_forward), so only
+    // its row and the qualifier are not held; the pull_request rule now also shows the two
+    // stale-approval rows, and deletion its own row.
+    expect(held.length, `rows held: ${held.join(", ")}`).toBe(5);
     expect(r.status).toBe(2);
   });
 
@@ -1646,7 +1870,7 @@ describe("host-protection.js — red-team: a host value that cannot be printed n
         [RULES("main")]: NO_RULES,
         [PROTECTION("main")]: classicOf({
           ...CLASSIC_STRONG,
-          required_pull_request_reviews: { required_approving_review_count: HOSTILE, bypass_pull_request_allowances: NO_ALLOWANCES },
+          required_pull_request_reviews: { required_approving_review_count: HOSTILE, ...CLASSIC_STALE_ON, bypass_pull_request_allowances: NO_ALLOWANCES },
         }),
       },
       "main",
@@ -1989,7 +2213,10 @@ describe("host-protection.js — red-team 33.1-23 finding 1: classic protection 
     (_label, shape, isRecord) => {
       const r = featRun(shape);
       const items = factsOf(r.stdout, "branch", "feat").filter((f) => f.id !== "no_bypass");
-      expect(items.length).toBe(4);
+      // 4 → 6 (plan 33.1-42, 33.1 D-33 (d)): the branch floor's item rows, the two stale-approval
+      // rows added.
+      expect(items.length).toBe(6);
+      expect(items.length).toBe(jsonBlock(r.stdout).floor.branch.length - 1);
       const floorSawRecord = !items.every((f) => f.evidence.includes(NOT_A_RECORD));
       expect(floorSawRecord).toBe(isRecord);
     },

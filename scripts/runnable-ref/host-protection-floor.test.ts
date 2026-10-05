@@ -666,7 +666,13 @@ function strongFixture(): Fixture {
 function classicStrongBody(): Record<string, unknown> {
   return {
     enforce_admins: { enabled: true },
-    required_pull_request_reviews: { required_approving_review_count: 1, bypass_pull_request_allowances: { users: [], teams: [], apps: [] } },
+    required_pull_request_reviews: {
+      required_approving_review_count: 1,
+      // The two stale-approval settings (33.1 D-33 (d), plan 33.1-42).
+      dismiss_stale_reviews: true,
+      require_last_push_approval: true,
+      bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
+    },
     allow_force_pushes: { enabled: false },
     allow_deletions: { enabled: false },
   };
@@ -796,11 +802,28 @@ function applyMutation(fx: Fixture, p: WalkedPath, m: Mutation): void {
 // ── The rows ─────────────────────────────────────────────────────────────────────────────────────
 // The rows evidence fields feed: the branch floor only. The five ENVIRONMENT_FLOOR rows are fed by no
 // host field since plan 33.1-41 (33.1 D-31 Q4).
-const BRANCH_ROWS = ["pull_request", "approving_review", "no_force_push", "no_deletion", "no_bypass"] as const;
+// In table order. Plan 33.1-42 (33.1 D-33 (d)) added stale_dismissal and last_push_approval after
+// approving_review: five rows before, seven after.
+const BRANCH_ROWS = [
+  "pull_request",
+  "approving_review",
+  "stale_dismissal",
+  "last_push_approval",
+  "no_force_push",
+  "no_deletion",
+  "no_bypass",
+] as const;
 type RowId = (typeof BRANCH_ROWS)[number];
-const B5: readonly RowId[] = BRANCH_ROWS;
-const PR: readonly RowId[] = ["pull_request", "approving_review", "no_bypass"];
+const ALL: readonly RowId[] = BRANCH_ROWS;
+// The review items (`reviewItem: true`): everything a pull_request rule or classic
+// required_pull_request_reviews shows, and the bypass allowance binds. Three rows before plan
+// 33.1-42 (pull_request, approving_review, no_bypass), five after.
+const REVIEW: readonly RowId[] = ["pull_request", "approving_review", "stale_dismissal", "last_push_approval", "no_bypass"];
+// A pull_request rule's `parameters` object feeds every row read from a parameter.
+const PARAMS: readonly RowId[] = ["approving_review", "stale_dismissal", "last_push_approval", "no_bypass"];
 const APPROVAL: readonly RowId[] = ["approving_review", "no_bypass"];
+const STALE: readonly RowId[] = ["stale_dismissal", "no_bypass"];
+const LAST_PUSH: readonly RowId[] = ["last_push_approval", "no_bypass"];
 const NFF: readonly RowId[] = ["no_force_push", "no_bypass"];
 const DEL: readonly RowId[] = ["no_deletion", "no_bypass"];
 
@@ -808,46 +831,51 @@ const DEL: readonly RowId[] = ["no_deletion", "no_bypass"];
 // have its INERT reason below). Follows plan 33.1-22's ACCEPT entries and the union rule; the
 // corrections to the plan's mapping are recorded in 33.1-23-SUMMARY.md.
 const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
-  "rules:$": B5,
+  "rules:$": ALL,
   // A whole rule entry nulled or garbled names no ruleset and no source, so since plan 33.1-24 it
   // is asked by the source agreement of every ruleset it may belong to (every branch row). Removing
   // the element is a shorter, well-formed list and still fails only its own rows.
-  "rules:$[0]": B5,
-  "rules:$[0].type": PR,
-  "rules:$[0].parameters": APPROVAL,
+  "rules:$[0]": ALL,
+  "rules:$[0].type": REVIEW,
+  "rules:$[0].parameters": PARAMS,
   "rules:$[0].parameters.required_approving_review_count": APPROVAL,
+  // The two stale-approval settings (plan 33.1-42, 33.1 D-33 (d)), read through ACCEPT.enabledFlag.
+  "rules:$[0].parameters.dismiss_stale_reviews_on_push": STALE,
+  "rules:$[0].parameters.require_last_push_approval": LAST_PUSH,
   // Read since red-team case P of plan 33.1-22: every rule of a ruleset must name the source the
   // ruleset's own body names, or the ruleset binds nothing on this branch (every branch row).
-  "rules:$[0].ruleset_source_type": B5,
-  "rules:$[0].ruleset_source": B5,
-  "rules:$[0].ruleset_id": PR,
-  "rules:$[1]": B5,
+  "rules:$[0].ruleset_source_type": ALL,
+  "rules:$[0].ruleset_source": ALL,
+  "rules:$[0].ruleset_id": REVIEW,
+  "rules:$[1]": ALL,
   "rules:$[1].type": NFF,
-  "rules:$[1].ruleset_source_type": B5,
-  "rules:$[1].ruleset_source": B5,
+  "rules:$[1].ruleset_source_type": ALL,
+  "rules:$[1].ruleset_source": ALL,
   "rules:$[1].ruleset_id": NFF,
-  "rules:$[2]": B5,
+  "rules:$[2]": ALL,
   "rules:$[2].type": DEL,
-  "rules:$[2].ruleset_source_type": B5,
-  "rules:$[2].ruleset_source": B5,
+  "rules:$[2].ruleset_source_type": ALL,
+  "rules:$[2].ruleset_source": ALL,
   "rules:$[2].ruleset_id": DEL,
-  "ruleset:$": B5,
-  "ruleset:$.id": B5,
+  "ruleset:$": ALL,
+  "ruleset:$.id": ALL,
   // enforcement, target, source and source_type: read since plan 33.1-22's red-team round.
-  "ruleset:$.target": B5,
-  "ruleset:$.enforcement": B5,
-  "ruleset:$.source": B5,
-  "ruleset:$.source_type": B5,
-  "ruleset:$.current_user_can_bypass": B5,
-  "classic:$": B5,
-  "classic:$.enforce_admins": B5,
-  "classic:$.enforce_admins.enabled": B5,
-  "classic:$.required_pull_request_reviews": PR,
+  "ruleset:$.target": ALL,
+  "ruleset:$.enforcement": ALL,
+  "ruleset:$.source": ALL,
+  "ruleset:$.source_type": ALL,
+  "ruleset:$.current_user_can_bypass": ALL,
+  "classic:$": ALL,
+  "classic:$.enforce_admins": ALL,
+  "classic:$.enforce_admins.enabled": ALL,
+  "classic:$.required_pull_request_reviews": REVIEW,
   "classic:$.required_pull_request_reviews.required_approving_review_count": APPROVAL,
-  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances": PR,
-  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.users": PR,
-  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.teams": PR,
-  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.apps": PR,
+  "classic:$.required_pull_request_reviews.dismiss_stale_reviews": STALE,
+  "classic:$.required_pull_request_reviews.require_last_push_approval": LAST_PUSH,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances": REVIEW,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.users": REVIEW,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.teams": REVIEW,
+  "classic:$.required_pull_request_reviews.bypass_pull_request_allowances.apps": REVIEW,
   "classic:$.allow_force_pushes": NFF,
   "classic:$.allow_force_pushes.enabled": NFF,
   "classic:$.allow_deletions": DEL,
@@ -865,7 +893,8 @@ const INERT: Readonly<Record<string, string>> = {};
 // absentFailedWhy. `<body>:<path>|<mutation>` → the state each fed row reads instead of `unknown`.
 const EXCEPTIONS: Readonly<Record<string, { rows: Readonly<Partial<Record<RowId, string>>>; why: string }>> = {
   "classic:$.required_pull_request_reviews|absent": {
-    rows: { pull_request: "failed", approving_review: "failed", no_bypass: "unknown" },
+    // stale_dismissal and last_push_approval added by plan 33.1-42: they read the same object first.
+    rows: { pull_request: "failed", approving_review: "failed", stale_dismissal: "failed", last_push_approval: "failed", no_bypass: "unknown" },
     why: "ACCEPT.classicReviews reads an absent key as failed (absentFailedWhy: observed, not documented; failed is fail-safe)",
   },
 };
@@ -879,9 +908,12 @@ const ABSENT_NEUTRAL: Readonly<Record<string, string>> = {};
 // The pinned field counts. A fixture that gains or loses a field changes a count and stays red until
 // someone reads the new field and classifies it in LEAVES.
 const FIELDS_PER_BODY: Readonly<Record<BodyName, number>> = {
-  rules: 18,
+  // 18 → 20 and 13 → 15 (plan 33.1-42, 33.1 D-33 (d)): the pull_request rule's parameters gain
+  // dismiss_stale_reviews_on_push and require_last_push_approval; classic required_pull_request_reviews
+  // gains dismiss_stale_reviews and require_last_push_approval. ruleset is unchanged.
+  rules: 20,
   ruleset: 7,
-  classic: 13,
+  classic: 15,
 };
 // 60 → 62 and 14 → 12 (red-team finding 1 of plan 33.1-23): listedClassic enforce_admins and
 // enforce_admins.enabled moved from INERT to the branch-policy row. 62 → 63 and 12 → 11 (red-team
@@ -892,7 +924,9 @@ const FIELDS_PER_BODY: Readonly<Record<BodyName, number>> = {
 // inert) are no longer read, so they are no longer walked: 63 - 18 - 4 - 3 = 38 evidence and
 // 11 - 1 - 10 = 0 inert. The three bodies still read (rules 18, ruleset 7, classic 13) are unchanged,
 // every one of their 38 fields feeds a branch row, and no field was made inert.
-const EVIDENCE_FIELD_COUNT = 38;
+// 38 → 42 (plan 33.1-42, 33.1 D-33 (d)): the four stale-approval settings, two on each arm, are
+// evidence fields (each feeds its own row and the qualifier). INERT stays 0.
+const EVIDENCE_FIELD_COUNT = 42;
 const INERT_FIELD_COUNT = 0;
 
 const WALKED = walkedPaths();
@@ -1107,7 +1141,10 @@ const SIBLING_PAIRS = siblingPairs();
 // branch policy 1, its reviewer rule 3, the reviewer entry 1, environments $ 1) and the
 // protected-branch list element (1) are no longer read: 63 - 13 = 50. The pairs of the three bodies
 // still read (rules 3 + 10 + 6 + 6, ruleset 15, classic 6 + 1 + 3) are unchanged.
-const SIBLING_PAIR_COUNT = 50;
+// 50 → 58 (plan 33.1-42, 33.1 D-33 (d)): the pull_request rule's parameters go from 1 evidence field
+// to 3, so 0 → C(3, 2) = 3 pairs (rules $[0].parameters 3); classic required_pull_request_reviews
+// goes from 2 evidence children (the count, the allowance) to 4, so 1 → C(4, 2) = 6 pairs. 50 + 3 + 5.
+const SIBLING_PAIR_COUNT = 58;
 
 // ── Cross-row and cross-target pairs (plan 33.1-24 Task 2) ──────────────────────────────────────
 // The row ids come from baseline runs' facts, never from a typed list.
@@ -1145,7 +1182,9 @@ const ROW_PAIRS = rowPairs();
 // C(10, 2) = 45 before plan 33.1-41 (floor.branch plus floor.environment). C(5, 2) = 10 after: the
 // five ENVIRONMENT_FLOOR rows are fed by no host field (33.1 D-31 Q4), so only the five branch rows
 // of the CLASSIC_ARM run pair.
-const ROW_PAIR_COUNT = 10;
+// C(5, 2) = 10 → C(7, 2) = 21 (plan 33.1-42, 33.1 D-33 (d)): the two stale-approval rows join the
+// branch rows of the CLASSIC_ARM run.
+const ROW_PAIR_COUNT = 21;
 
 // The other target's evidence: every walked path that feeds a row of no branch. Before plan 33.1-41
 // these were the protected-branch list's evidence paths and the listed branch's classic root (the

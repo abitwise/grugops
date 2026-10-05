@@ -6,7 +6,7 @@
     "body": [
       {
         "type": "pull_request",
-        "parameters": { "required_approving_review_count": 1 },
+        "parameters": { "required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true, "require_last_push_approval": true },
         "ruleset_source_type": "Repository",
         "ruleset_source": "octo/repo",
         "ruleset_id": 1

@@ -51,7 +51,17 @@
 // floor, one row per item of the branch checklist in install/README.md §5 ("Git-host setup
 // checklist"), whose requirement strings it carries byte for byte (a test binds the two). A branch
 // is `protected` only when EVERY row is positively shown; no code path outside the table produces
-// `protected` for a branch. Each row is read from two arms, each read at most once per branch:
+// `protected` for a branch. The rows, in table order: a pull request is required; at least one
+// approving review is required; stale approvals are dismissed when new commits are pushed; the most
+// recent push must be approved; force pushes are blocked; deletions are restricted; and the
+// qualifier, no_bypass. The two stale-approval rows were added by 33.1 D-33 (d), which resolved
+// D-31 Q2's "and/or" as both: each reads one boolean through ACCEPT.enabledFlag (true held, false
+// failed, anything else, absent included, unknown), on the ruleset arm as the pull_request rule's
+// `parameters.dismiss_stale_reviews_on_push` and `parameters.require_last_push_approval`, and on
+// the classic arm as `required_pull_request_reviews.dismiss_stale_reviews` and
+// `required_pull_request_reviews.require_last_push_approval` (field names confirmed on
+// docs.github.com, the REST rules and branch-protection pages, 2026-10-02 and again 2026-10-05).
+// Each row is read from two arms, each read at most once per branch:
 //   - the ruleset arm, `rules/branches/<b>` (the active rules from every ruleset that applies).
 //     Read in full (200, a JSON array, no `Link` naming a further page), read partially (a further
 //     page exists: then no ruleset's rules are shown to agree on their source, so no ruleset binds;
@@ -95,9 +105,11 @@
 // classic 200 body, `allow_force_pushes` / `allow_deletions` must be objects with
 // `enabled === false` to show their row (`enabled === true` → `failed`, anything else →
 // `unknown`). A classic 200 body with no `required_pull_request_reviews` key is `failed` for the
-// pull-request and approval rows: whether GitHub omits the key when reviews are off is observed
-// behaviour, not documented, and `failed` is fail-safe because neither `failed` nor `unknown` is
-// ever `held`.
+// pull-request, approval and both stale-approval rows: whether GitHub omits the key when reviews are
+// off is observed behaviour, not documented, and `failed` is fail-safe because neither `failed` nor
+// `unknown` is ever `held`. A stale-approval setting that is absent inside a present
+// required_pull_request_reviews (or inside a pull_request rule's parameters) is `unknown`, never
+// `failed` (33.1 D-33 (d)).
 // BYPASS (plan 33.1-19, D-30). The floor must hold against the account the check runs under,
 // which is usually the account the agent works under. A source shows an item only when that
 // account cannot bypass it. Ruleset arm: each rule that could show an item names its ruleset by
@@ -115,13 +127,22 @@
 // an item is `held` on the ruleset arm when at least one binding rule shows it. Classic arm: the
 // body binds only with `enforce_admins.enabled === true` (`false` is read as bypassable, since a
 // 200 from the protection endpoint shows the account reads it as an administrator; anything else
-// is not readable), and for the pull-request and approval items only with
+// is not readable), and for the review items (the pull-request, approval and both stale-approval
+// items, `reviewItem: true`) only with
 // `bypass_pull_request_allowances` present and listing no user, team or app (a non-empty list is not
 // readable: the check cannot tell whether the account is listed; a missing key is not readable
 // either, per D-30, and is never read as "no allowance"). The last row of
 // the table, `no_bypass`, is the qualifier: `held` when every item is held (each item already
 // counts only binding sources), `failed` when an item fails and a source that would show it was
 // read as bypassable, `unknown` otherwise; its evidence names each bypassable or unreadable source.
+// THE NO-BYPASS LINE (33.1 D-31 Q1, `q1-narrow-line`, plan 33.1-42). Its requirement is "does not
+// let the account the agent works under bypass it", which is what both arms measure. D-31's rule is
+// that the line states what the ruleset arm measures, and the ruleset arm reads only
+// `current_user_can_bypass`, which is about the account the check runs under. So the option's
+// example clause "and applies to administrators" is not part of the line: on a ruleset the check
+// reads nothing about administrators. The classic arm still binds only with
+// `enforce_admins.enabled === true`, and install/README.md §5 says so and asks the user to keep the
+// administrator role off a ruleset's bypass list.
 // THE VERDICT: every row `held` → protected; any row `failed` → unprotected; otherwise
 // UNKNOWN - verify. The reason names each row that is not held with the evidence from both arms;
 // a protected reason names which arm showed each row. `--json` publishes the table
@@ -371,6 +392,15 @@ const ACCEPT = {
         held: (v) => isPositiveSafeInteger(v),
         failed: (v) => v === 0,
     },
+    // A stale-approval setting (33.1 D-33 (d)): `dismiss_stale_reviews_on_push` or
+    // `require_last_push_approval` on a pull_request rule's parameters, or `dismiss_stale_reviews` or
+    // `require_last_push_approval` on classic required_pull_request_reviews. Exactly `true` shows the
+    // row, exactly `false` is read and not met, and anything else (absent, null, the string "true") is
+    // unknown. There is no absentFailedWhy: absence is never read as `false`.
+    enabledFlag: {
+        held: (v) => v === true,
+        failed: (v) => v === false,
+    },
     // Classic allow_force_pushes / allow_deletions: the row is shown only as `{ enabled: false }`.
     disabledFlag: {
         held: (v) => isObject(v) && v.enabled === false,
@@ -594,6 +624,33 @@ function approvalSays(where, count) {
         unknown: `${where} carries no required_approving_review_count this check can read (a whole number of 0 or more)`,
     };
 }
+// The two stale-approval rows (33.1 D-33 (d)) read one boolean setting each, through
+// ACCEPT.enabledFlag. On the ruleset arm the setting is a parameter of the pull_request rule; on the
+// classic arm it is a field of required_pull_request_reviews, read only after that object is (the
+// same first step as the approval row, so an absent object is `failed` and a garbled one `unknown`).
+function enabledSays(where, field, value) {
+    return {
+        held: `${where} has ${field} true`,
+        failed: `${where} has ${field} false`,
+        unknown: `${where} carries no ${field} this check can read (true or false; found ${hostText(value)})`,
+    };
+}
+function ruleEnabled(field) {
+    return (rule) => {
+        const value = hostField(hostField(rule, "parameters"), field);
+        return says(readFact(value, ACCEPT.enabledFlag), enabledSays(`a pull_request rule in ${rulesetOf(rule)}`, field, value));
+    };
+}
+function classicEnabled(field) {
+    return (body) => {
+        const rpr = hostField(body, "required_pull_request_reviews");
+        const reviews = readFact(rpr, ACCEPT.classicReviews);
+        if (reviews !== "held")
+            return says(reviews, CLASSIC_REVIEWS_SAYS);
+        const value = hostField(rpr, field);
+        return says(readFact(value, ACCEPT.enabledFlag), enabledSays("classic protection", `required_pull_request_reviews.${field}`, value));
+    };
+}
 // THE CANONICAL BRANCH FLOOR. Each `requirement` is byte-equal to a line of the branch checklist
 // in install/README.md §5; host-protection.test.ts binds the two both ways and holds a weakening
 // fixture per row. Nothing outside this table decides whether a branch is `protected`.
@@ -626,6 +683,26 @@ const BRANCH_FLOOR = [
         },
         reviewItem: true,
     },
+    // The two stale-approval rows (33.1 D-33 (d), resolving D-31 Q2's "and/or": both are required).
+    // Without them an agent could push after a human approved and merge on the old approval.
+    {
+        kind: "item",
+        id: "stale_dismissal",
+        requirement: "dismisses stale approvals when new commits are pushed",
+        ruleType: "pull_request",
+        fromRule: ruleEnabled("dismiss_stale_reviews_on_push"),
+        fromClassic: classicEnabled("dismiss_stale_reviews"),
+        reviewItem: true,
+    },
+    {
+        kind: "item",
+        id: "last_push_approval",
+        requirement: "requires approval of the most recent push",
+        ruleType: "pull_request",
+        fromRule: ruleEnabled("require_last_push_approval"),
+        fromClassic: classicEnabled("require_last_push_approval"),
+        reviewItem: true,
+    },
     {
         kind: "item",
         id: "no_force_push",
@@ -647,7 +724,7 @@ const BRANCH_FLOOR = [
     {
         kind: "qualifier",
         id: "no_bypass",
-        requirement: "does not let administrators or the account the agent works under bypass it",
+        requirement: "does not let the account the agent works under bypass it",
     },
 ];
 const FLOOR_ITEMS = BRANCH_FLOOR.filter((row) => row.kind === "item");
@@ -801,8 +878,9 @@ function ruleBinding(rule, bindings) {
 // The classic arm's binding for one item. Classic protection binds only when it applies to
 // administrators (`enforce_admins.enabled === true`): a 200 from the protection endpoint is itself
 // evidence that the account reads it as an administrator (a non-administrator reads 404
-// `Not Found`, 33.1-RESEARCH.md Q4), so `false` means this account can bypass it. For the pull
-// request and approval items it also needs `bypass_pull_request_allowances` absent, or listing no
+// `Not Found`, 33.1-RESEARCH.md Q4), so `false` means this account can bypass it. For the review
+// items (`reviewItem: true`: the pull request, approval and both stale-approval items, 33.1 D-33
+// (d)) it also needs `bypass_pull_request_allowances` present and listing no
 // user, team or app; a non-empty list is `unknown`, because the check cannot tell whether this
 // account is on it. An absent key is not readable either (D-30, plan 33.1-22): it is never read as
 // evidence that the protection grants no allowance. Evidence counts listed actors and never names

@@ -901,15 +901,29 @@ use), add a branch protection rule or a ruleset that:
 
 - [ ] requires a pull request before merging;
 - [ ] requires at least one approving review;
+- [ ] dismisses stale approvals when new commits are pushed;
+- [ ] requires approval of the most recent push;
 - [ ] blocks force pushes;
 - [ ] restricts deletions;
-- [ ] does not let administrators or the account the agent works under bypass it.
+- [ ] does not let the account the agent works under bypass it.
+
+The two stale-approval lines (decision 33.1 D-33) close a gap on a repository with more than one
+person: without them, an agent could push new commits after a human approved and then merge on the
+old approval. With classic branch protection, turn on "Dismiss stale pull request approvals when new
+commits are pushed" and "Require approval of the most recent reviewable push". With a ruleset, turn
+on the options with the same names in the ruleset's "Require a pull request before merging" rule.
+The check reads each setting from the host. A setting that is on counts, a setting that is off reads
+`unprotected`, and a setting the host's answer does not show reads `UNKNOWN - verify`.
 
 To meet the last line with classic branch protection, turn on "Do not allow bypassing the above
 settings" (include administrators) and list no one under "Allow specified actors to bypass required
 pull requests". With a ruleset, keep the account your agent works under (and any role or team it
 belongs to) off the ruleset's bypass list. The check reads this from the host: a ruleset counts only
-when GitHub reports that the checked account can never bypass it. On a repository with one human
+when GitHub reports that the checked account can never bypass it. The line says only what the check
+can read (decision 33.1 D-31). With classic branch protection the check also requires the
+protection to include administrators (`enforce_admins`). With a ruleset it reads only whether the
+account it runs under can bypass the ruleset, not who else can. So keep the administrator role, and
+any team the agent's account belongs to, off the ruleset's bypass list yourself. On a repository with one human
 identity this has a real cost. A required approval that nobody can bypass means you cannot merge
 your own pull requests, because GitHub does not let the author of a pull request approve it. If you
 add yourself to a bypass list to get around that, the check reports `unprotected`, because an agent

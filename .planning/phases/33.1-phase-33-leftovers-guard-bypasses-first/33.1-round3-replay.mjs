@@ -566,6 +566,38 @@ const CASES = {
     check(target?.verdict === "UNKNOWN - verify" && target.facts.every((f) => f.state === "unknown"), "the environment target is not UNKNOWN - verify with unknown facts");
   },
 
+  // Plan 33.1-42, 33.1 D-33 (d) (D-31 Q2, re-review WR-03): the strong fixture with
+  // dismiss_stale_reviews_on_push removed from the pull_request rule, and no classic protection
+  // (404 `Branch not protected`), gives UNKNOWN - verify, exit 2: absence is never read as `false`.
+  // The same setting `false` gives unprotected, exit 1. Neither run reads the stale row as held.
+  "q2-stale-approval"(w) {
+    const rulesKey = hostApi("repos/{owner}/{repo}/rules/branches/main?per_page=100");
+    const STALE = "dismisses stale approvals when new commits are pushed";
+    const variant = (value) => {
+      const fx = strongHostFixture();
+      fx[hostApi("repos/{owner}/{repo}/branches/main/protection")] = { status: 404, body: { message: "Branch not protected" } };
+      const pr = fx[rulesKey].body.find((rule) => rule.type === "pull_request");
+      check(pr?.parameters?.dismiss_stale_reviews_on_push === true, "the strong fixture's pull_request rule does not carry dismiss_stale_reviews_on_push true");
+      if (value === undefined) delete pr.parameters.dismiss_stale_reviews_on_push;
+      else pr.parameters.dismiss_stale_reviews_on_push = value;
+      return fx;
+    };
+    const strong = hostRun(w, variant(true), ["--json"]);
+    check(strong.status === 0, `the strong control exited ${strong.status}, expected 0\n${strong.stdout.slice(-2000)}`);
+    const expectations = [
+      ["absent", undefined, 2, "UNKNOWN - verify", "unknown"],
+      ["false", false, 1, "unprotected", "failed"],
+    ];
+    for (const [label, value, exit, verdict, state] of expectations) {
+      const r = hostRun(w, variant(value), ["--json"]);
+      check(r.status === exit, `${label}: host check exited ${r.status}, expected ${exit}\n${r.stdout.slice(-2000)}`);
+      check(r.lines.some((l) => l.startsWith(`branch main: ${verdict} — `)), `${label}: branch main is not ${verdict}`);
+      const main = hostJson(r.stdout).targets.find((t) => t.kind === "branch" && t.name === "main");
+      const fact = main?.facts?.find((f) => f.requirement === STALE);
+      check(fact?.state === state, `${label}: the stale-approval row reads ${fact?.state}, expected ${state}`);
+    }
+  },
+
   // Plan 33.1-41, review WR-04: the review's run (30 --branch flags, --json) through `(sleep 2; wc -c)`
   // delivers the byte count the same run writes to a file. Before the fix: 65536 bytes every time.
   "wr-04-slow-pipe"(w) {
