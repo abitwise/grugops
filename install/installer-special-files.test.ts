@@ -22,6 +22,10 @@
 // Pass F skips, with the reason printed, only where a FIFO cannot be made (mkfifo unavailable, or
 // win32). Pass D always runs.
 //
+// PRUNE (plan 33.1-40). `install.js --yes --prune-old-kit` is a sixth run kind (over a migrated tree, so the
+// marker records real backups) and a third kit-home run, and two site cases below keep a FIFO inside a
+// recorded backup tree and a FIFO named like a backup at both roots.
+//
 // THE KIT-HOME ROOT (plan 33.1-37). Install also reads under the kit home: the kit-home record and the
 // kit root, both by the names install-marker.js exports (KIT_HOME_RECORD_REL, KIT_ENTRY_PATH), imported
 // here and never typed. Passes F and D plant a FIFO, then an empty directory, at each of them under a
@@ -91,8 +95,19 @@ const PLANTABLE: readonly string[] = READ_PATHS.filter((p) => !p.includes(ISO_PL
 
 type Shape = "FIFO" | "directory";
 type Group = "M1" | "M2";
-type RunKind = "install --yes" | "install --yes --migrate" | "uninstall" | "DRY_RUN uninstall" | "install --check";
-const RUN_KINDS: readonly RunKind[] = ["install --yes", "install --yes --migrate", "uninstall", "DRY_RUN uninstall", "install --check"];
+type RunKind = "install --yes" | "install --yes --migrate" | "uninstall" | "DRY_RUN uninstall" | "install --check" | "install --yes --prune-old-kit";
+const RUN_KINDS: readonly RunKind[] = [
+  "install --yes",
+  "install --yes --migrate",
+  "uninstall",
+  "DRY_RUN uninstall",
+  "install --check",
+  "install --yes --prune-old-kit",
+];
+// Pinned: six run kinds. Plan 33.1-40 added `install.js --yes --prune-old-kit`: prune reads the target's
+// marker, the kit-home record and every backup they record (treeRecord), so it meets a FIFO and a directory
+// at every derived read path too. Its tree is a migrated one, so the marker records real backups.
+const RUN_KIND_COUNT = 6;
 
 // The documented exit codes (install/README.md "Exit codes"): 0 complete, 2 bad usage, 3
 // incomplete. `--check` also reports 1 on a doctor FAIL (the README's code-1 row), and every planted
@@ -103,12 +118,14 @@ const ALLOWED_EXIT: Readonly<Record<RunKind, readonly number[]>> = {
   uninstall: [0, 2, 3],
   "DRY_RUN uninstall": [0, 2, 3],
   "install --check": [0, 1, 2, 3],
+  "install --yes --prune-old-kit": [0, 2, 3],
 };
 
 const NO_STACK = /^\s+at .+\(.+:\d+:\d+\)$/m;
 
-// A tree for `run`: an installed target (a default install into an empty target), or the old
-// layout the --migrate run starts from.
+// A tree for `run`: an installed target (a default install into an empty target), the old layout the
+// --migrate run starts from, or (for prune, plan 33.1-40) a target migrated from the old layout, whose
+// marker records the backups --migrate made.
 function treeFor(run: RunKind): { target: string; home: string; grugopsHome: string } {
   const root = fresh("case");
   const target = join(root, "target");
@@ -118,6 +135,10 @@ function treeFor(run: RunKind): { target: string; home: string; grugopsHome: str
   const grugopsHome = join(home, ".grugops");
   if (run === "install --yes --migrate") {
     makeOldLayoutFixture(target, { rootConfig: true });
+  } else if (run === "install --yes --prune-old-kit") {
+    makeOldLayoutFixture(target, { rootConfig: true });
+    const r = runInstall(target, grugopsHome, ["--migrate", "--backup-edited-kit"], { home, timeoutMs: 120_000 });
+    expect(r.status, `the baseline --migrate failed\n${r.stdout}\n${r.stderr}`).toBe(0);
   } else {
     const r = runInstall(target, grugopsHome, [], { home, timeoutMs: 120_000 });
     expect(r.status, `the baseline install failed\n${r.stdout}\n${r.stderr}`).toBe(0);
@@ -185,6 +206,8 @@ function runOf(kind: RunKind, t: { target: string; home: string; grugopsHome: st
       return runUninstall(t.target, t.grugopsHome, { ...opts, dryRun: true });
     case "install --check":
       return spawnBin(INSTALL_JS, ["--check"], t.target, t.grugopsHome, opts);
+    case "install --yes --prune-old-kit":
+      return runInstall(t.target, t.grugopsHome, ["--prune-old-kit"], opts);
   }
 }
 
@@ -207,6 +230,7 @@ describe("the read path set is derived from real installs (DC-3, plan 33.1-27)",
     expect(READ_PATHS).toContain(MARKER_REL);
     expect(NOT_PLANTABLE.length, `not plantable: ${NOT_PLANTABLE.join(", ")}`).toBe(NOT_PLANTABLE_COUNT);
     expect(PLANTABLE.length + NOT_PLANTABLE.length).toBe(READ_PATH_COUNT);
+    expect(RUN_KINDS.length, `RUN_KINDS: ${RUN_KINDS.join(", ")}`).toBe(RUN_KIND_COUNT);
   });
 });
 
@@ -249,8 +273,9 @@ const KIT_HOME_READ_PATHS: readonly string[] = [KIT_HOME_RECORD_REL, KIT_ENTRY_P
 // Pinned: the kit-home record install reads (readKitHomeRecord) and the kit root copyKit decides on
 // (owns(kit), treeRecord, dirsSameContent, and --update's VERSION read under it).
 const KIT_HOME_READ_PATH_COUNT = 2;
-type KitHomeRun = "install --yes" | "install --yes --update";
-const KIT_HOME_RUNS: readonly KitHomeRun[] = ["install --yes", "install --yes --update"];
+type KitHomeRun = "install --yes" | "install --yes --update" | "install --yes --prune-old-kit";
+// Plan 33.1-40: prune reads the kit-home record (and the backups it records), so it is a kit-home run too.
+const KIT_HOME_RUNS: readonly KitHomeRun[] = ["install --yes", "install --yes --update", "install --yes --prune-old-kit"];
 
 // The tree: an installed kit home whose record was then taken away, the shape of every kit home written
 // before this release. Without a record nothing at the kit root is install's, so a planted directory there
@@ -270,7 +295,8 @@ function installedKitHome(): { target: string; home: string; grugopsHome: string
   return { target, home, grugopsHome };
 }
 function kitHomeRun(kind: KitHomeRun, t: { target: string; home: string; grugopsHome: string }): Run {
-  return runInstall(t.target, t.grugopsHome, kind === "install --yes" ? [] : ["--update"], { home: t.home, timeoutMs: 60_000 });
+  const args = kind === "install --yes" ? [] : kind === "install --yes --update" ? ["--update"] : ["--prune-old-kit"];
+  return runInstall(t.target, t.grugopsHome, args, { home: t.home, timeoutMs: 60_000 });
 }
 // Where the planted path is now: in place, or (for the kit root) the one backup copyKit renamed it to.
 function kitHomeWhereNow(grugopsHome: string, rel: string): string {
@@ -320,7 +346,7 @@ for (const shape of ["FIFO", "directory"] as const) {
 }
 
 describe("site case (plan 33.1-37): a FIFO inside an unrecorded kit tree", () => {
-  for (const kind of KIT_HOME_RUNS) {
+  for (const kind of KIT_HOME_RUNS.filter((k) => k !== "install --yes --prune-old-kit")) {
     it(`${kind}: the unrecorded kit root, with a FIFO at its VERSION, is kept as a backup; the FIFO is never opened`, () => {
       const root = fresh("kit-fifo-inside");
       const target = join(root, "target");
@@ -342,4 +368,86 @@ describe("site case (plan 33.1-37): a FIFO inside an unrecorded kit tree", () =>
       expect(lstatSync(join(backup, "VERSION")).isFIFO(), "the FIFO is no longer a FIFO").toBe(true);
     });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+// PRUNE'S SITE CASES (plan 33.1-40, review CR-02, brief DC-3). Prune reads every recorded backup with
+// treeRecord, which lists a FIFO as `other` and never opens it, and it names a backup-shaped path it has no
+// record of by its name alone.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe("site cases (plan 33.1-40): prune and a FIFO", () => {
+  function migratedWith(tag: string, before: (target: string) => string | null): { target: string; home: string; grugopsHome: string; skip: string | null } {
+    const root = fresh(tag);
+    const target = join(root, "target");
+    const home = join(root, "home");
+    mkdirSync(target);
+    mkdirSync(home);
+    const grugopsHome = join(home, ".grugops");
+    makeOldLayoutFixture(target, { rootConfig: true });
+    const skip = before(target);
+    if (skip !== null) return { target, home, grugopsHome, skip };
+    const r = runInstall(target, grugopsHome, ["--migrate", "--backup-edited-kit"], { home, timeoutMs: 120_000 });
+    expect(r.status, `the --migrate failed\n${r.stdout}`).toBe(0);
+    return { target, home, grugopsHome, skip: null };
+  }
+  const kitBackupOf = (target: string): string => {
+    const baks = readdirSync(target).filter((n) => n.startsWith("agent-factory.bak."));
+    expect(baks.length).toBe(1);
+    return join(target, baks[0]);
+  };
+  const pruneRun = (t: { target: string; home: string; grugopsHome: string }): Run =>
+    runInstall(t.target, t.grugopsHome, ["--prune-old-kit"], { home: t.home, timeoutMs: 60_000 });
+
+  it("a FIFO inside a recorded backup tree, there when install recorded it: the record holds, and prune removes the tree without opening the FIFO", () => {
+    const t = migratedWith("prune-fifo-recorded", (target) => plant(target, "agent-factory/roles/pipe", "FIFO"));
+    if (t.skip !== null) {
+      console.log(t.skip);
+      return;
+    }
+    const bak = kitBackupOf(t.target);
+    expect(lstatSync(join(bak, "roles", "pipe")).isFIFO(), "the FIFO did not travel inside the backup").toBe(true);
+    const r = pruneRun(t);
+    expect(r.error, `prune did not finish within 60 s (${r.error?.message})`).toBeUndefined();
+    expect(r.stderr).not.toMatch(NO_STACK);
+    expect(r.status, r.stdout).toBe(0);
+    expect(existsSync(bak), `the recorded tree was not removed\n${r.stdout}`).toBe(false);
+  });
+
+  it("a FIFO added to a recorded backup tree after install recorded it: the record does not hold, and prune leaves the tree and the FIFO", () => {
+    const t = migratedWith("prune-fifo-added", () => null);
+    const bak = kitBackupOf(t.target);
+    const skip = plant(bak, "roles/pipe", "FIFO");
+    if (skip !== null) {
+      console.log(skip);
+      return;
+    }
+    const r = pruneRun(t);
+    expect(r.error, `prune did not finish within 60 s (${r.error?.message})`).toBeUndefined();
+    expect(r.status, r.stdout).toBe(0);
+    expect(lstatSync(join(bak, "roles", "pipe")).isFIFO(), "the FIFO is gone or no longer a FIFO").toBe(true);
+  });
+
+  it("a FIFO named like a backup at the target root and in the kit home: named, never opened, never removed", () => {
+    const root = fresh("prune-fifo-named");
+    const target = join(root, "target");
+    const home = join(root, "home");
+    mkdirSync(target);
+    mkdirSync(home);
+    const grugopsHome = join(home, ".grugops");
+    mkdirSync(grugopsHome);
+    const name = "agent-factory.bak.2026-01-02T03-04-05.678Z";
+    for (const r0 of [target, grugopsHome]) {
+      const skip = plant(r0, name, "FIFO");
+      if (skip !== null) {
+        console.log(skip);
+        return;
+      }
+    }
+    const r = runInstall(target, grugopsHome, ["--prune-old-kit"], { home, timeoutMs: 60_000 });
+    expect(r.error, `prune did not finish within 60 s (${r.error?.message})`).toBeUndefined();
+    expect(r.status, r.stdout).toBe(0);
+    for (const r0 of [target, grugopsHome]) expect(lstatSync(join(r0, name)).isFIFO(), `${r0}: no longer a FIFO`).toBe(true);
+    expect(r.stdout.split("\n").filter((l) => /^ {2}left\s/.test(l) && l.includes(name)).length, r.stdout).toBe(2);
+  });
 });

@@ -48,6 +48,11 @@
 //                              elsewhere, so no link install made points at it);
 //   runUninstallWithSource     uninstall with GRUGOPS_SRC set to such a source.
 //
+// THE BACKUP SHAPES (plan 33.1-40, review CR-02). --prune-old-kit used to remove any name ending in
+// `.bak.<ISO>` at the target root and in the kit home. backupShapes derives every backup name shape from
+// the migrate variant's write set plus the names a user picks, and plantBackupShapes plants them, so the
+// prune class test (install/installer-prune.test.ts) covers the whole set, with its count pinned.
+//
 // Clear professional voice: this is test infrastructure for a safety surface.
 //
 // A `.test-support.ts` module is excluded from emit (tsconfig.json), type-checked by
@@ -366,6 +371,93 @@ export function describeWritePaths(set: WritePathSet): string {
   return set.paths
     .map((w) => `${w.path}  [${w.variants.map((v) => `${v}:${w.kinds[v]}`).join(", ")}]`)
     .join("\n");
+}
+
+// ── the backup shapes (plan 33.1-40, review CR-02, brief §2.1 DC-2) ─────────────────────────────────────
+// --prune-old-kit used to remove any name at the target root or in the kit home that ended in `.bak.<ISO>`.
+// The class test plants every such shape at both roots and asserts prune leaves each byte for byte. The
+// shapes are DERIVED: install's own backup base names come from the migrate variant's write set (every
+// written path whose last segment ends `.bak.<ISO>` or holds `.grugops-edited-`, the suffix taken off),
+// plus two names a user picks (BACKUP_USER_BASES, the verifier's reproduction). Each base is planted as a
+// directory holding a file and as a file, each with the `.bak.<ISO>` suffix; each base install backs up
+// with `.grugops-edited-` is planted with that suffix too (a file); and two special shapes are added: a
+// link to a directory of the user's, and a FIFO.
+
+/** The base names a user might back up by hand, from the verifier's CR-02 reproduction. */
+export const BACKUP_USER_BASES: readonly string[] = ["thesis", "budget.xlsx"];
+/** The stamps the planted shapes carry (isoStamp()'s shape). Two, so one base can be a directory and a file. */
+export const BACKUP_SHAPE_ISO = ["2026-01-02T03-04-05.678Z", "2026-01-02T03-04-06.789Z"] as const;
+
+export type BackupShapeForm = "dir" | "file" | "link" | "fifo";
+export interface BackupShape {
+  /** The name planted at a root. */
+  readonly name: string;
+  readonly form: BackupShapeForm;
+  /** Where the shape comes from: `install` (a base the migrate variant wrote), `user`, or `special`. */
+  readonly source: "install" | "user" | "special";
+}
+
+/** The backup shapes, derived from `set`'s migrate variant (see above). */
+export function backupShapes(set: WritePathSet): BackupShape[] {
+  const migrate = set.variant("migrate");
+  const bak = `.bak.${ISO_PLACEHOLDER}`;
+  const edited = ".grugops-edited-";
+  const bakBases = new Set<string>();
+  const editedBases = new Set<string>();
+  for (const p of [...migrate.files, ...migrate.dirs]) {
+    const last = p.split("/").pop() ?? "";
+    if (last.endsWith(bak)) bakBases.add(last.slice(0, -bak.length));
+    const i = last.indexOf(edited);
+    if (i > 0) editedBases.add(last.slice(0, i));
+  }
+  const out: BackupShape[] = [];
+  const [a, b] = BACKUP_SHAPE_ISO;
+  const bases: Array<[string, "install" | "user"]> = [
+    ...[...bakBases, ...editedBases].sort().map((n): [string, "install"] => [n, "install"]),
+    ...BACKUP_USER_BASES.map((n): [string, "user"] => [n, "user"]),
+  ];
+  const seen = new Set<string>();
+  for (const [base, source] of bases) {
+    if (seen.has(base)) continue;
+    seen.add(base);
+    out.push({ name: `${base}.bak.${a}`, form: "dir", source });
+    out.push({ name: `${base}.bak.${b}`, form: "file", source });
+  }
+  for (const base of [...editedBases].sort()) out.push({ name: `${base}${edited}${a}`, form: "file", source: "install" });
+  out.push({ name: `linked.bak.${a}`, form: "link", source: "special" });
+  out.push({ name: `pipe.bak.${a}`, form: "fifo", source: "special" });
+  return out;
+}
+
+/**
+ * Plant every shape at `root` (which must exist): a directory with `ch1.md` in it, a file, a link to
+ * `<root>/linked-to/` (a directory of the user's, made here), a FIFO. Returns the names planted and, for a
+ * FIFO that could not be made (win32, no mkfifo), the skip line.
+ */
+export function plantBackupShapes(root: string, shapes: readonly BackupShape[]): { planted: string[]; skipped: string[] } {
+  const planted: string[] = [];
+  const skipped: string[] = [];
+  for (const s of shapes) {
+    const at = join(root, s.name);
+    if (s.form === "dir") {
+      mkdirSync(at);
+      writeFileSync(join(at, "ch1.md"), `the user's chapter in ${s.name}\n`);
+    } else if (s.form === "file") {
+      writeFileSync(at, `the user's file ${s.name}\n`);
+    } else if (s.form === "link") {
+      mkdirSync(join(root, "linked-to"), { recursive: true });
+      writeFileSync(join(root, "linked-to", "keep.md"), "the user's file behind a link\n");
+      symlinkSync(join(root, "linked-to"), at);
+    } else {
+      const r = spawnSync("mkfifo", [at], { encoding: "utf8" });
+      if (process.platform === "win32" || r.error !== undefined || r.status !== 0) {
+        skipped.push(`SKIP the FIFO shape ${s.name} at ${root}: mkfifo is not available here`);
+        continue;
+      }
+    }
+    planted.push(s.name);
+  }
+  return { planted, skipped };
 }
 
 // ── the kit-home axis (plan 33.1-37, review IN-06 and CR-01) ─────────────────────────────────────

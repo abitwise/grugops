@@ -3652,8 +3652,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(snapshot(uHome)).toBe(uhPre); // kit home unchanged (no real copy, no backup)
     expect(homeBackupGlob(uHome).length).toBe(0); // DRY_RUN created no backup
 
-    // (c) --prune-old-kit arm: plant grugops backups in both roots, DRY_RUN --prune-old-kit lists
-    // would-remove and deletes NOTHING.
+    // (c) --prune-old-kit arm: plant grugops-shaped backups in both roots, DRY_RUN --prune-old-kit
+    // deletes NOTHING. Since plan 33.1-40 (review CR-02) a backup install did not record is named `left`
+    // ("not recorded by install"), never `would-remove`: prune removes only what install recorded
+    // (install/installer-prune.test.ts covers the recorded arm, real and DRY_RUN).
     const pTarget = makeFixture();
     const pHome = mkTmp();
     expect(runInstall(pTarget, pHome).status).toBe(0);
@@ -3667,7 +3669,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: pHome, TARGET: pTarget },
     });
     expect(rp.status).toBe(0);
-    expect(rp.stdout).toMatch(/would-remove/); // the prune plan is narrated
+    expect(rp.stdout).toMatch(/not recorded by install/); // each unrecorded backup-shaped name is named
+    expect(rp.stdout).not.toMatch(/would-remove/); // and none would be removed
     expect(snapshot(pTarget)).toBe(ptPre); // nothing deleted in the target
     expect(snapshot(pHome)).toBe(phPre); // nothing deleted in the kit home
     // The planted backups are EMPTY directories, which snapshot() records no row for, so the two
@@ -3816,11 +3819,11 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   });
 
   // ── --prune-old-kit (D-10, Plan 17-03) — the single, opt-in deletion path ────────────────────
-  // --prune-old-kit removes ONLY grugops-created timestamped backups (agent-factory.bak.<ISO> in
-  // both roots, plus the config .bak migrate leaves) and NEVER runs on the default path
-  // (never-delete-first). It uses a tight name-shape matcher (not a loose *.bak — Pitfall 5) and an
-  // isProtected()-style guard so plans/, .planning/, .grugops/ seeded state, docs/, src/, and the
-  // live agent-factory/ are never touched.
+  // --prune-old-kit removes ONLY backups install RECORDED making (plan 33.1-40, review CR-02: by record,
+  // never by name), unchanged since, and NEVER runs on the default path (never-delete-first). A
+  // backup-shaped name install did not record (here, a kit-home backup planted by hand) is named and left.
+  // An isProtected()-style guard keeps plans/, .planning/, .grugops/ seeded state, docs/, src/, and the
+  // live agent-factory/ out of reach. install/installer-prune.test.ts holds the class test.
   it("prune: removes only grugops backups, default preserves", () => {
     const target = makeOldLayoutFixture();
     const home = mkTmp();
@@ -3840,11 +3843,14 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(backupGlob(target, "agent-factory").length).toBe(1); // still there after a normal install
     expect(homeBackupGlob(home).length).toBe(1); // home backup still there too
 
-    // (b) --prune-old-kit removes the grugops backups in BOTH roots.
+    // (b) --prune-old-kit removes the recorded target backup; the hand-planted kit-home backup has no
+    // record, so it is named and left (plan 33.1-40, CR-02).
     const r = runInstall(target, home, "--prune-old-kit");
     expect(r.status).toBe(0);
-    expect(backupGlob(target, "agent-factory").length).toBe(0); // grugops target backup gone
-    expect(homeBackupGlob(home).length).toBe(0); // grugops home backup gone
+    expect(backupGlob(target, "agent-factory").length).toBe(0); // the recorded target backup is gone
+    expect(homeBackupGlob(home).length).toBe(1); // the unrecorded home backup is left
+    expect(readFileSync(join(home, "agent-factory.bak.2026-06-15T00-00-00.000Z", "VERSION"), "utf8")).toBe("old\n");
+    expect(r.stdout).toMatch(/kit home: agent-factory\.bak\.2026-06-15T00-00-00\.000Z \(not recorded by install/);
 
     // (c) the user-owned non-grugops backup + the protected seeded state SURVIVE.
     expect(readFileSync(join(target, "mine.bak"), "utf8")).toContain("USER-OWNED BACKUP");

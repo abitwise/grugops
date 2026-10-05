@@ -888,8 +888,8 @@ export function readKitHomeRecord(home) {
     const path = join(home, KIT_HOME_RECORD_REL);
     const read = readForWrite(home, path);
     if (read.state === "create")
-        return { state: "absent", ledger: none, why: null, boundTo: null };
-    const unreadable = (why) => ({ state: "unreadable", ledger: none, why, boundTo: null });
+        return { state: "absent", ledger: none, why: null, boundTo: null, bytes: null };
+    const unreadable = (why) => ({ state: "unreadable", ledger: none, why, boundTo: null, bytes: null });
     if (read.state === "blocked")
         return unreadable(read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`);
     const doc = readJsonText(read.bytes);
@@ -923,9 +923,10 @@ export function readKitHomeRecord(home) {
                 ? "the real path of the kit home could not be read, so the record cannot be shown to be this kit home's"
                 : `it was written for another kit home (${parsed.grugopsHome}), not this one (${here})`,
             boundTo: parsed.grugopsHome,
+            bytes: null,
         };
     }
-    return { state: "ok", ledger, why: null, boundTo: here };
+    return { state: "ok", ledger, why: null, boundTo: here, bytes: read.bytes };
 }
 // installMarkerProblems (plan 33.1-33, brief DC-2, ownsMarker): the reasons a parsed JSON object is
 // not install's own marker, empty when it is. install's writeMarker always writes `grugopsHome`,

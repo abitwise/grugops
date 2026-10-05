@@ -1066,14 +1066,19 @@ export interface KitHomeRecordRead {
   readonly why: string | null;
   /** The path an `unbound` record names. */
   readonly boundTo: string | null;
+  /**
+   * The record's bytes as read, for an `ok` read, so a caller that rewrites the record (prune, plan 33.1-40)
+   * can show it is still the record its ledger came from; null otherwise.
+   */
+  readonly bytes: Buffer | null;
 }
 
 export function readKitHomeRecord(home: string): KitHomeRecordRead {
   const none: LedgerRead = { state: "absent", entries: [], why: null, raw: undefined };
   const path = join(home, KIT_HOME_RECORD_REL);
   const read = readForWrite(home, path);
-  if (read.state === "create") return { state: "absent", ledger: none, why: null, boundTo: null };
-  const unreadable = (why: string): KitHomeRecordRead => ({ state: "unreadable", ledger: none, why, boundTo: null });
+  if (read.state === "create") return { state: "absent", ledger: none, why: null, boundTo: null, bytes: null };
+  const unreadable = (why: string): KitHomeRecordRead => ({ state: "unreadable", ledger: none, why, boundTo: null, bytes: null });
   if (read.state === "blocked") return unreadable(read.at === path ? `it ${read.reason}` : `${read.at} ${read.reason}`);
   const doc = readJsonText(read.bytes);
   if (!doc.ok) return unreadable(`it ${doc.why}`);
@@ -1100,9 +1105,10 @@ export function readKitHomeRecord(home: string): KitHomeRecordRead {
           ? "the real path of the kit home could not be read, so the record cannot be shown to be this kit home's"
           : `it was written for another kit home (${parsed.grugopsHome}), not this one (${here})`,
       boundTo: parsed.grugopsHome,
+      bytes: null,
     };
   }
-  return { state: "ok", ledger, why: null, boundTo: here };
+  return { state: "ok", ledger, why: null, boundTo: here, bytes: read.bytes };
 }
 
 // installMarkerProblems (plan 33.1-33, brief DC-2, ownsMarker): the reasons a parsed JSON object is

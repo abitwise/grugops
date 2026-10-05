@@ -35,6 +35,7 @@ import {
   chmodSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -426,6 +427,77 @@ const CASES = {
       check(existsSync(w.at(rel)) && sha256(w.at(rel)) === want[rel], `${rel} was removed or changed`);
       check(w.lineFor(u, "left", rel) !== undefined, `no 'left ${rel}' line from uninstall`);
     }
+  },
+
+  // Plan 33.1-40, review CR-02 (the verifier's reproduction): a user's thesis.bak.<ISO>/ (with a chapter in
+  // it) and budget.xlsx.bak.<ISO> used to be removed by `install.js --yes --prune-old-kit`, exit 0, because
+  // prune removed by the name shape. Now prune removes only backups install recorded: both survive byte for
+  // byte, both are named, exit 0. The same names in the kit home survive too.
+  "cr-02-user-bak-shapes"(w) {
+    const i = w.install();
+    check(i.status === 0, `install exited ${i.status}\n${i.out.slice(-2000)}`);
+    const iso = "2026-10-05T10-00-00.000Z";
+    const planted = [];
+    for (const root of [w.target, w.kitHome]) {
+      mkdirSync(join(root, `thesis.bak.${iso}`));
+      writeFileSync(join(root, `thesis.bak.${iso}`, "ch1.md"), "Chapter one. The user's thesis.\n");
+      writeFileSync(join(root, `budget.xlsx.bak.${iso}`), "the user's budget\n");
+      planted.push(root);
+    }
+    const before = planted.map((root) => tree(root));
+    const r = w.install(["--prune-old-kit"]);
+    check(r.status === 0, `prune exited ${r.status}, expected 0\n${r.out.slice(-2000)}`);
+    planted.forEach((root, k) => check(tree(root) === before[k], `prune changed ${root}`));
+    for (const label of ["target", "kit home"]) {
+      for (const n of [`thesis.bak.${iso}`, `budget.xlsx.bak.${iso}`]) {
+        check(r.lines.some((l) => /^\s*left\s/.test(l) && l.includes(`${label}: ${n} (not recorded by install`)), `no left line names ${label}: ${n}`);
+      }
+    }
+    check(!r.lines.some((l) => /^\s*(removed|would-remove)\s/.test(l)), "prune removed something");
+  },
+
+  // Plan 33.1-40: a --migrate records its backups; prune then removes exactly the recorded prunable ones (the
+  // in-repo kit, the legacy config, and a kit-home backup of an unrecorded agent-factory/), leaves the
+  // handoffs backup and the edited kit files' backups, and takes the removed entries out of both records.
+  "prune-recorded"(w) {
+    // The old layout: an in-repo kit with its config, a root config, handoffs, and two kit files with no record.
+    mkdirSync(w.at("agent-factory/roles"), { recursive: true });
+    mkdirSync(w.at("agent-factory/config"), { recursive: true });
+    writeFileSync(w.at("agent-factory/roles/orchestrator.md"), "FROZEN CORE — old in-repo vendored kit.\n");
+    writeFileSync(w.at("agent-factory/config/factory.config.json"), '{ "_edited": "kit location" }\n');
+    writeFileSync(w.at("factory.config.json"), '{ "_edited": "root location" }\n');
+    mkdirSync(w.at("plans/handoffs"), { recursive: true });
+    writeFileSync(w.at("plans/handoffs/relay-1.md"), "a handoff\n");
+    mkdirSync(w.at(".claude/agents"), { recursive: true });
+    writeFileSync(w.at(".claude/agents/grugops-orchestrator.md"), "> read `agent-factory/roles/orchestrator.md` (repo-relative).\n");
+    mkdirSync(join(w.kitHome, "agent-factory"), { recursive: true });
+    writeFileSync(join(w.kitHome, "agent-factory", "MYNOTES.md"), "the user's notes\n");
+    const m = w.install(["--migrate", "--backup-edited-kit"]);
+    check(m.status === 0, `--migrate exited ${m.status}\n${m.out.slice(-2000)}`);
+    const backups = () => JSON.parse(readFileSync(w.at(".grugops/install.json"), "utf8")).ledger.filter((e) => e.kind === "backup");
+    const homeBackups = () => JSON.parse(readFileSync(join(w.kitHome, ".grugops-kit.json"), "utf8")).ledger.filter((e) => e.kind === "backup");
+    const recorded = backups();
+    const prunable = recorded.filter((e) => e.origin === "in-repo-kit" || e.origin === "legacy-config");
+    const kept = recorded.filter((e) => !(e.origin === "in-repo-kit" || e.origin === "legacy-config"));
+    check(prunable.length === 2, `expected 2 prunable target backups, found ${prunable.length}: ${JSON.stringify(recorded)}`);
+    check(kept.some((e) => e.origin === "handoffs") && kept.some((e) => e.origin === "edited-kit-file"), `the handoffs and edited-kit-file backups were not recorded: ${JSON.stringify(recorded)}`);
+    const home = homeBackups();
+    check(home.length === 1, `expected 1 kit-home backup, found ${home.length}`);
+    const stateOf = (p) => (lstatSync(p).isDirectory() ? `DIR\n${tree(p)}` : `FILE ${sha256(p)}`);
+    const keptState = kept.map((e) => stateOf(w.at(e.path)));
+    const r = w.install(["--prune-old-kit"]);
+    check(r.status === 0, `prune exited ${r.status}\n${r.out.slice(-2000)}`);
+    for (const e of prunable) check(!existsSync(w.at(e.path)), `${e.path} was not removed`);
+    check(!existsSync(join(w.kitHome, home[0].path)), `${home[0].path} was not removed from the kit home`);
+    kept.forEach((e, k) => {
+      check(existsSync(w.at(e.path)) && stateOf(w.at(e.path)) === keptState[k], `${e.path} was changed or removed`);
+    });
+    const removedLines = r.lines.filter((l) => /^\s*removed\s/.test(l));
+    check(removedLines.length === 3, `expected 3 removed lines, found ${removedLines.length}`);
+    check(JSON.stringify(backups().map((e) => e.path).sort()) === JSON.stringify(kept.map((e) => e.path).sort()), "the marker still lists a pruned backup, or lost a kept one");
+    check(homeBackups().length === 0, "the kit-home record still lists the pruned backup");
+    const again = w.install(["--prune-old-kit"]);
+    check(again.status === 0 && !again.lines.some((l) => /^\s*removed\s/.test(l)), "a second prune removed something");
   },
 };
 

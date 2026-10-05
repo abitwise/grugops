@@ -242,7 +242,7 @@ function resolveTarget() {
     if (YES || !process.stdin.isTTY)
         return toPosix(def);
     // No-target modes never install INTO a repo (WR-02): --update is kit-home-only and
-    // --prune-old-kit only removes timestamped .bak.<ISO> backups. Do NOT ask "install into which
+    // --prune-old-kit only removes backups install recorded (plan 33.1-40). Do NOT ask "install into which
     // repo?" for them. --update ignores the answer entirely, so take the default silently; prune
     // still needs a repo root to scan, so it asks its own mode-appropriate question.
     if (UPDATE)
@@ -804,12 +804,12 @@ const adapterDestHazard = (dest) => {
 // isoStamp: a filesystem-safe, millisecond-precision ISO timestamp — every ':' replaced with '-'
 // so the suffix is legal on every filesystem including Windows (D-08). Shape: YYYY-MM-DDTHH-MM-SS.mmmZ.
 const isoStamp = () => new Date().toISOString().replace(/:/g, "-");
-// GRUGOPS_BACKUP_SUFFIX: a TIGHT anchored matcher for the grugops backup name-shape — `.bak.`
-// followed by an isoStamp() ISO timestamp (YYYY-MM-DDTHH-MM-SS.mmmZ, colons replaced by '-'),
-// anchored to end-of-string. NOT a loose `*.bak` (Pitfall 5 / T-17-03-PRUNE): a user's `mine.bak`
-// or `notes.bak` does NOT match, only the grugops `<name>.bak.<ISO>` shape this installer creates.
-// Declared HERE (with the other early helpers) so the early --prune-old-kit branch — which runs
-// before the original install run — reaches it via pruneOldKit() without a const TDZ error.
+// The grugops backup name-shape: `.bak.` followed by an isoStamp() ISO timestamp
+// (YYYY-MM-DDTHH-MM-SS.mmmZ, colons replaced by '-'), anchored to end-of-string. SINCE PLAN 33.1-40 IT
+// DECIDES NO REMOVAL (review CR-02, brief DC-2): a user's `thesis.bak.<ISO>/` has this shape too, so a
+// name is not evidence that install made it. pruneOldKit uses it only in its report-only scan, to name
+// a backup-shaped path that has no record. Declared HERE (with the other early helpers) so the early
+// --prune-old-kit branch reaches it without a const TDZ error.
 const GRUGOPS_BACKUP_SUFFIX = /\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/;
 // ---------------------------------------------------------------------------
 // Doctor (INSTALL-05) — a verifier that MUTATES NOTHING INSIDE THE TARGET. It never writes, links,
@@ -1387,9 +1387,10 @@ if (UPDATE) {
     process.exit(0);
 }
 // --- --prune-old-kit branch (D-10, Plan 17-03) — the SINGLE, opt-in deletion path. Wired EARLY
-// (alongside --update, before the self-checkout guard) because it only deletes grugops-owned
-// backups in the two known roots and never mutates the live kit or any user content. It prints a
-// banner, runs pruneOldKit() (tight name-shape + isProtected guard, DRY_RUN-safe), and exits 0.
+// (alongside --update, before the self-checkout guard) because it only deletes backups install
+// recorded making, in the two known roots, and never mutates the live kit or any user content. It
+// prints a banner, runs pruneOldKit() (by record, through owns, never by name: plan 33.1-40, review
+// CR-02; DRY_RUN-safe), and exits 0, or 3 when a removal or a record rewrite needs verification.
 // Pruning is reachable ONLY here — it never runs on the default install path (never-delete-first). ---
 if (PRUNE_OLD_KIT) {
     console.log("== grugops prune (--prune-old-kit) ==");
@@ -1397,7 +1398,9 @@ if (PRUNE_OLD_KIT) {
     console.log(`target: ${TARGET}`);
     if (DRY_RUN)
         console.log("mode:   DRY_RUN (no filesystem changes)");
-    console.log("\n-- removing grugops backups (only the timestamped .bak.<ISO> migrate/update leave) --");
+    // Plan 33.1-40 (review CR-02): a name shaped like a backup is not evidence that install made it, so prune
+    // removes only what install's own records name, unchanged, and names everything else.
+    console.log("\n-- removing the backups install recorded (by record, never by name; anything else is named and left) --");
     pruneOldKit();
     // Red-team of plan 33.1-27: a backup that could not be removed is a counted verify, so the banner
     // and the status say INCOMPLETE (3) rather than complete (0) over it.
@@ -1602,8 +1605,8 @@ function backupIfDiffers(target, replacement, label, origin) {
 // with NO `replacement` argument (D-19: --migrate NEVER parses or converts legacy handoff content;
 // it only relocates the directory, preserving the originals for the human). Never-delete-first
 // (D-18): the directory is RENAMED aside to `${target}.bak.<isoStamp()>`, never removed. The backup
-// name reuses isoStamp() so it matches the anchored GRUGOPS_BACKUP_SUFFIX shape (--prune-old-kit can
-// later sweep it). Safety contract:
+// name reuses isoStamp(), and the backup is recorded (origin handoffs, plan 33.1-40); --prune-old-kit
+// never removes a handoffs backup, because it holds the user's handoffs. Safety contract:
 //   - absent target  → "nothing to migrate" clean no-op, returns false (idempotent, D-20: a second
 //                       run after the dir is already backed up changes nothing).
 //   - backup-name collision (the `.bak.<ISO>` already exists) → ABORT: print a clear professional-
@@ -1729,16 +1732,39 @@ function rewriteLedger(holderPath, root, scope, bytesAtStart, next, what) {
     return true;
 }
 // ---------------------------------------------------------------------------
-// Phase-17 Plan 03 — `--prune-old-kit` (D-10): the SINGLE, opt-in deletion path. It removes ONLY
-// grugops-created timestamped backups (the ones --migrate and --update leave behind) and NEVER
-// runs on the default install path (never-delete-first). Every string is CLEAR PROFESSIONAL VOICE
-// (safety surface; this runs as `node install/install.js --prune-old-kit`).
+// Phase-17 Plan 03 — `--prune-old-kit` (D-10): the SINGLE, opt-in deletion path. It NEVER runs on the
+// default install path (never-delete-first). Every string is CLEAR PROFESSIONAL VOICE (safety surface;
+// this runs as `node install/install.js --prune-old-kit`).
+//
+// PRUNE REMOVES BY RECORD, NEVER BY NAME (plan 33.1-40, D-33 (c), review CR-02, brief DC-2). It used to
+// remove every name at the target root and in the kit home that ended in `.bak.<ISO>`, directories
+// recursively, on the theory that only install makes such names. A name is not evidence of who made a
+// file: the verifier's reproduction lost a user's `thesis.bak.<ISO>/` (with a chapter in it) and
+// `budget.xlsx.bak.<ISO>`, exit 0. Install now records each backup it makes, with its content record (the
+// target's install ledger: BACKUPS above; the kit-home record: copyKit), and prune removes a backup only
+// when all of these hold:
+//   - it is a `backup` entry of install's own record for that root: the target's bound marker with a
+//     well-formed ledger (readInstallMarker, readLedger), or the bound kit-home record
+//     (readKitHomeRecord). Both are read without following a link and without opening a special file
+//     (brief DC-3);
+//   - its origin is one prune has always removed: in-repo-kit and legacy-config in the target, kit-home in
+//     the kit home. A handoffs backup and an edited-kit-file backup hold the user's own content, so prune
+//     never removes them;
+//   - it is not under a protected path (isPruneProtected, asked again in removeBackup);
+//   - owns(ledger, root, path, "backup") answers owned: its content record is not null and the path still
+//     holds exactly it (treeRecord: every file's bytes and mode, every link's target and every name in a
+//     tree, no link followed, no special file opened, bounded). A backup changed since install made it,
+//     even by one file added, is left.
+// Everything else is left and named with the reason. The old name-shape scan stays, REPORT-ONLY: a name at
+// either root shaped like a grugops backup that has no entry is named `left` (it may be the user's, or a
+// backup made before install recorded them), and nothing is removed for its name. After the removals, the
+// entries of the removed backups are taken out of the record that held them (rewriteLedgerWithout).
+// Every decision is taken before the DRY_RUN branch, so the preview names what the real run does.
 // ---------------------------------------------------------------------------
 // isPruneProtected: mirror uninstall.ts's isProtected() denylist (uninstall.ts:110-119) so prune
-// can NEVER touch the live kit, the seeded state, or any user-owned tree — even if a backup-shaped
-// name somehow appeared under one. agent-factory/, plans/, .planning/, .grugops/, docs/, src/ (and
-// the root itself) are off-limits, always. Checked against $TARGET; the kit-home prune only ever
-// considers `agent-factory.bak.<ISO>` siblings of the live kit, never the live `agent-factory/`.
+// can NEVER touch the live kit, the seeded state, or any user-owned tree — even if a recorded backup
+// somehow named a path under one. agent-factory/, plans/, .planning/, .grugops/, docs/, src/ (and
+// the root itself) are off-limits, always. Checked against $TARGET.
 function isPruneProtected(p) {
     const protectedDirs = ["agent-factory", "plans", ".planning", ".grugops", "docs", "src"];
     for (const d of protectedDirs) {
@@ -1750,21 +1776,22 @@ function isPruneProtected(p) {
         return true;
     return false;
 }
-// removeBackup: remove ONE grugops backup, but only after the name-shape AND the isProtected guard
-// both pass. The shape was already matched by the caller; this re-checks the guard as a last gate
-// before any rmSync (defense-in-depth — the deletion surface gets two independent checks). DRY_RUN
-// narrates a `would-remove` line and deletes nothing.
+// removeBackup: remove ONE recorded backup. Its one caller, pruneOldKit, calls it only after owns(...,
+// "backup") answered owned for the entry (install/installer-fs-census.test.ts pins that order). It asks
+// the protected paths again as a last gate before any removal (defense in depth). DRY_RUN narrates a
+// `would-remove` line and deletes nothing. It returns what happened, so the caller knows which entries to
+// take out of the record.
 function removeBackup(path, name) {
     if (isPruneProtected(path)) {
-        report("skipped", `${name} (protected path — never pruned)`);
-        return;
+        report("left", `${name} (under a protected path — never pruned; its entry is kept in the record)`);
+        return "kept";
     }
     if (DRY_RUN) {
         report("would-remove", path);
-        return;
+        return "would-remove";
     }
     // Red-team of plan 33.1-27 (sibling of B2): a backup install made is a directory (a renamed kit) or
-    // a regular file (a renamed config); a link named like one is removed as a link, never followed.
+    // a regular file (a renamed config); a recorded link is removed as a link, never followed.
     // On Node 24 rmSync with force left a dangling link in place and threw nothing, so `removed` is
     // printed only when the path is gone, and a failure is a counted verify, never a throw.
     try {
@@ -1774,45 +1801,108 @@ function removeBackup(path, name) {
             unlinkSync(path);
     }
     catch (e) {
-        verify(`${path} could not be removed (${errCode(e)}). It was left in place; remove it by hand.`);
-        return;
+        verify(`${path} could not be removed (${errCode(e)}). It was left in place and its entry is kept in the record; remove it by hand.`);
+        return "kept";
     }
     if (!gone(path)) {
-        verify(`${path} is still present after its removal. Remove it by hand.`);
-        return;
+        verify(`${path} is still present after its removal, and its entry is kept in the record. Remove it by hand.`);
+        return "kept";
     }
     report("removed", path);
+    return "removed";
 }
-// pruneOldKit: the ONLY deletion path (D-10). Glob BOTH roots for the grugops backup name-shape and
-// remove each match (guarded). Under $TARGET: `agent-factory.bak.<ISO>` (the displaced in-repo kit)
-// and `factory.config.json.bak.<ISO>` (the original config migrate leaves at the repo root). Under
-// $GRUGOPS_HOME: `agent-factory.bak.<ISO>` (the displaced kit --update retains). NOTHING that does
-// not match GRUGOPS_BACKUP_SUFFIX is ever considered (a user `mine.bak` is invisible to prune).
-// Reachable ONLY from the --prune-old-kit branch — it never runs on the default install path.
-function pruneOldKit() {
-    const roots = [
-        [TARGET, "target"],
-        [GRUGOPS_HOME, "kit home"],
+function pruneRoots() {
+    const marker = readInstallMarker(TARGET);
+    const targetLedger = readLedger(marker.state === "ok" ? marker.marker : null);
+    const kitHome = readKitHomeRecord(GRUGOPS_HOME);
+    const targetWhy = marker.state === "absent"
+        ? `there is no ${MARKER_REL}`
+        : marker.state === "unreadable"
+            ? `${MARKER_REL} ${markerUnusableText(marker)}`
+            : marker.state === "unbound"
+                ? `${MARKER_REL} is not this directory's record (${marker.why})`
+                : targetLedger.state === "malformed"
+                    ? `the install ledger in ${MARKER_REL} is malformed (${targetLedger.why})`
+                    : targetLedger.state === "absent"
+                        ? `${MARKER_REL} holds no install ledger`
+                        : null;
+    const kitWhy = kitHome.state === "absent" ? `there is no ${KIT_HOME_RECORD_REL}` : kitHome.state !== "ok" ? `${KIT_HOME_RECORD_REL}: ${kitHome.why}` : null;
+    return [
+        {
+            root: TARGET,
+            label: "target",
+            scope: "target",
+            holder: join(TARGET, ...MARKER_REL.split("/")),
+            ledger: targetLedger,
+            bytes: marker.state === "ok" && targetLedger.state === "ok" ? marker.bytes : null,
+            noRecord: targetWhy,
+        },
+        {
+            root: GRUGOPS_HOME,
+            label: "kit home",
+            scope: "kit-home",
+            holder: join(GRUGOPS_HOME, KIT_HOME_RECORD_REL),
+            ledger: kitHome.ledger,
+            bytes: kitHome.state === "ok" ? kitHome.bytes : null,
+            noRecord: kitWhy,
+        },
     ];
-    let pruned = 0;
-    for (const [root, label] of roots) {
-        let entries;
+}
+// rewriteLedgerWithout: take the entries of the backups prune removed out of the record that held them,
+// through the one rewrite (rewriteLedger: a same-bytes re-read, the one serializer, a verify naming the
+// entries still listed when the rewrite is refused or fails). Used for both roots.
+function rewriteLedgerWithout(holderPath, root, bytesAtStart, removedPaths, scope) {
+    rewriteLedger(holderPath, root, scope, bytesAtStart, (entries) => entries.filter((e) => !(e.kind === "backup" && removedPaths.includes(e.path))), `take out the entries of the pruned backup(s) ${removedPaths.join(", ")}, which it still lists`);
+}
+// pruneOldKit: the ONLY deletion path (D-10), by record (see the header). Reachable ONLY from the
+// --prune-old-kit branch; it never runs on the default install path.
+function pruneOldKit() {
+    // Declared here, not at module level: the --prune-old-kit branch runs above the module's later consts.
+    const prunable = { target: ["in-repo-kit", "legacy-config"], "kit-home": ["kit-home"] };
+    const roots = pruneRoots();
+    let toRemove = 0;
+    for (const r of roots) {
+        if (r.noRecord !== null)
+            report("note", `${r.label}: ${r.noRecord}, so no backup there is on install's record and prune removes nothing there`);
+        const pruned = [];
+        for (const e of entriesOfKind(r.ledger, "backup")) {
+            const name = `${r.label}: ${e.path}`;
+            if (!prunable[r.scope].includes(e.origin)) {
+                report("left", `${name} (install's backup of your content (${e.origin}, from ${e.of}); prune never removes a backup of your content)`);
+                continue;
+            }
+            const own = owns(r.ledger, r.root, e.path, "backup");
+            if (!own.owned) {
+                report("left", `${name} (${gone(`${r.root}/${e.path}`) ? "it is no longer there" : own.reason}; its entry is kept in the record)`);
+                continue;
+            }
+            toRemove += 1;
+            if (removeBackup(`${r.root}/${e.path}`, name) !== "kept")
+                pruned.push(e.path);
+        }
+        if (pruned.length > 0 && r.bytes !== null)
+            rewriteLedgerWithout(r.holder, r.root, r.bytes, pruned, r.scope);
+    }
+    // REPORT-ONLY (CR-02): a name at either root shaped like a grugops backup, with no entry in that root's
+    // record, is named and never removed.
+    for (const r of roots) {
+        let names;
         try {
-            entries = readdirSync(root);
+            names = readdirSync(r.root);
         }
         catch {
-            continue; // an absent root has nothing to prune
+            continue; // an absent root has nothing to name
         }
-        for (const name of entries.sort()) {
-            if (!GRUGOPS_BACKUP_SUFFIX.test(name))
-                continue; // not a grugops backup → never touched
-            removeBackup(join(root, name), `${label}: ${name}`);
-            pruned += 1;
+        const recorded = new Set(entriesOfKind(r.ledger, "backup").map((e) => e.path));
+        for (const name of names.sort()) {
+            if (recorded.has(name) || !GRUGOPS_BACKUP_SUFFIX.test(name))
+                continue;
+            report("left", `${r.label}: ${name} (not recorded by install, so prune does not remove it; remove it by hand if it is a grugops ` +
+                `backup you no longer need)`);
         }
     }
-    if (pruned === 0) {
-        report("ok", "no grugops backups found to prune (nothing to do)");
-    }
+    if (toRemove === 0)
+        report("ok", "no backup install recorded is there to remove (nothing to do)");
 }
 function detectOldLayout() {
     const hasInRepoKit = existsSync(join(TARGET, "agent-factory", "roles", "orchestrator.md"));
@@ -3887,7 +3977,7 @@ const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 // copyKit→materializeAdapter→seedState→writeMarker sequence below.
 //   - isMigrated → already two-root. Do NOT re-run install (D-12 no re-mutate). If a leftover
 //     LIVE in-repo agent-factory/ remains (half-state) warn in clear voice that it must be removed
-//     by hand — prune only removes .bak.<ISO> backups, never a live kit (WR-01) — else report
+//     by hand — prune removes only backups install recorded, never a live kit (WR-01) — else report
 //     already-migrated. Either way exit 0.
 //   - isOldLayout → the pre-check first (the config carry and the whole kit plan; any refusal and
 //     nothing is migrated, exit 3), then migratePreSteps() (config-move + in-repo-kit backup), then
@@ -3987,8 +4077,8 @@ if (MIGRATE) {
         if (layout.leftoverKit) {
             console.log("This repo is already migrated to the two-root layout, but a leftover LIVE in-repo agent-factory/ remains.");
             console.log(`Nothing was changed. Once you have confirmed the shared kit at ${GRUGOPS_HOME} is in use,`);
-            console.log("back up and remove the leftover agent-factory/ by hand — prune only removes timestamped");
-            console.log(".bak.<ISO> backups, never a live kit, so it cannot clear this one.");
+            console.log("back up and remove the leftover agent-factory/ by hand — prune removes only the backups install");
+            console.log("recorded making, never a live kit, so it cannot clear this one.");
         }
         else {
             console.log("This repo is already migrated to the two-root layout. Nothing to do.");

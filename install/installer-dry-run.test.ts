@@ -243,7 +243,13 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
       0,
       "== prune complete (DRY_RUN — nothing changed) ==",
     );
-    expect(r.stdout).toMatch(/would-remove/);
+    // Plan 33.1-40 (review CR-02): these backups were planted by hand, so install has no record of them;
+    // prune names each `left` and removes nothing, DRY_RUN or not (installer-prune.test.ts covers the
+    // recorded arm and its would-remove lines).
+    expect(r.stdout).not.toMatch(/would-remove/);
+    for (const label of ["target", "kit home"]) {
+      for (const iso of [ISO_A, ISO_B]) expect(r.stdout).toContain(`${label}: agent-factory.bak.${iso} (not recorded by install`);
+    }
     for (const root of [target, home]) {
       expect(snapshotTree(root)).toContain(`agent-factory.bak.${ISO_A}/ DIR`); // the empty backup survived
       expect(existsSync(join(root, `agent-factory.bak.${ISO_B}`, "roles", "orchestrator.md"))).toBe(true);
