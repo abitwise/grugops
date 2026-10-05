@@ -55,6 +55,12 @@ release, together with Phase 33.1, which retires the Bash command guard.
   once uninstall removes the marker, a backup install recorded is on no record any more, so
   `--prune-old-kit` can no longer remove it. Run `--prune-old-kit` before uninstall if you want
   grugops to remove its backups.
+- **Breaking for backups made by earlier versions.** Install now records each backup it makes: the in-repo
+  kit, legacy config and `plans/handoffs` backups of `--migrate` and the backups of edited kit files in
+  the install ledger in `.grugops/install.json`, and the kit backups in the kit home's `.grugops-kit.json`.
+  `--prune-old-kit` removes only recorded backups, so a backup made before this release has no record:
+  prune leaves it and names it (`not recorded by install`). Remove such a backup by hand when you no
+  longer need it (33.1 D-33 (c)).
 - The install marker `.grugops/install.json` keeps one install ledger, the field `ledger`, in place of
   the six records `createdDirs`, `createdFiles`, `geminiSettings`, `kitFiles`, `claudeAskRules` and
   `appendedBlocks`, behind one ownership check (33.1 D-33). A marker written by an earlier build of
@@ -71,8 +77,9 @@ release, together with Phase 33.1, which retires the Bash command guard.
   (33.1 D-32). At a terminal it lists the edited files and asks whether to back them up, as
   `<file>.grugops-edited-<UTC stamp>`, and refresh the whole kit (default no). Without a terminal,
   and with `--yes` (which answers only the target question), it writes no kit file and exits `3`;
-  the new flag `--backup-edited-kit` gives the answer explicitly. Backups are written whole and are
-  never removed by uninstall. The first re-install over an install made before this release asks
+  the new flag `--backup-edited-kit` gives the answer explicitly. Backups are written whole, keep the
+  edited file's permission bits, are recorded in the install ledger, and are never removed by
+  uninstall or `--prune-old-kit`; uninstall reports each one by its record. The first re-install over an install made before this release asks
   once, and an unattended `--migrate` over the old layout needs `--backup-edited-kit`.
 - The kit write is all or nothing: install checks every kit file and renders every adapter before it
   writes the first one, and a refusal leaves every kit file as it was. `--migrate` is whole or not at
@@ -128,6 +135,15 @@ release, together with Phase 33.1, which retires the Bash command guard.
 
 ### Fixed
 
+- `--prune-old-kit` removes only backups install recorded, and only while they are unchanged since
+  install made them: every file's bytes and permission bits, every link and every name in the backup.
+  It used to remove any file or directory whose name ended in `.bak.<ISO>`, at the target root and in
+  the kit home, so a user's `thesis.bak.<ISO>/` or `budget.xlsx.bak.<ISO>` was deleted, with exit `0`
+  (33.1 review CR-02). Anything else named like a backup is now left and named, and a `plans/handoffs`
+  backup or a backup of an edited kit file is never pruned. After a removal, prune takes the backup's
+  entry out of the record that listed it.
+- A backup of an edited kit file (D-32) keeps the edited file's permission bits, so a `0600` file no
+  longer gets a world-readable backup (33.1 review IN-03).
 - An uninstall that could not finish keeps the install marker, so re-running it after fixing the cause
   finishes the reversal. With `.claude/agents` read-only, uninstall exited `3` with a `verify` line per
   adapter and still deleted the marker, so the re-run found no record and left every adapter in place
@@ -208,8 +224,9 @@ release, together with Phase 33.1, which retires the Bash command guard.
 - A first `DRY_RUN=1` install (no shared kit yet) now previews the per-repo state it would seed; it
   used to say there was no seed.
 - Uninstall no longer says a file named like a `.grugops-edited-` backup was made by install, or tells
-  you to remove an `.incomplete`-named one: install records no backups, so the line says only that
-  the name matches. A runnable or `AGENTS.md` that differs from this kit version is reported as
+  you to remove an `.incomplete`-named one: for a name with no record, the line says only that the
+  name matches (install records the backups it makes since 33.1 D-33 (c), and uninstall names those by
+  their record). A runnable or `AGENTS.md` that differs from this kit version is reported as
   differing from it, not as edited by you.
 - `--target` with no value (`--target` last, `--target=`, or followed by another option) is now bad
   usage (exit `2`) in both binaries; it used to fall back to the current directory.

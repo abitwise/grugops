@@ -1433,6 +1433,90 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
     expect(kitOwns.some((c) => c.getStart(install) < rm.getStart(install)), "copyKit's rmSync is not preceded by owns(..., \"kit\")").toBe(true);
   });
 
+  // THE PRUNE SCOPE (plan 33.1-40, review CR-02, D-33 (c)). install.ts is not on uninstall's path, but
+  // --prune-old-kit is install's one deletion path, and it used to delete by name shape. The one-gate rule
+  // applies to it, derived from the syntax tree: REACHED is pruneOldKit plus every install.ts function or
+  // const it calls, transitively. Every rmSync and unlinkSync in REACHED is a delete site; a reached scope
+  // holding one (other than pruneOldKit) is a removal helper. Each delete site in pruneOldKit itself, and
+  // each call of a removal helper from a reached scope that is not a helper, must come after an
+  // owns(..., "backup") call in that scope, and a removal helper may be called from nowhere else in the
+  // file. The counts are printed and pinned: a new delete reached from prune changes them and must be
+  // classed here.
+  it("every rmSync and unlinkSync reached from pruneOldKit is preceded by owns(..., \"backup\") in its calling scope, derived, with pinned counts (plan 33.1-40)", () => {
+    const install = parseInstall("install.ts");
+    const calls = (scope: ts.Node): ts.CallExpression[] => {
+      const out: ts.CallExpression[] = [];
+      const visit = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) out.push(n);
+        ts.forEachChild(n, visit);
+      };
+      visit(scope);
+      return out;
+    };
+    const callee = (c: ts.CallExpression): string => (c.expression as ts.Identifier).text;
+    const reached = new Map<string, ts.Node>();
+    const queue = ["pruneOldKit"];
+    while (queue.length > 0) {
+      const name = queue.shift()!;
+      if (reached.has(name)) continue;
+      const fn = functionNamed(install, name);
+      if (fn === null) continue; // an import (owns, readInstallMarker, ...): not install.ts's own code
+      reached.set(name, fn);
+      for (const c of calls(fn)) queue.push(callee(c));
+    }
+    expect(reached.has("pruneOldKit"), "no pruneOldKit in install.ts").toBe(true);
+    const DELETES = new Set(["rmSync", "unlinkSync"]);
+    const deleteSites: string[] = [];
+    const helpers = new Set<string>();
+    for (const [name, fn] of reached) {
+      for (const c of calls(fn)) {
+        if (!DELETES.has(callee(c))) continue;
+        deleteSites.push(`${name}:${callee(c)}`);
+        if (name !== "pruneOldKit") helpers.add(name);
+      }
+    }
+    const problems: string[] = [];
+    const gated: string[] = [];
+    for (const [name, fn] of reached) {
+      if (helpers.has(name)) continue;
+      const backupOwns = calls(fn)
+        .filter((c) => callee(c) === "owns" && c.arguments[3] !== undefined && ts.isStringLiteral(c.arguments[3]) && c.arguments[3].text === "backup")
+        .map((c) => c.getStart(install));
+      for (const c of calls(fn)) {
+        const k = callee(c);
+        if (!DELETES.has(k) && !helpers.has(k)) continue;
+        gated.push(`${name}→${k}`);
+        if (!backupOwns.some((p) => p < c.getStart(install))) problems.push(`NO OWNS ${name}→${k} at line ${lineOf(install, c)}`);
+      }
+    }
+    // A removal helper is called from nowhere but a gated scope: every call of it in the whole file sits in
+    // a reached scope that is not a helper.
+    const enclosing = (n: ts.Node): string | null => {
+      for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) {
+        if (ts.isFunctionDeclaration(p) && p.name !== undefined) return p.name.text;
+        if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+      }
+      return null;
+    };
+    for (const c of calls(install)) {
+      const k = callee(c);
+      if (!helpers.has(k)) continue;
+      const at = enclosing(c);
+      if (at === null || !reached.has(at) || helpers.has(at)) problems.push(`${k} is called from ${at ?? "the top level"} at line ${lineOf(install, c)}, outside the gated prune scope`);
+    }
+    console.log(
+      `installer fs census: prune reaches ${reached.size} install.ts scope(s); delete sites ${deleteSites.join(", ")}; ` +
+        `removal helper(s) ${[...helpers].join(", ")}; gated call(s) ${gated.join(", ")}`,
+    );
+    expect(problems, problems.join("\n")).toEqual([]);
+    // PRUNE_DELETE_SITE_COUNT: removeBackup's rmSync (a directory backup) and unlinkSync (a file or a link).
+    const PRUNE_DELETE_SITE_COUNT = 2;
+    // PRUNE_GATED_CALL_COUNT: pruneOldKit→removeBackup, after owns(r.ledger, r.root, e.path, "backup").
+    const PRUNE_GATED_CALL_COUNT = 1;
+    expect(deleteSites.length, `PRUNE_DELETE_SITE_COUNT: ${deleteSites.join(", ")}`).toBe(PRUNE_DELETE_SITE_COUNT);
+    expect(gated.length, `PRUNE_GATED_CALL_COUNT: ${gated.join(", ")}`).toBe(PRUNE_GATED_CALL_COUNT);
+  });
+
   // THE ONE-GATE RULE OVER EVERY DELETE AND EDIT, DERIVED (plan 33.1-38, brief §2.2, DC-2). The rows above are
   // pinned by hand and checked two-sided; this case asks the class question of the syntax tree directly.
   // The site set is DERIVED: every mutating fs call in an UNINSTALL_PATH_FILES module (a census site whose fs

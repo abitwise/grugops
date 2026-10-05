@@ -75,9 +75,12 @@ the whole kit, `[y/N]`, default no.
 
 - **Yes:** each edited file is first copied next to itself as `<file>.grugops-edited-<UTC stamp>`
   (for example `grugops-qe-e2e.md.grugops-edited-2026-09-30T10-54-21.203Z`), then the whole kit is
-  refreshed. Uninstall never removes a backup. Install keeps no record of its backups, so uninstall
-  reports each file with a backup name `left` as one whose name matches the pattern, without claiming
-  install made it.
+  refreshed. Install records each backup it makes in the install ledger, with a record of its content
+  and the edited file's permission bits, so a `0600` file gets a `0600` backup. Uninstall never removes
+  a backup: it reports each recorded one `left` by its record, as install's backup of your content. A
+  file with such a name and no record (made before this release, or not by install) is reported `left`
+  as one whose name matches the pattern, without claiming install made it. `--prune-old-kit` never
+  removes these backups.
 - **No:** nothing in the kit changes. The run exits `3` with a `verify` line naming the files.
 - **No terminal, or `--yes`:** install asks nothing and changes nothing in the kit. `--yes` answers
   only the target question, never whether an edit may be overwritten. The run exits `3` and tells you
@@ -113,7 +116,8 @@ shared kit home. Anything else at that path is kept: an `agent-factory/` the rec
 of your own, or a kit home written by an installer from before the record existed), a symbolic link,
 or a file is renamed aside to `agent-factory.bak.<ISO>` beside it, never deleted, and the backup is
 recorded in `.grugops-kit.json`. So the first re-install over a kit home written before this release
-leaves one such backup; remove it by hand once you no longer need it.
+leaves one such backup. `--prune-old-kit` removes it while it is unchanged (see "Pruning old
+backups"), or you can remove it by hand once you no longer need it.
 
 A grugops skill or adapter file that is already in the repository, byte for byte what install would
 write (a copy you made by hand, for example), is not install's unless an earlier install recorded
@@ -170,10 +174,10 @@ whole kit; without a terminal, or with `--yes`, it writes no kit file and names
 `--backup-edited-kit`, the flag that gives that answer. A backup is written in full under a name
 ending in `.incomplete` and only then given its backup name, so a backup name never holds a partial
 copy. If a backup fails partway (a full disk), the partial copy is removed and no kit file is
-written; if it cannot be removed, the `verify` line names it as incomplete. The uninstaller does not
-claim either kind of file: nothing records the backups install makes, so it reports a file with a
-backup name, or with the `.incomplete` name, only as one whose name matches that pattern, and leaves
-it. The one gap is an error while the kit is being
+written; if it cannot be removed, the `verify` line names it as incomplete. The uninstaller removes
+neither kind of file. Install records each whole backup it makes, so the uninstaller reports a recorded
+backup `left` by its record; a backup name with no record, and every `.incomplete` name, it reports
+only as one whose name matches that pattern, and leaves it. The one gap is an error while the kit is being
 written that the checks could not see (a disk that fills up, for example): that file is a `verify`
 line and the run goes on to the next. The uninstaller applies the same rule to every file it edits, and it never reads a
 hard-linked `.grugops/install.json` as this repository's marker. **A chained command stops
@@ -608,6 +612,9 @@ It deliberately does **not** touch:
 - a **grugops skill or adapter file you edited** — it no longer holds what the install ledger in
   `.grugops/install.json` records, so it
   is left and reported
+- every **backup install recorded** (the `--migrate` backups and the backups of edited kit files): each
+  is reported `left` by its record; only `--prune-old-kit` removes one, and only some kinds (see
+  "Pruning old backups")
 - every file with a **`.grugops-edited-` backup name** (a re-install's backup of an edited kit file,
   or a file of yours with that name)
 - `agent-factory/`, `.planning/`, `docs/`, `src/`, or any file you own
@@ -644,6 +651,11 @@ DRY_RUN=1 node install/install.js --migrate --target /path/to/repo
   file). That link is removed only in a run that writes the kit. Any other link there is left in
   place and nothing is written through it.
 
+Each backup `--migrate` makes (the in-repo kit, each legacy config, `plans/handoffs/`, and the backups of
+kit files you edited) is recorded in the install ledger in `.grugops/install.json`, with a record of its
+content. `--prune-old-kit` can later remove the in-repo kit and config backups while they are unchanged;
+it never removes the handoffs backup or a backup of an edited kit file.
+
 `--migrate` is **whole or not at all**. Before it changes anything, it checks the config it would
 carry forward and builds the whole kit plan, rendering the adapters with that carried config (so a
 `DRY_RUN=1` preview shows the models the real run installs). If anything is refused (a `models`
@@ -665,8 +677,8 @@ It is **idempotent and re-run-safe**: running `--migrate` a second time on an al
 repo does nothing. If a stray **live** in-repo `agent-factory/` is left behind after migration,
 `--migrate` tells you — and tells you to remove it **by hand** once you have confirmed the shared
 kit at `${GRUGOPS_HOME:-$HOME/.grugops}` is in use. `--prune-old-kit` does **not** clear it: prune
-only removes timestamped `.bak.<ISO>` backups, never a live kit (it refuses to delete user content
-by design).
+removes only backups install recorded, never a live kit (it refuses to delete user content by
+design).
 
 A `--migrate` on a clean repo (no old layout) simply falls through to a normal fresh install.
 
@@ -676,7 +688,9 @@ A migrate is reversible by hand. To return a repo to its pre-migrate state:
 
 1. **Remove the grugops wiring.** Run the uninstall, which removes only the grugops-owned
    adapters, the sentinel blocks, and the `.grugops/install.json` marker (it preserves the
-   migrate backups and the seeded config):
+   migrate backups and the seeded config, and reports each backup `left` by its record in the
+   install ledger). Do not run `--prune-old-kit` before you restore: it removes the in-repo kit and
+   config backups this restore needs:
 
    ```sh
    node install/uninstall.js --target /path/to/repo
@@ -768,9 +782,9 @@ that was not what you intended, the backup is right there to restore.
 
 ### Pruning old backups (`--prune-old-kit`)
 
-Both `--migrate` and `--update` leave **timestamped backups** behind on purpose (so a refresh or a
-migration is always reversible). When you are confident you no longer need them, `--prune-old-kit`
-removes them — and **only** them:
+Both `--migrate` and `--update` leave **timestamped backups** behind on purpose, so a refresh or a
+migration is always reversible. Install records each backup it makes. When you no longer need them,
+`--prune-old-kit` removes the ones install recorded, and only those:
 
 ```sh
 node install/install.js --prune-old-kit
@@ -780,22 +794,40 @@ DRY_RUN=1 node install/install.js --prune-old-kit
 
 This is the **single, opt-in deletion path** in grugops, and it is deliberately narrow:
 
-- it removes **only** grugops-created backups — the `agent-factory.bak.<ISO>` directories (in both
-  the target repo and the shared kit home) and the `factory.config.json.bak.<ISO>` files migrate
-  leaves. The match is anchored to the exact `<name>.bak.<ISO-timestamp>` shape grugops creates, so a
-  file of your own such as `mine.bak` or `notes.bak` is **never** matched;
-- it **never** runs on the default install path — deletion happens only when you pass this flag
-  (grugops never deletes first);
-- it never touches the **live** `agent-factory/` kit, your seeded `.grugops/` state, `plans/`,
+- It removes **only backups install recorded**: the in-repo kit (`agent-factory.bak.<ISO>`) and legacy
+  config (`factory.config.json.bak.<ISO>`) backups `--migrate` makes in the target, recorded in
+  `.grugops/install.json`, and the kit backups install and `--update` make in the kit home
+  (`agent-factory.bak.<ISO>`), recorded in `.grugops-kit.json` there.
+- It removes a recorded backup only while it is **still exactly as install left it**, compared with its
+  recorded content: every file's bytes and permission bits, every link's target, and every name in a
+  directory. A backup you changed since, even by one added file, is left and named with the reason. A
+  backup whose content install could not read in full when it made it is never removed.
+- It **never** removes a `plans/handoffs.bak.<ISO>` backup or a backup of a kit file you edited
+  (`<file>.grugops-edited-<ISO>`), because those hold your content. It names each one `left`.
+- **Anything else named like a backup is left and named.** A name is not proof that grugops made a file:
+  your own `thesis.bak.<ISO>/` or `budget.xlsx.bak.<ISO>` has the same shape. A backup grugops made
+  before this release has no record either, so prune leaves it too (`not recorded by install`). Check
+  such a backup and remove it by hand when you no longer need it.
+- A kit-home backup install made of something that was not its kit (a directory of yours at
+  `agent-factory/`; its `backed-up` line said so) is a recorded backup like the others, so prune removes
+  it while it is unchanged. Move anything you want to keep out of such a backup before you prune.
+- After it removes a backup, prune takes that backup's entry out of the record that listed it. If the
+  record cannot be rewritten (it changed while prune ran, or it is read-only), a `verify` line names the
+  entries it still lists, and the run exits `3`; a later prune finds those paths gone and leaves the
+  entries.
+- It **never** runs on the default install path. Deletion happens only when you pass this flag
+  (grugops never deletes first).
+- It never touches the **live** `agent-factory/` kit, your seeded `.grugops/` state, `plans/`,
   `.planning/`, `docs/`, `src/`, or any other content you own (the same protected-path guard the
-  uninstaller uses);
-- a match that is a symbolic link is removed as a link, never followed. A backup is reported
-  `removed` only when it is gone afterwards; one that could not be removed is a `verify` finding,
-  and the run prints `== prune INCOMPLETE — N item(s) need verification ==` and exits `3`.
-- it matches by that name shape, not by the record install now keeps of each kit-home backup
-  (`.grugops-kit.json`). So a kit-home `agent-factory.bak.<ISO>` that install made of something that
-  was not its kit (a directory of yours at `agent-factory/`; its `backed-up` line said so) matches as
-  well. Move anything you want to keep out of such a backup before you prune.
+  uninstaller uses), even if a record names a path there.
+- A recorded backup that is a symbolic link is removed as a link, never followed. A backup is reported
+  `removed` only when it is gone afterwards; one that could not be removed is a `verify` finding, and the
+  run prints `== prune INCOMPLETE — N item(s) need verification ==` and exits `3`.
+
+**Run `--prune-old-kit` before you uninstall** if you want grugops to remove its backups. The
+uninstaller never removes a backup and reports each recorded one `left`, but once it has removed
+everything else it removes `.grugops/install.json`, and with it the record of the target's backups.
+Prune then finds them unrecorded and leaves them.
 
 ### Prove it yourself
 
