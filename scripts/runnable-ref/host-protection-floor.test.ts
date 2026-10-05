@@ -134,6 +134,14 @@ const HOST_READS: readonly HostReadRow[] = [
 ];
 
 const CONFIG_JSON_SCOPES = new Set(["environmentName"]);
+
+// The readFact argument census, counted (plan 33.1-42). Before plan 33.1-42 these were printed only:
+// 22 keys / 26 calls before plan 33.1-41, 13 / 17 after it. 13 → 14 keys: ACCEPT.enabledFlag (33.1
+// D-33 (d)). 17 → 20 calls: ruleEnabled reads the rule parameter (1), and classicEnabled reads
+// required_pull_request_reviews and then the field (2); both stale-approval rows share the two
+// helpers, so the two rows add three call sites, not six.
+const ACCEPT_KEY_COUNT = 14;
+const READFACT_CALL_COUNT = 20;
 const isReaderScope = (scope: string): boolean => scope === "readFact" || scope === "hostField" || scope.startsWith("ACCEPT.");
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -538,6 +546,9 @@ describe("host-protection.ts floor census (Gap A, CR-01, D-30, plan 33.1-22)", (
     const undeclared = [...usedSet].filter((k) => !declared.includes(k)).sort();
     expect(unused, `ACCEPT keys no readFact call uses: ${unused.join(", ")}`).toEqual([]);
     expect(undeclared, `readFact uses names ACCEPT does not declare: ${undeclared.join(", ")}`).toEqual([]);
+    expect(declared.length, "ACCEPT key count").toBe(ACCEPT_KEY_COUNT);
+    expect(used.length, "readFact call count").toBe(READFACT_CALL_COUNT);
+    expect(used.filter((k) => k === "enabledFlag").length, "ACCEPT.enabledFlag call sites (ruleEnabled, classicEnabled)").toBe(2);
   });
 
   it("assertAcceptTable() is called at top level, after ACCEPT and the uncaughtException handler, before any gh call", () => {
@@ -1293,4 +1304,48 @@ describe("evidence-field pairs (DC-1, plan 33.1-24)", () => {
       expectPairClassRule(members, r);
     });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 7. The stale-approval fields (plan 33.1-42, 33.1 D-33 (d), brief DC-1 §2.1). Sections 5 and 6 walk
+// them with every other field; this section holds that the walk really reached them, by name
+// selected from the walk (never a typed path), with the rows each feeds and the pairs each is in.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+const STALE_SETTING_NAMES: ReadonlySet<string> = new Set(["dismiss_stale_reviews_on_push", "dismiss_stale_reviews", "require_last_push_approval"]);
+const STALE_PATHS: readonly WalkedPath[] = WALKED.filter((p) => STALE_SETTING_NAMES.has(String(lastSeg(p))));
+// Two settings on each arm: rules $[0].parameters and classic required_pull_request_reviews.
+const STALE_PATH_COUNT = 4;
+// The sibling pairs holding a stale-approval field: the parameters' 3 pairs, and the 5 of classic
+// required_pull_request_reviews' 6 that hold one (the count + the allowance is the sixth).
+const STALE_SIBLING_PAIR_COUNT = 8;
+// The row pairs holding a stale-approval row: C(7, 2) - C(5, 2) = 21 - 10 = 11.
+const STALE_ROW_PAIR_COUNT = 11;
+
+describe("the stale-approval fields are walked, classified and paired (plan 33.1-42, 33.1 D-33 (d))", () => {
+  it("the walk reaches the four settings, two per arm, each feeding its own row and the qualifier", () => {
+    console.log(`host-protection stale-approval fields: ${STALE_PATHS.length} walked (${STALE_PATHS.map((p) => p.key).join(", ")})`);
+    expect(STALE_PATHS.length).toBe(STALE_PATH_COUNT);
+    expect(STALE_PATHS.filter((p) => p.body === "rules").length).toBe(2);
+    expect(STALE_PATHS.filter((p) => p.body === "classic").length).toBe(2);
+    for (const p of STALE_PATHS) {
+      expect(p.value, `${p.key}: the baseline shows the setting on`).toBe(true);
+      const row = String(lastSeg(p)).startsWith("dismiss") ? "stale_dismissal" : "last_push_approval";
+      expect(LEAVES[p.key], `${p.key} feeds`).toEqual([row, "no_bypass"]);
+    }
+  });
+
+  it("each mutation the matrix applies to a stale-approval field is absent, null and another type", () => {
+    for (const p of STALE_PATHS) expect(mutationsFor(p), p.key).toEqual(["absent", "null", "wrong-type"]);
+  });
+
+  it("the sibling pairs and row pairs that hold a stale-approval field or row are the pinned counts", () => {
+    const stale = new Set(STALE_PATHS.map((p) => p.key));
+    const siblings = SIBLING_PAIRS.filter(([a, b]) => stale.has(a.key) || stale.has(b.key));
+    expect(siblings.length).toBe(STALE_SIBLING_PAIR_COUNT);
+    const rows = ROW_PAIRS.filter(({ rows: [a, b] }) => [a, b].some((r) => r === "stale_dismissal" || r === "last_push_approval"));
+    expect(rows.length).toBe(STALE_ROW_PAIR_COUNT);
+    for (const row of ["stale_dismissal", "last_push_approval"]) {
+      expect(stale.has(representative(row, CLASSIC_BODIES)?.key ?? ""), `${row}'s CLASSIC_ARM representative is its own setting`).toBe(true);
+    }
+  });
 });
