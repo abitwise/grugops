@@ -38,8 +38,12 @@
 // 33.1-23): every field of every host answer that feeds a floor row, taken from the strong fixture
 // by walking it, removed, nulled or garbled alone, run through the COMMITTED host-protection.js.
 // Section 6, "evidence-field pairs" (plan 33.1-24), breaks two fields at once: sibling fields of one
-// answer, the representatives of every two floor rows, and each branch row beside the
-// protected-branch evidence of the environment's branch-policy row.
+// answer, the representatives of every two floor rows, and (until plan 33.1-41) each branch row
+// beside the protected-branch evidence of the environment's branch-policy row.
+// Plan 33.1-41 (33.1 D-31 Q4): the check no longer reads the production environment, so the
+// environments list, the protected-branch list and the listed branch's protection are no longer
+// read, the matrix walks only the three bodies still read, and every run asserts the environment
+// line is the by-design `UNKNOWN - verify` line.
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
@@ -84,26 +88,18 @@ const PRODUCERS: readonly PinnedRow[] = [
     why: "a rule list read in full holds no rule of the item's type (downgraded to unknown when the list is partial)",
   },
   { key: "classicReading:failed", count: 1, why: "the host reports no classic protection (404 `Branch not protected`, or `.protected === false`)" },
-  {
-    key: "ENVIRONMENT_FLOOR[required_reviewer].read:failed",
-    count: 1,
-    why: "every readable required_reviewers rule names no reviewer; passed through downgrade(), so a garbage entry makes it unknown",
-  },
-  {
-    key: "ENVIRONMENT_FLOOR[no_self_review].read:failed",
-    count: 1,
-    why: "there is no required_reviewers rule at all; passed through downgrade(), so a garbage entry makes it unknown",
-  },
   { key: "branchVerdict:protected", count: 1, why: "the one branch verdict: every BRANCH_FLOOR row is held" },
   { key: "branchVerdict:unprotected", count: 1, why: "the one branch verdict: some row is failed" },
-  { key: "environmentVerdict:protected", count: 1, why: "the one environment verdict: every ENVIRONMENT_FLOOR row is held" },
-  { key: "environmentVerdict:unprotected", count: 1, why: "the one environment verdict: some row is failed" },
+  // Plan 33.1-41 (33.1 D-31 Q4) removed four rows with the environment reading: the two
+  // ENVIRONMENT_FLOOR[...].read:failed rows (required_reviewer, no_self_review) and
+  // environmentVerdict:protected / environmentVerdict:unprotected. 18 rows before, 14 after.
+  // environmentByDesign produces no state literal: its verdict is always UNKNOWN - verify.
 ];
 
 // The only scopes that may produce "held" or "binds", and "protected" (the plan's stated sets). A
 // row outside these for those literals is refused even if someone pins it.
 const HELD_BINDS_SCOPES = new Set(["readFact", "toBinding", "bindSources", "combineArms", "qualifierFact"]);
-const PROTECTED_SCOPES = new Set(["branchVerdict", "environmentVerdict"]);
+const PROTECTED_SCOPES = new Set(["branchVerdict"]);
 
 type ReadClass = "reader" | "config-json";
 
@@ -121,18 +117,8 @@ const HOST_READS: readonly HostReadRow[] = [
   { key: "ACCEPT.disabledFlag.held:property", count: 1, cls: "reader", why: "allow_*.enabled === false" },
   { key: "ACCEPT.disabledFlag.failed:property", count: 1, cls: "reader", why: "allow_*.enabled === true" },
   { key: "ACCEPT.ruleEntry.held:property", count: 1, cls: "reader", why: "a rule entry's type must be a string" },
-  {
-    key: "ACCEPT.deploymentBranchPolicy.held:property",
-    count: 2,
-    cls: "reader",
-    why: "protected_branches === true and custom_branch_policies === false",
-  },
-  {
-    key: "ACCEPT.protectedBranchList.held:property",
-    count: 3,
-    cls: "reader",
-    why: "the one listed element: protected === true, and a string name that usableBranch accepts (plan 33.1-23)",
-  },
+  // Plan 33.1-41 (33.1 D-31 Q4) removed ACCEPT.deploymentBranchPolicy.held:property x2 and
+  // ACCEPT.protectedBranchList.held:property x3 with the environment reading. 11 rows before, 9 after.
   {
     key: "ACCEPT.classicProtectionRecord.held:property",
     count: 5,
@@ -503,7 +489,7 @@ describe("host-protection.ts floor census (Gap A, CR-01, D-30, plan 33.1-22)", (
       const literal = row.key.slice(at + 1);
       expect(STATE_LITERALS.has(literal), `${row.key}: not a pinned state literal`).toBe(true);
       if (literal === "held" || literal === "binds") expect(HELD_BINDS_SCOPES.has(scope), `${row.key}: held/binds outside its scopes`).toBe(true);
-      if (literal === "protected" || literal === "unprotected") expect(PROTECTED_SCOPES.has(scope), `${row.key}: a verdict outside the two verdict functions`).toBe(true);
+      if (literal === "protected" || literal === "unprotected") expect(PROTECTED_SCOPES.has(scope), `${row.key}: a verdict outside the one verdict function`).toBe(true);
     }
   });
 
@@ -605,8 +591,6 @@ const api = (path: string): string => `api --method GET -i ${path}`;
 const RULES_MAIN = api("repos/{owner}/{repo}/rules/branches/main?per_page=100");
 const RULESET_1 = api("repos/{owner}/{repo}/rulesets/1");
 const PROTECTION = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}/protection`);
-const ENVS = api("repos/{owner}/{repo}/environments?per_page=100");
-const PROTECTED_LIST = api("repos/{owner}/{repo}/branches?protected=true&per_page=1");
 
 interface HostJson {
   ok: boolean;
@@ -621,7 +605,7 @@ interface MatrixRun {
 }
 
 // Runs the COMMITTED host-protection.js through its --gh-script seam with gh-stub.mjs, in a scratch
-// cwd (no factory.config.json, so the environment name is the documented default `production`).
+// cwd (no factory.config.json, so the environment line names the documented default `production`).
 function runHostCheck(fixture: Fixture): MatrixRun {
   const scratch = mkdtempSync(join(tmpdir(), "grugops-floor-matrix-"));
   try {
@@ -651,13 +635,27 @@ function targetOf(json: HostJson | undefined, kind: string, name: string): HostJ
   return json?.targets.find((t) => t.kind === kind && t.name === name);
 }
 
-// Every fact of branch main and environment production, by row id.
+// Every fact of branch main, by row id. The environment target is fed by no evidence (33.1 D-31 Q4):
+// every run asserts it separately with expectEnvironmentByDesign.
 function rowStates(json: HostJson | undefined): Map<string, string> {
   const out = new Map<string, string>();
-  for (const t of [targetOf(json, "branch", "main"), targetOf(json, "environment", "production")]) {
-    for (const f of t?.facts ?? []) out.set(f.id, f.state);
-  }
+  for (const f of targetOf(json, "branch", "main")?.facts ?? []) out.set(f.id, f.state);
   return out;
+}
+
+// The environment line of every run (33.1 D-31 Q4): UNKNOWN - verify, one `unknown` fact per row of
+// floor.environment with the by-design evidence, and no call to the environments list or the
+// protected-branch list. Whatever field a mutation breaks, this line never changes.
+function expectEnvironmentByDesign(r: MatrixRun, label: string): void {
+  const env = targetOf(r.json, "environment", "production");
+  expect(env?.verdict, `${label}: the environment line\n${r.stdout}`).toBe("UNKNOWN - verify");
+  expect(env?.facts?.length, `${label}: one fact per production row`).toBe(r.json?.floor.environment.length);
+  for (const f of env?.facts ?? []) {
+    expect(f.state, `${label}: environment row ${f.id}`).toBe("unknown");
+    expect(f.evidence, `${label}: environment row ${f.id}`).toBe("not read by design (33.1 D-31)");
+  }
+  const asked = (r.json?.calls ?? []).map((c) => c.join(" ")).filter((c) => c.includes("environments") || c.includes("branches?protected="));
+  expect(asked, `${label}: calls the check no longer makes`).toEqual([]);
 }
 
 // ── The two baselines, both built from the shared strong fixture ────────────────────────────────
@@ -674,11 +672,9 @@ function classicStrongBody(): Record<string, unknown> {
   };
 }
 const BASELINES = {
-  // The ruleset arm shows every branch row; main's classic arm is 404 `Branch not protected`; the
-  // environment's branch-policy evidence comes from the protected-branch list and hotfix's body.
+  // The ruleset arm shows every branch row; main's classic arm is 404 `Branch not protected`.
   RULESET_ARM: (): Fixture => ({ ...strongFixture(), [PROTECTION("main")]: { status: 404, body: { message: "Branch not protected" } } }),
-  // No ruleset rule; main's strong classic body shows every branch row and is the environment's
-  // branch-policy evidence.
+  // No ruleset rule; main's strong classic body shows every branch row.
   CLASSIC_ARM: (): Fixture => ({
     ...strongFixture(),
     [RULES_MAIN]: { status: 200, body: [] },
@@ -687,15 +683,14 @@ const BASELINES = {
 } as const;
 type BaselineName = keyof typeof BASELINES;
 
-// The six evidence bodies and the baseline each is taken from.
-type BodyName = "rules" | "ruleset" | "classic" | "environments" | "protectedList" | "listedClassic";
+// The evidence bodies and the baseline each is taken from. Six before plan 33.1-41; the environments
+// list, the protected-branch list and the listed branch's protection (listedClassic) are no longer
+// read (33.1 D-31 Q4), so three are left.
+type BodyName = "rules" | "ruleset" | "classic";
 const BODIES: Record<BodyName, { baseline: BaselineName; key: string }> = {
   rules: { baseline: "RULESET_ARM", key: RULES_MAIN },
   ruleset: { baseline: "RULESET_ARM", key: RULESET_1 },
   classic: { baseline: "CLASSIC_ARM", key: PROTECTION("main") },
-  environments: { baseline: "CLASSIC_ARM", key: ENVS },
-  protectedList: { baseline: "RULESET_ARM", key: PROTECTED_LIST },
-  listedClassic: { baseline: "RULESET_ARM", key: PROTECTION("hotfix") },
 };
 const BODY_NAMES = Object.keys(BODIES) as BodyName[];
 
@@ -799,19 +794,15 @@ function applyMutation(fx: Fixture, p: WalkedPath, m: Mutation): void {
 }
 
 // ── The rows ─────────────────────────────────────────────────────────────────────────────────────
+// The rows evidence fields feed: the branch floor only. The five ENVIRONMENT_FLOOR rows are fed by no
+// host field since plan 33.1-41 (33.1 D-31 Q4).
 const BRANCH_ROWS = ["pull_request", "approving_review", "no_force_push", "no_deletion", "no_bypass"] as const;
-const ENV_ROWS = ["environment_exists", "required_reviewer", "no_self_review", "no_admin_bypass", "branch_policy"] as const;
-type RowId = (typeof BRANCH_ROWS)[number] | (typeof ENV_ROWS)[number];
+type RowId = (typeof BRANCH_ROWS)[number];
 const B5: readonly RowId[] = BRANCH_ROWS;
-const E5: readonly RowId[] = ENV_ROWS;
 const PR: readonly RowId[] = ["pull_request", "approving_review", "no_bypass"];
 const APPROVAL: readonly RowId[] = ["approving_review", "no_bypass"];
 const NFF: readonly RowId[] = ["no_force_push", "no_bypass"];
 const DEL: readonly RowId[] = ["no_deletion", "no_bypass"];
-const REVIEWER: readonly RowId[] = ["required_reviewer", "no_self_review"];
-const POLICY: readonly RowId[] = ["branch_policy"];
-const INERT_ROWS: readonly RowId[] = [];
-const isBranchRow = (id: RowId): boolean => (BRANCH_ROWS as readonly string[]).includes(id);
 
 // LEAVES: `<body>:<path>` → the rows the field feeds. An empty list marks an INERT field (and must
 // have its INERT reason below). Follows plan 33.1-22's ACCEPT entries and the union rule; the
@@ -861,89 +852,29 @@ const LEAVES: Readonly<Record<string, readonly RowId[]>> = {
   "classic:$.allow_force_pushes.enabled": NFF,
   "classic:$.allow_deletions": DEL,
   "classic:$.allow_deletions.enabled": DEL,
-  "environments:$": E5,
-  // Read since the red-team of plan 33.1-24 (B2): a count that is present and is not the length of
-  // the list read, or is not a whole number of 0 or more, means the list is not read whole, so which
-  // environment of the configured name deploys use is not readable. Absence is neutral (ABSENT_NEUTRAL).
-  "environments:$.total_count": E5,
-  "environments:$.environments": E5,
-  "environments:$.environments[0]": E5,
-  "environments:$.environments[0].name": E5,
-  "environments:$.environments[0].can_admins_bypass": ["no_admin_bypass"],
-  "environments:$.environments[0].deployment_branch_policy": POLICY,
-  "environments:$.environments[0].deployment_branch_policy.protected_branches": POLICY,
-  "environments:$.environments[0].deployment_branch_policy.custom_branch_policies": POLICY,
-  "environments:$.environments[0].protection_rules": REVIEWER,
-  "environments:$.environments[0].protection_rules[0]": REVIEWER,
-  "environments:$.environments[0].protection_rules[0].type": REVIEWER,
-  "environments:$.environments[0].protection_rules[0].prevent_self_review": ["no_self_review"],
-  // WR-01 (plan 33.1-22): a rule whose reviewers are not readable leaves the self-review row
-  // unreadable too, so every reviewers field feeds both reviewer rows.
-  "environments:$.environments[0].protection_rules[0].reviewers": REVIEWER,
-  "environments:$.environments[0].protection_rules[0].reviewers[0]": REVIEWER,
-  "environments:$.environments[0].protection_rules[0].reviewers[0].type": REVIEWER,
-  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer": REVIEWER,
-  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.login": INERT_ROWS,
-  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.id": REVIEWER,
-  "protectedList:$": POLICY,
-  "protectedList:$[0]": POLICY,
-  "protectedList:$[0].name": POLICY,
-  "protectedList:$[0].protected": POLICY,
-  "listedClassic:$": POLICY,
-  "listedClassic:$.enforce_admins": POLICY,
-  "listedClassic:$.enforce_admins.enabled": POLICY,
-  "listedClassic:$.required_pull_request_reviews": INERT_ROWS,
-  "listedClassic:$.required_pull_request_reviews.required_approving_review_count": INERT_ROWS,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances": INERT_ROWS,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.users": INERT_ROWS,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.teams": INERT_ROWS,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.apps": INERT_ROWS,
-  "listedClassic:$.allow_force_pushes": INERT_ROWS,
-  "listedClassic:$.allow_force_pushes.enabled": INERT_ROWS,
-  "listedClassic:$.allow_deletions": INERT_ROWS,
-  "listedClassic:$.allow_deletions.enabled": INERT_ROWS,
 };
 
-// INERT: a closed set, one reason each, equal to the LEAVES entries with no row.
-// Since red-team finding 1 of plan 33.1-23 the listed branch's body counts only as a protection
-// record, which reads enforce_admins (so those two fields feed the branch-policy row); its other
-// fields still decide nothing.
-const LISTED_CLASSIC_INERT =
-  "only the 200 status and a protection record (enforce_admins { enabled: boolean }) of the listed branch's protection are read for the branch-policy evidence; its other fields decide nothing";
-const INERT: Readonly<Record<string, string>> = {
-  "environments:$.environments[0].protection_rules[0].reviewers[0].reviewer.login": "identities are never read; the reviewer's id decides",
-  "listedClassic:$.required_pull_request_reviews": LISTED_CLASSIC_INERT,
-  "listedClassic:$.required_pull_request_reviews.required_approving_review_count": LISTED_CLASSIC_INERT,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances": LISTED_CLASSIC_INERT,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.users": LISTED_CLASSIC_INERT,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.teams": LISTED_CLASSIC_INERT,
-  "listedClassic:$.required_pull_request_reviews.bypass_pull_request_allowances.apps": LISTED_CLASSIC_INERT,
-  "listedClassic:$.allow_force_pushes": LISTED_CLASSIC_INERT,
-  "listedClassic:$.allow_force_pushes.enabled": LISTED_CLASSIC_INERT,
-  "listedClassic:$.allow_deletions": LISTED_CLASSIC_INERT,
-  "listedClassic:$.allow_deletions.enabled": LISTED_CLASSIC_INERT,
-};
+// INERT: a closed set, one reason each, equal to the LEAVES entries with no row. Empty since plan
+// 33.1-41: the eleven inert fields were the reviewer's login (environments) and ten fields of the
+// listed branch's protection (listedClassic), and the check no longer reads either body (33.1 D-31
+// Q4). Every field of the three bodies still read feeds a branch row.
+const INERT: Readonly<Record<string, string>> = {};
 
-// EXCEPTIONS: a closed set of exactly two, each an ACCEPT entry with a written absentFailedWhy.
-// `<body>:<path>|<mutation>` → the state each fed row reads instead of `unknown`.
+// EXCEPTIONS: a closed set of exactly one (two before plan 33.1-41, which removed
+// ACCEPT.deploymentBranchPolicy with the environment reading), an ACCEPT entry with a written
+// absentFailedWhy. `<body>:<path>|<mutation>` → the state each fed row reads instead of `unknown`.
 const EXCEPTIONS: Readonly<Record<string, { rows: Readonly<Partial<Record<RowId, string>>>; why: string }>> = {
   "classic:$.required_pull_request_reviews|absent": {
     rows: { pull_request: "failed", approving_review: "failed", no_bypass: "unknown" },
     why: "ACCEPT.classicReviews reads an absent key as failed (absentFailedWhy: observed, not documented; failed is fail-safe)",
   },
-  "environments:$.environments[0].deployment_branch_policy|null": {
-    rows: { branch_policy: "failed" },
-    why: "ACCEPT.deploymentBranchPolicy reads null as failed (absentFailedWhy: GitHub documents null as any branch may deploy)",
-  },
 };
 
-// ABSENT_NEUTRAL: a closed set of exactly one. An evidence field whose ABSENCE the check reads as
-// neutral by design, with the reason: removing the key leaves both targets protected, while null and
-// a value of another type still make every row it feeds unknown.
-const ABSENT_NEUTRAL: Readonly<Record<string, string>> = {
-  "environments:$.total_count":
-    "total_count restates the length of the list read; its absence removes a cross-check and asserts nothing, and the list itself carries every entry (no further page), so absence is not read as a mismatch",
-};
+// ABSENT_NEUTRAL: an evidence field whose ABSENCE the check reads as neutral by design, with the
+// reason: removing the key leaves the branch protected, while null and a value of another type still
+// make every row it feeds unknown. Empty since plan 33.1-41: its one entry was the environments list's
+// total_count, which the check no longer reads (33.1 D-31 Q4).
+const ABSENT_NEUTRAL: Readonly<Record<string, string>> = {};
 
 // The pinned field counts. A fixture that gains or loses a field changes a count and stays red until
 // someone reads the new field and classifies it in LEAVES.
@@ -951,32 +882,33 @@ const FIELDS_PER_BODY: Readonly<Record<BodyName, number>> = {
   rules: 18,
   ruleset: 7,
   classic: 13,
-  environments: 19,
-  protectedList: 4,
-  listedClassic: 13,
 };
 // 60 → 62 and 14 → 12 (red-team finding 1 of plan 33.1-23): listedClassic enforce_admins and
 // enforce_admins.enabled moved from INERT to the branch-policy row. 62 → 63 and 12 → 11 (red-team
 // B2 of plan 33.1-24): environments total_count is read now, so it moved from INERT to every
 // environment row (its absence is neutral, ABSENT_NEUTRAL). No field was made inert.
-const EVIDENCE_FIELD_COUNT = 63;
-const INERT_FIELD_COUNT = 11;
+// 63 → 38 and 11 → 0 (plan 33.1-41, 33.1 D-31 Q4): the environments body (19 fields: 18 evidence,
+// 1 inert), the protected-branch list (4 evidence) and listedClassic (13 fields: 3 evidence, 10
+// inert) are no longer read, so they are no longer walked: 63 - 18 - 4 - 3 = 38 evidence and
+// 11 - 1 - 10 = 0 inert. The three bodies still read (rules 18, ruleset 7, classic 13) are unchanged,
+// every one of their 38 fields feeds a branch row, and no field was made inert.
+const EVIDENCE_FIELD_COUNT = 38;
+const INERT_FIELD_COUNT = 0;
 
 const WALKED = walkedPaths();
 
 describe("evidence-field matrix (Gap A, D-30, derived)", () => {
-  it("both baselines read branch main and environment production protected, exit 0, from the arm each claims", () => {
+  it("both baselines read branch main protected, exit 0, from the arm each claims; the environment line is the by-design line", () => {
     const ruleset = runHostCheck(BASELINES.RULESET_ARM());
     const classic = runHostCheck(BASELINES.CLASSIC_ARM());
     for (const r of [ruleset, classic]) {
       expect(targetOf(r.json, "branch", "main")?.verdict, r.stdout).toBe("protected");
-      expect(targetOf(r.json, "environment", "production")?.verdict, r.stdout).toBe("protected");
+      expectEnvironmentByDesign(r, "baseline");
       expect(r.status).toBe(0);
     }
-    const policy = (r: MatrixRun): string => targetOf(r.json, "environment", "production")?.facts?.find((f) => f.id === "branch_policy")?.evidence ?? "";
-    expect(policy(ruleset)).toContain('"hotfix"');
-    expect(policy(classic)).toContain('"main"');
-    expect(classic.json?.calls.some((c) => c.join(" ").includes("branches?protected=true"))).toBe(false);
+    const shownBy = (r: MatrixRun): string => r.stdout.split("\n").find((l) => l.startsWith("branch main:")) ?? "";
+    expect(shownBy(ruleset)).toContain("(ruleset)");
+    expect(shownBy(classic)).toContain("(classic protection)");
   });
 
   it("the walked field set equals LEAVES, both ways, and the counts are the pinned ones", () => {
@@ -998,11 +930,11 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
     expect(walked.length).toBe(EVIDENCE_FIELD_COUNT + INERT_FIELD_COUNT);
   });
 
-  it("INERT is exactly the LEAVES entries with no row, each with a reason; EXCEPTIONS has exactly two entries, each with a reason", () => {
+  it("INERT is exactly the LEAVES entries with no row, each with a reason; EXCEPTIONS has exactly one entry, with a reason", () => {
     const markedInert = Object.keys(LEAVES).filter((k) => LEAVES[k].length === 0).sort();
     expect(Object.keys(INERT).sort()).toEqual(markedInert);
     for (const [k, why] of Object.entries(INERT)) expect(why.trim().length, `${k}: empty reason`).toBeGreaterThan(0);
-    expect(Object.keys(EXCEPTIONS)).toHaveLength(2);
+    expect(Object.keys(EXCEPTIONS)).toHaveLength(1);
     for (const [k, e] of Object.entries(EXCEPTIONS)) {
       expect(e.why.trim().length, `${k}: empty reason`).toBeGreaterThan(0);
       const [path] = k.split("|");
@@ -1010,8 +942,8 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
     }
   });
 
-  it("ABSENT_NEUTRAL has exactly one entry, an evidence field (not inert, not an array element), with a reason", () => {
-    expect(Object.keys(ABSENT_NEUTRAL)).toHaveLength(1);
+  it("ABSENT_NEUTRAL is empty since plan 33.1-41 (its one field, environments total_count, is no longer read); any entry would be an evidence field with a reason", () => {
+    expect(Object.keys(ABSENT_NEUTRAL)).toHaveLength(0);
     for (const [k, why] of Object.entries(ABSENT_NEUTRAL)) {
       expect(why.trim().length, `${k}: empty reason`).toBeGreaterThan(0);
       expect((LEAVES[k] ?? []).length, `${k} feeds no row`).toBeGreaterThan(0);
@@ -1021,13 +953,16 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
     }
   });
 
-  it("the rows fed by evidence fields are exactly the fact ids of a baseline run: floor.branch plus floor.environment", () => {
+  it("the rows fed by evidence fields are exactly the branch fact ids of a baseline run (floor.branch); floor.environment is fed by none", () => {
     const r = runHostCheck(BASELINES.RULESET_ARM());
     const factIds = [...rowStates(r.json).keys()].sort();
     const fed = [...new Set(Object.values(LEAVES).flat())].sort();
     expect(fed).toEqual(factIds);
-    expect(fed.length).toBe((r.json?.floor.branch.length ?? 0) + (r.json?.floor.environment.length ?? 0));
-    expect(new Set(factIds).size, "a row id shared by the two tables").toBe(factIds.length);
+    expect(fed.length).toBe(r.json?.floor.branch.length ?? 0);
+    expect(new Set(factIds).size, "a row id twice").toBe(factIds.length);
+    const envIds = (targetOf(r.json, "environment", "production")?.facts ?? []).map((f) => f.id);
+    expect(envIds.length).toBe(r.json?.floor.environment.length);
+    expect(envIds.filter((id) => (fed as string[]).includes(id)), "an environment row fed by a host field").toEqual([]);
   });
 
   for (const p of WALKED) {
@@ -1039,10 +974,10 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
         const r = runHostCheck(mutated(p, m));
         const states = rowStates(r.json);
         const label = `${p.key} ${m}`;
-        expect(states.size, `${label}: every row of both targets reported\n${r.stdout}`).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
+        expect(states.size, `${label}: every branch row reported\n${r.stdout}`).toBe(BRANCH_ROWS.length);
+        expectEnvironmentByDesign(r, label);
         if (inert || (m === "absent" && ABSENT_NEUTRAL[p.key] !== undefined)) {
           expect(targetOf(r.json, "branch", "main")?.verdict, label).toBe("protected");
-          expect(targetOf(r.json, "environment", "production")?.verdict, label).toBe("protected");
           expect(r.status, label).toBe(0);
           continue;
         }
@@ -1059,9 +994,7 @@ describe("evidence-field matrix (Gap A, D-30, derived)", () => {
           const stillHeld = rows.filter((id) => states.get(id) === "held");
           expect(stillHeld.length, `${label}: every fed row still held (${stillHeld.join(", ")})`).toBeLessThan(rows.length);
         }
-        const fedTargets = new Set(rows.map((id) => (isBranchRow(id) ? "branch" : "environment")));
-        if (fedTargets.has("branch")) expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");
-        if (fedTargets.has("environment")) expect(targetOf(r.json, "environment", "production")?.verdict, label).not.toBe("protected");
+        expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");
         expect(r.status, label).not.toBe(0);
       }
     });
@@ -1124,7 +1057,8 @@ const pairLabel = (members: readonly PairMember[]): string => members.map((x) =>
 function expectPairClassRule(members: readonly PairMember[], r: MatrixRun): void {
   const label = pairLabel(members);
   const states = rowStates(r.json);
-  expect(states.size, `${label}: every row of both targets reported\n${r.stdout}`).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
+  expect(states.size, `${label}: every branch row reported\n${r.stdout}`).toBe(BRANCH_ROWS.length);
+  expectEnvironmentByDesign(r, label);
   const fed = new Set<string>(members.flatMap((x) => LEAVES[x.path.key]));
   // A member changed in place (a key deleted, a value of another type) makes every row it feeds
   // not held. A REMOVED array element leaves a shorter, well-formed list, as in section 5: some row
@@ -1140,9 +1074,8 @@ function expectPairClassRule(members: readonly PairMember[], r: MatrixRun): void
       LEAVES[x.path.key].length,
     );
   }
-  const fedIds = [...fed] as RowId[];
-  if (fedIds.some(isBranchRow)) expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");
-  if (fedIds.some((id) => !isBranchRow(id))) expect(targetOf(r.json, "environment", "production")?.verdict, label).not.toBe("protected");
+  expect(fed.size, `${label}: the pair feeds a row`).toBeGreaterThan(0);
+  expect(targetOf(r.json, "branch", "main")?.verdict, label).not.toBe("protected");
   expect(r.status, label).not.toBe(0);
 }
 
@@ -1170,7 +1103,11 @@ const SIBLING_PAIRS = siblingPairs();
 // policy 1, its reviewer rule 3, the reviewer entry 1, and the protected-branch list element 1.
 // 62 → 63 (red-team B2 of plan 33.1-24): environments total_count is an evidence field now, so it
 // pairs with its sibling environments $.environments (environments $ 1).
-const SIBLING_PAIR_COUNT = 63;
+// 63 → 50 (plan 33.1-41, 33.1 D-31 Q4): the environments body (environment $[0] 6, its deployment
+// branch policy 1, its reviewer rule 3, the reviewer entry 1, environments $ 1) and the
+// protected-branch list element (1) are no longer read: 63 - 13 = 50. The pairs of the three bodies
+// still read (rules 3 + 10 + 6 + 6, ruleset 15, classic 6 + 1 + 3) are unchanged.
+const SIBLING_PAIR_COUNT = 50;
 
 // ── Cross-row and cross-target pairs (plan 33.1-24 Task 2) ──────────────────────────────────────
 // The row ids come from baseline runs' facts, never from a typed list.
@@ -1205,15 +1142,16 @@ function rowPairs(): RowPair[] {
   return out;
 }
 const ROW_PAIRS = rowPairs();
-// C(10, 2): the ten floor rows of the CLASSIC_ARM run (floor.branch plus floor.environment).
-const ROW_PAIR_COUNT = 45;
+// C(10, 2) = 45 before plan 33.1-41 (floor.branch plus floor.environment). C(5, 2) = 10 after: the
+// five ENVIRONMENT_FLOOR rows are fed by no host field (33.1 D-31 Q4), so only the five branch rows
+// of the CLASSIC_ARM run pair.
+const ROW_PAIR_COUNT = 10;
 
-// The protected-branch evidence: every evidence path of the protected-branch list, and the listed
-// branch's classic answer (its root).
-const PROTECTED_BRANCH_PATHS: readonly WalkedPath[] = [
-  ...EVIDENCE_PATHS.filter((p) => p.body === "protectedList"),
-  ...WALKED.filter((p) => p.body === "listedClassic" && p.segs.length === 0),
-];
+// The other target's evidence: every walked path that feeds a row of no branch. Before plan 33.1-41
+// these were the protected-branch list's evidence paths and the listed branch's classic root (the
+// environment's branch-policy evidence), five in all. Derived now from LEAVES, never typed: the
+// environment is fed by no host field (33.1 D-31 Q4), so the set is empty.
+const PROTECTED_BRANCH_PATHS: readonly WalkedPath[] = WALKED.filter((p) => feedsOf(p).some((id) => !(BRANCH_ROWS as readonly string[]).includes(id)));
 interface CrossPair {
   row: string;
   branchPath: WalkedPath | undefined;
@@ -1222,8 +1160,11 @@ interface CrossPair {
 const CROSS_TARGET_PAIRS: readonly CrossPair[] = BRANCH_IDS.flatMap((row) =>
   PROTECTED_BRANCH_PATHS.map((policyPath) => ({ row, branchPath: representative(row, RULESET_RULE_BODIES), policyPath })),
 );
-// 5 branch rows × (4 protected-branch-list evidence paths + the listed branch's classic root).
-const CROSS_TARGET_PAIR_COUNT = 25;
+// 5 branch rows × (4 protected-branch-list evidence paths + the listed branch's classic root) = 25
+// before plan 33.1-41. 5 × 0 = 0 after: the environment target reads no host field. What the
+// cross-target pairs held (a broken branch never lifts the other target) is now asserted in every
+// run of sections 5 and 6 by expectEnvironmentByDesign.
+const CROSS_TARGET_PAIR_COUNT = 0;
 
 // Both members absent; a representative two rows share is one member.
 function absentMembers(paths: ReadonlyArray<WalkedPath | undefined>): PairMember[] {
@@ -1269,7 +1210,7 @@ describe("evidence-field pairs (DC-1, plan 33.1-24)", () => {
         ROW_IDS.map((id) => `  ${id} ← ${representative(id, CLASSIC_BODIES)?.key ?? "(none)"}`).join("\n"),
     );
     const n = ROW_IDS.length;
-    expect(n).toBe(BRANCH_ROWS.length + ENV_ROWS.length);
+    expect(n).toBe(BRANCH_ROWS.length);
     expect(new Set(ROW_IDS).size).toBe(n);
     expect(ROW_PAIRS.length).toBe((n * (n - 1)) / 2);
     expect(ROW_PAIRS.length).toBe(ROW_PAIR_COUNT);
@@ -1288,16 +1229,13 @@ describe("evidence-field pairs (DC-1, plan 33.1-24)", () => {
     });
   }
 
-  it("CROSS_TARGET_PAIRS is (branch rows) × (protected-branch evidence paths) from the RULESET_ARM run, and the count is pinned", () => {
+  it("CROSS_TARGET_PAIRS is (branch rows) × (paths feeding the other target) from the RULESET_ARM run, and the count is pinned (0 since 33.1 D-31 Q4)", () => {
     console.log(
       `host-protection cross-target pairs: ${CROSS_TARGET_PAIRS.length} (${BRANCH_IDS.length} branch rows × ${PROTECTED_BRANCH_PATHS.length} protected-branch evidence paths: ${PROTECTED_BRANCH_PATHS.map((p) => p.key).join(", ")})\n` +
         BRANCH_IDS.map((id) => `  ${id} ← ${representative(id, RULESET_RULE_BODIES)?.key ?? "(none)"}`).join("\n"),
     );
     expect(BRANCH_IDS).toEqual([...BRANCH_ROWS]);
-    for (const p of PROTECTED_BRANCH_PATHS) {
-      expect(BODIES[p.body].baseline, p.key).toBe("RULESET_ARM");
-      expect(feedsOf(p), p.key).toContain("branch_policy");
-    }
+    expect(PROTECTED_BRANCH_PATHS.map((p) => p.key), "a walked path feeds the environment target").toEqual([]);
     for (const id of BRANCH_IDS) {
       const rep = representative(id, RULESET_RULE_BODIES);
       expect(rep, `${id} has no representative`).toBeDefined();
@@ -1312,9 +1250,7 @@ describe("evidence-field pairs (DC-1, plan 33.1-24)", () => {
       const members = absentMembers([branchPath, policyPath]);
       const r = runHostCheck(mutatedPair(members));
       const label = pairLabel(members);
-      // The brief's own example: a branch-policy line beside a branch that is not protected.
       expect(targetOf(r.json, "branch", "main")?.verdict, `${label}\n${r.stdout}`).not.toBe("protected");
-      expect(rowStates(r.json).get("branch_policy"), `${label}\n${r.stdout}`).not.toBe("held");
       expectPairClassRule(members, r);
     });
   }

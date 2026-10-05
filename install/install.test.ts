@@ -3964,15 +3964,17 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const scratch = mkTmp();
     const fixture = join(scratch, "fixture.json");
     writeFileSync(fixture, readFileSync(HOST_STRONG_FIXTURE, "utf8"));
-    // The shared fixture's environment is `production`; the installed kit config's last
-    // `environments` entry is `prod`, so the environment is named explicitly.
+    // The installed kit config's last `environments` entry is `prod`, so the environment line is
+    // named explicitly. The check does not read it (33.1 D-31 Q4): the line reads UNKNOWN - verify
+    // by design and the summary counts branches only.
     const r = spawnSync("node", [join(target, HOST_CHECK_REL), "--gh-script", GH_STUB, "--env", "production"], {
       encoding: "utf8",
       cwd: target,
       env: { ...process.env, GH_STUB_FIXTURE: fixture, GH_STUB_LOG: join(scratch, "calls.log") },
     });
     expect(r.stdout).toContain("branch main: protected");
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: \d+ protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.stdout).toContain("environment production: UNKNOWN - verify — not checked by design");
+    expect(r.stdout).toMatch(/^HOST-PROTECTION: \d+ protected, 0 unprotected, 0 UNKNOWN - verify; production environment not checked \(UNKNOWN - verify by design\)$/m);
     expect(r.status).toBe(0);
   });
 

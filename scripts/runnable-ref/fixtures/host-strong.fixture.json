@@ -26,41 +26,5 @@
       "current_user_can_bypass": "never"
     }
   },
-  "api --method GET -i repos/{owner}/{repo}/branches/master":{ "status": 404, "body": { "message": "Branch not found" } },
-  "api --method GET -i repos/{owner}/{repo}/branches?protected=true&per_page=1": {
-    "status": 200,
-    "body": [{ "name": "hotfix", "protected": true }]
-  },
-  "api --method GET -i repos/{owner}/{repo}/branches/hotfix/protection": {
-    "status": 200,
-    "body": {
-      "enforce_admins": { "enabled": true },
-      "required_pull_request_reviews": {
-        "required_approving_review_count": 1,
-        "bypass_pull_request_allowances": { "users": [], "teams": [], "apps": [] }
-      },
-      "allow_force_pushes": { "enabled": false },
-      "allow_deletions": { "enabled": false }
-    }
-  },
-  "api --method GET -i repos/{owner}/{repo}/environments?per_page=100": {
-    "status": 200,
-    "body": {
-      "total_count": 1,
-      "environments": [
-        {
-          "name": "production",
-          "can_admins_bypass": false,
-          "deployment_branch_policy": { "protected_branches": true, "custom_branch_policies": false },
-          "protection_rules": [
-            {
-              "type": "required_reviewers",
-              "prevent_self_review": true,
-              "reviewers": [{ "type": "User", "reviewer": { "login": "release-owner", "id": 1 } }]
-            }
-          ]
-        }
-      ]
-    }
-  }
+  "api --method GET -i repos/{owner}/{repo}/branches/master":{ "status": 404, "body": { "message": "Branch not found" } }
 }

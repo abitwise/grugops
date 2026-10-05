@@ -63,8 +63,8 @@ function runCheck(
 // materialized-copy case reads the same file, so the kit source and the installed copy are judged
 // against one definition of "every target protected": default branch `main` covered by one active
 // ruleset whose rules show every BRANCH_FLOOR row (`pull_request` with one required approval,
-// `non_fast_forward`, `deletion`), no `master`, and a `production` environment with a named
-// reviewer (its self-review, admin-bypass and branch-policy fields are read from plan 33.1-20 on).
+// `non_fast_forward`, `deletion`), and no `master`. The fixture serves no environment answer and no
+// protected-branch list: since plan 33.1-41 (33.1 D-31 Q4) the check asks for neither.
 const STRONG_FIXTURE = join(HERE, "fixtures", "host-strong.fixture.json");
 const STRONG = JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture;
 const STRONG_RULES_KEY = api("repos/{owner}/{repo}/rules/branches/main?per_page=100");
@@ -74,7 +74,7 @@ describe("host-protection.js — branch verdicts", () => {
   it("the strong fixture: one active ruleset shows every floor row → protected, and the run exits 0", () => {
     const r = runCheck(STRONG);
     expect(r.stdout).toMatch(/^branch main: protected — every branch floor item is shown: /m);
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.stdout).toMatch(summaryLine(1, 0, 0));
     expect(r.status).toBe(0);
   });
 });
@@ -86,10 +86,8 @@ const REPO = api("repos/{owner}/{repo}");
 const RULES = (b: string): string => api(`repos/{owner}/{repo}/rules/branches/${b}?per_page=100`);
 const PROTECTION = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}/protection`);
 const BRANCH = (b: string): string => api(`repos/{owner}/{repo}/branches/${b}`);
+// The environments list the check read before plan 33.1-41; a case serves it to show it is never asked.
 const ENVS = api("repos/{owner}/{repo}/environments?per_page=100");
-// The documented reviewer element shape (WR-01): `type` User or Team, and a `reviewer` whose `id`
-// is a positive integer. `login` stays so the "identities are never printed" case has a name to miss.
-const REVIEWERS = [{ type: "User", reviewer: { login: "release-owner", id: 1 } }];
 // An explicit, empty pull request bypass allowance (D-30): a classic body that omits the key is not
 // readable (plan 33.1-22), so every classic body a case expects to be `protected` carries this.
 const NO_ALLOWANCES = { users: [], teams: [], apps: [] };
@@ -97,23 +95,6 @@ function base(over: Fixture = {}): Fixture {
   // A fresh parse per call, so no case can mutate what another case reads.
   return { ...(JSON.parse(readFileSync(STRONG_FIXTURE, "utf8")) as Fixture), ...over };
 }
-// The strong fixture's `production` environment (plan 33.1-20): a named reviewer, self-review
-// prevented, no administrator bypass, deployments only from protected branches.
-function strongEnv(): Record<string, unknown> {
-  return (base()[ENVS] as { body: { environments: Record<string, unknown>[] } }).body.environments[0];
-}
-// Each environment is built from the strong `production` shape unless a case overrides a field; an
-// override of `undefined` removes the key (JSON drops it), so a case can make a field absent.
-function envs(...list: Array<Record<string, unknown> & { name: string }>): unknown {
-  return { status: 200, body: { total_count: list.length, environments: list.map((e) => ({ ...strongEnv(), ...e })) } };
-}
-// A `required_reviewers` rule in the shape `GET environments` returns, strong unless overridden.
-const REVIEWER_RULE = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
-  type: "required_reviewers",
-  prevent_self_review: true,
-  reviewers: REVIEWERS,
-  ...over,
-});
 // A branch with no qualifying ruleset: rules 200 and empty, so the classic endpoints decide.
 const NO_RULES = { status: 200, body: [] };
 const TARGET_LINE = /^(branch|environment) (.+): (protected|unprotected|UNKNOWN - verify) — (.+)$/;
@@ -135,8 +116,8 @@ describe("host-protection.js — the full evidence rules (D-19)", () => {
     expect(lines.length).toBe(2); // branch main + environment production (master is absent)
     for (const l of lines) expect(l).toMatch(TARGET_LINE);
     expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.stdout).toMatch(summaryLine(1, 0, 0));
     expect(r.status).toBe(0);
   });
 
@@ -430,9 +411,6 @@ function envFacts(stdout: string, name: string): Array<{ id: string; requirement
   const t = jsonBlock(stdout).targets.find((x) => x.kind === "environment" && x.name === name);
   expect(t?.facts, `facts on environment ${name}`).toBeDefined();
   return t!.facts!;
-}
-function envFactOf(stdout: string, name: string, requirement: string): string | undefined {
-  return envFacts(stdout, name).find((f) => f.requirement === requirement)?.state;
 }
 const envLine = (stdout: string, name = "production"): string =>
   targetLines(stdout).find((l) => l.startsWith(`environment ${name}:`)) ?? "";
@@ -1010,93 +988,91 @@ describe("host-protection.js — the union matrix with bypass (CR-01, D-30)", ()
   });
 });
 
-describe("host-protection.js — the production environment (D-19)", () => {
-  it("the strong fixture's production (reviewer, self-review prevented, no admin bypass, protected-branch policy) → protected", () => {
-    const r = runCheck(base(), ["--json"]);
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(envFacts(r.stdout, "production").every((f) => f.state === "held")).toBe(true);
+// ── 33.1 D-31 Q4 (plan 33.1-41): the production environment is not read, by design ──────────────
+// The named human chose to narrow the check (q4-narrow-scope): it answers `protected` only for the
+// branch checklist, and its environment line always reads `UNKNOWN - verify`, by design, pointing at
+// the production checklist in install/README.md §5. The line is not a verdict: the summary and the
+// exit code count branch targets only (the exit-code mapping is listed for the human in
+// 33.1-41-SUMMARY.md).
+const summaryLine = (p: number, u: number, k: number): RegExp =>
+  new RegExp(`^HOST-PROTECTION: ${p} protected, ${u} unprotected, ${k} UNKNOWN - verify; production environment not checked \\(UNKNOWN - verify by design\\)$`, "m");
+const BY_DESIGN_EVIDENCE = "not read by design (33.1 D-31)";
+// The environment answers and the protected-branch list the check read before plan 33.1-41, in the
+// shape GitHub returns them. A case serves them to show the check never asks for them.
+const OLD_ENVIRONMENTS = {
+  status: 200,
+  body: {
+    total_count: 1,
+    environments: [
+      {
+        name: "production",
+        can_admins_bypass: false,
+        deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
+        protection_rules: [{ type: "required_reviewers", prevent_self_review: true, reviewers: [{ type: "User", reviewer: { id: 1 } }] }],
+      },
+    ],
+  },
+};
+const OLD_PROTECTED_LIST = { status: 200, body: [{ name: "main", protected: true }] };
+// A path the check no longer asks for: the environments list or the protected-branch list.
+const notReadPath = (call: string): boolean => /environments/.test(call) || /branches\?protected=/.test(call);
+
+describe("host-protection.js — the production environment is not read, by design (33.1 D-31 Q4)", () => {
+  it("the strong fixture: main protected, the environment line reads UNKNOWN - verify by design, the summary counts the branch only, exit 0", () => {
+    const r = runCheck(base());
+    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    const line = envLine(r.stdout);
+    expect(line).toContain("not checked by design");
+    expect(line).toContain("33.1 D-31");
+    expect(line).toContain("install/README.md §5");
+    expect(line).toContain("named human");
+    expect(r.stdout).toMatch(summaryLine(1, 0, 0));
+    // The environment line comes before the summary line.
+    const lines = r.stdout.split("\n");
+    expect(lines.findIndex((l) => l.startsWith("environment production:"))).toBeLessThan(lines.findIndex((l) => l.startsWith("HOST-PROTECTION:")));
     expect(r.status).toBe(0);
   });
 
-  it("an environment without a reviewer-naming rule → unprotected, exit 1", () => {
-    const r = runCheck(
-      base({
-        [ENVS]: envs({ name: "production", protection_rules: [{ type: "wait_timer", wait_timer: 5 }, REVIEWER_RULE({ reviewers: [] })] }),
-      }),
-    );
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
-    expect(r.status).toBe(1);
+  it("no gh call names the environments list or the protected-branch list, even when the stub would answer them", () => {
+    const fx = base({ [ENVS]: OLD_ENVIRONMENTS, [api("repos/{owner}/{repo}/branches?protected=true&per_page=1")]: OLD_PROTECTED_LIST });
+    const r = runCheck(fx, ["--json"]);
+    const block = jsonBlock(r.stdout);
+    const published = block.calls.map((c) => c.join(" "));
+    const recorded = r.calls.map((c) => c.join(" "));
+    expect(published.length, "the run made gh calls").toBeGreaterThan(0);
+    expect(published).toEqual(recorded);
+    expect(published.filter(notReadPath), published.join("\n")).toEqual([]);
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(0);
   });
 
-  it("no environment of that name → UNKNOWN - verify, saying grugops cannot tell how production deploys run", () => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "staging" }) }), ["--json"]);
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(r.stdout).toContain("no environment named production; grugops cannot tell how production deploys run");
-    // An absent environment is not readable, never read-and-not-met.
-    expect(envFactOf(r.stdout, "production", ENV_EXISTS)).toBe("unknown");
-    expect(envFacts(r.stdout, "production").every((f) => f.state === "unknown")).toBe(true);
+  it("the exit code counts branches: unprotected → 1, UNKNOWN - verify → 2, and the environment line is the same in all three", () => {
+    const strong = runCheck(base());
+    const weak = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: { status: 404, body: { message: "Branch not protected" } } }));
+    const unread = runCheck(base({ [RULES("main")]: { status: 500, body: { message: "Server Error" } }, [PROTECTION("main")]: { status: 500, body: { message: "Server Error" } } }));
+    expect(verdictOf(weak.stdout, "branch", "main")).toBe("unprotected");
+    expect(weak.stdout).toMatch(summaryLine(0, 1, 0));
+    expect(weak.status).toBe(1);
+    expect(verdictOf(unread.stdout, "branch", "main")).toBe("UNKNOWN - verify");
+    expect(unread.stdout).toMatch(summaryLine(0, 0, 1));
+    expect(unread.status).toBe(2);
+    expect(strong.status).toBe(0);
+    expect(envLine(weak.stdout)).toBe(envLine(strong.stdout));
+    expect(envLine(unread.stdout)).toBe(envLine(strong.stdout));
+  });
+
+  it("when the host cannot be asked, every branch is UNKNOWN - verify (exit 2) and the environment line is still the by-design line", () => {
+    const strong = runCheck(base());
+    const r = runCheck(base({ "auth status": { exit: 1 } }));
+    expect(r.stdout).toMatch(summaryLine(0, 0, 1));
+    expect(envLine(r.stdout)).toBe(envLine(strong.stdout));
     expect(r.status).toBe(2);
   });
 
-  it("an environments call that is not a 200 → UNKNOWN - verify, every environment fact unknown", () => {
-    const r = runCheck(base({ [ENVS]: { status: 404, body: { message: "Not Found" } } }), ["--json"]);
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(envFacts(r.stdout, "production").every((f) => f.state === "unknown")).toBe(true);
-    expect(r.status).toBe(2);
-  });
-
-  // One row at a time, from the strong environment: [case, override, verdict, requirement named].
-  const ENV_CASES: Array<[string, Record<string, unknown>, string, string]> = [
-    ["prevent_self_review false", { protection_rules: [REVIEWER_RULE({ prevent_self_review: false })] }, "unprotected", "prevents self-review"],
-    ["prevent_self_review absent", { protection_rules: [REVIEWER_RULE({ prevent_self_review: undefined })] }, "UNKNOWN - verify", "prevents self-review"],
-    ['prevent_self_review "true" (a string)', { protection_rules: [REVIEWER_RULE({ prevent_self_review: "true" })] }, "UNKNOWN - verify", "prevents self-review"],
-    ["can_admins_bypass true", { can_admins_bypass: true }, "unprotected", "does not let administrators bypass its protection rules"],
-    ["can_admins_bypass absent", { can_admins_bypass: undefined }, "UNKNOWN - verify", "does not let administrators bypass its protection rules"],
-    ["can_admins_bypass null", { can_admins_bypass: null }, "UNKNOWN - verify", "does not let administrators bypass its protection rules"],
-    ["deployment_branch_policy null", { deployment_branch_policy: null }, "unprotected", "allows deployments only from protected branches"],
-    [
-      "a custom deployment branch policy",
-      { deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } },
-      "UNKNOWN - verify",
-      "allows deployments only from protected branches",
-    ],
-    ["deployment_branch_policy absent", { deployment_branch_policy: undefined }, "UNKNOWN - verify", "allows deployments only from protected branches"],
-    [
-      "deployment_branch_policy.protected_branches a string",
-      { deployment_branch_policy: { protected_branches: "true", custom_branch_policies: false } },
-      "UNKNOWN - verify",
-      "allows deployments only from protected branches",
-    ],
-    ["protection_rules empty", { protection_rules: [] }, "unprotected", "requires at least one reviewer"],
-    ["protection_rules absent", { protection_rules: undefined }, "UNKNOWN - verify", "requires at least one reviewer"],
-    ["protection_rules not an array", { protection_rules: { type: "required_reviewers" } }, "UNKNOWN - verify", "requires at least one reviewer"],
-    ["a required_reviewers rule with reviewers []", { protection_rules: [REVIEWER_RULE({ reviewers: [] })] }, "unprotected", "requires at least one reviewer"],
-    ["a required_reviewers rule with reviewers absent", { protection_rules: [REVIEWER_RULE({ reviewers: undefined })] }, "UNKNOWN - verify", "requires at least one reviewer"],
-  ];
-  for (const [name, over, verdict, requirement] of ENV_CASES) {
-    it(`${name} → ${verdict}, naming "${requirement}"`, () => {
-      const r = runCheck(base({ [ENVS]: envs({ name: "production", ...over }) }), ["--json"]);
-      expect(verdictOf(r.stdout, "environment", "production")).toBe(verdict);
-      expect(envLine(r.stdout)).toContain(requirement);
-      expect(envFactOf(r.stdout, "production", requirement)).toBe(verdict === "unprotected" ? "failed" : "unknown");
-      expect(r.status).toBe(verdict === "unprotected" ? 1 : 2);
-    });
-  }
-
-  it("no reviewer rule at all → the self-review row is read and not met (failed), never held", () => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [{ type: "wait_timer", wait_timer: 5 }] }) }), ["--json"]);
-    expect(envFactOf(r.stdout, "production", "prevents self-review")).toBe("failed");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
-  });
-
-  it("reviewer identities are never printed: the evidence counts reviewers", () => {
-    const r = runCheck(base(), ["--json"]);
-    expect(r.stdout).not.toContain("release-owner");
-    expect(envLine(r.stdout)).toContain("1 reviewer");
-  });
-
-  it("--json publishes floor.environment in table order and one facts entry per row on the environment target", () => {
+  it("--json keeps floor.environment and gives the environment target UNKNOWN - verify with one unknown, by-design fact per row", () => {
     const block = jsonBlock(runCheck(base(), ["--json"]).stdout);
+    expect(block.ok).toBe(true);
     expect(block.floor.environment).toEqual([
       ENV_EXISTS,
       "requires at least one reviewer",
@@ -1105,9 +1081,15 @@ describe("host-protection.js — the production environment (D-19)", () => {
       "allows deployments only from protected branches",
     ]);
     const t = block.targets.find((x) => x.kind === "environment")!;
+    expect(t.name).toBe("production");
+    expect(t.verdict).toBe("UNKNOWN - verify");
+    expect(t.reason).toContain("not checked by design");
     expect(t.facts!.map((f) => f.requirement)).toEqual(block.floor.environment);
     expect(t.facts!.map((f) => f.id)).toEqual(["environment_exists", "required_reviewer", "no_self_review", "no_admin_bypass", "branch_policy"]);
-    for (const f of t.facts!) expect(f.evidence.length).toBeGreaterThan(0);
+    for (const f of t.facts!) {
+      expect(f.state).toBe("unknown");
+      expect(f.evidence).toBe(BY_DESIGN_EVIDENCE);
+    }
   });
 
   it("README drift: the second checklist list under `#### Git-host setup checklist` equals --json floor.environment, both ways", () => {
@@ -1118,33 +1100,21 @@ describe("host-protection.js — the production environment (D-19)", () => {
     expect(floor).toEqual(lists[1]);
   });
 
-  // One weakening per ENVIRONMENT_FLOOR row, each from the strong environment.
-  const WEAKEN_ENV: Record<string, Fixture> = {
-    [ENV_EXISTS]: { [ENVS]: envs({ name: "staging" }) },
-    "requires at least one reviewer": { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers: [] })] }) },
-    "prevents self-review": { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ prevent_self_review: false })] }) },
-    "does not let administrators bypass its protection rules": { [ENVS]: envs({ name: "production", can_admins_bypass: true }) },
-    "allows deployments only from protected branches": { [ENVS]: envs({ name: "production", deployment_branch_policy: null }) },
-  };
-
-  it("WEAKEN_ENV: its keys are exactly floor.environment, and weakening any one row turns production away from protected", () => {
-    const floor = jsonBlock(runCheck(base(), ["--json"]).stdout).floor.environment;
-    expect(Object.keys(WEAKEN_ENV).sort()).toEqual([...floor].sort());
-    expect(floor.length).toBe(Object.keys(WEAKEN_ENV).length);
-    for (const requirement of floor) {
-      const r = runCheck(base(WEAKEN_ENV[requirement]), ["--json"]);
-      expect(verdictOf(r.stdout, "environment", "production"), `weakened: ${requirement}`).not.toBe("protected");
-      expect(envFactOf(r.stdout, "production", requirement), `fact for weakened row: ${requirement}`).not.toBe("held");
-    }
-  });
-
   it("environment name: --env wins over the config and the default, and the line names the source", () => {
     const cwd = mkTmp();
     mkdirSync(join(cwd, ".grugops"), { recursive: true });
     writeFileSync(join(cwd, ".grugops", "factory.config.json"), JSON.stringify({ environments: ["dev", "prod"] }));
-    const r = runCheck(base({ [ENVS]: envs({ name: "live" }) }), ["--env", "live"], { cwd });
-    expect(verdictOf(r.stdout, "environment", "live")).toBe("protected");
-    expect(targetLines(r.stdout).find((l) => l.startsWith("environment live:"))).toContain("--env");
+    const r = runCheck(base(), ["--env", "live"], { cwd });
+    expect(verdictOf(r.stdout, "environment", "live")).toBe("UNKNOWN - verify");
+    expect(envLine(r.stdout, "live")).toContain("--env");
+    expect(r.status).toBe(0);
+  });
+
+  it("environment name: --env staging names the line, and no gh call asks about it", () => {
+    const r = runCheck(base(), ["--env", "staging", "--json"]);
+    expect(verdictOf(r.stdout, "environment", "staging")).toBe("UNKNOWN - verify");
+    expect(r.calls.map((c) => c.join(" ")).filter(notReadPath)).toEqual([]);
+    expect(r.calls.map((c) => c.join(" ")).filter((c) => c.includes("staging"))).toEqual([]);
   });
 
   it("environment name: the last `environments` entry of .grugops/factory.config.json, before agent-factory/config/factory.config.json", () => {
@@ -1153,9 +1123,9 @@ describe("host-protection.js — the production environment (D-19)", () => {
     mkdirSync(join(cwd, "agent-factory", "config"), { recursive: true });
     writeFileSync(join(cwd, ".grugops", "factory.config.json"), JSON.stringify({ environments: ["dev", "staging", "prod"] }));
     writeFileSync(join(cwd, "agent-factory", "config", "factory.config.json"), JSON.stringify({ environments: ["kit-env"] }));
-    const r = runCheck(base({ [ENVS]: envs({ name: "prod" }) }), [], { cwd });
-    expect(verdictOf(r.stdout, "environment", "prod")).toBe("protected");
-    expect(targetLines(r.stdout).find((l) => l.startsWith("environment prod:"))).toContain(".grugops/factory.config.json");
+    const r = runCheck(base(), [], { cwd });
+    expect(verdictOf(r.stdout, "environment", "prod")).toBe("UNKNOWN - verify");
+    expect(envLine(r.stdout, "prod")).toContain(".grugops/factory.config.json");
   });
 
   it("environment name: an unparseable first config falls through to agent-factory/config/factory.config.json", () => {
@@ -1164,9 +1134,9 @@ describe("host-protection.js — the production environment (D-19)", () => {
     mkdirSync(join(cwd, "agent-factory", "config"), { recursive: true });
     writeFileSync(join(cwd, ".grugops", "factory.config.json"), "{ not json");
     writeFileSync(join(cwd, "agent-factory", "config", "factory.config.json"), JSON.stringify({ environments: ["dev", "prod"] }));
-    const r = runCheck(base({ [ENVS]: envs({ name: "prod", protection_rules: [] }) }), [], { cwd });
-    expect(verdictOf(r.stdout, "environment", "prod")).toBe("unprotected");
-    expect(targetLines(r.stdout).find((l) => l.startsWith("environment prod:"))).toContain("agent-factory/config/factory.config.json");
+    const r = runCheck(base(), [], { cwd });
+    expect(verdictOf(r.stdout, "environment", "prod")).toBe("UNKNOWN - verify");
+    expect(envLine(r.stdout, "prod")).toContain("agent-factory/config/factory.config.json");
   });
 
   it("environment name: no usable config → the documented default `production`", () => {
@@ -1174,85 +1144,14 @@ describe("host-protection.js — the production environment (D-19)", () => {
     mkdirSync(join(cwd, ".grugops"), { recursive: true });
     writeFileSync(join(cwd, ".grugops", "factory.config.json"), JSON.stringify({ environments: "prod" }));
     const r = runCheck(base(), [], { cwd });
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(targetLines(r.stdout).find((l) => l.startsWith("environment production:"))).toContain("default");
-  });
-});
-
-// ── Plan 33.1-22 (D-30, re-review WR-01): garbage and oddly shaped host values ────────────────
-// Every case starts from the strong fixture and changes one value. An absent, null, wrong-typed or
-// garbage value may lower a row to `unknown`; it never makes a row `held`.
-describe("host-protection.js — reviewer element shape (WR-01, D-30)", () => {
-  const SELF_REVIEW = "prevents self-review";
-  const REVIEWER_ROW = "requires at least one reviewer";
-  const VALID = { type: "User", reviewer: { login: "release-owner", id: 1 } };
-  const GARBAGE_REVIEWERS: Array<[string, unknown[]]> = [
-    ["[null]", [null]],
-    ["[{}]", [{}]],
-    ['["x"]', ["x"]],
-    ['[{ type: "User" }] (no reviewer)', [{ type: "User" }]],
-    ['[{ type: "User", reviewer: {} }] (no id)', [{ type: "User", reviewer: {} }]],
-    ['[{ type: "Bot", reviewer: { id: 1 } }] (an undocumented type)', [{ type: "Bot", reviewer: { id: 1 } }]],
-    ['[{ type: "User", reviewer: { id: "1" } }] (a string id)', [{ type: "User", reviewer: { id: "1" } }]],
-    ['[{ type: "User", reviewer: { id: 0 } }] (a zero id)', [{ type: "User", reviewer: { id: 0 } }]],
-    ['[{ type: "User", reviewer: { id: 1.5 } }] (a fractional id)', [{ type: "User", reviewer: { id: 1.5 } }]],
-    ["[<a valid element>, null] (a mix)", [VALID, null]],
-  ];
-  for (const [name, reviewers] of GARBAGE_REVIEWERS) {
-    it(`reviewers ${name} → the reviewer row is unknown, self-review is not held, UNKNOWN - verify, exit 2`, () => {
-      const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers })] }) }), ["--json"]);
-      expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
-      expect(envFactOf(r.stdout, "production", SELF_REVIEW)).not.toBe("held");
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-      expect(r.status).toBe(2);
-    });
-  }
-
-  it('reviewers [{ type: "Team", reviewer: { id: 7 } }] → the reviewer row is held', () => {
-    const r = runCheck(
-      base({ [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers: [{ type: "Team", reviewer: { id: 7 } }] })] }) }),
-      ["--json"],
-    );
-    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("held");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-  });
-
-  it("reviewers [] → the reviewer row is failed (unchanged)", () => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ reviewers: [] })] }) }), ["--json"]);
-    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("failed");
-    expect(r.status).toBe(1);
-  });
-
-  // Plan 33.1-24 (sibling of the pairs finding): the null entry may be a second required_reviewers
-  // rule, and two such rules read unknown (never first-match-wins), so the reviewer rows are
-  // unknown now, where plan 33.1-22 kept them held.
-  it("protection_rules [null, <strong reviewer rule>] → the reviewer rows are unknown", () => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [null, REVIEWER_RULE()] }) }), ["--json"]);
-    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
-    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
-    expect(r.status).toBe(2);
-  });
-
-  it("protection_rules [null] → the reviewer rows are unknown, not failed", () => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [null] }) }), ["--json"]);
-    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
-    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
     expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(r.status).toBe(2);
-  });
-
-  it("protection_rules [{ type: 5 }] (an entry without a string type) → the reviewer rows are unknown, not failed", () => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [{ type: 5 }] }) }), ["--json"]);
-    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
-    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
-    expect(r.status).toBe(2);
+    expect(envLine(r.stdout)).toContain("default");
   });
 });
 
-describe("host-protection.js — rule list garbage, the branch-policy pair and approval counts (D-30)", () => {
+describe("host-protection.js — rule list garbage and approval counts (D-30)", () => {
   const PR_ROW = "requires a pull request before merging";
   const APPROVAL_ROW = "requires at least one approving review";
-  const POLICY_ROW = "allows deployments only from protected branches";
 
   // Plan 33.1-24 (found by the evidence-field pairs): the null entry names no ruleset and no
   // source, so it may be ruleset 1's rule, and ruleset 1's source agreement cannot be shown. Every
@@ -1279,20 +1178,6 @@ describe("host-protection.js — rule list garbage, the branch-policy pair and a
     expect(factOf(r.stdout, "main", PR_ROW)).toBe("unknown");
     expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
   });
-
-  const POLICIES: Array<[string, unknown, string]> = [
-    ["{ protected_branches: true } (no custom key)", { protected_branches: true }, "unknown"],
-    ["{ protected_branches: true, custom_branch_policies: true }", { protected_branches: true, custom_branch_policies: true }, "unknown"],
-    ['{ protected_branches: true, custom_branch_policies: "false" }', { protected_branches: true, custom_branch_policies: "false" }, "unknown"],
-    ["{ protected_branches: true, custom_branch_policies: false }", { protected_branches: true, custom_branch_policies: false }, "held"],
-  ];
-  for (const [name, policy, state] of POLICIES) {
-    it(`deployment_branch_policy ${name} → the branch-policy row is ${state}`, () => {
-      const r = runCheck(base({ [ENVS]: envs({ name: "production", deployment_branch_policy: policy }) }), ["--json"]);
-      expect(envFactOf(r.stdout, "production", POLICY_ROW)).toBe(state);
-      expect(verdictOf(r.stdout, "environment", "production")).toBe(state === "held" ? "protected" : "UNKNOWN - verify");
-    });
-  }
 
   // [count, approval-row state] on the ruleset arm, with no classic protection.
   const COUNTS: Array<[unknown, string]> = [
@@ -1327,9 +1212,9 @@ describe("host-protection.js — rule list garbage, the branch-policy pair and a
     expect(r.status).toBe(2);
   });
 
-  it("the strong fixture still gives 2 protected, 0 unprotected, 0 UNKNOWN - verify, exit 0", () => {
+  it("the strong fixture still gives 1 protected, 0 unprotected, 0 UNKNOWN - verify (branches only), exit 0", () => {
     const r = runCheck(base());
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(r.stdout).toMatch(summaryLine(1, 0, 0));
     expect(r.status).toBe(0);
   });
 });
@@ -1339,7 +1224,8 @@ describe("host-protection.js — rule list garbage, the branch-policy pair and a
 // tested as a class, not only at the site it was found: absent, oddly shaped or contradicted by the
 // same run is `UNKNOWN - verify`, never `protected`.
 const HOSTILE = { toString: 1 }; // JSON-safe; String(HOSTILE) and `${HOSTILE}` throw a TypeError
-const ADMIN_BYPASS_ENV = (): unknown => envs({ name: "production", can_admins_bypass: true });
+// A second branch, `weak`, with no ruleset rule and no classic protection: `unprotected`.
+const WEAK_BRANCH = { [RULES("weak")]: NO_RULES, [PROTECTION("weak")]: NOT_PROTECTED_404 };
 const MAIN_PROTECTION_URL = "https://api.github.com/repos/octo/repo/branches/main/protection";
 // A 200 answer from `GET rulesets/1` built from the strong body; `undefined` removes a key.
 function rulesetBodyWith(over: Record<string, unknown>): unknown {
@@ -1627,68 +1513,6 @@ describe("host-protection.js — pairs: an entry that may belong to the ruleset 
 // over a host list dropped the entries it could not read, so garbling one field of a duplicate
 // turned "which one applies is not readable" into a pass. An entry that cannot be read may be the
 // duplicate: it is counted unless it provably names something else.
-describe("host-protection.js — pairs sibling: an unreadable entry may be the duplicate (DC-1, plan 33.1-24)", () => {
-  const REVIEWER_ROW = "requires at least one reviewer";
-  const SELF_REVIEW = "prevents self-review";
-  const envBody = (...list: unknown[]): unknown => ({ status: 200, body: { total_count: list.length, environments: list } });
-
-  const RULES_AMBIGUOUS: Array<[string, unknown[]]> = [
-    ["[null, <strong rule>]", [null, REVIEWER_RULE()]],
-    ["[<strong rule>, null]", [REVIEWER_RULE(), null]],
-    ['[{ type: 7 }, <strong rule>]', [{ type: 7 }, REVIEWER_RULE()]],
-    ["[<strong rule>, <the same rule with type 7>] (one field of a duplicate garbled)", [REVIEWER_RULE(), REVIEWER_RULE({ type: 7 })]],
-    ["[<strong rule>, <the same rule with type absent>]", [REVIEWER_RULE(), REVIEWER_RULE({ type: undefined })]],
-    ['[<strong rule>, "x"]', [REVIEWER_RULE(), "x"]],
-  ];
-  for (const [name, rules] of RULES_AMBIGUOUS) {
-    it(`protection_rules ${name} → both reviewer rows unknown, UNKNOWN - verify`, () => {
-      const env = { ...strongEnv(), protection_rules: rules };
-      const r = runCheck(base({ [ENVS]: envBody(env) }), ["--json"]);
-      expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("unknown");
-      expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("unknown");
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-      expect(r.status).toBe(2);
-    });
-  }
-
-  it('control: a readable rule of another type ({ type: "wait_timer" }) beside the reviewer rule → the reviewer rows stay held', () => {
-    const env = { ...strongEnv(), protection_rules: [{ type: "wait_timer", wait_timer: 5 }, REVIEWER_RULE()] };
-    const r = runCheck(base({ [ENVS]: envBody(env) }), ["--json"]);
-    expect(envFactOf(r.stdout, "production", REVIEWER_ROW)).toBe("held");
-    expect(envFactOf(r.stdout, "production", SELF_REVIEW)).toBe("held");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-  });
-
-  const ENVS_AMBIGUOUS: Array<[string, unknown[]]> = [
-    ["[<strong production>, null]", [strongEnv(), null]],
-    ["[null, <strong production>]", [null, strongEnv()]],
-    ["[<strong production>, <an environment with name 7>]", [strongEnv(), { ...strongEnv(), name: 7 }]],
-    ["[<strong production>, <an environment with no name>]", [strongEnv(), { ...strongEnv(), name: undefined }]],
-    ['[<strong production>, "x"]', [strongEnv(), "x"]],
-  ];
-  for (const [name, list] of ENVS_AMBIGUOUS) {
-    it(`environments ${name} → every environment row unknown, UNKNOWN - verify`, () => {
-      const r = runCheck(base({ [ENVS]: envBody(...list) }), ["--json"]);
-      for (const requirement of jsonBlock(r.stdout).floor.environment) {
-        expect(envFactOf(r.stdout, "production", requirement), `${name}: ${requirement}`).toBe("unknown");
-      }
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-      expect(r.status).toBe(2);
-    });
-  }
-
-  it('control: another environment with a readable name ("staging") beside production → protected', () => {
-    const r = runCheck(base({ [ENVS]: envBody(strongEnv(), { ...strongEnv(), name: "staging" }) }));
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(r.status).toBe(0);
-  });
-
-  it("the case tables have the pinned sizes (6 reviewer-rule lists, 5 environment lists)", () => {
-    expect(RULES_AMBIGUOUS.length).toBe(6);
-    expect(ENVS_AMBIGUOUS.length).toBe(5);
-  });
-});
-
 describe("host-protection.js — red-team: a branch the same run saw under another name is UNKNOWN - verify (D-30)", () => {
   it("the red-team case E: master renamed to main (branches/master answers `main`), --branch master → master UNKNOWN - verify, never re-added as a target", () => {
     const r = runCheck(
@@ -1794,40 +1618,9 @@ describe("host-protection.js — red-team: a branch the same run saw under anoth
 });
 
 describe("host-protection.js — red-team: more than one match in a host list is UNKNOWN - verify, never first-match-wins (D-30)", () => {
-  const WEAK_PRODUCTION = { name: "production", can_admins_bypass: true, deployment_branch_policy: null, protection_rules: [] };
-  // Every host list the check selects one entry from, each given two matching entries in both
-  // orders: the environments list (by name) and an environment's required_reviewers rules.
-  const DUPLICATES: Array<[string, Fixture, string[]]> = [
-    ["two environments named production, strong first", { [ENVS]: envs({ name: "production" }, WEAK_PRODUCTION) }, []],
-    ["two environments named production, weak first", { [ENVS]: envs(WEAK_PRODUCTION, { name: "production" }) }, []],
-    ["two identical strong environments named production", { [ENVS]: envs({ name: "production" }, { name: "production" }) }, []],
-    [
-      "two required_reviewers rules, strong first",
-      { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE(), REVIEWER_RULE({ prevent_self_review: false, reviewers: [] })] }) },
-      ["requires at least one reviewer", "prevents self-review"],
-    ],
-    [
-      "two required_reviewers rules, weak first",
-      { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE({ prevent_self_review: false, reviewers: [] }), REVIEWER_RULE()] }) },
-      ["requires at least one reviewer", "prevents self-review"],
-    ],
-    [
-      "two identical strong required_reviewers rules",
-      { [ENVS]: envs({ name: "production", protection_rules: [REVIEWER_RULE(), REVIEWER_RULE()] }) },
-      ["requires at least one reviewer", "prevents self-review"],
-    ],
-  ];
-  for (const [name, over, rows] of DUPLICATES) {
-    it(`${name} → UNKNOWN - verify, the affected rows unknown`, () => {
-      const r = runCheck(base(over), ["--json"]);
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-      const facts = envFacts(r.stdout, "production");
-      const affected = rows.length === 0 ? facts.map((f) => f.requirement) : rows;
-      for (const requirement of affected) expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
-      expect(r.status).toBe(2);
-    });
-  }
-
+  // The environments list and an environment's required_reviewers rules were the two host lists the
+  // check selected one entry from; since plan 33.1-41 (33.1 D-31 Q4) it reads neither. What is left
+  // of the class is one answer carrying two status lines.
   it("a header block with two HTTP status lines is not read by its first line → UNKNOWN - verify", () => {
     const body = JSON.stringify(RULESET_PROTECTED);
     const r = runCheck(base({ [RULES("main")]: { raw: `HTTP/2.0 200 X\nHTTP/2.0 404 X\nContent-Type: application/json\n\n${body}` } }));
@@ -1838,8 +1631,9 @@ describe("host-protection.js — red-team: more than one match in a host list is
 
 describe("host-protection.js — red-team: a host value that cannot be printed never hides another target's verdict", () => {
   // Every host value the evidence text quotes, set to an object whose toString is not callable.
-  // The environment is unprotected (can_admins_bypass true), so the run must exit 1, never the
-  // "could not run" exit 2 that would hide it.
+  // A second branch, `weak`, is unprotected, so the run must exit 1, never the "could not run"
+  // exit 2 that would hide it. (Before plan 33.1-41 the unprotected target was the environment,
+  // which the check no longer reads, 33.1 D-31.)
   // [where, override, the branch that placement weakens].
   const PLACES: Array<[string, Fixture, string]> = [
     ["a ruleset approval count", { [RULES("main")]: rulesOf(PR_RULE(HOSTILE), RULE("non_fast_forward"), RULE("deletion")) }, "main"],
@@ -1864,10 +1658,10 @@ describe("host-protection.js — red-team: a host value that cannot be printed n
     ["a branch name answered by the branch endpoint", { [BRANCH("master")]: { status: 200, body: { name: HOSTILE } } }, "master"],
   ];
   for (const [name, over, branch] of PLACES) {
-    it(`${name} set to { toString: 1 } → the run still reports the unprotected environment, exit 1`, () => {
-      const r = runCheck(base({ ...over, [ENVS]: ADMIN_BYPASS_ENV() }));
+    it(`${name} set to { toString: 1 } → the run still reports the unprotected branch weak, exit 1`, () => {
+      const r = runCheck(base({ ...over, ...WEAK_BRANCH }), ["--branch", "weak"]);
       expect(r.stdout).not.toContain("could not run");
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
+      expect(verdictOf(r.stdout, "branch", "weak")).toBe("unprotected");
       expect(verdictOf(r.stdout, "branch", branch)).toBe("UNKNOWN - verify");
       expect(r.status).toBe(1);
     });
@@ -1885,8 +1679,10 @@ describe("host-protection.js — red-team: gh's exit status must agree with the 
   // Every endpoint of the strong fixture, one at a time, with gh's exit status flipped against the
   // HTTP status it printed (a 200 with exit 1, the master 404 with exit 0). Never protected-all.
   const endpoints = Object.keys(base()).filter((k) => k.startsWith("api "));
-  it("the strong fixture has the seven endpoints this class covers (repository, rules, ruleset, master probe, protected-branch list, listed branch protection, environments)", () => {
-    expect(endpoints.length).toBe(7);
+  // Seven before plan 33.1-41; the protected-branch list, the listed branch's protection and the
+  // environments list are no longer asked (33.1 D-31 Q4), so the fixture no longer serves them.
+  it("the strong fixture has the four endpoints this class covers (repository, rules, ruleset, master probe)", () => {
+    expect(endpoints.length).toBe(4);
   });
   for (const key of endpoints) {
     it(`${key.slice("api --method GET -i ".length)} answering with gh's exit status contradicting its HTTP status → exit 2, never all protected`, () => {
@@ -1895,7 +1691,7 @@ describe("host-protection.js — red-team: gh's exit status must agree with the 
       fx[key] = { ...entry, exit: entry.status < 400 ? 1 : 0 };
       const r = runCheck(fx);
       expect(r.stdout).toMatch(/UNKNOWN - verify — /);
-      expect(r.stdout).not.toMatch(/^HOST-PROTECTION: \d+ protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+      expect(r.stdout).not.toMatch(/^HOST-PROTECTION: \d+ protected, 0 unprotected, 0 UNKNOWN - verify;/m);
       expect(r.status).toBe(2);
     });
   }
@@ -1917,12 +1713,12 @@ describe("host-protection.js — when the host cannot be asked, and the result c
     expect(r.status).toBe(2);
   });
 
-  it("`gh auth status` failing → every target UNKNOWN - verify (including the environment), exit 2", () => {
+  it("`gh auth status` failing → every target UNKNOWN - verify (the environment line by design), exit 2", () => {
     const r = runCheck(base({ "auth status": { exit: 1 } }), ["--branch", "release"]);
     expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
     expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
     for (const l of targetLines(r.stdout)) expect(TARGET_LINE.exec(l)?.[3]).toBe("UNKNOWN - verify");
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 0 protected, 0 unprotected, \d+ UNKNOWN - verify$/m);
+    expect(r.stdout).toMatch(summaryLine(0, 0, 2));
     expect(r.status).toBe(2);
   });
 
@@ -1970,13 +1766,13 @@ describe("host-protection.js — when the host cannot be asked, and the result c
     expect(block.ok).toBe(true);
     expect(block.targets.map((t) => `${t.kind}:${t.name}:${t.verdict}`)).toEqual([
       "branch:main:protected",
-      "environment:production:protected",
+      "environment:production:UNKNOWN - verify",
     ]);
     for (const t of block.targets) expect(typeof t.reason).toBe("string");
     expect(block.calls).toEqual(r.calls);
     expect(r.status).toBe(0);
 
-    const bad = runCheck(base({ [ENVS]: envs({ name: "production", protection_rules: [] }) }), ["--json"]);
+    const bad = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: NOT_PROTECTED_404 }), ["--json"]);
     const badLines = bad.stdout.trim().split("\n");
     const at = badLines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
     expect((JSON.parse(badLines.slice(at + 1).join("\n")) as { ok: boolean }).ok).toBe(false);
@@ -2015,8 +1811,8 @@ describe("host-protection.js — the report names the repository it inspected (r
     expect(lines.filter((l) => l.startsWith("repository "))).toHaveLength(1);
     expect(repositoryField(r.stdout)).toBe("octo/repo");
     expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.stdout).toMatch(summaryLine(1, 0, 0));
     expect(r.status).toBe(0);
   });
 
@@ -2064,9 +1860,10 @@ describe("host-protection.js — the report names the repository it inspected (r
     for (const l of lines) {
       const m = TARGET_LINE.exec(l);
       expect(m?.[3], l).toBe("UNKNOWN - verify");
-      expect(m?.[4], l).toContain(UNNAMED_WHY);
+      // The branch lines carry the reason; the environment line is the by-design line (33.1 D-31).
+      expect(m?.[4], l).toContain(m?.[1] === "branch" ? UNNAMED_WHY : "not checked by design");
     }
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 0 protected, 0 unprotected, 3 UNKNOWN - verify$/m);
+    expect(r.stdout).toMatch(summaryLine(0, 0, 2));
     expect(r.status).toBe(2);
     expect(r.calls).toEqual([
       ["auth", "status"],
@@ -2097,7 +1894,7 @@ describe("host-protection.js — the report names the repository it inspected (r
     expect(r.status).toBe(2);
   });
 
-  it("a usable, agreeing name but no default_branch → the repository line is printed, and main and the environment are still checked", () => {
+  it("a usable, agreeing name but no default_branch → the repository line is printed, and main is still checked", () => {
     const r = runCheck(
       base({
         [REPO]: { status: 200, body: { full_name: "octo/repo", url: THIS_REPOSITORY } },
@@ -2107,150 +1904,15 @@ describe("host-protection.js — the report names the repository it inspected (r
     expect(firstLine(r.stdout)).toBe("repository octo/repo");
     expect(verdictOf(r.stdout, "branch", "(default branch)")).toBe("UNKNOWN - verify");
     expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
+    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
     expect(r.status).toBe(2);
   });
 });
 
-// ── Re-review CR-02 (plan 33.1-23, D-30) ────────────────────────────────────────────────────────
-// "Protected branches only" lets every branch deploy when no branch has branch protection rules
-// (docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments), so the
-// environment's branch-policy row is `held` only when the same run shows CLASSIC branch protection
-// somewhere: a 200 object body from `branches/<b>/protection`, for a branch the run already read or
-// for the first branch the host lists under `branches?protected=true&per_page=1`. That list also
-// names ruleset-protected branches (docs.github.com/en/rest/branches/branches), so it is never
-// evidence by itself.
-const PROTECTED_LIST = api("repos/{owner}/{repo}/branches?protected=true&per_page=1");
-const BRANCH_POLICY = "allows deployments only from protected branches";
-const listOf = (...items: unknown[]): unknown => ({ status: 200, body: items });
-// Branch main with no ruleset rule and no classic protection: `unprotected`.
-const MAIN_UNPROTECTED = { [RULES("main")]: NO_RULES, [PROTECTION("main")]: NOT_PROTECTED_404 };
-const branchPolicyFact = (stdout: string): { state: string; evidence: string } | undefined =>
-  envFacts(stdout, "production").find((f) => f.requirement === BRANCH_POLICY);
+// Re-review CR-02 (plan 33.1-23) tested the environment's branch-policy row against classic branch
+// protection shown in the same run. Plan 33.1-41 (33.1 D-31 Q4) removed that row's reading with the
+// rest of the environment evidence, so those cases are gone; the branch floor's own cases stay.
 const callsTo = (calls: string[][], fragment: string): number => calls.filter((c) => c.join(" ").includes(fragment)).length;
-
-describe("host-protection.js — the production branch policy needs classic protection shown in the same run (re-review CR-02, D-30)", () => {
-  it("the 33.1-VERIFICATION.md reproduction: main unprotected and the host lists no protected branch → production unprotected, branch policy failed", () => {
-    const r = runCheck(base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf() }), ["--json"]);
-    expect(verdictOf(r.stdout, "branch", "main")).toBe("unprotected");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
-    expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
-    expect(envLine(r.stdout)).toContain(`${BRANCH_POLICY}: not shown`);
-    expect(r.status).toBe(1);
-  });
-
-  it("the list names main, whose classic arm this run already read as not protected → branch policy unknown, and main's protection is asked once", () => {
-    const r = runCheck(base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf({ name: "main", protected: true }) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(callsTo(r.calls, "branches/main/protection")).toBe(1);
-  });
-
-  const UNREADABLE_LISTS: Array<[string, unknown]> = [
-    ["a 500 answer", { status: 500, body: { message: "Server Error" } }],
-    ["a hostile branch name", listOf({ name: "../x", protected: true })],
-    ["an element that says protected false", listOf({ name: "hotfix", protected: false })],
-    ["a null element", listOf(null)],
-    ["two elements (the check asked for one)", listOf({ name: "hotfix", protected: true }, { name: "main", protected: true })],
-    ["an empty list that names a further page", { status: 200, body: [], link: '<https://api.github.com/x?page=2>; rel="next"' }],
-  ];
-  it.each(UNREADABLE_LISTS)("the protected-branch list is %s → branch policy unknown, and no requested path holds `..`", (_label, answer) => {
-    const r = runCheck(base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: answer }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    for (const c of r.calls) expect(c.join(" ")).not.toContain("..");
-  });
-
-  it("the first listed branch is protected only by a ruleset (classic 404 `Branch not protected`) → unknown, citing what GitHub documents", () => {
-    const r = runCheck(
-      base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf({ name: "hotfix", protected: true }), [PROTECTION("hotfix")]: NOT_PROTECTED_404 }),
-      ["--json"],
-    );
-    const fact = branchPolicyFact(r.stdout);
-    expect(fact?.state).toBe("unknown");
-    expect(fact?.evidence).toContain('"Protected branches only"');
-    expect(fact?.evidence).toContain("branch protection rules");
-    expect(fact?.evidence).toContain("rulesets");
-    expect(callsTo(r.calls, "branches/hotfix/protection")).toBe(1);
-  });
-
-  it("classic-only strong main → branch policy held from main's classic body, and the protected-branch list is never asked", () => {
-    const r = runCheck(base({ [RULES("main")]: NO_RULES, [PROTECTION("main")]: classicOf(CLASSIC_STRONG) }), ["--json"]);
-    const fact = branchPolicyFact(r.stdout);
-    expect(fact?.state).toBe("held");
-    expect(fact?.evidence).toContain('"main"');
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(callsTo(r.calls, "branches?protected=true")).toBe(0);
-    expect(r.status).toBe(0);
-  });
-
-  it("a non-admin reading (protection 404 `Not Found`, branches/main protected true) → branch policy unknown: a protected flag also counts rulesets", () => {
-    const r = runCheck(
-      base({
-        [RULES("main")]: NO_RULES,
-        [PROTECTION("main")]: { status: 404, body: { message: "Not Found" } },
-        [BRANCH("main")]: { status: 200, body: { name: "main", protected: true } },
-        [PROTECTED_LIST]: listOf({ name: "main", protected: true }),
-      }),
-      ["--json"],
-    );
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-  });
-
-  // Since the red-team round of plan 33.1-23 (finding 5), an empty list is `failed` only when the
-  // same run shows protection on no branch. Here main's ruleset rules (from base()) and master's
-  // protection body both contradict the empty list, so it reads unknown, not failed.
-  it("a probed branch that reads protected false while its protection endpoint answers a body is not evidence; an empty list the same run contradicts reads unknown", () => {
-    const r = runCheck(
-      base({
-        [BRANCH("master")]: { status: 200, body: { name: "master", protected: false } },
-        [RULES("master")]: NO_RULES,
-        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
-        [PROTECTED_LIST]: listOf(),
-      }),
-      ["--json"],
-    );
-    expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
-    const fact = branchPolicyFact(r.stdout);
-    expect(fact?.state).toBe("unknown");
-    expect(fact?.evidence).toContain("the host lists no protected branch, yet the same run shows");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-  });
-
-  it("the list names a branch the same run saw answered as another branch → unknown, and its protection is never asked", () => {
-    const r = runCheck(
-      base({
-        [BRANCH("master")]: { status: 200, body: { name: "main", protected: true } },
-        [PROTECTED_LIST]: listOf({ name: "master", protected: true }),
-        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
-      }),
-      ["--json"],
-    );
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(callsTo(r.calls, "branches/master/protection")).toBe(0);
-  });
-
-  it.each([
-    ["a null policy", null, "failed"],
-    ["the custom pair", { protected_branches: false, custom_branch_policies: true }, "unknown"],
-  ])("an environment with %s never asks for the protected-branch list", (_label, policy, state) => {
-    const r = runCheck(base({ ...MAIN_UNPROTECTED, [ENVS]: envs({ name: "production", deployment_branch_policy: policy }) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe(state);
-    expect(callsTo(r.calls, "branches?protected=true")).toBe(0);
-  });
-
-  it("the strong fixture stays all protected: its branch-policy evidence comes from the listed branch hotfix", () => {
-    const r = runCheck(base(), ["--json"]);
-    expect(r.stdout).toMatch(/^HOST-PROTECTION: 2 protected, 0 unprotected, 0 UNKNOWN - verify$/m);
-    const fact = branchPolicyFact(r.stdout);
-    expect(fact?.state).toBe("held");
-    expect(fact?.evidence).toContain('"hotfix"');
-    expect(callsTo(r.calls, "branches?protected=true&per_page=1")).toBe(1);
-    expect(callsTo(r.calls, "branches/hotfix/protection")).toBe(1);
-    expect(r.status).toBe(0);
-  });
-});
 
 // ── Red-team round of plan 33.1-23 (brief §3, D-30, DC-1) ───────────────────────────────────────
 // Five breaks against the committed .js, each tested here as a class, not as the one case found.
@@ -2297,10 +1959,9 @@ const RECORDS: Array<[string, unknown]> = [
   ["a body with the documented name and protection_url fields", { ...CLASSIC_STRONG, name: "feat", protection_url: "https://api.github.com/repos/octo/repo/branches/feat/protection" }],
   ["a body whose url names this branch in this repository", { ...CLASSIC_STRONG, url: "https://api.github.com/repos/octo/repo/branches/feat/protection" }],
 ];
-// --branch feat: no ruleset rule, `shape` from feat's protection endpoint, and no protected-branch
-// list, so the environment's branch-policy evidence can come only from the classic arm cache.
+// --branch feat: no ruleset rule, and `shape` from feat's protection endpoint.
 const featRun = (shape: unknown): ReturnType<typeof runCheck> =>
-  runCheck(without(base({ [RULES("feat")]: NO_RULES, [PROTECTION("feat")]: answer(shape) }), PROTECTED_LIST), ["--branch", "feat", "--json"]);
+  runCheck(base({ [RULES("feat")]: NO_RULES, [PROTECTION("feat")]: answer(shape) }), ["--branch", "feat", "--json"]);
 
 describe("host-protection.js — red-team 33.1-23 finding 1: classic protection is shown only by a protection record (D-30)", () => {
   it("the shape tables are the pinned size (20 non-records, 5 records)", () => {
@@ -2308,15 +1969,7 @@ describe("host-protection.js — red-team 33.1-23 finding 1: classic protection 
     expect(RECORDS.length).toBe(5);
   });
 
-  it.each(NON_RECORDS)("the listed branch's protection answers %s → branch policy unknown, production not protected", (_label, shape) => {
-    const r = runCheck(base({ [PROTECTION("hotfix")]: answer(shape) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    expect(r.status).toBe(2);
-  });
-
-  it.each(NON_RECORDS)("a --branch's own protection answers %s → every row of that branch unknown (never unprotected), and it is not branch-policy evidence", (_label, shape) => {
+  it.each(NON_RECORDS)("a --branch's own protection answers %s → every row of that branch unknown (never unprotected)", (_label, shape) => {
     const r = featRun(shape);
     expect(verdictOf(r.stdout, "branch", "feat")).toBe("UNKNOWN - verify");
     const facts = factsOf(r.stdout, "branch", "feat");
@@ -2326,28 +1979,26 @@ describe("host-protection.js — red-team 33.1-23 finding 1: classic protection 
       // The qualifier row carries its own evidence (no item is shown); the item rows quote the arm.
       if (f.id !== "no_bypass") expect(f.evidence, f.id).toContain(NOT_A_RECORD);
     }
-    expect(branchPolicyFact(r.stdout)?.state).not.toBe("held");
   });
 
-  // The branch floor and the branch-policy row read ONE predicate, so they can never disagree: the
-  // row is held from feat's cache entry exactly when the floor read feat's body as a record.
+  // The branch floor reads a body as a record exactly when ACCEPT.classicProtectionRecord holds it.
+  // (Before plan 33.1-41 the environment's branch-policy row read the same predicate; it is no longer
+  // read, 33.1 D-31 Q4.)
   it.each([...NON_RECORDS.map(([l, s]) => [`non-record: ${l}`, s, false] as const), ...RECORDS.map(([l, s]) => [`record: ${l}`, s, true] as const)])(
-    "agreement, %s: the branch floor reads it as a record exactly when the branch-policy row counts it",
+    "record, %s: the branch floor reads it as a record exactly when it is one",
     (_label, shape, isRecord) => {
       const r = featRun(shape);
       const items = factsOf(r.stdout, "branch", "feat").filter((f) => f.id !== "no_bypass");
       expect(items.length).toBe(4);
       const floorSawRecord = !items.every((f) => f.evidence.includes(NOT_A_RECORD));
-      const policyHeld = branchPolicyFact(r.stdout)?.state === "held";
       expect(floorSawRecord).toBe(isRecord);
-      expect(policyHeld).toBe(isRecord);
     },
   );
 
-  it("the red-team case c11b: feat's 200 `Branch not protected` envelope is not a record, so feat is not unprotected and production is not protected", () => {
+  it("the red-team case c11b: feat's 200 `Branch not protected` envelope is not a record, so feat is not unprotected", () => {
     const r = featRun({ message: "Branch not protected" });
     expect(verdictOf(r.stdout, "branch", "feat")).toBe("UNKNOWN - verify");
-    expect(verdictOf(r.stdout, "environment", "production")).not.toBe("protected");
+    expect(r.status).toBe(2);
   });
 });
 
@@ -2434,28 +2085,11 @@ describe("host-protection.js — red-team 33.1-23 finding 2: a name the same run
     expect(r.status).toBe(2);
   });
 
-  it.each(MASTER_NOT_SHOWN)("the probe answers %s, then the protected-branch list names master → branch policy unknown, master's protection never asked", (_label, probe) => {
-    const r = runCheck(
-      base({
-        [BRANCH("master")]: probe,
-        [PROTECTED_LIST]: listOf({ name: "master", protected: true }),
-        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
-      }),
-      ["--json"],
-    );
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(callsTo(r.calls, "branches/master/protection")).toBe(0);
-  });
-
   it("the red-team case d01: master 404 `Branch not found`, --branch master with no rules and a strong body → never protected, never evidence", () => {
-    const r = runCheck(
-      without(base({ [RULES("master")]: NO_RULES, [PROTECTION("master")]: classicOf(CLASSIC_STRONG) }), PROTECTED_LIST),
-      ["--branch", "master", "--json"],
-    );
+    const r = runCheck(base({ [RULES("master")]: NO_RULES, [PROTECTION("master")]: classicOf(CLASSIC_STRONG) }), ["--branch", "master", "--json"]);
     expect(verdictOf(r.stdout, "branch", "master")).toBe("UNKNOWN - verify");
     expect(branchLine(r.stdout, "master")).toContain("HTTP 404 (Branch not found)");
-    expect(branchPolicyFact(r.stdout)?.state).not.toBe("held");
+    expect(callsTo(r.calls, "branches/master/protection")).toBe(0);
   });
 });
 
@@ -2469,7 +2103,6 @@ function trunkWithProbedMain(probe: Record<string, unknown>): Fixture {
       [BRANCH("main")]: answer({ name: "main", ...probe }),
       [RULES("main")]: NO_RULES,
       [PROTECTION("main")]: classicOf(CLASSIC_STRONG),
-      [PROTECTED_LIST]: listOf({ name: "main", protected: true }),
     }),
     STRONG_RULES_KEY,
   );
@@ -2491,30 +2124,27 @@ describe("host-protection.js — red-team 33.1-23 finding 3: the probe's protect
     expect(GARBLED_PROBE.length).toBe(9);
   });
 
-  it.each(GARBLED_PROBE)("the probe says main protected %s while main's protection answers a body → main UNKNOWN - verify, branch policy not held", (_label, v) => {
+  it.each(GARBLED_PROBE)("the probe says main protected %s while main's protection answers a body → main UNKNOWN - verify", (_label, v) => {
     const r = runCheck(trunkWithProbedMain({ protected: v }), ["--json"]);
     expect(verdictOf(r.stdout, "branch", "trunk")).toBe("protected");
     expect(verdictOf(r.stdout, "branch", "main")).toBe("UNKNOWN - verify");
     for (const f of factsOf(r.stdout, "branch", "main")) expect(f.state, f.id).toBe("unknown");
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
+    expect(r.status).toBe(2);
   });
 
-  it("the probe says main protected true → main protected, branch policy held from main's classic body", () => {
+  it("the probe says main protected true → main protected from its classic body", () => {
     const r = runCheck(trunkWithProbedMain({ protected: true }), ["--json"]);
     expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
     expect(r.status).toBe(0);
   });
 
-  // ABSENT stays neutral: every branch the probe never asked (the default branch, each --branch,
-  // a listed branch) has no probe value either, so absence cannot be read as a contradiction
+  // ABSENT stays neutral: every branch the probe never asked (the default branch, each --branch)
+  // has no probe value either, so absence cannot be read as a contradiction
   // without making every such branch unknown. The probe value is only ever a contradiction check,
   // never evidence that a branch is protected.
-  it("the probe's answer carries no protected key → neutral: main protected, branch policy held", () => {
+  it("the probe's answer carries no protected key → neutral: main protected", () => {
     const r = runCheck(trunkWithProbedMain({}), ["--json"]);
     expect(verdictOf(r.stdout, "branch", "main")).toBe("protected");
-    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
     expect(r.status).toBe(0);
   });
 });
@@ -2548,18 +2178,6 @@ describe("host-protection.js — red-team 33.1-23 finding 4: a protection url mu
     );
     expect(verdictOf(r.stdout, "branch", "release")).toBe("UNKNOWN - verify");
     for (const f of factsOf(r.stdout, "branch", "release")) expect(f.state, f.id).toBe("unknown");
-  });
-
-  it.each(OTHER_PLACE_URLS)("the listed branch's protection url names %s → branch policy unknown", (_label, url) => {
-    const r = runCheck(base({ [PROTECTION("hotfix")]: classicOf({ ...CLASSIC_STRONG, url: url.replace("/B/", "/hotfix/") }) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-  });
-
-  it("the listed branch's protection url names this repository → branch policy held (control)", () => {
-    const r = runCheck(base({ [PROTECTION("hotfix")]: classicOf({ ...CLASSIC_STRONG, url: THIS_REPO_URL("hotfix") }) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
-    expect(r.status).toBe(0);
   });
 
   const UNREADABLE_REPO_URLS: Array<[string, unknown]> = [
@@ -2597,184 +2215,13 @@ describe("host-protection.js — red-team 33.1-23 finding 4: a protection url mu
   });
 });
 
-// Finding 5: an empty protected-branch list is `failed` only when the same run shows protection on
-// no branch; any protection shown elsewhere in the run contradicts it, and it is then unknown.
-describe("host-protection.js — red-team 33.1-23 finding 5: an empty protected-branch list the same run contradicts is unknown, not failed (D-30)", () => {
-  const CONTRADICTED: Array<[string, Fixture, string[]]> = [
-    ["the default branch main has ruleset rules (the red-team case c20)", base({ [PROTECTED_LIST]: listOf() }), []],
-    [
-      "the probe reads master protected true",
-      base({
-        ...MAIN_UNPROTECTED,
-        [PROTECTED_LIST]: listOf(),
-        [BRANCH("master")]: answer({ name: "master", protected: true }),
-        [RULES("master")]: NO_RULES,
-        [PROTECTION("master")]: NOT_PROTECTED_404,
-      }),
-      [],
-    ],
-    [
-      "a --branch reads protected true on the non-admin path",
-      base({
-        ...MAIN_UNPROTECTED,
-        [PROTECTED_LIST]: listOf(),
-        [RULES("feat")]: NO_RULES,
-        [PROTECTION("feat")]: answer({ message: "Not Found" }, 404),
-        [BRANCH("feat")]: answer({ name: "feat", protected: true }),
-      }),
-      ["--branch", "feat"],
-    ],
-    [
-      "a --branch has a ruleset rule",
-      base({ ...MAIN_UNPROTECTED, [PROTECTED_LIST]: listOf(), [RULES("feat")]: rulesOf(RULE("non_fast_forward")), [PROTECTION("feat")]: NOT_PROTECTED_404 }),
-      ["--branch", "feat"],
-    ],
-    [
-      "master answers a protection record (though its probe says protected false)",
-      base({
-        ...MAIN_UNPROTECTED,
-        [PROTECTED_LIST]: listOf(),
-        [BRANCH("master")]: answer({ name: "master", protected: false }),
-        [RULES("master")]: NO_RULES,
-        [PROTECTION("master")]: classicOf(CLASSIC_STRONG),
-      }),
-      [],
-    ],
-  ];
-  it("the table is the pinned size (5)", () => {
-    expect(CONTRADICTED.length).toBe(5);
-  });
-
-  it.each(CONTRADICTED)("empty list, but %s → branch policy unknown, production not unprotected by this row", (_label, fx, args) => {
-    const r = runCheck(fx, [...args, "--json"]);
-    const fact = branchPolicyFact(r.stdout);
-    expect(fact?.state).toBe("unknown");
-    expect(fact?.evidence).toContain("the host lists no protected branch, yet the same run shows");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-  });
-
-  it("empty list, and the probe reads master protected false with no protection anywhere → still failed (plan 33.1-23's truth kept)", () => {
-    const r = runCheck(
-      base({
-        ...MAIN_UNPROTECTED,
-        [PROTECTED_LIST]: listOf(),
-        [BRANCH("master")]: answer({ name: "master", protected: false }),
-        [RULES("master")]: NO_RULES,
-        [PROTECTION("master")]: NOT_PROTECTED_404,
-      }),
-      ["--json"],
-    );
-    expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
-    expect(r.status).toBe(1);
-  });
-});
-
 // ── Red-team of plan 33.1-24 (brief 33.1-GAP-PLANNING-BRIEF.md §3, DC-1) ──────────────────────────
 // Three breaks, each tested as a class. B1: a garbled value that is still a string counted as
 // "provably another" entry beside the one the check selects (a protection rule's `type`, an
 // environment's `name`). B2: first-page-only evidence (a `Link` naming a further page, or an
 // environments `total_count` that disagrees with the list). B3: the main/master probe took any
-// string name as a rename.
-
-// B1, protection_rules: a rule is provably not a second required_reviewers rule only when its type
-// is another DOCUMENTED type (wait_timer, branch_policy: 33.1-RESEARCH.md, the environment
-// protection rule types of the REST description). Every other string may be the duplicate.
-const WEAK_REVIEWER_FIELDS = { prevent_self_review: false, reviewers: [] };
-const REVIEWER_TYPE_GARBAGE: Array<[string, string]> = [
-  ["empty", ""],
-  ["Required_Reviewers (the red-team case p08b)", "Required_Reviewers"],
-  ["REQUIRED_REVIEWERS", "REQUIRED_REVIEWERS"],
-  ["REQUIRED_REVIEWERS_", "REQUIRED_REVIEWERS_"],
-  ["a trailing space", "required_reviewers "],
-  ["a leading space", " required_reviewers"],
-  ["a zero-width space", "required_reviewers​"],
-  ["a soft hyphen", "required­reviewers"],
-  ["fullwidth letters", "ｒｅｑｕｉｒｅｄ_reviewers"],
-  ["a hyphen for the underscore", "required-reviewers"],
-  ["an undocumented type", "custom"],
-  ["a documented other type, garbled (Wait_Timer)", "Wait_Timer"],
-];
-const DOCUMENTED_OTHER_RULE_TYPES = ["wait_timer", "branch_policy"];
-
-// B1, environments: another entry is provably another environment only when its name is a
-// non-empty string with no invisible, format or control character and no whitespace at either end
-// or other than a plain space, and does not match the configured name case-insensitively after
-// NFKC normalisation (GitHub: environment names are not case sensitive).
-const ENV_NAME_GARBAGE: Array<[string, string]> = [
-  ["empty", ""],
-  ["Production (the red-team case p07)", "Production"],
-  ["PRODUCTION", "PRODUCTION"],
-  ["a trailing space", "production "],
-  ["a leading space", " production"],
-  ["a zero-width space (the red-team case q03)", "production​"],
-  ["a leading zero-width space", "​production"],
-  ["a soft hyphen", "prod­uction"],
-  ["a no-break space", "production "],
-  ["fullwidth letters", "ｐｒｏｄｕｃｔｉｏｎ"],
-  ["a NUL", "production\u0000"],
-  ["a tab", "production\t"],
-  ["a byte-order mark", "﻿production"],
-  ["another name with a zero-width space", "staging​"],
-];
-const PROVABLY_OTHER_ENV_NAMES = ["staging", "Staging", "production-eu", "pre production"];
-const weakEnvNamed = (name: string): Record<string, unknown> => ({ name, can_admins_bypass: true, deployment_branch_policy: null, protection_rules: [] });
-const envList = (...list: unknown[]): unknown => ({ status: 200, body: { total_count: list.length, environments: list } });
-
-describe("host-protection.js — red-team 33.1-24 B1: a garbled string is never provably another entry (DC-1)", () => {
-  it("the tables have the pinned sizes (12 rule types, 2 documented other types, 14 environment names, 4 other names)", () => {
-    expect(REVIEWER_TYPE_GARBAGE.length).toBe(12);
-    expect(DOCUMENTED_OTHER_RULE_TYPES.length).toBe(2);
-    expect(ENV_NAME_GARBAGE.length).toBe(14);
-    expect(PROVABLY_OTHER_ENV_NAMES.length).toBe(4);
-  });
-
-  for (const [label, type] of REVIEWER_TYPE_GARBAGE) {
-    for (const order of ["after", "before"] as const) {
-      it(`a weak rule typed ${JSON.stringify(type)} (${label}) ${order} the strong reviewer rule → both reviewer rows unknown, UNKNOWN - verify, exit 2`, () => {
-        const weak = { ...WEAK_REVIEWER_FIELDS, type };
-        const rules = order === "after" ? [REVIEWER_RULE(), weak] : [weak, REVIEWER_RULE()];
-        const r = runCheck(base({ [ENVS]: envList({ ...strongEnv(), protection_rules: rules }) }), ["--json"]);
-        expect(envFactOf(r.stdout, "production", "requires at least one reviewer")).toBe("unknown");
-        expect(envFactOf(r.stdout, "production", "prevents self-review")).toBe("unknown");
-        expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-        expect(r.status).toBe(2);
-      });
-    }
-  }
-
-  for (const type of DOCUMENTED_OTHER_RULE_TYPES) {
-    it(`control: a rule of the documented type ${type} beside the strong reviewer rule → both reviewer rows held, protected`, () => {
-      const r = runCheck(base({ [ENVS]: envList({ ...strongEnv(), protection_rules: [{ type }, REVIEWER_RULE()] }) }), ["--json"]);
-      expect(envFactOf(r.stdout, "production", "requires at least one reviewer")).toBe("held");
-      expect(envFactOf(r.stdout, "production", "prevents self-review")).toBe("held");
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-      expect(r.status).toBe(0);
-    });
-  }
-
-  for (const [label, name] of ENV_NAME_GARBAGE) {
-    for (const order of ["after", "before"] as const) {
-      it(`a weak environment named ${JSON.stringify(name)} (${label}) ${order} production → every environment row unknown, UNKNOWN - verify, exit 2`, () => {
-        const list = order === "after" ? [strongEnv(), weakEnvNamed(name)] : [weakEnvNamed(name), strongEnv()];
-        const r = runCheck(base({ [ENVS]: envList(...list) }), ["--json"]);
-        for (const requirement of jsonBlock(r.stdout).floor.environment) {
-          expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
-        }
-        expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-        expect(r.status).toBe(2);
-      });
-    }
-  }
-
-  for (const name of PROVABLY_OTHER_ENV_NAMES) {
-    it(`control: a weak environment named ${JSON.stringify(name)} beside production → protected, exit 0`, () => {
-      const r = runCheck(base({ [ENVS]: envList(strongEnv(), weakEnvNamed(name)) }));
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-      expect(r.status).toBe(0);
-    });
-  }
-});
+// string name as a rename. B1 and B2's environment cases went with the environment evidence in plan
+// 33.1-41 (33.1 D-31 Q4); B2's rule-list case and B3 stay.
 
 // B2: every list endpoint the check reads, taken from its own source (every path literal that asks
 // for a page size), each with the effect a further page must have on it.
@@ -2791,8 +2238,6 @@ const NEXT_SPELLINGS: string[] = [
   `${LAST}; rel="last", ${NEXT}; rel=next`,
 ];
 const NO_NEXT_SPELLINGS: Array<string | undefined> = [undefined, `${LAST}; rel="last"`, `${LAST}; rel=prev`];
-// The q01 shape: no protection shown anywhere in the run, and an empty protected-branch list.
-const NOTHING_SHOWN = { [RULES("main")]: { status: 500, body: {} }, [PROTECTION("main")]: NOT_PROTECTED_404 };
 interface ListCase {
   fixture: (link: string | undefined) => Fixture;
   // What a further page must do, and what no further page leaves as it is.
@@ -2815,36 +2260,14 @@ const LIST_CASES: Record<string, ListCase> = {
       expect(r.status).toBe(0);
     },
   },
-  "repos/{owner}/{repo}/environments?per_page=100": {
-    fixture: (link) => base({ [ENVS]: withLink(STRONG[ENVS], link) }),
-    more: (r) => {
-      for (const requirement of jsonBlock(r.stdout).floor.environment) expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-      expect(r.status).toBe(2);
-    },
-    none: (r) => {
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-      expect(r.status).toBe(0);
-    },
-  },
-  "repos/{owner}/{repo}/branches?protected=true&per_page=1": {
-    fixture: (link) => base({ ...NOTHING_SHOWN, [PROTECTED_LIST]: withLink(listOf(), link) }),
-    more: (r) => {
-      expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    },
-    none: (r) => {
-      expect(branchPolicyFact(r.stdout)?.state).toBe("failed");
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("unprotected");
-      expect(r.status).toBe(1);
-    },
-  },
 };
 
-describe("host-protection.js — red-team 33.1-24 B2: a list with a further page, or a count it contradicts, is not read whole (DC-1)", () => {
-  it("every list endpoint in host-protection.ts has a further-page case (3, derived from the source), and the spelling tables have the pinned sizes", () => {
+describe("host-protection.js — red-team 33.1-24 B2: a list with a further page is not read whole (DC-1)", () => {
+  // Three before plan 33.1-41: the environments list and the protected-branch list are no longer read
+  // (33.1 D-31 Q4), so the rule list is the one list endpoint left.
+  it("every list endpoint in host-protection.ts has a further-page case (1, derived from the source), and the spelling tables have the pinned sizes", () => {
     console.log(`host-protection list endpoints: ${LIST_ENDPOINTS.join(", ")}`);
-    expect(LIST_ENDPOINTS.length).toBe(3);
+    expect(LIST_ENDPOINTS.length).toBe(1);
     expect([...LIST_ENDPOINTS].sort()).toEqual(Object.keys(LIST_CASES).sort());
     expect(NEXT_SPELLINGS.length).toBe(6);
     expect(NO_NEXT_SPELLINGS.length).toBe(3);
@@ -2873,39 +2296,6 @@ describe("host-protection.js — red-team 33.1-24 B2: a list with a further page
     expect(r.status).toBe(0);
   });
 
-  it("control (plan 33.1-23 kept): the protected-branch list asked for one element names a further page, and that element is read", () => {
-    const r = runCheck(base({ [PROTECTED_LIST]: withLink(STRONG[PROTECTED_LIST], `${NEXT}; rel="next"`) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(r.status).toBe(0);
-  });
-
-  const TOTAL_COUNT_UNREADABLE: Array<[string, unknown]> = [
-    ["2 with one listed (the red-team case p06)", 2],
-    ["0 with one listed", 0],
-    ["null", null],
-    ['"1"', "1"],
-    ["1.5", 1.5],
-    ["-1", -1],
-    ["true", true],
-    ["{}", {}],
-  ];
-  it("the total_count table has the pinned size (8)", () => {
-    expect(TOTAL_COUNT_UNREADABLE.length).toBe(8);
-  });
-  it.each(TOTAL_COUNT_UNREADABLE)("environments total_count %s → every environment row unknown, UNKNOWN - verify, exit 2", (_label, total) => {
-    const r = runCheck(base({ [ENVS]: { status: 200, body: { total_count: total, environments: [strongEnv()] } } }), ["--json"]);
-    for (const requirement of jsonBlock(r.stdout).floor.environment) expect(envFactOf(r.stdout, "production", requirement), requirement).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(r.status).toBe(2);
-  });
-  it("control: total_count equal to the list → protected; total_count absent → protected (absence is neutral)", () => {
-    for (const body of [{ total_count: 1, environments: [strongEnv()] }, { environments: [strongEnv()] }]) {
-      const r = runCheck(base({ [ENVS]: { status: 200, body } }));
-      expect(verdictOf(r.stdout, "environment", "production"), JSON.stringify(Object.keys(body))).toBe("protected");
-      expect(r.status).toBe(0);
-    }
-  });
 });
 
 // B3: the main/master probe. Only an answer naming a usable branch that is provably another name
@@ -2992,13 +2382,6 @@ describe("host-protection.js — red-team 33.1-24 sibling: a host branch name wi
     expect(TARGET_LINE.exec(trunkLines[0])?.[3]).toBe("UNKNOWN - verify");
     expect(callsTo(r.calls, "rules/branches/trunk%")).toBe(0);
     expect(r.status).toBe(2);
-  });
-  it.each(INVISIBLE_IN_BRANCH)("the protected-branch list names hotfix with %s, whose protection is a strong record → branch policy unknown, never asked", (_label, ch) => {
-    const name = `hotfix${ch}`;
-    const r = runCheck(base({ [PROTECTED_LIST]: listOf({ name, protected: true }), [PROTECTION(encodedBranch(name))]: classicOf(CLASSIC_STRONG) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(callsTo(r.calls, "branches/hotfix%")).toBe(0);
   });
   it("control: a plain default branch name, ASCII or not (trunk, tr\u00fcnk) → protected, exit 0", () => {
     for (const name of ["trunk", "tr\u00fcnk"]) {
@@ -3269,130 +2652,10 @@ describe("host-protection.js — red-team 33.1-25 B1: a ruleset's source must na
   });
 });
 
-// B1 siblings: every other host field that names a repository. Absent is neutral (the strong
-// fixture carries none of them); present and naming another repository, another host, another
-// environment or branch, or not readable, contradicts the same run.
-const ENV_URL = "https://api.github.com/repos/octo/repo/environments/production";
-const ENV_HTML_URL = "https://github.com/octo/repo/deployments/activity_log?environments_filter=production";
-const ENV_FIELDS_CONTRADICTING: Array<[string, Record<string, unknown>]> = [
-  ["url naming another repository", { url: "https://api.github.com/repos/evil/other/environments/production" }],
-  ["url naming another owner", { url: "https://api.github.com/repos/evil/repo/environments/production" }],
-  ["url naming this repository in another case", { url: "https://api.github.com/repos/Octo/repo/environments/production" }],
-  ["url naming another environment", { url: "https://api.github.com/repos/octo/repo/environments/staging" }],
-  ["url on another host", { url: "https://evil.example/repos/octo/repo/environments/production" }],
-  ["url that is not an environment endpoint", { url: "https://api.github.com/repos/octo/repo" }],
-  ["url with a percent-encoded repository name", { url: "https://api.github.com/repos/octo/%72epo/environments/production" }],
-  ["url not canonical (a tab inside)", { url: "https://api.github.com/repos/octo/re\tpo/environments/production" }],
-  ["url a number", { url: 7 }],
-  ["url null", { url: null }],
-  ["html_url naming another repository", { html_url: "https://github.com/evil/other/deployments/activity_log?environments_filter=production" }],
-  ["html_url naming this repository in another case", { html_url: "https://github.com/Octo/Repo/deployments/activity_log?environments_filter=production" }],
-  ["html_url on another host", { html_url: "https://evil.example/octo/repo/deployments/activity_log?environments_filter=production" }],
-  ["html_url on the API host", { html_url: "https://api.github.com/octo/repo/deployments/activity_log?environments_filter=production" }],
-  ["html_url with a fragment", { html_url: "https://github.com/octo/repo/deployments#x" }],
-  ["html_url with credentials", { html_url: "https://u:p@github.com/octo/repo/deployments" }],
-  ["html_url a number", { html_url: 7 }],
-];
-const LIST_PROTECTION_URLS_CONTRADICTING: Array<[string, unknown]> = [
-  ["another repository", "https://api.github.com/repos/evil/other/branches/hotfix/protection"],
-  ["another branch", "https://api.github.com/repos/octo/repo/branches/main/protection"],
-  ["another host", "https://evil.example/repos/octo/repo/branches/hotfix/protection"],
-  ["a percent-encoded repository name", "https://api.github.com/repos/octo/%72epo/branches/hotfix/protection"],
-  ["a url that is not canonical (a newline inside)", "https://api.github.com/repos/octo/repo/branches/hot\nfix/protection"],
-  ["a number", 7],
-  ["null", null],
-];
-
-describe("host-protection.js — red-team 33.1-25 B1 siblings: every host field that names a repository is compared with the proven one (DC-1)", () => {
-  it("the tables have the pinned sizes (17 environment fields, 7 protection urls)", () => {
-    expect(ENV_FIELDS_CONTRADICTING).toHaveLength(17);
-    expect(LIST_PROTECTION_URLS_CONTRADICTING).toHaveLength(7);
-  });
-
-  it.each(ENV_FIELDS_CONTRADICTING)("the production environment's %s → every production row unknown, exit 2", (_label, over) => {
-    const r = runCheck(base({ [ENVS]: envs({ name: "production", ...over }) }), ["--json"]);
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    for (const f of envFacts(r.stdout, "production")) expect(f.state, f.id).toBe("unknown");
-    expect(r.status).toBe(2);
-  });
-
-  it.each(ENV_FIELDS_CONTRADICTING.filter(([label]) => label.includes("another repository")))(
-    "ANOTHER environment of the list (staging) whose %s → the list is not about this repository, every production row unknown",
-    (_label, over) => {
-      const r = runCheck(base({ [ENVS]: envs({ name: "production" }, { name: "staging", ...over }) }), ["--json"]);
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-      expect(r.status).toBe(2);
-    },
-  );
-
-  it("controls: the production environment's url and html_url name this repository (and a staging entry its own) → protected, exit 0", () => {
-    for (const fx of [
-      base({ [ENVS]: envs({ name: "production", url: ENV_URL }) }),
-      base({ [ENVS]: envs({ name: "production", html_url: ENV_HTML_URL }) }),
-      base({
-        [ENVS]: envs(
-          { name: "production", url: ENV_URL, html_url: ENV_HTML_URL },
-          { name: "staging", url: "https://api.github.com/repos/octo/repo/environments/staging" },
-        ),
-      }),
-    ]) {
-      const r = runCheck(fx);
-      expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-      expect(r.status).toBe(0);
-    }
-  });
-
-  it("control: an environment name that needs percent-encoding in its url (pre production) → protected", () => {
-    const r = runCheck(
-      base({ [ENVS]: envs({ name: "pre production", url: "https://api.github.com/repos/octo/repo/environments/pre%20production" }) }),
-      ["--env", "pre production"],
-    );
-    expect(verdictOf(r.stdout, "environment", "pre production")).toBe("protected");
-    expect(r.status).toBe(0);
-  });
-
-  it("control: a GitHub Enterprise Server repository whose environment url and html_url sit on its own host → protected", () => {
-    const r = runCheck(
-      base({
-        [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://ghe.example.com/api/v3/repos/octo/repo" } },
-        [ENVS]: envs({
-          name: "production",
-          url: "https://ghe.example.com/api/v3/repos/octo/repo/environments/production",
-          html_url: "https://ghe.example.com/octo/repo/deployments/activity_log?environments_filter=production",
-        }),
-      }),
-    );
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("protected");
-    expect(r.status).toBe(0);
-  });
-
-  it("a GitHub Enterprise Server repository whose environment html_url sits on github.com → UNKNOWN - verify", () => {
-    const r = runCheck(
-      base({
-        [REPO]: { status: 200, body: { default_branch: "main", full_name: "octo/repo", url: "https://ghe.example.com/api/v3/repos/octo/repo" } },
-        [ENVS]: envs({ name: "production", html_url: ENV_HTML_URL }),
-      }),
-    );
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(r.status).toBe(2);
-  });
-
-  it.each(LIST_PROTECTION_URLS_CONTRADICTING)("the protected-branch list's element carries a protection_url that is %s → branch policy unknown", (_label, url) => {
-    const r = runCheck(base({ [PROTECTED_LIST]: listOf({ name: "hotfix", protected: true, protection_url: url }) }), ["--json"]);
-    expect(branchPolicyFact(r.stdout)?.state).toBe("unknown");
-    expect(verdictOf(r.stdout, "environment", "production")).toBe("UNKNOWN - verify");
-    expect(r.status).toBe(2);
-  });
-
-  it("control: the listed element's protection_url names hotfix's protection endpoint in this repository → branch policy held, exit 0", () => {
-    const r = runCheck(
-      base({ [PROTECTED_LIST]: listOf({ name: "hotfix", protected: true, protection_url: "https://api.github.com/repos/octo/repo/branches/hotfix/protection" }) }),
-      ["--json"],
-    );
-    expect(branchPolicyFact(r.stdout)?.state).toBe("held");
-    expect(r.status).toBe(0);
-  });
-});
+// B1 siblings: every other host field that names a repository. The environment entries' `url` and
+// `html_url` and the protected-branch list's `protection_url` were compared here until plan 33.1-41;
+// the check no longer reads those answers (33.1 D-31 Q4). The repository answer's own names and the
+// branch answers' `protection_url` stay, below.
 
 // B1 siblings found by the executor's own search of the answers the check reads: the repository
 // answer's `name`, `owner.login` and `html_url` restate the identity; a branch answer's
@@ -3598,12 +2861,11 @@ describe("host-protection.js — red-team 33.1-25 B4: format characters and line
     expect(firstLine(r.stdout)).toContain(visibleEscape(ch));
   });
 
-  it.each(INVISIBLE_PRINTED)("%s in a --branch name, a host message on a branch, an --env name and an environments message → every line escapes it", (_label, ch) => {
+  it.each(INVISIBLE_PRINTED)("%s in a --branch name, a host message on a branch and an --env name → every line escapes it", (_label, ch) => {
     const r = runCheck(
       base({
         [RULES("main")]: { status: 500, body: { message: `rules broke ${ch} here` } },
         [PROTECTION("main")]: NOT_PROTECTED_404,
-        [ENVS]: { status: 500, body: { message: `environments broke ${ch} here` } },
       }),
       ["--branch", `rel${ch}ease`, "--env", `prod${ch}uction`, "--json"],
     );
@@ -3613,7 +2875,6 @@ describe("host-protection.js — red-team 33.1-25 B4: format characters and line
     expect(branchLine(r.stdout)).toContain(`rules broke ${esc} here`);
     const env = targetLines(r.stdout).find((l) => l.startsWith("environment "));
     expect(env).toContain(`environment prod${esc}uction:`);
-    expect(env).toContain(`environments broke ${esc} here`);
   });
 });
 
@@ -3682,7 +2943,9 @@ describe("host-protection.js — read-only by construction", () => {
 
   // The closed list of endpoint shapes (T-33.1-191, T-33.1-194): every GET path, with any
   // `?per_page=100` removed, matches exactly one shape, and each shape is used at least once.
-  it("every recorded GET path matches exactly one of seven endpoint shapes, and each shape is used", () => {
+  // Seven shapes before plan 33.1-41; the environments list and the protected-branch list are no
+  // longer asked (33.1 D-31 Q4), so a call to either now matches no shape and turns this red.
+  it("every recorded GET path matches exactly one of five endpoint shapes, and each shape is used", () => {
     const BR = "[^?]+"; // a branch name as it appears in a path; `/` is kept literal
     const SHAPES: Record<string, RegExp> = {
       repository: /^repos\/\{owner\}\/\{repo\}$/,
@@ -3690,9 +2953,6 @@ describe("host-protection.js — read-only by construction", () => {
       branch: new RegExp(`^repos/\\{owner\\}/\\{repo\\}/branches/(?!${BR}/protection$)${BR}$`),
       protection: new RegExp(`^repos/\\{owner\\}/\\{repo\\}/branches/${BR}/protection$`),
       ruleset: /^repos\/\{owner\}\/\{repo\}\/rulesets\/[0-9]+$/,
-      environments: /^repos\/\{owner\}\/\{repo\}\/environments$/,
-      // The branch-policy evidence of plan 33.1-23: exactly this query, nothing else.
-      protectedBranches: /^repos\/\{owner\}\/\{repo\}\/branches\?protected=true&per_page=1$/,
     };
     const used = new Set<string>();
     const gets = ALL_CALLS.filter((a) => a[0] === "api");

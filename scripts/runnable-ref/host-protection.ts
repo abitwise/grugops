@@ -3,23 +3,28 @@
 // WHY THIS EXISTS. The git host is the hard floor for merge and deploy (D-19): branch protection
 // or rulesets on the protected branches, and a production deployment environment with required
 // reviewers, are what actually stop an unreviewed merge or an unapproved deploy. grugops does not
-// configure the host and never will from this file. It only REPORTS whether that floor is in
+// configure the host and never will from this file. It only REPORTS whether the branch floor is in
 // place, so the gate (workflow 05) and the release (workflow 12) can record the answer honestly
-// instead of assuming it.
+// instead of assuming it. It does not read the production environment (decision 33.1 D-31, Q4): that
+// line always reads `UNKNOWN - verify`, by design, and the release relies on the named human's
+// confirmation for the deploy floor.
 //
 // WHAT IT REPORTS. First, the repository it inspected: `repository <owner>/<name>`, the
 // `full_name` of the `repos/{owner}/{repo}` answer (as gh resolved `{owner}/{repo}`), or
 // `repository UNKNOWN - verify — <reason>` when the host was not asked or did not name it (re-review
-// WR-04, plan 33.1-25). Then one line per inspected target, and one summary line,
-// `HOST-PROTECTION: <p> protected, <u> unprotected, <k> UNKNOWN - verify`. Each target line
-// carries exactly one of three words:
-//   `protected`         — every row of the canonical table for that target (`BRANCH_FLOOR` for a
-//                         branch, `ENVIRONMENT_FLOOR` for the production environment) is positively
+// WR-04, plan 33.1-25). Then one line per inspected branch, the environment line, and one summary
+// line, `HOST-PROTECTION: <p> protected, <u> unprotected, <k> UNKNOWN - verify; production environment
+// not checked (UNKNOWN - verify by design)`, whose three counts are over branch targets only. Each
+// branch line carries exactly one of three words:
+//   `protected`         — every row of the canonical branch table (`BRANCH_FLOOR`) is positively
 //                         shown by the host, from rules the checked account cannot bypass
 //   `unprotected`       — the host answered, and at least one row is read and not met
 //   `UNKNOWN - verify`  — anything else: no `gh`, no auth, no permission, an unmeasured status,
 //                         an ambiguous answer, or output this check cannot parse
-// The two tables are the git-host setup checklist in install/README.md §5, one row per checklist
+// The environment line always carries `UNKNOWN - verify`, by design (33.1 D-31 Q4). It is not a
+// verdict, and it is not counted in the summary or the exit code.
+// `BRANCH_FLOOR` and `ENVIRONMENT_FLOOR` (the production list, requirement strings only, never read
+// from the host) are the git-host setup checklist in install/README.md §5, one row per checklist
 // line, byte for byte (a test binds each table to its list, both ways).
 // The check NEVER answers `protected` without positive evidence. When in doubt the answer is
 // `UNKNOWN - verify` (project rule: never fabricate a passing gate).
@@ -31,16 +36,16 @@
 // Enterprise Server `/api/v3` prefix, owner and name with no percent-encoding; red-team B3 of plan
 // 33.1-25) naming exactly that owner and name (repositoryIdentity, the one authority; the same url
 // is what every host url naming a repository is compared with). Otherwise
-// every target (the default branch, each `--branch`, the environment) is `UNKNOWN - verify` with
-// the reason, the run exits 2, and no further endpoint is asked.
+// every branch target (the default branch, each `--branch`) is `UNKNOWN - verify` with the reason,
+// the run exits 2, and no further endpoint is asked.
 //
 // TARGETS. The default branch always; `main` and `master` when the host says they exist (a 404
 // omits them, any other answer reports them as `UNKNOWN - verify`); each `--branch <name>`
-// (repeatable); and one production deployment environment. A name the same run saw answered as
-// ANOTHER branch (a renamed branch's old name), or did not show to exist (the probe's 404 or any
-// other answer that names no such branch), is never judged and never evidence: a `--branch` of
-// that name, or a branch whose classic answer is about another branch, is `UNKNOWN - verify` on
-// every row, and the branch-policy row never counts a read under that name (contradictedName).
+// (repeatable). The environment line names one production deployment environment, which the check
+// does not read (below). A name the same run saw answered as ANOTHER branch (a renamed branch's old
+// name), or did not show to exist (the probe's 404 or any other answer that names no such branch),
+// is never judged and never evidence: a `--branch` of that name, or a branch whose classic answer is
+// about another branch, is `UNKNOWN - verify` on every row (contradictedName).
 //
 // BRANCH EVIDENCE: ONE CANONICAL TABLE (plan 33.1-17, CR-01). `BRANCH_FLOOR` below is the branch
 // floor, one row per item of the branch checklist in install/README.md §5 ("Git-host setup
@@ -122,50 +127,17 @@
 // a protected reason names which arm showed each row. `--json` publishes the table
 // (`floor.branch`) and, per branch target, one `facts` entry per row.
 //
-// ENVIRONMENT EVIDENCE: ONE CANONICAL TABLE (plan 33.1-20, CR-01, D-30 `floor-full`).
-// `ENVIRONMENT_FLOOR` is the production floor, one row per item of the production checklist in
-// install/README.md §5, read from the environment `GET environments?per_page=100` lists under the
-// configured name: the environment exists; a `required_reviewers` rule names at least one reviewer;
-// that rule has `prevent_self_review === true`; `can_admins_bypass === false`; and
-// `deployment_branch_policy` is exactly `{ protected_branches: true, custom_branch_policies: false }`
-// AND the same run shows CLASSIC branch protection on some branch (re-review CR-02, plan 33.1-23).
-// GitHub defines "Protected branches only" for branch protection rules, lets every branch deploy
-// when no branch has them, and does not mention rulesets there (docs.github.com/en/actions/
-// reference/workflows-and-actions/deployments-and-environments, fetched 2026-09-29), while
-// `GET branches?protected=true` also lists ruleset-protected branches (docs.github.com/en/rest/
-// branches/branches). So the evidence is a protection record from `branches/<b>/protection` (the
-// same ACCEPT.classicProtectionRecord the branch floor reads, so the two never disagree): first
-// from a classic arm this run already read (each branch's classic arm is read at most once per run),
-// else from `GET branches?protected=true&per_page=1`, read at most once per run and only for the
-// documented pair: an empty list is `failed` (every branch can deploy) unless the same run shows
-// protection on some branch (a ruleset rule, a classic record, or `protected: true`), which makes
-// it `unknown` (red-team finding 5 of plan 33.1-23); one element naming a usable
-// branch with `protected: true` → that branch's classic arm is read, and anything but a body (a
-// ruleset-only branch, a non-admin 404, any other answer) is `unknown`; any other answer is
-// `unknown`. A branch the same run contradicts (a name answered as another branch or not shown to
-// exist, or a body for a branch the probe read as `protected` false or unreadable) is never
-// evidence.
-// A field that is missing or of an unexpected type is `unknown`, never its safe default;
-// `protection_rules` that is not an array is `unknown`; a `null` branch policy is `failed`; a custom
-// branch policy is `unknown` (the check does not read which branches it allows). A reviewer counts
-// only in the documented shape (`type` "User" or "Team" and a `reviewer` whose `id` is a positive
-// integer); a reviewers list holding anything else is `unknown` (re-review WR-01). An entry of
-// `protection_rules` that is not a rule of a documented other type (wait_timer, branch_policy) may
-// be a required_reviewers rule, so it can only turn a row that would be `failed` into `unknown`;
-// what the one required_reviewers rule shows stays shown. No environment of that name is `unknown`
-// for every row, and the verdict says grugops cannot tell how production deploys run. Two
-// environments of that name, or two `required_reviewers` rules in it, are `unknown` too: the check
-// never takes the first match of a host list (nor the first of two HTTP status lines), and an entry
-// counts as ANOTHER environment or rule only when it provably is one (a plain name that differs
-// apart from case, a documented other rule type; red-team B1 of plan 33.1-24). A list that names a
-// further page, or whose `total_count` is present and is not the length of the list read, is not
-// read whole, so every row is `unknown` (red-team B2 of plan 33.1-24; an absent total_count is
-// neutral). An entry whose `url` or `html_url` is present and does not name this run's repository
-// (and, for `url`, the entry's own environment), or cannot be read, makes every row `unknown`, and
-// so does a listed protected branch whose `protection_url` is present and does not name its own
-// protection endpoint in this repository (red-team B1 of plan 33.1-25; absent ones are neutral).
-// Same verdict rule as branches.
-// Reviewer identities are never printed; the evidence counts them. The name is `--env <name>`,
+// THE PRODUCTION ENVIRONMENT: NOT READ, BY DESIGN (33.1 D-31, Q4 `q4-narrow-scope`, plan 33.1-41).
+// Earlier rounds read the environments list, its reviewer rules, its branch policy and the
+// protected-branch list, and every round found missing or unrelated evidence read as proof there
+// (brief 33.1-GAP-PLANNING-BRIEF.md DC-1). The named human chose to narrow the check: it answers
+// `protected` only for the branch checklist. The environment line (environmentByDesign) always reads
+// `UNKNOWN - verify`, by design. It names the environment and where the name came from, says the
+// check does not read it, and points at the production checklist in install/README.md §5, which the
+// human confirms in the environment's settings. No gh call asks about environments or the
+// protected-branch list. `ENVIRONMENT_FLOOR` keeps the production checklist's requirement strings
+// only, for `--json` `floor.environment` and one `unknown` fact per row.
+// The name is `--env <name>`,
 // else the last entry of `environments` in `.grugops/factory.config.json`, else the last entry in
 // `agent-factory/config/factory.config.json` (both relative to the working directory; an
 // unparseable file or a non-array value falls through, and so does a candidate that is not a
@@ -174,27 +146,32 @@
 //
 // READ-ONLY BY CONSTRUCTION. Every call goes through runGh(), and there are exactly two argv
 // shapes: `gh auth status` and `gh api --method GET -i <path>`. No field flag is ever passed
-// (`gh api` switches to POST when a field is given), and the method is pinned to GET. The
-// protected-branch list is a GET too: its query (`?protected=true&per_page=1`) is part of the path,
-// never a field flag.
+// (`gh api` switches to POST when a field is given), and the method is pinned to GET. A query
+// (`?per_page=100`) is part of the path, never a field flag.
 //
 // The D-12 contract (uniform across all kit-shipped runnables):
 //   node tools/grugops/host-protection.js [--json] [--branch <name>]... [--env <name>]
-//     exit 0 → every inspected target is `protected`
-//     exit 1 → at least one target is `unprotected`
-//     exit 2 → none `unprotected`, but at least one `UNKNOWN - verify`, or the check could not run.
-//              Exit 2 is never a pass.
+//     exit 0 → every inspected branch is `protected`
+//     exit 1 → at least one branch is `unprotected`
+//     exit 2 → no branch `unprotected`, but at least one `UNKNOWN - verify`, or the check could not
+//              run. Exit 2 is never a pass.
+//     The environment line reads `UNKNOWN - verify` by design (33.1 D-31) and does not change the
+//     exit code: the production environment is not checked, whatever the exit code says.
 //     stdout → human-readable lines in CLEAR PROFESSIONAL VOICE (the audit trail)
 //     stdout → the first line names the repository inspected (`repository <owner>/<name>`, or
 //              `repository UNKNOWN - verify — <reason>`); a run that cannot name it reports every
-//              target `UNKNOWN - verify` and exits 2
+//              branch `UNKNOWN - verify` and exits 2
+//     stdout → one line per branch, then the environment line, then the summary line
+//              `HOST-PROTECTION: <p> protected, <u> unprotected, <k> UNKNOWN - verify; production
+//              environment not checked (UNKNOWN - verify by design)`, counting branches only
 //     stdout → with --json, a { ok, repository, floor: { branch, environment }, targets: [{ kind,
 //              name, verdict, reason, facts }], calls } block after the human lines; `repository`
 //              is the inspected `owner/name` or null; `floor.branch` and
 //              `floor.environment` are the BRANCH_FLOOR and ENVIRONMENT_FLOOR requirement strings
 //              in table order, every target carries `facts` (one { id, requirement, state,
-//              evidence } per row of its table), and `calls` is the argv of every gh call, so a
-//              recorded note shows how each verdict was reached
+//              evidence } per row of its table; the environment's facts are each `unknown`, with
+//              the evidence `not read by design (33.1 D-31)`), and `calls` is the argv of every gh
+//              call, so a recorded note shows how each verdict was reached
 //
 // TEST SEAM. `--gh-script <path>` runs `node <path> <args…>` in place of `gh`. It exists so the
 // test suite can drive a Node stub instead of the network; the gate and release workflows never
@@ -385,14 +362,6 @@ function isPositiveSafeInteger(v: unknown): v is number {
   return typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 }
 
-// One element of a `required_reviewers` rule's `reviewers` list in the documented shape (re-review
-// WR-01): `type` "User" or "Team", and a plain-object `reviewer` whose `id` is a positive safe
-// integer. It reads through hostField, so a non-object element or reviewer is never of this shape.
-function isReviewerElement(e: unknown): boolean {
-  const type = hostField(e, "type");
-  return (type === "User" || type === "Team") && isPositiveSafeInteger(hostField(hostField(e, "reviewer"), "id"));
-}
-
 const ACCEPT = {
   // bypass_pull_request_allowances inside classic required_pull_request_reviews: held only when it is
   // present and lists no user, team or app. There is no `failed`: a list with members is not
@@ -423,20 +392,10 @@ const ACCEPT = {
     held: (v: unknown) => isObject(v) && v.enabled === false,
     failed: (v: unknown) => isObject(v) && v.enabled === true,
   },
-  // One entry of a rule list (the ruleset rules of a branch, or an environment's protection_rules):
+  // One entry of the ruleset rule list of a branch:
   // readable only as an object with a string `type`.
   ruleEntry: {
     held: (v: unknown) => isObject(v) && typeof v.type === "string",
-  },
-  // The `type` of one entry of an environment's `protection_rules` (red-team B1 of plan 33.1-24,
-  // DC-1): held when the entry is a `required_reviewers` rule; failed when it is provably ANOTHER
-  // rule, which only a documented other type shows (`wait_timer`, `branch_policy`: the environment
-  // protection rule types of GitHub's REST description, 33.1-RESEARCH.md); anything else (absent,
-  // not a string, empty, another spelling, an undocumented type) is unknown, and such an entry may
-  // be a second required_reviewers rule. Compared exactly: "Required_Reviewers" is not documented.
-  reviewerRuleType: {
-    held: (v: unknown) => v === "required_reviewers",
-    failed: (v: unknown) => v === "wait_timer" || v === "branch_policy",
   },
   // current_user_can_bypass on `GET rulesets/<id>`: only "never" binds; the three documented other
   // values are read as bypassable; anything else is not readable.
@@ -467,52 +426,6 @@ const ACCEPT = {
   rulesetSourceType: {
     held: (v: unknown) => typeof v === "string" && v.length > 0,
   },
-  // `total_count` of `GET environments` (red-team B2 of plan 33.1-24): readable only as a whole
-  // number of 0 or more. The caller compares it with the length of the list read; an ABSENT count
-  // is handled there, as neutral, with the reason.
-  environmentTotalCount: {
-    held: (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0,
-  },
-  // The environment object `GET environments` listed under the configured name.
-  environmentPresent: {
-    held: (v: unknown) => isObject(v),
-  },
-  // A required_reviewers rule's `reviewers`: held for a non-empty list whose every element has the
-  // documented shape; failed for an empty list; any other value, including a list holding one
-  // element of another shape, is unknown (WR-01).
-  reviewerList: {
-    held: (v: unknown) => Array.isArray(v) && v.length > 0 && v.every(isReviewerElement),
-    failed: (v: unknown) => isEmptyList(v),
-  },
-  preventSelfReview: {
-    held: (v: unknown) => v === true,
-    failed: (v: unknown) => v === false,
-  },
-  canAdminsBypass: {
-    held: (v: unknown) => v === false,
-    failed: (v: unknown) => v === true,
-  },
-  // deployment_branch_policy: held only as the documented protected-branches pair; null is the
-  // documented "any branch may deploy".
-  deploymentBranchPolicy: {
-    held: (v: unknown) => isObject(v) && v.protected_branches === true && v.custom_branch_policies === false,
-    failed: (v: unknown) => v === null,
-    absentFailedWhy: "GitHub documents a null deployment_branch_policy as: any branch may deploy to the environment",
-  },
-  // The answer of `GET branches?protected=true&per_page=1` (re-review CR-02, plan 33.1-23): held for
-  // a list of exactly the one element asked for, a plain object with `protected === true` and a
-  // `name` this check will put in a REST path; failed for an empty list (the host lists no protected
-  // branch); anything else, including two elements when one was asked for, is unknown. A held list
-  // is not evidence by itself: it also names ruleset-protected branches, so the named branch's
-  // classic protection is read next.
-  protectedBranchList: {
-    held: (v: unknown) => {
-      if (!Array.isArray(v) || v.length !== 1) return false;
-      const first: unknown = v[0];
-      return isObject(first) && first.protected === true && typeof first.name === "string" && usableBranch(first.name);
-    },
-    failed: (v: unknown) => isEmptyList(v),
-  },
   // A 200 answer of `branches/<b>/protection` is a branch protection record (red-team finding 1 of
   // plan 33.1-23) only as a plain object that carries `enforce_admins` as an object with a boolean
   // `enabled`, and carries neither `message` (GitHub's error envelope) nor `protected` (a field of
@@ -520,7 +433,7 @@ const ACCEPT = {
   // enforce_admins, and its schema marks no property required; the branch floor cannot show any
   // classic row without a readable enforce_admins anyway (classicBinding), so requiring it here
   // costs no row the floor could have held. Anything else (`{}`, an error envelope, a branch
-  // object) is not a record: the classic arm is not readable, and it is no branch-policy evidence.
+  // object) is not a record: the classic arm is not readable.
   // The main/master probe's `protected` on `branches/<b>` about the branch asked for (red-team
   // finding 3 of plan 33.1-23): true is held, false is failed, and anything else present (a string,
   // null, a number, an object) is unknown. It is only ever a contradiction check against a
@@ -532,13 +445,6 @@ const ACCEPT = {
   classicProtectionRecord: {
     held: (v: unknown) =>
       isObject(v) && v.message === undefined && v.protected === undefined && isObject(v.enforce_admins) && typeof v.enforce_admins.enabled === "boolean",
-  },
-  // What the classic arm read for a branch (the check's own ClassicArm kind): only a protection
-  // record (ACCEPT.classicProtectionRecord, decided once in readClassicArmOnce) shows classic
-  // branch protection. The branch floor and the branch-policy row both read this one kind, so they
-  // can never disagree about a body. There is no `failed`.
-  classicArmShown: {
-    held: (v: unknown) => v === "body",
   },
 } satisfies Record<string, AcceptEntry>;
 
@@ -584,12 +490,6 @@ function toBinding(state: FactState, evidence: { held: string; failed: string; u
 // A row reading from one readFact state, with the evidence written for that state.
 function says(state: FactState, evidence: { held: string; failed: string; unknown: string }): Shown {
   return { state, evidence: evidence[state] };
-}
-
-// A list that could not be read whole (a garbage entry) cannot show that a row is missing: a row
-// that would be `failed` is `unknown`. A row a readable entry shows is unchanged.
-function downgrade(state: FactState, partial: boolean): FactState {
-  return partial && state === "failed" ? "unknown" : state;
 }
 
 // How a call answered, for an UNKNOWN - verify reason: the problem, or the status and message.
@@ -1151,14 +1051,13 @@ function branchUnknown(name: string, reason: string): Target {
   return { kind: "branch", name, verdict: "UNKNOWN - verify", reason, facts: unreadFacts(reason) };
 }
 
-function readRulesetArm(name: string, bp: string): RulesetArm {
+function readRulesetArm(bp: string): RulesetArm {
   const res = apiGet(`repos/{owner}/{repo}/rules/branches/${bp}?per_page=100`);
   if (res.status === 200 && Array.isArray(res.body)) {
     const entries: unknown[] = res.body;
     // Only readable entries count. A garbage entry shows nothing, and the list is then read only
     // partially, so a row no readable rule shows is `unknown`, never `failed` (D-30).
     const rules = entries.filter((r): r is Record<string, unknown> => readFact(r, ACCEPT.ruleEntry) === "held");
-    if (rules.length > 0) noteProtectionShown(`the rule list of branch ${hostText(name)} names ${rules.length} active ruleset rule(s)`);
     const whys: string[] = [];
     if (rules.length < entries.length) whys.push("an entry of the rule list is not a readable rule");
     if (res.next) whys.push("the rule list runs past one page");
@@ -1177,8 +1076,8 @@ function plainSegment(s: string): boolean {
 }
 
 // THE ONE URL AUTHORITY (red-team B3 of plan 33.1-25, DC-1). Every host API url the check compares
-// is read here: the repository answer's `url`, a classic protection body's `url`, an environment's
-// `url` and the protected-branch list's `protection_url`. It is read only in canonical form:
+// is read here: the repository answer's `url`, a classic protection body's `url` and a branch
+// answer's `protection_url`. It is read only in canonical form:
 //   - the raw string is exactly its own parsed `href` (WHATWG URL), so a tab, newline, leading or
 //     trailing control character, backslash, dot segment (`..` or `%2e%2e`), upper-case host,
 //     spelled-out default port, or any other spelling that parses to something else is refused;
@@ -1231,9 +1130,10 @@ function underRepository(loc: ApiUrl, repo: ApiUrl): boolean {
   return loc.host === repo.host && loc.prefix === repo.prefix && loc.owner === repo.owner && loc.name === repo.name;
 }
 
-// The same authority for a web page url that names a repository (an environment's `html_url`,
-// red-team B1 of plan 33.1-25): canonical form (canonicalUrl; a non-empty query is allowed, since
-// GitHub's documented environment html_url carries one), on the web host of this run's repository
+// The same authority for a web page url that names a repository (the repository answer's
+// `html_url`; red-team B1 of plan 33.1-25 found it on environment entries, which the check no longer
+// reads, 33.1 D-31): canonical form (canonicalUrl; a non-empty query is allowed, since GitHub's
+// documented page urls may carry one), on the web host of this run's repository
 // (github.com for api.github.com; the same host for a GitHub Enterprise Server `/api/v3` url), with
 // a path whose first two segments are exactly this repository's owner and name. What follows them
 // (the page, its query) is not compared: it does not name a repository, and its shape is only shown
@@ -1326,7 +1226,7 @@ function repositoryRestatementMismatch(body: unknown, api: ApiUrl): string | und
 // an object in it: the url is read through readApiUrl (canonical form only), must sit under this
 // run's repository (underRepository: same host, prefix, owner and name), and its rest must be
 // `/<collection>/<object>` plus `suffix`, where the object segment, percent-decoded, is exactly
-// `object`. So a branch or environment whose name holds `/` or an escaped character is not falsely
+// `object`. So a branch whose name holds `/` or an escaped character is not falsely
 // refused, while owner and name segments are never decoded. `says` opens the evidence text.
 function repositoryUrlMismatch(url: unknown, says: string, collection: string, object: string, suffix: string): string | undefined {
   const repo = repositoryApi;
@@ -1367,8 +1267,7 @@ function protectionUrlMismatch(url: unknown, name: string, says = `the protectio
   return repositoryUrlMismatch(url, says, "branches", name, "/protection");
 }
 
-// One classic read per branch per run, whoever asks first (a branch target, or the environment's
-// branch-policy evidence). Keyed by the branch name; the path is always branchPath(name).
+// One classic read per branch per run. Keyed by the branch name; the path is always branchPath(name).
 const classicArmCache = new Map<string, ClassicArm>();
 
 // The evidence phrase for a 200 answer that is not a protection record (the tests key on it).
@@ -1387,23 +1286,11 @@ const probedProtected = new Map<string, ProbedFlag>();
 const renamedBranches = new Map<string, string>();
 const unshownBranches = new Map<string, string>();
 
-// Protection this run showed on some branch (red-team finding 5 of plan 33.1-23, D-30): a rule list
-// naming at least one readable ruleset rule, a classic protection record, or a branch answer that
-// reports `protected: true`. `GET branches?protected=true` documents that it lists branches
-// protected by branch protections or rulesets, so any of these contradicts an EMPTY list, which is
-// then `unknown`, never `failed`. `rules/branches/<b>` answers for a name whether or not a branch
-// of that name exists, so a rule list may over-count; that only turns `failed` into `unknown`.
-const protectionShown: string[] = [];
-function noteProtectionShown(what: string): void {
-  if (!protectionShown.includes(what)) protectionShown.push(what);
-}
-
 // THE ONE AUTHORITY for "the same run shows that nothing asked under this name is evidence about a
 // branch of that name" (red-team finding 2 of plan 33.1-23, D-30): a name the probe saw answered
 // as another branch, or a name the probe did not show to exist. Every later read under such a
 // name is refused: a `--branch` target of that name is UNKNOWN - verify and is never asked about,
-// a protected-branch list naming it is not evidence and its protection is never asked, and a
-// classic arm cached under it is never branch-policy evidence.
+// and nothing asked under it is evidence about a branch of that name.
 // Whether the probe's own `protected` value contradicts a protection body under `name` (red-team
 // finding 3 of plan 33.1-23, D-30): `false` does, and so does any present value that is not a
 // boolean (it cannot be read, so it cannot be shown to agree). `true` and absence do not.
@@ -1441,7 +1328,6 @@ function readClassicArm(name: string, bp: string): ClassicArm {
   if (cached !== undefined) return cached;
   const arm = readClassicArmOnce(name, bp);
   classicArmCache.set(name, arm);
-  if (arm.kind === "body") noteProtectionShown(`branch ${hostText(name)} answers a classic protection record`);
   return arm;
 }
 
@@ -1451,7 +1337,7 @@ function readClassicArmOnce(name: string, bp: string): ClassicArm {
     const elsewhere = protectionUrlMismatch(hostField(prot.body, "url"), name);
     if (elsewhere !== undefined) return { kind: "elsewhere", evidence: elsewhere };
     // THE ONE PLACE a classic arm becomes `body` (red-team finding 1 of plan 33.1-23): only a
-    // protection record. Every reader of the arm (the branch floor and the branch-policy row) asks
+    // protection record. Every reader of the arm (the branch floor) asks
     // its kind, so no reader can take a non-record as protection.
     if (isObject(prot.body) && readFact(prot.body, ACCEPT.classicProtectionRecord) === "held") return { kind: "body", body: prot.body };
     return {
@@ -1478,10 +1364,7 @@ function readClassicArmOnce(name: string, bp: string): ClassicArm {
       // Read through the same ACCEPT entry as the probe's value (sibling of red-team finding 3 of
       // plan 33.1-23): true and false are read, anything else is not readable.
       const flag = readFact(hostField(br.body, "protected"), ACCEPT.branchProtectedFlag);
-      if (flag === "held") {
-        noteProtectionShown(`branch ${hostText(name)} reports protected true`);
-        return { kind: "unreadable", evidence: "classic protection present; its rules are not readable with this token" };
-      }
+      if (flag === "held") return { kind: "unreadable", evidence: "classic protection present; its rules are not readable with this token" };
       if (flag === "failed") return { kind: "none", evidence: "the branch reports no classic protection" };
       // The answer is about this branch, so it is not `elsewhere`; its protected value is not read.
       return {
@@ -1513,7 +1396,7 @@ function branchVerdict(name: string): Target {
   if (contradicted !== undefined) return branchUnknown(name, `${contradicted}, so nothing asked under this name is evidence about it`);
   const bp = branchPath(name);
 
-  const rulesetArm = readRulesetArm(name, bp);
+  const rulesetArm = readRulesetArm(bp);
   const bindings = rulesetBindings(rulesetArm);
   const fromRules = FLOOR_ITEMS.map((row) => rulesetReading(row, rulesetArm, bindings));
   // The classic arm is read only when the ruleset arm leaves some item not shown.
@@ -1565,7 +1448,7 @@ function branchVerdict(name: string): Target {
   return { kind: "branch", name, verdict, reason, facts };
 }
 
-// --- environment verdict ----------------------------------------------------------------------
+// --- the environment line: its name only (33.1 D-31 Q4) ----------------------------------------
 // THE ONE READER of a user-controlled path in this check (brief 33.1-GAP-PLANNING-BRIEF.md DC-3,
 // plan 33.1-25; D-19: the check must answer, and a check that hangs answers nothing). The config
 // candidates sit in the user's working tree, where a FIFO, a directory or a device may stand at the
@@ -1638,406 +1521,45 @@ function environmentName(): { name: string; source: string } {
   return { name: "production", source: 'the documented default (no --env flag and no usable "environments" list)' };
 }
 
-// THE CANONICAL PRODUCTION FLOOR (plan 33.1-20, D-30 `floor-full`). Each `requirement` is
-// byte-equal to a line of the production checklist in install/README.md §5; host-protection.test.ts
-// binds the two both ways and holds a weakening fixture per row. Every row reads the environment
-// object that `GET environments` returned under the configured name (`undefined` when there is
-// none). Nothing outside this table decides whether the environment is `protected`.
-// Evidence a row reads from the rest of the same run, not from the environment object. Only the
-// branch-policy row uses it.
-interface RunEvidence {
-  classicProtection: () => Shown;
-}
 
-interface EnvironmentRow {
+// THE PRODUCTION CHECKLIST, NOT READ (33.1 D-31 Q4, plan 33.1-41). Each `requirement` is byte-equal
+// to a line of the production checklist in install/README.md §5, and host-protection.test.ts binds
+// the two both ways. No code reads a host answer for any of these rows: the named human chose to
+// narrow the check to the branch checklist (decision 33.1 D-31, Q4 `q4-narrow-scope`), so the
+// environment line always reads `UNKNOWN - verify`, by design. The strings stay because `--json`
+// publishes them as `floor.environment` and the environment target names one fact per row.
+interface ChecklistRow {
   id: string;
   requirement: string;
-  read: (env: Record<string, unknown> | undefined, run: RunEvidence) => Shown;
 }
-
-// --- the branch-policy row's run evidence (re-review CR-02, plan 33.1-23, D-30) ----------------
-// "Protected branches only" is defined for branch protection rules, and every branch can deploy
-// when no branch has them (docs.github.com/en/actions/reference/workflows-and-actions/
-// deployments-and-environments, fetched 2026-09-29); the page does not mention rulesets. The
-// protected-branch list `GET branches?protected=true` names branches protected by branch
-// protection OR by rulesets (docs.github.com/en/rest/branches/branches). So only CLASSIC branch
-// protection shown in this run is evidence: a 200 object body from `branches/<b>/protection`.
-const PROTECTED_BRANCH_LIST = "repos/{owner}/{repo}/branches?protected=true&per_page=1";
-const RULESETS_UNSAID =
-  'GitHub documents "Protected branches only" for branch protection rules and does not say whether rulesets count';
-
-// Whether one branch's classic arm, as this run read it, shows classic branch protection, or why
-// not. A name the run contradicts (contradictedName), or a body for a branch the probe read as
-// `protected` false or unreadable (probeContradictsBody), is not evidence.
-function classicShownOn(name: string, arm: ClassicArm): Shown {
-  const contradicted = contradictedName(name);
-  if (contradicted !== undefined) return { state: "unknown", evidence: contradicted };
-  const probeSays = arm.kind === "body" ? probeContradictsBody(name) : undefined;
-  if (probeSays !== undefined) return { state: "unknown", evidence: probeSays };
-  const why = arm.kind === "body" ? "" : arm.evidence;
-  return says(readFact(arm.kind, ACCEPT.classicArmShown), {
-    held: `classic branch protection exists on branch ${hostText(name)}: its protection endpoint answered 200`,
-    failed: `branch ${hostText(name)} shows no classic branch protection (${why})`,
-    unknown: `branch ${hostText(name)} shows no readable classic branch protection (${why})`,
-  });
-}
-
-// At most once per run, and only when the branch-policy row asks (the policy is the documented
-// protected-branches pair). (a) A classic arm this run already read shows a body → that branch.
-// (b) Otherwise the host's protected-branch list, one element: empty → failed (every branch can
-// deploy); unreadable → unknown; one branch → its classic arm (read, or reused from the cache).
-let classicEvidence: Shown | undefined;
-function classicProtectionEvidence(): Shown {
-  if (classicEvidence === undefined) classicEvidence = readClassicProtectionEvidence();
-  return classicEvidence;
-}
-
-function readClassicProtectionEvidence(): Shown {
-  for (const [name, arm] of classicArmCache) {
-    const shown = classicShownOn(name, arm);
-    if (shown.state === "held") return shown;
-  }
-  const res = apiGet(PROTECTED_BRANCH_LIST);
-  if (res.status !== 200) return { state: "unknown", evidence: `the protected-branch list answered ${answered(res)}` };
-  // An empty list that names a further page contradicts itself: it cannot show "no protected
-  // branch", so downgrade() reads it as unknown.
-  const list = downgrade(readFact(res.body, ACCEPT.protectedBranchList), res.next);
-  // An empty list the same run contradicts cannot show "no protected branch" (finding 5).
-  if (list === "failed" && protectionShown.length > 0) {
-    return { state: "unknown", evidence: `the host lists no protected branch, yet the same run shows protection: ${protectionShown.join("; ")}` };
-  }
-  if (list !== "held") {
-    return says(list, {
-      held: "the protected-branch list names a branch",
-      failed: "the host lists no protected branch, and GitHub documents that every branch can deploy when no branch has branch protection rules",
-      unknown: "the protected-branch list is not readable (one plain-object element with protected true and a usable name, or an empty list, was expected)",
-    });
-  }
-  const listed: unknown[] = Array.isArray(res.body) ? res.body : [];
-  const name = hostField(listed[0], "name");
-  if (typeof name !== "string") return { state: "unknown", evidence: "the protected-branch list names no readable branch" };
-  // The element's `protection_url`, when present, must name this branch's protection endpoint in this
-  // run's repository (red-team B1 of plan 33.1-25, DC-1): the same comparison as a classic body's
-  // `url`. Absent is neutral; present and naming another repository, host or branch, or not
-  // readable, contradicts the same run, and that branch's protection is never asked.
-  const listedUrl = hostField(listed[0], "protection_url");
-  const listedElsewhere = protectionUrlMismatch(listedUrl, name, `the protected-branch list's element carries protection_url ${hostText(listedUrl)}`);
-  if (listedElsewhere !== undefined) return { state: "unknown", evidence: listedElsewhere };
-  // A name the same run contradicts (answered as another branch, or not shown to exist) is never
-  // asked about: its protection read would describe another branch, or none.
-  const arm: ClassicArm = contradictedName(name) !== undefined ? { kind: "unreadable", evidence: "not asked" } : readClassicArm(name, branchPath(name));
-  const shown = classicShownOn(name, arm);
-  if (shown.state === "held") return { state: shown.state, evidence: `the first protected branch the host lists has classic protection: ${shown.evidence}` };
-  return {
-    state: "unknown",
-    evidence: `the first protected branch the host lists, ${hostText(name)}, is not shown to have classic branch protection (${shown.evidence}); ${RULESETS_UNSAID}`,
-  };
-}
-
-const NO_ENVIRONMENT: Shown = { state: "unknown", evidence: "there is no environment of that name to read" };
-
-// THE ONE PARTITION of an environment's `protection_rules` (red-team B1 of plan 33.1-24, DC-1).
-// Every entry is one of three: a `required_reviewers` rule (in `rules`), provably another rule (a
-// documented other type), or possibly a required_reviewers rule (anything else, counted by
-// `partial`): ACCEPT.reviewerRuleType decides. Undefined when `protection_rules` is not an array (an
-// unexpected shape, never read as "no rules").
-function reviewerRules(env: Record<string, unknown>): { rules: Record<string, unknown>[]; partial: boolean } | undefined {
-  const list = hostField(env, "protection_rules");
-  if (!Array.isArray(list)) return undefined;
-  const entries: unknown[] = list;
-  const kinds = entries.map((r) => readFact(hostField(r, "type"), ACCEPT.reviewerRuleType));
-  return {
-    rules: entries.filter((r, i): r is Record<string, unknown> => isObject(r) && kinds[i] === "held"),
-    partial: kinds.includes("unknown"),
-  };
-}
-
-// A rule's reviewers read through ACCEPT.reviewerList.
-function reviewersOf(rule: Record<string, unknown>): FactState {
-  return readFact(hostField(rule, "reviewers"), ACCEPT.reviewerList);
-}
-
-// More than one `required_reviewers` rule in one answer does not say which one the host enforces,
-// so neither reviewer row picks one (never first-match-wins, red-team finding 4 of plan 33.1-22,
-// D-30): both rows are `unknown`. Otherwise the one rule, or undefined when there is none.
-const MANY_REVIEWER_RULES = (n: number): Shown => ({
-  state: "unknown",
-  evidence: `the environment lists ${n} required_reviewers rules, so which one applies is not readable`,
-});
-// Whether the one-rule answer is readable at all (plan 33.1-24, sibling of the evidence-field
-// pairs finding, DC-1). More than one required_reviewers rule is not; neither is one such rule
-// beside an entry of protection_rules that is not provably another rule, because that entry may be
-// a second required_reviewers rule (garbling one field of a duplicate, its type included, must not
-// turn "which one applies is not readable" into a pass). Only an entry of a documented other type
-// is provably not one (red-team B1 of plan 33.1-24).
-function ambiguousReviewerRules(found: { rules: Record<string, unknown>[]; partial: boolean }): Shown | undefined {
-  if (found.rules.length > 1) return MANY_REVIEWER_RULES(found.rules.length);
-  if (found.rules.length === 1 && found.partial) {
-    return {
-      state: "unknown",
-      evidence:
-        "an entry of protection_rules is not a rule of a documented other type (wait_timer, branch_policy) and may be a second required_reviewers rule, so which one applies is not readable",
-    };
-  }
-  return undefined;
-}
-function reviewerRule(rules: Record<string, unknown>[]): Record<string, unknown> | undefined {
-  return rules.length === 1 ? rules[0] : undefined;
-}
-
-// How many reviewers of the documented shape a rule names (the evidence counts; it never names).
-function reviewerCount(rule: Record<string, unknown>): number {
-  const list = hostField(rule, "reviewers");
-  return Array.isArray(list) ? list.filter(isReviewerElement).length : 0;
-}
-
-const ENVIRONMENT_FLOOR: readonly EnvironmentRow[] = [
-  {
-    id: "environment_exists",
-    requirement: "has the name your deploy jobs use",
-    // Not found is `unknown`, never `failed`: grugops cannot tell how production deploys run.
-    read: (env) =>
-      says(readFact(env, ACCEPT.environmentPresent), {
-        held: "the host lists an environment of that name",
-        failed: "the host lists no environment of that name",
-        unknown: "the host lists no environment of that name",
-      }),
-  },
-  {
-    id: "required_reviewer",
-    requirement: "requires at least one reviewer",
-    read: (env) => {
-      if (env === undefined) return NO_ENVIRONMENT;
-      const found = reviewerRules(env);
-      if (found === undefined) return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
-      const ambiguous = ambiguousReviewerRules(found);
-      if (ambiguous !== undefined) return ambiguous;
-      const states = found.rules.map(reviewersOf);
-      const at = states.findIndex((state) => state === "held");
-      if (at >= 0) {
-        const n = reviewerCount(found.rules[at]);
-        return { state: states[at], evidence: `a required_reviewers rule names ${n} reviewer${n === 1 ? "" : "s"}` };
-      }
-      if (states.includes("unknown")) {
-        return { state: "unknown", evidence: "a required_reviewers rule carries no readable reviewers list (each reviewer needs a type and a numeric id)" };
-      }
-      // Every readable rule was read and names no reviewer. `failed`, unless a garbage entry of the
-      // list might have been the rule that does.
-      return {
-        state: downgrade("failed", found.partial),
-        evidence: found.partial
-          ? "no readable required_reviewers rule names a reviewer, and an entry of protection_rules is not a readable rule"
-          : "the environment has no required_reviewers rule that names a reviewer",
-      };
-    },
-  },
-  {
-    id: "no_self_review",
-    requirement: "prevents self-review",
-    read: (env) => {
-      if (env === undefined) return NO_ENVIRONMENT;
-      const found = reviewerRules(env);
-      if (found === undefined) return { state: "unknown", evidence: "the environment carries no readable protection_rules list" };
-      const ambiguous = ambiguousReviewerRules(found);
-      if (ambiguous !== undefined) return ambiguous;
-      const rule = reviewerRule(found.rules);
-      if (rule === undefined) {
-        return {
-          state: downgrade("failed", found.partial),
-          evidence: found.partial
-            ? "no readable required_reviewers rule was found, and an entry of protection_rules is not a readable rule"
-            : "the environment has no required_reviewers rule, so nothing prevents self-review",
-        };
-      }
-      // A rule whose reviewers cannot be read cannot be told apart from a garbage entry, so which
-      // rule prevents self-review is not readable either (WR-01).
-      if (reviewersOf(rule) === "unknown") {
-        return { state: "unknown", evidence: "the required_reviewers rule carries no readable reviewers list" };
-      }
-      return says(downgrade(readFact(hostField(rule, "prevent_self_review"), ACCEPT.preventSelfReview), found.partial), {
-        held: "the required_reviewers rule has prevent_self_review true",
-        failed: "the required_reviewers rule has prevent_self_review false",
-        unknown: found.partial
-          ? "the required_reviewers rule does not show prevent_self_review true, and an entry of protection_rules is not a readable rule"
-          : "the required_reviewers rule carries no boolean prevent_self_review",
-      });
-    },
-  },
-  {
-    id: "no_admin_bypass",
-    requirement: "does not let administrators bypass its protection rules",
-    read: (env) => {
-      if (env === undefined) return NO_ENVIRONMENT;
-      return says(readFact(hostField(env, "can_admins_bypass"), ACCEPT.canAdminsBypass), {
-        held: "can_admins_bypass is false",
-        failed: "can_admins_bypass is true",
-        unknown: "the environment carries no boolean can_admins_bypass",
-      });
-    },
-  },
-  {
-    id: "branch_policy",
-    requirement: "allows deployments only from protected branches",
-    // Held only when the policy is the documented protected-branches pair AND the same run shows
-    // classic branch protection on some branch (re-review CR-02): with no branch protection rules
-    // anywhere, "Protected branches only" lets every branch deploy.
-    read: (env, run) => {
-      if (env === undefined) return NO_ENVIRONMENT;
-      const policy = hostField(env, "deployment_branch_policy");
-      const custom = hostField(policy, "protected_branches") === false && hostField(policy, "custom_branch_policies") === true;
-      const pair = readFact(policy, ACCEPT.deploymentBranchPolicy);
-      const PAIR = "deployment_branch_policy allows protected branches only";
-      if (pair !== "held") {
-        return says(pair, {
-          held: PAIR,
-          failed: "deployment_branch_policy is null, so any branch can deploy",
-          unknown: custom
-            ? "the environment uses a custom deployment branch policy, and the check does not read which branches it allows"
-            : "the environment carries no readable deployment_branch_policy (only protected_branches true with custom_branch_policies false shows this item)",
-        });
-      }
-      const shown = run.classicProtection();
-      return { state: shown.state, evidence: `${PAIR}, ${shown.state === "held" ? "and" : "but"} ${shown.evidence}` };
-    },
-  },
+const ENVIRONMENT_FLOOR: readonly ChecklistRow[] = [
+  { id: "environment_exists", requirement: "has the name your deploy jobs use" },
+  { id: "required_reviewer", requirement: "requires at least one reviewer" },
+  { id: "no_self_review", requirement: "prevents self-review" },
+  { id: "no_admin_bypass", requirement: "does not let administrators bypass its protection rules" },
+  { id: "branch_policy", requirement: "allows deployments only from protected branches" },
 ];
 
-// THE ONE PARTITION of the environments list (red-team B1 of plan 33.1-24, DC-1). Every entry is
-// one of three: an environment of the configured name (an object whose `name` is exactly that
-// string, in `matches`), provably another environment (provablyAnotherName: a plain name that
-// differs apart from case, after NFKC normalisation), or possibly another environment of the
-// configured name (anything else, counted by `possible`): an absent, wrong-typed or empty name, one
-// that equals the configured name apart from case, or one with an invisible character or stray
-// whitespace. GitHub documents environment names as not case sensitive and unique.
-function environmentPartition(entries: unknown[], name: string): { matches: Record<string, unknown>[]; possible: number } {
-  const matches: Record<string, unknown>[] = [];
-  let possible = 0;
-  for (const e of entries) {
-    const entryName = hostField(e, "name");
-    if (isObject(e) && entryName === name) matches.push(e);
-    else if (!provablyAnotherName(entryName, name)) possible++;
-  }
-  return { matches, possible };
-}
+// The evidence every production row carries: nothing was read.
+const NOT_READ_BY_DESIGN = "not read by design (33.1 D-31)";
 
-// Why the environments list was not read whole, or undefined when it was (red-team B2 of plan
-// 33.1-24, DC-1): the answer names a further page, or carries a `total_count` that cannot be read or
-// is not the length of the list read. An ABSENT total_count is neutral: it restates the length of the
-// list, so its absence removes a cross-check and asserts nothing, and a list with no further page
-// already carries every entry.
-function environmentListNotWhole(res: ApiResult, entries: unknown[]): string | undefined {
-  if (res.next) return "the environments list names a further page, so whether exactly one environment has this name is not readable";
-  const total = hostField(res.body, "total_count");
-  if (total === undefined) return undefined;
-  if (readFact(total, ACCEPT.environmentTotalCount) !== "held") {
-    return `the environments list carries a total_count this check cannot read (${hostText(total)}), so whether it lists every environment is not readable`;
-  }
-  if (total !== entries.length) {
-    return `the environments list reports total_count ${hostText(total)} but lists ${entries.length}, so whether exactly one environment has this name is not readable`;
-  }
-  return undefined;
-}
-
-// Why the environments list is not shown to be this run's repository's list, or undefined when no
-// entry says otherwise (red-team B1 of plan 33.1-25, DC-1). GitHub's environment object carries
-// `url` (its API endpoint) and `html_url` (its page). Each is optional here: an ABSENT one is neutral,
-// as a classic protection body's absent `url` is (absence says nothing about which repository the
-// entry is in). A PRESENT `url` must be `<this run's repository>/environments/<the entry's own name>`
-// (repositoryUrlMismatch, the one comparison, through readApiUrl); a present `html_url` must be a page
-// of this repository (webUrlMismatch). Every entry is asked, not only the one of the configured name:
-// an entry of another repository shows the list is not this repository's, and so it cannot show
-// which environment of that name deploys use.
-function environmentUrlsMismatch(entries: unknown[]): string | undefined {
-  for (const e of entries) {
-    const entryName = hostField(e, "name");
-    const url = hostField(e, "url");
-    const says = `the environments list's entry named ${hostText(entryName)} carries`;
-    if (url !== undefined) {
-      const why =
-        typeof entryName === "string"
-          ? repositoryUrlMismatch(url, `${says} url ${hostText(url)}`, "environments", entryName, "")
-          : `${says} url ${hostText(url)} beside a name this check cannot read`;
-      if (why !== undefined) return why;
-    }
-    const page = hostField(e, "html_url");
-    if (page !== undefined) {
-      const why = webUrlMismatch(page, `${says} html_url ${hostText(page)}`);
-      if (why !== undefined) return why;
-    }
-  }
-  return undefined;
-}
-
-// Every production floor row `unknown`, for an environment the check could not read at all.
-function unreadEnvironmentFacts(why: string): Fact[] {
-  return ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, state: "unknown", evidence: why }));
-}
-
-function environmentVerdict(name: string, source: string): Target {
-  const at = `; environment name from ${source}`;
-  const res = apiGet("repos/{owner}/{repo}/environments?per_page=100");
-  const list = hostField(res.body, "environments");
-  if (!(res.status === 200 && Array.isArray(list))) {
-    const reason = `the environments endpoint answered ${answered(res)}`;
-    return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
-  }
-  const entries: unknown[] = list;
-  // A list not read whole cannot show "exactly one environment of this name" (red-team B2 of plan
-  // 33.1-24, DC-1): every row is unknown.
-  const partial = environmentListNotWhole(res, entries);
-  if (partial !== undefined) {
-    return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${partial}${at}`, facts: unreadEnvironmentFacts(partial) };
-  }
-  // A list an entry of which names another repository (or cannot be read as naming this one) is not
-  // shown to be this repository's list (red-team B1 of plan 33.1-25, DC-1): every row is unknown.
-  const elsewhere = environmentUrlsMismatch(entries);
-  if (elsewhere !== undefined) {
-    return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${elsewhere}${at}`, facts: unreadEnvironmentFacts(elsewhere) };
-  }
-  // An entry whose name is not provably another environment's may be another environment of this
-  // name (plan 33.1-24 and its red-team B1, DC-1): garbling one field of a duplicate, its name
-  // included, must not turn "which one deploys use is not readable" into a pass.
-  const { matches, possible } = environmentPartition(entries, name);
-  // Two environments of one name do not say which one deploys use: never first-match-wins
-  // (red-team finding 4 of plan 33.1-22, D-30); every row is unknown.
-  if (matches.length > 1 || (matches.length === 1 && possible > 0)) {
-    const reason =
-      matches.length > 1
-        ? `the host lists ${matches.length} environments named ${name}, so which one deploys use is not readable`
-        : `the host lists an environment named ${name} beside ${possible} entr${possible === 1 ? "y" : "ies"} whose name is not provably another environment's (absent, not a plain name, or the same name apart from case), which may be another environment of that name, so which one deploys use is not readable`;
-    return { kind: "environment", name, verdict: "UNKNOWN - verify", reason: `${reason}${at}`, facts: unreadEnvironmentFacts(reason) };
-  }
-  const env: Record<string, unknown> | undefined = matches[0];
-  // Every branch verdict ran before this one, so the classic arm cache already holds this run's
-  // branch reads; the branch-policy row reuses them before asking the host anything new.
-  const run: RunEvidence = { classicProtection: classicProtectionEvidence };
-  const facts: Fact[] = ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, ...row.read(env, run) }));
-  if (env === undefined) {
-    const reason = `no environment named ${name}; grugops cannot tell how production deploys run`;
-    return {
-      kind: "environment",
-      name,
-      verdict: "UNKNOWN - verify",
-      reason: `${reason}${at}`,
-      // The environment_exists row keeps its own evidence; the rest name the reason.
-      facts: facts.map((f) => (f.id === "environment_exists" ? { ...f, evidence: reason } : f)),
-    };
-  }
-  if (facts.every((f) => f.state === "held")) {
-    return {
-      kind: "environment",
-      name,
-      verdict: "protected",
-      reason: `every production floor item is shown: ${facts.map((f) => `${f.requirement} (${f.evidence})`).join(", ")}${at}`,
-      facts,
-    };
-  }
-  const verdict: Verdict = facts.some((f) => f.state === "failed") ? "unprotected" : "UNKNOWN - verify";
-  const reason = facts
-    .filter((f) => f.state !== "held")
-    .map((f) => `${f.requirement}: ${f.state === "failed" ? "not shown" : "not readable"} (${f.evidence})`)
-    .join("; ");
-  return { kind: "environment", name, verdict, reason: `${reason}${at}`, facts };
+// The environment line (33.1 D-31 Q4). It makes no gh call and reads no host answer. It names the
+// environment and where the name came from, says the check does not read it, and points at the
+// production checklist. It is not a verdict on the environment: the summary and the exit code count
+// branch targets only.
+function environmentByDesign(name: string, source: string): Target {
+  const reason =
+    "not checked by design: this check does not read the production environment (decision 33.1 D-31); " +
+    "confirm each production line of the git-host setup checklist in install/README.md §5 in the environment's settings yourself; " +
+    "a release still needs the named human's confirmation, whatever this line says" +
+    `; environment name from ${source}`;
+  return {
+    kind: "environment",
+    name,
+    verdict: "UNKNOWN - verify",
+    reason,
+    facts: ENVIRONMENT_FLOOR.map((row) => ({ id: row.id, requirement: row.requirement, state: "unknown", evidence: NOT_READ_BY_DESIGN })),
+  };
 }
 
 // --- the check --------------------------------------------------------------------------------
@@ -2058,19 +1580,13 @@ if (ghScript !== undefined && !existsSync(ghScript)) {
   else if (auth.status !== 0) cannotAsk = "`gh auth status` failed, so the host could not be asked";
 }
 
-// Every target UNKNOWN - verify with one reason: the host could not be asked, or it did not name
-// the repository it answered for. Every target keeps one fact per row of its table.
+// Every branch target UNKNOWN - verify with one reason: the host could not be asked, or it did not
+// name the repository it answered for. Every target keeps one fact per row of its table. The
+// environment line is added after the branch targets on every path (below), the same line each time.
 function everyTargetUnknown(why: string): void {
   for (const name of ["(default branch)", ...extraBranches]) {
     targets.push(branchUnknown(name, why));
   }
-  targets.push({
-    kind: "environment",
-    name: env.name,
-    verdict: "UNKNOWN - verify",
-    reason: `${why}; environment name from ${env.source}`,
-    facts: unreadEnvironmentFacts(why),
-  });
 }
 
 const repo = cannotAsk === undefined ? apiGet("repos/{owner}/{repo}") : undefined;
@@ -2092,7 +1608,7 @@ if (cannotAsk !== undefined) {
   const names: string[] = [];
   // The probe fills renamedBranches (main/master names the host answered as another branch) and
   // probedProtected (the `protected` value each probed answer carried about itself), module-level,
-  // because branchVerdict and the environment's branch-policy evidence both read them.
+  // because branchVerdict reads them.
   const renamed = renamedBranches;
   const probed = probedProtected;
   const defaultBranch = hostField(repo.body, "default_branch");
@@ -2134,13 +1650,12 @@ if (cannotAsk !== undefined) {
       if (flag !== undefined) {
         const state = readFact(flag, ACCEPT.branchProtectedFlag);
         probed.set(b, { state, value: flag });
-        if (state === "held") noteProtectionShown(`branch ${hostText(b)} reports protected true`);
       }
     } else if (res.status === 200 && renamedTo !== undefined) renamed.set(b, renamedTo);
     else {
       // Not shown to exist (red-team finding 2 of plan 33.1-23): a 404 omits the target, but the
-      // name is recorded, so no later read under it (a --branch, the protected-branch list, the
-      // classic arm cache) is taken as evidence about a branch of that name.
+      // name is recorded, so no later read under it (a --branch, the classic arm cache) is taken as
+      // evidence about a branch of that name.
       const how = res.status === 200 ? `HTTP 200 naming ${hostText(answeredName)} (neither this branch nor provably another one)` : answered(res);
       unshownBranches.set(b, how);
       if (res.status !== 404) {
@@ -2158,8 +1673,10 @@ if (cannotAsk !== undefined) {
     else targets.push(branchUnknown(b, `${contradicted}, so nothing asked under this name is evidence about it`));
   }
   for (const b of names) targets.push(branchVerdict(b));
-  targets.push(environmentVerdict(env.name, env.source));
 }
+// The environment line, after every branch target, on every path (33.1 D-31 Q4): the check does not
+// read the environment, so whether the host could be asked changes nothing on this line.
+targets.push(environmentByDesign(env.name, env.source));
 
 // --- report -----------------------------------------------------------------------------------
 let p = 0;
@@ -2172,14 +1689,21 @@ console.log(
     ? `repository ${printable(repositoryName)}`
     : `repository UNKNOWN - verify — ${printable(repositoryUnnamed ?? `the repository endpoint was not asked, ${UNNAMED_REPOSITORY}`, REASON_MAX)}`,
 );
+// Only branch targets are counted (33.1 D-31 Q4): the environment line is UNKNOWN - verify by design
+// and is not a verdict, so counting it would make every run exit 2 and hide the branch floor's answer.
+// It is printed with the branch lines, before the summary.
 for (const t of targets) {
-  if (t.verdict === "protected") p++;
-  else if (t.verdict === "unprotected") u++;
-  else k++;
+  if (t.kind === "branch") {
+    if (t.verdict === "protected") p++;
+    else if (t.verdict === "unprotected") u++;
+    else k++;
+  }
   console.log(`${t.kind} ${printable(t.name)}: ${t.verdict} — ${printable(t.reason, REASON_MAX)}`);
 }
-console.log(`HOST-PROTECTION: ${p} protected, ${u} unprotected, ${k} UNKNOWN - verify`);
-const exitCode = u > 0 ? 1 : k > 0 ? 2 : 0;
+console.log(`HOST-PROTECTION: ${p} protected, ${u} unprotected, ${k} UNKNOWN - verify; production environment not checked (UNKNOWN - verify by design)`);
+// A run with no branch target answered nothing, so it is never exit 0 (it cannot happen while the
+// default branch is always a target; the check stays fail-closed if that ever changes).
+const exitCode = u > 0 ? 1 : k > 0 ? 2 : p > 0 ? 0 : 2;
 if (wantJson) {
   console.log(
     JSON.stringify(

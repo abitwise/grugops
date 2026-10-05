@@ -65,6 +65,43 @@ for (const [name, path] of Object.entries(BINS)) {
 
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
+// The host check's test seam (plan 33.1-41): the committed host-protection.js answered by the gh stub
+// from a fixture map, never by the real `gh` or the network.
+const GH_STUB = join(REPO_ROOT, "scripts", "runnable-ref", "fixtures", "gh-stub.mjs");
+const HOST_STRONG = join(REPO_ROOT, "scripts", "runnable-ref", "fixtures", "host-strong.fixture.json");
+const strongHostFixture = () => JSON.parse(readFileSync(HOST_STRONG, "utf8"));
+const hostApi = (path) => `api --method GET -i ${path}`;
+
+/** Run the committed host check in the world's target with `fixture`; returns the run and the stub's call log. */
+function hostRun(w, fixture, args = []) {
+  const fixturePath = join(w.dir, `host-fixture-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  const logPath = `${fixturePath}.calls`;
+  writeFileSync(fixturePath, JSON.stringify(fixture));
+  const r = spawnSync(process.execPath, [BINS.hostProtection, "--gh-script", GH_STUB, ...args], {
+    encoding: "utf8",
+    cwd: w.target,
+    env: { ...process.env, HOME: w.home, GH_STUB_FIXTURE: fixturePath, GH_STUB_LOG: logPath },
+    timeout: 120_000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const calls = existsSync(logPath)
+    ? readFileSync(logPath, "utf8")
+        .split("\n")
+        .filter((l) => l.length > 0)
+        .map((l) => JSON.parse(l).join(" "))
+    : [];
+  const stdout = r.stdout ?? "";
+  return { status: r.status, stdout, stderr: r.stderr ?? "", lines: stdout.split(/\r?\n/), calls };
+}
+
+/** The --json block after the HOST-PROTECTION summary line. */
+function hostJson(stdout) {
+  const lines = stdout.trim().split("\n");
+  const at = lines.findIndex((l) => l.startsWith("HOST-PROTECTION:"));
+  check(at >= 0, "no HOST-PROTECTION summary line");
+  return JSON.parse(lines.slice(at + 1).join("\n"));
+}
+
 /** Every entry under `root` (not following links): `<rel> <kind> <sha256|readlink>`, sorted; "" when absent. */
 function tree(root) {
   if (!existsSync(root)) return "";
@@ -498,6 +535,35 @@ const CASES = {
     check(homeBackups().length === 0, "the kit-home record still lists the pruned backup");
     const again = w.install(["--prune-old-kit"]);
     check(again.status === 0 && !again.lines.some((l) => /^\s*removed\s/.test(l)), "a second prune removed something");
+  },
+
+  // Plan 33.1-41, D-31 Q4: the production environment is not read. The strong fixture, with the old
+  // environments answer and protected-branch list served as well, gives exit 0 (main protected); the
+  // environment line reads UNKNOWN - verify by design; neither list is asked for.
+  "q4-env-by-design"(w) {
+    const fx = strongHostFixture();
+    fx[hostApi("repos/{owner}/{repo}/environments?per_page=100")] = {
+      status: 200,
+      body: { total_count: 1, environments: [{ name: "production", can_admins_bypass: false, protection_rules: [] }] },
+    };
+    fx[hostApi("repos/{owner}/{repo}/branches?protected=true&per_page=1")] = { status: 200, body: [{ name: "main", protected: true }] };
+    const r = hostRun(w, fx, ["--json"]);
+    check(r.status === 0, `host check exited ${r.status}, expected 0\n${r.stdout.slice(-2000)}`);
+    check(r.lines.some((l) => l.startsWith("branch main: protected — ")), "branch main is not protected");
+    const env = r.lines.find((l) => l.startsWith("environment production: "));
+    check(env !== undefined && env.startsWith("environment production: UNKNOWN - verify — not checked by design"), `environment line: ${env}`);
+    check(env.includes("33.1 D-31") && env.includes("install/README.md §5"), `environment line does not cite D-31 and README §5: ${env}`);
+    check(
+      r.lines.includes("HOST-PROTECTION: 1 protected, 0 unprotected, 0 UNKNOWN - verify; production environment not checked (UNKNOWN - verify by design)"),
+      "the summary line is not the branch-only line",
+    );
+    const block = hostJson(r.stdout);
+    const published = block.calls.map((c) => c.join(" "));
+    check(JSON.stringify(published) === JSON.stringify(r.calls), "the --json calls differ from the stub's call log");
+    const notRead = published.filter((c) => c.includes("environments") || c.includes("branches?protected="));
+    check(notRead.length === 0, `the check asked for: ${notRead.join(", ")}`);
+    const target = block.targets.find((t) => t.kind === "environment");
+    check(target?.verdict === "UNKNOWN - verify" && target.facts.every((f) => f.state === "unknown"), "the environment target is not UNKNOWN - verify with unknown facts");
   },
 };
 
