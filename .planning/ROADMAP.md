@@ -1670,12 +1670,12 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 10 plans
+**Plans:** 1/10 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 34-01-PLAN.md — effort tracer: `models.effort` read by the one reader, resolved by `resolveEfforts`, emitted as `effort:` only when not `inherit`; full D-03 refusal class and both consumption probes; D-18 residual stated at the reader (D-01, D-02, D-03, D-06, D-07, D-08, D-18)
+- [x] 34-01-PLAN.md — effort tracer: `models.effort` read by the one reader, resolved by `resolveEfforts`, emitted as `effort:` only when not `inherit`; full D-03 refusal class and both consumption probes; D-18 residual stated at the reader (D-01, D-02, D-03, D-06, D-07, D-08, D-18)
 - [ ] 34-02-PLAN.md — host-tool registry tracer: `install/host-tools.ts` (HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL) with Pi; `detectTools()` and the closing host line derived from it (D-10, D-11, D-16)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -1746,7 +1746,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 0/TBD | Not started | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 1/10 | In Progress | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
