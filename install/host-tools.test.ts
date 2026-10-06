@@ -340,3 +340,85 @@ describe("Pi conventions are recorded with sources (plan 34-06)", () => {
     expect(text).toContain("security.md");
   });
 });
+
+// ── Plan 34-08 (PI-02, PI-04, D-12/D-13/D-16/D-17): the install guide covers Pi. ─────────────────────
+//
+// The guide is held to the registry, not to hand-typed strings: the template path is PI_PROMPT_REL
+// (imported), the Pi bullet in § 5 is found by the registry's Pi `name`, and the host lists in the
+// § 5 lead sentence and the § 6 Degraded paragraph must name every sequential host the registry
+// holds. Every backticked token that starts with `.pi/prompts/` must be PI_PROMPT_REL itself, so a
+// second spelling of the template path cannot appear anywhere in the guide. Sections are found by
+// heading (exactly one each) and bounded at the next heading of the same or a higher level.
+describe("install guide covers Pi (plan 34-08)", () => {
+  const GUIDE = join(import.meta.dirname, "README.md");
+  const FRONTMATTER_DOC = join(import.meta.dirname, "..", "agent-factory", "packaging", "subagent.frontmatter.md");
+  const SCOPE_HEADING = "Host-CLI scope of the model and effort dials";
+  const PI = HOST_TOOLS.find((t) => t.id === "pi");
+  const flat = (s: string): string => s.replace(/\s+/g, " ");
+
+  function section(file: string, headingText: string): string {
+    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    const heads = lines
+      .map((l, i) => ({ i, m: /^(#{1,6})\s+(.*)$/.exec(l) }))
+      .filter((h) => h.m !== null);
+    const hits = heads.filter((h) => h.m![2].trim() === headingText);
+    expect(hits.length, `${file} must carry exactly one "${headingText}" heading`).toBe(1);
+    const level = hits[0].m![1].length;
+    const next = heads.find((h) => h.i > hits[0].i && h.m![1].length <= level);
+    return lines.slice(hits[0].i + 1, next === undefined ? lines.length : next.i).join("\n");
+  }
+
+  it("the registry has a Pi row (the cases below read its name)", () => {
+    expect(PI, "HOST_TOOLS has no row with id `pi`").toBeDefined();
+  });
+
+  it("the per-repo touch list has a bullet for PI_PROMPT_REL that names the ledger and the dry-run line", () => {
+    const touches = section(GUIDE, "What the installer touches (per-repo), and only this");
+    const bullet = touches.split(/\n(?=- )/).find((b) => b.startsWith(`- \`${PI_PROMPT_REL}\``));
+    expect(bullet, `the touch list has no bullet starting with \`${PI_PROMPT_REL}\``).toBeDefined();
+    const text = flat(bullet!);
+    for (const token of ["`.grugops/install.json`", "`would-add`", "left untouched", "`AGENTS.md`", "`agent-factory/roles/orchestrator.md`"]) {
+      expect(text, `the Pi touch-list bullet does not carry ${token}`).toContain(token);
+    }
+  });
+
+  it("the Pi usage section names the path, the command, the repository root, project trust, and points at the dial scope section", () => {
+    const use = flat(section(GUIDE, "Using grugops on Pi"));
+    for (const token of [PI_PROMPT_REL, "`/grugops <request>`", "repository root", "project trust", "pi.dev", "retrieved 2026-10-06", SCOPE_HEADING]) {
+      expect(use, `the Pi usage section does not carry ${token}`).toContain(token);
+    }
+    // The pointer must land: the named section exists in the frontmatter authority.
+    expect(readFileSync(FRONTMATTER_DOC, "utf8")).toContain(`## ${SCOPE_HEADING}`);
+  });
+
+  it("§ 5 has a bullet for the registry's Pi name that says Pi asks for no approval per tool call and names the git host, with a source", () => {
+    const other = section(GUIDE, "Other tools (documentation only)");
+    const bullet = other.split(/\n(?=- )/).find((b) => b.startsWith(`- **${PI!.name}**`));
+    expect(bullet, `§ 5 "Other tools" has no bullet starting with **${PI!.name}**`).toBeDefined();
+    const text = flat(bullet!);
+    expect(text).toContain("does not ask for approval before every tool call");
+    expect(text).toContain("git host");
+    expect(text).toMatch(/only hard control/);
+    expect(text).toContain("github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md");
+  });
+
+  it("the § 5 lead sentence and the § 6 Degraded paragraph name every sequential host in the registry", () => {
+    const sequential = HOST_TOOLS.filter((t) => t.dispatch === "sequential");
+    expect(sequential.length).toBe(HOST_TOOL_COUNT - 1);
+    const lead = flat(section(GUIDE, "Other tools (documentation only)").split(/\n\n/).find((p) => p.trim() !== "")!);
+    const degraded = flat(section(GUIDE, "Degraded — no `Agent` tool at all"));
+    for (const t of sequential) {
+      expect(lead, `the § 5 lead sentence does not name ${t.name}`).toContain(t.name);
+      expect(degraded, `the § 6 Degraded paragraph does not name ${t.name}`).toContain(t.name);
+    }
+  });
+
+  it("every backticked token in the guide that starts with `.pi/prompts/` is PI_PROMPT_REL", () => {
+    const tokens = [...readFileSync(GUIDE, "utf8").matchAll(/`([^`\n]+)`/g)]
+      .map((m) => m[1])
+      .filter((t) => t.startsWith(".pi/prompts/"));
+    // The touch list, the usage section and the Undo sentence each name the path.
+    expect(tokens.length).toBeGreaterThanOrEqual(3);
+    for (const t of tokens) expect(t).toBe(PI_PROMPT_REL);
+  });
+});

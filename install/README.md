@@ -289,6 +289,14 @@ In the **target repo**:
 - an optional `.github/copilot-instructions.md` pointer, by the same rules as `CLAUDE.md`: when the
   file does not exist, install creates it and records that, and the block, in the install ledger in
   `.grugops/install.json`
+- `.pi/prompts/grugops.md` — a short Pi prompt template, written in every install whether or not
+  you use Pi. It is a pointer: it tells Pi to read `AGENTS.md`, then
+  `agent-factory/roles/orchestrator.md`, and act as the Orchestrator, and it passes your request
+  through. It holds no role text. Install records the file in the install ledger in
+  `.grugops/install.json`, and records the `.pi` and `.pi/prompts` directories only when this
+  install created them. A file already at that path is left untouched and never recorded, so the
+  uninstaller leaves it too. `DRY_RUN=1` lists the template as `would-add` and writes nothing. How
+  to use it, and what Pi asks first, is in "Using grugops on Pi" below
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
 
@@ -315,6 +323,36 @@ writes that is not what it expects (a FIFO, a directory, a device, a symbolic li
 or a hard link) is skipped and reported as a `verify` line, never read or written through, so the
 installer cannot hang on it (see the exit-code paragraph above).
 
+### Using grugops on Pi
+
+Install Pi itself from [pi.dev](https://pi.dev); grugops does not install it. Start Pi from the
+repository root and type `/grugops <request>`. Pi turns the template `.pi/prompts/grugops.md` into
+the `/grugops` command, and the command sends Pi to `AGENTS.md` and then
+`agent-factory/roles/orchestrator.md` with your request.
+
+- **Start Pi from the repository root.** Pi looks for the `.pi/prompts` directory only in the
+  directory it was started in, so `/grugops` is missing when Pi starts in a subdirectory.
+  `AGENTS.md` still loads from any subdirectory, because Pi reads context files from the working
+  directory and every directory above it. (Source:
+  `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md` and
+  `configuration.md` § Context files; retrieved 2026-10-06.)
+- **Pi asks for project trust first.** Pi loads project prompt templates only after you grant
+  project trust, so it asks for that decision when it starts in a repository that holds the
+  template. In print, JSON and RPC modes with the default `defaultProjectTrust: "ask"`, Pi skips
+  project templates, and `/grugops` is not available there. (Source:
+  `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md` and
+  `prompt-templates.md`; retrieved 2026-10-06.)
+- **What grugops does not write for Pi.** grugops never writes `.pi/SYSTEM.md`,
+  `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, and writes no Pi skill and no Pi extension. The
+  template is the only file it adds under `.pi/`.
+- **The model and effort dials do not reach Pi.** The scope of both dials is stated once, in
+  `agent-factory/packaging/subagent.frontmatter.md`, section "Host-CLI scope of the model and
+  effort dials". Read it there.
+- **Safety on Pi** is in §5, "Other tools": the git host is the only hard control there.
+
+Pi's own conventions, with their sources, are recorded in `agent-factory/packaging/adapters.md`,
+section "Pi (pi.dev) conventions".
+
 ### Undo
 
 ```sh
@@ -337,7 +375,9 @@ still hold what install wrote to them (see the kit-file record below), the senti
 `AGENTS.md` entry it added to the Gemini settings (or, in a Gemini settings file it created, the
 `context.fileName` list it wrote), the Claude Code ask rules it added (§5; a rule you had before
 install stays), the runnable checks under `tools/grugops/` that still hold what it wrote, and the
-`.grugops/install.json` marker once nothing it records is left.
+`.grugops/install.json` marker once nothing it records is left. It removes the Pi template
+`.pi/prompts/grugops.md` only while the template still holds what install wrote, and removes
+`.pi/prompts` and `.pi` only when install created them and they are empty.
 
 **The record decides, not the kit source.** The uninstaller walks every entry of the install ledger
 and reverses each one only while it still holds what install recorded. A recorded file that still
@@ -1103,10 +1143,11 @@ context, which checks structured tool calls, not shell text.
 
 ### Other tools (documentation only)
 
-grugops generates no approval configuration for Codex CLI, Gemini CLI, OpenCode or GitHub Copilot
-CLI. Each has its own approval mode, which you configure yourself. The notes below come from each
-tool's documentation and are **not verified by grugops**; confirm them against the current docs
-before you rely on them. On every tool, the git host is the hard floor.
+grugops generates no approval configuration for Codex CLI, Gemini CLI, OpenCode, GitHub Copilot
+CLI or Pi. Each of them except Pi has its own approval mode, which you configure yourself; Pi has
+none (see its entry below). The notes below come from each tool's documentation and are **not
+verified by grugops**; confirm them against the current docs before you rely on them. On every
+tool, the git host is the hard floor.
 
 - **OpenCode** — `permission.bash` in `opencode.json` takes command patterns mapped to `allow`,
   `ask` or `deny`, and the last matching rule wins (opencode.ai/docs/permissions). Not verified by
@@ -1120,6 +1161,13 @@ before you rely on them. On every tool, the git host is the hard floor.
 - **Codex CLI** — approval policies and sandbox modes decide when Codex asks before it runs a
   command. The syntax for a rule that matches a specific command is `UNKNOWN - verify`; check the
   current Codex documentation before relying on it.
+- **Pi** — Pi can read, change and run files with the permissions of the account that started it,
+  and it does not ask for approval before every tool call
+  (`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md`, retrieved
+  2026-10-06). On Pi, the git host in (a) is therefore the only hard control on merge and deploy.
+  A Pi extension can block a tool call
+  (`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md`, retrieved
+  2026-10-06), but grugops ships none. Not verified by grugops.
 
 Verify the Claude Code permission behaviour against current tool docs
 (`code.claude.com/docs/en/permissions`, `code.claude.com/docs/en/settings`) before you depend on it.
@@ -1161,7 +1209,7 @@ full tier, and it is stated plainly rather than softened — you should know whi
 
 ### Degraded — no `Agent` tool at all
 
-Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI have no host spawn mechanism, and a
+Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI and Pi have no host spawn mechanism, and a
 Claude Code sub-agent already at the nesting limit has `Agent` withheld from it rather than
 erroring. In either case the coordinator drains the same queue at concurrency one, activating
 each role in a single window through `agent-factory/roles/_role-switch-protocol.md` — and says
@@ -1203,9 +1251,10 @@ Agent-authored browser UAT has one home in the kit:
 `agent-factory/checklists/browser-uat-recipe.md`. Read it there rather than here; the substrate
 stays short and the detail lives in the file it points at.
 
-The recipe covers the pinned browser-MCP setup for all five host CLIs — Claude Code, Codex CLI,
-Gemini CLI, OpenCode, and GitHub Copilot CLI — and the statement that the attended Claude-in-Chrome
-lane is optional, human-stamped, and absent by design on the other four hosts.
+The recipe covers the pinned browser-MCP setup for every supported host CLI — Claude Code, Codex
+CLI, Gemini CLI, OpenCode, GitHub Copilot CLI and Pi — and the statement that the attended
+Claude-in-Chrome lane is optional, human-stamped, and absent by design on every host other than
+Claude Code.
 
 **grugops installs nothing for this.** The MCP server is fetched by your own coding agent through
 `npx` at the pinned version, so `package.json` gains no dependency and the installer writes no MCP
