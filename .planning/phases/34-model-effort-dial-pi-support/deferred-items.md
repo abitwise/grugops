@@ -27,3 +27,28 @@ the finding and why it was not fixed there.
 - **Suggested owner:** a later gap or backlog item. Its scope would be "install never overwrites a
   regular user file at any derived write path except through a declared, recorded merge", derived from
   `deriveWritePaths`.
+
+## From plan 34-06
+
+### `.planning/research/STACK.md` carries no per-host table, so the CLAUDE.md § 6 table has no live GSD source
+
+- **Found by:** plan 34-06 Task 2, which planned to add the Pi row to the CLAUDE.md § 6 table and "the
+  identical row" to `.planning/research/STACK.md`, the source CLAUDE.md's stack block names
+  (`<!-- GSD:stack-start source:research/STACK.md -->`).
+- **Measured:** STACK.md holds no table row whose first cell is a bold host name. The entry-file table
+  left it in commit `84b791bf` (the v1.1 research rewrite), and the current file is the v2.1 research
+  (board projector, browser testing, STE). A GSD regeneration would therefore replace CLAUDE.md's whole
+  stack block, dropping the § 6 table, not only revert the Pi row.
+- **What holds it now:** `install/host-tools.test.ts` ("every per-host table equals the registry")
+  requires CLAUDE.md to stay in the derived per-host table set, so a regeneration that drops the table
+  fails red by name. STACK.md is scanned as a declared extra by the same rule, so a per-host table
+  written there later is checked automatically.
+- **Suggested owner:** the next `/gsd-new-milestone` or a docs task that decides whether CLAUDE.md's
+  stack block is regenerated or hand-maintained.
+
+### A host count implied in caveman prose in `agent-factory/packaging/adapters.md`
+
+- Line 7 reads "grug build factory once. grug not build it five times." The "five" is the old host
+  count. It is caveman voice and does not match the host-noun count-word pattern, so plan 34-06 left
+  it. Suggested owner: plan 34-09's derived prose scan (decide whether "N times" next to the per-host
+  build sentence is in scope), or a one-word edit with the voice guards run.
