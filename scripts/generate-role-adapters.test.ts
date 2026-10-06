@@ -49,8 +49,11 @@ import {
   TIERED,
   readModelsConfig,
   resolvedAssignmentsIn,
+  resolvedEffortAssignmentsIn,
+  resolvedEffortPresetsIn,
   resolvedPresetsIn,
   type ResolvedAssignment,
+  type ResolvedEffortAssignment,
 } from "./model-tiers.js";
 // 33-28 K5 reads the regenerated coordinator adapter through the canonical-form reader and the
 // runner's own grant derivation — the consumers that actually decide a spawn verdict — rather than
@@ -1688,6 +1691,58 @@ describe("generate-role-adapters.js — the resolved `effort:` emit (plan 34-01)
       }
     }
     expect(findings).toEqual([]);
+  });
+});
+
+/**
+ * The ONE effort assignment the run announced, or a throw naming why there is not exactly one.
+ * Read through the grammar's own reader; zero, two, or a refused payload all throw.
+ */
+function announcedEffortAssignment(r: SpawnSyncReturns<string>): ResolvedEffortAssignment {
+  const results = resolvedEffortAssignmentsIn(r.stdout ?? "");
+  if (results.length !== 1) {
+    throw new Error(
+      `expected exactly ONE resolved effort assignment line, found ${String(results.length)} in:\n${out(r)}`,
+    );
+  }
+  if (!results[0].ok) throw new Error(results[0].reason);
+  return results[0].value;
+}
+
+describe("generate-role-adapters.js — the effort resolution is ANNOUNCED (plan 34-03, D-06)", () => {
+  it("ZERO-CONFIG: announces effort preset `none` and an assignment over every mirrored role with 0 overrides and only `inherit`", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    expect(resolvedEffortPresetsIn(r.stdout)).toEqual(["none"]);
+    const a = announcedEffortAssignment(r);
+    expect(a.roles, "the announced count must equal the adapters the run wrote").toBe(
+      Object.keys(snapshot(agentsDir(m))).length,
+    );
+    expect(a.roles).toBe(SAMPLE_ROLES.length);
+    expect(a.overrides).toBe(0);
+    expect(a.levels).toEqual(["inherit"]);
+  });
+
+  it("an effort-only `roles` override announces effort preset `none`, 1 override, and levels `inherit` and `max`", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const victim = SAMPLE_ROLES[0].slice(0, -".md".length);
+    writeModelsConfig(m, { effort: { roles: { [victim]: "max" } } });
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    // The preset line alone reads exactly as it does under zero config — the CR-01 shape — so the
+    // assignment line is what tells the two runs apart.
+    expect(resolvedEffortPresetsIn(r.stdout)).toEqual(["none"]);
+    const a = announcedEffortAssignment(r);
+    expect(a.roles).toBe(SAMPLE_ROLES.length);
+    expect(a.overrides).toBe(1);
+    expect(a.levels).toEqual(["inherit", "max"]);
+    // The MODEL announcements are untouched by an effort-only config.
+    expect(resolvedPresetsIn(r.stdout)).toEqual(["none"]);
+    expect(announcedAssignment(r).overrides).toBe(0);
+    expect(announcedAssignment(r).aliases).toEqual(["inherit"]);
   });
 });
 

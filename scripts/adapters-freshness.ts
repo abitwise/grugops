@@ -126,10 +126,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listAgentAdapters } from "./kit-model.js";
 import {
+  inheritEffortForEveryStem,
   inheritForEveryStem,
+  mirroredResolvedEffortPresetLine,
   mirroredResolvedPresetLine,
   resolvedAssignmentsIn,
+  resolvedEffortAssignmentsIn,
+  resolvedEffortPresetsIn,
   resolvedPresetsIn,
+  type EffortPresetName,
   type PresetName,
 } from "./model-tiers.js";
 
@@ -368,6 +373,98 @@ if (
   );
 }
 
+// ── The EFFORT half of the same pin (plan 34-03, D-06, RESEARCH Pitfall 3) ───────────────────────
+//
+// The model pins above observe the MODEL resolution only. The generator performs a second
+// resolution — `resolveEfforts`, over `models.effort.preset` and `models.effort.roles` — whose output
+// reaches the adapters as `effort:` lines. A mirrored run under `{"models":{"effort":{...}}}`
+// announces the zero-config MODEL resolution truthfully while emitting adapters that are not the
+// zero-config output, which is finding CR-01 again one dial over. So the effort announcements are
+// asserted with the same discipline: no line, more than one, a refused payload and a wrong value are
+// each their own finding, and an absent line is never read as agreement (DC-1).
+//
+// The required level set is DERIVED from `inheritEffortForEveryStem`, the one implementation of the
+// zero-config effort map, never spelled here. The role-count cross-check sits beside the model one,
+// after the set half below, for the reason recorded there.
+const ZERO_CONFIG_EFFORT_PRESET: EffortPresetName = "none";
+const ZERO_CONFIG_EFFORT_LEVELS = [
+  ...new Set(inheritEffortForEveryStem(["any-stem"]).values()),
+].sort();
+if (ZERO_CONFIG_EFFORT_LEVELS.length !== 1) {
+  die(
+    `Adapter freshness check FAILED: the zero-config effort level set derived from inheritEffortForEveryStem holds ${ZERO_CONFIG_EFFORT_LEVELS.length} member(s) rather than exactly one, so this gate has no single level to require. This is a defect in scripts/model-tiers.ts, not in the adapters.`,
+  );
+}
+
+const announcedEfforts = resolvedEffortPresetsIn(r.stdout ?? "");
+if (announcedEfforts.length === 0) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration printed NO resolved effort preset line, so this gate cannot tell which effort resolution it compared. It requires "${ZERO_CONFIG_EFFORT_PRESET}".\n` +
+      "An absent line is a FAILURE here and never an agreement, for the same reason the absent " +
+      "model preset line is.\n" +
+      `${WHY_ZERO_CONFIG}\nRun \`${REGEN_CMD}\` and confirm the generator still announces its resolved effort preset.`,
+  );
+}
+if (announcedEfforts.length > 1) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration printed ${announcedEfforts.length} resolved effort preset lines (${announcedEfforts.map((p) => `"${p}"`).join(", ")}) — an ambiguous answer, refused rather than resolved by taking one of them. This gate requires exactly one, naming "${ZERO_CONFIG_EFFORT_PRESET}".\n${WHY_ZERO_CONFIG}`,
+  );
+}
+const announcedEffortPreset = announcedEfforts[0];
+if (announcedEffortPreset !== ZERO_CONFIG_EFFORT_PRESET) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration resolved the effort preset as "${announcedEffortPreset}", and this gate requires "${ZERO_CONFIG_EFFORT_PRESET}".\n` +
+      `${WHY_ZERO_CONFIG}\n` +
+      "The likely cause is a configuration file reaching the regeneration mirror — check the twin " +
+      "list in this script, and check the tree under judgement for a `models.effort` block.",
+  );
+}
+
+const effortAssignments = resolvedEffortAssignmentsIn(r.stdout ?? "");
+if (effortAssignments.length === 0) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration printed NO resolved effort assignment line, so this gate can see which effort PRESET the run was handed but not what its effort resolution PRODUCED.\n` +
+      "An absent line is a FAILURE here and never an agreement.\n" +
+      `${WHY_ZERO_CONFIG}\nRun \`${REGEN_CMD}\` and confirm the generator still announces its resolved effort assignment.`,
+  );
+}
+if (effortAssignments.length > 1) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration printed ${effortAssignments.length} resolved effort assignment lines — an ambiguous answer, refused rather than resolved by taking one of them. This gate requires exactly one.\n${WHY_ZERO_CONFIG}`,
+  );
+}
+const effortAssignment = effortAssignments[0];
+if (!effortAssignment.ok) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration's resolved effort assignment line could not be read.\n${effortAssignment.reason}\n${WHY_ZERO_CONFIG}`,
+  );
+}
+
+if (effortAssignment.value.overrides !== 0) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration applied ${effortAssignment.value.overrides} per-role effort override(s), and this gate requires 0.\n` +
+      `${WHY_ZERO_CONFIG}\n` +
+      "This is the half the effort preset assertion above cannot see: a `models.effort.roles` " +
+      "block with no `preset` key resolves the effort preset as \"none\" while overriding " +
+      "individual roles.\n" +
+      "The likely cause is a configuration file reaching the regeneration mirror — check the twin " +
+      "list in this script, and check the tree under judgement for a `models.effort.roles` block.",
+  );
+}
+
+const announcedLevels = [...effortAssignment.value.levels].sort();
+if (
+  announcedLevels.length !== ZERO_CONFIG_EFFORT_LEVELS.length ||
+  announcedLevels.some((l, i) => l !== ZERO_CONFIG_EFFORT_LEVELS[i])
+) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration resolved the effort level(s) ${announcedLevels.map((l) => `"${l}"`).join(", ")}, and this gate requires exactly ${ZERO_CONFIG_EFFORT_LEVELS.map((l) => `"${l}"`).join(", ")}.\n` +
+      `${WHY_ZERO_CONFIG}\n` +
+      "Whatever produced them, an adapter carrying an effort level other than the zero-config one " +
+      "is not the zero-config output.",
+  );
+}
+
 // ── List both sides through the ONE adapter authority ────────────────────────────
 // listAgentAdapters() is asked twice with two explicit roots: the tree under judgement, and the
 // fresh regeneration. It THROWS rather than returning an empty array on a missing, unreadable or
@@ -444,6 +541,17 @@ if (assignment.value.roles !== rebuiltNames.length) {
   );
 }
 
+// The EFFORT member count, cross-checked against the same derived listing for the same reason
+// (plan 34-03). An effort announcement covering fewer roles than the adapters the run wrote is a
+// silently short resolution, not a zero-config one.
+if (effortAssignment.value.roles !== rebuiltNames.length) {
+  die(
+    `Adapter freshness check FAILED: the mirrored regeneration announced an effort resolution covering ${effortAssignment.value.roles} role(s), while this gate derived ${rebuiltNames.length} regenerated adapter(s) through the shared adapter authority (set-equal to the ${committedNames.length} committed adapter(s) by the check above). The two numbers must agree.\n` +
+      `${WHY_ZERO_CONFIG}\n` +
+      `Run \`${REGEN_CMD}\` and commit the result.`,
+  );
+}
+
 // ── Half two: BYTE comparison over the (now provably equal) member set ───────────
 // Both sides are read by the SAME relative path, so a nested member is byte-compared at its own
 // depth rather than by basename.
@@ -486,7 +594,10 @@ if (differing.length > 0) {
 // parsed: trailing punctuation would become part of the parsed value and turn `none` into `none.`.
 // Measured, not assumed — that is exactly how the first draft of this line failed its own case. It
 // is enforced at the emitter now rather than here.
+//
+// The THIRD line is the effort verdict (plan 34-03), emitted through its own grammar for the same
+// reason, and carrying `announcedEffortPreset`, the value this run read and asserted above.
 console.log(
-  `Adapters fresh: ${committedNames.length} adapter(s) compared in ${ADAPTER_DIR}, 0 byte difference(s), directory listings set-equal.\n${mirroredResolvedPresetLine(announcedPreset)}`,
+  `Adapters fresh: ${committedNames.length} adapter(s) compared in ${ADAPTER_DIR}, 0 byte difference(s), directory listings set-equal.\n${mirroredResolvedPresetLine(announcedPreset)}\n${mirroredResolvedEffortPresetLine(announcedEffortPreset)}`,
 );
 process.exit(0);

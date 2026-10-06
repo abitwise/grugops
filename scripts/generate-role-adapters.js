@@ -126,7 +126,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { listRoles, INVARIANT, RESOLVER } from "./kit-model.js";
 import { parseFrontmatter, sectionEndIndex, unfencedHeadingIndex, } from "./frontmatter.js";
-import { readModelsConfig, resolveEfforts, resolveModels, resolvedAssignmentLine, resolvedPresetLine, } from "./model-tiers.js";
+import { readModelsConfig, resolveEfforts, resolveModels, resolvedAssignmentLine, resolvedEffortAssignmentLine, resolvedEffortPresetLine, resolvedPresetLine, } from "./model-tiers.js";
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
 const ROOT = join(import.meta.dirname, "..");
 const ROLES_DIR = join(ROOT, "agent-factory/roles");
@@ -540,6 +540,17 @@ console.log(`generate-role-adapters: wrote ${rendered.length} adapters to ${OUT_
 // Both values come from the objects this run resolved from — `modelsConfig.overrides` is the map
 // handed to `resolveModels`, and `models` is the map the adapters above were rendered from — so
 // neither line can be a restatement of what the run intended rather than of what it did.
+//
+// THE TWO EFFORT LINES, for the same CR-01 reason (plan 34-03, D-06). `resolveEfforts` is a second
+// resolution with its own two inputs — `models.effort.preset` and `models.effort.roles` — and its
+// output reaches the adapters as `effort:` lines. A run that announced only its MODEL resolution
+// would let scripts/adapters-freshness.ts certify an effort-configured regeneration as the
+// zero-config output. So the effort preset line describes the effort INPUT (the preset handed to
+// `resolveEfforts`), and the effort assignment line describes the effort OUTPUT: `efforts` is the
+// map the adapters above were rendered from, and `modelsConfig.effort.overrides` is the override map
+// handed to `resolveEfforts`. They follow the two model lines, so no existing line moves.
 console.log(resolvedPresetLine(modelsConfig.preset));
 console.log(resolvedAssignmentLine(models, modelsConfig.overrides.size));
+console.log(resolvedEffortPresetLine(modelsConfig.effort.preset));
+console.log(resolvedEffortAssignmentLine(efforts, modelsConfig.effort.overrides.size));
 process.exit(0);

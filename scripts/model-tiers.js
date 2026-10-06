@@ -584,6 +584,161 @@ function readAssignmentPayload(payload) {
         },
     };
 }
+// ── The EFFORT announcement grammars — the same three-grammar shape, for the effort dial (34-03) ──
+//
+// WHY THE EFFORT RESOLUTION IS ANNOUNCED AT ALL (D-06, RESEARCH Pitfall 3). `resolveEfforts` is a
+// second resolution the generator performs, with its own two inputs — `models.effort.preset` and
+// `models.effort.roles` — and its output reaches the adapters as `effort:` lines. A freshness gate
+// that reads only the MODEL announcements is half-blind in exactly the way finding CR-01 recorded
+// for the model dial's `roles` half: a mirrored run under `{"models":{"effort":{"preset":"tiered"}}}`
+// truthfully announces the zero-config MODEL resolution while emitting adapters that are not the
+// zero-config output. So the effort resolution gets the same three grammars the model resolution
+// has, declared here beside them and built on the same anchored reader:
+//
+//   1. the RESOLVED-EFFORT-PRESET line     — the effort preset the run was handed (an INPUT);
+//   2. the RESOLVED-EFFORT-ASSIGNMENT line — what the effort resolution PRODUCED (the OUTPUT);
+//   3. the MIRRORED-RESOLVED-EFFORT-PRESET line — the freshness gate's own verdict about (1).
+//
+// SEPARATE LINES, NOT A NEW KEY IN THE MODEL PAYLOAD. `RESOLVED_ASSIGNMENT_KEYS` is closed, and the
+// installer's probe in install/install.ts parses the model payload's `roles`, `overrides` and
+// `aliases`. Adding a key there would move both. Separate lines leave every model-grammar consumer
+// byte-unchanged.
+//
+// NO PREFIX HERE IS A PREFIX OF ANOTHER, model or effort. Each reader requires its prefix at byte 0
+// of the trimmed line, so a prefix that was itself a prefix of a sibling's would let one grammar read
+// the other's line. The word `effort` sits directly after `resolved ` in every effort prefix, where
+// the model prefixes carry `model`, so neither family can start the other.
+// scripts/adapters-freshness.test.ts collects every exported `*_PREFIX` constant of this module and
+// asserts the property over all of them, with the count of prefixes it compared.
+/** The marker a resolved-effort-preset line carries. Owns the generator's name, like its siblings. */
+export const RESOLVED_EFFORT_PRESET_PREFIX = "generate-role-adapters: resolved effort preset: ";
+/**
+ * The line a run emits to declare which EFFORT preset it resolved. The EMITTING half.
+ *
+ * Takes an `EffortPresetName`, so only a member of the closed effort preset set can be announced.
+ */
+export function resolvedEffortPresetLine(preset) {
+    return `${RESOLVED_EFFORT_PRESET_PREFIX}${preset}`;
+}
+/**
+ * Every effort preset named on a resolved-effort-preset line. The READING half.
+ *
+ * Same contract as `resolvedPresetsIn`: anchored at byte 0, an absent line comes back as the EMPTY
+ * list and never as a default, and every matching line is reported so an ambiguous stream stays
+ * ambiguous at the call site.
+ */
+export function resolvedEffortPresetsIn(output) {
+    return anchoredValuesIn(output, RESOLVED_EFFORT_PRESET_PREFIX);
+}
+/**
+ * The marker scripts/adapters-freshness.ts's effort verdict carries. A different speaker from the
+ * generator, so a different grammar, for the reason recorded on `MIRRORED_RESOLVED_PRESET_PREFIX`.
+ */
+export const MIRRORED_RESOLVED_EFFORT_PRESET_PREFIX = "Mirrored generator resolved effort preset: ";
+/** The freshness gate's effort verdict line. No trailing punctuation: the line is parsed. */
+export function mirroredResolvedEffortPresetLine(preset) {
+    return `${MIRRORED_RESOLVED_EFFORT_PRESET_PREFIX}${preset}`;
+}
+/** Every effort preset named on a mirrored effort verdict line. Anchored the same way. */
+export function mirroredResolvedEffortPresetsIn(output) {
+    return anchoredValuesIn(output, MIRRORED_RESOLVED_EFFORT_PRESET_PREFIX);
+}
+/** The marker a resolved-effort-assignment line carries. */
+export const RESOLVED_EFFORT_ASSIGNMENT_PREFIX = "generate-role-adapters: resolved effort assignment: ";
+/** The closed key set of the announced effort payload. Module-private, like its model sibling. */
+const RESOLVED_EFFORT_ASSIGNMENT_KEYS = ["roles", "overrides", "levels"];
+/**
+ * The line a run emits to declare what its EFFORT resolution produced. The EMITTING half.
+ *
+ * Takes the resolved map the adapters were rendered from, so the member count and the level set are
+ * derived from that object rather than restated beside it.
+ */
+export function resolvedEffortAssignmentLine(efforts, overrideCount) {
+    const payload = {
+        roles: efforts.size,
+        overrides: overrideCount,
+        levels: [...new Set(efforts.values())].sort(),
+    };
+    return `${RESOLVED_EFFORT_ASSIGNMENT_PREFIX}${JSON.stringify(payload)}`;
+}
+/**
+ * One discriminated result per anchored effort assignment line. The READING half. A malformed
+ * payload is a NAMED refusal and never a dropped line, for the reason `resolvedAssignmentsIn` gives.
+ */
+export function resolvedEffortAssignmentsIn(output) {
+    return anchoredValuesIn(output, RESOLVED_EFFORT_ASSIGNMENT_PREFIX).map(readEffortAssignmentPayload);
+}
+/**
+ * Validate one announced effort payload, refusing anything outside the declared shape by name.
+ *
+ * Mirrors `readAssignmentPayload`, with two checks that one does not make: a MISSING key is named as
+ * missing (rather than reported as a wrong-typed value), and a REPEATED level is refused, because the
+ * emitter writes a distinct set and a payload carrying a repeat was not written by it.
+ */
+function readEffortAssignmentPayload(payload) {
+    const refuse = (what) => ({
+        ok: false,
+        reason: `model-tiers: the resolved effort assignment payload ${quoteValue(payload)} ${what}. The ` +
+            'declared shape is {"roles":<non-negative integer>,"overrides":<non-negative integer>,' +
+            '"levels":[<distinct effort level>,...]}. A payload that cannot be read is REFUSED BY NAME ' +
+            "rather than dropped: a dropped line collapses into the absent case, which is a different " +
+            "fact with a different remedy.",
+    });
+    let parsed;
+    try {
+        parsed = JSON.parse(payload);
+    }
+    catch {
+        return refuse("is not parseable JSON");
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return refuse(`is ${describeShape(parsed)} rather than a JSON object`);
+    }
+    const object = parsed;
+    const unknownKeys = Object.keys(object)
+        .filter((k) => !RESOLVED_EFFORT_ASSIGNMENT_KEYS.some((legal) => legal === k))
+        .sort();
+    if (unknownKeys.length > 0) {
+        return refuse(`carries the unexpected key(s) ${unknownKeys.map((k) => `"${k}"`).join(", ")}`);
+    }
+    const missingKeys = RESOLVED_EFFORT_ASSIGNMENT_KEYS.filter((k) => !Object.prototype.hasOwnProperty.call(object, k));
+    if (missingKeys.length > 0) {
+        return refuse(`is missing the key(s) ${missingKeys.map((k) => `"${k}"`).join(", ")}`);
+    }
+    for (const key of ["roles", "overrides"]) {
+        const value = object[key];
+        if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+            return refuse(`sets "${key}" to ${quoteValue(value)} rather than a non-negative integer`);
+        }
+    }
+    const levels = object.levels;
+    if (!Array.isArray(levels)) {
+        return refuse(`sets "levels" to ${describeShape(levels)} rather than an array`);
+    }
+    // ONE AUTHORITY for membership: `isEffortLevel`, the module's closed-set predicate.
+    const seen = new Set();
+    for (const level of levels) {
+        if (typeof level !== "string") {
+            return refuse(`lists the non-string level ${quoteValue(level)}`);
+        }
+        if (!isEffortLevel(level)) {
+            return refuse(`lists ${quoteValue(level)}, which is not a legal effort level — the legal set is exactly: ` +
+                EFFORT_LEVELS.map((l) => `"${l}"`).join(", "));
+        }
+        if (seen.has(level)) {
+            return refuse(`lists the level ${quoteValue(level)} more than once`);
+        }
+        seen.add(level);
+    }
+    return {
+        ok: true,
+        value: {
+            roles: object.roles,
+            overrides: object.overrides,
+            levels: levels,
+        },
+    };
+}
 // ── TIERED — the one shipped preset, one row per role, each row carrying its reason ───────────
 //
 // D-09 assigns `opus` to four roles and `sonnet` to the other thirteen. NO ROLE IS ASSIGNED `haiku`,

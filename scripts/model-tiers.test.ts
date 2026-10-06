@@ -2048,12 +2048,17 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
         .filter((line) => !/^\s*[/*]/.test(line))
         .join("\n");
       const sites = source.match(/JSON\.stringify\(/g) ?? [];
+      // PLAN 34-03 MOVED THIS PIN FROM 2 TO 3, by one named site: `resolvedEffortAssignmentLine`,
+      // the effort twin of `resolvedAssignmentLine`. It is the same kind of site — it serialises an
+      // ANNOUNCEMENT built from a locally constructed ResolvedEffortAssignment, never a refusal — so
+      // the one-authority rule for refusal quoting (`quoteValue`) is unchanged.
       expect(
         sites.length,
-        `${file}: exactly two — \`quoteValue\`'s guarded call, the one authority, and ` +
-          "`resolvedAssignmentLine`'s payload emitter, which SERIALISES AN ANNOUNCEMENT rather " +
-          `than building a refusal, and whose input is a locally constructed ResolvedAssignment. ${STRIP_LIMITS}`,
-      ).toBe(2);
+        `${file}: exactly three — \`quoteValue\`'s guarded call, the one authority, and the two ` +
+          "announcement payload emitters `resolvedAssignmentLine` and `resolvedEffortAssignmentLine`, " +
+          "which SERIALISE AN ANNOUNCEMENT rather than building a refusal, and whose inputs are " +
+          `locally constructed payload objects. ${STRIP_LIMITS}`,
+      ).toBe(3);
       // The wrapped second spelling the override refusal carried is GONE, not relocated — and the
       // authority does not satisfy this scan itself, because it assigns the render to a local rather
       // than composing the two calls. A predicate a subject can satisfy on its own is not a predicate.

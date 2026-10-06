@@ -34,11 +34,16 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { listRoles } from "./kit-model.js";
+import * as modelTiers from "./model-tiers.js";
 import {
+  MIRRORED_RESOLVED_EFFORT_PRESET_PREFIX,
   MIRRORED_RESOLVED_PRESET_PREFIX,
+  mirroredResolvedEffortPresetLine,
+  mirroredResolvedEffortPresetsIn,
   mirroredResolvedPresetLine,
   mirroredResolvedPresetsIn,
   readModelsConfig,
+  resolvedEffortPresetsIn,
   resolvedPresetsIn,
 } from "./model-tiers.js";
 
@@ -620,5 +625,173 @@ describe("adapters-freshness.js — the D-04 zero-config pin is asserted, not in
       .filter((l) => l.startsWith(MIRRORED_RESOLVED_PRESET_PREFIX));
     expect(verdict).toHaveLength(1);
     expect(verdict[0]).toBe(mirroredResolvedPresetLine("none"));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE EFFORT HALF OF THE SAME PIN (plan 34-03, D-06, RESEARCH Pitfall 3)
+//
+// Cases 7-15 pin the MODEL resolution. The generator performs a second resolution, `resolveEfforts`,
+// whose output reaches the adapters as `effort:` lines, so a gate reading only the model
+// announcements certifies an effort-configured regeneration as the zero-config output — finding
+// CR-01 one dial over. The cases below are the effort twins of Cases 7, 9, 10, 12 and 14, plus one
+// case over the whole announcement grammar family: no prefix may be a prefix of another.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Delete the ONE line of the mirrored generator that prints the announcement built by `builder`.
+ *
+ * The builder name is matched as `<builder>(` on a `console.log` line, and the match count is
+ * asserted, so a rename cannot make this helper delete nothing and leave a case passing for the
+ * wrong reason. `resolvedPresetLine(` is not a substring of `resolvedEffortPresetLine(` (the word
+ * `Effort` sits between them), so the model helpers above and this one cannot hit each other's line.
+ */
+function stripGeneratorAnnouncement(m: string, builder: string): void {
+  const p = join(m, "scripts", "generate-role-adapters.js");
+  const lines = readFileSync(p, "utf8").split("\n");
+  const at = lines
+    .map((l, i) => [l, i] as const)
+    .filter(([l]) => l.includes(`${builder}(`) && l.includes("console.log"));
+  if (at.length !== 1) {
+    throw new Error(
+      `PREMISE: expected exactly one \`${builder}\` announcement in the mirrored generator, found ${String(at.length)}`,
+    );
+  }
+  lines.splice(at[0][1], 1);
+  writeFileSync(p, lines.join("\n"), "utf8");
+}
+
+describe("adapters-freshness.js — the EFFORT resolution is pinned to zero config too (plan 34-03, D-06)", () => {
+  it("Case 16 (green): the verdict states that the mirrored generator resolved the effort preset as `none`", () => {
+    const r = runGate();
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain(FRESH_MARKER);
+    // Parsed through the mirrored effort grammar's own reader, and byte-compared to its emitter.
+    expect(mirroredResolvedEffortPresetsIn(r.stdout)).toEqual(["none"]);
+    const verdict = r.stdout
+      .split("\n")
+      .map((l) => l.trimEnd())
+      .filter((l) => l.startsWith(MIRRORED_RESOLVED_EFFORT_PRESET_PREFIX));
+    expect(verdict).toEqual([mirroredResolvedEffortPresetLine("none")]);
+    // The gate spells no effort marker of its own (the WR-04 rule, for the effort grammar).
+    expect(readFileSync(GATE_JS, "utf8").includes(MIRRORED_RESOLVED_EFFORT_PRESET_PREFIX)).toBe(false);
+    expect(
+      resolvedEffortPresetsIn(r.stdout),
+      "the gate's verdict and the generator's announcement are different grammars",
+    ).toEqual([]);
+  });
+
+  it("Case 17 (RED, absent effort preset line): a child that announces no effort preset fails closed, naming the absence", () => {
+    const m = scriptRootMirror();
+    stripGeneratorAnnouncement(m, "resolvedEffortPresetLine");
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    expect(r.stdout).toContain("printed NO resolved effort preset line");
+    expect(r.stdout).toContain('It requires "none"');
+  });
+
+  it("Case 18 (RED, absent effort assignment line): a child that announces no effort assignment fails closed, naming it", () => {
+    // The effort PRESET line is left intact, so this case cannot pass through the preset-absent branch.
+    const m = scriptRootMirror();
+    stripGeneratorAnnouncement(m, "resolvedEffortAssignmentLine");
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    expect(r.stdout).toContain("printed NO resolved effort assignment line");
+  });
+
+  it("Case 19 (RED, the FUTURE EDIT with an effort preset): a mirrored `models.effort.preset` makes the gate name effort preset `tiered`", () => {
+    const m = scriptRootMirror();
+    plantModelsConfig(m, { effort: { preset: "tiered" } });
+
+    // THE PLANT'S OWN PREMISE, through the reader the generator uses: the MODEL resolution is the
+    // zero-config one (so the model pins pass and cannot be what fires), and the EFFORT preset is not.
+    const stems = listRoles(m).map((f) => f.slice(0, -".md".length));
+    expect(stems.length).toBeGreaterThan(0);
+    const planted = readModelsConfig(m, stems);
+    expect(planted.ok, planted.ok ? "" : planted.reason).toBe(true);
+    if (!planted.ok) return;
+    expect(planted.value.preset, "PREMISE: the model preset stays `none`").toBe("none");
+    expect(planted.value.overrides.size, "PREMISE: no model override was planted").toBe(0);
+    expect(planted.value.effort.preset, "PREMISE: the effort preset is non-default").toBe("tiered");
+
+    mirrorConfigDirectoryIntoTheTwinList(m);
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    expect(r.stdout).toContain(
+      'resolved the effort preset as "tiered", and this gate requires "none"',
+    );
+    expect(r.stdout, "the effort pin must fire BEFORE the byte comparison").not.toContain("STALE:");
+  });
+
+  it("Case 20 (RED, the roles HALF with no effort preset key): a mirrored effort override makes the gate name the override count", () => {
+    const m = scriptRootMirror();
+    // The stem is DERIVED from the mirror's own role corpus, never typed.
+    const stems = listRoles(m).map((f) => f.slice(0, -".md".length));
+    expect(stems.length).toBeGreaterThan(0);
+    const victim = stems[0];
+    plantModelsConfig(m, { effort: { roles: { [victim]: "max" } } });
+
+    const planted = readModelsConfig(m, stems);
+    expect(planted.ok, planted.ok ? "" : planted.reason).toBe(true);
+    if (!planted.ok) return;
+    expect(planted.value.preset, "PREMISE: the model preset stays `none`").toBe("none");
+    expect(planted.value.effort.preset, "PREMISE: NO effort preset key — this is the roles half").toBe(
+      "none",
+    );
+    expect(planted.value.effort.overrides.size, "PREMISE: exactly one effort override").toBe(1);
+
+    mirrorConfigDirectoryIntoTheTwinList(m);
+
+    const r = runMirroredGate(m);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    // The sentence, with the derived count in the position the gate interpolates it.
+    expect(r.stdout).toContain(
+      `applied ${String(planted.value.effort.overrides.size)} per-role effort override(s), and this gate requires 0`,
+    );
+    expect(r.stdout).not.toContain("STALE:");
+  });
+
+  it("Case 21 (grammar family): no announcement prefix exported by model-tiers.js is a prefix of another, and no reader reads a sibling's line", () => {
+    // DERIVED, both sides. The prefixes are every exported `*_PREFIX` string of the module; the
+    // expected count is the number of exported anchored READERS (`*In` functions), since each grammar
+    // is one prefix plus one reader. A grammar added without its reader, or a reader without its
+    // prefix, moves one count and not the other.
+    const exported = Object.entries(modelTiers as Record<string, unknown>);
+    const prefixes = exported
+      .filter(([k, v]) => k.endsWith("_PREFIX") && typeof v === "string")
+      .map(([k, v]) => [k, v as string] as const)
+      .sort(([a], [b]) => a.localeCompare(b));
+    const readers = exported
+      .filter(([k, v]) => /^[a-zA-Z]+sIn$/.test(k) && typeof v === "function")
+      .map(([k, v]) => [k, v as (output: string) => unknown[]] as const);
+
+    expect(
+      prefixes.length,
+      `compared ${String(prefixes.length)} announcement prefixes (${prefixes.map(([k]) => k).join(", ")}) against ${String(readers.length)} anchored readers`,
+    ).toBe(readers.length);
+    // Not vacuous: at least the three model grammars and the three effort grammars.
+    expect(prefixes.length, "PREMISE: the family must hold the model AND effort grammars").toBeGreaterThanOrEqual(6);
+
+    const collisions: string[] = [];
+    for (const [ka, a] of prefixes) {
+      for (const [kb, b] of prefixes) {
+        if (ka === kb) continue;
+        if (b.startsWith(a)) collisions.push(`${ka} is a prefix of ${kb}`);
+      }
+    }
+    expect(collisions, `over ${String(prefixes.length)} prefixes`).toEqual([]);
+
+    // The behavioural form of the same property: a stream carrying ONE line per prefix gives every
+    // reader exactly ONE result, so no reader also reads a sibling grammar's line.
+    const stream = prefixes.map(([, p]) => `${p}x`).join("\n");
+    const counts = readers.map(([k, read]) => `${k}=${String(read(stream).length)}`);
+    expect(counts).toEqual(readers.map(([k]) => `${k}=1`));
   });
 });
