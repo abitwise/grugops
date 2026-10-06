@@ -153,7 +153,7 @@ _Added 2026-10-06 at Phase 34 plan time (the ROADMAP said "TBD, enumerated at pl
 
 ### HOST — Supported Host-Tool Set Authority
 
-- [ ] **HOST-01**: One registry (`install/host-tools.ts`) owns the set of supported host coding-agent CLIs (id, name, detection signal, entry files, adapter) with an asserted count. Installer detection (`detectTools()`), the structure validator, the asymmetric dispatch-table oracle and every per-host documentation table derive from it. A derived scan of shipped prose and tooling sources fails red on a host count word (for example "five tools" or "the four non-spawning CLIs") and on a host enumeration that omits exactly one supported host, each proven by mutation.
+- [x] **HOST-01**: One registry (`install/host-tools.ts`) owns the set of supported host coding-agent CLIs (id, name, detection signal, entry files, adapter) with an asserted count. Installer detection (`detectTools()`), the structure validator, the asymmetric dispatch-table oracle and every per-host documentation table derive from it. A derived scan of shipped prose and tooling sources fails red on a host count word (for example "five tools" or "the four non-spawning CLIs") and on a host enumeration that omits exactly one supported host, each proven by mutation.
 - [ ] **HOST-02**: Phase 34 proceeds although its "Windows leg green before a sixth adapter lands" dependency is unmet (CAP-02 open; `WINDOWS.md` rows 274 and 315 stay open and owned elsewhere). No test added or changed by this phase is red on `windows-latest`, measured on a CI run the human pushes, and the ROADMAP Phase 34 "Depends on" line states this.
 
 ### PI — Pi Host Support
@@ -253,7 +253,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | EFFORT-03 | Phase 34 | Complete |
 | EFFORT-04 | Phase 34 | Pending |
 | EFFORT-05 | Phase 34 | Complete |
-| HOST-01 | Phase 34 | Pending |
+| HOST-01 | Phase 34 | Complete |
 | HOST-02 | Phase 34 | Pending |
 | PI-01 | Phase 34 | Complete |
 | PI-02 | Phase 34 | Complete |

@@ -1670,7 +1670,7 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 8/10 plans executed
+**Plans:** 9/10 plans executed
 
 Plans:
 **Wave 1**
@@ -1698,7 +1698,7 @@ Plans:
 
 **Wave 6** *(blocked on 34-08)*
 
-- [ ] 34-09-PLAN.md — derived host-prose scan (count word, host list missing one host) over markdown and TypeScript, mutation-proven; remaining rewrites; hook manifest regenerated (D-11)
+- [x] 34-09-PLAN.md — derived host-prose scan (count word, host list missing one host) over markdown and TypeScript, mutation-proven; remaining rewrites; hook manifest regenerated (D-11)
 
 **Wave 7** *(blocked on Wave 6 completion; has a human checkpoint)*
 
@@ -1746,7 +1746,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 8/10 | In Progress | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 9/10 | In Progress | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
