@@ -4,7 +4,7 @@ tier: core
 ---
 # Packaging: per-tool adapters
 
-grug build factory once. grug not build it five times. so the roles, the workflows,
+grug build factory once. grug not build it again for each tool. so the roles, the workflows,
 the shared context protocol, the gates — they live once, in `agent-factory/`, and every
 host tool points at the same files. the wrapper is thin; the brain is shared.
 

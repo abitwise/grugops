@@ -52,3 +52,29 @@ the finding and why it was not fixed there.
   count. It is caveman voice and does not match the host-noun count-word pattern, so plan 34-06 left
   it. Suggested owner: plan 34-09's derived prose scan (decide whether "N times" next to the per-host
   build sentence is in scope), or a one-word edit with the voice guards run.
+
+## From plan 34-09
+
+### Six watched-corpus clauses changed by plans 34-06 and 34-08 carry no disposition row
+
+- **Found by:** plan 34-09 Task 1, running `node scripts/check-diff-disposition.js` (a CI gate, wired
+  in `.github/workflows/ci.yml`) before and after its own markdown edits.
+- **Measured:** the gate exits 1 on the tree at `6aaf0917` (before plan 34-09) with 6 findings, all
+  "no disposition row": `README.md:4` and `README.md:48` (removed), and `agent-factory/README.md:39`
+  (added and removed), `:42` and `:58` (removed). These are the count-free host rewrites of plans
+  34-06 and 34-08 (D-11). Plan 34-09's own clauses (role-switch protocol, workflow 16) are
+  dispositioned in `docs/audit/29-style-dispositions/34-09.md`, and the gate reports exactly the 6
+  pre-existing findings afterwards.
+- **Why it was not fixed in 34-09:** the rows record what plans 34-06 and 34-08 decided. Each plan writes
+  its own disposition file (`docs/audit/29-style-dispositions/README.md`), so the rows belong in a
+  `34-06.md` and a `34-08.md` written from those plans' summaries, not in this plan's file.
+- **Suggested owner:** plan 34-10 or the phase 34 verification gap round. Add `34-06.md` and
+  `34-08.md` with one row per finding (rule `34 D-11`), then re-run the gate.
+
+### The caveman lines that implied a host count are fixed by hand, not by the scan
+
+- `agent-factory/packaging/adapters.md` line 7 ("grug not build it five times", the 34-06 item above)
+  and `install/README.md` line 3 ("grug not install it five different hard ways") now say "for each
+  tool". The derived scan's Rule A does not match "N times" or "N … ways", and was not widened to:
+  those nouns are not host nouns, and widening would add false positives across the tree. A future
+  caveman line of that shape is not caught by the scan.

@@ -8,8 +8,8 @@ Single source for HOW a role activates. The default substrate is ONE context
 window — the head grug and each specialist grug live in the same window, one after
 another. This is sequential role-load: the Orchestrator loads each role's file into the
 same window in turn, the role does its one job, records its work into the shared verified
-context, and control returns to the Orchestrator. On the four non-spawning host CLIs
-(Codex, Gemini, OpenCode, Copilot) this is the only mode. On Claude Code the coordinator
+context, and control returns to the Orchestrator. On the non-spawning host CLIs
+(Codex, Gemini, OpenCode, Copilot, Pi) this is the only mode. On Claude Code the coordinator
 (the orchestrator adapter, which carries `coordinator: true`) may instead spawn role
 agents — same roles, same shared context, same gates; only the dispatch differs. Either
 way the steps below are identical.
@@ -51,7 +51,7 @@ starts from the verified context, not from whatever the last grug was muttering.
 not published as a note in the shared context, the next role does not know it. This keeps
 scratch context from one role bleeding into the next even though they share a single window.
 
-Spawning is coordinator-only, and only on Claude Code: the four non-spawning CLIs run
+Spawning is coordinator-only, and only on Claude Code: the non-spawning host CLIs run
 the single-window sequential role-load above, and on Claude Code only the coordinator
 (`coordinator: true`) spawns role agents. Whichever mode runs, the invariant holds — drop
 prior context, the shared verified context is the only memory.

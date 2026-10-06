@@ -1,6 +1,6 @@
 # Installing grugops
 
-grug build factory once. grug not install it five different hard ways. so installing is
+grug build factory once. grug not install it a different hard way for each tool. so installing is
 plain: there is a floor that needs no scripts at all, and a paved path of idempotent,
 reversible installers on top. everything below is additive — grugops never overwrites or
 deletes a file you own.

@@ -146,7 +146,7 @@ disposition (the per-call hook re-reads the fresh env, so an unset takes effect 
 is not a mechanically-enforced per-note nonce. The GOV-02 ledger's `disposed_by: human:<name>`
 therefore means "admitted under <name>'s session grant," not "individually reviewed each entry." The structured channel routes its persistence through `context-io.ts`
 (`admitAndAppend` → `appendNote`), so `context-io.ts` remains the single sanctioned writer. That hook
-is the Claude Code primary tier, gated by the `human_admission` dial; the four non-CC CLIs degrade to
+is the Claude Code primary tier, gated by the `human_admission` dial; the non-Claude-Code host CLIs degrade to
 the in-script `admit()` refusal plus a prompt-level "stop, ask a named human," documented honestly as
 not mechanically un-forgeable (D-04/D-05). The reserved `by: §14-gate` identity is itself
 a structural FAIL on any note except the gate's own verdict emission — the one root-of-trust carve-out.
