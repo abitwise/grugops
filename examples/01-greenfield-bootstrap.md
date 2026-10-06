@@ -33,6 +33,10 @@ body the pointers reference (`agent-factory/`, `plans/`, `memory-bank/`) was cop
 documented "just install the markdown" minimal path. The installer **never** set the deploy
 approval env var — only a human may.
 
+This run predates the Pi prompt template, so the list above does not include it. An install today
+also writes the Pi pointer `.pi/prompts/grugops.md` (see `install/README.md`, "Using grugops on
+Pi").
+
 ## Orchestrator decision
 
 The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · checkpoints.open_pr=block`,

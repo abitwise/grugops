@@ -50,7 +50,7 @@ committed configuration is the anti-pattern this pin exists to prevent.
 The pin above is the single home of that version. A foundation guard asserts that every mention of
 the package across the kit and the documentation equals it, so a bump is one edit plus a re-pin.
 
-### The five host-CLI registrations
+### The host-CLI registrations
 
 | Host CLI | Registration |
 |----------|--------------|
@@ -59,6 +59,10 @@ the package across the kit and the documentation equals it, so a bump is one edi
 | Gemini CLI | an MCP block in Gemini's `settings.json`, shown below |
 | OpenCode | an `mcp` block in `~/.config/opencode/opencode.json`, shown below |
 | GitHub Copilot CLI | `/mcp add`, or an `mcpServers` entry in `~/.copilot/mcp-config.json`, shown below |
+| Pi | `pi mcp add playwright -- npx @playwright/mcp@0.0.78`, which writes `~/.pi/agent/mcp.json`, or `.pi/mcp.json` with `--local` |
+
+The Pi row comes from Pi's CLI documentation, § MCP commands
+(`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/cli.md`, retrieved 2026-10-06).
 
 ```toml
 # ~/.codex/config.toml — the Codex CLI alternative to `codex mcp add`
@@ -497,13 +501,13 @@ Two auth configurations were not reachable when the predicate was written, and b
 - The integration is unsupported under Windows Subsystem for Linux.
 - The integration is unavailable through third-party model providers.
 
-### Absence on the other four hosts
+### Absence on the hosts other than Claude Code
 
-On Codex CLI, Gemini CLI, OpenCode, and GitHub Copilot CLI the attended Chrome lane is absent by
+On Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI and Pi the attended Chrome lane is absent by
 design. No adapter for those hosts carries the lane's tool name, and no per-host skip line exists
 anywhere in the kit. The absence is stated once, here.
 
-The Playwright floor is available on all five hosts, so "degrade, never break" holds: every host can
+The Playwright floor is available on every supported host, so "degrade, never break" holds: every host can
 produce machine-verifiable UAT evidence, and one host can additionally offer an attended session.
 
 ## Platform note

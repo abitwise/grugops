@@ -91,14 +91,16 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
   resolution to the Orchestrator. The kit-home env var is named ONLY in those resolver
   adapters/templates — never in an op-skill, a role, a workflow, or `AGENTS.md`. The
   installer materializes the absolute kit path into the resolver adapters' slot [1]; the
-  one-line self-heal is the fallback below it.
+  one-line self-heal is the fallback below it. Pi gets `.pi/prompts/grugops.md`, a plain pointer
+  prompt template written by the installer, not a resolver adapter: it names no kit-home env var
+  and carries no self-heal block, so the two-adapter rule still holds.
 - **`disable-model-invocation: true` belongs on `grugops-release`** — the destructive,
   deploy-touching command — so the model can never auto-trigger it; only a human invokes it.
   This pairs with the git-host floor and the installer's Claude Code ask rules (see
   `install/README.md` §5 and `adapters.md` § Safety enforcement), not with a command guard.
 - **No spawn tool in a skill's `allowed-tools`.** A slash-command skill never spawns — spawning
   is coordinator-only and lives on the orchestrator sub-agent adapter, not on a command skill.
-  On the four non-spawning host CLIs grugops activates each role via single-window sequential
+  On the non-spawning host CLIs grugops activates each role via single-window sequential
   role-load (`agent-factory/roles/_role-switch-protocol.md`: one window, drop prior context
   between roles, the shared verified context is the only memory); on Claude Code the coordinator
   may spawn role agents instead. Either way the skill grants only the file/shell tools it uses and
