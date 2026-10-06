@@ -1670,7 +1670,7 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 3/10 plans executed
+**Plans:** 4/10 plans executed
 
 Plans:
 **Wave 1**
@@ -1681,7 +1681,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 34-03-PLAN.md — effort announcements asserted by the freshness gate; per-role effort rationale; tiered split derived from TIERED; model `tiered` leaves effort alone (D-04, D-05, D-06)
-- [ ] 34-04-PLAN.md — Pi prompt template `.pi/prompts/grugops.md` written unconditionally, ledgered, reversed through `owns(path)`; derived DC-2/DC-3 class tests re-pinned (D-10, D-13, D-16, D-17)
+- [x] 34-04-PLAN.md — Pi prompt template `.pi/prompts/grugops.md` written unconditionally, ledgered, reversed through `owns(path)`; derived DC-2/DC-3 class tests re-pinned (D-10, D-13, D-16, D-17)
 
 **Wave 3** *(blocked on 34-03)*
 
@@ -1746,7 +1746,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 3/10 | In Progress | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 4/10 | In Progress | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
