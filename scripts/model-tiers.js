@@ -1712,6 +1712,16 @@ function readModelsBlock(models, path, stems) {
  *
  * The stems are taken as an argument for the same reason `resolveModels` takes them — the caller's
  * derivation through the kit authority stays the one place the role set is decided.
+ *
+ * DISCLOSED RESIDUAL, NOT FIXED (D-18, phase 34). The read below is `existsSync` followed by
+ * `readFileSync` on a path inside the user's repository, with no check that the path is a regular
+ * file. A FIFO planted at `.grugops/factory.config.json` therefore makes `readFileSync` block, and
+ * the adapter generator (and every other caller) hangs instead of refusing. That is defect class
+ * DC-3, "unbounded read of a user-controlled path", in the 33.1 gap-planning brief. It is not fixed
+ * in Phase 34 because the bounded regular-file read this tree already has is `readUserFile` in
+ * install/user-file.ts, and a bounded reader written here in scripts/ would be a second
+ * implementation of that one rule. The residual is disclosed in the phase artifacts and filed as a
+ * backlog item by plan 34-10; until then the read itself is deliberately left unchanged.
  */
 export function readModelsConfig(repoRoot, stems) {
     // The vacuity floor, before any file is opened. Validating a role key against an EMPTY valid set
