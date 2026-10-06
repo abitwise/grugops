@@ -17,11 +17,23 @@
 // derivation of the scan rule is precisely the drift this phase exists to refuse, and it would also
 // let the admission side and the guard side disagree about what was checked.
 
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { describe, it, expect, afterAll } from "vitest";
+import { spawnSync } from "node:child_process";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  listAgentAdapters,
+  listRoles,
+  ROLE_COUNT,
   spawnGrantScan,
   SPAWN_GRANT_SCAN_PARTS,
   SPAWN_GRANT_SCAN_COUNT,
@@ -32,6 +44,7 @@ import {
   admittedGrantedNames,
   admittedGrantValues,
   admittedHasSpawnGrant,
+  admittedValuesFor,
   CANONICAL_SCHEMA,
   DOUBLE_QUOTED_KEYS,
   GRANT_KEYS,
@@ -72,6 +85,84 @@ function admitLiveScan(): { admitted: Admitted[]; refusals: string[] } {
     else refusals.push(`${rel}: [${a.code}] ${a.reason}`);
   }
   return { admitted, refusals };
+}
+
+// ── THE CONFIGURED HALF OF THE MEASURING CORPUS (plan 34-05, decision D-15) ─────────────────────
+//
+// `effort` joined `CANONICAL_SCHEMA` by recorded decision D-15. Under D-06 an `inherit` effort writes
+// no `effort:` line, so on a zero-configuration tree NO live file carries the key, and a corpus of
+// live files alone would report the schema as drifted. The schema stays MEASURED rather than guessed
+// by widening the corpus, not by exempting the key: the corpus is the live scan PLUS every adapter a
+// real run of the committed generator emits, in a scratch mirror, under a configured effort.
+//
+// The mirror carries the generator's own IMPORT CLOSURE, read out of the committed sources (the
+// derivation scripts/generate-role-adapters.test.ts uses), never a hand list of modules; the live
+// role and packaging trees; and the configuration below. Built once, lazily, and removed afterwards.
+const CONFIGURED_EFFORT_CONFIG = {
+  models: { effort: { preset: "tiered", roles: { orchestrator: "max" } } },
+};
+
+const scratchDirs: string[] = [];
+afterAll(() => {
+  for (const d of scratchDirs) rmSync(d, { recursive: true, force: true });
+});
+
+/** The committed generator plus every `./x.js` it imports, transitively. Throws on a vacuous walk. */
+function generatorImportClosure(): string[] {
+  const seen = new Set<string>(["generate-role-adapters.js"]);
+  const walk = (entry: string): void => {
+    const src = readFileSync(join(ROOT, "scripts", entry), "utf8");
+    for (const hit of src.matchAll(/from\s+"\.\/([A-Za-z0-9._-]+\.js)"/g)) {
+      if (seen.has(hit[1])) continue;
+      seen.add(hit[1]);
+      walk(hit[1]);
+    }
+  };
+  walk("generate-role-adapters.js");
+  if (seen.size < 3) {
+    throw new Error(
+      `the generator's import closure came back as [${[...seen].join(", ")}] — the derivation is reading the wrong file`,
+    );
+  }
+  return [...seen].sort();
+}
+
+type ConfiguredCorpus = { root: string; files: { rel: string; text: string }[] };
+let configuredCorpus: ConfiguredCorpus | undefined;
+
+/** The adapters one configured generator run emits. Built once; throws if the generator refuses. */
+function configuredGeneratorCorpus(): ConfiguredCorpus {
+  if (configuredCorpus !== undefined) return configuredCorpus;
+  const m = mkdtempSync(join(tmpdir(), "grugops-canon-effort-"));
+  scratchDirs.push(m);
+  mkdirSync(join(m, "scripts"), { recursive: true });
+  for (const mod of generatorImportClosure()) {
+    cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
+  }
+  cpSync(join(ROOT, "agent-factory/roles"), join(m, "agent-factory/roles"), { recursive: true });
+  cpSync(join(ROOT, "agent-factory/packaging"), join(m, "agent-factory/packaging"), {
+    recursive: true,
+  });
+  mkdirSync(join(m, ".grugops"), { recursive: true });
+  writeFileSync(
+    join(m, ".grugops/factory.config.json"),
+    JSON.stringify(CONFIGURED_EFFORT_CONFIG),
+    "utf8",
+  );
+  const r = spawnSync("node", [join(m, "scripts", "generate-role-adapters.js")], {
+    encoding: "utf8",
+  });
+  if (r.status !== 0) {
+    throw new Error(
+      `the configured generator run refused (exit ${String(r.status)}):\n${r.stdout ?? ""}${r.stderr ?? ""}`,
+    );
+  }
+  const files = listAgentAdapters(m).map((rel) => ({
+    rel: `.claude/agents/${rel}`,
+    text: readFileSync(join(m, ".claude/agents", rel), "utf8"),
+  }));
+  configuredCorpus = { root: m, files };
+  return configuredCorpus;
 }
 
 describe("canonical-frontmatter: two-sided cardinality over the live spawn-grant scan", () => {
@@ -131,11 +222,53 @@ describe("canonical-frontmatter: two-sided cardinality over the live spawn-grant
     );
   });
 
-  it("the key union across the live corpus equals CANONICAL_SCHEMA, in both directions", () => {
+  // (Plan 34-05, D-15) THE CORPUS IS THE LIVE SCAN PLUS A CONFIGURED GENERATOR RUN.
+  //
+  // Both halves are admitted by the same `admit()`, and the union of their keys must equal the
+  // exported schema in BOTH directions, with the original two messages. The configured half's
+  // premise is asserted first: every emitted adapter is admitted, the emitted set has ROLE_COUNT
+  // members, and it carries exactly ONE effort value per adapter — counted through the admitted
+  // image, never a regular expression. A configured run that wrote no effort line would make the
+  // `effort` member look unmeasured for a reason having nothing to do with the schema.
+  it("the key union across the live corpus plus a configured generator run equals CANONICAL_SCHEMA, in both directions", () => {
     const { admitted } = admitLiveScan();
     expect(admitted.length).toBe(SCAN.length);
+
+    // PREMISE of the configuration itself: the one override names a stem the role authority derives.
+    const derivedStems = listRoles().map((n) => n.replace(/\.md$/, ""));
+    expect(derivedStems).toContain("orchestrator");
+
+    const configured = configuredGeneratorCorpus();
+    expect(
+      configured.files.length,
+      "the configured generator run must emit one adapter per derived role",
+    ).toBe(ROLE_COUNT);
+    const configuredAdmitted: Admitted[] = [];
+    const configuredRefusals: string[] = [];
+    for (const f of configured.files) {
+      const a = admit(f.text);
+      if (a.ok) configuredAdmitted.push({ rel: f.rel, doc: a.value });
+      else configuredRefusals.push(`${f.rel}: [${a.code}] ${a.reason}`);
+    }
+    expect(
+      configuredRefusals,
+      `the canonical-form reader REFUSED adapter(s) a configured generator run emits:\n${configuredRefusals.join("\n")}`,
+    ).toEqual([]);
+    const effortLineCount = configuredAdmitted.filter((a) => a.doc.has("effort")).length;
+    const effortValueCounts = configuredAdmitted.map(
+      (a) => admittedValuesFor(a.doc, "effort").length,
+    );
+    expect(
+      effortValueCounts.every((n) => n === 1),
+      `PREMISE: every adapter of the configured run must carry exactly one effort value, measured ${JSON.stringify(effortValueCounts)}`,
+    ).toBe(true);
+    expect(
+      effortLineCount,
+      "PREMISE: the configured run's effort line count must equal its emitted adapter count",
+    ).toBe(configured.files.length);
+
     const used = new Set<string>();
-    for (const a of admitted) for (const k of a.doc.keys()) used.add(k);
+    for (const a of [...admitted, ...configuredAdmitted]) for (const k of a.doc.keys()) used.add(k);
 
     const notInSchema = [...used].filter((k) => !CANONICAL_SCHEMA.includes(k));
     const notInCorpus = CANONICAL_SCHEMA.filter((k) => !used.has(k));
@@ -148,9 +281,10 @@ describe("canonical-frontmatter: two-sided cardinality over the live spawn-grant
       `the exported schema carries key(s) no live file uses: ${notInCorpus.join(", ")} — the schema has drifted away from the corpus it governs`,
     ).toEqual([]);
     expect(used.size).toBe(CANONICAL_SCHEMA.length);
+    expect(used.has("effort"), "the measured union must include `effort` (D-15)").toBe(true);
     // eslint-disable-next-line no-console
     console.log(
-      `canonical-frontmatter: key union = ${[...used].sort().join(", ")} (${used.size})`,
+      `canonical-frontmatter: key union (live ${admitted.length} + configured ${configuredAdmitted.length}) = ${[...used].sort().join(", ")} (${used.size})`,
     );
   });
 

@@ -14288,4 +14288,380 @@ describe("guard_effort_assignment (plan 34-05)", () => {
     expect(redSection).toContain(`role stem "${first}"`);
     expect(redSection).not.toContain(EFFORT_PASS_MARKER);
   });
+
+  // ── THE DC-1 CLASS MATRIX (plan 34-05 Task 2; 33.1 gap-planning brief § 2.1). ───────────────────
+  //
+  // Start from a FULLY CONFIGURED fixture — effort preset `tiered`, so every adapter carries exactly
+  // one `effort:` line — and fault the field one adapter at a time, then two adapters at once. Every
+  // fault must produce a finding NAMING the faulted adapter, the run must fail, and the guard must
+  // never print its effort pass line while a fault is present. Missing, duplicated or garbled
+  // evidence is never read as agreement.
+  //
+  // THE FAULT TABLE IS DECLARED ONCE AND ITS COUNT IS ASSERTED. Each fault is a function of the
+  // adapter's own configured level `v`, so no level is typed here. `premise` is what `admit()` must
+  // say about the faulted document — a refusal code, or the exact list of values it then carries —
+  // and is asserted before the verdict, so a plant that did not take cannot pass as a proof.
+  type EffortFault = {
+    readonly name: string;
+    readonly lines: (v: string) => string[];
+    readonly premise: (v: string) => string[] | { refused: string };
+    /** A fragment the finding line naming the adapter must carry. */
+    readonly finding: (v: string) => string;
+  };
+  const misspell = (v: string): string => `${v}${v.slice(-1)}`;
+  const EFFORT_FAULTS: readonly EffortFault[] = [
+    {
+      name: "line removed",
+      lines: () => [],
+      premise: () => [],
+      finding: (v) => `carries NO \`effort\` line, and the configuration resolves \`${v}\``,
+    },
+    {
+      name: "line duplicated",
+      lines: (v) => [`effort: ${v}`, `effort: ${v}`],
+      premise: () => ({ refused: "duplicate-key" }),
+      finding: () => "[duplicate-key]",
+    },
+    {
+      name: "value misspelled",
+      lines: (v) => [`effort: ${misspell(v)}`],
+      premise: (v) => [misspell(v)],
+      finding: (v) => `declares \`effort: ${misspell(v)}\`, and the configuration resolves \`${v}\``,
+    },
+    {
+      name: "value upper-cased",
+      lines: (v) => [`effort: ${v.toUpperCase()}`],
+      premise: (v) => [v.toUpperCase()],
+      finding: (v) => `declares \`effort: ${v.toUpperCase()}\`, and the configuration resolves \`${v}\``,
+    },
+    {
+      name: "value emptied",
+      lines: () => ["effort:"],
+      premise: () => ({ refused: "dangling-empty-key" }),
+      finding: () => "[dangling-empty-key]",
+    },
+    {
+      name: "value quoted",
+      lines: (v) => [`effort: "${v}"`],
+      premise: () => ({ refused: "quoted-on-plain-only-key" }),
+      finding: () => "[quoted-on-plain-only-key]",
+    },
+    {
+      name: "value replaced by the literal inherit",
+      lines: () => [`effort: ${EFFORT_LEVELS[0]}`],
+      premise: () => [EFFORT_LEVELS[0]],
+      finding: (v) =>
+        `declares \`effort: ${EFFORT_LEVELS[0]}\`, and the configuration resolves \`${v}\``,
+    },
+    {
+      name: "two values in a block sequence",
+      lines: (v) => ["effort:", `  - ${v}`, `  - ${v}`],
+      premise: (v) => [v, v],
+      finding: (v) => `declares 2 \`effort\` values (\`${v}\`, \`${v}\`)`,
+    },
+  ];
+  const EFFORT_FAULT_COUNT = 8;
+
+  it("the fault table holds exactly EFFORT_FAULT_COUNT distinct faults, and the garbled values are outside the closed vocabulary", () => {
+    expect(EFFORT_FAULTS.length).toBe(EFFORT_FAULT_COUNT);
+    expect(new Set(EFFORT_FAULTS.map((f) => f.name)).size).toBe(EFFORT_FAULT_COUNT);
+    // `inherit` is the first member of the closed tuple — the literal the inherit fault plants.
+    expect(EFFORT_LEVELS[0]).toBe("inherit");
+    for (const v of EFFORT_LEVELS.slice(1)) {
+      expect((EFFORT_LEVELS as readonly string[]).includes(misspell(v))).toBe(false);
+      expect((EFFORT_LEVELS as readonly string[]).includes(v.toUpperCase())).toBe(false);
+    }
+  });
+
+  // The configured fixture, built once and restored after every plant. Its premise is asserted:
+  // the adapter set is DERIVED (never listed), its count equals ROLE_COUNT, and every adapter
+  // carries exactly the one level the tiered resolution assigns its stem.
+  type TieredFixture = {
+    root: string;
+    adapters: string[];
+    levelOf: Map<string, string>;
+    bytesOf: Map<string, string>;
+  };
+  let tieredFixture: TieredFixture | undefined;
+  const tiered = (): TieredFixture => {
+    if (tieredFixture !== undefined) return tieredFixture;
+    const root = mirror();
+    const stems = derivedStemsOf(root);
+    configureAndRegenerate(root, { models: { effort: { preset: "tiered" } } });
+    const resolution = resolveEfforts(stems, { preset: "tiered" });
+    if (!resolution.ok) throw new Error(resolution.reason);
+    const adapters = listAgentAdapters(root).sort();
+    expect(adapters.length, "the derived adapter set must number ROLE_COUNT").toBe(ROLE_COUNT);
+    const levelOf = new Map<string, string>();
+    const bytesOf = new Map<string, string>();
+    for (const rel of adapters) {
+      const stemOf = rel.replace(/\.md$/, "").replace(/^grugops-/, "");
+      const level = resolution.value.get(stemOf);
+      expect(level, `${rel}: the tiered resolution must assign its stem a level`).toBeDefined();
+      expect(level).not.toBe(EFFORT_LEVELS[0]);
+      const file = join(root, ".claude/agents", rel);
+      expect(admittedEffortValues(file), `${rel}: the configured fixture's premise`).toEqual([
+        level,
+      ]);
+      levelOf.set(rel, level as string);
+      bytesOf.set(rel, readFileSync(file, "utf8"));
+    }
+    tieredFixture = { root, adapters, levelOf, bytesOf };
+    return tieredFixture;
+  };
+  const restore = (fx: TieredFixture): void => {
+    for (const [rel, bytes] of fx.bytesOf) {
+      writeFileSync(join(fx.root, ".claude/agents", rel), bytes, "utf8");
+    }
+  };
+  /** Every line of a section that names this adapter's repository-relative path. */
+  const linesNaming = (section: string, rel: string): string[] =>
+    section.split("\n").filter((l) => l.includes(`.claude/agents/${rel}`));
+
+  it("CONTROL — the configured fixture, unfaulted, passes the effort guard and the whole run", () => {
+    const fx = tiered();
+    const r = runIn(fx.root);
+    const section = effortSection(out(r));
+    expect(section).toContain(EFFORT_PASS_MARKER);
+    expect(section).toContain('effort preset "tiered" from .grugops/factory.config.json');
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  for (const fault of EFFORT_FAULTS) {
+    it(`SINGLE — "${fault.name}", applied to each derived adapter in turn, is a named finding every time`, () => {
+      const fx = tiered();
+      let runs = 0;
+      try {
+        for (const rel of fx.adapters) {
+          const v = fx.levelOf.get(rel) as string;
+          const file = plantAdapterEffort(fx.root, rel, fault.lines(v));
+          expect(admittedEffortValues(file), `${rel}: premise of "${fault.name}"`).toEqual(
+            fault.premise(v),
+          );
+          const r = runIn(fx.root);
+          const section = effortSection(out(r));
+          expect(r.status, `${rel}: "${fault.name}" must fail the run`).not.toBe(0);
+          expect(section, `${rel}: no effort pass line beside a fault`).not.toContain(
+            EFFORT_PASS_MARKER,
+          );
+          const named = linesNaming(section, rel);
+          expect(named.length, `${rel}: "${fault.name}" must name the adapter`).toBeGreaterThan(0);
+          expect(
+            named.some((l) => l.includes(fault.finding(v))),
+            `${rel}: "${fault.name}" must produce "${fault.finding(v)}"; the section was:\n${section}`,
+          ).toBe(true);
+          restore(fx);
+          runs += 1;
+        }
+      } finally {
+        restore(fx);
+      }
+      expect(runs, "every derived adapter was faulted once").toBe(ROLE_COUNT);
+    });
+  }
+
+  it("PAIRS — every ordered pair of faults, on two DIFFERENT adapters at once, gives two findings, both named", () => {
+    const fx = tiered();
+    let k = 0;
+    try {
+      for (const first of EFFORT_FAULTS) {
+        for (const second of EFFORT_FAULTS) {
+          const a = fx.adapters[k % fx.adapters.length] as string;
+          const b = fx.adapters[(k + 1) % fx.adapters.length] as string;
+          k += 1;
+          expect(a).not.toBe(b);
+          plantAdapterEffort(fx.root, a, first.lines(fx.levelOf.get(a) as string));
+          plantAdapterEffort(fx.root, b, second.lines(fx.levelOf.get(b) as string));
+          const r = runIn(fx.root);
+          const section = effortSection(out(r));
+          const label = `"${first.name}" on ${a} + "${second.name}" on ${b}`;
+          expect(r.status, `${label} must fail the run`).not.toBe(0);
+          expect(section, `${label}: no effort pass line`).not.toContain(EFFORT_PASS_MARKER);
+          expect(
+            linesNaming(section, a).some((l) => l.includes(first.finding(fx.levelOf.get(a) as string))),
+            `${label}: the first adapter's finding is missing:\n${section}`,
+          ).toBe(true);
+          expect(
+            linesNaming(section, b).some((l) => l.includes(second.finding(fx.levelOf.get(b) as string))),
+            `${label}: the second adapter's finding is missing:\n${section}`,
+          ).toBe(true);
+          restore(fx);
+        }
+      }
+    } finally {
+      restore(fx);
+    }
+    expect(k, "every ordered fault pair ran").toBe(EFFORT_FAULT_COUNT * EFFORT_FAULT_COUNT);
+  });
+
+  it("ZERO-CONFIG EXTRA LINE — any adapter gaining an effort line where `inherit` resolves is a finding (expected inherit, found the level)", () => {
+    const m = mirror();
+    const adapters = listAgentAdapters(m).sort();
+    expect(adapters.length).toBe(ROLE_COUNT);
+    const levels = EFFORT_LEVELS.slice(1);
+    let runs = 0;
+    for (const [i, rel] of adapters.entries()) {
+      const file = join(m, ".claude/agents", rel);
+      const original = readFileSync(file, "utf8");
+      const level = levels[i % levels.length] as string;
+      // Inserted directly after the adapter's own `model:` line, keeping that line unchanged.
+      const lines = original.split("\n");
+      const at = lines.findIndex((l) => l.startsWith("model:"));
+      expect(at, `${rel}: the zero-config adapter must carry a model line to anchor the plant`).not.toBe(-1);
+      lines.splice(at + 1, 0, `effort: ${level}`);
+      writeFileSync(file, lines.join("\n"), "utf8");
+      expect(admittedEffortValues(file)).toEqual([level]);
+
+      const r = runIn(m);
+      const section = effortSection(out(r));
+      expect(r.status, `${rel}: an extra effort line must fail the run`).not.toBe(0);
+      expect(section).not.toContain(EFFORT_PASS_MARKER);
+      expect(
+        linesNaming(section, rel).some((l) =>
+          l.includes(`expected \`${EFFORT_LEVELS[0]}\`, found \`${level}\``),
+        ),
+        `${rel}: the finding must name expected inherit and found ${level}:\n${section}`,
+      ).toBe(true);
+      writeFileSync(file, original, "utf8");
+      runs += 1;
+    }
+    expect(runs).toBe(ROLE_COUNT);
+  });
+
+  it("DEGRADED (read) — a configuration naming an illegal effort level fails the run and names the refusal", () => {
+    const m = mirror();
+    const stems = derivedStemsOf(m);
+    const last = EFFORT_LEVELS[EFFORT_LEVELS.length - 1] as string;
+    const illegal = `${last}imum`;
+    expect((EFFORT_LEVELS as readonly string[]).includes(illegal)).toBe(false);
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: { effort: { roles: { [stems[0] as string]: illegal } } } }),
+      "utf8",
+    );
+    const read = readModelsConfig(m, stems);
+    expect(read.ok, "PREMISE: the reader refuses the illegal level").toBe(false);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = effortSection(out(r));
+    expect(section).toContain("the `models` configuration could not be READ");
+    expect(section).toContain(illegal);
+    expect(section).toContain("degraded — the configuration was refused");
+    expect(section).not.toContain(EFFORT_PASS_MARKER);
+  });
+
+  it("DEGRADED (resolve) — a configuration that reads but cannot be resolved fails the run and names the refusal", () => {
+    const m = mirror();
+    // An extra role file the TIERED table has no row for: the reader accepts the configuration, and
+    // the tiered effort resolution refuses the uncovered stem by name.
+    const donor = roleNamesIn(m)[0] as string;
+    const extra = "zz-unlisted-role.md";
+    cpSync(rolePath(m, donor), rolePath(m, extra));
+    const stems = roleNamesIn(m)
+      .map((n) => n.replace(/\.md$/, ""))
+      .sort();
+    expect(stems.length).toBe(ROLE_COUNT + 1);
+    expect(stems).toContain("zz-unlisted-role");
+    mkdirSync(join(m, ".grugops"), { recursive: true });
+    writeFileSync(
+      join(m, ".grugops/factory.config.json"),
+      JSON.stringify({ models: { effort: { preset: "tiered" } } }),
+      "utf8",
+    );
+    const read = readModelsConfig(m, stems);
+    expect(read.ok, "PREMISE: the configuration reads cleanly").toBe(true);
+    const resolution = resolveEfforts(stems, { preset: "tiered" });
+    expect(resolution.ok, "PREMISE: the tiered resolution refuses the uncovered stem").toBe(false);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = effortSection(out(r));
+    expect(section).toContain("could not be RESOLVED");
+    expect(section).toContain("zz-unlisted-role");
+    expect(section).toContain("degraded — the resolution was refused");
+    expect(section).not.toContain(EFFORT_PASS_MARKER);
+  });
+
+  it("VACUITY — an empty adapter directory is a named finding, never a pass over nothing", () => {
+    const m = mirror();
+    for (const rel of listAgentAdapters(m)) rmSync(join(m, ".claude/agents", rel));
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = effortSection(out(r));
+    expect(section).toContain("the adapter derivation returned NO committed adapters");
+    expect(section).toContain(`All ${ROLE_COUNT} role stem(s) are unbacked`);
+    expect(section).not.toContain(EFFORT_PASS_MARKER);
+  });
+
+  it("ELEMENT COUNT — one adapter removed names both numbers and the unbacked stem", () => {
+    const m = mirror();
+    const gone = listAgentAdapters(m).sort()[0] as string;
+    rmSync(join(m, ".claude/agents", gone));
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = effortSection(out(r));
+    expect(section).toContain(
+      `${ROLE_COUNT - 1} committed adapter(s) under .claude/agents against ${ROLE_COUNT} role stem(s)`,
+    );
+    expect(section).toContain(`role stem "${gone.replace(/\.md$/, "").replace(/^grugops-/, "")}"`);
+    expect(section).not.toContain(EFFORT_PASS_MARKER);
+  });
+
+  it("STRAY — an effort key on a non-agent surface (now admissible under D-15) is a named finding", () => {
+    const m = mirror();
+    const skill = listSkillAdapters(m).sort()[0] as string;
+    const rel = `.claude/skills/${skill}`;
+    const file = join(m, rel);
+    const lines = readFileSync(file, "utf8").split("\n");
+    const at = lines.findIndex((l) => l.startsWith("name:"));
+    expect(at).not.toBe(-1);
+    const level = EFFORT_LEVELS[1] as string;
+    lines.splice(at + 1, 0, `effort: ${level}`);
+    writeFileSync(file, lines.join("\n"), "utf8");
+    expect(admittedEffortValues(file), "PREMISE: the widened schema admits it").toEqual([level]);
+
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    const section = effortSection(out(r));
+    expect(section).toContain("declare an `effort` key");
+    expect(section).toContain(`${rel}: \`${level}\``);
+    expect(section).not.toContain(EFFORT_PASS_MARKER);
+  });
+
+  // The prohibitions the plan records, pinned on the guard's own body in both the source and the
+  // committed twin: no advisory helper, one advisory-channel write (the header), the value read
+  // through `admittedValuesFor`, the expectation through `resolveEfforts`, no line scan of its own,
+  // and no effort level other than `inherit` spelled as a literal.
+  it("STRUCTURE — guardEffortAssignment reads through admit()/resolveEfforts only, and has no warn() and no hand-listed level", () => {
+    const bodies = [
+      ["check-foundation-guards.ts", "function guardEffortAssignment(): void {"],
+      ["check-foundation-guards.js", "function guardEffortAssignment() {"],
+    ] as const;
+    for (const [rel, decl] of bodies) {
+      const src = readFileSync(join(ROOT, "scripts", rel), "utf8");
+      const start = src.indexOf(decl);
+      expect(start, `${rel}: the guard declaration must be found`).toBeGreaterThan(-1);
+      const end = src.indexOf("\n}\n", start);
+      const code = src
+        .slice(start, end)
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//"))
+        .join("\n");
+      expect(code).toContain('admittedValuesFor(doc, "effort")');
+      expect(code).toContain("resolveEfforts(");
+      expect(code.includes("warn("), `${rel}: no warn() helper call`).toBe(false);
+      expect(code.split("process.stdout.write").length - 1, `${rel}: one channel write`).toBe(1);
+      expect(code).toContain("[guard_effort_assignment]");
+      expect(code.includes("new RegExp"), `${rel}: no regex of its own`).toBe(false);
+      expect(code.includes('.split("\\n")'), `${rel}: no line scan of its own`).toBe(false);
+      for (const level of EFFORT_LEVELS.slice(1)) {
+        expect(code.includes(`"${level}"`), `${rel}: the level "${level}" must not be hand-listed`).toBe(
+          false,
+        );
+      }
+    }
+  });
 });
