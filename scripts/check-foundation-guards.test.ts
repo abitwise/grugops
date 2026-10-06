@@ -2191,8 +2191,19 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     grant and renders no spawn verdict.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 94 with this module tracked.
+ *
+ * 94 -> 95 (plan 34-02, task 1, phase 34 D-11), ONE INSTALLER DATA MODULE:
+ *   - `install/host-tools.ts` — the one registry of supported host tools (HOST_TOOLS, its count
+ *     pin, the adapter-kind tuple and the Pi prompt-template path). Imported by `install/install.ts`
+ *     (detectTools() and the closing host line). Pure data: it imports nothing and does no I/O.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict (its `dispatch` field is registry data, read by no guard).
+ *     Its committed `.js` twin landed in the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 95 with this module tracked.
  */
-const NON_TEST_MODULE_COUNT = 94;
+const NON_TEST_MODULE_COUNT = 95;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
