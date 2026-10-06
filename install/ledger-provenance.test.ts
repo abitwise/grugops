@@ -42,6 +42,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MARKER_REL, REPO_ROOT, type Run, rebindMarker, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { askRecord, fileRecords, withLedger, type RawEntry } from "./ledger.test-support.js";
+import { PI_PROMPT_REL } from "./host-tools.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-provenance-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -90,10 +91,16 @@ ok(DERIVE_UN, "derive uninstall");
 const REMOVED_DIRS = under(DERIVE_UN.stdout, "rmdir").map((p) => p.slice(DERIVE.target.length + 1).split("\\").join("/")).sort();
 
 describe("the derived sets (counts pinned so a derivation that shrinks fails here)", () => {
-  it("install creates 7 files in an empty target (2 pointer files, AGENTS.md, 4 runnables), and the round trip removes 13 directories", () => {
-    expect(CREATED.length, CREATED.join(", ")).toBe(7);
+  // Re-pinned 2026-10-06 (plan 34-04, D-17): install now writes the Pi prompt template unconditionally,
+  // so `.pi/prompts/grugops.md` entered CREATED (7 -> 8; derived list: .github/copilot-instructions.md,
+  // .pi/prompts/grugops.md, AGENTS.md, CLAUDE.md, the 4 tools/grugops runnables) and `.pi` and
+  // `.pi/prompts` entered REMOVED_DIRS (13 -> 15; derived list: the 10 .claude directories, .gemini,
+  // .github, .pi, .pi/prompts, tools/grugops).
+  it("install creates 8 files in an empty target (2 pointer files, the Pi prompt template, AGENTS.md, 4 runnables), and the round trip removes 15 directories", () => {
+    expect(CREATED.length, CREATED.join(", ")).toBe(8);
     expect(CREATED.filter((r) => POINTER.has(r)).length).toBe(2);
-    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(13);
+    expect(CREATED, "the Pi prompt template is not among the files install created").toContain(PI_PROMPT_REL);
+    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(15);
     for (const rel of CREATED) expect(existsSync(abs(DERIVE.target, rel)), `${rel} survived the round trip`).toBe(false);
   });
 });
