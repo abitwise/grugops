@@ -43,6 +43,7 @@ import {
 } from "./model-tiers.js";
 import { listPackagingTemplates } from "./kit-model.js";
 import { REGISTRY_PATH } from "./audit-model.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT } from "../install/host-tools.js";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -294,17 +295,36 @@ const CLAUDE_ROW_KEY = "**`model:` other than `inherit` in role wrappers without
  * whole shipped tree at plan close, and phase verification re-runs it.
  */
 const SCOPE_SENTENCE =
-  "The model dial reaches Claude Code only, and that is a fact about this kit rather than about the " +
-  "other four host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so " +
+  "The model and effort dials reach Claude Code only, and that is a fact about this kit rather than " +
+  "about the other host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so " +
   "although Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` " +
-  "field in their own agent-definition formats, this kit emits no agent definition for any of them " +
-  "and there is nothing there for the dial to write into.";
+  "field in their own agent-definition formats, this kit emits no agent definition for any of them, " +
+  "and neither dial has anywhere to write there.";
+
+/**
+ * THE PI CLAUSE (plan 34-07, D-12), verbatim, on the same physical line as the scope sentence.
+ *
+ * Pi is deliberately NOT in the scope sentence's per-agent clause: that clause says each host it
+ * names ACCEPTS a per-agent `model` field, and Pi has no per-agent definition at all (it ships no
+ * sub-agents). So Pi gets its own clause, whose subject is the host it names. The host is read off
+ * the clause's grammar by `namedNoSubAgentHost()` below, never off the registry, so a Pi clause
+ * naming a host the registry does not carry is a red rather than a silent agreement.
+ */
+const PI_CLAUSE =
+  "Pi ships no sub-agents, this kit emits no per-agent definition for Pi either, and grugops does " +
+  "not configure Pi's own thinking level.";
+
+/** The predicate that follows the host name at the start of the no-sub-agents clause. */
+const NO_SUB_AGENTS_PREDICATE = " ships no sub-agents";
 
 /** The heading that opens the authority's scope section — the left bound of every section-scoped read. */
 const SCOPE_SECTION_HEADING = "## Host-CLI scope of the model and effort dials";
 
 /** The line that opens the citation block, and the left bound of the citation-line extraction. */
-const CITATION_BLOCK_HEADING = "References for the per-agent `model` field in each of the other four";
+const CITATION_BLOCK_HEADING = "References for each host CLI named above";
+
+/** The retrieval dates the citation block heading states, one per retrieval round. */
+const CITATION_RETRIEVAL_DATES = ["retrieved 2026-08-20", "Pi retrieved 2026-10-06"] as const;
 
 /**
  * The assumption-A1 block's OWN anchor.
@@ -326,7 +346,7 @@ const A1_ANCHOR = "the alias vocabulary (assumption A1, recorded confidence low)
 const RESIDUAL_ANCHORS = [
   "R1, the vendor findings are point-in-time reads",
   "R2, Copilot CLI's `model` property at run time",
-  "R3, whether grugops should emit for the other four",
+  "R3, whether grugops should emit for the other host CLIs",
 ] as const;
 
 /**
@@ -343,14 +363,17 @@ const RESIDUAL_ANCHORS = [
 const UNKNOWN_VERIFY_MARKER_COUNT = 1 + RESIDUAL_ANCHORS.length;
 
 /**
- * The host CLIs the scope sentence names OTHER THAN Claude Code — DERIVED FROM THE SENTENCE ITSELF,
- * never hand-listed. The set the citation block must cover is exactly the set the sentence makes a
- * claim about, so the two cannot drift: naming a fifth CLI in the sentence without citing it, or
- * dropping one from the citation block, both go red.
+ * The host CLIs the scope paragraph names OTHER THAN Claude Code, DERIVED FROM THE DOCUMENT'S OWN
+ * GRAMMAR and compared against the host registry, never hand-listed (plan 34-07, D-11, D-12).
+ *
+ * Two clauses name hosts: the scope sentence's per-agent clause ("although <hosts> each accept a
+ * per-agent ...") and the Pi clause ("<host> ships no sub-agents"). Their union is what the
+ * paragraph makes a claim about, and it must equal the registry's hosts that dispatch roles
+ * sequentially (every host that is not Claude Code), in both directions. The count is asserted
+ * against HOST_TOOL_COUNT minus the spawn rows, so a host added to the registry without a clause,
+ * or a clause naming a host the registry does not carry, both go red.
  */
-const OTHER_HOST_CLI_COUNT = 4;
-
-function namedOtherHostClis(): string[] {
+function namedPerAgentClauseHosts(): string[] {
   const open = "although ";
   const close = " each accept a per-agent";
   const from = SCOPE_SENTENCE.indexOf(open);
@@ -358,10 +381,9 @@ function namedOtherHostClis(): string[] {
   if (from === -1 || to === -1 || to <= from) {
     throw new Error(
       "model-dial oracle: PREMISE VIOLATED — the scope sentence no longer carries the clause that " +
-        "ENUMERATES the other host CLIs, so the set the citation block must cover cannot be derived " +
-        "from it. Refusing to fall back to a hand-list: a hand-list is exactly how the citation " +
-        "block and the sentence come to disagree. Remedy: keep the enumerating clause, or move this " +
-        "derivation in the same commit that changes the sentence's shape.",
+        "ENUMERATES the host CLIs with a per-agent `model` field, so the set the citation block must " +
+        "cover cannot be derived from it. Refusing to fall back to a hand-list. Remedy: keep the " +
+        "enumerating clause, or move this derivation in the same commit that changes the sentence's shape.",
     );
   }
   return SCOPE_SENTENCE.slice(from + open.length, to)
@@ -369,6 +391,29 @@ function namedOtherHostClis(): string[] {
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 }
+
+function namedNoSubAgentHost(): string {
+  const at = PI_CLAUSE.indexOf(NO_SUB_AGENTS_PREDICATE);
+  if (at <= 0) {
+    throw new Error(
+      `model-dial oracle: PREMISE VIOLATED — the Pi clause does not open with "<host>${NO_SUB_AGENTS_PREDICATE}", so the host it names cannot be read off it`,
+    );
+  }
+  return PI_CLAUSE.slice(0, at).trim();
+}
+
+/** The union of the hosts the scope paragraph names, in document order. */
+function namedOtherHostClis(): string[] {
+  return [...namedPerAgentClauseHosts(), namedNoSubAgentHost()];
+}
+
+/** The registry's hosts that do not spawn sub-agents: every host the scope paragraph must name. */
+function registryOtherHostNames(): string[] {
+  return HOST_TOOLS.filter((h) => h.dispatch === "sequential").map((h) => h.name);
+}
+
+/** The registry's spawn rows: the hosts the dials DO reach. */
+const SPAWN_HOST_COUNT = HOST_TOOLS.filter((h) => h.dispatch === "spawn").length;
 
 const surfaces = Object.entries(SURFACE_ROLES).map(([role, rel]) => ({
   role,
@@ -680,6 +725,30 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
     expect(occurrences(readSurface("authority"), SCOPE_SENTENCE)).toBe(1);
   });
 
+  it("the Pi clause is PRESENT in the scope section, exactly once, on the scope sentence's line, and ABSENT from the config field reference (D-12)", () => {
+    expect(occurrences(readSurface("authority"), PI_CLAUSE)).toBe(1);
+    expect(occurrences(scopeSection(), PI_CLAUSE)).toBe(1);
+    const line = scopeSection().split("\n").find((l) => l.includes(SCOPE_SENTENCE)) ?? "";
+    expect(line, "the Pi clause must sit in the same paragraph as the scope sentence").toContain(PI_CLAUSE);
+    expect(occurrences(readSurface("pointer"), PI_CLAUSE)).toBe(0);
+  });
+
+  it("the hosts the scope paragraph names equal the registry's non-spawn hosts, in both directions (D-11, D-12)", () => {
+    const named = namedOtherHostClis();
+    const registry = registryOtherHostNames();
+    // The count is derived from the registry's own pin, not typed here.
+    expect(SPAWN_HOST_COUNT, "PREMISE: the registry must carry at least one spawn host (Claude Code)").toBeGreaterThan(0);
+    expect(registry).toHaveLength(HOST_TOOL_COUNT - SPAWN_HOST_COUNT);
+    expect(named).toHaveLength(HOST_TOOL_COUNT - SPAWN_HOST_COUNT);
+    expect(new Set(named).size, "a host named twice is a duplicate, not coverage").toBe(named.length);
+    expect(named.filter((h) => !registry.includes(h)), "named in the scope paragraph but not a non-spawn registry host").toEqual([]);
+    expect(registry.filter((h) => !named.includes(h)), "a non-spawn registry host the scope paragraph does not name").toEqual([]);
+  });
+
+  it("the per-agent clause does not name the no-sub-agents host — Pi has no per-agent `model` field", () => {
+    expect(namedPerAgentClauseHosts()).not.toContain(namedNoSubAgentHost());
+  });
+
   it("the scope sentence is ABSENT from the config field reference — the no-restatement direction", () => {
     // The pointing document is not permitted its own copy of the claim. This is the direction that
     // makes "one authority" mechanical rather than aspirational.
@@ -840,8 +909,8 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
   it("every host CLI the sentence NAMES carries a citation line — attribution, not bare assertion", () => {
     const named = namedOtherHostClis();
     // The vacuity floor first: an EMPTY derived set would make the coverage check below pass over
-    // nothing, which is the failure mode that green runs never show.
-    expect(named).toHaveLength(OTHER_HOST_CLI_COUNT);
+    // nothing, which is the failure mode that green runs never show. The number is the registry's.
+    expect(named).toHaveLength(HOST_TOOL_COUNT - SPAWN_HOST_COUNT);
     const block = citationLines().join("\n");
     const uncited = named.filter((cli) => !block.includes(cli));
     expect(uncited).toEqual([]);
@@ -849,11 +918,13 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
 
   it("the citation block carries one dated, URL-bearing line per named CLI", () => {
     const lines = citationLines();
-    expect(lines).toHaveLength(OTHER_HOST_CLI_COUNT);
+    expect(lines).toHaveLength(namedOtherHostClis().length);
     // A citation without a source is a citation in shape only. Each line must name a host.
     const sourceless = lines.filter((l) => !/[a-z0-9-]+\.(com|ai|dev|org|io)\//.test(l));
     expect(sourceless).toEqual([]);
-    expect(scopeSection()).toContain("(retrieved 2026-08-20)");
+    const heading = scopeSection().split("\n").find((l) => l.startsWith(CITATION_BLOCK_HEADING)) ?? "";
+    const undated = CITATION_RETRIEVAL_DATES.filter((d) => !heading.includes(d));
+    expect(undated).toEqual([]);
   });
 
 });

@@ -47,6 +47,9 @@ const ROOT = join(import.meta.dirname, "..");
 // pointed somewhere else.
 const ADAPTER_DIR = ".claude/agents";
 
+/** The frontmatter line an emitted effort level starts with (D-06: never written for `inherit`). */
+const EFFORT_LINE_PREFIX = "effort: ";
+
 /**
  * THE PIN — the commit this phase started from, taken 2026-08-19, before any generator change.
  *
@@ -126,10 +129,39 @@ const scopedAdmissionToolFromInitFrame = (): string => {
 };
 
 /**
- * The bytes the baseline adapter is EXPECTED to have on the working tree: identical, except that
- * the coordinator's `tools:` line carries the scoped admission tool appended after the last
- * baseline tool. Applied to the baseline bytes as a single-line edit so the whole file — the
- * `model:` line MODEL-01 is about, the body, the trailing newline — is still compared byte for byte.
+ * THE SECOND RECORDED DIVERGENCE (plan 34-07, decision D-14) — A STATED TRANSFORM ON THE FROZEN
+ * BASELINE LINE, NEVER A HAND-TYPED EXPECTED LINE AND NEVER THE GENERATOR'S OUTPUT.
+ *
+ * The coordinator body's Degraded tier line named a host count. Phase 34 adds a host, so D-14
+ * rewords the phrase to carry no count. The expected working line is the baseline line with the
+ * retired phrase replaced by the reworded one: the transform asserts its target occurs exactly once
+ * in the baseline before it applies, so a baseline that no longer carries the phrase (or carries it
+ * twice) is a named throw rather than a no-op that would hide an unrecorded difference.
+ *
+ * THE RETIRED PHRASE IS ASSEMBLED FROM PARTS, the count word in its own constant, so that no single
+ * source line of this file carries the count phrase that the derived prose scan (plan 34-09)
+ * reports. The phrase is still exactly the baseline's bytes: the "real before admitted" case below
+ * asserts it occurs once in the frozen coordinator.
+ */
+const RETIRED_HOST_COUNT_WORD = "four";
+const DEGRADED_PHRASE_SUBJECT = "non-Claude-Code";
+const RETIRED_DEGRADED_PHRASE = ["the", RETIRED_HOST_COUNT_WORD, DEGRADED_PHRASE_SUBJECT, "CLIs"].join(" ");
+const REWORDED_DEGRADED_PHRASE = ["the", DEGRADED_PHRASE_SUBJECT, "host", "CLIs"].join(" ");
+
+/** Replace the one occurrence of `from` in `line`, refusing a line that carries it zero or several times. */
+const replaceOnce = (line: string, from: string, to: string): string => {
+  const count = line.split(from).length - 1;
+  if (count !== 1) throw new Error(`expected exactly one "${from}" in the baseline line, found ${String(count)}: ${line}`);
+  return line.replace(from, to);
+};
+
+/**
+ * The bytes the baseline adapter is EXPECTED to have on the working tree: identical, except for the
+ * coordinator's TWO recorded divergences — the `tools:` line carries the scoped admission tool
+ * appended after the last baseline tool (33-28), and the Degraded tier line carries the reworded
+ * host phrase (D-14). Each is applied to the baseline bytes as a single-line edit whose target is
+ * asserted unique first, so the whole file — the `model:` line MODEL-01 is about, the rest of the
+ * body, the trailing newline — is still compared byte for byte.
  */
 const expectedWorkingBytes = (name: string, baseline: Buffer, scoped: string): Buffer => {
   if (name !== DIVERGING_ADAPTER) return baseline;
@@ -141,6 +173,14 @@ const expectedWorkingBytes = (name: string, baseline: Buffer, scoped: string): B
     throw new Error(`${name} at the baseline carries more than one \`tools: \` line`);
   }
   lines[at] = `${lines[at]}, ${scoped}`;
+  const degradedLines = lines.filter((l) => l.includes(RETIRED_DEGRADED_PHRASE));
+  if (degradedLines.length !== 1) {
+    throw new Error(
+      `${name} at the baseline carries ${String(degradedLines.length)} line(s) with "${RETIRED_DEGRADED_PHRASE}", expected exactly one`,
+    );
+  }
+  const degradedAt = lines.findIndex((l) => l.includes(RETIRED_DEGRADED_PHRASE));
+  lines[degradedAt] = replaceOnce(lines[degradedAt] as string, RETIRED_DEGRADED_PHRASE, REWORDED_DEGRADED_PHRASE);
   return Buffer.from(lines.join("\n"), "utf8");
 };
 
@@ -206,7 +246,7 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
     expect(/^[0-9a-f]{40}$/.test(PRE_PHASE_ADAPTER_BASELINE)).toBe(true);
   });
 
-  it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE — except the ONE recorded grant divergence, derived from the held init frame (33-28)", () => {
+  it("every adapter frozen at the pinned commit matches the working tree BYTE for BYTE — except the TWO recorded coordinator divergences: the grant (33-28, held init frame) and the Degraded line (D-14, stated transform)", () => {
     // ── THE PREMISE, BEFORE THE CLAIM. ───────────────────────────────────────────────────────
     const names = baselineAdapterNames(PRE_PHASE_ADAPTER_BASELINE);
     const scoped = scopedAdmissionToolFromInitFrame();
@@ -217,6 +257,17 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
     expect(
       baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER).toString("utf8").includes(scoped),
       "the pre-phase baseline already carries the scoped admission tool — the recorded divergence would be a no-op",
+    ).toBe(false);
+    // The same for D-14: the frozen coordinator must carry the retired phrase exactly once and must
+    // not already carry the reworded one.
+    const baselineCoordText = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER).toString("utf8");
+    expect(
+      baselineCoordText.split(RETIRED_DEGRADED_PHRASE).length - 1,
+      "the pre-phase baseline must carry the retired Degraded phrase exactly once — otherwise the D-14 transform has no single target",
+    ).toBe(1);
+    expect(
+      baselineCoordText.includes(REWORDED_DEGRADED_PHRASE),
+      "the pre-phase baseline already carries the reworded Degraded phrase — the D-14 divergence would be a no-op",
     ).toBe(false);
     // The count is derived INDEPENDENTLY of the loop that consumes it: ROLE_COUNT is the kit
     // authority's two-sided cardinality, and this derivation never consulted it. A short listing is
@@ -253,24 +304,32 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
 
     expect(
       differing,
-      `the adapter bytes moved against the pinned pre-phase baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the ONE recorded divergence (the coordinator's tools line carrying the scoped admission tool, plan 33-28). MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator`,
+      `the adapter bytes moved against the pinned pre-phase baseline ${PRE_PHASE_ADAPTER_BASELINE} beyond the TWO recorded divergences (the coordinator's tools line carrying the scoped admission tool, plan 33-28; the coordinator's Degraded line carrying the reworded host phrase, D-14). MODEL-01 requires the zero-config path to be byte-identical to that tree, not merely equivalent to it — regenerating does not settle this, because the freshness gate produces both of its sides from the same generator`,
     ).toEqual([]);
 
-    // AND THE DIVERGENCE IS EXACTLY ONE LINE OF ONE FILE. Derived from the two fixtures, never from
-    // the generator: the coordinator's working bytes minus the baseline bytes is the appended
-    // `, <scoped>` and nothing else — one more line would have failed the equality above, and a
-    // shorter suffix here would mean the edit was not the one this file records.
+    // AND THE DIVERGENCE IS EXACTLY THESE TWO LINES OF ONE FILE. Derived from the fixtures and the
+    // stated transform, never from the generator: the coordinator's working bytes minus the
+    // baseline bytes is the appended `, <scoped>` plus the phrase replacement's length difference,
+    // and nothing else.
     const baselineCoord = baselineBytes(PRE_PHASE_ADAPTER_BASELINE, DIVERGING_ADAPTER);
     const workingCoord = readFileSync(join(ROOT, ADAPTER_DIR, DIVERGING_ADAPTER));
-    expect(workingCoord.length - baselineCoord.length).toBe(Buffer.byteLength(`, ${scoped}`, "utf8"));
+    expect(workingCoord.length - baselineCoord.length).toBe(
+      Buffer.byteLength(`, ${scoped}`, "utf8") +
+        Buffer.byteLength(REWORDED_DEGRADED_PHRASE, "utf8") -
+        Buffer.byteLength(RETIRED_DEGRADED_PHRASE, "utf8"),
+    );
     const baselineLines = baselineCoord.toString("utf8").split("\n");
     const workingLines = workingCoord.toString("utf8").split("\n");
     expect(workingLines.length).toBe(baselineLines.length);
     const changedLines = baselineLines
       .map((l, i) => (l === workingLines[i] ? null : i))
       .filter((i): i is number => i !== null);
-    expect(changedLines).toHaveLength(1);
-    expect(baselineLines[changedLines[0] as number]?.startsWith("tools: ")).toBe(true);
+    expect(changedLines).toHaveLength(2);
+    const changedBaseline = changedLines.map((i) => baselineLines[i] as string);
+    expect(changedBaseline.filter((l) => l.startsWith("tools: "))).toHaveLength(1);
+    expect(changedBaseline.filter((l) => l.includes(RETIRED_DEGRADED_PHRASE))).toHaveLength(1);
+    const changedWorking = changedLines.map((i) => workingLines[i] as string);
+    expect(changedWorking.filter((l) => l.includes(REWORDED_DEGRADED_PHRASE))).toHaveLength(1);
   });
 
   it("the working adapter directory holds EXACTLY the baseline set — none added, none removed", () => {
@@ -293,6 +352,27 @@ describe("MODEL-01: the adapters are byte-identical to the pre-phase baseline (p
     expect(
       baselineNames.filter((n) => !workingNames.includes(n)),
       `MISSING adapter(s) that the pinned baseline ${PRE_PHASE_ADAPTER_BASELINE} carries and the working tree does not — a deleted adapter has no working bytes to compare and would otherwise leave the byte case one comparison short`,
+    ).toEqual([]);
+  });
+
+  it("at zero config no committed adapter carries an `effort:` line (D-06), over the derived adapter set with its count asserted", () => {
+    // The byte case above already implies this for every adapter the baseline carries, because the
+    // baseline predates the effort dial. This case states D-06 directly over the WORKING set, so it
+    // holds even if the baseline pin is ever moved, and it reads the set from the kit authority
+    // rather than from a list.
+    const names = listAgentAdapters(ROOT);
+    expect(
+      names.length,
+      `the working adapter set holds ${String(names.length)} adapter(s) against the kit authority's pinned ${String(ROLE_COUNT)}`,
+    ).toBe(ROLE_COUNT);
+    const carrying = names.filter((name) =>
+      readFileSync(join(ROOT, ADAPTER_DIR, name), "utf8")
+        .split("\n")
+        .some((line) => line.startsWith(EFFORT_LINE_PREFIX)),
+    );
+    expect(
+      carrying,
+      "a zero-config adapter carries an `effort:` line — an `inherit` effort must write no line (D-06)",
     ).toEqual([]);
   });
 });
