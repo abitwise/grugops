@@ -109,6 +109,24 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   or a sixth tool missing from one list fails red. Prose that says "five" is found by derivation, not by a
   hand grep list (set-literal drift is a known failure class in this repo).
 
+### Post-research decisions (human, 2026-10-06, answering 34-RESEARCH.md Q1-Q5)
+- **D-14:** The generated coordinator adapter line "the four non-Claude-Code CLIs"
+  (`scripts/generate-role-adapters.ts`, emitted into `grugops-orchestrator.md`) is reworded to carry no
+  count ("the non-Claude-Code host CLIs"). The zero-config byte baseline admits this as a second declared
+  divergence, derived from the frozen baseline line by a stated transform, never a hand-typed expected
+  line. The effort half itself stays byte-neutral at zero config (D-06 holds for effort).
+- **D-15:** `effort` joins `CANONICAL_SCHEMA` in the canonical frontmatter reader (safety-authority change,
+  same shape as D-33-R3-02), so guards can read a configured adapter through `admit()`. The
+  corpus-equality test is extended to also measure a generator run with effort configured, so the widened
+  schema is proven against real configured output, not only zero-config output.
+- **D-16:** The Pi prompt template is named `grugops` (`.pi/prompts/grugops.md`, invoked as `/grugops`),
+  one command spelling across hosts. This amends D-10's `/grug` wording; everything else in D-10 stands.
+- **D-17:** The Pi template write is unconditional (like the Copilot and Gemini paths), not gated on
+  detecting `.pi`, so it stays inside the derived install-variant tests.
+- **D-18:** The pre-existing unbounded read in `readModelsConfig` (defect class DC-3) is NOT fixed in this
+  phase. It is disclosed as a named residual in the phase artifacts and a backlog item, because a bounded
+  reader in `scripts/` would be a second implementation of `readUserFile`.
+
 ### Claude's Discretion
 - Exact TypeScript module/location of the host-tool registry, and how docs prose is checked against it.
 - Plan order and wave split between the effort half and the Pi half (they are independent).
@@ -191,6 +209,11 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
 - Fixing WINDOWS.md rows 274 and 315 (Windows leg green, CAP-02) — carried open, not this phase.
 - A Pi skill package, or configuring Pi's own thinking level — not now; revisit if Pi users ask.
 - A per-model effort capability check — rejected for this phase (D-08); revisit only if Claude Code publishes a machine-readable capability source.
+- Bounding the `readModelsConfig` read (DC-3) — residual per D-18; backlog.
+- `fable` as a documented model alias (34-RESEARCH.md Q6) — backlog; `MODEL_ALIASES` unchanged here.
+- Non-Claude hosts finding the shared kit at `~/.grugops/agent-factory` after a scripted install
+  (34-RESEARCH.md Q7) — pre-existing, `UNKNOWN - verify`, Pi inherits it; backlog. The Pi template stays a
+  plain pointer (no third resolver adapter).
 
 </deferred>
 
