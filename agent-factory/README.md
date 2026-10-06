@@ -36,7 +36,7 @@ verified context, updates the board and traceability, and produces the next acti
 > bodies under `agent-factory/workflows/`; this guide documents how to use them and the frozen
 > paths they live at.
 
-## Usage across the five tools
+## Usage across the supported host tools
 
 <!-- claim: C-28-027 -->
 grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI, and Pi. The
@@ -56,7 +56,7 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 
 <!-- claim: C-28-029 -->
 On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
-agent when it would otherwise "wake" that role. On the four non-spawning CLIs the Orchestrator
+agent when it would otherwise "wake" that role. On the non-spawning host CLIs the Orchestrator
 is a single agent that *loads the relevant role file into context* at that moment. Same roles,
 same workflows, same gates, same shared verified context — only the dispatch differs.
 

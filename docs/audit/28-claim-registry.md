@@ -174,7 +174,7 @@ grugops version `2.1.0`.
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: `agent-factory/README.md` exists and its § `Usage across the five tools` table carries exactly five rows — Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI — each naming its entry file and its role dispatch.
+- mechanism: `agent-factory/README.md` exists and its § `Usage across the supported host tools` table carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), each naming its entry file and its role dispatch. Plan 34-06 made the count derived rather than written: `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table to the registry two-sided, and `scripts/check-uat-oracles.ts` builds its asymmetric rows from the registry. The claim text below still says `five host tools`; it lives in `README.md`, and plan 34-08 makes it count-free and updates this verbatim block in the same commit.
 
 ```
 3. **Go deep** — the internal start-here guide explains how to point any of the five host tools at the Orchestrator and walk a ticket from idea to PR. See **[`agent-factory/README.md`](agent-factory/README.md)**.
@@ -465,7 +465,7 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 - kind: architecture
 - depends_on: —
 - status: overstated
-- mechanism: CARRIED-IN CANDIDATE, RE-MEASURED RATHER THAN TRANSCRIBED. The table's Claude Code row advertises `Coordinator spawns role agents — the coordinator: true adapter holds the grant`. What holds: `.planning/REQUIREMENTS.md` records SPAWN-01 `[x]` (all 17 adapters exist, generated) and SPAWN-02 `[x]` (byte-gated). What does NOT hold: KIT-03, SPAWN-03 and SPAWN-04 are all still `[ ]`, and SPAWN-03's own text states that the current subagent placement makes the grant a no-op. `28-CONTEXT.md` records that Phase 27 closed by named user override rather than by a verification round. The grant exists; the spawn path's correctness is advertised ahead of its verification. Registered whole-table because an anchor between two pipe rows would split the rendered table. PLAN 34-06 (D-11): the table now carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), Pi included, and the Pi row reads `Sequential role-load — no spawn` because Pi ships no sub-agents. The asymmetric dispatch-table oracle in `scripts/check-uat-oracles.ts` builds its rows from the registry, so a missing, duplicated or spawn-worded host row fails red by name.
+- mechanism: CARRIED-IN CANDIDATE, RE-MEASURED RATHER THAN TRANSCRIBED. The table's Claude Code row advertises `Coordinator spawns role agents — the coordinator: true adapter holds the grant`. What holds: `.planning/REQUIREMENTS.md` records SPAWN-01 `[x]` (all 17 adapters exist, generated) and SPAWN-02 `[x]` (byte-gated). What does NOT hold: KIT-03, SPAWN-03 and SPAWN-04 are all still `[ ]`, and SPAWN-03's own text states that the current subagent placement makes the grant a no-op. `28-CONTEXT.md` records that Phase 27 closed by named user override rather than by a verification round. The grant exists; the spawn path's correctness is advertised ahead of its verification. Registered whole-table because an anchor between two pipe rows would split the rendered table. PLAN 34-06 (D-11): the table now carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), Pi included, and the Pi row reads `Sequential role-load — no spawn` because Pi ships no sub-agents. The asymmetric dispatch-table oracle in `scripts/check-uat-oracles.ts` builds its rows from the registry, so a missing, duplicated or spawn-worded host row fails red by name, and `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table's host names and entry-file cells to the registry two-sided.
 - disposition: accepted
 - finding_id: F-28-210
 
@@ -491,7 +491,7 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 
 ```
 On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
-agent when it would otherwise "wake" that role. On the four non-spawning CLIs the Orchestrator
+agent when it would otherwise "wake" that role. On the non-spawning host CLIs the Orchestrator
 is a single agent that *loads the relevant role file into context* at that moment. Same roles,
 same workflows, same gates, same shared verified context — only the dispatch differs.
 ```

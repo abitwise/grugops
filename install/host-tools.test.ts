@@ -285,3 +285,58 @@ describe("every per-host table equals the registry (plan 34-06)", () => {
     expect(cellsChecked).toBeGreaterThanOrEqual(FLOOR.length * HOST_TOOLS.length);
   });
 });
+
+// ── Plan 34-06 (PI-01, D-10): Pi's conventions are recorded in the packaging authority, with sources. ─
+//
+// The section is found by heading (exactly one), bounded at the next heading of the same or a higher
+// level, and must carry the primary sources (repository and site), the retrieval date, the prompt
+// template directory and the exact path the installer writes (PI_PROMPT_REL, imported, never
+// retyped). Every bullet in it is a factual claim and must carry its own source and date. Its safety
+// statement must name the git host as the hard control, because Pi asks for no approval per call.
+describe("Pi conventions are recorded with sources (plan 34-06)", () => {
+  const ADAPTERS = join(import.meta.dirname, "..", "agent-factory", "packaging", "adapters.md");
+  const HEADING_TEXT = "Pi (pi.dev) conventions";
+  const RETRIEVED = "2026-10-06";
+
+  function piSection(): string {
+    const lines = readFileSync(ADAPTERS, "utf8").split(/\r?\n/);
+    const heads = lines
+      .map((l, i) => ({ i, m: /^(#{1,6})\s+(.*)$/.exec(l) }))
+      .filter((h) => h.m !== null);
+    const hits = heads.filter((h) => h.m![2].includes(HEADING_TEXT));
+    expect(hits.length, `adapters.md must carry exactly one "${HEADING_TEXT}" heading`).toBe(1);
+    const level = hits[0].m![1].length;
+    const next = heads.find((h) => h.i > hits[0].i && h.m![1].length <= level);
+    return lines.slice(hits[0].i + 1, next === undefined ? lines.length : next.i).join("\n");
+  }
+
+  it("the section names the primary sources, the retrieval date, the template directory and the written path", () => {
+    const sec = piSection();
+    for (const token of ["github.com/earendil-works/pi", "pi.dev", RETRIEVED, ".pi/prompts/", PI_PROMPT_REL]) {
+      expect(sec, `the Pi section does not carry ${token}`).toContain(token);
+    }
+  });
+
+  it("every bullet in the section carries a Pi source and the retrieval date", () => {
+    const bullets = piSection()
+      .split(/\n(?=- )/)
+      .filter((b) => b.startsWith("- "))
+      // A markdown line wrap is a space, so a source wrapped across lines still counts.
+      .map((b) => b.replace(/\s+/g, " "));
+    // The section records the context-file, template, trust, skills, sub-agent and detection facts.
+    expect(bullets.length).toBeGreaterThanOrEqual(6);
+    for (const b of bullets) {
+      expect(b, `bullet without a source: ${b.slice(0, 60)}`).toMatch(/github\.com\/earendil-works\/pi|pi\.dev/);
+      expect(b, `bullet without the retrieval date: ${b.slice(0, 60)}`).toContain(`retrieved ${RETRIEVED}`);
+    }
+  });
+
+  it("the safety statement says Pi asks for no approval per tool call and names the git host as the only hard control", () => {
+    const safety = /\*\*Safety on Pi\.\*\*([\s\S]*?)(?:\n\n|$)/.exec(piSection());
+    expect(safety, "the Pi section has no **Safety on Pi.** paragraph").not.toBeNull();
+    const text = safety![1].replace(/\s+/g, " ");
+    expect(text).toContain("does not ask for approval before every tool call");
+    expect(text).toMatch(/git host is therefore the only hard control/);
+    expect(text).toContain("security.md");
+  });
+});

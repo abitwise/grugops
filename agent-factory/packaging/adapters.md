@@ -23,7 +23,7 @@ roles, same shared context, same gates.
 > usage overview whose Claude Code row predates the command-form decision (D-29). **This
 > file is the current, authoritative dispatch map.** Where they disagree, this file wins.
 
-## The 5-tool dispatch map
+## The per-host dispatch map
 
 Every row is flagged "verify against current tool docs" because host-tool conventions
 (plugin/marketplace schema, slash-command namespacing, per-tool entry files) move fast.
@@ -39,7 +39,7 @@ ship — never assume a tool fact is permanent.
 | **GitHub Copilot CLI** | `AGENTS.md` (+ optional `.github/copilot-instructions.md`) | Sequential role-load — no spawn | **Optional pointer.** Ensuring `AGENTS.md` is present is sufficient; the `.github/` pointer is a convenience | verify against current Copilot CLI docs |
 | **Pi** | `AGENTS.md` (one context file per directory, `AGENTS.md` before `CLAUDE.md`, read from the working directory and its ancestors) | Sequential role-load — no spawn; Pi ships no sub-agents | **Prompt template.** `.pi/prompts/grugops.md`, a pointer that gives `/grugops`; Pi loads it after project trust, from the directory Pi starts in | verify against current Pi docs |
 
-The four non-spawning CLIs (Codex, Gemini, OpenCode, Copilot) use the single-window sequential
+The non-spawning host CLIs (Codex, Gemini, OpenCode, Copilot, Pi) use the single-window sequential
 role-load (`_role-switch-protocol.md`): the Orchestrator is a single agent that *loads the
 relevant role file into context* at the moment it would otherwise "wake" that role — no
 sub-agent spawning, because those hosts cannot spawn. Claude Code adds coordinator spawning: the
@@ -51,7 +51,7 @@ defaulted to 1, a known-bad window where nesting is effectively off. Width stays
 per session), never a consequence of the depth cap — depth and width are independent axes. The
 sequential role-load is still available as the fallback. What changes from tool to tool is the **entry file** the host reads
 to reach `agent-factory/roles/orchestrator.md` (the column above) and — on Claude Code only — the
-dispatch mode. **Same roles, same shared context, same gates — the four non-spawning CLIs stay
+dispatch mode. **Same roles, same shared context, same gates — the non-spawning host CLIs stay
 sequential; only Claude Code adds coordinator spawning.**
 
 ### The three entry tiers (Claude Code)
@@ -72,7 +72,7 @@ vocabulary, not two.
   `/grugops` skill entry gets. Scheduling is still parallel, to the same cap; the grant is **not**
   runtime-enforced there, because a default session declares no allowlist. The coordinator says so
   and stays inside the grant by instruction.
-- **Degraded** — `Agent` is unavailable: the four non-Claude-Code host CLIs, or a sub-agent already
+- **Degraded** — `Agent` is unavailable: the non-Claude-Code host CLIs, or a sub-agent already
   at the nesting limit (at the limit the platform withholds `Agent` rather than erroring, so a role
   agent simply does the work itself). The same queue drains at concurrency one through
   `agent-factory/roles/_role-switch-protocol.md`, announced.
@@ -90,6 +90,58 @@ Doc links cite `code.claude.com/docs/en/*` (the current host) — for example
 `code.claude.com/docs/en/plugins-reference`, `code.claude.com/docs/en/skills`,
 `code.claude.com/docs/en/hooks`, `code.claude.com/docs/en/sub-agents`. Always cite the
 `code.claude.com` host — the older documentation host now 301-redirects, so do not use it.
+
+## Pi (pi.dev) conventions
+
+Pi is the coding agent at `pi.dev`. Every fact below was read from Pi's own documentation and
+loader source: repository `github.com/earendil-works/pi`, branch `main` at commit `9ad08310`,
+package `@earendil-works/pi-coding-agent` 1.0.4, all retrieved 2026-10-06 (recorded in
+`.planning/phases/34-model-effort-dial-pi-support/34-RESEARCH.md` § B). Pi conventions can change;
+verify against current Pi docs before you rely on one.
+
+- **Project instructions.** Pi reads one context file per directory: the first of
+  `AGENTS.override.md`, `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`. It reads from its agent
+  directory and from the working directory and every ancestor, and context files need no project
+  trust. In a repository holding both `AGENTS.md` and `CLAUDE.md`, Pi reads `AGENTS.md` only.
+  (Source: `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/configuration.md`
+  § Context files, and `src/core/resource-loader.ts`; retrieved 2026-10-06.)
+- **Prompt templates.** Project templates load from `<working directory>/.pi/prompts/*.md`, direct
+  children only, with no ancestor walk. The filename is the command name, so `.pi/prompts/review.md`
+  becomes `/review`. Pi reads the `description` and `argument-hint` frontmatter keys, and
+  `$ARGUMENTS` expands to the arguments. (Source:
+  `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md` and
+  `src/core/prompt-templates.ts`; retrieved 2026-10-06.)
+- **Trust.** Project prompt templates load only after the user grants project trust. In print, JSON
+  and RPC modes with the default `defaultProjectTrust: "ask"`, they are skipped. (Source:
+  `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md`; retrieved
+  2026-10-06.)
+- **Skills.** Pi loads skills from `.pi/skills/`, `.agents/skills/` and user-level locations. It does
+  not read `.claude/skills/`. (Source:
+  `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md`; retrieved
+  2026-10-06.)
+- **Sub-agents.** Pi ships no sub-agents: its README, line 19, says it "skips features like
+  sub-agents and plan mode", and `pi.dev` lists "No sub-agents". (Source:
+  `github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md` and `pi.dev`; retrieved
+  2026-10-06.) So Pi uses the sequential role-load, the same as the other non-spawning hosts.
+- **Detection.** The installer reports Pi as in use when the target root holds a `.pi` entry. This
+  is a grugops rule (`install/host-tools.ts`), checked against Pi's project `.pi/` layout in
+  `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/configuration.md` (retrieved
+  2026-10-06).
+
+**What grugops writes for Pi.** The installer writes one file, `.pi/prompts/grugops.md`. It is a
+pointer prompt template that gives `/grugops` and sends Pi to `AGENTS.md` and then
+`agent-factory/roles/orchestrator.md`. It is not a resolver adapter and holds no role text. grugops never writes `.pi/SYSTEM.md`,
+`.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, writes no Pi skill or extension, and ships no Pi
+skill package. Start Pi from the repository root to get the command, because Pi looks for project
+templates only in the directory it starts in. Pi still asks for project trust before it loads the
+template.
+
+**Safety on Pi.** Pi can read, change and run files with the permissions of the account that started
+it, and it does not ask for approval before every tool call (source:
+`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md`, retrieved
+2026-10-06). On Pi, the git host is therefore the only hard control on merge and deploy: branch
+protection or rulesets on protected branches, and a production deployment environment with required
+reviewers (`install/README.md` §5). A Pi extension can block a tool call, but grugops ships none.
 
 ## Safety enforcement — where each rule is held
 
@@ -117,6 +169,7 @@ Per tool:
 | Claude Code, standalone install | git host | Claude Code ask rules the installer writes to `permissions.ask` in `.claude/settings.json`, from `checkpoints.protected_branch_merge` and `checkpoints.production_requires_human_confirmation` | role and workflow rules |
 | Claude Code, plugin form only | git host | none: a plugin cannot carry permission rules | role and workflow rules |
 | Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI | git host | the tool's own approval mode, which you configure; grugops generates no config and documents each mode in `install/README.md` §5 | role and workflow rules |
+| Pi | git host, the only hard control | none. Pi does not ask for approval before every tool call (`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md`, retrieved 2026-10-06). A Pi extension can block a tool call, but grugops ships none | role and workflow rules |
 
 grugops ships no Bash hook. The Bash command guard earlier releases shipped was retired by
 33.1 D-17, because no parser of shell text could be closed; the plugin's one hook is the MCP

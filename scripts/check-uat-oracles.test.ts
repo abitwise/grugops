@@ -125,7 +125,7 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
   // ── Asymmetry-drift RED fixture (D-19 / Pitfall 3) — a non-CC row growing spawn wording → red. ────
   // Plant coordinator-spawn wording into the Codex CLI row of adapters.md (mirror) and assert the
   // oracle goes red naming the drifted row/file. This is the wording-drift catcher the flip needs:
-  // the asymmetric flip must keep the four non-CC rows no-spawn; a bulk find-replace that hits them
+  // the asymmetric flip must keep every non-CC row no-spawn; a bulk find-replace that hits them
   // is the exact bug.
   it("wording asymmetry-drift: Codex CLI row gains spawn/coordinator wording → nonzero + names the row/file", () => {
     const m = mirror();
