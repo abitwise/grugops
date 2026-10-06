@@ -1661,7 +1661,7 @@ Plans:
 
 **Goal**: Users can set reasoning effort per role through the same `models` dial that already sets the model, and Pi (pi.dev) joins the five supported host coding-agent CLIs through the existing thin-pointer, single-source adapter pattern — with the same idempotent, dry-run, reversible install contract.
 **Depends on**: Phase 33 (adapter generation + installer are stable; Windows leg green before a sixth adapter lands)
-**Requirements**: TBD (to be enumerated at plan time — effort dial + Pi host support)
+**Requirements**: EFFORT-01, EFFORT-02, EFFORT-03, EFFORT-04, EFFORT-05, HOST-01, HOST-02, PI-01, PI-02, PI-03, PI-04
 **Success Criteria** (what must be TRUE):
 
   1. Before any design is written, it is verified (with a cited source, or marked `UNKNOWN - verify`) whether Claude Code sub-agent frontmatter honours an `effort` key; if it does not, the dial is scoped to whatever mechanism does exist and the limitation is documented rather than a field written and silently ignored.
@@ -1670,7 +1670,39 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans**: TBD
+**Plans:** 10 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 34-01-PLAN.md — effort tracer: `models.effort` read by the one reader, resolved by `resolveEfforts`, emitted as `effort:` only when not `inherit`; full D-03 refusal class and both consumption probes; D-18 residual stated at the reader (D-01, D-02, D-03, D-06, D-07, D-08, D-18)
+- [ ] 34-02-PLAN.md — host-tool registry tracer: `install/host-tools.ts` (HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL) with Pi; `detectTools()` and the closing host line derived from it (D-10, D-11, D-16)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 34-03-PLAN.md — effort announcements asserted by the freshness gate; per-role effort rationale; tiered split derived from TIERED; model `tiered` leaves effort alone (D-04, D-05, D-06)
+- [ ] 34-04-PLAN.md — Pi prompt template `.pi/prompts/grugops.md` written unconditionally, ledgered, reversed through `owns(path)`; derived DC-2/DC-3 class tests re-pinned (D-10, D-13, D-16, D-17)
+
+**Wave 3** *(blocked on 34-03)*
+
+- [ ] 34-05-PLAN.md — `effort` in CANONICAL_SCHEMA measured over configured output; `guard_effort_assignment` with the DC-1 class matrix (D-06, D-15)
+- [ ] 34-07-PLAN.md — effort dial documented in its two authorities with citations and `UNKNOWN - verify` residuals; count-free scope section with the cited Pi clause; coordinator line reworded under a declared baseline divergence (D-01, D-06, D-07, D-08, D-12, D-14)
+
+**Wave 4** *(blocked on 34-04 and 34-05)*
+
+- [ ] 34-06-PLAN.md — registry-derived dispatch-table oracle and validator check; two-sided per-host table test; Pi rows; Pi conventions recorded from primary sources (D-10, D-11)
+
+**Wave 5** *(blocked on 34-06 and 34-07)*
+
+- [ ] 34-08-PLAN.md — Pi user documentation: install guide (template, `/grugops`, trust, uninstall, safety), README, browser-UAT recipe, slash-command template, FAQ, CLAUDE.md and PROJECT.md (D-10, D-12, D-13, D-16, D-17)
+
+**Wave 6** *(blocked on 34-08)*
+
+- [ ] 34-09-PLAN.md — derived host-prose scan (count word, host list missing one host) over markdown and TypeScript, mutation-proven; remaining rewrites; hook manifest regenerated (D-11)
+
+**Wave 7** *(blocked on Wave 6 completion; has a human checkpoint)*
+
+- [ ] 34-10-PLAN.md — effort delivery through the shipped installer; ROADMAP Depends-on rewritten (D-09); D-18 residual and backlog items; CHANGELOG; human push and the recorded windows-latest result (D-09, D-18)
 
 ## Progress
 

@@ -39,21 +39,23 @@ created: "2026-10-06"
 
 ## Per-Task Verification Map
 
-Filled by the planner/executor per task. Requirement → test map from research:
+Filled by the planner (requirement and plan level, 2026-10-06); plan 34-10 Task 2 fills the per-task detail and statuses. Every command runs as `npx vitest run --exclude '**/scripts/e2e/**' <files>` after `npm run build` (never plain `npm test`).
 
-| Requirement | Behavior | Test Type | Automated Command | File Exists | Status |
-|-------------|----------|-----------|-------------------|-------------|--------|
-| EFFORT-01 | citation + version floor in dial docs | doc oracle | `npx vitest run scripts/model-dial-consistency.test.ts` | ✅ extend | ⬜ pending |
-| EFFORT-02 | every refusal by name; effort-only block consumed | unit | `npx vitest run scripts/model-tiers.test.ts` | ✅ extend | ⬜ pending |
-| EFFORT-03 | tiered effort derived from model TIERED split; model tiered leaves effort inherit | unit | `npx vitest run scripts/model-tiers.test.ts` | ✅ extend | ⬜ pending |
-| EFFORT-04 | zero-config byte-equal (declared divergences only, D-14); configured mirror emits resolved lines; guard red on hand-edit (D-15) | integration | `npx vitest run scripts/generate-role-adapters.test.ts scripts/adapter-byte-baseline.test.ts scripts/adapters-freshness.test.ts scripts/check-foundation-guards.test.ts scripts/canonical-frontmatter.test.ts` | ✅ extend | ⬜ pending |
-| EFFORT-05 | closed sets documented at their sites, non-colliding markers | doc oracle | `npx vitest run scripts/model-dial-consistency.test.ts` | ✅ extend | ⬜ pending |
-| HOST-01 | registry count; detection; tables set-equal; no host count word in prose (mutation-proved) | unit + corpus | `npx vitest run install/host-tools.test.ts scripts/check-uat-oracles.test.ts` | ❌ W0 | ⬜ pending |
-| HOST-02 | no new windows-latest red | CI | human-pushed run | manual | ⬜ pending |
-| PI-01 | Pi conventions recorded with sources | doc oracle | `npx vitest run install/host-tools.test.ts` | ❌ W0 | ⬜ pending |
-| PI-02 | `.pi/prompts/grugops.md` created with exact pointer bytes; never overwrites; DRY_RUN writes nothing | integration | `npx vitest run install/install.test.ts install/installer-dry-run.test.ts` | ✅ extend | ⬜ pending |
-| PI-03 | ledgered; uninstall removes only recorded+unchanged; user file survives | integration | `npx vitest run install/installer-never-installed.test.ts install/installer-user-edit.test.ts install/installer-special-files.test.ts install/installer-write-set.test.ts install/uninstall-removal.test.ts` | ✅ re-pin | ⬜ pending |
-| PI-04 | scope sentence + Pi safety rows with citations | doc oracle | `npx vitest run scripts/model-dial-consistency.test.ts install/host-tools.test.ts` | ✅/❌ | ⬜ pending |
+| Requirement | Behavior | Plans | Test Type | Test files | File Exists | Status |
+|-------------|----------|-------|-----------|------------|-------------|--------|
+| EFFORT-01 | citation, version facts and fallback in the dial docs | 34-07 | doc oracle | `scripts/model-dial-consistency.test.ts` | ✅ extend | ⬜ pending |
+| EFFORT-02 | every refusal by name; effort-only block consumed; EFFORT_KEYS consumption | 34-01 | unit + mirror | `scripts/model-tiers.test.ts`, `scripts/generate-role-adapters.test.ts` | ✅ extend | ⬜ pending |
+| EFFORT-03 | tiered effort derived from TIERED; rationale required; model tiered leaves effort inherit | 34-01, 34-03 | unit + mirror | `scripts/model-tiers.test.ts`, `scripts/generate-role-adapters.test.ts` | ✅ extend | ⬜ pending |
+| EFFORT-04 | zero-config byte-equal (declared divergences only, D-14); configured emit; announcements asserted; guard red on hand-edit (D-15); installer delivery | 34-01, 34-03, 34-05, 34-07, 34-10 | integration | `scripts/generate-role-adapters.test.ts`, `scripts/adapter-byte-baseline.test.ts`, `scripts/adapters-freshness.test.ts`, `scripts/check-foundation-guards.test.ts`, `scripts/canonical-frontmatter.test.ts`, `install/install.test.ts` | ✅ extend | ⬜ pending |
+| EFFORT-05 | closed sets at their own sites, non-colliding markers; precedence and reach documented | 34-07 | doc oracle | `scripts/model-dial-consistency.test.ts` | ✅ extend | ⬜ pending |
+| HOST-01 | registry count; detection; oracle and validator derived; tables set-equal; prose count word and short host list (mutation-proved) | 34-02, 34-06, 34-09 | unit + corpus | `install/host-tools.test.ts`, `install/host-tools-prose.test.ts`, `scripts/check-uat-oracles.test.ts`, `scripts/validate.test.ts` | ❌ W0 (34-02, 34-09 create) | ⬜ pending |
+| HOST-02 | no test added or changed by the phase red on windows-latest | 34-10 | CI | human-pushed run, read with `gh run view` | manual | ⬜ pending |
+| PI-01 | Pi conventions recorded with sources | 34-06 | doc oracle | `install/host-tools.test.ts` | ❌ W0 (34-02 creates) | ⬜ pending |
+| PI-02 | registry row, detection, `.pi/prompts/grugops.md` exact bytes, never overwrites, DRY_RUN writes nothing, docs | 34-02, 34-04, 34-06, 34-08 | integration + doc oracle | `install/install.test.ts`, `install/installer-dry-run.test.ts`, `install/host-tools.test.ts` | ✅ extend | ⬜ pending |
+| PI-03 | ledgered; uninstall removes only recorded and unchanged; user file survives; special files at the path | 34-04, 34-10 | integration (class tests) | `install/installer-never-installed.test.ts`, `install/installer-user-edit.test.ts`, `install/installer-special-files.test.ts`, `install/installer-cross-version.test.ts`, `install/record-truth.test.ts`, `install/installer-write-set.test.ts`, `install/uninstall-removal.test.ts` | ✅ re-pin | ⬜ pending |
+| PI-04 | scope sentence with the cited Pi clause; Pi safety entries | 34-07, 34-06, 34-08 | doc oracle | `scripts/model-dial-consistency.test.ts`, `install/host-tools.test.ts` | ✅ extend | ⬜ pending |
+
+Spec-less probe fallback: no SPEC.md exists and the phase had no requirement IDs at plan start, so no probe-derived edge predicates were generated; edge cases and prohibitions were derived from 34-CONTEXT.md decisions and 34-RESEARCH.md pitfalls and recorded in each plan's `must_haves.prohibitions`.
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -61,8 +63,9 @@ Filled by the planner/executor per task. Requirement → test map from research:
 
 ## Wave 0 Requirements
 
-- [ ] `install/host-tools.ts` + `install/host-tools.test.ts` — registry, count, detection mapping, table set equality, prose count scan with mutation proof
-- [ ] A `detectTools()` behaviour case (none covers the `tools detected:` line today)
+- [ ] `install/host-tools.ts` + `install/host-tools.test.ts` — registry, count, detection mapping (plan 34-02, wave 1); table set equality (plan 34-06)
+- [ ] `install/host-tools-prose.test.ts` — prose count-word and short-host-list scan with mutation proof (plan 34-09)
+- [ ] A `detectTools()` behaviour case (none covers the `tools detected:` line today) (plan 34-02 Task 1)
 
 ---
 
