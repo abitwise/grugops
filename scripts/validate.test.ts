@@ -53,6 +53,9 @@ import { TICKET_KEYS } from "./board-model.js";
 // would otherwise carry a second definition of the same one-liner (RESEARCH Pitfall 3, D-15).
 import { toPosixWith } from "./posix-path.js";
 import { pathToFileURL } from "node:url";
+// (Plan 34-06, D-11) The host registry the validator's dispatch-map check reads. The kits below
+// generate their dispatch table FROM it, so no host name is typed in this file.
+import { HOST_TOOLS } from "../install/host-tools.js";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
 // tree, and a second implementation of it is the defect this phase exists to delete, not a
@@ -270,6 +273,10 @@ describe("validate-agent-factory.js (VAL-01 / VAL-02 self-test)", () => {
   it("WARN warn-only-no-trace --strict → nonzero (promotion proven)", () => {
     const r = runFixture(join(FIX, "warn-only-no-trace"), "--strict");
     expect(r.status).not.toBe(0);
+    // (Plan 34-06) The fixture's adapters.md carries no per-host table, so the run now ALSO carries
+    // the dispatch-map warning, and --strict would go non-zero on that alone. Asserting the
+    // traceability warning keeps this case proving the promotion it was written for.
+    expect(out(r)).toContain("no traceability row for ticket");
   });
 
   // (e) TWO-ROOT split (VAL-02 / D-08, SC3/SC4).
@@ -673,6 +680,79 @@ describe("each deliberately-broken fixture still fails for EXACTLY its own reaso
       ).toHaveLength(configFindings);
     },
   );
+});
+
+// ── Plan 34-06 (D-10 validator coverage, D-11): the kit's dispatch map against the host registry. ──
+//
+// The validator reads the kit's agent-factory/packaging/adapters.md and holds its bold host rows to
+// install/host-tools.ts: exactly one row per registry host, and no bold row naming anything else. A
+// kit with no bold host row at all is REPORTED (a warning, promoted by --strict), never passed
+// silently. Every table below is generated from HOST_TOOLS, so a host added to the registry is
+// covered here with no edit.
+describe("validate-agent-factory.js — the dispatch map is checked against the host registry (plan 34-06)", () => {
+  const ROW = (name: string): string => `| **${name}** | \`AGENTS.md\` | Sequential role-load — no spawn |`;
+  // Write a good kit whose adapters.md carries a dispatch table built from `names`.
+  function kitWithTable(names: readonly string[]): string {
+    const kit = copyGoodKit(true);
+    const table = ["| Tool | Entry file it reads | Dispatch mode |", "| ---- | ---- | ---- |", ...names.map(ROW)];
+    writeFileSync(
+      join(kit, "agent-factory", "packaging", "adapters.md"),
+      ["# Adapters (generated in test)", "", ...table, ""].join("\n"),
+    );
+    return kit;
+  }
+  const ALL = HOST_TOOLS.map((t) => t.name);
+  const PI = HOST_TOOLS.find((t) => t.id === "pi")!.name;
+  const hostFinding = /host registry|per-host dispatch/;
+
+  it("one bold row per registry host → exit 0 with no host finding", () => {
+    expect(ALL.length).toBe(HOST_TOOLS.length);
+    const r = runFixture(kitWithTable(ALL));
+    expect(r.status, out(r)).toBe(0);
+    expect(out(r)).not.toMatch(hostFinding);
+  });
+
+  it("the Pi row removed → nonzero, naming Pi", () => {
+    const r = runFixture(kitWithTable(ALL.filter((n) => n !== PI)));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(new RegExp(`ERROR .*0 row\\(s\\) for registry host "${PI}"`));
+  });
+
+  it("an extra bold row `**Foo CLI**` → nonzero, naming it", () => {
+    const r = runFixture(kitWithTable([...ALL, "Foo CLI"]));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/ERROR .*"Foo CLI" is not a registry host/);
+  });
+
+  it("a duplicated host row → nonzero, naming it", () => {
+    const dup = HOST_TOOLS.find((t) => t.dispatch === "sequential")!.name;
+    const r = runFixture(kitWithTable([...ALL, dup]));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(new RegExp(`ERROR .*2 row\\(s\\) for registry host "${dup}"`));
+  });
+
+  it("no bold host row at all → exit 0 bare with a WARNING naming the missing table; nonzero under --strict", () => {
+    // The good fixture's adapters.md is a one-line placeholder with no table: exactly this shape.
+    const kit = copyGoodKit(true);
+    expect(readFileSync(join(kit, "agent-factory", "packaging", "adapters.md"), "utf8")).not.toMatch(/^\|/m);
+    const bare = runFixture(kit);
+    expect(bare.status, out(bare)).toBe(0);
+    expect(out(bare)).toMatch(/WARNING .*carries no per-host dispatch table/);
+    const strict = runFixture(kit, "--strict");
+    expect(strict.status).not.toBe(0);
+    expect(out(strict)).toMatch(/carries no per-host dispatch table/);
+  });
+
+  it("the repository's own tree passes bare and --strict with no host finding", () => {
+    for (const flag of [undefined, "--strict"]) {
+      const r = spawnSync("node", flag ? [VALIDATOR_JS, flag] : [VALIDATOR_JS], {
+        encoding: "utf8",
+        env: { ...process.env, VALIDATE_KIT_ROOT: ROOT },
+      });
+      expect(r.status, out(r)).toBe(0);
+      expect(out(r)).not.toMatch(hostFinding);
+    }
+  });
 });
 
 describe("validate-agent-factory.ts — the legal key set is IMPORTED, never restated", () => {
