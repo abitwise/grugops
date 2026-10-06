@@ -1305,7 +1305,7 @@ function guardWr05(): void {
 //
 // WHAT IS DELIBERATELY NOT BANNED. The pre-generation adapter line conflated two things. The
 // memory-relay phrasing is retired. The execution-topology phrasing — one window with prior context
-// dropped between roles — is STILL CORRECT: it describes how roles activate on the four
+// dropped between roles — is STILL CORRECT: it describes how roles activate on the
 // non-spawning host CLIs, it is verbatim in the packaging template, and under the revised D-02 it is
 // the degraded tier's own wording. Banning it would fail red on text this project keeps on purpose,
 // and the only way back to green would be deleting correct text. The retired list in

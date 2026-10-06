@@ -329,7 +329,7 @@ export function oracleWr05Wording() {
             // false — both files carry every host row — and the `continue` made the asymmetry assertion pass
             // VACUOUSLY on a DELETED row while the PASS line below still stated the flip is asymmetric.
             // Reproduced against the committed .js: removing the Claude Code row from both files left the
-            // gate printing `PASS WR-05 wording: … the 5-tool-table flip is asymmetric` and exiting 0. A
+            // gate printing a WR-05 PASS line that called the per-host table flip asymmetric, and exiting 0. A
             // PASS line must never state a check that was not performed (check-audit-register.ts:272,
             // check-nul-bytes.ts:397), and every direction of this assertion is satisfied vacuously by an
             // absent row. So zero rows FAILS by name, exactly as the beat scan's own two-sided presence

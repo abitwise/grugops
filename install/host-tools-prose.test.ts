@@ -16,16 +16,18 @@
 // RULE A, THE COUNT WORD (case-insensitive). A number word from two to ten or a digit from 2 to 9,
 // then any number of the qualifiers `other`, `supported`, `host` or `non-…` in any order, then a
 // host noun: `CLIs`, `CLI`, `hosts`, `host tools`, `host-CLI`, or (markdown arm only) `tools`. The
-// hyphen form `<n>-tool` is a hit in both arms. The rule runs over a joined BLOCK of text rather
+// hyphen forms `<n>-tool` and `<n>-host` are hits in both arms. The rule runs over a joined BLOCK of text rather
 // than one line, so a phrase that wraps across a line break is still found: a markdown block is a
 // blank-line-delimited paragraph; a TypeScript block is a run of comment lines (broken at an empty
 // comment line) or a run of code lines joined by a trailing `+` (a wrapped string literal).
 //
-// RULE B, THE SHORT HOST LIST. Each markdown paragraph (a table is one paragraph), each TypeScript
-// block and each TypeScript line is checked for the registry short names it names (case-sensitive,
-// word-bounded). Naming every `sequential`-dispatch host except exactly one is a hit, and the
-// finding names the host that was left out. A line hit inside a block that already reports the same
-// missing host is folded into the block's finding.
+// RULE B, THE SHORT HOST LIST. Each block (a markdown paragraph, where a table is one paragraph; a
+// TypeScript comment paragraph or wrapped string) is checked for the registry short names it names
+// (case-sensitive, word-bounded). Naming every `sequential`-dispatch host except exactly one is a
+// hit; the finding names the host that was left out and the line where the list starts. A
+// TypeScript line is judged inside its block, never alone: a block always contains its lines, so a
+// line that names all hosts but one is reported unless its own paragraph names the missing host,
+// and a list that wraps across a line break is not misread as short.
 //
 // EXEMPTIONS are declared, reasoned and counted: each entry names a file, a rule and a needle that
 // must occur in the finding's block text. An exemption that no longer matches a finding fails (a
@@ -79,7 +81,7 @@ const NOUNS_TS = ["host[ -]tools", "host-cli", "clis?", "hosts"];
 const NOUNS_MD = [...NOUNS_TS, "tools"];
 function ruleARe(arm: Arm): RegExp {
   const nouns = (arm === "md" ? NOUNS_MD : NOUNS_TS).join("|");
-  return new RegExp(`\\b${NUMBER}[ -]+${QUALIFIERS}(?:${nouns})\\b|\\b${NUMBER}-tool\\b`, "gi");
+  return new RegExp(`\\b${NUMBER}[ -]+${QUALIFIERS}(?:${nouns})\\b|\\b${NUMBER}-(?:tool|host)\\b`, "gi");
 }
 
 // ── The scanner ──────────────────────────────────────────────────────────────────────────────────
@@ -179,11 +181,15 @@ function joinBlock(b: Block): { text: string; lineAt: (offset: number) => number
   return { text, lineAt };
 }
 
-/** The one sequential host a text leaves out when it names all the others, else null. */
-function omittedHost(text: string): string | null {
-  const named = SHORT_NAME_RES.filter((s) => s.re.test(text)).map((s) => s.name);
+/**
+ * The one sequential host a text leaves out when it names all the others, with the offset of the
+ * first host it does name; null when it names all of them, or two or more fewer.
+ */
+function omittedHost(text: string): { host: string; at: number } | null {
+  const named = SHORT_NAME_RES.map((s) => ({ name: s.name, at: text.search(s.re) })).filter((n) => n.at >= 0);
   if (named.length !== SEQUENTIAL.length - 1) return null;
-  return SEQUENTIAL.find((s) => !named.includes(s)) ?? null;
+  const host = SEQUENTIAL.find((s) => !named.some((n) => n.name === s));
+  return host === undefined ? null : { host, at: Math.min(...named.map((n) => n.at)) };
 }
 
 function scanFile(file: string, arm: Arm, body: string): Finding[] {
@@ -191,25 +197,13 @@ function scanFile(file: string, arm: Arm, body: string): Finding[] {
   const blocks = arm === "md" ? markdownBlocks(lines) : typescriptBlocks(lines);
   const out: Finding[] = [];
   const re = ruleARe(arm);
-  const blockMisses: { lines: number[]; host: string }[] = [];
   for (const b of blocks) {
     const { text, lineAt } = joinBlock(b);
     for (const m of text.matchAll(re)) {
       out.push({ file, line: lineAt(m.index ?? 0), rule: "A", text: m[0], context: text });
     }
-    const host = omittedHost(text);
-    if (host !== null) {
-      out.push({ file, line: b.lines[0] + 1, rule: "B", text: `omits ${host}`, context: text });
-      blockMisses.push({ lines: b.lines, host });
-    }
-  }
-  if (arm === "ts") {
-    lines.forEach((l, i) => {
-      const host = omittedHost(l);
-      if (host === null) return;
-      if (blockMisses.some((bm) => bm.host === host && bm.lines.includes(i))) return;
-      out.push({ file, line: i + 1, rule: "B", text: `omits ${host}`, context: l.trim() });
-    });
+    const miss = omittedHost(text);
+    if (miss !== null) out.push({ file, line: lineAt(miss.at), rule: "B", text: `omits ${miss.host}`, context: text });
   }
   return out;
 }
@@ -274,9 +268,18 @@ const EXEMPTIONS: readonly Exemption[] = [
       "The list names the hosts grugops could generate agent definitions for. The registry host it " +
       "leaves out has no per-agent definition format, so it is not a candidate (plan 34-07, D-12).",
   },
+  {
+    file: "scripts/model-dial-consistency.test.ts",
+    rule: "B",
+    needle: "each accept a per-agent `model`",
+    reason:
+      "SCOPE_SENTENCE is the oracle's verbatim pin of the packaging doc's per-agent clause, which names " +
+      "the hosts that accept a per-agent `model` field. The host it leaves out is covered by the " +
+      "separate PI_CLAUSE pin on the same doc line; in the markdown the paragraph names every host.",
+  },
 ];
 /** Pinned: moves only in the commit that adds or removes an exemption. */
-const EXEMPTION_COUNT = 2;
+const EXEMPTION_COUNT = 3;
 /** Pinned: Rule A exemptions are allowed only for a phrase that is not about host CLIs; none today. */
 const RULE_A_EXEMPTION_COUNT = 0;
 
@@ -411,16 +414,27 @@ describe("the host-prose scan catches both members of the class, by mutation (pl
     ]);
   });
 
-  it("(7) the `<n>-tool` hyphen form is a Rule A hit, and bare `tools` is a host noun only in markdown", () => {
+  it("(7) the `<n>-tool` and `<n>-host` hyphen forms are Rule A hits, and bare `tools` is a host noun only in markdown", () => {
     const root = plantedRepo("m7", {
-      "h.md": `The ${PLANT_DIGIT}-tool table.\n`,
+      "h.md": `The ${PLANT_DIGIT}-tool table.\n\nThe ${PLANT_DIGIT}-${PLANT_HOST} control.\n`,
       "h.ts": `// The ${PLANT_DIGIT}-tool table; the ${PLANT_FIVE} ${PLANT_TOOLS} of the build.\nexport const h = 1;\n`,
     });
     const hits = scanTree(root).findings;
-    expect(hits.map(show)).toEqual([`h.md:1 [Rule A] ${PLANT_DIGIT}-tool`, `h.ts:1 [Rule A] ${PLANT_DIGIT}-tool`]);
+    expect(hits.map(show)).toEqual([
+      `h.md:1 [Rule A] ${PLANT_DIGIT}-tool`,
+      `h.md:3 [Rule A] ${PLANT_DIGIT}-${PLANT_HOST}`,
+      `h.ts:1 [Rule A] ${PLANT_DIGIT}-tool`,
+    ]);
   });
 
-  it("(8) an exemption whose needle matches no finding is reported as stale", () => {
+  it("(8) a list wrapped across a string concatenation is judged whole, so a complete wrapped list is clean", () => {
+    const root = plantedRepo("m9", {
+      "full.ts": `export const s =\n  "open on ${SEQUENTIAL.slice(0, 1).join("")}, " +\n  "${SEQUENTIAL.slice(1).join(", ")} only.";\n`,
+    });
+    expect(scanTree(root).findings.map(show)).toEqual([]);
+  });
+
+  it("(9) an exemption whose needle matches no finding is reported as stale", () => {
     const root = plantedRepo("m8", { "x.md": `# X\n\nIt runs on ${SEQUENTIAL.join(", ")}.\n` });
     const findings = scanTree(root).findings;
     const probe: Exemption = { file: "x.md", rule: "B", needle: "It runs on", reason: "probe" };
@@ -442,5 +456,18 @@ describe("the live tree carries no host count and no short host list (plan 34-09
 
   it("markdown arm: zero findings outside the declared exemptions, and every markdown exemption still matches", () => {
     liveCase("md");
+  });
+
+  it("TypeScript arm: premise — the scan set is non-empty, holds the anchor sources and this file, and excludes the declared paths", () => {
+    const scan = live();
+    expect(scan.ts.length).toBeGreaterThan(100);
+    for (const f of ["install/install.ts", "scripts/model-tiers.ts", "install/host-tools.ts", "install/host-tools-prose.test.ts"]) {
+      expect(scan.ts, `${f} is missing from the TypeScript scan set`).toContain(f);
+    }
+    for (const f of scan.ts) expect(isExcluded(f), `${f} is excluded but was scanned`).toBe(false);
+  });
+
+  it("TypeScript arm: zero findings outside the declared exemptions, and every TypeScript exemption still matches", () => {
+    liveCase("ts");
   });
 });

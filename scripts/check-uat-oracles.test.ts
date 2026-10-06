@@ -53,7 +53,7 @@ const GUARD_JS = join(ROOT, "scripts", "check-uat-oracles.js");
 
 // The complete set of input files the file-reading oracles consume (repo-relative). A mirror carries
 // byte-faithful copies of all of these; one file is then mutated to plant a violation. The four
-// WR05_SCAN docs + the two 5-tool tables. (33.1 D-28: hooks.json and the Bash guard left this set
+// WR05_SCAN docs + the two per-host tables. (33.1 D-28: hooks.json and the Bash guard left this set
 // with the A2 wiring oracle that read and spawned them.) (DOGF-01: oracleDualPathEquivalence
 // self-seeds hermetic temp dirs and reads NONE of these, so examples/03-ticket-to-pr.md — the former parity-grep oracle's input — is no longer a guard input.)
 const GUARD_INPUTS = [
@@ -61,7 +61,7 @@ const GUARD_INPUTS = [
   ".planning/STATE.md",
   ".planning/v1.2-SDLC-COVERAGE-AUDIT.md",
   ".planning/RETROSPECTIVE.md",
-  // Phase 23 (D-19 / Pitfall 3): the oracle now scans the 5-tool tables for asymmetric-flip drift.
+  // Phase 23 (D-19 / Pitfall 3): the oracle now scans the per-host tables for asymmetric-flip drift.
   "agent-factory/packaging/adapters.md",
   "agent-factory/README.md",
 ];
@@ -199,9 +199,9 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
   // ── 28-REVIEW CR-01: a DELETED tool row must fail, not pass vacuously. ───────────────────────────
   //
   // RED AGAINST THE PRE-FIX BUILD, GREEN AFTER. The asymmetry loop read
-  // `if (rows.length === 0) continue;`, so removing the Claude Code row from BOTH 5-tool tables left
+  // `if (rows.length === 0) continue;`, so removing the Claude Code row from BOTH per-host tables left
   // every direction of the assertion satisfied by an absent row — and the gate still printed
-  // `PASS  WR-05 wording: … the 5-tool-table flip is asymmetric` and exited 0. That is a PASS line
+  // a WR-05 PASS line calling the per-host table flip asymmetric, and exited 0. That is a PASS line
   // stating a check that was not performed, which CLAUDE.md's no-fabrication rule forbids outright.
   //
   // The suite covered a row that GAINED wording and a row that LOST wording; it never covered a row

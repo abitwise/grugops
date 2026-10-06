@@ -352,7 +352,7 @@ const GUARD_INPUTS = [
   "agent-factory/workflows/16-context-read-write.md",
   "agent-factory/workflows/17-task-claim.md",
   "agent-factory/workflows/18-context-compaction.md",
-  // Phase 23 (D-19): the invoked oracleWr05Wording now scans the 5-tool tables for asymmetric-flip
+  // Phase 23 (D-19): the invoked oracleWr05Wording now scans the per-host tables for asymmetric-flip
   // drift, so mirror them too — otherwise the oracle's CR-01 missing-file fail-red would fire on
   // every foundation-guards plant case.
   "agent-factory/packaging/adapters.md",
@@ -5104,7 +5104,7 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   });
 
   // The KEPT text. "one window, prior context dropped between roles" describes execution topology,
-  // not memory: it is how roles activate on the four non-spawning CLIs, it is verbatim in the
+  // not memory: it is how roles activate on the non-spawning host CLIs, it is verbatim in the
   // packaging template, and it is the degraded tier's own wording under the revised D-02. The guard
   // must stay GREEN on it. If this case ever goes red, the fix is to shrink the retired list — never
   // to delete the prose.
