@@ -158,7 +158,7 @@ _Added 2026-10-06 at Phase 34 plan time (the ROADMAP said "TBD, enumerated at pl
 
 ### PI — Pi Host Support
 
-- [ ] **PI-01**: Pi's project-instruction, prompt-template, skills, project-trust and detection conventions are recorded from primary sources (URL and retrieval date) in the packaging documentation and in the per-tool entry-file table.
+- [x] **PI-01**: Pi's project-instruction, prompt-template, skills, project-trust and detection conventions are recorded from primary sources (URL and retrieval date) in the packaging documentation and in the per-tool entry-file table.
 - [ ] **PI-02**: Pi ships as a registry entry, tool detection (a `.pi` entry in the target root), rows in every per-host table, README and install-guide sections, validator coverage, and one pointer-only project prompt template at `.pi/prompts/grugops.md` (invoked as `/grugops`, the one command spelling across hosts; written unconditionally). The template is pointer text only, never a copy of role text. grugops never writes `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`, `.pi/settings.json`, a Pi skill or a Pi extension.
 - [ ] **PI-03**: The Pi install path is idempotent, additive, dry-run-capable and reversible: the template and the directories install created are recorded in the install ledger (`.grugops/install.json`), uninstall removes only what `owns(path)` confirms and only while its content still matches, and a pre-existing user file at the template path is never overwritten. This is proven by the derived never-installed, user-edit and special-file class tests in the same installer lane as the other host tools. Zero runtime dependencies.
 - [ ] **PI-04**: The model and effort dials' non-reach of Pi is stated as a property of what the kit emits (no per-agent definition for Pi), with a cited vendor clause for Pi's no-sub-agents stance; grugops does not configure Pi's own thinking level. Pi's safety tier is documented: the git-host floor is the only hard control, because Pi does not ask for approval before tool calls (cited).
@@ -255,7 +255,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | EFFORT-05 | Phase 34 | Complete |
 | HOST-01 | Phase 34 | Pending |
 | HOST-02 | Phase 34 | Pending |
-| PI-01 | Phase 34 | Pending |
+| PI-01 | Phase 34 | Complete |
 | PI-02 | Phase 34 | Pending |
 | PI-03 | Phase 34 | Pending |
 | PI-04 | Phase 34 | Pending |
