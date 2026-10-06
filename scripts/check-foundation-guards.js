@@ -327,7 +327,10 @@ GRANT_KEYS, } from "./canonical-frontmatter.js";
 // one declaration in this tree and this gate is one of their consumers. NOTHING is imported from
 // scripts/generate-role-adapters.js: this guard must never re-run the generator, because a check
 // that regenerates moves both of its sides together and proves determinism rather than correctness.
-import { readModelsConfig, resolveModels, inheritForEveryStem, tieredCorpusRefusals, TIERED, MODEL_TIERS_COUNT, } from "./model-tiers.js";
+import { readModelsConfig, resolveModels, inheritForEveryStem, tieredCorpusRefusals, TIERED, MODEL_TIERS_COUNT, 
+// (Plan 34-05, EFFORT-04) guard_effort_assignment recomputes its expectation from the same reader
+// and the effort resolver, never from a hand-listed level.
+resolveEfforts, inheritEffortForEveryStem, } from "./model-tiers.js";
 // The .sh hard-coded repo-relative paths and assumed cwd == repo root. The TS port resolves
 // every path against the script-relative repo root, but ALSO honors a CHECK_ROOT override so the
 // Vitest harness can point the guard at a hermetic mirror dir (mirrors how the .test.sh harness
@@ -374,6 +377,50 @@ const ROOT = process.env.CHECK_ROOT
 // first is this project's most-repeated defect class. If a future site needs this boundary, it reads
 // this const; it does not restate the alternation.
 const ROOT_PATH_BOUNDARY = "(?=[\\\\/]|[\\s'\"`]|$)";
+// (PLAN 34-05) LIFTED TO MODULE SCOPE, UNCHANGED. This helper used to be a local of
+// `guardModelAssignment`. `guardEffortAssignment` renders the same configuration source and the same
+// refusal reasons, so both guards now call this ONE declaration; a second local copy would be a second
+// rendering rule that could disagree with the first. The argument below was written for the model
+// guard and holds word for word for both.
+//
+// (PLAN 29.1-09, IN-02) EVERY ABSOLUTE PATH UNDER `ROOT`, RENDERED REPOSITORY-RELATIVE WITH POSIX
+// SEPARATORS — ONE HELPER, APPLIED WHEREVER THIS GUARD INTERPOLATES SOMETHING THAT CARRIES A PATH.
+//
+// Two reasons, and neither is cosmetic. This guard's own header commits to output that is
+// BYTE-IDENTICAL for a given tree, and an absolute path makes the same tree print differently from
+// two checkouts — the commitment fails on a property of the machine rather than of the repository.
+// And the verdict is published to a continuous-integration log a third party can read, so a
+// developer home directory in it is a disclosure this guard has no reason to make.
+//
+// IT TAKES TEXT, NOT A PATH, ON PURPOSE. The configuration source is a bare path, but the refusal
+// reasons are minted one module down and interpolate the path they opened INTO a sentence. Promoting
+// those reasons from a WARN to a finding moved them into the failing verdict, so the same commitment
+// has to hold over them, and a path-only helper would have left the larger of the two leaks open.
+//
+// (PLAN 29.1-12, R2-CR-01) AND WHAT IT COULD PUT IN. The paragraph above argues only about what this
+// helper keeps OUT of the verdict, and that half-argument is how the helper shipped able to corrupt
+// the verdict it was written to protect. A root compiled into an UNANCHORED pattern rewrites text
+// that is not a path at all: taken verbatim from the environment, `CHECK_ROOT=.` escaped to `\.` and
+// matched ANY period followed by non-whitespace, so this guard published a green PASS line naming
+// `agent-factory/config/factoryconfig.json` — a file that has never existed — while exiting 0. That
+// is the WR-08 defect class, a verdict misdescribing the run it performed, reintroduced by the fix
+// that closed WR-08. It survived because every mirror root planted in the suite is absolute, so no
+// case in the repository could see it.
+//
+// TWO PROPERTIES NOW HOLD, AND THEY ARE ONE CONSTRUCTION RATHER THAN TWO HAND-KEPT COPIES. The root
+// is NORMALISED at its declaration, so what is compiled here is an absolute repository path whatever
+// the caller typed. And the match must END ON A PATH BOUNDARY, taken from the single module-scope
+// declaration of that boundary rather than restated here, so this is a path-PREFIX rewrite and not
+// an arbitrary substring rewrite. Two copies of a boundary rule is how a second grammar arrives.
+//
+// Everything downstream of the match is unchanged: the capture group runs to the first whitespace or
+// quoting byte, and the replacer's leading-separator strip and backslash normalisation apply only
+// inside what was matched, so nothing outside a path is rewritten.
+const ROOT_PATH_RE = new RegExp(`${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${ROOT_PATH_BOUNDARY}([^\\s'"\`]*)`, "g");
+const relativeToRoot = (text) => text.replace(ROOT_PATH_RE, (_match, tail) => {
+    const rel = tail.replace(/^[\\/]/, "").split("\\").join("/");
+    return rel === "" ? "." : rel;
+});
 const abs = (rel) => join(ROOT, rel);
 const fileExists = (rel) => existsSync(abs(rel));
 const byteLen = (rel) => statSync(abs(rel)).size;
@@ -1804,51 +1851,11 @@ function guardModelAssignment() {
     const stems = ROLE_FILES.map((p) => stem(basename(p))).sort();
     // The adapter set, from the SAME authority-derived member list the other adapter guards consume.
     const adapterRels = [...AGENT_ADAPTER_RELS].sort();
-    // A committed adapter's role stem: its filename stem with the agent namespace removed. Declared
-    // once and asked at both of the loops below, so the key the expectation is READ with cannot come
-    // apart from the key the membership set is BUILT with.
-    const roleStemOf = (rel) => {
-        const s = stem(basename(rel));
-        return s.startsWith(AGENT_PREFIX) ? s.slice(AGENT_PREFIX.length) : s;
-    };
-    // (PLAN 29.1-09, IN-02) EVERY ABSOLUTE PATH UNDER `ROOT`, RENDERED REPOSITORY-RELATIVE WITH POSIX
-    // SEPARATORS — ONE HELPER, APPLIED WHEREVER THIS GUARD INTERPOLATES SOMETHING THAT CARRIES A PATH.
-    //
-    // Two reasons, and neither is cosmetic. This guard's own header commits to output that is
-    // BYTE-IDENTICAL for a given tree, and an absolute path makes the same tree print differently from
-    // two checkouts — the commitment fails on a property of the machine rather than of the repository.
-    // And the verdict is published to a continuous-integration log a third party can read, so a
-    // developer home directory in it is a disclosure this guard has no reason to make.
-    //
-    // IT TAKES TEXT, NOT A PATH, ON PURPOSE. The configuration source is a bare path, but the refusal
-    // reasons are minted one module down and interpolate the path they opened INTO a sentence. Promoting
-    // those reasons from a WARN to a finding moved them into the failing verdict, so the same commitment
-    // has to hold over them, and a path-only helper would have left the larger of the two leaks open.
-    //
-    // (PLAN 29.1-12, R2-CR-01) AND WHAT IT COULD PUT IN. The paragraph above argues only about what this
-    // helper keeps OUT of the verdict, and that half-argument is how the helper shipped able to corrupt
-    // the verdict it was written to protect. A root compiled into an UNANCHORED pattern rewrites text
-    // that is not a path at all: taken verbatim from the environment, `CHECK_ROOT=.` escaped to `\.` and
-    // matched ANY period followed by non-whitespace, so this guard published a green PASS line naming
-    // `agent-factory/config/factoryconfig.json` — a file that has never existed — while exiting 0. That
-    // is the WR-08 defect class, a verdict misdescribing the run it performed, reintroduced by the fix
-    // that closed WR-08. It survived because every mirror root planted in the suite is absolute, so no
-    // case in the repository could see it.
-    //
-    // TWO PROPERTIES NOW HOLD, AND THEY ARE ONE CONSTRUCTION RATHER THAN TWO HAND-KEPT COPIES. The root
-    // is NORMALISED at its declaration, so what is compiled here is an absolute repository path whatever
-    // the caller typed. And the match must END ON A PATH BOUNDARY, taken from the single module-scope
-    // declaration of that boundary rather than restated here, so this is a path-PREFIX rewrite and not
-    // an arbitrary substring rewrite. Two copies of a boundary rule is how a second grammar arrives.
-    //
-    // Everything downstream of the match is unchanged: the capture group runs to the first whitespace or
-    // quoting byte, and the replacer's leading-separator strip and backslash normalisation apply only
-    // inside what was matched, so nothing outside a path is rewritten.
-    const ROOT_PATH_RE = new RegExp(`${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${ROOT_PATH_BOUNDARY}([^\\s'"\`]*)`, "g");
-    const relativeToRoot = (text) => text.replace(ROOT_PATH_RE, (_match, tail) => {
-        const rel = tail.replace(/^[\\/]/, "").split("\\").join("/");
-        return rel === "" ? "." : rel;
-    });
+    // A committed adapter's role stem comes from `roleStemOf` (module scope since plan 34-05, shared
+    // with guardEffortAssignment), asked at both of the loops below, so the key the expectation is
+    // READ with cannot come apart from the key the membership set is BUILT with.
+    // The path-rendering helper `relativeToRoot` is declared at module scope (plan 34-05), shared with
+    // guardEffortAssignment; its full argument sits beside its declaration.
     // ── Floor 1: vacuity, before any verdict. ───────────────────────────────────────────────────
     // A run that compared zero adapters is the anomaly, never "nothing to check, therefore fine".
     // The per-adapter and per-stem loops are skipped in this state deliberately: with no adapters at
@@ -2163,6 +2170,202 @@ function guardModelAssignment() {
         // raised, so a run with several defects prints one attributable block instead of a FAIL line
         // beside a PASS line for the same subject.
         fail(`model-assignment violation:${modelFail}\n\n  The run that produced these findings: ${runSummary}`);
+    }
+}
+// ---------------------------------------------------------------------------
+// guard_effort_assignment — the committed adapter's declared reasoning-effort level equals the level
+// the configuration resolves for its role (Phase 34, EFFORT-04, decisions D-06 and D-15).
+//
+// THE SAME SECOND OPINION `guard_model_assignment` GIVES THE MODEL ALIAS, GIVEN TO THE EFFORT FIELD.
+// D-06 asks that the existing guards extend to `effort`: the emitted level of every adapter must equal
+// the resolved configuration, derived from the role set with an asserted count, never compared
+// against a hand-listed expectation. Everything `guard_model_assignment`'s header argues about WHY a
+// value guard exists beside `adapters-freshness` holds here unchanged and is not restated: this guard
+// NEVER regenerates and NEVER byte-compares. It reads the COMMITTED adapter bytes, which a generator
+// run does not touch, and compares them against a resolution recomputed here from the configuration
+// and the derived stems. A hand-edited `effort:` line, a stale commit or a regeneration nobody ran
+// all move the bytes without moving the configuration, and this guard is what notices.
+//
+// THE READER IS `admit()`, THE ONE ADAPTER-VERDICT AUTHORITY, AND THIS GUARD CANNOT EXIST WITHOUT
+// D-15. Before `effort` joined `CANONICAL_SCHEMA`, every adapter generated under a configured effort
+// was refused `[unknown-key]`, so there was nothing to compare. No regular expression and no line scan
+// below reads an `effort:` line; values come from `admittedValuesFor(doc, "effort")` only.
+//
+// THE PER-ADAPTER RULE, AND WHY ABSENCE IS ONLY AGREEMENT IN ONE CASE.
+//
+//   resolved level      admitted `effort` values     verdict
+//   ──────────────────  ───────────────────────────  ─────────────────────────────────────────────
+//   inherit             none                         agrees — `inherit` writes NO line (D-06)
+//   inherit             one or more (even `inherit`) finding: a line where none may be written
+//   L (a real level)    none                         finding: ABSENT, never read as agreement
+//   L                   exactly one, equal to L      agrees
+//   L                   exactly one, not L           finding: MISMATCH, both values named
+//   L                   more than one                finding: CARDINALITY, every value named
+//
+// An absent line is agreement ONLY where the configuration says nothing may be written. Everywhere
+// else absence is a missing piece of evidence, and reading missing evidence as proof is defect class
+// DC-1 in the 33.1 gap-planning brief. A duplicated `effort:` key, an empty value, a quoted value and
+// an upper-case or misspelled level never reach the table above as agreement either: the first three
+// are refused at admission by name (`duplicate-key`, `dangling-empty-key`,
+// `quoted-on-plain-only-key`) and named here as unreadable adapters, and the last two admit as plain
+// scalars and are compared by exact string equality against a member of the closed `EFFORT_LEVELS`
+// tuple, so they can only ever be a mismatch.
+//
+// BOTH DEGRADED BRANCHES BLOCK (the WR-07 posture `guard_model_assignment` records at length). A
+// configuration this guard cannot READ, and one that reads but cannot be RESOLVED, are each a named
+// finding that fails the run. The expectation then degrades to `inherit` for every stem — never to a
+// pinned level — and the comparison still runs, so a degraded run reports every adapter it could not
+// vouch for instead of skipping them. There is no `warn()` call in this function.
+//
+// THE BOUND ON THE PREDICATE'S INPUT. D-15 widened the schema for EVERY surface `admit()` reads, not
+// only for agent adapters, so a skill or a packaging template can now carry an `effort:` line and be
+// admitted. No resolution this guard computes says anything about such a value — a skill has no role
+// stem — so a stray `effort` key on a non-agent surface is named as its own finding, exactly as
+// `guard_model_assignment` names a stray `model` pin. Without that arm the widening would have opened
+// an unadjudicated place for the key that nothing reads.
+//
+// ORDERING. Registered immediately after `guardModelAssignment()`: same inputs, same floors, and a
+// statement about the same frontmatter. Findings accumulate and are emitted in SORTED adapter order,
+// so two runs over one tree print byte-identical output.
+//
+// VOICE. Clear professional English. An effort level is a cost-adjacent setting; no finding and no
+// comment here asserts a saving, a speed-up or a limit, because none was measured.
+// ---------------------------------------------------------------------------
+function guardEffortAssignment() {
+    process.stdout.write("\n[guard_effort_assignment] every committed adapter declares the effort level the configuration resolves for its role (EFFORT-04)\n");
+    let effortFail = "";
+    // The role stems, from the module's ONE derivation (ROLE_FILES is `listRoles(ROOT)`, whose throw is
+    // handled at module scope) — never a second `listRoles` call. See guardModelAssignment.
+    const stems = ROLE_FILES.map((p) => stem(basename(p))).sort();
+    // The adapter set, from the same authority-derived member list every adapter guard consumes.
+    const adapterRels = [...AGENT_ADAPTER_RELS].sort();
+    // ── Floor 1: vacuity. Zero adapters compared is the anomaly, never "nothing to check". ───────
+    if (adapterRels.length === 0) {
+        effortFail += `\neffort assignment: the adapter derivation returned NO committed adapters under ${ADAPTER_DIR}, so this run compared zero effort values — an empty adapter set is NEVER "nothing to compare, therefore fine". All ${stems.length} role stem(s) are unbacked: ${stems.join(", ")}${ADAPTER_DERIVATION_ERRORS.length === 0 ? "" : `\n${ADAPTER_DERIVATION_ERRORS.join("\n")}`}`;
+    }
+    // ── Floor 2: the element count, each side read off its OWN derivation. ──────────────────────
+    if (adapterRels.length > 0 && adapterRels.length !== stems.length) {
+        effortFail += `\neffort assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} against ${stems.length} role stem(s) derived from the role-set authority. The two sets must be the same size before any effort comparison means anything: a SHORT adapter set leaves a configured role with nothing on disk to carry its level, and a LONG one carries a level for something the role corpus does not know about. Both directions are named below by stem and by filename.`;
+    }
+    // ── The EXPECTATION, recomputed from the configuration and the derived stems. ───────────────
+    //
+    // One reader (`readModelsConfig`, D-07) and one resolver (`resolveEfforts`), the same pair the
+    // generator uses, over a DIFFERENT input from the one this guard judges. No level, stem or
+    // expectation is listed in this function.
+    let resolved;
+    let presetLabel;
+    let sourceLabel;
+    const config = readModelsConfig(ROOT, stems);
+    if (!config.ok) {
+        effortFail += `\neffort assignment: the \`models\` configuration could not be READ, so the effort expectation DEGRADES to \`inherit\` for every role stem rather than to any pinned level, and the comparison below ran against that fallback — ${relativeToRoot(config.reason)}`;
+        resolved = inheritEffortForEveryStem(stems);
+        presetLabel = "none (degraded — the configuration was refused)";
+        sourceLabel =
+            "no source established — the configuration read was REFUSED, and the refusal is named in the finding above";
+    }
+    else {
+        presetLabel = config.value.effort.preset;
+        sourceLabel =
+            config.value.source === null
+                ? "neither standard location"
+                : relativeToRoot(config.value.source);
+        const resolution = resolveEfforts(stems, {
+            preset: config.value.effort.preset,
+            overrides: config.value.effort.overrides,
+        });
+        if (!resolution.ok) {
+            effortFail += `\neffort assignment: the \`models.effort\` configuration read cleanly but could not be RESOLVED against this tree's role stems, so the effort expectation DEGRADES to \`inherit\` for every stem rather than to any pinned level — ${relativeToRoot(resolution.reason)}`;
+            resolved = inheritEffortForEveryStem(stems);
+            presetLabel = `${config.value.effort.preset} (degraded — the resolution was refused)`;
+        }
+        else {
+            resolved = resolution.value;
+        }
+    }
+    // ── The admission read. A refused adapter is named with its code and excluded from comparison. ─
+    const admitted = new Map();
+    const admissionRefusals = [];
+    for (const rel of adapterRels) {
+        const parsed = admit(readText(`${ADAPTER_DIR}/${rel}`));
+        if (!parsed.ok) {
+            admissionRefusals.push(`${ADAPTER_DIR}/${rel}: [${parsed.code}] ${parsed.reason}`);
+            continue;
+        }
+        admitted.set(rel, parsed.value);
+    }
+    if (admissionRefusals.length > 0) {
+        effortFail += `\neffort assignment: ${admissionRefusals.length} adapter(s) whose frontmatter is NOT in the canonical form — the declared effort level cannot be compared over a file that cannot be read, and an unreadable adapter is never an adapter that agrees with the configuration:\n    ${admissionRefusals.sort().join("\n    ")}`;
+    }
+    // ── The per-adapter rule (the table in the header). ─────────────────────────────────────────
+    const shown = (values) => values.map((v) => `\`${v}\``).join(", ");
+    for (const rel of adapterRels) {
+        const doc = admitted.get(rel);
+        if (doc === undefined)
+            continue; // refused above, and already named there.
+        const roleStem = roleStemOf(rel);
+        const expected = resolved.get(roleStem);
+        if (expected === undefined) {
+            effortFail += `\n${ADAPTER_DIR}/${rel}: the effort resolution assigns NOTHING to role stem "${roleStem}" — this adapter's filename corresponds to no role the role-set authority derived, so whatever effort it declares was chosen by nobody and is compared against nothing.`;
+            continue;
+        }
+        const declared = admittedValuesFor(doc, "effort");
+        if (expected === "inherit") {
+            if (declared.length !== 0) {
+                effortFail += `\n${ADAPTER_DIR}/${rel}: declares ${declared.length} \`effort\` value(s) (${shown(declared)}), and the configuration resolves \`inherit\` for role stem "${roleStem}" — expected \`inherit\`, found ${shown(declared)}. An \`inherit\` effort writes NO \`effort:\` line (D-06), so any line here is a level nobody configured.`;
+            }
+            continue;
+        }
+        if (declared.length === 0) {
+            effortFail += `\n${ADAPTER_DIR}/${rel}: carries NO \`effort\` line, and the configuration resolves \`${expected}\` for role stem "${roleStem}" — expected \`${expected}\`, found no value. Absence is its OWN fact and never agreement: the platform falls back to the session effort for an adapter that declares nothing, so the level the user set is not the level that loads.`;
+            continue;
+        }
+        if (declared.length !== 1) {
+            effortFail += `\n${ADAPTER_DIR}/${rel}: declares ${declared.length} \`effort\` values (${shown(declared)}), and the configuration resolves \`${expected}\` for role stem "${roleStem}" — expected exactly one \`${expected}\`. An effort level has ONE answer; reading the first would let a matching decoy hide the value the platform actually loads.`;
+            continue;
+        }
+        const value = declared[0] ?? "";
+        if (value !== expected) {
+            effortFail += `\n${ADAPTER_DIR}/${rel}: declares \`effort: ${value}\`, and the configuration resolves \`${expected}\` for role stem "${roleStem}" — expected \`${expected}\`, found \`${value}\`. The committed bytes are what the platform loads, so this divergence is reported against the recomputed resolution rather than against another run of the generator.`;
+        }
+    }
+    // ── The other direction: a resolved stem with no committed adapter. ─────────────────────────
+    if (adapterRels.length > 0) {
+        const backedStems = new Set(adapterRels.map(roleStemOf));
+        for (const roleStem of [...resolved.keys()].sort()) {
+            if (backedStems.has(roleStem))
+                continue;
+            effortFail += `\nrole stem "${roleStem}" resolves to effort \`${resolved.get(roleStem) ?? ""}\` and has NO committed adapter under ${ADAPTER_DIR} — the configuration assigned a level to a role nothing on disk carries, so that assignment is a value the platform will never load.`;
+        }
+    }
+    // ── The bound on the input: a stray `effort` key on a non-agent surface (see the header). ───
+    // Partitioned out of the ONE scan composition on the same prefix it was built from, exactly as
+    // guard_model_assignment's stray-pin arm does. An unadmittable surface is reported by guard_wr05,
+    // not re-reported here; it is excluded from the probed count and the exclusion is published.
+    const nonAgentSurfaces = SPAWN_GRANT_SCAN.filter((f) => !f.startsWith(spawnGrantScanPrefix("agent")));
+    const strayEfforts = [];
+    const strayEffortSkipped = [];
+    for (const rel of nonAgentSurfaces) {
+        const parsed = admit(readText(rel));
+        if (!parsed.ok) {
+            strayEffortSkipped.push(`${rel}: [${parsed.code}]`);
+            continue;
+        }
+        const values = admittedValuesFor(parsed.value, "effort");
+        if (values.length === 0)
+            continue;
+        strayEfforts.push(`${rel}: ${shown(values)}`);
+    }
+    if (strayEfforts.length > 0) {
+        effortFail += `\neffort assignment: ${strayEfforts.length} of the ${nonAgentSurfaces.length} non-agent adapter surface(s) this kit ships declare an \`effort\` key. A skill or template has no role stem, so no resolution this guard computes says anything about its value and the adapter generator never writes one — an effort here is a level nobody adjudicated, on a file the platform loads:\n    ${strayEfforts.join("\n    ")}`;
+    }
+    // The run summary, on BOTH outcomes, so a degraded or shrunken run cannot read as a green one.
+    const levels = [...new Set(resolved.values())].sort();
+    const runSummary = `effort assignment: ${adapterRels.length} committed adapter(s) under ${ADAPTER_DIR} compared against an effort resolution recomputed for ${stems.length} derived role stem(s); effort preset "${presetLabel}" from ${sourceLabel}; distinct effort levels resolved: ${levels.join(", ")}; ${nonAgentSurfaces.length - strayEffortSkipped.length} of ${nonAgentSurfaces.length} non-agent adapter surface(s) probed for a stray effort key, ${strayEfforts.length === 0 ? "none found" : `${strayEfforts.length} found and named above`}${strayEffortSkipped.length === 0 ? "" : `; ${strayEffortSkipped.length} excluded from the probed count as UNADMITTABLE and reported by guard_wr05, not here: ${[...strayEffortSkipped].sort().join(", ")}`}`;
+    if (effortFail === "") {
+        pass(runSummary);
+    }
+    else {
+        fail(`effort-assignment violation:${effortFail}\n\n  The run that produced these findings: ${runSummary}`);
     }
 }
 // ---------------------------------------------------------------------------
@@ -3086,6 +3289,14 @@ function guardContextWrites() {
 // these names throughout — no case folding, no normalisation, no substring matching.
 const AGENT_PREFIX = "grugops-";
 const stem = (file) => file.replace(/\.md$/, "");
+// A committed adapter's role stem: its filename stem with the agent namespace removed. ONE
+// declaration (plan 34-05 lifted it out of guardModelAssignment), asked by both value guards —
+// guard_model_assignment and guard_effort_assignment — so the two cannot key one adapter to two
+// different roles. A function declaration, so it is hoisted like the guards that call it.
+function roleStemOf(rel) {
+    const s = stem(basename(rel));
+    return s.startsWith(AGENT_PREFIX) ? s.slice(AGENT_PREFIX.length) : s;
+}
 // Members of `a` absent from `b`, order-independent and sorted for byte-identical reporting.
 const missingFrom = (a, b) => a.filter((x) => !b.includes(x)).sort();
 function guardReferentialIntegrity() {
@@ -3533,6 +3744,9 @@ guardKitCounts();
 // ROLE_COUNT holding and a broken derivation must be named first, and among the adapter guards
 // because it is a statement about adapter frontmatter.
 guardModelAssignment();
+// EFFORT-04 (plan 34-05, D-06/D-15): the committed adapter's effort level against a resolution
+// recomputed from the configuration. Immediately after the model guard: same inputs, same floors.
+guardEffortAssignment();
 // D-40 (plan 27-34): the two distribution forms of one skill. Runs after the count guard so a plugin
 // tree that failed to derive is NAMED there before this guard reports zero pairs over it.
 guardDistributionPair();

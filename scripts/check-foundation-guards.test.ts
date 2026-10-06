@@ -107,6 +107,9 @@ import {
   readModelsConfig,
   resolveModels,
   tieredCorpusRefusals,
+  // (Plan 34-05) the effort guard cases assert their premises through the SAME reader and resolver.
+  resolveEfforts,
+  EFFORT_LEVELS,
 } from "./model-tiers.js";
 
 // (Phase 32.1, plan 32.1-05, D-01) THE SHARED SYMBOL-RESOLVING INSTRUMENT, imported rather than
@@ -14147,5 +14150,142 @@ describe("guard_playwright_mcp_pin (plan 31-03, D-08 / UATX-02)", () => {
     expect(Number((measured as RegExpExecArray)[1])).toBeGreaterThan(0);
     expect((measured as RegExpExecArray)[1]).toBe((measured as RegExpExecArray)[2]);
     expect(r.status).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// (Plan 34-05, EFFORT-04, D-06/D-15) guard_effort_assignment — THE SECOND OPINION ON THE EMITTED
+// EFFORT LEVEL.
+//
+// Same posture as the guard_model_assignment cases above: every case plants into the COMMITTED
+// adapter bytes of a hermetic mirror (or into the configuration the expectation is recomputed from),
+// never into the generator, and asserts its plant's own premise through `admit()` — the reader the
+// guard uses — before asserting the verdict.
+//
+// A CONFIGURED mirror needs adapters that really carry `effort:` lines, so those adapters are
+// REGENERATED inside the mirror by the committed generator, under the planted configuration. The
+// generator's module set is the generator's own import closure, read out of the committed sources
+// rather than listed here, the same derivation scripts/generate-role-adapters.test.ts uses.
+// ---------------------------------------------------------------------------------------------
+
+/** The committed generator plus every `./x.js` it imports, transitively. Throws on a vacuous walk. */
+function effortGeneratorClosure(): string[] {
+  const seen = new Set<string>(["generate-role-adapters.js"]);
+  const walk = (entry: string): void => {
+    const src = readFileSync(join(ROOT, "scripts", entry), "utf8");
+    for (const hit of src.matchAll(/from\s+"\.\/([A-Za-z0-9._-]+\.js)"/g)) {
+      if (seen.has(hit[1])) continue;
+      seen.add(hit[1]);
+      walk(hit[1]);
+    }
+  };
+  walk("generate-role-adapters.js");
+  // Not vacuous: the generator imports at least kit-model, model-tiers and frontmatter.
+  if (seen.size < 3) {
+    throw new Error(
+      `the generator's import closure came back as [${[...seen].join(", ")}] — the derivation is reading the wrong file`,
+    );
+  }
+  return [...seen].sort();
+}
+
+/**
+ * Plant `config` as the mirror's `.grugops/factory.config.json` and regenerate every adapter in the
+ * mirror with the committed generator. Throws, with the run's output, if the generator refuses —
+ * a case built on a generator that did not run is built on the committed zero-config bytes.
+ */
+function configureAndRegenerate(m: string, config: unknown): SpawnSyncReturns<string> {
+  mkdirSync(join(m, ".grugops"), { recursive: true });
+  writeFileSync(join(m, ".grugops/factory.config.json"), JSON.stringify(config), "utf8");
+  mkdirSync(join(m, "scripts"), { recursive: true });
+  for (const mod of effortGeneratorClosure()) {
+    cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
+  }
+  const r = spawnSync("node", [join(m, "scripts", "generate-role-adapters.js")], {
+    encoding: "utf8",
+  });
+  if (r.status !== 0) {
+    throw new Error(`the mirrored generator refused (exit ${String(r.status)}):\n${out(r)}`);
+  }
+  return r;
+}
+
+/** Every `effort` value an adapter declares, read through the guard's OWN authority. */
+function admittedEffortValues(file: string): string[] | { refused: string } {
+  const parsed = admit(readFileSync(file, "utf8"));
+  if (!parsed.ok) return { refused: parsed.code };
+  return admittedValuesFor(parsed.value, "effort");
+}
+
+/** Replace a mirrored adapter's ONE `effort:` line with the given lines (none removes it). */
+function plantAdapterEffort(root: string, adapterFile: string, replacement: string[]): string {
+  const file = join(root, ".claude/agents", adapterFile);
+  const lines = readFileSync(file, "utf8").split("\n");
+  const at = lines.findIndex((l) => l.startsWith("effort:"));
+  if (at === -1) {
+    throw new Error(
+      `plantAdapterEffort: ${adapterFile} carries no \`effort:\` line, so the plant matched nothing — ` +
+        "a case 'proven' against an unmodified fixture is proven against nothing",
+    );
+  }
+  lines.splice(at, 1, ...replacement);
+  writeFileSync(file, lines.join("\n"), "utf8");
+  return file;
+}
+
+/** The `guard_effort_assignment` section of a run's output, joined for substring assertions. */
+function effortSection(o: string): string {
+  return guardSection(o, "guard_effort_assignment").join("\n");
+}
+
+const EFFORT_PASS_MARKER = "  PASS  effort assignment";
+
+/** The derived role stems of a root, sorted, with their count asserted against the kit authority. */
+function derivedStemsOf(root: string): string[] {
+  const stems = roleNamesIn(root)
+    .map((n) => n.replace(/\.md$/, ""))
+    .sort();
+  expect(stems.length, "the derived role stems must number ROLE_COUNT").toBe(ROLE_COUNT);
+  return stems;
+}
+
+describe("guard_effort_assignment (plan 34-05)", () => {
+  it("TRACER — a configured, regenerated mirror passes; a hand-edited `effort:` line then reds the run by name", () => {
+    const m = mirror();
+    const first = derivedStemsOf(m)[0] as string;
+    configureAndRegenerate(m, { models: { effort: { roles: { [first]: "high" } } } });
+    const adapter = `grugops-${first}.md`;
+    const file = join(m, ".claude/agents", adapter);
+
+    // PREMISE, through the guard's own reader: the regenerated adapter really carries `high`, and no
+    // other adapter carries any effort line (every other role resolves `inherit`).
+    expect(admittedEffortValues(file)).toEqual(["high"]);
+    const carriers = listAgentAdapters(m).filter((rel) => {
+      const v = admittedEffortValues(join(m, ".claude/agents", rel));
+      return !Array.isArray(v) || v.length !== 0;
+    });
+    expect(carriers).toEqual([adapter]);
+
+    const green = runIn(m);
+    const greenSection = effortSection(out(green));
+    expect(greenSection, "the guard must emit a banner and a section").not.toBe("");
+    expect(greenSection).toContain(EFFORT_PASS_MARKER);
+    expect(greenSection).toContain("from .grugops/factory.config.json");
+    expect(greenSection).toContain("distinct effort levels resolved: high, inherit");
+    expect(out(green)).toContain("ALL CHECKS PASSED");
+    expect(green.status).toBe(0);
+
+    // THE HAND EDIT: the committed bytes now disagree with the configuration.
+    plantAdapterEffort(m, adapter, ["effort: low"]);
+    expect(admittedEffortValues(file)).toEqual(["low"]);
+
+    const red = runIn(m);
+    expect(red.status).not.toBe(0);
+    const redSection = effortSection(out(red));
+    expect(redSection).toContain(`.claude/agents/${adapter}`);
+    expect(redSection).toContain("declares `effort: low`");
+    expect(redSection).toContain("the configuration resolves `high`");
+    expect(redSection).toContain(`role stem "${first}"`);
+    expect(redSection).not.toContain(EFFORT_PASS_MARKER);
   });
 });

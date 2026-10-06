@@ -159,7 +159,7 @@ export type AdmitOptions = { readonly schema?: readonly string[] };
 // The canonical schema and its alphabets — all enumerate-the-good
 // ---------------------------------------------------------------------------
 
-// THE TEN-KEY SCHEMA, AND WHY IT IS TEN AND NOT D-64'S STATED EIGHT.
+// THE SCHEMA, AND WHY ITS PHASE-27 MEASUREMENT WAS TEN KEYS AND NOT D-64'S STATED EIGHT.
 //
 // D-64 Part A's premise measurement scanned 31 files: it omitted the two packaging templates
 // (`agent-factory/packaging/slash-command.template.md` and `subagent.frontmatter.md`), and with them
@@ -174,12 +174,32 @@ export type AdmitOptions = { readonly schema?: readonly string[] };
 //
 // An unknown key is REFUSED, not ignored. Ignoring an unknown key is how a document grows a second
 // place to hide a grant.
+//
+// THE ELEVENTH KEY, `effort` — DECISION D-15 (2026-10-06, phase 34), A SAFETY-AUTHORITY CHANGE.
+//
+// The paragraphs above describe the schema as it was measured in phase 27, when it held ten keys.
+// D-15 widens it by one: `effort`, the reasoning-effort level Claude Code reads from a sub-agent's
+// frontmatter. It is the same kind of change as D-33-R3-02 (the underscore in the alphabet below):
+// a recorded human decision that widens what this module admits, because without it every adapter
+// generated under a configured effort is refused `[unknown-key]` and no guard can read the value.
+//
+// THE MEASURING CORPUS CHANGED WITH IT, AND THAT IS WHAT KEEPS THE SCHEMA MEASURED RATHER THAN
+// GUESSED. Under D-06 an effort that resolves to `inherit` writes NO `effort:` line, so a
+// zero-configuration tree carries the key in no live file, and a corpus of live files alone would
+// call `effort` a key nobody uses. So the corpus that measures this schema is now the live scan PLUS
+// the adapters a real generator run emits under a configured effort, in a scratch mirror (plan 34-05
+// Task 2, the key-union case in `scripts/canonical-frontmatter.test.ts`). The equality is still
+// two-sided over that corpus.
+//
+// NO ALPHABET CHANGE CAME WITH IT. Every effort level — `low`, `medium`, `high`, `xhigh`, `max` —
+// is lowercase ASCII letters, all already inside `PLAIN_SCALAR_ALPHABET`. `inherit` is never written.
 export const CANONICAL_SCHEMA: readonly string[] = [
   "allowed-tools",
   "argument-hint",
   "coordinator",
   "description",
   "disable-model-invocation",
+  "effort",
   "kind",
   "model",
   "name",
