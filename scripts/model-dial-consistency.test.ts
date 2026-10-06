@@ -34,7 +34,13 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { MODEL_ALIASES, MODELS_CONFIG_CANDIDATE_RELS, PRESET_NAMES } from "./model-tiers.js";
+import {
+  EFFORT_LEVELS,
+  EFFORT_PRESET_NAMES,
+  MODEL_ALIASES,
+  MODELS_CONFIG_CANDIDATE_RELS,
+  PRESET_NAMES,
+} from "./model-tiers.js";
 import { listPackagingTemplates } from "./kit-model.js";
 import { REGISTRY_PATH } from "./audit-model.js";
 
@@ -199,6 +205,66 @@ const SURFACE_COUNT = derivedDialSurfaces().prose.length;
  * PROMOTE TRIGGER: a third declaration site moves this number in the commit that writes it.
  */
 const CLOSED_SET_DECLARATION_SITES = 2;
+
+/** The marker that opens each declaration of the model PRESET closed set. */
+const MODEL_PRESET_SET_MARKER = "preset allowed set:";
+/** The marker that opens each declaration of the model ALIAS closed set. */
+const MODEL_ALIAS_SET_MARKER = "alias allowed set:";
+
+/**
+ * The markers that open the two EFFORT closed sets (plan 34-07, EFFORT-05, RESEARCH Pitfall 7).
+ *
+ * CHOSEN SO THAT NO MARKER IS A SUBSTRING OF ANOTHER. `declaredSets` locates a site with
+ * `indexOf(marker)`, so an effort line spelled "effort preset allowed set:" would CONTAIN the model
+ * preset marker and be counted as a third model-preset site — red on the pin if the counts move,
+ * and silently mis-attributed if they happen not to (the two preset sets have equal members, so a
+ * membership check could not tell). The pairwise non-substring property is asserted below over the
+ * declared list of all four markers, with the list's length asserted, rather than argued here.
+ */
+const EFFORT_PRESET_SET_MARKER = "allowed effort presets:";
+const EFFORT_LEVEL_SET_MARKER = "allowed effort levels:";
+
+/**
+ * Each effort set is declared at exactly ONE site: the `models.effort` sub-fields table. The
+ * `## Fields` row points at that table rather than restating the sets (D-07, one authority).
+ *
+ * PROMOTE TRIGGER: a second declaration site moves this number in the commit that writes it.
+ */
+const EFFORT_SET_DECLARATION_SITES = 1;
+
+/** Every closed-set marker the config field reference uses, model and effort together. */
+const ALL_SET_MARKERS = [
+  MODEL_PRESET_SET_MARKER,
+  MODEL_ALIAS_SET_MARKER,
+  EFFORT_PRESET_SET_MARKER,
+  EFFORT_LEVEL_SET_MARKER,
+] as const;
+const ALL_SET_MARKER_COUNT = 4;
+
+/** The heading of the effort sub-fields section in the config field reference. */
+const EFFORT_SECTION_HEADING = "### `models.effort` sub-fields";
+
+/**
+ * The effort sub-fields section of the config field reference: from its heading to the next
+ * third-level heading. Throws by name when either bound is missing, because an empty or unbounded
+ * section satisfies every absence assertion written about it.
+ */
+function effortSection(text: string): string {
+  const at = text.indexOf(EFFORT_SECTION_HEADING);
+  if (at === -1) {
+    throw new Error(
+      `model-dial oracle: the config field reference does not carry the heading "${EFFORT_SECTION_HEADING}" — refusing to read a section that is not there`,
+    );
+  }
+  const rest = text.slice(at + EFFORT_SECTION_HEADING.length);
+  const next = rest.indexOf("\n### ");
+  if (next === -1) {
+    throw new Error(
+      `model-dial oracle: the section "${EFFORT_SECTION_HEADING}" has no following third-level heading, so it would run to end of file`,
+    );
+  }
+  return rest.slice(0, next);
+}
 
 /** The CLAUDE.md row this phase amends, pinned by the text of its FIRST column. */
 const CLAUDE_ROW_KEY = "**`model:` other than `inherit` in role wrappers without reason**";
@@ -857,8 +923,8 @@ describe("model dial — no dial key ships in the kit or the seed config (D-04)"
 
 describe("model dial — the documented closed sets equal the module's own, in BOTH directions", () => {
   const sites = (marker: string): string[][] => declaredSets(readSurface("pointer"), marker);
-  const presetSites = sites("preset allowed set:");
-  const aliasSites = sites("alias allowed set:");
+  const presetSites = sites(MODEL_PRESET_SET_MARKER);
+  const aliasSites = sites(MODEL_ALIAS_SET_MARKER);
 
   it("both closed sets are declared at the pinned number of sites, two-sided", () => {
     expect(presetSites).toHaveLength(CLOSED_SET_DECLARATION_SITES);
@@ -903,6 +969,69 @@ describe("model dial — the documented closed sets equal the module's own, in B
     // Only the second direction actually catches that today; this case says so out loud.
     expect(presetSites.every((s) => s.length > 0)).toBe(true);
     expect(aliasSites.every((s) => s.length > 0)).toBe(true);
+  });
+});
+
+describe("effort dial — the documented effort sets equal the module's own, in BOTH directions (EFFORT-05)", () => {
+  const pointer = (): string => readSurface("pointer");
+  const presetSites = (): string[][] => declaredSets(pointer(), EFFORT_PRESET_SET_MARKER);
+  const levelSites = (): string[][] => declaredSets(pointer(), EFFORT_LEVEL_SET_MARKER);
+
+  it("no closed-set marker is a substring of another — the four markers are pairwise distinct as substrings", () => {
+    expect(ALL_SET_MARKERS).toHaveLength(ALL_SET_MARKER_COUNT);
+    const collisions: string[] = [];
+    for (const a of ALL_SET_MARKERS) {
+      for (const b of ALL_SET_MARKERS) {
+        if (a !== b && a.includes(b)) collisions.push(`"${a}" contains "${b}"`);
+      }
+    }
+    expect(collisions).toEqual([]);
+    expect(new Set(ALL_SET_MARKERS).size).toBe(ALL_SET_MARKER_COUNT);
+  });
+
+  it("each effort set is declared at exactly one site, inside the effort sub-fields section", () => {
+    expect(presetSites()).toHaveLength(EFFORT_SET_DECLARATION_SITES);
+    expect(levelSites()).toHaveLength(EFFORT_SET_DECLARATION_SITES);
+    const section = effortSection(pointer());
+    expect(occurrences(section, EFFORT_PRESET_SET_MARKER)).toBe(EFFORT_SET_DECLARATION_SITES);
+    expect(occurrences(section, EFFORT_LEVEL_SET_MARKER)).toBe(EFFORT_SET_DECLARATION_SITES);
+    // Not vacuous: every site yielded members.
+    expect([...presetSites(), ...levelSites()].every((site) => site.length > 0)).toBe(true);
+  });
+
+  it("the documented effort presets equal EFFORT_PRESET_NAMES in both directions", () => {
+    const legal = new Set<string>(EFFORT_PRESET_NAMES);
+    const illegal = presetSites().flatMap((site, i) =>
+      site.filter((n) => !legal.has(n)).map((n) => `site ${i}: "${n}"`),
+    );
+    const undocumented = presetSites().flatMap((site, i) =>
+      EFFORT_PRESET_NAMES.filter((n) => !site.includes(n)).map((n) => `site ${i}: "${n}"`),
+    );
+    expect(illegal).toEqual([]);
+    expect(undocumented).toEqual([]);
+  });
+
+  it("the documented effort levels equal EFFORT_LEVELS in both directions", () => {
+    const legal = new Set<string>(EFFORT_LEVELS);
+    const illegal = levelSites().flatMap((site, i) =>
+      site.filter((n) => !legal.has(n)).map((n) => `site ${i}: "${n}"`),
+    );
+    const undocumented = levelSites().flatMap((site, i) =>
+      EFFORT_LEVELS.filter((n) => !site.includes(n)).map((n) => `site ${i}: "${n}"`),
+    );
+    expect(illegal).toEqual([]);
+    expect(undocumented).toEqual([]);
+  });
+
+  it("the effort section carries no model-set marker, so no effort line is counted as a model site", () => {
+    // The model pins (CLOSED_SET_DECLARATION_SITES) are asserted unchanged by the case above this
+    // block; this one states WHY they could not have absorbed an effort line: the effort section
+    // carries neither model marker at all.
+    const section = effortSection(pointer());
+    expect(occurrences(section, MODEL_PRESET_SET_MARKER)).toBe(0);
+    expect(occurrences(section, MODEL_ALIAS_SET_MARKER)).toBe(0);
+    expect(declaredSets(pointer(), MODEL_PRESET_SET_MARKER)).toHaveLength(CLOSED_SET_DECLARATION_SITES);
+    expect(declaredSets(pointer(), MODEL_ALIAS_SET_MARKER)).toHaveLength(CLOSED_SET_DECLARATION_SITES);
   });
 });
 
