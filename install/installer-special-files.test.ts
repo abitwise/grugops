@@ -83,7 +83,10 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // Pinned: 58 files and links the four install variants write (53 by a default install, plus the
 // three timestamped --migrate backups and the two timestamped D-32 backups of the old layout's
 // unrecorded kit files, plan 33.1-32), and the two read-only inputs above.
-const READ_PATH_COUNT = 60;
+// 61 on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered (59 files and links written, plus the
+// two read-only inputs), because install now writes the Pi prompt template unconditionally (D-17), so a
+// FIFO and a directory are planted at it by derivation. Derived listing line: "READ_PATHS (61):".
+const READ_PATH_COUNT = 61;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

@@ -29,12 +29,14 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 
 // RECORDED_FILE_COUNT: the file entries a default install (copy or --symlink) into an empty git target
 // records: 17 adapters under .claude/agents/, 7 skills under .claude/skills/, AGENTS.md, the 4 runnables
-// under tools/grugops/, and the 2 pointer files install creates there (CLAUDE.md and
-// .github/copilot-instructions.md, each holding only install's block). The test DERIVES the set from the
-// ledger and asserts its size equals this pin, so a change to what install records shows here by name.
-const RECORDED_FILE_COUNT = 31;
+// under tools/grugops/, and the 3 files install creates there with no kit role: CLAUDE.md and
+// .github/copilot-instructions.md (each holding only install's block) and, since plan 34-04 (2026-10-06,
+// D-17), the Pi prompt template `.pi/prompts/grugops.md`. 31 -> 32 on that date; derived line:
+// "empty-source: 32 file entr(ies) recorded, 32 holding". The test DERIVES the set from the ledger and
+// asserts its size equals this pin, so a change to what install records shows here by name.
+const RECORDED_FILE_COUNT = 32;
 const RECORDED_FILE_COUNT_WHY =
-  "17 adapters + 7 skills + AGENTS.md + 4 runnables + the 2 pointer files install created (CLAUDE.md, .github/copilot-instructions.md)";
+  "17 adapters + 7 skills + AGENTS.md + 4 runnables + the 3 files install created (CLAUDE.md, .github/copilot-instructions.md, the Pi prompt template .pi/prompts/grugops.md)";
 
 let SCRATCH = "";
 beforeAll(() => {

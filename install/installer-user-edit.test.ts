@@ -122,8 +122,12 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
 /**
  * Pinned, the excluded marker included. A plan that makes install write a new file changes this and
  * must re-pin it with a reason. 58 on 2026-09-30 (plan 33.1-34): 57 edited, plus the excluded marker.
+ * 59 on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered as a file (edited in: default), and
+ * `.pi` and `.pi/prompts` entered INSTALLED_DIRS (27 -> 29), because install now writes the Pi prompt
+ * template unconditionally (D-17). Derived listing line: "INSTALLED_FILES (59, from default,
+ * checkpoints-notify, migrate)".
  */
-const INSTALLED_FILE_COUNT = 58;
+const INSTALLED_FILE_COUNT = 59;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

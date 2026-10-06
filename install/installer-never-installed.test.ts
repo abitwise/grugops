@@ -66,6 +66,7 @@ import {
   snapshotTree,
 } from "./installer-paths.test-support.js";
 import { RETIRED_RECORD_NAMES, fileRecords, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
+import { PI_PROMPT_REL } from "./host-tools.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-never-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -85,8 +86,12 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
 /**
  * Pinned. A plan that makes install write a new path changes this and must re-pin it with a reason.
  * 58 files and links + 27 directories on 2026-09-30 (plan 33.1-33).
+ * 59 files and links + 29 directories on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered as a
+ * file and `.pi` and `.pi/prompts` as directories, in every variant, because install now writes the Pi
+ * prompt template unconditionally (D-17). Derived listing line: "WRITE_PATHS (88: 59 files and links,
+ * 29 directories)".
  */
-const WRITE_PATH_COUNT = 85;
+const WRITE_PATH_COUNT = 88;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";
@@ -159,7 +164,8 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
     for (const v of ["default", "symlink", "migrate", "checkpoints-notify"] as const) {
       expect(SET.paths.some((w) => w.variants.includes(v)), `no path from the ${v} variant`).toBe(true);
     }
-    for (const p of [MARKER_REL, "CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json", ".claude/settings.json", "AGENTS.md"]) {
+    // PI_PROMPT_REL (plan 34-04): the Pi prompt template install creates, imported, never retyped.
+    for (const p of [MARKER_REL, "CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json", ".claude/settings.json", "AGENTS.md", PI_PROMPT_REL]) {
       expect(WRITE_PATHS, `${p} is not in the derived set`).toContain(p);
     }
   });

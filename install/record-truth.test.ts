@@ -310,8 +310,13 @@ function removableFiles(m: Record<string, unknown>): string[] {
   return [...out].sort();
 }
 const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(markerOf(BASE)) : [];
-/** 24 kit files, AGENTS.md, CLAUDE.md, the Copilot file, 4 runnables, the Gemini and Claude settings files. */
-const REMOVABLE_COUNT = 33;
+/**
+ * 24 kit files, AGENTS.md, CLAUDE.md, the Copilot file, the Pi prompt template, 4 runnables, the Gemini
+ * and Claude settings files. 33 -> 34 on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered the
+ * marker's removable set because install now writes the Pi prompt template unconditionally (D-17);
+ * derived listing (the assertion message lists REMOVABLE) named it between the Copilot file and AGENTS.md.
+ */
+const REMOVABLE_COUNT = 34;
 const modeOf = (p: string): number => statSync(p).mode & 0o7777;
 
 describe("L1: a mode change or a whitespace edit is a user edit, and the file is left (brief DC-2)", () => {
