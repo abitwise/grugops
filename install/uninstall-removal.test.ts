@@ -48,6 +48,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { askRecord, dirList, withLedger } from "./ledger.test-support.js";
+import { PI_PROMPT_REL } from "./host-tools.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -556,6 +557,11 @@ describe("the ledger walk: blocks, settings, directories and backups (plan 33.1-
       writeFileSync(join(target, ".gemini", "settings.json"), '{"context":{"fileName":["AGENTS.md"]}}\n');
       mkdirSync(join(target, ".claude"), { recursive: true });
       writeFileSync(join(target, ".claude", "settings.json"), '{"permissions":{"ask":["Bash(git push *)"]}}\n');
+      // Plan 34-04: a Pi prompt template at the path install would create, never installed here. Uninstall
+      // has no Pi-specific code and asks only the ledger, so it has no label for this file: the snapshot
+      // below proves it is left byte for byte, and the last assertion that nothing is named removed.
+      mkdirSync(join(target, ...PI_PROMPT_REL.split("/").slice(0, -1)), { recursive: true });
+      writeFileSync(join(target, ...PI_PROMPT_REL.split("/")), "---\ndescription: my own\n---\ngrugops: read `AGENTS.md`.\nRequest: $ARGUMENTS\n");
       for (const d of EMPTY_DIRS) mkdirSync(join(target, ...d.split("/")), { recursive: true });
       const before = snapshotTree(target);
       const r = runUninstall(target, join(fresh("never-home"), ".grugops"), { dryRun: dry, timeoutMs: 60_000 });

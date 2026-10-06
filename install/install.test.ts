@@ -6205,8 +6205,11 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
 
   it("file ownership: a never-installed target is changed by zero bytes — blank sentinel files, byte-identical AGENTS.md and runnables, empty grugops-named directories (carry #2, #7; real and DRY_RUN)", () => {
     const rec = installRecord();
-    // install's own record: the sentinel files, AGENTS.md and the four runnables. Pinned count.
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(7);
+    // install's own record: the sentinel files, AGENTS.md, the four runnables and, since plan 34-04
+    // (2026-10-06, D-17), the Pi prompt template `.pi/prompts/grugops.md`. Pinned count: 7 -> 8, the
+    // derived list being [".github/copilot-instructions.md", ".pi/prompts/grugops.md", "AGENTS.md",
+    // "CLAUDE.md", and the four tools/grugops runnables]. The plant below takes the template's exact bytes.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(8);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {
@@ -9895,5 +9898,132 @@ describe("Pi prompt template (plan 34-04)", () => {
     const u = runUninstall(target, home);
     expect(u.status, u.stdout + u.stderr).toBe(0);
     expect(existsSync(join(target, ".pi"))).toBe(false);
+  });
+
+  // ── Task 3 behaviour cases: never overwrite, DRY_RUN writes nothing, re-run idempotent, a user's own
+  // `.pi/` never claimed (D-13). The DRY_RUN uninstall preview is flow 10 in installer-dry-run.test.ts
+  // (FLOW10_CREATED carries PI_PROMPT_REL).
+
+  // reportedPaths — the subjects of the report lines under `label` (two-space indent, label, path).
+  const reportedPaths = (stdout: string, label: string): string[] =>
+    stdout
+      .split(/\r?\n/)
+      .map((l) => /^ {2}(\S+)\s+(\S+)/.exec(l))
+      .filter((m): m is RegExpExecArray => m !== null && m[1] === label)
+      .map((m) => m[2]);
+  const piFileEntries = (target: string): RawEntry[] => markerLedger(target).filter((e) => e.kind === "file" && e.path === PI_PROMPT_REL);
+  const piDirEntries = (target: string): string[] =>
+    markerLedger(target)
+      .filter((e) => e.kind === "dir" && (e.path === ".pi" || e.path.startsWith(".pi/")))
+      .map((e) => e.path)
+      .sort();
+  const bytesOf = (p: string): string => readFileSync(p).toString("base64");
+
+  it("a user-authored template already at the path is skipped, keeps its bytes, gets no ledger entry, and survives uninstall unchanged", () => {
+    const target = emptyTarget();
+    const home = mkTmp();
+    mkdirSync(join(target, ".pi", "prompts"), { recursive: true });
+    const mine = "---\ndescription: my own grugops prompt\n---\nDo it my way: $ARGUMENTS\n";
+    writeFileSync(piFile(target), mine);
+    const before = bytesOf(piFile(target));
+
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(reportedPaths(r.stdout, "skipped"), r.stdout).toContain(PI_PROMPT_REL);
+    expect(reportedPaths(r.stdout, "created"), r.stdout).not.toContain(PI_PROMPT_REL);
+    expect(bytesOf(piFile(target))).toBe(before);
+    expect(piFileEntries(target), "the user's template was claimed in the ledger").toEqual([]);
+    expect(piDirEntries(target), "the user's .pi directories were claimed in the ledger").toEqual([]);
+
+    const u = runUninstall(target, home);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(bytesOf(piFile(target))).toBe(before);
+    expect(filesUnder(join(target, ".pi"))).toEqual(["prompts/grugops.md"]);
+  });
+
+  it("a DRY_RUN install of an empty target names the template `would-add` and creates no `.pi`", () => {
+    const target = emptyTarget();
+    const home = mkTmp();
+    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+      encoding: "utf8",
+      env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
+    });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(reportedPaths(r.stdout, "would-add"), r.stdout).toContain(PI_PROMPT_REL);
+    expect(existsSync(join(target, ".pi"))).toBe(false);
+  });
+
+  it("a second install is a no-op for the template (skipped, bytes unchanged) and keeps its ledger entry; uninstall still removes it", () => {
+    const target = emptyTarget();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    const bytes = bytesOf(piFile(target));
+    const entry = piFileEntries(target);
+    expect(entry.length).toBe(1);
+
+    const again = runInstall(target, home);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reportedPaths(again.stdout, "skipped"), again.stdout).toContain(PI_PROMPT_REL);
+    expect(bytesOf(piFile(target))).toBe(bytes);
+    expect(piFileEntries(target), "the re-install dropped or changed the ledger claim on an unchanged template").toEqual(entry);
+    expect(piDirEntries(target)).toEqual([".pi", ".pi/prompts"]);
+
+    const u = runUninstall(target, home);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(join(target, ".pi"))).toBe(false);
+  });
+
+  it("a user edit to the installed template is kept by uninstall and reported `left`", () => {
+    const target = emptyTarget();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    writeFileSync(piFile(target), readFileSync(piFile(target), "utf8") + "Also: run the gate first.\n");
+    const edited = bytesOf(piFile(target));
+
+    const u = runUninstall(target, home);
+    expect([0, 3], u.stdout + u.stderr).toContain(u.status);
+    expect(reportedPaths(u.stdout, "left"), u.stdout).toContain(PI_PROMPT_REL);
+    expect(reportedPaths(u.stdout, "removed"), u.stdout).not.toContain(PI_PROMPT_REL);
+    expect(bytesOf(piFile(target))).toBe(edited);
+  });
+
+  it("a re-install after a user edit drops the ledger claim on the template, and leaves the edit", () => {
+    const target = emptyTarget();
+    const home = mkTmp();
+    expect(runInstall(target, home).status).toBe(0);
+    expect(piFileEntries(target).length).toBe(1);
+    writeFileSync(piFile(target), readFileSync(piFile(target), "utf8") + "Also: run the gate first.\n");
+    const edited = bytesOf(piFile(target));
+
+    const again = runInstall(target, home);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reportedPaths(again.stdout, "skipped"), again.stdout).toContain(PI_PROMPT_REL);
+    expect(bytesOf(piFile(target))).toBe(edited);
+    expect(piFileEntries(target), "the edited template is still claimed in the ledger").toEqual([]);
+
+    const u = runUninstall(target, home);
+    expect([0, 3], u.stdout + u.stderr).toContain(u.status);
+    expect(bytesOf(piFile(target))).toBe(edited);
+  });
+
+  it("a user's own `.pi/` gets only the template added; uninstall removes the template and `.pi/prompts` and leaves `.pi/` and its settings byte-identical", () => {
+    const target = emptyTarget();
+    const home = mkTmp();
+    mkdirSync(join(target, ".pi"));
+    const settings = '{\n  "theme": "dark"\n}\n';
+    writeFileSync(join(target, ".pi", "settings.json"), settings);
+
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(filesUnder(join(target, ".pi"))).toEqual(["prompts/grugops.md", "settings.json"]);
+    expect(readFileSync(join(target, ".pi", "settings.json"), "utf8")).toBe(settings);
+    expect(piDirEntries(target), "the user's .pi was claimed, or .pi/prompts was not recorded").toEqual([".pi/prompts"]);
+    expect(piFileEntries(target).length).toBe(1);
+
+    const u = runUninstall(target, home);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(join(target, ".pi", "prompts"))).toBe(false);
+    expect(filesUnder(join(target, ".pi"))).toEqual(["settings.json"]);
+    expect(readFileSync(join(target, ".pi", "settings.json"), "utf8")).toBe(settings);
   });
 });

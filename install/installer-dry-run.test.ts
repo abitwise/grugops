@@ -34,6 +34,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { dirList, ledgerOf, type RawEntry } from "./ledger.test-support.js";
+import { PI_PROMPT_REL } from "./host-tools.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -102,9 +103,10 @@ function reported(stdout: string, label: string): string[] {
 const subject = (msg: string): string => msg.split(" ")[0];
 
 // The files a fresh install into an EMPTY target creates and a DRY_RUN uninstall must name for
-// removal (flow 10): the pointer files install created (their file and block entries) and the Gemini
-// settings file it created (the gemini entry).
-const FLOW10_CREATED = ["CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json"] as const;
+// removal (flow 10): the pointer files install created (their file and block entries), the Gemini
+// settings file it created (the gemini entry) and, since plan 34-04 (D-17), the Pi prompt template
+// (a kit-false file entry; PI_PROMPT_REL imported from the host-tool registry, never retyped).
+const FLOW10_CREATED = ["CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json", PI_PROMPT_REL] as const;
 
 describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
   it("DRY_RUN uninstall of a never-installed target over empty user directories leaves every directory in place", () => {
