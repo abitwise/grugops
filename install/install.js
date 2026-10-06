@@ -80,6 +80,9 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
+// Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
+// keeps install/ free of scripts/ imports (33.1 D-18/D-28).
+import { HOST_TOOLS } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -2331,18 +2334,11 @@ function mergeGemini() {
     };
     report("created", `${rel} (merged AGENTS.md into context.fileName)`);
 }
+// Derived from HOST_TOOLS (phase 34, D-11), in registry order, so the existing hosts' output is
+// byte-identical to the hand-written list this replaced. Presence only, never content (T-34-05), and
+// only target-root paths: no user-level location is consulted.
 function detectTools() {
-    const found = [];
-    if (existsSync(join(TARGET, ".claude")))
-        found.push("claude");
-    if (existsSync(join(TARGET, ".codex")))
-        found.push("codex");
-    if (existsSync(join(TARGET, ".gemini")))
-        found.push("gemini");
-    if (existsSync(join(TARGET, "opencode.json")))
-        found.push("opencode");
-    if (existsSync(join(TARGET, ".github")))
-        found.push("copilot");
+    const found = HOST_TOOLS.filter((t) => existsSync(join(TARGET, ...t.detect.split("/")))).map((t) => t.id);
     return found.length ? found.join(" ") : "none-detected";
 }
 // copyKit: install the read-only kit at $GRUGOPS_HOME/agent-factory (INSTALL-04, D-05), always re-copied
