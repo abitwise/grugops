@@ -100,7 +100,13 @@ import {
   RESOLVED_ASSIGNMENT_PREFIX,
   resolvedPresetsIn,
   resolvedAssignmentsIn,
+  // Plan 34-10: the effort delivery cases derive every expected `effort:` line from the ONE effort
+  // resolver and its closed level tuple, under the same test-side exception as the alias set above.
+  EFFORT_LEVELS,
+  resolveEfforts,
 } from "../scripts/model-tiers.js";
+// The derived role set the effort expectation is resolved over (plan 34-10). Same exception.
+import { listRoles } from "../scripts/kit-model.js";
 
 // THE INSTALLER-SIDE WALK, IMPORTED DIRECTLY (D-35/D-36). The boundary cases below need to examine
 // MAX_WALK_ENTRIES+1 directory entries; driving that through a full installer subprocess would
@@ -1840,6 +1846,207 @@ describe("install.js / uninstall.js — single-installer contract (folds install
         `${rel}: banner lines = 1`,
       );
     }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // EFFORT DELIVERY (plan 34-10, D-03, D-05, D-06, D-07). A `models.effort` block written into a
+  // TARGET repository reaches THAT repository's adapters through the shipped installer, and a target
+  // without one gets no `effort:` line at all.
+  //
+  // Every expectation is DERIVED: the role stems come from kit-model's listRoles over the real kit,
+  // the adapter-to-stem map from the generator's own AGENT_PREFIX literal, and each adapter's
+  // expected level from resolveEfforts over those stems. No stem and no level is typed here.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  // effortStems — the derived role set, with the role-file extension removed. The count is asserted
+  // against the installed adapter count by each case, never against a literal.
+  function effortStems(): string[] {
+    return listRoles(REPO_ROOT).map((f) => f.slice(0, -".md".length));
+  }
+
+  // agentPrefixLiteral — the adapter namespace the GENERATOR declares, read out of its source text
+  // (the module cannot be imported: it writes adapters at load). One reading, so this file holds no
+  // second spelling of the prefix.
+  function agentPrefixLiteral(): string {
+    const genSrc = readFileSync(join(REPO_ROOT, "scripts", "generate-role-adapters.ts"), "utf8");
+    const m = /const AGENT_PREFIX\s*=\s*"([^"]+)";/.exec(genSrc);
+    if (!m) throw new Error("scripts/generate-role-adapters.ts: could not find the AGENT_PREFIX literal");
+    return m[1];
+  }
+
+  // adapterStemMap — every installed adapter mapped to exactly one derived stem, and every stem to
+  // exactly one adapter. A one-sided or many-to-one map is asserted red here, so a case below cannot
+  // pass by checking a subset.
+  function adapterStemMap(target: string, stems: readonly string[]): Map<string, string> {
+    const prefix = agentPrefixLiteral();
+    const rels = installedAdapters(target);
+    const map = new Map<string, string>();
+    for (const rel of rels) {
+      const matches = stems.filter((s) => rel === `${prefix}${s}.md`);
+      expect(`${rel}: matching role stems = ${matches.length}`).toBe(`${rel}: matching role stems = 1`);
+      map.set(rel, matches[0]);
+    }
+    expect(`installed adapters = ${rels.length}, role stems = ${stems.length}`).toBe(
+      `installed adapters = ${stems.length}, role stems = ${stems.length}`,
+    );
+    expect(new Set(map.values()).size).toBe(stems.length);
+    return map;
+  }
+
+  // targetEffortLines — every top-level `effort:` line an installed adapter carries, read off the
+  // TARGET bytes. Zero or one is legal; the caller asserts which.
+  function targetEffortLines(target: string, rel: string): string[] {
+    return readFileSync(join(target, ".claude", "agents", rel), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("effort: "));
+  }
+
+  it("effort delivery: a target's `models.effort` (tiered preset plus one role override) reaches EVERY installed adapter as the resolver's level (D-02, D-06, D-07)", () => {
+    const stems = effortStems();
+    // PREMISE: a derived role set exists to resolve over.
+    expect(stems.length).toBeGreaterThan(0);
+    // The override target is the first derived stem whose TIERED level is not the override level,
+    // so the override is visible in the bytes rather than coinciding with the preset's answer.
+    const overrideLevel = EFFORT_LEVELS[EFFORT_LEVELS.length - 1];
+    const tieredOnly = resolveEfforts(stems, { preset: "tiered" });
+    if (!tieredOnly.ok) throw new Error(tieredOnly.reason);
+    const victim = stems.find((s) => tieredOnly.value.get(s) !== overrideLevel);
+    if (victim === undefined) throw new Error("no derived stem resolves to a level other than the override level");
+    const expected = resolveEfforts(stems, { preset: "tiered", overrides: new Map([[victim, overrideLevel]]) });
+    if (!expected.ok) throw new Error(expected.reason);
+    // PREMISE: the expectation really differs from the preset alone at the victim, and the resolver
+    // gives SOME role a non-inherit level, so "carries the resolved line" is not vacuous.
+    expect(expected.value.get(victim)).toBe(overrideLevel);
+    expect([...expected.value.values()].some((l) => l !== "inherit")).toBe(true);
+
+    const body = `${JSON.stringify({ models: { effort: { preset: "tiered", roles: { [victim]: overrideLevel } } } })}\n`;
+    const target = makeFixture();
+    const home = mkTmp();
+    const configPath = writeTargetConfig(target, body);
+    expect(existsSync(configPath)).toBe(true);
+
+    expect(runInstall(target, home).status).toBe(0);
+
+    const map = adapterStemMap(target, stems);
+    const findings: string[] = [];
+    for (const [rel, stem] of map) {
+      const level = expected.value.get(stem);
+      const found = targetEffortLines(target, rel);
+      const want = level === undefined || level === "inherit" ? [] : [`effort: ${level}`];
+      if (JSON.stringify(found) !== JSON.stringify(want)) {
+        findings.push(`${rel} (${stem}): effort lines ${JSON.stringify(found)}, expected ${JSON.stringify(want)}`);
+      }
+    }
+    expect(findings).toEqual([]);
+    // The model half is untouched by an effort-only change of preset: every adapter still `inherit`.
+    expect([...new Set(targetModelLines(target))]).toEqual(["inherit"]);
+    // The configuration file is USER content: the render reads it and never rewrites it.
+    expect(readFileSync(configPath, "utf8")).toBe(body);
+  });
+
+  it("effort delivery: a ZERO-CONFIG target installs adapters with NO `effort:` line (D-06)", () => {
+    const stems = effortStems();
+    const target = makeFixture();
+    const home = mkTmp();
+    // PREMISE: there is no configuration file at the path the installer reads.
+    expect(existsSync(targetConfigPath(target))).toBe(false);
+
+    expect(runInstall(target, home).status).toBe(0);
+
+    const map = adapterStemMap(target, stems);
+    const carrying = [...map.keys()].filter((rel) => targetEffortLines(target, rel).length > 0);
+    expect(carrying, "an `inherit` effort must emit NO line (D-06)").toEqual([]);
+  });
+
+  it("effort delivery: a target with ONLY the model preset `tiered` installs adapters with NO `effort:` line (D-05)", () => {
+    const stems = effortStems();
+    const body = `${JSON.stringify({ models: { preset: "tiered" } })}\n`;
+    const target = makeFixture();
+    const home = mkTmp();
+    const configPath = writeTargetConfig(target, body);
+    expect(existsSync(configPath)).toBe(true);
+
+    expect(runInstall(target, home).status).toBe(0);
+
+    const map = adapterStemMap(target, stems);
+    // PREMISE: the model preset really took effect, so "no effort line" is about a configured target.
+    expect([...new Set(targetModelLines(target))].sort()).not.toEqual(["inherit"]);
+    const carrying = [...map.keys()].filter((rel) => targetEffortLines(target, rel).length > 0);
+    expect(carrying, "the model preset must not change any effort (D-05)").toEqual([]);
+    expect(readFileSync(configPath, "utf8")).toBe(body);
+  });
+
+  it("effort delivery: an ILLEGAL effort level refuses the adapter class by name; every other class completes (D-03)", () => {
+    const stems = effortStems();
+    const victim = stems[0];
+    // A case-varied spelling of a legal level: D-03 refuses it rather than folding it.
+    const badLevel = EFFORT_LEVELS[EFFORT_LEVELS.length - 1].toUpperCase();
+    expect(`${badLevel} is a legal level: ${(EFFORT_LEVELS as readonly string[]).includes(badLevel)}`).toBe(
+      `${badLevel} is a legal level: false`,
+    );
+    const badConfig = `${JSON.stringify({ models: { effort: { roles: { [victim]: badLevel } } } })}\n`;
+
+    // ── ARM 1: A FRESH TARGET. No adapter installs; the marker and the seeded index still land.
+    const fresh = makeFixture();
+    const freshHome = mkTmp();
+    const freshConfig = writeTargetConfig(fresh, badConfig);
+    expect(existsSync(freshConfig)).toBe(true);
+    expect(existsSync(join(fresh, ".claude", "agents"))).toBe(false);
+
+    const r = runInstall(fresh, freshHome);
+    expect(r.status).toBe(3);
+    expect(r.stdout).toContain("install INCOMPLETE");
+    expect(r.stdout).not.toContain("== install complete");
+    expect(installedAdapters(fresh)).toEqual([]);
+    // The refusal names the role, the offending value and the whole legal set.
+    expect(r.stdout).toContain(`"${victim}"`);
+    expect(r.stdout).toContain(`"${badLevel}"`);
+    for (const level of EFFORT_LEVELS) {
+      expect(`legal set names ${level}: ${r.stdout.includes(`"${level}"`)}`).toBe(`legal set names ${level}: true`);
+    }
+    // ...and the installer's line naming the REAL configuration file on this machine.
+    expect(r.stdout).toContain(freshConfig);
+    expect(existsSync(join(fresh, ".grugops", "install.json"))).toBe(true);
+    expect(existsSync(join(fresh, "memory-bank", "00-index.md"))).toBe(true);
+    expect(installedSkills(fresh)).toEqual([]);
+
+    // ── ARM 2: AN ALREADY-INSTALLED TARGET. Every pre-existing adapter stays byte-unchanged, and no
+    // adapter gains an `effort:` line from a refused config.
+    const seeded = makeFixture();
+    const seededHome = mkTmp();
+    expect(runInstall(seeded, seededHome).status).toBe(0);
+    const before = snapshot(join(seeded, ".claude", "agents"));
+    expect(before).not.toBe("");
+    writeTargetConfig(seeded, badConfig);
+
+    const r2 = runInstall(seeded, seededHome);
+    expect(r2.status).toBe(3);
+    expect(r2.stdout).toContain("install INCOMPLETE");
+    expect(snapshot(join(seeded, ".claude", "agents"))).toBe(before);
+    const map = adapterStemMap(seeded, stems);
+    expect([...map.keys()].filter((rel) => targetEffortLines(seeded, rel).length > 0)).toEqual([]);
+  });
+
+  it("effort delivery: a SECOND install over an unchanged effort-configured target WRITES NO adapter (D-11)", () => {
+    const stems = effortStems();
+    const target = makeFixture();
+    const home = mkTmp();
+    writeTargetConfig(target, `${JSON.stringify({ models: { effort: { preset: "tiered" } } })}\n`);
+
+    const first = runInstall(target, home);
+    expect(first.status).toBe(0);
+    // PREMISE: the first run wrote every adapter, and the effort config reached at least one of them.
+    const map = adapterStemMap(target, stems);
+    expect(adapterReportLines(first.stdout, "materialized").length).toBe(map.size);
+    expect([...map.keys()].some((rel) => targetEffortLines(target, rel).length === 1)).toBe(true);
+    const beforeBytes = snapshot(join(target, ".claude", "agents"));
+    const beforeMtimes = adapterMtimes(target);
+
+    const second = runInstall(target, home);
+    expect(second.status).toBe(0);
+    expect(snapshot(join(target, ".claude", "agents"))).toBe(beforeBytes);
+    expect(adapterMtimes(target)).toEqual(beforeMtimes);
+    expect(adapterReportLines(second.stdout, "materialized")).toEqual([]);
   });
 
   // THE BANNER SLOT CARRIES THE SAME BOUNDED-REMOVAL CONTRACT AS THE KIT SLOT (CR-01, T-29.2-11).
