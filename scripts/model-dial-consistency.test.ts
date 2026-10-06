@@ -301,7 +301,7 @@ const SCOPE_SENTENCE =
   "and there is nothing there for the dial to write into.";
 
 /** The heading that opens the authority's scope section — the left bound of every section-scoped read. */
-const SCOPE_SECTION_HEADING = "## Host-CLI scope of the model dial";
+const SCOPE_SECTION_HEADING = "## Host-CLI scope of the model and effort dials";
 
 /** The line that opens the citation block, and the left bound of the citation-line extraction. */
 const CITATION_BLOCK_HEADING = "References for the per-agent `model` field in each of the other four";
@@ -691,8 +691,8 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
   });
 
   it("the authority names its own section, so the pointer's reader lands somewhere", () => {
-    expect(readSurface("authority")).toContain("## Host-CLI scope of the model dial");
-    expect(readSurface("pointer")).toContain("Host-CLI scope of the model dial");
+    expect(readSurface("authority")).toContain(SCOPE_SECTION_HEADING);
+    expect(readSurface("pointer")).toContain(SCOPE_SECTION_HEADING.slice("## ".length));
   });
 
   // (Plan 29.1-20, round-3 gap 4) THE OTHER DIRECTION OF THE SAME OBLIGATION. The case above asserts
@@ -1035,6 +1035,79 @@ describe("effort dial — the documented effort sets equal the module's own, in 
   });
 });
 
+// ── WHAT CLAUDE CODE DOES WITH THE EFFORT FIELD, STATED IN THE DIAL AUTHORITY (EFFORT-01, D-08) ──
+//
+// The config field reference is the one place a user configuring `models.effort` is told what Claude
+// Code does with the emitted line: the cited field definition (D-01), the fallback for a level the
+// model lacks (D-08), what overrides and caps it, the release that stopped it being ignored, and the
+// two facts that are still unknown. These cases assert PRESENCE of each cited token and of each
+// residual by its own anchor; they do not pin the prose around them, which would make this file a
+// second authority over the wording.
+
+/** The cited tokens the effort section must carry, each the handle of one stated behaviour. */
+const EFFORT_SECTION_REQUIRED_TOKENS = [
+  "code.claude.com/docs/en/sub-agents",
+  "code.claude.com/docs/en/model-config",
+  "CLAUDE_CODE_EFFORT_LEVEL",
+  "maxEffortLevel",
+  "2.1.267",
+] as const;
+
+/**
+ * The effort residuals in the dial authority, each found by its OWN anchor. They live in the config
+ * field reference, not in the packaging authority, so UNKNOWN_VERIFY_MARKER_COUNT (which pins the
+ * packaging authority's markers) does not move (RESEARCH Pitfall 8).
+ */
+const EFFORT_RESIDUAL_ANCHORS = ["the no-effort model behaviour", "the standalone version floor"] as const;
+
+/** The packaging authority's bullet for the emitted field. */
+const EFFORT_BULLET_MARKER = "- **`effort`**";
+
+/** The link host this repository no longer uses (it 301-redirects to code.claude.com). */
+const RETIRED_DOCS_HOST = "docs.claude.com";
+
+describe("effort dial — the authority states what Claude Code does with the field, with sources (EFFORT-01)", () => {
+  it("the effort section carries every cited token", () => {
+    const section = effortSection(readSurface("pointer"));
+    expect(EFFORT_SECTION_REQUIRED_TOKENS).toHaveLength(5);
+    const missing = EFFORT_SECTION_REQUIRED_TOKENS.filter((t) => occurrences(section, t) === 0);
+    expect(missing).toEqual([]);
+  });
+
+  it("each effort residual is present by its own anchor, once, inside the effort section, on a line carrying `UNKNOWN - verify`", () => {
+    const pointer = readSurface("pointer");
+    const section = effortSection(pointer);
+    expect(EFFORT_RESIDUAL_ANCHORS).toHaveLength(2);
+    const wrong = EFFORT_RESIDUAL_ANCHORS.filter((anchor) => {
+      if (occurrences(pointer, anchor) !== 1 || occurrences(section, anchor) !== 1) return true;
+      const line = section.split("\n").find((l) => l.includes(anchor)) ?? "";
+      return !line.includes("UNKNOWN - verify");
+    });
+    expect(wrong).toEqual([]);
+  });
+
+  it("neither dial document links the retired docs host", () => {
+    expect(occurrences(readSurface("pointer"), RETIRED_DOCS_HOST)).toBe(0);
+    expect(occurrences(readSurface("authority"), RETIRED_DOCS_HOST)).toBe(0);
+  });
+
+  it("the packaging authority documents the emitted `effort` field in exactly one bullet", () => {
+    expect(occurrences(readSurface("authority"), EFFORT_BULLET_MARKER)).toBe(1);
+  });
+
+  it("the effort level set is declared in the dial authority and in no other shipped document (D-07)", () => {
+    // The corpus is the one this file already derives for the dial surfaces, with its own premise
+    // check; it is not a second hand-list.
+    const corpus = dialCandidateCorpus();
+    expect(corpusPremiseGaps(corpus)).toEqual([]);
+    expect(corpus).toContain(SURFACE_ROLES.pointer);
+    for (const marker of [EFFORT_LEVEL_SET_MARKER, EFFORT_PRESET_SET_MARKER]) {
+      const carrying = corpus.filter((rel) => readFileSync(join(ROOT, rel), "utf8").includes(marker));
+      expect(carrying, `documents declaring "${marker}"`).toEqual([SURFACE_ROLES.pointer]);
+    }
+  });
+});
+
 // ── The configuration LOCATIONS, and where their precedence rule is allowed to live (WR-05) ────
 //
 // THE PLAN'S ORIGINAL SHAPE WAS UNACHIEVABLE, AND THE REASON IS ITSELF AN INVARIANT. Plan 29.1-11
@@ -1137,7 +1210,7 @@ const APPENDED_BULLET = `${MODEL_BULLET_RIGHT_BOUND.slice(1)}**appended** — ${
  * above already records against its own right bound: a reader that runs to the end of the document
  * is not reading a bullet, it adopts every later bullet, and assertions written about THIS bullet
  * then start passing — or failing — on someone else's text. The `model` bullet is followed today by
- * `- **Body**`, so the bound lands on a real bullet; the heading fallback exists so a future
+ * `- **`effort`**` (plan 34-07; `- **Body**` before it), so the bound lands on a real bullet; the heading fallback exists so a future
  * reordering degrades to a bounded section rather than to the whole file.
  *
  * BOTH BOUNDS ARE ASSERTED FOUND BEFORE ANY CONTENT IS RETURNED, and a missing bound THROWS by name
@@ -1361,7 +1434,7 @@ describe("model dial — the configuration locations are documented, and the rul
   // (Plan 29.1-20, R3-WR-01) THE SAME BOUND, ON TEXT THE READER HAS NEVER SEEN.
   //
   // WHY A SECOND CASE RATHER THAN A WIDER FIRST ONE. The case above measures the bound against the
-  // COMMITTED document, whose `model` bullet happens to be followed by `- **Body**`. That is a fact
+  // COMMITTED document, whose `model` bullet happens to be followed by the `effort` bullet. That is a fact
   // about today's document, not about the reader: reorder the document so the `model` bullet is last
   // and the case above starts measuring the heading fallback instead, silently. The threat the
   // reader's own docstring names is TEXT APPENDED AFTER THE REGION, and the committed tree cannot

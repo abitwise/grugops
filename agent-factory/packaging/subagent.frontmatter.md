@@ -136,13 +136,15 @@ what is only promised. The `/grugops` skill entry runs in a default main-thread 
 already has the `Agent` tool — so it spawns, and the honest thing to report there is
 "parallel, grant not enforced", never "parallel, grant enforced".
 
-**Size budget (measured on the generator's real output, plan 27-07).** The coordinator is the
-largest adapter the generator emits, because only it carries the tier announcement and the
-enumerated grant. With the grant expanded to the real 16 specialist names, the emitted
-coordinator adapter measures **3055 bytes** against the 3072-byte pointer-size warn tier and
-the 4096-byte fail tier — **17 bytes of warn-tier headroom**. Specialists measure 1632 bytes
-(`grugops-qe-e2e`) to 1987 bytes (`grugops-security-nfr`); a specialist's size is driven by its
-derived description, so a longer `## One job` sentence is what moves it.
+**Size budget (measured on the generator's real output, plan 27-07; re-measured in plan 34-07).**
+The coordinator is the largest adapter the generator emits, because only it carries the tier
+announcement and the enumerated grant. With the grant expanded to the real 16 specialist names,
+the zero-config coordinator adapter measures **3013 bytes** against the 3072-byte pointer-size
+warn tier and the 4096-byte fail tier — **59 bytes of warn-tier headroom**. A configured effort
+level adds one line; the largest it can add is `effort: medium` and its newline, **15 bytes**,
+which leaves the coordinator at 3028 bytes, under the warn tier. Specialists measure 1541 bytes
+(`grugops-qe-e2e`) to 1901 bytes (`grugops-security-nfr`) at zero config; a specialist's size is
+driven by its derived description, so a longer `## One job` sentence is what moves it.
 
 Two things the earlier estimate of 2951 / 1431 did not carry, both now in the measurement: the
 one-line generated-file provenance header, and the `description` emitted as a double-quoted YAML
@@ -220,6 +222,12 @@ failure lands in CI rather than on a user's machine.
   zero-tolerance assertion. With no `models` block the dial answers `inherit` for every role — the
   documented platform default — so a zero-config adapter keeps the user's session model choice
   rather than pinning a capability the user never selected.
+- **`effort`** — the reasoning-effort level the factory's effort dial resolved for that role, one
+  of the closed levels `scripts/model-tiers.ts` resolves. It is emitted only when that level is not
+  `inherit`, on the line directly after `model:`. An `inherit` level writes no line at all, so the
+  role inherits the session's effort and a zero-config adapter is unchanged. The dial, its presets,
+  its refusals and what Claude Code does with the field are documented in `factory.config.md`, the
+  config field reference, and are not restated here.
 - **Body** — repo-relative pointer text. It cites one frozen role file and acts as that role.
   It echoes the hard limit in clear professional English, not caveman voice — safety lines are
   always plain. It contains **no copied role instructions**.
@@ -249,7 +257,7 @@ failure lands in CI rather than on a user's machine.
   concurrency one via `agent-factory/roles/_role-switch-protocol.md`. The grant is a
   Claude-Code-only capability, and the on-disk result is the same either way.
 
-## Host-CLI scope of the model dial
+## Host-CLI scope of the model and effort dials
 
 This section is the kit's single authority for the model dial's host-CLI scope. The configuration
 field reference points here rather than restating it, so the two documents cannot come to say
