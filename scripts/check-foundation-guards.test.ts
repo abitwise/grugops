@@ -11217,7 +11217,7 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   const longTable = (src: string): string =>
     src.replace(
       "export const TIERED = [",
-      'export const TIERED = [\n    { stem: "zz-scratch-row", alias: "sonnet", rationale: "scratch row planted by a discrimination case" },',
+      'export const TIERED = [\n    { stem: "zz-scratch-row", alias: "sonnet", rationale: "scratch row planted by a discrimination case", effortRationale: "scratch row planted by a discrimination case" },',
     );
 
   it("(k-low) a TIERED table one row SHORT is named with all three numbers", () => {

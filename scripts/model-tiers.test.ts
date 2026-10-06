@@ -278,7 +278,12 @@ const tableWithDuplicate = (): RoleTier[] => [
 /** The shipped table plus one row for a stem no role file carries — the OVER-long direction. */
 const tableWithExtra = (): RoleTier[] => [
   ...TIERED,
-  { stem: "not-a-role-file", alias: "sonnet", rationale: "a deliberately adversarial fixture row" },
+  {
+    stem: "not-a-role-file",
+    alias: "sonnet",
+    rationale: "a deliberately adversarial fixture row",
+    effortRationale: "a deliberately adversarial fixture row",
+  },
 ];
 
 /** The findings that match a pattern, so a case can assert HOW MANY distinct facts were reported. */

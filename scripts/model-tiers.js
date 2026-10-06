@@ -766,6 +766,20 @@ function readEffortAssignmentPayload(payload) {
 // degrade past rather than into, and — for the four strong roles — the specific harm D-09 records.
 // No rationale asserts a saving, names a price, or contains a digit; scripts/model-tiers.test.ts
 // asserts the digit half of that mechanically, so a percentage cannot be introduced without a red.
+//
+// EVERY ROW ALSO CARRIES AN `effortRationale` (plan 34-03, D-04). The effort `tiered` preset does
+// not store a level per row: it computes one from the row's alias, `high` for the four `opus`
+// judgment roles and `medium` for every other role, so the two presets cannot disagree about which
+// roles are judgment roles. The effort reason argues the same quality case the model reason does,
+// one level down: deeper reasoning where a decision is made that no later gate re-asks (decomposition
+// and routing, architecture trade-offs, security and non-functional analysis, compliance judgment),
+// moderate reasoning where the work is bounded and the gates and tests check it. It makes no claim
+// about what a level costs or how quickly it answers. One documented fact bears on reading it: the
+// session default effort already differs between models (code.claude.com/docs/en/model-config), so
+// a `medium` row leaves behavior unchanged on some session models and lowers it on others; the rows
+// state the quality argument only and claim no effect. tieredTableRefusals refuses an empty or
+// digit-carrying effortRationale, and scripts/model-tiers.test.ts also refuses the cost and speed
+// vocabulary in it.
 export const TIERED = [
     {
         stem: "agents-md-scribe",
@@ -773,6 +787,9 @@ export const TIERED = [
         rationale: "Writes the AGENTS.md substrate every host CLI reads. The work is transcription against a " +
             "stated shape rather than open judgment, and a malformed substrate is refused by the structure " +
             "validator before any agent loads it.",
+        effortRationale: "Transcribes a stated shape into the substrate file every host reads. Moderate reasoning " +
+            "depth suits work whose correctness the structure validator checks, and deeper deliberation " +
+            "adds little to a transcription.",
     },
     {
         stem: "architect-design",
@@ -780,6 +797,9 @@ export const TIERED = [
         rationale: "Architectural boundaries are expensive to reverse. A boundary drawn in the wrong place is " +
             "caught by no behavior gate — the code that honours it passes every test — and the mistake is " +
             "paid for by every later change that has to route around it.",
+        effortRationale: "Architecture trade-offs are decided once and inherited by every later change, and no test " +
+            "reports a boundary drawn in the wrong place. Deeper reasoning lets the role weigh the " +
+            "alternatives before it commits to one, which is where this decision is made or lost.",
     },
     {
         stem: "ba-pm",
@@ -787,6 +807,8 @@ export const TIERED = [
         rationale: "Turns a request into scoped epics against a stated template. The judgment is bounded by the " +
             "requirement trail, which a human reads and signs, so a weaker reading surfaces at that review " +
             "rather than silently downstream.",
+        effortRationale: "Scopes epics against a stated template, and a human reads and signs the result. Moderate " +
+            "reasoning depth suits judgment that the template bounds and a reviewer checks.",
     },
     {
         stem: "brownfield-mapper",
@@ -794,6 +816,9 @@ export const TIERED = [
         rationale: "Surveys an existing repository and records what it finds. The output is observation against " +
             "the tree, and a wrong observation is contradicted by the tree itself the moment a later role " +
             "reads it.",
+        effortRationale: "Records what an existing tree contains, and the tree itself contradicts a wrong observation " +
+            "as soon as a later role reads it. Moderate reasoning depth suits work that is observed " +
+            "rather than decided.",
     },
     {
         stem: "compliance-officer",
@@ -801,12 +826,17 @@ export const TIERED = [
         rationale: "A misclassified regulated-data field is real-world harm rather than rework. No gate in this " +
             "kit decides whether a field is regulated, so this classification is the only thing standing " +
             "between the user and a disclosure nobody authorised.",
+        effortRationale: "Classifying regulated data is a judgment no gate in this kit repeats. Deeper reasoning gives " +
+            "the role room to work through the rule, the field and the edge case before it answers, " +
+            "because a wrong answer here reaches the user rather than a reviewer.",
     },
     {
         stem: "factory-coach",
         alias: "sonnet",
         rationale: "Explains the kit to the person using it. A weaker explanation is corrected by that person in " +
             "the same conversation, which is the shortest correction loop any role in this kit has.",
+        effortRationale: "Explains the kit to the person in the conversation, who corrects a weak explanation on the " +
+            "spot. Moderate reasoning depth suits the role with the shortest correction loop in the kit.",
     },
     {
         stem: "frontend-ui",
@@ -814,12 +844,18 @@ export const TIERED = [
         rationale: "Implements interface work behind the same behavior gate as every other engineering role, and " +
             "its output is judged visually by a human before it merges — two independent catches on a " +
             "surface where a defect is immediately apparent.",
+        effortRationale: "Implements interface work that the behavior gate tests and a human inspects visually before " +
+            "it merges. Moderate reasoning depth suits bounded implementation that two independent checks " +
+            "review.",
     },
     {
         stem: "greenfield-mapper",
         alias: "sonnet",
         rationale: "Scaffolds a new repository from a stated stack. The shape is prescribed by the kit rather " +
             "than invented, and the structure validator refuses a scaffold that does not match it.",
+        effortRationale: "Scaffolds a repository from a prescribed stack, and the structure validator refuses a " +
+            "scaffold that does not match it. Moderate reasoning depth suits a shape the kit prescribes " +
+            "rather than one the role invents.",
     },
     {
         stem: "incident-responder",
@@ -829,12 +865,19 @@ export const TIERED = [
             "ASSIGNMENT — an incident is where time pressure and blast radius coincide, this role " +
             "was considered for the stronger tier, and it was left here. A later reader who disputes the " +
             "call has the reasoning in front of them, which is exactly what this field exists for.",
+        effortRationale: "Follows a stated runbook and hands the deciding judgment to a named human. Moderate " +
+            "reasoning depth suits procedural work. Like its model assignment this is the arguable row: " +
+            "an incident is where the stakes are highest, and a team that wants deeper reasoning here can " +
+            "set it for this role alone.",
     },
     {
         stem: "installer",
         alias: "sonnet",
         rationale: "Runs an install that is idempotent, additive and reversible by construction, with a dry-run " +
             "and a doctor that inspect it. A mistake is visible before it is applied rather than after.",
+        effortRationale: "Runs an install that is idempotent, additive and reversible, with a dry-run that shows each " +
+            "change before it is applied. Moderate reasoning depth suits work whose mistakes are visible " +
+            "before they land.",
     },
     {
         stem: "orchestrator",
@@ -843,6 +886,10 @@ export const TIERED = [
             "faithfully by every role after it, and nothing downstream asks whether the decomposition " +
             "itself was right — so this is the one place a weaker reading propagates instead of being " +
             "caught.",
+        effortRationale: "Decomposition and routing decide what every other role is asked to do. Deeper reasoning " +
+            "helps the role test a decomposition against the request before it enqueues the work, because " +
+            "a subtask framed wrongly is carried out faithfully downstream and nothing later questions " +
+            "the framing.",
     },
     {
         stem: "qe-e2e",
@@ -850,12 +897,18 @@ export const TIERED = [
         rationale: "Writes tests against acceptance criteria a human already signed. The criteria bound the " +
             "judgment, and a test that fails to discriminate is caught by the red-first discipline the " +
             "gate already enforces.",
+        effortRationale: "Writes tests against acceptance criteria a human already signed, under the red-first " +
+            "discipline the gate enforces. Moderate reasoning depth suits judgment that the criteria " +
+            "bound and the gate checks.",
     },
     {
         stem: "release-manager",
         alias: "sonnet",
         rationale: "Assembles a changelog and a release from artifacts that already exist. The human holds the " +
             "merge and the deploy mechanically, so this role proposes and never decides.",
+        effortRationale: "Assembles a changelog and a release from artifacts that already exist, and the human holds " +
+            "the merge and the deploy. Moderate reasoning depth suits a role that proposes and never " +
+            "decides.",
     },
     {
         stem: "security-nfr",
@@ -863,6 +916,9 @@ export const TIERED = [
         rationale: "A missed vulnerability is real-world harm rather than rework. The behavior gate catches a " +
             "broken test and never an absent threat, so nothing downstream asks the question this role " +
             "failed to ask.",
+        effortRationale: "Security and non-functional analysis asks what could go wrong, and the behavior gate never " +
+            "asks it back. Deeper reasoning helps the role follow an attack path or a failure mode to its " +
+            "end instead of stopping at the first plausible answer.",
     },
     {
         stem: "software-engineer",
@@ -870,6 +926,9 @@ export const TIERED = [
         rationale: "Implements a ready ticket behind the behavior gate, which is the mechanism this kit relies on " +
             "most and which judges this role's output directly. A weaker implementation degrades INTO that " +
             "gate rather than past it.",
+        effortRationale: "Implements a ready ticket behind the behavior gate, which judges this output directly. " +
+            "Moderate reasoning depth suits bounded work that the gate and the tests check, where a " +
+            "weaker attempt is caught rather than shipped.",
     },
     {
         stem: "system-analyst",
@@ -877,6 +936,9 @@ export const TIERED = [
         rationale: "Turns an epic into a ready ticket against a stated checklist, and that ticket is read by a " +
             "human before any implementation starts — a review step sitting between this role and any " +
             "code it influences.",
+        effortRationale: "Turns an epic into a ready ticket against a stated checklist, and a human reads the ticket " +
+            "before any implementation starts. Moderate reasoning depth suits judgment that the checklist " +
+            "bounds and a review checks.",
     },
     {
         stem: "uat-planner",
@@ -884,6 +946,9 @@ export const TIERED = [
         rationale: "Assembles the acceptance scenarios a human then runs by hand. A thin scenario is felt by the " +
             "person executing it rather than accepted silently, which is the strongest form of review any " +
             "artifact in this kit receives.",
+        effortRationale: "Assembles acceptance scenarios a human then runs by hand, so a thin scenario is felt by that " +
+            "person. Moderate reasoning depth suits work that receives the most direct review of any " +
+            "artifact in the kit.",
     },
 ];
 // The tier table's exact cardinality, pinned beside the table it describes.
@@ -951,6 +1016,25 @@ export function tieredTableRefusals(table = TIERED) {
                 "rationale a REQUIRED field precisely so a later reader can dispute the tier, and an " +
                 "assignment nobody argued for is an assignment nobody can challenge. Remedy: write the " +
                 "quality argument for this role's tier; do NOT delete the field.");
+        }
+    }
+    // A blank or digit-carrying EFFORT reason (plan 34-03, D-04, MODEL-07). Checked with `typeof`
+    // first, because this predicate also runs on hand-built tables at run time, where the type that
+    // makes the field required does not exist: a row missing the field is the EMPTY finding, never a
+    // TypeError.
+    for (const row of [...table].sort((a, b) => a.stem.localeCompare(b.stem))) {
+        const effortReason = row.effortRationale;
+        if (typeof effortReason !== "string" || effortReason.trim().length === 0) {
+            findings.push(`model-tiers: the TIERED entry for "${row.stem}" carries an EMPTY effortRationale — D-04 ` +
+                "requires every row to argue the reasoning-effort level the `tiered` effort preset gives " +
+                "it, for the same reason D-10 requires the model rationale. Remedy: write the quality " +
+                "argument for this role's effort level; do NOT delete the field.");
+        }
+        else if (/[0-9]/.test(effortReason)) {
+            findings.push(`model-tiers: the TIERED entry for "${row.stem}" carries an effortRationale that contains a ` +
+                "DIGIT — MODEL-07 refuses any number in a rationale, because a number is what a cost or " +
+                "savings claim needs and such a claim must be measured or marked `UNKNOWN - verify`. " +
+                "Remedy: state the quality argument without a number.");
         }
     }
     return findings;
