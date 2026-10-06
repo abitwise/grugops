@@ -126,7 +126,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { listRoles, INVARIANT, RESOLVER } from "./kit-model.js";
 import { parseFrontmatter, sectionEndIndex, unfencedHeadingIndex, } from "./frontmatter.js";
-import { readModelsConfig, resolveModels, resolvedAssignmentLine, resolvedPresetLine, } from "./model-tiers.js";
+import { readModelsConfig, resolveEfforts, resolveModels, resolvedAssignmentLine, resolvedPresetLine, } from "./model-tiers.js";
 // ── Fixed literal paths (never argv/env/content-derived — ASVS V12) ───────────────────────────
 const ROOT = join(import.meta.dirname, "..");
 const ROLES_DIR = join(ROOT, "agent-factory/roles");
@@ -289,6 +289,19 @@ const resolution = resolveModels(stems, {
 if (!resolution.ok)
     fail(resolution.reason);
 const models = resolution.value;
+// ── Resolve every role's reasoning-effort level, also ONCE and also ABOVE the build loop ────────
+// (plan 34-01, D-02, D-06). The same posture as the model alias directly above, for the same T-27-32
+// reason: `models.effort` was already validated by `readModelsConfig` (the one reader, D-07), and
+// `resolveEfforts` decides whether that legal block applies to this tree's stems. A refusal from it
+// reaches `fail` before a single byte is written. The effort preset handed over is
+// `models.effort.preset`, never `models.preset`: the model preset changes no effort (D-05).
+const effortResolution = resolveEfforts(stems, {
+    preset: modelsConfig.effort.preset,
+    overrides: modelsConfig.effort.overrides,
+});
+if (!effortResolution.ok)
+    fail(effortResolution.reason);
+const efforts = effortResolution.value;
 const adapters = [];
 // Adapter name FOLDED TO LOWER CASE -> the role file that claimed it. The fold is the whole point:
 // two roles whose adapter names differ only by case are distinct files on a case-sensitive
@@ -387,6 +400,11 @@ for (const file of roleFiles) {
     if (model === undefined) {
         fail(`${file}: no model alias resolved for the role stem "${stem}" — the resolution was taken over the same role set this loop walks, so a miss means the two derivations have come apart`);
     }
+    // The resolved effort level, by the same stem lookup and with the same refusal on a miss.
+    const effort = efforts.get(stem);
+    if (effort === undefined) {
+        fail(`${file}: no effort level resolved for the role stem "${stem}" — the resolution was taken over the same role set this loop walks, so a miss means the two derivations have come apart`);
+    }
     adapters.push({
         file,
         stem,
@@ -395,6 +413,7 @@ for (const file of roleFiles) {
         tools,
         isCoordinator: stem === COORDINATOR_ROLE,
         model,
+        effort,
     });
 }
 // ── Coordinator cardinality: exactly one, located by ROLE basename (never a filename) ─────────
@@ -474,6 +493,11 @@ function render(a) {
     // and immediately before the closing delimiter — so the byte layout is untouched, and no
     // normalization, trimming or String() of a boxed value sits between the resolution and the bytes.
     lines.push(`model: ${a.model}`);
+    // The resolved EFFORT, directly after `model:` and only when it is not `inherit` (plan 34-01,
+    // D-06). `inherit` is Claude Code's documented default ("inherits from session"), so it is written
+    // as no line at all — which is what keeps a zero-config repository's adapters byte-identical.
+    if (a.effort !== "inherit")
+        lines.push(`effort: ${a.effort}`);
     lines.push("---");
     lines.push(...(a.isCoordinator ? coordinatorBody(a) : specialistBody(a)));
     lines.push(""); // trailing element → exactly one final "\n"

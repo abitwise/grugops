@@ -46,6 +46,7 @@ import { join } from "node:path";
 // copy of the thing under test, and the copy would go on passing after the generator's own moved.
 import {
   RESOLVED_PRESET_PREFIX,
+  TIERED,
   readModelsConfig,
   resolvedAssignmentsIn,
   resolvedPresetsIn,
@@ -1589,6 +1590,104 @@ describe("generate-role-adapters.js — the `models` configuration is resolved a
     // And the whole module takes no output flag and reads no environment variable at all.
     expect(src).not.toContain("process.argv");
     expect(src).not.toContain("process.env");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE `effort:` EMIT (plan 34-01, D-02, D-04, D-06)
+//
+// `models.effort` is read by the one reader (`readModelsConfig`), resolved by `resolveEfforts` above
+// the build loop, and emitted as one `effort:` line directly after `model:` — and ONLY when the
+// resolved level is not `inherit`, so a zero-config mirror emits no such line anywhere. Every
+// expectation below is derived: the adapter set from the mirrored roles, the `tiered` split from the
+// imported TIERED table. No stem-to-level list is typed here.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Every line of the file that IS a top-level `effort:` frontmatter key, counted over the whole file. */
+const effortLines = (text: string): string[] =>
+  text.split("\n").filter((l) => l.startsWith("effort: "));
+
+/** The role stem an emitted adapter filename belongs to: `grugops-<stem>.md`. */
+const adapterStem = (name: string): string => name.slice("grugops-".length, -".md".length);
+
+describe("generate-role-adapters.js — the resolved `effort:` emit (plan 34-01)", () => {
+  it("(a) ZERO-CONFIG: no adapter carries an `effort:` line, and one adapter is written per mirrored role", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    const snap = snapshot(agentsDir(m));
+    expect(
+      Object.keys(snap),
+      "PREMISE: the run must have written one adapter per mirrored role, or 'no effort line' is vacuous",
+    ).toHaveLength(SAMPLE_ROLES.length);
+    const carrying = Object.entries(snap)
+      .filter(([, text]) => effortLines(text).length > 0)
+      .map(([name]) => name);
+    expect(carrying, "an `inherit` effort must emit NO line (D-06)").toEqual([]);
+  });
+
+  it("(b) a `models.effort.roles` override reaches exactly ONE adapter, on the line directly after `model:`", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const victim = SAMPLE_ROLES[0].slice(0, -".md".length);
+    writeModelsConfig(m, { effort: { roles: { [victim]: "max" } } });
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    const snap = snapshot(agentsDir(m));
+    expect(Object.keys(snap)).toHaveLength(SAMPLE_ROLES.length);
+    const victimFile = `grugops-${victim}.md`;
+    expect(Object.keys(snap), "PREMISE: the configured role's adapter must exist").toContain(victimFile);
+
+    const findings: string[] = [];
+    for (const [name, text] of Object.entries(snap)) {
+      const found = effortLines(text);
+      if (name !== victimFile) {
+        if (found.length !== 0) findings.push(`${name} — carries ${found.join(" | ")}, expected none`);
+        continue;
+      }
+      if (found.length !== 1 || found[0] !== "effort: max") {
+        findings.push(`${name} — effort lines [${found.join(" | ")}], expected exactly ["effort: max"]`);
+        continue;
+      }
+      const fm = frontmatter(text).split("\n");
+      const at = fm.indexOf("effort: max");
+      if (at < 1 || !fm[at - 1].startsWith("model: ")) {
+        findings.push(`${name} — the \`effort:\` line is not directly after the \`model:\` line`);
+      }
+      if (at !== fm.length - 1) {
+        findings.push(`${name} — the \`effort:\` line is not the last frontmatter line`);
+      }
+    }
+    expect(findings).toEqual([]);
+  });
+
+  it("(c) the `tiered` effort preset gives EVERY adapter one `effort:` line computed from TIERED's alias column", () => {
+    const m = scratch(SAMPLE_ROLES);
+    writeModelsConfig(m, { effort: { preset: "tiered" } });
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    const snap = snapshot(agentsDir(m));
+    expect(Object.keys(snap)).toHaveLength(SAMPLE_ROLES.length);
+
+    const findings: string[] = [];
+    for (const [name, text] of Object.entries(snap)) {
+      const stem = adapterStem(name);
+      const row = TIERED.find((t) => t.stem === stem);
+      if (row === undefined) {
+        findings.push(`${name} — no TIERED row for "${stem}", so no expectation can be derived`);
+        continue;
+      }
+      // D-04, computed from the table rather than typed: a judgment role (model `opus`) is `high`,
+      // every other role is `medium`.
+      const expected = row.alias === "opus" ? "high" : "medium";
+      const found = effortLines(text);
+      if (found.length !== 1 || found[0] !== `effort: ${expected}`) {
+        findings.push(`${name} — effort lines [${found.join(" | ")}], expected exactly ["effort: ${expected}"]`);
+      }
+    }
+    expect(findings).toEqual([]);
   });
 });
 

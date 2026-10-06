@@ -133,9 +133,11 @@ import {
 } from "./frontmatter.js";
 import {
   readModelsConfig,
+  resolveEfforts,
   resolveModels,
   resolvedAssignmentLine,
   resolvedPresetLine,
+  type EffortLevel,
   type ModelAlias,
 } from "./model-tiers.js";
 
@@ -275,6 +277,8 @@ interface Adapter {
   tools: string[];
   isCoordinator: boolean;
   readonly model: ModelAlias; // the resolved alias, emitted verbatim — never a literal in render()
+  // The resolved reasoning-effort level (plan 34-01). `inherit` is emitted as NO line at all (D-06).
+  readonly effort: EffortLevel;
 }
 
 // THE ONE RULE FOR "what is this role file's stem". Asked by the model resolution below and by the
@@ -323,6 +327,19 @@ const resolution = resolveModels(stems, {
 });
 if (!resolution.ok) fail(resolution.reason);
 const models = resolution.value;
+
+// ── Resolve every role's reasoning-effort level, also ONCE and also ABOVE the build loop ────────
+// (plan 34-01, D-02, D-06). The same posture as the model alias directly above, for the same T-27-32
+// reason: `models.effort` was already validated by `readModelsConfig` (the one reader, D-07), and
+// `resolveEfforts` decides whether that legal block applies to this tree's stems. A refusal from it
+// reaches `fail` before a single byte is written. The effort preset handed over is
+// `models.effort.preset`, never `models.preset`: the model preset changes no effort (D-05).
+const effortResolution = resolveEfforts(stems, {
+  preset: modelsConfig.effort.preset,
+  overrides: modelsConfig.effort.overrides,
+});
+if (!effortResolution.ok) fail(effortResolution.reason);
+const efforts = effortResolution.value;
 
 const adapters: Adapter[] = [];
 // Adapter name FOLDED TO LOWER CASE -> the role file that claimed it. The fold is the whole point:
@@ -443,6 +460,14 @@ for (const file of roleFiles) {
     );
   }
 
+  // The resolved effort level, by the same stem lookup and with the same refusal on a miss.
+  const effort = efforts.get(stem);
+  if (effort === undefined) {
+    fail(
+      `${file}: no effort level resolved for the role stem "${stem}" — the resolution was taken over the same role set this loop walks, so a miss means the two derivations have come apart`,
+    );
+  }
+
   adapters.push({
     file,
     stem,
@@ -451,6 +476,7 @@ for (const file of roleFiles) {
     tools,
     isCoordinator: stem === COORDINATOR_ROLE,
     model,
+    effort,
   });
 }
 
@@ -536,6 +562,10 @@ function render(a: Adapter): string {
   // and immediately before the closing delimiter — so the byte layout is untouched, and no
   // normalization, trimming or String() of a boxed value sits between the resolution and the bytes.
   lines.push(`model: ${a.model}`);
+  // The resolved EFFORT, directly after `model:` and only when it is not `inherit` (plan 34-01,
+  // D-06). `inherit` is Claude Code's documented default ("inherits from session"), so it is written
+  // as no line at all — which is what keeps a zero-config repository's adapters byte-identical.
+  if (a.effort !== "inherit") lines.push(`effort: ${a.effort}`);
   lines.push("---");
   lines.push(...(a.isCoordinator ? coordinatorBody(a) : specialistBody(a)));
   lines.push(""); // trailing element → exactly one final "\n"

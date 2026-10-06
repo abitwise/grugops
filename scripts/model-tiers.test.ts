@@ -1351,7 +1351,7 @@ describe("model-tiers: the `models` block's key set is CLOSED BY NAME (plan 29.1
     expect(r.value.overrides.size).toBe(0);
   });
 
-  it("MODELS_KEYS is the closed set itself — exactly the two keys `readModelsBlock` PERMITS", () => {
+  it("MODELS_KEYS is the closed set itself — exactly the three keys `readModelsBlock` PERMITS", () => {
     // THIS LITERAL IS A SECOND HAND-WRITTEN LIST, said plainly (finding R2-WR-06). The comment this
     // replaces called it "DERIVED-ADJACENT rather than a second hand-maintained list" and claimed a
     // third legal key "can only arrive by editing the tuple, which moves the mechanism and the
@@ -1368,7 +1368,10 @@ describe("model-tiers: the `models` block's key set is CLOSED BY NAME (plan 29.1
     // by the reader, not merely permitted", which drives each member through `readModelsConfig` and
     // requires the answer to move. Presence and consumption are two assertions over one tuple here,
     // rather than one assertion pretending to be two.
-    expect([...MODELS_KEYS].sort()).toEqual(["preset", "roles"]);
+    //
+    // `effort` joined in plan 34-01 (D-02), with its reader (`readEffortBlock`) and its probe in the
+    // consumption case below added in the same change.
+    expect([...MODELS_KEYS].sort()).toEqual(["effort", "preset", "roles"]);
     expect(new Set(MODELS_KEYS).size, "a repeated member would be a set literal pretending to be a set").toBe(
       MODELS_KEYS.length,
     );
@@ -1386,9 +1389,14 @@ describe("model-tiers: the `models` block's key set is CLOSED BY NAME (plan 29.1
     // Each probe is a value that, set ALONE in a `models` block, must visibly move the reader's
     // answer. The role stem is DERIVED from the kit authority rather than typed, like every other
     // corpus reference in this file.
+    //
+    // THE `effort` PROBE IS SET ALONE, WITH NO `roles` BESIDE IT (plan 34-01, 34-RESEARCH.md Pitfall
+    // 1). That is the shape an early return on an absent `models.roles` swallows, so it is the shape
+    // this probe must carry: a probe that also set `roles` would pass over exactly that defect.
     const probes: Record<ModelsKey, unknown> = {
       preset: "tiered",
       roles: { [[...stems].sort()[0]]: "opus" },
+      effort: { roles: { [[...stems].sort()[0]]: "max" } },
     };
 
     // THE PREMISE, BEFORE THE LOOP THAT SPENDS IT, AND IN BOTH DIRECTIONS. A key added to
@@ -1412,7 +1420,14 @@ describe("model-tiers: the `models` block's key set is CLOSED BY NAME (plan 29.1
     const answer = (root: string): string => {
       const r = readModelsConfig(root, stems);
       if (!r.ok) throw new Error(`expected a resolution, got a refusal: ${r.reason}`);
-      return JSON.stringify([r.value.preset, [...r.value.overrides].sort()]);
+      // The resolved effort preset and overrides are part of the answer (plan 34-01), so the
+      // `effort` probe can move it.
+      return JSON.stringify([
+        r.value.preset,
+        [...r.value.overrides].sort(),
+        r.value.effort.preset,
+        [...r.value.effort.overrides].sort(),
+      ]);
     };
 
     // THE BASELINE'S OWN PREMISE, asserted before anything is compared against it. A baseline that

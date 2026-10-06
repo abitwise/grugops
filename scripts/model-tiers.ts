@@ -272,10 +272,86 @@ export function isPresetName(value: unknown): value is PresetName {
 // move, with the probe table's coverage of this tuple asserted in BOTH directions before the loop
 // that spends it — a member added here with no probe fails that assertion rather than passing over
 // its own omission.
-export const MODELS_KEYS = ["preset", "roles"] as const;
+//
+// WHY THE TUPLE GREW TO THREE MEMBERS (plan 34-01, D-02). `effort` is the reasoning-effort sub-block:
+// `models.effort` carries its own closed key set (EFFORT_KEYS below) and is read by the same reader,
+// `readModelsBlock`, through its module-private `readEffortBlock`. The member was added together with
+// its reader and with its probe in the consumption case named above — an `effort`-only block must
+// move the reader's answer — so the presence/consumption split argued in this paragraph holds for the
+// new member as it does for the first two. That probe is what catches the one shape this widening
+// made reachable: a block carrying `effort` and no `roles`, which an early return on the absent
+// `roles` key would have answered as zero-config with no message (34-RESEARCH.md, Pitfall 1).
+export const MODELS_KEYS = ["preset", "roles", "effort"] as const;
 
 /** The closed set of legal `models` block keys, derived from the tuple so the two cannot disagree. */
 export type ModelsKey = (typeof MODELS_KEYS)[number];
+
+// ── EFFORT_LEVELS — the closed reasoning-effort vocabulary (plan 34-01, D-03) ─────────────────
+//
+// `inherit` plus the five levels Claude Code's sub-agent frontmatter accepts for `effort` — `low`,
+// `medium`, `high`, `xhigh`, `max` (code.claude.com/docs/en/sub-agents, cited in 34-RESEARCH.md § A).
+// `inherit` is this kit's own word for "write no `effort:` line", which is the documented default
+// ("inherits from session"); it is never emitted (D-06).
+//
+// THE SAME RULES AS MODEL_ALIASES, FOR THE SAME REASONS. The tuple is the declaration and the union is
+// derived from it; membership is EXACT STRING EQUALITY against these six constants and never a
+// pattern, so the emitted value can only be one of six lowercase words and no YAML-significant byte
+// can reach the frontmatter (T-34-01). No case folding and no trimming: `MAX` and ` max` are not
+// members.
+//
+// NO MODEL-TO-EFFORT CAPABILITY TABLE (D-08). Which levels a given model supports is Claude Code's
+// fact, not this kit's; a table here would rot the way a full model id would (MODEL-04). Every
+// model/effort pair is written as configured, `haiku` with `max` included.
+export const EFFORT_LEVELS = ["inherit", "low", "medium", "high", "xhigh", "max"] as const;
+
+/** The closed set of legal effort levels, derived from the tuple so the two cannot disagree. */
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+
+/**
+ * Effort-level membership, decided by EXACT STRING EQUALITY against the six constants.
+ *
+ * Takes `unknown` for the reason `isModelAlias` does: the value arrives from user-authored JSON and
+ * may be a number, a null or an object, each of which is refused rather than coerced.
+ */
+export function isEffortLevel(value: unknown): value is EffortLevel {
+  if (typeof value !== "string") return false;
+  return EFFORT_LEVELS.some((level) => level === value);
+}
+
+// ── EFFORT_PRESET_NAMES — the closed effort-preset vocabulary (plan 34-01, D-04, D-05) ────────
+//
+// ITS OWN TUPLE, NEVER AN ALIAS OF PRESET_NAMES. The two sets have equal members today, and that is
+// a coincidence rather than a rule: a third MODEL preset added to PRESET_NAMES must not silently
+// become a legal EFFORT preset. Declaring the two separately makes each a visible source change at its
+// own site.
+//
+// `none` resolves every role to `inherit` (no `effort:` line). `tiered` resolves `high` for the
+// judgment roles and `medium` for the execution roles, where the split is COMPUTED from the TIERED
+// table's alias column inside `resolveEfforts` — a row whose model alias is `opus` is a judgment role
+// — and never typed out as a second stem list (D-04). The model preset `tiered` does not change any
+// role's effort (D-05); effort is chosen only through `models.effort`.
+export const EFFORT_PRESET_NAMES = ["none", "tiered"] as const;
+
+/** The closed set of legal effort-preset names, derived from the tuple. */
+export type EffortPresetName = (typeof EFFORT_PRESET_NAMES)[number];
+
+/** Effort-preset membership, decided by EXACT STRING EQUALITY against the two constants. */
+export function isEffortPresetName(value: unknown): value is EffortPresetName {
+  if (typeof value !== "string") return false;
+  return EFFORT_PRESET_NAMES.some((name) => name === value);
+}
+
+// ── EFFORT_KEYS — the `models.effort` sub-block's own closed key set (plan 34-01, D-02) ───────
+//
+// The sub-block mirrors the `models` block it sits in: a `preset` and a sparse `roles` override map,
+// where a `roles` entry beats the preset for that role. Like MODELS_KEYS, this tuple closes PRESENCE
+// only; CONSUMPTION is closed by scripts/model-tiers.test.ts, "every member of EFFORT_KEYS is
+// CONSUMED by the reader", which drives each member alone and requires the answer to move, with the
+// probe table compared to this tuple in both directions before the loop.
+export const EFFORT_KEYS = ["preset", "roles"] as const;
+
+/** The closed set of legal `models.effort` keys, derived from the tuple. */
+export type EffortKey = (typeof EFFORT_KEYS)[number];
 
 // ── MODELS_CONFIG_CANDIDATE_RELS — the two configuration LOCATIONS, declared once (WR-05) ───────
 //
@@ -1322,6 +1398,191 @@ export function inheritForEveryStem(stems: readonly string[]): ReadonlyMap<strin
   return value;
 }
 
+// ── resolveEfforts — the effort twin of resolveModels (plan 34-01, D-02, D-04, D-06) ───────────
+//
+// The same discriminated answer and the same floors, in the same order, as `resolveModels` above,
+// because the two are the same question asked of two vocabularies and a floor that held for one and
+// not the other would be the "one rule, two answers" shape this module refuses. Each floor's full
+// argument is written once, on `resolveModels`; the comments below name only what is specific to
+// effort.
+
+/** Options for `resolveEfforts`: the effort preset and its sparse per-role overrides. */
+export interface ResolveEffortsOptions {
+  /** The effort preset. ONLY a strictly `undefined` value takes the default `none` (WR-02 lesson). */
+  readonly preset?: EffortPresetName;
+  /** Per-role overrides, which win over the preset. Must be a Map when present (R2-WR-01 lesson). */
+  readonly overrides?: ReadonlyMap<string, EffortLevel>;
+}
+
+/** The effort resolver's answer: a resolved map, or a refusal that names what was wrong. */
+export type EffortResolution =
+  | { readonly ok: true; readonly value: ReadonlyMap<string, EffortLevel> }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Resolve a reasoning-effort level for every role stem the caller derived.
+ *
+ * PURE, like `resolveModels`: no file, no environment variable, no path. The floors, in order:
+ *   0.  ILLEGAL PRESET   — validated before it is defaulted; only `undefined` becomes `none`.
+ *   0b. OVERRIDES SHAPE  — a present-but-non-Map overrides argument is refused naming its shape.
+ *   1.  EMPTY            — a resolution over nobody is refused.
+ *   2.  DUPLICATE        — a repeated stem is refused by name rather than resolved last-wins.
+ *   3.  Under `tiered` only: the TIERED table's own integrity, then per-stem coverage — a stem with
+ *       no TIERED row is refused by name and never defaulted to `inherit`.
+ *   4.  Overrides: each value must be a legal level and each key a covered stem; an override
+ *       replaces the preset's value for that stem (the same tie-break the model alias has, D-02).
+ *
+ * THE `tiered` SPLIT IS COMPUTED, NOT LISTED (D-04). For each stem, the TIERED row's MODEL alias
+ * decides the effort: `opus` (a judgment role) gives `high`, anything else (an execution role) gives
+ * `medium`. There is no second stem table for effort, so the two presets cannot disagree about which
+ * roles are judgment roles. The model preset itself never reaches this function (D-05): the caller
+ * hands over `models.effort.preset`, which is independent of `models.preset`.
+ */
+export function resolveEfforts(
+  stems: readonly string[],
+  options?: ResolveEffortsOptions,
+): EffortResolution {
+  // ── Floor 0: the effort preset, validated BEFORE it is defaulted. ───────────────────────────
+  const rawPreset: unknown = options?.preset;
+  const preset: unknown = rawPreset === undefined ? "none" : rawPreset;
+  if (!isEffortPresetName(preset)) {
+    return {
+      ok: false,
+      reason:
+        `model-tiers: ${quoteValue(preset)} is not a legal effort preset name. The legal set is ` +
+        `exactly: ${EFFORT_PRESET_NAMES.map((n) => `"${n}"`).join(", ")}. Remedy: use one of those ` +
+        "names; adding another effort preset is a source change in scripts/model-tiers.ts, not a " +
+        "value a configuration file can invent.",
+    };
+  }
+
+  // ── Floor 0b: the overrides argument's shape. ───────────────────────────────────────────────
+  const rawOverrides: unknown = options?.overrides;
+  const overrides: ReadonlyMap<string, EffortLevel> | null =
+    rawOverrides === undefined
+      ? new Map<string, EffortLevel>()
+      : rawOverrides instanceof Map
+        ? (rawOverrides as ReadonlyMap<string, EffortLevel>)
+        : null;
+  if (overrides === null) {
+    return {
+      ok: false,
+      reason:
+        `model-tiers: the effort overrides argument is ${describeShape(rawOverrides)} rather than ` +
+        "a Map of role stem to effort level. An ABSENT overrides map is the zero-config contract; a " +
+        "value that is present but not a Map would be silently discarded, which is a setting the " +
+        "caller believes they made and did not. Remedy: hand over a Map — `readModelsConfig` is " +
+        "what produces a validated one — or omit the argument entirely.",
+    };
+  }
+
+  // ── Floor 1: the vacuity floor. ─────────────────────────────────────────────────────────────
+  if (stems.length === 0) {
+    return {
+      ok: false,
+      reason:
+        "model-tiers: the stem set is EMPTY — refusing to resolve an effort level for nobody. A " +
+        "resolution over nothing reports a clean assignment and carries no information about the " +
+        "roles it was supposed to cover.",
+    };
+  }
+
+  // ── Floor 2: a duplicated stem, by name and count, in sorted order. ─────────────────────────
+  const occurrences = new Map<string, number>();
+  for (const stem of stems) occurrences.set(stem, (occurrences.get(stem) ?? 0) + 1);
+  for (const stem of [...occurrences.keys()].sort()) {
+    const count = occurrences.get(stem) ?? 0;
+    if (count > 1) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: the stem ${quoteValue(stem)} appears ${String(count)} times in the stem ` +
+          "set handed to the effort resolver — refusing a duplicated stem rather than letting the " +
+          "last occurrence win, because the losing occurrence's level would vanish with no error.",
+      };
+    }
+  }
+
+  // ── The resolution, sorted before insertion (the same determinism argument as resolveModels).
+  const sorted = [...stems].sort();
+  const value = new Map<string, EffortLevel>();
+
+  if (preset === "tiered") {
+    // ── Floor 3a: the TIERED table's own integrity — the split is read off it. ────────────────
+    const tableRefusals = tieredTableRefusals();
+    if (tableRefusals.length > 0) return { ok: false, reason: tableRefusals.join("\n") };
+
+    // ── Floor 3b: per-stem coverage, computing the split from TIERED's alias column (D-04). ───
+    const aliasByStem = new Map<string, ModelAlias>(TIERED.map((row) => [row.stem, row.alias]));
+    const unassigned: string[] = [];
+    for (const stem of sorted) {
+      const alias = aliasByStem.get(stem);
+      if (alias === undefined) {
+        unassigned.push(stem);
+        continue;
+      }
+      value.set(stem, alias === "opus" ? "high" : "medium");
+    }
+    if (unassigned.length > 0) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: the "tiered" effort preset has no TIERED row for ${String(unassigned.length)} ` +
+          `of the ${String(sorted.length)} stem(s) handed to the effort resolver: ` +
+          `${unassigned.map((s) => quoteValue(s)).join(", ")}. The effort split is computed from ` +
+          "each role's TIERED row, so a role with no row has no effort level. Remedy: add a TIERED " +
+          "row for each stem named here. A partial preset is not filled in with `inherit`, because " +
+          "that would be a setting the user believes they made and did not.",
+      };
+    }
+  } else {
+    for (const [stem, level] of inheritEffortForEveryStem(sorted)) value.set(stem, level);
+  }
+
+  // ── Floor 4 and the override application: the override wins over the preset (D-02). ────────
+  for (const [stem, level] of overrides) {
+    if (!isEffortLevel(level)) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: the effort override for role ${quoteValue(stem)} is ${quoteValue(level)}, ` +
+          `which is not a legal effort level. The legal set is exactly: ` +
+          `${EFFORT_LEVELS.map((l) => `"${l}"`).join(", ")}. This floor exists because the resolved ` +
+          "value is written straight into emitted frontmatter, and the closed allow-list is the only " +
+          "thing keeping a YAML-significant byte out of it.",
+      };
+    }
+    if (!value.has(stem)) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: the effort override names the role stem ${quoteValue(stem)}, which is not ` +
+          `one of the ${String(sorted.length)} stem(s) this resolution covers: ` +
+          `${sorted.map((s) => quoteValue(s)).join(", ")}. An override this resolver dropped would be ` +
+          "a setting the caller believes they made and did not. Remedy: correct the stem, or resolve " +
+          "against the corpus the overrides were read for.",
+      };
+    }
+    value.set(stem, level);
+  }
+
+  return { ok: true, value };
+}
+
+/**
+ * `inherit` for every stem — the ONE implementation of the zero-config effort map (plan 34-01).
+ *
+ * `inherit` emits no `effort:` line (D-06), so this map is what keeps a zero-config repository's
+ * adapters byte-identical. Sorted for the same reason `inheritForEveryStem` sorts.
+ */
+export function inheritEffortForEveryStem(
+  stems: readonly string[],
+): ReadonlyMap<string, EffortLevel> {
+  const value = new Map<string, EffortLevel>();
+  for (const stem of [...stems].sort()) value.set(stem, "inherit");
+  return value;
+}
+
 // ── readModelsConfig — the two-location `models` read (D-05, D-06, D-07, D-11) ────────────────
 //
 // The two locations and their ORDER are declared ONCE, in MODELS_CONFIG_CANDIDATE_RELS above —
@@ -1334,7 +1595,20 @@ export function inheritForEveryStem(stems: readonly string[]): ReadonlyMap<strin
 export interface ModelsConfig {
   readonly preset: PresetName;
   readonly overrides: ReadonlyMap<string, ModelAlias>;
+  /**
+   * The `models.effort` sub-block (plan 34-01, D-02): its preset and its sparse per-role overrides,
+   * both already validated against the closed tuples. An absent sub-block is preset `none` with an
+   * empty map, which `resolveEfforts` turns into `inherit` for every role and the generator into no
+   * `effort:` line at all (D-06).
+   */
+  readonly effort: EffortConfig;
   readonly source: string | null;
+}
+
+/** The validated `models.effort` sub-block: an effort preset and its sparse per-role overrides. */
+export interface EffortConfig {
+  readonly preset: EffortPresetName;
+  readonly overrides: ReadonlyMap<string, EffortLevel>;
 }
 
 /** The reader's verdict. A refusal carries a reason and NO value — the caller decides the policy. */
@@ -1342,9 +1616,21 @@ export type ModelsConfigResult =
   | { readonly ok: true; readonly value: ModelsConfig }
   | { readonly ok: false; readonly reason: string };
 
-/** The zero-config answer, named once so the four arms that reach it cannot drift apart. */
+/**
+ * The zero-config answer, named once so the four arms that reach it cannot drift apart. It carries
+ * the zero-config EFFORT too (preset `none`, no overrides), so "nothing is configured" has one
+ * implementation for both dials rather than one per dial (plan 34-01).
+ */
 function zeroConfigModels(source: string | null): ModelsConfigResult {
-  return { ok: true, value: { preset: "none", overrides: new Map(), source } };
+  return {
+    ok: true,
+    value: { preset: "none", overrides: new Map(), effort: zeroConfigEffort(), source },
+  };
+}
+
+/** The zero-config effort sub-block: preset `none`, no overrides. One implementation, two callers. */
+function zeroConfigEffort(): EffortConfig {
+  return { preset: "none", overrides: new Map<string, EffortLevel>() };
 }
 
 /**
@@ -1414,6 +1700,154 @@ function quoteValue(value: unknown): string {
     return `<${describeShape(value)} that cannot be serialised>`;
   }
   return String(rendered);
+}
+
+/** The effort sub-block reader's verdict. A refusal carries a reason and NO value. */
+type EffortConfigResult =
+  | { readonly ok: true; readonly value: EffortConfig }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Read and validate the `models.effort` sub-block (plan 34-01, D-02, D-03).
+ *
+ * MODULE-PRIVATE, AND CALLED FROM ONE PLACE: `readModelsBlock`, after its own key-set check and
+ * independent of whether `models.roles` is present. There is no second config grammar for effort
+ * (D-07): the file, its two locations, their whole-file precedence and the `models` block's own
+ * refusals are all decided before this function is reached.
+ *
+ * THE ORDER MIRRORS THE `models` BLOCK EXACTLY, and each step is its own refusal:
+ *   1. `undefined`                     → preset `none`, empty map (the zero-config effort).
+ *   2. null, an array, any non-object  → refused naming the shape. Degenerate is not absent.
+ *   3. every key outside EFFORT_KEYS   → named together, sorted, in ONE refusal, BEFORE any value of
+ *                                        the block is read, so a legal sibling never applies while a
+ *                                        near-miss key beside it is dropped.
+ *   4. `preset`                        → exact equality against EFFORT_PRESET_NAMES.
+ *   5. `roles`                         → absent is legal; a degenerate value is refused by shape;
+ *                                        every key is compared against the derived stems BEFORE any
+ *                                        value is read (a config-derived string is never joined
+ *                                        onto a path, ASVS V12); every value by exact equality
+ *                                        against EFFORT_LEVELS.
+ *
+ * Every rejected value is quoted through `quoteValue` and every shape described through
+ * `describeShape` — the module's single authorities for both — and never through a second rendering.
+ */
+function readEffortBlock(
+  rawEffort: unknown,
+  path: string,
+  stems: readonly string[],
+): EffortConfigResult {
+  // 1. Absent: the zero-config effort.
+  if (rawEffort === undefined) return { ok: true, value: zeroConfigEffort() };
+
+  // 2. Present but degenerate. `"effort": null` and `"effort": "tiered"` are not "no effort".
+  if (rawEffort === null || typeof rawEffort !== "object" || Array.isArray(rawEffort)) {
+    return {
+      ok: false,
+      reason:
+        `model-tiers: the \`models.effort\` key in ${path} is ${describeShape(rawEffort)} rather ` +
+        "than a JSON object. A present-but-degenerate `models.effort` is refused rather than read " +
+        "as an absent one, because a value that cannot mean anything must not resolve to the same " +
+        "answer as a block that was never written. Remedy: write it as an object with the keys " +
+        `${EFFORT_KEYS.map((key) => `"${key}"`).join(", ")}, write \`"effort": {}\` for the ` +
+        "zero-config answer, or remove the key entirely.",
+    };
+  }
+  const effort = rawEffort as Record<string, unknown>;
+
+  // 3. The sub-block's own key set, decided before any of its values is read.
+  const unknownKeys = Object.keys(effort)
+    .filter((key) => !EFFORT_KEYS.some((legal) => legal === key))
+    .sort();
+  if (unknownKeys.length > 0) {
+    // The clause agrees in number with the list it follows, as the `models` key refusal's does.
+    const notAKey = unknownKeys.length === 1 ? "which is not a key" : "none of which is a key";
+    return {
+      ok: false,
+      reason:
+        `model-tiers: ${path} sets ` +
+        `${unknownKeys.map((key) => `\`models.effort.${key}\``).join(", ")}, ${notAKey} of the ` +
+        `\`models.effort\` block. The legal set is exactly: ` +
+        `${EFFORT_KEYS.map((key) => `"${key}"`).join(", ")}. Membership is EXACT STRING EQUALITY ` +
+        "against those constants, so a case-varied spelling is an unknown key rather than a match. " +
+        "Remedy: correct the key. It is refused before any legal key beside it is read, because an " +
+        "effort preset applying while its overrides are dropped is a partially wrong effort map " +
+        "delivered by a successful run.",
+    };
+  }
+
+  // 4. `preset`, by exact equality against the closed effort-preset set.
+  let preset: EffortPresetName = "none";
+  const rawPreset = effort.preset;
+  if (rawPreset !== undefined) {
+    if (!isEffortPresetName(rawPreset)) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: ${path} sets \`models.effort.preset\` to ${quoteValue(rawPreset)}, which is ` +
+          `not a legal effort preset name. The legal set is exactly: ` +
+          `${EFFORT_PRESET_NAMES.map((n) => `"${n}"`).join(", ")}. Remedy: use one of those names. ` +
+          "Adding another effort preset is a source change in scripts/model-tiers.ts, not a value a " +
+          "configuration file can invent.",
+      };
+    }
+    preset = rawPreset;
+  }
+
+  // 5. `roles`, a sparse per-role override map. Absent is legal: the preset's answer stands.
+  const overrides = new Map<string, EffortLevel>();
+  const rawRoles = effort.roles;
+  if (rawRoles !== undefined) {
+    if (rawRoles === null || typeof rawRoles !== "object" || Array.isArray(rawRoles)) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: the \`models.effort.roles\` key in ${path} is ${describeShape(rawRoles)} ` +
+          "rather than a JSON object of role-stem-to-effort-level pairs. Remedy: write it as an " +
+          "object, or remove it entirely — an absent `roles` key is legal and means the effort " +
+          "preset's answer stands unmodified.",
+      };
+    }
+    const rolesObject = rawRoles as Record<string, unknown>;
+    const validStems = new Set(stems);
+
+    // Every KEY first, all of them, before any value is read or any key is used.
+    const unknownStems = Object.keys(rolesObject)
+      .filter((key) => !validStems.has(key))
+      .sort();
+    if (unknownStems.length > 0) {
+      return {
+        ok: false,
+        reason:
+          `model-tiers: ${path} sets \`models.effort.roles\` for ` +
+          `${unknownStems.map((key) => quoteValue(key)).join(", ")}, which ` +
+          `${unknownStems.length === 1 ? "is" : "are"} NOT among the role stems derived from the ` +
+          "role-set authority. The valid set on this tree is: " +
+          `${[...stems].sort().join(", ")}. Remedy: correct the key. A silently ignored effort ` +
+          "override is a setting the user believes they made and did not, so an unknown key is " +
+          "refused rather than skipped.",
+      };
+    }
+
+    // Then every VALUE, by exact equality against the six constants.
+    for (const key of Object.keys(rolesObject).sort()) {
+      const value = rolesObject[key];
+      if (!isEffortLevel(value)) {
+        return {
+          ok: false,
+          reason:
+            `model-tiers: ${path} assigns role ${quoteValue(key)} the effort level ` +
+            `${quoteValue(value)}, which is not a legal effort level. The legal set is exactly: ` +
+            `${EFFORT_LEVELS.map((l) => `"${l}"`).join(", ")}. Membership is EXACT STRING ` +
+            "EQUALITY against those six constants and never a pattern, which is what keeps a " +
+            "YAML-significant byte out of the emitted frontmatter. Remedy: use one of those levels; " +
+            '`"inherit"` writes no `effort:` line and leaves the session\'s effort in force.',
+        };
+      }
+      overrides.set(key, value);
+    }
+  }
+
+  return { ok: true, value: { preset, overrides } };
 }
 
 /**
@@ -1518,58 +1952,75 @@ function readModelsBlock(
   }
 
   // ── `roles`, a SPARSE override map. ─────────────────────────────────────────────────────────
+  //
+  // NO EARLY RETURN ON AN ABSENT `roles` KEY (plan 34-01, 34-RESEARCH.md Pitfall 1). This branch
+  // used to return the moment `models.roles` was absent, which was harmless while `preset` and
+  // `roles` were the only keys: everything had been read by then. With `effort` in MODELS_KEYS the
+  // same return would answer `{"models":{"effort":{…}}}` with the zero-config effort and no message
+  // — a dial the user believes they set and did not. An absent `roles` now leaves the override map
+  // empty and FALLS THROUGH, and the function has one success return, at its end, after every member
+  // of MODELS_KEYS has been read. The consumption probe in scripts/model-tiers.test.ts is what goes
+  // red if a later edit puts an early return back.
   const overrides = new Map<string, ModelAlias>();
   const rawRoles = models.roles;
-  if (rawRoles === undefined) return { ok: true, value: { preset, overrides, source: path } };
-
-  if (rawRoles === null || typeof rawRoles !== "object" || Array.isArray(rawRoles)) {
-    return {
-      ok: false,
-      reason:
-        `model-tiers: the \`models.roles\` key in ${path} is ${describeShape(rawRoles)} rather than ` +
-        "a JSON object of role-stem-to-alias pairs. Remedy: write it as an object, or remove it " +
-        "entirely — an absent `roles` key is legal and means the preset's answer stands unmodified.",
-    };
-  }
-
-  const rolesObject = rawRoles as Record<string, unknown>;
-  const validStems = new Set(stems);
-  const validStemList = [...stems].sort().join(", ");
-
-  // EVERY KEY IS VALIDATED BEFORE ANY VALUE IS READ, and before any key is used anywhere. This is
-  // the ASVS V12 control recorded in the module header: a config-derived string is compared against
-  // a derived set and never joined onto a path.
-  for (const key of Object.keys(rolesObject).sort()) {
-    if (validStems.has(key)) continue;
-    return {
-      ok: false,
-      reason:
-        `model-tiers: ${path} sets \`models.roles\` for "${key}", which is NOT one of the role ` +
-        `stems derived from the role-set authority. The valid set on this tree is: ` +
-        `${validStemList}. Remedy: correct the key. A silently ignored override is a tier the user ` +
-        "believes they set and did not (D-06), so an unknown key is refused rather than skipped.",
-    };
-  }
-
-  for (const key of Object.keys(rolesObject).sort()) {
-    const value = rolesObject[key];
-    if (!isModelAlias(value)) {
+  if (rawRoles !== undefined) {
+    if (rawRoles === null || typeof rawRoles !== "object" || Array.isArray(rawRoles)) {
       return {
         ok: false,
         reason:
-          `model-tiers: ${path} assigns role "${key}" the value ${quoteValue(value)}, which is not ` +
-          `a legal model alias. The legal set is exactly: ` +
-          `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}. Membership is EXACT STRING EQUALITY ` +
-          "against those four constants and never a pattern, which is what keeps a YAML-significant " +
-          "byte out of the emitted frontmatter. A full model id is refused deliberately (MODEL-04): " +
-          "it is the hand-maintained stale literal this milestone exists to eliminate, and an alias " +
-          "degrades gracefully for a user whose account does not carry the stronger tier.",
+          `model-tiers: the \`models.roles\` key in ${path} is ${describeShape(rawRoles)} rather than ` +
+          "a JSON object of role-stem-to-alias pairs. Remedy: write it as an object, or remove it " +
+          "entirely — an absent `roles` key is legal and means the preset's answer stands unmodified.",
       };
     }
-    overrides.set(key, value);
+
+    const rolesObject = rawRoles as Record<string, unknown>;
+    const validStems = new Set(stems);
+    const validStemList = [...stems].sort().join(", ");
+
+    // EVERY KEY IS VALIDATED BEFORE ANY VALUE IS READ, and before any key is used anywhere. This is
+    // the ASVS V12 control recorded in the module header: a config-derived string is compared
+    // against a derived set and never joined onto a path.
+    for (const key of Object.keys(rolesObject).sort()) {
+      if (validStems.has(key)) continue;
+      return {
+        ok: false,
+        reason:
+          `model-tiers: ${path} sets \`models.roles\` for "${key}", which is NOT one of the role ` +
+          `stems derived from the role-set authority. The valid set on this tree is: ` +
+          `${validStemList}. Remedy: correct the key. A silently ignored override is a tier the user ` +
+          "believes they set and did not (D-06), so an unknown key is refused rather than skipped.",
+      };
+    }
+
+    for (const key of Object.keys(rolesObject).sort()) {
+      const value = rolesObject[key];
+      if (!isModelAlias(value)) {
+        return {
+          ok: false,
+          reason:
+            `model-tiers: ${path} assigns role "${key}" the value ${quoteValue(value)}, which is not ` +
+            `a legal model alias. The legal set is exactly: ` +
+            `${MODEL_ALIASES.map((a) => `"${a}"`).join(", ")}. Membership is EXACT STRING EQUALITY ` +
+            "against those four constants and never a pattern, which is what keeps a YAML-significant " +
+            "byte out of the emitted frontmatter. A full model id is refused deliberately (MODEL-04): " +
+            "it is the hand-maintained stale literal this milestone exists to eliminate, and an alias " +
+            "degrades gracefully for a user whose account does not carry the stronger tier.",
+        };
+      }
+      overrides.set(key, value);
+    }
   }
 
-  return { ok: true, value: { preset, overrides, source: path } };
+  // ── `effort`, the reasoning-effort sub-block (plan 34-01, D-02, D-03). ─────────────────────────
+  //
+  // Read by the module-private `readEffortBlock` below, called HERE and independent of whether
+  // `roles` or `preset` was present, so an effort-only block is consumed. A refusal from it is this
+  // function's refusal: it carries a reason and no value, exactly like every refusal above.
+  const effort = readEffortBlock(models.effort, path, stems);
+  if (!effort.ok) return effort;
+
+  return { ok: true, value: { preset, overrides, effort: effort.value, source: path } };
 }
 
 /**
