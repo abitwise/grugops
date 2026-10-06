@@ -35,7 +35,7 @@ runtime ignores, and never claim an enforcement you lack.
 - **Reduced** — `Agent` is available but the session is a default main thread, what `/grugops`
   gets. Schedule in parallel to the same cap. The grant is **not** runtime-enforced here —
   this session's agent declares no allowlist. Say so, and stay inside it by instruction.
-- **Degraded** — `Agent` is absent (the four non-Claude-Code CLIs, or a sub-agent at the
+- **Degraded** — `Agent` is absent (the non-Claude-Code host CLIs, or a sub-agent at the
   nesting limit). Drain the same queue at concurrency one via
   `agent-factory/roles/_role-switch-protocol.md` — one window, prior context dropped between
   roles — and announce it.
