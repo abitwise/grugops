@@ -31,8 +31,8 @@
 // grants a high-severity disposition by exporting GRUGOPS_ADMISSION_APPROVED_BY=<name> in the launching
 // shell; the per-call 25-10 hook validates the agent-supplied verified_by: human:<name> stamp against
 // that FRESH env on every call, un-forgeably. The grant is session-scoped and per-note capable (the
-// human controls granularity by setting/unsetting around a disposition), not a per-note nonce. The four
-// non-CC CLIs degrade to the weaker self-settable D-05 tier (admitAndAppend's stamp check) and are NOT
+// human controls granularity by setting/unsetting around a disposition), not a per-note nonce. The
+// non-Claude-Code host CLIs degrade to the weaker self-settable D-05 tier (admitAndAppend's stamp check) and are NOT
 // claimed un-forgeable. This server is the structured channel; the hook is the gate.
 //
 // Build model (D-13): node: stdlib ONLY — ZERO host runtime deps. Authored in TypeScript, compiled with

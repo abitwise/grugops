@@ -30,7 +30,7 @@
 // effect on the next call), but a standing grant is NOT a mechanically-enforced per-note nonce — one
 // export authorizes unlimited admissions under that name until unset. An in-script env check inside
 // admit() would be self-settable and therefore forgeable — hence the hook is the un-forgeable tier;
-// admit()'s in-script refusal is the documented WEAKER degrade tier for the four non-Claude-Code CLIs
+// admit()'s in-script refusal is the documented WEAKER degrade tier for the non-Claude-Code host CLIs
 // (D-04/D-05).
 //
 // Contract (CLEAR PROFESSIONAL VOICE throughout — security/governance/audit surfaces are never caveman

@@ -174,8 +174,8 @@ export type ReservedIdentity = (typeof RESERVED_IDENTITIES)[number];
 //   - human:<name>   the escalation valve (D-07). Its un-forgeable signal is now delivered by the
 //                    separate PreToolUse `admission-guard` hook: a distinct process that reads the
 //                    human-set session variable the agent's own child env cannot reach (as did the
-//                    prod-deploy guard retired by 33.1 D-17). That is the Claude Code primary tier; the four non-CC
-//                    CLIs degrade to the in-script admit() refusal plus a prompt-level "stop, ask a
+//                    prod-deploy guard retired by 33.1 D-17). That is the Claude Code primary tier; the non-Claude-Code
+//                    host CLIs degrade to the in-script admit() refusal plus a prompt-level "stop, ask a
 //                    named human," documented honestly as not mechanically un-forgeable (D-04/D-05).
 // There is NO separate passing-test-reference grammar: a passing test IS a green gate run, so the
 // gate grammar already covers it (D-05/D-06). The id/name segment reuses the task-name allowlist.
@@ -1274,7 +1274,7 @@ export const UNRECORDABLE_ADMISSION_REFUSAL =
  * 35499800942). Before this change, WHICH refusal arm answered a non-regular position was decided
  * by which host's open call happened to fail. On POSIX a directory fails at open(2) with EISDIR and
  * answered through the `unopenable` arm — by an accident of open semantics, not by design; on win32
- * the open of a directory handle SUCCEEDS and the `fstat` arm answered instead. Two hosts, two
+ * the open of a directory handle SUCCEEDS and the `fstat` arm answered instead. Two platforms, two
  * sentences, one property — and R-31-21-03's probe, which reads the property as the sentence
  * "refused rather than waited on", was green on darwin and red on windows-latest. So the position
  * is `stat`-ed first (following a link, because the open would follow it too), and a present entry
@@ -3926,7 +3926,7 @@ export const AUDIT_LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 //     (by ∈ HIGH_SEVERITY_ROLES) lacking a human:<name> stamp is refused, NAMING the fault — exactly
 //     like the validate() refuse-self set, NEVER rewriting the note (the no-fabrication floor). This
 //     is the WEAKER, self-settable tier (D-05): an in-script check is settable in admit()'s own child
-//     env, so it covers the four non-CC CLIs at the script level but is NOT the un-forgeable primary
+//     env, so it covers the non-Claude-Code host CLIs at the script level but is NOT the un-forgeable primary
 //     (that is the separate admission-guard hook, Plan 25-02). The dial is read via the shared
 //     discriminated reader — the SAME read path the hook uses — so the two tiers cannot diverge (OQ-3).
 //   - D-14 (Plan 30-03) unreadable-config refusal: a config file that EXISTS but cannot be read or
@@ -4777,7 +4777,7 @@ export const GOVERNANCE_CONFIG_RELPATHS: readonly string[] = governanceConfigCan
  * Round 1 took the POSITIONS from this module and left the BASE hand-chosen: the structure
  * validator enumerated `governanceConfigCandidates(STATE_ROOT)` and one fixed kit relpath. But this
  * reader has TWO bases — the caller's, and this one — and this one is the DECLARED DEFAULT of
- * `admit()`, `admitAndAppend()` and the `context-io.js admit` CLI. On the four host CLIs that set no
+ * `admit()`, `admitAndAppend()` and the `context-io.js admit` CLI. On the host CLIs that set no
  * `CLAUDE_PROJECT_DIR`, it is the base the PreToolUse guard's read lands on too. So
  * `<this base>/.grugops/factory.config.json` is a governing FIRST candidate, and it was form-checked
  * at no position: identical illegal bytes produced six named errors at the state position and
@@ -4898,7 +4898,7 @@ function canonicalDirectoryPath(candidate: string): string {
  * symlink to `<kit>` — already walks from `<kit>/proj`, and the R-31-19-07 SYMLINK cell HELD by that
  * kernel behaviour alone. On win32 `process.cwd()` keeps the spelling the process was started with:
  * the walk began at `<link>\proj`, the answer was `<link>\proj`, and the cell's verdict MOVED
- * (`expected '…\link\proj' to be '…\kit\proj'`). Two hosts, two answers for one directory, decided
+ * (`expected '…\link\proj' to be '…\kit\proj'`). Two platforms, two answers for one directory, decided
  * by which one's cwd call happened to resolve links.
  *
  * WHY THIS IS `canonicalDirectoryPath` AND NOT A SECOND RESOLVER. Tier 0's delivered root is already
@@ -4952,7 +4952,7 @@ function homeConfigPositionIsProjectOwned(candidateIndex: number, candidatePath:
  * (plan 31-15, review finding WR-15).
  *
  * `CLAUDE_PROJECT_DIR` is the variable CLAUDE CODE sets for a real project session.
- * `GRUGOPS_PROJECT_DIR` is the documented INSTALLER-SET answer for the four host CLIs that set no
+ * `GRUGOPS_PROJECT_DIR` is the documented INSTALLER-SET answer for the host CLIs that set no
  * Claude Code variable — the installer knows the target repository it seeded (`install/install.ts`
  * resolves `TARGET` and materializes the resolved kit path into every target adapter), and it is the
  * installer, not the agent, that names it.
@@ -5393,7 +5393,7 @@ export const HOST_DELIVERED_ROOT_ENV = "GRUGOPS_HOST_DELIVERED_ROOT";
  * even one root the tier below refused would be a gate lowering, whatever else it fixed.
  *
  * WHAT IT DOES NOT ESTABLISH, STATED HERE RATHER THAN IMPLIED (see D-29):
- *   - On Codex, Gemini CLI, OpenCode and Copilot CLI there is no such channel. Those hosts keep the
+ *   - On Codex, Gemini CLI, OpenCode, Copilot CLI and Pi there is no such channel. Those hosts keep the
  *     walk, and the affected register members are re-scoped `hosts: "non-cc-hook-path"` rather than
  *     deleted.
  *   - An agent invoking `scripts/context-io.js` DIRECTLY from its own Bash tool builds its own
@@ -5489,9 +5489,9 @@ export const TRUSTED_ROOT_TIERS: readonly string[] = Object.freeze([
  *
  * WHY STEPS 2 AND 3 EXIST (WR-15, reproduced by the round-3 verifier as spot-check row 6). Step 1's
  * variable is a CLAUDE CODE variable, and step 4 under the shipped two-root install is `~/.grugops`,
- * whose only configuration is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode and
- * Copilot CLI — the four hosts D-12 names as the ones where the attended lane is absent by design,
- * which makes this in-script refusal the ONLY tier available — every D-04/D-14 refusal the writers
+ * whose only configuration is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode,
+ * Copilot CLI and Pi — the hosts where the attended lane is absent by design (D-12 named all of them
+ * but Pi, which phase 34 added and which has no attended lane either), which makes this in-script refusal the ONLY tier available — every D-04/D-14 refusal the writers
  * reach was evaluated against `human_admission: off` whatever the target repository's dial said.
  * Measured against the committed `.js` before this change: with the variable unset and the working
  * directory inside a project carrying `human_admission: high-severity`, a self-stamped high-severity
@@ -5585,11 +5585,11 @@ export interface TrustedRootResidual {
    * The register used to be ELEVEN UNDIFFERENTIATED ROWS, and six review rounds read it as eleven
    * misses. It never was: some members are the CORRECT behaviour recorded so they stop reading as
    * gaps, and — after tier 0 — four of them are closed on the one host that delivers a root the
-   * calling process cannot influence, and open on the four that do not.
+   * calling process cannot influence, and open on every other host.
    *
    * `"all"`         — the member stands on every host, whether by design or because nothing closes it.
    * `"non-cc-hook-path"` — CLOSED on the Claude Code hook path by tier 0 (`hostDeliveredRoot`), and
-   *                  still open on Codex, Gemini CLI, OpenCode and Copilot CLI, where no host builds
+   *                  still open on Codex, Gemini CLI, OpenCode, Copilot CLI and Pi, where no host builds
    *                  the environment of a grugops decider and the walk remains the answer.
    *
    * Never fake a passing gate: a member re-scoped by host states which host it is closed on AND
@@ -5626,7 +5626,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "per-call admission hook, which reads the human's fresh session grant. FIX (S1, plan 31-27): " +
       "CLOSED on the Claude Code hook path, where tier 0 reads a root the byte-frozen, " +
       "decider-hash-verifying wrapper set on its own spawn environment from a HOST-BUILT value. It " +
-      "is NOT closed on Codex, Gemini CLI, OpenCode or Copilot CLI — no host there builds the " +
+      "is NOT closed on Codex, Gemini CLI, OpenCode, Copilot CLI or Pi — no host there builds the " +
       "environment of a grugops decider — and it is NOT closed for an agent invoking " +
       "`scripts/context-io.js` directly from its own Bash tool, which builds its own environment; " +
       "that is this member's own already-accepted capability, not a new one.",
@@ -5664,7 +5664,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "weaker, non-mechanically-un-forgeable signal (D-05) rather than as the authority. " +
       "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path, where tier 0 answers ABOVE this " +
       "loop from a host-built channel, so neither ambient name is consulted at all. It is NOT " +
-      "closed on Codex, Gemini CLI, OpenCode or Copilot CLI, where these two names remain the " +
+      "closed on Codex, Gemini CLI, OpenCode, Copilot CLI or Pi, where these two names remain the " +
       "answer and are exactly as ambient as this shape says.",
     what_would_force_it_closed:
       "The same thing that would close R-31-15-01: a governance root delivered outside the agent's " +
@@ -5726,13 +5726,13 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "adopted by a process that meant nothing by it — not against a process choosing its own root. " +
       "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path, where tier 0 answers before the " +
       "walk runs and `os.homedir()` is therefore never consulted. It is NOT closed on Codex, " +
-      "Gemini CLI, OpenCode or Copilot CLI, where the walk is the answer and this stop is real.",
+      "Gemini CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and this stop is real.",
     what_would_force_it_closed:
       "The same thing that would close R-31-15-01 and R-31-15-03: a governance root resolved by the " +
       "host from outside the agent's process tree and delivered through a channel the agent cannot " +
       "write, as the per-call admission hook's session grant already is — which tier 0 now IS, on " +
       "the Claude Code hook path only. FIX (S1, plan 31-27): tier 0 answers before the walk, so " +
-      "`os.homedir()` is not consulted there at all. Still open on the four non-Claude-Code hosts.",
+      "`os.homedir()` is not consulted there at all. Still open on the hosts other than Claude Code.",
   }),
   Object.freeze({
     id: "R-31-19-03",
@@ -5799,7 +5799,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "narrower of the two available errors. " +
       "DISPOSITION (plan 31-27): CLOSE — accepted by design. It is moot on the Claude Code hook " +
       "path after tier 0, which answers before the walk reaches home at all, and it stands " +
-      "unchanged on the four hosts where the walk is the answer.",
+      "unchanged on the hosts where the walk is the answer.",
     what_would_force_it_closed:
       "An explicit opt-in the walk can read that a caller cannot author. Explicitly NOT the " +
       "installer's own `.grugops/install.json`: `install/install.ts:597-620` makes every " +
@@ -5833,15 +5833,15 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "lean fallback; the price is therefore stated in both directions rather than as monotonicity " +
       "in one. FIX (S1, plan 31-27): CLOSED on the Claude Code hook path — tier 0 answers before " +
       "the walk, so no write under `$HOME` can reach a decision the walk never makes. It is NOT " +
-      "closed on Codex, Gemini CLI, OpenCode or Copilot CLI, where the walk is the answer and the " +
+      "closed on Codex, Gemini CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and the " +
       "prices stated above still stand exactly as written.",
     what_would_force_it_closed:
       "`R-31-15-01`'s own criterion and nothing narrower: a governance root the calling process " +
       "cannot influence at all, resolved by the host from outside the agent's process tree and " +
       "delivered through a channel the agent cannot write — which tier 0 now IS, on the Claude " +
       "Code hook path only. FIX (S1, plan 31-27): CLOSED there, because tier 0 answers before the " +
-      "walk and no `$HOME` write can reach a decision the walk never makes. Still open on the four " +
-      "non-Claude-Code hosts, where the walk is the answer and the price stated above still stands.",
+      "walk and no `$HOME` write can reach a decision the walk never makes. Still open on the " +
+      "hosts other than Claude Code, where the walk is the answer and the price stated above still stands.",
   }),
   Object.freeze({
     id: "R-31-19-07",
@@ -6450,7 +6450,7 @@ if (isMain) {
       // codebase that "the dial / ledger root / context root MUST come from the SAME trusted source
       // … NOT from agent-supplied tool args … the agent can no longer point governance at a root it
       // controls." The fix was applied to the schema and not to the CLI — which is the surface the
-      // four non-Claude-Code CLIs use, i.e. exactly the tier the MCP fix does not cover.
+      // non-Claude-Code host CLIs use, i.e. exactly the tier the MCP fix does not cover.
       //
       // Measured on the committed artifact: the identical self-stamped high-severity finding was
       // REFUSED with `repoRoot` naming a repository whose dial is active, and ADMITTED with

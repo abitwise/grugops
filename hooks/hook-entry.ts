@@ -251,13 +251,13 @@ function isWellFormedDecision(stdout: string): boolean {
 // <hook-manifest> GENERATED — do not edit by hand; run `npm run generate:hook-manifest`
 const DECIDER_MANIFEST: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "hooks/admission-guard.js": {
-    "hooks/admission-guard.js": "6e4d33292809280bf63c1485c220cb7c5e51e2e8ff93f180b1b796f9d7dc626c",
+    "hooks/admission-guard.js": "e0f15b62d26b0b1f435ea32b8a3540b9987b09901937c6d79f47dac349e8ad85",
     "scripts/audit-model.js": "e0cf5413a343e6ce54f9c4c7d7edb38cff89fed95711033eb00affeb38dee49a",
     "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
     "scripts/check-diff-disposition.js": "ac33078d59949033e57a365bc7174b440202bd456f6b75e22f6c47339a3998a3",
     "scripts/checkpoints.js": "42e6e4de5cab8be40843e5c4d02b7cd9f29630a9fb80a86e31846d389a932b5a",
-    "scripts/context-io.js": "e261fc45a39c7d4935b9d72ad8c4b50fbc8e9171c4132ad4f51c49813bf499fc",
-    "scripts/dead-vocabulary.js": "385a671ca519a1539304485b54d555c156d92c0684734069bf39ae9c4ec0f76d",
+    "scripts/context-io.js": "2111f9e1b79248a5678bd13a649c771d6dca232263dde1b5fd88f24ec1bcd322",
+    "scripts/dead-vocabulary.js": "30bcf47c67b0713c3d1fd42aff76cf60cd74ece10b6cd2c7490602ce7eaf37bc",
     "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",
     "scripts/generate-safety-surface.js": "ba7bdf982d67dc30169859ace1e3b7743c534a61d8756520fcd8e1b876380f6f",
     "scripts/is-entry.js": "4bea950408906acfb2978e8996b1506a7558ebaf645f43d26dcf8ed413d17c2b",

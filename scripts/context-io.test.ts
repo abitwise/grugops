@@ -735,7 +735,7 @@ describe("context-io.js — CRLF round-trip admission (CR-01)", () => {
 // release-manager}, D-06) that lacks a human:NAME stamp when human_admission ≠ off, NAMING the fault
 // and NEVER rewriting the note (the no-fabrication floor). The dial is read via the SHARED
 // readGovernanceConfig (OQ-3) — the same path the hook uses. This is the WEAKER self-settable tier
-// (D-05) covering the four non-CC CLIs at the script level; the un-forgeable primary is the hook.
+// (D-05) covering the non-Claude-Code host CLIs at the script level; the un-forgeable primary is the hook.
 describe("d-04 high-severity in-script refusal", () => {
   // Write a factory.config.json under a temp repoRoot with the given context dial values, returning
   // the repoRoot to pass as admit()'s 4th argument. readGovernanceConfig resolves this exact path.
@@ -4018,8 +4018,8 @@ describe("30-11 RA2-1 — the admit verb does not take the governance root from 
   // THE BYPASS. The verb read `contextRoot` and `repoRoot` from `process.argv` — the exact two
   // arguments GAP-R6-2 removed from the MCP tool schema, where scripts/admission-server.ts states in
   // this same codebase that the agent "can no longer point governance at a root it controls". The
-  // fix had been applied to the schema and not to the CLI, which is the surface the four
-  // non-Claude-Code CLIs use. Measured on the round-1 artifact: the identical self-stamped
+  // fix had been applied to the schema and not to the CLI, which is the surface the
+  // non-Claude-Code host CLIs use. Measured on the round-1 artifact: the identical self-stamped
   // high-severity finding was REFUSED with repoRoot naming an active repo and ADMITTED with repoRoot
   // naming an empty directory.
   function fixture(): { note: string; active: string; empty: string } {
@@ -6118,8 +6118,9 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
 // closing paragraph that flags it as compounding CR-08). `trustedRepoRoot()` answered
 // `CLAUDE_PROJECT_DIR`, else the kit this module ships in. `CLAUDE_PROJECT_DIR` is a CLAUDE CODE
 // variable, and under the shipped two-root install the kit is `~/.grugops`, whose only configuration
-// is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode and Copilot CLI — the four hosts
-// D-12 names as the ones where the attended lane is absent by design, which makes this in-script
+// is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode, Copilot CLI and Pi — the hosts
+// where the attended lane is absent by design (D-12 named all of them but Pi, which phase 34 added
+// and which has no attended lane either), which makes this in-script
 // refusal the ONLY tier available — every D-04/D-14 refusal the writers reach was decided against
 // `human_admission: off`, whatever the target repository's dial said.
 //
@@ -11478,8 +11479,8 @@ describe("31-27 S1 — tier 0 admits strictly fewer roots than the tier it prece
     expect(tier0.length).toBeLessThan(tier1.length); // STRICT subset
   });
 
-  it("with NOTHING delivered, trustedRepoRoot() is the program it was before (the 4-host control)", () => {
-    // The four non-Claude-Code hosts deliver no such name. Driven case by case with the delivered
+  it("with NOTHING delivered, trustedRepoRoot() is the program it was before (the no-delivered-root control)", () => {
+    // The hosts other than Claude Code deliver no such name. Driven case by case with the delivered
     // name ABSENT, each answer asserted against what the pre-tier-0 order would give for the same
     // input — tier 1 for a set variable, the kit for nothing at all. The tier-1 answer is spelled by
     // the module's one exported authority (plan 33-24, D-33-R3-01), not by a second resolver here.
@@ -12618,7 +12619,7 @@ describe("31-29 — CR-19: the GOV-02 ledger's two sides agree at the boundary t
     // the ceiling branch landed beside it. THE FIRST SPELLING OF THIS COMMENT WAS WRONG ON DARWIN
     // and right on win32, and windows-latest row W-28 is what showed it: on darwin a directory does
     // NOT open under `O_WRONLY` (EISDIR at open(2), the `unopenable` arm), while on win32 the open
-    // of a directory handle SUCCEEDS and the fstat arm answered instead. Two hosts, two arms, one
+    // of a directory handle SUCCEEDS and the fstat arm answered instead. Two platforms, two arms, one
     // property. Plan 33-16 classifies the type before the open, so the arm is the same everywhere;
     // Test Y in the 33-16 block below asserts WHICH arm and quotes this host's raw-open reading.
     const { root, ctx, ledger } = retainedRepo("p31-29-ledger-dir-");
@@ -16439,8 +16440,8 @@ describe("31-39 — CR-26 / CR-27: one owner authority, and a dial root distinct
         "the CLI `admit` verb CANNOT NAME TWO REPOSITORIES, by construction, so no cell of this " +
         "matrix is expressible on it. It derives one local from `trustedRepoRoot()` and passes that " +
         "same local as BOTH the context store's base and the dial root — which is plan 30-11's own " +
-        "fix (`RA2-1`): the governance root is deliberately not an argument on the surface the four " +
-        "non-Claude-Code CLIs use. A store shape and a dial root that disagree is the input this " +
+        "fix (`RA2-1`): the governance root is deliberately not an argument on the surface the " +
+        "non-Claude-Code host CLIs use. A store shape and a dial root that disagree is the input this " +
         "matrix varies, and this route accepts no input that can express it.",
       prove: () => {
         const source = sourceFile39();

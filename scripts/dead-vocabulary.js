@@ -13,7 +13,7 @@
 //
 // SPAWN-05's own wording conflated two things that sit in the SAME surviving sentence. Only the
 // memory-relay half is retired. The execution-topology half — "one window, prior context dropped
-// between roles" — is STILL CORRECT: it describes how roles activate on the four non-spawning host
+// between roles" — is STILL CORRECT: it describes how roles activate on the non-spawning host
 // CLIs, it is verbatim in agent-factory/packaging/subagent.frontmatter.md, and under the revised
 // D-02 it is the degraded tier's own wording. NEVER add that phrasing, or any other "single window"
 // prose, to RETIRED_PROSE_FORMS below: a guard banning it would fail red on text this project keeps
