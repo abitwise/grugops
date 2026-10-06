@@ -129,7 +129,9 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // THE ONE INSTALL LEDGER, TEST SIDE (plan 33.1-36, D-33 (b)): the marker carries one `ledger` list in
 // place of six records. These views read and forge it from the marker JSON itself (no production
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
-import { askRecord, dirList, fileRecords, geminiRecord, withLedger, type RawEntry } from "./ledger.test-support.js";
+import { askRecord, dirList, fileRecords, geminiRecord, withLedger, markerLedger, type RawEntry } from "./ledger.test-support.js";
+// The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
+import { PI_PROMPT_REL } from "./host-tools.js";
 /** The marker key order install writes since plan 33.1-36. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "ledger"];
 
@@ -9819,4 +9821,79 @@ describe("IN-02: writeAskRules decides its splice oracle before its DRY_RUN retu
       expect(oracle < dry, "the DRY_RUN return comes before the splice oracle, so a preview can disagree with the real run").toBe(true);
     });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Pi prompt template (plan 34-04, D-10, D-13, D-16, D-17). Every install creates `.pi/prompts/grugops.md`
+// when nothing is at that path: pointer text only (frontmatter, the existing start-here sentence,
+// `$ARGUMENTS`), recorded in the install ledger as a kit-false file entry with the `.pi` and
+// `.pi/prompts` directories install made, and reversed by uninstall through the ledger walk alone.
+// Paths on disk are built with `join`; ledger paths are compared as POSIX strings (D-09).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("Pi prompt template (plan 34-04)", () => {
+  const piFile = (target: string): string => join(target, ...PI_PROMPT_REL.split("/"));
+
+  // filesUnder — every regular file below `dir`, as POSIX paths relative to it, sorted.
+  const filesUnder = (dir: string): string[] => {
+    const out: string[] = [];
+    const walk = (rel: string): void => {
+      for (const ent of readdirSync(join(dir, ...(rel === "" ? [] : rel.split("/"))), { withFileTypes: true })) {
+        const child = rel === "" ? ent.name : `${rel}/${ent.name}`;
+        if (ent.isDirectory()) walk(child);
+        else out.push(child);
+      }
+    };
+    walk("");
+    return out.sort();
+  };
+
+  // expectedTemplate — built here from the literal frontmatter lines and the start-here sentence read
+  // back from the Copilot pointer install wrote (the one line between its two sentinel comments), so
+  // the test does not retype the sentence and a drift between the two pointers goes red.
+  const expectedTemplate = (target: string): string => {
+    const copilot = readFileSync(join(target, ".github", "copilot-instructions.md"), "utf8").split("\n");
+    const open = copilot.indexOf("<!-- GSD:grugops-copilot-start-here -->");
+    const close = copilot.indexOf("<!-- GSD:grugops-copilot-start-here-end -->");
+    expect(open, "the Copilot pointer has no open sentinel").toBeGreaterThan(-1);
+    expect(close - open, "the Copilot block is not exactly one line").toBe(2);
+    return [
+      "---",
+      "description: Route a software-delivery request through the grugops Orchestrator.",
+      'argument-hint: "<request>"',
+      "---",
+      copilot[open + 1],
+      "Request: $ARGUMENTS",
+    ].join("\n") + "\n";
+  };
+
+  // emptyTarget — an empty scratch git repository.
+  const emptyTarget = (): string => {
+    const t = mkTmp();
+    spawnSync("git", ["init", "-q", t], { encoding: "utf8" });
+    return t;
+  };
+
+  it("lifecycle: install writes the exact pointer bytes and ledger entries; uninstall removes `.pi` entirely", () => {
+    const target = emptyTarget();
+    const home = mkTmp();
+    const r = runInstall(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+
+    expect(existsSync(piFile(target))).toBe(true);
+    expect(readFileSync(piFile(target), "utf8")).toBe(expectedTemplate(target));
+    // Exactly one file under .pi/: no SYSTEM.md, APPEND_SYSTEM.md, settings.json, mcp.json, skill or extension (D-10).
+    expect(filesUnder(join(target, ".pi"))).toEqual([PI_PROMPT_REL.slice(".pi/".length)]);
+
+    const ledger = markerLedger(target);
+    const fileEntry = ledger.filter((e) => e.kind === "file" && e.path === PI_PROMPT_REL);
+    expect(fileEntry.length).toBe(1);
+    expect(fileEntry[0].kit).toBe(false);
+    const dirs = new Set(ledger.filter((e) => e.kind === "dir").map((e) => e.path));
+    expect(dirs.has(".pi")).toBe(true);
+    expect(dirs.has(".pi/prompts")).toBe(true);
+
+    const u = runUninstall(target, home);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(join(target, ".pi"))).toBe(false);
+  });
 });

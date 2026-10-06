@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS } from "./host-tools.js";
+import { HOST_TOOLS, PI_PROMPT_REL } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -1505,6 +1505,22 @@ const COPILOT_REL = ".github/copilot-instructions.md";
 const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
 const COPILOT_PTR = "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
+// PI_PROMPT_TEXT (plan 34-04, D-10, D-16): the whole of the Pi project prompt template install creates
+// at PI_PROMPT_REL (`.pi/prompts/grugops.md`), which Pi users invoke as `/grugops <request>`. It is
+// POINTER TEXT ONLY, never role text (the single-source rule): the start-here sentence is COPILOT_PTR
+// itself, reused rather than retyped, so there is one spelling of it for the Copilot pointer and Pi.
+// Pi reads the `description` and `argument-hint` frontmatter of a project template and expands
+// `$ARGUMENTS` to the text typed after the command (34-RESEARCH.md § B, Pi's prompt-template docs).
+// It is a plain pointer, not a resolver adapter: it carries no kit-root variable and no resolver slot
+// (check-kit-refs Assertion 3), and no config, argv or environment value ever reaches it (T-34-13).
+const PI_PROMPT_TEXT = [
+    "---",
+    "description: Route a software-delivery request through the grugops Orchestrator.",
+    'argument-hint: "<request>"',
+    "---",
+    COPILOT_PTR,
+    "Request: $ARGUMENTS",
+].join("\n") + "\n";
 // isSymlink MOVED (plan 29.2-04) up into the primitives block beside report / verify / mkdirp /
 // sameContent. It used to be declared here; the doctor now needs adapterDestHazard, which needs it,
 // and a const declared below the `--check` early exit is in the temporal dead zone when the doctor
@@ -2092,6 +2108,45 @@ function ensureBlock(file, open, body, close, label) {
         recordAppendedBlock(file, lines, separator);
     }
     report("created", label);
+}
+// writePiPromptTemplate (plan 34-04, D-10, D-13, D-16, D-17): create the Pi project prompt template
+// at PI_PROMPT_REL when NOTHING is at that path. Called on every install, whether or not the target has
+// a `.pi` directory (D-17): a write gated on detection would escape the derived installer class tests
+// (34-RESEARCH.md Pitfall 10).
+//
+// WHOLE-FILE EXCLUSIVE CREATE ONLY. The path is asked through readForWrite first (DC-3: a FIFO, a
+// directory, a device or a link there is never read or written through):
+//   blocked → a counted verify; nothing is written.
+//   ok      → a file is already there (the user's own template, or the one an earlier install wrote):
+//             it is left untouched, never overwritten or appended to. An earlier install's ledger claim
+//             on it is carried forward by nextLedgerEntries only while the file still holds exactly the
+//             recorded content (recordHolds), so a user edit drops the claim.
+//   DRY_RUN → `would-add`, decided before any write.
+//   create  → writeTargetFile with the exclusive create (flag "wx"); mkdirp records `.pi` and
+//             `.pi/prompts` in CREATED_DIRS only when this run made them, so a user's own `.pi/` is never
+//             claimed. Only a create that succeeded is recorded, as a kit-false `file` entry; uninstall
+//             removes it through the ledger walk (owns(path)) only while it still holds these bytes.
+// grugops writes nothing else under `.pi/` (no SYSTEM.md, APPEND_SYSTEM.md, settings.json, mcp.json,
+// skills/ or extensions/; D-10).
+function writePiPromptTemplate() {
+    const file = join(TARGET, ...PI_PROMPT_REL.split("/"));
+    const cur = readForWrite(TARGET, file);
+    if (cur.state === "blocked") {
+        verify(`${PI_PROMPT_REL} (Pi prompt template): ${blockedAt(cur, file)}. It was left untouched and nothing was written.`);
+        return;
+    }
+    if (cur.state === "ok") {
+        report("skipped", `${PI_PROMPT_REL} (Pi prompt template: a file is already there — left untouched)`);
+        return;
+    }
+    if (DRY_RUN) {
+        report("would-add", `${PI_PROMPT_REL} (Pi prompt template)`);
+        return;
+    }
+    if (writeTargetFile(file, PI_PROMPT_TEXT, "create", PI_PROMPT_REL)) {
+        recordCreatedFile(file, writtenFileRecord(file, PI_PROMPT_TEXT));
+        report("created", `${PI_PROMPT_REL} (Pi prompt template)`);
+    }
 }
 // recordAppendedBlock (plan 33.1-33): APPENDED_BLOCKS gets the record of the block this run wrote to
 // `file`. Called only after the write succeeded, never in DRY_RUN (ensureBlock returns before).
@@ -4497,6 +4552,7 @@ for (const rel of SRC_NESTED_ADAPTERS) {
 ensureBlock(join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
 mergeGemini();
 ensureBlock(join(TARGET, COPILOT_REL), COPILOT_OPEN, COPILOT_PTR, COPILOT_CLOSE, `${COPILOT_REL} (optional Copilot pointer)`);
+writePiPromptTemplate();
 // ── The RETIRED `autonomy` scalar: REPORT, never rewrite (Phase 30, D-05 / T-30-22) ─────────────
 //
 // A target repository installed before Phase 30 carries `autonomy` in its `.grugops/factory.config.json`.
