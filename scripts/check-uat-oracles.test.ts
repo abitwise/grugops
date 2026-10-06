@@ -38,7 +38,15 @@ import { assertEquivalent, type ProjectedNote } from "./dual-path-equivalence.js
 // what makes this safe: importing the module for its exported pins does NOT run the check or call
 // process.exit. A restated `262144` in this file would be the duplicated-set-literal defect the
 // whole milestone has been closing.
-import { WR05_BEATS, WR05_MAX_LINE_BYTES } from "./check-uat-oracles.js";
+import {
+  WR05_BEATS,
+  WR05_MAX_LINE_BYTES,
+  ASYM_ROWS,
+  ASYM_TABLE_FILES,
+} from "./check-uat-oracles.js";
+// (Plan 34-06, D-11) The host registry the oracle derives its rows from. The cases below compare the
+// oracle's row set and its checked-row count against it, so neither side is restated here.
+import { HOST_TOOLS } from "../install/host-tools.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GUARD_JS = join(ROOT, "scripts", "check-uat-oracles.js");
@@ -234,6 +242,68 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/found 2 table row\(s\)/);
     expect(out(r)).toContain("Codex CLI");
+  });
+
+  // ── Plan 34-06 (D-11): the oracle's host rows come from the registry, Pi included. ─────────────
+  //
+  // The asymmetric rows used to be a hand-typed list of five labels, so a sixth host added to the
+  // registry was never checked in either table. These cases hold the derivation: the oracle's row set
+  // equals the registry, a deleted Pi row fails by name, a Pi row that grows parallel-dispatch wording
+  // fails by name, and the PASS line's checked-row count equals registry rows times table files.
+  it("wording 34-06: the oracle's rows are exactly the registry hosts, with the spawn row looked up from `dispatch`", () => {
+    expect(ASYM_ROWS.map((r) => r.label)).toEqual(HOST_TOOLS.map((t) => t.name));
+    expect(ASYM_ROWS.filter((r) => r.spawn).map((r) => r.label)).toEqual(
+      HOST_TOOLS.filter((t) => t.dispatch === "spawn").map((t) => t.name),
+    );
+    // Every registry name matches its own row pattern and no other host's, so escaping held.
+    for (const row of ASYM_ROWS) {
+      for (const t of HOST_TOOLS) {
+        expect(row.rowRe.test(`| **${t.name}** | x |`)).toBe(row.label === t.name);
+      }
+    }
+  });
+
+  it("wording 34-06: the Pi row DELETED from adapters.md → nonzero + names Pi and the file", () => {
+    const m = mirror();
+    const file = join(m, "agent-factory/packaging/adapters.md");
+    const before = readFileSync(file, "utf8").split("\n");
+    const after = before.filter((l) => !/^\|\s*\*\*Pi\*\*/.test(l));
+    // The plant must have removed exactly one row, or the case proves nothing.
+    expect(before.length - after.length).toBe(1);
+    writeFileSync(file, after.join("\n"));
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("agent-factory/packaging/adapters.md: found 0 table row(s) for Pi ");
+    expect(out(r)).not.toMatch(/PASS\s+WR-05 wording/);
+  });
+
+  it("wording 34-06: the Pi row gains 'parallel' wording → nonzero + names the Pi row as asymmetry drift", () => {
+    const m = mirror();
+    const file = join(m, "agent-factory/packaging/adapters.md");
+    const before = readFileSync(file, "utf8");
+    const drifted = before
+      .split("\n")
+      .map((l) =>
+        /^\|\s*\*\*Pi\*\*/.test(l)
+          ? l.replace("Pi ships no sub-agents", "Pi ships no sub-agents; roles run in parallel")
+          : l,
+      )
+      .join("\n");
+    expect(drifted).not.toBe(before);
+    writeFileSync(file, drifted);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/asymmetry drift/i);
+    expect(out(r)).toContain("adapters.md: the Pi row gained spawn/coordinator wording");
+  });
+
+  it("wording 34-06: the PASS line's checked-row count equals registry hosts times table files", () => {
+    const r = runIn(mirror());
+    expect(r.status).toBe(0);
+    const m = /(\d+) host rows checked across (\d+) tables/.exec(out(r));
+    expect(m).not.toBeNull();
+    expect(Number(m![2])).toBe(ASYM_TABLE_FILES.length);
+    expect(Number(m![1])).toBe(HOST_TOOLS.length * ASYM_TABLE_FILES.length);
   });
 
   // ── oracleDualPathEquivalence (DOGF-01) — replaces the two structural parity-grep tests. ─────────

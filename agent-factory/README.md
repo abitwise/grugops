@@ -39,7 +39,7 @@ verified context, updates the board and traceability, and produces the next acti
 ## Usage across the five tools
 
 <!-- claim: C-28-027 -->
-grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, and GitHub Copilot CLI. The
+grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI, and Pi. The
 single rule to remember: **only the dispatch differs, never the content.** The roles, the
 workflows, and the gates are identical everywhere. The only difference is whether the host
 tool can *spawn* sub-agents or must *load* role files into context one at a time.
@@ -52,6 +52,7 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 | **Gemini CLI**        | `GEMINI.md` (or `AGENTS.md` via `context.fileName`) | Sequential role-load — no spawn                       |
 | **OpenCode**          | `AGENTS.md` (+ its agent config)                 | Sequential role-load (or its own native agents)          |
 | **GitHub Copilot CLI**| `AGENTS.md` (+ `.github/copilot-instructions.md`)| Sequential role-load — no spawn                          |
+| **Pi**                | `AGENTS.md` (+ `.pi/prompts/grugops.md` template) | Sequential role-load — no spawn                          |
 
 <!-- claim: C-28-029 -->
 On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role

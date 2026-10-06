@@ -3709,6 +3709,13 @@ function scratchGuardFiles(
     if (!name.endsWith(".js")) continue;
     cpSync(join(ROOT, "scripts", name), join(scriptsDir, name));
   }
+  // (Plan 34-06, D-11) The copied check-uat-oracles.js imports `../install/host-tools.js` (the host
+  // registry its asymmetric dispatch-table rows are built from), and the copied guard imports that
+  // oracle. Without the registry beside the copied scripts the scratch guard would die on a module
+  // resolution error before any guard ran, and every scratch case would assert against a crash
+  // instead of the floor it mutates. So the committed registry is copied to <scratch>/install/ too.
+  mkdirSync(join(dir, "install"), { recursive: true });
+  cpSync(join(ROOT, "install", "host-tools.js"), join(dir, "install", "host-tools.js"));
   for (const [name, mutate] of Object.entries(mutations)) {
     const path = join(scriptsDir, name);
     const before = readFileSync(path, "utf8");

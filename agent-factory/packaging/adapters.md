@@ -37,6 +37,7 @@ ship — never assume a tool fact is permanent.
 | **Gemini CLI** | `AGENTS.md` via `.gemini/settings.json` `context.fileName: ["AGENTS.md","GEMINI.md"]` | Sequential role-load — no spawn | **`settings.json` wiring** (`context.fileName` array; cleaner than a `GEMINI.md` pointer, which also works) | verify against current tool docs |
 | **OpenCode** | root `AGENTS.md` (+ global `~/.config/opencode/AGENTS.md`) | Sequential role-load — no spawn (or its own native agents) | **None — native.** OpenCode reads `AGENTS.md` directly | verify against current tool docs |
 | **GitHub Copilot CLI** | `AGENTS.md` (+ optional `.github/copilot-instructions.md`) | Sequential role-load — no spawn | **Optional pointer.** Ensuring `AGENTS.md` is present is sufficient; the `.github/` pointer is a convenience | verify against current Copilot CLI docs |
+| **Pi** | `AGENTS.md` (one context file per directory, `AGENTS.md` before `CLAUDE.md`, read from the working directory and its ancestors) | Sequential role-load — no spawn; Pi ships no sub-agents | **Prompt template.** `.pi/prompts/grugops.md`, a pointer that gives `/grugops`; Pi loads it after project trust, from the directory Pi starts in | verify against current Pi docs |
 
 The four non-spawning CLIs (Codex, Gemini, OpenCode, Copilot) use the single-window sequential
 role-load (`_role-switch-protocol.md`): the Orchestrator is a single agent that *loads the

@@ -6178,6 +6178,11 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
         filter: (src) => statSync(src).isDirectory() || src.endsWith(".js"),
       });
     }
+    // (Plan 34-06, D-11) scripts/check-uat-oracles.js, which the IN-08 case imports from this kit,
+    // imports `../install/host-tools.js` (the host registry). Only that pure-data module is copied, so
+    // the kit gains no installer code and the oracle can load.
+    mkdirSync(join(dir, "install"), { recursive: true });
+    cpSync(join(ROOT, "install", "host-tools.js"), join(dir, "install", "host-tools.js"));
     mkdirSync(join(dir, "agent-factory", "config"), { recursive: true });
     cpSync(
       join(ROOT, "agent-factory", "config", "factory.config.json"),

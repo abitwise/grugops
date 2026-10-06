@@ -44,6 +44,12 @@ import { tmpdir } from "node:os";
 import { appendNote } from "./context-io.js";
 import { claimTask, transition } from "./claim.js";
 import { projectTaskState, assertEquivalent } from "./dual-path-equivalence.js";
+// (Plan 34-06, D-11) The one registry of supported host tools. This is a DELIBERATE scripts→install
+// import edge (34-RESEARCH.md assumption A5): install/ still imports nothing from scripts/ (33.1
+// D-18/D-28), and install/host-tools.ts is pure data with no imports of its own, so the edge pulls
+// in no installer code. The asymmetric dispatch-table rows below are built from it, so a host added
+// to the registry is checked here without anyone remembering to add it.
+import { HOST_TOOLS } from "../install/host-tools.js";
 // CHECK_ROOT override is load-bearing: the Vitest harness plants violations into a hermetic mirror
 // dir and points CHECK_ROOT at it, then spawns the committed .js against that mirror. When unset,
 // resolve every path against the script-relative repo root (cwd does not matter).
@@ -221,24 +227,31 @@ function wr05LineBoundRefusals(files) {
     }
     return refusals;
 }
-// Phase 23 asymmetry assertion (D-19 / Pitfall 3) — after the WR-05 flip the 5-tool tables in
-// adapters.md + README.md are ASYMMETRIC: only the Claude Code row carries the coordinator-spawn
-// language; the four other CLI rows (Codex/Gemini/OpenCode/Copilot) MUST still say no-spawn /
-// sequential role-load. A bulk find-replace that lets a non-CC row grow spawn/coordinator wording
-// is the drift bug this assertion catches. Explicit scan list (never a repo-wide grep).
-const ASYM_TABLE_FILES = [
+// Phase 23 asymmetry assertion (D-19 / Pitfall 3) — after the WR-05 flip the per-host tables in
+// adapters.md + README.md are ASYMMETRIC: only the spawning host's row (the registry row whose
+// `dispatch` is `spawn`, Claude Code) carries the coordinator-spawn language; every other host row
+// MUST still say no-spawn / sequential role-load. A bulk find-replace that lets a non-spawning row
+// grow spawn/coordinator wording is the drift bug this assertion catches. Explicit scan list (never a
+// repo-wide grep).
+export const ASYM_TABLE_FILES = [
     "agent-factory/packaging/adapters.md",
     "agent-factory/README.md",
 ];
-// A 5-tool-table row is a markdown table line whose first cell names the tool (bold). Match the row
-// by its leading bold tool name so the scan is anchored to the table, not arbitrary prose.
-const ASYM_ROWS = [
-    { label: "Codex CLI", rowRe: /^\|\s*\*\*Codex CLI\*\*/ },
-    { label: "Gemini CLI", rowRe: /^\|\s*\*\*Gemini CLI\*\*/ },
-    { label: "OpenCode", rowRe: /^\|\s*\*\*OpenCode\*\*/ },
-    { label: "GitHub Copilot CLI", rowRe: /^\|\s*\*\*GitHub Copilot CLI\*\*/ },
-    { label: "Claude Code", rowRe: /^\|\s*\*\*Claude Code\*\*/ },
-];
+// Escape every regex metacharacter in a registry display name, so a name carrying `.`, `+` or `(`
+// is matched literally and can never widen the row pattern.
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// A per-host table row is a markdown table line whose first cell names the host (bold). Match the
+// row by its leading bold host name so the scan is anchored to the table, not arbitrary prose.
+//
+// (Plan 34-06, D-11) DERIVED FROM THE REGISTRY, never hand-typed. Each row's label is the registry
+// row's display `name`, and `spawn` comes from the registry row's `dispatch`, so the one spawning host
+// is looked up rather than spelled here. A host added to install/host-tools.ts is checked in both
+// tables by that change alone, and a table that lacks its row fails red by name.
+export const ASYM_ROWS = HOST_TOOLS.map((t) => ({
+    label: t.name,
+    rowRe: new RegExp(`^\\|\\s*\\*\\*${escapeRegExp(t.name)}\\*\\*`),
+    spawn: t.dispatch === "spawn",
+}));
 // Spawn/coordinator wording that MUST NOT appear in a non-CC row, and MUST appear in the CC row.
 //
 // WR-01 broadened: the prohibited set is the CONCEPT of parallel/coordinator dispatch, not three
@@ -256,7 +269,7 @@ const ASYM_SPAWN_WORDING = /coordinator|parallel|concurren|fan-?out|dispatch[^|]
 // The no-spawn wording every non-CC row MUST still carry (sequential single-window load).
 const ASYM_NOSPAWN_WORDING = /no spawn|Sequential role-load/i;
 export function oracleWr05Wording() {
-    process.stdout.write("\n[oracleWr05Wording] WR-05 closure beats + the asymmetric 5-tool-table flip (B3 / UAT-AUTO-01, D-19)\n");
+    process.stdout.write("\n[oracleWr05Wording] WR-05 closure beats + the asymmetric per-host table flip (B3 / UAT-AUTO-01, D-19)\n");
     // CR-01 missing-file fail-red: a scan file that is absent must fail red NAMING the file, never
     // vacuous-PASS. Done FIRST so a missing input can never read as "every file carries every beat".
     let missing = false;
@@ -290,16 +303,22 @@ export function oracleWr05Wording() {
             beatFail += `\n  ${beat.label} — missing in: ${absent.join(", ")}`;
         }
     }
-    // Asymmetry assertion (D-19 / Pitfall 3): scan each 5-tool table row in adapters.md + README.md.
-    // The four non-CC rows MUST carry no-spawn wording and MUST NOT carry spawn/coordinator wording;
-    // the Claude Code row MUST carry the spawn/coordinator wording. Fail naming the row + file.
+    // Asymmetry assertion (D-19 / Pitfall 3): scan each per-host table row in adapters.md + README.md.
+    // Every non-spawning host row MUST carry no-spawn wording and MUST NOT carry spawn/coordinator
+    // wording; the spawning host's row MUST carry the spawn/coordinator wording. Fail naming the row +
+    // file.
+    //
+    // `rowsChecked` counts the rows actually validated (one per host per table on a clean tree). It is
+    // printed in the PASS line so a reader, and check-uat-oracles.test.ts, can confirm the check ran
+    // over registry-many rows in every table rather than trusting the PASS line's wording.
     let asymFail = "";
+    let rowsChecked = 0;
     for (const file of ASYM_TABLE_FILES) {
         const lines = readText(file).split("\n");
-        for (const { label, rowRe } of ASYM_ROWS) {
+        for (const { label, rowRe, spawn } of ASYM_ROWS) {
             // WR-03: validate EVERY matching row for the tool, not just the first. The real tree carries
-            // exactly one row per tool per file (verified 2026-06-21 and re-measured 2026-08-12:
-            // adapters.md + README.md each have a single bold-tool-name row per CLI, 5 of 5 in each file).
+            // exactly one row per tool per file (verified 2026-06-21, re-measured 2026-08-12, and from plan
+            // 34-06 held to the registry: one bold host-name row per registry host in each file).
             // A SECOND matching row — a drifted legacy/overview table that gained spawn wording on a
             // duplicate row — would be invisible to a first-match `find`; a `filter` over all matches makes
             // it visible. We assert one-per-tool so a duplicate cannot hide, then validate each matching row
@@ -307,7 +326,7 @@ export function oracleWr05Wording() {
             //
             // PRESENCE IS TWO-SIDED (28-REVIEW CR-01). This was `if (rows.length === 0) continue;` with the
             // note "README's table omits headers some rows carry; absence is not drift here". That note is
-            // false — both files carry all five rows — and the `continue` made the asymmetry assertion pass
+            // false — both files carry every host row — and the `continue` made the asymmetry assertion pass
             // VACUOUSLY on a DELETED row while the PASS line below still stated the flip is asymmetric.
             // Reproduced against the committed .js: removing the Claude Code row from both files left the
             // gate printing `PASS WR-05 wording: … the 5-tool-table flip is asymmetric` and exiting 0. A
@@ -329,16 +348,16 @@ export function oracleWr05Wording() {
             }
             if (rows.length === 0)
                 continue; // nothing to validate; the refusal above is the finding
-            const isCC = label === "Claude Code";
             for (const row of rows) {
-                if (isCC) {
+                rowsChecked += 1;
+                if (spawn) {
                     if (!ASYM_SPAWN_WORDING.test(row)) {
-                        asymFail += `\n  ${file}: the Claude Code row lost the coordinator-spawn wording (the flip must keep it)`;
+                        asymFail += `\n  ${file}: the ${label} row lost the coordinator-spawn wording (the flip must keep it)`;
                     }
                 }
                 else {
                     if (ASYM_SPAWN_WORDING.test(row)) {
-                        asymFail += `\n  ${file}: the ${label} row gained spawn/coordinator wording — asymmetry drift (only the Claude Code row may spawn)`;
+                        asymFail += `\n  ${file}: the ${label} row gained spawn/coordinator wording — asymmetry drift (only the spawning host's row may spawn)`;
                     }
                     if (!ASYM_NOSPAWN_WORDING.test(row)) {
                         asymFail += `\n  ${file}: the ${label} row lost its no-spawn / sequential-role-load wording`;
@@ -348,7 +367,7 @@ export function oracleWr05Wording() {
         }
     }
     if (beatFail === "" && asymFail === "") {
-        pass("WR-05 wording: closure beats present in all four tracking docs; the 5-tool-table flip is asymmetric (CC row spawns, four CLI rows stay no-spawn)");
+        pass(`WR-05 wording: closure beats present in all four tracking docs; the per-host table flip is asymmetric (the spawning host's row spawns, every other host row stays no-spawn; ${rowsChecked} host rows checked across ${ASYM_TABLE_FILES.length} tables)`);
     }
     else {
         fail(`WR-05 wording-consistency violation:${beatFail}${asymFail}`);

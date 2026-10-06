@@ -445,14 +445,14 @@ verified context, updates the board and traceability, and produces the next acti
 ### C-28-027
 
 - file: agent-factory/README.md
-- line: 40-43
+- line: 42-45
 - kind: architecture
 - depends_on: —
 - status: true
 - mechanism: FIXED in 28-05. The sentence asserted sameness of a DELETED artifact class — `handoffs` — and `scripts/check-public-docs-vocabulary.js` deliberately could not flag it, because the bare word is not a `RETIRED_PROSE_FORMS` literal and D-10 forbids widening the matcher to chase it. The noun is now `workflows`, and the parity assertion is measured against what actually ships identically: `agent-factory/roles/` and `agent-factory/workflows/` are copied whole to the kit root of every install by `install/install.ts`'s `cpSync` of the `agent-factory` tree, so no host tool receives a different role or workflow body. The companion clause `only the dispatch differs, never the content` is held mechanically by `scripts/generate-skill-twins.ts` and `npm run freshness:skill-twins` (see C-28-007). The spawn-versus-load sentence that follows is unchanged and independently correct against `orchestrator.md` § *Hard limits*.
 
 ```
-grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, and GitHub Copilot CLI. The
+grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI, and Pi. The
 single rule to remember: **only the dispatch differs, never the content.** The roles, the
 workflows, and the gates are identical everywhere. The only difference is whether the host
 tool can *spawn* sub-agents or must *load* role files into context one at a time.
@@ -461,11 +461,11 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 ### C-28-028
 
 - file: agent-factory/README.md
-- line: 46-52
+- line: 48-55
 - kind: architecture
 - depends_on: —
 - status: overstated
-- mechanism: CARRIED-IN CANDIDATE, RE-MEASURED RATHER THAN TRANSCRIBED. The table's Claude Code row advertises `Coordinator spawns role agents — the coordinator: true adapter holds the grant`. What holds: `.planning/REQUIREMENTS.md` records SPAWN-01 `[x]` (all 17 adapters exist, generated) and SPAWN-02 `[x]` (byte-gated). What does NOT hold: KIT-03, SPAWN-03 and SPAWN-04 are all still `[ ]`, and SPAWN-03's own text states that the current subagent placement makes the grant a no-op. `28-CONTEXT.md` records that Phase 27 closed by named user override rather than by a verification round. The grant exists; the spawn path's correctness is advertised ahead of its verification. Registered whole-table because an anchor between two pipe rows would split the rendered table.
+- mechanism: CARRIED-IN CANDIDATE, RE-MEASURED RATHER THAN TRANSCRIBED. The table's Claude Code row advertises `Coordinator spawns role agents — the coordinator: true adapter holds the grant`. What holds: `.planning/REQUIREMENTS.md` records SPAWN-01 `[x]` (all 17 adapters exist, generated) and SPAWN-02 `[x]` (byte-gated). What does NOT hold: KIT-03, SPAWN-03 and SPAWN-04 are all still `[ ]`, and SPAWN-03's own text states that the current subagent placement makes the grant a no-op. `28-CONTEXT.md` records that Phase 27 closed by named user override rather than by a verification round. The grant exists; the spawn path's correctness is advertised ahead of its verification. Registered whole-table because an anchor between two pipe rows would split the rendered table. PLAN 34-06 (D-11): the table now carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), Pi included, and the Pi row reads `Sequential role-load — no spawn` because Pi ships no sub-agents. The asymmetric dispatch-table oracle in `scripts/check-uat-oracles.ts` builds its rows from the registry, so a missing, duplicated or spawn-worded host row fails red by name.
 - disposition: accepted
 - finding_id: F-28-210
 
@@ -477,12 +477,13 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 | **Gemini CLI**        | `GEMINI.md` (or `AGENTS.md` via `context.fileName`) | Sequential role-load — no spawn                       |
 | **OpenCode**          | `AGENTS.md` (+ its agent config)                 | Sequential role-load (or its own native agents)          |
 | **GitHub Copilot CLI**| `AGENTS.md` (+ `.github/copilot-instructions.md`)| Sequential role-load — no spawn                          |
+| **Pi**                | `AGENTS.md` (+ `.pi/prompts/grugops.md` template) | Sequential role-load — no spawn                          |
 ```
 
 ### C-28-029
 
 - file: agent-factory/README.md
-- line: 55-58
+- line: 58-61
 - kind: architecture
 - depends_on: —
 - status: true
@@ -498,7 +499,7 @@ same workflows, same gates, same shared verified context — only the dispatch d
 ### C-28-030
 
 - file: agent-factory/README.md
-- line: 61-64
+- line: 64-67
 - kind: install
 - depends_on: —
 - status: true
@@ -514,7 +515,7 @@ on top.
 ### C-28-031
 
 - file: agent-factory/README.md
-- line: 69-74
+- line: 72-77
 - kind: install
 - depends_on: —
 - status: true
@@ -532,7 +533,7 @@ change a value, change the factory's behavior.
 ### C-28-032
 
 - file: agent-factory/README.md
-- line: 77-80
+- line: 80-83
 - kind: safety
 - depends_on: open_pr, protected_branch_merge
 - status: true
@@ -548,7 +549,7 @@ up to enterprise governance (scrum cadence, compliance regimes, release gates) o
 ### C-28-033
 
 - file: agent-factory/README.md
-- line: 85-94
+- line: 91-101
 - kind: architecture
 - depends_on: —
 - status: true
@@ -571,7 +572,7 @@ up to enterprise governance (scrum cadence, compliance regimes, release gates) o
 ### C-28-034
 
 - file: agent-factory/README.md
-- line: 135-137
+- line: 142-144
 - kind: install
 - depends_on: —
 - status: true
@@ -586,7 +587,7 @@ The minimal "just install the markdown" path works for any tool: copy the portab
 ### C-28-035
 
 - file: agent-factory/README.md
-- line: 140-142
+- line: 147-149
 - kind: install
 - depends_on: —
 - status: true
@@ -601,7 +602,7 @@ reversible installer. **Node 22+ is a prerequisite** for the scripted path:
 ### C-28-036
 
 - file: agent-factory/README.md
-- line: 149-151
+- line: 156-158
 - kind: install
 - depends_on: —
 - status: true
@@ -616,7 +617,7 @@ kit/state layout.
 ### C-28-037
 
 - file: agent-factory/README.md
-- line: 154-156
+- line: 161-163
 - kind: install
 - depends_on: —
 - status: true
