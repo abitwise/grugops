@@ -1746,6 +1746,51 @@ describe("generate-role-adapters.js — the effort resolution is ANNOUNCED (plan
   });
 });
 
+describe("generate-role-adapters.js — the MODEL preset `tiered` leaves effort alone (plan 34-03, D-05)", () => {
+  it("a mirror under `{\"models\":{\"preset\":\"tiered\"}}` emits the tiered `model:` lines and ZERO `effort:` lines", () => {
+    const m = scratch(SAMPLE_ROLES);
+    writeModelsConfig(m, { preset: "tiered" });
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+
+    const snap = snapshot(agentsDir(m));
+    expect(
+      Object.keys(snap),
+      "PREMISE: one adapter per mirrored role, or 'zero effort lines' is vacuous",
+    ).toHaveLength(SAMPLE_ROLES.length);
+
+    const findings: string[] = [];
+    let tieredModelLines = 0;
+    for (const [name, text] of Object.entries(snap)) {
+      const stem = adapterStem(name);
+      const row = TIERED.find((t) => t.stem === stem);
+      if (row === undefined) {
+        findings.push(`${name} — no TIERED row for "${stem}", so no expectation can be derived`);
+        continue;
+      }
+      // The model preset DID apply: the tiered alias, taken from the imported table.
+      const models = modelLines(text);
+      if (models.length !== 1 || models[0] !== `model: ${row.alias}`) {
+        findings.push(`${name} — model lines [${models.join(" | ")}], expected ["model: ${row.alias}"]`);
+      } else {
+        tieredModelLines += 1;
+      }
+      // …and it changed no effort (D-05).
+      const efforts = effortLines(text);
+      if (efforts.length !== 0) findings.push(`${name} — carries ${efforts.join(" | ")}, expected none`);
+    }
+    expect(findings).toEqual([]);
+    expect(tieredModelLines).toBe(SAMPLE_ROLES.length);
+
+    // The announcements agree: the model preset is `tiered`, the effort resolution is zero-config.
+    expect(resolvedPresetsIn(r.stdout)).toEqual(["tiered"]);
+    expect(resolvedEffortPresetsIn(r.stdout)).toEqual(["none"]);
+    const a = announcedEffortAssignment(r);
+    expect(a.overrides).toBe(0);
+    expect(a.levels).toEqual(["inherit"]);
+  });
+});
+
 describe("generate-role-adapters.js — an illegal `models.effort` is refused above the build loop (plan 34-01, D-03)", () => {
   // The stem is taken from the mirrored role list, never typed.
   const stem = (): string => SAMPLE_ROLES[2].slice(0, -".md".length);

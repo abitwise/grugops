@@ -2452,3 +2452,142 @@ describe("models.effort — resolveEfforts floors (plan 34-01, D-04)", () => {
     expect(reason).toContain("1 of the 3 stem(s)");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// EFFORT `tiered` AND ITS RATIONALE (plan 34-03, D-04, D-05)
+//
+// D-04: every TIERED row carries a required `effortRationale`, argued on quality grounds with no
+// digit and no cost, price, token, saving, limit or speed claim (the MODEL-07 rule extended to the
+// new field), and the effort `tiered` split is computed from TIERED's alias column. D-05: the model
+// preset `tiered` changes no role's effort. Every stem and expectation below is derived from the
+// imported TIERED table or the kit authority; none is typed.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The cost and speed vocabulary an effort rationale may not carry (MODEL-07): a claim in any of
+ * these words would need a measurement (scripts/measure-cost.ts) or `UNKNOWN - verify`, and a
+ * rationale is neither. Matched as word STEMS, case-insensitively, so `costs`, `Cheaper`, `pricing`,
+ * `tokens`, `savings`, `limits` and `faster` are all caught.
+ */
+const EFFORT_RATIONALE_BANNED =
+  /\b(cost|cheap|price|pricing|token|saving|save|limit|fast|speed|spend|budget|expensive)/i;
+
+/** The shipped table with one effortRationale replaced. */
+const tableWithEffortRationale = (stem: string, effortRationale: string): RoleTier[] =>
+  TIERED.map((r) => (r.stem === stem ? { ...r, effortRationale } : r));
+
+describe("effort `tiered` and its rationale (plan 34-03, D-04, D-05)", () => {
+  it("every TIERED row carries a NON-EMPTY effortRationale, checked over every row", () => {
+    const missing = TIERED.filter(
+      (r) => typeof r.effortRationale !== "string" || r.effortRationale.trim().length === 0,
+    ).map((r) => r.stem);
+    expect(missing, "D-04 makes the effort reason a required field on every row").toEqual([]);
+    expect(TIERED.length, "the check must have had every row to run over").toBe(MODEL_TIERS_COUNT);
+  });
+
+  it("no effortRationale contains a DECIMAL DIGIT (MODEL-07)", () => {
+    const withDigits = TIERED.filter((r) => /[0-9]/.test(String(r.effortRationale))).map((r) => r.stem);
+    expect(withDigits).toEqual([]);
+  });
+
+  it("no effortRationale carries a cost, price, token, saving, limit or speed word (MODEL-07)", () => {
+    const offending = TIERED.filter((r) => EFFORT_RATIONALE_BANNED.test(String(r.effortRationale))).map(
+      (r) => `${r.stem}: ${String(r.effortRationale).match(EFFORT_RATIONALE_BANNED)?.[0] ?? ""}`,
+    );
+    expect(offending).toEqual([]);
+    // The pattern is not vacuous: it catches each word family it claims to.
+    for (const word of ["costs", "Cheaper", "pricing", "tokens", "savings", "limits", "faster"]) {
+      expect(EFFORT_RATIONALE_BANNED.test(`it ${word} here`), word).toBe(true);
+    }
+  });
+
+  it("tieredTableRefusals NAMES a row whose effortRationale is EMPTY or WHITESPACE, as its own finding", () => {
+    const victim = TIERED[0].stem;
+    for (const blank of ["", "   ", "\t\n"]) {
+      const findings = tieredTableRefusals(tableWithEffortRationale(victim, blank));
+      const effort = matching(findings, /effortRationale/);
+      expect(effort.length, JSON.stringify(blank)).toBe(1);
+      expect(effort[0]).toContain(`"${victim}"`);
+      expect(effort[0]).toMatch(/EMPTY effortRationale/);
+      // Not reported as the MODEL rationale finding: the model rationale is intact.
+      expect(matching(findings, /EMPTY rationale/)).toEqual([]);
+    }
+  });
+
+  it("tieredTableRefusals NAMES a row whose effortRationale contains a DIGIT", () => {
+    const victim = TIERED[TIERED.length - 1].stem;
+    const findings = tieredTableRefusals(
+      tableWithEffortRationale(victim, "Deeper reasoning helps by a factor of 2."),
+    );
+    const digit = matching(findings, /effortRationale/);
+    expect(digit.length).toBe(1);
+    expect(digit[0]).toContain(`"${victim}"`);
+    expect(digit[0]).toMatch(/DIGIT/);
+  });
+
+  it("tieredTableRefusals refuses a row with NO effortRationale at all (a hand-built table at run time) rather than throwing", () => {
+    const victim = TIERED[0].stem;
+    const table = TIERED.map((r) => {
+      if (r.stem !== victim) return r;
+      const { effortRationale: _dropped, ...rest } = r;
+      return rest as unknown as RoleTier;
+    });
+    const findings = tieredTableRefusals(table);
+    expect(matching(findings, /effortRationale/).length).toBe(1);
+  });
+
+  it("the SHIPPED table carries no effortRationale finding", () => {
+    expect(matching(tieredTableRefusals(), /effortRationale/)).toEqual([]);
+  });
+
+  it("D-04: effort `tiered` gives `high` to exactly the `opus` rows and `medium` to every other row, counted from TIERED", () => {
+    expect(TIERED.length, "one row per role").toBe(MODEL_TIERS_COUNT);
+    const stems = TIERED.map((r) => r.stem);
+    const r = resolveEfforts(stems, { preset: "tiered" });
+    expect(r.ok, r.ok ? "" : r.reason).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.size).toBe(TIERED.length);
+
+    const wrong: string[] = [];
+    for (const row of TIERED) {
+      const expected = row.alias === "opus" ? "high" : "medium";
+      if (r.value.get(row.stem) !== expected) {
+        wrong.push(`${row.stem}: got ${String(r.value.get(row.stem))}, expected ${expected}`);
+      }
+    }
+    expect(wrong).toEqual([]);
+
+    const opusRows = TIERED.filter((row) => row.alias === "opus").length;
+    const highAnswers = [...r.value.values()].filter((l) => l === "high").length;
+    const mediumAnswers = [...r.value.values()].filter((l) => l === "medium").length;
+    expect(opusRows, "PREMISE: the table has judgment rows").toBeGreaterThan(0);
+    expect(highAnswers).toBe(opusRows);
+    expect(mediumAnswers).toBe(TIERED.length - opusRows);
+  });
+
+  it("D-05: the MODEL preset `tiered` resolves effort preset `none` with no overrides, and `inherit` for every stem", () => {
+    const stems = kitStems();
+    expect(stems.length).toBe(ROLE_COUNT);
+    const c = readModelsConfig(rootWithConfig({ models: { preset: "tiered" } }), stems);
+    expect(c.ok, c.ok ? "" : c.reason).toBe(true);
+    if (!c.ok) return;
+    expect(c.value.preset, "PREMISE: the MODEL preset really is `tiered`").toBe("tiered");
+    expect(c.value.effort.preset).toBe("none");
+    expect(c.value.effort.overrides.size).toBe(0);
+
+    const e = resolveEfforts(stems, {
+      preset: c.value.effort.preset,
+      overrides: c.value.effort.overrides,
+    });
+    expect(e.ok, e.ok ? "" : e.reason).toBe(true);
+    if (!e.ok) return;
+    expect(e.value.size).toBe(stems.length);
+    expect([...new Set(e.value.values())]).toEqual(["inherit"]);
+  });
+
+  it("EFFORT_PRESET_NAMES and PRESET_NAMES are two SEPARATE array objects", () => {
+    // Equal members today; two closed sets all the same. A third model preset must not silently
+    // become a legal effort preset, which a shared reference would make it.
+    expect(EFFORT_PRESET_NAMES).not.toBe(PRESET_NAMES as unknown);
+  });
+});
