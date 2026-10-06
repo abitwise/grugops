@@ -1660,7 +1660,7 @@ Plans:
 ### Phase 34: Model Effort Dial & Pi Support
 
 **Goal**: Users can set reasoning effort per role through the same `models` dial that already sets the model, and Pi (pi.dev) joins the five supported host coding-agent CLIs through the existing thin-pointer, single-source adapter pattern — with the same idempotent, dry-run, reversible install contract.
-**Depends on**: Phase 33 (adapter generation + installer are stable; Windows leg green before a sixth adapter lands)
+**Depends on**: Phase 33 (adapter generation and installer are stable). The original second condition, "Windows leg green before a sixth adapter lands", is NOT met: CAP-02 is open, and WINDOWS.md rows 274 (board-watch-live EPERM) and 315 (win32 chmod skips) are open and owned elsewhere. Phase 34 proceeds by decision D-09 (34-CONTEXT.md) on one condition: no test this phase adds or changes is red on `windows-latest`, measured on a CI run the human pushes (HOST-02, recorded in 34-VALIDATION.md).
 **Requirements**: EFFORT-01, EFFORT-02, EFFORT-03, EFFORT-04, EFFORT-05, HOST-01, HOST-02, PI-01, PI-02, PI-03, PI-04
 **Success Criteria** (what must be TRUE):
 
@@ -1759,6 +1759,36 @@ Plans:
 ### Phase 999.1: Installer adversarial e2e lane — turn the per-plan red-team into a bounded, repeatable test flow (BACKLOG)
 
 **Goal:** [Captured for future planning] Replace the ad-hoc, open-ended red-team agent that phase 33.1 ran after every gap plan with a bounded, deterministic end-to-end test lane for `install.js` / `uninstall.js`. The lane drives the committed `.js` in throwaway git repos and kit homes, and runs on a fixed, enumerated scenario corpus with a severity/likelihood bar. Without that bar, every reproduced edge case became new in-scope work and phase 33.1 stalled. See `999.1-installer-adversarial-e2e-lane/999.1-IDEA.md`.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.2: Bound the readModelsConfig read (DC-3 residual from Phase 34, D-18) (BACKLOG)
+
+**Goal:** [Captured for future planning] `readModelsConfig` in `scripts/model-tiers.ts` reads the `models` configuration with `existsSync` followed by `readFileSync` on a user-controlled path, so a FIFO at `.grugops/factory.config.json` hangs the adapter generator (defect class DC-3, 33.1-GAP-PLANNING-BRIEF.md). Phase 34 did not fix it, by decision D-18, and disclosed it in 34-VALIDATION.md "Residuals". A fix must not create a second implementation of `install/user-file.ts` `readUserFile`, the one bounded reader of a user path. It would either share that reader across the installer/scripts boundary or move the bound to a place both can reach, and it needs a DC-3 class test (FIFO and directory at the path, run finishes within a timeout).
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.3: Document `fable` as a model alias (BACKLOG)
+
+**Goal:** [Captured for future planning] 34-RESEARCH.md Q6 found that Claude Code's sub-agents page lists `fable` as a model alias, but `MODEL_ALIASES` in `scripts/model-tiers.ts` does not include it. Phase 34 left `MODEL_ALIASES` unchanged. The A1 marker that held the alias set may now be citable. Re-fetch the primary source, cite it, and decide whether `fable` joins the closed vocabulary, together with the docs and tests that derive from it.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.4: Kit discovery on non-Claude hosts after a scripted install (BACKLOG)
+
+**Goal:** [Captured for future planning] 34-RESEARCH.md Q7: after a scripted install, whether the non-Claude hosts find the shared kit at `~/.grugops/agent-factory` is `UNKNOWN - verify`. The question is older than Phase 34, and Pi inherits it. The Pi prompt template stays a plain pointer (no third resolver adapter) until this is measured on each host.
 **Requirements:** TBD
 **Plans:** 0 plans
 

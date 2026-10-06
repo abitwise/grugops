@@ -14,7 +14,8 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 ## [Unreleased]
 
 Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands in the next
-release, together with Phase 33.1, which retires the Bash command guard.
+release, together with Phase 33.1, which retires the Bash command guard, and Phase 34, which adds a
+per-role effort setting and Pi support.
 
 ### Removed
 
@@ -43,6 +44,33 @@ release, together with Phase 33.1, which retires the Bash command guard.
   environment: its environment line reads `UNKNOWN - verify` by design (33.1 D-31).
 - A "Where each floor is enforced" section in `docs/GUARANTEES.md`, generated from the audit model,
   that names the hard-floor, speed-bump and prose tier of every safety floor.
+- A per-role reasoning-effort setting, `models.effort`, inside the existing `models` block of
+  `factory.config.json` (34 D-02). It has a preset, `none` or `tiered`, and a sparse `roles` map
+  that overrides the preset for the roles it names. The legal levels are `inherit`, `low`,
+  `medium`, `high`, `xhigh` and `max`. Any other key or value is refused by name, and the refusal
+  writes no adapter (34 D-03). The `tiered` effort preset gives `high` to the roles the model
+  `tiered` preset gives `opus`, and `medium` to the others (34 D-04). The model preset `tiered`
+  does not change effort on its own (34 D-05). The level is written as an `effort:` line in the
+  Claude Code sub-agent adapters only; no other host receives it. With no `models.effort` block,
+  every role is `inherit`, which writes no `effort:` line, so a repository without the setting gets
+  the same adapters as before (34 D-06). `agent-factory/config/factory.config.md` documents the
+  setting and what Claude Code does with a level the model does not support.
+- A foundation guard, `guard_effort_assignment`, that fails by name when a committed adapter's
+  `effort:` line differs from the level the configuration resolves to (34 D-15).
+- Pi (pi.dev) as a supported host. The installer reports `pi` when the target root has a `.pi`
+  entry. Every install writes a `/grugops` prompt template at `.pi/prompts/grugops.md`, which only
+  points Pi at the Orchestrator and holds no role text (34 D-10, D-16, D-17). Install records the
+  file in the install ledger in `.grugops/install.json` and never overwrites a file a user already
+  has at that path. Uninstall removes the template only if install recorded it and it is unchanged
+  (34 D-13). `install/README.md`, both READMEs, `docs/faq.md`, `CLAUDE.md` and the per-host tables
+  in `agent-factory/packaging/adapters.md` document Pi.
+  The model and effort settings do not reach Pi, because grugops writes no per-agent definition
+  for it (34 D-12).
+- A registry of supported host tools, `install/host-tools.ts`, as the one place the set of hosts is
+  declared (34 D-11). The installer's tool detection and closing host line, the dispatch-table UAT
+  oracle, the structure validator and the per-host documentation tables are checked against it. A
+  scan of the tracked tree fails on a host count word, or on a host list that names every
+  non-spawning host but one.
 
 ### Changed
 
@@ -142,6 +170,11 @@ release, together with Phase 33.1, which retires the Bash command guard.
   `sha256:` and 64 hex digits over the note's bytes without that line — as the last line inside the
   frontmatter fence. The contract (`agent-factory/contracts/context-note.md`) documents the field,
   what it distinguishes, and what it does not.
+- The coordinator adapter's Degraded-tier line now reads "the non-Claude-Code host CLIs" instead of
+  "the four non-Claude-Code CLIs", so it no longer states a host count (34 D-14). It is the only
+  adapter line Phase 34 changes in a repository without an effort setting.
+- Host lists in the documentation now include Pi, and sentences that stated a number of host tools
+  no longer state one (34 D-11).
 
 ### Fixed
 
