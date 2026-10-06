@@ -4844,7 +4844,10 @@ console.log("          and deployment environments with required reviewers for p
 console.log("          This installer wrote Claude Code ask rules for the governed command spellings into");
 console.log("          .claude/settings.json. They are a speed bump, not a security boundary: other spellings");
 console.log("          of the same command are not matched. The Claude Code plugin form cannot carry permission");
-console.log("          rules, so a plugin-only install gets none. The other four CLIs get documentation only.");
+console.log("          rules, so a plugin-only install gets none.");
+// Derived from HOST_TOOLS (phase 34, D-11): every host that does not spawn role agents, by name, in
+// registry order, so this line can never carry a stale host count.
+console.log(`          The other host CLIs (${HOST_TOOLS.filter((t) => t.dispatch === "sequential").map((t) => t.name).join(", ")}) get documentation only.`);
 console.log("  Only a human merges to a protected branch or approves a production deploy.");
 // THE CLOSING CLAIM IS CONDITIONAL (27-13, T-27-59). A run that could not read a source directory,
 // or that refused a nested adapter, has NOT completed — it installed nothing for that class. Saying
