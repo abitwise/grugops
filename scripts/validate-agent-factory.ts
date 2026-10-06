@@ -76,6 +76,11 @@ import { governanceConfigCandidates } from "./context-io.js";
 // between two parsers is invisible until it has already misreported the board. `kebab` comes from
 // the same module for the same reason: `kebab(column) === status` is a rule of that grammar.
 import { boardHasColumn, kebab, parseBoard, parseTicketDocument } from "./board-model.js";
+// (Plan 34-06, D-10 validator coverage / D-11) THE SUPPORTED HOST SET IS IMPORTED, NEVER RESTATED.
+// install/host-tools.ts is the one registry of host tools. This is a DELIBERATE scripts→install
+// import edge (34-RESEARCH.md assumption A5): install/ still imports nothing from scripts/ (33.1
+// D-18/D-28), and the registry module is pure data with no imports, so no installer code comes in.
+import { HOST_TOOLS } from "../install/host-tools.js";
 
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
@@ -763,6 +768,8 @@ function checkTickets(): void {
 function checkPackaging(): void {
   if (!kitExists("agent-factory/packaging/adapters.md")) {
     err("missing required packaging file: agent-factory/packaging/adapters.md");
+  } else {
+    checkDispatchMap("agent-factory/packaging/adapters.md");
   }
   const rel = ".claude-plugin/plugin.json";
   if (kitExists(rel)) {
@@ -792,6 +799,53 @@ function checkPackaging(): void {
     const m = manifest as Record<string, unknown>;
     if (typeof m.name !== "string" || (m.name as string).trim() === "") {
       err(`${rel}: missing or empty required field "name"`);
+    }
+  }
+}
+
+// ── Check 7b (plan 34-06): the kit's dispatch map holds one row per registry host ──────────────
+// A dispatch-map row is a markdown table line whose first cell is a bold name (`| **Codex CLI** |`).
+// Every such line in the kit's adapters.md is held to HOST_TOOLS two-sided: each registry host has
+// exactly one row (zero is a missing host, more than one a duplicate that could hide drift), and a
+// bold row naming anything outside the registry is an error. A file with no bold row at all carries
+// no per-host table, so no host row could be checked: that is REPORTED as a warning (promoted by
+// --strict), never passed silently. Structure only; the row wording is held elsewhere
+// (scripts/check-uat-oracles.ts, the asymmetric dispatch-table oracle).
+const DISPATCH_ROW = /^\|\s*\*\*(.+?)\*\*\s*\|/;
+function checkDispatchMap(rel: string): void {
+  const text = kitRead(rel);
+  if (text === null) {
+    err(`${rel}: present but unreadable, so its per-host dispatch table could not be checked`);
+    return;
+  }
+  const rowNames: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = DISPATCH_ROW.exec(line);
+    if (m) rowNames.push(m[1].trim());
+  }
+  if (rowNames.length === 0) {
+    warn(
+      `${rel}: carries no per-host dispatch table (no table row whose first cell is a bold host ` +
+        `name), so no host row could be checked against the host registry`,
+    );
+    return;
+  }
+  const registryNames = HOST_TOOLS.map((t) => t.name);
+  for (const name of registryNames) {
+    const n = rowNames.filter((r) => r === name).length;
+    if (n !== 1) {
+      err(
+        `${rel}: the per-host dispatch table has ${n} row(s) for registry host "${name}" — ` +
+          `expected exactly one`,
+      );
+    }
+  }
+  for (const name of new Set(rowNames)) {
+    if (!registryNames.includes(name)) {
+      err(
+        `${rel}: the per-host dispatch table has a row for "${name}", and "${name}" is not a ` +
+          `registry host (install/host-tools.ts)`,
+      );
     }
   }
 }

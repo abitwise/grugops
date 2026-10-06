@@ -105,6 +105,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | **Gemini CLI** | `GEMINI.md` by default; **configurable to read `AGENTS.md`** via `settings.json` `context.fileName`. | Either a one-line `GEMINI.md` pointer, or (cleaner) set `context.fileName: ["AGENTS.md","GEMINI.md"]`. Supports `@file.md` imports. | HIGH |
 | **OpenCode** | `AGENTS.md` (project root + global `~/.config/opencode/AGENTS.md`) + `opencode.json` config. | None needed. Optional native-agent mapping (markdown agent files: `review.md` → `review` agent). | HIGH |
 | **GitHub Copilot CLI** | `AGENTS.md` (root + nested) + `.github/copilot-instructions.md` (+ CLAUDE.md/GEMINI.md). **All combine — no priority fallback.** | Ensure `AGENTS.md` present; optional `.github/copilot-instructions.md` pointer. `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` env var can add dirs. | HIGH |
+| **Pi** | `AGENTS.md`: one context file per directory, `AGENTS.md` before `CLAUDE.md`, read from the working directory and its ancestors; project prompt templates from `.pi/prompts/` (after project trust, from the directory Pi starts in). | `.pi/prompts/grugops.md`, a pointer prompt template that gives `/grugops`. No skill, extension, `SYSTEM.md` or settings file. | HIGH (Pi source read 2026-10-06, 34-RESEARCH.md § B) |
 ## Alternatives Considered
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
