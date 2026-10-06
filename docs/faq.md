@@ -11,7 +11,7 @@ A: It runs on top of your tool instead of replacing it, uses a few simple agents
 
 Q: Does it lock me in?
 A: No. The core is portable markdown built on the AGENTS.md open standard, with adapters
-   for Claude Code, Codex, Gemini, OpenCode, and Copilot.
+   for Claude Code, Codex, Gemini, OpenCode, Copilot, and Pi.
 
 Q: Is it serious enough for enterprise?
 A: Yes, in enterprise mode: NFR/SLO targets, security and compliance gates, release control,
