@@ -34,6 +34,9 @@ import { join } from "node:path";
 
 import { listRoles, ROLE_COUNT } from "./kit-model.js";
 import {
+  EFFORT_KEYS,
+  EFFORT_LEVELS,
+  EFFORT_PRESET_NAMES,
   MODEL_ALIASES,
   MODEL_TIERS_COUNT,
   MODELS_CONFIG_CANDIDATE_RELS,
@@ -41,7 +44,10 @@ import {
   PRESET_NAMES,
   RESOLVED_PRESET_PREFIX,
   TIERED,
+  inheritEffortForEveryStem,
   inheritForEveryStem,
+  isEffortLevel,
+  isEffortPresetName,
   isModelAlias,
   isPresetName,
   MIRRORED_RESOLVED_PRESET_PREFIX,
@@ -49,6 +55,7 @@ import {
   mirroredResolvedPresetLine,
   mirroredResolvedPresetsIn,
   readModelsConfig,
+  resolveEfforts,
   resolveModels,
   resolvedAssignmentLine,
   resolvedAssignmentsIn,
@@ -56,8 +63,11 @@ import {
   resolvedPresetsIn,
   tieredCorpusRefusals,
   tieredTableRefusals,
+  type EffortKey,
+  type EffortLevel,
   type ModelAlias,
   type ModelsKey,
+  type ResolveEffortsOptions,
   type ResolveModelsOptions,
   type RoleTier,
 } from "./model-tiers.js";
@@ -2096,5 +2106,344 @@ describe("model-tiers: an override for an uncovered stem is REFUSED (plan 29.1-2
     if (!r.ok) return;
     expect(r.value.get(stems[0])).toBe("opus");
     expect(r.value.get(stems[1])).toBe("inherit");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// models.effort — THE CLOSED SUB-BLOCK (plan 34-01, D-02, D-03, D-04, D-07, D-08)
+//
+// Every refusal rule the `models` block has must hold for the `models.effort` sub-block, and each is
+// tested as a CLASS here: every degenerate shape, every case-varied key, every illegal level in the
+// behaviour list — not one named site. Role stems come from the kit authority (`kitStems()`); the
+// only typed names are deliberately NOT role stems.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+describe("models.effort — the closed sub-block (plan 34-01, D-03)", () => {
+  /** The first derived stem, in sorted order — the one every single-role case configures. */
+  const firstStem = (): string => [...kitStems()].sort()[0];
+
+  /** The six legal levels, quoted exactly as every level refusal must quote them. */
+  const quotedLevels = (): string => EFFORT_LEVELS.map((l) => `"${l}"`).join(", ");
+
+  it("the three effort tuples are closed sets, and EFFORT_PRESET_NAMES is its OWN declaration rather than PRESET_NAMES", () => {
+    // A second hand-written list, kept for the reason the MODELS_KEYS case gives: a change to a tuple
+    // is visible in a diff beside this case. Consumption is proven by the probe case below.
+    expect([...EFFORT_LEVELS]).toEqual(["inherit", "low", "medium", "high", "xhigh", "max"]);
+    expect([...EFFORT_PRESET_NAMES].sort()).toEqual(["none", "tiered"]);
+    expect([...EFFORT_KEYS].sort()).toEqual(["preset", "roles"]);
+    for (const tuple of [EFFORT_LEVELS, EFFORT_PRESET_NAMES, EFFORT_KEYS] as const) {
+      expect(new Set<string>(tuple).size).toBe(tuple.length);
+    }
+    // A third MODEL preset must not silently become a legal EFFORT preset.
+    expect(EFFORT_PRESET_NAMES as readonly string[]).not.toBe(PRESET_NAMES as readonly string[]);
+  });
+
+  it("membership is exact string equality: case-varied, padded and non-string values are not members", () => {
+    for (const level of EFFORT_LEVELS) expect(isEffortLevel(level), level).toBe(true);
+    for (const name of EFFORT_PRESET_NAMES) expect(isEffortPresetName(name), name).toBe(true);
+    for (const bad of ["MAX", "Max", " max", "max ", "", "ultra", 1, null, undefined, {}, ["max"]]) {
+      expect(isEffortLevel(bad), String(bad)).toBe(false);
+    }
+    for (const bad of ["Tiered", "TIERED", " tiered", "cost", "", 1, null, undefined]) {
+      expect(isEffortPresetName(bad), String(bad)).toBe(false);
+    }
+  });
+
+  it("an UNKNOWN key is refused BEFORE a legal sibling is read — the reason names `models.effort.presets` and not `bogus`", () => {
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { effort: { presets: "tiered", preset: "bogus" } } }),
+      kitStems(),
+    );
+    expect(reason).toContain("`models.effort.presets`");
+    expect(reason, "the illegal sibling value must not be the finding the user is handed").not.toContain(
+      "bogus",
+    );
+    for (const key of EFFORT_KEYS) expect(reason).toContain(`"${key}"`);
+  });
+
+  it("TWO unknown keys are named together in ONE refusal, sorted, and the sentence agrees in number", () => {
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { effort: { rolez: {}, presets: "x" } } }),
+      kitStems(),
+    );
+    expect(reason).toContain("`models.effort.presets`, `models.effort.rolez`, none of which is a key");
+  });
+
+  for (const key of ["Preset", "ROLES"]) {
+    it(`a CASE-VARIED key \`${key}\` is refused as an unknown key, never folded`, () => {
+      const value = key === "Preset" ? "tiered" : { [firstStem()]: "max" };
+      const reason = refusalOrFail(
+        rootWithConfig({ models: { effort: { [key]: value } } }),
+        kitStems(),
+      );
+      expect(reason).toContain(`\`models.effort.${key}\`, which is not a key`);
+    });
+  }
+
+  for (const [label, effort] of [
+    ["null", null],
+    ["an array", []],
+    ["a string", "tiered"],
+    ["a number", 1],
+  ] as const) {
+    it(`a DEGENERATE \`models.effort\` that is ${label} is refused naming its shape, and is not the zero-config answer`, () => {
+      const reason = refusalOrFail(rootWithConfig({ models: { effort } }), kitStems());
+      expect(reason).toContain(`the \`models.effort\` key in`);
+      expect(reason).toContain(`is ${label} rather than a JSON object`);
+    });
+  }
+
+  for (const preset of ["Tiered", "cost", 1, null]) {
+    it(`an effort preset of ${JSON.stringify(preset)} is refused quoting the legal set "none", "tiered"`, () => {
+      const reason = refusalOrFail(rootWithConfig({ models: { effort: { preset } } }), kitStems());
+      expect(reason).toContain(`\`models.effort.preset\` to ${JSON.stringify(preset)}`);
+      expect(reason).toContain('"none", "tiered"');
+    });
+  }
+
+  for (const [label, roles] of [
+    ["null", null],
+    ["an array", [["x", "max"]]],
+    ["a string", "max"],
+  ] as const) {
+    it(`a DEGENERATE \`models.effort.roles\` that is ${label} is refused naming its shape`, () => {
+      const reason = refusalOrFail(rootWithConfig({ models: { effort: { roles } } }), kitStems());
+      expect(reason).toContain("`models.effort.roles` key in");
+      expect(reason).toContain(`is ${label} rather than a JSON object`);
+    });
+  }
+
+  it("an UNKNOWN stem key in `models.effort.roles` is refused naming the stem and the whole valid stem set", () => {
+    const stems = kitStems();
+    const reason = refusalOrFail(
+      rootWithConfig({ models: { effort: { roles: { "definitely-not-a-role": "max" } } } }),
+      stems,
+    );
+    expect(reason).toContain('"definitely-not-a-role"');
+    for (const stem of stems) expect(reason).toContain(stem);
+  });
+
+  it("an unknown stem key is refused BEFORE an illegal level beside it is read", () => {
+    const reason = refusalOrFail(
+      rootWithConfig({
+        models: { effort: { roles: { [firstStem()]: "ultra", "definitely-not-a-role": "max" } } },
+      }),
+      kitStems(),
+    );
+    expect(reason).toContain('"definitely-not-a-role"');
+    expect(reason).not.toContain("ultra");
+  });
+
+  for (const level of ["MAX", "ultra", "", 1, null]) {
+    it(`a level of ${JSON.stringify(level)} is refused quoting all six legal levels`, () => {
+      const stem = firstStem();
+      const reason = refusalOrFail(
+        rootWithConfig({ models: { effort: { roles: { [stem]: level } } } }),
+        kitStems(),
+      );
+      expect(reason).toContain(`role "${stem}" the effort level ${JSON.stringify(level)}`);
+      expect(reason).toContain(quotedLevels());
+    });
+  }
+
+  it("EVERY refusal above is a verdict with `ok: false` and NO `value` — never a fallback to a pinned level", () => {
+    const stem = firstStem();
+    const refused: unknown[] = [
+      { presets: "tiered", preset: "bogus" },
+      { rolez: {}, presets: "x" },
+      { Preset: "tiered" },
+      { ROLES: { [stem]: "max" } },
+      null,
+      [],
+      "tiered",
+      1,
+      { preset: "Tiered" },
+      { preset: "cost" },
+      { preset: 1 },
+      { preset: null },
+      { roles: null },
+      { roles: [] },
+      { roles: "max" },
+      { roles: { "definitely-not-a-role": "max" } },
+      ...["MAX", "ultra", "", 1, null].map((level) => ({ roles: { [stem]: level } })),
+    ];
+    const leaks: string[] = [];
+    for (const effort of refused) {
+      const r = readModelsConfig(rootWithConfig({ models: { effort } }), kitStems());
+      if (r.ok || "value" in r) leaks.push(JSON.stringify(effort));
+    }
+    expect(refused.length, "PREMISE: the refusal list must actually carry the inputs").toBe(21);
+    expect(leaks, "a refusal must carry a reason and no value").toEqual([]);
+  });
+
+  it("D-07: with a legal effort at BOTH locations only the first file's effort is read, and an illegal effort in the second is never reached", () => {
+    const stems = kitStems();
+    const stem = firstStem();
+
+    const both = scratchRoot();
+    writeConfigAt(both, REPO_DROPPED, JSON.stringify({ models: { effort: { preset: "tiered" } } }));
+    writeConfigAt(both, IN_KIT, JSON.stringify({ models: { effort: { roles: { [stem]: "low" } } } }));
+    const r = readModelsConfig(both, stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.effort.preset).toBe("tiered");
+    expect(r.value.effort.overrides.size, "the second file's override must not be merged in").toBe(0);
+
+    const shadowed = scratchRoot();
+    writeConfigAt(shadowed, REPO_DROPPED, JSON.stringify({ models: { effort: { roles: { [stem]: "low" } } } }));
+    writeConfigAt(shadowed, IN_KIT, JSON.stringify({ models: { effort: { preset: "ultra" } } }));
+    const s = readModelsConfig(shadowed, stems);
+    expect(s.ok, "the illegal effort in the second file must never be reached").toBe(true);
+    if (!s.ok) return;
+    expect([...s.value.effort.overrides]).toEqual([[stem, "low"]]);
+
+    // The control: the same illegal effort, alone at the second location, IS read and refused.
+    const alone = scratchRoot();
+    writeConfigAt(alone, IN_KIT, JSON.stringify({ models: { effort: { preset: "ultra" } } }));
+    expect(refusalOrFail(alone, stems)).toContain("`models.effort.preset`");
+  });
+
+  it("every member of EFFORT_KEYS is CONSUMED by the reader, not merely permitted", () => {
+    // The twin of the MODELS_KEYS consumption case (34-RESEARCH.md Pitfall 6): a member of the
+    // tuple with no reader would be admitted, ignored, and answered as the zero-config effort.
+    const stems = kitStems();
+    const probes: Record<EffortKey, unknown> = {
+      preset: "tiered",
+      roles: { [firstStem()]: "max" },
+    };
+
+    // THE PREMISE, IN BOTH DIRECTIONS, BEFORE THE LOOP — elements, not cardinality.
+    expect(
+      Object.keys(probes).sort(),
+      "the probe table must cover every member of EFFORT_KEYS — an unprobed key is an unproven key",
+    ).toEqual([...EFFORT_KEYS].sort());
+    expect(
+      [...EFFORT_KEYS].sort(),
+      "the probe table must carry no key EFFORT_KEYS does not — a probe for a non-key proves nothing",
+    ).toEqual(Object.keys(probes).sort());
+
+    const answer = (root: string): string => {
+      const r = readModelsConfig(root, stems);
+      if (!r.ok) throw new Error(`expected a resolution, got a refusal: ${r.reason}`);
+      return JSON.stringify([r.value.effort.preset, [...r.value.effort.overrides].sort()]);
+    };
+
+    // THE BASELINE'S OWN PREMISE: an empty effort block reads, and reads as preset `none`.
+    const baselineRead = readModelsConfig(rootWithConfig({ models: { effort: {} } }), stems);
+    expect(baselineRead.ok, "the empty-effort baseline must be a successful read").toBe(true);
+    if (!baselineRead.ok) return;
+    expect(baselineRead.value.effort.preset).toBe("none");
+    expect(baselineRead.value.effort.overrides.size).toBe(0);
+    const baseline = answer(rootWithConfig({ models: { effort: {} } }));
+
+    for (const key of EFFORT_KEYS) {
+      const withKey = answer(rootWithConfig({ models: { effort: { [key]: probes[key] } } }));
+      expect(
+        withKey,
+        `setting \`models.effort.${key}\` alone changed nothing the reader returns — the key is PERMITTED by EFFORT_KEYS and CONSUMED by nobody`,
+      ).not.toBe(baseline);
+    }
+  });
+
+  it("D-08: a `haiku` model with a `max` effort resolves as configured — no model-to-effort capability check exists", () => {
+    const stems = kitStems();
+    const stem = firstStem();
+    const cfg = readModelsConfig(
+      rootWithConfig({ models: { roles: { [stem]: "haiku" }, effort: { roles: { [stem]: "max" } } } }),
+      stems,
+    );
+    expect(cfg.ok, cfg.ok ? "" : cfg.reason).toBe(true);
+    if (!cfg.ok) return;
+    const models = resolveModels(stems, { preset: cfg.value.preset, overrides: cfg.value.overrides });
+    const efforts = resolveEfforts(stems, {
+      preset: cfg.value.effort.preset,
+      overrides: cfg.value.effort.overrides,
+    });
+    expect(models.ok && efforts.ok).toBe(true);
+    if (!models.ok || !efforts.ok) return;
+    expect(models.value.get(stem)).toBe("haiku");
+    expect(efforts.value.get(stem)).toBe("max");
+  });
+});
+
+describe("models.effort — resolveEfforts floors (plan 34-01, D-04)", () => {
+  /** Two stems, derived from the kit authority rather than typed. */
+  const twoStems = (): readonly string[] => [...kitStems()].sort().slice(0, 2);
+
+  /** The refusal reason, or a throw naming the unexpected success. */
+  const refused = (stems: readonly string[], options?: unknown): string => {
+    const r = resolveEfforts(stems, options as ResolveEffortsOptions);
+    if (r.ok) throw new Error("expected a refusal, got a resolution");
+    expect("value" in r, "a refusal carries no value").toBe(false);
+    return r.reason;
+  };
+
+  it("zero config: every derived stem resolves to `inherit`, the same map inheritEffortForEveryStem builds", () => {
+    const stems = kitStems();
+    expect(stems.length).toBe(ROLE_COUNT);
+    const r = resolveEfforts(stems);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect([...r.value]).toEqual([...inheritEffortForEveryStem(stems)]);
+    expect(new Set(r.value.values())).toEqual(new Set(["inherit"]));
+    expect(r.value.size).toBe(ROLE_COUNT);
+  });
+
+  it("`tiered` resolves `high` for exactly the TIERED `opus` rows and `medium` for every other stem, derived from TIERED", () => {
+    const stems = kitStems();
+    const r = resolveEfforts(stems, { preset: "tiered" });
+    expect(r.ok, r.ok ? "" : r.reason).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.size).toBe(ROLE_COUNT);
+    const highs = TIERED.filter((t) => t.alias === "opus").map((t) => t.stem).sort();
+    expect(highs.length, "PREMISE: the table must carry at least one judgment row").toBeGreaterThan(0);
+    for (const stem of stems) {
+      expect(r.value.get(stem), stem).toBe(highs.includes(stem) ? "high" : "medium");
+    }
+  });
+
+  it("an override beats the preset for its stem and leaves the others at the preset's value", () => {
+    const [a, b] = twoStems();
+    const r = resolveEfforts([a, b], { preset: "none", overrides: new Map([[a, "xhigh" as EffortLevel]]) });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.get(a)).toBe("xhigh");
+    expect(r.value.get(b)).toBe("inherit");
+  });
+
+  it("an EMPTY stem list is refused", () => {
+    expect(refused([])).toContain("EMPTY");
+  });
+
+  it("a DUPLICATE stem is refused by name", () => {
+    const [a] = twoStems();
+    expect(refused([a, a])).toContain(`"${a}" appears 2 times`);
+  });
+
+  it("a plain-object overrides argument is refused naming its shape", () => {
+    const [a] = twoStems();
+    expect(refused(twoStems(), { overrides: { [a]: "max" } })).toContain("is an object rather than a Map");
+  });
+
+  it("a NULL preset is refused rather than defaulted to `none`", () => {
+    expect(refused(twoStems(), { preset: null })).toContain("null is not a legal effort preset name");
+  });
+
+  it("an override for a stem OUTSIDE the resolved list is refused by name", () => {
+    expect(
+      refused(twoStems(), { overrides: new Map([["definitely-not-a-role", "max"]]) }),
+    ).toContain('"definitely-not-a-role"');
+  });
+
+  it("an override carrying an illegal level is refused quoting the six legal levels", () => {
+    const [a] = twoStems();
+    const reason = refused(twoStems(), { overrides: new Map([[a, "ultra"]]) });
+    expect(reason).toContain('"ultra"');
+    expect(reason).toContain(EFFORT_LEVELS.map((l) => `"${l}"`).join(", "));
+  });
+
+  it("`tiered` over a stem list containing a stem with NO TIERED row is refused by name, never defaulted to `inherit`", () => {
+    const reason = refused([...twoStems(), "definitely-not-a-role"], { preset: "tiered" });
+    expect(reason).toContain('"definitely-not-a-role"');
+    expect(reason).toContain("1 of the 3 stem(s)");
   });
 });

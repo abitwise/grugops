@@ -1691,6 +1691,30 @@ describe("generate-role-adapters.js — the resolved `effort:` emit (plan 34-01)
   });
 });
 
+describe("generate-role-adapters.js — an illegal `models.effort` is refused above the build loop (plan 34-01, D-03)", () => {
+  // The stem is taken from the mirrored role list, never typed.
+  const stem = (): string => SAMPLE_ROLES[2].slice(0, -".md".length);
+
+  it("refuses an ILLEGAL effort LEVEL, naming the value, and leaves every adapter byte-unchanged", () => {
+    expectConfigRefusal(
+      { effort: { roles: { [stem()]: "ultra" } } },
+      `assigns role "${stem()}" the effort level "ultra"`,
+    );
+  });
+
+  it("refuses an UNKNOWN effort KEY by name, and leaves every adapter byte-unchanged", () => {
+    expectConfigRefusal({ effort: { presets: "tiered" } }, "sets `models.effort.presets`, which is not a key");
+  });
+
+  it("refuses a DEGENERATE effort block by its shape, and leaves every adapter byte-unchanged", () => {
+    expectConfigRefusal({ effort: null }, "the `models.effort` key in");
+  });
+
+  it("refuses an ILLEGAL effort PRESET, and leaves every adapter byte-unchanged", () => {
+    expectConfigRefusal({ effort: { preset: "Tiered" } }, 'sets `models.effort.preset` to "Tiered"');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 33-28 K4/K5/K6 — the `admit` capability token: the coordinator's grant carries the sanctioned
 // admission route on the spawn path, through the generator, with every moved pin derived
