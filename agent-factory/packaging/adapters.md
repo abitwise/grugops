@@ -134,7 +134,9 @@ pointer prompt template that gives `/grugops` and sends Pi to `AGENTS.md` and th
 `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, writes no Pi skill or extension, and ships no Pi
 skill package. Start Pi from the repository root to get the command, because Pi looks for project
 templates only in the directory it starts in. Pi still asks for project trust before it loads the
-template.
+template. Whether Pi finds the kit after a scripted install, which puts the kit in the shared kit
+root and not in the repository, is `UNKNOWN - verify` (backlog item 999.4 in `.planning/ROADMAP.md`);
+the full statement is in `install/README.md`, section "Using grugops on Pi".
 
 **Safety on Pi.** Pi can read, change and run files with the permissions of the account that started
 it, and it does not ask for approval before every tool call (source:

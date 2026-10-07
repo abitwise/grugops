@@ -330,6 +330,15 @@ repository root and type `/grugops <request>`. Pi turns the template `.pi/prompt
 the `/grugops` command, and the command sends Pi to `AGENTS.md` and then
 `agent-factory/roles/orchestrator.md` with your request.
 
+**Whether Pi finds the kit after a scripted install is `UNKNOWN - verify`.** The template names
+`agent-factory/roles/orchestrator.md`, a path inside the repository. The scripted install (§2) puts
+the kit in the shared kit root, `${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory`, not in the
+repository, and `AGENTS.md` tells an agent to stop, not to search, when the kit is absent. No Pi run
+has shown whether Pi reaches the kit in that layout. This open question is backlog item 999.4 in
+`.planning/ROADMAP.md`, and it holds for every host CLI other than Claude Code. The minimal
+markdown-copy install (§1) puts `agent-factory/` in the repository at the path the template names,
+but no Pi run has confirmed that path either.
+
 - **Start Pi from the repository root.** Pi looks for the `.pi/prompts` directory only in the
   directory it was started in, so `/grugops` is missing when Pi starts in a subdirectory.
   `AGENTS.md` still loads from any subdirectory, because Pi reads context files from the working
