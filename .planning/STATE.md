@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 34
 current_phase_name: Model Effort Dial & Pi Support
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34-14-PLAN.md
-last_updated: "2026-10-07T21:20:42.833Z"
-state_head: 55b8df99a0dd72605b1154e142c6cf80150f7e05
+stopped_at: Completed 34-15-PLAN.md
+last_updated: "2026-10-07T21:59:57.494Z"
+state_head: 4868828b6ef4d51c755696755c4273b662268b98
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 373
-  completed_plans: 369
+  completed_plans: 370
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34 (Model Effort Dial & Pi Support) — EXECUTING
-Plan: 15 of 18
+Plan: 16 of 18
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -630,6 +630,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34 P12 | 45 min | 3 tasks | 14 files |
 | Phase 34 P13 | 26 min | 2 tasks | 13 files |
 | Phase 34 P14 | 43min | 1 tasks | 7 files |
+| Phase 34 P15 | 36min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1732,6 +1733,8 @@ Recent decisions affecting current work:
 - [Phase 34]: 34-13: IN-03 0600/0664 cases gated on HOST_CAPABILITIES 'POSIX permission bits beyond read-only' with a printed skip (WINDOWS.md row 318); their chmod line is tagged mode-census: posix-bits, which plan 34-14's closed tag set must admit or reclassify
 - [Phase 34]: 34-14: WIN-2 census closed tag set is {access-denial, restore, row-315, posix-bits}; posix-bits admitted for the capability-gated IN-03 chmod, checked structurally
 - [Phase 34]: 34-14: no installer test builds a record from a literal mode; ledger FILE_REC and the user-edit forged record take storedMode; userModeEdit's chmod shape (& ~0o222) is census-pinned after m4 stayed green on POSIX
+- [Phase 34]: 34-15: the installer reads both dials' announcements through one probe line and one parse helper, and reads model and effort lines off the transformed text about to be written (WR-03 closed, RC-1 table in 34-15-SUMMARY.md)
+- [Phase 34]: 34-15: zero effort lines read back as inherit (ABSENT_EFFORT_LEVEL), the one effort word install.ts spells; refusal words live in the hoisted oneAnnouncement so the --check doctor avoids a TDZ
 
 ### Pending Todos
 
@@ -1862,8 +1865,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-07T21:20:42.296Z
-Stopped at: Completed 34-14-PLAN.md
+Last session: 2026-10-07T21:59:56.960Z
+Stopped at: Completed 34-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
