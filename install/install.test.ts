@@ -100,6 +100,7 @@ import {
   RESOLVED_ASSIGNMENT_PREFIX,
   // Plan 34-15: the effort arm's refusal cases and the no-prefix-copy case read the effort
   // announcement prefixes from the module that owns them, under the same test-side exception.
+  RESOLVED_EFFORT_PRESET_PREFIX,
   RESOLVED_EFFORT_ASSIGNMENT_PREFIX,
   resolvedPresetsIn,
   resolvedAssignmentsIn,
@@ -3188,23 +3189,92 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(installedAdapters(target)).toEqual([]);
   });
 
+  // THE OTHER EFFORT REFUSALS (plan 34-15 Task 2). One row per refusal: the patch that stages it
+  // and the sentence that names it. Each row runs on its own synthetic source and its own target,
+  // and each asserts exit 3, its own sentence, `install INCOMPLETE` and no installed adapter.
+  const effortRefusalRows: Array<{ why: string; from: string; to: () => string; sentence: () => string }> = [
+    {
+      why: "(a) the generator prints NO effort assignment line",
+      from: EFFORT_ANNOUNCE_ANCHOR,
+      to: () => "",
+      sentence: () =>
+        "the generator's output carried 0 resolved-effort-assignment announcement(s) where exactly one was required",
+    },
+    {
+      why: "(b) the generator prints TWO effort assignment lines",
+      from: EFFORT_ANNOUNCE_ANCHOR,
+      to: () => `${EFFORT_ANNOUNCE_ANCHOR}\n${EFFORT_ANNOUNCE_ANCHOR}`,
+      sentence: () =>
+        "the generator's output carried 2 resolved-effort-assignment announcement(s) where exactly one was required",
+    },
+    {
+      why: "(c) the generator prints a MALFORMED effort payload",
+      from: EFFORT_ANNOUNCE_ANCHOR,
+      to: () => `console.log(${JSON.stringify(`${RESOLVED_EFFORT_ASSIGNMENT_PREFIX}{not json`)});`,
+      // Refused by name by the MIRRORED reader, whose reason is relayed after the installer's words.
+      sentence: () => "the announced effort resolution was refused by name — model-tiers: the resolved effort assignment payload",
+    },
+    {
+      why: "(d) the announced effort role count is one less than the rendered count",
+      from: EFFORT_ANNOUNCE_ANCHOR,
+      to: () => effortAnnounceLine({ roles: SYNTH_ADAPTERS.length - 1, overrides: 0, levels: ["inherit"] }),
+      sentence: () =>
+        `the render announced an effort resolution covering ${SYNTH_ADAPTERS.length - 1} role(s), while this ` +
+        `run derived ${SYNTH_ADAPTERS.length} rendered adapter(s)`,
+    },
+    {
+      why: "(e) the generator emits two `effort:` lines into ONE adapter",
+      // The compiled twin's effort emission; the extra statement sits after it, outside its `if`,
+      // and fires for the first synthetic adapter only.
+      from: "lines.push(`effort: ${a.effort}`);",
+      to: () =>
+        "lines.push(`effort: ${a.effort}`);\n" +
+        `    if (\`\${a.name}.md\` === ${JSON.stringify(SYNTH_ADAPTERS[0])}) { ` +
+        `lines.push(${JSON.stringify(`effort: ${FOREIGN_LEVEL}`)}); lines.push(${JSON.stringify(`effort: ${FOREIGN_LEVEL}`)}); }`,
+      sentence: () => `.claude/agents/${SYNTH_ADAPTERS[0]} was rendered carrying 2 line(s) beginning "effort: "`,
+    },
+  ];
+  for (const row of effortRefusalRows) {
+    it(`effort delivery: ${row.why} installs NOTHING and names the refusal`, () => {
+      const src = makeSyntheticSrc();
+      const target = mkTmp();
+      writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+      patchSyntheticGenerator(src, row.from, row.to());
+
+      const r = runInstallFrom(src, target, mkTmp());
+      const sentence = row.sentence();
+      expect(`status=${r.status} names the refusal: ${r.stdout.includes(sentence)}`).toBe(
+        "status=3 names the refusal: true",
+      );
+      expect(r.stdout).toContain("install INCOMPLETE");
+      expect(installedAdapters(target)).toEqual([]);
+    });
+  }
+
   it("model delivery: the installer holds NO copy of either announcement prefix — it consults the module that owns them (R-1, D-04)", () => {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
     // The two prefixes stay in scripts/model-tiers.ts. A copy here would be a hand-synced
     // cross-boundary literal whose drift direction is silent: the installer would stop finding the
     // line exactly when the generator stopped announcing it.
-    for (const prefix of [RESOLVED_PRESET_PREFIX, RESOLVED_ASSIGNMENT_PREFIX]) {
+    // ALL FOUR PREFIXES, BOTH DIALS (plan 34-15, RC-1): the effort dial's two announcement prefixes
+    // are held to the same rule as the model dial's two.
+    for (const prefix of [
+      RESOLVED_PRESET_PREFIX,
+      RESOLVED_ASSIGNMENT_PREFIX,
+      RESOLVED_EFFORT_PRESET_PREFIX,
+      RESOLVED_EFFORT_ASSIGNMENT_PREFIX,
+    ]) {
       expect(`install.ts spells ${JSON.stringify(prefix)}: ${src.includes(prefix)}`).toBe(
         `install.ts spells ${JSON.stringify(prefix)}: false`,
       );
     }
-    // The grammar is reached by SPAWNING a probe against the MIRRORED module, so the reader's name
+    // The grammar is reached by SPAWNING a probe against the MIRRORED module, so each reader's name
     // appears only inside the probe source literal and never in an import statement.
-    expect(src).toContain("resolvedAssignmentsIn");
-    const importing = src
-      .split("\n")
-      .filter((l) => l.includes("resolvedAssignmentsIn") && /^\s*import\b/.test(l));
-    expect(importing).toEqual([]);
+    for (const reader of ["resolvedAssignmentsIn", "resolvedEffortAssignmentsIn"]) {
+      expect(src).toContain(reader);
+      const importing = src.split("\n").filter((l) => l.includes(reader) && /^\s*import\b/.test(l));
+      expect(importing).toEqual([]);
+    }
     expect(src).toContain("RESOLUTION_PROBE_SOURCE");
   });
 
