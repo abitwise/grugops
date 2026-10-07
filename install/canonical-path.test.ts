@@ -15,13 +15,18 @@
 // Drives the COMMITTED install/user-file.js (npm run build first). Pure except case (11), which resolves
 // one scratch directory and removes it.
 //
+// Plan 34-12 adds the test-side helpers (install/installer-paths.test-support.ts pathText, lineNamesPath,
+// printedRel): the same spelling applied to a path the product PRINTS, proven here with the exact
+// uninstall line job 112468804112 printed and with negative cases, under both flavors.
+//
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
 import path from "node:path";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { absoluteSpelling, canonicalPathSpelling, realTargetPath, sameRecordedPath, type PathFlavor } from "./user-file.js";
+import { lineNamesPath, nativeRealPath, pathText, printedRel } from "./installer-paths.test-support.js";
 
 const win = path.win32;
 const posix = path.posix;
@@ -118,8 +123,8 @@ describe("realTargetPath — the product's spelling of a real directory", () => 
   it("(11) equals canonicalPathSpelling of the operating system's real path, under the host flavor", () => {
     const here = realTargetPath(scratch);
     expect(here).not.toBeNull();
-    expect(here).toBe(canonicalPathSpelling(realpathSync.native(scratch)));
-    expect(sameRecordedPath(realpathSync.native(scratch), here as string)).toBe(true);
+    expect(here).toBe(canonicalPathSpelling(nativeRealPath(scratch)));
+    expect(sameRecordedPath(nativeRealPath(scratch), here as string)).toBe(true);
   });
 });
 
@@ -153,6 +158,82 @@ describe("absoluteSpelling — the doctor's kit-root spelling (P8)", () => {
   for (const row of ABSOLUTE_TABLE) {
     it(`${row.name}: ${JSON.stringify(row.p)} in ${JSON.stringify(row.cwd)} spells ${JSON.stringify(row.spelled)}`, () => {
       expect(absoluteSpelling(row.p, row.cwd, row.flavor)).toBe(row.spelled);
+    });
+  }
+});
+
+// ── the test-side helpers for a PRINTED path (plan 34-12, D-19, WIN-1) ──────────────────────────────
+// The exact line job 112468804112 of run 37521787426 printed for the uninstall-removal never-installed
+// case: uninstall composes `${TARGET}/${rel}` from the host spelling of the target, so the line mixes both
+// separators. The test looked for the all-backslash `join(target, ".claude", "agents")` and missed it.
+const LOG_TARGET = String.raw`C:\Users\RUNNER~1\AppData\Local\Temp\grugops-removal-aRsjcl\never-real-18\target`;
+const LOG_LEFT_LINE =
+  String.raw`  left           C:\Users\RUNNER~1\AppData\Local\Temp\grugops-removal-aRsjcl\never-real-18\target/.claude/agents` +
+  " (there is no install marker this run can use, so there is no record that install created it; left in place)";
+
+interface NamesRow {
+  readonly name: string;
+  readonly flavor: PathFlavor;
+  readonly line: string;
+  readonly path: string;
+  readonly names: boolean;
+}
+
+const NAMES_TABLE: readonly NamesRow[] = [
+  { name: "(h1) the log's mixed uninstall line names the win32-joined path", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET, ".claude", "agents"), names: true },
+  { name: "(h2) the same line does not name .claude/agents-old", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET, ".claude", "agents-old"), names: false },
+  { name: "(h2) the same line does not name the parent .claude", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET, ".claude"), names: false },
+  { name: "(h2) the same line does not name another target", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET + "2", ".claude", "agents"), names: false },
+  { name: "(h3) the path at the end of a line", flavor: win, line: String.raw`  rmdir   C:\t/.claude`, path: String.raw`C:\t\.claude`, names: true },
+  { name: "(h3) the path before a colon", flavor: win, line: String.raw`  verify  C:\t/.claude/agents: not writable`, path: String.raw`C:\t\.claude\agents`, names: true },
+  { name: "(h3) the path before a closing parenthesis", flavor: win, line: String.raw`  left    x (C:\t/.claude)`, path: String.raw`C:\t\.claude`, names: true },
+  { name: "(h4) posix: a path before a space", flavor: posix, line: "  left  /t/.claude/agents (x)", path: "/t/.claude/agents", names: true },
+  { name: "(h4) posix: a backslash is a filename byte, not a separator", flavor: posix, line: "  left  /t" + B + "x", path: "/t/x", names: false },
+  { name: "(h4) posix: agents-old is not agents", flavor: posix, line: "  left  /t/.claude/agents-old (x)", path: "/t/.claude/agents", names: false },
+];
+const NAMES_TABLE_SIZE = 10;
+
+interface RelRow {
+  readonly name: string;
+  readonly flavor: PathFlavor;
+  readonly root: string;
+  readonly printed: string;
+  readonly rel: string;
+}
+
+const REL_TABLE: readonly RelRow[] = [
+  { name: "(r1) a mixed win32 print under a backslash root", flavor: win, root: LOG_TARGET, printed: LOG_TARGET + "/.claude/agents", rel: ".claude/agents" },
+  { name: "(r1) an all-backslash win32 print under the root", flavor: win, root: LOG_TARGET, printed: win.join(LOG_TARGET, ".claude", "agents"), rel: ".claude/agents" },
+  { name: "(r1) the root itself", flavor: win, root: LOG_TARGET, printed: LOG_TARGET, rel: "" },
+  { name: "(r2) a relative win32 print is kept, in the one spelling", flavor: win, root: LOG_TARGET, printed: String.raw`.claude\agents`, rel: ".claude/agents" },
+  { name: "(r2) a relative posix print is kept verbatim", flavor: posix, root: "/t", printed: ".claude/agents", rel: ".claude/agents" },
+  { name: "(r3) a win32 path outside the root", flavor: win, root: LOG_TARGET, printed: String.raw`C:\elsewhere\x`, rel: String.raw`OUTSIDE:C:\elsewhere\x` },
+  { name: "(r3) a sibling that shares the root's prefix is outside", flavor: win, root: LOG_TARGET, printed: LOG_TARGET + "2/x", rel: `OUTSIDE:${LOG_TARGET}2/x` },
+  { name: "(r3) posix: a backslash spelling is not under the root", flavor: posix, root: "/t", printed: "/t" + B + "x", rel: "OUTSIDE:/t" + B + "x" },
+  { name: "(r1) posix: a path under the root", flavor: posix, root: "/t", printed: "/t/.claude", rel: ".claude" },
+];
+const REL_TABLE_SIZE = 9;
+
+describe("pathText / lineNamesPath / printedRel — a printed path compared in the one spelling (plan 34-12)", () => {
+  it("the helper tables have their full sizes", () => {
+    expect(NAMES_TABLE.length).toBe(NAMES_TABLE_SIZE);
+    expect(REL_TABLE.length).toBe(REL_TABLE_SIZE);
+  });
+
+  it("pathText is canonicalPathSpelling, for both flavors", () => {
+    expect(pathText(LOG_LEFT_LINE, win)).toBe(canonicalPathSpelling(LOG_LEFT_LINE, win));
+    expect(pathText("/t" + B + "x", posix)).toBe("/t" + B + "x");
+  });
+
+  for (const row of NAMES_TABLE) {
+    it(`${row.name}: ${row.names ? "names" : "does not name"}`, () => {
+      expect(lineNamesPath(row.line, row.path, row.flavor)).toBe(row.names);
+    });
+  }
+
+  for (const row of REL_TABLE) {
+    it(`${row.name}: ${JSON.stringify(row.printed)} is ${JSON.stringify(row.rel)}`, () => {
+      expect(printedRel(row.root, row.printed, row.flavor)).toBe(row.rel);
     });
   }
 });

@@ -60,9 +60,9 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { realTargetPath } from "./user-file.js";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, resolve, sep } from "node:path";
+import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -188,6 +188,78 @@ export function rebindMarker(t: string): void {
   if (here === null) throw new Error(`rebindMarker: the real path of ${t} could not be read, so the marker cannot be re-bound to it`);
   m.target = here;
   writeFileSync(p, JSON.stringify(m, null, 2) + "\n");
+}
+
+// ── comparing a path the product PRINTED (plan 34-12, D-19, WIN-1) ──────────────────────────────────
+// The windows-latest run 37521787426 (job 112468804112) printed, for the never-installed uninstall case,
+//   left           C:\Users\RUNNER~1\AppData\Local\Temp\grugops-removal-aRsjcl\never-real-18\target/.claude/agents (…)
+// uninstall composes `${TARGET}/${rel}` from the host spelling of the target, so the line mixes both
+// separators, while the test looked for `join(target, ".claude", "agents")`, all backslashes. The product
+// printed the right directory and the test missed it. Every installer test that matches a printed path
+// therefore compares through the helpers below, and each applies the product's one spelling function,
+// install/user-file.ts canonicalPathSpelling, to BOTH sides. The helpers change spelling only (separators,
+// the long-form prefix, the drive-letter case under win32; nothing at all under posix), never resolve a
+// path, so two different directories never compare equal. The flavor defaults to the host's node:path;
+// install/canonical-path.test.ts hands them `path.win32` and `path.posix`, so the Windows behaviour is
+// exercised on every host. install/path-spelling-census.test.ts holds every test to these helpers.
+
+/** The host's own node:path, the flavor every test call uses when it does not name one. */
+const HOST_FLAVOR: PathFlavor = { sep, isAbsolute };
+
+/**
+ * A printed line or a built path in the product's one spelling (run 37521787426): canonicalPathSpelling
+ * applied to the whole text, so a line that mixes `\` and `/` and a path built with node:path compare in
+ * one spelling. Spelling only; no resolution.
+ */
+export function pathText(s: string, flavor: PathFlavor = HOST_FLAVOR): string {
+  return canonicalPathSpelling(s, flavor);
+}
+
+/** The characters that may follow a path a report line names: a space, `(`, `)` or `:` (or the end of the line). */
+const PATH_END = new Set([" ", "(", ")", ":"]);
+
+/**
+ * Whether a printed `line` names `absPath` (run 37521787426): both in pathText's spelling, and the path
+ * immediately followed by the end of the line, a space, `(`, `)` or `:`, so `.claude/agents` is never
+ * matched inside `.claude/agents-old` or `.claude/agents/x.md`.
+ */
+export function lineNamesPath(line: string, absPath: string, flavor: PathFlavor = HOST_FLAVOR): boolean {
+  const text = pathText(line, flavor);
+  const want = pathText(absPath, flavor);
+  if (want === "") return false;
+  for (let at = text.indexOf(want); at !== -1; at = text.indexOf(want, at + 1)) {
+    const end = at + want.length;
+    if (end === text.length || PATH_END.has(text.charAt(end))) return true;
+  }
+  return false;
+}
+
+/**
+ * The POSIX path, relative to `root`, that a printed path names (run 37521787426). An absolute `printed`
+ * (by the flavor's own isAbsolute, never a leading-`/` test, which reads `C:\…` as relative) under `root`
+ * in either spelling gives its relative remainder (`""` for `root` itself); a relative `printed` is
+ * returned in pathText's spelling; an absolute `printed` outside `root` gives `OUTSIDE:` and the printed
+ * text, so a test that expects a path under the target fails with the path it got.
+ */
+export function printedRel(root: string, printed: string, flavor: PathFlavor = HOST_FLAVOR): string {
+  const p = pathText(printed, flavor);
+  if (!flavor.isAbsolute(printed)) return p;
+  const r = pathText(root, flavor);
+  if (p === r) return "";
+  if (p.startsWith(r + "/")) return p.slice(r.length + 1);
+  return `OUTSIDE:${printed}`;
+}
+
+/**
+ * The host's own spelling of a real path (`realpathSync.native`, run 37521787426): on Windows the
+ * backslash spelling with the 8.3 short names expanded, which is what a user types when following the
+ * "same repository moved" remedy by hand. Used only to prove that a target written in that spelling
+ * binds (install/marker-binding.test.ts) and that the product's realTargetPath is its canonical spelling
+ * (install/canonical-path.test.ts). Every expected RECORDED value is user-file.ts realTargetPath, never
+ * this; install/path-spelling-census.test.ts holds both rules.
+ */
+export function nativeRealPath(p: string): string {
+  return realpathSync.native(p);
 }
 
 // ── the hermetic runners ────────────────────────────────────────────────────────────────────────

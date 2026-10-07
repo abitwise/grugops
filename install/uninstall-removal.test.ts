@@ -55,7 +55,9 @@ import {
   REPO_ROOT,
   type Run,
   deriveWritePaths,
+  lineNamesPath,
   makeOldLayoutFixture,
+  pathText,
   runInstall,
   runUninstall,
   snapshotTree,
@@ -92,7 +94,9 @@ const REMOVED_BY_NAME = [...KIT_PATHS, ...RUNNABLE_PATHS, AGENTS];
 const ownLinkTarget = (rel: string): string => join(REPO_ROOT, ...rel.split("/"));
 
 // One report line: its label and its message, with the scratch paths normalized so two targets
-// compare equal.
+// compare equal. The message and both roots are put in the product's one spelling first (pathText, plan
+// 34-12, WIN-1): uninstall prints `${TARGET}/${rel}`, which on Windows mixes `\` and `/`, so a raw split
+// on the native target spelling would miss it.
 interface Line {
   readonly label: string;
   readonly msg: string;
@@ -102,7 +106,7 @@ function linesFor(stdout: string, rel: string, target: string): Line[] {
   for (const line of stdout.split("\n")) {
     const m = /^ {2}(\S+)\s+(.+)$/.exec(line);
     if (m === null) continue;
-    const msg = m[2].split(target).join("<T>").split(SCRATCH).join("<S>");
+    const msg = pathText(m[2]).split(pathText(target)).join("<T>").split(pathText(SCRATCH)).join("<S>");
     if (msg === rel || msg.startsWith(`${rel} `) || msg.startsWith(`${rel}:`)) out.push({ label: m[1], msg });
   }
   return out;
@@ -574,7 +578,7 @@ describe("the ledger walk: blocks, settings, directories and backups (plan 33.1-
       }
       expect(r.stdout, `${what}: the ask rules`).toMatch(/\.claude\/settings\.json ask rules \(no install marker/);
       for (const d of EMPTY_DIRS) {
-        const named = r.stdout.split("\n").filter((l) => /^ {2}left\s/.test(l) && l.includes(join(target, ...d.split("/")) + " ("));
+        const named = r.stdout.split("\n").filter((l) => /^ {2}left\s/.test(l) && lineNamesPath(l, join(target, ...d.split("/"))));
         expect(named.length, `${what}: no left line for the empty ${d}\n${r.stdout}`).toBe(1);
       }
       expect(r.stdout).not.toMatch(/^ {2}(removed|would-remove|rmdir|would-rmdir|would-edit|edited)\s/m);

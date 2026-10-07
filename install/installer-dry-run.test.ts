@@ -44,6 +44,7 @@ import {
   makeFixture as sharedMakeFixture,
   makeOldLayoutFixture as sharedMakeOldLayoutFixture,
   normalizeIso,
+  printedRel,
   rebindMarker,
   snapshotTree,
   spawnBin,
@@ -352,7 +353,10 @@ function expectPreviewSubsetOfRealRun(target: string, home: string): Named {
   const noMarker = (s: string): string => s.split("\n").filter((row) => !row.startsWith(".grugops/install.json ")).join("\n");
   expect(noMarker(snapshotTree(copy))).toBe(noMarker(snapshotTree(target))); // the copy is faithful
 
-  const rel = (root: string, p: string): string => (p.startsWith(root) ? p.slice(root.length) : `OUTSIDE:${p}`);
+  // A printed path relative to the root it names, in the product's one spelling (printedRel, plan 34-12,
+  // WIN-1): uninstall prints `${TARGET}/${d}`, which on Windows mixes `\` and `/`, and the flavor's own
+  // isAbsolute decides absoluteness, never a leading `/`.
+  const rel = (root: string, p: string): string => printedRel(root, p);
   const tPre = snapshotTree(target);
   const hPre = snapshotTree(home);
   const preview = runUninstall(target, home, true);
@@ -361,10 +365,7 @@ function expectPreviewSubsetOfRealRun(target: string, home: string): Named {
   expect(snapshotTree(home)).toBe(hPre);
   const would = reported(preview.stdout, "would-rmdir").map((p) => rel(target, p));
   // A file line names the path relative to the target (or, in principle, absolute under it).
-  const fileRel = (msg: string): string => {
-    const s = subject(msg);
-    return s.startsWith("/") ? rel(target, s).replace(/^\//, "") : s;
-  };
+  const fileRel = (msg: string): string => printedRel(target, subject(msg));
   const files = [...new Set([...reported(preview.stdout, "would-remove"), ...reported(preview.stdout, "would-edit")].map(fileRel))];
   expect(files.length).toBeGreaterThan(0); // non-vacuous: the preview named files
   const before = new Map(files.map((f) => [f, fileState(join(copy, ...f.split("/")))]));
@@ -381,7 +382,7 @@ function expectPreviewSubsetOfRealRun(target: string, home: string): Named {
   }
   for (const p of would) expect(done.includes(p), `preview named ${p}; the real run did not remove it`).toBe(true);
   // Every path either half names is one install writes.
-  for (const p of [...files, ...would.map((d) => d.replace(/^\//, ""))]) {
+  for (const p of [...files, ...would]) {
     expect(WRITE_PATHS.has(normalizeIso(p)), `the preview named ${p}, which no install variant writes`).toBe(true);
   }
   return { would, done, files, copy };
@@ -411,9 +412,9 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
     expect(readdirSync(join(target, ".github")).length).toBe(0);
     const { would, done } = expectPreviewSubsetOfRealRun(target, home);
     expect(would.length).toBeGreaterThan(0);
-    expect(would).toContain("/.claude");
-    expect(would).not.toContain("/.github");
-    expect(done).not.toContain("/.github");
+    expect(would).toContain(".claude");
+    expect(would).not.toContain(".github");
+    expect(done).not.toContain(".github");
   });
 
   it("subset: uninstall after a fresh install into an EMPTY target (flow 10's tree): the files install created are named and removed, and every ledger's paths are named", () => {
@@ -447,7 +448,7 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
     }
     const dirEntries = new Set(dirList(m));
     expect(dirEntries.size).toBeGreaterThan(0);
-    for (const d of would) expect(dirEntries.has(d.replace(/^\//, "")), `the preview names ${d}, which no dir entry records`).toBe(true);
+    for (const d of would) expect(dirEntries.has(d), `the preview names ${d}, which no dir entry records`).toBe(true);
     expect([...done].sort()).toEqual([...would].sort());
   });
 });
