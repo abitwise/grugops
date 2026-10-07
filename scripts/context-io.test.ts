@@ -6130,9 +6130,10 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
 // root, the dial actually read was `human_admission: off`, and the self-stamped high-severity
 // governance finding was WRITTEN.
 //
-// WHAT THESE CASES HOLD. The order — the Claude Code variable, else the documented installer-set
-// variable, else the nearest ancestor of the working directory carrying a factory configuration
-// (bounded by the repository marker), else the kit — is asserted step by step, in both directions:
+// WHAT THESE CASES HOLD. The order — the Claude Code variable, else `GRUGOPS_PROJECT_DIR` (honoured
+// when a human or the host's launch environment sets it; the grugops installer does not), else the
+// nearest ancestor of the working directory carrying a factory configuration (bounded by the
+// repository marker), else the kit — is asserted step by step, in both directions:
 // each step ANSWERS when it should and FALLS THROUGH when it should. The change is proven MONOTONE
 // against the pre-31-15 program by mirroring the committed `.js` with the order reverted through two
 // asserted anchors and comparing verdict by verdict. And every consumer of the trusted root is
@@ -6397,7 +6398,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     expect(r.message).toContain("human_admission: high-severity");
   });
 
-  it("GREEN 2: the documented installer-set variable answers when the Claude Code one does not", () => {
+  it("GREEN 2: the GRUGOPS_PROJECT_DIR variable answers when the Claude Code one does not", () => {
     const project = projectWith(ACTIVE);
     const r = drive("appendNote", {
       cwd: tmp15("p31-15-elsewhere-"),
@@ -6613,7 +6614,7 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
     },
     {
       id: "step 2",
-      label: `${mod.TRUSTED_ROOT_ENV_ORDER[1]} (installer-set)`,
+      label: `${mod.TRUSTED_ROOT_ENV_ORDER[1]} (set by a human or the host's launch environment)`,
       env: (d) => ({ [mod.TRUSTED_ROOT_ENV_ORDER[1]]: d }),
       cwd: () => tmp15("p31-15-step-cwd-"),
       answersDialRoot: true,

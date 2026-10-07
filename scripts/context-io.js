@@ -4333,10 +4333,15 @@ function homeConfigPositionIsProjectOwned(candidateIndex, candidatePath) {
  * (plan 31-15, review finding WR-15).
  *
  * `CLAUDE_PROJECT_DIR` is the variable CLAUDE CODE sets for a real project session.
- * `GRUGOPS_PROJECT_DIR` is the documented INSTALLER-SET answer for the host CLIs that set no
- * Claude Code variable — the installer knows the target repository it seeded (`install/install.ts`
- * resolves `TARGET` and materializes the resolved kit path into every target adapter), and it is the
- * installer, not the agent, that names it.
+ * `GRUGOPS_PROJECT_DIR` is honoured for the host CLIs that set no Claude Code variable, when a human
+ * or the host's launch environment sets it. The grugops installer does NOT set it: no code under
+ * `install/` writes it (34-REVIEW WR-07, corrected by plan 34-17; an earlier docstring here said the
+ * installer names it, which no code did). Where nothing sets it, step 3 decides.
+ *
+ * WHO CAN SET IT. It is an ambient environment value, not a channel the agent cannot write. An agent
+ * that runs `scripts/context-io.js` itself builds its own environment and can set it for its own
+ * process. That is `R-31-15-01`'s already-accepted capability (and the shape `R-31-15-03` records
+ * for both names in this array), not a new one.
  *
  * WHY THE ORDER IS DATA AND NOT READING ORDER. Two `if` statements are a precedence rule stated by
  * position; a reader asking "which one wins when both are set?" has to reconstruct it from the source
@@ -4783,7 +4788,8 @@ export const TRUSTED_ROOT_TIERS = Object.freeze([
         "because the name is a second variable.",
     "1. CLAUDE_PROJECT_DIR when present and non-empty after trimming, made absolute and canonicalised " +
         "through the one ladder.",
-    "2. GRUGOPS_PROJECT_DIR — the documented installer-set variable — under the same predicate.",
+    "2. GRUGOPS_PROJECT_DIR when a human or the host's launch environment sets it, under the same " +
+        "predicate. The grugops installer does not set it.",
     "3. The configuration that governs the process working directory: the repository root's own when " +
         "the walk reaches a repository boundary carrying one, else the nearest ancestor carrying a " +
         "factory configuration, bounded above by the user's home directory.",
@@ -4816,7 +4822,8 @@ export const TRUSTED_ROOT_TIERS = Object.freeze([
  *
  *   1. `CLAUDE_PROJECT_DIR` when present and non-empty after trimming, made absolute and canonicalised
  *      through the one ladder (`canonicalDirectoryPath`, plan 33-24).
- *   2. `GRUGOPS_PROJECT_DIR` — the documented installer-set variable — under the same predicate.
+ *   2. `GRUGOPS_PROJECT_DIR` when a human or the host's launch environment sets it, under the same
+ *      predicate. The grugops installer does not set it.
  *   3. The configuration that governs the process working directory: the repository root's own
  *      when the walk reaches a repository boundary carrying one, else the nearest ancestor
  *      carrying a factory configuration. Bounded above by the user's home directory, which the
