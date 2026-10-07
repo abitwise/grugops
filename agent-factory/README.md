@@ -36,6 +36,10 @@ verified context, updates the board and traceability, and produces the next acti
 > bodies under `agent-factory/workflows/`; this guide documents how to use them and the frozen
 > paths they live at.
 
+After a scripted install the kit sits in the shared kit root, not in the repository. Whether a host
+other than Claude Code finds it there is `UNKNOWN - verify`; see `install/README.md`, section "Using
+grugops on Pi".
+
 ## Usage across the supported host tools
 
 <!-- claim: C-28-027 -->

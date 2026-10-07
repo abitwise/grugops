@@ -59,8 +59,10 @@ per-role effort setting and Pi support.
   `effort:` line differs from the level the configuration resolves to (34 D-15).
 - Pi (pi.dev) as a supported host. The installer reports `pi` when the target root has a `.pi`
   entry. Every install writes a `/grugops` prompt template at `.pi/prompts/grugops.md`, which only
-  points Pi at the Orchestrator and holds no role text (34 D-10, D-16, D-17). Install records the
-  file in the install ledger in `.grugops/install.json` and never overwrites a file a user already
+  points Pi at the Orchestrator and holds no role text (34 D-10, D-16, D-17). Whether Pi finds the
+  kit after a scripted install, which puts the kit in the shared kit root and not in the
+  repository, is `UNKNOWN - verify` (backlog 999.4); see `install/README.md`, "Using grugops on
+  Pi". Install records the file in the install ledger in `.grugops/install.json` and never overwrites a file a user already
   has at that path. Uninstall removes the template only if install recorded it and it is unchanged
   (34 D-13). `install/README.md`, both READMEs, `docs/faq.md`, `CLAUDE.md` and the per-host tables
   in `agent-factory/packaging/adapters.md` document Pi.

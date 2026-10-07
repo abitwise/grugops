@@ -52,7 +52,9 @@ per session), never a consequence of the depth cap — depth and width are indep
 sequential role-load is still available as the fallback. What changes from tool to tool is the **entry file** the host reads
 to reach `agent-factory/roles/orchestrator.md` (the column above) and — on Claude Code only — the
 dispatch mode. **Same roles, same shared context, same gates — the non-spawning host CLIs stay
-sequential; only Claude Code adds coordinator spawning.**
+sequential; only Claude Code adds coordinator spawning.** Whether a host other than Claude Code
+reaches the kit through its entry file after a scripted install is `UNKNOWN - verify`; see
+`install/README.md`, section "Using grugops on Pi".
 
 ### The three entry tiers (Claude Code)
 

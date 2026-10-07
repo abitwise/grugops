@@ -44,6 +44,8 @@ grugops version `2.1.0`.
    /grugops "bootstrap this repo and propose safe first tickets"
    ```
 
+   The installer writes `/grugops` for Claude Code, and for Pi as a prompt template. On a host CLI other than Claude Code, whether the agent finds the kit after this scripted install is `UNKNOWN - verify`; see `install/README.md`, section "Using grugops on Pi".
+
 <!-- claim: C-28-007 -->
    In the versioned Claude Code plugin form the same operations are namespaced with a colon — `/grugops:<op>` (for example `/grugops:plan`, `/grugops:ticket`, `/grugops:release`). Both forms coexist; only the dispatch differs, never the content.
 

@@ -78,3 +78,21 @@ the finding and why it was not fixed there.
   tool". The derived scan's Rule A does not match "N times" or "N … ways", and was not widened to:
   those nouns are not host nouns, and widening would add false positives across the tree. A future
   caveman line of that shape is not caught by the scan.
+
+## From plan 34-16
+
+### The minimal path is stated as working on every supported tool, with no run on the newer hosts
+
+- **Found by:** plan 34-16 Task 2, re-running the WR-06 search. `install/README.md` §1 says "The
+  floor works for every supported tool", and `agent-factory/README.md` (registered claim
+  `C-28-034`) says the minimal markdown-copy path "works for any tool". The claim registry measures
+  `C-28-034` and `C-28-026` against the minimal path's mechanism (the kit is in the repository at
+  the path `AGENTS.md` names), not against a run on each host.
+- **Why it is a question:** plan 34-16's caveat in `install/README.md` "Using grugops on Pi" says,
+  as its plan required, that no Pi run has confirmed the minimal path either. The two statements do
+  not contradict each other (a mechanism can hold without a run), but DOC-1 asks that a sentence
+  about what a host does be backed by code or a run.
+- **Why it was not fixed in 34-16:** the plan's scope is kit discovery after a scripted install
+  (WR-06, D-20). Both sentences are about the minimal path, and `C-28-034` is a registered claim
+  whose text change needs a registry companion edit and a human judgement on what backs it.
+- **Suggested owner:** human triage, with backlog 999.4 (a per-host run would answer both).
