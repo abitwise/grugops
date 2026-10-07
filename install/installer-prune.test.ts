@@ -33,6 +33,8 @@ import {
   type Run,
   backupShapes,
   deriveWritePaths,
+  lineNamesPath,
+  pathText,
   makeOldLayoutFixture,
   plantBackupShapes,
   runInstall,
@@ -355,20 +357,21 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     expect(d.status, d.stdout).toBe(0);
     expect(snapshotTree(w.t)).toBe(t0);
     expect(snapshotTree(w.kitHome)).toBe(h0);
-    for (const e of removable) expect(linesOf(d, "would-remove").filter((l) => l.includes(at(w.t, e.path))).length, `${e.path}\n${d.stdout}`).toBe(1);
-    expect(linesOf(d, "would-remove").filter((l) => l.includes(join(w.kitHome, home[0].path))).length, d.stdout).toBe(1);
+    // Printed paths compared in the product's one spelling (lineNamesPath, plan 34-12, D-19, WIN-1).
+    for (const e of removable) expect(linesOf(d, "would-remove").filter((l) => lineNamesPath(l, at(w.t, e.path))).length, `${e.path}\n${d.stdout}`).toBe(1);
+    expect(linesOf(d, "would-remove").filter((l) => lineNamesPath(l, join(w.kitHome, home[0].path))).length, d.stdout).toBe(1);
     expect(linesOf(d, "would-edit").length, "a would-edit line per record").toBe(2);
     // The real run.
     const r = prune(w);
     expect(r.status, r.stdout).toBe(0);
     for (const e of removable) {
       expect(existsSync(at(w.t, e.path)), `${e.path} is still there`).toBe(false);
-      expect(linesOf(r, "removed").filter((l) => l.includes(at(w.t, e.path))).length, r.stdout).toBe(1);
+      expect(linesOf(r, "removed").filter((l) => lineNamesPath(l, at(w.t, e.path))).length, r.stdout).toBe(1);
     }
     expect(existsSync(join(w.kitHome, home[0].path)), "the kit-home backup is still there").toBe(false);
     for (const e of kept) {
       expect(existsSync(at(w.t, e.path)), `${e.path} was removed`).toBe(true);
-      const named = linesOf(r, "left").filter((l) => l.includes(`target: ${e.path} (`));
+      const named = linesOf(r, "left").filter((l) => pathText(l).includes(`target: ${e.path} (`));
       expect(named.length, `${e.path}\n${r.stdout}`).toBe(1);
       expect(named[0]).toContain("prune never removes a backup of your content");
     }
@@ -496,9 +499,9 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
       const verifies = linesOf(r, "verify");
       for (const p of removable) {
         expect(existsSync(at(w.t, p)), `${p} was not removed`).toBe(false);
-        expect(verifies.some((l) => l.includes(markerPath) && l.includes(p)), `no verify names ${p}\n${r.stdout}`).toBe(true);
+        expect(verifies.some((l) => lineNamesPath(l, markerPath) && l.includes(p)), `no verify names ${p}\n${r.stdout}`).toBe(true);
       }
-      expect(verifies.some((l) => l.includes(homeRecord) && l.includes(homeBak)), r.stdout).toBe(true);
+      expect(verifies.some((l) => lineNamesPath(l, homeRecord) && l.includes(homeBak)), r.stdout).toBe(true);
       expect(readFileSync(markerPath).equals(markerBytes), "the marker changed").toBe(true);
       expect(readFileSync(homeRecord).equals(homeBytes), "the kit-home record changed").toBe(true);
     } finally {

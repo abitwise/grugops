@@ -57,6 +57,7 @@ import {
   UNINSTALL_JS,
   NOTIFY_CONFIG,
   type Run,
+  pathText,
   rebindMarker,
   runInstall,
   runUninstall,
@@ -77,7 +78,9 @@ const HOME = fresh("home");
 const KIT_HOME = join(HOME, ".grugops");
 const at = (t: string, rel: string): string => join(t, ...rel.split("/"));
 const lines = (stdout: string, label: string): string[] => stdout.split("\n").filter((l) => new RegExp(`^ {2}${label}\\s`).test(l));
-const namingLines = (stdout: string, rel: string): string[] => stdout.split("\n").filter((l) => /^ {2}\S+\s/.test(l) && l.includes(rel));
+// A relative path is matched in the product's one spelling (pathText, plan 34-12, D-19, WIN-1), so a line
+// that prints it under a host-spelled absolute root still names it.
+const namingLines = (stdout: string, rel: string): string[] => stdout.split("\n").filter((l) => /^ {2}\S+\s/.test(l) && pathText(l).includes(rel));
 
 function install(t: string, args: readonly string[] = [], dryRun = false, kitHome = KIT_HOME, home = HOME): Run {
   const r = runInstall(t, kitHome, args, { dryRun, home, timeoutMs: 180_000 });
@@ -295,7 +298,7 @@ describe("B2: uninstall asks the record before it reports a path it cannot read 
     symlinkSync("../../../mine.md", at(t, ".claude/skills/grugops-gate/SKILL.md"));
     const u = uninstall(t);
     expect(u.status, u.stdout).toBe(3);
-    expect(lines(u.stdout, "verify").some((l) => l.includes("grugops-gate/SKILL.md")), u.stdout).toBe(true);
+    expect(lines(u.stdout, "verify").some((l) => pathText(l).includes("grugops-gate/SKILL.md")), u.stdout).toBe(true);
   });
 });
 
@@ -451,7 +454,7 @@ describe("L3: uninstall's wording asserts only what the run proved", () => {
     const run = namingLines(u.stdout, "tools/grugops/host-protection.js").join("\n");
     expect(run, u.stdout).not.toMatch(/user-modified/);
     expect(run, u.stdout).toMatch(/differs from this kit version's file/);
-    const agents = namingLines(u.stdout, "AGENTS.md").filter((l) => !l.includes("tools/")).join("\n");
+    const agents = namingLines(u.stdout, "AGENTS.md").filter((l) => !pathText(l).includes("tools/")).join("\n");
     expect(agents, u.stdout).not.toMatch(/user-owned or modified/);
     expect(agents, u.stdout).toMatch(/differs from this kit version's/);
   });

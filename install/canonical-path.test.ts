@@ -182,6 +182,7 @@ interface NamesRow {
 const NAMES_TABLE: readonly NamesRow[] = [
   { name: "(h1) the log's mixed uninstall line names the win32-joined path", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET, ".claude", "agents"), names: true },
   { name: "(h2) the same line does not name .claude/agents-old", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET, ".claude", "agents-old"), names: false },
+  { name: "(h2) the log line with agents-old in place of agents does not name .claude/agents (the delimiter decides)", flavor: win, line: LOG_LEFT_LINE.replace("/.claude/agents ", "/.claude/agents-old "), path: win.join(LOG_TARGET, ".claude", "agents"), names: false },
   { name: "(h2) the same line does not name the parent .claude", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET, ".claude"), names: false },
   { name: "(h2) the same line does not name another target", flavor: win, line: LOG_LEFT_LINE, path: win.join(LOG_TARGET + "2", ".claude", "agents"), names: false },
   { name: "(h3) the path at the end of a line", flavor: win, line: String.raw`  rmdir   C:\t/.claude`, path: String.raw`C:\t\.claude`, names: true },
@@ -190,8 +191,13 @@ const NAMES_TABLE: readonly NamesRow[] = [
   { name: "(h4) posix: a path before a space", flavor: posix, line: "  left  /t/.claude/agents (x)", path: "/t/.claude/agents", names: true },
   { name: "(h4) posix: a backslash is a filename byte, not a separator", flavor: posix, line: "  left  /t" + B + "x", path: "/t/x", names: false },
   { name: "(h4) posix: agents-old is not agents", flavor: posix, line: "  left  /t/.claude/agents-old (x)", path: "/t/.claude/agents", names: false },
+  { name: "(h5) a path before a comma that ends a clause", flavor: win, line: String.raw`  verify  .claude/agents/ — cannot read C:\t/.claude/agents, so the install set is unknown.`, path: String.raw`C:\t\.claude\agents`, names: true },
+  { name: "(h5) a path before a semicolon that ends a clause", flavor: posix, line: "  info  the file this check reads is /t/.grugops/factory.config.json; any path", path: "/t/.grugops/factory.config.json", names: true },
+  { name: "(h5) a path that ends a sentence", flavor: posix, line: "  verify  cannot read /t/x.", path: "/t/x", names: true },
+  { name: "(h5) agents.md is not agents", flavor: posix, line: "  left  /t/.claude/agents.md (x)", path: "/t/.claude/agents", names: false },
+  { name: "(h5) a comma inside a name is not a delimiter", flavor: posix, line: "  left  /t/a,b (x)", path: "/t/a", names: false },
 ];
-const NAMES_TABLE_SIZE = 10;
+const NAMES_TABLE_SIZE = 16;
 
 interface RelRow {
   readonly name: string;

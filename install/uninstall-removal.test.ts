@@ -535,7 +535,7 @@ describe.skipIf(!canSymlink)("install.js removals of a link (siblings of B1/B2, 
     expect(stageSymlinkOrSkip(join(root, "nothing"), bak, "dangling link", POSITION)).toBeNull();
     const r = spawnBin(INSTALL_JS, ["--prune-old-kit"], target, join(home, ".grugops"), { home, timeoutMs: 60_000 });
     expectFinished(r, "--prune-old-kit");
-    const removed = r.stdout.split("\n").some((l) => /^ {2}removed\s/.test(l) && l.includes(bak));
+    const removed = r.stdout.split("\n").some((l) => /^ {2}removed\s/.test(l) && lineNamesPath(l, bak));
     const present = lstatSync(bak, { throwIfNoEntry: false }) !== undefined;
     expect(removed && present, `reported removed and still present\n${r.stdout}`).toBe(false);
     expect(removed || present, "gone without a line").toBe(true);

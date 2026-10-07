@@ -56,7 +56,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
-import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, runInstall, runUninstall } from "./installer-paths.test-support.js";
+import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, lineNamesPath, pathText, runInstall, runUninstall } from "./installer-paths.test-support.js";
 import { dirList, fileRecords } from "./ledger.test-support.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
@@ -556,11 +556,11 @@ describe("the doctor reads the state files it checks, never their presence alone
           const r = runInstaller(target, home, 60_000, "--check");
           expect(r.error, "--check hung").toBeUndefined();
           expect(r.stderr).not.toMatch(NO_STACK);
-          const okLine = (r.stdout ?? "").split("\n").some((l) => /^ {2}ok\s/.test(l) && l.trimEnd().endsWith(at));
+          const okLine = (r.stdout ?? "").split("\n").some((l) => /^ {2}ok\s/.test(l) && pathText(l.trimEnd()).endsWith(pathText(at)));
           expect(okLine, `--check printed ok over a ${shape} at ${rel}\n${r.stdout}`).toBe(false);
           const warned = (r.stdout ?? "")
             .split("\n")
-            .some((l) => /^ {2}(WARN|FAIL)\s/.test(l) && l.includes(at) && /not a regular file|NO VERDICT/.test(l));
+            .some((l) => /^ {2}(WARN|FAIL)\s/.test(l) && lineNamesPath(l, at) && /not a regular file|NO VERDICT/.test(l));
           expect(warned, `--check did not report the ${shape} at ${rel}\n${r.stdout}`).toBe(true);
           if (writer) {
             await pause(300);
@@ -602,7 +602,9 @@ describe("--migrate keeps the legacy config when its destination is not a readab
         expect(readdirSync(target).filter((n) => n.startsWith("factory.config.json.bak.")), "the legacy config was renamed").toEqual([]);
         expect(r.stdout).not.toContain("already present — kept");
         const verifyLines = (r.stdout ?? "").split("\n").filter((l) => /^ {2}verify\s/.test(l));
-        expect(verifyLines.some((l) => l.includes(".grugops/factory.config.json")), r.stdout).toBe(true);
+        // The verify line prints the destination's absolute path in the host spelling (a backslash path on
+        // Windows), so the POSIX relative name is matched in the product's one spelling (plan 34-12, WIN-1).
+        expect(verifyLines.some((l) => pathText(l).includes(".grugops/factory.config.json")), r.stdout).toBe(true);
         expect(r.status, r.stdout).toBe(3);
         if (writer) {
           await pause(300);

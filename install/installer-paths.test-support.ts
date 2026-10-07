@@ -217,11 +217,14 @@ export function pathText(s: string, flavor: PathFlavor = HOST_FLAVOR): string {
 
 /** The characters that may follow a path a report line names: a space, `(`, `)` or `:` (or the end of the line). */
 const PATH_END = new Set([" ", "(", ")", ":"]);
+/** Sentence punctuation the installer's prose puts after a path (`…/agents, so …`, `….json; any …`, `…/x.`): a delimiter only before whitespace or the end. */
+const PATH_END_PUNCTUATION = new Set([",", ";", "."]);
 
 /**
  * Whether a printed `line` names `absPath` (run 37521787426): both in pathText's spelling, and the path
- * immediately followed by the end of the line, a space, `(`, `)` or `:`, so `.claude/agents` is never
- * matched inside `.claude/agents-old` or `.claude/agents/x.md`.
+ * immediately followed by the end of the line, a space, `(`, `)` or `:`, or by `,` `;` `.` that is itself
+ * followed by whitespace or the end (the installer's prose ends a clause after a path), so
+ * `.claude/agents` is never matched inside `.claude/agents-old`, `.claude/agents/x.md` or `.claude/agents.md`.
  */
 export function lineNamesPath(line: string, absPath: string, flavor: PathFlavor = HOST_FLAVOR): boolean {
   const text = pathText(line, flavor);
@@ -230,6 +233,7 @@ export function lineNamesPath(line: string, absPath: string, flavor: PathFlavor 
   for (let at = text.indexOf(want); at !== -1; at = text.indexOf(want, at + 1)) {
     const end = at + want.length;
     if (end === text.length || PATH_END.has(text.charAt(end))) return true;
+    if (PATH_END_PUNCTUATION.has(text.charAt(end)) && (end + 1 === text.length || /\s/.test(text.charAt(end + 1)))) return true;
   }
   return false;
 }

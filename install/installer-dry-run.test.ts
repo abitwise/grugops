@@ -289,15 +289,16 @@ describe("DRY_RUN flow matrix: both binaries leave target and kit home byte- and
     writeFileSync(p, readFileSync(p, "utf8") + "a line the user added\n");
     const kept = "recorded item(s) left in place; .grugops/install.json kept to record them";
     const r = expectDryRunUnchanged(target, home, () => runUninstall(target, home, true), 0, `${kept} (DRY_RUN — nothing changed) ==`);
-    expect(reported(r.stdout, "would-edit").map(subject), r.stdout).toContain(MARKER_REL);
-    expect(reported(r.stdout, "would-remove").map(subject), r.stdout).not.toContain(MARKER_REL);
+    // The printed subjects, relative to the target in the product's one spelling (printedRel, plan 34-12).
+    expect(reported(r.stdout, "would-edit").map((m) => printedRel(target, subject(m))), r.stdout).toContain(MARKER_REL);
+    expect(reported(r.stdout, "would-remove").map((m) => printedRel(target, subject(m))), r.stdout).not.toContain(MARKER_REL);
     const copy = join(mkTmp(), "copy");
     cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
     rebindMarker(copy);
     const real = runUninstall(copy, home, false);
     expect(real.status, real.stdout).toBe(0);
     expect(real.stdout).toContain(`${kept} ==`);
-    expect(reported(real.stdout, "edited").map(subject), real.stdout).toContain(MARKER_REL);
+    expect(reported(real.stdout, "edited").map((m) => printedRel(copy, subject(m))), real.stdout).toContain(MARKER_REL);
     expect(existsSync(join(copy, ...MARKER_REL.split("/")))).toBe(true);
     expect(existsSync(join(copy, ...adapter.split("/")))).toBe(true);
   });

@@ -14,7 +14,14 @@
 // test-support or declaration file. Its size is asserted, so a new or removed module fails here and is
 // read before the count is changed. Text in comments never counts: every rule walks the syntax tree.
 //
-// Plan 34-12 adds the test-side half of this census in its own `describe`; the product half is below.
+// THE TEST-SIDE HALF (plan 34-12, D-19). The windows-latest run also failed tests whose product output was
+// right: uninstall printed `C:\…\target/.claude/agents` and the test looked for the all-backslash
+// `join(target, ".claude", "agents")`; a marker test expected `realpathSync.native(t)` where install wrote
+// the canonical spelling. The second `describe` below scans every install/*.test.ts and *.test-support.ts
+// and holds them to install/installer-paths.test-support.ts pathText / lineNamesPath / printedRel for a
+// printed path and user-file.ts realTargetPath for a recorded one: no test folds a path by hand, matches a
+// natively built path against output, decides absoluteness by a leading `/`, or calls
+// realpathSync.native outside the one helper.
 //
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
@@ -242,5 +249,221 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
     const docCalls = nodesUnder(doc as ts.Node, ts.isCallExpression).map((c) => calleeName(c));
     expect(docCalls, "docAbspath must spell through absoluteSpelling").toContain("absoluteSpelling");
     expect(docCalls, "docAbspath must not decide absoluteness by a leading-slash test").not.toContain("startsWith");
+  });
+});
+
+// ── the test side (plan 34-12) ──────────────────────────────────────────────────────────────────────
+
+/** The number of installer test and test-support files counted when the test-side census was written (plan 34-12). */
+const TEST_SCANNED_FILE_COUNT = 27;
+
+function scannedTestFiles(): string[] {
+  return readdirSync(INSTALL_DIR)
+    .filter((n) => n.endsWith(".test.ts") || n.endsWith(".test-support.ts"))
+    .sort();
+}
+
+/** The callee names that build a path in the host's native spelling (node:path, and the test files' local `at` / `abs` / `atRel` built on join). */
+const NATIVE_PATH_BUILDERS = new Set(["join", "resolve", "at", "abs", "atRel"]);
+
+/**
+ * Whether `e` is a call that builds a path in the host spelling: a bare `join(...)`, `resolve(...)`,
+ * `at(...)` or `abs(...)` (the node:path imports and the test files' local helpers built on them), or
+ * `path.join(...)` / `path.win32.join(...)`-style calls. An array's `.join` or `.at` is not one.
+ */
+function isNativePathCall(e: ts.Expression): boolean {
+  if (!ts.isCallExpression(e)) return false;
+  const c = e.expression;
+  if (ts.isIdentifier(c)) return NATIVE_PATH_BUILDERS.has(c.text);
+  if (ts.isPropertyAccessExpression(c) && (c.name.text === "join" || c.name.text === "resolve")) {
+    const o = c.expression;
+    if (ts.isIdentifier(o)) return o.text === "path";
+    if (ts.isPropertyAccessExpression(o)) return o.name.text === "win32" || o.name.text === "posix";
+  }
+  return false;
+}
+
+/**
+ * Whether `e` begins with a native path call: the call itself, a template literal that begins with one
+ * (`${join(...)} (`), a string concatenation whose left operand does (`join(...) + " ("`, the spelling the
+ * windows-latest red in uninstall-removal.test.ts used), or any of these in parentheses.
+ */
+function beginsWithNativePath(e: ts.Expression | undefined): boolean {
+  if (e === undefined) return false;
+  if (ts.isParenthesizedExpression(e)) return beginsWithNativePath(e.expression);
+  if (isNativePathCall(e)) return true;
+  if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.PlusToken) return beginsWithNativePath(e.left);
+  return ts.isTemplateExpression(e) && e.head.text === "" && e.templateSpans.length > 0 && beginsWithNativePath(e.templateSpans[0].expression);
+}
+
+/**
+ * Whether a pattern argument CONSUMES a backslash: a regular expression with a non-empty match on a lone
+ * backslash, or a string pattern containing one. Stricter than patternMatchesBackslash, which also answers
+ * true for a pattern that matches the empty string (`/^\s*…/`) and so would flag every anchored trim.
+ */
+function consumesBackslash(arg: ts.Expression | undefined): boolean {
+  if (arg === undefined) return false;
+  if (ts.isRegularExpressionLiteral(arg)) {
+    const text = arg.text;
+    const lastSlash = text.lastIndexOf("/");
+    try {
+      const m = new RegExp(text.slice(1, lastSlash), text.slice(lastSlash + 1).replace("g", "").replace("y", "")).exec("\\");
+      return m !== null && m[0].length > 0;
+    } catch {
+      return true; // a pattern this file cannot read is reported, never trusted
+    }
+  }
+  return ts.isStringLiteralLike(arg) && arg.text.includes("\\");
+}
+
+/** A replacement that spells a separator: the string "/" or any `sep` (`sep`, `path.posix.sep`). */
+const isSeparatorReplacement = (arg: ts.Expression | undefined): boolean =>
+  arg !== undefined &&
+  ((ts.isStringLiteralLike(arg) && arg.text === "/") ||
+    (ts.isIdentifier(arg) && arg.text === "sep") ||
+    (ts.isPropertyAccessExpression(arg) && arg.name.text === "sep"));
+
+describe("WIN-1 path-spelling census — tests (install/*.test.ts and *.test-support.ts)", () => {
+  const files = scannedTestFiles();
+
+  it("the scanned set is every installer test and test-support file, and its size is the one counted", () => {
+    expect(files, `the scanned test set changed: ${files.join(", ")} — read the new file for path comparisons, then update TEST_SCANNED_FILE_COUNT`).toHaveLength(
+      TEST_SCANNED_FILE_COUNT,
+    );
+    for (const f of ["installer-paths.test-support.ts", "uninstall-removal.test.ts", "installer-dry-run.test.ts", "marker-binding.test.ts", "install.test.ts"]) {
+      expect(files).toContain(f);
+    }
+  });
+
+  it("(t1) realpathSync.native is called only inside nativeRealPath, and nativeRealPath is used only where a native spelling is the point", () => {
+    const sites = sitesWhere(
+      (n) => ts.isPropertyAccessExpression(n) && n.name.text === "native" && ts.isIdentifier(n.expression) && n.expression.text === "realpathSync",
+      files,
+    );
+    expect(
+      sites.filter((s) => !(s.file === "installer-paths.test-support.ts" && s.scope === "nativeRealPath")).map(where),
+      "a native real-path spelling in a test: expect user-file.ts realTargetPath for a recorded path, or call nativeRealPath where the native spelling is the point",
+    ).toEqual([]);
+    expect(sites.map((s) => `${s.file}:${s.scope}`)).toEqual(["installer-paths.test-support.ts:nativeRealPath"]);
+    // Every use of nativeRealPath other than its declaration and its import: the remedy case in
+    // marker-binding.test.ts (one reference, run once per spelling) and canonical-path.test.ts case (11),
+    // which proves realTargetPath is the canonical spelling of the native real path.
+    const uses = sitesWhere(
+      (n) =>
+        ts.isIdentifier(n) &&
+        n.text === "nativeRealPath" &&
+        !(ts.isFunctionDeclaration(n.parent) && n.parent.name === n) &&
+        !ts.isImportSpecifier(n.parent),
+      files,
+    );
+    const byFile = new Map<string, number>();
+    for (const u of uses) byFile.set(u.file, (byFile.get(u.file) ?? 0) + 1);
+    expect(Object.fromEntries([...byFile].sort()), `nativeRealPath used at: ${uses.map(where).join(", ")}`).toEqual({
+      "canonical-path.test.ts": 2,
+      "marker-binding.test.ts": 1,
+    });
+  });
+
+  it("(t2) no test folds a path by hand: no .replace / .replaceAll of a backslash with a separator, no .split on a backslash, no .split(sep).join(\"/\")", () => {
+    const folds = sitesWhere(
+      (n) =>
+        ts.isCallExpression(n) &&
+        ["replace", "replaceAll"].includes(calleeName(n) ?? "") &&
+        consumesBackslash(n.arguments[0]) &&
+        isSeparatorReplacement(n.arguments[1]),
+      files,
+    );
+    expect(folds.map(where), "a hand-made separator fold: compare through pathText / lineNamesPath / printedRel").toEqual([]);
+    const splits = sitesWhere((n) => ts.isCallExpression(n) && calleeName(n) === "split" && ts.isPropertyAccessExpression(n.expression) && consumesBackslash(n.arguments[0]), files);
+    expect(splits.map(where), "a path split on a backslash: compare through pathText / printedRel").toEqual([]);
+    const chains = sitesWhere(isSeparatorFoldChain, files);
+    expect(chains.map(where), "a path spelled by hand with split(sep).join(\"/\"): use printedRel / pathText").toEqual([]);
+  });
+
+  it("(t3) no test matches a natively built path against output: includes / toContain / startsWith / endsWith, or a RegExp, built from join / resolve / at / abs", () => {
+    const direct = sitesWhere(
+      (n) =>
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        ["includes", "toContain", "startsWith", "endsWith"].includes(n.expression.name.text) &&
+        beginsWithNativePath(n.arguments[0]),
+      files,
+    );
+    expect(direct.map(where), "a printed path compared in the host spelling: use lineNamesPath(line, path) or pathText").toEqual([]);
+    const regex = sitesWhere(
+      (n) =>
+        ts.isNewExpression(n) &&
+        ts.isIdentifier(n.expression) &&
+        n.expression.text === "RegExp" &&
+        (n.arguments ?? []).some((a) => ts.isTemplateExpression(a) && a.templateSpans.some((sp) => nodesUnder(sp.expression, (x): x is ts.Expression => ts.isExpression(x) && isNativePathCall(x)).length > 0)),
+      files,
+    );
+    expect(regex.map(where), "a RegExp built from a host-spelled path: match the line with lineNamesPath instead").toEqual([]);
+    // The same comparison one step removed: the argument is a variable whose declaration builds the path
+    // natively (`const bak = join(...)`, then `l.includes(bak)`). The declaration is found by the type
+    // checker's symbol resolution (imports are not resolved; only local declarations count), so a loop
+    // variable or a parameter of the same name elsewhere is never confused with it.
+    const program = ts.createProgram(
+      files.map((f) => join(INSTALL_DIR, f)),
+      { noResolve: true, noLib: true, types: [] },
+    );
+    const checker = program.getTypeChecker();
+    const viaVariable: string[] = [];
+    for (const file of files) {
+      const sf = program.getSourceFile(join(INSTALL_DIR, file));
+      expect(sf, `the program has no ${file}`).toBeDefined();
+      const walk = (n: ts.Node): void => {
+        if (
+          ts.isCallExpression(n) &&
+          ts.isPropertyAccessExpression(n.expression) &&
+          ["includes", "toContain", "startsWith", "endsWith"].includes(n.expression.name.text) &&
+          n.arguments[0] !== undefined &&
+          ts.isIdentifier(n.arguments[0])
+        ) {
+          const decl = checker.getSymbolAtLocation(n.arguments[0])?.declarations?.[0];
+          if (decl !== undefined && ts.isVariableDeclaration(decl) && beginsWithNativePath(decl.initializer)) {
+            viaVariable.push(`${file}:${lineOf(sf as ts.SourceFile, n)} (${n.arguments[0].text})`);
+          }
+        }
+        ts.forEachChild(n, walk);
+      };
+      walk(sf as ts.SourceFile);
+    }
+    expect(viaVariable, "a printed path compared in the host spelling through a variable: use lineNamesPath(line, path) or pathText").toEqual([]);
+  });
+
+  it("(t4) no test decides absoluteness by a leading `/` (`.startsWith(\"/\")`)", () => {
+    const sites = sitesWhere(
+      (n) =>
+        ts.isCallExpression(n) &&
+        calleeName(n) === "startsWith" &&
+        n.arguments[0] !== undefined &&
+        ts.isStringLiteralLike(n.arguments[0]) &&
+        n.arguments[0].text === "/",
+      files,
+    );
+    expect(sites.map(where), "a leading-/ absolute test reads C:\\… as relative: use printedRel (the flavor's isAbsolute)").toEqual([]);
+  });
+
+  it("(t5) no test declares toPosix, and the one canonicalPath delegates to realTargetPath", () => {
+    const toPosixDecls = sitesWhere(
+      (n) =>
+        (ts.isVariableDeclaration(n) || ts.isFunctionDeclaration(n) || ts.isParameter(n) || ts.isImportSpecifier(n) || ts.isBindingElement(n)) &&
+        n.name !== undefined &&
+        ts.isIdentifier(n.name) &&
+        n.name.text === "toPosix",
+      files,
+    );
+    expect(toPosixDecls.map(where), "a second test-side spelling: compare through pathText or realTargetPath").toEqual([]);
+    const decls = sitesWhere(
+      (n) => (ts.isFunctionDeclaration(n) || ts.isVariableDeclaration(n)) && n.name !== undefined && ts.isIdentifier(n.name) && n.name.text === "canonicalPath",
+      files,
+    );
+    expect(decls.map((d) => d.file), "the declarations named canonicalPath").toEqual(["install.test.ts"]);
+    const fn = functionNamed(sourceOf("install.test.ts"), "canonicalPath");
+    expect(fn, "no canonicalPath in install.test.ts").not.toBeNull();
+    const calls = nodesUnder(fn as ts.Node, ts.isCallExpression).map((c) => calleeName(c));
+    expect(calls, "canonicalPath must delegate to user-file.ts realTargetPath").toContain("realTargetPath");
+    expect(calls.filter((c) => c === "replace" || c === "replaceAll" || c === "native" || c === "toPosix"), "canonicalPath must not spell the path itself").toEqual([]);
   });
 });

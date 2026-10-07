@@ -75,7 +75,9 @@ import {
   type VariantName,
   type VariantRun,
   deriveWritePaths,
+  lineNamesPath,
   normalizeIso,
+  pathText,
   rebindMarker,
   runInstall,
   runUninstall,
@@ -170,7 +172,12 @@ function uninstall(v: VariantRun, t: string, dryRun = false): Run {
   return r;
 }
 
-/** The report lines whose message names `rel` (relative, or absolute under `t`) as its subject. */
+/**
+ * The report lines whose message names `rel` (relative, or absolute under `t`). Both are compared in the
+ * product's one spelling (plan 34-12, D-19, WIN-1): an absolute print through lineNamesPath, so a Windows
+ * print that mixes `\` and `/` is matched rather than silently skipped. Matching nothing would let
+ * expectNoWholeFileRemoval pass vacuously.
+ */
 function linesNaming(stdout: string, t: string, rel: string): Array<{ label: string; msg: string }> {
   const abs = at(t, rel);
   const out: Array<{ label: string; msg: string }> = [];
@@ -178,8 +185,9 @@ function linesNaming(stdout: string, t: string, rel: string): Array<{ label: str
     const m = /^ {2}(\S+)\s+(.+)$/.exec(line);
     if (m === null) continue;
     const msg = m[2];
-    const names = (p: string): boolean => msg === p || msg.startsWith(`${p} `);
-    if (names(rel) || names(abs)) out.push({ label: m[1], msg });
+    const text = pathText(msg);
+    const namesRel = text === rel || text.startsWith(`${rel} `);
+    if (namesRel || lineNamesPath(msg, abs)) out.push({ label: m[1], msg });
   }
   return out;
 }

@@ -125,6 +125,10 @@ import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarke
 import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "../scripts/check-platform-shapes.js";
 // The installer's one spelling of a real path (plan 34-12): canonicalPath below delegates to it.
 import { realTargetPath } from "./user-file.js";
+// Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
+import { lineNamesPath, pathText } from "./installer-paths.test-support.js";
+/** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
+const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
 // THE DISPOSITION CANONICALIZER, IMPORTED HERE UNDER THE SAME TEST-ONLY EXCEPTION (plan 33.1-03,
 // D-18). install/checkpoint-ask-rules.ts restates scripts/checkpoints.ts canonicalizeDisposition
@@ -1435,7 +1439,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       .toContain("grugops-install-render-");
 
     // THE CLAIM: the real path on this machine is named inside the same finding.
-    expect(block).toContain(join(target, ".grugops", "factory.config.json"));
+    expect(namesPath(block, join(target, ".grugops", "factory.config.json")), block).toBe(true);
     expect(`status=${doc.status}`).toBe("status=0");
     expect(runCheck(target, home, { args: ["--strict"] }).status).toBe(1);
   });
@@ -2544,7 +2548,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // ...the run is a finding, not a success...
     expect(r.status).toBe(3);
     // ...the finding NAMES the destination...
-    expect(r.stdout).toContain(plantedAbs);
+    expect(namesPath(r.stdout, plantedAbs), r.stdout).toBe(true);
     expect(r.stdout).toContain("symbolic link");
     // ...and no per-adapter line claims that adapter was written.
     expect(adapterReportLines(r.stdout, "materialized").filter((l) => l.includes(planted))).toEqual([]);
@@ -2623,7 +2627,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // NOT ONE BYTE LANDED IN THE DIRECTORY OUTSIDE THE TARGET.
     expect(snapshot(moved)).toBe(movedPre);
     expect(r.status).toBe(3);
-    expect(r.stdout).toContain(leafAbs);
+    expect(namesPath(r.stdout, leafAbs), r.stdout).toBe(true);
     expect(adapterReportLines(r.stdout, "materialized")).toEqual([]);
   });
 
@@ -2657,7 +2661,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // NOTHING WAS CREATED AT THE LINK'S TARGET PATH.
     expect(existsSync(nowhere)).toBe(false);
     expect(r.status).toBe(3);
-    expect(r.stdout).toContain(plantedAbs);
+    expect(namesPath(r.stdout, plantedAbs), r.stdout).toBe(true);
   });
 
   it("write bound: a leaf symlink under an ancestor-symlinked directory is decided by ONE named refusal", () => {
@@ -2702,13 +2706,13 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(readFileSync(sentinel, "utf8")).toBe(sentinelBody);
     expect(snapshot(moved)).toBe(movedPre);
     expect(r.status).toBe(3);
-    expect(r.stdout).toContain(plantedAbs);
+    expect(namesPath(r.stdout, plantedAbs), r.stdout).toBe(true);
     expect(adapterReportLines(r.stdout, "materialized")).toEqual([]);
 
     // ONE REFUSAL, NOT TWO. The two arms are eligible for this destination and exactly one of them
     // gets to speak: a predicate that returns the FIRST reason it finds, consumed by a call site
     // that returns immediately, cannot emit two findings that disagree about one path.
-    const naming = r.stdout.split("\n").filter((l) => l.includes(plantedAbs));
+    const naming = r.stdout.split("\n").filter((l) => lineNamesPath(l, plantedAbs));
     expect(`lines naming ${planted} = ${naming.length}`).toBe(`lines naming ${planted} = 1`);
   });
 
@@ -3075,7 +3079,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.stdout).toContain("install INCOMPLETE");
     // The REAL path on this machine is named — the generator never ran, so there is no relayed
     // message to carry it.
-    expect(r.stdout).toContain(join(target, ".grugops", "factory.config.json"));
+    expect(namesPath(r.stdout, join(target, ".grugops", "factory.config.json")), r.stdout).toBe(true);
     // NOT a stack trace: the crash printed the error class on stderr and nothing on stdout.
     expect(`stack trace on stderr: ${r.stderr.includes("at ")}`).toBe("stack trace on stderr: false");
     // REPORT, DON'T ABORT: every other class still completes. Asserted over the classes THIS
@@ -4528,7 +4532,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // signal must agree with the banner, so a fail-loud run no longer reports the success code.
     expect(r.status).toBe(3);
     expect(r.stdout).toContain("cannot read");
-    expect(r.stdout).toContain(join(src, ".claude", "agents"));
+    expect(namesPath(r.stdout, join(src, ".claude", "agents")), r.stdout).toBe(true);
     expect(r.stdout).toContain("No adapter was installed");
     // RED DIRECTION: the run must NOT claim it finished, and must NOT have installed adapters.
     expect(r.stdout).not.toContain("== install complete");
@@ -4580,7 +4584,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // message must not, or the two conditions have been folded into one and the remedy is lost.
     expect(r.stdout).toContain("was read successfully but holds no adapter");
     expect(r.stdout).not.toContain("cannot read");
-    expect(r.stdout).toContain(join(src, ".claude", "agents"));
+    expect(namesPath(r.stdout, join(src, ".claude", "agents")), r.stdout).toBe(true);
     expect(r.stdout).not.toContain("== install complete");
     expect(installedAdapters(target)).toEqual([]);
   });
@@ -5011,7 +5015,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       expect(`authority message names a path: ${m !== null}`).toBe("authority message names a path: true");
       const namedByAuthority = m![1];
       const expectedSuffix = join(".claude", "agents", reported);
-      expect(`authority path ends at the installer's member: ${namedByAuthority.endsWith(expectedSuffix)}`).toBe(
+      expect(`authority path ends at the installer's member: ${pathText(namedByAuthority).endsWith(pathText(expectedSuffix))}`).toBe(
         "authority path ends at the installer's member: true",
       );
       expect(`authority path is inside the fixture: ${namedByAuthority.startsWith(src)}`).toBe(
@@ -5521,7 +5525,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const r = runInstallFrom(src, target, home);
     expect(r.status).toBe(3); // INCOMPLETE (27-21, WR-01)
     expect(r.stdout).toContain("No skill was installed");
-    expect(r.stdout).toContain(join(src, ".claude", "skills"));
+    expect(namesPath(r.stdout, join(src, ".claude", "skills")), r.stdout).toBe(true);
     expect(r.stdout).not.toContain("== install complete");
     expect(installedSkills(target)).toEqual([]);
     // The two derivations still fail independently (only the skills refusal is named), but the kit is
@@ -5989,7 +5993,7 @@ describe("directory ownership (CR-02, plan 33.1-21)", () => {
       .map((m) => m[2]);
   const leftFor = (stdout: string, target: string, rel: string): string[] =>
     linesUnder(stdout, "left").filter((l) =>
-      l.replace(/\\/g, "/").startsWith(`${join(target, ...rel.split("/")).replace(/\\/g, "/")} (`),
+      lineNamesPath(l, join(target, ...rel.split("/"))),
     );
   // The uninstaller's rmdir candidates, by SHAPE: the fixed shared-name set plus every
   // `.claude/skills/<name>` skill directory and `tools/grugops`.
@@ -6509,7 +6513,7 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     const r = runUninstall(target, home);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(existsSync(join(target, ".gemini"))).toBe(true);
-    const gemini = linesUnder(r.stdout, "left").filter((l) => l.replace(/\\/g, "/").startsWith(`${join(target, ".gemini").replace(/\\/g, "/")} (`));
+    const gemini = linesUnder(r.stdout, "left").filter((l) => lineNamesPath(l, join(target, ".gemini")));
     expect(gemini.length, r.stdout).toBe(1);
     expect(gemini[0]).toMatch(/there is no record that install created it/);
     expect(r.stdout).not.toMatch(/install did not create it/);
@@ -7501,7 +7505,11 @@ describe("special file at a --migrate legacy config (DC-3, D-18, plan 33.1-26)",
           expect(r.error, `--migrate hung on a ${shape} at ${leg.rel}`).toBeUndefined();
           expect(r.signal).toBeNull();
           expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
-          expect(r.stdout).toMatch(new RegExp(`verify\\s+user config ${join(target, leg.rel).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} is not a regular file`));
+          // The printed path is compared in the product's one spelling (lineNamesPath, plan 34-12, WIN-1).
+          expect(
+            r.stdout.split("\n").some((l) => /verify\s+user config /.test(l) && lineNamesPath(l, join(target, leg.rel)) && l.includes(" is not a regular file")),
+            r.stdout,
+          ).toBe(true);
           if (writer) {
             await pause(300);
             expect(stillRunning(writer), `--migrate opened the FIFO at ${leg.rel}: the blocked writer was released`).toBe(true);
@@ -7623,7 +7631,9 @@ describe("IN-04: a special file at .grugops/install.json hangs nothing (DC-3, pl
           expect(r.error, `${run} hung on a ${shape} at the marker`).toBeUndefined();
           expect(r.signal).toBeNull();
           expect(r.stderr, r.stderr).not.toMatch(NO_STACK);
-          expect(r.stdout, r.stdout).toMatch(run === "install --check" ? DOCTOR_MARKER_UNREADABLE : MARKER_UNREADABLE);
+          // Matched in the product's one spelling (pathText, plan 34-12, WIN-1): the doctor prints the marker's
+          // absolute path in the host spelling (`C:\…\.grugops\install.json` on Windows).
+          expect(pathText(r.stdout), r.stdout).toMatch(run === "install --check" ? DOCTOR_MARKER_UNREADABLE : MARKER_UNREADABLE);
           if (writer) {
             await pause(300);
             expect(stillRunning(writer), `${run} opened the FIFO: the blocked writer was released`).toBe(true);
@@ -8518,7 +8528,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const kit = kitState(target);
     const r = run(src, target, mkTmp(), ["--migrate", "--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(3);
-    expect(verifyLines(r.stdout).some((l) => l.includes(dest)), r.stdout).toBe(true);
+    expect(verifyLines(r.stdout).some((l) => lineNamesPath(l, dest)), r.stdout).toBe(true);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
     expect(readlinkSync(dest)).toBe(linkBefore);
     expect(readFileSync(clone, "utf8")).toBe(cloneBefore);
@@ -8723,7 +8733,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const before = treeState(f.target);
     const r = run(f.src, f.target, f.home, ["--migrate", "--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(3);
-    expect(verifyLines(r.stdout).some((l) => l.includes(foreign)), r.stdout).toBe(true);
+    expect(verifyLines(r.stdout).some((l) => lineNamesPath(l, foreign)), r.stdout).toBe(true);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
     expect(treeState(f.target), r.stdout).toBe(before);
     expect(readFileSync(join(outside, "victim.md"), "utf8")).toBe("outside file\n");
@@ -8899,7 +8909,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     try {
       const r = run(src, t, mkTmp());
       expect(r.status, r.stdout).toBe(3);
-      expect(verifyLines(r.stdout).some((l) => l.includes(join(t, ".claude", "agents")) && /not writable/.test(l)), r.stdout).toBe(true);
+      expect(verifyLines(r.stdout).some((l) => lineNamesPath(l, join(t, ".claude", "agents")) && /not writable/.test(l)), r.stdout).toBe(true);
       expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
       expect(existsSync(join(t, ".claude", "skills")), "no skill was written").toBe(false);
     } finally {
@@ -8914,7 +8924,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     try {
       const r = run(s2, target, home);
       expect(r.status, r.stdout).toBe(3);
-      expect(verifyLines(r.stdout).some((l) => l.includes(ro) && /not writable/.test(l)), r.stdout).toBe(true);
+      expect(verifyLines(r.stdout).some((l) => lineNamesPath(l, ro) && /not writable/.test(l)), r.stdout).toBe(true);
       expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
       expect(kitState(target)).toBe(kitRo);
       expect(kitRo, "premise: kitState does not see the mode, so the 444 file reads as the installed one").toBe(kit);
@@ -9423,7 +9433,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       const r = run(src, target, home, ["--backup-edited-kit"]);
       expect(Date.now() - t0, "the run took longer than 60 s").toBeLessThan(60_000);
       expect(r.status, r.stdout).toBe(3);
-      expect(verifyLines(r.stdout).some((l) => l.includes(at)), r.stdout).toBe(true);
+      expect(verifyLines(r.stdout).some((l) => lineNamesPath(l, at)), r.stdout).toBe(true);
       expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
       expect(r.stdout).not.toContain("[y/N]");
       expect(backupsIn(target)).toEqual([]);
@@ -9458,7 +9468,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     }
     expect(r.status, r.stdout).toBe(3);
     expect(
-      verifyLines(r.stdout).some((l) => l.includes(`${atRel(target, EDITED_REL)}${BACKUP_MARK}`) && /could not be written/.test(l)),
+      verifyLines(r.stdout).some((l) => pathText(l).includes(pathText(`${atRel(target, EDITED_REL)}${BACKUP_MARK}`)) && /could not be written/.test(l)),
       r.stdout,
     ).toBe(true);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
@@ -9502,7 +9512,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       expect(r.error, `the run did not finish: ${r.error?.message}`).toBeUndefined();
       expect(r.stdout !== "", `the wrapper printed nothing; stderr: ${r.stderr}`).toBe(true);
       expect(r.status, r.stdout).toBe(3);
-      expect(verifyLines(r.stdout).some((l) => l.includes(at) && /backup path is taken/.test(l)), r.stdout).toBe(true);
+      expect(verifyLines(r.stdout).some((l) => lineNamesPath(l, at) && /backup path is taken/.test(l)), r.stdout).toBe(true);
       expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
       expect(r.stdout).not.toMatch(/^ {2}backed-up\s/m);
       expect(kitState(target)).toBe(kit);
@@ -10009,7 +10019,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     const planted = treeState(atRel(target, ".claude"));
     const r = runPinned(src, target, home, ["--backup-edited-kit"]);
     expect(r.status, r.stdout).toBe(3);
-    expect(verifyLines(r.stdout).some((l) => l.includes(staged) && /backup path is taken/.test(l)), r.stdout).toBe(true);
+    expect(verifyLines(r.stdout).some((l) => lineNamesPath(l, staged) && /backup path is taken/.test(l)), r.stdout).toBe(true);
     expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
     expect(r.stdout).not.toMatch(/^ {2}backed-up\s/m);
     expect(kitState(target)).toBe(kit);
