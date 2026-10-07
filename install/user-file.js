@@ -251,16 +251,42 @@ export function readForWrite(root, path, maxBytes = USER_FILE_MAX_BYTES) {
         return { state: "create" };
     return { state: "blocked", at: path, reason: unreadState(r) };
 }
+/** The host's own node:path, the flavor every production call uses. */
+const HOST_FLAVOR = { sep, isAbsolute };
+/** Put `p` in the one spelling install records and compares (see THE ONE SPELLING above). */
+export function canonicalPathSpelling(p, flavor = HOST_FLAVOR) {
+    if (flavor.sep !== "\\")
+        return p;
+    let s = p.replace(/\\/g, "/");
+    if (s.startsWith("//?/UNC/"))
+        s = "//" + s.slice("//?/UNC/".length);
+    else if (/^\/\/\?\/[A-Za-z]:/.test(s))
+        s = s.slice("//?/".length);
+    if (/^[A-Za-z]:/.test(s))
+        s = s.charAt(0).toUpperCase() + s.slice(1);
+    return s;
+}
+/**
+ * Whether a recorded path names the directory whose real path is `here`: both sides pass through
+ * canonicalPathSpelling, so a record written in either spelling of one directory binds it, and two
+ * different directories never compare equal (the spelling changes separators, the long-form prefix and
+ * the drive-letter case only).
+ */
+export function sameRecordedPath(recorded, here, flavor = HOST_FLAVOR) {
+    return canonicalPathSpelling(recorded, flavor) === canonicalPathSpelling(here, flavor);
+}
 // realTargetPath (red-team B2 of plan 33.1-33, brief DC-2): the one spelling of "which directory is this"
 // that the install marker is bound to. The operating system's own real path (realpath(3) through
 // realpathSync.native): every symbolic link on the way resolved and, on a case-insensitive volume, the
 // case the directory really has, so `--target /tmp/x`, `--target /private/tmp/x` and a differently cased
-// spelling of the same directory all give one answer. POSIX separators, as the marker's other paths are
-// written. null when the path cannot be resolved (it does not exist, or a component cannot be searched):
-// a directory with no real path cannot be shown to be the one a marker names. It reads no file content.
+// spelling of the same directory all give one answer. On Windows it also expands an 8.3 short name
+// (`RUNNER~1`) to the long one, which the JS realpathSync does not. Spelled by canonicalPathSpelling, as
+// every path the marker records is. null when the path cannot be resolved (it does not exist, or a
+// component cannot be searched): a directory with no real path cannot be shown to be the one a marker
+// names. It reads no file content.
 export function realTargetPath(target) {
     try {
-        return realpathSync.native(target).replace(/\\/g, "/");
+        return canonicalPathSpelling(realpathSync.native(target));
     }
     catch {
         return null;
@@ -273,7 +299,8 @@ export function realTargetPath(target) {
 // comparison. So the path is resolved, the deepest ancestor that exists (by lstat) is found, its real path
 // is taken with realpathSync.native (every link on the way to it resolved, and on a case-insensitive
 // volume the case the directory really has), and the missing remainder is appended unchanged. Nothing
-// below that ancestor exists, so no link can hide in the remainder. POSIX separators, as realTargetPath.
+// below that ancestor exists, so no link can hide in the remainder. Spelled by canonicalPathSpelling, as
+// realTargetPath.
 // null when the ancestor's real path cannot be read (a dangling link, a component that cannot be
 // searched, a non-directory on the way): the caller cannot show where the path is, and refuses. It reads
 // no file content.
@@ -296,7 +323,7 @@ export function realPathThroughExisting(p) {
         }
     }
     try {
-        return join(realpathSync.native(cur), ...rest).replace(/\\/g, "/");
+        return canonicalPathSpelling(join(realpathSync.native(cur), ...rest));
     }
     catch {
         return null;

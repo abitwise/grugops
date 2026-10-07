@@ -271,16 +271,80 @@ export function readForWrite(root: string, path: string, maxBytes: number = USER
   return { state: "blocked", at: path, reason: unreadState(r) };
 }
 
+// ── THE ONE SPELLING OF A RECORDED PATH (plan 34-11, D-19, defect class WIN-1) ───────────────────────
+//
+// WHY THIS EXISTS. The windows-latest run 37521787426 failed 91 tests with one message shape: the
+// marker "was written for another directory (C:\Users\...\edit-default-1), not this one
+// (C:/Users/.../edit-default-1)". Both strings name the same directory. The installer wrote its records
+// (the marker `target`, the kit-home record `grugopsHome`) in one spelling, and the comparison read the
+// recorded value back as raw bytes against this directory's real path in that spelling. A record written
+// in the host's native spelling, which is the documented remedy for "the same repository moved", was
+// therefore refused on Windows. Every absolute path install records, and every recorded path it compares,
+// now passes through canonicalPathSpelling, on the write side and on the compare side.
+//
+// WHAT IT CHANGES. With the win32 flavor: the separators become forward slashes, a `\\?\UNC\` long-form
+// prefix becomes `//` (the plain UNC form), a `\\?\` long-form prefix before a drive letter is dropped,
+// and a leading drive letter is upper-cased (Windows drive letters are case-insensitive). Nothing else:
+// no `.` or `..` resolution, no trailing-separator trim, no other case folding, so a cosmetic difference
+// the doctor reports as such stays visible.
+//
+// WHY POSIX IS THE IDENTITY. On a POSIX file system a backslash is an ordinary filename byte: `/tmp/a\b`
+// and `/tmp/a/b` are two different directories. Folding the backslash there (what the earlier inline
+// `.replace(/\\/g, "/")` and install.ts's local toPosix did) made the installer record one directory under
+// another's name. So the posix flavor returns the input unchanged.
+//
+// WHY THE FLAVOR IS A PARAMETER. The function branches only on the flavor it is given, never on the
+// platform the process runs on, so a test hands it `path.win32` or `path.posix` and both spellings are
+// exercised, and mutation-provable, on any host (install/canonical-path.test.ts). Production code omits
+// it and gets the host's own node:path.
+//
+// WHY IT LIVES HERE AND NOT IN scripts/posix-path.ts. scripts/posix-path.ts is the scripts-side
+// published-path normalizer, but install/ imports nothing from scripts/ (the installer runs from the
+// shipped kit, D-18/D-28). This module already owns realTargetPath, the spelling of "which directory is
+// this", so the one spelling authority for recorded paths lives beside it. No other installer site may
+// spell or compare a recorded path another way; install/path-spelling-census.test.ts holds that.
+
+/** The part of a node:path implementation the spelling reads: `path.win32`, `path.posix` or the host's. */
+export interface PathFlavor {
+  readonly sep: string;
+  isAbsolute(p: string): boolean;
+}
+
+/** The host's own node:path, the flavor every production call uses. */
+const HOST_FLAVOR: PathFlavor = { sep, isAbsolute };
+
+/** Put `p` in the one spelling install records and compares (see THE ONE SPELLING above). */
+export function canonicalPathSpelling(p: string, flavor: PathFlavor = HOST_FLAVOR): string {
+  if (flavor.sep !== "\\") return p;
+  let s = p.replace(/\\/g, "/");
+  if (s.startsWith("//?/UNC/")) s = "//" + s.slice("//?/UNC/".length);
+  else if (/^\/\/\?\/[A-Za-z]:/.test(s)) s = s.slice("//?/".length);
+  if (/^[A-Za-z]:/.test(s)) s = s.charAt(0).toUpperCase() + s.slice(1);
+  return s;
+}
+
+/**
+ * Whether a recorded path names the directory whose real path is `here`: both sides pass through
+ * canonicalPathSpelling, so a record written in either spelling of one directory binds it, and two
+ * different directories never compare equal (the spelling changes separators, the long-form prefix and
+ * the drive-letter case only).
+ */
+export function sameRecordedPath(recorded: string, here: string, flavor: PathFlavor = HOST_FLAVOR): boolean {
+  return canonicalPathSpelling(recorded, flavor) === canonicalPathSpelling(here, flavor);
+}
+
 // realTargetPath (red-team B2 of plan 33.1-33, brief DC-2): the one spelling of "which directory is this"
 // that the install marker is bound to. The operating system's own real path (realpath(3) through
 // realpathSync.native): every symbolic link on the way resolved and, on a case-insensitive volume, the
 // case the directory really has, so `--target /tmp/x`, `--target /private/tmp/x` and a differently cased
-// spelling of the same directory all give one answer. POSIX separators, as the marker's other paths are
-// written. null when the path cannot be resolved (it does not exist, or a component cannot be searched):
-// a directory with no real path cannot be shown to be the one a marker names. It reads no file content.
+// spelling of the same directory all give one answer. On Windows it also expands an 8.3 short name
+// (`RUNNER~1`) to the long one, which the JS realpathSync does not. Spelled by canonicalPathSpelling, as
+// every path the marker records is. null when the path cannot be resolved (it does not exist, or a
+// component cannot be searched): a directory with no real path cannot be shown to be the one a marker
+// names. It reads no file content.
 export function realTargetPath(target: string): string | null {
   try {
-    return realpathSync.native(target).replace(/\\/g, "/");
+    return canonicalPathSpelling(realpathSync.native(target));
   } catch {
     return null;
   }
@@ -293,7 +357,8 @@ export function realTargetPath(target: string): string | null {
 // comparison. So the path is resolved, the deepest ancestor that exists (by lstat) is found, its real path
 // is taken with realpathSync.native (every link on the way to it resolved, and on a case-insensitive
 // volume the case the directory really has), and the missing remainder is appended unchanged. Nothing
-// below that ancestor exists, so no link can hide in the remainder. POSIX separators, as realTargetPath.
+// below that ancestor exists, so no link can hide in the remainder. Spelled by canonicalPathSpelling, as
+// realTargetPath.
 // null when the ancestor's real path cannot be read (a dangling link, a component that cannot be
 // searched, a non-directory on the way): the caller cannot show where the path is, and refuses. It reads
 // no file content.
@@ -313,7 +378,7 @@ export function realPathThroughExisting(p: string): string | null {
     }
   }
   try {
-    return join(realpathSync.native(cur), ...rest).replace(/\\/g, "/");
+    return canonicalPathSpelling(join(realpathSync.native(cur), ...rest));
   } catch {
     return null;
   }

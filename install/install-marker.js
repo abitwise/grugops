@@ -153,7 +153,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
-import { isOwnLink, kindAt, readForWrite, realTargetPath, treeRecord, wayTo } from "./user-file.js";
+import { isOwnLink, kindAt, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo } from "./user-file.js";
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
 /** The marker field that holds the one install ledger (D-33 (b)). */
@@ -265,7 +265,9 @@ function markerBinding(marker, here) {
     if (here === null) {
         return { by: "other-directory", why: `the real path of this directory could not be read, so it cannot be shown to be ${boundTo}, where the marker was written` };
     }
-    if (boundTo !== here) {
+    // Both sides through the one spelling (plan 34-11, D-19): a target recorded in the host's native
+    // spelling binds this directory on Windows; a different directory never does.
+    if (!sameRecordedPath(boundTo, here)) {
         return { by: "other-directory", why: `it was written for another directory (${boundTo}), not this one (${here}), so its records describe that directory` };
     }
     return null;
@@ -915,7 +917,7 @@ export function readKitHomeRecord(home) {
     if (ledger.state !== "ok")
         return unreadable(`its ledger is malformed (${ledger.why ?? "absent"})`);
     const here = realTargetPath(home);
-    if (here === null || parsed.grugopsHome !== here) {
+    if (here === null || !sameRecordedPath(parsed.grugopsHome, here)) {
         return {
             state: "unbound",
             ledger: none,

@@ -60,8 +60,9 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { realTargetPath } from "./user-file.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -174,11 +175,18 @@ export const NOTIFY_CONFIG = '{ "checkpoints": { "protected_branch_merge": "noti
  * `--check` name for the same repository moved (red-team B2 of plan 33.1-33). The marker is bound to the
  * real path of the directory install wrote it in, so a copy reads as another directory's record until
  * this is done. A test that copies an installed tree to act on the copy as an install calls this.
+ *
+ * The copy is re-bound with the product's own spelling (plan 34-11, D-19, WIN-1): the value is
+ * user-file.ts realTargetPath, the function install writes the marker `target` with, never a spelling
+ * this test helper makes up. Writing the host's native spelling here (`C:\Users\...`) is what made the
+ * windows-latest run 37521787426 compare one directory in two spellings.
  */
 export function rebindMarker(t: string): void {
   const p = join(t, ".grugops", "install.json");
   const m = JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
-  m.target = realpathSync.native(t);
+  const here = realTargetPath(t);
+  if (here === null) throw new Error(`rebindMarker: the real path of ${t} could not be read, so the marker cannot be re-bound to it`);
+  m.target = here;
   writeFileSync(p, JSON.stringify(m, null, 2) + "\n");
 }
 
