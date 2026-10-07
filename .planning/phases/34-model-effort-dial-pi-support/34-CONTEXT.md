@@ -127,6 +127,21 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   phase. It is disclosed as a named residual in the phase artifacts and a backlog item, because a bounded
   reader in `scripts/` would be a second implementation of `readUserFile`.
 
+### Gap round 1 decisions (human, 2026-10-07, answering 34-VERIFICATION.md gaps_found 8/11)
+- **D-19:** Gap round 1 fixes the two Windows root-cause families behind the windows-latest reds of run
+  37521787426, not only the 5 HOST-02 tests: (1) one path compared in two spellings (`C:\Users\...`
+  against `C:/Users/...`, the marker / kit-home family), and (2) POSIX file modes Windows cannot store
+  (`expected 438 to be 502`, the chmod-only-edit family). Each fix is Windows-native with no platform
+  conditional (carried D-14/D-16 rule of 33.1), its root cause is established from source and the printed
+  CI log before code changes (else `UNKNOWN - verify` and a diagnosis-first task), and the round ends with
+  a human-pushed windows-latest run whose id and result are recorded in 34-VALIDATION.md and WINDOWS.md
+  rows 316/317. HOST-02 closes only on that measured run. Gap rounds are capped at 4; this is round 1.
+- **D-20:** Code-review findings WR-03 (effort arm beside the installer's model-alias cross-check), WR-06
+  (install guide and adapters.md state Pi kit discovery after a scripted install as `UNKNOWN - verify`,
+  backlog 999.4) and WR-07 (correct or implement the "installer sets `GRUGOPS_PROJECT_DIR`" claim) are
+  fixed in this round. The other nine rows (WR-01, WR-02, WR-04, WR-05, IN-01..IN-05) get a recorded
+  disposition (`deferred` or `skipped`, with a reason) in 34-REVIEW-DISPOSITION.md, not code changes.
+
 ### Claude's Discretion
 - Exact TypeScript module/location of the host-tool registry, and how docs prose is checked against it.
 - Plan order and wave split between the effort half and the Pi half (they are independent).
@@ -164,6 +179,10 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
 
 ### Windows
 - `.planning/WINDOWS.md` rows 274 and 315 — the open Windows reds D-09 proceeds around
+- `.planning/WINDOWS.md` rows 316 and 317, `34-VALIDATION.md` §"Windows-latest measurement" — the
+  windows-latest reds gap round 1 closes (D-19)
+- `.planning/phases/34-model-effort-dial-pi-support/34-GAP-PLANNING-BRIEF.md` — gap-round defect classes;
+  every planner, checker, executor, reviewer and verifier reads it
 
 ### External (primary sources, researcher re-fetches and cites)
 - https://code.claude.com/docs/en/sub-agents — `effort` frontmatter field (D-01)
