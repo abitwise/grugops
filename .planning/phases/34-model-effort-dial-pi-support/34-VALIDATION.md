@@ -197,6 +197,157 @@ spellings (`C:\Users\...` against `C:/Users/...`) and Windows file modes (`expec
 Their cause is not established from the log (`UNKNOWN - verify`). Nothing was fixed in this plan
 (34-10 prohibition); gap closure decides.
 
+### Gap round 1 (D-19): diagnosis and prediction, written before the push
+
+Written by plan 34-18 Task 1 and committed before the human pushes, so the windows-latest result can be
+read against it rather than explained after the fact (WIN-3). Nothing here is a Windows result. The
+measured result goes in "Gap round 1 (D-19): measured result" below, from a run the human pushes.
+
+**How the earlier reds were re-read.** `gh run view --job 112468804112 --log` (read-only, run
+37521787426, head `dc2c7581`), colour sequences and the job/step/timestamp prefix stripped, each block
+taken from a line ` FAIL  <file> > …` (the header line included) to the next `⎯⎯⎯[n/144]⎯` separator,
+and the plan's family rule applied, first match wins. The rule is in 34-18-PLAN.md § "The family rule".
+
+**Family counts reproduced: 144 blocks; WIN-1 recorded path 91, WIN-1 printed path 5, WIN-2 43, other
+families 5.** These equal the counts stated at planning. One note on the reading: the WIN-1 printed-path
+arm for `installer-write-set.test.ts` "--migrate: a directory at .grugops/factory.config.json" matches
+only when the block's own ` FAIL` header line is part of the block. The `.grugops/factory.config.json`
+substring is in the test's name; the printed `was not carried forward` line spells the path with
+backslashes and the code frame truncates the source line. With the header excluded that one block reads
+as unclassified and the printed-path count is 4. The plan's rule takes the block from the ` FAIL` line,
+so the header is included and the count is 5.
+
+#### Root causes, as plans 34-11, 34-12 and 34-13 state them from source and the printed log
+
+| Family | Write side / producer (at run head `dc2c7581`) | Compare side (at run head) | Fix (plan, current site) |
+|---|---|---|---|
+| WIN-1 recorded path | the marker `target` and the kit-home `grugopsHome` were the host spelling `C:\Users\…`; the test helper `rebindMarker` wrote `m.target = realpathSync.native(t)` (install/installer-paths.test-support.ts:181) | `markerBinding`: `if (boundTo !== here)` (install/install-marker.ts:332); `readKitHomeRecord`: `parsed.grugopsHome !== here` (install-marker.ts:1099), with `here` spelled `C:/Users/…` | 34-11: `canonicalPathSpelling` (install/user-file.ts:317) spells every recorded path; `sameRecordedPath` (user-file.ts:332) decides both bindings (install-marker.ts:334, :1124); `realTargetPath` / `realPathThroughExisting` (user-file.ts:357, :377) return the canonical spelling; `rebindMarker` writes `realTargetPath(t)` (installer-paths.test-support.ts:184). 34-12: expected recorded paths come from `realTargetPath` (marker-binding, installer-kit-home, ledger, install.test.ts `canonicalPath`) |
+| WIN-1 printed path | the installer prints mixed spellings on Windows, e.g. `C:\…\target/.claude/agents`, and the doctor prints the marker path with backslashes | tests matched output against a natively built path: uninstall-removal `l.includes(join(target, ...d.split("/")) + " (")` (install/uninstall-removal.test.ts:577), a leading-`/` absoluteness test in installer-dry-run, a forward-slash regex on the doctor line (install.test.ts IN-04), `l.includes(".grugops/factory.config.json")` on the migrate verify line (installer-write-set.test.ts:605) | 34-12: `pathText`, `lineNamesPath`, `printedRel` (installer-paths.test-support.ts:214, :229, :248) apply the product's `canonicalPathSpelling` to both sides; the test-side census (install/path-spelling-census.test.ts) holds every installer test to them |
+| WIN-2 | the L1 rows made the "user edit" with `chmodSync(p, modeOf(p) ^ 0o100)` (install/record-truth.test.ts:335-336), an execute-bit flip Windows does not store; ledger and prune tests built expected records from literal modes | `expect(modeOf(p), …lost the user's mode).toBe(mode)` (record-truth.test.ts:340): Windows reported 0o666 (438) against the requested 0o766 (502) | 34-13: `userModeEdit` clears the write bits, the one change every platform stores, and throws when nothing was stored; `storedMode` reads expected modes back (installer-paths.test-support.ts:280, :290); one renderer `modeText` (user-file.ts:437) and one comparison `modeMatches` (install-marker.ts:442, used by `recordMatches` and uninstall.ts:1176, :1417); the IN-03 0600/0664 cases are gated on the measured capability "POSIX permission bits beyond read-only" (scripts/check-platform-shapes.ts:683; installer-prune.test.ts:210) and print a skip where it is absent (WINDOWS.md row 318). 34-14: the WIN-2 census (install/mode-census.test.ts) |
+
+The record-truth L1 rows need both fixes: on Windows they first failed the mode assertion, but they run
+after a copied marker binds, which is the WIN-1 rule.
+
+#### Per-file prediction for the 13 red files of run 37521787426
+
+| File (as printed) | Red then | WIN-1 recorded | WIN-1 printed | WIN-2 | Other | Fixing plan(s) | Predicted on the pushed head |
+|---|---|---|---|---|---|---|---|
+| `install/install.test.ts` | 3 | 0 | 1 | 0 | 2 | 34-12 (IN-04 doctor line through `pathText`) | **red, 2 tests** (the two other-family tests); IN-04 green |
+| `install/installer-dry-run.test.ts` | 5 | 5 | 0 | 0 | 0 | 34-11 (`rebindMarker`, `sameRecordedPath`), 34-12 (`printedRel`) | green |
+| `install/installer-kit-home.test.ts` | 2 | 2 | 0 | 0 | 0 | 34-11 (`readKitHomeRecord`), 34-12 (expected from `realTargetPath`) | green |
+| `install/installer-never-installed.test.ts` | 4 | 4 | 0 | 0 | 0 | 34-11 | green |
+| `install/installer-prune.test.ts` | 4 | 0 | 1 | 3 | 0 | 34-12 (after `--migrate` lines through `lineNamesPath`), 34-13 (W3 through `userModeEdit`; IN-03 x2 capability-gated) | green file: 2 tests green, **2 tests skipped with a printed `SKIPPED shape="POSIX permission bits beyond read-only"` line** (IN-03 0600 and 0664) |
+| `install/installer-user-edit.test.ts` | 60 | 60 | 0 | 0 | 0 | 34-11, 34-12 (`linesNaming` through the helpers) | green |
+| `install/installer-write-set.test.ts` | 2 | 0 | 1 | 0 | 1 | 34-12 (:605 through `pathText`) | **red, 1 test** (the other-family readUserFile ENOTDIR case); the migrate case green |
+| `install/kit-plan-limits.test.ts` | 2 | 0 | 0 | 0 | 2 | none (outside D-19's two families) | **red, 2 tests** |
+| `install/ledger-provenance.test.ts` | 1 | 1 | 0 | 0 | 0 | 34-11, 34-12 (`printedRel` for `REMOVED_DIRS`) | green |
+| `install/ledger.test.ts` | 9 | 3 | 0 | 6 | 0 | 34-11/34-12 (fixtures from `realTargetPath`), 34-13/34-14 (W4-W9 through `storedMode`/`userModeEdit`; `FILE_REC` from a stored mode) | green |
+| `install/marker-binding.test.ts` | 5 | 5 | 0 | 0 | 0 | 34-11, 34-12 (`recordedTarget`, the two-spelling remedy) | green |
+| `install/record-truth.test.ts` | 45 | 11 | 0 | 34 | 0 | 34-11/34-12 (all 45), 34-13 (the 34 L1 mode rows) | green |
+| `install/uninstall-removal.test.ts` | 2 | 0 | 2 | 0 | 0 | 34-12 (`linesFor`, `EMPTY_DIRS` through `pathText`/`lineNamesPath`) | green |
+| **Total** | **144** | **91** | **5** | **43** | **5** | | **3 files and 5 tests red; 137 green; 2 skipped** |
+
+Per-test detail for the files whose reds do not all share one prediction:
+
+- `install/install.test.ts`: "readUserFile: an absent path is `absent`; a path under a regular file and a dangling symlink are not" (other, red); "W1: when the incomplete copy cannot be removed either, …" (other, red); "IN-04: a directory at the marker — install --check finishes with the unreadable-marker finding and leaves it as it was" (WIN-1 printed, green).
+- `install/installer-write-set.test.ts`: "readUserFile: a path under a regular file is `unreadable` (ENOTDIR), never `absent`" (other, red); "--migrate: a directory at .grugops/factory.config.json — the legacy config is neither renamed nor lost" (WIN-1 printed, green).
+- `install/installer-prune.test.ts`: "IN-03: an edited kit file with mode 0600 is backed up with mode 0600, holding the edit" and "… mode 0664 …" (WIN-2, skipped with a printed line, not green and not red); "a recorded backup with a chmod since install made it is left, named with the reason, and keeps its entry" (WIN-2, green); "after a --migrate: DRY_RUN changes nothing; prune removes the recorded in-repo-kit, legacy-config and kit-home backups, …" (WIN-1 printed, green).
+- `install/ledger.test.ts`: the six WIN-2 tests ("treeRecord gives a file its file record, …", "treeRecord walks with lstat: …", "backupContentRecord: a file's bytes and mode, …", "carries the previous kit-true entry's own record while owns answers owned", "a chmod-only change is recorded, not owned, and the mode is named", "a file entry whose bytes and mode still match is owned") and the three WIN-1 recorded tests ("readKitHomeRecord: absent, ok, unbound …", "a bound marker in the six-record shape, with no `ledger`, …", "a bound marker with `ledger` reads `ok`; …") are all predicted green.
+
+#### The five HOST-02 tests (34-VERIFICATION.md gap 1), predicted green
+
+| Test | Family | Fixing plan(s) | Predicted |
+|---|---|---|---|
+| uninstall-removal.test.ts "a never-installed target holding grugops blocks, both settings files and the fixed directories empty changes by zero bytes, and each is named" (real) | WIN-1 printed | 34-12 | green |
+| the same test, DRY_RUN | WIN-1 printed | 34-12 | green |
+| installer-user-edit.test.ts `.pi/prompts/grugops.md (edited in the default install)` | WIN-1 recorded | 34-11, 34-12 | green |
+| record-truth.test.ts ".pi/prompts/grugops.md: a chmod-only edit survives uninstall (the file stays, with the user's mode)" | WIN-1 and WIN-2 | 34-11, 34-13 | green |
+| installer-dry-run.test.ts "subset: uninstall after a fresh install into an EMPTY target (flow 10's tree): …" | WIN-1 recorded | 34-11, 34-12 | green |
+
+#### The five other-family tests, predicted red (carried)
+
+All five were red by the same name in the pre-phase run 36716255097 (job 109889805015) and in run
+37521787426. Their bodies are byte-identical between `45766c2d` (phase plan) and the local HEAD below:
+each test call was extracted from both trees with the TypeScript parser and hashed (sha256 prefix and
+length the same at both revisions). They sit outside D-19's two families and this round does not touch
+them.
+
+| Test | Printed cause (run 37521787426) | Body at 45766c2d and HEAD | Predicted |
+|---|---|---|---|
+| install.test.ts "readUserFile: an absent path is `absent`; a path under a regular file and a dangling symlink are not" | `expected { state: 'absent' }` against `unreadable` / `ENOTDIR` (Windows reports ENOENT for a path under a regular file) | 753 bytes, `837db277d4c3` both | red |
+| install.test.ts "W1: when the incomplete copy cannot be removed either, the verify names it incomplete, and uninstall never calls it a backup of the edit" | the W1 ENOSPC kit re-install case | 1522 bytes, `7312ea3846af` both | red |
+| installer-write-set.test.ts "readUserFile: a path under a regular file is `unreadable` (ENOTDIR), never `absent`" | `expected { state: 'absent' }` (ENOENT, as above) | 297 bytes, `21f82adf30b5` both | red |
+| kit-plan-limits.test.ts "a full path of PATH_MAX - 1 bytes is within the limit, and PATH_MAX bytes is over it (PATH_MAX counts the NUL)" | `has a component of 1023 bytes` (PATH_MAX/NAME_MAX limits) | 711 bytes, `067e3bbb0f8d` both | red |
+| kit-plan-limits.test.ts "a component of NAME_MAX bytes is within the limit, and NAME_MAX + 1 bytes is over it, counted in UTF-8 bytes" | `has a component of 258 bytes` | 458 bytes, `4610245de9ed` both | red |
+
+#### Tests this round added or changed that have never run on windows-latest
+
+HOST-02 counts every test phase 34 added or changed, gap round 1 included, so these are part of the
+reading too. `git diff --stat dc2c7581..HEAD` over test files lists 18: three new files
+(`install/canonical-path.test.ts`, `install/path-spelling-census.test.ts`, `install/mode-census.test.ts`)
+and 15 changed ones (`install/install.test.ts`, which also gained the 34-15 effort refusal cases,
+`installer-dry-run`, `installer-kit-home`, `installer-marker-retention`, `installer-paths.test-support`,
+`installer-prune`, `installer-user-edit`, `installer-write-set`, `ledger-provenance`, `ledger`,
+`marker-binding`, `record-truth`, `settings-json-provenance`, `uninstall-removal`, and
+`scripts/context-io.test.ts`). Prediction: green, apart from the reds and skips named above. Basis: the
+two censuses and the canonical-path tables are pure (they parse source or call `path.win32` /
+`path.posix` functions) and derive their scanned sets with `readdir`; the rest are covered by the local
+run below. That is a prediction, not a measurement: none of these has run on windows-latest.
+
+#### Predicted printed totals
+
+- `Test Files 3 failed | 100 passed (103)`. Run 37521787426 printed 100 files, the local count at its
+  head; this round's three new test files make 103, the local count below.
+- `Tests 5 failed | …`, with the total equal to the local total below (7437) if every test is defined
+  the same way on both hosts, as it was for run 37521787426 (7337 on both). The skipped count rises by at least
+  the two IN-03 cases over the 28 printed then; whether any new test skips on Windows is
+  `UNKNOWN - verify`.
+- The two `check-platform-shapes.js` steps run before vitest on windows-latest and now also probe the
+  capability 34-13 added. An absent capability is a skip row, not a failure (`probeHostCapabilities`
+  in scripts/check-platform-shapes.ts), so the prediction is: the line reads `ABSENT (skipped, see
+  below)` and both steps stay green, as they were in run 37521787426. Not measured.
+
+#### `UNKNOWN - verify` before the run
+
+- Assertions after the first failing one in every earlier red have never run on windows-latest. Plan
+  34-12 Task 3 audited them statically (the masked-assertion table in 34-12-SUMMARY.md); a later
+  assertion may still fail.
+- How windows-latest treats a read-only file on uninstall, rename and hard-link removal. `userModeEdit`
+  leaves files read-only; the L1 rows expect uninstall to keep such a file with exit 0 or 3. For
+  CLAUDE.md and `.github/copilot-instructions.md`, uninstall's block removal cannot write the read-only
+  file, so the file is kept before the mode is compared (34-13 deviation 1); the exit status that write
+  failure produces on Windows is unmeasured. Whether Windows stores the write-bit clear as its read-only
+  attribute and whether `modeMatches` sees it there is 34-14 m4's open half.
+- The capability gate's skip line on windows-latest: predicted to print `SKIPPED shape="POSIX permission
+  bits beyond read-only" position="install/installer-prune.test.ts: IN-03 0600" platform=win32: …` and
+  its 0664 twin; that the probe reads absent there is predicted, not measured.
+
+#### Test names carried to the pushed head
+
+So the measured run can be compared by name, `npx vitest list --json` over the 13 files (it collects
+names, runs nothing; 1297 tests) was checked against the 144 printed names: 143 exist unchanged. The
+one that does not is marker-binding.test.ts "B2: after the remedy (target set to this directory by
+hand, for the same repository moved), uninstall reverses the install". Plan 34-12 turned it into two
+cases, one per spelling: "… by hand in the spelling the remedy prints (realTargetPath), …" and "… by
+hand in the host's native spelling a user types (nativeRealPath), …". Both are predicted green, so the
+WIN-1 recorded-path family has 92 test names on the pushed head for the 91 earlier reds.
+
+#### Local chain on the tree to be pushed (macOS, not a Windows result)
+
+Run on local HEAD `17fd6be28b4b8468d564e631fe891fbc2d7efae5` (plan 34-17's last commit), working tree
+clean, 2026-10-08: the workflow's steps as listed in 34-18-PLAN.md Task 1 `<verify>`, in that order
+(build, build parity, typecheck, `check-platform-shapes.js`, vitest with the e2e lane excluded, the
+seven freshness gates, `generate:adapters` followed by the clean check on `.claude/agents/`, foundation
+guards, kit refs, public-docs vocabulary, audit register, claim anchors, banned claims, imperative
+lexicon, `validate-agent-factory.js`). Exit 0. `npm test` was not run.
+
+Vitest printed: `Test Files  103 passed (103)`, `Tests  7435 passed | 2 skipped (7437)`, duration
+987.22 s.
+
+The commit that adds this section changes only this file, so the head the human pushes is that commit,
+one documentation commit on top of `17fd6be2`. Its sha is recorded at the checkpoint and checked
+against the run's `headSha` in Task 3.
+
 ---
 
 ## Validation Sign-Off
