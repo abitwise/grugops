@@ -96,3 +96,89 @@ the finding and why it was not fixed there.
   (WR-06, D-20). Both sentences are about the minimal path, and `C-28-034` is a registered claim
   whose text change needs a registry companion edit and a human judgement on what backs it.
 - **Suggested owner:** human triage, with backlog 999.4 (a per-host run would answer both).
+
+## From gap round 1 (D-20)
+
+Plan 34-17 recorded the code review's dispositions (`34-REVIEW-DISPOSITION.md`). Under decision D-20,
+gap round 1 fixes WR-03 (plan 34-15), WR-06 (plan 34-16) and WR-07 (plan 34-17) and changes no code
+for the nine rows below. Each is `deferred` in the disposition ledger with the same reason. The
+findings are quoted from `34-REVIEW.md`.
+
+### WR-01: host detection reads grugops's own writes as proof that a host is in use
+
+- **Finding:** `detectTools()` counts any `.pi`, `.github` or `.gemini` entry as the host being in
+  use, and the installer writes into all three, so from the second install on every repository reports
+  those hosts. The registry docstring at `install/host-tools.ts:54` ("its presence means the host is
+  in use there") states the opposite of what happens.
+- **Why not fixed in round 1:** the `tools detected:` line drives no write. A fix changes the HOST-01
+  detection contract for three hosts at once, and D-20 keeps it out of this round. The docstring is a
+  DOC-1 member left for the same fix.
+- **Suggested owner:** a later gap round or backlog triage, together with the detection contract.
+
+### WR-02: a non-directory `.pi` entry makes every install exit 3
+
+- **Finding:** the Pi template write is unconditional, so a regular file or symlink named `.pi` at the
+  target root turns a clean install into `install INCOMPLETE` with exit code 3.
+- **Why not fixed in round 1:** the unconditional write is decision D-17. Reporting that case as
+  `skipped` changes the installer's exit-code contract and needs a human decision. Nothing is
+  overwritten, so the install stays additive (threat T-34-47, accepted).
+- **Suggested owner:** human decision on the D-17 exit contract, then a later gap round.
+
+### WR-04: raw control bytes from config keys reach printed refusal text
+
+- **Finding:** effort refusals interpolate config keys without quoting, so control bytes or newlines
+  in `.grugops/factory.config.json` reach the installer's and the guards' output.
+- **Why not fixed in round 1:** this is the P32.1 published-message class. It predates phase 34 in the
+  `models` block and was copied into `models.effort`. Both blocks should be fixed together through
+  `quoteValue` in `scripts/model-tiers.ts`. Accepted for this round as threat T-34-46; the config file
+  is in the user's own repository.
+- **Suggested owner:** a later gap round, fixing the `models` and `models.effort` refusals in one change.
+
+### WR-05: the installer's closing safety line derives "documentation only" from `dispatch`
+
+- **Finding:** the line keys on the registry's `dispatch` attribute, not on whether the host gets ask
+  rules.
+- **Why not fixed in round 1:** the line is correct today, because the hosts with no ask rules are
+  exactly the sequential ones. An `askRules` registry field is a HOST-01 contract change.
+- **Suggested owner:** backlog triage, with the next host-registry change.
+
+### IN-01: three implementations of "a per-host table row" disagree
+
+- **Finding:** three separate matchers read per-host table rows and disagree on the same bytes.
+- **Why not fixed in round 1:** all three fail closed today. They should be unified in one module,
+  together with IN-02.
+- **Suggested owner:** backlog triage.
+
+### IN-02: the validator only warns on an unrecognisable dispatch table
+
+- **Finding:** `scripts/validate-agent-factory.ts` warns when it cannot recognise the dispatch-map
+  table, while the UAT oracle fails red on the same input. Its comment ("never passed silently")
+  overstates what it does.
+- **Why not fixed in round 1:** it belongs with IN-01's unification. The comment is a DOC-1 member left
+  for the same change.
+- **Suggested owner:** backlog triage, with IN-01.
+
+### IN-03: the Pi template is create-only
+
+- **Finding:** a later change to `PI_PROMPT_TEXT` (`install/install.ts`) never reaches a repository
+  that already has the template.
+- **Why not fixed in round 1:** this round changes documentation, not `PI_PROMPT_TEXT`, so no installed
+  template is stale. A refresh rule belongs with the next template change.
+- **Suggested owner:** the plan that next changes `PI_PROMPT_TEXT`.
+
+### IN-04: a blank `effortRationale` also refuses the model `tiered` preset
+
+- **Finding:** the effort-rationale floor sits inside `tieredTableRefusals` (`scripts/model-tiers.ts`),
+  so it couples the model preset to the effort rows.
+- **Why not fixed in round 1:** every effort row is complete today, so nothing is refused. The fix is to
+  split the check or to document the shared floor.
+- **Suggested owner:** backlog triage.
+
+### IN-05: the structure validator does not validate the `models` / `models.effort` block
+
+- **Finding:** `scripts/validate-agent-factory.ts` does not ask `readModelsConfig`.
+- **Why not fixed in round 1:** pre-existing for the model dial and widened by effort. The block is
+  read through `readModelsConfig` by the adapter generator (`scripts/generate-role-adapters.ts`) and
+  the foundation guards (`scripts/check-foundation-guards.ts`), so it is checked there; the
+  structure validator does not read it.
+- **Suggested owner:** backlog triage.
