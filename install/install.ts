@@ -485,17 +485,28 @@ const MIRROR_PACKAGE_JSON = '{"type":"module"}\n';
 // invoked by an absolute join()-built path with `shell` unset.
 //
 // The `.mjs` extension makes it unambiguously an ES module whatever any package.json says.
+//
+// BOTH DIALS, ONE PROBE, ONE LINE (plan 34-15, D-20, WR-03). The generator announces two
+// resolutions: the MODEL assignment and the EFFORT assignment. The probe reads both through the
+// module's own two readers and prints them on its one line as `results` (model) and `effortResults`
+// (effort), so the installer reads both announcements the same way, at the same site, and still
+// holds no copy of either prefix.
 const RESOLUTION_PROBE_REL = "grugops-read-resolution.mjs";
 const RESOLUTION_PROBE_SOURCE = [
   "// Written into a temp mirror by the grugops installer and removed with it. It exists so the",
   "// installer can read the resolution the generator announced without importing the module that",
   "// owns that grammar: the reader stays where it is declared, and the installer holds no copy of",
   "// the marker. Reads the generator's stdout from stdin; prints one JSON line.",
-  'import { resolvedAssignmentsIn } from "./model-tiers.js";',
+  'import { resolvedAssignmentsIn, resolvedEffortAssignmentsIn } from "./model-tiers.js";',
   'let input = "";',
   'process.stdin.setEncoding("utf8");',
   "for await (const chunk of process.stdin) input += chunk;",
-  'process.stdout.write(JSON.stringify({ results: resolvedAssignmentsIn(input) }) + "\\n");',
+  "process.stdout.write(",
+  "  JSON.stringify({",
+  "    results: resolvedAssignmentsIn(input),",
+  "    effortResults: resolvedEffortAssignmentsIn(input),",
+  '  }) + "\\n",',
+  ");",
   "",
 ].join("\n");
 
@@ -2877,10 +2888,73 @@ function writeKitHomeRecord(previous: ReturnType<typeof readKitHomeRecord>, made
 // The announced resolution, as this side reads it back off the probe's one line. The three numbers
 // a consumer can check independently: the member count, how many members an override set, and the
 // sorted distinct aliases the run actually emitted.
+//
+// `effort` is the EFFORT dial's announcement, read the same way (plan 34-15, D-20, WR-03): the
+// member count, the override count, and the sorted distinct levels the run emitted, `inherit`
+// included (an adapter whose level is `inherit` carries no `effort:` line at all).
 interface AnnouncedAssignment {
   readonly roles: number;
   readonly overrides: number;
   readonly aliases: string[];
+  readonly effort: {
+    readonly roles: number;
+    readonly overrides: number;
+    readonly levels: string[];
+  };
+}
+
+// oneAnnouncement: the ONE reading of a dial's result list off the probe's line (plan 34-15, RC-1).
+// Three named conditions, the same for both dials: the list is missing; it does not hold exactly
+// one announcement (zero means the run announced nothing; two or more is a stream carrying two
+// announcements, which is ambiguous rather than agreeable; neither is a default); or the one
+// announcement was refused by name by the mirrored module that owns the grammar. The shape of the
+// accepted value is the caller's to check, because the two dials carry different members.
+//
+// The words each refusal names the announcement by are chosen INSIDE the function, not held in
+// module constants: the --check doctor reaches the render helper from a line above this
+// declaration, and a module `const` read from there is in its temporal dead zone (a hoisted
+// function is not). The model arm's sentences are the ones this installer has always printed; the
+// effort arm's name the effort announcement, so a reader can tell which of the two was unreadable.
+function oneAnnouncement(
+  list: unknown,
+  dial: "model" | "effort",
+): { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly problem: string } {
+  const words =
+    dial === "model"
+      ? {
+          results: "results",
+          announcements: "resolved-assignment announcement(s)",
+          resolution: "the announced resolution",
+        }
+      : {
+          results: "effort results",
+          announcements: "resolved-effort-assignment announcement(s)",
+          resolution: "the announced effort resolution",
+        };
+  if (!Array.isArray(list)) {
+    return { ok: false, problem: `the reader's answer did not carry a list of ${words.results}` };
+  }
+  if (list.length !== 1) {
+    return {
+      ok: false,
+      problem:
+        `the generator's output carried ${list.length} ${words.announcements} ` +
+        "where exactly one was required",
+    };
+  }
+  const one = (list[0] ?? {}) as { ok?: unknown; value?: unknown; reason?: unknown };
+  if (one.ok !== true) {
+    return {
+      ok: false,
+      problem: `${words.resolution} was refused by name — ${String(one.reason ?? "no reason given")}`,
+    };
+  }
+  return { ok: true, value: one.value ?? {} };
+}
+
+// A non-negative integer: the declared type of an announced count.
+function isCount(n: unknown): boolean {
+  return typeof n === "number" && Number.isInteger(n) && n >= 0;
 }
 
 // What a completed render produced. `dir` is the mirror root and is valid ONLY inside the callback;
@@ -3129,37 +3203,48 @@ function renderAdaptersInMirror(use: (result: MirrorResult) => void): void {
     let announced: AnnouncedAssignment | null = null;
     let announceProblem = "";
     try {
-      const parsed = JSON.parse(probeLines[0]) as { results?: unknown };
-      const results = Array.isArray(parsed.results) ? parsed.results : null;
-      if (results === null) {
-        announceProblem = "the reader's answer did not carry a list of results";
-      } else if (results.length !== 1) {
-        // Zero means the run announced nothing; two or more means a stream carrying two
-        // announcements, which is ambiguous rather than agreeable. Neither is a default.
-        announceProblem =
-          `the generator's output carried ${results.length} resolved-assignment announcement(s) ` +
-          "where exactly one was required";
+      const parsed = JSON.parse(probeLines[0]) as { results?: unknown; effortResults?: unknown };
+      // BOTH DIALS THROUGH ONE CODE PATH (plan 34-15, RC-1). The three named conditions — not a
+      // list, not exactly one announcement, refused by name — are asked by ONE helper about each
+      // dial's list, so the effort arm cannot drift from the model arm. Only the shape differs.
+      const model = oneAnnouncement(parsed.results, "model");
+      const effort = oneAnnouncement(parsed.effortResults, "effort");
+      if (!model.ok) {
+        announceProblem = model.problem;
+      } else if (!effort.ok) {
+        announceProblem = effort.problem;
       } else {
-        const one = results[0] as { ok?: unknown; value?: unknown; reason?: unknown };
-        if (one.ok !== true) {
-          announceProblem = `the announced resolution was refused by name — ${String(one.reason ?? "no reason given")}`;
+        const v = model.value as { roles?: unknown; overrides?: unknown; aliases?: unknown };
+        const aliases = Array.isArray(v.aliases) ? v.aliases : null;
+        const e = effort.value as { roles?: unknown; overrides?: unknown; levels?: unknown };
+        const levels = Array.isArray(e.levels) ? e.levels : null;
+        if (
+          typeof v.roles !== "number" ||
+          typeof v.overrides !== "number" ||
+          aliases === null ||
+          aliases.some((a) => typeof a !== "string")
+        ) {
+          announceProblem = "the announced resolution did not carry the declared shape";
+        } else if (
+          !isCount(e.roles) ||
+          !isCount(e.overrides) ||
+          levels === null ||
+          levels.some((l) => typeof l !== "string")
+        ) {
+          announceProblem =
+            "the announced effort resolution did not carry the declared shape (two non-negative " +
+            "integers and a list of strings)";
         } else {
-          const v = one.value as { roles?: unknown; overrides?: unknown; aliases?: unknown };
-          const aliases = Array.isArray(v.aliases) ? v.aliases : null;
-          if (
-            typeof v.roles !== "number" ||
-            typeof v.overrides !== "number" ||
-            aliases === null ||
-            aliases.some((a) => typeof a !== "string")
-          ) {
-            announceProblem = "the announced resolution did not carry the declared shape";
-          } else {
-            announced = {
-              roles: v.roles,
-              overrides: v.overrides,
-              aliases: aliases as string[],
-            };
-          }
+          announced = {
+            roles: v.roles,
+            overrides: v.overrides,
+            aliases: aliases as string[],
+            effort: {
+              roles: e.roles as number,
+              overrides: e.overrides as number,
+              levels: levels as string[],
+            },
+          };
         }
       }
     } catch (e) {
@@ -3217,41 +3302,74 @@ function renderAdaptersInMirror(use: (result: MirrorResult) => void): void {
   }
 }
 
-// The frontmatter key a rendered adapter carries its resolved alias on. A whole-line PREFIX test,
-// matching how the generator emits it (`model: ` then the alias, on its own line).
+// The frontmatter key a rendered adapter carries its resolved alias on, and the key it carries its
+// effort level on. Whole-line PREFIX tests, matching how the generator emits them (`model: ` then
+// the alias, and `effort: ` then the level, each on its own line).
 const RENDERED_MODEL_KEY = "model: ";
+const RENDERED_EFFORT_KEY = "effort: ";
 
-// readRenderedAlias: the alias a rendered adapter carries, or a named refusal.
+// The level an adapter carrying NO `effort:` line is installed at. The generator writes no line for
+// `inherit` (scripts/generate-role-adapters.ts writes `effort:` "only when it is not `inherit`"),
+// and that is the level its announcement lists for such roles. Reading zero lines as this word is
+// what makes the level SET read off the bytes comparable with the announced set. It is the one
+// effort level this installer spells, and it spells it only to read an absence.
+const ABSENT_EFFORT_LEVEL = "inherit";
+
+// readRenderedKeyLines: THE ONE LINE READER over a rendered adapter's text (plan 34-15, RC-1). Every
+// line beginning with `key`. Both dials are read through it, over the same bytes, so the model arm
+// and the effort arm cannot come to two different readings of one file.
+function readRenderedKeyLines(text: string, key: string): string[] {
+  return text.split("\n").filter((line) => line.startsWith(key));
+}
+
+// readRenderedDials: the alias and the effort level a rendered adapter will be installed with, or
+// every named refusal (it replaces readRenderedAlias, which read the model dial alone).
 //
 // WHAT BOUNDS ITS INPUT, stated because the answer is not obvious from the signature. It is asked
-// ONLY about bytes this run just rendered for an AGENT adapter — never about a skill file, never
-// about a file already in the target, never about arbitrary markdown. The caller reads it over the
-// mirror's own output immediately after a clean render, and the alias-set cross-check below is what
-// bounds it: the distinct set this returns must equal the set the generator independently
-// announced, so a value this reader got wrong cannot pass unnoticed.
+// ONLY about the TEXT ABOUT TO BE WRITTEN for an AGENT adapter this run just rendered (the
+// transformed text the plan entry carries) — never about a skill file, never about a file already
+// in the target, never about arbitrary markdown. Reading the transformed text rather than the
+// render is what lets a transform that drops or duplicates either line be refused. The set
+// cross-checks below are what bound it: the distinct sets this returns must equal the sets the
+// generator independently announced, so a value this reader got wrong cannot pass unnoticed.
 //
 // IT IS A REPORTING PROJECTION, NOT A DECISION PREDICATE. Nothing routes, refuses or writes
-// differently because of the VALUE it returns; the value is printed, and the SET of values is
-// cross-checked. The one thing it decides is the exactly-one floor: zero or two-or-more `model:`
-// lines in a rendered adapter is a different defect from a wrong value, with a different remedy,
-// and taking "the first match" would hide both.
-type RenderedAliasResult =
-  | { readonly ok: true; readonly value: string }
-  | { readonly ok: false; readonly reason: string };
+// differently because of the VALUES it returns; the alias is printed, and the SETS of values are
+// cross-checked. The one thing it decides is each dial's line-count floor:
+//   - model: exactly one `model:` line. Zero or two-or-more is a different defect from a wrong
+//     value, with a different remedy, and taking "the first match" would hide both.
+//   - effort: zero lines (the `inherit` level) or one. Two or more is refused by name for the same
+//     reason.
+type RenderedDialsResult =
+  | { readonly ok: true; readonly alias: string; readonly effort: string }
+  | { readonly ok: false; readonly reasons: string[] };
 
-function readRenderedAlias(text: string, label: string): RenderedAliasResult {
-  const found = text.split("\n").filter((line) => line.startsWith(RENDERED_MODEL_KEY));
-  if (found.length !== 1) {
-    return {
-      ok: false,
-      reason:
-        `${label} was rendered carrying ${found.length} line(s) beginning "${RENDERED_MODEL_KEY}" ` +
+function readRenderedDials(text: string, label: string): RenderedDialsResult {
+  const reasons: string[] = [];
+  const models = readRenderedKeyLines(text, RENDERED_MODEL_KEY);
+  if (models.length !== 1) {
+    reasons.push(
+      `${label} was rendered carrying ${models.length} line(s) beginning "${RENDERED_MODEL_KEY}" ` +
         `where exactly one was required, so the model this adapter would be installed with cannot ` +
         `be stated. Zero and two are different defects from a wrong value and neither is read as ` +
         `the other; reporting the first match would hide both.`,
-    };
+    );
   }
-  return { ok: true, value: found[0].slice(RENDERED_MODEL_KEY.length) };
+  const efforts = readRenderedKeyLines(text, RENDERED_EFFORT_KEY);
+  if (efforts.length > 1) {
+    reasons.push(
+      `${label} was rendered carrying ${efforts.length} line(s) beginning "${RENDERED_EFFORT_KEY}" ` +
+        `where at most one was allowed, so the effort level this adapter would be installed with ` +
+        `cannot be stated. No line is the ${ABSENT_EFFORT_LEVEL} level and one line names a level; ` +
+        `two or more is neither, and reporting the first match would hide it.`,
+    );
+  }
+  if (reasons.length > 0) return { ok: false, reasons };
+  return {
+    ok: true,
+    alias: models[0].slice(RENDERED_MODEL_KEY.length),
+    effort: efforts.length === 0 ? ABSENT_EFFORT_LEVEL : efforts[0].slice(RENDERED_EFFORT_KEY.length),
+  };
 }
 
 // What the transform below produced: the FINAL text a materialized file would carry, and how many
@@ -4799,10 +4917,27 @@ function buildKitPlan(): KitPlan {
         );
         return;
       }
+      // ...AND THE SAME CHECK FOR THE EFFORT DIAL, AT THE SAME SITE (plan 34-15, D-20, RC-1). The
+      // effort announcement carries its own member count, and it is held to the same derived listing.
+      if (announced.effort.roles !== rendered.length) {
+        refusals.push(
+          `.claude/agents/ — the render announced an effort resolution covering ` +
+            `${announced.effort.roles} role(s), while this run derived ${rendered.length} rendered ` +
+            `adapter(s) from the render's own output directory. The two numbers must agree: a run ` +
+            `installing over a disagreement would be installing a set it cannot vouch for.\n` +
+            `                 No adapter was installed and every pre-existing target adapter was left ` +
+            `as it was. The model configuration this run reads is ${targetConfigFile}.`,
+        );
+        return;
+      }
 
-      // THE ALIAS EVERY RENDERED ADAPTER CARRIES, READ OUT OF THE BYTES ABOUT TO BE WRITTEN, for ALL
-      // members before any write: a refusal on the last member still leaves the target untouched.
+      // THE ALIAS AND THE EFFORT LEVEL EVERY RENDERED ADAPTER CARRIES, READ OUT OF THE BYTES ABOUT TO
+      // BE WRITTEN, for ALL members before any write: a refusal on the last member still leaves the
+      // target untouched. Since plan 34-15 both are read from the TRANSFORMED text (the text the plan
+      // entry carries), not from the render, so a transform that drops or duplicates either line is
+      // refused rather than installed.
       const aliasOf = new Map<string, string>();
+      const effortOf = new Map<string, string>();
       let memberRefused = false;
       for (const f of adapterSet) {
         const label = `.claude/agents/${f}`;
@@ -4820,17 +4955,6 @@ function buildKitPlan(): KitPlan {
           continue;
         }
         const text = renderedRead.text;
-        const alias = readRenderedAlias(text, label);
-        if (!alias.ok) {
-          refusals.push(
-            `.claude/agents/ — ${alias.reason}\n` +
-              `                 No adapter was installed and every pre-existing target adapter was ` +
-              `left as it was.`,
-          );
-          memberRefused = true;
-          continue;
-        }
-        aliasOf.set(f, alias.value);
 
         // THE ROUTING FLOOR, ASKED BEFORE THE BANNER FLOOR BECAUSE IT BOUNDS WHAT THAT FLOOR MEANS.
         //
@@ -4877,6 +5001,25 @@ function buildKitPlan(): KitPlan {
           memberRefused = true;
           continue;
         }
+
+        // BOTH DIALS, READ OUT OF THE TEXT ABOUT TO BE WRITTEN (plan 34-15, D-20, WR-03). The
+        // transformed text is what the plan entry below carries and what the write phase writes, so
+        // this is the last point at which a dropped or duplicated `model:` or `effort:` line can be
+        // seen before it reaches the target. Each dial's floor is its own named refusal.
+        const dials = readRenderedDials(transformed.text, label);
+        if (!dials.ok) {
+          for (const reason of dials.reasons) {
+            refusals.push(
+              `.claude/agents/ — ${reason}\n` +
+                `                 No adapter was installed and every pre-existing target adapter was ` +
+                `left as it was.`,
+            );
+          }
+          memberRefused = true;
+          continue;
+        }
+        aliasOf.set(f, dials.alias);
+        effortOf.set(f, dials.effort);
         adapters.push({
           dest: join(TARGET, ".claude", "agents", f),
           label,
@@ -4885,7 +5028,7 @@ function buildKitPlan(): KitPlan {
           // linked it to exactly this kit source path, so that link is install's own.
           src: join(GRUGOPS_SRC, ".claude", "agents", f),
           text: transformed.text,
-          alias: alias.value,
+          alias: dials.alias,
         });
       }
       if (memberRefused) return;
@@ -4899,6 +5042,23 @@ function buildKitPlan(): KitPlan {
         refusals.push(
           `.claude/agents/ — the aliases read out of the rendered adapters are ` +
             `[${readAliases.join(", ")}], while the render announced [${saidAliases.join(", ")}]. ` +
+            `The bytes and the announcement describe the same resolution, so a disagreement means one ` +
+            `of them is wrong and this run cannot say which.\n` +
+            `                 No adapter was installed and every pre-existing target adapter was left ` +
+            `as it was. The model configuration this run reads is ${targetConfigFile}.`,
+        );
+        return;
+      }
+      // ...AND THE LEVEL-SET CROSS-CHECK FOR THE EFFORT DIAL, AT THE SAME SITE AND IN THE SAME FORM
+      // (plan 34-15, D-20, RC-1). The levels read off the bytes about to be written (zero lines read
+      // as the `inherit` level) must be the announced level set: an adapter that lost or gained an
+      // `effort:` line between the generator and the write moves the read set, and is refused.
+      const readLevels = [...new Set(effortOf.values())].sort();
+      const saidLevels = [...announced.effort.levels].sort();
+      if (readLevels.join(",") !== saidLevels.join(",")) {
+        refusals.push(
+          `.claude/agents/ — the effort levels read out of the rendered adapters are ` +
+            `[${readLevels.join(", ")}], while the render announced [${saidLevels.join(", ")}]. ` +
             `The bytes and the announcement describe the same resolution, so a disagreement means one ` +
             `of them is wrong and this run cannot say which.\n` +
             `                 No adapter was installed and every pre-existing target adapter was left ` +

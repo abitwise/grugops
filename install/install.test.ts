@@ -98,6 +98,9 @@ import {
   MODEL_ALIASES,
   RESOLVED_PRESET_PREFIX,
   RESOLVED_ASSIGNMENT_PREFIX,
+  // Plan 34-15: the effort arm's refusal cases and the no-prefix-copy case read the effort
+  // announcement prefixes from the module that owns them, under the same test-side exception.
+  RESOLVED_EFFORT_ASSIGNMENT_PREFIX,
   resolvedPresetsIn,
   resolvedAssignmentsIn,
   // Plan 34-10: the effort delivery cases derive every expected `effort:` line from the ONE effort
@@ -3141,6 +3144,45 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // that either side went unreported.
     const bothSets = r.stdout.includes("read out of the rendered adapters are [inherit]")
       && r.stdout.includes("the render announced [opus]");
+    expect(`status=${r.status} prints both sets: ${bothSets}`).toBe("status=3 prints both sets: true");
+    expect(r.stdout).toContain("install INCOMPLETE");
+    expect(installedAdapters(target)).toEqual([]);
+  });
+
+  // ── THE EFFORT ARM OF THE SAME CROSS-CHECKS (plan 34-15, D-20, WR-03, RC-1) ───────────────────
+  //
+  // The installer reads the effort announcement through the same probe, the same parse and the same
+  // line reader as the model announcement, and refuses the whole adapter class on any disagreement.
+  // Each case below stages ONE disagreement through a patched generator twin, as the model cases do.
+  // The anchor is the twin's own effort announcement call; patchSyntheticGenerator throws if it is
+  // absent, which is each case's premise assertion.
+  const EFFORT_ANNOUNCE_ANCHOR =
+    "console.log(resolvedEffortAssignmentLine(efforts, modelsConfig.effort.overrides.size));";
+  // An effort announcement line with the given payload, spelled through the module's own prefix.
+  function effortAnnounceLine(payload: unknown): string {
+    return `console.log(${JSON.stringify(RESOLVED_EFFORT_ASSIGNMENT_PREFIX)} + ${JSON.stringify(JSON.stringify(payload))});`;
+  }
+  // A non-inherit level, taken from the closed tuple rather than typed.
+  const FOREIGN_LEVEL = EFFORT_LEVELS[EFFORT_LEVELS.length - 1];
+
+  it("effort delivery: an announced effort level SET that disagrees with the rendered bytes installs NOTHING and prints both sets", () => {
+    // PREMISE: the announced level is not the level a zero-config render's bytes read as.
+    expect(FOREIGN_LEVEL).not.toBe("inherit");
+    const src = makeSyntheticSrc();
+    const target = mkTmp();
+    writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+    // The bytes carry no `effort:` line (zero config: every role `inherit`); the announcement claims
+    // every role at a foreign level, for the real role count, so only the level SET disagrees.
+    patchSyntheticGenerator(
+      src,
+      EFFORT_ANNOUNCE_ANCHOR,
+      effortAnnounceLine({ roles: SYNTH_ADAPTERS.length, overrides: 0, levels: [FOREIGN_LEVEL] }),
+    );
+
+    const r = runInstallFrom(src, target, mkTmp());
+    const bothSets =
+      r.stdout.includes("effort levels read out of the rendered adapters are [inherit]") &&
+      r.stdout.includes(`the render announced [${FOREIGN_LEVEL}]`);
     expect(`status=${r.status} prints both sets: ${bothSets}`).toBe("status=3 prints both sets: true");
     expect(r.stdout).toContain("install INCOMPLETE");
     expect(installedAdapters(target)).toEqual([]);
