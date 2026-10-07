@@ -1670,7 +1670,7 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 18 plans (34-01..34-10 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20, revised the same day to split two plans over the per-plan file budget)
+**Plans:** 11/18 plans executed (34-01..34-10 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20, revised the same day to split two plans over the per-plan file budget)
 
 Plans:
 **Wave 1**
@@ -1706,7 +1706,7 @@ Plans:
 
 **Gap round 1 (D-19, D-20)** *(sequential waves 8-15; every plan builds on the previous one's installer, test or documentation files)*
 
-- [ ] 34-11-PLAN.md — WIN-1 product: one canonical spelling (`canonicalPathSpelling`, `sameRecordedPath`) on the write and compare sides of marker, kit-home and ledger paths; `rebindMarker` fixed; win32/posix pure tests; AST census (D-19)
+- [x] 34-11-PLAN.md — WIN-1 product: one canonical spelling (`canonicalPathSpelling`, `sameRecordedPath`) on the write and compare sides of marker, kit-home and ledger paths; `rebindMarker` fixed; win32/posix pure tests; AST census (D-19)
 - [ ] 34-12-PLAN.md — WIN-1 tests: printed paths through one helper (uninstall-removal never-installed and dry-run flow 10 among them), recorded paths through `realTargetPath`, two-spelling remedy case, test-side census, masked-assertion audit (D-19)
 - [ ] 34-13-PLAN.md — WIN-2: one user-mode-edit helper (a change every platform stores), one product mode renderer and comparison, POSIX permission-bits capability gate (that probe only) with a WINDOWS.md row (D-19)
 - [ ] 34-14-PLAN.md — WIN-2 census: `mode-census:` tags on the remaining raw chmod lines and an AST census over test chmod sites, literal-mode expectations and product mode comparisons, mutation-proven (D-19)
@@ -1757,7 +1757,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 10/18 | In Progress (gap round 1 of 4 planned) | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 11/18 | In Progress (gap round 1 of 4 planned) | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
