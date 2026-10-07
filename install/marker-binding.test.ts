@@ -37,8 +37,9 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, makeFixture, nativeRealPath, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { dirList, fileRecords } from "./ledger.test-support.js";
+import { realTargetPath } from "./user-file.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-binding-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -63,6 +64,17 @@ function uninstall(t: string, dryRun = false): Run {
   expect(r.stderr).not.toMatch(NO_STACK);
   return r;
 }
+/**
+ * The product's own spelling of `d`'s real path (user-file.ts realTargetPath, the value install writes the
+ * marker `target` with; plan 34-12, D-19, WIN-1). Every expected recorded target is taken from here, never
+ * from `realpathSync.native` (the host's backslash spelling on Windows) or the SCRATCH string (which keeps
+ * an 8.3 short name), so neither spelling decides a test.
+ */
+function recordedTarget(d: string): string {
+  const p = realTargetPath(d);
+  if (p === null) throw new Error(`the real path of ${d} could not be read`);
+  return p;
+}
 const markerOf = (t: string): Record<string, unknown> => JSON.parse(readFileSync(at(t, MARKER_REL), "utf8")) as Record<string, unknown>;
 
 describe("install's marker is bound to its directory, and only install's own marker is used or replaced (red-team B2, B3 of plan 33.1-33)", () => {
@@ -70,7 +82,7 @@ describe("install's marker is bound to its directory, and only install's own mar
     const t = makeFixture(fresh("bound"));
     const r = install(t);
     expect(r.status, r.stdout).toBe(0);
-    expect(markerOf(t).target).toBe(realpathSync.native(t));
+    expect(markerOf(t).target).toBe(recordedTarget(t));
   });
 
   // B3: a JSON object at the marker path that is not install's own marker, before any install.
@@ -111,7 +123,7 @@ describe("install's marker is bound to its directory, and only install's own mar
     const r = install(t);
     expect(r.status, r.stdout).toBe(0);
     const m = markerOf(t);
-    expect(m.target, r.stdout).toBe(realpathSync.native(t));
+    expect(m.target, r.stdout).toBe(recordedTarget(t));
     expect(Object.keys(fileRecords(m, false)), r.stdout).not.toContain("AGENTS.md");
     expect(Object.keys(fileRecords(m, false)), r.stdout).not.toContain("tools/grugops/host-protection.js");
     expect(dirList(m), r.stdout).not.toContain("tools/grugops");
@@ -128,6 +140,8 @@ describe("install's marker is bound to its directory, and only install's own mar
     it(`B2 (${mode}): a moved repository reads as not bound — uninstall changes zero bytes, exit 3, and names both directories and the remedy`, () => {
       const t = makeFixture(fresh("before-move"));
       expect(install(t).status).toBe(0);
+      // The recorded spelling of the directory install wrote in, taken before it stops existing.
+      const recorded = recordedTarget(t);
       const moved = `${t}-moved`;
       renameSync(t, moved);
       const before = snapshotTree(moved);
@@ -135,25 +149,37 @@ describe("install's marker is bound to its directory, and only install's own mar
       expect(u.status, u.stdout).toBe(3);
       expect(snapshotTree(moved), u.stdout).toBe(before);
       const v = lines(u.stdout, "verify").find((l) => l.includes(".grugops/install.json")) ?? "";
-      expect(v, u.stdout).toContain(t);
-      expect(v, u.stdout).toContain(realpathSync.native(moved));
+      expect(v, u.stdout).toContain(recorded);
+      expect(v, u.stdout).toContain(recordedTarget(moved));
       expect(v, u.stdout).toMatch(/re-run install/);
     });
   }
 
-  it("B2: after the remedy (target set to this directory by hand, for the same repository moved), uninstall reverses the install", () => {
-    const t = makeFixture(fresh("rebind"));
-    expect(install(t).status).toBe(0);
-    const moved = `${t}-moved`;
-    renameSync(t, moved);
-    const m = markerOf(moved);
-    m.target = realpathSync.native(moved);
-    writeFileSync(at(moved, MARKER_REL), JSON.stringify(m, null, 2) + "\n");
-    const u = uninstall(moved);
-    expect(u.status, u.stdout).toBe(0);
-    expect(existsSync(at(moved, MARKER_REL)), u.stdout).toBe(false);
-    expect(existsSync(at(moved, "AGENTS.md")), u.stdout).toBe(false);
+  // The remedy binds in either spelling of this directory's real path (plan 34-12, D-19, WIN-1): the one
+  // the remedy text prints (the product's realTargetPath), and the host's native spelling a Windows user
+  // types by hand (`C:\Users\...`, nativeRealPath). Both spellings name one directory, so both bind.
+  const REMEDY_SPELLINGS: ReadonlyArray<readonly [string, (d: string) => string]> = [
+    ["the spelling the remedy prints (realTargetPath)", recordedTarget],
+    ["the host's native spelling a user types (nativeRealPath)", nativeRealPath],
+  ];
+  it("the remedy is proven in both spellings", () => {
+    expect(REMEDY_SPELLINGS.length).toBe(2);
   });
+  for (const [spelling, spell] of REMEDY_SPELLINGS) {
+    it(`B2: after the remedy (target set to this directory by hand in ${spelling}, for the same repository moved), uninstall reverses the install`, () => {
+      const t = makeFixture(fresh("rebind"));
+      expect(install(t).status).toBe(0);
+      const moved = `${t}-moved`;
+      renameSync(t, moved);
+      const m = markerOf(moved);
+      m.target = spell(moved);
+      writeFileSync(at(moved, MARKER_REL), JSON.stringify(m, null, 2) + "\n");
+      const u = uninstall(moved);
+      expect(u.status, u.stdout).toBe(0);
+      expect(existsSync(at(moved, MARKER_REL)), u.stdout).toBe(false);
+      expect(existsSync(at(moved, "AGENTS.md")), u.stdout).toBe(false);
+    });
+  }
 
   it("sibling (--check): the doctor warns that a marker written for another directory is not this directory's record", () => {
     const other = makeFixture(fresh("doc-other"));

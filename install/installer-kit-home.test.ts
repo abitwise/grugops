@@ -58,9 +58,21 @@ import {
   type Run,
 } from "./installer-paths.test-support.js";
 import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
+import { realTargetPath } from "./user-file.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-kit-home-")));
+
+/**
+ * The product's own spelling of the kit home's real path (user-file.ts realTargetPath; plan 34-12, D-19,
+ * WIN-1): the value the kit-home record's `grugopsHome` is expected to hold, never `realpathSync.native`
+ * (the host's backslash spelling on Windows).
+ */
+function recordedHome(grugopsHome: string): string {
+  const p = realTargetPath(grugopsHome);
+  if (p === null) throw new Error(`the real path of ${grugopsHome} could not be read`);
+  return p;
+}
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
 let seq = 0;
 function fresh(tag: string): string {
@@ -175,7 +187,7 @@ describe("the kit-home record: copyKit replaces only a kit it recorded, and keep
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     const rec = recordOf(c);
     expect(Object.keys(rec).sort()).toEqual(["grugopsHome", "ledger"]);
-    expect(rec.grugopsHome).toBe(realpathSync.native(c.grugopsHome));
+    expect(rec.grugopsHome).toBe(recordedHome(c.grugopsHome));
     expect(rec.ledger).toEqual([{ path: KIT_ENTRY_PATH, kind: "kit" }]);
     expect(backupsIn(c)).toEqual([]);
     // No temporary directory is left behind.
@@ -315,7 +327,7 @@ describe("the kit-home record: copyKit replaces only a kit it recorded, and keep
       if (d.name.startsWith("a symbolic link")) expect(lstatSync(at).isSymbolicLink()).toBe(true);
       if (d.rewritten) {
         expect(r.status, r.stdout).toBe(0);
-        expect(recordOf(c).grugopsHome).toBe(realpathSync.native(c.grugopsHome));
+        expect(recordOf(c).grugopsHome).toBe(recordedHome(c.grugopsHome));
       } else {
         expect(r.status, r.stdout).toBe(3);
         expect(r.stdout).toMatch(/is not install's kit-home record, so it was left as it is/);

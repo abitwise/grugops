@@ -40,7 +40,7 @@ import {
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MARKER_REL, REPO_ROOT, type Run, rebindMarker, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { MARKER_REL, REPO_ROOT, type Run, printedRel, rebindMarker, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { askRecord, fileRecords, withLedger, type RawEntry } from "./ledger.test-support.js";
 import { PI_PROMPT_REL } from "./host-tools.js";
 
@@ -88,7 +88,9 @@ const CREATED = createdFileKeys(readMarker(DERIVE.target));
 const INSTALLED_BYTES = new Map(CREATED.map((rel) => [rel, readFileSync(abs(DERIVE.target, rel))]));
 const DERIVE_UN = runUninstall(DERIVE.target, DERIVE.home);
 ok(DERIVE_UN, "derive uninstall");
-const REMOVED_DIRS = under(DERIVE_UN.stdout, "rmdir").map((p) => p.slice(DERIVE.target.length + 1).split("\\").join("/")).sort();
+// The printed rmdir paths, relative to the target in the product's one spelling (printedRel, plan 34-12,
+// WIN-1): uninstall prints `${TARGET}/${d}`, which on Windows mixes `\` and `/`.
+const REMOVED_DIRS = under(DERIVE_UN.stdout, "rmdir").map((p) => printedRel(DERIVE.target, p)).sort();
 
 describe("the derived sets (counts pinned so a derivation that shrinks fails here)", () => {
   // Re-pinned 2026-10-06 (plan 34-04, D-17): install now writes the Pi prompt template unconditionally,

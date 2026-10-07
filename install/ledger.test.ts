@@ -60,7 +60,7 @@ import {
   type LedgerKind,
   type LedgerScope,
 } from "./install-marker.js";
-import { TREE_MAX_ENTRIES } from "./user-file.js";
+import { TREE_MAX_ENTRIES, realTargetPath } from "./user-file.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
@@ -497,7 +497,10 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
     const home = fresh("record");
     const at = join(home, KIT_HOME_RECORD_REL);
     expect(read(home).state).toBe("absent");
-    const ok = { grugopsHome: realpathSync.native(home), ledger: [VALID.kit] };
+    // The product's own spelling of the kit home's real path (realTargetPath; plan 34-12, D-19, WIN-1).
+    const bound = realTargetPath(home);
+    expect(bound, `the real path of ${home} could not be read`).not.toBeNull();
+    const ok = { grugopsHome: bound as string, ledger: [VALID.kit] };
     writeFileSync(at, JSON.stringify(ok));
     expect(read(home).state).toBe("ok");
     expect(readKitHomeRecord(home).ledger.entries).toEqual([{ path: KIT_ENTRY_PATH, kind: "kit" }]);
@@ -650,12 +653,19 @@ function writeMarker(target: string, m: Record<string, unknown>): void {
   mkdirSync(join(target, ".grugops"), { recursive: true });
   writeFileSync(join(target, ...MARKER_REL.split("/")), JSON.stringify(m, null, 2) + "\n");
 }
+// `target` is the product's own spelling of the directory's real path (realTargetPath, the value install
+// writes; plan 34-12, D-19, WIN-1), never `realpathSync.native` (the host's backslash spelling on Windows).
+function boundTarget(target: string): string {
+  const p = realTargetPath(target);
+  if (p === null) throw new Error(`the real path of ${target} could not be read`);
+  return p;
+}
 const installFields = (target: string): Record<string, unknown> => ({
   kitVersion: "2.1.0",
   grugopsHome: "/home/u/.grugops",
   kitRoot: "/home/u/.grugops/agent-factory",
   installMode: "copy",
-  target: realpathSync.native(target),
+  target: boundTarget(target),
 });
 
 describe("the marker states the one ledger adds", () => {

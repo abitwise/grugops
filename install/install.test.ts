@@ -115,14 +115,16 @@ import { listRoles } from "../scripts/kit-model.js";
 // Sized FROM the constant, never from a restated number. Drives the COMMITTED .js — the repo idiom.
 import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarkers } from "./kit-source.js";
 
-// THE ONE PUBLISHED-PATH NORMALIZER (plan 33-03, D-15) and THE ONE PLATFORM-SHAPE SKIP FORMAT
-// (plan 33-05, D-16), imported in the test only, under the same exception as the two imports above:
-// install.ts keeps importing nothing from scripts/. The normalizer spells the expected kit root the
-// way the installer publishes it; the skip helpers stage the two symlink fixtures this file used to
-// build with `ln -s`, so a host that refuses the link prints one counted SKIPPED row instead of
-// running the case's assertions over a copy that `ln` left behind (plan 33-06, CAP-02).
-import { toPosix } from "../scripts/posix-path.js";
+// THE ONE PLATFORM-SHAPE SKIP FORMAT (plan 33-05, D-16), imported in the test only, under the same
+// exception as the two imports above: install.ts keeps importing nothing from scripts/. The skip helpers
+// stage the two symlink fixtures this file used to build with `ln -s`, so a host that refuses the link
+// prints one counted SKIPPED row instead of running the case's assertions over a copy that `ln` left
+// behind (plan 33-06, CAP-02). The expected kit root is spelled by canonicalPath below, which since plan
+// 34-12 delegates to the installer's own install/user-file.ts realTargetPath, not to scripts/posix-path.ts
+// toPosix (a second spelling that did not upper-case a drive letter).
 import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "../scripts/check-platform-shapes.js";
+// The installer's one spelling of a real path (plan 34-12): canonicalPath below delegates to it.
+import { realTargetPath } from "./user-file.js";
 
 // THE DISPOSITION CANONICALIZER, IMPORTED HERE UNDER THE SAME TEST-ONLY EXCEPTION (plan 33.1-03,
 // D-18). install/checkpoint-ask-rules.ts restates scripts/checkpoints.ts canonicalizeDisposition
@@ -174,11 +176,18 @@ function mkTmp(): string {
 //     host's own separator.
 //
 // canonicalPath resolves through the real-path call FIRST (it needs the on-disk spelling, and it
-// accepts either separator on every platform), THEN spells the result forward-slashed, so two
-// strings that name one directory compare equal whichever name and separator each side arrived in.
+// accepts either separator on every platform), THEN spells the result in the one canonical spelling, so
+// two strings that name one directory compare equal whichever name and separator each side arrived in.
 // BOTH sides of every temporary-directory comparison in this file go through it. No host branch.
+// THE ONE AUTHORITY (plan 34-12, D-19, WIN-1): both steps are install/user-file.ts realTargetPath
+// (realpathSync.native, then canonicalPathSpelling), the function the installer records a path with.
+// This file used to do them itself with scripts/posix-path.ts toPosix, a second spelling that did not
+// upper-case a drive letter; install/path-spelling-census.test.ts now holds the only declaration named
+// canonicalPath to this delegation.
 function canonicalPath(p: string): string {
-  return toPosix(realpathSync.native(p));
+  const real = realTargetPath(p);
+  if (real === null) throw new Error(`canonicalPath: the real path of ${p} could not be read`);
+  return real;
 }
 
 // materializedKit — the value of the KIT="…" line inside an adapter body's grugops:materialized-kit
