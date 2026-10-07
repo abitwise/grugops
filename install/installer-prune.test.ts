@@ -25,7 +25,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -40,9 +40,12 @@ import {
   runInstall,
   runUninstall,
   snapshotTree,
+  storedMode,
+  userModeEdit,
 } from "./installer-paths.test-support.js";
 import { ledgerOf, readMarkerObject, withLedger, type RawEntry } from "./ledger.test-support.js";
-import { treeRecord } from "./user-file.js";
+import { modeText, treeRecord } from "./user-file.js";
+import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-prune-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -59,7 +62,7 @@ const sha = (b: Buffer | string): string => createHash("sha256").update(b).diges
 /** What is at `p`, by content: a directory's snapshot, a file's sha256 and mode. */
 const stateOf = (p: string): string =>
   lstatSync(p).isDirectory() ? `DIR ${modeOf(p)}\n${snapshotTree(p)}` : `FILE ${sha(readFileSync(p))} ${modeOf(p)}`;
-const modeOf = (p: string): string => (statSync(p).mode & 0o7777).toString(8).padStart(4, "0");
+const modeOf = (p: string): string => modeText(storedMode(p));
 /** isoStamp()'s shape (install.ts): YYYY-MM-DDTHH-MM-SS.mmmZ. */
 const ISO = /\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z/;
 const BACKUP_SEGMENT = new RegExp(`(\\.bak\\.${ISO.source}$)|(\\.grugops-edited-${ISO.source}$)`);
@@ -197,13 +200,22 @@ describe("every backup install makes in the target is recorded (plan 33.1-40 Tas
   // Two modes: 0600 (the review's case: the create mode alone must not be the default 0644) and 0664, whose
   // group-write bit the process umask (022 here) strips from a create, so only the chmod after the create
   // keeps it. Each mutation in the SUMMARY turns one of them red.
+  // WIN-2 (plan 34-13, run 37521787426): both claims are about permission bits beyond the read-only
+  // attribute, which Windows cannot store, so each case first asks the measured host capability and prints
+  // its skip where it is absent (a WINDOWS.md row). Read-only is not substituted: the install that follows
+  // replaces the edited file, and a read-only file changes what that replacement does.
   for (const mode of [0o600, 0o664]) {
     const text = mode.toString(8).padStart(4, "0");
     it(`IN-03: an edited kit file with mode ${text} is backed up with mode ${text}, holding the edit`, () => {
+      const absent = hostCapabilityOrSkip("POSIX permission bits beyond read-only", `install/installer-prune.test.ts: IN-03 ${text}`);
+      if (absent !== null) {
+        console.log(skipLine(absent, `this IN-03 ${text} case on a host that stores POSIX permission bits (a POSIX CI leg); on this host the backup mode bits are unobserved (WINDOWS.md row 318)`));
+        return;
+      }
       const w = world(`in03-${text}`);
       oldLayout(w);
       const rel = ".claude/agents/grugops-orchestrator.md";
-      chmodSync(at(w.t, rel), mode);
+      chmodSync(at(w.t, rel), mode); // mode-census: posix-bits
       expect(modeOf(at(w.t, rel))).toBe(text);
       const edit = readFileSync(at(w.t, rel));
       const r = install(w, ["--migrate", "--backup-edited-kit"]);
@@ -390,7 +402,7 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     ["a file added inside", (d) => writeFileSync(join(d, "roles", "added.md"), "new\n")],
     ["a file deleted", (d) => rmSync(join(d, "roles", "orchestrator.md"))],
     ["a file edited", (d) => writeFileSync(join(d, "roles", "orchestrator.md"), "edited after the backup\n")],
-    ["a chmod", (d) => chmodSync(join(d, "roles", "orchestrator.md"), 0o600)],
+    ["a chmod", (d) => void userModeEdit(join(d, "roles", "orchestrator.md"))],
   ];
   for (const [what, change] of CHANGES) {
     it(`a recorded backup with ${what} since install made it is left, named with the reason, and keeps its entry`, () => {
@@ -438,7 +450,7 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     const w2 = world("null-natural");
     oldLayout(w2);
     writeFileSync(at(w2.t, "agent-factory/roles/private.md"), "unreadable\n");
-    chmodSync(at(w2.t, "agent-factory/roles/private.md"), 0o000);
+    chmodSync(at(w2.t, "agent-factory/roles/private.md"), 0o000); // mode-census: access-denial
     try {
       expect(install(w2, ["--migrate", "--backup-edited-kit"]).status).toBe(0);
       const e = [...backupEntries(w2.t).values()].find((x) => x.origin === "in-repo-kit")!;
@@ -449,7 +461,7 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     } finally {
       for (const n of readdirSync(w2.t).filter((x) => x.startsWith("agent-factory"))) {
         const f = at(w2.t, `${n}/roles/private.md`);
-        if (existsSync(f)) chmodSync(f, 0o644);
+        if (existsSync(f)) chmodSync(f, 0o644); // mode-census: restore
       }
     }
   });
@@ -488,8 +500,8 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     const homeRecord = join(w.kitHome, ".grugops-kit.json");
     const removable = [...backupEntries(w.t).values()].filter((e) => PRUNABLE.has(String(e.origin))).map((e) => e.path);
     const homeBak = kitHomeBackups(w.kitHome)[0].path;
-    chmodSync(markerPath, 0o444);
-    chmodSync(homeRecord, 0o444);
+    chmodSync(markerPath, 0o444); // mode-census: row-315
+    chmodSync(homeRecord, 0o444); // mode-census: row-315
     const markerBytes = readFileSync(markerPath);
     const homeBytes = readFileSync(homeRecord);
     try {
@@ -505,8 +517,8 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
       expect(readFileSync(markerPath).equals(markerBytes), "the marker changed").toBe(true);
       expect(readFileSync(homeRecord).equals(homeBytes), "the kit-home record changed").toBe(true);
     } finally {
-      chmodSync(markerPath, 0o644);
-      chmodSync(homeRecord, 0o644);
+      chmodSync(markerPath, 0o644); // mode-census: restore
+      chmodSync(homeRecord, 0o644); // mode-census: restore
     }
   });
 });

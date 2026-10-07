@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 242
+open_count: 243
 waived_count: 28
 fixed_count: 47
-total_count: 317
-last_updated: 2026-10-07T10:39:03.238Z
+total_count: 318
+last_updated: 2026-10-07T20:15:02.219Z
 ---
 
 # Broken Windows Ledger
@@ -332,6 +332,7 @@ last_updated: 2026-10-07T10:39:03.238Z
 | 315 | 33.1 | unrun-verify | install/installer-marker-retention.test.ts |  | 33.1-39 and 33.1-40 (gap round 3): four chmod-based cases skip on win32 (and as root), where a mode does not stop a removal, read or write, and the skip reason is printed. installer-marker-retention.test.ts: the verifier's WR-02 reproduction (chmod 555 .claude/agents, then re-run), the read-only kept marker, and the chmod-only created Gemini file; installer-prune.test.ts: a record that cannot be rewritten after the removals. The marker-kept-after-a-failed-removal path and the failed-ledger-rewrite verify are therefore unobserved on windows-latest. Remedy: make the removal or the rewrite fail by a Windows-native means (an open handle or an ACL deny) in those cases. | open |  | 2026-10-05T13:54:17.804Z |  |
 | 316 | 34 | unmet-truth | install/uninstall-removal.test.ts |  | HOST-02 not met: CI run 37521787426 (head dc2c7581) windows-latest red with 5 tests this phase added or changed - uninstall-removal never-installed blocks/settings/dirs case real+DRY_RUN (Pi plant added by d6c2e96a; failure 'no left line for the empty .claude/agents'), installer-user-edit .pi/prompts/grugops.md row, record-truth L1 .pi/prompts/grugops.md chmod row, installer-dry-run 'subset: flow 10s tree' (red pre-phase with same assertion). Per-file classification in 34-VALIDATION.md 'Windows-latest measurement'. Not fixed in 34-10 (plan prohibition); gap closure decides. | open |  | 2026-10-07T10:39:03.155Z |  |
 | 317 | 33.1 | unmet-truth | install/ledger.test.ts |  | windows-latest red on the 33.1 installer suites, never recorded: run 36716255097 (head 3fd78e60, 2026-09-30) windows red 67 tests/9 files; run 37521787426 (head dc2c7581) red 144 tests/13 files, 139 of them not added or changed by phase 34 (60 carried by name from 36716255097; the rest added or made red by 33.1 gap round 3, plans 33.1-36..40, first measured on windows here). Printed message families: marker/kit-home path in two spellings (backslash-separated vs forward-slash C:/Users) and file modes (expected 438 to be 502). Cause UNKNOWN - verify. Per-file list in 34-VALIDATION.md. | open |  | 2026-10-07T10:39:03.238Z |  |
+| 318 | 34 | unrun-verify | install/installer-prune.test.ts |  | 34-13 (WIN-2, D-19): the two IN-03 cases (an edited kit file at 0600 / 0664 is backed up keeping those bits) are gated on the measured host capability 'POSIX permission bits beyond read-only' and skip with a printed reason where it is absent (windows-latest), so a backup's 0600/0664 bits are unobserved there; the read-only bit of a backup is not covered by a Windows run either. Remedy: a Windows case on the read-only attribute once the replacement step's behaviour on a read-only edited kit file is measured. | open |  | 2026-10-07T20:15:02.219Z |  |
 
 ````json
 [
@@ -4277,6 +4278,19 @@ last_updated: 2026-10-07T10:39:03.238Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-10-07T10:39:03.238Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 318,
+    "kind": "unrun-verify",
+    "phase": "34",
+    "file": "install/installer-prune.test.ts",
+    "line": null,
+    "description": "34-13 (WIN-2, D-19): the two IN-03 cases (an edited kit file at 0600 / 0664 is backed up keeping those bits) are gated on the measured host capability 'POSIX permission bits beyond read-only' and skip with a printed reason where it is absent (windows-latest), so a backup's 0600/0664 bits are unobserved there; the read-only bit of a backup is not covered by a Windows run either. Remedy: a Windows case on the read-only attribute once the replacement step's behaviour on a read-only edited kit file is measured.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-07T20:15:02.219Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

@@ -31,7 +31,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
@@ -51,6 +51,7 @@ import {
   fileRecord,
   linkRecord,
   ledgerJson,
+  modeText,
   owns,
   readInstallMarker,
   readKitHomeRecord,
@@ -62,7 +63,7 @@ import {
 } from "./install-marker.js";
 import { TREE_MAX_ENTRIES, realTargetPath } from "./user-file.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
-import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree, storedMode, userModeEdit } from "./installer-paths.test-support.js";
 import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-ledger-")));
@@ -277,14 +278,15 @@ describe("the one ledger — the one serializer (ledgerJson)", () => {
 });
 
 describe("the one authority (owns)", () => {
-  function scratch(): { root: string; rel: string; path: string } {
+  // The expected record carries the mode the platform STORED for the file (WIN-2, plan 34-13): never a
+  // literal, which Windows (read-only attribute only) and a host umask can each make untrue.
+  function scratch(): { root: string; rel: string; path: string; mode: number } {
     const root = fresh("owns");
     const rel = "tools/grugops/x.js";
     mkdirSync(join(root, "tools", "grugops"), { recursive: true });
     const path = join(root, ...rel.split("/"));
     writeFileSync(path, "install wrote this\n");
-    chmodSync(path, 0o644);
-    return { root, rel, path };
+    return { root, rel, path, mode: storedMode(path) };
   }
   const ledgerWith = (...e: Record<string, unknown>[]) => readLedger(holder(e));
 
@@ -308,8 +310,8 @@ describe("the one authority (owns)", () => {
   });
 
   it("a file entry whose bytes and mode still match is owned", () => {
-    const { root, rel } = scratch();
-    const o = owns(ledgerWith({ path: rel, kind: "file", content: fileRecord("install wrote this\n", 0o644), kit: false }), root, rel, "file");
+    const { root, rel, mode } = scratch();
+    const o = owns(ledgerWith({ path: rel, kind: "file", content: fileRecord("install wrote this\n", mode), kit: false }), root, rel, "file");
     expect(o.owned).toBe(true);
     if (o.owned) expect(o.note).toBeNull();
   });
@@ -322,9 +324,9 @@ describe("the one authority (owns)", () => {
   });
 
   it("an edited file is recorded, not owned", () => {
-    const { root, rel, path } = scratch();
+    const { root, rel, path, mode } = scratch();
     appendFileSync(path, "a user's line\n");
-    const o = owns(ledgerWith({ path: rel, kind: "file", content: fileRecord("install wrote this\n", 0o644), kit: false }), root, rel, "file");
+    const o = owns(ledgerWith({ path: rel, kind: "file", content: fileRecord("install wrote this\n", mode), kit: false }), root, rel, "file");
     expect(o.owned).toBe(false);
     if (!o.owned) {
       expect(o.recorded).toBe(true);
@@ -334,13 +336,13 @@ describe("the one authority (owns)", () => {
   });
 
   it("a chmod-only change is recorded, not owned, and the mode is named", () => {
-    const { root, rel, path } = scratch();
-    chmodSync(path, 0o600);
-    const o = owns(ledgerWith({ path: rel, kind: "file", content: fileRecord("install wrote this\n", 0o644), kit: false }), root, rel, "file");
+    const { root, rel, path, mode: before } = scratch();
+    const after = userModeEdit(path);
+    const o = owns(ledgerWith({ path: rel, kind: "file", content: fileRecord("install wrote this\n", before), kit: false }), root, rel, "file");
     expect(o.owned).toBe(false);
     if (!o.owned) {
       expect(o.recorded).toBe(true);
-      expect(o.reason).toMatch(/file mode is 0600, not the 0644/);
+      expect(o.reason).toContain(`file mode is ${modeText(after)}, not the ${modeText(before)}`);
     }
   });
 
@@ -427,7 +429,7 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
     appendFileSync(join(t.dir, "a.md"), "x");
     const afterByte = treeRecordOf(t.root, t.rel);
     expect(afterByte).not.toBe(first);
-    chmodSync(join(t.dir, "sub", "b.md"), 0o600);
+    userModeEdit(join(t.dir, "sub", "b.md"));
     const afterMode = treeRecordOf(t.root, t.rel);
     expect(afterMode).not.toBe(afterByte);
     unlinkSync(join(t.dir, "sub", "link"));
@@ -441,8 +443,7 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
   it("treeRecord gives a file its file record, a link its link record, and null for a FIFO, nothing, or a walk past TREE_MAX_ENTRIES", () => {
     const root = fresh("tree-shapes");
     writeFileSync(join(root, "f"), "x");
-    chmodSync(join(root, "f"), 0o644);
-    expect(treeRecordOf(root, "f")).toBe(fileRecord("x", 0o644));
+    expect(treeRecordOf(root, "f")).toBe(fileRecord("x", storedMode(join(root, "f"))));
     symlinkSync("/some/where", join(root, "l"));
     expect(treeRecordOf(root, "l")).toBe(linkRecord("/some/where"));
     expect(treeRecordOf(root, "absent")).toBeNull();
@@ -535,18 +536,18 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
 });
 
 describe("the kit carry (carriedKitRecord, plan 33.1-37 Task 4): identity with the kit source is never a record", () => {
-  function kitFile(tag: string): { root: string; rel: string } {
+  // The record carries the mode the platform stored for the kit file (WIN-2, plan 34-13), never a literal.
+  function kitFile(tag: string): { root: string; rel: string; mode: number; rec: string } {
     const root = fresh(tag);
     const rel = ".claude/skills/grugops-plan/SKILL.md";
     mkdirSync(join(root, ".claude", "skills", "grugops-plan"), { recursive: true });
     writeFileSync(join(root, ...rel.split("/")), "the kit's bytes\n");
-    chmodSync(join(root, ...rel.split("/")), 0o644);
-    return { root, rel };
+    const mode = storedMode(join(root, ...rel.split("/")));
+    return { root, rel, mode, rec: fileRecord("the kit's bytes\n", mode) };
   }
-  const rec = fileRecord("the kit's bytes\n", 0o644);
 
   it("carries the previous kit-true entry's own record while owns answers owned", () => {
-    const { root, rel } = kitFile("carry-yes");
+    const { root, rel, rec } = kitFile("carry-yes");
     const l = readLedger(holder([{ path: rel, kind: "file", content: rec, kit: true }]));
     expect(carriedKitRecord(l, root, rel)).toBe(rec);
     // A record without a mode is carried as it is: a carry never claims more than the earlier install wrote.
@@ -555,14 +556,14 @@ describe("the kit carry (carriedKitRecord, plan 33.1-37 Task 4): identity with t
   });
 
   it("answers null with no ledger, no entry, a kit-false entry, a malformed ledger, or a record that no longer holds", () => {
-    const { root, rel } = kitFile("carry-no");
+    const { root, rel, mode, rec } = kitFile("carry-no");
     const cases: Array<[string, ReturnType<typeof readLedger>]> = [
       ["no marker", readLedger(null)],
       ["no entry for the path", readLedger(holder([VALID.dir]))],
       ["a kit-false entry", readLedger(holder([{ path: rel, kind: "file", content: rec, kit: false }]))],
       ["a malformed ledger", readLedger(holder([{ path: rel, kind: "file", content: rec, kit: true, extra: 1 }]))],
-      ["a record of other bytes (the file is identical to the kit source, not to the record)", readLedger(holder([{ path: rel, kind: "file", content: fileRecord("other", 0o644), kit: true }]))],
-      ["a record of another mode", readLedger(holder([{ path: rel, kind: "file", content: fileRecord("the kit's bytes\n", 0o600), kit: true }]))],
+      ["a record of other bytes (the file is identical to the kit source, not to the record)", readLedger(holder([{ path: rel, kind: "file", content: fileRecord("other", mode), kit: true }]))],
+      ["a record of another mode", readLedger(holder([{ path: rel, kind: "file", content: fileRecord("the kit's bytes\n", mode ^ 0o200), kit: true }]))],
     ];
     for (const [name, l] of cases) expect(carriedKitRecord(l, root, rel), name).toBeNull();
   });
@@ -620,8 +621,9 @@ describe("plan 33.1-40: backupContentRecord, outermostBackups and carriedBackups
   it("backupContentRecord: a file's bytes and mode, a tree, a link; null for a hard link, a FIFO, nothing, or a link on the way", () => {
     const root = fresh("backup-content");
     writeFileSync(join(root, "f.bak"), "mine\n");
-    chmodSync(join(root, "f.bak"), 0o600);
-    expect(backupContentRecord(root, "f.bak")).toBe(fileRecord("mine\n", 0o600));
+    // The mode is part of a backup's record: after a user mode edit the record carries the stored mode.
+    const bakMode = userModeEdit(join(root, "f.bak"));
+    expect(backupContentRecord(root, "f.bak")).toBe(fileRecord("mine\n", bakMode));
     mkdirSync(join(root, "d.bak", "sub"), { recursive: true });
     writeFileSync(join(root, "d.bak", "sub", "x"), "x");
     expect(backupContentRecord(root, "d.bak")).toBe(treeRecordOf(root, "d.bak"));
