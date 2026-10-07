@@ -371,7 +371,13 @@ export const TREE_MAX_ENTRIES = 20_000;
 /** The most bytes of file content treeRecord hashes before it answers null. */
 export const TREE_MAX_BYTES = 256 * 1024 * 1024;
 const sha256Hex = (data) => createHash("sha256").update(data).digest("hex");
-const modeOctal = (mode) => (mode & 0o7777).toString(8).padStart(4, "0");
+/**
+ * THE ONE FILE-MODE RENDERER (plan 34-13, WIN-2): the permission bits of a mode (`mode & 0o7777`) in four
+ * octal digits, as every record writes them (a tree record line here, a file record in install-marker.ts,
+ * which re-exports it). A mode is only ever rendered from what the platform stored (an lstat or fstat), so
+ * two renderings compare what the platform kept: on Windows that is the read-only attribute alone.
+ */
+export const modeText = (mode) => (mode & 0o7777).toString(8).padStart(4, "0");
 /**
  * The content record of `rel` (a POSIX path relative to `root`) as it stands now: `tree:sha256:<hex>`
  * for a directory, the file record for a regular file, the link record for a link, or null (see THE
@@ -396,11 +402,11 @@ export function treeRecord(root, rel) {
     }
     if (st.isFile()) {
         const r = readUserFile(top);
-        return r.state === "ok" ? `sha256:${sha256Hex(r.bytes)};mode=${modeOctal(r.mode)}` : null;
+        return r.state === "ok" ? `sha256:${sha256Hex(r.bytes)};mode=${modeText(r.mode)}` : null;
     }
     if (!st.isDirectory())
         return null;
-    const lines = [`${JSON.stringify(".")}\tdir ${modeOctal(st.mode)}`];
+    const lines = [`${JSON.stringify(".")}\tdir ${modeText(st.mode)}`];
     let entries = 0;
     let bytes = 0;
     const walk = (dirRel) => {
@@ -434,7 +440,7 @@ export function treeRecord(root, rel) {
                 }
             }
             else if (cst.isDirectory()) {
-                lines.push(`${q}\tdir ${modeOctal(cst.mode)}`);
+                lines.push(`${q}\tdir ${modeText(cst.mode)}`);
                 if (!walk(childRel))
                     return false;
             }
@@ -445,7 +451,7 @@ export function treeRecord(root, rel) {
                 bytes += r.bytes.length;
                 if (bytes > TREE_MAX_BYTES)
                     return false;
-                lines.push(`${q}\tfile ${sha256Hex(r.bytes)} ${modeOctal(r.mode)}`);
+                lines.push(`${q}\tfile ${sha256Hex(r.bytes)} ${modeText(r.mode)}`);
             }
             else {
                 lines.push(`${q}\tother`);

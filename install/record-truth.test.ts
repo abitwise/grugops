@@ -33,7 +33,6 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
-  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -42,13 +41,12 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { KINDS_BY_SCOPE, readLedger } from "./install-marker.js";
+import { KINDS_BY_SCOPE, fileRecord, modeMatches, readLedger, recordedModeOf, recordMatches } from "./install-marker.js";
 import { askRecord, blockRecords, fileRecords, withLedger } from "./ledger.test-support.js";
 import {
   INSTALL_JS,
@@ -63,6 +61,8 @@ import {
   runUninstall,
   snapshotTree,
   spawnBin,
+  storedMode,
+  userModeEdit,
 } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-rt34-")));
@@ -320,7 +320,6 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * derived listing (the assertion message lists REMOVABLE) named it between the Copilot file and AGENTS.md.
  */
 const REMOVABLE_COUNT = 34;
-const modeOf = (p: string): number => statSync(p).mode & 0o7777;
 
 describe("L1: a mode change or a whitespace edit is a user edit, and the file is left (brief DC-2)", () => {
   it("REMOVABLE is taken from the marker, has REMOVABLE_COUNT files, and an untouched copy's uninstall removes every one", () => {
@@ -331,16 +330,41 @@ describe("L1: a mode change or a whitespace edit is a user edit, and the file is
     for (const rel of REMOVABLE) expect(existsSync(at(t, rel)), `${rel} survived an untouched uninstall\n${u.stdout}`).toBe(false);
   });
 
+  // The one recorded-mode comparison on the stored change itself (WIN-2, plan 34-13). The rows below reach it
+  // through uninstall, but on the two pointer files (CLAUDE.md, the Copilot file) a read-only file stops the
+  // block removal before the comparison is asked, so the comparison is also asked here directly.
+  it("modeMatches / recordMatches: a mode the user cleared the write bits of no longer matches the recorded mode", () => {
+    const d = fresh("l1-compare");
+    const p = join(d, "f.md");
+    const bytes = Buffer.from("install wrote this\n");
+    writeFileSync(p, bytes);
+    const record = fileRecord(bytes, storedMode(p));
+    expect(recordedModeOf(record)).toBe(record.slice(record.indexOf(";mode=") + ";mode=".length));
+    expect(modeMatches(recordedModeOf(record), storedMode(p))).toBe(true);
+    expect(recordMatches(record, bytes, storedMode(p))).toEqual({ holds: true, modeChecked: true });
+    const mode = userModeEdit(p);
+    expect(modeMatches(recordedModeOf(record), mode)).toBe(false);
+    const c = recordMatches(record, bytes, mode);
+    expect(c.holds).toBe(false);
+    expect("modeChanged" in c ? c.modeChanged : undefined).toMatch(/^its file mode is [0-7]{4}, not the [0-7]{4} install wrote$/);
+    // A record with no mode compares the bytes only; a malformed mode suffix never matches (fail closed).
+    expect(recordedModeOf(record.slice(0, record.indexOf(";mode=")))).toBeUndefined();
+    expect(modeMatches(undefined, mode)).toBe(true);
+    expect(modeMatches(recordedModeOf(`${record.slice(0, record.indexOf(";mode="))};mode=x`), mode)).toBe(false);
+  });
+
   for (const rel of REMOVABLE) {
     it(`${rel}: a chmod-only edit survives uninstall (the file stays, with the user's mode)`, () => {
       const t = installedCopy("l1-mode");
       const p = at(t, rel);
-      const mode = modeOf(p) ^ 0o100;
-      chmodSync(p, mode);
+      // A mode change every platform stores (WIN-2, run 37521787426): the write bits cleared. A read-only
+      // created settings file may make uninstall's in-place edit fail; exit 3 is accepted for that, and the
+      // file must still be there with the user's mode.
+      const mode = userModeEdit(p);
       const u = uninstall(t);
       expect([0, 3], u.stdout).toContain(u.status);
       expect(existsSync(p), `${rel} was removed after a mode change\n${u.stdout}`).toBe(true);
-      expect(modeOf(p), `${rel} lost the user's mode`).toBe(mode);
+      expect(storedMode(p), `${rel} lost the user's mode`).toBe(mode);
     }, 30_000);
   }
 

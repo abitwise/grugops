@@ -110,7 +110,7 @@ import { allAskRules, createdSettingsText } from "./checkpoint-ask-rules.js";
 // D-33 (b), plan 33.1-36: the ONE reader of the install marker and of the one install ledger
 // (readLedger), its one serializer (ledgerJson) and the one ownership authority (owns), shared with
 // install.ts (WR-05).
-import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, ASK_RULES_REL, BLOCK_RELS, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, checkRecord, jsonValueRecord, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, ASK_RULES_REL, BLOCK_RELS, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue } from "./json-text.js";
@@ -1018,8 +1018,8 @@ function unmergeGemini() {
     // edit, or a chmod, is the user's: what install wrote is still taken out, and the file is kept.
     let keptWhy = "";
     if (ledger.createdFile && Object.keys(j).length === 0) {
-        const recordedMode = ledger.fileContent === undefined ? undefined : /;mode=([0-7]{4})$/.exec(ledger.fileContent)?.[1];
-        const modeKept = recordedMode === undefined || modeText(read.mode) === recordedMode;
+        const recordedMode = ledger.fileContent === undefined ? undefined : recordedModeOf(ledger.fileContent);
+        const modeKept = modeMatches(recordedMode, read.mode);
         if (newText === emptiedCreatedGeminiText() && modeKept) {
             const note = recordedMode === undefined ? `; ${NO_MODE_NOTE}` : "";
             const line = `${rel} (install created it, and with what it wrote there removed nothing is left in it — recorded in the install ledger${note})`;
@@ -1246,7 +1246,7 @@ function removeAskRules() {
     // user's (an extra final newline, CRLF line ends) or a chmod was deleted with it. A ledger written
     // before the mode was recorded compares the text only, and the line says so.
     const emptiedText = emptiedCreatedSettingsText();
-    const modeKept = led.fileMode === undefined || modeText(read.mode) === led.fileMode;
+    const modeKept = modeMatches(led.fileMode, read.mode);
     const emptyAsInstalled = led.createdFile && Object.keys(next).length === 0 && newText === emptiedText;
     const deleteFile = emptyAsInstalled && modeKept;
     const keptCreated = led.createdFile && Object.keys(next).length === 0 && !deleteFile;

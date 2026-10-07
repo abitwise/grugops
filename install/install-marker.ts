@@ -154,7 +154,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
-import { isOwnLink, kindAt, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo } from "./user-file.js";
+import { isOwnLink, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo } from "./user-file.js";
 
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
@@ -391,8 +391,8 @@ export function contentRecord(bytes: Buffer | string): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
-/** A file mode as a record writes it: the permission bits in four octal digits. */
-export const modeText = (mode: number): string => (mode & 0o7777).toString(8).padStart(4, "0");
+/** A file mode as a record writes it: the one renderer, owned by user-file.ts and re-exported here. */
+export { modeText };
 
 /**
  * The record of a FILE install wrote: `sha256:<hex>;mode=<octal>` (see THE FILE MODE above). `mode` is the
@@ -411,13 +411,36 @@ export function recordMatches(record: string, bytes: Buffer, mode: number | null
   const at = record.indexOf(";mode=");
   const content = at === -1 ? record : record.slice(0, at);
   if (contentRecord(bytes) !== content) return { holds: false, why: null };
-  if (at === -1) return { holds: true, modeChecked: false };
-  const want = record.slice(at + ";mode=".length);
+  const want = recordedModeOf(record);
+  if (want === undefined) return { holds: true, modeChecked: false };
   if (mode === null) return { holds: false, why: "its file mode could not be read, so it could not be compared with the mode install wrote" };
-  if (modeText(mode) !== want) {
+  if (!modeMatches(want, mode)) {
     return { holds: false, why: null, modeChanged: `its file mode is ${modeText(mode)}, not the ${want} install wrote` };
   }
   return { holds: true, modeChecked: true };
+}
+
+/**
+ * The mode a file record carries: what follows `;mode=` (four octal digits in a well-formed record), or
+ * undefined when the record has none (a record written before THE FILE MODE rule, or a value record). A
+ * malformed suffix is returned as it stands, so it never matches a rendered mode and the record does not
+ * hold (fail closed).
+ */
+export function recordedModeOf(record: string): string | undefined {
+  const at = record.indexOf(";mode=");
+  return at === -1 ? undefined : record.slice(at + ";mode=".length);
+}
+
+/**
+ * THE ONE RECORDED-MODE COMPARISON (plan 34-13, WIN-2): true when `recordedMode` is undefined (the record
+ * has no mode, so only the bytes are compared) or when the mode the platform stores now renders to it.
+ * Both sides are modes the platform STORED: the recorded one was rendered from the lstat taken after
+ * install wrote the file, and `mode` is the stat (or fstat) uninstall takes. On Windows the platform keeps
+ * only the read-only attribute of a file, so a POSIX bit it never stored cannot make the two differ.
+ * recordMatches and the created-file deletion checks of uninstall (Gemini settings, ask rules) all ask it.
+ */
+export function modeMatches(recordedMode: string | undefined, mode: number): boolean {
+  return recordedMode === undefined || modeText(mode) === recordedMode;
 }
 
 /** The one wording a caller appends to its line when a record had no mode to compare (see THE FILE MODE). */

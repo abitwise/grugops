@@ -131,6 +131,8 @@ import {
   recordMatches,
   NO_MODE_NOTE,
   modeText,
+  modeMatches,
+  recordedModeOf,
   checkRecord,
   jsonValueRecord,
   type AskRuleLedger,
@@ -1170,8 +1172,8 @@ function unmergeGemini(): Outcome {
   // edit, or a chmod, is the user's: what install wrote is still taken out, and the file is kept.
   let keptWhy = "";
   if (ledger.createdFile && Object.keys(j).length === 0) {
-    const recordedMode = ledger.fileContent === undefined ? undefined : /;mode=([0-7]{4})$/.exec(ledger.fileContent)?.[1];
-    const modeKept = recordedMode === undefined || modeText(read.mode) === recordedMode;
+    const recordedMode = ledger.fileContent === undefined ? undefined : recordedModeOf(ledger.fileContent);
+    const modeKept = modeMatches(recordedMode, read.mode);
     if (newText === emptiedCreatedGeminiText() && modeKept) {
       const note = recordedMode === undefined ? `; ${NO_MODE_NOTE}` : "";
       const line = `${rel} (install created it, and with what it wrote there removed nothing is left in it — recorded in the install ledger${note})`;
@@ -1412,7 +1414,7 @@ function removeAskRules(): Outcome {
   // user's (an extra final newline, CRLF line ends) or a chmod was deleted with it. A ledger written
   // before the mode was recorded compares the text only, and the line says so.
   const emptiedText = emptiedCreatedSettingsText();
-  const modeKept = led.fileMode === undefined || modeText(read.mode) === led.fileMode;
+  const modeKept = modeMatches(led.fileMode, read.mode);
   const emptyAsInstalled = led.createdFile && Object.keys(next).length === 0 && newText === emptiedText;
   const deleteFile = emptyAsInstalled && modeKept;
   const keptCreated = led.createdFile && Object.keys(next).length === 0 && !deleteFile;

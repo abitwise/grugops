@@ -60,7 +60,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
 
@@ -264,6 +264,37 @@ export function printedRel(root: string, printed: string, flavor: PathFlavor = H
  */
 export function nativeRealPath(p: string): string {
   return realpathSync.native(p);
+}
+
+// ── WIN-2: a file mode the platform stores (plan 34-13, run 37521787426) ───────────────────────────────
+// The windows-latest leg of run 37521787426 failed 43 installer cases on one shape: `<file> lost the user's
+// mode: expected 438 to be 502` (0o666 against 0o766). The test modelled "the user changed the file mode" by
+// flipping the owner-execute bit, and Windows keeps only the read-only attribute of a file: chmod stored
+// nothing, the mode stayed 0o666, and the product (which compares the mode it recorded at install with the
+// mode it reads at uninstall, both as the platform stored them) correctly saw no change. Clearing every write
+// bit is the one mode change every platform stores: 0o666 to 0o444 on Windows (the read-only attribute set),
+// 0o644 to 0o444 on POSIX. So every installer test that models a user mode edit calls userModeEdit, and every
+// expected mode is read back with storedMode, never written as a literal.
+
+/** The permission bits the platform stored for `p` (stat mode & 0o7777): the only mode a test may expect. */
+export function storedMode(p: string): number {
+  return statSync(p).mode & 0o7777;
+}
+
+/**
+ * The user's mode edit (WIN-2): clear every write bit of `p`, a change every platform stores, and return the
+ * mode the platform stored after it. Throws, naming `p` and both modes, when the stored mode did not change
+ * (the platform stored no mode change, for example a file that was already read-only), so a case can never
+ * pass by asserting a change that did not happen.
+ */
+export function userModeEdit(p: string): number {
+  const before = storedMode(p);
+  chmodSync(p, before & ~0o222);
+  const after = storedMode(p);
+  if (after === before) {
+    throw new Error(`userModeEdit(${p}): the platform stored no mode change (mode ${before.toString(8)} before, ${after.toString(8)} after)`);
+  }
+  return after;
 }
 
 // ── the hermetic runners ────────────────────────────────────────────────────────────────────────
