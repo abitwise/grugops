@@ -39,7 +39,7 @@ const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-settings-json-"
 afterAll(() => {
   // A mode-000 file left by a failed case must not stop the scratch root being removed.
   try {
-    chmodSync(SCRATCH, 0o700);
+    chmodSync(SCRATCH, 0o700); // mode-census: restore
   } catch {
     /* ignore */
   }
@@ -200,10 +200,10 @@ describe("B2: a re-install that cannot read the Gemini settings keeps install's 
       make: (t) => {
         const s = hostCapabilityOrSkip("chmod 000 enforcement", "settings-json-provenance B2 mode 000");
         if (s !== null) return skipLine(s, "B2 mode 000");
-        chmodSync(abs(t, GEM), 0o000);
+        chmodSync(abs(t, GEM), 0o000); // mode-census: access-denial
         return null;
       },
-      undo: (t) => chmodSync(abs(t, GEM), 0o644),
+      undo: (t) => chmodSync(abs(t, GEM), 0o644), // mode-census: restore
     },
     {
       name: "a hard link (a second name outside the target)",

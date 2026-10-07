@@ -37,7 +37,7 @@ afterAll(() => {
   // A directory left read-only by a failed case would make the cleanup fail.
   for (const d of CHMOD_DIRS) {
     try {
-      chmodSync(d, 0o755);
+      chmodSync(d, 0o755); // mode-census: restore
     } catch {
       // already gone
     }
@@ -141,7 +141,7 @@ describe("WR-02: an uninstall that could not finish keeps the marker, and a re-r
       expect(adapters.length, "PREMISE: the install recorded adapters").toBeGreaterThan(10);
       const agents = at(w.t, ".claude/agents");
       CHMOD_DIRS.push(agents);
-      chmodSync(agents, 0o555);
+      chmodSync(agents, 0o555); // mode-census: row-315
       try {
         // The preview changes nothing (it assumes each removal it names succeeds, as uninstall.ts documents).
         const snap = snapshotTree(w.t);
@@ -165,7 +165,7 @@ describe("WR-02: an uninstall that could not finish keeps the marker, and a re-r
         // Nothing this run removed is still listed.
         for (const e of kept) expect(present(at(w.t, e.path)), `the kept ledger lists ${key(e)}, which this run removed`).toBe(true);
       } finally {
-        chmodSync(agents, 0o755);
+        chmodSync(agents, 0o755); // mode-census: restore
       }
       const r2 = uninstall(w);
       expect(r2.status, r2.stdout).toBe(0);
@@ -241,7 +241,7 @@ describe("WR-02: an uninstall that could not finish keeps the marker, and a re-r
       writeFileSync(p, readFileSync(p, "utf8") + "a line the user added\n");
       const m = at(w.t, MARKER_REL);
       const markerBytes = readFileSync(m);
-      chmodSync(m, 0o444);
+      chmodSync(m, 0o444); // mode-census: row-315
       try {
         const r = uninstall(w);
         expect(r.status, r.stdout).toBe(3);
@@ -252,7 +252,7 @@ describe("WR-02: an uninstall that could not finish keeps the marker, and a re-r
         expect(r.stdout).toContain("== uninstall INCOMPLETE");
         expect(readFileSync(m).equals(markerBytes), "the marker changed").toBe(true);
       } finally {
-        chmodSync(m, 0o644);
+        chmodSync(m, 0o644); // mode-census: restore
       }
       expect(existsSync(p)).toBe(true);
     },
@@ -343,15 +343,15 @@ describe("WR-03: a Gemini settings file install created is reversed whole (plan 
     () => {
       const w = installed("gem-chmod");
       const p = at(w.t, GEM);
-      chmodSync(p, 0o600);
+      chmodSync(p, 0o600); // mode-census: row-315
       const r = uninstall(w);
       expect(r.status, r.stdout).toBe(0);
       expect(present(p), `${GEM} was removed after a mode change\n${r.stdout}`).toBe(true);
-      expect(lstatSync(p).mode & 0o777, "the user's mode was lost").toBe(0o600);
+      expect(lstatSync(p).mode & 0o777, "the user's mode was lost").toBe(0o600); // mode-census: row-315
       expect(JSON.parse(readFileSync(p, "utf8")), "install's context is still in the file").toEqual({});
       const line = lines(r.stdout, "removed").find((l) => l.startsWith(GEM));
       expect(line, r.stdout).toBeDefined();
-      expect(line!).toMatch(/file mode is 0600/);
+      expect(line!).toMatch(/file mode is 0600/); // mode-census: row-315
       expect(line!).toMatch(/the file was kept/);
       // The entry is reversed: nothing of install's is left, so the marker goes.
       expect(present(at(w.t, MARKER_REL)), r.stdout).toBe(false);

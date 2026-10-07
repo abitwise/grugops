@@ -76,7 +76,13 @@ function fresh(tag: string): string {
 }
 
 const SHA = contentRecord("x");
-const FILE_REC = fileRecord("x", 0o644);
+// A grammar fixture that is also a true record of a real file: its mode is the one this platform stored
+// (WIN-2, plan 34-14 rule (d)), never a literal, so no test anywhere writes a mode the platform may not keep.
+const FILE_REC = ((): string => {
+  const p = join(SCRATCH, "file-rec-x");
+  writeFileSync(p, "x");
+  return fileRecord("x", storedMode(p));
+})();
 
 /** One valid entry of each kind (the shapes install-marker.ts states). */
 const VALID: Record<(typeof LEDGER_KINDS)[number], Record<string, unknown>> = {

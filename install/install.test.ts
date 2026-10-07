@@ -565,7 +565,7 @@ function makeUnreadableNestFixture(): { src: string; nest: string } {
 // caller is handed the reason to PRINT when it did not take. A silently skipping case is worse
 // than no case; a case that names why it skipped is honest.
 function restrictAndProbe(dir: string, mode: number): { restricted: boolean; reason: string } {
-  chmodSync(dir, mode);
+  chmodSync(dir, mode); // mode-census: access-denial
   try {
     readdirSync(dir);
   } catch {
@@ -4555,7 +4555,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = mkTmp();
     writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
     const agents = join(src, ".claude", "agents");
-    chmodSync(agents, 0o000);
+    chmodSync(agents, 0o000); // mode-census: access-denial
     try {
       const r = runInstallFrom(src, target, home);
       expect(r.status).toBe(3); // INCOMPLETE (27-21, WR-01)
@@ -4564,7 +4564,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       expect(r.stdout).not.toContain("== install complete");
       expect(installedAdapters(target)).toEqual([]);
     } finally {
-      chmodSync(agents, 0o755); // restore so afterEach can clean the fixture up
+      chmodSync(agents, 0o755); // restore so afterEach can clean the fixture up (mode-census: restore)
     }
   });
 
@@ -4828,7 +4828,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       // pre-existing flat-by-contract reason and naming the MEMBER rather than the directory — so
       // the two arms are DISTINGUISHABLE rather than merely both non-zero, and the inversion is
       // what is pinned rather than a bare exit code.
-      chmodSync(nest, 0o755);
+      chmodSync(nest, 0o755); // mode-census: restore
       const walkOk = srcNestedAdapterFiles(src);
       expect(walkOk.unreadable).toEqual([]);
       expect(walkOk.files).toEqual([UNREADABLE_NEST_MEMBER]);
@@ -4846,7 +4846,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     } finally {
       // ALWAYS restore, on every path including a failed assertion, so a red case cannot leave an
       // unremovable temporary tree behind for afterEach to trip over.
-      chmodSync(nest, 0o755);
+      chmodSync(nest, 0o755); // mode-census: restore
     }
   });
 
@@ -5032,7 +5032,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       expect(walk.cycles).toEqual([]);
       expect(walk.overflow).toBeNull();
     } finally {
-      chmodSync(nest, 0o755);
+      chmodSync(nest, 0o755); // mode-census: restore
     }
   });
 
@@ -8437,7 +8437,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
       const { src, target, home, kit, kitFiles } = installed();
       kitUpdate(src);
       const dir = join(src, ".claude", which);
-      chmodSync(dir, 0o000);
+      chmodSync(dir, 0o000); // mode-census: access-denial
       try {
         let readable = true;
         try {
@@ -8458,7 +8458,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
         expect(rf.status, rf.stdout).toBe(3);
         expect(kitState(fresh)).toBe("");
       } finally {
-        chmodSync(dir, 0o755);
+        chmodSync(dir, 0o755); // mode-census: restore
       }
     });
   }
@@ -8905,7 +8905,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     const src = makeSyntheticSrc();
     const t = makeFixture();
     mkdirSync(join(t, ".claude", "agents"), { recursive: true });
-    chmodSync(join(t, ".claude", "agents"), 0o555);
+    chmodSync(join(t, ".claude", "agents"), 0o555); // mode-census: access-denial
     try {
       const r = run(src, t, mkTmp());
       expect(r.status, r.stdout).toBe(3);
@@ -8913,13 +8913,13 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
       expect(kitWriteLines(r.stdout), r.stdout).toEqual([]);
       expect(existsSync(join(t, ".claude", "skills")), "no skill was written").toBe(false);
     } finally {
-      chmodSync(join(t, ".claude", "agents"), 0o755);
+      chmodSync(join(t, ".claude", "agents"), 0o755); // mode-census: restore
     }
     // A rewrite of a skill file mode 444 after a kit update.
     const { src: s2, target, home, kit, kitFiles } = installed();
     kitUpdate(s2);
     const ro = join(target, ".claude", "skills", "grugops-gate", "SKILL.md");
-    chmodSync(ro, 0o444);
+    chmodSync(ro, 0o444); // mode-census: access-denial
     const kitRo = kitState(target);
     try {
       const r = run(s2, target, home);
@@ -8930,7 +8930,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
       expect(kitRo, "premise: kitState does not see the mode, so the 444 file reads as the installed one").toBe(kit);
       expect(kitFilesOf(target)).toBe(kitFiles);
     } finally {
-      chmodSync(ro, 0o644);
+      chmodSync(ro, 0o644); // mode-census: restore
     }
   });
 
@@ -9459,12 +9459,12 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     const skillEdited = editAdapter(target, skillRel);
     const kit = kitState(target);
     const agents = atRel(target, ".claude/agents");
-    chmodSync(agents, 0o555);
+    chmodSync(agents, 0o555); // mode-census: access-denial
     let r: Run;
     try {
       r = run(src, target, home, ["--backup-edited-kit"]);
     } finally {
-      chmodSync(agents, 0o755);
+      chmodSync(agents, 0o755); // mode-census: restore
     }
     expect(r.status, r.stdout).toBe(3);
     expect(
@@ -9675,11 +9675,11 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       name: "kit-plan refusal: a read-only unedited adapter the kit update must rewrite",
       setup: ({ target }) => {
         if (rootOrWin()) return "mode bits are not a fixture as root or on win32";
-        chmodSync(atRel(target, OTHER_REL), 0o444);
+        chmodSync(atRel(target, OTHER_REL), 0o444); // mode-census: access-denial
         return null;
       },
       go: ({ src, target, home }) => run(src, target, home, ["--backup-edited-kit"]),
-      cleanup: ({ target }) => chmodSync(atRel(target, OTHER_REL), 0o644),
+      cleanup: ({ target }) => chmodSync(atRel(target, OTHER_REL), 0o644), // mode-census: restore
     },
     {
       name: "pre-flight hazard: the backup path is taken",
@@ -9698,11 +9698,11 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       name: "a failed backup: an unwritable adapter directory, with the flag",
       setup: ({ target }) => {
         if (rootOrWin()) return "mode bits are not a fixture as root or on win32";
-        chmodSync(atRel(target, ".claude/agents"), 0o555);
+        chmodSync(atRel(target, ".claude/agents"), 0o555); // mode-census: access-denial
         return null;
       },
       go: ({ src, target, home }) => run(src, target, home, ["--backup-edited-kit"]),
-      cleanup: ({ target }) => chmodSync(atRel(target, ".claude/agents"), 0o755),
+      cleanup: ({ target }) => chmodSync(atRel(target, ".claude/agents"), 0o755), // mode-census: restore
     },
   ];
   for (const arm of ARMS) {

@@ -82,6 +82,7 @@ import {
   runInstall,
   runUninstall,
   snapshotTree,
+  storedMode,
 } from "./installer-paths.test-support.js";
 import { KINDS_BY_SCOPE, LEDGER_KINDS, fileRecord } from "./install-marker.js";
 import { askRecord, blockRecords, fileRecords, ledgerOf, readMarkerObject, withLedger, type RawEntry } from "./ledger.test-support.js";
@@ -461,7 +462,9 @@ describe("the kit carry: an identical kit file keeps its record only by owns, ne
     const kit = fileRecords(readMarkerObject(t), true);
     const rel = Object.keys(kit).sort()[0];
     // The record says install wrote other bytes; the file holds exactly what install would write now.
-    const forged = fileRecord("bytes install did not write here\n", 0o644);
+    // Only the bytes differ: the mode is the one the platform stored for the file (WIN-2, plan 34-14 rule (d)),
+    // so on a platform that keeps only the read-only bit the record cannot differ in mode as well.
+    const forged = fileRecord("bytes install did not write here\n", storedMode(at(t, rel)));
     const m = withLedger(readMarkerObject(t), (entries) => {
       for (const e of entries) if (e.kind === "file" && e.path === rel) e.content = forged;
     });
