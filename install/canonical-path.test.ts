@@ -21,7 +21,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import path from "node:path";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { canonicalPathSpelling, realTargetPath, sameRecordedPath, type PathFlavor } from "./user-file.js";
+import { absoluteSpelling, canonicalPathSpelling, realTargetPath, sameRecordedPath, type PathFlavor } from "./user-file.js";
 
 const win = path.win32;
 const posix = path.posix;
@@ -54,8 +54,10 @@ const SPELL_TABLE: readonly SpellRow[] = [
   { name: "(7) posix backslash is a filename byte", flavor: posix, input: "/tmp/a" + B + "b", spelled: "/tmp/a" + B + "b" },
   { name: "(8) posix absolute unchanged", flavor: posix, input: "/tmp/x", spelled: "/tmp/x" },
   { name: "(8) posix lower-case letter-colon unchanged", flavor: posix, input: "c:/x", spelled: "c:/x" },
+  { name: "(P10) a recorded relative path, win32", flavor: win, input: String.raw`a\b\c`, spelled: "a/b/c" },
+  { name: "(P10) a recorded relative path, posix backslash kept", flavor: posix, input: "a" + B + "b", spelled: "a" + B + "b" },
 ];
-const SPELL_TABLE_SIZE = 13;
+const SPELL_TABLE_SIZE = 15;
 
 describe("canonicalPathSpelling — one spelling per flavor (WIN-1)", () => {
   it("the spelling table has its full size", () => {
@@ -119,4 +121,38 @@ describe("realTargetPath — the product's spelling of a real directory", () => 
     expect(here).toBe(canonicalPathSpelling(realpathSync.native(scratch)));
     expect(sameRecordedPath(realpathSync.native(scratch), here as string)).toBe(true);
   });
+});
+
+interface AbsoluteRow {
+  readonly name: string;
+  readonly flavor: PathFlavor;
+  readonly p: string;
+  readonly cwd: string;
+  readonly spelled: string;
+}
+
+// absoluteSpelling (install.ts docAbspath, the doctor's kit-root cross-check, P8): the flavor's own
+// isAbsolute decides, so a Windows `C:/…` kitRoot is absolute, and nothing is collapsed or trimmed.
+const ABSOLUTE_TABLE: readonly AbsoluteRow[] = [
+  { name: "win32 forward-slash absolute kept", flavor: win, p: "C:/x", cwd: String.raw`D:\w`, spelled: "C:/x" },
+  { name: "win32 backslash absolute spelled", flavor: win, p: String.raw`C:\x`, cwd: String.raw`D:\w`, spelled: "C:/x" },
+  { name: "win32 relative prefixed with the canonical cwd", flavor: win, p: "a/b", cwd: String.raw`D:\w`, spelled: "D:/w/a/b" },
+  { name: "win32 relative kept verbatim after the prefix", flavor: win, p: "a/./b/..", cwd: String.raw`D:\w`, spelled: "D:/w/a/./b/.." },
+  { name: "win32 absolute trailing dot kept", flavor: win, p: String.raw`C:\k\agent-factory\.`, cwd: String.raw`D:\w`, spelled: "C:/k/agent-factory/." },
+  { name: "posix absolute kept", flavor: posix, p: "/x", cwd: "/w", spelled: "/x" },
+  { name: "posix relative prefixed", flavor: posix, p: "a", cwd: "/w", spelled: "/w/a" },
+  { name: "posix letter-colon is relative", flavor: posix, p: "C:/x", cwd: "/w", spelled: "/w/C:/x" },
+];
+const ABSOLUTE_TABLE_SIZE = 8;
+
+describe("absoluteSpelling — the doctor's kit-root spelling (P8)", () => {
+  it("the absolute-spelling table has its full size", () => {
+    expect(ABSOLUTE_TABLE.length).toBe(ABSOLUTE_TABLE_SIZE);
+  });
+
+  for (const row of ABSOLUTE_TABLE) {
+    it(`${row.name}: ${JSON.stringify(row.p)} in ${JSON.stringify(row.cwd)} spells ${JSON.stringify(row.spelled)}`, () => {
+      expect(absoluteSpelling(row.p, row.cwd, row.flavor)).toBe(row.spelled);
+    });
+  }
 });

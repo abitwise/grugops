@@ -98,7 +98,7 @@
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
 
 import { existsSync, writeFileSync, unlinkSync, rmdirSync, readdirSync, lstatSync } from "node:fs";
-import { dirname, join, relative, resolve, isAbsolute, sep } from "node:path";
+import { dirname, join, relative, resolve, isAbsolute } from "node:path";
 // KIT-02 / D-28: the ONE derivation of "what is in the kit source", shared with install.ts. Since plan
 // 33.1-38 it decides no removal (the ledger walk does); it only words the report of unrecorded
 // grugops-shaped paths, and hasSourceMarkers serves the self-checkout guard. Node stdlib only, sibling
@@ -152,7 +152,7 @@ import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItem
 // and kindAt names what is at a path. isOwnLink is
 // the one "this link is the link install makes" predicate, shared with install.ts, and gone is the
 // one "nothing is there any more" check a removal is reported by (red-team of plan 33.1-27).
-import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPathSpelling } from "./user-file.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -495,7 +495,7 @@ function removeFile(f: string, label: string, ownLink: string | null, owns: () =
     return "left";
   }
   // A runnable keeps its kind in the line (the wording plan 33.1-36 gave it).
-  const kind = /^tools\/grugops\/[^/]+\.js$/.test(relative(TARGET, f).split(sep).join("/")) ? "grugops runnable, " : "";
+  const kind = /^tools\/grugops\/[^/]+\.js$/.test(canonicalPathSpelling(relative(TARGET, f))) ? "grugops runnable, " : "";
   const how = ownLink !== null ? `${kind}install's link to ${ownLink}, recorded in the install ledger` : `${kind}recorded in the install ledger`;
   const line = `${label} (${how}${own.note !== null ? `; ${own.note}` : ""})`;
   if (DRY_RUN) {
@@ -589,7 +589,7 @@ function rmdirIfEmpty(d: string): Outcome {
   // Not empty once this run's removals are counted: something of the user's (or something this run left)
   // is in it, so it stays, silently, as it always has.
   if (entries.some((e) => !GONE_THIS_RUN.has(resolve(d, e)))) return "left";
-  const own = owns(LEDGER, TARGET, relative(TARGET, d).split(sep).join("/"), "dir");
+  const own = owns(LEDGER, TARGET, canonicalPathSpelling(relative(TARGET, d)), "dir");
   if (!own.owned) {
     report("left", `${d} (${own.reason})`);
     return "left";
@@ -1852,7 +1852,7 @@ function reportUnrecordedSettings(): void {
 // 33.1-28 removed the `grugops`-name rule): it is reported `left` and never removed. It is named only when
 // it is empty once this run's removals are counted, as the reversal of a recorded directory would be.
 function reportUnrecordedDir(d: string): void {
-  const rel = relative(TARGET, d).split(sep).join("/");
+  const rel = canonicalPathSpelling(relative(TARGET, d));
   if (entryAt(LEDGER, rel, "dir") !== undefined) return;
   if (isProtected(d) || wayTo(TARGET, d) !== null || !isDir(d)) return;
   let entries: string[];
@@ -1898,7 +1898,7 @@ function reportKitBackups(): void {
     for (const n of names(d)) {
       if (!n.includes(KIT_BACKUP_INFIX)) continue;
       // Recorded: reportBackup named it from the ledger.
-      if (entryAt(LEDGER, relative(TARGET, `${d}/${n}`).split(sep).join("/"), "backup") !== undefined) continue;
+      if (entryAt(LEDGER, canonicalPathSpelling(relative(TARGET, `${d}/${n}`)), "backup") !== undefined) continue;
       // A name ending in `.incomplete` is a copy install could not finish (red-team W1 of plan 33.1-32:
       // install writes a byte backup under this name and gives it the backup name only when it is
       // whole). It is not a backup of the edit, so it is never called one.
@@ -1980,8 +1980,7 @@ function sameFileBytes(a: string, b: string): boolean {
 // Clear professional voice, never caveman — this is a safety surface.
 // ---------------------------------------------------------------------------
 if (!ALLOW_SELF) {
-  const toPosix = (p: string): string => p.replace(/\\/g, "/");
-  const looksLikeSource = toPosix(resolve(TARGET)) === toPosix(GRUGOPS_SRC) || hasSourceMarkers(TARGET);
+  const looksLikeSource = canonicalPathSpelling(resolve(TARGET)) === canonicalPathSpelling(GRUGOPS_SRC) || hasSourceMarkers(TARGET);
   if (looksLikeSource) {
     process.stderr.write(
       `refusing: target looks like the grugops source checkout (${TARGET}) — uninstalling here would ` +

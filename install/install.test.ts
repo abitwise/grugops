@@ -165,7 +165,7 @@ function mkTmp(): string {
 //     `/private/var/folders/…`. Only the platform's canonical real-path call — `realpathSync.native`
 //     — collapses those pairs. A separator rewrite cannot: both spellings are already
 //     single-separator strings and differ in a path COMPONENT, not in a separator.
-// (2) SEPARATOR. The installer PUBLISHES its kit path forward-slashed (install.ts `toPosix`, so the
+// (2) SEPARATOR. The installer PUBLISHES its kit path forward-slashed (user-file.ts `canonicalPathSpelling`, so the
 //     materialized KIT= line is byte-identical to what the former sh installer wrote), while
 //     `join(home, "agent-factory")` in this file is host-separated. That, and not class (1), is
 //     what every one of this file's three KIT-path reds on windows-latest run 35394268365 measured:

@@ -333,6 +333,18 @@ export function sameRecordedPath(recorded: string, here: string, flavor: PathFla
   return canonicalPathSpelling(recorded, flavor) === canonicalPathSpelling(here, flavor);
 }
 
+/**
+ * The doctor's absolute spelling of a recorded kit root (install.ts docAbspath, plan 34-11): an absolute
+ * path, by the flavor's own isAbsolute, in the one spelling and otherwise verbatim; a relative path
+ * prefixed with the canonical spelling of `cwd` and a `/`, the path itself unchanged. No `.` or `..`
+ * collapse and no trailing-slash trim, so a cosmetic kitRoot difference still reads as one. The flavor's
+ * isAbsolute replaces a leading-`/` test, which read a Windows `C:/…` path as relative.
+ */
+export function absoluteSpelling(p: string, cwd: string, flavor: PathFlavor = HOST_FLAVOR): string {
+  if (flavor.isAbsolute(p)) return canonicalPathSpelling(p, flavor);
+  return `${canonicalPathSpelling(cwd, flavor)}/${p}`;
+}
+
 // realTargetPath (red-team B2 of plan 33.1-33, brief DC-2): the one spelling of "which directory is this"
 // that the install marker is bound to. The operating system's own real path (realpath(3) through
 // realpathSync.native): every symbolic link on the way resolved and, on a case-insensitive volume, the

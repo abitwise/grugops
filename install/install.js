@@ -93,7 +93,7 @@ import { HOST_TOOLS, PI_PROMPT_REL } from "./host-tools.js";
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, treeRecord, } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -193,13 +193,14 @@ const INSTALL_MODE = (() => {
 })();
 // resolveGrugopsHome: mirror install.sh's resolve_grugops_home. Empty-string GRUGOPS_HOME must
 // also fall back (the sh :- colon form). Resolve via os.homedir() so the Windows home (USERPROFILE)
-// matches Git Bash $HOME. Normalize to POSIX forward-slash so the materialized KIT= line is
-// byte-identical to the sh side (Pitfall 2; full Windows parity is UNKNOWN - verify).
-const toPosix = (p) => p.replace(/\\/g, "/");
-const GRUGOPS_HOME = toPosix(process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim()
+// matches Git Bash $HOME. Spelled by user-file.ts canonicalPathSpelling, the one spelling of every path
+// install records (plan 34-11, D-19, WIN-1): forward slashes on Windows so the materialized KIT= line is
+// byte-identical to the sh side, and unchanged on POSIX, where a backslash is a filename byte and
+// folding it would name another directory (full Windows parity is UNKNOWN - verify).
+const GRUGOPS_HOME = canonicalPathSpelling(process.env.GRUGOPS_HOME && process.env.GRUGOPS_HOME.trim()
     ? resolve(process.env.GRUGOPS_HOME)
     : resolve(homedir(), ".grugops"));
-const KIT_ROOT = toPosix(resolve(GRUGOPS_HOME, "agent-factory"));
+const KIT_ROOT = canonicalPathSpelling(resolve(GRUGOPS_HOME, "agent-factory"));
 // KIT_COPY_SOURCE: the directory copyKit copies to KIT_ROOT (copyKit spells the same join for the fs
 // census). seedRoot reads a DRY_RUN's seed from it (red-team L2 of plan 33.1-34).
 const KIT_COPY_SOURCE = join(GRUGOPS_SRC, "agent-factory");
@@ -240,25 +241,25 @@ function readlineSync() {
 // --yes takes the default without prompting (CI-safe). Resolved to absolute before any write. ---
 function resolveTarget() {
     if (ARG_TARGET)
-        return toPosix(resolve(ARG_TARGET));
+        return canonicalPathSpelling(resolve(ARG_TARGET));
     const def = process.env.TARGET ? resolve(process.env.TARGET) : process.cwd();
     if (YES || !process.stdin.isTTY)
-        return toPosix(def);
+        return canonicalPathSpelling(def);
     // No-target modes never install INTO a repo (WR-02): --update is kit-home-only and
     // --prune-old-kit only removes backups install recorded (plan 33.1-40). Do NOT ask "install into which
     // repo?" for them. --update ignores the answer entirely, so take the default silently; prune
     // still needs a repo root to scan, so it asks its own mode-appropriate question.
     if (UPDATE)
-        return toPosix(def);
+        return canonicalPathSpelling(def);
     if (PRUNE_OLD_KIT) {
-        process.stdout.write(`Prune grugops backups in which repo? [${toPosix(def)}] `);
+        process.stdout.write(`Prune grugops backups in which repo? [${canonicalPathSpelling(def)}] `);
         const pruneAns = readlineSync().trim();
-        return toPosix(pruneAns ? resolve(pruneAns) : def);
+        return canonicalPathSpelling(pruneAns ? resolve(pruneAns) : def);
     }
     // Interactive confirm-the-default prompt (synchronous one-line read of stdin).
-    process.stdout.write(`Install grugops into which repo? [${toPosix(def)}] `);
+    process.stdout.write(`Install grugops into which repo? [${canonicalPathSpelling(def)}] `);
     const ans = readlineSync().trim();
-    return toPosix(ans ? resolve(ans) : def);
+    return canonicalPathSpelling(ans ? resolve(ans) : def);
 }
 const TARGET = resolveTarget();
 // Materialization sentinels — byte-identical to uninstall.ts. Declared HERE (before the doctor) so
@@ -493,7 +494,7 @@ const targetRel = (path) => {
     const rel = relative(TARGET, path);
     if (rel === "" || isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`))
         return null;
-    return rel.split(sep).join("/");
+    return canonicalPathSpelling(rel);
 };
 const recordCreatedFile = (path, record) => {
     const rel = targetRel(path);
@@ -638,7 +639,7 @@ const mkdirp = (dir) => {
         catch (e) {
             return `${cur} could not be created (${errCode(e)})`;
         }
-        CREATED_DIRS.add(relative(TARGET, cur).split(sep).join("/"));
+        CREATED_DIRS.add(canonicalPathSpelling(relative(TARGET, cur)));
     }
     return null;
 };
@@ -895,12 +896,14 @@ function readAdapterKit(adapterFile) {
         return "";
     return line.replace(/^KIT="/, "").replace(/"$/, "");
 }
-// docAbspath: byte-parity twin of install.sh's abspath() — an absolute path is returned VERBATIM
-// (no `.`/`..` collapsing, no trailing-slash trimming, unlike node:path resolve()); a relative
-// path is prefixed with cwd. Used by the D-03 cross-check so a cosmetic-but-textually-different
-// kitRoot classifies consistently (using resolve() here would over-normalize `…/agent-factory/.`
-// to `…/agent-factory` and turn a WARN into a pass).
-const docAbspath = (p) => (p.startsWith("/") ? p : `${toPosix(process.cwd())}/${p}`);
+// docAbspath: byte-parity twin of install.sh's abspath() — an absolute path is returned in the one
+// recorded-path spelling but otherwise VERBATIM (no `.`/`..` collapsing, no trailing-slash trimming,
+// unlike node:path resolve()); a relative path is prefixed with cwd. Used by the D-03 cross-check so a
+// cosmetic-but-textually-different kitRoot classifies consistently (using resolve() here would
+// over-normalize `…/agent-factory/.` to `…/agent-factory` and turn a WARN into a pass). The absolute test
+// is the host's node:path isAbsolute through user-file.ts absoluteSpelling (plan 34-11, D-19): the
+// earlier leading-`/` test read a Windows `C:/…` kitRoot as relative and prefixed the cwd to it.
+const docAbspath = (p) => absoluteSpelling(p, process.cwd());
 // kitReal: a path resolves to a REAL kit iff agent-factory/roles/orchestrator.md exists under it.
 // Used by the D-03 cross-check to distinguish a cosmetic diff (all real) from a true divergence.
 const kitReal = (p) => p !== "" && existsSync(join(p, "roles", "orchestrator.md"));
@@ -1434,7 +1437,7 @@ if (PRUNE_OLD_KIT) {
 // uninstall.ts resolve the target differently on purpose (uninstall.ts normalises with resolve()
 // first; see its guard). Merging the two halves would silently pick one behaviour for both.
 if (!ALLOW_SELF) {
-    const looksLikeSource = TARGET === toPosix(GRUGOPS_SRC) || hasSourceMarkers(TARGET);
+    const looksLikeSource = TARGET === canonicalPathSpelling(GRUGOPS_SRC) || hasSourceMarkers(TARGET);
     if (looksLikeSource) {
         process.stderr.write("refusing: target looks like the grugops source checkout — you probably meant --target <your-repo>. Pass --allow-self to override.\n");
         process.exit(1);
@@ -2514,7 +2517,7 @@ function copyKit(retainBackup = false) {
             verify(`${KIT_ROOT} could not be moved aside to ${backup} (${errCode(e)}), so the kit was not copied; the new kit was left staged in ${tmp} for you to remove.`);
             return;
         }
-        made = { path: relative(GRUGOPS_HOME, backup).split(sep).join("/"), kind: "backup", origin: "kit-home", of: KIT_ENTRY_PATH, content };
+        made = { path: canonicalPathSpelling(relative(GRUGOPS_HOME, backup)), kind: "backup", origin: "kit-home", of: KIT_ENTRY_PATH, content };
         report("backed-up", `${KIT_ROOT} → ${backup} (${why}; recorded in ${KIT_HOME_RECORD_REL})`);
     }
     try {
@@ -4458,7 +4461,7 @@ function buildKitPlan() {
     // normalisation-insensitive target the second write would land on the first file. kitNameCollisions
     // (kit-source.ts) folds every destination per component; any pair refuses the whole kit.
     const planned = [...skills, ...adapters].filter((e) => e.kind !== "missing");
-    const relOf = (dest) => relative(TARGET, dest).split(sep).join("/");
+    const relOf = (dest) => canonicalPathSpelling(relative(TARGET, dest));
     for (const [a, b] of kitNameCollisions(planned.map((e) => relOf(e.dest)))) {
         refusals.push(a === b
             ? `${a} — the kit plan holds this destination twice, so two kit files would be written to one ` +

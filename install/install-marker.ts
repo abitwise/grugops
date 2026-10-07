@@ -1124,7 +1124,7 @@ export function readKitHomeRecord(home: string): KitHomeRecordRead {
 //
 // VALUES, NOT ONLY TYPES (red-team B2 of plan 33.1-33). Strings were enough before, so empty strings and
 // an installMode of "banana" passed. install writes grugopsHome and kitRoot as absolute paths
-// (toPosix(resolve(...))), installMode as "copy" or "symlink" (install.ts refuses any other INSTALL_MODE
+// (canonicalPathSpelling(resolve(...)), user-file.ts), installMode as "copy" or "symlink" (install.ts refuses any other INSTALL_MODE
 // as bad usage), and `target` as this directory's real path. A field holding anything else is not
 // install's value, and the marker is not install's. `target` may be absent here (a marker written before
 // the binding existed); markerBinding then says the marker is not bound.
