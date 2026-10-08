@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 243
+open_count: 244
 waived_count: 28
 fixed_count: 47
-total_count: 318
-last_updated: 2026-10-07T20:15:02.219Z
+total_count: 319
+last_updated: 2026-10-08T06:40:54.249Z
 ---
 
 # Broken Windows Ledger
@@ -330,9 +330,10 @@ last_updated: 2026-10-07T20:15:02.219Z
 | 313 | 33.1 | deviation | install/uninstall.ts |  | 33.1-30: with no install marker at all, uninstall leaves every kit file (a byte-identical kit copy included), where the plan's no-marker bullet removed a byte-identical skill; brief DC-2 (never-installed target changes by zero bytes) and plan 28's AGENTS.md/runnables rule | open |  | 2026-09-30T02:42:44.400Z |  |
 | 314 | 33.1 | deviation | install/install.ts |  | Round-2 red-team item 14 (plan 33.1-32): a re-install (copyKit(false)) moves the shared kit home ~/.grugops/agent-factory aside and removes it, so a user's edit there is overwritten with no diff and no backup; only --update (copyKit(true)) keeps a differing kit home. Human decision 2026-09-30, recorded in 33.1 D-31: accepted for now; a backup of kit-home edits is deferred (deferred-items.md row 'Item 14'). | waived | Accepted by the named human on 2026-09-30 (recorded in 33.1 D-31): overwriting the shared kit home on re-install is kept for now; kit-home backup deferred. | 2026-10-01T19:12:38.633Z | 2026-10-01T19:12:43.663Z |
 | 315 | 33.1 | unrun-verify | install/installer-marker-retention.test.ts |  | 33.1-39 and 33.1-40 (gap round 3): four chmod-based cases skip on win32 (and as root), where a mode does not stop a removal, read or write, and the skip reason is printed. installer-marker-retention.test.ts: the verifier's WR-02 reproduction (chmod 555 .claude/agents, then re-run), the read-only kept marker, and the chmod-only created Gemini file; installer-prune.test.ts: a record that cannot be rewritten after the removals. The marker-kept-after-a-failed-removal path and the failed-ledger-rewrite verify are therefore unobserved on windows-latest. Remedy: make the removal or the rewrite fail by a Windows-native means (an open handle or an ACL deny) in those cases. | open |  | 2026-10-05T13:54:17.804Z |  |
-| 316 | 34 | unmet-truth | install/uninstall-removal.test.ts |  | HOST-02 not met: CI run 37521787426 (head dc2c7581) windows-latest red with 5 tests this phase added or changed - uninstall-removal never-installed blocks/settings/dirs case real+DRY_RUN (Pi plant added by d6c2e96a; failure 'no left line for the empty .claude/agents'), installer-user-edit .pi/prompts/grugops.md row, record-truth L1 .pi/prompts/grugops.md chmod row, installer-dry-run 'subset: flow 10s tree' (red pre-phase with same assertion). Per-file classification in 34-VALIDATION.md 'Windows-latest measurement'. Not fixed in 34-10 (plan prohibition); gap closure decides. | open |  | 2026-10-07T10:39:03.155Z |  |
-| 317 | 33.1 | unmet-truth | install/ledger.test.ts |  | windows-latest red on the 33.1 installer suites, never recorded: run 36716255097 (head 3fd78e60, 2026-09-30) windows red 67 tests/9 files; run 37521787426 (head dc2c7581) red 144 tests/13 files, 139 of them not added or changed by phase 34 (60 carried by name from 36716255097; the rest added or made red by 33.1 gap round 3, plans 33.1-36..40, first measured on windows here). Printed message families: marker/kit-home path in two spellings (backslash-separated vs forward-slash C:/Users) and file modes (expected 438 to be 502). Cause UNKNOWN - verify. Per-file list in 34-VALIDATION.md. | open |  | 2026-10-07T10:39:03.238Z |  |
+| 316 | 34 | unmet-truth | install/uninstall-removal.test.ts |  | HOST-02 not met: CI run 37521787426 (head dc2c7581) windows-latest red with 5 tests this phase added or changed - uninstall-removal never-installed blocks/settings/dirs case real+DRY_RUN (Pi plant added by d6c2e96a; failure 'no left line for the empty .claude/agents'), installer-user-edit .pi/prompts/grugops.md row, record-truth L1 .pi/prompts/grugops.md chmod row, installer-dry-run 'subset: flow 10s tree' (red pre-phase with same assertion). Per-file classification in 34-VALIDATION.md 'Windows-latest measurement'. Not fixed in 34-10 (plan prohibition); gap closure decides. Gap round 1 measured (34-18): CI run 37733716975, head 9de784e8, windows-latest failure with Test Files 4 failed and Tests 7 failed; the five tests named above are green there, but two tests 34-13 changed are red (ledger.test.ts link records, row 319), so HOST-02 is still not met and this row stays open. | open |  | 2026-10-07T10:39:03.155Z |  |
+| 317 | 33.1 | unmet-truth | install/ledger.test.ts |  | windows-latest red on the 33.1 installer suites, never recorded: run 36716255097 (head 3fd78e60, 2026-09-30) windows red 67 tests/9 files; run 37521787426 (head dc2c7581) red 144 tests/13 files, 139 of them not added or changed by phase 34 (60 carried by name from 36716255097; the rest added or made red by 33.1 gap round 3, plans 33.1-36..40, first measured on windows here). Printed message families: marker/kit-home path in two spellings (backslash-separated vs forward-slash C:/Users) and file modes (expected 438 to be 502). Cause UNKNOWN - verify. Per-file list in 34-VALIDATION.md. Gap round 1 measured (34-18): CI run 37733716975, head 9de784e8, windows-latest red 7 tests in 4 files; 132 of this row's 139 earlier reds are green there (the marker-binding B2 remedy case by its two successor cases), and still red are the five other-family tests (bodies unchanged since 45766c2d) and the two ledger.test.ts link-record tests (new cause, row 319), so this row stays open. | open |  | 2026-10-07T10:39:03.238Z |  |
 | 318 | 34 | unrun-verify | install/installer-prune.test.ts |  | 34-13 (WIN-2, D-19): the two IN-03 cases (an edited kit file at 0600 / 0664 is backed up keeping those bits) are gated on the measured host capability 'POSIX permission bits beyond read-only' and skip with a printed reason where it is absent (windows-latest), so a backup's 0600/0664 bits are unobserved there; the read-only bit of a backup is not covered by a Windows run either. Remedy: a Windows case on the read-only attribute once the replacement step's behaviour on a read-only edited kit file is measured. | open |  | 2026-10-07T20:15:02.219Z |  |
+| 319 | 34 | unmet-truth | install/ledger.test.ts | 454 | New cause in CI run 37733716975 (head 9de784e8, gap round 1 of phase 34): windows-latest red in two tests that 34-13 changed - ledger.test.ts 'treeRecord gives a file its file record, a link its link record, ...' (:454) and 'backupContentRecord: a file's bytes and mode, a tree, a link; ...' (:638), printed 'expected link:D:\\some\\where to be link:/some/where'. Each was a WIN-2 red in run 37521787426; 34-13's stored-mode fix let the earlier assertion pass and this masked one now runs. The fixture links to the rooted target /some/where; on Windows, Node's symlink stores a rooted target resolved against the cwd drive (the leg runs on D:), so readlink returns D:\\some\\where. Not in the family rule (WIN-1 recorded/printed, WIN-2, other); the 34-12 masked-assertion audit covered WIN-1 reds only. Whether any product link record (install.ts linkRecord(src) at :2482/:3718 against readlink in user-file.ts :454/:536) is re-spelled the same way on Windows is UNKNOWN - verify: the link cases of uninstall-removal.test.ts skip on win32. Blocks HOST-02. Not fixed in 34-18 (plan prohibition); gap round 2 decides. | open |  | 2026-10-08T06:40:54.249Z |  |
 
 ````json
 [
@@ -4261,7 +4262,7 @@ last_updated: 2026-10-07T20:15:02.219Z
     "phase": "34",
     "file": "install/uninstall-removal.test.ts",
     "line": null,
-    "description": "HOST-02 not met: CI run 37521787426 (head dc2c7581) windows-latest red with 5 tests this phase added or changed - uninstall-removal never-installed blocks/settings/dirs case real+DRY_RUN (Pi plant added by d6c2e96a; failure 'no left line for the empty .claude/agents'), installer-user-edit .pi/prompts/grugops.md row, record-truth L1 .pi/prompts/grugops.md chmod row, installer-dry-run 'subset: flow 10s tree' (red pre-phase with same assertion). Per-file classification in 34-VALIDATION.md 'Windows-latest measurement'. Not fixed in 34-10 (plan prohibition); gap closure decides.",
+    "description": "HOST-02 not met: CI run 37521787426 (head dc2c7581) windows-latest red with 5 tests this phase added or changed - uninstall-removal never-installed blocks/settings/dirs case real+DRY_RUN (Pi plant added by d6c2e96a; failure 'no left line for the empty .claude/agents'), installer-user-edit .pi/prompts/grugops.md row, record-truth L1 .pi/prompts/grugops.md chmod row, installer-dry-run 'subset: flow 10s tree' (red pre-phase with same assertion). Per-file classification in 34-VALIDATION.md 'Windows-latest measurement'. Not fixed in 34-10 (plan prohibition); gap closure decides. Gap round 1 measured (34-18): CI run 37733716975, head 9de784e8, windows-latest failure with Test Files 4 failed and Tests 7 failed; the five tests named above are green there, but two tests 34-13 changed are red (ledger.test.ts link records, row 319), so HOST-02 is still not met and this row stays open.",
     "status": "open",
     "reason": "",
     "recorded_at": "2026-10-07T10:39:03.155Z",
@@ -4274,7 +4275,7 @@ last_updated: 2026-10-07T20:15:02.219Z
     "phase": "33.1",
     "file": "install/ledger.test.ts",
     "line": null,
-    "description": "windows-latest red on the 33.1 installer suites, never recorded: run 36716255097 (head 3fd78e60, 2026-09-30) windows red 67 tests/9 files; run 37521787426 (head dc2c7581) red 144 tests/13 files, 139 of them not added or changed by phase 34 (60 carried by name from 36716255097; the rest added or made red by 33.1 gap round 3, plans 33.1-36..40, first measured on windows here). Printed message families: marker/kit-home path in two spellings (backslash-separated vs forward-slash C:/Users) and file modes (expected 438 to be 502). Cause UNKNOWN - verify. Per-file list in 34-VALIDATION.md.",
+    "description": "windows-latest red on the 33.1 installer suites, never recorded: run 36716255097 (head 3fd78e60, 2026-09-30) windows red 67 tests/9 files; run 37521787426 (head dc2c7581) red 144 tests/13 files, 139 of them not added or changed by phase 34 (60 carried by name from 36716255097; the rest added or made red by 33.1 gap round 3, plans 33.1-36..40, first measured on windows here). Printed message families: marker/kit-home path in two spellings (backslash-separated vs forward-slash C:/Users) and file modes (expected 438 to be 502). Cause UNKNOWN - verify. Per-file list in 34-VALIDATION.md. Gap round 1 measured (34-18): CI run 37733716975, head 9de784e8, windows-latest red 7 tests in 4 files; 132 of this row's 139 earlier reds are green there (the marker-binding B2 remedy case by its two successor cases), and still red are the five other-family tests (bodies unchanged since 45766c2d) and the two ledger.test.ts link-record tests (new cause, row 319), so this row stays open.",
     "status": "open",
     "reason": "",
     "recorded_at": "2026-10-07T10:39:03.238Z",
@@ -4291,6 +4292,19 @@ last_updated: 2026-10-07T20:15:02.219Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-10-07T20:15:02.219Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 319,
+    "kind": "unmet-truth",
+    "phase": "34",
+    "file": "install/ledger.test.ts",
+    "line": 454,
+    "description": "New cause in CI run 37733716975 (head 9de784e8, gap round 1 of phase 34): windows-latest red in two tests that 34-13 changed - ledger.test.ts 'treeRecord gives a file its file record, a link its link record, ...' (:454) and 'backupContentRecord: a file's bytes and mode, a tree, a link; ...' (:638), printed 'expected link:D:\\some\\where to be link:/some/where'. Each was a WIN-2 red in run 37521787426; 34-13's stored-mode fix let the earlier assertion pass and this masked one now runs. The fixture links to the rooted target /some/where; on Windows, Node's symlink stores a rooted target resolved against the cwd drive (the leg runs on D:), so readlink returns D:\\some\\where. Not in the family rule (WIN-1 recorded/printed, WIN-2, other); the 34-12 masked-assertion audit covered WIN-1 reds only. Whether any product link record (install.ts linkRecord(src) at :2482/:3718 against readlink in user-file.ts :454/:536) is re-spelled the same way on Windows is UNKNOWN - verify: the link cases of uninstall-removal.test.ts skip on win32. Blocks HOST-02. Not fixed in 34-18 (plan prohibition); gap round 2 decides.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-08T06:40:54.249Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }

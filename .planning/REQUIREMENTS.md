@@ -254,7 +254,7 @@ _Filled by the roadmapper 2026-07-28. Every requirement maps to exactly one phas
 | EFFORT-04 | Phase 34 | Complete (34-VERIFICATION.md truths 3 and 4; the installer's effort cross-check added by plan 34-15) |
 | EFFORT-05 | Phase 34 | Gaps Found |
 | HOST-01 | Phase 34 | Gaps Found |
-| HOST-02 | Phase 34 | Pending |
+| HOST-02 | Phase 34 | Pending: NOT MET on CI run 37733716975 (head 9de784e8, gap round 1). windows-latest printed `Tests  7 failed`; red and changed by phase 34 (34-13): install/ledger.test.ts "treeRecord gives a file its file record, a link its link record, …" and "backupContentRecord: a file's bytes and mode, a tree, a link; …" (link target respelled `D:\some\where`, WINDOWS.md row 319); the other 5 reds are carried, bodies unchanged since 45766c2d. See 34-VALIDATION.md "Gap round 1 (D-19): measured result" |
 | PI-01 | Phase 34 | Gaps Found |
 | PI-02 | Phase 34 | Complete |
 | PI-03 | Phase 34 | Complete on POSIX (34-VERIFICATION.md truth 8); the windows-latest result is recorded under HOST-02 |

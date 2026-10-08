@@ -153,7 +153,7 @@ probe-derived edge predicates were generated. Edge cases and prohibitions were d
 
 | Behavior | Requirement | Why Manual | Test Instructions | Result |
 |----------|-------------|------------|-------------------|--------|
-| No test added/changed by this phase is red on windows-latest | HOST-02 (D-09) | The push is the human's act | Human pushes; record `test (windows-latest)` conclusion and any red file against WINDOWS.md rows 274/315 | ❌ NOT MET. Run 37521787426, head `dc2c7581d4710aed1e288bcab01872a71b38d3e6` (equals the pushed `main` HEAD and local HEAD). `test (ubuntu-latest)` success; `test (windows-latest)` failure at step "Vitest (e2e lane excluded)": 13 files / 144 tests red. 5 red tests were added or changed by this phase (class b). See "Windows-latest measurement" below. |
+| No test added/changed by this phase is red on windows-latest | HOST-02 (D-09) | The push is the human's act | Human pushes; record `test (windows-latest)` conclusion and any red file against WINDOWS.md rows 274/315 | ❌ NOT MET. Run 37521787426, head `dc2c7581d4710aed1e288bcab01872a71b38d3e6` (equals the pushed `main` HEAD and local HEAD). `test (ubuntu-latest)` success; `test (windows-latest)` failure at step "Vitest (e2e lane excluded)": 13 files / 144 tests red. 5 red tests were added or changed by this phase (class b). See "Windows-latest measurement" below. **Gap round 1 (34-18): ❌ NOT MET.** Run 37733716975, head `9de784e863280e9510a50e122bf0d8ff12f5a833` (equals local HEAD at the push). `test (ubuntu-latest)` success; `test (windows-latest)` failure at "Vitest (e2e lane excluded)", printed `Test Files  4 failed \| 99 passed (103)` and `Tests  7 failed \| 7402 passed \| 28 skipped (7437)`. The five HOST-02 tests of 34-VERIFICATION.md gap 1 are green; two tests 34-13 changed are red (ledger.test.ts link records, a new cause, WINDOWS.md row 319). See "Gap round 1 (D-19): measured result" below. |
 
 ### Windows-latest measurement (34-10 Task 3, read with `gh run view 37521787426` and `gh run view --job 112468804112 --log`)
 
@@ -347,6 +347,185 @@ Vitest printed: `Test Files  103 passed (103)`, `Tests  7435 passed | 2 skipped 
 The commit that adds this section changes only this file, so the head the human pushes is that commit,
 one documentation commit on top of `17fd6be2`. Its sha is recorded at the checkpoint and checked
 against the run's `headSha` in Task 3.
+
+### Gap round 1 (D-19): measured result
+
+Written by plan 34-18 Task 3 from GitHub's own run data, read-only: `gh run view 37733716975 --json
+conclusion,headSha,jobs` and `gh run view --job 113168427323 --log`, colour sequences and the
+job/step/timestamp prefix stripped, each red block taken from its ` FAIL  <file> > …` line to the next
+`⎯⎯⎯[n/7]⎯` separator, and the family rule of 34-18-PLAN.md applied, first match wins. The human pushed;
+no agent ran `git push`.
+
+- **Run:** 37733716975, workflow `ci`, event `push`, branch `main`, created 2026-10-08T05:42:22Z,
+  completed 06:35:27Z. Conclusion **failure**.
+- **Head sha:** `9de784e863280e9510a50e122bf0d8ff12f5a833`. It equals the local HEAD at the push (the
+  plan 34-18 Task 1 commit that added the prediction above).
+- **`test (ubuntu-latest)`** (job 113168427533): **success**, every step including the freshness and repo
+  gates.
+- **`test (windows-latest)`** (job 113168427323): **failure**, at step "Vitest (e2e lane excluded)". Every
+  earlier step succeeded, the two platform-shape steps included. The leg ran Node v22.23.3 in
+  `D:\a\grugops\grugops`.
+
+GitHub printed, verbatim:
+
+```
+ Test Files  4 failed | 99 passed (103)
+      Tests  7 failed | 7402 passed | 28 skipped (7437)
+```
+
+Predicted: `Test Files 3 failed | 100 passed (103)` and `Tests 5 failed`, total 7437. The total matches.
+The run has one more red file and two more red tests than predicted. Both extra reds are in
+`install/ledger.test.ts` and are a new cause (below).
+
+#### Per-file result for the 13 red files of run 37521787426
+
+| File (as printed) | Red then | Predicted | Printed now | Against the prediction |
+|---|---|---|---|---|
+| `install/install.test.ts` | 3 | red, 2 tests | `❯ install/install.test.ts (409 tests \| 2 failed \| 1 skipped)` | as predicted: the two other-family tests red, IN-04 green |
+| `install/installer-dry-run.test.ts` | 5 | green | `✓ install/installer-dry-run.test.ts (16 tests)` | as predicted |
+| `install/installer-kit-home.test.ts` | 2 | green | `✓ install/installer-kit-home.test.ts (27 tests)` | as predicted |
+| `install/installer-never-installed.test.ts` | 4 | green | `✓ install/installer-never-installed.test.ts (41 tests)` | as predicted |
+| `install/installer-prune.test.ts` | 4 | green file, 2 skipped with a printed line | `✓ install/installer-prune.test.ts (21 tests \| 1 skipped)` | green as predicted, and both IN-03 `SKIPPED` lines printed. The skip count was predicted wrong: see "The IN-03 skip lines" below |
+| `install/installer-user-edit.test.ts` | 60 | green | `✓ install/installer-user-edit.test.ts (99 tests)` | as predicted |
+| `install/installer-write-set.test.ts` | 2 | red, 1 test | `❯ install/installer-write-set.test.ts (442 tests \| 1 failed)` | as predicted: the readUserFile ENOTDIR case red, the `--migrate` case green |
+| `install/kit-plan-limits.test.ts` | 2 | red, 2 tests | `❯ install/kit-plan-limits.test.ts (10 tests \| 2 failed)` | as predicted |
+| `install/ledger-provenance.test.ts` | 1 | green | `✓ install/ledger-provenance.test.ts (69 tests)` | as predicted |
+| `install/ledger.test.ts` | 9 | green | `❯ install/ledger.test.ts (43 tests \| 2 failed)` | **NOT as predicted: 2 red, a new cause** |
+| `install/marker-binding.test.ts` | 5 | green | `✓ install/marker-binding.test.ts (21 tests)` | as predicted (the B2 remedy case's two successor cases included) |
+| `install/record-truth.test.ts` | 45 | green | `✓ install/record-truth.test.ts (72 tests)` | as predicted |
+| `install/uninstall-removal.test.ts` | 2 | green | `✓ install/uninstall-removal.test.ts (28 tests \| 13 skipped)` | as predicted. The 13 skips are the three `describe.skipIf(!canSymlink)` blocks (`canSymlink = process.platform !== "win32"`, :230), the same 13 as in run 37521787426; the HOST-02 describe at :548 has no skip |
+| **Total** | **144** | **3 files, 5 tests red** | **4 files, 7 tests red** | |
+
+No other file is red. The three new test files are green: `✓ install/canonical-path.test.ts (63 tests)`,
+`✓ install/path-spelling-census.test.ts (13 tests)`, `✓ install/mode-census.test.ts (15 tests)`. So are the
+other test files this round changed (`installer-marker-retention`, `settings-json-provenance`,
+`scripts/context-io.test.ts`). The 28 vitest skips are the same per file as in run 37521787426:
+host-protection 8, generate-role-adapters 1, skill-twins-freshness 1, install.test.ts 1,
+uninstall-removal 13, installer-prune 1, installer-marker-retention 3.
+
+#### Every red, with its family
+
+| # | Test (as printed) | Printed failure | Family (rule) | Predicted |
+|---|---|---|---|---|
+| 1 | install.test.ts > readUserFile: the one bounded reader of a user path (DC-3, plan 33.1-26) > readUserFile: an absent path is `absent`; a path under a regular file and a dangling symlink are not | `expected { state: 'absent' } to deeply equal { Object (state, code) }` at install.test.ts:7294:66 | other (`{ state: 'absent' }`) | red |
+| 2 | install.test.ts > kit re-install (D-32, plan 33.1-32) > W1: when the incomplete copy cannot be removed either, the verify names it incomplete, and uninstall never calls it a backup of the edit | `expected false to be true` at install.test.ts:10090:99 | other (the W1 ENOSPC kit re-install case) | red |
+| 3 | installer-write-set.test.ts > readUserFile and readForWrite: absent means nothing is there (red-team of plan 33.1-26) > readUserFile: a path under a regular file is `unreadable` (ENOTDIR), never `absent` | `expected { state: 'absent' } to deeply equal { Object (state, code) }` at installer-write-set.test.ts:656:76 | other (`{ state: 'absent' }`) | red |
+| 4 | kit-plan-limits.test.ts > kit plan: a destination over the platform path limits (red-team borderline (a) of plan 33.1-31) > a full path of PATH_MAX - 1 bytes is within the limit, and PATH_MAX bytes is over it (PATH_MAX counts the NUL) | `has a component of 1023 bytes, over this platform's name limit of 255 bytes (NAME_MAX)` at kit-plan-limits.test.ts:85:34 | other (component of N bytes) | red |
+| 5 | kit-plan-limits.test.ts > (same describe) > a component of NAME_MAX bytes is within the limit, and NAME_MAX + 1 bytes is over it, counted in UTF-8 bytes | `has a component of 258 bytes, over this platform's name limit of 255 bytes (NAME_MAX)` at kit-plan-limits.test.ts:92:66 | other (component of N bytes) | red |
+| 6 | ledger.test.ts > plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeRecord > treeRecord gives a file its file record, a link its link record, and null for a FIFO, nothing, or a walk past TREE_MAX_ENTRIES | `expected 'link:D:\some\where' to be 'link:/some/where'` at ledger.test.ts:454:37 | **no family of the rule matches: new cause** | green |
+| 7 | ledger.test.ts > plan 33.1-40: backupContentRecord, outermostBackups and carriedBackups > backupContentRecord: a file's bytes and mode, a tree, a link; null for a hard link, a FIFO, nothing, or a link on the way | `expected 'link:D:\some\where' to be 'link:/some/where'` at ledger.test.ts:638:48 | **no family of the rule matches: new cause** | green |
+
+Family counts on this run: WIN-1 recorded path 0, WIN-1 printed path 0, WIN-2 0, other families 5,
+unmatched 2.
+
+#### The two reds the prediction marked green: a new cause
+
+Both tests were WIN-2 reds in run 37521787426. There, each failed first on a mode-bearing file record
+(`expected 'sha256:2d7116…' to be 'sha256:2d7116…'` and `'sha256:fcbc80…'`). Plan 34-13 changed both
+bodies to build that expectation from the stored mode (commit `5a11fc9f`): ledger.test.ts:452
+`fileRecord("x", storedMode(...))` and :634-635 `userModeEdit` then `fileRecord("mine\n", bakMode)`. On
+windows-latest those assertions now pass. The next assertion, masked until now, fails:
+
+```
+symlinkSync("/some/where", join(root, "l"));                      // ledger.test.ts:453 (and :637 for l.bak)
+expect(treeRecordOf(root, "l")).toBe(linkRecord("/some/where"));  // :454 (and :638) — received 'link:D:\some\where'
+```
+
+This is not the WIN-1 or WIN-2 message family, so it is not a missed site of either. It is a new cause,
+and this is what the printed failure and the source show:
+
+- **Producer:** `treeRecord` (install/user-file.ts:454) and `backupContentRecord` both return
+  `link:${readlinkSync(top)}`. They record the link target as the platform reports it.
+- **Fixture:** the test creates the link to the rooted POSIX target `/some/where` and expects
+  `linkRecord("/some/where")` (install/install-marker.ts:462, `link:${target}`). That holds only if the
+  target comes back from readlink byte for byte.
+- **Platform:** Node's `fs.symlink` preprocesses the destination on Windows. In
+  `preprocessSymlinkDestination` (internal/fs/utils), an absolute target goes through
+  `path.toNamespacedPath`, which resolves a rooted path against the current drive. This was read from
+  local Node v24.12.0 with `--expose-internals`. The leg ran Node v22.23.3, whose copy was not read, so
+  that half is `UNKNOWN - verify`. The leg's working directory is on `D:`, and readlink returned
+  `D:\some\where`, which is consistent with that reading.
+- **Why the prediction missed it:** the prediction listed "assertions after the first failing one in
+  every earlier red have never run on windows-latest" as `UNKNOWN - verify`. Plan 34-12's masked-assertion
+  audit covered the WIN-1 reds only. Its "Not WIN-1, so outside this audit" list names ledger.test
+  :432 and :621, the earlier first failures of exactly these two tests, so no one audited the assertions
+  after them.
+- **Product reach: `UNKNOWN - verify`.** The installer records its own links as `linkRecord(src)`
+  (install/install.ts:2482, :3718). `isOwnLink` (install/user-file.ts:536) compares `readlinkSync(dest) ===
+  src`. Both meet the same respelling if any `src` reaches `symlinkSync` on Windows in a form Windows
+  rewrites (a rooted path without a drive, or forward slashes). The link cases that would show it
+  (`uninstall-removal.test.ts` B1/B2, B3, and the install.js link removals) are `describe.skipIf` on
+  win32, so this run says nothing about the product side.
+
+Ledgered as WINDOWS.md row 319 (phase 34, `unmet-truth`). Not fixed here (34-18 prohibition). Gap round
+2 decides, and should also audit the assertions after the first failure in every other earlier WIN-2 red.
+The 34-12 audit did not cover that.
+
+#### The IN-03 skip lines
+
+Both lines printed, as predicted (log lines 7090 and 7093 of the stripped job log):
+
+```
+SKIPPED shape="POSIX permission bits beyond read-only" position="install/installer-prune.test.ts: IN-03 0600" platform=win32: this platform keeps only the read-only attribute of a file (Windows), so a mode such as 0600 or 0664 cannot be stored and a fixture that sets one asserts nothing; …
+SKIPPED shape="POSIX permission bits beyond read-only" position="install/installer-prune.test.ts: IN-03 0664" platform=win32: …
+```
+
+The prediction got the count wrong. It said the vitest skip count would rise by at least these two, and it
+stayed at 28. Each IN-03 case prints its skip line and `return`s (installer-prune.test.ts:210-213), so
+vitest counts it as passed, not skipped. That is the same convention as the printed FIFO skips in
+`scripts/context-io.test.ts`. The file's one vitest skip is the failed-rewrite case under row 315 ("SKIP
+the failed-rewrite case of installer-prune.test.ts — win32", log line 7083). Row 318 already records that
+a backup's 0600/0664 bits are unobserved on windows-latest.
+
+#### The `UNKNOWN - verify` items the prediction listed, against this run
+
+- **Assertions after the first failing one in every earlier red.** Partly answered. 137 of the 144 earlier red
+  test names are green (the marker-binding B2 remedy case through its two successor cases). For each of
+  them every assertion now ran and passed on windows-latest. In two tests (rows 6 and 7 above) a masked assertion fails. The five other-family tests
+  still fail where they failed before, so their later assertions remain unrun.
+- **Read-only files on uninstall, rename and hard-link removal.** Partly answered. All 72 record-truth
+  tests pass, among them the 34 L1 rows (CLAUDE.md and `.github/copilot-instructions.md` included).
+  `userModeEdit` throws when the platform stores no mode change (installer-paths.test-support.ts:294-296).
+  So on windows-latest clearing the write bits is stored and seen by `storedMode`, and the L1 rows' "kept,
+  with the user's mode" expectations hold. Still `UNKNOWN - verify`: which of the accepted exit statuses
+  (0 or 3) the CLAUDE.md and copilot block-removal write failure produced, because a passing test prints
+  nothing. The hard-link case in ledger.test.ts (:639-643) sits after the new red at :638 and is still
+  masked.
+- **The capability gate's skip line.** Answered: printed as predicted (above). The platform-shape steps
+  printed `POSIX permission bits beyond read-only ABSENT (skipped, see below)` and stayed green, as
+  predicted.
+
+#### The unchanged-body check (`git diff 45766c2d..9de784e8`)
+
+For each red, each test's `it(` call was located with the TypeScript parser at both revisions. The
+`git diff -U0 45766c2d..9de784e8 -- <file>` hunks were then intersected with those line ranges, old side
+and new side.
+
+| Red test | Body at 45766c2d | Body at 9de784e8 | Hunks in the file | Hunks inside the body |
+|---|---|---|---|---|
+| install.test.ts readUserFile absent / ENOTDIR | :6953-6964 | :7290-7301 | 58 | **0** |
+| install.test.ts W1 incomplete copy | :9734-9755 | :10077-10098 | 58 | **0** |
+| installer-write-set.test.ts readUserFile ENOTDIR | :651-655 | :653-657 | 4 | **0** |
+| kit-plan-limits.test.ts PATH_MAX - 1 | :76-89 | :76-89 | 0 | **0** |
+| kit-plan-limits.test.ts NAME_MAX | :91-96 | :91-96 | 0 | **0** |
+| ledger.test.ts treeRecord shapes | :441-456 | :449-463 | 24 | **1** (`-444,2 +452,1`, the stored-mode file record; commit `5a11fc9f`, plan 34-13) |
+| ledger.test.ts backupContentRecord | :617-644 | :627-655 | 24 | **1** (`-620,2 +630,3`, the `userModeEdit` mode edit; commit `5a11fc9f`, plan 34-13) |
+
+The five other-family tests are unchanged, as the prediction's body hashes said. The two ledger.test.ts
+reds are tests phase 34 changed.
+
+#### HOST-02 decision: NOT MET
+
+HOST-02 needs the windows-latest leg to show no red test that phase 34 added or changed, gap round 1
+included. Run 37733716975 shows two: the ledger.test.ts treeRecord and backupContentRecord tests. Plan
+34-13 changed both bodies (hunks above), and both are red on a cause outside the five carried tests. The
+five tests of 34-VERIFICATION.md gap 1 are green in this run. Each sits in a file printed `✓` with no
+failure, outside any `skipIf`, with no skip path in its body. They are the uninstall-removal never-installed
+case real and DRY_RUN, the installer-user-edit `.pi/prompts/grugops.md` row, the record-truth
+`.pi/prompts/grugops.md` chmod-only row, and the installer-dry-run flow 10 subset case. HOST-02 stays
+unchecked in REQUIREMENTS.md, with this run and the two tests named. WINDOWS.md row 316 stays open, and row
+317 stays open (two of its earlier reds are still red by name: the ledger.test.ts pair). Both rows carry a
+sentence naming this run. Row 319 records the new cause.
 
 ---
 
