@@ -77,16 +77,16 @@ findings:
     title: "The structure validator does not validate the `models` / `models.effort` block"
 open: 3
 total: 18
-recorded: 2026-10-08T21:07:02.422Z
+recorded: 2026-10-08T21:08:29.097Z
 ---
 
 # Phase 34: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-08 | warning | open | Gap round 2 input (human, 2026-10-09): compare the rendered and transformed dials member by member, fold IN-07 into the same check |
-| WR-09 | warning | open | Gap round 2 input (human, 2026-10-09): bring `isAbsoluteMarkerPath` under the WIN-1 census, together with WINDOWS.md row 319 |
-| WR-10 | warning | open | Gap round 2 input (human, 2026-10-09): add one end-to-end row that reaches the uninstall pointer-file mode check with a writable, mode-changed file |
+| WR-08 | warning | open | - |
+| WR-09 | warning | open | - |
+| WR-10 | warning | open | - |
 | IN-06 | info | deferred | Same item as R15 (the per-adapter report line omits the effort level, install.ts:3627); a user-visible output change that waits on the human backlog triage of R15 |
 | IN-07 | info | deferred | Harmless today (both shape checks accept the same counts); folded into the gap round 2 fix for WR-08, which should route both dials through one shape check |
 | IN-08 | info | deferred | `canonicalPathSpelling` leaves the `\\.\` device-namespace prefix unfolded, so such a path fails closed (no false match), and no current write path records that spelling |
