@@ -17,15 +17,15 @@ findings:
     title: "The read-only \"user mode edit\" removed the only end-to-end test of the pointer-file mode check in uninstall"
   - id: IN-06
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The per-adapter install line names the model but not the effort level that was read"
   - id: IN-07
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The two dials' shape checks differ"
   - id: IN-08
     severity: info
-    disposition: open
+    disposition: deferred
     title: "`canonicalPathSpelling` does not fold the `\\\\.\\` device-namespace prefix"
   - id: WR-01
     severity: warning
@@ -75,7 +75,7 @@ findings:
     severity: info
     disposition: deferred
     title: "The structure validator does not validate the `models` / `models.effort` block"
-open: 6
+open: 3
 total: 18
 recorded: 2026-10-08T21:07:02.422Z
 ---
@@ -84,12 +84,12 @@ recorded: 2026-10-08T21:07:02.422Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-08 | warning | open | - |
-| WR-09 | warning | open | - |
-| WR-10 | warning | open | - |
-| IN-06 | info | open | - |
-| IN-07 | info | open | - |
-| IN-08 | info | open | - |
+| WR-08 | warning | open | Gap round 2 input (human, 2026-10-09): compare the rendered and transformed dials member by member, fold IN-07 into the same check |
+| WR-09 | warning | open | Gap round 2 input (human, 2026-10-09): bring `isAbsoluteMarkerPath` under the WIN-1 census, together with WINDOWS.md row 319 |
+| WR-10 | warning | open | Gap round 2 input (human, 2026-10-09): add one end-to-end row that reaches the uninstall pointer-file mode check with a writable, mode-changed file |
+| IN-06 | info | deferred | Same item as R15 (the per-adapter report line omits the effort level, install.ts:3627); a user-visible output change that waits on the human backlog triage of R15 |
+| IN-07 | info | deferred | Harmless today (both shape checks accept the same counts); folded into the gap round 2 fix for WR-08, which should route both dials through one shape check |
+| IN-08 | info | deferred | `canonicalPathSpelling` leaves the `\\.\` device-namespace prefix unfolded, so such a path fails closed (no false match), and no current write path records that spelling |
 | WR-01 | warning | deferred | Detection reads grugops's own writes for `.pi`, `.github` and `.gemini`; the `tools detected:` line drives no write. A fix changes the HOST-01 detection contract for three hosts at once; D-20 keeps it out of gap round 1. The registry docstring that says the opposite (install/host-tools.ts:54) is a DOC-1 member left for the same fix. Carried in deferred-items.md (not in the current review) |
 | WR-02 | warning | deferred | The unconditional Pi write is decision D-17; turning a non-directory `.pi` into `skipped` changes the exit-code contract and needs a human decision. Nothing is overwritten, so the install stays additive. Carried in deferred-items.md (not in the current review) |
 | WR-03 | warning | fixed | plan 34-15: effort arm added to the installer's announcement cross-check (commits 6560d5ec, 827d3980) (not in the current review) |
