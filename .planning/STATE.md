@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 34
 current_phase_name: Model Effort Dial & Pi Support
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34-17-PLAN.md
-last_updated: "2026-10-07T22:52:13.585Z"
-state_head: 908e1b97dcd7a533d871bd08330bda9c01f5e921
+stopped_at: "Completed 34-18-PLAN.md (gap round 1 measured: HOST-02 NOT MET, run 37733716975)"
+last_updated: "2026-10-08T06:44:41.342Z"
+state_head: d9d5080d05c5a8b57fa54f59aa363577933280e2
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 373
-  completed_plans: 372
+  completed_plans: 373
   percent: 100
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -633,6 +633,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34 P15 | 36min | 2 tasks | 3 files |
 | Phase 34 P16 | 24 min | 2 tasks | 7 files |
 | Phase 34 P17 | 23min | 2 tasks | 10 files |
+| Phase 34 P18 | 7h50m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1739,6 +1740,7 @@ Recent decisions affecting current work:
 - [Phase 34]: 34-15: zero effort lines read back as inherit (ABSENT_EFFORT_LEVEL), the one effort word install.ts spells; refusal words live in the hoisted oneAnnouncement so the --check doctor avoids a TDZ
 - [Phase 34]: 34-16: Pi kit discovery after a scripted install is stated once as UNKNOWN - verify (backlog 999.4) in install/README.md 'Using grugops on Pi'; adapters.md, README.md, agent-factory/README.md and CHANGELOG.md point at it or carry it (WR-06, D-20)
 - [Phase 34]: 34-17: WR-07 fixed by correcting the claim (GRUGOPS_PROJECT_DIR honoured when a human or the host's launch environment sets it; the installer does not set it), not by implementing an installer-set variable (D-20)
+- [Phase 34]: 34-18: HOST-02 NOT MET on CI run 37733716975 (head 9de784e8): windows-latest Tests 7 failed; the 5 carried other-family reds as predicted, plus 2 ledger.test.ts link-record tests changed by 34-13, red on a new cause (a rooted symlink target is read back on the D drive), WINDOWS.md row 319; rows 316 and 317 annotated and left open
 
 ### Pending Todos
 
@@ -1869,8 +1871,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-07T22:52:13.036Z
-Stopped at: Completed 34-17-PLAN.md
+Last session: 2026-10-08T06:44:33.731Z
+Stopped at: Completed 34-18-PLAN.md (gap round 1 measured: HOST-02 NOT MET, run 37733716975)
 Resume file: None
 
 ## Operator Next Steps

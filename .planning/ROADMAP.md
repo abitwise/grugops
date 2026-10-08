@@ -1670,7 +1670,7 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 17/18 plans executed (34-01..34-10 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20, revised the same day to split two plans over the per-plan file budget)
+**Plans:** 18/18 plans executed (34-01..34-10 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20, revised the same day to split two plans over the per-plan file budget)
 
 Plans:
 **Wave 1**
@@ -1713,7 +1713,7 @@ Plans:
 - [x] 34-15-PLAN.md — RC-1 / WR-03: the installer's announcement cross-check gains its effort arm through one reader over the bytes it writes (D-20)
 - [x] 34-16-PLAN.md — DOC-1 / WR-06: Pi kit-discovery `UNKNOWN - verify` caveat (backlog 999.4) in the install guide and adapters.md, every sibling sentence caveated or pointed (D-20)
 - [x] 34-17-PLAN.md — DOC-1 / WR-07: tier-2 claim corrected in the program, the workflow and the hook manifest; twelve review dispositions; EFFORT-04 and PI-03 ticked (D-20)
-- [ ] 34-18-PLAN.md — measured close: local CI chain and a written prediction, human push (blocking checkpoint), windows-latest result recorded in 34-VALIDATION.md and WINDOWS.md rows 316/317, HOST-02 decided by the run (D-19)
+- [x] 34-18-PLAN.md — measured close: local CI chain and a written prediction, human push (blocking checkpoint), windows-latest result recorded in 34-VALIDATION.md and WINDOWS.md rows 316/317, HOST-02 decided by the run (D-19)
 
 ## Progress
 
@@ -1757,7 +1757,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 17/18 | In Progress (gap round 1 of 4 planned) | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 18/18 | In Progress (gap round 1 of 4 planned) | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
