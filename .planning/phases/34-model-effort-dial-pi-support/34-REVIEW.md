@@ -1,332 +1,285 @@
 ---
 phase: 34-model-effort-dial-pi-support
-reviewed: 2026-10-07T10:55:00Z
+reviewed: 2026-10-09T00:10:00Z
 depth: standard
-files_reviewed: 56
+files_reviewed: 40
 files_reviewed_list:
-  - .claude/agents/grugops-orchestrator.md
-  - agent-factory/checklists/browser-uat-recipe.md
-  - agent-factory/config/factory.config.md
-  - agent-factory/contracts/context-note.md
   - agent-factory/packaging/adapters.md
-  - agent-factory/packaging/slash-command.template.md
-  - agent-factory/packaging/subagent.frontmatter.md
   - agent-factory/README.md
-  - agent-factory/roles/_role-switch-protocol.md
   - agent-factory/workflows/16-context-read-write.md
   - CHANGELOG.md
-  - CLAUDE.md
-  - docs/audit/28-claim-registry.md
-  - docs/audit/29-style-dispositions/34-06.md
-  - docs/audit/29-style-dispositions/34-08.md
-  - docs/audit/29-style-dispositions/34-09.md
-  - docs/faq.md
-  - examples/01-greenfield-bootstrap.md
-  - hooks/admission-guard.ts
+  - docs/audit/29-style-dispositions/34-16.md
+  - docs/audit/29-style-dispositions/34-17.md
+  - hooks/hook-entry.js
   - hooks/hook-entry.ts
-  - install/host-tools-prose.test.ts
-  - install/host-tools.test.ts
-  - install/host-tools.ts
+  - install/canonical-path.test.ts
+  - install/install-marker.js
+  - install/install-marker.ts
+  - install/install.js
   - install/install.test.ts
   - install/install.ts
-  - install/installer-cross-version.test.ts
   - install/installer-dry-run.test.ts
-  - install/installer-fs-census.test.ts
-  - install/installer-never-installed.test.ts
-  - install/installer-special-files.test.ts
+  - install/installer-kit-home.test.ts
+  - install/installer-marker-retention.test.ts
+  - install/installer-paths.test-support.ts
+  - install/installer-prune.test.ts
   - install/installer-user-edit.test.ts
+  - install/installer-write-set.test.ts
   - install/ledger-provenance.test.ts
+  - install/ledger.test.ts
+  - install/marker-binding.test.ts
+  - install/mode-census.test.ts
+  - install/path-spelling-census.test.ts
   - install/README.md
   - install/record-truth.test.ts
+  - install/settings-json-provenance.test.ts
   - install/uninstall-removal.test.ts
+  - install/uninstall.js
+  - install/uninstall.ts
+  - install/user-file.js
+  - install/user-file.ts
   - README.md
-  - scripts/adapter-byte-baseline.test.ts
-  - scripts/adapters-freshness.test.ts
-  - scripts/adapters-freshness.ts
-  - scripts/admission-server.ts
-  - scripts/canonical-frontmatter.test.ts
-  - scripts/canonical-frontmatter.ts
-  - scripts/check-foundation-guards.test.ts
-  - scripts/check-foundation-guards.ts
-  - scripts/check-uat-oracles.test.ts
-  - scripts/check-uat-oracles.ts
+  - scripts/check-platform-shapes.js
+  - scripts/check-platform-shapes.ts
+  - scripts/context-io.js
   - scripts/context-io.test.ts
   - scripts/context-io.ts
-  - scripts/dead-vocabulary.ts
-  - scripts/generate-role-adapters.test.ts
-  - scripts/generate-role-adapters.ts
-  - scripts/model-dial-consistency.test.ts
-  - scripts/model-tiers.test.ts
-  - scripts/model-tiers.ts
-  - scripts/validate-agent-factory.ts
-  - scripts/validate.test.ts
 findings:
   critical: 0
-  warning: 7
-  info: 5
-  total: 12
+  warning: 3
+  info: 3
+  total: 6
 status: issues_found
 ---
 
-# Phase 34: Code Review Report
+# Phase 34: Code Review Report (gap round 1, plans 34-11..34-18)
 
-**Reviewed:** 2026-10-07T10:55:00Z
+**Reviewed:** 2026-10-09T00:10:00Z
 **Depth:** standard
-**Files Reviewed:** 56
+**Files Reviewed:** 40
 **Status:** issues_found
 
 ## Summary
 
-Scope: the phase-34 diff `45766c2d..HEAD` for every listed file. Large files (model-tiers.ts,
-check-foundation-guards.ts, install.ts, context-io.ts) were reviewed through their diffs plus the
-call sites they reach.
+Scope: `git diff 64123a25..HEAD` over the 40 listed files, with the surrounding code read where needed.
+The round-1 work covers four things: the WIN-1 single spelling (`canonicalPathSpelling`,
+`sameRecordedPath`, `absoluteSpelling` in `install/user-file.ts`), the WIN-2 mode renderer and comparison
+(`modeText`, `recordedModeOf`, `modeMatches`), the WR-03 effort arm of the announcement cross-check
+(`oneAnnouncement`, `readRenderedDials`), and the DOC-1 corrections for WR-06 and WR-07.
 
-What was checked and held:
+What holds up:
+- The spelling function is pure and takes the path flavor as a parameter. Both binding sites in
+  install-marker.ts use `sameRecordedPath`.
+- The decider hash in `hooks/hook-entry.ts` and `.js` matches the committed `scripts/context-io.js`
+  (`848bb808…`).
+- The `GRUGOPS_PROJECT_DIR` corrections leave no tracked sentence outside `docs/audit/` saying the
+  installer sets the variable.
+- `npx vitest run` passed 91/91 on canonical-path, path-spelling-census and mode-census (macOS; this
+  says nothing about windows-latest, per WIN-3).
 
-- The effort dial path end to end. `readEffortBlock` refuses a degenerate block, unknown and
-  case-varied keys (before any sibling is read), illegal presets and illegal levels, and an unknown
-  `roles` stem. An own `__proto__` key is refused as unknown. `resolveEfforts` and the generator
-  refuse before any byte is written. The emit writes no line for `inherit`.
-- The gates. The freshness gate's effort pins treat an absent, duplicated or refused announcement
-  as a failure. `guard_effort_assignment` fails on zero adapters, on a count mismatch, on an
-  unreadable or unresolvable config (degrading to `inherit`, never to a pinned level) and on a
-  stray `effort` key on a non-agent surface.
-- Reproduced against the committed `.js` in scratch repos:
-  - A tiered effort config with an `orchestrator: max` override emits the expected 17 `effort:`
-    lines, and `--check` names all 17 adapters stale after a config edit.
-  - An illegal level `MAX` is refused with no kit file written.
-  - The Pi template is created, recorded in the ledger, removed by uninstall, and left alone when
-    edited. A user's own `.pi/` is not claimed.
-  - The targeted suites pass (234 tests), and `guard_effort_assignment` passes on the real tree.
-- The runtime-string rewording in context-io.ts, admission-server.ts, admission-guard.ts and
-  dead-vocabulary.ts touches comments and message strings only, with no behaviour change. The
-  hook-entry manifest hashes were regenerated to match.
-- The adapter sizes quoted in subagent.frontmatter.md (3013 / 1541 / 1901 bytes) match the
-  committed files.
+Three warnings:
+1. The new effort level-set check does not catch every dropped `effort:` line, although its comments
+   say it does. This is an RC-1 gap left inside the WR-03 fix.
+2. The WIN-1 census checks only a hand-picked list of comparison sites. A second absoluteness rule over
+   recorded paths sits outside that list (DOC-1 plus WIN-1).
+3. The switch to a read-only "user mode edit" removed the only end-to-end coverage of the pointer-file
+   mode check in uninstall (WIN-2 test coverage).
 
-What did not hold. Seven warnings, and four of them belong to this repository's named defect
-classes:
+Finding IDs continue after the round-0 IDs (WR-08 onward, IN-06 onward). The disposition ledger drops
+an earlier decision when an ID is reused, so reusing WR-01..WR-07 or IN-01..IN-05 would destroy recorded
+dispositions.
 
-- **WR-03, a fix applied in one arm only.** The installer's bytes-against-announcement check was
-  never extended to effort.
-- **WR-04, published-message byte injection.** It was copied into a new reader.
-- **WR-01, unrelated evidence read as proof.** Detection reads grugops's own output as proof that
-  the host is in use.
-- **WR-05, a derived set taken from the wrong attribute.** The closing line's host list derives
-  from dispatch mode rather than from which host gets ask rules.
-
-Two warnings are documentation claims the code does not back (WR-06, WR-07).
+## Narrative Findings (AI reviewer)
 
 ## Warnings
 
-### WR-01: Host detection reads the installer's own writes as proof of use, so `pi` is reported in every re-installed repository
+### WR-08: The effort level-set cross-check misses a dropped `effort:` line whenever the set does not change, but three comments say such a drop is refused
 
-**File:** `install/install.ts:2652-2655`, `install/install.ts:5084`, `install/host-tools.ts:54,128`
-**Issue:** `writePiPromptTemplate()` creates `.pi/prompts/grugops.md` unconditionally (D-17), and
-`detectTools()` treats any `.pi` entry as proof that Pi is in use ("its presence means the host is
-in use there", host-tools.ts:54). From the second run on, every repository reports `pi` whether or
-not anyone uses Pi. Reproduced: a fresh `git init` target installed twice prints
-`tools detected: claude gemini copilot pi` on the second run. The same self-pollution already
-existed for `.github` (the Copilot pointer) and `.gemini` (mergeGemini). Phase 34 adds a new
-member to that class and publishes a registry docstring that states the opposite. This is DC-1's
-shape: grugops reads its own write as evidence that a host is in use.
-**Fix:** Pick one:
-- Probe for a host-owned signal rather than the directory grugops writes into. For example, count
-  `.pi` as Pi in use only when it holds something other than the paths the install ledger records.
-- Or exclude ledger-recorded paths from detection.
-- At minimum, correct the docstring at host-tools.ts:54 and the "Detection" bullet in adapters.md
-  to say that the signal includes grugops's own files.
+**File:** `install/install.ts:3325-3346` (readRenderedDials docstring), `install/install.ts:4931-4935` and `5005-5008` (call-site comments), `install/install.ts:5052-5068` (level-set check)
 
-### WR-02: Any non-directory `.pi` entry now makes every install exit 3 "INCOMPLETE", even for users who never use Pi
+**Issue:** The model arm has an exactly-one floor: an adapter that loses its `model:` line is refused by
+name. The effort arm's floor is "zero or one" (`efforts.length > 1`), and zero lines is read as
+`inherit` (`ABSENT_EFFORT_LEVEL`). So a dropped `effort:` line is refused only if it changes the set of
+distinct levels (`readLevels` against `announced.effort.levels`). The docstring says otherwise
+("Reading the transformed text rather than the render is what lets a transform that drops or
+duplicates either line be refused"), and so does the check's own comment ("an adapter that lost or
+gained an `effort:` line between the generator and the write moves the read set, and is refused").
 
-**File:** `install/install.ts:2382-2401` (`writePiPromptTemplate`), `install/install.ts:5084`
-**Issue:** Because the write is unconditional, a target whose root holds a `.pi` regular file (an
-unrelated tool's file, or a symlink) hits `readForWrite` → `blocked` → `verify(...)`. Reproduced:
-`echo 3.14159 > .pi` followed by an install prints `verify .pi/prompts/grugops.md ... is not a
-directory`, then `== install INCOMPLETE — 1 item(s) need verification ==`, and exits with code 3.
-The same target exited 0 before this phase. An optional pointer for a host the user does not run
-should not turn a clean install into a failed one, and `tools detected:` also reports `pi` for that
-file (WR-01).
-**Fix:** When the blocked component is the `.pi` entry itself and it is not a directory, report
-`skipped` with the reason rather than `verify`. Keep `verify` for a hazard inside a real `.pi/`
-directory, such as a symlink at `.pi/prompts` or a FIFO at the template path:
+Configurations the dial accepts where a drop leaves the set unchanged:
+- `models.effort.roles` sets two roles to `high` and the rest stay `inherit`. The announced set is
+  `[high, inherit]`. If one adapter loses its `effort: high` line, the read set is still
+  `[high, inherit]`, and the adapter is installed at session effort with no refusal.
+- Preset `tiered` with one role overridden to `inherit`. The announced set is
+  `[high, inherit, medium]`. Dropping any `high` or `medium` line keeps that set.
+
+This is the RC-1 class: the effort arm got the model arm's set check but not its per-member floor. The
+per-member level is read (`effortOf`) and then used only as a set. No test covers this case. The
+`effortRefusalRows` (a)..(e) in `install/install.test.ts:3195-3236` all change either the announcement
+or the line count.
+
+**Fix:** Check per member, which the set check cannot do. Inside the member loop, read the dials off the
+render as well as off the transformed text, and refuse any member where they differ:
 ```ts
-if (cur.state === "blocked") {
-  const piRoot = join(TARGET, ".pi");
-  if (cur.at === piRoot && !existsSync(join(piRoot, "prompts"))) {
-    report("skipped", `${PI_PROMPT_REL} (Pi prompt template: ${cur.at} ${cur.reason}; not written)`);
-    return;
-  }
-  verify(/* existing text */);
-  return;
+const fromRender = readRenderedDials(text, label);            // renderedRead.text
+const dials = readRenderedDials(transformed.text, label);
+if (fromRender.ok && dials.ok && (fromRender.alias !== dials.alias || fromRender.effort !== dials.effort)) {
+  refusals.push(`.claude/agents/ — ${label}: the transform changed the adapter's ` +
+    `${fromRender.effort !== dials.effort ? "effort" : "model"} line ` +
+    `(${fromRender.effort} -> ${dials.effort}); no adapter was installed ...`);
+  memberRefused = true;
+  continue;
 }
 ```
-Also add a case to the special-files lane: a `.pi` regular file gives exit 0 and zero bytes
-changed.
+Another option is for the generator to announce the per-role map rather than the distinct set. If
+neither is done, rewrite the three comments to say that a drop is caught only when it moves the set.
 
-### WR-03: The installer cross-checks rendered MODEL aliases against the announcement but has no effort arm (the fix lives in one arm only)
+### WR-09: The WIN-1 census checks a hand-picked list of comparison sites, and a second absoluteness rule over recorded paths sits outside it
 
-**File:** `install/install.ts:4888-4902` (alias-set cross-check), `install/install.ts:3120-3160`
-(announcement parse), `install/install.ts:3237` (`readRenderedAlias`)
-**Issue:**
-- The installer closes the loop for the model dial. It reads the `model:` line out of every
-  rendered adapter, parses the generator's `resolved model assignment` announcement, and refuses
-  to install if the two disagree.
-- Plan 34-03 records why the effort half needs the same treatment ("A run that announced only its
-  MODEL resolution would let ... certify an effort-configured regeneration"). It added that check
-  to `adapters-freshness.ts` only.
-- `install.ts` contains no `effort` token at all. The effort announcement is relayed verbatim but
-  never parsed, and no rendered adapter's `effort:` line is read or compared.
-- A transform, or a materialize step, that drops or duplicates the `effort:` line therefore
-  installs adapters at a level the user did not configure, with no refusal. `--check` cannot see
-  it either, because it compares against a fresh render through the same transform.
-**Fix:** Mirror the alias arm:
-- Parse the `resolved effort assignment` line through `resolvedEffortAssignmentsIn` semantics,
-  re-implemented as the model probe already is, since install/ cannot import scripts/.
-- Read each rendered adapter's `effort:` lines (zero lines means `inherit`; more than one is a
-  refusal).
-- Require the set of levels read to equal `announced.levels`, and the count of non-inherit
-  adapters to be consistent with the announcement. Refuse the whole kit write on any mismatch,
-  the way the alias arm does.
+**File:** `install/path-spelling-census.test.ts:214-236` (rule (e)), `:238-252` (rule (f)); `install/user-file.ts:298-299`; `install/install-marker.ts:1154-1155`
 
-### WR-04: Raw control bytes and newlines from config keys are interpolated into effort refusals that the installer and guards print
+**Issue:** The brief (§2.2) asks for a census that derives every site writing or comparing a recorded
+path. The census does derive the fold patterns: rules (a)..(d) walk the syntax tree for
+`realpathSync.native`, backslash `.replace`, `split(sep).join("/")` and `toPosix`. The comparison side
+is a fixed list:
+- Rule (e) inspects two named functions (`markerBinding`, `readKitHomeRecord`) and only equalities with
+  an identifier spelled `here`.
+- Rule (f) inspects only `docAbspath` for a `startsWith`.
 
-**File:** `scripts/model-tiers.ts:2069-2086` (effort block unknown-key refusal); the same pattern,
-pre-existing, sits at `scripts/model-tiers.ts:2199-2219` and `2300`
-**Issue:** The unknown-key refusal formats each key as `` `models.effort.${key}` `` with no
-escaping. Reproduced against the committed `.js`: the key
-`"pre\u001b]0;pwned\u0007set\nFAKE: all checks passed"` comes back in `reason` as raw
-ESC/OSC/BEL bytes plus a real newline. The installer prints that reason on an `ERROR` line, and
-`check-foundation-guards` prints it in a failure, so a config author (an agent can write
-`.grugops/factory.config.json`) can retitle the terminal or forge a whole output line. This
-repository has already closed this class once (P32.1, published message sites carrying C1
-bytes), and phase 34 copied the unescaped pattern into a new reader. Within the same function,
-step 5 already quotes keys through `quoteValue`, so this is also a second rendering rule inside
-one block.
-**Fix:** Render every user-supplied key through the module's one quoting authority, in both
-blocks:
+Even so, `user-file.ts:298-299` says "No other installer site may spell or compare a recorded path
+another way; install/path-spelling-census.test.ts holds that."
+
+The census misses a site that already exists. `isAbsoluteMarkerPath`
+(`install-marker.ts:1154-1155`) is a second, hand-written absoluteness rule over the recorded `target`,
+`grugopsHome` and `kitRoot`: `v.startsWith("/") || /^[A-Za-z]:[\\/]/.test(v)`. It disagrees with the
+flavor's `isAbsolute`, which `absoluteSpelling` now uses:
+- On win32, a target in native UNC spelling (`\\server\share\repo`) fails it, so the marker is reported
+  "target is not an absolute path" and is unusable. Yet `sameRecordedPath` would bind that spelling,
+  and the new comment at `user-file.ts:281-284` says a native-spelled record (the "same repository
+  moved" remedy) now binds on Windows. For UNC paths it still does not. The canonical `//server/share`
+  form that install itself writes does pass.
+- On POSIX it accepts `C:/x`, which is a relative path there.
+
+Neither case loses data: both fail closed or fail later. But the claim that the census "holds that" is
+wrong, and the brief's "one authority" rule for WIN-1 (§2.3) is broken by a predicate the census
+cannot see.
+
+**Fix:**
+1. Move the rule into user-file.ts beside the spelling and build it on the flavor:
+   ```ts
+   export function isRecordedAbsolute(v: unknown, flavor: PathFlavor = HOST_FLAVOR): boolean {
+     return typeof v === "string" && v.trim() === v && v !== "" && flavor.isAbsolute(v);
+   }
+   ```
+   Then call it from `installMarkerProblems`, and add win32/posix rows for it to canonical-path.test.ts.
+2. Widen census rule (f) to every product `startsWith("/")` and every drive-letter regex literal, not
+   only those in `docAbspath`.
+3. Widen rule (e) to every equality or `startsWith` whose operand is a marker or ledger path field
+   (`target`, `grugopsHome`, `kitRoot`, `boundTo`). Alternatively, reword the user-file.ts sentence to
+   name exactly what the census enumerates.
+
+### WR-10: The read-only "user mode edit" removed the only end-to-end test of the pointer-file mode check in uninstall
+
+**File:** `install/record-truth.test.ts:333-335`, `:357-369`; product site `install/uninstall.ts:899-901` (`removeOwnedEmptyFile`)
+
+**Issue:** The L1 rows now model the user's mode change with `userModeEdit`, which clears every write
+bit. For the two pointer files (CLAUDE.md and `.github/copilot-instructions.md`), uninstall must
+rewrite the file to take its block out before it reaches the recorded-mode comparison. A read-only file
+makes that rewrite fail first, and the test comment at 333-335 says so. Each row still passes, because
+the file stays and keeps its mode. But it now passes through the write-failure path (exit 3 accepted),
+not through the check the row is named for ("a chmod-only edit survives uninstall"). Before round 1,
+the `^ 0o100` flip left the file writable, so the block was removed and `recordMatches(...,
+result.beforeMode)` in `removeOwnedEmptyFile` decided whether the file was kept.
+
+The new direct unit test (record-truth.test.ts:336-354) tests `modeMatches` and `recordMatches` on
+their own. It cannot see whether `removeOwnedEmptyFile` passes `result.beforeMode` (rather than `null`,
+or a record with the mode stripped). A search of the installer tests for `beforeMode`, `userModeEdit`
+and the pointer paths found no other case that reaches this comparison with a writable mode-changed
+file. So a regression that deletes a user's blank, chmod-only CLAUDE.md would stay green on every OS.
+
+**Fix:** Add a pointer-file case gated on the measured capability, using the pattern the IN-03 rows use:
 ```ts
-`${unknownKeys.map((key) => `\`models.effort.${quoteValue(key).slice(1, -1)}\``).join(", ")}`
-// or simply: unknownKeys.map((key) => quoteValue(key)).join(", ")
+const absent = hostCapabilityOrSkip("POSIX permission bits beyond read-only", "record-truth L1 pointer mode");
+if (absent !== null) { console.log(skipLine(absent, "...")); return; }
+chmodSync(p, 0o600); // mode-census: posix-bits   (keeps the write bit, so the block removal runs)
+const u = uninstall(t);
+expect(existsSync(p)).toBe(true);
+expect(lines(u.stdout, "left").some((l) => pathText(l).includes("its file mode is 0600"))).toBe(true);
 ```
-Apply the same change at lines 2211 and 2300 for the `models` block. Add a case with an ESC byte
-and a newline in a key, asserting that the reason contains neither.
-
-### WR-05: The installer's closing safety line derives "gets documentation only" from `dispatch`, which is the wrong attribute
-
-**File:** `install/install.ts:5476-5481`
-**Issue:** The line says which hosts get no ask rules, which is a property of the adapter (only
-the `claude-kit` adapter writes permission ask rules). It is computed from
-`t.dispatch === "sequential"`, a property of how roles are scheduled. The two coincide today. A
-future host that can spawn sub-agents but gets no ask rules (Codex or Copilot gaining sub-agents
-is plausible) would silently drop out of the "documentation only" list. That would make the
-closing safety statement claim more enforcement than exists, on exactly the surface CLAUDE.md
-requires in clear voice. `host-tools.test.ts:145` pins the same proxy, so the test would not
-catch it.
-**Fix:** Derive from the attribute the sentence is about:
-```ts
-HOST_TOOLS.filter((t) => t.adapter !== "claude-kit").map((t) => t.name)
-```
-Better still, add an explicit `askRules: boolean` field to `HostTool` and assert in
-host-tools.test.ts that exactly the rows with ask rules are excluded.
-
-### WR-06: The new "Using grugops on Pi" section presents a working flow that backlog 999.4 records as `UNKNOWN - verify`
-
-**File:** `install/README.md:326-355`; also `agent-factory/packaging/adapters.md`, "What grugops
-writes for Pi"
-**Issue:** The guide tells Pi users to type `/grugops <request>` and says the command "sends Pi
-to `AGENTS.md` and then `agent-factory/roles/orchestrator.md`". After a scripted (two-root)
-install, no in-repo `agent-factory/` exists: the kit lives at `~/.grugops/agent-factory`, and
-AGENTS.md instructs "If the resolved kit dir is absent: STOP — do not hunt". Whether Pi can find
-the kit at all is exactly what 34-RESEARCH.md Q7 and ROADMAP backlog 999.4 record as
-`UNKNOWN - verify`. The template carries no resolver slot, by design. The user-facing section
-states the flow without that caveat. Under the project's no-fabrication rule, an unverified path
-must be marked as such.
-**Fix:** Add one sentence to the Pi section, in clear voice. For example: "Whether Pi finds the
-shared kit at `~/.grugops/agent-factory` after a scripted install is `UNKNOWN - verify` (backlog
-999.4). The minimal markdown-copy install, which puts `agent-factory/` in the repository, is the
-path known to resolve." Mirror it in adapters.md's Pi section.
-
-### WR-07: Phase-34 edits re-assert, and widen to Pi, a claim that "the installer sets `GRUGOPS_PROJECT_DIR`", which no code does
-
-**File:** `agent-factory/workflows/16-context-read-write.md:32`, `scripts/context-io.ts:4955-4958`
-**Issue:**
-- Phase 34 rewrote both passages from "the four ... CLIs" to the count-free wording, which now
-  covers Pi. Both state that `GRUGOPS_PROJECT_DIR` is "the documented INSTALLER-SET answer" and
-  that "the installer sets it, not the agent".
-- No file under `install/` references `GRUGOPS_PROJECT_DIR` (`grep -rn PROJECT_DIR install/*.ts`
-  returns nothing outside tests), and install/README.md never tells the user to set it.
-- So on every non-Claude host, Pi now included, tier 2 of the governance-root resolution is never
-  populated by grugops. The `human_admission` dial is decided by the upward walk instead.
-- The statement is pre-existing (31-15), but this phase edited the exact sentence and extended its
-  scope without checking the claim. It sits on a governance and audit surface, where clear,
-  accurate voice is required.
-**Fix:** Either implement it (the installer writes the variable into a host-readable place for
-each non-Claude host, recorded in the ledger), or correct both passages to say that
-`GRUGOPS_PROJECT_DIR` is honoured when a human sets it and that grugops's installer does not set
-it. If the gap was not already recorded, record it as a residual.
+Add a WINDOWS.md row for the skip, and update `TAG_KIND_COUNTS["posix-bits"]` and the capability's
+"asked only by" note in `scripts/check-platform-shapes.ts:679-682`.
 
 ## Info
 
-### IN-01: Three separate implementations of "a per-host table row" disagree on the same bytes
+### IN-06: The per-adapter install line names the model but not the effort level that was read
 
-**File:** `scripts/check-uat-oracles.ts:271`, `scripts/validate-agent-factory.ts:814`,
-`install/host-tools.test.ts:192`
-**Issue:** The asymmetric oracle matches `^\|\s*\*\*<name>\*\*` with no requirement on what
-follows. The validator and the host-tools test require `\*\*\s*\|` straight after the bold name.
-A row such as `| **Pi** (pi.dev) | ...` is therefore a Pi row to the oracle, while the validator
-and the test see zero Pi rows. All three fail closed today, but they are three grammars for one
-rule, which is the "second implementation of a rule" class.
-**Fix:** Export one row matcher from a single module and use it at all three sites. If it cannot
-live in `install/host-tools.ts` (that module is pure data), put it beside `HOST_TOOLS` as a pure
-function.
+**File:** `install/install.ts:3627`, `:5021-5031`
+**Issue:** `effortOf` is filled for every member, used only for the set check, and then dropped. The
+`KitEntry` carries `alias` but no effort, so `materializeAdapter` prints `(KIT=…, model=<alias>)` and no
+effort. This is a reporting arm of RC-1 that the effort dial did not get. It is not a refusal, and no
+document claims the line shows effort.
+**Fix:** Carry `effort: dials.effort` on the entry and print `effort=<level>` beside `model=`, or record
+in a comment why it is left out.
 
-### IN-02: The validator's dispatch-map check only warns when the table is unrecognisable
+### IN-07: The two dials' shape checks differ
 
-**File:** `scripts/validate-agent-factory.ts:829-834`
-**Issue:** If adapters.md's table loses its bold first cells (a reformat), `checkDispatchMap`
-emits a warning and a non-strict run passes, so the "one row per registry host" claim goes
-unchecked by the validator. The UAT oracle still fails red, so this is not fail-open overall, but
-the validator's own claim is weaker than its comment ("never passed silently").
-**Fix:** Make it `err`, since adapters.md is a required file whose dispatch table is a structural
-requirement. Alternatively, reword the comment to say that this check alone does not hold the
-table.
+**File:** `install/install.ts:3218-3233`
+**Issue:** The comment says both dials are read "through one code path". That holds for the three named
+conditions in `oneAnnouncement`. The shape checks still differ: the model arm uses
+`typeof v.roles !== "number"`, and the effort arm uses `isCount`. Today the model-tiers readers already
+refuse non-integer counts for both dials, so nothing is wrong, but the RC-1 comment overstates the
+symmetry.
+**Fix:** Use `isCount` for the model arm too, or narrow the comment to `oneAnnouncement`.
 
-### IN-03: The Pi template is create-only, so a future change to `PI_PROMPT_TEXT` never reaches an installed repository
+### IN-08: `canonicalPathSpelling` does not fold the `\\.\` device-namespace prefix
 
-**File:** `install/install.ts:2393-2396`
-**Issue:** Once the file exists, every later install reports `skipped`, even when it still holds
-exactly the bytes an earlier install recorded (provably install's own, unedited). If the pointer
-text changes, for example to address WR-06, existing installs keep the old template with no
-report.
-**Fix:** When the ledger's record for `PI_PROMPT_REL` still holds (`recordHolds`), allow a
-refresh to the current `PI_PROMPT_TEXT` and re-record it. Leave the file alone only when it is
-unrecorded or edited. This is the same rule the kit files already follow (D-32).
+**File:** `install/user-file.ts:317-324`
+**Issue:** Under `path.win32`, `\\.\C:\x` spells as `//./C:/x` (measured with the compiled module), so it
+never matches `C:/x`. The doc comment lists only the `\\?\` and `\\?\UNC\` forms, so the code matches
+the comment. This note records the edge so the canonical-path table can say whether it is intended. It
+fails closed: the marker reads as another directory's.
+**Fix:** Add a table row for `\\.\` that states the intended result. Fold the prefix only if a real
+producer of that spelling is found.
 
-### IN-04: A blank `effortRationale` now also refuses the MODEL `tiered` preset
+## Known open item: WINDOWS.md row 319 (`link:D:\some\where` against `link:/some/where`)
 
-**File:** `scripts/model-tiers.ts:1221-1242`
-**Issue:** The effort-rationale integrity check was added to `tieredTableRefusals`, which
-`resolveModels` runs on every model `tiered` resolution. A row with a missing or digit-carrying
-effort reason therefore breaks the model dial, which D-05 declares independent of effort. The
-rows are complete today, so nothing is broken. The coupling is undocumented, and a refusal from
-it names D-04 to a user who configured only `models.preset`.
-**Fix:** Either move the effort checks into a separate `tieredEffortRefusals` called only from
-`resolveEfforts` under effort `tiered`, or document on `tieredTableRefusals` that both presets
-share one integrity floor on purpose.
+From the source, the product's own link records are drive-qualified when they are written, so the
+fixture's drive-less spelling does not occur in product records:
+- Every link install makes uses an absolute source built by `join(GRUGOPS_SRC, …)`, and
+  `GRUGOPS_SRC = resolve(…)` (install.ts:258-260). That gives a drive-qualified, backslash-separated
+  path under win32.
+- The two sites are `linkOrCopy` (`symlinkSync(src, dest)` then `linkRecord(src)`, install.ts:2477-2482)
+  and the kit plan (`recordKitFile(e.dest, linkRecord(e.src))`, install.ts:3718).
+- Uninstall compares that record with `readlinkSync(dest) === src` (`isOwnLink`, user-file.ts:534-540).
 
-### IN-05: The structure validator does not validate the `models` / `models.effort` block
+The failing rows in `install/ledger.test.ts:454` and `:638` link to `/some/where`. That path has no
+drive letter, so Node on Windows qualifies it with the current drive when it creates the link, and
+readlink returns the qualified form. The product never links to a drive-less target, so it does not
+reach that difference.
 
-**File:** `scripts/validate-agent-factory.ts` (no reference to `models` or `readModelsConfig`)
-**Issue:** An illegal `models.effort` value in `.grugops/factory.config.json` is caught only at
-render time (install or generator run). `validate-agent-factory` reports the config clean. This
-gap predates phase 34 (the model dial has it too), but the phase widened the block the validator
-ignores.
-**Fix:** Have the validator ask `readModelsConfig(STATE_ROOT, stems)` (the one reader, so no
-second grammar) and report its refusal as an error.
+Whether `readlinkSync` on windows-latest returns exactly the recorded `D:\…` string is
+`UNKNOWN - verify`. That depends on Node/libuv removing the namespace prefix that `symlinkSync` adds,
+and no windows-latest run has been cited that creates a product symlink and reads it back. If it does
+not, `isOwnLink` answers false and the link is left in place, which fails closed rather than deleting
+anything.
+
+## Round-0 cross-reference
+
+| This review | Round-0 ID | Relation |
+|-------------|------------|----------|
+| WR-08 | WR-03 (fixed, plan 34-15) | A gap left inside the WR-03 fix: the effort arm has the set check but not the per-member floor the model arm has (RC-1). |
+| IN-06 | WR-03 (fixed) | Reporting arm of the same model/effort symmetry. |
+| IN-07 | WR-03 (fixed) | The "one code path" claim of the WR-03 fix is broader than the code. |
+| WR-09 | none | New, WIN-1 class (round-1 census scope). |
+| WR-10 | none | New, WIN-2 class (round-1 test change). |
+| IN-08 | none | New, WIN-1 class. |
+
+No deferred round-0 finding is raised again. Round 1 made none of them worse:
+- WR-04: the new effort refusals pass the module reader's `quoteValue` text through, and the level list
+  is interpolated exactly as the pre-existing model alias list was.
+- WR-01, WR-02, WR-05, IN-01..IN-05: not touched by this diff.
 
 ---
 
-_Reviewed: 2026-10-07T10:55:00Z_
+_Reviewed: 2026-10-09T00:10:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
