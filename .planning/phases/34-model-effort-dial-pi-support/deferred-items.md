@@ -182,3 +182,36 @@ findings are quoted from `34-REVIEW.md`.
   the foundation guards (`scripts/check-foundation-guards.ts`), so it is checked there; the
   structure validator does not read it.
 - **Suggested owner:** backlog triage.
+
+## From the gap round 1 code review (34-REVIEW.md, 2026-10-09)
+
+Triaged by the human on 2026-10-09. WR-08, WR-09 and WR-10 stay `open` in 34-REVIEW-DISPOSITION.md
+as gap round 2 inputs; the ledger tool clears the Source cell of an `open` row on every run, so the
+round 2 notes live here.
+
+### WR-08 (gap round 2): a dropped `effort:` line passes when the level set does not change
+
+- **Finding:** the effort arm of the installer cross-check compares only the set of distinct levels
+  (`install/install.ts:5052-5068`), so one adapter losing `effort: high` while another keeps it installs
+  at session effort with no refusal; three comments say such a drop is refused.
+- **Round 2 direction:** compare `readRenderedDials` on the rendered and the transformed text member by
+  member; fold IN-07 in, so both dials go through one shape check.
+
+### WR-09 (gap round 2): `isAbsoluteMarkerPath` sits outside the WIN-1 census
+
+- **Finding:** `install/install-marker.ts:1154-1155` is a second hand-written absoluteness rule over
+  recorded paths; the census in `install/path-spelling-census.test.ts` lists its comparison sites by hand
+  and misses it, although `install/user-file.ts:298-299` says the census holds the rule.
+- **Round 2 direction:** bring it under the census (derive the comparison sites rather than list them),
+  together with WINDOWS.md row 319.
+
+### WR-10 (gap round 2): no end-to-end test reaches the uninstall pointer-file mode check
+
+- **Finding:** since the read-only user mode edit, the `CLAUDE.md` and `.github/copilot-instructions.md`
+  rows of `install/record-truth.test.ts` pass through the write-failure path, not the mode check at
+  `install/uninstall.ts:899-901`.
+- **Round 2 direction:** add one row with a writable, mode-changed pointer file.
+
+### IN-06, IN-07, IN-08: deferred
+
+Reasons are recorded in the ledger rows. IN-06 is the same item as R15 and waits on its backlog triage.
