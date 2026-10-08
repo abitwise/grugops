@@ -3,6 +3,30 @@ phase: 34
 review: 34-REVIEW.md
 titles: json
 findings:
+  - id: WR-08
+    severity: warning
+    disposition: open
+    title: "The effort level-set cross-check misses a dropped `effort:` line whenever the set does not change, but three comments say such a drop is refused"
+  - id: WR-09
+    severity: warning
+    disposition: open
+    title: "The WIN-1 census checks a hand-picked list of comparison sites, and a second absoluteness rule over recorded paths sits outside it"
+  - id: WR-10
+    severity: warning
+    disposition: open
+    title: "The read-only \"user mode edit\" removed the only end-to-end test of the pointer-file mode check in uninstall"
+  - id: IN-06
+    severity: info
+    disposition: open
+    title: "The per-adapter install line names the model but not the effort level that was read"
+  - id: IN-07
+    severity: info
+    disposition: open
+    title: "The two dials' shape checks differ"
+  - id: IN-08
+    severity: info
+    disposition: open
+    title: "`canonicalPathSpelling` does not fold the `\\\\.\\` device-namespace prefix"
   - id: WR-01
     severity: warning
     disposition: deferred
@@ -51,27 +75,33 @@ findings:
     severity: info
     disposition: deferred
     title: "The structure validator does not validate the `models` / `models.effort` block"
-open: 0
-total: 12
-recorded: 2026-10-07T10:51:32.089Z
+open: 6
+total: 18
+recorded: 2026-10-08T21:07:02.422Z
 ---
 
 # Phase 34: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | deferred | Detection reads grugops's own writes for `.pi`, `.github` and `.gemini`; the `tools detected:` line drives no write. A fix changes the HOST-01 detection contract for three hosts at once; D-20 keeps it out of gap round 1. The registry docstring that says the opposite (install/host-tools.ts:54) is a DOC-1 member left for the same fix. Carried in deferred-items.md |
-| WR-02 | warning | deferred | The unconditional Pi write is decision D-17; turning a non-directory `.pi` into `skipped` changes the exit-code contract and needs a human decision. Nothing is overwritten, so the install stays additive. Carried in deferred-items.md |
-| WR-03 | warning | fixed | plan 34-15: effort arm added to the installer's announcement cross-check (commits 6560d5ec, 827d3980) |
-| WR-04 | warning | deferred | Raw control bytes in refusal text is the P32.1 published-message class; it predates phase 34 in the `models` block and was copied into `models.effort`; both blocks are fixed together through `quoteValue`. Accepted for this round as T-34-46. Carried in deferred-items.md |
-| WR-05 | warning | deferred | The closing safety line is correct today (the hosts with no ask rules are exactly the sequential ones); an `askRules` registry field is a HOST-01 contract change. Carried in deferred-items.md |
-| WR-06 | warning | fixed | plan 34-16: Pi kit discovery after a scripted install marked UNKNOWN - verify in the install guide and adapters.md, sibling sentences pointed at it (commits 056ee6df, b0dcd631) |
-| WR-07 | warning | fixed | plan 34-17 Task 1: claim corrected; the installer does not set GRUGOPS_PROJECT_DIR, and workflow 16, TRUSTED_ROOT_TIERS and the context-io.ts docstrings now say so (commit 06a8e77b) |
-| IN-01 | info | deferred | Three per-host row matchers disagree but all fail closed today; unify them in one module together with IN-02. Carried in deferred-items.md |
-| IN-02 | info | deferred | The validator only warns on an unrecognisable table while the UAT oracle fails red on it; its comment ("never passed silently") overstates, a DOC-1 member left with IN-01. Carried in deferred-items.md |
-| IN-03 | info | deferred | The Pi template is create-only; this round changes documentation, not `PI_PROMPT_TEXT`, so no installed template is stale. A refresh rule belongs with the next template change. Carried in deferred-items.md |
-| IN-04 | info | deferred | The effort-rationale floor inside `tieredTableRefusals` couples the model preset to effort rows that are complete today; split it or document the shared floor. Carried in deferred-items.md |
-| IN-05 | info | deferred | The validator does not ask `readModelsConfig`; pre-existing for the model dial, widened by effort. Carried in deferred-items.md |
+| WR-08 | warning | open | - |
+| WR-09 | warning | open | - |
+| WR-10 | warning | open | - |
+| IN-06 | info | open | - |
+| IN-07 | info | open | - |
+| IN-08 | info | open | - |
+| WR-01 | warning | deferred | Detection reads grugops's own writes for `.pi`, `.github` and `.gemini`; the `tools detected:` line drives no write. A fix changes the HOST-01 detection contract for three hosts at once; D-20 keeps it out of gap round 1. The registry docstring that says the opposite (install/host-tools.ts:54) is a DOC-1 member left for the same fix. Carried in deferred-items.md (not in the current review) |
+| WR-02 | warning | deferred | The unconditional Pi write is decision D-17; turning a non-directory `.pi` into `skipped` changes the exit-code contract and needs a human decision. Nothing is overwritten, so the install stays additive. Carried in deferred-items.md (not in the current review) |
+| WR-03 | warning | fixed | plan 34-15: effort arm added to the installer's announcement cross-check (commits 6560d5ec, 827d3980) (not in the current review) |
+| WR-04 | warning | deferred | Raw control bytes in refusal text is the P32.1 published-message class; it predates phase 34 in the `models` block and was copied into `models.effort`; both blocks are fixed together through `quoteValue`. Accepted for this round as T-34-46. Carried in deferred-items.md (not in the current review) |
+| WR-05 | warning | deferred | The closing safety line is correct today (the hosts with no ask rules are exactly the sequential ones); an `askRules` registry field is a HOST-01 contract change. Carried in deferred-items.md (not in the current review) |
+| WR-06 | warning | fixed | plan 34-16: Pi kit discovery after a scripted install marked UNKNOWN - verify in the install guide and adapters.md, sibling sentences pointed at it (commits 056ee6df, b0dcd631) (not in the current review) |
+| WR-07 | warning | fixed | plan 34-17 Task 1: claim corrected; the installer does not set GRUGOPS_PROJECT_DIR, and workflow 16, TRUSTED_ROOT_TIERS and the context-io.ts docstrings now say so (commit 06a8e77b) (not in the current review) |
+| IN-01 | info | deferred | Three per-host row matchers disagree but all fail closed today; unify them in one module together with IN-02. Carried in deferred-items.md (not in the current review) |
+| IN-02 | info | deferred | The validator only warns on an unrecognisable table while the UAT oracle fails red on it; its comment ("never passed silently") overstates, a DOC-1 member left with IN-01. Carried in deferred-items.md (not in the current review) |
+| IN-03 | info | deferred | The Pi template is create-only; this round changes documentation, not `PI_PROMPT_TEXT`, so no installed template is stale. A refresh rule belongs with the next template change. Carried in deferred-items.md (not in the current review) |
+| IN-04 | info | deferred | The effort-rationale floor inside `tieredTableRefusals` couples the model preset to effort rows that are complete today; split it or document the shared floor. Carried in deferred-items.md (not in the current review) |
+| IN-05 | info | deferred | The validator does not ask `readModelsConfig`; pre-existing for the model dial, widened by effort. Carried in deferred-items.md (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
