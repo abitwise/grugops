@@ -132,10 +132,10 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 
 | Code | Meaning |
 |------|---------|
-| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==`, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo reports *nothing was changed*. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
+| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the `plans/handoffs/` backup it made, named, and whether it was recorded in `.grugops/install.json`) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
 | `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below). `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, or `--target` with no value. Nothing was read or written. |
-| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
+| `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
 
 Code `3` is the important one: grug not lie about finish. A run that could not read a source
 directory, that refused an adapter (a `models` block the resolver refuses is one way), or that could
@@ -805,7 +805,9 @@ DRY_RUN=1 node install/install.js --update
 `--update` is **kit-home-only**: it refreshes the read-only kit at `${GRUGOPS_HOME:-$HOME/.grugops}`
 from the running checkout and **does not touch any repo's per-repo state** — it never writes adapters,
 seeded `.grugops/` state, or a marker into a target. There is no `--target` to pass; one update
-refreshes the one shared kit that every installed repo resolves against.
+refreshes the one shared kit that every installed repo resolves against. A kit that could not be
+copied (the kit home cannot be read or written, say) is a `verify` line, and the run ends with
+`== update INCOMPLETE — N item(s) need verification ==` and exit code `3`.
 
 So `--update` is **not** how a change reaches a repo's `.claude/agents/` sub-agent adapters. Those are
 rendered per repo at install time, from that repo's own `.grugops/factory.config.json`. A `models`

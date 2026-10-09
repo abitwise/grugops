@@ -18,10 +18,12 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import ts from "typescript";
+import { accessSync, constants as fsConstants, appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { makeFixture, runInstall, runUninstall, snapshotTree, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
+import { createHash } from "node:crypto";
+import { makeFixture, runInstall, runUninstall, snapshotTree, userModeEdit, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
 import { allAskRules } from "./checkpoint-ask-rules.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gclose-"));
@@ -452,4 +454,321 @@ describe("closing claims: uninstall reports the marker from removeMarker's outco
     expect(existsSync(join(target, MARKER_REL))).toBe(true);
     expect(block.filter((l) => /\bremoved\b|is removed/.test(l)), block.join("\n")).toEqual([]);
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// THE MODE CLASS (plan 34-26 Task 3, D-25). Every argument the two binaries' argv loops accept is read
+// from their syntax trees and must be classified below; the count is asserted, so a mode added later is
+// red here until it is classified. Every acting mode then has a row with a counted verify and a clean
+// row: a run that printed a verify line ends with an INCOMPLETE banner and exit 3, a run that printed
+// none exits 0 with no INCOMPLETE banner, and a sentence saying the run changed nothing (or had nothing
+// to do) appears only when the target and kit-home snapshots are byte-identical before and after.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+type ModeClass = "acting" | "reader" | "modifier";
+/** Every string the argv loops compare the argument with, keyed `<binary> <literal>`, classified. */
+const MODE_TABLE: Readonly<Record<string, { readonly cls: ModeClass; readonly reason: string }>> = {
+  "install.ts --update": { cls: "acting", reason: "refreshes the kit home; rows below" },
+  "install.ts --migrate": { cls: "acting", reason: "migrates an old layout or backs up plans/handoffs/; rows below" },
+  "install.ts --prune-old-kit": { cls: "acting", reason: "removes recorded backups; rows below" },
+  "install.ts --check": { cls: "reader", reason: "the doctor writes nothing; its FAIL/WARN exit matrix is pinned by the doctor cases in install.test.ts" },
+  "install.ts --strict": { cls: "modifier", reason: "promotes --check warnings to failure; acts only with --check" },
+  "install.ts --target": { cls: "modifier", reason: "names the target of whichever mode runs" },
+  "install.ts --target=": { cls: "modifier", reason: "the inline-value spelling of --target" },
+  "install.ts --yes": { cls: "modifier", reason: "answers the target question" },
+  "install.ts -y": { cls: "modifier", reason: "the short spelling of --yes" },
+  "install.ts --allow-self": { cls: "modifier", reason: "overrides the self-checkout guard" },
+  "install.ts --force": { cls: "modifier", reason: "the other spelling of --allow-self" },
+  "install.ts --symlink": { cls: "modifier", reason: "chooses the install mode of the default install" },
+  "install.ts --backup-edited-kit": { cls: "modifier", reason: "consent to back up edited kit files during an install or --migrate" },
+  "uninstall.ts --target": { cls: "modifier", reason: "names the target of the uninstall" },
+  "uninstall.ts --target=": { cls: "modifier", reason: "the inline-value spelling of --target" },
+  "uninstall.ts --allow-self": { cls: "modifier", reason: "overrides the self-checkout guard" },
+  "uninstall.ts --force": { cls: "modifier", reason: "the other spelling of --allow-self" },
+};
+const MODE_TABLE_COUNT = 17;
+
+/**
+ * The literals the argv loop of `file` compares its argument with (`a === "..."`, `a.startsWith("...")`),
+ * and every other use of the argument variable, which must be none.
+ */
+function argvLiterals(file: string): { literals: Set<string>; stray: string[] } {
+  const path = join(import.meta.dirname, file);
+  const sf = ts.createSourceFile(file, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const loops: ts.ForStatement[] = [];
+  const findLoops = (node: ts.Node): void => {
+    if (ts.isForStatement(node) && node.condition !== undefined && /\bargv\.length\b/.test(node.condition.getText(sf))) loops.push(node);
+    ts.forEachChild(node, findLoops);
+  };
+  findLoops(sf);
+  if (loops.length !== 1) throw new Error(`${file}: expected one argv loop, found ${loops.length}`);
+  // The argument variable: the one initialised from argv[i].
+  let argName: string | null = null;
+  const findArg = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer !== undefined && ts.isElementAccessExpression(node.initializer) && node.initializer.expression.getText(sf) === "argv" && ts.isIdentifier(node.name)) {
+      argName = node.name.text;
+    }
+    ts.forEachChild(node, findArg);
+  };
+  findArg(loops[0].statement);
+  if (argName === null) throw new Error(`${file}: the argv loop declares no variable from argv[i]`);
+  const literals = new Set<string>();
+  const stray: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && node.text === argName && !(ts.isVariableDeclaration(node.parent) && node.parent.name === node)) {
+      const parent = node.parent;
+      const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+      if (ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken) {
+        const other = parent.left === node ? parent.right : parent.left;
+        if (ts.isStringLiteral(other)) literals.add(other.text);
+        else stray.push(`${file}:${line} ${parent.getText(sf)}`);
+      } else if (ts.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === "startsWith" && ts.isCallExpression(parent.parent) && parent.parent.arguments.length === 1 && ts.isStringLiteral(parent.parent.arguments[0])) {
+        literals.add(parent.parent.arguments[0].text);
+      } else if (ts.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === "slice") {
+        // the value of --target=<path>
+      } else if (ts.isTemplateSpan(parent)) {
+        // the unknown-argument message
+      } else {
+        stray.push(`${file}:${line} ${parent.getText(sf)}`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(loops[0].statement);
+  return { literals, stray };
+}
+
+describe("closing claims: every mode the argument parsers accept is classified (plan 34-26, D-25)", () => {
+  it("the derived argv literals of install.ts and uninstall.ts equal the classification table, count asserted", () => {
+    const derived: string[] = [];
+    for (const file of ["install.ts", "uninstall.ts"]) {
+      const { literals, stray } = argvLiterals(file);
+      expect(stray, `${file}: an argument use the census does not read; classify it`).toEqual([]);
+      for (const l of literals) derived.push(`${file} ${l}`);
+    }
+    const unclassified = derived.filter((k) => !(k in MODE_TABLE));
+    expect(unclassified, "an argument the parser accepts is not in MODE_TABLE; classify it and add its rows").toEqual([]);
+    expect(derived.sort()).toEqual(Object.keys(MODE_TABLE).sort());
+    expect(derived.length).toBe(MODE_TABLE_COUNT);
+  });
+});
+
+/** A path's snapshot: a regular file's bytes hashed, a directory's tree (snapshotTree), or absent. */
+function snapPath(p: string): string {
+  let st;
+  try {
+    st = lstatSync(p);
+  } catch {
+    return "ABSENT";
+  }
+  if (st.isFile()) return `FILE ${createHash("sha256").update(readFileSync(p)).digest("hex")}`;
+  return snapshotTree(p);
+}
+const snapRow = (target: string, kitHome: string): string => `${snapPath(target)}\n--kit--\n${snapPath(kitHome)}`;
+
+/** A sentence saying the whole run changed nothing or had nothing to do. */
+const NO_CHANGE = /nothing to do|nothing was changed|nothing changed|nothing was migrated/i;
+const INCOMPLETE_BANNER = /^== (install|update|migrate|prune|uninstall) INCOMPLETE — (\d+) item\(s\) need verification( \(DRY_RUN — nothing changed\))? ==$/;
+
+type ActingMode = "install" | "--update" | "--migrate" | "--prune-old-kit" | "uninstall";
+interface ModeRow {
+  readonly id: string;
+  readonly mode: ActingMode;
+  /** Whether the staged run prints a verify line. */
+  readonly verify: boolean;
+  readonly dryRun?: boolean;
+  /** Stage the row and return the target and kit home; null skips the row with the printed reason. */
+  readonly stage: () => { target: string; kitHome: string; home: string; skip?: string };
+}
+
+const oldLayout = (t: string): void => {
+  mkdirSync(join(t, "agent-factory", "roles"), { recursive: true });
+  mkdirSync(join(t, "agent-factory", "config"), { recursive: true });
+  writeFileSync(join(t, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE — old in-repo vendored kit.\n");
+};
+
+const MODE_ROWS: readonly ModeRow[] = [
+  { id: "install, fresh", mode: "install", verify: false, stage: () => bareRow() },
+  {
+    id: "install, .claude/settings.json is not JSON",
+    mode: "install",
+    verify: true,
+    stage: () => {
+      const w = bareRow();
+      mkdirSync(join(w.target, ".claude"), { recursive: true });
+      writeFileSync(settingsPath(w.target), "{ not json");
+      return w;
+    },
+  },
+  { id: "--update, fresh kit home", mode: "--update", verify: false, stage: () => bareRow() },
+  { id: "--update, DRY_RUN, fresh kit home", mode: "--update", verify: false, dryRun: true, stage: () => bareRow() },
+  {
+    id: "--update, the kit home is a regular file",
+    mode: "--update",
+    verify: true,
+    stage: () => {
+      const w = bareRow();
+      writeFileSync(w.kitHome, "a regular file where the kit home should be\n");
+      return w;
+    },
+  },
+  {
+    id: "--migrate already migrated, no plans/handoffs/",
+    mode: "--migrate",
+    verify: false,
+    stage: () => {
+      const w = bareRow();
+      installFirst(w.target, w.kitHome, w.home);
+      return w;
+    },
+  },
+  {
+    id: "--migrate already migrated, plans/handoffs/ backed up",
+    mode: "--migrate",
+    verify: false,
+    stage: () => {
+      const w = bareRow();
+      installFirst(w.target, w.kitHome, w.home);
+      stageHandoffs(w.target);
+      return w;
+    },
+  },
+  {
+    id: "--migrate already migrated, plans is a regular file",
+    mode: "--migrate",
+    verify: true,
+    stage: () => {
+      const w = bareRow();
+      installFirst(w.target, w.kitHome, w.home);
+      rmSync(join(w.target, "plans"), { recursive: true, force: true });
+      writeFileSync(join(w.target, "plans"), "a regular file named plans\n");
+      return w;
+    },
+  },
+  {
+    id: "--migrate old layout",
+    mode: "--migrate",
+    verify: false,
+    stage: () => {
+      const w = bareRow();
+      oldLayout(w.target);
+      return w;
+    },
+  },
+  {
+    id: "--migrate old layout, the legacy config is a directory (the pre-check refusal)",
+    mode: "--migrate",
+    verify: true,
+    stage: () => {
+      const w = bareRow();
+      oldLayout(w.target);
+      mkdirSync(join(w.target, "agent-factory", "config", "factory.config.json"));
+      return w;
+    },
+  },
+  {
+    id: "--prune-old-kit, nothing recorded to remove",
+    mode: "--prune-old-kit",
+    verify: false,
+    stage: () => {
+      const w = bareRow();
+      installFirst(w.target, w.kitHome, w.home);
+      return w;
+    },
+  },
+  {
+    id: "--prune-old-kit after an old-layout --migrate, the marker made read-only (its rewrite fails)",
+    mode: "--prune-old-kit",
+    verify: true,
+    stage: () => {
+      const w = bareRow();
+      oldLayout(w.target);
+      writeFileSync(join(w.target, "agent-factory", "config", "factory.config.json"), '{ "_edited": "OLD" }\n');
+      const m = runInstall(w.target, w.kitHome, ["--migrate"], { home: w.home });
+      if (m.status !== 0) throw new Error(`staging --migrate exited ${String(m.status)}:\n${m.stdout}`);
+      const marker = join(w.target, MARKER_REL);
+      userModeEdit(marker);
+      try {
+        accessSync(marker, fsConstants.W_OK);
+        return { ...w, skip: "this process can still write a file whose write bits are cleared (for example as root)" };
+      } catch {
+        return w;
+      }
+    },
+  },
+  {
+    id: "uninstall, after a clean install",
+    mode: "uninstall",
+    verify: false,
+    stage: () => {
+      const w = bareRow();
+      installFirst(w.target, w.kitHome, w.home);
+      return w;
+    },
+  },
+  {
+    id: "uninstall, a malformed install ledger",
+    mode: "uninstall",
+    verify: true,
+    stage: () => {
+      const w = bareRow();
+      installFirst(w.target, w.kitHome, w.home);
+      const p = join(w.target, MARKER_REL);
+      const marker = JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
+      marker.ledger = [{ path: 42 }];
+      writeFileSync(p, JSON.stringify(marker, null, 2) + "\n");
+      return w;
+    },
+  },
+];
+
+const ACTING_MODES: readonly ActingMode[] = ["install", "--update", "--migrate", "--prune-old-kit", "uninstall"];
+
+describe("closing claims: the acting-mode matrix (plan 34-26, D-25)", () => {
+  it("the acting modes are the table's acting flags plus the default install and uninstall; each has a verify row and a clean row", () => {
+    const actingFlags = Object.entries(MODE_TABLE)
+      .filter(([, v]) => v.cls === "acting")
+      .map(([k]) => k.replace(/^install\.ts /, ""));
+    expect([...actingFlags, "install", "uninstall"].sort()).toEqual([...ACTING_MODES].sort());
+    for (const mode of ACTING_MODES) {
+      expect(MODE_ROWS.some((r) => r.mode === mode && r.verify), `${mode}: no verify row`).toBe(true);
+      expect(MODE_ROWS.some((r) => r.mode === mode && !r.verify), `${mode}: no clean row`).toBe(true);
+    }
+  });
+
+  for (const row of MODE_ROWS) {
+    it(`${row.mode} | ${row.id}: the banner and status follow the verify lines; a no-change sentence only over identical snapshots`, (ctx) => {
+      const w = row.stage();
+      if (w.skip !== undefined) {
+        console.log(`SKIP ${row.id}: ${w.skip}`);
+        ctx.skip();
+        return;
+      }
+      const before = snapRow(w.target, w.kitHome);
+      const args = row.mode === "install" || row.mode === "uninstall" ? [] : [row.mode];
+      const r =
+        row.mode === "uninstall"
+          ? runUninstall(w.target, w.kitHome, { home: w.home, dryRun: row.dryRun === true })
+          : runInstall(w.target, w.kitHome, args, { home: w.home, dryRun: row.dryRun === true });
+      const after = snapRow(w.target, w.kitHome);
+      const verifies = verifyLines(r.stdout);
+      expect(`${row.id}: verify printed=${verifies.length > 0}`, r.stdout).toBe(`${row.id}: verify printed=${row.verify}`);
+      const banner = lastBanner(r.stdout);
+      if (verifies.length > 0) {
+        const m = INCOMPLETE_BANNER.exec(banner);
+        expect(m, `${row.id}: the last banner is not INCOMPLETE\n${r.stdout}`).not.toBeNull();
+        expect(Number(m?.[2]), r.stdout).toBe(verifies.length);
+        expect(r.status, r.stdout).toBe(3);
+      } else {
+        expect(r.stdout, `${row.id}: INCOMPLETE without a verify line`).not.toMatch(/INCOMPLETE/);
+        expect(banner, r.stdout).not.toMatch(/INCOMPLETE/);
+        expect(r.status, r.stdout).toBe(0);
+      }
+      // The snapshot oracle: a sentence saying nothing changed only when nothing did.
+      const claims = r.stdout.split("\n").filter((l) => NO_CHANGE.test(l));
+      if (claims.length > 0) {
+        expect(`${row.id}: snapshots identical=${after === before}`, claims.join("\n")).toBe(`${row.id}: snapshots identical=true`);
+      }
+    });
+  }
 });
