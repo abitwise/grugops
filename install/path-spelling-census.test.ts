@@ -42,6 +42,12 @@
 // natively built path against output, decides absoluteness by a leading `/`, or calls
 // realpathSync.native outside the one helper.
 //
+// RULE (t6) (plan 34-23, D-21, WINDOWS.md row 319). No test links to a rooted, drive-less literal target:
+// Windows resolves `/some/where` against the current drive, so a link record read back differs from the
+// one the test expected. The link makers and their local wrappers are derived from the syntax tree; a
+// legitimate site (a POSIX device path the case skips on win32 before linking) is classified with its
+// reason, and its skip is checked to come first.
+//
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect } from "vitest";
@@ -509,6 +515,22 @@ const isSeparatorReplacement = (arg: ts.Expression | undefined): boolean =>
     (ts.isIdentifier(arg) && arg.text === "sep") ||
     (ts.isPropertyAccessExpression(arg) && arg.name.text === "sep"));
 
+/** A link to a rooted, drive-less literal that is legitimate, with its reason (rule (t6)). Keyed by file, scope and target. */
+const CLASSIFIED_ROOTED_LINKS = new Map<string, string>([
+  [
+    "install.test.ts:<top-level>:/dev/zero",
+    "readUserFile character-device case: /dev/zero is a POSIX device path by definition; the case prints `SKIPPED readUserFile character-device case` and returns on win32 before the link is made (pre-existing; found by this rule through stageSymlinkOrSkip, which the plan's symlinkSync text search did not match)",
+  ],
+  [
+    "installer-write-set.test.ts:installedWithVersion:/dev/zero",
+    "kit VERSION /dev/zero case: a POSIX device path by definition; installedWithVersion returns `SKIPPED /dev/zero VERSION case on win32`, which the caller prints, before the link is made (pre-existing; found by this rule through stageSymlinkOrSkip, which the plan's symlinkSync text search did not match)",
+  ],
+  [
+    "installer-write-set.test.ts:plantAt:/dev/zero",
+    "write-set /dev/zero shape: a POSIX device path by definition; the case returns a printed `SKIPPED /dev/zero shape` on win32 before the link is made through the local `link` wrapper (pre-existing, plan 34-23 fixture search row F6)",
+  ],
+]);
+
 describe("WIN-1 path-spelling census — tests (install/*.test.ts and *.test-support.ts)", () => {
   const files = scannedTestFiles();
 
@@ -652,4 +674,120 @@ describe("WIN-1 path-spelling census — tests (install/*.test.ts and *.test-sup
     expect(calls, "canonicalPath must delegate to user-file.ts realTargetPath").toContain("realTargetPath");
     expect(calls.filter((c) => c === "replace" || c === "replaceAll" || c === "native" || c === "toPosix"), "canonicalPath must not spell the path itself").toEqual([]);
   });
+
+  it("(t6) no test links to a rooted, drive-less literal target: every link target is built by the host (or classified with its reason)", () => {
+    // WINDOWS.md row 319 (plan 34-23, D-21): Windows resolves a drive-less rooted link target against the
+    // current drive, so `symlinkSync("/some/where", …)` reads back as `D:\some\where` and a compared record
+    // differs. The link makers are symlinkSync, fs.promises symlink and scripts/check-platform-shapes.ts
+    // stageSymlinkOrSkip, plus every local function in a scanned file that hands its own first parameter
+    // to a link maker as the target (derived to a fixed point, so a wrapper of a wrapper counts). A target
+    // is rooted and drive-less when it is a string literal, or a template whose literal head, begins with
+    // `/` or `\`, directly or through a local variable whose initializer is one (resolved by the checker).
+    const program = ts.createProgram(
+      files.map((f) => join(INSTALL_DIR, f)),
+      { noResolve: true, noLib: true, types: [] },
+    );
+    const checker = program.getTypeChecker();
+    const rootedText = (e: ts.Expression | undefined): string | null => {
+      if (e === undefined) return null;
+      if (ts.isParenthesizedExpression(e)) return rootedText(e.expression);
+      const text = ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) ? e.text : ts.isTemplateExpression(e) ? e.head.text : null;
+      return text !== null && /^[/\\]/.test(text) ? text : null;
+    };
+    const targetText = (e: ts.Expression | undefined): string | null => {
+      const direct = rootedText(e);
+      if (direct !== null || e === undefined || !ts.isIdentifier(e)) return direct;
+      const decl = checker.getSymbolAtLocation(e)?.declarations?.[0];
+      return decl !== undefined && ts.isVariableDeclaration(decl) ? rootedText(decl.initializer) : null;
+    };
+    const BASE_LINK_MAKERS = ["symlinkSync", "symlink", "stageSymlinkOrSkip"];
+    const sites: (Site & { readonly target: string; readonly win32SkipFirst: boolean })[] = [];
+    // Whether the innermost function around `n` tests `process.platform === "win32"` before `n`: a
+    // classified site must skip win32 (with its printed reason) before the link is made, not merely say so.
+    const win32SkipFirst = (n: ts.Node, sf: ts.SourceFile): boolean => {
+      let fn: ts.Node | undefined = n.parent;
+      while (fn !== undefined && !ts.isFunctionLike(fn)) fn = fn.parent;
+      if (fn === undefined) return false;
+      return nodesUnder(fn, ts.isBinaryExpression).some(
+        (b) =>
+          b.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken &&
+          b.end <= n.getStart(sf) &&
+          [b.left, b.right].some((x) => ts.isPropertyAccessExpression(x) && x.name.text === "platform" && ts.isIdentifier(x.expression) && x.expression.text === "process") &&
+          [b.left, b.right].some((x) => ts.isStringLiteralLike(x) && x.text === "win32"),
+      );
+    };
+    const wrappers: string[] = [];
+    let makerCalls = 0;
+    for (const file of files) {
+      const sf = program.getSourceFile(join(INSTALL_DIR, file));
+      expect(sf, `the program has no ${file}`).toBeDefined();
+      // A function bound to a name, with its first parameter's name, for the wrapper derivation.
+      const fns: { name: string; param: string; body: ts.Node }[] = [];
+      const collect = (n: ts.Node): void => {
+        const fn =
+          ts.isFunctionDeclaration(n) && n.name !== undefined
+            ? { name: n.name.text, node: n }
+            : (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) && ts.isVariableDeclaration(n.parent) && ts.isIdentifier(n.parent.name)
+              ? { name: n.parent.name.text, node: n }
+              : null;
+        const first = fn?.node.parameters[0];
+        if (fn !== null && first !== undefined && ts.isIdentifier(first.name) && fn.node.body !== undefined) {
+          fns.push({ name: fn.name, param: first.name.text, body: fn.node.body });
+        }
+        ts.forEachChild(n, collect);
+      };
+      collect(sf as ts.SourceFile);
+      const makers = new Set(BASE_LINK_MAKERS);
+      const isMakerCall = (n: ts.Node): n is ts.CallExpression => {
+        if (!ts.isCallExpression(n)) return false;
+        const c = n.expression;
+        if (ts.isIdentifier(c)) return makers.has(c.text);
+        return ts.isPropertyAccessExpression(c) && BASE_LINK_MAKERS.includes(c.name.text);
+      };
+      for (let grew = true; grew; ) {
+        grew = false;
+        for (const f of fns) {
+          if (makers.has(f.name)) continue;
+          const passes = nodesUnder(f.body, isMakerCall).some((c) => c.arguments[0] !== undefined && ts.isIdentifier(c.arguments[0]) && c.arguments[0].text === f.param);
+          if (passes) {
+            makers.add(f.name);
+            wrappers.push(`${file}:${f.name}`);
+            grew = true;
+          }
+        }
+      }
+      const walk = (n: ts.Node): void => {
+        if (isMakerCall(n)) {
+          makerCalls += 1;
+          const target = targetText(n.arguments[0]);
+          if (target !== null) sites.push({ file, line: lineOf(sf as ts.SourceFile, n), scope: scopeOf(n), target, win32SkipFirst: win32SkipFirst(n, sf as ts.SourceFile) });
+        }
+        ts.forEachChild(n, walk);
+      };
+      walk(sf as ts.SourceFile);
+    }
+    // Vacuity floors: the scan saw link-making calls, and the derivation found the one wrapper that
+    // carries the classified site below (installer-write-set.test.ts plantAt's local `link`).
+    expect(makerCalls, "the scan found no link-making call at all: the rule is asking nothing").toBeGreaterThan(0);
+    expect(wrappers, "the wrapper derivation no longer finds installer-write-set.test.ts link").toContain("installer-write-set.test.ts:link");
+
+    const used = new Set<string>();
+    const offenders: string[] = [];
+    for (const s of sites) {
+      const key = `${s.file}:${s.scope}:${s.target}`;
+      if (CLASSIFIED_ROOTED_LINKS.has(key) && s.win32SkipFirst) {
+        used.add(key);
+        continue;
+      }
+      if (CLASSIFIED_ROOTED_LINKS.has(key)) {
+        offenders.push(`${where(s)} links to ${JSON.stringify(s.target)} and is classified, but its function does not test process.platform === "win32" before the link`);
+        continue;
+      }
+      offenders.push(`${where(s)} links to ${JSON.stringify(s.target)}`);
+    }
+    expect(offenders, "a link to a rooted, drive-less literal: Windows resolves it against the current drive. Build the target with join under the test's scratch directory").toEqual([]);
+    expect(CLASSIFIED_ROOTED_LINKS.size, "the classified rooted-link map changed size").toBe(3);
+    expect([...CLASSIFIED_ROOTED_LINKS.keys()].filter((k) => !used.has(k)), "a stale exemption: a classified rooted-link key that no derived site matched").toEqual([]);
+  });
 });
+

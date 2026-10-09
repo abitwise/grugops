@@ -419,7 +419,18 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
     mkdirSync(join(dir, "sub"), { recursive: true });
     writeFileSync(join(dir, "a.md"), "a\n");
     writeFileSync(join(dir, "sub", "b.md"), "b\n");
-    symlinkSync("/nowhere/target", join(dir, "sub", "link"));
+    // Every link fixture in this file points at an absolute path built with the host's own `join` under
+    // the test's scratch directory, never at a rooted literal such as `/some/where` (WINDOWS.md row 319,
+    // plan 34-23, D-21). On Windows Node passes an absolute link target through path.toNamespacedPath,
+    // which resolves a drive-less rooted path against the current drive, so readlink gave back
+    // `D:\some\where` for `/some/where` on run 37733716975. A host-built absolute path is already resolved:
+    // namespacing only adds the `\\?\` prefix that readlink removes again, so the readback should equal the
+    // input byte for byte. That is read from Node v24.12.0 internals and is a PREDICTION for the human's
+    // deferred windows-latest run, not a measurement. The target is not spelled through
+    // canonicalPathSpelling or realTargetPath: their Windows spelling uses forward slashes, which Node
+    // converts on the way into a link, so the readback would differ from the expected record.
+    // path-spelling-census.test.ts rule (t6) keeps every installer test free of rooted literal targets.
+    symlinkSync(join(root, "nowhere", "target"), join(dir, "sub", "link"));
     const s = stageShapeOrSkip("FIFO", join(dir, "sub", "fifo"), "treeRecord FIFO inside a tree");
     return { root, rel, dir, fifoSkip: s === null ? null : skipLine(s, "the tree cases without the FIFO") };
   }
@@ -439,7 +450,7 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
     const afterMode = treeRecordOf(t.root, t.rel);
     expect(afterMode).not.toBe(afterByte);
     unlinkSync(join(t.dir, "sub", "link"));
-    symlinkSync("/nowhere/else", join(t.dir, "sub", "link"));
+    symlinkSync(join(t.root, "nowhere", "else"), join(t.dir, "sub", "link"));
     const afterLink = treeRecordOf(t.root, t.rel);
     expect(afterLink).not.toBe(afterMode);
     writeFileSync(join(t.dir, "new.md"), "");
@@ -450,8 +461,9 @@ describe("plan 33.1-37: treeRecord, owns for kit and backup, and readKitHomeReco
     const root = fresh("tree-shapes");
     writeFileSync(join(root, "f"), "x");
     expect(treeRecordOf(root, "f")).toBe(fileRecord("x", storedMode(join(root, "f"))));
-    symlinkSync("/some/where", join(root, "l"));
-    expect(treeRecordOf(root, "l")).toBe(linkRecord("/some/where"));
+    const linkTo = join(root, "some", "where");
+    symlinkSync(linkTo, join(root, "l"));
+    expect(treeRecordOf(root, "l")).toBe(linkRecord(linkTo));
     expect(treeRecordOf(root, "absent")).toBeNull();
     const s = stageShapeOrSkip("FIFO", join(root, "p"), "treeRecord of a FIFO");
     if (s === null) expect(treeRecordOf(root, "p")).toBeNull();
@@ -634,8 +646,9 @@ describe("plan 33.1-40: backupContentRecord, outermostBackups and carriedBackups
     writeFileSync(join(root, "d.bak", "sub", "x"), "x");
     expect(backupContentRecord(root, "d.bak")).toBe(treeRecordOf(root, "d.bak"));
     expect(String(backupContentRecord(root, "d.bak"))).toMatch(/^tree:sha256:[0-9a-f]{64}$/);
-    symlinkSync("/some/where", join(root, "l.bak"));
-    expect(backupContentRecord(root, "l.bak")).toBe(linkRecord("/some/where"));
+    const linkTo = join(root, "some", "where");
+    symlinkSync(linkTo, join(root, "l.bak"));
+    expect(backupContentRecord(root, "l.bak")).toBe(linkRecord(linkTo));
     // A hard link: the same file has another name, so what it holds is not shown to be install's backup alone.
     writeFileSync(join(root, "h.bak"), "h");
     spawnSync("ln", [join(root, "h.bak"), join(root, "h2")]);
