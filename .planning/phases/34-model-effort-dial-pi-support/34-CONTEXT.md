@@ -171,6 +171,50 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   reproduction (a generator patched to drop the line, config `tiered` plus one role at `inherit`) becomes
   a refusal case, with exit 3 and 0 adapters installed.
 
+### Gap round 3 decisions (human, 2026-10-09, answering 34-UAT.md: G-34-2 blocker, G-34-4 major)
+- **D-25:** Gap round 3 scope. (1) Windows is out of scope during active development (human: "no
+  windows checks needed"). No plan in this round adds Windows work, a windows-latest measurement or a
+  WIN-1 change. WR-11 is accepted and deferred with Windows support. Removing the Windows CI leg and the
+  tests that pin it is a separate `/gsd-quick` task the human runs, so this round edits neither
+  `.github/workflows/ci.yml` nor those tests. HOST-02 stays open. (2) WR-12 (G-34-4) is fixed:
+  `writeAskRules()` owns its outcome and the closing notes say only what the run did. Its same-class
+  siblings are fixed with it: the `--update` closing banner (sibling A) and the already-migrated
+  `--migrate` closing sentence (sibling B); the uninstall "preserved" block is made scope-accurate
+  (sibling C). (3) G-34-2 is closed in this round, together with the `--check` gap (green while a
+  non-Claude host cannot reach the Orchestrator) and a test that the path a pointer names exists after
+  an install whose kit lives in a separate home. Its design is D-26. (4) The live Pi re-run is a human
+  UAT item after execution; no plan claims it. Gap rounds are capped at 4; this is round 3.
+- **D-26:** PENDING. The human answers at plan 34-27 Task 1 (`checkpoint:decision`); the executor
+  replaces this entry with the answer and commits it before any G-34-2 code is written. Planner's
+  recommendation, "the marker route": (1) One route sentence, `KIT_ROUTE` in `install/host-tools.ts`,
+  says the kit root after a scripted install is the directory in the `kitRoot` field of
+  `.grugops/install.json` and that each `agent-factory/…` path is read under it. The Pi template, the
+  Copilot pointer and the CLAUDE.md block carry it after their start-here sentence, and the kit's
+  `AGENTS.md` "Kit vs state" rule carries it with the minimal-copy case (no marker: this repository's
+  own `agent-factory/`) and the unchanged STOP rule. The pointer text stays a fixed literal, the same
+  on every machine: no install-time value enters instruction text (T-34-13 holds unchanged) and no
+  kit-home environment variable is named (check-kit-refs Assertion 3 holds unchanged). (2) Existing
+  installs: install refreshes its own unedited route carrier (the Pi template, an `AGENTS.md` copy it
+  created, the CLAUDE.md and Copilot sentinel blocks) when the install-ledger record still holds and
+  the text differs from the current text; a user's own or edited carrier is left untouched with a
+  note (closes deferred IN-03). (3) An `AGENTS.md` that install did not write is still never written;
+  when it lacks the route, install prints a note and `--check` a WARN naming the hosts that read only
+  `AGENTS.md` (derived from `HOST_TOOLS`) and the sentence to add. (4) `--check` follows the route the
+  way an agent does and reports, per registry host, whether that host reaches the Orchestrator: FAIL
+  for install's own stale carrier or a route that does not resolve, WARN for a user's own carrier
+  without the route. (5) Amends v1.1 Phase 7 D-11 ("the adapter is the sole resolver"): for a host
+  with no Claude Code adapter, the marker's `kitRoot` is the resolution record. The Claude Code
+  adapters' text and their `KIT=` slot are unchanged (inside a Claude Code session the adapter
+  resolves and roles never re-resolve, Phase 7 D-12). D-10 and D-16 stand (pointer text only;
+  `/grugops`). The packaging rule that only the two resolver adapters carry the self-heal/STOP block
+  and the kit-home variable stands; its "repo-relative pointer-text" note is reworded. Backlog 999.4
+  is re-scoped to the live per-host runs. Rejected alternative: write the absolute kit root into each
+  pointer at install time (34-UAT.md G-34-2, first `missing` item). The pointer files are committed and
+  shared, so a per-machine path is wrong on every other machine and cannot be refreshed there (the
+  ledger binds to one directory); it goes stale when `GRUGOPS_HOME` changes; and it puts an
+  install-time value into instruction text (T-34-13). Doing both carries those costs and reaches no
+  host the marker route leaves out.
+
 ### Claude's Discretion
 - Exact TypeScript module/location of the host-tool registry, and how docs prose is checked against it.
 - Plan order and wave split between the effort half and the Pi half (they are independent).
@@ -261,7 +305,9 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
 - `fable` as a documented model alias (34-RESEARCH.md Q6) — backlog; `MODEL_ALIASES` unchanged here.
 - Non-Claude hosts finding the shared kit at `~/.grugops/agent-factory` after a scripted install
   (34-RESEARCH.md Q7) — pre-existing, `UNKNOWN - verify`, Pi inherits it; backlog. The Pi template stays a
-  plain pointer (no third resolver adapter).
+  plain pointer (no third resolver adapter). **No longer deferred:** the live Pi run in 34-UAT.md test 2
+  failed on it (G-34-2, blocker), and the human brought it into gap round 3 (D-25); its design is D-26.
+  The Pi template stays a pointer with no resolver slot under D-26's recommendation.
 
 </deferred>
 
