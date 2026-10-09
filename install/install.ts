@@ -2885,21 +2885,83 @@ function writeKitHomeRecord(previous: ReturnType<typeof readKitHomeRecord>, made
 // function itself, neither of which a `--check` run can reach too early.
 // ---------------------------------------------------------------------------
 
-// The announced resolution, as this side reads it back off the probe's one line. The three numbers
-// a consumer can check independently: the member count, how many members an override set, and the
-// sorted distinct aliases the run actually emitted.
+// The announced resolution, as this side reads it back off the probe's one line: the member count,
+// how many members an override set, the sorted distinct aliases the run emitted, and `byAdapter`,
+// the alias the generator resolved for EACH adapter, keyed by adapter name (the rendered file name
+// without `.md`; plan 34-19 grammar, D-24). The map is what the agents loop compares every adapter's
+// bytes with, member by member; the count is what the role-count check holds to the derived listing.
 //
 // `effort` is the EFFORT dial's announcement, read the same way (plan 34-15, D-20, WR-03): the
-// member count, the override count, and the sorted distinct levels the run emitted, `inherit`
-// included (an adapter whose level is `inherit` carries no `effort:` line at all).
+// member count, the override count, the sorted distinct levels the run emitted, `inherit` included
+// (an adapter whose level is `inherit` carries no `effort:` line at all), and the per-adapter level
+// map.
 interface AnnouncedAssignment {
   readonly roles: number;
   readonly overrides: number;
   readonly aliases: string[];
+  readonly byAdapter: Readonly<Record<string, string>>;
   readonly effort: {
     readonly roles: number;
     readonly overrides: number;
     readonly levels: string[];
+    readonly byAdapter: Readonly<Record<string, string>>;
+  };
+}
+
+// One dial's announcement after the installer's shape check: the four fields both dials carry, with
+// the dial's list under one name.
+interface AnnouncedDial {
+  readonly roles: number;
+  readonly overrides: number;
+  readonly list: string[];
+  readonly byAdapter: Readonly<Record<string, string>>;
+}
+
+// announcementShape: THE ONE SHAPE CHECK both dials' announcements pass (plan 34-20, IN-07, RC-1).
+// The mirrored module's validator already refuses a malformed payload by name; this is the
+// installer's own floor on what it reads back off the probe, so that nothing it trusts later (the
+// counts, the list, the per-adapter map) is used before its type is known. The checks are the same
+// for both dials: both counts non-negative integers (`isCount`), the list an array of strings, and
+// `byAdapter` a non-null, non-array object whose values are strings. The list's KEY is the only
+// per-dial difference (`aliases` or `levels`), and one sentence pattern names which announcement
+// failed. Until this plan the model arm checked `typeof` and the effort arm `isCount`, so one dial
+// accepted a count the other refused.
+//
+// Its words are chosen INSIDE the function, for the temporal-dead-zone reason oneAnnouncement gives.
+function announcementShape(
+  value: unknown,
+  dial: "model" | "effort",
+): { readonly ok: true; readonly value: AnnouncedDial } | { readonly ok: false; readonly problem: string } {
+  const resolution = dial === "model" ? "the announced resolution" : "the announced effort resolution";
+  const listKey = dial === "model" ? "aliases" : "levels";
+  const v = (value ?? {}) as Record<string, unknown>;
+  const list = v[listKey];
+  const map = v.byAdapter;
+  if (
+    !isCount(v.roles) ||
+    !isCount(v.overrides) ||
+    !Array.isArray(list) ||
+    list.some((x) => typeof x !== "string") ||
+    map === null ||
+    typeof map !== "object" ||
+    Array.isArray(map) ||
+    Object.values(map as object).some((x) => typeof x !== "string")
+  ) {
+    return {
+      ok: false,
+      problem:
+        `${resolution} did not carry the declared shape (two non-negative integer counts, a list ` +
+        `of strings under "${listKey}" and a map of strings under "byAdapter")`,
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      roles: v.roles as number,
+      overrides: v.overrides as number,
+      list: list as string[],
+      byAdapter: map as Record<string, string>,
+    },
   };
 }
 
@@ -3204,9 +3266,11 @@ function renderAdaptersInMirror(use: (result: MirrorResult) => void): void {
     let announceProblem = "";
     try {
       const parsed = JSON.parse(probeLines[0]) as { results?: unknown; effortResults?: unknown };
-      // BOTH DIALS THROUGH ONE CODE PATH (plan 34-15, RC-1). The three named conditions — not a
-      // list, not exactly one announcement, refused by name — are asked by ONE helper about each
-      // dial's list, so the effort arm cannot drift from the model arm. Only the shape differs.
+      // BOTH DIALS THROUGH ONE CODE PATH, SHAPE INCLUDED (plan 34-15, plan 34-20, RC-1, IN-07). The
+      // three named conditions — not a list, not exactly one announcement, refused by name — are
+      // asked by ONE helper about each dial's list, and the accepted value's shape (counts, list,
+      // per-adapter map) by ONE more, so the effort arm cannot drift from the model arm. The dial's
+      // name is the only argument that differs.
       const model = oneAnnouncement(parsed.results, "model");
       const effort = oneAnnouncement(parsed.effortResults, "effort");
       if (!model.ok) {
@@ -3214,35 +3278,23 @@ function renderAdaptersInMirror(use: (result: MirrorResult) => void): void {
       } else if (!effort.ok) {
         announceProblem = effort.problem;
       } else {
-        const v = model.value as { roles?: unknown; overrides?: unknown; aliases?: unknown };
-        const aliases = Array.isArray(v.aliases) ? v.aliases : null;
-        const e = effort.value as { roles?: unknown; overrides?: unknown; levels?: unknown };
-        const levels = Array.isArray(e.levels) ? e.levels : null;
-        if (
-          typeof v.roles !== "number" ||
-          typeof v.overrides !== "number" ||
-          aliases === null ||
-          aliases.some((a) => typeof a !== "string")
-        ) {
-          announceProblem = "the announced resolution did not carry the declared shape";
-        } else if (
-          !isCount(e.roles) ||
-          !isCount(e.overrides) ||
-          levels === null ||
-          levels.some((l) => typeof l !== "string")
-        ) {
-          announceProblem =
-            "the announced effort resolution did not carry the declared shape (two non-negative " +
-            "integers and a list of strings)";
+        const m = announcementShape(model.value, "model");
+        const e = announcementShape(effort.value, "effort");
+        if (!m.ok) {
+          announceProblem = m.problem;
+        } else if (!e.ok) {
+          announceProblem = e.problem;
         } else {
           announced = {
-            roles: v.roles,
-            overrides: v.overrides,
-            aliases: aliases as string[],
+            roles: m.value.roles,
+            overrides: m.value.overrides,
+            aliases: m.value.list,
+            byAdapter: m.value.byAdapter,
             effort: {
-              roles: e.roles as number,
-              overrides: e.overrides as number,
-              levels: levels as string[],
+              roles: e.value.roles,
+              overrides: e.value.overrides,
+              levels: e.value.list,
+              byAdapter: e.value.byAdapter,
             },
           };
         }
@@ -3310,9 +3362,10 @@ const RENDERED_EFFORT_KEY = "effort: ";
 
 // The level an adapter carrying NO `effort:` line is installed at. The generator writes no line for
 // `inherit` (scripts/generate-role-adapters.ts writes `effort:` "only when it is not `inherit`"),
-// and that is the level its announcement lists for such roles. Reading zero lines as this word is
-// what makes the level SET read off the bytes comparable with the announced set. It is the one
-// effort level this installer spells, and it spells it only to read an absence.
+// and that is the level its announcement gives such an adapter in its per-adapter map. Reading zero
+// lines as this word is what makes the level read off each text comparable with the announced level
+// for that adapter. It is the one effort level this installer spells, and it spells it only to read
+// an absence.
 const ABSENT_EFFORT_LEVEL = "inherit";
 
 // readRenderedKeyLines: THE ONE LINE READER over a rendered adapter's text (plan 34-15, RC-1). Every
@@ -3322,34 +3375,40 @@ function readRenderedKeyLines(text: string, key: string): string[] {
   return text.split("\n").filter((line) => line.startsWith(key));
 }
 
-// readRenderedDials: the alias and the effort level a rendered adapter will be installed with, or
+// readRenderedDials: the alias and the effort level one text of a rendered adapter carries, or
 // every named refusal (it replaces readRenderedAlias, which read the model dial alone).
 //
 // WHAT BOUNDS ITS INPUT, stated because the answer is not obvious from the signature. It is asked
-// ONLY about the TEXT ABOUT TO BE WRITTEN for an AGENT adapter this run just rendered (the
-// transformed text the plan entry carries) — never about a skill file, never about a file already
-// in the target, never about arbitrary markdown. Reading the transformed text rather than the
-// render is what lets a transform that drops or duplicates either line be refused. The set
-// cross-checks below are what bound it: the distinct sets this returns must equal the sets the
-// generator independently announced, so a value this reader got wrong cannot pass unnoticed.
+// about exactly TWO texts of an AGENT adapter this run just rendered, both held in memory before any
+// write: the RENDER (the bytes the generator wrote into the mirror, `which` = "rendered") and the
+// TEXT ABOUT TO BE WRITTEN (the transformed text the plan entry carries, `which` = "written"). It is
+// never asked about a skill file, a file already in the target, or arbitrary markdown. The floors
+// below hold on BOTH texts (plan 34-20, D-22), and each refusal says which text it read.
 //
-// IT IS A REPORTING PROJECTION, NOT A DECISION PREDICATE. Nothing routes, refuses or writes
-// differently because of the VALUES it returns; the alias is printed, and the SETS of values are
-// cross-checked. The one thing it decides is each dial's line-count floor:
+// ITS VALUES DECIDE REFUSALS (plan 34-20, D-24). The agents loop compares the alias and the level
+// each text carries with the value the generator announced for that adapter (`byAdapter`), through
+// `dialDisagreements`; any difference refuses the whole adapter class. So a value this reader got
+// wrong is not printed and passed: it is refused, because the announcement is an expectation built
+// from the generator's own resolution, independent of the bytes. Each dial's line-count floor is
+// decided here, before any value is compared:
 //   - model: exactly one `model:` line. Zero or two-or-more is a different defect from a wrong
 //     value, with a different remedy, and taking "the first match" would hide both.
 //   - effort: zero lines (the `inherit` level) or one. Two or more is refused by name for the same
-//     reason.
+//     reason. The floors differ by design: the generator writes no `effort:` line for `inherit`
+//     and always writes one `model:` line, so zero is a value on one dial and a defect on the other.
 type RenderedDialsResult =
   | { readonly ok: true; readonly alias: string; readonly effort: string }
   | { readonly ok: false; readonly reasons: string[] };
 
-function readRenderedDials(text: string, label: string): RenderedDialsResult {
+function readRenderedDials(text: string, label: string, which: "rendered" | "written"): RenderedDialsResult {
   const reasons: string[] = [];
+  // Which text the refusal names: the render, or the text about to be written. Spelled inside the
+  // function for the temporal-dead-zone reason oneAnnouncement gives.
+  const carrying = which === "rendered" ? `${label} was rendered carrying` : `${label} would be written carrying`;
   const models = readRenderedKeyLines(text, RENDERED_MODEL_KEY);
   if (models.length !== 1) {
     reasons.push(
-      `${label} was rendered carrying ${models.length} line(s) beginning "${RENDERED_MODEL_KEY}" ` +
+      `${carrying} ${models.length} line(s) beginning "${RENDERED_MODEL_KEY}" ` +
         `where exactly one was required, so the model this adapter would be installed with cannot ` +
         `be stated. Zero and two are different defects from a wrong value and neither is read as ` +
         `the other; reporting the first match would hide both.`,
@@ -3358,7 +3417,7 @@ function readRenderedDials(text: string, label: string): RenderedDialsResult {
   const efforts = readRenderedKeyLines(text, RENDERED_EFFORT_KEY);
   if (efforts.length > 1) {
     reasons.push(
-      `${label} was rendered carrying ${efforts.length} line(s) beginning "${RENDERED_EFFORT_KEY}" ` +
+      `${carrying} ${efforts.length} line(s) beginning "${RENDERED_EFFORT_KEY}" ` +
         `where at most one was allowed, so the effort level this adapter would be installed with ` +
         `cannot be stated. No line is the ${ABSENT_EFFORT_LEVEL} level and one line names a level; ` +
         `two or more is neither, and reporting the first match would hide it.`,
@@ -3370,6 +3429,61 @@ function readRenderedDials(text: string, label: string): RenderedDialsResult {
     alias: models[0].slice(RENDERED_MODEL_KEY.length),
     effort: efforts.length === 0 ? ABSENT_EFFORT_LEVEL : efforts[0].slice(RENDERED_EFFORT_KEY.length),
   };
+}
+
+// dialDisagreements: THE ONE PER-MEMBER COMPARISON (plan 34-20, D-22, D-24, RC-1). For one adapter,
+// for BOTH dials, the value each of its two texts carries is compared with the value the generator
+// announced for that adapter in its per-adapter map. Every difference is a named sentence: the
+// adapter, the dial, which text, that text's value and the announced value.
+//
+// WHAT EACH COMPARISON CATCHES:
+//   - the RENDERED value against the announced value: the generator rendered something other than
+//     what it announced it resolved (case B — a dropped `effort:` line, or one adapter written with
+//     another alias, even when the distinct set of values is unchanged);
+//   - the WRITTEN value against the announced value: the install-time transform changed a line
+//     between the render and the write (case A — for example a line placed inside the kit-slot
+//     sentinels, which transformAdapter drops).
+// A DIRECT rendered-versus-written comparison (D-22) is subsumed: if both texts equal the announced
+// value they equal each other, and if they differ, at least one of them differs from the announced
+// value and is named here.
+//
+// An adapter the announced map has NO entry for is refused by name on that dial: absence is not
+// agreement. With the role-count check (the map's size equals the derived listing's size, through
+// the mirrored validator's agreement rule) this makes the map's key set exactly the rendered names.
+function dialDisagreements(
+  label: string,
+  name: string,
+  texts: ReadonlyArray<{ readonly which: "rendered" | "written"; readonly alias: string; readonly effort: string }>,
+  announced: AnnouncedAssignment,
+): string[] {
+  const found: string[] = [];
+  for (const [dial, key, map] of [
+    ["model", "alias", announced.byAdapter],
+    ["effort", "effort", announced.effort.byAdapter],
+  ] as const) {
+    if (!Object.prototype.hasOwnProperty.call(map, name)) {
+      found.push(
+        `${label}: the render announced no ${dial} entry for the adapter ${name}, so the ${dial} it ` +
+          `would be installed with cannot be checked against the generator's own resolution. An ` +
+          `adapter missing from the announced map is not read as agreement.`,
+      );
+      continue;
+    }
+    const said = map[name];
+    for (const t of texts) {
+      if (t[key] === said) continue;
+      found.push(
+        t.which === "rendered"
+          ? `${label}: the rendered text carries ${dial} "${t[key]}", while the generator announced ` +
+              `${dial} "${said}" for the adapter ${name}. The generator rendered something other than ` +
+              `what it announced it resolved.`
+          : `${label}: the text about to be written carries ${dial} "${t[key]}", while the generator ` +
+              `announced ${dial} "${said}" for the adapter ${name}. The install-time transform changed ` +
+              `it between the render and the write.`,
+      );
+    }
+  }
+  return found;
 }
 
 // What the transform below produced: the FINAL text a materialized file would carry, and how many
@@ -4931,13 +5045,11 @@ function buildKitPlan(): KitPlan {
         return;
       }
 
-      // THE ALIAS AND THE EFFORT LEVEL EVERY RENDERED ADAPTER CARRIES, READ OUT OF THE BYTES ABOUT TO
-      // BE WRITTEN, for ALL members before any write: a refusal on the last member still leaves the
-      // target untouched. Since plan 34-15 both are read from the TRANSFORMED text (the text the plan
-      // entry carries), not from the render, so a transform that drops or duplicates either line is
-      // refused rather than installed.
-      const aliasOf = new Map<string, string>();
-      const effortOf = new Map<string, string>();
+      // THE ALIAS AND THE EFFORT LEVEL EVERY RENDERED ADAPTER CARRIES, READ OUT OF BOTH ITS TEXTS — THE
+      // RENDER AND THE TEXT ABOUT TO BE WRITTEN — for ALL members before any write: a refusal on the
+      // last member still leaves the target untouched. Each value is compared with the value the
+      // generator announced for that adapter (plan 34-20, D-22, D-24), so a line the generator wrote
+      // wrong (case B) and a line the transform dropped or changed (case A) are both refused by name.
       let memberRefused = false;
       for (const f of adapterSet) {
         const label = `.claude/agents/${f}`;
@@ -5002,13 +5114,18 @@ function buildKitPlan(): KitPlan {
           continue;
         }
 
-        // BOTH DIALS, READ OUT OF THE TEXT ABOUT TO BE WRITTEN (plan 34-15, D-20, WR-03). The
-        // transformed text is what the plan entry below carries and what the write phase writes, so
-        // this is the last point at which a dropped or duplicated `model:` or `effort:` line can be
-        // seen before it reaches the target. Each dial's floor is its own named refusal.
-        const dials = readRenderedDials(transformed.text, label);
-        if (!dials.ok) {
-          for (const reason of dials.reasons) {
+        // BOTH DIALS, READ OUT OF BOTH TEXTS (plan 34-20, D-22, D-24, RC-1). The render is what the
+        // generator wrote; the transformed text is what the plan entry below carries and what the
+        // write phase writes, so this is the last point at which a dropped, duplicated or changed
+        // `model:` or `effort:` line can be seen before it reaches the target. The floors hold on
+        // both texts, each its own named refusal, the render's first.
+        const renderedDials = readRenderedDials(text, label, "rendered");
+        const writtenDials = readRenderedDials(transformed.text, label, "written");
+        if (!renderedDials.ok || !writtenDials.ok) {
+          for (const reason of [
+            ...(renderedDials.ok ? [] : renderedDials.reasons),
+            ...(writtenDials.ok ? [] : writtenDials.reasons),
+          ]) {
             refusals.push(
               `.claude/agents/ — ${reason}\n` +
                 `                 No adapter was installed and every pre-existing target adapter was ` +
@@ -5018,8 +5135,29 @@ function buildKitPlan(): KitPlan {
           memberRefused = true;
           continue;
         }
-        aliasOf.set(f, dials.alias);
-        effortOf.set(f, dials.effort);
+        // EACH TEXT'S VALUES AGAINST THE VALUES THE GENERATOR ANNOUNCED FOR THIS ADAPTER, BOTH DIALS,
+        // through the one comparison (dialDisagreements says what each comparison catches). The
+        // adapter's name in the announced map is its rendered file name without `.md`.
+        const disagreements = dialDisagreements(
+          label,
+          f.slice(0, -".md".length),
+          [
+            { which: "rendered", alias: renderedDials.alias, effort: renderedDials.effort },
+            { which: "written", alias: writtenDials.alias, effort: writtenDials.effort },
+          ],
+          announced,
+        );
+        if (disagreements.length > 0) {
+          for (const reason of disagreements) {
+            refusals.push(
+              `.claude/agents/ — ${reason}\n` +
+                `                 No adapter was installed and every pre-existing target adapter was ` +
+                `left as it was.`,
+            );
+          }
+          memberRefused = true;
+          continue;
+        }
         adapters.push({
           dest: join(TARGET, ".claude", "agents", f),
           label,
@@ -5028,44 +5166,10 @@ function buildKitPlan(): KitPlan {
           // linked it to exactly this kit source path, so that link is install's own.
           src: join(GRUGOPS_SRC, ".claude", "agents", f),
           text: transformed.text,
-          alias: dials.alias,
+          alias: writtenDials.alias,
         });
       }
       if (memberRefused) return;
-
-      // THE ALIAS-SET CROSS-CHECK — THE CLOSING OF THE LOOP. The report below is derived from the
-      // BYTES about to be written; the announcement is derived from the map the generator rendered
-      // FROM. Neither side alone proves the other, so they are required to agree.
-      const readAliases = [...new Set(aliasOf.values())].sort();
-      const saidAliases = [...announced.aliases].sort();
-      if (readAliases.join(",") !== saidAliases.join(",")) {
-        refusals.push(
-          `.claude/agents/ — the aliases read out of the rendered adapters are ` +
-            `[${readAliases.join(", ")}], while the render announced [${saidAliases.join(", ")}]. ` +
-            `The bytes and the announcement describe the same resolution, so a disagreement means one ` +
-            `of them is wrong and this run cannot say which.\n` +
-            `                 No adapter was installed and every pre-existing target adapter was left ` +
-            `as it was. The model configuration this run reads is ${targetConfigFile}.`,
-        );
-        return;
-      }
-      // ...AND THE LEVEL-SET CROSS-CHECK FOR THE EFFORT DIAL, AT THE SAME SITE AND IN THE SAME FORM
-      // (plan 34-15, D-20, RC-1). The levels read off the bytes about to be written (zero lines read
-      // as the `inherit` level) must be the announced level set: an adapter that lost or gained an
-      // `effort:` line between the generator and the write moves the read set, and is refused.
-      const readLevels = [...new Set(effortOf.values())].sort();
-      const saidLevels = [...announced.effort.levels].sort();
-      if (readLevels.join(",") !== saidLevels.join(",")) {
-        refusals.push(
-          `.claude/agents/ — the effort levels read out of the rendered adapters are ` +
-            `[${readLevels.join(", ")}], while the render announced [${saidLevels.join(", ")}]. ` +
-            `The bytes and the announcement describe the same resolution, so a disagreement means one ` +
-            `of them is wrong and this run cannot say which.\n` +
-            `                 No adapter was installed and every pre-existing target adapter was left ` +
-            `as it was. The model configuration this run reads is ${targetConfigFile}.`,
-        );
-        return;
-      }
 
       // THE RESOLUTION REPORT (D-04), CAPTURED FOR THE WRITE PHASE. The generator's own announcement
       // lines are relayed VERBATIM — the installer authors no preset wording of its own and holds no

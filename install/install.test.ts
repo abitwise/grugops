@@ -3165,13 +3165,32 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     }
   });
 
-  it("model delivery: an announced alias SET that disagrees with the rendered bytes installs NOTHING and prints both sets", () => {
+  // perMemberSentence — the installer's per-member refusal for one adapter, one dial and one text
+  // (plan 34-20, D-24). Built here from the adapter name, the dial, the text's value and the
+  // announced value, so each row below names what it stages and the assertion reads the whole
+  // sentence rather than a fragment. The adapter's label is its rendered file under .claude/agents/.
+  function perMemberSentence(
+    name: string,
+    dial: "model" | "effort",
+    which: "rendered" | "written",
+    value: string,
+    said: string,
+  ): string {
+    const label = `.claude/agents/${name}.md`;
+    return which === "rendered"
+      ? `${label}: the rendered text carries ${dial} "${value}", while the generator announced ` +
+          `${dial} "${said}" for the adapter ${name}.`
+      : `${label}: the text about to be written carries ${dial} "${value}", while the generator ` +
+          `announced ${dial} "${said}" for the adapter ${name}.`;
+  }
+
+  it("model delivery: an announced alias that disagrees with every rendered adapter installs NOTHING and names each adapter, its alias and the announced one (D-24)", () => {
     const src = makeSyntheticSrc();
     const target = mkTmp();
     writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
-    // The bytes still say `inherit` seventeen times; the announcement claims `opus`. This is the
-    // closing of the loop: the report is derived from the bytes about to be written and the
-    // announcement independently confirms it — neither side alone.
+    // The bytes still say `inherit` seventeen times; the announcement claims `opus` for every
+    // adapter. Converted from the former alias-SET row (plan 34-20): the set check is gone, subsumed
+    // by the per-member comparison, which names every adapter whose bytes differ from its entry.
     patchSyntheticGenerator(
       src,
       MODEL_ANNOUNCE_ANCHOR,
@@ -3179,12 +3198,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
 
     const r = runInstallFrom(src, target, mkTmp());
-    // BOTH SETS AND THE STATUS IN ONE ASSERTION — a disagreement that named only one side would
-    // leave the reader to guess which authority was wrong, and a status-only failure would not say
-    // that either side went unreported.
-    const bothSets = r.stdout.includes("read out of the rendered adapters are [inherit]")
-      && r.stdout.includes("the render announced [opus]");
-    expect(`status=${r.status} prints both sets: ${bothSets}`).toBe("status=3 prints both sets: true");
+    // EVERY ADAPTER NAMED, AND THE STATUS, IN ONE ASSERTION.
+    const unnamed = SYNTH_NAMES.filter((n) => !r.stdout.includes(perMemberSentence(n, "model", "rendered", "inherit", "opus")));
+    expect(`status=${r.status} unnamed=${JSON.stringify(unnamed)}`).toBe("status=3 unnamed=[]");
     expect(r.stdout).toContain("install INCOMPLETE");
     expect(installedAdapters(target)).toEqual([]);
   });
@@ -3201,14 +3217,15 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // A non-inherit level, taken from the closed tuple rather than typed.
   const FOREIGN_LEVEL = EFFORT_LEVELS[EFFORT_LEVELS.length - 1];
 
-  it("effort delivery: an announced effort level SET that disagrees with the rendered bytes installs NOTHING and prints both sets", () => {
+  it("effort delivery: an announced effort level that disagrees with every rendered adapter installs NOTHING and names each adapter, its level and the announced one (D-24)", () => {
     // PREMISE: the announced level is not the level a zero-config render's bytes read as.
     expect(FOREIGN_LEVEL).not.toBe("inherit");
     const src = makeSyntheticSrc();
     const target = mkTmp();
     writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
     // The bytes carry no `effort:` line (zero config: every role `inherit`); the announcement claims
-    // every role at a foreign level, for the real role count, so only the level SET disagrees.
+    // every adapter at a foreign level, for the real role count. Converted from the former level-SET
+    // row (plan 34-20): the per-member comparison names every adapter whose bytes differ.
     patchSyntheticGenerator(
       src,
       EFFORT_ANNOUNCE_ANCHOR,
@@ -3216,10 +3233,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
 
     const r = runInstallFrom(src, target, mkTmp());
-    const bothSets =
-      r.stdout.includes("effort levels read out of the rendered adapters are [inherit]") &&
-      r.stdout.includes(`the render announced [${FOREIGN_LEVEL}]`);
-    expect(`status=${r.status} prints both sets: ${bothSets}`).toBe("status=3 prints both sets: true");
+    const unnamed = SYNTH_NAMES.filter(
+      (n) => !r.stdout.includes(perMemberSentence(n, "effort", "rendered", "inherit", FOREIGN_LEVEL)),
+    );
+    expect(`status=${r.status} unnamed=${JSON.stringify(unnamed)}`).toBe("status=3 unnamed=[]");
     expect(r.stdout).toContain("install INCOMPLETE");
     expect(installedAdapters(target)).toEqual([]);
   });
@@ -3227,7 +3244,55 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // THE OTHER EFFORT REFUSALS (plan 34-15 Task 2). One row per refusal: the patch that stages it
   // and the sentence that names it. Each row runs on its own synthetic source and its own target,
   // and each asserts exit 3, its own sentence, `install INCOMPLETE` and no installed adapter.
-  const effortRefusalRows: Array<{ why: string; from: string; to: () => string; sentence: () => string }> = [
+  //
+  // A row may carry a target configuration body (`config`), which the loop writes with
+  // writeTargetConfig before the run, and a `premise` the loop asks before patching, so a row that
+  // stages a configured disagreement can assert the shape it relies on (plan 34-20, D-24).
+  //
+  // effortEvasion — THE VERIFIER'S REPRODUCTION, DERIVED (plan 34-20, D-24). Configuration: the effort
+  // preset `tiered` with one role set to `inherit` — the first derived stem whose tiered level is
+  // not `inherit`, so `inherit` joins the level set. Victim: the first synthetic adapter whose
+  // resolved level is not `inherit` and is shared with another adapter, so dropping its `effort:`
+  // line (reading it as `inherit`) leaves the distinct level set unchanged. That is the shape the set
+  // cross-check could not see. No stem, adapter or level is typed here.
+  function effortEvasion(): {
+    body: string;
+    victim: string;
+    level: string;
+    byName: Map<string, string>;
+  } {
+    const stems = effortStems();
+    const prefix = agentPrefixLiteral();
+    const tiered = resolveEfforts(stems, { preset: "tiered" });
+    if (!tiered.ok) throw new Error(tiered.reason);
+    const pinned = stems.find((s) => tiered.value.get(s) !== "inherit");
+    if (pinned === undefined) throw new Error("no derived stem has a tiered effort level other than inherit");
+    const resolved = resolveEfforts(stems, { preset: "tiered", overrides: new Map([[pinned, "inherit" as const]]) });
+    if (!resolved.ok) throw new Error(resolved.reason);
+    const byName = new Map<string, string>(stems.map((s) => [`${prefix}${s}`, String(resolved.value.get(s))]));
+    const levels = [...byName.values()];
+    const victim = SYNTH_NAMES.find((n) => {
+      const l = byName.get(n);
+      return l !== undefined && l !== "inherit" && levels.filter((x) => x === l).length > 1;
+    });
+    if (victim === undefined) throw new Error("no synthetic adapter has a non-inherit level shared with another adapter");
+    return {
+      body: `${JSON.stringify({ models: { effort: { preset: "tiered", roles: { [pinned]: "inherit" } } } })}\n`,
+      victim,
+      level: String(byName.get(victim)),
+      byName,
+    };
+  }
+  // The compiled twin's effort emission (the body of its `if (a.effort !== "inherit")`).
+  const EFFORT_EMIT_ANCHOR = "lines.push(`effort: ${a.effort}`);";
+  const effortRefusalRows: Array<{
+    why: string;
+    from: string;
+    to: () => string;
+    sentence: () => string;
+    config?: () => string;
+    premise?: () => void;
+  }> = [
     {
       why: "(a) the generator prints NO effort assignment line",
       from: EFFORT_ANNOUNCE_ANCHOR,
@@ -3268,12 +3333,38 @@ describe("install.js / uninstall.js — single-installer contract (folds install
         `lines.push(${JSON.stringify(`effort: ${FOREIGN_LEVEL}`)}); lines.push(${JSON.stringify(`effort: ${FOREIGN_LEVEL}`)}); }`,
       sentence: () => `.claude/agents/${SYNTH_ADAPTERS[0]} was rendered carrying 2 line(s) beginning "effort: "`,
     },
+    {
+      // THE VERIFIER'S REPRODUCTION (D-24): the generator renders the victim WITHOUT its `effort:`
+      // line, and announces the level it resolved. The announcement is untouched — it is built from
+      // the adapter list, not from the bytes — so only the per-member comparison can see the drop.
+      why: "(f) the generator drops one adapter's `effort:` line while the level SET is unchanged (verifier's reproduction, D-24)",
+      config: () => effortEvasion().body,
+      premise: () => {
+        const { victim, level, byName } = effortEvasion();
+        const said = [...new Set(byName.values())].sort();
+        // The announced set holds `inherit` and the victim's level...
+        expect(said.includes("inherit") && said.includes(level)).toBe(true);
+        // ...and the set read with the victim at `inherit` equals the set without the drop, which is
+        // why a set comparison passed this shape.
+        const dropped = new Map(byName);
+        dropped.set(victim, "inherit");
+        expect([...new Set(dropped.values())].sort()).toEqual(said);
+      },
+      from: EFFORT_EMIT_ANCHOR,
+      to: () => `if (a.name !== ${JSON.stringify(effortEvasion().victim)}) ${EFFORT_EMIT_ANCHOR}`,
+      sentence: () => {
+        const { victim, level } = effortEvasion();
+        return perMemberSentence(victim, "effort", "rendered", "inherit", level);
+      },
+    },
   ];
   for (const row of effortRefusalRows) {
     it(`effort delivery: ${row.why} installs NOTHING and names the refusal`, () => {
       const src = makeSyntheticSrc();
       const target = mkTmp();
       writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+      if (row.premise) row.premise();
+      if (row.config) writeTargetConfig(target, row.config());
       patchSyntheticGenerator(src, row.from, row.to());
 
       const r = runInstallFrom(src, target, mkTmp());
