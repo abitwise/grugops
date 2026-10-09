@@ -213,9 +213,10 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
 
   it("(e) install-marker.ts decides both bindings by sameRecordedPath, and never compares `here` raw", () => {
     const calls = sitesWhere((n) => ts.isCallExpression(n) && calleeName(n) === "sameRecordedPath");
-    expect(calls.map((s) => `${s.file}:${s.scope}`).sort(), "sameRecordedPath must decide markerBinding and readKitHomeRecord, once each").toEqual([
+    expect(calls.map((s) => `${s.file}:${s.scope}`).sort(), "sameRecordedPath must decide markerBinding, readKitHomeRecord and isOwnLink, once each").toEqual([
       "install-marker.ts:markerBinding",
       "install-marker.ts:readKitHomeRecord",
+      "user-file.ts:isOwnLink",
     ]);
     const sf = sourceOf("install-marker.ts");
     const raw: string[] = [];

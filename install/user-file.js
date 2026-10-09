@@ -267,6 +267,21 @@ export function canonicalPathSpelling(p, flavor = HOST_FLAVOR) {
     return s;
 }
 /**
+ * THE ONE ABSOLUTENESS RULE FOR A RECORDED PATH (plan 34-21, D-23, review WR-09): whether `p` is an
+ * absolute path under `flavor`, by the flavor's own isAbsolute and nothing else. The install marker's
+ * `grugopsHome`, `kitRoot` and `target` (install-marker.ts installMarkerProblems) and the doctor's
+ * kit-root spelling (absoluteSpelling below) ask this, so the rule that decides "absolute" cannot
+ * disagree with the spelling that later binds the value. Under win32 a native UNC path (`\\srv\share\x`),
+ * a `\\?\` long form and a drive path in either separator are absolute, and a drive-relative `C:x` is
+ * not; under posix only a leading `/` is, so `C:/x` is a relative path there. A hand-written
+ * leading-`/`-or-drive-letter test is the second rule this replaces: it refused a native UNC marker
+ * target on Windows and accepted `C:/x` on POSIX. The flavor is a parameter, as for
+ * canonicalPathSpelling, so a test proves both flavors on any host; production code omits it.
+ */
+export function isRecordedAbsolute(p, flavor = HOST_FLAVOR) {
+    return flavor.isAbsolute(p);
+}
+/**
  * Whether a recorded path names the directory whose real path is `here`: both sides pass through
  * canonicalPathSpelling, so a record written in either spelling of one directory binds it, and two
  * different directories never compare equal (the spelling changes separators, the long-form prefix and
@@ -277,13 +292,13 @@ export function sameRecordedPath(recorded, here, flavor = HOST_FLAVOR) {
 }
 /**
  * The doctor's absolute spelling of a recorded kit root (install.ts docAbspath, plan 34-11): an absolute
- * path, by the flavor's own isAbsolute, in the one spelling and otherwise verbatim; a relative path
- * prefixed with the canonical spelling of `cwd` and a `/`, the path itself unchanged. No `.` or `..`
- * collapse and no trailing-slash trim, so a cosmetic kitRoot difference still reads as one. The flavor's
- * isAbsolute replaces a leading-`/` test, which read a Windows `C:/…` path as relative.
+ * path, by isRecordedAbsolute (the flavor's own isAbsolute), in the one spelling and otherwise verbatim;
+ * a relative path prefixed with the canonical spelling of `cwd` and a `/`, the path itself unchanged. No
+ * `.` or `..` collapse and no trailing-slash trim, so a cosmetic kitRoot difference still reads as one.
+ * The one absoluteness rule replaces a leading-`/` test, which read a Windows `C:/…` path as relative.
  */
 export function absoluteSpelling(p, cwd, flavor = HOST_FLAVOR) {
-    if (flavor.isAbsolute(p))
+    if (isRecordedAbsolute(p, flavor))
         return canonicalPathSpelling(p, flavor);
     return `${canonicalPathSpelling(cwd, flavor)}/${p}`;
 }
@@ -478,17 +493,31 @@ export function kindAt(path) {
     }
 }
 /**
- * isOwnLink: `dest` is a symbolic link whose target is exactly `src` — the link a --symlink install
- * makes (install.ts linkOrCopy's symlinkSync(src, dest)). THE ONE OWNERSHIP PREDICATE FOR A LINK,
- * shared by both binaries (red-team of plan 33.1-27, B2): install skips such a link as its own and
- * refuses every other link at a path it writes; uninstall removes a link only when it is this link,
- * and leaves every other link (a loop, a dangling link, a link to a device, a FIFO, a directory or a
- * file anywhere else) in place with a verify. It reads only the link itself (lstat and readlink),
- * never what it points at.
+ * isOwnLink: `dest` is a symbolic link whose target names `src` — the link a --symlink install makes
+ * (install.ts linkOrCopy's symlinkSync(src, dest)). THE ONE OWNERSHIP PREDICATE FOR A LINK, shared by
+ * both binaries (red-team of plan 33.1-27, B2): install skips such a link as its own and refuses every
+ * other link at a path it writes; uninstall removes a link only when it is this link, and leaves every
+ * other link (a loop, a dangling link, a link to a device, a FIFO, a directory or a file anywhere else)
+ * in place with a verify. It reads only the link itself (lstat and readlink), never what it points at.
+ *
+ * WHAT IT COMPARES (plan 34-21, D-23, WIN-1). The readlink result and `src` are compared through
+ * sameRecordedPath, the one comparison of a recorded path, not as bytes, so the readback and the record
+ * are compared in one spelling, as every other recorded path is. Whether Windows hands an absolute link
+ * target back in another spelling than the one symlinkSync was given is `UNKNOWN - verify` (WINDOWS.md
+ * row 319 records a rooted target read back drive-qualified; no product link is measured on
+ * windows-latest, because the link cases skip there). Nothing new is owned
+ * by this. Under the posix flavor the spelling is the identity, so the comparison is byte equality as
+ * before; under win32 it folds only spellings Windows itself treats as one path (the separators, the
+ * `\\?\` long-form prefix, the drive-letter case), so a link is owned only when it points at the
+ * recorded source. Every other case is false: a link to another path, a relative target (it never
+ * spells an absolute `src`), a path that is not a link, and any lstat or readlink error. Ownership
+ * still needs the install record (install-marker.ts checkRecord's `link:` arm, uninstall.ts's recorded
+ * link): nothing is removed because a link merely matches (brief DC-2). The flavor is a parameter for
+ * the tests (install/canonical-path.test.ts); production code omits it.
  */
-export function isOwnLink(dest, src) {
+export function isOwnLink(dest, src, flavor = HOST_FLAVOR) {
     try {
-        return lstatSync(dest).isSymbolicLink() && readlinkSync(dest) === src;
+        return lstatSync(dest).isSymbolicLink() && sameRecordedPath(readlinkSync(dest), src, flavor);
     }
     catch {
         return false;

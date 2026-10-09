@@ -81,8 +81,8 @@
 //
 // THE ONE AUTHORITY (owns). owns(ledger, root, rel, kind) answers whether install has a usable record
 // of `kind` for `rel` and, for a `file` entry, whether the path still holds it (checkRecord: bytes and
-// mode for a file, the exact readlink for a link, no link followed on the way, a hard link refused). For
-// a dir, block, gemini or ask-rules entry it returns the entry, and the caller compares that entry's
+// mode for a file, the readlink for a link compared in the one spelling, no link followed on the way, a
+// hard link refused). For a dir, block, gemini or ask-rules entry it returns the entry, and the caller compares that entry's
 // own content record (the directory's emptiness and this run's removals, the block hash,
 // fileNameContent, askContent) with the file before it edits anything, as each pass did before the
 // merge. Since plan 33.1-38 the uninstaller's removal sequence IS a walk over the ledger (uninstall.ts
@@ -153,7 +153,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
-import { isOwnLink, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo } from "./user-file.js";
+import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo } from "./user-file.js";
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
 export const MARKER_REL = ".grugops/install.json";
 /** The marker field that holds the one install ledger (D-33 (b)). */
@@ -296,12 +296,14 @@ export function isLedgerPath(entry) {
 // edit it. So every record of a file install wrote also carries WHAT install wrote there, in one
 // grammar, and both binaries ask one predicate whether the path still holds it:
 //   `sha256:<64 lowercase hex>`  the sha256 of the bytes install wrote (a copy, a created file);
-//   `link:<target>`              the link install made, by its exact readlink target.
+//   `link:<target>`              the link install made, by the exact target string it handed to
+//                                symlinkSync (install.ts linkRecord).
 // recordHolds(root, path, record) is the one question. A `sha256:` record holds only for a regular
 // file inside `root`, read without following a link on the way or at the path (readForWrite, so a
 // FIFO, a directory or a device is never opened, brief DC-3), whose bytes hash to the record. A
 // `link:` record holds only for a symbolic link at the path, with nothing but real directories on the
-// way, whose readlink equals the target (isOwnLink). Anything else does not hold. Every `file` entry of the
+// way, whose readlink names the target in the one spelling of a recorded path (isOwnLink, through
+// user-file.ts sameRecordedPath; plan 34-21). Anything else does not hold. Every `file` entry of the
 // ledger, a kit file or not, uses the same grammar and the same predicate.
 //
 // THE FILE MODE IS PART OF A FILE'S RECORD (red-team L1 of plan 33.1-34, brief DC-2). A record of the bytes
@@ -966,16 +968,25 @@ export function readKitHomeRecord(home) {
 // as bad usage), and `target` as this directory's real path. A field holding anything else is not
 // install's value, and the marker is not install's. `target` may be absent here (a marker written before
 // the binding existed); markerBinding then says the marker is not bound.
-const isAbsoluteMarkerPath = (v) => typeof v === "string" && v.trim() === v && v !== "" && (v.startsWith("/") || /^[A-Za-z]:[\\/]/.test(v));
-export function installMarkerProblems(marker) {
+//
+// ABSOLUTE BY THE ONE RULE (plan 34-21, D-23, review WR-09). A path field is install's value when it is
+// a string, carries no leading or trailing whitespace, is not empty, and is absolute by user-file.ts
+// isRecordedAbsolute: the path flavor's own isAbsolute, the rule the canonical-path module owns. Until
+// this plan a hand-written test here (a leading `/`, or a drive letter and a separator) decided it, and
+// it disagreed with the flavor: on Windows it refused a target in native UNC spelling, which
+// sameRecordedPath binds, so that marker was unusable; on POSIX it accepted `C:/x`, a relative path
+// there. `flavor` is for the tests (install/canonical-path.test.ts); both binaries omit it and get the
+// host's.
+export function installMarkerProblems(marker, flavor) {
     const out = [];
     const has = (k) => Object.prototype.hasOwnProperty.call(marker, k);
+    const isAbsolutePathValue = (v) => typeof v === "string" && v.trim() === v && v !== "" && isRecordedAbsolute(v, flavor);
     for (const k of ["grugopsHome", "kitRoot"]) {
         if (!has(k))
             out.push(`no ${k}`);
         else if (typeof marker[k] !== "string")
             out.push(`${k} is not a string`);
-        else if (!isAbsoluteMarkerPath(marker[k]))
+        else if (!isAbsolutePathValue(marker[k]))
             out.push(`${k} is not an absolute path`);
     }
     if (!has("installMode"))
@@ -984,7 +995,7 @@ export function installMarkerProblems(marker) {
         out.push("installMode is neither copy nor symlink");
     if (has("kitVersion") && typeof marker.kitVersion !== "string")
         out.push("kitVersion is not a string");
-    if (has("target") && !isAbsoluteMarkerPath(marker.target))
+    if (has("target") && !isAbsolutePathValue(marker.target))
         out.push("target is not an absolute path");
     return out;
 }

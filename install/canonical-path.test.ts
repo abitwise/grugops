@@ -12,8 +12,15 @@
 // red on any host. This proves the spelling rule; it does not prove a windows-latest run is green (WIN-3:
 // that is measured only by a human-pushed CI run).
 //
-// Drives the COMMITTED install/user-file.js (npm run build first). Pure except case (11), which resolves
-// one scratch directory and removes it.
+// Drives the COMMITTED install/user-file.js and install/install-marker.js (npm run build first). Not
+// pure: case (11) resolves one scratch directory, and the isOwnLink host cases (plan 34-21) make links
+// and a file in another scratch directory; both are removed afterwards.
+//
+// Plan 34-21 (D-23, review WR-09) adds: isRecordedAbsolute, the one absoluteness rule for a recorded path,
+// as a table under both flavors; installMarkerProblems judging a marker path by that rule, per flavor; and
+// isOwnLink comparing a link's readback with the recorded source through sameRecordedPath, on this host,
+// with links staged through scripts/check-platform-shapes.js stageSymlinkOrSkip (a host that cannot make
+// a link prints the skip and the route that still pins the rule).
 //
 // Plan 34-12 adds the test-side helpers (install/installer-paths.test-support.ts pathText, lineNamesPath,
 // printedRel): the same spelling applied to a path the product PRINTS, proven here with the exact
@@ -23,10 +30,20 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import path from "node:path";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { absoluteSpelling, canonicalPathSpelling, realTargetPath, sameRecordedPath, type PathFlavor } from "./user-file.js";
+import {
+  absoluteSpelling,
+  canonicalPathSpelling,
+  isOwnLink,
+  isRecordedAbsolute,
+  realTargetPath,
+  sameRecordedPath,
+  type PathFlavor,
+} from "./user-file.js";
+import { installMarkerProblems } from "./install-marker.js";
 import { lineNamesPath, nativeRealPath, pathText, printedRel } from "./installer-paths.test-support.js";
+import { skipLine, stageSymlinkOrSkip } from "../scripts/check-platform-shapes.js";
 
 const win = path.win32;
 const posix = path.posix;
@@ -160,6 +177,127 @@ describe("absoluteSpelling — the doctor's kit-root spelling (P8)", () => {
       expect(absoluteSpelling(row.p, row.cwd, row.flavor)).toBe(row.spelled);
     });
   }
+});
+
+interface AbsRow {
+  readonly name: string;
+  readonly flavor: PathFlavor;
+  readonly p: string;
+  readonly absolute: boolean;
+}
+
+// isRecordedAbsolute (plan 34-21, D-23, WR-09): the one absoluteness rule for a recorded path, the flavor's
+// own isAbsolute. The native UNC row is the marker target the hand-written rule refused on Windows; the
+// posix `C:/x` row is the relative path it accepted on POSIX.
+const ABS_RULE_TABLE: readonly AbsRow[] = [
+  { name: "win32 forward-slash drive path", flavor: win, p: "C:/x", absolute: true },
+  { name: "win32 backslash drive path", flavor: win, p: String.raw`C:\x`, absolute: true },
+  { name: "win32 lower-case drive path", flavor: win, p: String.raw`c:\x`, absolute: true },
+  { name: "win32 canonical UNC", flavor: win, p: "//srv/share/x", absolute: true },
+  { name: "win32 native UNC", flavor: win, p: String.raw`\\srv\share\x`, absolute: true },
+  { name: "win32 long-form drive path", flavor: win, p: String.raw`\\?\C:\x`, absolute: true },
+  { name: "win32 drive-relative", flavor: win, p: "C:x", absolute: false },
+  { name: "win32 bare name", flavor: win, p: "x", absolute: false },
+  { name: "win32 dot-relative", flavor: win, p: String.raw`.\x`, absolute: false },
+  { name: "win32 empty string", flavor: win, p: "", absolute: false },
+  { name: "posix rooted", flavor: posix, p: "/x", absolute: true },
+  { name: "posix letter-colon forward slash", flavor: posix, p: "C:/x", absolute: false },
+  { name: "posix letter-colon backslash", flavor: posix, p: String.raw`C:\x`, absolute: false },
+  { name: "posix backslash UNC spelling", flavor: posix, p: String.raw`\\srv\share`, absolute: false },
+  { name: "posix bare name", flavor: posix, p: "x", absolute: false },
+];
+const ABS_RULE_TABLE_SIZE = 15;
+
+describe("isRecordedAbsolute — the one absoluteness rule for a recorded path (plan 34-21, WR-09)", () => {
+  it("the absoluteness table has its full size", () => {
+    expect(ABS_RULE_TABLE.length).toBe(ABS_RULE_TABLE_SIZE);
+  });
+
+  for (const row of ABS_RULE_TABLE) {
+    it(`${row.name}: ${JSON.stringify(row.p)} is ${row.absolute ? "absolute" : "not absolute"}`, () => {
+      expect(isRecordedAbsolute(row.p, row.flavor)).toBe(row.absolute);
+    });
+  }
+});
+
+describe("installMarkerProblems — a marker path is absolute by the one rule, per flavor (plan 34-21, WR-09)", () => {
+  // One otherwise valid marker per flavor: every field install writes, in values install could write.
+  const posixMarker = { grugopsHome: "/h/.grugops", kitRoot: "/h/.grugops/agent-factory", installMode: "copy", kitVersion: "2.1.0", target: "/r" };
+  const winMarker = { grugopsHome: "C:/h/.grugops", kitRoot: "C:/h/.grugops/agent-factory", installMode: "copy", kitVersion: "2.1.0", target: "C:/r" };
+
+  it("posix: the valid marker has no problem (the control)", () => {
+    expect(installMarkerProblems(posixMarker, posix)).toEqual([]);
+  });
+
+  it("posix: a target spelled `C:/x` is not an absolute path there", () => {
+    expect(installMarkerProblems({ ...posixMarker, target: "C:/x" }, posix)).toEqual(["target is not an absolute path"]);
+  });
+
+  it("win32: a target in native UNC spelling, with grugopsHome and kitRoot in `C:/` spelling, has no problem", () => {
+    expect(installMarkerProblems({ ...winMarker, target: String.raw`\\srv\share\repo` }, win)).toEqual([]);
+  });
+
+  it("win32: a drive-relative target is still refused, and a padded or empty kitRoot is still not install's value", () => {
+    expect(installMarkerProblems({ ...winMarker, target: "C:r" }, win)).toEqual(["target is not an absolute path"]);
+    expect(installMarkerProblems({ ...winMarker, kitRoot: " C:/k" }, win)).toEqual(["kitRoot is not an absolute path"]);
+    expect(installMarkerProblems({ ...winMarker, kitRoot: "" }, win)).toEqual(["kitRoot is not an absolute path"]);
+  });
+});
+
+describe("isOwnLink — a link's readback compared with the recorded source through the one spelling (plan 34-21)", () => {
+  const scratch = mkdtempSync(path.join(tmpdir(), "grugops-ownlink-"));
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+  // An absolute source built with join under the scratch directory, as install builds its sources.
+  const source = path.join(scratch, "kit", "AGENTS.md");
+  mkdirSync(path.dirname(source), { recursive: true });
+  writeFileSync(source, "kit\n");
+  const elsewhere = path.join(scratch, "other", "AGENTS.md");
+  const PINNED_BY = "the sameRecordedPath comparison table (both flavors, pure)";
+
+  // Stage `at` -> `to`; a host that cannot make a link prints the skip and answers false.
+  const staged = (to: string, name: string): string | null => {
+    const at = path.join(scratch, name);
+    const s = stageSymlinkOrSkip(to, at, "isOwnLink link", `canonical-path isOwnLink ${name}`);
+    if (s !== null) {
+      console.log(skipLine(s, PINNED_BY));
+      return null;
+    }
+    return at;
+  };
+  const own = staged(source, "own-link");
+  const rel = staged("kit/AGENTS.md", "relative-link");
+
+  it("true for the link to its recorded source (the host flavor)", () => {
+    if (own === null) return;
+    expect(isOwnLink(own, source)).toBe(true);
+  });
+
+  it("true under path.win32 when the source is asked in backslash spelling (path.win32.normalize of it)", () => {
+    if (own === null) return;
+    const backslashed = win.normalize(source);
+    expect(isOwnLink(own, backslashed, win)).toBe(true);
+  });
+
+  it("false for another directory's path, under both flavors", () => {
+    if (own === null) return;
+    expect(isOwnLink(own, elsewhere, posix)).toBe(false);
+    expect(isOwnLink(own, elsewhere, win)).toBe(false);
+    expect(isOwnLink(own, win.normalize(elsewhere), win)).toBe(false);
+  });
+
+  it("false for a link whose target is relative, under both flavors", () => {
+    if (rel === null) return;
+    expect(isOwnLink(rel, source, posix)).toBe(false);
+    expect(isOwnLink(rel, source, win)).toBe(false);
+    expect(isOwnLink(rel, source)).toBe(false);
+  });
+
+  it("false for a regular file and for an absent path", () => {
+    expect(isOwnLink(source, source)).toBe(false);
+    expect(isOwnLink(source, source, win)).toBe(false);
+    expect(isOwnLink(path.join(scratch, "absent"), source)).toBe(false);
+    expect(isOwnLink(path.join(scratch, "absent"), source, win)).toBe(false);
+  });
 });
 
 // ── the test-side helpers for a PRINTED path (plan 34-12, D-19, WIN-1) ──────────────────────────────
