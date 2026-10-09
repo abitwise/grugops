@@ -2868,23 +2868,34 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     );
   });
 
-  // ── THE THREE CROSS-CHECKS, DRIVEN BY A PATCHED GENERATOR TWIN ────────────────────────────────
+  // ── THE CROSS-CHECKS, DRIVEN BY A PATCHED MIRRORED TWIN ───────────────────────────────────────
   //
   // These are BEHAVIOURAL cases, not scratch-build mutations. The installer copies the generator's
   // committed .js twins out of $GRUGOPS_SRC into its mirror, so a synthetic source carrying a
-  // PATCHED twin makes the mirrored generator misbehave in exactly the way each cross-check exists
-  // to catch — an announcement that disagrees with the bytes, and bytes that disagree with
-  // themselves. Nothing in the repository is mutated; the patch lives in a throwaway fixture.
-  function patchSyntheticGenerator(src: string, from: string, to: string): void {
-    const p = join(src, "scripts", "generate-role-adapters.js");
+  // PATCHED twin makes the mirrored generator (or the mirrored reader) misbehave in exactly the way
+  // each cross-check exists to catch — an announcement that disagrees with the bytes, bytes that
+  // disagree with themselves, and an announcement whose shape the installer must refuse. Nothing in
+  // the repository is mutated; the patch lives in a throwaway fixture.
+  //
+  // patchSyntheticTwin patches ANY mirrored twin (plan 34-20), `rel` being one of the paths the
+  // fixture plants (SYNTH_GENERATOR_TWINS). It throws if the anchor is absent, which is each case's
+  // premise assertion: an unpatched fixture would assert nothing.
+  function patchSyntheticTwin(src: string, rel: string, from: string, to: string): void {
+    if (!SYNTH_GENERATOR_TWINS.includes(rel)) {
+      throw new Error(`${rel} is not a mirrored twin this fixture plants: ${SYNTH_GENERATOR_TWINS.join(", ")}`);
+    }
+    const p = join(src, ...rel.split("/"));
     const before = readFileSync(p, "utf8");
     if (!before.includes(from)) {
       throw new Error(
-        `the synthetic generator twin does not contain the patch anchor ${JSON.stringify(from)} — ` +
-          "the fixture would run an UNPATCHED generator and the case below would assert nothing",
+        `the synthetic twin ${rel} does not contain the patch anchor ${JSON.stringify(from)} — ` +
+          "the fixture would run an UNPATCHED twin and the case below would assert nothing",
       );
     }
-    writeFileSync(p, before.replace(from, to));
+    writeFileSync(p, before.replace(from, () => to));
+  }
+  function patchSyntheticGenerator(src: string, from: string, to: string): void {
+    patchSyntheticTwin(src, "scripts/generate-role-adapters.js", from, to);
   }
 
   // THE ANNOUNCEMENT PATCHES (plan 34-19, D-24). The twin's model announcement call, the anchor each
@@ -3253,8 +3264,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // preset `tiered` with one role set to `inherit` — the first derived stem whose tiered level is
   // not `inherit`, so `inherit` joins the level set. Victim: the first synthetic adapter whose
   // resolved level is not `inherit` and is shared with another adapter, so dropping its `effort:`
-  // line (reading it as `inherit`) leaves the distinct level set unchanged. That is the shape the set
-  // cross-check could not see. No stem, adapter or level is typed here.
+  // line (reading it as `inherit`) leaves the distinct level set unchanged. That is the shape a comparison of
+  // distinct sets cannot see. No stem, adapter or level is typed here.
   function effortEvasion(): {
     body: string;
     victim: string;
@@ -3372,6 +3383,265 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       expect(`status=${r.status} names the refusal: ${r.stdout.includes(sentence)}`).toBe(
         "status=3 names the refusal: true",
       );
+      expect(r.stdout).toContain("install INCOMPLETE");
+      expect(installedAdapters(target)).toEqual([]);
+    });
+  }
+
+  // ── THE PER-MEMBER COMPARISON, ITS FLOORS AND THE ONE SHAPE CHECK (plan 34-20, D-22, D-24, RC-1) ──
+  //
+  // One row per refusal, each staged through a patched mirrored twin on its own synthetic source and
+  // target. Each asserts exit 3, its own sentence, `install INCOMPLETE` and no installed adapter;
+  // `absent` names sentences the row must NOT print, so a row whose refusal came from the other
+  // text (or the other floor) cannot pass.
+
+  // installSentinel — a materialization sentinel READ OUT OF install/install.ts, never retyped: the
+  // transform drops a terminated block between the two, which is the case-A shape these rows stage.
+  function installSentinel(name: "MAT_OPEN" | "MAT_CLOSE"): string {
+    const installSrc = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
+    const m = new RegExp(`^const ${name} = ("[^"\\n]+");$`, "m").exec(installSrc);
+    if (!m) throw new Error(`install/install.ts: could not find the ${name} literal`);
+    return JSON.parse(m[1]) as string;
+  }
+  // The compiled twin's model emission (render()'s one `model:` line).
+  const MODEL_EMIT_ANCHOR = "lines.push(`model: ${a.model}`);";
+  // Statements the twin runs for ONE adapter: `line` (a JS expression) between the two sentinels.
+  function sentinelBlockFor(name: string, lineExpr: string): string {
+    return (
+      `if (a.name === ${JSON.stringify(name)}) { lines.push(${JSON.stringify(installSentinel("MAT_OPEN"))}); ` +
+      `lines.push(${lineExpr}); lines.push(${JSON.stringify(installSentinel("MAT_CLOSE"))}); }`
+    );
+  }
+  // The model swap's derivation (RC-1): under `tiered`, the execution tier is the alias most
+  // adapters carry; the victim is the first synthetic adapter on another alias that is shared with a
+  // second adapter (a judgment role), so writing it at the execution alias leaves the set unchanged.
+  function modelSwap(): { victim: string; said: string; swap: string; byName: Map<string, string> } {
+    const stems = effortStems();
+    const prefix = agentPrefixLiteral();
+    const tiered = resolveModels(stems, { preset: "tiered" });
+    if (!tiered.ok) throw new Error(tiered.reason);
+    const byName = new Map<string, string>(stems.map((st) => [`${prefix}${st}`, String(tiered.value.get(st))]));
+    const values = [...byName.values()];
+    const count = (a: string): number => values.filter((v) => v === a).length;
+    const swap = [...new Set(values)].sort((a, b) => count(b) - count(a))[0];
+    const victim = SYNTH_NAMES.find((n) => {
+      const a = byName.get(n);
+      return a !== undefined && a !== swap && count(a) > 1;
+    });
+    if (victim === undefined) throw new Error("no synthetic adapter carries a shared alias other than the execution alias");
+    return { victim, said: String(byName.get(victim)), swap, byName };
+  }
+  // The first synthetic adapter whose level under the effort preset `tiered` is not `inherit`.
+  function tieredEffortVictim(): { victim: string; level: string } {
+    const stems = effortStems();
+    const prefix = agentPrefixLiteral();
+    const tiered = resolveEfforts(stems, { preset: "tiered" });
+    if (!tiered.ok) throw new Error(tiered.reason);
+    const byName = new Map<string, string>(stems.map((st) => [`${prefix}${st}`, String(tiered.value.get(st))]));
+    const victim = SYNTH_NAMES.find((n) => byName.get(n) !== undefined && byName.get(n) !== "inherit");
+    if (victim === undefined) throw new Error("no synthetic adapter has a tiered effort level other than inherit");
+    return { victim, level: String(byName.get(victim)) };
+  }
+  // A name no adapter has, for the membership rows.
+  const FOREIGN_ADAPTER = `${SYNTH_NAMES[0]}-not-an-adapter`;
+  // The mirrored validator's declaration line, read out of the twin, so the shape rows can make the
+  // mirrored readers return a payload UNCHECKED and reach the installer's own shape check.
+  function payloadValidatorAnchor(): string {
+    const twin = readFileSync(join(REPO_ROOT, "scripts", "model-tiers.js"), "utf8");
+    const m = /^function readAssignmentPayload\([^)]*\) \{$/m.exec(twin);
+    if (!m) throw new Error("scripts/model-tiers.js: could not find the readAssignmentPayload declaration");
+    return m[0];
+  }
+  const UNCHECKED_VALIDATOR =
+    "\n    { const o = JSON.parse(payload); return { ok: true, value: { roles: o.roles, overrides: o.overrides, " +
+    "list: o[dial.listKey], byAdapter: o.byAdapter } }; }";
+  // An announcement line the module's emitter builds over the zero-config map, then bent by `bend`
+  // into a shape the emitter cannot produce (and the unchecked validator lets through).
+  function bentAnnouncement(dial: "model" | "effort", bend: (o: Record<string, unknown>) => void): string {
+    const line =
+      dial === "model"
+        ? resolvedAssignmentLine(synthMap<ModelAlias>("inherit"), 0)
+        : resolvedEffortAssignmentLine(synthMap("inherit" as const), 0);
+    const prefix = dial === "model" ? RESOLVED_ASSIGNMENT_PREFIX : RESOLVED_EFFORT_ASSIGNMENT_PREFIX;
+    const o = JSON.parse(line.slice(prefix.length)) as Record<string, unknown>;
+    bend(o);
+    return announceStatement(`${prefix}${JSON.stringify(o)}`);
+  }
+  function shapeSentence(dial: "model" | "effort"): string {
+    return (
+      `${dial === "model" ? "the announced resolution" : "the announced effort resolution"} did not carry the ` +
+      `declared shape (two non-negative integer counts, a list of strings under ` +
+      `"${dial === "model" ? "aliases" : "levels"}" and a map of strings under "byAdapter")`
+    );
+  }
+
+  const memberRefusalRows: Array<{
+    why: string;
+    patches: () => Array<{ rel: string; from: string; to: string }>;
+    sentence: () => string;
+    absent?: () => string[];
+    config?: () => string;
+    premise?: () => void;
+  }> = [
+    {
+      // D-22, case A: the render matches the map; the transform drops the line. Same evasion
+      // configuration as row (f), so the only difference between the two texts is the transform.
+      why: "(1) the transform drops one adapter's `effort:` line placed between the kit-slot sentinels",
+      config: () => effortEvasion().body,
+      patches: () => {
+        const { victim } = effortEvasion();
+        return [
+          {
+            rel: "scripts/generate-role-adapters.js",
+            from: EFFORT_EMIT_ANCHOR,
+            to:
+              `{ if (a.name === ${JSON.stringify(victim)}) { ${sentinelBlockFor(victim, "\`effort: ${a.effort}\`")} } ` +
+              `else ${EFFORT_EMIT_ANCHOR} }`,
+          },
+        ];
+      },
+      sentence: () => {
+        const { victim, level } = effortEvasion();
+        return perMemberSentence(victim, "effort", "written", "inherit", level);
+      },
+      // The render carries the announced level, so the rendered text is NOT refused.
+      absent: () => {
+        const { victim, level } = effortEvasion();
+        return [perMemberSentence(victim, "effort", "rendered", "inherit", level)];
+      },
+    },
+    {
+      // RC-1, case B on the model dial: one judgment role rendered at the execution alias.
+      why: "(2) the generator renders one adapter with another alias while the alias SET is unchanged",
+      config: () => `${JSON.stringify({ models: { preset: "tiered" } })}\n`,
+      premise: () => {
+        const { victim, swap, byName } = modelSwap();
+        const said = [...new Set(byName.values())].sort();
+        const swapped = new Map(byName);
+        swapped.set(victim, swap);
+        expect([...new Set(swapped.values())].sort()).toEqual(said);
+        expect(byName.get(victim)).not.toBe(swap);
+      },
+      patches: () => {
+        const { victim, swap } = modelSwap();
+        return [
+          {
+            rel: "scripts/generate-role-adapters.js",
+            from: MODEL_EMIT_ANCHOR,
+            to: `lines.push(a.name === ${JSON.stringify(victim)} ? ${JSON.stringify(`model: ${swap}`)} : \`model: ${"$"}{a.model}\`);`,
+          },
+        ];
+      },
+      sentence: () => {
+        const { victim, said, swap } = modelSwap();
+        return perMemberSentence(victim, "model", "rendered", swap, said);
+      },
+    },
+    ...(["model", "effort"] as const).map((dial) => ({
+      // An announced map whose key for one adapter is a name no adapter has, size unchanged: the
+      // mirrored validator accepts it (the size and the value set agree), and the installer must not.
+      why: `(3) the announced ${dial} map names a foreign adapter in place of a rendered one`,
+      premise: () => {
+        expect(SYNTH_NAMES.includes(FOREIGN_ADAPTER)).toBe(false);
+      },
+      patches: () => [
+        {
+          rel: "scripts/generate-role-adapters.js",
+          from: dial === "model" ? MODEL_ANNOUNCE_ANCHOR : EFFORT_ANNOUNCE_ANCHOR,
+          to:
+            `console.log(${dial === "model" ? "resolvedAssignmentLine" : "resolvedEffortAssignmentLine"}(new Map([...` +
+            `${dial === "model" ? "modelByAdapter" : "effortByAdapter"}].map(([k, v]) => [k === ${JSON.stringify(SYNTH_NAMES[0])} ? ` +
+            `${JSON.stringify(FOREIGN_ADAPTER)} : k, v])), 0));`,
+        },
+      ],
+      sentence: () =>
+        `.claude/agents/${SYNTH_NAMES[0]}.md: the render announced no ${dial} entry for the adapter ${SYNTH_NAMES[0]}`,
+    })),
+    {
+      // The render's model floor: a second `model:` line, inside the sentinels, so the written text
+      // still carries exactly one and only the render's floor can see it.
+      why: "(4a) the render carries a second `model:` line between the kit-slot sentinels (render floor, model)",
+      patches: () => [
+        {
+          rel: "scripts/generate-role-adapters.js",
+          from: MODEL_EMIT_ANCHOR,
+          to: `${MODEL_EMIT_ANCHOR} ${sentinelBlockFor(SYNTH_NAMES[0], "\`model: ${a.model}\`")}`,
+        },
+      ],
+      sentence: () => `.claude/agents/${SYNTH_ADAPTERS[0]} was rendered carrying 2 line(s) beginning "model: "`,
+      absent: () => [`.claude/agents/${SYNTH_ADAPTERS[0]} would be written carrying`],
+    },
+    {
+      // The render's effort floor, under `tiered` so the victim carries a level line to duplicate.
+      why: "(4b) the render carries a second `effort:` line between the kit-slot sentinels (render floor, effort)",
+      config: () => `${JSON.stringify({ models: { effort: { preset: "tiered" } } })}\n`,
+      patches: () => {
+        const { victim } = tieredEffortVictim();
+        return [
+          {
+            rel: "scripts/generate-role-adapters.js",
+            from: EFFORT_EMIT_ANCHOR,
+            to: `{ ${EFFORT_EMIT_ANCHOR} ${sentinelBlockFor(victim, "\`effort: ${a.effort}\`")} }`,
+          },
+        ];
+      },
+      sentence: () =>
+        `.claude/agents/${tieredEffortVictim().victim}.md was rendered carrying 2 line(s) beginning "effort: "`,
+      absent: () => [`.claude/agents/${tieredEffortVictim().victim}.md would be written carrying`],
+    },
+    {
+      // The written text's floor: the one `model:` line placed inside the sentinels, so the render
+      // carries exactly one and the text about to be written carries none.
+      why: "(4c) the one `model:` line sits between the kit-slot sentinels (written floor, model)",
+      patches: () => [
+        {
+          rel: "scripts/generate-role-adapters.js",
+          from: MODEL_EMIT_ANCHOR,
+          to: `if (a.name === ${JSON.stringify(SYNTH_NAMES[0])}) { ${sentinelBlockFor(SYNTH_NAMES[0], "\`model: ${a.model}\`")} } else ${MODEL_EMIT_ANCHOR}`,
+        },
+      ],
+      sentence: () => `.claude/agents/${SYNTH_ADAPTERS[0]} would be written carrying 0 line(s) beginning "model: "`,
+      absent: () => [`.claude/agents/${SYNTH_ADAPTERS[0]} was rendered carrying`],
+    },
+    ...(["model", "effort"] as const).flatMap((dial) =>
+      (
+        [
+          ["(i) a non-integer count", (o: Record<string, unknown>) => { o.roles = SYNTH_NAMES.length + 0.5; }],
+          ["(ii) a `byAdapter` that is an array", (o: Record<string, unknown>) => { o.byAdapter = Object.values(o.byAdapter as object); }],
+        ] as Array<[string, (o: Record<string, unknown>) => void]>
+      ).map(([what, bend]) => ({
+        // The mirrored validator is patched to return the payload unchecked, so the announcement
+        // reaches the installer's ONE shape check, which must refuse it and name the dial.
+        why: `(5) the announced ${dial} resolution carries ${what} (installer shape check)`,
+        patches: () => [
+          { rel: "scripts/model-tiers.js", from: payloadValidatorAnchor(), to: `${payloadValidatorAnchor()}${UNCHECKED_VALIDATOR}` },
+          {
+            rel: "scripts/generate-role-adapters.js",
+            from: dial === "model" ? MODEL_ANNOUNCE_ANCHOR : EFFORT_ANNOUNCE_ANCHOR,
+            to: bentAnnouncement(dial, bend),
+          },
+        ],
+        sentence: () => shapeSentence(dial),
+      })),
+    ),
+  ];
+  for (const row of memberRefusalRows) {
+    it(`model and effort delivery: ${row.why} installs NOTHING and names the refusal`, () => {
+      const src = makeSyntheticSrc();
+      const target = mkTmp();
+      writeFileSync(join(target, "CLAUDE.md"), "# User Project\n");
+      if (row.premise) row.premise();
+      if (row.config) writeTargetConfig(target, row.config());
+      for (const patch of row.patches()) patchSyntheticTwin(src, patch.rel, patch.from, patch.to);
+
+      const r = runInstallFrom(src, target, mkTmp());
+      const sentence = row.sentence();
+      expect(`status=${r.status} names the refusal: ${r.stdout.includes(sentence)}`).toBe(
+        "status=3 names the refusal: true",
+      );
+      for (const not of row.absent ? row.absent() : []) {
+        expect(`prints ${JSON.stringify(not)}: ${r.stdout.includes(not)}`).toBe(`prints ${JSON.stringify(not)}: false`);
+      }
       expect(r.stdout).toContain("install INCOMPLETE");
       expect(installedAdapters(target)).toEqual([]);
     });
