@@ -1766,7 +1766,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 24/24 | In Progress (gap round 2 of 4 executed; verification not yet run) | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 24/24 | In Progress (gap round 2 of 4 verified human_needed 13/16; UAT pending) | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
