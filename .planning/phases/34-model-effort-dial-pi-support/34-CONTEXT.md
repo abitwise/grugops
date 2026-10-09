@@ -163,6 +163,13 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   row reaches the uninstall mode check at `install/uninstall.ts` (the one near lines 899-901). The seven
   requirement boxes the verifier found SATISFIED (EFFORT-01, 02, 03, 05, HOST-01, PI-01, PI-04) are
   ticked, and their stale traceability cells are updated.
+- **D-24:** An `effort:` line dropped inside the generator (case B, the verifier's own reproduction) is
+  refused in this round, not left as a residual. The generator announces the per-role effort map, not
+  only the distinct level set. The installer compares each adapter's bytes, rendered and transformed,
+  against that map, member by member. The announcement grammar in `scripts/model-tiers.ts` and what
+  `scripts/adapters-freshness.ts` reads change with it: one grammar, one reader. The verifier's
+  reproduction (a generator patched to drop the line, config `tiered` plus one role at `inherit`) becomes
+  a refusal case, with exit 3 and 0 adapters installed.
 
 ### Claude's Discretion
 - Exact TypeScript module/location of the host-tool registry, and how docs prose is checked against it.
