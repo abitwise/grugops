@@ -153,7 +153,7 @@ probe-derived edge predicates were generated. Edge cases and prohibitions were d
 
 | Behavior | Requirement | Why Manual | Test Instructions | Result |
 |----------|-------------|------------|-------------------|--------|
-| No test added/changed by this phase is red on windows-latest | HOST-02 (D-09) | The push is the human's act | Human pushes; record `test (windows-latest)` conclusion and any red file against WINDOWS.md rows 274/315 | ❌ NOT MET. Run 37521787426, head `dc2c7581d4710aed1e288bcab01872a71b38d3e6` (equals the pushed `main` HEAD and local HEAD). `test (ubuntu-latest)` success; `test (windows-latest)` failure at step "Vitest (e2e lane excluded)": 13 files / 144 tests red. 5 red tests were added or changed by this phase (class b). See "Windows-latest measurement" below. **Gap round 1 (34-18): ❌ NOT MET.** Run 37733716975, head `9de784e863280e9510a50e122bf0d8ff12f5a833` (equals local HEAD at the push). `test (ubuntu-latest)` success; `test (windows-latest)` failure at "Vitest (e2e lane excluded)", printed `Test Files  4 failed \| 99 passed (103)` and `Tests  7 failed \| 7402 passed \| 28 skipped (7437)`. The five HOST-02 tests of 34-VERIFICATION.md gap 1 are green; two tests 34-13 changed are red (ledger.test.ts link records, a new cause, WINDOWS.md row 319). See "Gap round 1 (D-19): measured result" below. |
+| No test added/changed by this phase is red on windows-latest | HOST-02 (D-09) | The push is the human's act | Human pushes; record `test (windows-latest)` conclusion and any red file against WINDOWS.md rows 274/315 | ❌ NOT MET. Run 37521787426, head `dc2c7581d4710aed1e288bcab01872a71b38d3e6` (equals the pushed `main` HEAD and local HEAD). `test (ubuntu-latest)` success; `test (windows-latest)` failure at step "Vitest (e2e lane excluded)": 13 files / 144 tests red. 5 red tests were added or changed by this phase (class b). See "Windows-latest measurement" below. **Gap round 1 (34-18): ❌ NOT MET.** Run 37733716975, head `9de784e863280e9510a50e122bf0d8ff12f5a833` (equals local HEAD at the push). `test (ubuntu-latest)` success; `test (windows-latest)` failure at "Vitest (e2e lane excluded)", printed `Test Files  4 failed \| 99 passed (103)` and `Tests  7 failed \| 7402 passed \| 28 skipped (7437)`. The five HOST-02 tests of 34-VERIFICATION.md gap 1 are green; two tests 34-13 changed are red (ledger.test.ts link records, a new cause, WINDOWS.md row 319). See "Gap round 1 (D-19): measured result" below. **Gap round 2 (34-23): no run.** No windows-latest run was made in round 2: the Windows measurement is deferred by the human (D-21), and HOST-02 stays unchecked. What the later run should show is in "Gap round 2 (D-21): prediction for the deferred run" below. |
 
 ### Windows-latest measurement (34-10 Task 3, read with `gh run view 37521787426` and `gh run view --job 112468804112 --log`)
 
@@ -526,6 +526,239 @@ case real and DRY_RUN, the installer-user-edit `.pi/prompts/grugops.md` row, the
 unchecked in REQUIREMENTS.md, with this run and the two tests named. WINDOWS.md row 316 stays open, and row
 317 stays open (two of its earlier reds are still red by name: the ledger.test.ts pair). Both rows carry a
 sentence naming this run. Row 319 records the new cause.
+
+### Gap round 2 (D-21): prediction for the deferred run
+
+Written by plan 34-23 Task 2. **There is no windows-latest measurement in gap round 2.** The human will push
+and measure at a later date (D-21); no agent ran `git push`, and nothing in this section is a Windows
+result. Every "predicted" below is a prediction for that later run, written before it so the run can be
+read against it (WIN-3). It is read from source, from the printed logs of runs 37521787426 and
+37733716975, and from Node internals read on this macOS host. **HOST-02 is not met**; it stays unchecked in
+REQUIREMENTS.md with "Windows measurement deferred by the human (D-21)" as the reason.
+
+**Sources and method.** `gh` was available and authenticated, so the red test names come from the job
+logs, read-only: `gh run view --job 112468804112 --log` (run 37521787426) and `gh run view --job
+113168427323 --log` (run 37733716975). The literal colour text (`^[[…m`) and the job/step/timestamp
+prefix were stripped, each red block was taken from its ` FAIL  <file> > …` line to the next `⎯⎯⎯[n/N]⎯`
+separator, and the family rule of 34-18-PLAN.md was applied, first match wins. Reproduced: run
+37521787426, 144 blocks, WIN-1 recorded path 91, WIN-1 printed path 5, WIN-2 43, other 5; run
+37733716975, 7 blocks, other 5, unmatched 2 (the row 319 pair). Each of the 139 WIN-1 and WIN-2 names was
+then located in the current tree with the TypeScript parser: the describe chain and the test title, a
+template title read as a pattern. 138 names match exactly one `it(` call. The one that matches none is
+marker-binding.test.ts "B2: after the remedy (target set to this directory by hand, …)", which plan 34-12
+split into two successor cases, one per spelling. "Changed by round 2" means a hunk of `git diff -U0
+9de784e8 HEAD` (9de784e8 is run 37733716975's head; no test file changed between it and 030af957, the
+commit that added the round-2 plans) inside the test's `it(` call range, or inside a module-level or
+describe-level declaration in the same file that the test names (one level, loop variables excluded).
+
+#### Row 319: cause and fix
+
+- **Cause** (34-18, "The two reds the prediction marked green: a new cause"): the ledger.test.ts fixtures
+  linked to the rooted, drive-less literal `/some/where` and expected `linkRecord("/some/where")`.
+  `treeRecord` (install/user-file.ts:471) and `backupContentRecord` (install/install-marker.ts:1004)
+  record `link:` plus the readlink result. On Windows Node passes an absolute link target through
+  `path.toNamespacedPath`, which resolves a drive-less rooted path against the current drive, so the
+  leg read back `D:\some\where`.
+- **Fix** (34-23 Task 1, commit `cbe97597`): the four fixtures (:465/:466 and :650/:651 for the two red
+  tests; :433 and :453 of the `tree` walk fixture) link to an absolute path built with `join` under the
+  test's own scratch directory and expect `linkRecord` of that same value. There is no platform branch.
+  The target is not built with `canonicalPathSpelling` or `realTargetPath`: their Windows spelling has
+  forward slashes, which Node converts on the way into a link, so the readback would differ.
+- **Why predicted green.** The printed `D:\some\where` shows both halves of the mechanism on the leg's
+  Node v22.23.3: the target was made absolute with a drive, and readlink gave it back without the `\\?\`
+  prefix the namespacing adds. A target that is already absolute with a drive (what `join` under the
+  scratch directory gives) is unchanged by the first half, so the readback should equal the input byte
+  for byte. The `preprocessSymlinkDestination` code itself was read from local Node v24.12.0 only.
+- **Class closed** by path-spelling-census.test.ts rule (t6): no installer test links to a rooted,
+  drive-less literal, directly or through a local variable, with the link makers and their local
+  wrappers derived from the syntax tree. Three pre-existing `/dev/zero` links are classified, and each
+  must test `process.platform === "win32"` before it links.
+
+#### Masked-assertion audit: the 139 earlier WIN-1 and WIN-2 reds of run 37521787426
+
+| Class | WIN-1 recorded | WIN-1 printed | WIN-2 | Total | State on run 37733716975 | Reading |
+|---|---|---|---|---|---|---|
+| (a) green, body unchanged since 9de784e8 | 90 | 5 | 40 | 135 | green, by name | measured: every assertion it reached ran green (unrun-by-design assertions below) |
+| (a) renamed: the marker-binding B2 remedy case | 1 | 0 | 0 | 1 | both successor cases green | measured; marker-binding.test.ts is unchanged in round 2 |
+| (b) red on run 37733716975 | 0 | 0 | 2 | 2 | red (row 319) | every assertion after the red line predicted in table (b) |
+| (c) changed by round 2 | 0 | 0 | 1 | 1 | green | re-predicted below |
+| **Total** | **91** | **5** | **43** | **139** | | |
+
+Per file, (a) is: install.test.ts 1 (IN-04 directory), installer-dry-run 5, installer-kit-home 2,
+installer-never-installed 4, installer-prune 4, installer-user-edit 60, installer-write-set 1 (`--migrate`
+directory), ledger-provenance 1, ledger 6 (3 WIN-1 recorded, 3 WIN-2), marker-binding 4 (+1 renamed),
+record-truth 45, uninstall-removal 2.
+
+**(a) assertions unrun by design.** Four of the 135 return after a printed skip, so the assertions after
+that return have never run on windows-latest and are not expected to:
+
+- ledger.test.ts "readKitHomeRecord: absent, ok, unbound (another kit home), and unreadable …": the FIFO
+  stage skips (`SKIPPED shape="FIFO" position="readKitHomeRecord FIFO"`, printed in run 37733716975) and
+  returns before the 2 FIFO assertions (:551-552).
+- installer-prune.test.ts IN-03 0600 and IN-03 0664: the capability "POSIX permission bits beyond
+  read-only" is absent (both skip lines printed in run 37733716975) and each returns before its 6
+  assertions.
+- The other skip branches in (a) bodies (install.test.ts IN-04, installer-kit-home damage cases,
+  installer-write-set `--migrate`) belong to other shapes (FIFO, symlink to a FIFO); the red shapes
+  (directory, bound to another kit home) do not skip, so every assertion of those tests ran.
+
+**(a) at the deferred head.** The "measured" reading is for head 9de784e8. Round 2 changed product code
+these tests run: install.ts (the per-member check of both dials, 34-20), user-file.ts and
+install-marker.ts (one absoluteness rule, isOwnLink through `sameRecordedPath`, 34-21), and the generator,
+model-tiers and freshness gate (34-19). No test-support file changed. Predicted: still green. Reasons:
+the per-member check reads the same `model:` / `effort:` lines the run-37733716975 installer already read
+from the same texts; the refusal labels are template strings with `/` (install.ts:5058), not host
+spellings; `isRecordedAbsolute` is `path.win32.isAbsolute` on Windows, which accepts the `C:/…` spelling
+the marker records; and `sameRecordedPath` can only widen what isOwnLink calls equal under win32. Not
+measured.
+
+**(b) the two tests red on run 37733716975** (ledger.test.ts, both changed by 34-13 and by this plan):
+
+| Test | Line | Assertion | Predicted | Reason |
+|---|---|---|---|---|
+| treeRecord shapes (:460-475) | :463 | file record with the stored mode | green | passed in run 37733716975 (the red was the next line) |
+| | :466 | `link:` record equals `linkRecord(linkTo)` | green | row 319 fix (above) |
+| | :467 | absent gives null | green | `lstatSync` throws, `treeRecord` returns null (user-file.ts:474-477) |
+| | :469 | FIFO gives null | not run: prints `SKIPPED shape="FIFO" position="treeRecord of a FIFO"` (the `else` branch, no return) | FIFOs cannot be made at a path on Windows (the FIFO skip lines of run 37733716975) |
+| | :474 | a walk past TREE_MAX_ENTRIES gives null | green, duration unmeasured | 20,001 files; the walk answers false at entry 20,001 (user-file.ts:503). The read runs in a child with a 15 s bound (ledger.test.ts:404) inside the 180 s test bound; how long 20,001 `lstat` calls take on the leg's NTFS volume is `UNKNOWN - verify`, and a child that runs past 15 s turns this red with "treeRecord did not finish" |
+| backupContentRecord (:639-668) | :644, :647, :648 | file record after `userModeEdit`; tree record | green | passed in run 37733716975 |
+| | :651 | `link:` record equals `linkRecord(linkTo)` | green | row 319 fix (above) |
+| | :655 | a hard link gives null | green, or not asserted | `spawnSync("ln", …)` needs an `ln` on the PATH of the leg's pwsh step: `UNKNOWN - verify`. Without one `h2` is never made and the `if` skips the assertion silently (nothing printed). With one, libuv reports the link count and `readOwnedContent` (install-marker.ts:501) refuses a file with more than one name (user-file.ts:219), so null |
+| | :656 | absent gives null | green | `kindAt` finds nothing, null |
+| | :659 | a link on the way gives null | green | the `via` link points at an existing directory under the scratch directory (link creation works on the leg: these tests reached their link lines in run 37733716975); `wayTo` blocks at a link component, null |
+| | :660-667 | FIFO gives null | not run: prints `SKIPPED shape="FIFO" position="backupContentRecord FIFO"` and returns | as :469 |
+
+**(c) the one test round 2 changed** (green on run 37733716975): ledger.test.ts "treeRecord walks with
+lstat: …" (:438-458). Both link targets of the `tree` fixture are now host-built absolute paths that
+differ by name. Predicted green: each record is compared only with another record taken on the same
+host, so the link target change still moves it. The FIFO assertion :444 is not run (the
+`SKIPPED shape="FIFO" position="treeRecord FIFO inside a tree"` line printed in run 37733716975).
+
+**The five other-family reds**, carried, are still masked behind their first failure and are not
+predicted beyond "red where they failed before": install.test.ts "readUserFile: an absent path is
+`absent`; …" and "W1: when the incomplete copy cannot be removed either, …"; installer-write-set.test.ts
+"readUserFile: a path under a regular file is `unreadable` (ENOTDIR), never `absent`"; kit-plan-limits.test.ts
+"a full path of PATH_MAX - 1 bytes …" and "a component of NAME_MAX bytes …". Round 2 changed none of
+them (no hunk in their bodies; installer-write-set and kit-plan-limits files are unchanged).
+
+#### Every test round 2 added or changed, predicted
+
+`git diff -U0 030af957 HEAD` over test files, intersected with each test's syntax-tree range and one level
+of same-file helpers as above: 51 test calls, 132 test instances (instances counted with `npx vitest list
+--json`, which collects names and runs nothing). Two calls the name lookup also flagged are left out after
+reading them: canonical-path.test.ts "(11) …" and the printed-rel table rows name a `scratch` and a `rel`
+declared in another describe, and their own bodies and describes are unchanged. No round-2 test adds a
+`skipIf`, `.skip` or `.todo`.
+
+Reason keys: **P1** pure: parses source or calls `path.win32` / `path.posix` functions, as the census and
+table tests that were green on run 37733716975 do. **P2** synthetic install: runs install.js through the
+`patchSyntheticGenerator` / `patchSyntheticTwin` harness under scratch directories with their own
+`GRUGOPS_HOME`; that harness's earlier rows (effort rows (a)-(e), the model delivery rows) were green on
+run 37733716975 (install.test.ts printed only the two other-family reds); the patches use function
+replacements, the anchors are read out of LF-pinned `.ts` sources (`.gitattributes`), and the refusal
+sentences name `.claude/agents/<file>` through a template with `/`. **P3** mirror: runs the generator or
+the freshness gate in a mirrored tree; no scripts/ file was red on run 37733716975; source edits apply to
+LF-pinned text. **P4** host links: stages links with `stageSymlinkOrSkip`; link creation works on the leg
+(run 37733716975), so the cases are predicted to run, not skip; a host-built absolute target reads back
+unchanged under the row 319 reading, and a relative target that Node respells with `\` is expected false
+either way. **P5** capability skip: asks "POSIX permission bits beyond read-only", which read absent on the
+leg in run 37733716975, then prints `SKIPPED … position="install/record-truth.test.ts: L1 pointer <rel>"`
+and returns, so it counts as passed with nothing asserted (WINDOWS.md row 321). **P6** row 319 fix and
+the (b)/(c) readings above. **P7** derived from the base install's marker; the base install ran on the leg
+in run 37733716975 (all 72 record-truth tests passed).
+
+| Test call | Title (template as written) | Plan | Changed in | Instances | Predicted on windows-latest | Reason |
+|---|---|---|---|---|---|---|
+| `install/canonical-path.test.ts:212` | the absoluteness table has its full size | 34-21 | body | 1 | green | P1 |
+| `install/canonical-path.test.ts:217` | ${row.name}: ${JSON.stringify(row.p)} is ${row.absolute ? "absolute" : "not absolute"} | 34-21 | body | 15 | green | P1 |
+| `install/canonical-path.test.ts:228` | posix: the valid marker has no problem (the control) | 34-21 | body | 1 | green | P1 |
+| `install/canonical-path.test.ts:232` | posix: a target spelled `C:/x` is not an absolute path there | 34-21 | body | 1 | green | P1 |
+| `install/canonical-path.test.ts:236` | win32: a target in native UNC spelling, with grugopsHome and kitRoot in `C:/` spelling, has no pr... | 34-21 | body | 1 | green | P1 |
+| `install/canonical-path.test.ts:240` | win32: a drive-relative target is still refused, and a padded or empty kitRoot is still not insta... | 34-21 | body | 1 | green | P1 |
+| `install/canonical-path.test.ts:270` | true for the link to its recorded source (the host flavor) | 34-21 | body | 1 | green (runs, not skipped) | P4 |
+| `install/canonical-path.test.ts:275` | true under path.win32 when the source is asked in backslash spelling (path.win32.normalize of it) | 34-21 | body | 1 | green (runs, not skipped) | P4 |
+| `install/canonical-path.test.ts:281` | false for another directory's path, under both flavors | 34-21 | body | 1 | green (runs, not skipped) | P4 |
+| `install/canonical-path.test.ts:288` | false for a link whose target is relative, under both flavors | 34-21 | body | 1 | green (runs, not skipped) | P4 |
+| `install/canonical-path.test.ts:295` | false for a regular file and for an absent path | 34-21 | body | 1 | green (runs, not skipped) | P4 |
+| `install/install.test.ts:2317` | model delivery: a ZERO-CONFIG run relays the generator's own announcement and states that no conf... | 34-19 | body | 1 | green | P2 |
+| `install/install.test.ts:2359` | model delivery: a TIERED run names the configuration file it read and carries the generator's ass... | 34-19 | body | 1 | green | P2 |
+| `install/install.test.ts:2918` | model delivery: an announced member count that disagrees with the rendered listing installs NOTHI... | 34-19 | body | 1 | green | P2 |
+| `install/install.test.ts:2944` | model delivery: a rendered adapter carrying two `model:` lines installs NOTHING and names the file | 34-19, 34-20 (helper) | helper `patchSyntheticGenerator` | 1 | green | P2 |
+| `install/install.test.ts:2977` | model delivery: a rendered adapter carrying NO kit slot line installs NOTHING and names the file ... | 34-19, 34-20 (helper) | helper `patchSyntheticGenerator` | 1 | green | P2 |
+| `install/install.test.ts:3148` | model delivery: a rendered adapter carrying ZERO or TWO recognised banner lines installs NOTHING ... | 34-19, 34-20 (helper) | helper `patchSyntheticGenerator` | 1 | green | P2 |
+| `install/install.test.ts:3198` | model delivery: an announced alias that disagrees with every rendered adapter installs NOTHING an... | 34-19, 34-20 | body | 1 | green | P2 |
+| `install/install.test.ts:3231` | effort delivery: an announced effort level that disagrees with every rendered adapter installs NO... | 34-19, 34-20 | body | 1 | green | P2 |
+| `install/install.test.ts:3373` | effort delivery: ${row.why} installs NOTHING and names the refusal | 34-20 | body | 6 | green | P2 |
+| `install/install.test.ts:3629` | model and effort delivery: ${row.why} installs NOTHING and names the refusal | 34-20 | body | 11 | green | P2 |
+| `install/ledger.test.ts:438` | treeRecord walks with lstat: a FIFO inside is recorded `other` and never opened, a link is never ... | 34-23 | body | 1 | green; the FIFO assertion :444 not run (printed skip) | P6 |
+| `install/ledger.test.ts:460` | treeRecord gives a file its file record, a link its link record, and null for a FIFO, nothing, or... | 34-23 | body | 1 | green, with the per-assertion detail in table (b) | P6 |
+| `install/ledger.test.ts:494` | owns(backup): owned only while the tree still holds its record; a null record is never owned | 34-23 | helper `tree` | 1 | green | P6 |
+| `install/ledger.test.ts:639` | backupContentRecord: a file's bytes and mode, a tree, a link; null for a hard link, a FIFO, nothi... | 34-23 | body | 1 | green, with the per-assertion detail in table (b) | P6 |
+| `install/mode-census.test.ts:256` | every tag names a kind from the closed set, and the per-kind counts are the ones measured | 34-22 | helper `TAG_KIND_COUNTS` | 1 | green | P1 |
+| `install/path-spelling-census.test.ts:369` | (e) every derived comparison of a recorded path lies in a spelling function, is spelled on every ... | 34-21 | body | 1 | green | P1 |
+| `install/path-spelling-census.test.ts:399` | (f) every derived absoluteness decision lies in canonicalPathSpelling or isRecordedAbsolute, or i... | 34-21 | body | 1 | green | P1 |
+| `install/path-spelling-census.test.ts:430` | (f) no spelling function reads process.platform; the one platform read is user-file.ts PATH_MAX_B... | 34-21 | helper `SPELLING_FUNCTIONS` | 1 | green | P1 |
+| `install/path-spelling-census.test.ts:678` | (t6) no test links to a rooted, drive-less literal target: every link target is built by the host... | 34-23 | body | 1 | green | P1 |
+| `install/record-truth.test.ts:376` | the pointer files install created are taken from the marker (a block entry and a file entry at on... | 34-22 | body | 1 | green | P7 |
+| `install/record-truth.test.ts:388` | ${rel} (a pointer file install created): a writable chmod-only edit reaches the recorded-mode com... | 34-22 | body | 2 | prints SKIPPED and returns (passed, nothing asserted) | P5 |
+| `scripts/adapters-freshness.test.ts:559` | Case 13 (RED): a mirrored run whose announced member count disagrees with the derived adapter cou... | 34-19 | helper `shortenAnnouncedMemberCount` | 1 | green | P3 |
+| `scripts/adapters-freshness.test.ts:852` | Case 22 (i) ${a.dial}: an announced map with ONE adapter renamed is refused, naming both key sets | 34-19 | body | 2 | green | P3 |
+| `scripts/adapters-freshness.test.ts:884` | Case 23 (ii) ${a.dial}: a map value other than zero-config while the list stays zero-config is re... | 34-19 | body | 2 | green | P3 |
+| `scripts/adapters-freshness.test.ts:911` | Case 24 (iii) ${a.dial}: an announced map one SHORT of the adapters written is refused by the cou... | 34-19 | body | 2 | green | P3 |
+| `scripts/generate-role-adapters.test.ts:1485` | a per-role OVERRIDE announces preset none AND an override count of 1 with two distinct aliases | 34-19 | body | 1 | green | P3 |
+| `scripts/generate-role-adapters.test.ts:1526` | TWO per-role OVERRIDES with NO preset key: the preset line says `none` and the assignment line sa... | 34-19 | body | 1 | green | P3 |
+| `scripts/generate-role-adapters.test.ts:1559` | ZERO-CONFIG: the assignment line announces the whole corpus, 0 overrides and only `inherit` | 34-19 | body | 1 | green | P3 |
+| `scripts/generate-role-adapters.test.ts:1738` | ZERO-CONFIG: announces effort preset `none` and an assignment over every mirrored role with 0 ove... | 34-19 | body | 1 | green | P3 |
+| `scripts/generate-role-adapters.test.ts:1795` | CONFIGURED effort (tiered plus one override): the effort announcement states each written adapter... | 34-19 | body | 1 | green | P3 |
+| `scripts/generate-role-adapters.test.ts:1819` | CONFIGURED model and effort (both tiered): each byAdapter's keys are exactly the written adapter ... | 34-19 | body | 1 | green | P3 |
+| `scripts/model-tiers.test.ts:1101` | resolvedAssignmentLine and resolvedAssignmentsIn are inverse over the zero-config resolution | 34-19 | body | 1 | green | P1 |
+| `scripts/model-tiers.test.ts:1124` | the announced alias set is DISTINCT and SORTED, and the override count travels unmodified | 34-19 | body | 1 | green | P1 |
+| `scripts/model-tiers.test.ts:1174` | resolvedAssignmentsIn REFUSES an announced alias outside the closed set | 34-19 | body | 1 | green | P1 |
+| `scripts/model-tiers.test.ts:1468` | PREMISE: both dials are under test, every rule has a row, and each dial has at least three legal ... | 34-19 | body | 1 | green | P1 |
+| `scripts/model-tiers.test.ts:1477` | ${d.dial}: the emitter's own line reads back, byAdapter included, and the base payload is the one... | 34-19 | body | 2 | green | P1 |
+| `scripts/model-tiers.test.ts:1492` | ${d.dial}: rule ${row.rule} is REFUSED by name, quoting the payload | 34-19 | body | 48 | green | P1 |
+| `scripts/model-tiers.test.ts:1669` | every member of MODELS_KEYS is CONSUMED by the reader, not merely permitted | 34-19 | helper `withKey` | 1 | green | P1 |
+| `scripts/model-tiers.test.ts:2295` | the quoting operation has ONE spelling in the module that ships as well as the one that compiles | 34-19 | body | 1 | green | P1 |
+| `scripts/model-tiers.test.ts:2592` | every member of EFFORT_KEYS is CONSUMED by the reader, not merely permitted | 34-19 | helper `withKey` | 1 | green | P1 |
+
+By plan: 34-19 alone 22 calls (the 19 scripts tests and three install.test.ts announcement pins); 34-19 and
+34-20 together 5 (the two converted set rows, and three tests whose helper `patchSyntheticGenerator` both
+changed); 34-20 alone 2 (the effort refusal rows, now 6, and the 11 member refusal rows); 34-21 14; 34-22 3;
+34-23 5 (the four ledger.test.ts tests and census rule (t6)). Total 51.
+
+#### Predicted printed totals
+
+- `Test Files  3 failed | 100 passed (103)`: install.test.ts, installer-write-set.test.ts and
+  kit-plan-limits.test.ts, the files of the five carried other-family reds. Round 2 added no test file
+  (103 local files, as on run 37733716975).
+- `Tests  5 failed | 7505 passed | 28 skipped (7538)`: the five carried other-family reds, if every test is
+  defined the same way on both hosts (the run-37733716975 total equalled the local total then, 7437). The
+  local total on the tree this plan leaves is 7538 (vitest on macOS, e2e lane excluded; 101 more than 7437). The vitest skip count stays 28: round 2 adds no
+  vitest skip; its Windows skips print a line and return, and vitest counts those as passed.
+- Not predicted: the counts of the e2e lane (excluded) and of any test that the human's later commits
+  add.
+
+#### `UNKNOWN - verify` before the run
+
+- **Node v22.23.3's symlink and readlink internals.** `preprocessSymlinkDestination` was read from local
+  Node v24.12.0 only. The printed `D:\some\where` on the leg fits the reading; the leg's own copy was
+  not read.
+- **`ln` on the runner.** Whether the pwsh "Vitest" step's PATH has an `ln` decides whether the
+  backupContentRecord hard-link assertion (ledger.test.ts:655) runs at all; without it the case passes
+  silently with that assertion unasked.
+- **The 20,001-file walk** (ledger.test.ts:474) has never run on the leg; its 15 s child bound against
+  NTFS file creation and `lstat` speed is unmeasured.
+- **The product reach of isOwnLink on Windows.** isOwnLink now compares through `sameRecordedPath` (34-21),
+  but the installer's own link cases (uninstall-removal.test.ts, `describe.skipIf(!canSymlink)` with
+  `canSymlink = process.platform !== "win32"`) do not run on win32, so no windows-latest run reads back a
+  link the installer made. WINDOWS.md row 319 stays open for this.
+- **The 34-21 isOwnLink host cases** (WINDOWS.md row 320): predicted to run and pass, because link
+  creation works on the leg; whether they run or print their skip there is not measured.
+- **The 34-22 pointer-file rows' Windows gap** (WINDOWS.md row 321): predicted to print their skip, so
+  uninstall's pointer-file mode comparison is not reached end to end on Windows; a Windows case needs a
+  writable mode change Windows stores.
+- **The (a) class at the deferred head**: measured green at 9de784e8, predicted green after round 2's
+  product changes (reasons above), not measured.
 
 ---
 
