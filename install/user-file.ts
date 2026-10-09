@@ -301,8 +301,19 @@ export function readForWrite(root: string, path: string, maxBytes: number = USER
 // WHY IT LIVES HERE AND NOT IN scripts/posix-path.ts. scripts/posix-path.ts is the scripts-side
 // published-path normalizer, but install/ imports nothing from scripts/ (the installer runs from the
 // shipped kit, D-18/D-28). This module already owns realTargetPath, the spelling of "which directory is
-// this", so the one spelling authority for recorded paths lives beside it. No other installer site may
-// spell or compare a recorded path another way; install/path-spelling-census.test.ts holds that.
+// this", so the one spelling authority for recorded paths lives beside it, together with the one
+// absoluteness rule for a recorded path (isRecordedAbsolute, plan 34-21).
+//
+// WHAT THE CENSUS HOLDS (plan 34-21, D-23, review WR-09). install/path-spelling-census.test.ts walks the
+// syntax tree of every installer source module and enumerates exactly this: the fold patterns, rules (a)
+// to (d) (a real-path call outside realTargetPath and realPathThroughExisting, a backslash `.replace`
+// outside canonicalPathSpelling, a `split(sep).join("/")`, a local `toPosix`); the comparison sites, rule
+// (e) (every equality and every startsWith / endsWith whose operand is a recorded-path name, a platform
+// or node:path path producer, or canonicalPathSpelling's own call), each inside a spelling function,
+// spelled on every path operand, or classified, with the callers of sameRecordedPath pinned; the
+// absoluteness sites, rule (f) (every isAbsolute call, every `.startsWith("/")`, every drive-letter
+// regular expression), each inside canonicalPathSpelling or isRecordedAbsolute, or classified; and its
+// classified exemptions, each with its reason, the derived counts and the map sizes asserted.
 
 /** The part of a node:path implementation the spelling reads: `path.win32`, `path.posix` or the host's. */
 export interface PathFlavor {

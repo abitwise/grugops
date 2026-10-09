@@ -14,6 +14,25 @@
 // test-support or declaration file. Its size is asserted, so a new or removed module fails here and is
 // read before the count is changed. Text in comments never counts: every rule walks the syntax tree.
 //
+// THE COMPARISON AND ABSOLUTENESS SITES ARE DERIVED TOO (plan 34-21, D-23, review WR-09). Until that plan
+// rule (e) inspected two named functions and only equalities with `here`, and rule (f) inspected only
+// docAbspath, so a second absoluteness rule in install-marker.ts and the byte comparison in isOwnLink were
+// invisible to the file that claimed to hold every site. Rule (e) now finds every equality and every
+// startsWith / endsWith whose operand is a recorded-path name, a platform or node:path path producer, or
+// the one spelling's own call; rule (f) finds every isAbsolute call, every `.startsWith("/")` and every
+// regular-expression literal that matches a drive-letter prefix. Each derived site lies in a spelling
+// function, is spelled on every path operand, or is CLASSIFIED with its reason; the derived counts, the
+// classified-map sizes and the use of every classified key are asserted, so a new site, a dropped site
+// and a stale exemption all turn the file red.
+//
+// WHAT IS NOT A COMPARISON SITE. A readback that is recorded and later compared only with another
+// readback taken by the same function on the same host is not one: user-file.ts treeRecord writes a
+// link's readlink into a `link:` record and into a tree's `link <target>` line, and a later treeRecord of
+// the same path is what it is compared with (P11 of plan 34-21). A single `link:` record of a file entry
+// is compared through isOwnLink, which asks sameRecordedPath (rule (e)'s caller set). A recorded path
+// handed to a function that compares it is outside the two shapes rule (e) enumerates; that function's
+// own comparison is a site.
+//
 // THE TEST-SIDE HALF (plan 34-12, D-19). The windows-latest run also failed tests whose product output was
 // right: uninstall printed `C:\…\target/.claude/agents` and the test looked for the all-backslash
 // `join(target, ".claude", "agents")`; a marker test expected `realpathSync.native(t)` where install wrote
@@ -164,7 +183,137 @@ const EQUALITY = new Set([
 ]);
 
 // The functions that ARE the spelling: a platform read inside one would make the rule host-dependent.
-const SPELLING_FUNCTIONS = ["canonicalPathSpelling", "sameRecordedPath", "absoluteSpelling", "realTargetPath", "realPathThroughExisting"];
+const SPELLING_FUNCTIONS = ["canonicalPathSpelling", "sameRecordedPath", "absoluteSpelling", "isRecordedAbsolute", "realTargetPath", "realPathThroughExisting"];
+
+// ── rule (e): the comparison sites, derived (plan 34-21, D-23, WR-09) ────────────────────────────────
+
+/** The callees whose result is a path the platform or node:path produced: a readback or a resolution. */
+const PATH_PRODUCERS = new Set(["readlinkSync", "realpathSync", "realTargetPath", "realPathThroughExisting", "homedir", "cwd", "resolve"]);
+
+/** The names a recorded path, or the value it is compared with, carries in the installer sources. */
+const RECORDED_PATH_NAMES = new Set(["target", "grugopsHome", "kitRoot", "boundTo", "here", "TARGET", "GRUGOPS_HOME", "KIT_ROOT", "GRUGOPS_SRC"]);
+
+/** `e` without its parentheses and non-null assertions. */
+function stripped(e: ts.Expression): ts.Expression {
+  let cur = e;
+  while (ts.isParenthesizedExpression(cur) || ts.isNonNullExpression(cur)) cur = cur.expression;
+  return cur;
+}
+
+/** The one spelling's own call: `canonicalPathSpelling(...)`. */
+const isSpelledOperand = (e: ts.Expression): boolean => {
+  const x = stripped(e);
+  return ts.isCallExpression(x) && calleeName(x) === "canonicalPathSpelling";
+};
+
+/** A path operand: a path producer's call, a recorded-path name (identifier or property), or the one spelling's call. */
+function isPathOperand(e: ts.Expression): boolean {
+  const x = stripped(e);
+  if (ts.isCallExpression(x)) return isSpelledOperand(x) || PATH_PRODUCERS.has(calleeName(x) ?? "");
+  if (ts.isIdentifier(x)) return RECORDED_PATH_NAMES.has(x.text);
+  if (ts.isPropertyAccessExpression(x)) return RECORDED_PATH_NAMES.has(x.name.text);
+  return false;
+}
+
+/** Excluded by rule: a comparison with `null`, `undefined` or a `typeof` value is not a path comparison. */
+const isExcludedOperand = (e: ts.Expression): boolean => {
+  const x = stripped(e);
+  return x.kind === ts.SyntaxKind.NullKeyword || (ts.isIdentifier(x) && x.text === "undefined") || ts.isTypeOfExpression(x);
+};
+
+interface ComparisonSite extends Site {
+  /** The operator (`===`, `!==`, `==`, `!=`) or the callee (`startsWith`, `endsWith`). */
+  readonly op: string;
+  readonly operands: readonly ts.Expression[];
+  readonly text: string;
+}
+
+/** Every equality, and every startsWith / endsWith (receiver and argument 0), with a path operand. */
+function comparisonSites(): ComparisonSite[] {
+  const out: ComparisonSite[] = [];
+  for (const file of scannedFiles()) {
+    const sf = sourceOf(file);
+    const walk = (node: ts.Node): void => {
+      let op: string | null = null;
+      let operands: ts.Expression[] = [];
+      if (ts.isBinaryExpression(node) && EQUALITY.has(node.operatorToken.kind)) {
+        op = node.operatorToken.getText(sf);
+        operands = [node.left, node.right];
+      } else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ["startsWith", "endsWith"].includes(node.expression.name.text)) {
+        op = node.expression.name.text;
+        operands = node.arguments[0] === undefined ? [node.expression.expression] : [node.expression.expression, node.arguments[0]];
+      }
+      if (op !== null && !operands.some(isExcludedOperand) && operands.some(isPathOperand)) {
+        out.push({ file, line: lineOf(sf, node), scope: scopeOf(node), op, operands, text: node.getText(sf).replace(/\s+/g, " ") });
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(sf);
+  }
+  return out;
+}
+
+/** The derived comparison sites when plan 34-21 wrote rule (e) (the SUMMARY lists each with its verdict). */
+const DERIVED_COMPARISON_COUNT = 5;
+
+/** A comparison site that is neither inside a spelling function nor spelled on every path operand, with its reason. Keyed by file, scope and operator. */
+const CLASSIFIED_COMPARISONS = new Map<string, string>([
+  [
+    "install.ts:<top-level>:===",
+    "TARGET === canonicalPathSpelling(GRUGOPS_SRC) (P5): TARGET is canonical at its one assignment (resolveTarget returns canonicalPathSpelling on every arm), so both sides are in the one spelling",
+  ],
+  [
+    "install.ts:isPruneProtected:===",
+    "p === TARGET: the protected-path denylist compares a path this run composed from TARGET with TARGET itself; no recorded value and no readback is an operand",
+  ],
+  [
+    "uninstall.ts:isProtected:===",
+    "p === TARGET: the protected-path denylist compares a path this run composed from TARGET with TARGET itself; no recorded value and no readback is an operand",
+  ],
+]);
+
+// ── rule (f): the absoluteness sites, derived (plan 34-21, D-23, WR-09) ──────────────────────────────
+
+/** What kind of absoluteness decision `node` is, or null: an isAbsolute call, a `.startsWith("/")`, or a drive-letter regular expression. */
+function absolutenessKind(node: ts.Node): string | null {
+  if (ts.isCallExpression(node) && calleeName(node) === "isAbsolute") return "isAbsolute";
+  if (ts.isCallExpression(node) && calleeName(node) === "startsWith" && node.arguments[0] !== undefined && ts.isStringLiteralLike(node.arguments[0]) && node.arguments[0].text === "/") {
+    return 'startsWith("/")';
+  }
+  if (ts.isRegularExpressionLiteral(node)) {
+    const text = node.text;
+    const lastSlash = text.lastIndexOf("/");
+    let re: RegExp;
+    try {
+      re = new RegExp(text.slice(1, lastSlash), text.slice(lastSlash + 1).replace(/[gy]/g, ""));
+    } catch {
+      return "drive-letter pattern"; // a pattern this file cannot read is reported, never trusted
+    }
+    for (const probe of ["C:/", "C:\\"]) {
+      const m = re.exec(probe);
+      if (m !== null && m.index === 0) return "drive-letter pattern";
+    }
+  }
+  return null;
+}
+
+/** The functions that own the one absoluteness rule and the one spelling: an absoluteness site inside them is the rule. */
+const ABSOLUTENESS_OWNERS = ["canonicalPathSpelling", "isRecordedAbsolute"];
+
+/** The derived absoluteness sites when plan 34-21 wrote rule (f). */
+const DERIVED_ABSOLUTENESS_COUNT = 7;
+
+/** An absoluteness site outside the owners, with its reason. Keyed by file, scope and kind. */
+const CLASSIFIED_ABSOLUTENESS = new Map<string, string>([
+  ["install.ts:targetRel:isAbsolute", "isAbsolute over relative(TARGET, path) (P7): a containment test on a result node:path just computed, not a recorded value"],
+  ["install.ts:mkdirp:isAbsolute", "isAbsolute over relative(TARGET, dir) (P7): a containment test on a result node:path just computed, not a recorded value"],
+  ["user-file.ts:wayTo:isAbsolute", "isAbsolute over relative(root, path) (P7): a containment test on a result node:path just computed, not a recorded value"],
+  ["uninstall.ts:abspath:isAbsolute", "the argv, env or cwd path the process is about to open on this host (P8), not a recorded value"],
+  [
+    'install-marker.ts:isLedgerPath:startsWith("/")',
+    "the ledger entry grammar (P9): a POSIX path relative to the target on every platform, refused when it starts with `/`; a relativity rule of the record format, not a host absoluteness test",
+  ],
+]);
 
 describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => {
   it("the scanned set is every installer source module, and its size is the one counted", () => {
@@ -211,29 +360,65 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
     expect(sites.map(where), "a second fold helper: call canonicalPathSpelling from install/user-file.ts").toEqual([]);
   });
 
-  it("(e) install-marker.ts decides both bindings by sameRecordedPath, and never compares `here` raw", () => {
+  it("(e) every derived comparison of a recorded path lies in a spelling function, is spelled on every path operand, or is classified; sameRecordedPath decides markerBinding, readKitHomeRecord and isOwnLink", () => {
     const calls = sitesWhere((n) => ts.isCallExpression(n) && calleeName(n) === "sameRecordedPath");
     expect(calls.map((s) => `${s.file}:${s.scope}`).sort(), "sameRecordedPath must decide markerBinding, readKitHomeRecord and isOwnLink, once each").toEqual([
       "install-marker.ts:markerBinding",
       "install-marker.ts:readKitHomeRecord",
       "user-file.ts:isOwnLink",
     ]);
-    const sf = sourceOf("install-marker.ts");
-    const raw: string[] = [];
-    for (const fnName of ["markerBinding", "readKitHomeRecord"]) {
-      const fn = functionNamed(sf, fnName);
-      expect(fn, `no function ${fnName} in install-marker.ts`).not.toBeNull();
-      for (const b of nodesUnder(fn as ts.Node, ts.isBinaryExpression)) {
-        if (!EQUALITY.has(b.operatorToken.kind)) continue;
-        const sides = [b.left, b.right];
-        const hereSide = sides.findIndex((x) => ts.isIdentifier(x) && x.text === "here");
-        if (hereSide === -1) continue;
-        const other = sides[1 - hereSide];
-        if (other.kind === ts.SyntaxKind.NullKeyword) continue;
-        raw.push(`install-marker.ts:${lineOf(sf, b)} (in ${fnName}) ${b.getText(sf)}`);
+
+    const sites = comparisonSites();
+    const used = new Set<string>();
+    const offenders: string[] = [];
+    for (const s of sites) {
+      if (SPELLING_FUNCTIONS.includes(s.scope)) continue;
+      if (s.operands.filter(isPathOperand).every(isSpelledOperand)) continue;
+      const key = `${s.file}:${s.scope}:${s.op}`;
+      if (CLASSIFIED_COMPARISONS.has(key)) {
+        used.add(key);
+        continue;
       }
+      offenders.push(`${where(s)} ${s.text}`);
     }
-    expect(raw, "a raw comparison of a recorded path against `here`: decide it with sameRecordedPath").toEqual([]);
+    expect(offenders, "a raw comparison of a recorded path: decide it with sameRecordedPath, or spell both sides with canonicalPathSpelling").toEqual([]);
+    expect(
+      sites.map((s) => `${where(s)} ${s.op}`),
+      "the derived comparison sites changed: read each new site, decide it, then update DERIVED_COMPARISON_COUNT",
+    ).toHaveLength(DERIVED_COMPARISON_COUNT);
+    expect(CLASSIFIED_COMPARISONS.size, "the classified comparison map changed size").toBe(3);
+    expect([...CLASSIFIED_COMPARISONS.keys()].filter((k) => !used.has(k)), "a stale exemption: a classified comparison key that no derived site matched").toEqual([]);
+  });
+
+  it("(f) every derived absoluteness decision lies in canonicalPathSpelling or isRecordedAbsolute, or is classified", () => {
+    const sites: (Site & { readonly kind: string })[] = [];
+    for (const file of scannedFiles()) {
+      const sf = sourceOf(file);
+      const walk = (node: ts.Node): void => {
+        const kind = absolutenessKind(node);
+        if (kind !== null) sites.push({ file, line: lineOf(sf, node), scope: scopeOf(node), kind });
+        ts.forEachChild(node, walk);
+      };
+      walk(sf);
+    }
+    const used = new Set<string>();
+    const offenders: string[] = [];
+    for (const s of sites) {
+      if (s.file === "user-file.ts" && ABSOLUTENESS_OWNERS.includes(s.scope)) continue;
+      const key = `${s.file}:${s.scope}:${s.kind}`;
+      if (CLASSIFIED_ABSOLUTENESS.has(key)) {
+        used.add(key);
+        continue;
+      }
+      offenders.push(`${where(s)} ${s.kind}`);
+    }
+    expect(offenders, "a second absoluteness rule: ask user-file.ts isRecordedAbsolute").toEqual([]);
+    expect(
+      sites.map((s) => `${where(s)} ${s.kind}`),
+      "the derived absoluteness sites changed: read each new site, decide it, then update DERIVED_ABSOLUTENESS_COUNT",
+    ).toHaveLength(DERIVED_ABSOLUTENESS_COUNT);
+    expect(CLASSIFIED_ABSOLUTENESS.size, "the classified absoluteness map changed size").toBe(5);
+    expect([...CLASSIFIED_ABSOLUTENESS.keys()].filter((k) => !used.has(k)), "a stale exemption: a classified absoluteness key that no derived site matched").toEqual([]);
   });
 
   it("(f) no spelling function reads process.platform; the one platform read is user-file.ts PATH_MAX_BYTES; docAbspath calls absoluteSpelling", () => {

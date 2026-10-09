@@ -773,8 +773,9 @@ function writeTargetFile(path: string, data: string | Uint8Array, how: "create" 
   }
 }
 
-// isOwnLink (the link a --symlink install made: readlink equals the exact source path) moved into
-// ./user-file.ts in the red-team fixes of plan 33.1-27, so install's "this link is mine" and
+// isOwnLink (the link a --symlink install made: its readlink names the source path, compared with it
+// through user-file.ts sameRecordedPath, the one spelling of a recorded path, since plan 34-21) moved
+// into ./user-file.ts in the red-team fixes of plan 33.1-27, so install's "this link is mine" and
 // uninstall's "this link may be removed" are one predicate.
 
 // sameContent reads BOTH sides through readUserFile (DC-3, plan 33.1-26): one side is usually a path
@@ -1027,8 +1028,9 @@ function readAdapterKit(adapterFile: string): string {
 // unlike node:path resolve()); a relative path is prefixed with cwd. Used by the D-03 cross-check so a
 // cosmetic-but-textually-different kitRoot classifies consistently (using resolve() here would
 // over-normalize `…/agent-factory/.` to `…/agent-factory` and turn a WARN into a pass). The absolute test
-// is the host's node:path isAbsolute through user-file.ts absoluteSpelling (plan 34-11, D-19): the
-// earlier leading-`/` test read a Windows `C:/…` kitRoot as relative and prefixed the cwd to it.
+// is user-file.ts isRecordedAbsolute, the one absoluteness rule for a recorded path (the host flavor's
+// own isAbsolute), asked through absoluteSpelling (plan 34-11, D-19; plan 34-21, D-23): the earlier
+// leading-`/` test read a Windows `C:/…` kitRoot as relative and prefixed the cwd to it.
 const docAbspath = (p: string): string => absoluteSpelling(p, process.cwd());
 
 // kitReal: a path resolves to a REAL kit iff agent-factory/roles/orchestrator.md exists under it.
@@ -3636,9 +3638,10 @@ type KitDecision =
 // link or non-directory on the way is refused), and only then compared (D-11: build, compare, write).
 //
 // INSTALL'S OWN LINK IS REPLACED, ON EVERY RUN (red-team B1 of plan 33.1-31). A materialize
-// destination that is exactly the link an install made before the render (isOwnLink: readlink equals
-// THIS checkout's kit source path for that file, the predicate uninstall uses) is install's content,
-// and the kit write replaces it: it is unlinked in the write phase, just before its file is written,
+// destination that is exactly the link an install made before the render (isOwnLink: its readlink names
+// THIS checkout's kit source path for that file, compared through the one spelling of a recorded path,
+// the predicate uninstall uses) is install's content, and the kit write replaces it: it is unlinked in
+// the write phase, just before its file is written,
 // and only in a run whose plan refused nothing. Before, only a --migrate over an old layout did this,
 // so a target whose --migrate refused (and wrote its marker) could never be completed by any run.
 // ANY OTHER LINK IS REFUSED, NEVER UNLINKED: it may be the user's, or point into another checkout.
