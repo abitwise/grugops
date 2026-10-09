@@ -104,6 +104,12 @@ import {
   RESOLVED_EFFORT_ASSIGNMENT_PREFIX,
   resolvedPresetsIn,
   resolvedAssignmentsIn,
+  // Plan 34-19: the relay pins and the patched-twin announcements are built with the module's OWN
+  // emitters over a per-adapter map, so no payload is hand-typed here (same test-side exception).
+  resolvedAssignmentLine,
+  resolvedEffortAssignmentLine,
+  resolveModels,
+  type ModelAlias,
   // Plan 34-10: the effort delivery cases derive every expected `effort:` line from the ONE effort
   // resolver and its closed level tuple, under the same test-side exception as the alias set above.
   EFFORT_LEVELS,
@@ -2290,6 +2296,24 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     return stdout.split("\n").filter((l) => rx.test(l));
   }
 
+  // expectedModelByAdapter — the per-adapter model map a run should announce (plan 34-19, D-24): its
+  // keys are the installed adapter names (the listing, without `.md`), each paired with its role stem
+  // by adapterStemMap, and its values come from the ONE model resolver over the derived stems. The
+  // map is built from those two sources, never from the announcement under test.
+  function expectedModelByAdapter(target: string, preset?: "tiered"): Map<string, ModelAlias> {
+    const stems = effortStems();
+    const resolved = resolveModels(stems, preset === undefined ? undefined : { preset });
+    if (!resolved.ok) throw new Error(resolved.reason);
+    const map = new Map<string, ModelAlias>();
+    for (const [rel, stem] of adapterStemMap(target, stems)) {
+      const alias = resolved.value.get(stem);
+      if (alias === undefined) throw new Error(`no resolved alias for the role stem "${stem}"`);
+      map.set(rel.slice(0, -".md".length), alias);
+    }
+    expect(map.size).toBe(stems.length);
+    return map;
+  }
+
   it("model delivery: a ZERO-CONFIG run relays the generator's own announcement and states that no configuration file was found (D-04)", () => {
     const target = makeFixture();
     const home = mkTmp();
@@ -2302,9 +2326,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // holds no copy of either prefix — the prefixes below are imported from the module that owns
     // them, so a marker that moved fails here instead of drifting apart in two files.
     expect(r.stdout).toContain(`${RESOLVED_PRESET_PREFIX}none`);
-    expect(r.stdout).toContain(
-      `${RESOLVED_ASSIGNMENT_PREFIX}{"roles":17,"overrides":0,"aliases":["inherit"]}`,
-    );
+    // Plan 34-19 (D-24): the expected line is the module's own emitter over the expected per-adapter
+    // map — keys from the installed listing, values from the resolver — never a hand-typed payload.
+    expect(r.stdout).toContain(resolvedAssignmentLine(expectedModelByAdapter(target), 0));
 
     // (b) THE RELAY IS A MENTION, NOT A SECOND ANNOUNCEMENT — and that is deliberate. Both readers
     // require their prefix at BYTE 0 of the trimmed line (finding WR-03), and the relayed text sits
@@ -2341,9 +2365,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.status).toBe(0);
 
     expect(r.stdout).toContain(`${RESOLVED_PRESET_PREFIX}tiered`);
-    expect(r.stdout).toContain(
-      `${RESOLVED_ASSIGNMENT_PREFIX}{"roles":17,"overrides":0,"aliases":["opus","sonnet"]}`,
-    );
+    expect(r.stdout).toContain(resolvedAssignmentLine(expectedModelByAdapter(target, "tiered"), 0));
     // The installer-authored line names the REAL file on this machine, not the temp mirror the
     // generator's own message would name.
     expect(r.stdout).toContain(configPath);
@@ -2865,6 +2887,23 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeFileSync(p, before.replace(from, to));
   }
 
+  // THE ANNOUNCEMENT PATCHES (plan 34-19, D-24). The twin's model announcement call, the anchor each
+  // model case replaces (patchSyntheticGenerator throws if it is absent).
+  const MODEL_ANNOUNCE_ANCHOR = "console.log(resolvedAssignmentLine(modelByAdapter, modelsConfig.overrides.size));";
+  // The adapter names a synthetic render writes: the derived listing, without `.md`.
+  const SYNTH_NAMES: readonly string[] = SYNTH_ADAPTERS.map((a) => a.slice(0, -".md".length));
+  // A per-adapter map giving the first `count` synthetic adapters one value. Each row below stages
+  // exactly the disagreement it names by choosing the value and the count, and nothing else.
+  function synthMap<V extends string>(value: V, count: number = SYNTH_NAMES.length): Map<string, V> {
+    return new Map(SYNTH_NAMES.slice(0, count).map((n) => [n, value] as [string, V]));
+  }
+  // The ONE helper that turns an announcement line into the statement a patched twin prints. The
+  // line itself is always built by the module's own emitter over a map, which derives the counts and
+  // the distinct list, so the payload is never hand-typed.
+  function announceStatement(line: string): string {
+    return `console.log(${JSON.stringify(line)});`;
+  }
+
   it("model delivery: an announced member count that disagrees with the rendered listing installs NOTHING and prints both numbers", () => {
     const src = makeSyntheticSrc();
     const target = mkTmp();
@@ -2874,8 +2913,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // why the count is cross-checked against a listing the INSTALLER derived itself.
     patchSyntheticGenerator(
       src,
-      "console.log(resolvedAssignmentLine(models, modelsConfig.overrides.size));",
-      'console.log("' + RESOLVED_ASSIGNMENT_PREFIX + '" + JSON.stringify({ roles: 16, overrides: 0, aliases: ["inherit"] }));',
+      MODEL_ANNOUNCE_ANCHOR,
+      announceStatement(resolvedAssignmentLine(synthMap<ModelAlias>("inherit", SYNTH_NAMES.length - 1), 0)),
     );
 
     const r = runInstallFrom(src, target, mkTmp());
@@ -3135,8 +3174,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // announcement independently confirms it — neither side alone.
     patchSyntheticGenerator(
       src,
-      "console.log(resolvedAssignmentLine(models, modelsConfig.overrides.size));",
-      'console.log("' + RESOLVED_ASSIGNMENT_PREFIX + '" + JSON.stringify({ roles: 17, overrides: 0, aliases: ["opus"] }));',
+      MODEL_ANNOUNCE_ANCHOR,
+      announceStatement(resolvedAssignmentLine(synthMap<ModelAlias>("opus"), 0)),
     );
 
     const r = runInstallFrom(src, target, mkTmp());
@@ -3158,11 +3197,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // The anchor is the twin's own effort announcement call; patchSyntheticGenerator throws if it is
   // absent, which is each case's premise assertion.
   const EFFORT_ANNOUNCE_ANCHOR =
-    "console.log(resolvedEffortAssignmentLine(efforts, modelsConfig.effort.overrides.size));";
-  // An effort announcement line with the given payload, spelled through the module's own prefix.
-  function effortAnnounceLine(payload: unknown): string {
-    return `console.log(${JSON.stringify(RESOLVED_EFFORT_ASSIGNMENT_PREFIX)} + ${JSON.stringify(JSON.stringify(payload))});`;
-  }
+    "console.log(resolvedEffortAssignmentLine(effortByAdapter, modelsConfig.effort.overrides.size));";
   // A non-inherit level, taken from the closed tuple rather than typed.
   const FOREIGN_LEVEL = EFFORT_LEVELS[EFFORT_LEVELS.length - 1];
 
@@ -3177,7 +3212,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     patchSyntheticGenerator(
       src,
       EFFORT_ANNOUNCE_ANCHOR,
-      effortAnnounceLine({ roles: SYNTH_ADAPTERS.length, overrides: 0, levels: [FOREIGN_LEVEL] }),
+      announceStatement(resolvedEffortAssignmentLine(synthMap(FOREIGN_LEVEL), 0)),
     );
 
     const r = runInstallFrom(src, target, mkTmp());
@@ -3217,7 +3252,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     {
       why: "(d) the announced effort role count is one less than the rendered count",
       from: EFFORT_ANNOUNCE_ANCHOR,
-      to: () => effortAnnounceLine({ roles: SYNTH_ADAPTERS.length - 1, overrides: 0, levels: ["inherit"] }),
+      to: () => announceStatement(resolvedEffortAssignmentLine(synthMap("inherit" as const, SYNTH_NAMES.length - 1), 0)),
       sentence: () =>
         `the render announced an effort resolution covering ${SYNTH_ADAPTERS.length - 1} role(s), while this ` +
         `run derived ${SYNTH_ADAPTERS.length} rendered adapter(s)`,

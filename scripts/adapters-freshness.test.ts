@@ -367,7 +367,8 @@ function stripAssignmentAnnouncement(m: string): void {
 function shortenAnnouncedMemberCount(m: string): void {
   const p = join(m, "scripts", "generate-role-adapters.js");
   const text = readFileSync(p, "utf8");
-  const anchor = "resolvedAssignmentLine(models, modelsConfig.overrides.size)";
+  // Plan 34-19: the generator's call now passes the per-adapter map it announces.
+  const anchor = "resolvedAssignmentLine(modelByAdapter, modelsConfig.overrides.size)";
   const hits = text.split(anchor).length - 1;
   if (hits !== 1) {
     throw new Error(
@@ -375,7 +376,7 @@ function shortenAnnouncedMemberCount(m: string): void {
     );
   }
   const shortened =
-    "resolvedAssignmentLine(new Map([...models].slice(1)), modelsConfig.overrides.size)";
+    "resolvedAssignmentLine(new Map([...modelByAdapter].slice(1)), modelsConfig.overrides.size)";
   writeFileSync(p, text.replace(anchor, shortened), "utf8");
 }
 

@@ -580,6 +580,23 @@ const rendered = adapters.map((a) => ({
   body: render(a),
 }));
 
+// The two per-adapter maps the assignment lines announce (plan 34-19, D-24), built and checked
+// HERE, before the first write, for the same T-27-32 reason as the render: a map that does not cover
+// every adapter is a structural miss, and a structural miss never leaves a partial artifact. Why they
+// exist and why they are keyed by adapter name is recorded at the announcement below.
+const modelByAdapter = new Map<string, ModelAlias>(adapters.map((a) => [a.name, a.model]));
+const effortByAdapter = new Map<string, EffortLevel>(adapters.map((a) => [a.name, a.effort]));
+for (const [dial, map] of [
+  ["model", modelByAdapter],
+  ["effort", effortByAdapter],
+] as const) {
+  if (map.size !== rendered.length) {
+    fail(
+      `the announced ${dial} map has ${map.size} entr${map.size === 1 ? "y" : "ies"} for ${rendered.length} written adapter(s) — the map must have one entry per adapter it describes`,
+    );
+  }
+}
+
 try {
   mkdirSync(OUT_DIR, { recursive: true });
 } catch {
@@ -600,9 +617,10 @@ console.log(
 // name, because a prefixed line is a line the matching reader refuses (finding WR-03).
 //
 // WHAT EACH LINE DESCRIBES, and why one was not enough. THE PRESET LINE DESCRIBES AN INPUT: the
-// preset `resolveModels` was handed a few lines up. THE ASSIGNMENT LINE DESCRIBES THE OUTPUT: how
-// many roles the resolution covered, how many of them were set by an OVERRIDE rather than by the
-// preset, and which distinct aliases this run actually produced.
+// preset `resolveModels` was handed a few lines up. THE ASSIGNMENT LINE DESCRIBES THE OUTPUT: the
+// alias each written adapter was resolved to, how many roles the resolution covered, how many of
+// them were set by an OVERRIDE rather than by the preset, and which distinct aliases this run
+// actually produced.
 //
 // The comment that stood here claimed the preset announcement "cannot describe a resolution other
 // than the one this run performed". That was true of the OBJECT it named and false of the
@@ -613,19 +631,31 @@ console.log(
 // scripts/adapters-freshness.ts certified that regeneration as the zero-config output and exited 0.
 //
 // Both values come from the objects this run resolved from — `modelsConfig.overrides` is the map
-// handed to `resolveModels`, and `models` is the map the adapters above were rendered from — so
-// neither line can be a restatement of what the run intended rather than of what it did.
+// handed to `resolveModels`, and the per-adapter map below is built from the adapter entries render()
+// wrote from — so neither line can be a restatement of what the run intended rather than of what it
+// did.
 //
 // THE TWO EFFORT LINES, for the same CR-01 reason (plan 34-03, D-06). `resolveEfforts` is a second
 // resolution with its own two inputs — `models.effort.preset` and `models.effort.roles` — and its
 // output reaches the adapters as `effort:` lines. A run that announced only its MODEL resolution
 // would let scripts/adapters-freshness.ts certify an effort-configured regeneration as the
 // zero-config output. So the effort preset line describes the effort INPUT (the preset handed to
-// `resolveEfforts`), and the effort assignment line describes the effort OUTPUT: `efforts` is the
-// map the adapters above were rendered from, and `modelsConfig.effort.overrides` is the override map
-// handed to `resolveEfforts`. They follow the two model lines, so no existing line moves.
+// `resolveEfforts`), and the effort assignment line describes the effort OUTPUT. They follow the two
+// model lines, so no existing line moves.
+//
+// BOTH ASSIGNMENT LINES ANNOUNCE THE PER-ADAPTER MAP, NOT ONLY THE DISTINCT SET (plan 34-19, D-24).
+// Each map is built from the ADAPTER LIST above, entry by entry: the adapter's `name` (the file name
+// render() is written under, without `.md`) to the `model` and `effort` stored on that entry, which
+// are the very fields render() reads. So the announcement states, for every written adapter, the
+// value the generator resolved for it, and a render() that writes one adapter at another value, or
+// drops one `effort:` line, disagrees with the map even when the distinct set is unchanged. That is
+// the case-B reproduction the verifier recorded, and plan 34-20 makes the installer compare each
+// adapter with this map. The map is keyed by adapter name rather than role stem because the readers
+// see only rendered file names; the stem-to-name rule (`AGENT_PREFIX`) stays here. The override
+// counts come from the override maps handed to `resolveModels` and `resolveEfforts`. The two maps
+// are built and checked before the write, beside the render.
 console.log(resolvedPresetLine(modelsConfig.preset));
-console.log(resolvedAssignmentLine(models, modelsConfig.overrides.size));
+console.log(resolvedAssignmentLine(modelByAdapter, modelsConfig.overrides.size));
 console.log(resolvedEffortPresetLine(modelsConfig.effort.preset));
-console.log(resolvedEffortAssignmentLine(efforts, modelsConfig.effort.overrides.size));
+console.log(resolvedEffortAssignmentLine(effortByAdapter, modelsConfig.effort.overrides.size));
 process.exit(0);

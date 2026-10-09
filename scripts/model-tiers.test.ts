@@ -52,6 +52,7 @@ import {
   isPresetName,
   MIRRORED_RESOLVED_PRESET_PREFIX,
   RESOLVED_ASSIGNMENT_PREFIX,
+  RESOLVED_EFFORT_ASSIGNMENT_PREFIX,
   mirroredResolvedPresetLine,
   mirroredResolvedPresetsIn,
   readModelsConfig,
@@ -59,6 +60,8 @@ import {
   resolveModels,
   resolvedAssignmentLine,
   resolvedAssignmentsIn,
+  resolvedEffortAssignmentLine,
+  resolvedEffortAssignmentsIn,
   resolvedPresetLine,
   resolvedPresetsIn,
   tieredCorpusRefusals,
@@ -1114,6 +1117,8 @@ describe("model-tiers: the resolved-assignment line grammar (plan 29.1-07, CR-01
     expect(results[0].value.roles).toBe(ROLE_COUNT);
     expect(results[0].value.overrides).toBe(0);
     expect(results[0].value.aliases).toEqual(["inherit"]);
+    // Plan 34-19 (D-24): the per-member map travels too, and reads back as the map that was emitted.
+    expect(results[0].value.byAdapter).toEqual(Object.fromEntries(resolution));
   });
 
   it("the announced alias set is DISTINCT and SORTED, and the override count travels unmodified", () => {
@@ -1131,6 +1136,10 @@ describe("model-tiers: the resolved-assignment line grammar (plan 29.1-07, CR-01
     expect(results[0].value.roles).toBe(3);
     expect(results[0].value.overrides).toBe(2);
     expect(results[0].value.aliases).toEqual(["inherit", "opus"]);
+    // Plan 34-19 (D-24): every member is stated, not only the distinct set — and the line does not
+    // depend on the map's insertion order, because the emitter sorts the keys.
+    expect(results[0].value.byAdapter).toEqual({ "a-role": "opus", "b-role": "opus", "c-role": "inherit" });
+    expect(Object.keys(results[0].value.byAdapter)).toEqual(["a-role", "b-role", "c-role"]);
   });
 
   it("resolvedAssignmentsIn REFUSES a malformed payload by name rather than dropping the line", () => {
@@ -1173,14 +1182,23 @@ describe("model-tiers: the resolved-assignment line grammar (plan 29.1-07, CR-01
     // below is attributable to the alias and not to a malformed payload. Proven by reading back the
     // identical envelope with a LEGAL alias in the same slot and requiring it to succeed.
     expect(isModelAlias(illegal), "the probe value must really be outside the closed set").toBe(false);
-    const wellFormed = `{"roles":2,"overrides":0,"aliases":["inherit"]}`;
-    const control = resolvedAssignmentsIn(RESOLVED_ASSIGNMENT_PREFIX + wellFormed);
+    // Plan 34-19: the envelope is built by the module's OWN emitter, so it carries every key the
+    // grammar now requires (`byAdapter` included) and this case stays about the alias alone.
+    const controlLine = resolvedAssignmentLine(
+      new Map<string, ModelAlias>([
+        ["a", "inherit"],
+        ["b", "inherit"],
+      ]),
+      0,
+    );
+    const control = resolvedAssignmentsIn(controlLine);
     expect(control).toHaveLength(1);
     expect(control[0].ok, "the envelope itself must read back cleanly, or the red below is the envelope's").toBe(
       true,
     );
 
-    const payload = `{"roles":2,"overrides":0,"aliases":["${illegal}"]}`;
+    const envelope = JSON.parse(controlLine.slice(RESOLVED_ASSIGNMENT_PREFIX.length)) as Record<string, unknown>;
+    const payload = JSON.stringify({ ...envelope, aliases: [illegal] });
     const results = resolvedAssignmentsIn(RESOLVED_ASSIGNMENT_PREFIX + payload);
     expect(results).toHaveLength(1);
     expect(results[0].ok, "an alias outside the closed set must be REFUSED, not read back").toBe(false);
@@ -1229,6 +1247,262 @@ describe("model-tiers: the resolved-assignment line grammar (plan 29.1-07, CR-01
     expect(line.endsWith("none")).toBe(true);
     expect(mirroredResolvedPresetsIn(line)).toEqual(["none"]);
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// ONE PAYLOAD GRAMMAR, BOTH DIALS (plan 34-19, D-24, RC-1, IN-07)
+//
+// The model and effort assignment payloads are one grammar, `{roles, overrides, <list>, byAdapter}`,
+// validated by one function. Until plan 34-19 each dial had its own reader and the effort one was
+// stricter: it named a missing key and refused a repeated level, and the model one did neither. The
+// table below runs EVERY rule of the one validator over BOTH dials, so a rule that holds for one dial
+// only turns one named row red (mutation g4), and the agreement rules between `byAdapter` and the
+// summary fields are proven for both (mutation g3).
+//
+// Every payload starts from the module's OWN emitter output and is then damaged in exactly one way,
+// so each row's refusal is attributable to the one rule it names. The base map has three adapters
+// over two legal values, so the distinct list has two members and the agreement rules have room to
+// disagree in both directions.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** One dial, as the test sees it: its emitter, its reader, and its closed set. */
+interface DialUnderTest {
+  readonly dial: "model" | "effort";
+  readonly listKey: "aliases" | "levels";
+  readonly member: "alias" | "level";
+  readonly prefix: string;
+  readonly legal: readonly string[];
+  /** The emitter, over a map of adapter name to value. */
+  readonly emit: (byAdapter: ReadonlyMap<string, string>, overrides: number) => string;
+  /** The reader, normalised to one shape: the list under `list`, the rest as read. */
+  readonly read: (
+    output: string,
+  ) => Array<
+    | { ok: true; value: { roles: number; overrides: number; list: readonly string[]; byAdapter: Record<string, string> } }
+    | { ok: false; reason: string }
+  >;
+}
+
+const DIALS_UNDER_TEST: readonly DialUnderTest[] = [
+  {
+    dial: "model",
+    listKey: "aliases",
+    member: "alias",
+    prefix: RESOLVED_ASSIGNMENT_PREFIX,
+    legal: MODEL_ALIASES,
+    emit: (m, o) => resolvedAssignmentLine(m as ReadonlyMap<string, ModelAlias>, o),
+    read: (out) =>
+      resolvedAssignmentsIn(out).map((r) =>
+        r.ok
+          ? { ok: true as const, value: { ...r.value, list: r.value.aliases, byAdapter: { ...r.value.byAdapter } } }
+          : r,
+      ),
+  },
+  {
+    dial: "effort",
+    listKey: "levels",
+    member: "level",
+    prefix: RESOLVED_EFFORT_ASSIGNMENT_PREFIX,
+    legal: EFFORT_LEVELS,
+    emit: (m, o) => resolvedEffortAssignmentLine(m as ReadonlyMap<string, EffortLevel>, o),
+    read: (out) =>
+      resolvedEffortAssignmentsIn(out).map((r) =>
+        r.ok
+          ? { ok: true as const, value: { ...r.value, list: r.value.levels, byAdapter: { ...r.value.byAdapter } } }
+          : r,
+      ),
+  },
+];
+
+/** The base map for a dial: three adapters over the dial's first two legal values. */
+function baseMap(d: DialUnderTest): Map<string, string> {
+  return new Map([
+    ["grugops-a", d.legal[0]],
+    ["grugops-b", d.legal[1]],
+    ["grugops-c", d.legal[1]],
+  ]);
+}
+
+/** The base payload for a dial, as an object, taken from the module's own emitter. */
+function basePayload(d: DialUnderTest): Record<string, unknown> {
+  return JSON.parse(d.emit(baseMap(d), 1).slice(d.prefix.length)) as Record<string, unknown>;
+}
+
+/** One rule of the validator: how to break the base payload, and the words the refusal must carry. */
+interface GrammarRow {
+  readonly rule: string;
+  readonly payload: (d: DialUnderTest) => string;
+  readonly says: (d: DialUnderTest) => readonly string[];
+}
+
+const withKey = (d: DialUnderTest, patch: Record<string, unknown>): string =>
+  JSON.stringify({ ...basePayload(d), ...patch });
+const withoutKey = (d: DialUnderTest, key: string): string => {
+  const o = basePayload(d);
+  delete o[key];
+  return JSON.stringify(o);
+};
+
+const GRAMMAR_ROWS: readonly GrammarRow[] = [
+  { rule: "1a unparseable JSON", payload: () => "{not json", says: () => ["is not parseable JSON"] },
+  { rule: "1b a JSON array, not an object", payload: () => "[1,2,3]", says: () => ["is an array rather than a JSON object"] },
+  { rule: "1c JSON null", payload: () => "null", says: () => ["is null rather than a JSON object"] },
+  {
+    rule: "2 an unexpected key",
+    payload: (d) => withKey(d, { digest: "abc" }),
+    says: () => ['carries the unexpected key(s) "digest"'],
+  },
+  { rule: "3a missing roles", payload: (d) => withoutKey(d, "roles"), says: () => ['is missing the key(s) "roles"'] },
+  {
+    rule: "3b missing overrides",
+    payload: (d) => withoutKey(d, "overrides"),
+    says: () => ['is missing the key(s) "overrides"'],
+  },
+  {
+    rule: "3c missing the list",
+    payload: (d) => withoutKey(d, d.listKey),
+    says: (d) => [`is missing the key(s) "${d.listKey}"`],
+  },
+  {
+    rule: "3d missing byAdapter",
+    payload: (d) => withoutKey(d, "byAdapter"),
+    says: () => ['is missing the key(s) "byAdapter"'],
+  },
+  {
+    rule: "4a a non-integer roles",
+    payload: (d) => withKey(d, { roles: 2.5 }),
+    says: () => ['sets "roles" to 2.5 rather than a non-negative integer'],
+  },
+  {
+    rule: "4b a negative overrides",
+    payload: (d) => withKey(d, { overrides: -1 }),
+    says: () => ['sets "overrides" to -1 rather than a non-negative integer'],
+  },
+  {
+    rule: "4c a string count",
+    payload: (d) => withKey(d, { roles: "3" }),
+    says: () => ['sets "roles" to "3" rather than a non-negative integer'],
+  },
+  {
+    rule: "5a the list is not an array",
+    payload: (d) => withKey(d, { [d.listKey]: d.legal[0] }),
+    says: (d) => [`sets "${d.listKey}" to a string rather than an array`],
+  },
+  {
+    rule: "5b a non-string list member",
+    payload: (d) => withKey(d, { [d.listKey]: [7] }),
+    says: (d) => [`lists the non-string ${d.member} 7`],
+  },
+  {
+    rule: "5c a list member outside the closed set",
+    payload: (d) => withKey(d, { [d.listKey]: [d.legal[0], "not-a-member"] }),
+    says: (d) => [
+      '"not-a-member", which is not a legal',
+      `not a legal ${d.dial} ${d.member}`,
+      ...d.legal.map((v) => `"${v}"`),
+    ],
+  },
+  {
+    // THE MODEL READER USED TO ACCEPT THIS (RC-1). The emitter writes a distinct set, so a payload
+    // carrying a repeat was not written by it.
+    rule: "5d a repeated list member",
+    payload: (d) => withKey(d, { [d.listKey]: [d.legal[0], d.legal[1], d.legal[1]] }),
+    says: (d) => [`lists the ${d.member} "${d.legal[1]}" more than once`],
+  },
+  {
+    rule: "6a byAdapter is an array",
+    payload: (d) => withKey(d, { byAdapter: [d.legal[0]] }),
+    says: () => ['sets "byAdapter" to an array rather than an object'],
+  },
+  {
+    rule: "6b byAdapter is null",
+    payload: (d) => withKey(d, { byAdapter: null }),
+    says: () => ['sets "byAdapter" to null rather than an object'],
+  },
+  {
+    rule: "6c byAdapter is a string",
+    payload: (d) => withKey(d, { byAdapter: "grugops-a" }),
+    says: () => ['sets "byAdapter" to a string rather than an object'],
+  },
+  {
+    rule: "6d an empty adapter name",
+    payload: (d) =>
+      withKey(d, { byAdapter: { "": d.legal[0], "grugops-b": d.legal[1], "grugops-c": d.legal[1] } }),
+    says: () => ['sets "byAdapter" with an empty adapter name'],
+  },
+  {
+    rule: "6e a non-string map value",
+    payload: (d) =>
+      withKey(d, { byAdapter: { "grugops-a": 7, "grugops-b": d.legal[1], "grugops-c": d.legal[1] } }),
+    says: () => ['sets "byAdapter" entry "grugops-a" to the non-string 7'],
+  },
+  {
+    rule: "6f a map value outside the closed set",
+    payload: (d) =>
+      withKey(d, { byAdapter: { "grugops-a": "not-a-member", "grugops-b": d.legal[1], "grugops-c": d.legal[1] } }),
+    says: (d) => ['sets "byAdapter" entry "grugops-a" to "not-a-member"', `not a legal ${d.dial} ${d.member}`],
+  },
+  {
+    // AGREEMENT RULE 7: the map has exactly `roles` entries.
+    rule: "7 a map whose size differs from roles",
+    payload: (d) => withKey(d, { roles: 4 }),
+    says: () => ['carries 3 "byAdapter" entries while "roles" is 4'],
+  },
+  {
+    // AGREEMENT RULE 8, one direction: the list names a value no adapter carries.
+    rule: "8a a list naming a value the map does not carry",
+    payload: (d) => withKey(d, { [d.listKey]: [d.legal[0], d.legal[1], d.legal[2]].sort() }),
+    says: (d) => [`under "${d.listKey}" while the distinct "byAdapter" values are`, "must be the same set"],
+  },
+  {
+    // AGREEMENT RULE 8, the other direction: an adapter carries a value the list omits. This is the
+    // case-B shape: one adapter changed while the summary still states the old set.
+    rule: "8b a map carrying a value the list omits",
+    payload: (d) =>
+      withKey(d, { byAdapter: { "grugops-a": d.legal[0], "grugops-b": d.legal[1], "grugops-c": d.legal[2] } }),
+    says: (d) => [`under "${d.listKey}" while the distinct "byAdapter" values are`, "must be the same set"],
+  },
+];
+
+describe("model-tiers: ONE assignment payload grammar for BOTH dials (plan 34-19, D-24, RC-1)", () => {
+  it("PREMISE: both dials are under test, every rule has a row, and each dial has at least three legal values", () => {
+    expect(DIALS_UNDER_TEST.map((d) => d.dial)).toEqual(["model", "effort"]);
+    // Eight rules (1-8), each with at least one row.
+    const rules = new Set(GRAMMAR_ROWS.map((r) => r.rule.split(/[a-z ]/)[0]));
+    expect([...rules].sort()).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
+    for (const d of DIALS_UNDER_TEST) expect(d.legal.length).toBeGreaterThanOrEqual(3);
+  });
+
+  for (const d of DIALS_UNDER_TEST) {
+    it(`${d.dial}: the emitter's own line reads back, byAdapter included, and the base payload is the one every row damages`, () => {
+      const line = d.emit(baseMap(d), 1);
+      const results = d.read(line);
+      expect(results).toHaveLength(1);
+      expect(results[0].ok, results[0].ok ? "" : results[0].reason).toBe(true);
+      if (!results[0].ok) return;
+      expect(results[0].value.roles).toBe(3);
+      expect(results[0].value.overrides).toBe(1);
+      expect(results[0].value.list).toEqual([d.legal[0], d.legal[1]].sort());
+      expect(results[0].value.byAdapter).toEqual(Object.fromEntries(baseMap(d)));
+      // The base payload object carries exactly the four keys, in the emitter's order.
+      expect(Object.keys(basePayload(d))).toEqual(["roles", "overrides", d.listKey, "byAdapter"]);
+    });
+
+    for (const row of GRAMMAR_ROWS) {
+      it(`${d.dial}: rule ${row.rule} is REFUSED by name, quoting the payload`, () => {
+        const payload = row.payload(d);
+        const results = d.read(d.prefix + payload);
+        expect(results, `"${payload}" must produce exactly one result`).toHaveLength(1);
+        expect(results[0].ok, `${d.dial} "${payload}" must be REFUSED, not accepted`).toBe(false);
+        if (results[0].ok) return;
+        // The refusal quotes the payload it could not read (QUOTED, not interpolated raw), names the
+        // dial, and says which rule it broke.
+        expect(results[0].reason).toContain(JSON.stringify(payload));
+        expect(results[0].reason).toContain(`the resolved ${d.dial} assignment payload`);
+        for (const words of row.says(d)) expect(results[0].reason).toContain(words);
+      });
+    }
+  }
 });
 
 // ── The `models` BLOCK'S OWN KEY SET (plan 29.1-08, finding WR-01) ─────────────────────────────
@@ -2054,16 +2328,19 @@ describe("model-tiers: the refusal path RETURNS on every input (plan 29.1-21, R3
         .join("\n");
       const sites = source.match(/JSON\.stringify\(/g) ?? [];
       // PLAN 34-03 MOVED THIS PIN FROM 2 TO 3, by one named site: `resolvedEffortAssignmentLine`,
-      // the effort twin of `resolvedAssignmentLine`. It is the same kind of site — it serialises an
-      // ANNOUNCEMENT built from a locally constructed ResolvedEffortAssignment, never a refusal — so
-      // the one-authority rule for refusal quoting (`quoteValue`) is unchanged.
+      // the effort twin of `resolvedAssignmentLine`. PLAN 34-19 MOVED IT BACK FROM 3 TO 2, measured
+      // over both artifacts (2 and 2): the two dials' payloads became ONE grammar, so the two
+      // emitters now call one serialiser, `assignmentLine`, and the second serialising site is gone
+      // rather than relocated. It is the same kind of site as before — it serialises an ANNOUNCEMENT
+      // built from a locally constructed payload object, never a refusal — so the one-authority rule
+      // for refusal quoting (`quoteValue`) is unchanged.
       expect(
         sites.length,
-        `${file}: exactly three — \`quoteValue\`'s guarded call, the one authority, and the two ` +
-          "announcement payload emitters `resolvedAssignmentLine` and `resolvedEffortAssignmentLine`, " +
-          "which SERIALISE AN ANNOUNCEMENT rather than building a refusal, and whose inputs are " +
-          `locally constructed payload objects. ${STRIP_LIMITS}`,
-      ).toBe(3);
+        `${file}: exactly two — \`quoteValue\`'s guarded call, the one authority, and the one ` +
+          "announcement payload serialiser `assignmentLine` both dials' emitters call, which " +
+          "SERIALISES AN ANNOUNCEMENT rather than building a refusal, and whose input is a locally " +
+          `constructed payload object. ${STRIP_LIMITS}`,
+      ).toBe(2);
       // The wrapped second spelling the override refusal carried is GONE, not relocated — and the
       // authority does not satisfy this scan itself, because it assigns the render to a local rather
       // than composing the two calls. A predicate a subject can satisfy on its own is not a predicate.

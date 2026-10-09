@@ -48,6 +48,8 @@ import {
   RESOLVED_PRESET_PREFIX,
   TIERED,
   readModelsConfig,
+  resolveEfforts,
+  resolveModels,
   resolvedAssignmentsIn,
   resolvedEffortAssignmentsIn,
   resolvedEffortPresetsIn,
@@ -160,6 +162,25 @@ function announcedAssignment(r: SpawnSyncReturns<string>): ResolvedAssignment {
   }
   if (!results[0].ok) throw new Error(results[0].reason);
   return results[0].value;
+}
+
+/**
+ * What the WRITTEN adapters carry for one dial, keyed by adapter name (the file name without `.md`):
+ * the `model:` value, or the `effort:` value with an absent line read as `inherit` (D-06). Read off
+ * the bytes, so an announcement compared with it is compared member by member with what was written
+ * (plan 34-19, D-24).
+ */
+function writtenDial(dir: string, key: "model" | "effort"): Record<string, string> {
+  const written: Record<string, string> = {};
+  for (const f of readdirSync(dir).sort()) {
+    const lines = readFileSync(join(dir, f), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith(`${key}: `));
+    if (lines.length > 1) throw new Error(`${f} carries ${String(lines.length)} \`${key}:\` lines`);
+    written[f.slice(0, -".md".length)] =
+      lines.length === 1 ? lines[0].slice(`${key}: `.length) : key === "effort" ? "inherit" : "";
+  }
+  return written;
 }
 
 // A stable fingerprint of an output directory: every filename mapped to its exact bytes.
@@ -1490,6 +1511,8 @@ describe("generate-role-adapters.js — the `models` configuration is resolved a
       roles: SAMPLE_ROLES.length,
       overrides: 1,
       aliases: ["haiku", "inherit"],
+      // Plan 34-19 (D-24): every written adapter, by name, with the alias its bytes carry.
+      byAdapter: writtenDial(agentsDir(m), "model"),
     });
 
     const snap = snapshot(agentsDir(m));
@@ -1524,6 +1547,7 @@ describe("generate-role-adapters.js — the `models` configuration is resolved a
       roles: SAMPLE_ROLES.length,
       overrides: 2,
       aliases: ["inherit", "opus"],
+      byAdapter: writtenDial(agentsDir(m), "model"),
     });
 
     // The announcement is not decoration: the bytes moved with it.
@@ -1543,6 +1567,7 @@ describe("generate-role-adapters.js — the `models` configuration is resolved a
       roles: SAMPLE_ROLES.length,
       overrides: 0,
       aliases: ["inherit"],
+      byAdapter: writtenDial(agentsDir(m), "model"),
     });
 
     const snap = snapshot(agentsDir(m));
@@ -1723,6 +1748,9 @@ describe("generate-role-adapters.js — the effort resolution is ANNOUNCED (plan
     expect(a.roles).toBe(SAMPLE_ROLES.length);
     expect(a.overrides).toBe(0);
     expect(a.levels).toEqual(["inherit"]);
+    // Plan 34-19 (D-24): every written adapter, by name, at `inherit`.
+    expect(a.byAdapter).toEqual(writtenDial(agentsDir(m), "effort"));
+    expect(new Set(Object.values(a.byAdapter))).toEqual(new Set(["inherit"]));
   });
 
   it("an effort-only `roles` override announces effort preset `none`, 1 override, and levels `inherit` and `max`", () => {
@@ -1743,6 +1771,75 @@ describe("generate-role-adapters.js — the effort resolution is ANNOUNCED (plan
     expect(resolvedPresetsIn(r.stdout)).toEqual(["none"]);
     expect(announcedAssignment(r).overrides).toBe(0);
     expect(announcedAssignment(r).aliases).toEqual(["inherit"]);
+  });
+
+  // ── THE PER-ADAPTER MAP (plan 34-19, D-24) ──────────────────────────────────────────────────
+  //
+  // Both announcements carry `byAdapter`: the value the generator resolved for each adapter it
+  // wrote, keyed by the ADAPTER NAME (the written file's name without `.md`). The expectation below
+  // is built from two independent sources: its KEYS from the files the run wrote, and its VALUES from
+  // the resolver run over the mirrored stems with the planted configuration. Neither comes from the
+  // announcement under test, and neither comes from the bytes' dial lines.
+
+  /** The expected per-adapter map: keys from the written files, values from the resolution by stem. */
+  function expectedByAdapter(m: string, resolved: ReadonlyMap<string, string>): Record<string, string> {
+    const expected: Record<string, string> = {};
+    for (const f of Object.keys(snapshot(agentsDir(m)))) {
+      const value = resolved.get(adapterStem(f));
+      if (value === undefined) throw new Error(`no resolved value for the written adapter ${f}`);
+      expected[f.slice(0, -".md".length)] = value;
+    }
+    return expected;
+  }
+
+  it("CONFIGURED effort (tiered plus one override): the effort announcement states each written adapter's level, keyed by adapter name", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const stems = SAMPLE_ROLES.map((f) => f.slice(0, -".md".length));
+    const tiered = resolveEfforts(stems, { preset: "tiered" });
+    if (!tiered.ok) throw new Error(tiered.reason);
+    // The override goes to a stem whose tiered level is not `max`, so it is visible.
+    const victim = stems.find((s) => tiered.value.get(s) !== "max");
+    if (victim === undefined) throw new Error("no mirrored stem resolves to a level other than max");
+    writeModelsConfig(m, { effort: { preset: "tiered", roles: { [victim]: "max" } } });
+    const expected = resolveEfforts(stems, { preset: "tiered", overrides: new Map([[victim, "max" as const]]) });
+    if (!expected.ok) throw new Error(expected.reason);
+    // PREMISE: the configured resolution is not the zero-config one, and it uses more than one level,
+    // so a map built from anything but the resolution disagrees with it somewhere.
+    expect(new Set(expected.value.values()).size).toBeGreaterThan(1);
+
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    const a = announcedEffortAssignment(r);
+    expect(a.byAdapter, "announced levels per adapter").toEqual(expectedByAdapter(m, expected.value));
+    // ...and the announcement agrees with the bytes the run wrote, member by member.
+    expect(a.byAdapter).toEqual(writtenDial(agentsDir(m), "effort"));
+    expect(a.overrides).toBe(1);
+  });
+
+  it("CONFIGURED model and effort (both tiered): each byAdapter's keys are exactly the written adapter names, for both dials", () => {
+    const m = scratch(SAMPLE_ROLES);
+    const stems = SAMPLE_ROLES.map((f) => f.slice(0, -".md".length));
+    writeModelsConfig(m, { preset: "tiered", effort: { preset: "tiered" } });
+    const models = resolveModels(stems, { preset: "tiered" });
+    if (!models.ok) throw new Error(models.reason);
+    const efforts = resolveEfforts(stems, { preset: "tiered" });
+    if (!efforts.ok) throw new Error(efforts.reason);
+
+    const r = runIn(m);
+    expect(r.status, out(r)).toBe(0);
+    const written = Object.keys(snapshot(agentsDir(m)))
+      .map((f) => f.slice(0, -".md".length))
+      .sort();
+    // PREMISE: one adapter per mirrored role, or "keys equal the written names" is vacuous.
+    expect(written).toHaveLength(SAMPLE_ROLES.length);
+    const model = announcedAssignment(r);
+    const effort = announcedEffortAssignment(r);
+    expect(Object.keys(model.byAdapter).sort(), "model byAdapter keys = the written adapter names").toEqual(written);
+    expect(Object.keys(effort.byAdapter).sort(), "effort byAdapter keys = the written adapter names").toEqual(written);
+    expect(model.byAdapter).toEqual(expectedByAdapter(m, models.value));
+    expect(effort.byAdapter).toEqual(expectedByAdapter(m, efforts.value));
+    expect(model.byAdapter).toEqual(writtenDial(agentsDir(m), "model"));
+    expect(effort.byAdapter).toEqual(writtenDial(agentsDir(m), "effort"));
   });
 });
 

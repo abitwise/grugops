@@ -560,17 +560,27 @@ export function mirroredResolvedPresetsIn(output: string): string[] {
 // what the resolution PRODUCED.
 
 /**
- * What a run's resolution produced, in the three numbers a consumer can check independently.
+ * What a run's MODEL resolution produced, stated per adapter and summarised (plan 34-19, D-24).
  *
  * `roles` is the member count — see the block header on why it travels with the announcement.
  * `overrides` is how many members were set by an override rather than by the preset. `aliases` is
  * the SORTED DISTINCT set of aliases the run actually emitted, so a consumer asserting the
  * zero-config shape can require exactly `["inherit"]` rather than trusting a preset name.
+ *
+ * `byAdapter` is the resolution ITSELF, one entry per written adapter, keyed by the ADAPTER NAME the
+ * role is written as (the rendered file's name without `.md`), never by role stem: the installer sees
+ * only rendered file names, and the rule that turns a stem into an adapter name lives in the
+ * generator. It is what makes a per-member check possible. A generator that writes ONE adapter at an
+ * alias other than its resolution, while the distinct set stays the same, cannot be seen by any
+ * check of `roles` and `aliases`; it disagrees with `byAdapter`. `roles` and `aliases` stay because
+ * existing consumers read them, and the one validator below proves they AGREE with `byAdapter` (the
+ * map's size is `roles`, its distinct values are `aliases`), so neither carries an independent claim.
  */
 export interface ResolvedAssignment {
   readonly roles: number;
   readonly overrides: number;
   readonly aliases: readonly string[];
+  readonly byAdapter: Readonly<Record<string, ModelAlias>>;
 }
 
 /** The reader's verdict for ONE anchored assignment line. A refusal quotes what it could not read. */
@@ -581,30 +591,24 @@ export type ResolvedAssignmentResult =
 /** The marker a resolved-assignment line carries. Owns the generator's name, like its sibling. */
 export const RESOLVED_ASSIGNMENT_PREFIX = "generate-role-adapters: resolved model assignment: ";
 
-/** The legal key set of the announced payload, closed BY NAME like every other vocabulary here. */
-const RESOLVED_ASSIGNMENT_KEYS = ["roles", "overrides", "aliases"] as const;
-
 /**
- * The line a run emits to declare what its resolution produced. The EMITTING half.
+ * The line a run emits to declare what its MODEL resolution produced. The EMITTING half.
  *
  * The payload is COMPACT JSON rather than prose, so no regular expression decides this — the same
  * posture the alias and preset vocabularies already take. `JSON.parse` on the reading side either
  * yields a structure or throws, and a structure of the wrong shape is refused BY NAME rather than
  * pattern-matched into one.
  *
- * Takes the resolved map itself rather than three numbers, so the member count and the alias set
- * are DERIVED from the object the generator is about to write bytes from, not restated beside it.
+ * Takes the per-adapter map itself (adapter name to the alias that adapter is written with) rather
+ * than numbers, so the member count, the alias set and `byAdapter` are all DERIVED from the object the
+ * generator is about to write bytes from, not restated beside it. The serialisation is the one shared
+ * grammar `assignmentLine` owns for both dials.
  */
 export function resolvedAssignmentLine(
-  resolution: ReadonlyMap<string, ModelAlias>,
+  byAdapter: ReadonlyMap<string, ModelAlias>,
   overrideCount: number,
 ): string {
-  const payload: ResolvedAssignment = {
-    roles: resolution.size,
-    overrides: overrideCount,
-    aliases: [...new Set(resolution.values())].sort(),
-  };
-  return `${RESOLVED_ASSIGNMENT_PREFIX}${JSON.stringify(payload)}`;
+  return assignmentLine(RESOLVED_ASSIGNMENT_PREFIX, MODEL_ASSIGNMENT_DIAL, byAdapter, overrideCount);
 }
 
 /**
@@ -614,88 +618,16 @@ export function resolvedAssignmentLine(
  * absent case, and the absent case's consumer says "the run announced nothing" — a different fact
  * with a different remedy. The list-of-results shape keeps the ambiguity of a stream carrying two
  * announcements visible at the call site, exactly as `resolvedPresetsIn` does.
+ *
+ * Validated by `readAssignmentPayload`, the ONE validator both dials share (plan 34-19).
  */
 export function resolvedAssignmentsIn(output: string): ResolvedAssignmentResult[] {
-  return anchoredValuesIn(output, RESOLVED_ASSIGNMENT_PREFIX).map(readAssignmentPayload);
-}
-
-/** Validate one announced payload against the declared shape, refusing anything else by name. */
-function readAssignmentPayload(payload: string): ResolvedAssignmentResult {
-  const refuse = (what: string): ResolvedAssignmentResult => ({
-    ok: false,
-    reason:
-      `model-tiers: the resolved model assignment payload ${quoteValue(payload)} ${what}. The ` +
-      'declared shape is {"roles":<non-negative integer>,"overrides":<non-negative integer>,' +
-      '"aliases":[<alias>,...]}. A payload that cannot be read is REFUSED BY NAME rather than ' +
-      "dropped: a dropped line collapses into the absent case, and a consumer's absent branch " +
-      "reports a run that announced nothing, which is a different fact with a different remedy.",
+  return anchoredValuesIn(output, RESOLVED_ASSIGNMENT_PREFIX).map((payload) => {
+    const read = readAssignmentPayload(MODEL_ASSIGNMENT_DIAL, payload);
+    if (!read.ok) return read;
+    const { roles, overrides, list, byAdapter } = read.value;
+    return { ok: true, value: { roles, overrides, aliases: list, byAdapter } };
   });
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(payload);
-  } catch {
-    return refuse("is not parseable JSON");
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return refuse(`is ${describeShape(parsed)} rather than a JSON object`);
-  }
-
-  const object = parsed as Record<string, unknown>;
-  const unknownKeys = Object.keys(object)
-    .filter((k) => !RESOLVED_ASSIGNMENT_KEYS.some((legal) => legal === k))
-    .sort();
-  if (unknownKeys.length > 0) {
-    return refuse(`carries the unexpected key(s) ${unknownKeys.map((k) => `"${k}"`).join(", ")}`);
-  }
-
-  for (const key of ["roles", "overrides"] as const) {
-    const value = object[key];
-    if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
-      return refuse(`sets "${key}" to ${quoteValue(value)} rather than a non-negative integer`);
-    }
-  }
-
-  const aliases = object.aliases;
-  if (!Array.isArray(aliases)) {
-    return refuse(`sets "aliases" to ${describeShape(aliases)} rather than an array`);
-  }
-  // ── THE MEMBER CHECK ENFORCES THE GRAMMAR THE REFUSAL ABOVE QUOTES (finding R2-IN-04). ────────
-  //
-  // This loop used to check the TYPE and stop, while the declared shape it quotes back names
-  // `<alias>` — so `["not-a-model"]` read back `ok:true` against a message promising an alias. No
-  // live consumer was affected, because `adapters-freshness` compares the announced set against the
-  // degrading-policy authority's, but the parser was enforcing a looser grammar than it published.
-  //
-  // THE DISPOSITION IS THE CODE CATCHING UP TO THE MESSAGE, NOT THE MESSAGE RETREATING TO THE CODE.
-  // The rejected alternative was rewording the declared shape to `[<string>,…]`, which would also
-  // have made the two agree. It was rejected because the stricter grammar is the CORRECT one for
-  // this field: the announced aliases are what a gate compares against the resolved alias set, and a
-  // reader that admits a value no resolution can produce hands its consumer a set difference to
-  // explain rather than a payload to refuse.
-  //
-  // ONE AUTHORITY. Membership is decided by `isModelAlias` — the module's existing closed-set
-  // predicate — rather than by a second membership test written here.
-  for (const alias of aliases) {
-    if (typeof alias !== "string") {
-      return refuse(`lists the non-string alias ${quoteValue(alias)}`);
-    }
-    if (!isModelAlias(alias)) {
-      return refuse(
-        `lists ${quoteValue(alias)}, which is not a legal model alias — the legal set is exactly: ` +
-          MODEL_ALIASES.map((a) => `"${a}"`).join(", "),
-      );
-    }
-  }
-
-  return {
-    ok: true,
-    value: {
-      roles: object.roles as number,
-      overrides: object.overrides as number,
-      aliases: aliases as readonly string[],
-    },
-  };
 }
 
 // ── The EFFORT announcement grammars — the same three-grammar shape, for the effort dial (34-03) ──
@@ -713,10 +645,14 @@ function readAssignmentPayload(payload: string): ResolvedAssignmentResult {
 //   2. the RESOLVED-EFFORT-ASSIGNMENT line — what the effort resolution PRODUCED (the OUTPUT);
 //   3. the MIRRORED-RESOLVED-EFFORT-PRESET line — the freshness gate's own verdict about (1).
 //
-// SEPARATE LINES, NOT A NEW KEY IN THE MODEL PAYLOAD. `RESOLVED_ASSIGNMENT_KEYS` is closed, and the
-// installer's probe in install/install.ts parses the model payload's `roles`, `overrides` and
-// `aliases`. Adding a key there would move both. Separate lines leave every model-grammar consumer
-// byte-unchanged.
+// SEPARATE LINES, ONE PAYLOAD GRAMMAR (plan 34-19, D-24). The effort assignment is announced on its
+// own line, so a reader of one dial never has to pick the other dial's fields out of a shared
+// object. The PAYLOAD on the two assignment lines is one grammar, though: `{roles, overrides, <list>,
+// byAdapter}`, where the list key (`aliases` or `levels`) and the legal value set are the only
+// per-dial differences. It is emitted by `assignmentLine` and validated by `readAssignmentPayload`,
+// both declared once below for both dials. Until plan 34-19 each dial had its own reader and the
+// effort one was stricter (it named a missing key and refused a repeated level; the model one did
+// neither), which is the asymmetry RC-1 names.
 //
 // NO PREFIX HERE IS A PREFIX OF ANOTHER, model or effort. Each reader requires its prefix at byte 0
 // of the trimmed line, so a prefix that was itself a prefix of a sibling's would let one grammar read
@@ -765,15 +701,20 @@ export function mirroredResolvedEffortPresetsIn(output: string): string[] {
 }
 
 /**
- * What a run's EFFORT resolution produced: the member count, how many members an override set, and
- * the SORTED DISTINCT levels the run emitted (including `inherit`, which emits no `effort:` line but
- * is still a resolved value). A consumer asserting the zero-config shape requires exactly
- * `["inherit"]` and 0 overrides, rather than trusting the preset name.
+ * What a run's EFFORT resolution produced, stated per adapter and summarised (plan 34-19, D-24): the
+ * member count, how many members an override set, the SORTED DISTINCT levels the run emitted
+ * (including `inherit`, which emits no `effort:` line but is still a resolved value), and
+ * `byAdapter`, the level each written adapter was resolved to, keyed by ADAPTER NAME for the reason
+ * `ResolvedAssignment` gives. A consumer asserting the zero-config shape requires exactly
+ * `["inherit"]`, 0 overrides and every `byAdapter` value `inherit`, rather than trusting the preset
+ * name. `byAdapter` is what lets a consumer see ONE adapter whose `effort:` line was dropped or
+ * changed while the level set stayed the same, which no check of `roles` and `levels` can see.
  */
 export interface ResolvedEffortAssignment {
   readonly roles: number;
   readonly overrides: number;
   readonly levels: readonly EffortLevel[];
+  readonly byAdapter: Readonly<Record<string, EffortLevel>>;
 }
 
 /** The reader's verdict for ONE anchored effort assignment line. */
@@ -785,53 +726,151 @@ export type ResolvedEffortAssignmentResult =
 export const RESOLVED_EFFORT_ASSIGNMENT_PREFIX =
   "generate-role-adapters: resolved effort assignment: ";
 
-/** The closed key set of the announced effort payload. Module-private, like its model sibling. */
-const RESOLVED_EFFORT_ASSIGNMENT_KEYS = ["roles", "overrides", "levels"] as const;
-
 /**
  * The line a run emits to declare what its EFFORT resolution produced. The EMITTING half.
  *
- * Takes the resolved map the adapters were rendered from, so the member count and the level set are
- * derived from that object rather than restated beside it.
+ * Takes the per-adapter map (adapter name to the level that adapter is rendered with), so the member
+ * count, the level set and `byAdapter` are derived from that object rather than restated beside it.
  */
 export function resolvedEffortAssignmentLine(
-  efforts: ReadonlyMap<string, EffortLevel>,
+  byAdapter: ReadonlyMap<string, EffortLevel>,
   overrideCount: number,
 ): string {
-  const payload: ResolvedEffortAssignment = {
-    roles: efforts.size,
-    overrides: overrideCount,
-    levels: [...new Set(efforts.values())].sort(),
-  };
-  return `${RESOLVED_EFFORT_ASSIGNMENT_PREFIX}${JSON.stringify(payload)}`;
+  return assignmentLine(RESOLVED_EFFORT_ASSIGNMENT_PREFIX, EFFORT_ASSIGNMENT_DIAL, byAdapter, overrideCount);
 }
 
 /**
  * One discriminated result per anchored effort assignment line. The READING half. A malformed
  * payload is a NAMED refusal and never a dropped line, for the reason `resolvedAssignmentsIn` gives.
+ * Validated by the same `readAssignmentPayload` the model reader uses (plan 34-19).
  */
 export function resolvedEffortAssignmentsIn(output: string): ResolvedEffortAssignmentResult[] {
-  return anchoredValuesIn(output, RESOLVED_EFFORT_ASSIGNMENT_PREFIX).map(readEffortAssignmentPayload);
+  return anchoredValuesIn(output, RESOLVED_EFFORT_ASSIGNMENT_PREFIX).map((payload) => {
+    const read = readAssignmentPayload(EFFORT_ASSIGNMENT_DIAL, payload);
+    if (!read.ok) return read;
+    const { roles, overrides, list, byAdapter } = read.value;
+    return { ok: true, value: { roles, overrides, levels: list, byAdapter } };
+  });
+}
+
+// ── ONE ASSIGNMENT PAYLOAD GRAMMAR FOR BOTH DIALS (plan 34-19, D-24, RC-1, IN-07) ───────────────
+//
+// A dial is described by data, not by a second copy of the code: the name the refusal uses, the
+// key its distinct list travels under, the noun for one member, and the closed set with its
+// membership predicate. Everything else (the key set, the order of the checks, the refusal wording)
+// is the same for both dials, so a rule added here applies to both, and a rule that applies to only
+// one dial has to be written as a difference in this descriptor, where it is visible.
+
+/** How one dial's assignment payload differs from the other's. Nothing else may differ. */
+interface AssignmentDial<V extends string> {
+  /** The dial's name as it appears in a refusal: `the resolved <dial> assignment payload`. */
+  readonly dial: "model" | "effort";
+  /** The key the sorted distinct value list travels under. */
+  readonly listKey: "aliases" | "levels";
+  /** One member of the list, in the refusal's words. */
+  readonly member: "alias" | "level";
+  /** The closed set, quoted back by a membership refusal. */
+  readonly legal: readonly V[];
+  /** The module's existing closed-set predicate for the dial. ONE AUTHORITY for membership. */
+  readonly isMember: (value: unknown) => value is V;
+}
+
+const MODEL_ASSIGNMENT_DIAL: AssignmentDial<ModelAlias> = {
+  dial: "model",
+  listKey: "aliases",
+  member: "alias",
+  legal: MODEL_ALIASES,
+  isMember: isModelAlias,
+};
+
+const EFFORT_ASSIGNMENT_DIAL: AssignmentDial<EffortLevel> = {
+  dial: "effort",
+  listKey: "levels",
+  member: "level",
+  legal: EFFORT_LEVELS,
+  isMember: isEffortLevel,
+};
+
+/** The closed key set of a dial's payload, in the order the emitter writes them. */
+function assignmentKeys(dial: AssignmentDial<string>): readonly string[] {
+  return ["roles", "overrides", dial.listKey, "byAdapter"];
 }
 
 /**
- * Validate one announced effort payload, refusing anything outside the declared shape by name.
- *
- * Mirrors `readAssignmentPayload`, with two checks that one does not make: a MISSING key is named as
- * missing (rather than reported as a wrong-typed value), and a REPEATED level is refused, because the
- * emitter writes a distinct set and a payload carrying a repeat was not written by it.
+ * The one serialiser both assignment lines use. `roles`, the sorted distinct list and `byAdapter`
+ * (keys sorted, so the line does not depend on the map's insertion order) are all derived from the
+ * one per-adapter map. `Object.fromEntries` builds the record, so an adapter name that happens to be
+ * `__proto__` becomes an own key rather than a prototype assignment.
  */
-function readEffortAssignmentPayload(payload: string): ResolvedEffortAssignmentResult {
-  const refuse = (what: string): ResolvedEffortAssignmentResult => ({
+function assignmentLine<V extends string>(
+  prefix: string,
+  dial: AssignmentDial<V>,
+  byAdapter: ReadonlyMap<string, V>,
+  overrideCount: number,
+): string {
+  const names = [...byAdapter.keys()].sort();
+  const payload = {
+    roles: byAdapter.size,
+    overrides: overrideCount,
+    [dial.listKey]: [...new Set(byAdapter.values())].sort(),
+    byAdapter: Object.fromEntries(names.map((name) => [name, byAdapter.get(name)])),
+  };
+  return `${prefix}${JSON.stringify(payload)}`;
+}
+
+/** A validated payload, in the dial-neutral shape the two exported readers rename from. */
+type AssignmentPayloadResult<V extends string> =
+  | {
+      readonly ok: true;
+      readonly value: {
+        readonly roles: number;
+        readonly overrides: number;
+        readonly list: readonly V[];
+        readonly byAdapter: Readonly<Record<string, V>>;
+      };
+    }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Validate one announced assignment payload for either dial, refusing anything outside the declared
+ * shape BY NAME. The checks run in this order, and the first that fails is the refusal:
+ *
+ *   1. the payload is a JSON object;
+ *   2. it carries no key outside the dial's closed key set;
+ *   3. it is missing none of them (each missing key is named);
+ *   4. `roles` and `overrides` are non-negative integers;
+ *   5. the list is an array of DISTINCT legal members (the emitter writes a distinct set, so a repeat
+ *      was not written by it);
+ *   6. `byAdapter` is a non-null, non-array object whose keys are non-empty strings and whose values
+ *      are legal members;
+ *   7. `byAdapter` has exactly `roles` entries;
+ *   8. the distinct values of `byAdapter` are exactly the list (compared as sorted sets).
+ *
+ * Rules 7 and 8 are the AGREEMENT rules: they make `roles` and the list consequences of `byAdapter`,
+ * so a consumer that checks the summary fields and a consumer that checks the map cannot be told two
+ * different stories by one line.
+ */
+function readAssignmentPayload<V extends string>(
+  dial: AssignmentDial<V>,
+  payload: string,
+): AssignmentPayloadResult<V> {
+  const { listKey, member } = dial;
+  const refuse = (what: string): AssignmentPayloadResult<V> => ({
     ok: false,
     reason:
-      `model-tiers: the resolved effort assignment payload ${quoteValue(payload)} ${what}. The ` +
+      `model-tiers: the resolved ${dial.dial} assignment payload ${quoteValue(payload)} ${what}. The ` +
       'declared shape is {"roles":<non-negative integer>,"overrides":<non-negative integer>,' +
-      '"levels":[<distinct effort level>,...]}. A payload that cannot be read is REFUSED BY NAME ' +
-      "rather than dropped: a dropped line collapses into the absent case, which is a different " +
-      "fact with a different remedy.",
+      `"${listKey}":[<distinct ${member}>,...],"byAdapter":{<adapter name>:<${member}>,...}}, where ` +
+      `"byAdapter" has exactly "roles" entries and its distinct values are exactly the "${listKey}" ` +
+      "list. A payload that cannot be read is REFUSED BY NAME rather than dropped: a dropped line " +
+      "collapses into the absent case, and a consumer's absent branch reports a run that announced " +
+      "nothing, which is a different fact with a different remedy.",
   });
+  const notLegal = (value: string): string =>
+    `${quoteValue(value)}, which is not a legal ${dial.dial} ${member} — the legal set is exactly: ` +
+    dial.legal.map((v) => `"${v}"`).join(", ");
 
+  // 1. A JSON object.
   let parsed: unknown;
   try {
     parsed = JSON.parse(payload);
@@ -841,56 +880,95 @@ function readEffortAssignmentPayload(payload: string): ResolvedEffortAssignmentR
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return refuse(`is ${describeShape(parsed)} rather than a JSON object`);
   }
-
   const object = parsed as Record<string, unknown>;
+  const keys = assignmentKeys(dial);
+
+  // 2. No unexpected key.
   const unknownKeys = Object.keys(object)
-    .filter((k) => !RESOLVED_EFFORT_ASSIGNMENT_KEYS.some((legal) => legal === k))
+    .filter((k) => !keys.includes(k))
     .sort();
   if (unknownKeys.length > 0) {
     return refuse(`carries the unexpected key(s) ${unknownKeys.map((k) => `"${k}"`).join(", ")}`);
   }
-  const missingKeys = RESOLVED_EFFORT_ASSIGNMENT_KEYS.filter(
-    (k) => !Object.prototype.hasOwnProperty.call(object, k),
-  );
+
+  // 3. No missing key, each named.
+  const missingKeys = keys.filter((k) => !Object.prototype.hasOwnProperty.call(object, k));
   if (missingKeys.length > 0) {
     return refuse(`is missing the key(s) ${missingKeys.map((k) => `"${k}"`).join(", ")}`);
   }
 
+  // 4. Both counts non-negative integers.
   for (const key of ["roles", "overrides"] as const) {
     const value = object[key];
     if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
       return refuse(`sets "${key}" to ${quoteValue(value)} rather than a non-negative integer`);
     }
   }
+  const roles = object.roles as number;
 
-  const levels = object.levels;
-  if (!Array.isArray(levels)) {
-    return refuse(`sets "levels" to ${describeShape(levels)} rather than an array`);
+  // 5. The list: an array of distinct legal members. Membership is decided by the dial's own
+  // closed-set predicate (`isModelAlias`, `isEffortLevel`), never by a second test written here.
+  const list = object[listKey];
+  if (!Array.isArray(list)) {
+    return refuse(`sets "${listKey}" to ${describeShape(list)} rather than an array`);
   }
-  // ONE AUTHORITY for membership: `isEffortLevel`, the module's closed-set predicate.
-  const seen = new Set<string>();
-  for (const level of levels) {
-    if (typeof level !== "string") {
-      return refuse(`lists the non-string level ${quoteValue(level)}`);
+  const listed = new Set<string>();
+  for (const value of list) {
+    if (typeof value !== "string") {
+      return refuse(`lists the non-string ${member} ${quoteValue(value)}`);
     }
-    if (!isEffortLevel(level)) {
-      return refuse(
-        `lists ${quoteValue(level)}, which is not a legal effort level — the legal set is exactly: ` +
-          EFFORT_LEVELS.map((l) => `"${l}"`).join(", "),
-      );
+    if (!dial.isMember(value)) {
+      return refuse(`lists ${notLegal(value)}`);
     }
-    if (seen.has(level)) {
-      return refuse(`lists the level ${quoteValue(level)} more than once`);
+    if (listed.has(value)) {
+      return refuse(`lists the ${member} ${quoteValue(value)} more than once`);
     }
-    seen.add(level);
+    listed.add(value);
+  }
+
+  // 6. `byAdapter`: an object of legal members keyed by non-empty adapter names.
+  const map = object.byAdapter;
+  if (map === null || typeof map !== "object" || Array.isArray(map)) {
+    return refuse(`sets "byAdapter" to ${describeShape(map)} rather than an object`);
+  }
+  const entries = Object.entries(map as Record<string, unknown>);
+  for (const [name, value] of entries) {
+    if (name === "") {
+      return refuse(`sets "byAdapter" with an empty adapter name`);
+    }
+    if (typeof value !== "string") {
+      return refuse(`sets "byAdapter" entry ${quoteValue(name)} to the non-string ${quoteValue(value)}`);
+    }
+    if (!dial.isMember(value)) {
+      return refuse(`sets "byAdapter" entry ${quoteValue(name)} to ${notLegal(value)}`);
+    }
+  }
+
+  // 7. Agreement: one entry per role.
+  if (entries.length !== roles) {
+    return refuse(
+      `carries ${entries.length} "byAdapter" entr${entries.length === 1 ? "y" : "ies"} while "roles" ` +
+        `is ${roles}; the map must have exactly one entry per role`,
+    );
+  }
+
+  // 8. Agreement: the map's distinct values are the list.
+  const mapValues = [...new Set(entries.map(([, value]) => value as string))].sort();
+  const listValues = [...listed].sort();
+  if (mapValues.length !== listValues.length || mapValues.some((v, i) => v !== listValues[i])) {
+    return refuse(
+      `lists ${quoteValue(listValues)} under "${listKey}" while the distinct "byAdapter" values are ` +
+        `${quoteValue(mapValues)}; the two must be the same set`,
+    );
   }
 
   return {
     ok: true,
     value: {
-      roles: object.roles as number,
+      roles,
       overrides: object.overrides as number,
-      levels: levels as readonly EffortLevel[],
+      list: list as V[],
+      byAdapter: Object.fromEntries(entries) as Record<string, V>,
     },
   };
 }
