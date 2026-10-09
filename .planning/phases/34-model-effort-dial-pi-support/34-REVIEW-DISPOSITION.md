@@ -3,6 +3,34 @@ phase: 34
 review: 34-REVIEW.md
 titles: json
 findings:
+  - id: WR-11
+    severity: warning
+    disposition: open
+    title: "A Windows-written marker on a POSIX checkout is now \"not install's marker\", so install never replaces it and writes no ask rules (WIN-1, a side effect of the WR-09 fix)"
+  - id: WR-12
+    severity: warning
+    disposition: open
+    title: "The closing banner says ask rules were written even when none were"
+  - id: IN-09
+    severity: info
+    disposition: open
+    title: "The freshness gate's per-adapter zero-config value check cannot be reached (executor flag confirmed)"
+  - id: IN-10
+    severity: info
+    disposition: open
+    title: "`AnnouncedAssignment.aliases`, `.effort.levels` and both `overrides` are now read and never used"
+  - id: IN-11
+    severity: info
+    disposition: open
+    title: "Every install now prints two relay lines of about 717 characters"
+  - id: IN-12
+    severity: info
+    disposition: open
+    title: "Denylist `p === TARGET` triage (34-21 flag): no evasion today, but by convention only, and one classified reason is inaccurate"
+  - id: IN-13
+    severity: info
+    disposition: open
+    title: "The `isRecordedAbsolute` docstring and table omit the win32 rooted, drive-less spelling, the row-319 shape"
   - id: WR-08
     severity: warning
     disposition: fixed
@@ -75,21 +103,28 @@ findings:
     severity: info
     disposition: deferred
     title: "The structure validator does not validate the `models` / `models.effort` block"
-open: 0
-total: 18
-recorded: 2026-10-08T21:08:29.097Z
+open: 7
+total: 25
+recorded: 2026-10-09T12:32:03.083Z
 ---
 
 # Phase 34: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-08 | warning | fixed | plan 34-19: the generator announces the per-role map of both dials and the freshness gate reads it (D-24) (commits 37e98a97, 90b044ff); plan 34-20: the installer compares each adapter's rendered and written values with that map, member by member, and the verifier's dropped-line reproduction is a committed refusal row, exit 3, 0 adapters (D-22, D-24) (commits c0fa273c, 92333ee1) |
-| WR-09 | warning | fixed | plan 34-21: one absoluteness rule for recorded paths (isRecordedAbsolute in install/user-file.ts), the install marker check asks it, isOwnLink compares through the one spelling (sameRecordedPath), and the WIN-1 census derives its comparison and absoluteness sites from the syntax tree with asserted counts (commits 03428cc1, 6d8cdaea) |
-| WR-10 | warning | fixed | plan 34-22: end-to-end rows for writable chmod-only pointer files (CLAUDE.md and the Copilot file) reach the uninstall pointer-file mode check, capability-gated, Windows skip recorded as WINDOWS.md row 321 (commits adab0500, dda5664e) |
-| IN-06 | info | deferred | Same item as R15 (the per-adapter report line omits the effort level, install.ts:3627); a user-visible output change that waits on the human backlog triage of R15 |
-| IN-07 | info | fixed | plan 34-19: one payload serialiser and one validator for both dials in scripts/model-tiers.ts (commits 37e98a97, 90b044ff); plan 34-20: one installer shape check, announcementShape, asked once per dial (commits c0fa273c, 92333ee1) |
-| IN-08 | info | deferred | `canonicalPathSpelling` leaves the `\\.\` device-namespace prefix unfolded, so such a path fails closed (no false match), and no current write path records that spelling |
+| WR-11 | warning | open | - |
+| WR-12 | warning | open | - |
+| IN-09 | info | open | - |
+| IN-10 | info | open | - |
+| IN-11 | info | open | - |
+| IN-12 | info | open | - |
+| IN-13 | info | open | - |
+| WR-08 | warning | fixed | plan 34-19: the generator announces the per-role map of both dials and the freshness gate reads it (D-24) (commits 37e98a97, 90b044ff); plan 34-20: the installer compares each adapter's rendered and written values with that map, member by member, and the verifier's dropped-line reproduction is a committed refusal row, exit 3, 0 adapters (D-22, D-24) (commits c0fa273c, 92333ee1) (not in the current review) |
+| WR-09 | warning | fixed | plan 34-21: one absoluteness rule for recorded paths (isRecordedAbsolute in install/user-file.ts), the install marker check asks it, isOwnLink compares through the one spelling (sameRecordedPath), and the WIN-1 census derives its comparison and absoluteness sites from the syntax tree with asserted counts (commits 03428cc1, 6d8cdaea) (not in the current review) |
+| WR-10 | warning | fixed | plan 34-22: end-to-end rows for writable chmod-only pointer files (CLAUDE.md and the Copilot file) reach the uninstall pointer-file mode check, capability-gated, Windows skip recorded as WINDOWS.md row 321 (commits adab0500, dda5664e) (not in the current review) |
+| IN-06 | info | deferred | Same item as R15 (the per-adapter report line omits the effort level, install.ts:3627); a user-visible output change that waits on the human backlog triage of R15 (not in the current review) |
+| IN-07 | info | fixed | plan 34-19: one payload serialiser and one validator for both dials in scripts/model-tiers.ts (commits 37e98a97, 90b044ff); plan 34-20: one installer shape check, announcementShape, asked once per dial (commits c0fa273c, 92333ee1) (not in the current review) |
+| IN-08 | info | deferred | `canonicalPathSpelling` leaves the `\\.\` device-namespace prefix unfolded, so such a path fails closed (no false match), and no current write path records that spelling (not in the current review) |
 | WR-01 | warning | deferred | Detection reads grugops's own writes for `.pi`, `.github` and `.gemini`; the `tools detected:` line drives no write. A fix changes the HOST-01 detection contract for three hosts at once; D-20 keeps it out of gap round 1. The registry docstring that says the opposite (install/host-tools.ts:54) is a DOC-1 member left for the same fix. Carried in deferred-items.md (not in the current review) |
 | WR-02 | warning | deferred | The unconditional Pi write is decision D-17; turning a non-directory `.pi` into `skipped` changes the exit-code contract and needs a human decision. Nothing is overwritten, so the install stays additive. Carried in deferred-items.md (not in the current review) |
 | WR-03 | warning | fixed | plan 34-15: effort arm added to the installer's announcement cross-check (commits 6560d5ec, 827d3980) (not in the current review) |
