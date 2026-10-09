@@ -225,3 +225,70 @@ Reasons are recorded in the ledger rows. IN-06 is the same item as R15 and waits
   this plan.
 - **Direction:** read what `openAsBlobSync` does and classify it in `CONTENT_READER` or
   `NOT_CONTENT_READER` (DC-3); not fixed in 34-19 (scope boundary).
+
+## From gap round 2 (D-21, D-22, D-23, D-24)
+
+Recorded by plan 34-24. Gap round 2 (plans 34-19 to 34-23) fixed WR-08, WR-09, WR-10 and IN-07; the
+disposition ledger records each as `fixed` with its plans and commits, and `open: 0`. This section
+records what the round closed outside the ledger and what it leaves open. Under D-21 there is no
+windows-latest measurement in this round, so nothing below is a Windows result (WIN-3).
+
+### (1) Case (B) of the effort cross-check: CLOSED (D-24)
+
+- **Finding:** the verifier's reproduction (34-VERIFICATION.md gap 2): a generator patched to drop the
+  `effort:` line of one adapter (`grugops-architect-design`), with config `models.effort.preset: tiered`
+  plus one role at `inherit`, installed all 17 adapters at exit 0 because the installer compared only the
+  set of distinct levels.
+- **How it was closed:** plan 34-19 made the generator announce the per-role map of both dials
+  (`byAdapter`), with one serialiser and one validator in `scripts/model-tiers.ts`, and the freshness gate
+  reads that map (commits `37e98a97`, `90b044ff`). Plan 34-20 made the installer compare each adapter's
+  value, read from the rendered text and from the text about to be written, with the announced map,
+  member by member. The reproduction is now the committed refusal row (f) in `effortRefusalRows`
+  (`install/install.test.ts`): exit 3, 0 adapters installed (commits `c0fa273c`, `92333ee1`). Before the
+  change, the pre-plan `install.js` ran row (f) to `status=0` (34-20-SUMMARY.md, Task 1).
+- **Model dial:** the model dial got the same per-member check and the same rows (RC-1; 34-20-SUMMARY.md
+  deviation 3, rows (3) and (5) run on both dials).
+- **Status:** closed by plans 34-19 and 34-20 (D-24); nothing of case (B) stays open.
+- **Suggested owner:** none.
+
+### (2) The POSIX consequence of WR-09's one absoluteness rule
+
+- **Finding:** the install marker check now asks `isRecordedAbsolute`, the path flavor's own
+  `isAbsolute` (plan 34-21, commit `03428cc1`). On a POSIX host a marker whose target is spelled `C:/x`
+  now reads as not install's marker ("target is not an absolute path"). Under the old hand-written
+  predicate it read as absolute, and so as a marker written for another directory. Both readings fail
+  closed: the marker is refused either way, and nothing is deleted. 34-21-SUMMARY.md, Accomplishments
+  ("`C:/x` is now refused under posix") and mutation m1, records it.
+- **Why not changed:** this is the intended effect of one rule per flavor (D-23, WR-09). A `C:/x` target
+  is not a path a POSIX install writes, so no install on POSIX produces it.
+- **Suggested owner:** none needed; recorded so that a later reader does not take the changed refusal
+  sentence for a regression.
+
+### (3) IN-06 and IN-08 stay deferred
+
+- **IN-06:** the per-adapter install line names the model but not the effort level that was read. It is
+  the same item as R15 and waits on its backlog triage (reason in the ledger row).
+- **IN-08:** `canonicalPathSpelling` does not fold the `\\.\` device-namespace prefix. Such a path fails
+  closed (no false match), and no current write path records that spelling (reason in the ledger row).
+- **Suggested owner:** backlog triage.
+
+### (4) `UNKNOWN - verify` until the human's windows-latest run (D-21)
+
+- **The Windows readback of a product link (isOwnLink reach, WINDOWS.md row 319).** isOwnLink now
+  compares through `sameRecordedPath` (34-21), but the installer's own link cases
+  (`uninstall-removal.test.ts`, skipped where `canSymlink` is false, which is win32) do not run on
+  windows-latest, so no run reads back a link the installer made. If the readback spelling differs,
+  uninstall fails closed (it leaves the link). The 34-21 isOwnLink host cases (WINDOWS.md row 320) are
+  predicted to run there, not measured.
+- **The 34-22 pointer-file rows' Windows skip (WINDOWS.md row 321).** The writable chmod-only rows are
+  gated on the capability "POSIX permission bits beyond read-only" and are predicted to print their skip
+  on windows-latest, so uninstall's pointer-file mode comparison is not reached end to end on Windows.
+- **Node 22 readlink and symlink internals.** `preprocessSymlinkDestination` was read from local Node
+  v24.12.0 only (34-23). The leg runs Node v22.23.3; its copy was not read.
+- **Two related items from the round's SUMMARYs:** whether the protected-path denylists
+  (`install.ts` isPruneProtected, `uninstall.ts` isProtected, `p === TARGET`) catch a path composed with
+  a native backslash join on Windows (34-21-SUMMARY.md deviation 2, recorded for human triage); and the
+  34-VALIDATION.md "Gap round 2 (D-21): prediction for the deferred run" list (`ln` on the runner, the
+  20,001-file walk's time bound).
+- **Suggested owner:** the human's deferred windows-latest run (D-21), read against the 34-VALIDATION.md
+  prediction; HOST-02 stays unchecked until then.
