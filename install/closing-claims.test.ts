@@ -264,3 +264,46 @@ describe("closing claims: the ask-rules outcome matrix against the settings-file
     expect(new Set(observed.values())).toEqual(new Set(ALL_KINDS));
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// THE SAME CLASS IN THE OTHER CLOSINGS (plan 34-26, D-25, G-34-4 siblings A, B and C). The class rule
+// (27-13, the conditional closing claim): a closing banner or sentence is chosen on the same branch as
+// the exit status, from what the run did. A run that printed a verify line ends INCOMPLETE with exit 3.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** A verify report line: two spaces, the label `verify` padded to 14, a space, the message. */
+const VERIFY_LINE = /^ {2}verify\s/;
+const verifyLines = (stdout: string): string[] => stdout.split("\n").filter((l) => VERIFY_LINE.test(l));
+/** The last `== ... ==` banner line of a run. */
+const lastBanner = (stdout: string): string => {
+  const banners = stdout.split("\n").filter((l) => /^== .* ==$/.test(l));
+  return banners.length === 0 ? "" : banners[banners.length - 1];
+};
+const CHECK_HINT = /Run `node install\/install\.js --check --target <repo>` to verify a repo against the refreshed kit\./;
+
+describe("closing claims: --update says complete only when it copied the kit (plan 34-26, D-25, sibling A)", () => {
+  it("U1 --update with a kit home that is a regular file: a verify line, the INCOMPLETE banner, no --check hint, exit 3", () => {
+    const { target, kitHome, home } = scratchRow();
+    writeFileSync(kitHome, "a regular file where the kit home should be\n");
+    const r = runInstall(target, kitHome, ["--update"], { home });
+    const verifies = verifyLines(r.stdout);
+    expect(verifies.length, r.stdout).toBeGreaterThan(0);
+    expect(lastBanner(r.stdout), r.stdout).toBe(`== update INCOMPLETE — ${verifies.length} item(s) need verification ==`);
+    expect(r.stdout, r.stdout).not.toMatch(/update complete/);
+    expect(r.stdout, r.stdout).not.toMatch(CHECK_HINT);
+    expect(r.status, r.stdout).toBe(3);
+    // The kit home is still the user's regular file, unchanged.
+    expect(readFileSync(kitHome, "utf8")).toBe("a regular file where the kit home should be\n");
+  });
+
+  it("U2 --update with a fresh kit home: the kit is copied, the --check hint and `== update complete ==`, exit 0", () => {
+    const { target, kitHome, home } = scratchRow();
+    const r = runInstall(target, kitHome, ["--update"], { home });
+    expect(verifyLines(r.stdout), r.stdout).toEqual([]);
+    expect(r.stdout, r.stdout).toMatch(CHECK_HINT);
+    expect(lastBanner(r.stdout), r.stdout).toBe("== update complete ==");
+    expect(r.stdout).not.toMatch(/INCOMPLETE/);
+    expect(r.status, r.stdout).toBe(0);
+    expect(existsSync(join(kitHome, "agent-factory", "VERSION"))).toBe(true);
+  });
+});

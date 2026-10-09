@@ -1389,9 +1389,13 @@ if (CHECK) {
 // --- --update branch (UPD-01, Plan 17-03) — wired EARLY: right after the doctor early-exit and
 // BEFORE the D-07 self-checkout guard, because --update has NO target and only writes under
 // $GRUGOPS_HOME (Pitfall 4 / A2). It must never reach the install run, the guard, or any target
-// mutation — it prints a short banner, refreshes the kit home (kit-home-only, retain-backup,
-// downgrade warn-then-proceed via updateKitHome()), prints a --check hint, and exits 0. The
-// helper functions it calls (updateKitHome / copyKit) are hoisted declarations defined below. ---
+// mutation — it prints a short banner and refreshes the kit home (kit-home-only, retain-backup,
+// downgrade warn-then-proceed via updateKitHome()). The helper functions it calls (updateKitHome /
+// copyKit) are hoisted declarations defined below.
+// THE CLOSING (plan 34-26, D-25, the 27-13 class rule): the banner and the exit status are chosen on
+// ONE branch from VERIFY_FINDINGS, as the --prune-old-kit branch below does. copyKit raises a verify
+// for every way the kit was not copied, so a counted verify ends INCOMPLETE with status 3 and no
+// --check hint (there is no refreshed kit to check against); only a run with none says complete. ---
 if (UPDATE) {
     console.log("== grugops update (--update) ==");
     console.log(`source: ${GRUGOPS_SRC}`);
@@ -1401,9 +1405,14 @@ if (UPDATE) {
         console.log("mode:   DRY_RUN (no filesystem changes)");
     console.log("\n-- kit refresh (kit-home-only; per-repo state untouched) --");
     updateKitHome();
-    console.log("\n  Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.");
-    console.log(`\n== update complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
-    process.exit(0);
+    if (VERIFY_FINDINGS > 0) {
+        console.log(`\n== update INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification ==`);
+    }
+    else {
+        console.log("\n  Run `node install/install.js --check --target <repo>` to verify a repo against the refreshed kit.");
+        console.log(`\n== update complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+    }
+    process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
 }
 // --- --prune-old-kit branch (D-10, Plan 17-03) — the SINGLE, opt-in deletion path. Wired EARLY
 // (alongside --update, before the self-checkout guard) because it only deletes backups install
