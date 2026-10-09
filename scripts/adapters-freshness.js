@@ -447,6 +447,52 @@ if (effortAssignment.value.roles !== rebuiltNames.length) {
         `${WHY_ZERO_CONFIG}\n` +
         `Run \`${REGEN_CMD}\` and commit the result.`);
 }
+// ── The PER-ADAPTER MAPS, both dials (plan 34-19, D-24) ──────────────────────────
+//
+// Each assignment announcement now carries `byAdapter`: the value the generator resolved for every
+// adapter it wrote, keyed by adapter name. The announcements were read above through the ONE
+// validator in scripts/model-tiers.ts, which already proved that each map has `roles` entries and
+// that its distinct values are the announced list; this gate does not parse the payload a second
+// time. What only this gate can check is the map against the adapters IT compared, so two more
+// findings are asked here, per dial, each its own failure and never an agreement:
+//
+//   1. the announced key set equals the names of the adapters this gate compared (the regenerated
+//      listing above, set-equal to the committed one, each name without `.md`) — a map keyed by
+//      anything else, or naming an adapter the run did not write, describes some other artifact;
+//   2. every announced value is the zero-config value this gate already derived
+//      (`ZERO_CONFIG_ALIASES`, `ZERO_CONFIG_EFFORT_LEVELS`) — the list check above sees only the
+//      distinct set, and this is the per-member statement of the same requirement.
+//
+// The compared names are derived from the listing this gate already compares, and their count is
+// asserted against it, so the expected key set cannot be shorter than the comparison it stands for.
+const comparedAdapterNames = rebuiltNames.map((n) => (n.endsWith(".md") ? n.slice(0, -".md".length) : n)).sort();
+if (comparedAdapterNames.length !== rebuiltNames.length ||
+    new Set(comparedAdapterNames).size !== rebuiltNames.length) {
+    die(`Adapter freshness check FAILED: the ${rebuiltNames.length} regenerated adapter file(s) yielded ${new Set(comparedAdapterNames).size} distinct adapter name(s), so this gate has no key set to require of the announced maps. This is a defect in this gate, not in the adapters.`);
+}
+/** The two map findings for one dial. Each mismatch prints both sides. */
+function checkAnnouncedMap(dial, byAdapter, zeroConfig) {
+    const announcedNames = Object.keys(byAdapter).sort();
+    const onlyAnnounced = announcedNames.filter((n) => !comparedAdapterNames.includes(n));
+    const onlyCompared = comparedAdapterNames.filter((n) => !announcedNames.includes(n));
+    if (announcedNames.length !== comparedAdapterNames.length ||
+        onlyAnnounced.length > 0 ||
+        onlyCompared.length > 0) {
+        die(`Adapter freshness check FAILED: the mirrored regeneration's announced ${dial} map names ${announcedNames.length} adapter(s), and they are not the ${comparedAdapterNames.length} adapter(s) this gate compared. The two key sets must be equal.\n` +
+            `  announced: ${announcedNames.join(", ")}\n` +
+            `  compared:  ${comparedAdapterNames.join(", ")}\n` +
+            (onlyAnnounced.length > 0 ? `  announced only: ${onlyAnnounced.join(", ")}\n` : "") +
+            (onlyCompared.length > 0 ? `  compared only: ${onlyCompared.join(", ")}\n` : "") +
+            `${WHY_ZERO_CONFIG}\nRun \`${REGEN_CMD}\` and commit the result.`);
+    }
+    const offZero = announcedNames.filter((n) => byAdapter[n] !== zeroConfig);
+    if (offZero.length > 0) {
+        die(`Adapter freshness check FAILED: the mirrored regeneration's announced ${dial} map gives ${offZero.length} adapter(s) a value other than "${zeroConfig}": ${offZero.map((n) => `${n}=${JSON.stringify(byAdapter[n])}`).join(", ")}. This gate requires every adapter at "${zeroConfig}".\n` +
+            `${WHY_ZERO_CONFIG}`);
+    }
+}
+checkAnnouncedMap("model", assignment.value.byAdapter, ZERO_CONFIG_ALIASES[0]);
+checkAnnouncedMap("effort", effortAssignment.value.byAdapter, ZERO_CONFIG_EFFORT_LEVELS[0]);
 // ── Half two: BYTE comparison over the (now provably equal) member set ───────────
 // Both sides are read by the SAME relative path, so a nested member is byte-compared at its own
 // depth rather than by basename.

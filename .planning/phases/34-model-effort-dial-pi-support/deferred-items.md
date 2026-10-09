@@ -215,3 +215,13 @@ round 2 notes live here.
 ### IN-06, IN-07, IN-08: deferred
 
 Reasons are recorded in the ledger rows. IN-06 is the same item as R15 and waits on its backlog triage.
+
+### Out of scope, found during 34-19 (2026-10-09): the fs census does not classify `openAsBlobSync`
+
+- **Finding:** `install/installer-fs-census.test.ts` ("every node:fs export whose name may mark a content
+  read is classified") fails on this machine: `UNCLASSIFIED node:fs export openAsBlobSync`. The local
+  runtime is Node v26.11.0, whose `node:fs` exports `openAsBlobSync` (`typeof` is `function`). No file
+  this test reads was changed by 34-19 (it fails the same way when run alone), so it is the runtime, not
+  this plan.
+- **Direction:** read what `openAsBlobSync` does and classify it in `CONTENT_READER` or
+  `NOT_CONTENT_READER` (DC-3); not fixed in 34-19 (scope boundary).

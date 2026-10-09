@@ -796,3 +796,129 @@ describe("adapters-freshness.js — the EFFORT resolution is pinned to zero conf
     expect(counts).toEqual(readers.map(([k]) => `${k}=1`));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE PER-ADAPTER MAPS (plan 34-19, D-24): the gate holds both dials' `byAdapter` to the adapters it
+// compared, read through the ONE validator in scripts/model-tiers.ts and no second parse.
+//
+// Each row patches the mirrored generator's announcement CALL for one dial and leaves the render
+// alone, so the adapter bytes stay the zero-config bytes and only the announcement disagrees. Every
+// row runs for BOTH dials (RC-1).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The two dials' announcement calls as the compiled generator twin spells them. */
+const ANNOUNCE_CALLS = [
+  {
+    dial: "model",
+    call: "resolvedAssignmentLine(modelByAdapter, modelsConfig.overrides.size)",
+    map: "modelByAdapter",
+    prefix: modelTiers.RESOLVED_ASSIGNMENT_PREFIX,
+    line: (m: ReadonlyMap<string, string>): string =>
+      modelTiers.resolvedAssignmentLine(m as ReadonlyMap<string, modelTiers.ModelAlias>, 0),
+    // A legal value other than the zero-config one, taken from the closed set rather than typed.
+    other: modelTiers.MODEL_ALIASES.find((a) => a !== "inherit") as string,
+  },
+  {
+    dial: "effort",
+    call: "resolvedEffortAssignmentLine(effortByAdapter, modelsConfig.effort.overrides.size)",
+    map: "effortByAdapter",
+    prefix: modelTiers.RESOLVED_EFFORT_ASSIGNMENT_PREFIX,
+    line: (m: ReadonlyMap<string, string>): string =>
+      modelTiers.resolvedEffortAssignmentLine(m as ReadonlyMap<string, modelTiers.EffortLevel>, 0),
+    other: modelTiers.EFFORT_LEVELS.find((l) => l !== "inherit") as string,
+  },
+] as const;
+
+/** Replace one dial's announcement call in a script-root mirror's generator twin; the anchor must occur once. */
+function replaceAnnouncementCall(m: string, from: string, to: string): void {
+  const p = join(m, "scripts", "generate-role-adapters.js");
+  const text = readFileSync(p, "utf8");
+  const hits = text.split(from).length - 1;
+  if (hits !== 1) {
+    throw new Error(`PREMISE: expected exactly one \`${from}\` in the mirrored generator, found ${String(hits)}`);
+  }
+  writeFileSync(p, text.split(from).join(to), "utf8");
+}
+
+/** The adapter names the gate compares on the real tree: the committed listing, without `.md`. */
+const committedAdapterNames = (): string[] =>
+  readdirSync(join(ROOT, ".claude", "agents"))
+    .filter((n) => n.endsWith(".md"))
+    .map((n) => n.slice(0, -".md".length))
+    .sort();
+
+describe("adapters-freshness.js — the announced per-adapter maps (plan 34-19, D-24)", () => {
+  for (const a of ANNOUNCE_CALLS) {
+    it(`Case 22 (i) ${a.dial}: an announced map with ONE adapter renamed is refused, naming both key sets`, () => {
+      const names = committedAdapterNames();
+      expect(names.length, "PREMISE: the gate compares a non-empty listing").toBeGreaterThan(0);
+      const victim = names[0];
+      const renamed = `${victim}-renamed`;
+      const m = scriptRootMirror();
+      // The map keeps its size and its values, so the validator's count and agreement rules pass and
+      // only the gate's key-set check can see the rename.
+      replaceAnnouncementCall(
+        m,
+        a.call,
+        a.call.replace(
+          a.map,
+          `new Map([...${a.map}].map(([n, v]) => [n === ${JSON.stringify(victim)} ? ${JSON.stringify(renamed)} : n, v]))`,
+        ),
+      );
+
+      const r = runMirroredGate(m);
+      expect(r.status, r.stdout + r.stderr).not.toBe(0);
+      expect(r.stdout).not.toContain(FRESH_MARKER);
+      expect(r.stdout).toContain(
+        `announced ${a.dial} map names ${names.length} adapter(s), and they are not the ${names.length} adapter(s) this gate compared`,
+      );
+      // BOTH key sets are printed, and the difference is named on each side.
+      const announced = names.map((n) => (n === victim ? renamed : n)).sort();
+      expect(r.stdout).toContain(`  announced: ${announced.join(", ")}`);
+      expect(r.stdout).toContain(`  compared:  ${names.join(", ")}`);
+      expect(r.stdout).toContain(`  announced only: ${renamed}`);
+      expect(r.stdout).toContain(`  compared only: ${victim}`);
+      expect(r.stdout, "the map check must fire BEFORE the byte comparison").not.toContain("STALE:");
+    });
+
+    it(`Case 23 (ii) ${a.dial}: a map value other than zero-config while the list stays zero-config is refused by the reader's agreement rule, its reason relayed`, () => {
+      const names = committedAdapterNames();
+      const victim = names[0];
+      // The payload the emitter would write for the zero-config tree, with ONE map value changed and
+      // the list left at the zero-config set. The emitter cannot write this disagreement (it derives
+      // the list from the map), so the one changed value is applied to its output.
+      const zero = a.line(new Map(names.map((n) => [n, "inherit"])));
+      const payload = JSON.parse(zero.slice(a.prefix.length)) as { byAdapter: Record<string, string> };
+      payload.byAdapter[victim] = a.other;
+      const line = `${a.prefix}${JSON.stringify(payload)}`;
+      const m = scriptRootMirror();
+      replaceAnnouncementCall(m, a.call, JSON.stringify(line));
+
+      const r = runMirroredGate(m);
+      expect(r.status, r.stdout + r.stderr).not.toBe(0);
+      expect(r.stdout).not.toContain(FRESH_MARKER);
+      // The gate's own sentence for an unreadable announcement, then the reader's reason, relayed.
+      expect(r.stdout).toContain(
+        a.dial === "model"
+          ? "resolved-assignment line could not be read"
+          : "resolved effort assignment line could not be read",
+      );
+      expect(r.stdout).toContain(`model-tiers: the resolved ${a.dial} assignment payload`);
+      expect(r.stdout).toContain("must be the same set");
+      expect(r.stdout).not.toContain("STALE:");
+    });
+
+    it(`Case 24 (iii) ${a.dial}: an announced map one SHORT of the adapters written is refused by the count cross-check`, () => {
+      const m = scriptRootMirror();
+      replaceAnnouncementCall(m, a.call, a.call.replace(a.map, `new Map([...${a.map}].slice(1))`));
+
+      const r = runMirroredGate(m);
+      expect(r.status, r.stdout + r.stderr).not.toBe(0);
+      expect(r.stdout).not.toContain(FRESH_MARKER);
+      const names = committedAdapterNames();
+      expect(r.stdout).toContain(
+        `announced ${a.dial === "model" ? "a" : "an effort"} resolution covering ${names.length - 1} role(s), while this gate derived ${names.length} regenerated adapter(s)`,
+      );
+    });
+  }
+});
