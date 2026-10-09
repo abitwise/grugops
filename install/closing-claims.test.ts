@@ -18,10 +18,10 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { makeFixture, runInstall, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
+import { makeFixture, runInstall, runUninstall, snapshotTree, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
 import { allAskRules } from "./checkpoint-ask-rules.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gclose-"));
@@ -305,5 +305,151 @@ describe("closing claims: --update says complete only when it copied the kit (pl
     expect(r.stdout).not.toMatch(/INCOMPLETE/);
     expect(r.status, r.stdout).toBe(0);
     expect(existsSync(join(kitHome, "agent-factory", "VERSION"))).toBe(true);
+  });
+});
+
+// ── sibling B: an already-migrated --migrate says what it did to plans/handoffs/ ────────────────────
+
+/** A scratch row whose target is a bare directory (no in-repo agent-factory/, so no leftover kit). */
+function bareRow(): { target: string; kitHome: string; home: string } {
+  const dir = join(ROOT, `r${n++}`);
+  const target = join(dir, "t");
+  const kitHome = join(dir, "kit");
+  const home = join(dir, "home");
+  mkdirSync(target, { recursive: true });
+  mkdirSync(home, { recursive: true });
+  return { target, kitHome, home };
+}
+
+/** The target and the kit home together, as the snapshot oracle compares them. */
+const snapBoth = (target: string, kitHome: string): string => `${snapshotTree(target)}\n--kit--\n${snapshotTree(kitHome)}`;
+
+const NOTHING_CHANGED = /Nothing was changed\.|Nothing to do\./;
+const NO_CHANGE_SENTENCE = /Nothing was changed|Nothing to do|nothing changed/;
+const LEFTOVER = /a leftover LIVE in-repo agent-factory\/ remains/;
+const handoffsBackups = (target: string): string[] =>
+  readdirSync(join(target, "plans")).filter((e) => e.startsWith("handoffs.bak.")).map((e) => `plans/${e}`);
+const stageHandoffs = (target: string): void => {
+  mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
+  writeFileSync(join(target, "plans", "handoffs", "h1.md"), "a user's handoff\n");
+};
+
+describe("closing claims: an already-migrated --migrate says what it changed (plan 34-26, D-25, sibling B)", () => {
+  it("B1 installed bare target, no plans/handoffs/: exit 0, already migrated and nothing changed; the snapshots are identical", () => {
+    const { target, kitHome, home } = bareRow();
+    installFirst(target, kitHome, home);
+    const before = snapBoth(target, kitHome);
+    const r = runInstall(target, kitHome, ["--migrate"], { home });
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toMatch(/already migrated to the two-root layout/);
+    expect(r.stdout).toMatch(NOTHING_CHANGED);
+    expect(r.stdout).not.toMatch(/INCOMPLETE/);
+    expect(snapBoth(target, kitHome)).toBe(before);
+  });
+
+  it("B2 installed bare target with plans/handoffs/: exit 0, names the backup and that it was recorded in the marker; no no-change sentence; the snapshot differs", () => {
+    const { target, kitHome, home } = bareRow();
+    installFirst(target, kitHome, home);
+    stageHandoffs(target);
+    const before = snapBoth(target, kitHome);
+    const r = runInstall(target, kitHome, ["--migrate"], { home });
+    expect(r.status, r.stdout).toBe(0);
+    const made = handoffsBackups(target);
+    expect(made.length, r.stdout).toBe(1);
+    const closing = r.stdout.split("\n").filter((l) => l.includes("This run backed up plans/handoffs/"));
+    expect(closing.length, r.stdout).toBe(1);
+    expect(closing[0]).toContain(made[0]);
+    expect(closing[0]).toContain(`recorded the backup in ${MARKER_REL}`);
+    expect(r.stdout, r.stdout).not.toMatch(NO_CHANGE_SENTENCE);
+    expect(readFileSync(join(target, MARKER_REL), "utf8")).toContain(made[0]);
+    expect(snapBoth(target, kitHome)).not.toBe(before);
+  });
+
+  it("B3 the same with DRY_RUN=1: says what it would back up and that nothing changed; the snapshot is identical", () => {
+    const { target, kitHome, home } = bareRow();
+    installFirst(target, kitHome, home);
+    stageHandoffs(target);
+    const before = snapBoth(target, kitHome);
+    const r = runInstall(target, kitHome, ["--migrate"], { home, dryRun: true });
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toMatch(/DRY_RUN: this run would back up plans\/handoffs\//);
+    expect(r.stdout).toMatch(/Nothing was changed\./);
+    expect(r.stdout).not.toMatch(/This run backed up/);
+    expect(snapBoth(target, kitHome)).toBe(before);
+  });
+
+  it("B4 installed target whose plans is a regular file: a verify line, the migrate INCOMPLETE banner, exit 3, no no-change sentence", () => {
+    const { target, kitHome, home } = bareRow();
+    installFirst(target, kitHome, home);
+    rmSync(join(target, "plans"), { recursive: true, force: true });
+    writeFileSync(join(target, "plans"), "a regular file named plans\n");
+    const before = snapBoth(target, kitHome);
+    const r = runInstall(target, kitHome, ["--migrate"], { home });
+    const verifies = verifyLines(r.stdout);
+    expect(verifies.length, r.stdout).toBeGreaterThan(0);
+    expect(lastBanner(r.stdout), r.stdout).toBe(`== migrate INCOMPLETE — ${verifies.length} item(s) need verification ==`);
+    expect(r.stdout, r.stdout).not.toMatch(NO_CHANGE_SENTENCE);
+    expect(r.status, r.stdout).toBe(3);
+    expect(snapBoth(target, kitHome)).toBe(before);
+  });
+
+  it("B5 installed target with a leftover in-repo agent-factory/ and plans/handoffs/: the leftover advice, the backup named, no no-change sentence", () => {
+    const { target, kitHome, home } = scratchRow();
+    installFirst(target, kitHome, home);
+    stageHandoffs(target);
+    const before = snapBoth(target, kitHome);
+    const r = runInstall(target, kitHome, ["--migrate"], { home });
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toMatch(LEFTOVER);
+    expect(r.stdout).toMatch(/back up and remove the leftover agent-factory\/ by hand/);
+    expect(r.stdout).toMatch(/This run backed up plans\/handoffs\//);
+    expect(r.stdout, r.stdout).not.toMatch(NO_CHANGE_SENTENCE);
+    expect(snapBoth(target, kitHome)).not.toBe(before);
+  });
+});
+
+// ── sibling C: uninstall's preserved block reports the marker from removeMarker's outcome ───────────
+
+/** The preserved block: from the `-- preserved` heading up to, not including, the closing banner. */
+function preservedBlock(stdout: string): string[] {
+  const lines = stdout.split("\n");
+  const start = lines.findIndex((l) => l.startsWith("-- preserved"));
+  if (start < 0) return [];
+  const out: string[] = [];
+  for (let i = start; i < lines.length; i++) {
+    if (lines[i].startsWith("== uninstall")) break;
+    out.push(lines[i]);
+  }
+  return out;
+}
+const MARKER_LINE = new RegExp(`^ {2}${MARKER_REL.replace(/[./]/g, "\\$&")} \\(the install marker\\): `);
+const markerLines = (block: readonly string[]): string[] => block.filter((l) => MARKER_LINE.test(l));
+
+describe("closing claims: uninstall reports the marker from removeMarker's outcome (plan 34-26, D-25, sibling C)", () => {
+  it("C1 clean uninstall: the marker line says it was removed, and the marker is gone", () => {
+    const { target, kitHome, home } = bareRow();
+    installFirst(target, kitHome, home);
+    const r = runUninstall(target, kitHome, { home });
+    expect(r.status, r.stdout).toBe(0);
+    const block = preservedBlock(r.stdout);
+    expect(block.length, r.stdout).toBeGreaterThan(1);
+    const m = markerLines(block);
+    expect(m, r.stdout).toEqual([`  ${MARKER_REL} (the install marker): removed by this run.`]);
+    expect(existsSync(join(target, MARKER_REL))).toBe(false);
+  });
+
+  it("C2 uninstall after a user edit to AGENTS.md: the marker line says kept and rewritten, the marker exists, no preserved line says it was removed", () => {
+    const { target, kitHome, home } = bareRow();
+    installFirst(target, kitHome, home);
+    appendFileSync(join(target, "AGENTS.md"), "\nA line the user added.\n");
+    const r = runUninstall(target, kitHome, { home });
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toMatch(new RegExp(`^ {2}left\\s+${MARKER_REL.replace(/[./]/g, "\\$&")} \\(kept: `, "m"));
+    const block = preservedBlock(r.stdout);
+    const m = markerLines(block);
+    expect(m.length, r.stdout).toBe(1);
+    expect(m[0]).toMatch(/kept, and rewritten so its install ledger lists only what is still in place/);
+    expect(existsSync(join(target, MARKER_REL))).toBe(true);
+    expect(block.filter((l) => /\bremoved\b|is removed/.test(l)), block.join("\n")).toEqual([]);
   });
 });

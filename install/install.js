@@ -1699,26 +1699,30 @@ function backupDir(target, label, origin) {
 // collision, no content conversion, DRY_RUN/idempotent). Called on EVERY --migrate path (both the
 // already-two-root isMigrated arm AND the old-layout path) because a user can have accumulated
 // plans/handoffs/ regardless of layout state (D-17 reconcile).
+// Returns backupDir's answer (plan 34-26, D-25): true when the backup was made, or under DRY_RUN would
+// be, so the already-migrated arm's closing says what this run did to plans/handoffs/.
 function migrateHandoffs() {
-    backupDir(join(TARGET, "plans", "handoffs"), "plans/handoffs/", "handoffs");
+    return backupDir(join(TARGET, "plans", "handoffs"), "plans/handoffs/", "handoffs");
 }
 // recordBackupsInMarker (plan 33.1-40): an already-migrated --migrate stops before the install run, so
 // writeMarker() never runs and the handoffs backup it made would have no record. It is added to the
 // marker's install ledger here, through rewriteLedger. A marker this run cannot use (absent, not install's,
 // not this directory's, a malformed ledger) is not written; the backup stays unrecorded and a note says so.
 // Prune never removes a handoffs backup either way (it holds the user's handoffs).
+// Returns whether the backups were recorded (plan 34-26, D-25): true only when rewriteLedger rewrote the
+// marker (or, under DRY_RUN, would); false when there was nothing to record or the marker could not be used.
 function recordBackupsInMarker() {
     if (BACKUPS.size === 0)
-        return;
+        return false;
     const made = [...BACKUPS.values()];
     const m = readInstallMarker(TARGET);
     const ledger = readLedger(m.state === "ok" ? m.marker : null);
     if (m.state !== "ok" || ledger.state !== "ok") {
         report("note", `${made.map((e) => e.path).join(", ")}: not recorded, because ${MARKER_REL} is not a marker with an install ledger ` +
             `this run can use; uninstall and --prune-old-kit leave it, and it holds your content`);
-        return;
+        return false;
     }
-    rewriteLedger(join(TARGET, ...MARKER_REL.split("/")), TARGET, "target", m.bytes, (entries) => [...entries.filter((e) => !(e.kind === "backup" && BACKUPS.has(e.path))), ...made], `record the backup(s) ${made.map((e) => e.path).join(", ")}`);
+    return rewriteLedger(join(TARGET, ...MARKER_REL.split("/")), TARGET, "target", m.bytes, (entries) => [...entries.filter((e) => !(e.kind === "backup" && BACKUPS.has(e.path))), ...made], `record the backup(s) ${made.map((e) => e.path).join(", ")}`);
 }
 // rewriteLedger (plan 33.1-40): THE ONE REWRITE of a record's install ledger outside writeMarker() and
 // writeKitHomeRecord(): prune takes the backups it removed out of the record that held them
@@ -4313,20 +4317,42 @@ if (MIGRATE) {
     // clobbering on a backup-name collision (D-18). It runs BEFORE the isMigrated early-exit so an
     // already-migrated repo still gets its handoffs backed up.
     console.log("\n-- handoffs backup (MIGR-04) --");
-    migrateHandoffs();
+    const handoffsBackedUp = migrateHandoffs();
     if (layout.isMigrated) {
         // Plan 33.1-40: this arm writes no marker, so the backup it may have made is recorded here.
-        recordBackupsInMarker();
-        if (layout.leftoverKit) {
-            console.log("This repo is already migrated to the two-root layout, but a leftover LIVE in-repo agent-factory/ remains.");
-            console.log(`Nothing was changed. Once you have confirmed the shared kit at ${GRUGOPS_HOME} is in use,`);
-            console.log("back up and remove the leftover agent-factory/ by hand — prune removes only the backups install");
-            console.log("recorded making, never a live kit, so it cannot clear this one.");
+        const handoffsRecorded = recordBackupsInMarker();
+        // THE CLOSING (plan 34-26, D-25, the 27-13 class rule): built from what this arm did (the handoffs
+        // backup, its record, DRY_RUN) and chosen on the same branch as the exit status from VERIFY_FINDINGS.
+        // A no-change sentence is printed only when this run changed nothing.
+        if (VERIFY_FINDINGS > 0) {
+            console.log(`\n== migrate INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
+                `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
         }
         else {
-            console.log("This repo is already migrated to the two-root layout. Nothing to do.");
+            console.log(layout.leftoverKit
+                ? "This repo is already migrated to the two-root layout, but a leftover LIVE in-repo agent-factory/ remains."
+                : "This repo is already migrated to the two-root layout.");
+            if (handoffsBackedUp && DRY_RUN) {
+                console.log("DRY_RUN: this run would back up plans/handoffs/ (see the would-backup line above). Nothing was changed.");
+            }
+            else if (handoffsBackedUp) {
+                const made = [...BACKUPS.values()].find((e) => e.origin === "handoffs");
+                const where = made === undefined ? "(see the backed-up line above)" : `to ${made.path}`;
+                console.log(`This run backed up plans/handoffs/ ${where} and ` +
+                    (handoffsRecorded
+                        ? `recorded the backup in ${MARKER_REL}.`
+                        : `did not record the backup in ${MARKER_REL} (see the note above); uninstall and --prune-old-kit leave it.`));
+            }
+            if (layout.leftoverKit) {
+                console.log(`${handoffsBackedUp ? "" : "Nothing was changed. "}Once you have confirmed the shared kit at ${GRUGOPS_HOME} is in use,`);
+                console.log("back up and remove the leftover agent-factory/ by hand — prune removes only the backups install");
+                console.log("recorded making, never a live kit, so it cannot clear this one.");
+            }
+            else if (!handoffsBackedUp) {
+                console.log("Nothing to do.");
+            }
         }
-        process.exit(0);
+        process.exit(VERIFY_FINDINGS > 0 ? 3 : 0);
     }
     if (layout.isOldLayout) {
         console.log("== grugops migrate (old in-repo layout → two-root) ==");

@@ -85,8 +85,9 @@
 //
 // It NEVER deletes agent-factory/, plans/, .planning/, docs/, src/, the seeded per-repo state
 // (.grugops/factory.config.json, plans/, memory-bank/), the shared kit at $GRUGOPS_HOME, or any
-// user file. Those paths are guarded explicitly; only the install.json marker is removed from
-// under the otherwise-protected .grugops/, via a narrow named exception. Removing the shared
+// user file. Those paths are guarded explicitly; only the install.json marker may be removed from
+// under the otherwise-protected .grugops/, via a narrow named exception (removeMarker decides, and the
+// closing prints what it did from the MarkerOutcome it returns, plan 34-26). Removing the shared
 // $GRUGOPS_HOME kit is a manual `rm` (no --purge-kit flag this phase). Honors DRY_RUN=1.
 //
 // Every report/warn/error string stays CLEAR PROFESSIONAL VOICE — safety surface, never caveman.
@@ -1323,11 +1324,15 @@ function removeAskRules() {
 // put there; it used to be deleted by its name alone, in a repository grugops was never installed into.
 // Install's marker for another directory (copied, moved, or written before markers were bound or before
 // the one ledger) is not this directory's record. Each is left, and the line says why.
+//
+// IT RETURNS WHAT IT DID (plan 34-26, D-25, sibling C): one MarkerOutcome per arm, and the closing's marker
+// line is built from it alone (markerOutcomeLine). The declared return type makes an arm without an outcome
+// a compile error.
 function removeMarker() {
     const m = `${TARGET}/${MARKER_REL}`;
     if (!pathExists(m)) {
         report("skipped", `${MARKER_REL} (marker not present)`);
-        return;
+        return { kind: "absent" };
     }
     // DC-3 / D-18 (plan 33.1-27): install writes the marker as a regular file inside a real .grugops/
     // directory. Anything else there (a FIFO, a directory, a link, or a link on the way) is not the
@@ -1337,7 +1342,7 @@ function removeMarker() {
     if ((way !== null && way !== "absent") || kind !== "regular file") {
         const what = way !== null && way !== "absent" ? `${way.at} ${way.reason}` : `it is a ${kind ?? "path that could not be read"}`;
         report("left", `${MARKER_REL} (${what}; not the marker install writes — left in place)`);
-        return;
+        return { kind: "left" };
     }
     // THE ONE AUTHORITY (plan 33.1-38): owns' pseudo-kind `marker` answers owned exactly when this run's ledger
     // read is `ok`, which it is only for install's own marker for this directory holding a well-formed ledger.
@@ -1345,24 +1350,25 @@ function removeMarker() {
     if (!own.owned && MARKER_READ.state !== "ok") {
         if (MARKER_READ.state === "unreadable" && MARKER_READ.jsonObject) {
             report("left", `${MARKER_REL} (${MARKER_READ.why} — so it is not install's; left in place)`);
-            return;
+            return { kind: "left" };
         }
         if (MARKER_READ.state === "unbound") {
             report("left", `${MARKER_REL} (it is not a record this run can use: ${MARKER_READ.why}; left in place — see the verify line above)`);
-            return;
+            return { kind: "left" };
         }
         const why = MARKER_READ.state === "unreadable" ? MARKER_READ.why : "it was not present when this run started";
         report("left", `${MARKER_REL} (it could not be read as install's marker: ${why}; it was left in place — fix or remove it by hand)`);
-        return;
+        return { kind: "left" };
     }
     // MARKER_READ is `ok` here, so MARKER is that read; the check narrows the type.
     if (MARKER.state !== "ok")
-        return;
+        return { kind: "left" };
     if (!own.owned) {
         report("left", `${MARKER_REL} (its install ledger is malformed, so the record of what install did could not be used; ` +
             `it was left in place — fix or remove it by hand)`);
+        // updateKeptMarker rewrites only install's own marker holding a well-formed ledger, so it leaves this one.
         updateKeptMarker(m, MARKER.marker, MARKER.bytes);
-        return;
+        return { kind: "left" };
     }
     // THE MARKER RULE (plan 33.1-39, review WR-02, D-33 (b)): owned is not enough. While a recorded entry is
     // still in place, or a reversal of one counted a verify, the marker is the record a later run needs to
@@ -1377,14 +1383,48 @@ function removeMarker() {
             `restore what is named and re-run uninstall, or delete the marker by hand to keep them without a record)`);
         if (RECORDED_VERIFIES === 0)
             KEPT_FOR = held.length;
-        updateKeptMarker(m, MARKER.marker, MARKER.bytes);
-        return;
+        return { kind: "kept", rewrite: updateKeptMarker(m, MARKER.marker, MARKER.bytes) };
     }
     if (DRY_RUN) {
         report("would-remove", `${MARKER_REL} (grugops-owned marker)`);
-        return;
+        return { kind: "would-remove" };
     }
-    unlinkPath(m, MARKER_REL, `${MARKER_REL} (grugops-owned marker; seeded .grugops/ state preserved)`);
+    // A removal that fails is a counted verify (unlinkPath), and the marker is still there.
+    return unlinkPath(m, MARKER_REL, `${MARKER_REL} (grugops-owned marker; seeded .grugops/ state preserved)`)
+        ? { kind: "removed" }
+        : { kind: "left" };
+}
+// markerOutcomeLine: the closing's sentence about the marker, from the outcome alone.
+function markerOutcomeLine(o) {
+    switch (o.kind) {
+        case "removed":
+            return "removed by this run.";
+        case "would-remove":
+            return "DRY_RUN: it would be removed; nothing was changed.";
+        case "kept":
+            switch (o.rewrite) {
+                case "rewritten":
+                    return "kept, and rewritten so its install ledger lists only what is still in place (the `left` line above says why it was kept).";
+                case "unchanged":
+                    return "kept unchanged (the `left` line above says why it was kept).";
+                case "would-rewrite":
+                    return "kept; DRY_RUN: it would be rewritten (see the would-edit line above), and nothing was changed.";
+                case "not-rewritten":
+                    return "kept, but not rewritten (see the verify line above).";
+                default: {
+                    const never = o.rewrite;
+                    return never;
+                }
+            }
+        case "left":
+            return "left in place, untouched (the `left` or `verify` line above says why).";
+        case "absent":
+            return "not present, so there was nothing to remove.";
+        default: {
+            const never = o;
+            return never;
+        }
+    }
 }
 // updateKeptMarker (red-team of plan 33.1-28, R2, brief DC-2; plan 33.1-39, review WR-02): a marker this
 // run keeps must list what is still there, and nothing this run removed or reversed. A record of something
@@ -1404,11 +1444,13 @@ function removeMarker() {
 // regular file with the same bytes this run read at its start. When it cannot be written, that is a counted
 // verify naming each entry it still lists that this run removed, so the human can take them out by hand.
 // The DRY_RUN preview says what it would take out and writes nothing.
+// It returns what it did (plan 34-26): rewritten, unchanged (nothing to take out, or not install's marker),
+// would-rewrite (DRY_RUN) or not-rewritten (a counted verify says why).
 function updateKeptMarker(m, marker, readBytes) {
     // Only install's own marker, holding a well-formed ledger, is ever rewritten: the one authority answers for
     // the marker (plan 33.1-38).
     if (!owns(LEDGER, TARGET, MARKER_REL, "marker").owned)
-        return;
+        return "unchanged";
     const stale = [];
     const kept = [];
     const named = (e) => e.kind === "dir"
@@ -1447,21 +1489,23 @@ function updateKeptMarker(m, marker, readBytes) {
     }
     const next = { ...marker, ledger: ledgerJson(kept) };
     if (JSON.stringify(next) === JSON.stringify(marker))
-        return;
+        return "unchanged";
     const what = stale.length > 0 ? stale.join(", ") : "the entries' recorded claims";
     const remedy = `it still lists what this run removed or reversed (${what}); take those entries out of its install ledger by hand, or a later run may act on them.`;
     if (DRY_RUN) {
         report("would-edit", `${MARKER_REL} (kept; the entries this run would remove or reverse would be taken out of its install ledger: ${what})`);
-        return;
+        return "would-rewrite";
     }
     const cur = readForWrite(TARGET, m);
     if (cur.state !== "ok" || !cur.bytes.equals(readBytes)) {
         verify(`${MARKER_REL} changed since this run read it, so it was not rewritten; ${remedy}`);
-        return;
+        return "not-rewritten";
     }
     if (rewritePath(m, JSON.stringify(next, null, 2) + "\n", MARKER_REL, remedy)) {
         report("edited", `${MARKER_REL} (kept; the entries this run removed or reversed were taken out of its install ledger: ${what})`);
+        return "rewritten";
     }
+    return "not-rewritten";
 }
 // ── THE LEDGER WALK (plan 33.1-38, review WR-01, D-33 (b), brief §2.2) ──────────────────────────────
 // walkLedger visits every entry of the one install ledger, in a fixed kind order, and hands each to its
@@ -1948,10 +1992,16 @@ for (const d of [
 //    .grugops/ dir is intentionally NOT rmdir'd — the seeded factory.config.json keeps it
 //    populated, and even an empty .grugops/ is the user's state dir, not grugops' to remove.
 //    Never remove $GRUGOPS_HOME — the shared kit is shared across repos; manual rm only.
-removeMarker();
+const markerOutcome = removeMarker();
+// THE PRESERVED BLOCK STATES WHAT UNINSTALL LEAVES, AND THE MARKER LINE STATES WHAT THIS RUN DID (plan
+// 34-26, D-25, sibling C). The block used to say, on every run, that only the marker is removed, while
+// removeMarker keeps or leaves it in most of its arms. The marker line is built from removeMarker's
+// MarkerOutcome alone.
 console.log("\n-- preserved (never touched) --");
-console.log("  agent-factory/  plans/  .planning/  docs/  src/  .grugops/ (seeded state; only the");
-console.log("  install.json marker is removed)  the shared kit at $GRUGOPS_HOME  and every user file.");
+console.log("  agent-factory/  plans/  .planning/  docs/  src/  the shared kit at $GRUGOPS_HOME,");
+console.log("  and every byte in this repo that install did not record adding.");
+console.log("  .grugops/ (seeded state) is kept; its install.json marker is reported on the next line.");
+console.log(`  ${MARKER_REL} (the install marker): ${markerOutcomeLine(markerOutcome)}`);
 // THE CLOSING CLAIM IS CONDITIONAL (27-13) — the same rule as install.ts's banner. A run that could
 // not read a source directory has skipped a whole removal class; saying "complete" over that is a
 // claim it did not earn. The `verify` lines above name what was left behind and what to do about it.
