@@ -1,285 +1,275 @@
 ---
 phase: 34-model-effort-dial-pi-support
-reviewed: 2026-10-09T00:10:00Z
+reviewed: 2026-10-09T12:30:09Z
 depth: standard
-files_reviewed: 40
+files_reviewed: 23
 files_reviewed_list:
-  - agent-factory/packaging/adapters.md
-  - agent-factory/README.md
-  - agent-factory/workflows/16-context-read-write.md
-  - CHANGELOG.md
-  - docs/audit/29-style-dispositions/34-16.md
-  - docs/audit/29-style-dispositions/34-17.md
-  - hooks/hook-entry.js
-  - hooks/hook-entry.ts
   - install/canonical-path.test.ts
   - install/install-marker.js
   - install/install-marker.ts
   - install/install.js
   - install/install.test.ts
   - install/install.ts
-  - install/installer-dry-run.test.ts
-  - install/installer-kit-home.test.ts
-  - install/installer-marker-retention.test.ts
-  - install/installer-paths.test-support.ts
-  - install/installer-prune.test.ts
-  - install/installer-user-edit.test.ts
-  - install/installer-write-set.test.ts
-  - install/ledger-provenance.test.ts
   - install/ledger.test.ts
-  - install/marker-binding.test.ts
   - install/mode-census.test.ts
   - install/path-spelling-census.test.ts
-  - install/README.md
   - install/record-truth.test.ts
-  - install/settings-json-provenance.test.ts
-  - install/uninstall-removal.test.ts
-  - install/uninstall.js
-  - install/uninstall.ts
   - install/user-file.js
   - install/user-file.ts
-  - README.md
+  - scripts/adapters-freshness.js
+  - scripts/adapters-freshness.test.ts
+  - scripts/adapters-freshness.ts
   - scripts/check-platform-shapes.js
   - scripts/check-platform-shapes.ts
-  - scripts/context-io.js
-  - scripts/context-io.test.ts
-  - scripts/context-io.ts
+  - scripts/generate-role-adapters.js
+  - scripts/generate-role-adapters.test.ts
+  - scripts/generate-role-adapters.ts
+  - scripts/model-tiers.js
+  - scripts/model-tiers.test.ts
+  - scripts/model-tiers.ts
 findings:
   critical: 0
-  warning: 3
-  info: 3
-  total: 6
+  warning: 2
+  info: 5
+  total: 7
 status: issues_found
 ---
 
-# Phase 34: Code Review Report (gap round 1, plans 34-11..34-18)
+# Phase 34: Code Review Report (gap round 2, plans 34-19..34-24)
 
-**Reviewed:** 2026-10-09T00:10:00Z
+**Reviewed:** 2026-10-09T12:30:09Z
 **Depth:** standard
-**Files Reviewed:** 40
+**Files Reviewed:** 23
 **Status:** issues_found
 
 ## Summary
 
-Scope: `git diff 64123a25..HEAD` over the 40 listed files, with the surrounding code read where needed.
-The round-1 work covers four things: the WIN-1 single spelling (`canonicalPathSpelling`,
-`sameRecordedPath`, `absoluteSpelling` in `install/user-file.ts`), the WIN-2 mode renderer and comparison
-(`modeText`, `recordedModeOf`, `modeMatches`), the WR-03 effort arm of the announcement cross-check
-(`oneAnnouncement`, `readRenderedDials`), and the DOC-1 corrections for WR-06 and WR-07.
+Scope: `git diff 620e419d..HEAD` over the 23 listed files. Where a change's correctness depends on code
+outside the diff, that code was read too: `readInstallMarker` / `markerBinding` / `readKitHomeRecord`,
+`writeMarker`'s unbound/unreadable arms, `isPruneProtected`, uninstall `isProtected` and its callers, and the
+install closing banner. The committed `.js` files were not reviewed line by line: `npm run check:build-parity`
+printed `ALL CHECKS PASSED` (73/73).
 
-What holds up:
-- The spelling function is pure and takes the path flavor as a parameter. Both binding sites in
-  install-marker.ts use `sameRecordedPath`.
-- The decider hash in `hooks/hook-entry.ts` and `.js` matches the committed `scripts/context-io.js`
-  (`848bb808…`).
-- The `GRUGOPS_PROJECT_DIR` corrections leave no tracked sentence outside `docs/audit/` saying the
-  installer sets the variable.
-- `npx vitest run` passed 91/91 on canonical-path, path-spelling-census and mode-census (macOS; this
-  says nothing about windows-latest, per WIN-3).
+Runs made for this review (macOS, Node v26.11.0, short fresh TMPDIR; this says nothing about windows-latest,
+per WIN-3):
+- `npx vitest run` on canonical-path, path-spelling-census, mode-census, record-truth, ledger, model-tiers,
+  generate-role-adapters and adapters-freshness: 8 files, 541 passed, 1 skipped.
+- `npx vitest run install/install.test.ts -t "delivery"`: 57 passed. Row (f), the verifier's reproduction,
+  ran and passed (it did not skip).
+- Two scratch installs (each with its own `GRUGOPS_HOME` and `--target`), comparing HEAD with the base
+  `620e419d` installer on a marker written in Windows spelling (WR-11). `~/.grugops` was not touched; its
+  mtime is still 2026-10-07.
 
-Three warnings:
-1. The new effort level-set check does not catch every dropped `effort:` line, although its comments
-   say it does. This is an RC-1 gap left inside the WR-03 fix.
-2. The WIN-1 census checks only a hand-picked list of comparison sites. A second absoluteness rule over
-   recorded paths sits outside that list (DOC-1 plus WIN-1).
-3. The switch to a read-only "user mode edit" removed the only end-to-end coverage of the pointer-file
-   mode check in uninstall (WIN-2 test coverage).
+Round-1 findings targeted by this round:
 
-Finding IDs continue after the round-0 IDs (WR-08 onward, IN-06 onward). The disposition ledger drops
-an earlier decision when an ID is reused, so reusing WR-01..WR-07 or IN-01..IN-05 would destroy recorded
-dispositions.
+| Round-1 ID | Verdict | Evidence |
+|------------|---------|----------|
+| WR-08 | **Closed** | `dialDisagreements` (install.ts:3456-3489) compares each adapter's rendered text and written text with `byAdapter[name]`, for both dials. Row (f) stages the exact round-1 shape (tiered effort, one role overridden to `inherit`, one adapter's `effort:` line dropped, distinct set unchanged). It ran at HEAD and was refused by name. Its red on the pre-plan installer is recorded in 34-20-SUMMARY (m1, and the pre-plan `status=0`); this review did not re-run that red. |
+| WR-09 | **Closed, with a side effect** | One rule (`isRecordedAbsolute`, user-file.ts:349-351) is used by `installMarkerProblems` and `absoluteSpelling`. `isOwnLink` compares through `sameRecordedPath`. Census rules (e) and (f) are derived and count-asserted. The posix half of the change has a user-visible regression: see **WR-11**. |
+| WR-10 | **Closed** | `CREATED_POINTERS` is derived from the ledger, and its count is asserted (record-truth.test.ts:332-340). Two capability-gated rows make a writable mode change and assert the `its file mode is …` left line (:388-413). Both rows ran green here. 34-22-SUMMARY m1b records that the deleting mutation turned only these rows red. |
+| IN-07 | **Closed** | One `announcementShape` (install.ts:2934-2968) checks both dials with `isCount`, the list and the map. |
+
+Items the executors flagged for triage:
+- **34-21: `p === TARGET` in `isPruneProtected` / `isProtected`.** No evasion exists today; IN-12 gives the
+  reasoning. Every operand is built by template from a forward-slash ledger path. Nothing enforces this,
+  though, and one classification reason is inaccurate.
+- **34-19: the freshness gate's per-adapter zero-config value check is unreachable.** Confirmed. See IN-09.
+- **34-21: under posix, a recorded `C:/x` marker target is now refused.** Reproduced, and it is not a benign
+  wording change. A marker written on Windows and carried to a POSIX checkout used to be replaced with a
+  note. Now it blocks the marker write and every ask rule, and nothing clears it but a hand edit. See WR-11.
+  The deferred-items.md (2) rationale ("no install on POSIX produces it") does not cover a marker carried
+  from another host.
 
 ## Narrative Findings (AI reviewer)
 
 ## Warnings
 
-### WR-08: The effort level-set cross-check misses a dropped `effort:` line whenever the set does not change, but three comments say such a drop is refused
+### WR-11: A Windows-written marker on a POSIX checkout is now "not install's marker", so install never replaces it and writes no ask rules (WIN-1, a side effect of the WR-09 fix)
 
-**File:** `install/install.ts:3325-3346` (readRenderedDials docstring), `install/install.ts:4931-4935` and `5005-5008` (call-site comments), `install/install.ts:5052-5068` (level-set check)
+**File:** `install/install-marker.ts:1165-1178` (installMarkerProblems), `install/user-file.ts:349-351` (isRecordedAbsolute); consumers `install/install-marker.ts:284-291` (readInstallMarker), `install/install.ts:4429-4436` (writeMarker), and the ask-rules writer's unreadable arm
 
-**Issue:** The model arm has an exactly-one floor: an adapter that loses its `model:` line is refused by
-name. The effort arm's floor is "zero or one" (`efforts.length > 1`), and zero lines is read as
-`inherit` (`ABSENT_EFFORT_LEVEL`). So a dropped `effort:` line is refused only if it changes the set of
-distinct levels (`readLevels` against `announced.effort.levels`). The docstring says otherwise
-("Reading the transformed text rather than the render is what lets a transform that drops or
-duplicates either line be refused"), and so does the check's own comment ("an adapter that lost or
-gained an `effort:` line between the generator and the write moves the read set, and is refused").
+**Issue:** `installMarkerProblems` now asks the host flavor's `isAbsolute` about `grugopsHome`, `kitRoot`
+and `target`. On POSIX, a marker install wrote on Windows (`"target": "C:/Users/dev/repo"`, all three fields
+in `C:/` spelling) therefore fails the shape check, and `readInstallMarker` returns
+`state: "unreadable", jsonObject: true`. Before this round the same marker passed the shape check, and
+`markerBinding` returned `unbound / other-directory`. That is the arm the readMarker header comment designs
+for "a `.grugops/` copied from another installed repository".
 
-Configurations the dial accepts where a drop leaves the set unchanged:
-- `models.effort.roles` sets two roles to `high` and the rest stay `inherit`. The announced set is
-  `[high, inherit]`. If one adapter loses its `effort: high` line, the read set is still
-  `[high, inherit]`, and the adapter is installed at session effort with no refusal.
-- Preset `tiered` with one role overridden to `inherit`. The announced set is
-  `[high, inherit, medium]`. Dropping any `high` or `medium` line keeps that set.
+The two states lead to different outcomes. Reproduced with scratch installs, each with its own `GRUGOPS_HOME`
+and `--target`. The fresh target held only `.grugops/install.json` with the Windows-spelled values.
 
-This is the RC-1 class: the effort arm got the model arm's set check but not its per-member floor. The
-per-member level is read (`effortOf`) and then used only as a set. No test covers this case. The
-`effortRefusalRows` (a)..(e) in `install/install.test.ts:3195-3236` all change either the announcement
-or the line count.
+| | base `620e419d` install.js | HEAD install.js |
+|---|---|---|
+| exit | 0 | 3 (`install INCOMPLETE — 2 item(s) need verification`) |
+| marker | `note … written for another directory (C:/Users/dev/repo) … replaced by a marker for this directory`, then `created` | `skipped … left unchanged — it is a JSON object that is not install's marker` |
+| `.claude/settings.json` ask rules | 55 written | none; the file does not exist (`no ask rule was added`) |
+| Gemini ledger | updated | `verify … the Gemini settings ledger cannot be updated` |
+| verify reason printed | none | `grugopsHome is not an absolute path, kitRoot is not an absolute path, target is not an absolute path` |
 
-**Fix:** Check per member, which the set check cannot do. Inside the member loop, read the dials off the
-render as well as off the transformed text, and refuse any member where they differ:
+Every later run repeats this, because install never replaces an unreadable marker. The only remedy is a hand
+edit. The reason printed is also false: the paths are absolute on the host that wrote them.
+
+The case is realistic. `.grugops/` is the per-repo state directory, meant to be committed. The installer does
+not gitignore `install.json`, and the repository's own `.gitignore` ignores only `**/.grugops/context/*/threads/`.
+So a team with one Windows and one macOS/Linux member, or one WSL user on a `/mnt/c` checkout, reaches this
+state on the first POSIX install after a Windows one.
+
+The two directions are also asymmetric now. On win32, `path.win32.isAbsolute("/Users/x/repo")` is true, so a
+macOS-written marker carried to Windows still reads `unbound / other-directory` and is replaced. Only the
+Windows-to-POSIX direction is stuck. The kit-home record is also inconsistent with the marker:
+`readKitHomeRecord` (install-marker.ts:1121-1135) applies no absoluteness rule to its own `grugopsHome`. A
+`C:/x` kit-home record on POSIX therefore reads `unbound` and is replaced. The same field name gets two rules,
+which goes against the "one absoluteness rule" claim in user-file.ts:337-347.
+
+This is the WIN-1 class: one recorded path, read by two rules. The deferred-items.md (2) entry calls the
+change intended and says "no install on POSIX produces it". That is true of POSIX installs, but it does not
+cover a marker from another host, which the readMarker header names as a case to handle.
+
+**Fix:** Keep the shape check separate from the binding. The shape question is whether this is a path some
+install could have written, on any host. The binding question is whether it names this directory, and
+`markerBinding` / `sameRecordedPath` already answer that. Both flavors are passed as data, so no platform
+branch is introduced:
 ```ts
-const fromRender = readRenderedDials(text, label);            // renderedRead.text
-const dials = readRenderedDials(transformed.text, label);
-if (fromRender.ok && dials.ok && (fromRender.alias !== dials.alias || fromRender.effort !== dials.effort)) {
-  refusals.push(`.claude/agents/ — ${label}: the transform changed the adapter's ` +
-    `${fromRender.effort !== dials.effort ? "effort" : "model"} line ` +
-    `(${fromRender.effort} -> ${dials.effort}); no adapter was installed ...`);
-  memberRefused = true;
-  continue;
+// user-file.ts
+/** A recorded path some install could have written, on any host: absolute under either flavor. */
+export function isRecordedPathShape(p: string): boolean {
+  return path.win32.isAbsolute(p) || path.posix.isAbsolute(p);
 }
+// install-marker.ts installMarkerProblems
+const isAbsolutePathValue = (v: unknown): boolean =>
+  typeof v === "string" && v.trim() === v && v !== "" && isRecordedPathShape(v);
 ```
-Another option is for the generator to announce the per-role map rather than the distinct set. If
-neither is done, rewrite the three comments to say that a drop is caught only when it moves the set.
+Keep `isRecordedAbsolute(p, flavor)` (host flavor) for `absoluteSpelling`, where the host's reading decides
+how to spell. Then:
+- add census rule (f)'s owner set for the new function;
+- add a canonical-path row: posix, `target: "C:/x"` gives no problem and `markerBinding` gives
+  `other-directory`;
+- add an install.test.ts row: a Windows-spelled marker on POSIX is replaced with the `another directory`
+  note, and the ask rules are written.
 
-### WR-09: The WIN-1 census checks a hand-picked list of comparison sites, and a second absoluteness rule over recorded paths sits outside it
+If the stricter reading is kept on purpose, record that decision in 34-CONTEXT.md. In that case, also have the
+refusal say "written for another platform's path spelling" rather than "not an absolute path", and give the
+remedy.
 
-**File:** `install/path-spelling-census.test.ts:214-236` (rule (e)), `:238-252` (rule (f)); `install/user-file.ts:298-299`; `install/install-marker.ts:1154-1155`
+### WR-12: The closing banner says ask rules were written even when none were
 
-**Issue:** The brief (§2.2) asks for a census that derives every site writing or comparing a recorded
-path. The census does derive the fold patterns: rules (a)..(d) walk the syntax tree for
-`realpathSync.native`, backslash `.replace`, `split(sep).join("/")` and `toPosix`. The comparison side
-is a fixed list:
-- Rule (e) inspects two named functions (`markerBinding`, `readKitHomeRecord`) and only equalities with
-  an identifier spelled `here`.
-- Rule (f) inspects only `docAbspath` for a `startsWith`.
+**File:** `install/install.ts:5744-5747` (pre-existing line, outside the round-2 diff; reached by WR-11)
 
-Even so, `user-file.ts:298-299` says "No other installer site may spell or compare a recorded path
-another way; install/path-spelling-census.test.ts holds that."
+**Issue:** The `-- notes --` block always prints "This installer wrote Claude Code ask rules for the governed
+command spellings into .claude/settings.json." In the WR-11 run, the same output says
+`no ask rule was added to .claude/settings.json`, and `.claude/settings.json` does not exist. The line is not
+conditioned on what `writeAskRules()` did. This is the DOC-1 class (a printed claim no code backs) and goes
+against the project's "No fabrication" constraint, on the merge/deploy safety speed bump in particular. The
+line predates this round (commit `e68c8258`). It is raised here because WR-11 makes it reachable in an
+ordinary cross-host case. Any other ask-rules refusal (a malformed ledger, an unreadable settings file)
+reaches it too.
 
-The census misses a site that already exists. `isAbsoluteMarkerPath`
-(`install-marker.ts:1154-1155`) is a second, hand-written absoluteness rule over the recorded `target`,
-`grugopsHome` and `kitRoot`: `v.startsWith("/") || /^[A-Za-z]:[\\/]/.test(v)`. It disagrees with the
-flavor's `isAbsolute`, which `absoluteSpelling` now uses:
-- On win32, a target in native UNC spelling (`\\server\share\repo`) fails it, so the marker is reported
-  "target is not an absolute path" and is unusable. Yet `sameRecordedPath` would bind that spelling,
-  and the new comment at `user-file.ts:281-284` says a native-spelled record (the "same repository
-  moved" remedy) now binds on Windows. For UNC paths it still does not. The canonical `//server/share`
-  form that install itself writes does pass.
-- On POSIX it accepts `C:/x`, which is a relative path there.
-
-Neither case loses data: both fail closed or fail later. But the claim that the census "holds that" is
-wrong, and the brief's "one authority" rule for WIN-1 (§2.3) is broken by a predicate the census
-cannot see.
-
-**Fix:**
-1. Move the rule into user-file.ts beside the spelling and build it on the flavor:
-   ```ts
-   export function isRecordedAbsolute(v: unknown, flavor: PathFlavor = HOST_FLAVOR): boolean {
-     return typeof v === "string" && v.trim() === v && v !== "" && flavor.isAbsolute(v);
-   }
-   ```
-   Then call it from `installMarkerProblems`, and add win32/posix rows for it to canonical-path.test.ts.
-2. Widen census rule (f) to every product `startsWith("/")` and every drive-letter regex literal, not
-   only those in `docAbspath`.
-3. Widen rule (e) to every equality or `startsWith` whose operand is a marker or ledger path field
-   (`target`, `grugopsHome`, `kitRoot`, `boundTo`). Alternatively, reword the user-file.ts sentence to
-   name exactly what the census enumerates.
-
-### WR-10: The read-only "user mode edit" removed the only end-to-end test of the pointer-file mode check in uninstall
-
-**File:** `install/record-truth.test.ts:333-335`, `:357-369`; product site `install/uninstall.ts:899-901` (`removeOwnedEmptyFile`)
-
-**Issue:** The L1 rows now model the user's mode change with `userModeEdit`, which clears every write
-bit. For the two pointer files (CLAUDE.md and `.github/copilot-instructions.md`), uninstall must
-rewrite the file to take its block out before it reaches the recorded-mode comparison. A read-only file
-makes that rewrite fail first, and the test comment at 333-335 says so. Each row still passes, because
-the file stays and keeps its mode. But it now passes through the write-failure path (exit 3 accepted),
-not through the check the row is named for ("a chmod-only edit survives uninstall"). Before round 1,
-the `^ 0o100` flip left the file writable, so the block was removed and `recordMatches(...,
-result.beforeMode)` in `removeOwnedEmptyFile` decided whether the file was kept.
-
-The new direct unit test (record-truth.test.ts:336-354) tests `modeMatches` and `recordMatches` on
-their own. It cannot see whether `removeOwnedEmptyFile` passes `result.beforeMode` (rather than `null`,
-or a record with the mode stripped). A search of the installer tests for `beforeMode`, `userModeEdit`
-and the pointer paths found no other case that reaches this comparison with a writable mode-changed
-file. So a regression that deletes a user's blank, chmod-only CLAUDE.md would stay green on every OS.
-
-**Fix:** Add a pointer-file case gated on the measured capability, using the pattern the IN-03 rows use:
-```ts
-const absent = hostCapabilityOrSkip("POSIX permission bits beyond read-only", "record-truth L1 pointer mode");
-if (absent !== null) { console.log(skipLine(absent, "...")); return; }
-chmodSync(p, 0o600); // mode-census: posix-bits   (keeps the write bit, so the block removal runs)
-const u = uninstall(t);
-expect(existsSync(p)).toBe(true);
-expect(lines(u.stdout, "left").some((l) => pathText(l).includes("its file mode is 0600"))).toBe(true);
-```
-Add a WINDOWS.md row for the skip, and update `TAG_KIND_COUNTS["posix-bits"]` and the capability's
-"asked only by" note in `scripts/check-platform-shapes.ts:679-682`.
+**Fix:** Have `writeAskRules()` return or record whether it wrote or kept the rules. Print the sentence only
+then. Otherwise print, for example, "No Claude Code ask rules were written by this run (see the verify line
+above); the git host's protection is the only floor until they are." Add an install.test.ts assertion on the
+banner for one ask-rules refusal row.
 
 ## Info
 
-### IN-06: The per-adapter install line names the model but not the effort level that was read
+### IN-09: The freshness gate's per-adapter zero-config value check cannot be reached (executor flag confirmed)
 
-**File:** `install/install.ts:3627`, `:5021-5031`
-**Issue:** `effortOf` is filled for every member, used only for the set check, and then dropped. The
-`KitEntry` carries `alias` but no effort, so `materializeAdapter` prints `(KIT=…, model=<alias>)` and no
-effort. This is a reporting arm of RC-1 that the effort dial did not get. It is not a refusal, and no
-document claims the line shows effort.
-**Fix:** Carry `effort: dials.effort` on the entry and print `effort=<level>` beside `model=`, or record
-in a comment why it is left out.
+**File:** `scripts/adapters-freshness.ts:603-609`
+**Issue:** Before `checkAnnouncedMap` runs, two things already hold:
+- the list check (:362-372 for model, the effort sibling at :455-465) requires the announced list to equal
+  `ZERO_CONFIG_*` exactly;
+- validator rule 8 (scripts/model-tiers.ts:957-965) forces the map's distinct values to equal that list.
 
-### IN-07: The two dials' shape checks differ
+Every map value is therefore already the zero-config value, and `offZero` is always empty. The branch is
+labelled defence in depth, and no test reaches it. Its message wording is unexercised.
+**Fix:** Keep it, and say in its comment that it is unreachable while rule 8 holds. Or drop it and point the
+comment at rule 8.
 
-**File:** `install/install.ts:3218-3233`
-**Issue:** The comment says both dials are read "through one code path". That holds for the three named
-conditions in `oneAnnouncement`. The shape checks still differ: the model arm uses
-`typeof v.roles !== "number"`, and the effort arm uses `isCount`. Today the model-tiers readers already
-refuse non-integer counts for both dials, so nothing is wrong, but the RC-1 comment overstates the
-symmetry.
-**Fix:** Use `isCount` for the model arm too, or narrow the comment to `oneAnnouncement`.
+### IN-10: `AnnouncedAssignment.aliases`, `.effort.levels` and both `overrides` are now read and never used
 
-### IN-08: `canonicalPathSpelling` does not fold the `\\.\` device-namespace prefix
+**File:** `install/install.ts:2900-2910`, `:3289-3301`, `:2925-2933` (announcementShape docstring)
+**Issue:** With the set cross-checks removed, nothing in install.ts reads `announced.aliases`,
+`announced.effort.levels` or either `overrides` (a search finds only the declarations and the assignment). The
+`announcementShape` docstring says the shape is checked "so that nothing it trusts later (the counts, the
+list, the per-adapter map) is used before its type is known". The list and `overrides` are not used later.
+This is harmless, but the comment describes a use that no longer exists.
+**Fix:** Drop the unused fields from `AnnouncedAssignment`, or narrow the docstring to the counts and the map
+that are used.
 
-**File:** `install/user-file.ts:317-324`
-**Issue:** Under `path.win32`, `\\.\C:\x` spells as `//./C:/x` (measured with the compiled module), so it
-never matches `C:/x`. The doc comment lists only the `\\?\` and `\\?\UNC\` forms, so the code matches
-the comment. This note records the edge so the canonical-path table can say whether it is intended. It
-fails closed: the marker reads as another directory's.
-**Fix:** Add a table row for `\\.\` that states the intended result. Fold the prefix only if a real
-producer of that spelling is found.
+### IN-11: Every install now prints two relay lines of about 717 characters
 
-## Known open item: WINDOWS.md row 319 (`link:D:\some\where` against `link:/some/where`)
+**File:** `scripts/model-tiers.ts:798-813` (assignmentLine), relayed verbatim by install.ts's resolution report
+**Issue:** The announcement payload now carries the 17-entry `byAdapter` map. The installer relays both
+announcement lines verbatim in its `render` report. A zero-config scratch install printed two 717-character
+lines. Nothing breaks, but the user-facing report becomes much harder to read, and the length grows with the
+role count.
+**Fix:** Relay the summary fields (`roles`, `overrides`, list) and say that the per-adapter map was checked
+member by member. Or wrap the map, one adapter per line.
 
-From the source, the product's own link records are drive-qualified when they are written, so the
-fixture's drive-less spelling does not occur in product records:
-- Every link install makes uses an absolute source built by `join(GRUGOPS_SRC, …)`, and
-  `GRUGOPS_SRC = resolve(…)` (install.ts:258-260). That gives a drive-qualified, backslash-separated
-  path under win32.
-- The two sites are `linkOrCopy` (`symlinkSync(src, dest)` then `linkRecord(src)`, install.ts:2477-2482)
-  and the kit plan (`recordKitFile(e.dest, linkRecord(e.src))`, install.ts:3718).
-- Uninstall compares that record with `readlinkSync(dest) === src` (`isOwnLink`, user-file.ts:534-540).
+### IN-12: Denylist `p === TARGET` triage (34-21 flag): no evasion today, but by convention only, and one classified reason is inaccurate
 
-The failing rows in `install/ledger.test.ts:454` and `:638` link to `/some/where`. That path has no
-drive letter, so Node on Windows qualifies it with the current drive when it creates the link, and
-readlink returns the qualified form. The product never links to a drive-less target, so it does not
-reach that difference.
+**File:** `install/install.ts:1974-1982` (isPruneProtected), `install/uninstall.ts:327-336` (isProtected),
+`install/path-spelling-census.test.ts` CLASSIFIED_COMPARISONS
+**Issue:** The 34-21 question was whether a backslash-joined path evades these denylists on Windows. Every
+operand was read:
+- install's one caller passes `${r.root}/${e.path}` (:2106);
+- uninstall's callers pass `${TARGET}/${rel}` or `${TARGET}/${entry.path}` (:524, :651, :767/:843, :988,
+  :1275, :1814, :1831, :2123);
+- `isLedgerPath` (install-marker.ts:352-356) refuses `\` and `:` in a ledger path.
 
-Whether `readlinkSync` on windows-latest returns exactly the recorded `D:\…` string is
-`UNKNOWN - verify`. That depends on Node/libuv removing the namespace prefix that `symlinkSync` adds,
-and no windows-latest run has been cited that creates a product symlink and reads it back. If it does
-not, `isOwnLink` answers false and the link is left in place, which fails closed rather than deleting
-anything.
+So both sides are always one spelling, and no `join()`-built operand reaches either function. Nothing
+enforces this, though. Census rule (e) classifies by file:scope:operator only, so a future `join(TARGET, …)`
+caller would pass the census and evade the denylist on Windows. Also, the install classification reason says
+"a path this run composed from TARGET", but the kit-home root's operand is composed from `GRUGOPS_HOME`. That
+is harmless, because both are canonical, but the reason is inaccurate.
+**Fix:**
+1. Correct the reason text.
+2. Optionally spell both sides of the denylist comparisons: `canonicalPathSpelling(p)` against the canonical
+   `TARGET`. This also makes uninstall's non-canonical `abspath` TARGET (uninstall.ts:214) irrelevant.
 
-## Round-0 cross-reference
+Alternatively, extend rule (e) to require that every call of `isPruneProtected` / `isProtected` passes a
+template literal whose head is `TARGET` or `r.root`.
 
-| This review | Round-0 ID | Relation |
+### IN-13: The `isRecordedAbsolute` docstring and table omit the win32 rooted, drive-less spelling, the row-319 shape
+
+**File:** `install/user-file.ts:337-347`, `install/canonical-path.test.ts` ABS_RULE_TABLE (15 rows)
+**Issue:** `path.win32.isAbsolute("/x")` and `path.win32.isAbsolute("\\x")` are both `true`. On Windows these
+are relative to the current drive, the shape behind WINDOWS.md row 319. The docstring lists what is absolute
+under win32 (UNC, `\\?\`, drive paths in either separator) and what is not (`C:x`), but does not mention this
+case. The table has no row for it, so a reader could take it as refused. Nothing binds wrongly today: the
+canonical spelling of `/x` never equals a drive-qualified real path, so the case fails closed as
+`other-directory`. The behaviour is just unpinned.
+**Fix:** Add `{ name: "win32 rooted drive-less", flavor: win, p: "/x", absolute: true }` and the `\x` twin
+(size 17). Add one sentence to the docstring saying such a value passes the shape check and is then refused
+by the binding.
+
+## Round-1 cross-reference
+
+| This review | Round-1 ID | Relation |
 |-------------|------------|----------|
-| WR-08 | WR-03 (fixed, plan 34-15) | A gap left inside the WR-03 fix: the effort arm has the set check but not the per-member floor the model arm has (RC-1). |
-| IN-06 | WR-03 (fixed) | Reporting arm of the same model/effort symmetry. |
-| IN-07 | WR-03 (fixed) | The "one code path" claim of the WR-03 fix is broader than the code. |
-| WR-09 | none | New, WIN-1 class (round-1 census scope). |
-| WR-10 | none | New, WIN-2 class (round-1 test change). |
-| IN-08 | none | New, WIN-1 class. |
+| — | WR-08 | Closed (row (f) run at HEAD; refused by name). |
+| — | WR-09 | Closed; WR-11 is a new finding caused by its posix half. |
+| — | WR-10 | Closed. |
+| — | IN-07 | Closed. |
+| WR-11 | WR-09 | New. WIN-1 class, created by the WR-09 fix (one host-flavor rule used for a cross-host shape question). |
+| WR-12 | none | New here, but the line is pre-existing. DOC-1 class, reached through WR-11. |
+| IN-09 | none | New (executor flag confirmed). |
+| IN-10 | IN-07 / WR-08 | Left over from removing the set checks. |
+| IN-11 | none | New, reporting side of the 34-19 grammar change. |
+| IN-12 | none | Answer to the 34-21 triage flag. |
+| IN-13 | WR-09 | WIN-1 class, test-coverage gap in the new table. |
 
-No deferred round-0 finding is raised again. Round 1 made none of them worse:
-- WR-04: the new effort refusals pass the module reader's `quoteValue` text through, and the level list
-  is interpolated exactly as the pre-existing model alias list was.
-- WR-01, WR-02, WR-05, IN-01..IN-05: not touched by this diff.
+Still open from round 1, deferred in 34-REVIEW-DISPOSITION.md and not raised again:
+- **IN-06** (the install line shows the model but not the effort level). The round-2 change keeps
+  `alias: writtenDials.alias` and still drops the effort.
+- **IN-08** (`\\.\` prefix not folded).
+
+Round 2 made neither worse.
+
+Whether the isOwnLink host cases, the 34-22 pointer rows and the ledger fixtures behave on windows-latest is
+`UNKNOWN - verify` until the human-pushed run (WINDOWS.md rows 319, 320, 321; D-21).
 
 ---
 
-_Reviewed: 2026-10-09T00:10:00Z_
+_Reviewed: 2026-10-09T12:30:09Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
