@@ -142,6 +142,28 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   fixed in this round. The other nine rows (WR-01, WR-02, WR-04, WR-05, IN-01..IN-05) get a recorded
   disposition (`deferred` or `skipped`, with a reason) in 34-REVIEW-DISPOSITION.md, not code changes.
 
+### Gap round 2 decisions (human, 2026-10-09, answering 34-VERIFICATION.md gaps_found 8/12)
+- **D-21:** Gap round 2 has NO windows-latest measurement. The human will push and measure at a later
+  date, so no plan in this round ends with a push checkpoint, and 34-GAP-PLANNING-BRIEF.md §2.5 does not
+  apply to round 2. HOST-02 stays unchecked in REQUIREMENTS.md, with "Windows measurement deferred by
+  the human (D-21)" as the reason. No agent claims HOST-02 met from a macOS run (WIN-3). The code and test
+  work stays in scope and is checked on macOS only. (1) Fix the two `install/ledger.test.ts` link-record
+  fixtures (`/some/where`, WINDOWS.md row 319): build the target from the test's own scratch root, with no
+  platform conditional. (2) Audit the masked later assertions of every earlier WIN-1 and WIN-2 red, and
+  record each one and its expected Windows result as a prediction for the later run.
+- **D-22:** WR-08 is fixed with a per-member check. The installer compares the effort level of each
+  adapter, read from its rendered text, with the level read from its transformed text, adapter by
+  adapter. The evasion shape becomes an `effortRefusalRows` case: `tiered` plus one role at `inherit`,
+  with one adapter's `effort:` line dropped. The three comments that overstate the check are made true.
+  IN-07 is folded in, so both dials go through one shape check (RC-1, one authority).
+- **D-23:** WR-09 and WR-10 are fixed in this round as riders. WR-09: there is one absoluteness rule for
+  recorded paths, owned by the canonical-path module. `isAbsoluteMarkerPath` uses it. The WIN-1 census
+  finds its comparison sites by search, not from a hand-written list, and covers `isOwnLink`
+  (`user-file.ts`). WR-10: one end-to-end row uses a writable pointer file whose mode was changed, so the
+  row reaches the uninstall mode check at `install/uninstall.ts` (the one near lines 899-901). The seven
+  requirement boxes the verifier found SATISFIED (EFFORT-01, 02, 03, 05, HOST-01, PI-01, PI-04) are
+  ticked, and their stale traceability cells are updated.
+
 ### Claude's Discretion
 - Exact TypeScript module/location of the host-tool registry, and how docs prose is checked against it.
 - Plan order and wave split between the effort half and the Pi half (they are independent).
