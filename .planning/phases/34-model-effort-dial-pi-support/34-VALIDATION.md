@@ -760,6 +760,27 @@ changed); 34-20 alone 2 (the effort refusal rows, now 6, and the 11 member refus
 - **The (a) class at the deferred head**: measured green at 9de784e8, predicted green after round 2's
   product changes (reasons above), not measured.
 
+#### Local chain on the final round-2 tree (macOS, not a Windows result)
+
+Run by plan 34-24 on 2026-10-09 on local HEAD `5be7b8918aa41860c823fe382f387072403aef7c` (plan 34-24's
+second commit; the last product or test change of gap round 2 is `cbe97597`), working tree clean apart
+from three untracked `.planning/research/.cache/*.json` files, local Node v26.11.0, under a short fresh
+TMPDIR (`/tmp/g34.XXXX`, removed afterwards). The steps are those of 34-24-PLAN.md Task 2 `<verify>`, in
+that order. Run as one `&&` chain, it **exits 1 at the vitest step**. Vitest printed
+`Test Files  1 failed | 102 passed (103)` and `Tests  1 failed | 7535 passed | 2 skipped (7538)`,
+duration 1431.67 s. The one red is `install/installer-fs-census.test.ts` "every node:fs export whose name may mark a content read is
+classified ...", `UNCLASSIFIED node:fs export openAsBlobSync`. This is the local runtime, not the tree:
+Node v26.11.0's `node:fs` exports `openAsBlobSync`. The same file run alone under Node v24.12.0, where
+`typeof fs.openAsBlobSync` is `undefined`, printed `Tests  24 passed (24)`. CI pins `node-version: 22`
+(`.github/workflows/ci.yml:52`), and no Node 22 run was made here (deferred-items.md, "Out of scope,
+found during 34-19"). The steps after vitest were then run separately, in order, on the same head: the
+seven freshness gates, `generate:adapters` followed by an empty `git status --porcelain -- .claude/agents/`,
+foundation guards, kit refs, public-docs vocabulary, audit register, claim anchors, banned claims,
+imperative lexicon and `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js`. Each exited 0. The
+steps before vitest (build, build parity, typecheck, `check-platform-shapes.js`) exited 0. The local test
+total, 7538, equals the total predicted above. `npm test` and the e2e lane were not run. This is a macOS
+result, it says nothing about windows-latest, and HOST-02 stays unchecked (D-21).
+
 ---
 
 ## Validation Sign-Off
