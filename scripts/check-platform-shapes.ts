@@ -678,8 +678,10 @@ export const HOST_CAPABILITIES: readonly HostCapability[] = Object.freeze([
   {
     // Plan 34-13 (WIN-2, run 37521787426): a test whose claim is about permission bits beyond the
     // read-only attribute (a backup that keeps 0600, or the group-write bit of 0664 that the umask
-    // strips from a create) asks this before it sets such a mode. Asked only by the two IN-03 cases of
-    // install/installer-prune.test.ts (D-19 scope).
+    // strips from a create) asks this before it sets such a mode. Asked by the two IN-03 cases of
+    // install/installer-prune.test.ts (D-19 scope) and, since plan 34-22 (D-23, WR-10), by the L1
+    // pointer-file rows of install/record-truth.test.ts (a writable mode change to CLAUDE.md and the
+    // Copilot file, so uninstall's pointer-file mode comparison is reached end to end).
     name: "POSIX permission bits beyond read-only",
     reasonWhenAbsent:
       "this platform keeps only the read-only attribute of a file (Windows), so a mode such as 0600 " +

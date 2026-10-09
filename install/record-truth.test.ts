@@ -33,6 +33,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -46,7 +47,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { KINDS_BY_SCOPE, fileRecord, modeMatches, readLedger, recordedModeOf, recordMatches } from "./install-marker.js";
+import { KINDS_BY_SCOPE, fileRecord, modeMatches, modeText, readLedger, recordedModeOf, recordMatches } from "./install-marker.js";
+import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { askRecord, blockRecords, fileRecords, withLedger } from "./ledger.test-support.js";
 import {
   INSTALL_JS,
@@ -321,6 +323,22 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  */
 const REMOVABLE_COUNT = 34;
 
+/**
+ * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a
+ * `file` entry in the base install's one ledger. Uninstall removes the block from such a file first and then
+ * decides the file in removeOwnedEmptyFile, which compares the record with the bytes and mode the file had
+ * before the block removal. Derived from the marker, not listed; the count is asserted.
+ */
+function createdPointerFiles(m: Record<string, unknown>): string[] {
+  const files = fileRecords(m);
+  return Object.keys(blockRecords(m))
+    .filter((rel) => rel in files)
+    .sort();
+}
+const CREATED_POINTERS: readonly string[] = BASE_RUN.status === 0 ? createdPointerFiles(markerOf(BASE)) : [];
+/** CLAUDE.md and .github/copilot-instructions.md when this was written (plan 34-22). */
+const CREATED_POINTER_COUNT = 2;
+
 describe("L1: a mode change or a whitespace edit is a user edit, and the file is left (brief DC-2)", () => {
   it("REMOVABLE is taken from the marker, has REMOVABLE_COUNT files, and an untouched copy's uninstall removes every one", () => {
     expect(REMOVABLE.length, REMOVABLE.join("\n")).toBe(REMOVABLE_COUNT);
@@ -330,9 +348,11 @@ describe("L1: a mode change or a whitespace edit is a user edit, and the file is
     for (const rel of REMOVABLE) expect(existsSync(at(t, rel)), `${rel} survived an untouched uninstall\n${u.stdout}`).toBe(false);
   });
 
-  // The one recorded-mode comparison on the stored change itself (WIN-2, plan 34-13). The rows below reach it
-  // through uninstall, but on the two pointer files (CLAUDE.md, the Copilot file) a read-only file stops the
-  // block removal before the comparison is asked, so the comparison is also asked here directly.
+  // The one recorded-mode comparison on the stored change itself (WIN-2, plan 34-13). The read-only rows below
+  // reach it through uninstall for every removable file but the two pointer files: there a read-only file stops
+  // the block removal before the comparison is asked. The pointer rows (plan 34-22, D-23) reach it for those
+  // two through uninstall with a writable mode change, where the host stores POSIX permission bits; on a host
+  // that does not, they print their skip (WINDOWS.md row), and this direct case stays for every host.
   it("modeMatches / recordMatches: a mode the user cleared the write bits of no longer matches the recorded mode", () => {
     const d = fresh("l1-compare");
     const p = join(d, "f.md");
@@ -352,6 +372,45 @@ describe("L1: a mode change or a whitespace edit is a user edit, and the file is
     expect(modeMatches(undefined, mode)).toBe(true);
     expect(modeMatches(recordedModeOf(`${record.slice(0, record.indexOf(";mode="))};mode=x`), mode)).toBe(false);
   });
+
+  it("the pointer files install created are taken from the marker (a block entry and a file entry at one path) and are CREATED_POINTER_COUNT", () => {
+    expect(CREATED_POINTERS.length, CREATED_POINTERS.join("\n")).toBe(CREATED_POINTER_COUNT);
+    for (const rel of CREATED_POINTERS) expect(REMOVABLE, `${rel} is a created pointer file but not removable`).toContain(rel);
+  });
+
+  // WR-10 (plan 34-22, D-23): a WRITABLE mode change to a pointer file install created. The block removal writes
+  // the file (its mode kept), the file is blank after it, and removeOwnedEmptyFile compares the record with the
+  // bytes and mode read before the removal: the mode differs, so the file is the user's and is left, blank, with
+  // the user's mode. The change must keep the owner write bit, so it is a POSIX permission bit beyond read-only
+  // (the other-read bit is toggled); a host that cannot store one asks the measured capability and prints its
+  // skip (WINDOWS.md, the plan 34-22 row). No mode is a literal: both are read back and rendered with modeText.
+  for (const rel of CREATED_POINTERS) {
+    it(`${rel} (a pointer file install created): a writable chmod-only edit reaches the recorded-mode comparison; the file stays blank with the user's mode, exit 0`, () => {
+      const absent = hostCapabilityOrSkip("POSIX permission bits beyond read-only", `install/record-truth.test.ts: L1 pointer ${rel}`);
+      if (absent !== null) {
+        console.log(skipLine(absent, `this L1 pointer ${rel} case on a host that stores POSIX permission bits (a POSIX CI leg); the direct modeMatches / recordMatches case still runs here`));
+        return;
+      }
+      const t = installedCopy("l1-pointer-mode");
+      const p = at(t, rel);
+      const before = storedMode(p);
+      chmodSync(p, before ^ 0o004); // mode-census: posix-bits
+      const edited = storedMode(p);
+      expect(edited, `${rel}: the host stored no mode change`).not.toBe(before);
+      expect((edited & 0o200) !== 0, `${rel}: the edited mode ${modeText(edited)} lost the owner write bit, so the block removal could not write`).toBe(true);
+      const u = uninstall(t);
+      expect(u.status, `${rel}: uninstall did not exit 0 (a 3 means the block removal did not write; read the verify line)\n${u.stdout}`).toBe(0);
+      expect(existsSync(p), `${rel} was removed although the user changed its mode\n${u.stdout}`).toBe(true);
+      expect(readFileSync(p, "utf8"), `${rel} is not blank after the block removal`).toMatch(/^[ \t\r\n]*$/);
+      expect(storedMode(p), `${rel} lost the user's mode`).toBe(edited);
+      const named = lines(u.stdout, "left").filter((l) => pathText(l).includes(rel));
+      const want = `its file mode is ${modeText(edited)}, not the ${modeText(before)} install wrote`;
+      expect(
+        named.some((l) => l.includes(want)),
+        `${rel}: no left line carries "${want}"\n${u.stdout}`,
+      ).toBe(true);
+    }, 30_000);
+  }
 
   for (const rel of REMOVABLE) {
     it(`${rel}: a chmod-only edit survives uninstall (the file stays, with the user's mode)`, () => {

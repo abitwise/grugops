@@ -33,7 +33,9 @@
 //   posix-bits     sets permission bits beyond read-only, inside a case gated on the measured host
 //                  capability "POSIX permission bits beyond read-only" (plan 34-13, WINDOWS.md row 318).
 //                  Added by this plan for installer-prune.test.ts IN-03: the case is neither of the other
-//                  three, and the capability gate is checked structurally below.
+//                  three, and the capability gate is checked structurally below. Plan 34-22 (D-23, WR-10)
+//                  added the second asker: record-truth.test.ts's L1 pointer rows, whose writable mode
+//                  change (the other-read bit toggled) reaches uninstall's pointer-file mode comparison.
 // A tag claims a kind; the behavioural tests, not the tags, prove the rule (T-34-40, accepted). The counts
 // make a new tag visible in review.
 //
@@ -65,7 +67,7 @@ const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
   "access-denial": 10,
   restore: 18,
   "row-315": 5,
-  "posix-bits": 1,
+  "posix-bits": 2,
 };
 const USER_MODE_EDIT_CHMOD_COUNT = 1;
 
