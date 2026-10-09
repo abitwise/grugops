@@ -197,3 +197,17 @@ None.
 ---
 *Phase: 34-model-effort-dial-pi-support*
 *Completed: 2026-10-09*
+
+## State updates
+
+- `state.advance-plan`, `state.update-progress`, `state.record-metric`, two `state.add-decision` and `state.record-session` were run. `state.advance-plan` left "Plan: 7 of 24". It was corrected by hand to 24 of 24. STATE.md's longest line is unchanged at 2524 characters, and it has no doubled-backslash runs.
+- `roadmap.update-plan-progress 34` set 24/24. The phase row says "gap round 2 of 4 executed; verification not yet run". The phase is not marked complete.
+- `requirements.mark-complete` was not run. It would tick HOST-02, which D-21 forbids. The seven ticks were made by hand in Task 1.
+
+## Self-Check: PASSED
+
+- All four modified files and this SUMMARY exist.
+- Commits `bc2bda39`, `5be7b891`, `c10f1e81` and `4fdca746` are ancestors of HEAD.
+- The Task 1 verify printed 7, the HOST-02 unchecked line and the D-21 reason.
+- The Task 2 greps printed `open: 0` and `From gap round 2`.
+- The chain shortfall is the one recorded under Deviations.
