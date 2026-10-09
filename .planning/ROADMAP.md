@@ -1670,7 +1670,7 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 19/24 plans executed (34-01..34-18 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20; gap round 2 of 4, 34-19..34-24, planned 2026-10-09 under D-21, D-22, D-23 and D-24, no Windows measurement this round)
+**Plans:** 20/24 plans executed (34-01..34-18 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20; gap round 2 of 4, 34-19..34-24, planned 2026-10-09 under D-21, D-22, D-23 and D-24, no Windows measurement this round)
 
 Plans:
 **Wave 1**
@@ -1718,7 +1718,7 @@ Plans:
 **Gap round 2 (D-21, D-22, D-23, D-24)** *(sequential waves 1-6; no push and no windows-latest measurement this round, D-21)*
 
 - [x] 34-19-PLAN.md — RC-1 / WR-08, grammar half: both assignment announcements carry the per-role map (`byAdapter`) built from the generator's resolution, one payload validator for both dials, the freshness gate reads the same grammar; committed adapters unchanged (D-24)
-- [ ] 34-20-PLAN.md — RC-1 / WR-08 + IN-07, installer half: each adapter's rendered and written bytes compared with the announced map for both dials, the verifier's reproduction as a committed refusal row, one installer shape check, set checks removed as subsumed (D-22, D-24)
+- [x] 34-20-PLAN.md — RC-1 / WR-08 + IN-07, installer half: each adapter's rendered and written bytes compared with the announced map for both dials, the verifier's reproduction as a committed refusal row, one installer shape check, set checks removed as subsumed (D-22, D-24)
 - [ ] 34-21-PLAN.md — WIN-1 / WR-09: one absoluteness rule (`isRecordedAbsolute`) in the canonical-path module, `isOwnLink` through the one spelling, census comparison and absoluteness sites derived with counts (D-23)
 - [ ] 34-22-PLAN.md — WIN-2 / WR-10: capability-gated writable chmod-only pointer rows reach uninstall's mode check end to end, census count, WINDOWS.md row for the skip (D-23)
 - [ ] 34-23-PLAN.md — HOST-02 code side: ledger.test.ts link fixtures from the scratch root, census rule (t6), masked-assertion audit and the prediction for the deferred run, WINDOWS.md row 319 annotated (D-21)
@@ -1766,7 +1766,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 19/24 | In Progress (gap round 2 of 4 planned) | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 20/24 | In Progress (gap round 2 of 4 planned) | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
