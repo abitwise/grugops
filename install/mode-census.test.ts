@@ -57,8 +57,9 @@ import { join } from "node:path";
 const INSTALL_DIR = import.meta.dirname;
 const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
 
-/** Sizes of the scanned sets, counted when this census was written (plan 34-14). */
-const INSTALL_TEST_FILE_COUNT = 28;
+/** Sizes of the scanned sets, counted when this census was written (plan 34-14). INSTALL_TEST_FILE_COUNT is 29
+ * since plan 34-25 added closing-claims.test.ts, which has no chmod call and no mode expectation. */
+const INSTALL_TEST_FILE_COUNT = 29;
 const SCRIPTS_TEST_FILE_COUNT = 71;
 const SOURCE_FILE_COUNT = 8;
 

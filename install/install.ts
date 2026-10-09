@@ -5457,6 +5457,12 @@ function reportRetiredConfigKeys(): void {
 // and each created* flag says only what THIS run created. A key the user adds beside the array
 // changes nothing; any change to the array itself ends the claim. A settings file this run cannot
 // read, parse or type-check shows nothing either, so its ledger claims nothing.
+//
+// THE OUTCOME (plan 34-25, D-25, review WR-12). writeAskRules returns what THIS run did with ask rules,
+// as an AskRulesOutcome, on every exit; its declared return type makes an exit without one a compile
+// error. The closing `-- notes --` block reads only that outcome (askRulesNotes), never ASK_LEDGER or
+// VERIFY_FINDINGS: ASK_LEDGER is set before the DRY_RUN return and in the arms that add nothing, and
+// VERIFY_FINDINGS counts the whole run. Only the `written` outcome may say this run added rules.
 // ---------------------------------------------------------------------------
 const ASK_CONFIG_CANDIDATES: ReadonlyArray<readonly string[]> = [
   [".grugops", "factory.config.json"],
@@ -5483,7 +5489,26 @@ function readCheckpointConfig(): unknown {
 // back verbatim by writeMarker() itself (WR-05), so no entry of it is computed here.
 let ASK_LEDGER: AskRuleLedger | null = null;
 
-function writeAskRules(): void {
+// What one run of writeAskRules did (D-25). One kind per exit class:
+//   written      this run inserted `added` rules into .claude/settings.json (the file now holds them);
+//   present      every wanted rule was already there: `carried` with proof of an earlier install,
+//                `users` as the user's own; this run wrote nothing;
+//   none-wanted  no checkpoint is at block, so no rule is wanted: `remaining` rules an earlier install
+//                added stay (the count the `left` lines report), `users` governed spellings are the
+//                user's own; this run wrote nothing;
+//   dry-run      DRY_RUN: `wouldAdd` rules would be added; nothing was written;
+//   refused      a verify line names why nothing was written (marker, ledger, settings file, splice,
+//                or write failure).
+type AskRulesOutcome =
+  | { readonly kind: "written"; readonly added: number }
+  | { readonly kind: "present"; readonly carried: number; readonly users: number }
+  | { readonly kind: "none-wanted"; readonly remaining: number; readonly users: number }
+  | { readonly kind: "dry-run"; readonly wouldAdd: number }
+  | { readonly kind: "refused" };
+
+const ASK_REFUSED: AskRulesOutcome = { kind: "refused" };
+
+function writeAskRules(): AskRulesOutcome {
   const rel = ".claude/settings.json";
   const file = join(TARGET, ".claude", "settings.json");
   report(
@@ -5502,7 +5527,7 @@ function writeAskRules(): void {
       `.grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — no ask rule ` +
         `was added to ${rel} and the marker was left as it was. Fix or remove the marker, then re-run the installer.`,
     );
-    return;
+    return ASK_REFUSED;
   }
   const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
   if (previousRead.state === "malformed") {
@@ -5510,7 +5535,7 @@ function writeAskRules(): void {
       `${rel} — the install ledger in .grugops/install.json is malformed (${previousRead.why}), so no ask rule was ` +
         `added and the ledger is written back unchanged. Fix the ledger field, then re-run the installer.`,
     );
-    return;
+    return ASK_REFUSED;
   }
   const previous: AskRuleLedger | null = entryAt(previousRead, ASK_RULES_REL, "ask-rules") ?? null;
   // The ledger to write when the previous claims cannot be carried (see THE CARRY NEEDS PROOF).
@@ -5552,7 +5577,7 @@ function writeAskRules(): void {
   if (settingsRead.state === "blocked") {
     verify(`${rel}: ${blockedAt(settingsRead, file)} — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
     ASK_LEDGER = unclaimed(null);
-    return;
+    return ASK_REFUSED;
   }
   const exists = settingsRead.state === "ok";
   if (settingsRead.state === "ok") {
@@ -5560,7 +5585,7 @@ function writeAskRules(): void {
     if (!doc.ok) {
       verify(`${rel} ${doc.why} — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
       ASK_LEDGER = unclaimed(null);
-      return;
+      return ASK_REFUSED;
     }
     const parsed: unknown = documentValue(doc);
     const permsAt = memberNamed(doc.root, "permissions");
@@ -5570,12 +5595,12 @@ function writeAskRules(): void {
           `known — left untouched; no ask rule was written. Fix the file and re-run the installer.`,
       );
       ASK_LEDGER = unclaimed(null);
-      return;
+      return ASK_REFUSED;
     }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       verify(`${rel} is not a JSON object — left untouched; no ask rule was written. Fix the file and re-run the installer.`);
       ASK_LEDGER = unclaimed(null);
-      return;
+      return ASK_REFUSED;
     }
     json = parsed as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(json, "permissions")) {
@@ -5583,14 +5608,14 @@ function writeAskRules(): void {
       if (p === null || typeof p !== "object" || Array.isArray(p)) {
         verify(`${rel} has a "permissions" value that is not an object — left untouched; no ask rule was written.`);
         ASK_LEDGER = unclaimed(null);
-        return;
+        return ASK_REFUSED;
       }
       permissions = p as Record<string, unknown>;
       if (Object.prototype.hasOwnProperty.call(permissions, "ask")) {
         if (!Array.isArray(permissions.ask)) {
           verify(`${rel} has a "permissions.ask" value that is not an array — left untouched; no ask rule was written.`);
           ASK_LEDGER = unclaimed(null);
-          return;
+          return ASK_REFUSED;
         }
         ask = permissions.ask;
       }
@@ -5628,9 +5653,15 @@ function writeAskRules(): void {
   if (carried > 0) report("skipped", `${rel} (${carried} ask rule(s) from an earlier install already present)`);
 
   // Rules an earlier run added for a checkpoint that is now lowered stay: install never removes.
+  // leftTotal and loweredUsers feed the `none-wanted` outcome (D-25): what is still there when no rule
+  // is wanted, counted from the same `present`/`prevAdded` sets the `left` lines use.
+  let leftTotal = 0;
+  let loweredUsers = 0;
   for (const checkpoint of ASK_RULE_CHECKPOINTS) {
     if (toWrite.includes(checkpoint)) continue;
     const left = askRulesFor(checkpoint).filter((r) => present.has(r) && prevAdded.has(r)).length;
+    leftTotal += left;
+    loweredUsers += askRulesFor(checkpoint).filter((r) => present.has(r) && !prevAdded.has(r)).length;
     if (left > 0) {
       report(
         "left",
@@ -5658,8 +5689,11 @@ function writeAskRules(): void {
   };
 
   if (toAdd.length === 0) {
-    if (rules.length === 0) report("skipped", `${rel} (no checkpoint is at block — no ask rule to write)`);
-    return;
+    if (rules.length === 0) {
+      report("skipped", `${rel} (no checkpoint is at block — no ask rule to write)`);
+      return { kind: "none-wanted", remaining: leftTotal, users: loweredUsers };
+    }
+    return { kind: "present", carried, users: rules.filter((r) => present.has(r) && !prevAdded.has(r)).length };
   }
   // THE SPLICE (red-team B3): a new file is install's own and written whole; an existing one gets the
   // rules added to its permissions.ask list (or the one member install adds) and nothing else. The splice
@@ -5686,18 +5720,18 @@ function writeAskRules(): void {
     if (!check.ok || !sameJsonValue(documentValue(check), expected)) {
       verify(`${rel} could not be edited in place without changing anything but permissions.ask — left untouched; no ask rule was written.`);
       ASK_LEDGER = proven ? previous : unclaimed(askNow);
-      return;
+      return ASK_REFUSED;
     }
   }
   if (DRY_RUN) {
     report("would-add", `${rel} (${toAdd.length} ask rule(s) to permissions.ask)`);
-    return;
+    return { kind: "dry-run", wouldAdd: toAdd.length };
   }
   if (!writeTargetFile(file, newText, settingsRead.state, rel)) {
     // Nothing was written, so this run added no rule: the ledger stays as it was when the array found
     // is still install's, and claims nothing otherwise (R3).
     ASK_LEDGER = proven ? previous : unclaimed(askNow);
-    return;
+    return ASK_REFUSED;
   }
   if (willCreateFile && ASK_LEDGER !== null) {
     // The mode the file install just created has (red-team L1 of plan 33.1-34): uninstall deletes the file
@@ -5712,6 +5746,56 @@ function writeAskRules(): void {
     "created",
     `${rel} (${toAdd.length} ask rule(s) added to permissions.ask${willCreateFile ? "; file created" : ""})`,
   );
+  return { kind: "written", added: toAdd.length };
+}
+
+// The closing-notes sentence for one writeAskRules outcome (D-25), indented like the surrounding
+// notes. Pure: it reads the outcome and nothing else. Only `written` says this run added rules; the
+// git host is named as the only floor only when no governed ask rule is present at all.
+function askRulesNotes(outcome: AskRulesOutcome): string[] {
+  const at = "          ";
+  const settings = ".claude/settings.json";
+  switch (outcome.kind) {
+    case "written":
+      return [
+        `${at}This run added ${outcome.added} Claude Code ask rule(s) for the governed command spellings to`,
+        `${at}${settings}.`,
+      ];
+    case "present": {
+      const out = [`${at}This run added no ask rule.`];
+      if (outcome.carried > 0) {
+        out.push(`${at}The ${outcome.carried} ask rule(s) an earlier install added are still in ${settings}.`);
+      }
+      if (outcome.users > 0) {
+        out.push(
+          `${at}${settings} already holds ${outcome.users} governed spelling(s) as the user's own rules;`,
+          `${at}install did not add them and uninstall will not remove them.`,
+        );
+      }
+      return out;
+    }
+    case "none-wanted": {
+      const out = [`${at}No ask rule was written: no checkpoint is at block in the factory configuration.`];
+      if (outcome.remaining > 0) {
+        out.push(`${at}The ${outcome.remaining} ask rule(s) an earlier install added remain (see the \`left\` lines above).`);
+      }
+      if (outcome.users > 0) {
+        out.push(`${at}${settings} holds ${outcome.users} governed spelling(s) as the user's own rules.`);
+      }
+      if (outcome.remaining === 0 && outcome.users === 0) {
+        out.push(`${at}With no ask rule present for these commands, the git host is the only floor.`);
+      }
+      return out;
+    }
+    case "dry-run":
+      return [`${at}DRY_RUN: this run would add ${outcome.wouldAdd} ask rule(s) to ${settings} and wrote nothing.`];
+    case "refused":
+      return [`${at}No ask rule was written in this run (see the verify line above).`];
+    default: {
+      const unhandled: never = outcome;
+      return unhandled;
+    }
+  }
 }
 
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
@@ -5731,7 +5815,8 @@ reportRetiredConfigKeys();
 // 7c. Claude Code ask rules for the governed command spellings (D-18). After seedState(), so a
 // first install reads the seeded configuration; before writeMarker().
 console.log("\n-- permission rules --");
-writeAskRules();
+// The one record of what this run did with ask rules; the notes block below reads only this (D-25).
+const askOutcome = writeAskRules();
 
 // 8. Write the install marker (grugops-owned; overwritten unconditionally).
 writeMarker();
@@ -5742,9 +5827,10 @@ console.log("    /plugin marketplace add abitwise/grugops  (UNKNOWN - verify aga
 console.log("    /plugin install grugops@grugops           (UNKNOWN - verify against current tool docs)");
 console.log("  Safety: the git host is the hard floor — branch protection or rulesets on protected branches,");
 console.log("          and deployment environments with required reviewers for production (install/README.md §5).");
-console.log("          This installer wrote Claude Code ask rules for the governed command spellings into");
-console.log("          .claude/settings.json. They are a speed bump, not a security boundary: other spellings");
-console.log("          of the same command are not matched. The Claude Code plugin form cannot carry permission");
+// What this run did with Claude Code ask rules, from the outcome writeAskRules returned (D-25, WR-12).
+for (const line of askRulesNotes(askOutcome)) console.log(line);
+console.log("          Claude Code ask rules are a speed bump, not a security boundary: other spellings of the");
+console.log("          same command are not matched. The Claude Code plugin form cannot carry permission");
 console.log("          rules, so a plugin-only install gets none.");
 // Derived from HOST_TOOLS (phase 34, D-11): every host that does not spawn role agents, by name, in
 // registry order, so this line can never carry a stale host count.
