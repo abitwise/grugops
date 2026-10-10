@@ -23,7 +23,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSy
 import { isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { KIT_ROUTE, PI_PROMPT_REL } from "./host-tools.js";
+import { HOST_TOOLS, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
@@ -150,6 +150,13 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     expect(c.status, c.stdout + c.stderr).toBe(1);
     const fails = routeLines(c.stdout).filter((l) => l.startsWith("  FAIL") && l.includes(PI_PROMPT_REL));
     expect(fails.length, c.stdout).toBe(1);
+    // The FAIL's remedy (DOC-1, plan 34-28): re-running install.js refreshes the template, and --check passes.
+    expect(fails[0]).toContain("Re-run install.js");
+    const again = runInstall(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    const after = check(target, kitHome);
+    expect(after.status, after.stdout + after.stderr).toBe(0);
+    expect(routeLines(after.stdout).filter((l) => l.startsWith("  ok") && l.includes(PI_PROMPT_REL)).length, after.stdout).toBe(1);
   });
 
   it("a route that does not resolve: --check FAILs naming the Orchestrator path under kitRoot", () => {
@@ -476,5 +483,65 @@ describe("kit route: a re-install refreshes install's own unedited CLAUDE.md and
     expect(reports(dry.stdout, "would-refresh", "CLAUDE.md"), dry.stdout).toBe(true);
     expect(readFileSync(join(target, "CLAUDE.md"), "utf8")).toBe(staged);
     expect(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")).toBe(markerBefore);
+  });
+});
+
+// ── THE NOTE FOR A USER'S CARRIER WITHOUT THE ROUTE (plan 34-28, D-26 point 3) ──────────────────────
+//
+// The host names are derived here from HOST_TOOLS and ROUTE_POINTERS (a host's carriers are its entry files
+// and its adapter kind's pointers), never typed and never taken from host-tools.ts routeCarriers, so the
+// note is checked against an independent derivation.
+const carriersOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter]])];
+/** For AGENTS.md, the hosts whose only carrier it is; for any other file, the hosts that read it. */
+const notedHosts = (rel: string): string[] =>
+  HOST_TOOLS.filter((h) => (rel === "AGENTS.md" ? carriersOf(h).length === 1 && carriersOf(h)[0] === rel : carriersOf(h).includes(rel))).map((h) => h.name);
+/** The note lines naming `rel` as their subject. */
+const notesFor = (stdout: string, rel: string): string[] => linesUnder(stdout, "note").filter((l) => l.trim().split(/\s+/)[1] === rel);
+/** The note says the file, exactly `hosts` in registry order, and KIT_ROUTE as the sentence to add. */
+function expectRouteNote(stdout: string, rel: string): void {
+  const hosts = notedHosts(rel);
+  expect(hosts.length, `premise: some host reads ${rel}`).toBeGreaterThan(0);
+  const notes = notesFor(stdout, rel);
+  expect(notes.length, stdout).toBe(1);
+  expect(notes[0], "the note does not name exactly the derived hosts, in registry order").toContain(`no kit route in it: ${hosts.join(", ")} get no route`);
+  expect(notes[0]).toContain(`"${KIT_ROUTE}"`);
+}
+
+describe("kit route: a user's own carrier without the route gets a note naming the hosts it leaves out (plan 34-28, D-26 point 3)", () => {
+  it(`a target with its own AGENTS.md without the route: one note naming AGENTS.md, ${notedHosts("AGENTS.md").join(", ")}, and KIT_ROUTE`, () => {
+    const { target, kitHome } = scratchRow();
+    const mine = "# My agents\n\nMy own instructions.\n";
+    writeFileSync(join(target, "AGENTS.md"), mine);
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expectRouteNote(r.stdout, "AGENTS.md");
+    expect(readFileSync(join(target, "AGENTS.md"), "utf8")).toBe(mine);
+  });
+
+  it("a fresh install prints no route note", () => {
+    const { target, kitHome } = scratchRow();
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(linesUnder(r.stdout, "note").filter((l) => l.includes(KIT_ROUTE)), r.stdout).toEqual([]);
+  });
+
+  it("the user's own Pi template without the route, there before install: a note naming the file, the hosts that read it, and KIT_ROUTE", () => {
+    const { target, kitHome } = scratchRow();
+    mkdirSync(join(target, ".pi", "prompts"), { recursive: true });
+    writeFileSync(piFile(target), "---\ndescription: my own grugops prompt\n---\nDo it my way: $ARGUMENTS\n");
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expectRouteNote(r.stdout, PI_PROMPT_REL);
+  });
+
+  it("a block the user edited, without the route: a note naming the file and the hosts that read it", () => {
+    const { target, kitHome } = scratchRow();
+    makeFixture(target);
+    expect(runInstall(target, kitHome).status).toBe(0);
+    const staged = stageEarlierBlock(target, "CLAUDE.md", CLAUDE_OPEN, CLAUDE_CLOSE);
+    writeFileSync(join(target, "CLAUDE.md"), staged.replace(`${CLAUDE_OPEN}\n`, `${CLAUDE_OPEN}\nMy own line inside the block.\n`));
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expectRouteNote(r.stdout, "CLAUDE.md");
   });
 });

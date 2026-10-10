@@ -17,7 +17,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, readFileSy
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { HOST_TOOLS, HOST_TOOL_COUNT, HOST_ADAPTER_KINDS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, HOST_ADAPTER_KINDS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute, ROUTE_POINTERS, routeCarriers, hostsReading } from "./host-tools.js";
 import { runInstall } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-host-tools-")));
@@ -459,5 +459,62 @@ describe("the kit route in AGENTS.md (plan 34-27, D-26)", () => {
 
   it("AGENTS.md keeps the SC2 invariant sentence", () => {
     expect(AGENTS).toContain(SC2);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The route carriers per host (plan 34-28, D-26 point 3). ROUTE_POINTERS classifies every adapter kind;
+// routeCarriers and hostsReading are the one derivation install's notes and `--check` use. The expected
+// values here are computed by this file from HOST_TOOLS and ROUTE_POINTERS, never typed, so a registry
+// change moves them with it.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+/** This file's own derivation: a host's entry files, then its adapter kind's pointers, first occurrence kept. */
+const expectedCarriers = (adapter: string, entryFiles: readonly string[]): string[] => {
+  const out: string[] = [];
+  for (const f of [...entryFiles, ...(ROUTE_POINTERS as Record<string, readonly string[]>)[adapter]]) if (!out.includes(f)) out.push(f);
+  return out;
+};
+const AGENTS_ONLY = HOST_TOOLS.filter((h) => {
+  const c = expectedCarriers(h.adapter, h.entryFiles);
+  return c.length === 1 && c[0] === "AGENTS.md";
+}).map((h) => h.name);
+
+describe("route carriers are derived from the registry (plan 34-28, D-26 point 3)", () => {
+  it("ROUTE_POINTERS has exactly the keys of HOST_ADAPTER_KINDS, and every value is a list of target-relative POSIX paths", () => {
+    expect(Object.keys(ROUTE_POINTERS).sort()).toEqual([...HOST_ADAPTER_KINDS].sort());
+    for (const [kind, paths] of Object.entries(ROUTE_POINTERS)) {
+      expect(Array.isArray(paths), `${kind}'s pointers are not a list`).toBe(true);
+      for (const p of paths) {
+        expect(p.length, `${kind} has an empty pointer path`).toBeGreaterThan(0);
+        expect(p, `${kind}'s pointer ${p} is not a target-relative POSIX path`).not.toMatch(/^[/~]|^[A-Za-z]:|\\|(^|\/)\.\.(\/|$)/);
+      }
+    }
+  });
+
+  for (const h of HOST_TOOLS) {
+    it(`routeCarriers(${h.id}) is its entryFiles together with ROUTE_POINTERS[${h.adapter}], without duplicates`, () => {
+      const got = [...routeCarriers(h)];
+      expect(got).toEqual(expectedCarriers(h.adapter, h.entryFiles));
+      expect(new Set(got).size).toBe(got.length);
+    });
+  }
+
+  it("hostsReading(rel) is every registry host whose route carriers include rel, in registry order", () => {
+    const rels = [...new Set(HOST_TOOLS.flatMap((h) => expectedCarriers(h.adapter, h.entryFiles)))];
+    expect(rels.length).toBeGreaterThan(1);
+    for (const rel of rels) {
+      const want = HOST_TOOLS.filter((h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel)).map((h) => h.id);
+      expect(hostsReading(rel).map((h) => h.id), rel).toEqual(want);
+    }
+    expect(hostsReading("no/such/carrier.md")).toEqual([]);
+  });
+
+  it(`the hosts whose only route carrier is AGENTS.md, derived: ${AGENTS_ONLY.join(", ")}`, () => {
+    expect(AGENTS_ONLY.length, "no host reaches the route through AGENTS.md alone; the AGENTS.md note would name nobody").toBeGreaterThan(0);
+    const viaModule = HOST_TOOLS.filter((h) => {
+      const c = routeCarriers(h);
+      return c.length === 1 && c[0] === "AGENTS.md";
+    }).map((h) => h.name);
+    expect(viaModule).toEqual(AGENTS_ONLY);
   });
 });

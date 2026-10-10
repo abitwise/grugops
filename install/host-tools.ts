@@ -158,6 +158,39 @@ export const HOST_TOOLS: readonly HostTool[] = [
 ];
 
 /**
+ * ROUTE_POINTERS (plan 34-28, D-26 point 3): the pointer files install writes for each adapter kind that
+ * carry the start-here sentence and KIT_ROUTE, as POSIX paths relative to the target root. Keyed by
+ * HostAdapterKind, so a new kind is a compile error until it is classified here. A kind that writes no
+ * pointer (`gemini-settings` only adds AGENTS.md to Gemini's context.fileName; `none` writes nothing) has
+ * none: its hosts reach the route through their entry files alone.
+ */
+export const ROUTE_POINTERS: Readonly<Record<HostAdapterKind, readonly string[]>> = {
+  "claude-kit": ["CLAUDE.md"],
+  none: [],
+  "gemini-settings": [],
+  "copilot-pointer": [".github/copilot-instructions.md"],
+  "pi-prompt-template": [PI_PROMPT_REL],
+};
+
+/**
+ * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which `host` can reach
+ * the kit route: its entryFiles, then ROUTE_POINTERS[host.adapter], without duplicates, in that order.
+ * Install's notes for a user's carrier without the route and `--check`'s per-host route findings both
+ * derive from it, so the two cannot disagree about which hosts a carrier serves.
+ */
+export function routeCarriers(host: HostTool): readonly string[] {
+  return [...new Set([...host.entryFiles, ...ROUTE_POINTERS[host.adapter]])];
+}
+
+/**
+ * hostsReading (plan 34-28, D-26 point 3): the registry hosts whose route carriers (routeCarriers) include
+ * `rel`, in registry order. The one answer install and `--check` use to name the hosts a carrier serves.
+ */
+export function hostsReading(rel: string): readonly HostTool[] {
+  return HOST_TOOLS.filter((h) => routeCarriers(h).includes(rel));
+}
+
+/**
  * A pinned integer, not a derivation: install/host-tools.test.ts asserts it equals
  * HOST_TOOLS.length in both directions, so a row added or removed without moving this pin fails
  * red. It moves only in the commit that adds or removes a registry row.

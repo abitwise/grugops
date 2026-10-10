@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute } from "./host-tools.js";
+import { HOST_TOOLS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute, hostsReading, routeCarriers } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -1011,7 +1011,7 @@ function kitRouteFindings(marker, ledger, markerFile) {
         if (own.owned) {
             docFail(`kit route missing from ${carrier.rel} (${carrier.what}): install wrote it in an earlier install and it ` +
                 `still holds what install wrote, so it names no route to the kit, which a scripted install puts outside ` +
-                `this repository. Remove it and re-run install.js, which writes the current one where nothing is`);
+                `this repository. Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`);
         }
         else {
             docWarn(`kit route missing from ${carrier.rel} (${carrier.what}): it is not install's own file (${own.reason}), so ` +
@@ -2197,7 +2197,8 @@ function migratePreSteps() {
 //     it created. Reported `refreshed`;
 //   - a block that is already the current lines: skipped, nothing written;
 //   - anything else (no record, a record that no span matches because a line inside was added, edited or
-//     removed, or two matching spans): skipped, nothing written.
+//     removed, or two matching spans): skipped, nothing written. When the file then carries no kit route,
+//     noteMissingRoute names it and the hosts that read it (D-26 point 3).
 function ensureBlock(ledger, file, open, body, close, label) {
     const cur = readForWrite(TARGET, file);
     if (cur.state === "blocked") {
@@ -2229,6 +2230,8 @@ function ensureBlock(ledger, file, open, body, close, label) {
             }
         }
         report("skipped", `${label} (sentinel already present)`);
+        if (rel !== null)
+            noteMissingRoute(rel, cur.text);
         return;
     }
     if (DRY_RUN) {
@@ -2282,7 +2285,8 @@ function ensureBlock(ledger, file, open, body, close, label) {
 //             is install's own and unedited, so text that is not PI_PROMPT_TEXT (an earlier install's
 //             template, with no kit route or older) is replaced and the new bytes recorded; text that is
 //             PI_PROMPT_TEXT is current and skipped. Anything else (the user's own template, or install's
-//             edited since) is left untouched, never overwritten or appended to. This replaces the
+//             edited since) is left untouched, never overwritten or appended to, and noteMissingRoute
+//             names it when it carries no kit route (D-26 point 3). This replaces the
 //             create-only rule deferred as IN-03. An earlier install's ledger claim on a file left
 //             untouched is carried forward by nextLedgerEntries only while the file still holds exactly
 //             the recorded content (recordHolds), so a user edit drops the claim.
@@ -2304,6 +2308,7 @@ function writePiPromptTemplate(ledger) {
         if (refreshOwnFile(ledger, PI_PROMPT_REL, PI_PROMPT_TEXT, "Pi prompt template") !== "left")
             return;
         report("skipped", `${PI_PROMPT_REL} (Pi prompt template: a file is already there — left untouched)`);
+        noteMissingRoute(PI_PROMPT_REL, cur.text);
         return;
     }
     if (DRY_RUN) {
@@ -2339,6 +2344,28 @@ function refreshOwnFile(ledger, rel, want, label) {
     recordCreatedFile(file, writtenFileRecord(file, wantBytes));
     report("refreshed", `${rel} (${label}: install's own copy from an earlier install, unedited, held no kit route or was older; replaced with the current text and recorded)`);
     return "refreshed";
+}
+// noteMissingRoute (plan 34-28, D-26 point 3): when install leaves a route carrier untouched because it is
+// not install's to change (the user's own, install's edited since, or a block install has no single record
+// of), and `text` (the whole file as this run read it, which is what a host reads) does not carry the kit
+// route (carriesKitRoute), one `note` names the file, the hosts it leaves without a route to the kit after a
+// scripted install, and KIT_ROUTE as the sentence to add. The hosts are derived from HOST_TOOLS
+// (host-tools.ts routeCarriers / hostsReading, the one derivation install and `--check` share), in registry
+// order: for AGENTS.md, the hosts whose only route carrier is AGENTS.md (the others also read a pointer
+// install writes); for any other file, every host that reads it. Report only: nothing is written.
+function noteMissingRoute(rel, text) {
+    if (carriesKitRoute(text))
+        return;
+    const hosts = rel === "AGENTS.md"
+        ? hostsReading(rel).filter((h) => {
+            const c = routeCarriers(h);
+            return c.length === 1 && c[0] === rel;
+        })
+        : hostsReading(rel);
+    if (hosts.length === 0)
+        return;
+    report("note", `${rel} (left as it is, with no kit route in it: ${hosts.map((h) => h.name).join(", ")} get no route to the kit ` +
+        `after a scripted install; to give them one, add this sentence to it: "${KIT_ROUTE}")`);
 }
 // recordAppendedBlock (plan 33.1-33): APPENDED_BLOCKS gets the record of the block this run wrote to
 // `file`. Called only after the write succeeded, never in DRY_RUN (ensureBlock returns before).
@@ -4939,7 +4966,8 @@ for (const rel of SRC_NESTED_ADAPTERS) {
 // source's AGENTS.md bytes (read through readUserFile; nothing to refresh to when that read is not ok). It is
 // replaced only when PREVIOUS_LEDGER's `file` entry for it still holds, that is, a copy install created in
 // an earlier run and nobody edited since; a user's own AGENTS.md, or install's edited since, is never
-// written. Install's own link (--symlink) is current by construction and is never refreshed.
+// written, and noteMissingRoute names it when it carries no kit route, with the hosts whose only route carrier
+// AGENTS.md is (D-26 point 3). Install's own link (--symlink) is current by construction and is never refreshed.
 {
     const agentsSrc = join(GRUGOPS_SRC, "AGENTS.md");
     const agentsDest = join(TARGET, "AGENTS.md");
@@ -4951,6 +4979,7 @@ for (const rel of SRC_NESTED_ADAPTERS) {
         const src = readUserFile(agentsSrc);
         if (refreshOwnFile(PREVIOUS_LEDGER, "AGENTS.md", src.state === "ok" ? src.bytes : null, "AGENTS.md") === "left") {
             report("skipped", "AGENTS.md (target already has one — left untouched)");
+            noteMissingRoute("AGENTS.md", agentsRead.text);
         }
     }
     else if (agentsRead.state === "blocked") {
