@@ -1670,7 +1670,7 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 35/36 plans executed; gap round 4 of 4 (the last on the cap), 34-32..34-36, planned 2026-10-10 under D-27 (34-01..34-18 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20; gap round 2 of 4, 34-19..34-24, planned 2026-10-09 under D-21, D-22, D-23 and D-24, no Windows measurement this round; gap round 3 of 4, 34-25..34-31, planned 2026-10-09 under D-25 and D-26 for UAT gaps G-34-2 and G-34-4, Windows out of scope, D-26 decided by the human at 34-27 Task 1)
+**Plans:** 36/36 plans executed; gap round 4 of 4 (the last on the cap), 34-32..34-36, planned 2026-10-10 under D-27 (34-01..34-18 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20; gap round 2 of 4, 34-19..34-24, planned 2026-10-09 under D-21, D-22, D-23 and D-24, no Windows measurement this round; gap round 3 of 4, 34-25..34-31, planned 2026-10-09 under D-25 and D-26 for UAT gaps G-34-2 and G-34-4, Windows out of scope, D-26 decided by the human at 34-27 Task 1)
 
 Plans:
 **Wave 1**
@@ -1740,7 +1740,7 @@ Plans:
 - [x] 34-33-PLAN.md — WR-02/WR-03: one strandedBy derivation for install notes and the doctor's WARN and absent arms; a carrier that strands no host is uncounted; DRY_RUN notes equal real notes (D-27)
 - [x] 34-34-PLAN.md — WR-01: one refreshable predicate for refreshOwnFile, ensureBlock and the doctor; "re-run install.js" only when install would refresh or create (D-27)
 - [x] 34-35-PLAN.md — the brief §4 class matrix: carriers × states × Gemini × adapter × route target, every host, install-and-doctor agreement, matrix-level mutation proofs (D-27)
-- [ ] 34-36-PLAN.md — docs (install guide, IN-06, CHANGELOG, siblings checked), deferred rows WR-04/WR-05/IN-02..IN-05 recorded, ledger and snapshot, validation, final local chain (D-27)
+- [x] 34-36-PLAN.md — docs (install guide, IN-06, CHANGELOG, siblings checked), deferred rows WR-04/WR-05/IN-02..IN-05 recorded, ledger and snapshot, validation, final local chain (D-27)
 
 ## Progress
 
@@ -1784,7 +1784,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 35/36 | In Progress (gap round 3 of 4 verified gaps_found 17/20, CR-01; gap round 4 of 4 (last on the cap) planned 34-32..34-36 under D-27) | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 36/36 | In Progress (gap round 3 of 4 verified gaps_found 17/20, CR-01; gap round 4 of 4 (last on the cap) planned 34-32..34-36 under D-27) | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
