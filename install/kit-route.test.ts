@@ -19,8 +19,8 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS } from "./host-tools.js";
@@ -1400,5 +1400,105 @@ describe("kit route: one derivation of the hosts a carrier strands (plan 34-33, 
     expect(counted[0].startsWith("  WARN"), counted[0]).toBe(true);
     expect(counted[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
     for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(!stranded.includes(h.name));
+  });
+});
+
+// ── ONE REFRESHABLE PREDICATE DECIDES REFRESH FOR INSTALL AND THE DOCTOR (plan 34-34, D-27 point 3; WR-01; AUTH-1, VERDICT-1) ──
+//
+// Before plan 34-34 the doctor called a carrier "install's own, stale" on owns alone and told the user to re-run
+// install.js, while install refreshes only when more holds: a `sha256:` file record (not a link record), a regular
+// file at the path (readForWrite `ok`: not a link, not a hard link) and a readable kit text. On a link the remedy was
+// false and the FAIL never cleared (WR-01). Every row here runs the doctor, then a re-install, then the doctor again,
+// and asserts the agreement: the doctor names `Re-run install.js` for a carrier exactly when the re-install reports
+// `refreshed` or `created` for it.
+
+/** The install's `verify` lines whose subject is `rel` (the token after the label, with or without a trailing colon). */
+const verifiesFor = (stdout: string, rel: string): string[] =>
+  linesUnder(stdout, "verify").filter((l) => {
+    const t = l.trim().split(/\s+/)[1];
+    return t === rel || t === `${rel}:`;
+  });
+/** The re-install wrote `rel`: a `refreshed` or `created` line names it. */
+const installWrote = (stdout: string, rel: string): boolean => reports(stdout, "refreshed", rel) || reports(stdout, "created", rel);
+/** The doctor named `Re-run install.js` on a line about carrier `rel`. */
+const rerunNamed = (stdout: string, rel: string): boolean => carrierLines(stdout, rel).some((l) => l.includes("Re-run install.js"));
+
+/** Doctor, re-install (with `args`), doctor; asserts the doctor's re-run remedy for `rel` appears exactly when the re-install writes it. */
+function doctorInstallDoctor(row: { target: string; kitHome: string }, rel: string, args: readonly string[] = []): { before: Run; again: Run; after: Run } {
+  const before = check(row.target, row.kitHome);
+  const again = runInstall(row.target, row.kitHome, [...args]);
+  const after = check(row.target, row.kitHome);
+  expect(
+    rerunNamed(before.stdout, rel),
+    `the doctor and install disagree on ${rel}.\n--check said:\n${carrierLines(before.stdout, rel).join("\n")}\nthe re-install said:\n${again.stdout}`,
+  ).toBe(installWrote(again.stdout, rel));
+  return { before, again, after };
+}
+
+/**
+ * Point the link install made at `rel` to `to` instead, and set install's ledger record for it to the record of the new
+ * link: the record install wrote, with its link target replaced (the record format is read from the ledger, never typed).
+ */
+function relinkOwn(target: string, rel: string, to: string): void {
+  const path = join(target, ...rel.split("/"));
+  expect(lstatSync(path).isSymbolicLink(), `premise: ${rel} is a link`).toBe(true);
+  const old = readlinkSync(path);
+  rmSync(path);
+  symlinkSync(to, path);
+  writeMarkerObject(
+    target,
+    withLedger(readMarkerObject(target), (entries) => {
+      const e = entries.find((x) => x.kind === "file" && x.path === rel);
+      expect(e, `premise: the ledger records ${rel} as a file install created`).toBeDefined();
+      const content = String((e as Record<string, unknown>).content);
+      expect(content.includes(old), `premise: install's record for ${rel} names the link's target`).toBe(true);
+      (e as Record<string, unknown>).content = content.split(old).join(to);
+    }),
+  );
+}
+
+describe("kit route: one refreshable predicate decides refresh for install and the doctor (plan 34-34, D-27 point 3)", () => {
+  it("WR-01: AGENTS.md is a link install made, now to a file holding an earlier install's text with no route, and the link record matches it: a WARN with the by-hand remedy, no `Re-run install.js`; the re-install verifies and refreshes nothing; a second --check prints the same WARN", () => {
+    const { target, kitHome } = scratchRow();
+    const first = runInstall(target, kitHome, ["--symlink"]);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const agents = join(target, "AGENTS.md");
+    const elsewhere = join(dirname(target), "earlier-AGENTS.md");
+    const stale = staleOf(readFileSync(join(REPO_ROOT, "AGENTS.md"), "utf8"));
+    writeFileSync(elsewhere, stale);
+    relinkOwn(target, "AGENTS.md", elsewhere);
+    const stranded = strandedOf(target, "AGENTS.md");
+    expect(stranded.length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
+    const { before, again, after } = doctorInstallDoctor({ target, kitHome }, "AGENTS.md", ["--symlink"]);
+    const lines = carrierLines(before.stdout, "AGENTS.md");
+    expect(lines.filter((l) => l.startsWith("  FAIL")), before.stdout).toEqual([]);
+    const warns = lines.filter((l) => l.startsWith("  WARN"));
+    expect(warns.length, before.stdout).toBe(1);
+    expect(warns[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+    expect(warns[0]).toContain("install never refreshes a link");
+    expect(warns[0]).toContain("(in the file the link points to)");
+    expect(warns[0]).toContain(KIT_ROUTE);
+    expect(warns[0]).not.toContain("Re-run install.js");
+    expect(again.status, again.stdout + again.stderr).toBe(3);
+    expect(verifiesFor(again.stdout, "AGENTS.md").length, again.stdout).toBe(1);
+    expect(reports(again.stdout, "refreshed", "AGENTS.md"), again.stdout).toBe(false);
+    expect(readlinkSync(agents)).toBe(elsewhere);
+    expect(readFileSync(elsewhere, "utf8")).toBe(stale);
+    expect(carrierLines(after.stdout, "AGENTS.md"), after.stdout).toEqual(lines);
+  });
+
+  it("control: install's own regular-file AGENTS.md holding an earlier install's text: the FAIL names `Re-run install.js`, the re-install refreshes it, and --check then says every host reaches", () => {
+    const row = installed();
+    stageEarlierFile(row.target, "AGENTS.md", staleOf(readFileSync(join(row.target, "AGENTS.md"), "utf8")));
+    const { before, again, after } = doctorInstallDoctor(row, "AGENTS.md");
+    expect(before.status, before.stdout + before.stderr).toBe(1);
+    const fails = carrierLines(before.stdout, "AGENTS.md").filter((l) => l.startsWith("  FAIL"));
+    expect(fails.length, before.stdout).toBe(1);
+    expect(fails[0]).toContain("Re-run install.js");
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reports(again.stdout, "refreshed", "AGENTS.md"), again.stdout).toBe(true);
+    expect(after.status, after.stdout + after.stderr).toBe(0);
+    for (const h of HOST_TOOLS) expect(reachVerdict(after.stdout, h).reaches, reachVerdict(after.stdout, h).line).toBe(true);
+    expect(countedRouteLines(after.stdout), after.stdout).toEqual([]);
   });
 });

@@ -1380,6 +1380,89 @@ function ownBlockSpans(
   return { entry: own.entry, spans: blockLineSpans(bytes, open, close).filter((sp) => contentRecord(bytes.subarray(sp.start, sp.end)) === record) };
 }
 
+// carrierWant (plan 34-34, D-27 point 3): THE ONE SPELLING of the kit's current text for a whole-file route carrier
+// install writes: for AGENTS.md, the kit source's AGENTS.md read through readUserFile (DC-3: bounded, never a FIFO or
+// a device), or null when that read is not ok; for the Pi template, PI_PROMPT_TEXT; for anything else, null. A
+// function declaration over consts declared above the doctor (GRUGOPS_SRC, PI_PROMPT_TEXT), so the doctor can ask it.
+function carrierWant(rel: string): Buffer | null {
+  if (rel === "AGENTS.md") {
+    const src = readUserFile(join(GRUGOPS_SRC, "AGENTS.md"));
+    return src.state === "ok" ? src.bytes : null;
+  }
+  if (rel === PI_PROMPT_REL) return Buffer.from(PI_PROMPT_TEXT, "utf8");
+  return null;
+}
+
+/** What refreshable answers: install would refresh the carrier (with the read and the bytes the refresh acts on), or
+ *  why it would not, and whether the carrier's path is itself a symbolic link (the by-hand remedy then edits the file
+ *  the link points to). */
+type Refreshable =
+  | {
+      readonly ok: true;
+      readonly kind: "file";
+      readonly file: string;
+      readonly cur: Extract<UserWriteRead, { state: "ok" }>;
+      readonly want: Buffer;
+    }
+  | {
+      readonly ok: true;
+      readonly kind: "block";
+      readonly file: string;
+      readonly cur: Extract<UserWriteRead, { state: "ok" }>;
+      readonly own: EntryOf<"block">;
+      readonly span: { readonly start: number; readonly end: number };
+    }
+  | { readonly ok: false; readonly why: string; readonly link: boolean };
+
+// refreshable (plan 34-34, D-27 point 3, WR-01; classes AUTH-1 and VERDICT-1): THE ONE OWNER of "would install refresh
+// route carrier `rel` here". Install refreshes only when it answers ok (refreshOwnFile for a whole file, ensureBlock's
+// refresh arm for a block), and the doctor calls a carrier install's own, stale, and names `Re-run install.js`, only
+// when it answers ok (classifyCarrier). Before plan 34-34 the doctor decided on owns alone, so on a link install made it
+// told the user to re-run install.js, install refused to write through the link, and the FAIL never cleared.
+//   A whole file (rel not in ROUTE_BLOCKS), in refreshOwnFile's order of reads:
+//     owns(ledger, TARGET, rel, "file") answers owned          else why = owns' reason
+//     the record is a `sha256:` file record                     else it is a link install made (--symlink): never refreshed
+//     `cur ?? readForWrite` is ok (a regular file, not a link,
+//     not a hard link; DC-3: never a FIFO or a device)          else why = "is not present" or blockedAt's wording
+//     carrierWant(rel) is not null                              else the kit's current text could not be read
+//   A block (rel in ROUTE_BLOCKS):
+//     `cur ?? readForWrite` is ok                               else as above
+//     the text holds the open sentinel                          else it holds no install block
+//     ownBlockSpans is not null                                 else the ledger has no record of install's block
+//     exactly one span is kept                                  else it holds N unedited copies, not exactly one
+// `cur` is the readForWrite answer the caller already holds (ensureBlock passes its own, so the decision and the splice
+// are made on one read); without it the predicate reads through readForWrite itself. It never writes and never reports
+// (DC-2: a write follows only on install's own record, whose content must still match). A function declaration over
+// imports and consts declared above the doctor (ROUTE_BLOCKS, PI_PROMPT_TEXT, GRUGOPS_SRC, blockedAt, isSymlink).
+function refreshable(ledger: LedgerRead, rel: string, cur?: UserWriteRead): Refreshable {
+  const file = join(TARGET, ...rel.split("/"));
+  const no = (why: string): Refreshable => ({ ok: false, why, link: isSymlink(file) });
+  const readNow = (): Extract<UserWriteRead, { state: "ok" }> | string => {
+    const r = cur ?? readForWrite(TARGET, file);
+    return r.state === "ok" ? r : r.state === "create" ? "is not present" : blockedAt(r, file);
+  };
+  const sentinels = ROUTE_BLOCKS.get(rel);
+  if (sentinels === undefined) {
+    const own = owns(ledger, TARGET, rel, "file");
+    if (!own.owned) return no(own.reason);
+    if (!own.entry.content.startsWith("sha256:")) {
+      return no("it is a link install made (a --symlink install), and install never refreshes a link");
+    }
+    const now = readNow();
+    if (typeof now === "string") return no(now);
+    const want = carrierWant(rel);
+    if (want === null) return no("the kit's current text for it could not be read");
+    return { ok: true, kind: "file", file, cur: now, want };
+  }
+  const now = readNow();
+  if (typeof now === "string") return no(now);
+  if (!now.text.includes(sentinels.open)) return no("it holds no install block");
+  const blk = ownBlockSpans(ledger, rel, now.bytes, sentinels.open, sentinels.close);
+  if (blk === null) return no("the install ledger has no record of install's block in it");
+  if (blk.spans.length !== 1) return no(`it holds ${blk.spans.length} unedited copies of install's recorded block, not exactly one`);
+  return { ok: true, kind: "block", file, cur: now, own: blk.entry, span: blk.spans[0] };
+}
+
 // routeCarrierSet (plan 34-29, D-26 point 4): every file through which some registry host can reach the kit
 // route: the union of routeCarriers(host) (host-tools.ts, the one derivation) over HOST_TOOLS, in first-seen
 // registry order. Derived, so a seventh host or a new pointer is asked about with no edit here.
@@ -1387,56 +1470,48 @@ function routeCarrierSet(): readonly string[] {
   return [...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))];
 }
 
-// The state of one route carrier, as the doctor found it (kitRouteFindings below).
+// The state of one route carrier, as the doctor found it (kitRouteFindings below). `own-stale` means refreshable
+// answers ok (install would refresh it); `user` means it does not (install leaves the carrier as it is).
 type CarrierState = "route" | "own-stale" | "user" | "absent" | "unread";
 const CARRIER_STATE_TEXT: Readonly<Record<CarrierState, string>> = {
   route: "carries the kit route",
   "own-stale": "is install's own copy from an earlier install, without the kit route",
-  user: "is not install's own and has no kit route",
+  user: "has no kit route, and install will not refresh it",
   absent: "is not present",
   unread: "could not be read, so no verdict was reached on it",
 };
 
-/** What classifyCarrier found for one route carrier: its state, the read it came from, and, for `user`, why it is
- *  not install's own (null otherwise). */
+/** What classifyCarrier found for one route carrier: its state, the read it came from, and, for `user`, refreshable's
+ *  answer: why install will not refresh it, and whether the carrier's path is a link (both null/false otherwise). */
 interface CarrierClass {
   readonly state: CarrierState;
   readonly read: UserFileRead;
-  readonly ownReason: string | null;
+  readonly why: string | null;
+  readonly link: boolean;
 }
 
-// classifyCarrier (plan 34-29's carrierFinding, split by plan 34-33 so the doctor reads every file before it prints):
-// read one route carrier through the run's `readAt` (readUserFile under TARGET; DC-3: a FIFO, a directory, a device
-// or an oversized file is never read, it is `unread`) and classify it. It prints nothing and writes nothing. The
-// whole file is what a host reads, so the route test is carriesKitRoute over the whole text:
+// classifyCarrier (plan 34-29's carrierFinding, split by plan 34-33 so the doctor reads every file before it prints;
+// plan 34-34 makes it ask refreshable): read one route carrier through the run's `readAt` (readUserFile under TARGET;
+// DC-3: a FIFO, a directory, a device or an oversized file is never read, it is `unread`) and classify it. It prints
+// nothing and writes nothing. The whole file is what a host reads, so the route test is carriesKitRoute over the whole
+// text:
 //   carries KIT_ROUTE                                                    → route
-//   present without it, and install's own: for a whole file, owns over
-//   the doctor's ledger read answers owned for its `file` entry; for a
-//   block (ROUTE_BLOCKS), ownBlockSpans keeps exactly one span — the
-//   same rule the refresh writes on, so "re-run install.js" is true      → own-stale
-//   present without it, not install's own                                → user (ownReason says why)
+//   present without it, and refreshable (over the doctor's ledger read)
+//   answers ok: install's own, and install would refresh it. INSTALL AND
+//   THE DOCTOR ASK THE SAME PREDICATE (refreshOwnFile and ensureBlock's
+//   refresh arm write only when it answers ok), so the remedy
+//   "Re-run install.js" is one the next install carries out (WR-01)       → own-stale
+//   present without it, and refreshable answers not ok                   → user (why = refreshable's reason;
+//                                                                            link = the path is a link)
 //   absent                                                               → absent
 //   not a readable regular file                                          → unread
 function classifyCarrier(rel: string, ledger: LedgerRead, readAt: ReadAt): CarrierClass {
   const read = readAt(rel);
-  if (read.state === "absent") return { state: "absent", read, ownReason: null };
-  if (read.state !== "ok") return { state: "unread", read, ownReason: null };
-  if (carriesKitRoute(read.text)) return { state: "route", read, ownReason: null };
-  const sentinels = ROUTE_BLOCKS.get(rel);
-  let ownReason: string | null;
-  if (sentinels === undefined) {
-    const own = owns(ledger, TARGET, rel, "file");
-    ownReason = own.owned ? null : own.reason;
-  } else {
-    const blk = ownBlockSpans(ledger, rel, read.bytes, sentinels.open, sentinels.close);
-    ownReason =
-      blk !== null && blk.spans.length === 1
-        ? null
-        : blk === null
-          ? "the install ledger has no record of install's block in it"
-          : `it holds ${blk.spans.length} unedited copies of install's recorded block, not exactly one`;
-  }
-  return ownReason === null ? { state: "own-stale", read, ownReason: null } : { state: "user", read, ownReason };
+  if (read.state === "absent") return { state: "absent", read, why: null, link: false };
+  if (read.state !== "ok") return { state: "unread", read, why: null, link: false };
+  if (carriesKitRoute(read.text)) return { state: "route", read, why: null, link: false };
+  const r = refreshable(ledger, rel);
+  return r.ok ? { state: "own-stale", read, why: null, link: false } : { state: "user", read, why: r.why, link: r.link };
 }
 
 /** What a read found, as the doctor words it: `is not present`, or unreadState's text, or `is a readable file`. */
@@ -1484,9 +1559,12 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 //     D-03 cross-check read) names a real kit (kitReal), whatever that cross-check concluded about the other two
 //     sources (inside a Claude Code session the adapter resolves the kit, Phase 7 D-12).
 // (d) ONE LINE PER CARRIER: `route` → ok. Otherwise, when strandedBy names hosts, the counted line (FAIL for
-//     install's own stale copy, whose remedy is `Re-run install.js`; WARN for the user's own, absent or unread),
-//     naming the stranded hosts in registry order; when it names none, an uncounted `note` naming each host that
-//     reads the carrier here and how that host has the route.
+//     install's own stale copy, whose remedy is `Re-run install.js`; WARN for a carrier install will not refresh,
+//     an absent or an unread one), naming the stranded hosts in registry order; when it names none, an uncounted
+//     `note` naming each host that reads the carrier here and how that host has the route. THE REMEDY (plan 34-34,
+//     D-27 point 3, WR-01): `Re-run install.js` is named for a present carrier only when refreshable answers ok, the
+//     predicate install's refresh asks; otherwise the line carries refreshable's reason and the by-hand remedy (add
+//     KIT_ROUTE after the start-here sentence, in the file the link points to when the carrier is a link).
 // (e) THE GATE LINES: for every carrier a host reads only under a gate (HostTool.entryGates), `ok` when the gate
 //     passed; a counted WARN, with the gate's remedy, when it failed and the host has no other carrier holding the
 //     route and no adapter route; an uncounted `note` when it failed and the host has the route another way.
@@ -1498,8 +1576,8 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 //     of (e); and a counted kit-route finding always has a host that cannot reach behind it.
 //     The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
 //     host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
-// It writes nothing. Ownership comes from owns over the ledger the doctor reads, so install, uninstall and
-// --check cannot disagree about whose file a carrier is. Function declarations only, and the doctor's own
+// It writes nothing. Ownership comes from owns over the ledger the doctor reads, and refresh from refreshable over
+// it, so install, uninstall and --check cannot disagree about whose file a carrier is or whether install refreshes it. Function declarations only, and the doctor's own
 // ledger read: module consts declared below the `--check` early exit are in their temporal dead zone here.
 function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile: string, adapterKit: string): void {
   // (a) Truthiness, as the kit-root cross-check reads the same field: a recorded path is never compared raw
@@ -1576,7 +1654,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       cls.state === "own-stale"
         ? `Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`
         : cls.state === "user"
-          ? `To give it the route, add this sentence after its start-here sentence: ${KIT_ROUTE}`
+          ? `Add this sentence after its start-here sentence${cls.link ? " (in the file the link points to)" : ""}: ${KIT_ROUTE}`
           : cls.state === "absent"
             ? `Re-run install.js, which writes it where nothing is`
             : `It was not read, so NO VERDICT was reached on whether it carries the kit route`;
@@ -1586,7 +1664,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       const what = cls.state === "unread" ? readStateText(cls.read) : CARRIER_STATE_TEXT[cls.state];
       docReport(
         "note",
-        `kit route: ${rel} ${what}${cls.ownReason === null ? "" : ` (${cls.ownReason})`}; no host is left without a route by it` +
+        `kit route: ${rel} ${what}${cls.why === null ? "" : ` (${cls.why})`}; no host is left without a route by it` +
           `${how.length > 0 ? `: the hosts that read it here have the route another way (${how.join("; ")})` : ""}. ${remedy}`,
       );
       continue;
@@ -1603,8 +1681,8 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       );
     } else {
       docWarn(
-        `kit route missing from ${rel} ${leaves}: it is not install's own (${cls.ownReason}), so --check reports it ` +
-          `and install leaves it as it is. Add this sentence after its start-here sentence: ${KIT_ROUTE}`,
+        `kit route missing from ${rel} ${leaves}: install will not refresh it (${cls.why}), so --check reports it ` +
+          `and install leaves it as it is. ${remedy}`,
       );
     }
   }
@@ -2998,8 +3076,9 @@ function ensureBlock(ledger: LedgerRead, file: string, open: string, body: strin
 // The path is asked through readForWrite first (DC-3: a FIFO, a directory, a device or a link there is
 // never read or written through):
 //   blocked → a counted verify; nothing is written.
-//   ok      → a file is already there. refreshOwnFile decides (brief DC-2: a write only on install's own
-//             record): when the previous ledger's `file` entry for the path still holds (owns), the file
+//   ok      → a file is already there. refreshOwnFile decides, through refreshable (plan 34-34; brief DC-2: a
+//             write only on install's own record): when the previous ledger's `file` entry for the path still
+//             holds (owns) as a `sha256:` record and the path is a regular file, the file
 //             is install's own and unedited, so text that is not PI_PROMPT_TEXT (an earlier install's
 //             template, with no kit route or older) is replaced and the new bytes recorded; text that is
 //             PI_PROMPT_TEXT is current and skipped. Anything else (the user's own template, or install's
@@ -3025,7 +3104,7 @@ function writePiPromptTemplate(ledger: LedgerRead): void {
     return;
   }
   if (cur.state === "ok") {
-    if (refreshOwnFile(ledger, PI_PROMPT_REL, PI_PROMPT_TEXT, "Pi prompt template") !== "left") return;
+    if (refreshOwnFile(ledger, PI_PROMPT_REL, "Pi prompt template") !== "left") return;
     report("skipped", `${PI_PROMPT_REL} (Pi prompt template: a file is already there — left untouched)`);
     return;
   }
@@ -3040,42 +3119,35 @@ function writePiPromptTemplate(ledger: LedgerRead): void {
   }
 }
 
-// refreshOwnFile (plan 34-28, D-26 point 2, brief DC-2 and DC-3; closes deferred IN-03): THE ONE RULE for
-// refreshing a whole-file route carrier install wrote in an earlier run (the Pi template, an AGENTS.md copy
-// install created). `rel` is a POSIX path relative to TARGET; `want` is the current text (null when it could
-// not be read, which refreshes nothing); `ledger` is the install ledger as this run found it. It writes only
-// on install's own record:
-//   - owns(ledger, TARGET, rel, "file") answers owned (the entry's record still holds: the bytes and the
-//     mode install recorded, no link followed, no hard link) AND the record is a `sha256:` file record, not
-//     a link record (a --symlink install's link is current by construction);
-//   - the file is asked through readForWrite again (DC-3) and must be a regular file;
-//   - its bytes equal `want` → `current` (skipped, nothing written);
-//   - otherwise, under DRY_RUN → `would-refresh`, nothing written; `want` is recorded as the bytes the real run
-//     would leave (setPlanned, plan 34-33);
-//   - otherwise → writeTargetFile with how `ok`, then recordCreatedFile with writtenFileRecord of the new
-//     bytes (so uninstall still removes exactly what install wrote) → `refreshed`.
-// Every other case answers `left`: nothing is written or recorded, and the caller reports its own skipped
-// line. A function declaration taking the ledger as a parameter, so the doctor can share it.
+// refreshOwnFile (plan 34-28, D-26 point 2, brief DC-2 and DC-3; closes deferred IN-03; plan 34-34, D-27 point 3):
+// refresh a whole-file route carrier install wrote in an earlier run (the Pi template, an AGENTS.md copy install
+// created). `rel` is a POSIX path relative to TARGET; `ledger` is the install ledger as this run found it. Whether it
+// refreshes is refreshable's answer (the one owner the doctor asks too): install's own `sha256:` file record still
+// holds, the file is a regular file (readForWrite `ok`, DC-3), and the kit's current text (carrierWant) could be read.
+// On ok:
+//   - its bytes equal the current text → `current` (skipped, nothing written);
+//   - otherwise, under DRY_RUN → `would-refresh`, nothing written; the current text is recorded as the bytes the real
+//     run would leave (setPlanned, plan 34-33);
+//   - otherwise → writeTargetFile with how `ok`, then recordCreatedFile with writtenFileRecord of the new bytes (so
+//     uninstall still removes exactly what install wrote) → `refreshed`.
+// Every other case answers `left`: nothing is written or recorded, and the caller reports its own skipped line.
+// The reads are in the order they were before plan 34-34 (owns, then readForWrite); the read-gate-write window
+// (WR-05) is deferred by D-27 point 5 and not widened here.
 type RefreshOutcome = "refreshed" | "would-refresh" | "current" | "left";
-function refreshOwnFile(ledger: LedgerRead, rel: string, want: string | Buffer | null, label: string): RefreshOutcome {
-  if (want === null) return "left";
-  const own = owns(ledger, TARGET, rel, "file");
-  if (!own.owned || !own.entry.content.startsWith("sha256:")) return "left";
-  const file = join(TARGET, ...rel.split("/"));
-  const cur = readForWrite(TARGET, file);
-  if (cur.state !== "ok") return "left";
-  const wantBytes = typeof want === "string" ? Buffer.from(want, "utf8") : want;
-  if (cur.bytes.equals(wantBytes)) {
+function refreshOwnFile(ledger: LedgerRead, rel: string, label: string): RefreshOutcome {
+  const r = refreshable(ledger, rel);
+  if (!r.ok || r.kind !== "file") return "left";
+  if (r.cur.bytes.equals(r.want)) {
     report("skipped", `${rel} (${label}: install's own, already current)`);
     return "current";
   }
   if (DRY_RUN) {
-    setPlanned(file, wantBytes);
+    setPlanned(r.file, r.want);
     report("would-refresh", `${rel} (${label}: install's own copy from an earlier install, unedited, is not the current text)`);
     return "would-refresh";
   }
-  if (!writeTargetFile(file, wantBytes, "ok", rel)) return "left";
-  recordCreatedFile(file, writtenFileRecord(file, wantBytes));
+  if (!writeTargetFile(r.file, r.want, "ok", rel)) return "left";
+  recordCreatedFile(r.file, writtenFileRecord(r.file, r.want));
   report(
     "refreshed",
     `${rel} (${label}: install's own copy from an earlier install, unedited, held no kit route or was older; replaced with the current text and recorded)`,
@@ -6039,11 +6111,11 @@ for (const rel of SRC_NESTED_ADAPTERS) {
 // 33.1-26: it used to be existsSync, so a FIFO or a directory there read as "has one", and a dangling link
 // read as "has none" and reached linkOrCopy. Nothing there → linkOrCopy; anything else → verify.
 //
-// THE REFRESH (plan 34-28, D-26 point 2, brief DC-2): a regular file goes to refreshOwnFile with the kit
-// source's AGENTS.md bytes (read through readUserFile; nothing to refresh to when that read is not ok). It is
-// replaced only when PREVIOUS_LEDGER's `file` entry for it still holds, that is, a copy install created in
-// an earlier run and nobody edited since; a user's own AGENTS.md, or install's edited since, is never
-// written, and install's route-note pass (noteStrandingCarriers, after the last carrier write) names it when it
+// THE REFRESH (plan 34-28, D-26 point 2, brief DC-2; plan 34-34, D-27 point 3): a regular file goes to
+// refreshOwnFile, which asks refreshable (the kit's current text is carrierWant's: the kit source's AGENTS.md read
+// through readUserFile; nothing to refresh to when that read is not ok). It is replaced only when PREVIOUS_LEDGER's
+// `file` entry for it still holds as a `sha256:` record, that is, a copy install created in an earlier run and
+// nobody edited since; a user's own AGENTS.md, or install's edited since, is never written, and install's route-note pass (noteStrandingCarriers, after the last carrier write) names it when it
 // carries no kit route and that leaves a host without one (D-26 point 3, D-27 point 2). Install's own link (--symlink) is current by construction and is never refreshed.
 {
   const agentsSrc = join(GRUGOPS_SRC, "AGENTS.md");
@@ -6052,8 +6124,7 @@ for (const rel of SRC_NESTED_ADAPTERS) {
   if (agentsRead === null) {
     report("skipped", "AGENTS.md (target already has one — left untouched)");
   } else if (agentsRead.state === "ok") {
-    const src = readUserFile(agentsSrc);
-    if (refreshOwnFile(PREVIOUS_LEDGER, "AGENTS.md", src.state === "ok" ? src.bytes : null, "AGENTS.md") === "left") {
+    if (refreshOwnFile(PREVIOUS_LEDGER, "AGENTS.md", "AGENTS.md") === "left") {
       report("skipped", "AGENTS.md (target already has one — left untouched)");
     }
   } else if (agentsRead.state === "blocked") {
