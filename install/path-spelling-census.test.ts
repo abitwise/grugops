@@ -446,8 +446,8 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
 
 // ── the test side (plan 34-12) ──────────────────────────────────────────────────────────────────────
 
-/** The number of installer test and test-support files counted when the test-side census was written (plan 34-12; 28 since plan 34-14 added mode-census.test.ts; 29 since plan 34-25 added closing-claims.test.ts, which compares no recorded path). */
-const TEST_SCANNED_FILE_COUNT = 29;
+/** The number of installer test and test-support files counted when the test-side census was written (plan 34-12; 28 since plan 34-14 added mode-census.test.ts; 29 since plan 34-25 added closing-claims.test.ts, which compares no recorded path; 30 since plan 34-27 added kit-route.test.ts, which joins and reads the recorded kitRoot and compares it raw with nothing). */
+const TEST_SCANNED_FILE_COUNT = 30;
 
 function scannedTestFiles(): string[] {
   return readdirSync(INSTALL_DIR)

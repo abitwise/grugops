@@ -39,6 +39,28 @@ export const HOST_ADAPTER_KINDS = [
  */
 export const PI_PROMPT_REL = ".pi/prompts/grugops.md";
 /**
+ * KIT_ROUTE (phase 34, D-26, the marker route): THE ONE AUTHORITY for the sentence that tells a host
+ * with no Claude Code adapter where the grugops kit is after a scripted install. A scripted install
+ * puts the kit in a separate kit home, never in the target, and writes the kit root into the
+ * `kitRoot` field of `.grugops/install.json` on every install (install.ts writeMarker). The route
+ * names that field; it never names the path itself.
+ *
+ * Carried VERBATIM, after the start-here sentence, by the pointers install writes (the Copilot pointer
+ * and the Pi prompt template, which reuses it) and by the kit's AGENTS.md "Kit vs state" rule. It is
+ * fixed literal text, the same on every machine: no config, argv, environment or other install-time
+ * value reaches instruction text through it (T-34-13), and it names no kit-home environment variable
+ * (check-kit-refs Assertion 3). A pointer that drops it is found by carriesKitRoute below, which the
+ * doctor (`--check`) asks of each route carrier.
+ */
+export const KIT_ROUTE = "After a scripted install the grugops kit is not in this repository: its root is the directory named by the `kitRoot` field of `.grugops/install.json`, and each `agent-factory/…` path is read under it, so `agent-factory/roles/orchestrator.md` is `<kitRoot>/roles/orchestrator.md`.";
+/**
+ * Whether `text` carries the kit route: true exactly when it contains KIT_ROUTE byte for byte. The one
+ * predicate for "this carrier names the route" (D-26), so the doctor and the tests cannot disagree.
+ */
+export function carriesKitRoute(text) {
+    return text.includes(KIT_ROUTE);
+}
+/**
  * The supported hosts, in the order installer detection reports them. The order of the existing
  * rows is load-bearing: it keeps the `tools detected:` line byte-identical to the hand-written
  * detection it replaced.
