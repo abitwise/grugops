@@ -1833,3 +1833,11 @@ Plans:
 Plans:
 
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.5: Follow-up — Phase 34 deferred UAT follow-up: Test 3 (BACKLOG)
+
+**Goal:** Resolve the UAT checkpoint deferred during Phase 34 verification
+**Source phase:** 34
+**Deferred at:** 2026-10-10 during /gsd-verify-work 34 session completion
+**Follow-ups:**
+- [ ] Test 3: skip, windows is not in current support, I have windows machine, but will test on it after completing all phases and new upcoming phases as well (which i have not yet described and planned) (deferred 2026-10-10)
