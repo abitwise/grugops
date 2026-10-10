@@ -176,6 +176,35 @@ export function hostsReading(rel) {
     return HOST_TOOLS.filter((h) => routeCarriers(h).includes(rel));
 }
 /**
+ * reachVia (plan 34-33, D-27 point 2): how `host` has the kit route here: the routeCarriers(host) entries it reads
+ * and that hold the route, in routeCarriers order, and whether its adapter reaches. Whether the route itself
+ * resolves (the marker's kitRoot leads to a readable roles/orchestrator.md) is a separate question and a separate
+ * FAIL; the doctor's reach line asks it beside this.
+ */
+export function reachVia(host, facts) {
+    return {
+        carriers: routeCarriers(host).filter((rel) => facts.reads(host, rel) && facts.holds(rel)),
+        adapter: facts.adapterReaches(host),
+    };
+}
+/**
+ * strandedBy (plan 34-33): THE ONE DERIVATION of the hosts a carrier leaves without a route (D-27 point 2). The
+ * doctor and install both ask it; the route target's resolution is a separate FAIL and is not an input here.
+ * `[]` when `rel` holds the route. Otherwise the HOST_TOOLS rows, in registry order, that read `rel` here (it is
+ * one of their routeCarriers and facts.reads answers yes), read no carrier that holds the route (reachVia's
+ * carriers are empty), and have no adapter route. A carrier for which this is empty is never counted.
+ */
+export function strandedBy(rel, facts) {
+    if (facts.holds(rel))
+        return [];
+    return HOST_TOOLS.filter((h) => {
+        if (!routeCarriers(h).includes(rel) || !facts.reads(h, rel))
+            return false;
+        const via = reachVia(h, facts);
+        return via.carriers.length === 0 && !via.adapter;
+    });
+}
+/**
  * A pinned integer, not a derivation: install/host-tools.test.ts asserts it equals
  * HOST_TOOLS.length in both directions, so a row added or removed without moving this pin fails
  * red. It moves only in the commit that adds or removes a registry row.

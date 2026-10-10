@@ -29,6 +29,10 @@ import {
   ROUTE_POINTERS,
   routeCarriers,
   hostsReading,
+  reachVia,
+  strandedBy,
+  type HostTool,
+  type RouteFacts,
 } from "./host-tools.js";
 import { runInstall } from "./installer-paths.test-support.js";
 
@@ -666,6 +670,11 @@ const OWNER_CALLS: Readonly<Record<string, number>> = {
   "hostsReading@noteMissingRoute": 2,
 };
 
+// The functions that ask hostReadsCarrier, and the functions that ask strandedBy (plan 34-33: the doctor's carrier
+// lines; install's route notes join in Task 2). No other site derives either answer.
+const HOST_READS_CARRIER_CALLERS: readonly string[] = ["kitRouteFindings"];
+const STRANDED_BY_CALLERS: readonly string[] = ["kitRouteFindings"];
+
 describe("census: install.ts asks the one owner of 'does host H read entry file X here' (plan 34-32, AUTH-1)", () => {
   it("install.ts reads no `entryFiles` itself: no property access, element access or destructuring of it", () => {
     const hits: string[] = [];
@@ -701,7 +710,7 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
     expect(found).toEqual(OWNER_CALLS);
   });
 
-  it("ENTRY_GATE_CHECKS in install.ts has exactly one check per ENTRY_GATE_KINDS member, and hostReadsCarrier is called by carrierFinding and kitRouteFindings", () => {
+  it(`ENTRY_GATE_CHECKS in install.ts has exactly one check per ENTRY_GATE_KINDS member, and hostReadsCarrier is called by ${HOST_READS_CARRIER_CALLERS.join(" and ")}`, () => {
     const sf = installSource();
     const nodes = allNodes(sf);
     const decl = nodes.find((n): n is ts.VariableDeclaration => ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "ENTRY_GATE_CHECKS");
@@ -715,11 +724,93 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
         .filter((n): n is ts.Identifier => ts.isIdentifier(n) && n.text === "hostReadsCarrier" && ts.isCallExpression(n.parent) && n.parent.expression === n)
         .map((n) => enclosingFunction(n)),
     );
-    expect([...callers].sort()).toEqual(["carrierFinding", "kitRouteFindings"]);
+    // Plan 34-33: carrierFinding became classifyCarrier, which prints nothing and asks no host; kitRouteFindings asks
+    // hostReadsCarrier once per host and carrier and builds the facts strandedBy takes.
+    expect([...callers].sort()).toEqual([...HOST_READS_CARRIER_CALLERS].sort());
   });
 
   it("the reach loop walks routeCarrierSet order; for every host that order, restricted to its carriers, is its routeCarriers order", () => {
     const set = [...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))];
     for (const h of HOST_TOOLS) expect(set.filter((rel) => routeCarriers(h).includes(rel)), h.id).toEqual([...routeCarriers(h)]);
+  });
+});
+
+// ── THE ONE DERIVATION OF THE HOSTS A CARRIER STRANDS (plan 34-33, D-27 point 2; VERDICT-1, AUTH-1) ──────────────
+//
+// reachVia and strandedBy (host-tools.ts) are pure over RouteFacts. They are checked here over EVERY combination of
+// the facts against a brute-force oracle written in this file from the registry (expectedCarriers above, never
+// routeCarriers): holds for each carrier of the derived carrier set (2^n), reads for each gated (host, file) pair of
+// entryGates (2^m; an ungated pair a host's carriers include is always read), and adapterReaches for each host whose
+// adapter kind is `claude-kit` (2^k). The counts are pinned, so a registry change that moves them fails red here
+// until this table is looked at again.
+const TABLE_CARRIERS = 4;
+const TABLE_GATED_PAIRS = 1;
+const TABLE_ADAPTER_HOSTS = 1;
+
+describe("reachVia and strandedBy over every combination of the facts (plan 34-33, D-27 point 2)", () => {
+  const carriers = [...new Set(HOST_TOOLS.flatMap((h) => expectedCarriers(h.adapter, h.entryFiles)))];
+  const gated: Array<{ host: HostTool; rel: string }> = HOST_TOOLS.flatMap((h) => Object.keys(h.entryGates).map((rel) => ({ host: h, rel })));
+  const adapterHosts = HOST_TOOLS.filter((h) => h.adapter === "claude-kit");
+
+  it(`the table's dimensions: ${TABLE_CARRIERS} carriers, ${TABLE_GATED_PAIRS} gated pair(s), ${TABLE_ADAPTER_HOSTS} claude-kit host(s), ${2 ** (TABLE_CARRIERS + TABLE_GATED_PAIRS + TABLE_ADAPTER_HOSTS)} combinations`, () => {
+    expect(carriers.length).toBe(TABLE_CARRIERS);
+    expect(gated.length).toBe(TABLE_GATED_PAIRS);
+    expect(adapterHosts.length).toBe(TABLE_ADAPTER_HOSTS);
+  });
+
+  it("every combination: reachVia equals the oracle's carriers (registry carrier order) and adapter; strandedBy equals the oracle's stranded hosts (registry order), and is empty whenever the carrier holds", () => {
+    const n = carriers.length;
+    const m = gated.length;
+    const k = adapterHosts.length;
+    let combos = 0;
+    let strandedSeen = 0;
+    let emptySeen = 0;
+    for (let bits = 0; bits < 2 ** (n + m + k); bits++) {
+      combos += 1;
+      const bit = (i: number): boolean => ((bits >> i) & 1) === 1;
+      const holdsSet = new Set(carriers.filter((_, i) => bit(i)));
+      const gateOpen = (h: HostTool, rel: string): boolean => {
+        const at = gated.findIndex((g) => g.host.id === h.id && g.rel === rel);
+        return at === -1 ? true : bit(n + at);
+      };
+      const adapterSet = new Set(adapterHosts.filter((_, i) => bit(n + m + i)).map((h) => h.id));
+      const facts: RouteFacts = {
+        reads: (h, rel) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && gateOpen(h, rel),
+        holds: (rel) => holdsSet.has(rel),
+        adapterReaches: (h) => adapterSet.has(h.id),
+      };
+      // THE ORACLE: written from the definitions, sharing nothing with host-tools.ts but the registry rows.
+      const oracleVia = (h: HostTool): string[] => expectedCarriers(h.adapter, h.entryFiles).filter((rel) => gateOpen(h, rel) && holdsSet.has(rel));
+      const label = `holds=[${[...holdsSet].join(",")}] gates=[${gated.map((g) => `${g.host.id}:${g.rel}=${gateOpen(g.host, g.rel)}`).join(",")}] adapters=[${[...adapterSet].join(",")}]`;
+      for (const h of HOST_TOOLS) {
+        const v = reachVia(h, facts);
+        expect([...v.carriers], `reachVia(${h.id}) ${label}`).toEqual(oracleVia(h));
+        expect(v.adapter, `reachVia(${h.id}).adapter ${label}`).toBe(adapterSet.has(h.id));
+      }
+      for (const rel of [...carriers, "no/such/carrier.md"]) {
+        const want = holdsSet.has(rel)
+          ? []
+          : HOST_TOOLS.filter(
+              (h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && gateOpen(h, rel) && oracleVia(h).length === 0 && !adapterSet.has(h.id),
+            ).map((h) => h.id);
+        const got = strandedBy(rel, facts).map((h) => h.id);
+        expect(got, `strandedBy(${rel}) ${label}`).toEqual(want);
+        if (holdsSet.has(rel)) expect(got, `strandedBy(${rel}) while it holds ${label}`).toEqual([]);
+        if (got.length > 0) strandedSeen += 1;
+        else emptySeen += 1;
+      }
+    }
+    expect(combos).toBe(2 ** (TABLE_CARRIERS + TABLE_GATED_PAIRS + TABLE_ADAPTER_HOSTS));
+    // Vacuity floors: the table reaches both answers.
+    expect(strandedSeen).toBeGreaterThan(0);
+    expect(emptySeen).toBeGreaterThan(0);
+  });
+
+  it(`strandedBy is called in install.ts only by ${STRANDED_BY_CALLERS.join(" and ")}, and reachVia only inside the same functions`, () => {
+    const nodes = allNodes(installSource());
+    const callersOf = (name: string): string[] =>
+      [...new Set(nodes.filter((n): n is ts.Identifier => ts.isIdentifier(n) && n.text === name && ts.isCallExpression(n.parent) && n.parent.expression === n).map((n) => enclosingFunction(n)))].sort();
+    expect(callersOf("strandedBy")).toEqual([...STRANDED_BY_CALLERS].sort());
+    for (const c of callersOf("reachVia")) expect(STRANDED_BY_CALLERS, `reachVia called in ${c}`).toContain(c);
   });
 });

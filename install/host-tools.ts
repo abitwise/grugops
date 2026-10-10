@@ -222,6 +222,50 @@ export function hostsReading(rel: string): readonly HostTool[] {
 }
 
 /**
+ * RouteFacts (plan 34-33, D-27 point 2): what one run found, as the inputs of reachVia and strandedBy. Each caller
+ * builds them from its own reads, and none of them does I/O here:
+ *   reads(host, rel):     whether `host` reads carrier `rel` in this target (install.ts hostReadsCarrier, which
+ *                         applies the row's entryGates);
+ *   holds(rel):           whether `rel` is a readable regular file whose whole text carries KIT_ROUTE;
+ *   adapterReaches(host): whether the host has an adapter route of its own (Claude Code's adapters' KIT= line
+ *                         names a real kit).
+ */
+export interface RouteFacts {
+  reads(host: HostTool, rel: string): boolean;
+  holds(rel: string): boolean;
+  adapterReaches(host: HostTool): boolean;
+}
+
+/**
+ * reachVia (plan 34-33, D-27 point 2): how `host` has the kit route here: the routeCarriers(host) entries it reads
+ * and that hold the route, in routeCarriers order, and whether its adapter reaches. Whether the route itself
+ * resolves (the marker's kitRoot leads to a readable roles/orchestrator.md) is a separate question and a separate
+ * FAIL; the doctor's reach line asks it beside this.
+ */
+export function reachVia(host: HostTool, facts: RouteFacts): { readonly carriers: readonly string[]; readonly adapter: boolean } {
+  return {
+    carriers: routeCarriers(host).filter((rel) => facts.reads(host, rel) && facts.holds(rel)),
+    adapter: facts.adapterReaches(host),
+  };
+}
+
+/**
+ * strandedBy (plan 34-33): THE ONE DERIVATION of the hosts a carrier leaves without a route (D-27 point 2). The
+ * doctor and install both ask it; the route target's resolution is a separate FAIL and is not an input here.
+ * `[]` when `rel` holds the route. Otherwise the HOST_TOOLS rows, in registry order, that read `rel` here (it is
+ * one of their routeCarriers and facts.reads answers yes), read no carrier that holds the route (reachVia's
+ * carriers are empty), and have no adapter route. A carrier for which this is empty is never counted.
+ */
+export function strandedBy(rel: string, facts: RouteFacts): readonly HostTool[] {
+  if (facts.holds(rel)) return [];
+  return HOST_TOOLS.filter((h) => {
+    if (!routeCarriers(h).includes(rel) || !facts.reads(h, rel)) return false;
+    const via = reachVia(h, facts);
+    return via.carriers.length === 0 && !via.adapter;
+  });
+}
+
+/**
  * A pinned integer, not a derivation: install/host-tools.test.ts asserts it equals
  * HOST_TOOLS.length in both directions, so a row added or removed without moving this pin fails
  * red. It moves only in the commit that adds or removes a registry row.

@@ -52,6 +52,20 @@ function installed(): { target: string; kitHome: string } {
 
 const check = (target: string, kitHome: string): Run => spawnBin(INSTALL_JS, ["--check"], target, kitHome);
 const piFile = (target: string): string => join(target, ...PI_PROMPT_REL.split("/"));
+/** Install into a fresh scratch row that already holds the user's own AGENTS.md, with no route in it. */
+function installedWithOwnAgents(): { target: string; kitHome: string } {
+  const row = scratchRow();
+  writeFileSync(join(row.target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
+  const r: Run = runInstall(row.target, row.kitHome);
+  expect(r.status, r.stdout + r.stderr).toBe(0);
+  return row;
+}
+/** The registry host whose adapter kind is `pi-prompt-template`, found by kind, never by a typed name. */
+function piHost(): (typeof HOST_TOOLS)[number] {
+  const p = HOST_TOOLS.filter((h) => h.adapter === "pi-prompt-template");
+  expect(p.length, "premise: exactly one registry host has the pi-prompt-template adapter").toBe(1);
+  return p[0];
+}
 
 /**
  * THE ROUTE FOLLOWER: what an agent obeying KIT_ROUTE does. Read the marker as JSON, take `kitRoot`,
@@ -121,22 +135,41 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     expect(lines.filter((l) => !l.startsWith("  ok")), c.stdout).toEqual([]);
   });
 
-  it("a user's edit drops the route from the template: --check WARNs, naming the file and quoting the sentence to add", () => {
+  // Plan 34-33 (D-27 point 2): the template without the route strands no host while AGENTS.md carries it (Pi reads
+  // both), so it is an uncounted note that still quotes the sentence to add. The intent (a template without the
+  // route that leaves Pi without one is counted) is kept by the variant below it.
+  it("a user's edit drops the route from the template: an uncounted note naming the file and quoting the sentence to add; Pi reaches through AGENTS.md; --strict exit 0", () => {
     const { target, kitHome } = installed();
     const before = readFileSync(piFile(target), "utf8");
     writeFileSync(piFile(target), before.replace(` ${KIT_ROUTE}`, ""));
     expect(readFileSync(piFile(target), "utf8").includes(KIT_ROUTE), "premise: the edit removed the route").toBe(false);
+    const c = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(routeLines(c.stdout).filter((l) => /^ {2}(WARN|FAIL)\s/.test(l)), c.stdout).toEqual([]);
+    const notes = routeLines(c.stdout).filter((l) => l.startsWith("  note") && l.includes(PI_PROMPT_REL));
+    expect(notes.length, c.stdout).toBe(1);
+    expect(notes[0]).toContain(KIT_ROUTE);
+    expect(c.stdout).not.toMatch(/FAILURE\(S\)/);
+  });
+
+  it("variant: the same edit while the user's own AGENTS.md has no route either: --check WARNs for the template, naming Pi and quoting the sentence to add", () => {
+    const { target, kitHome } = installedWithOwnAgents();
+    const before = readFileSync(piFile(target), "utf8");
+    writeFileSync(piFile(target), before.replace(` ${KIT_ROUTE}`, ""));
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const warns = routeLines(c.stdout).filter((l) => l.startsWith("  WARN") && l.includes(PI_PROMPT_REL));
     expect(warns.length, c.stdout).toBe(1);
     expect(warns[0]).toContain(KIT_ROUTE);
+    expect(warns[0]).toContain(`(it leaves ${piHost().name} without a route to the Orchestrator)`);
     expect(c.stdout).not.toMatch(/FAILURE\(S\)/);
   });
 
-  it("install's own template from an earlier install, with no route: --check FAILs and names the file", () => {
-    const { target, kitHome } = installed();
-    // An earlier install's template: the same bytes without the route, recorded in the ledger as install's.
+  // Plan 34-33 (D-27 point 2): install's own stale template strands no host while AGENTS.md carries the route, so it
+  // is an uncounted note that still names `Re-run install.js`; the remedy run still makes it ok. The intent (install's
+  // own stale template that leaves Pi without a route FAILs) is kept by the variant below it.
+  /** Stage the Pi template as an earlier install's copy, without the route. */
+  const stageOldTemplate = (target: string): void => {
     const old = readFileSync(piFile(target), "utf8").replace(` ${KIT_ROUTE}`, "");
     writeFileSync(piFile(target), old);
     const markerPath = join(target, ...MARKER_REL.split("/"));
@@ -146,17 +179,42 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
       (e as Record<string, unknown>).content = contentRecord(old);
     });
     writeFileSync(markerPath, JSON.stringify(rewritten, null, 2) + "\n");
-    const c = check(target, kitHome);
-    expect(c.status, c.stdout + c.stderr).toBe(1);
-    const fails = routeLines(c.stdout).filter((l) => l.startsWith("  FAIL") && l.includes(PI_PROMPT_REL));
-    expect(fails.length, c.stdout).toBe(1);
-    // The FAIL's remedy (DOC-1, plan 34-28): re-running install.js refreshes the template, and --check passes.
-    expect(fails[0]).toContain("Re-run install.js");
+  };
+
+  it("install's own template from an earlier install, with no route: an uncounted note naming the file and `Re-run install.js`; the re-run makes it ok", () => {
+    const { target, kitHome } = installed();
+    stageOldTemplate(target);
+    const c = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(routeLines(c.stdout).filter((l) => /^ {2}(WARN|FAIL)\s/.test(l)), c.stdout).toEqual([]);
+    const notes = routeLines(c.stdout).filter((l) => l.startsWith("  note") && l.includes(PI_PROMPT_REL));
+    expect(notes.length, c.stdout).toBe(1);
+    // The remedy (DOC-1, plan 34-28): re-running install.js refreshes the template, and --check says ok.
+    expect(notes[0]).toContain("Re-run install.js");
     const again = runInstall(target, kitHome);
     expect(again.status, again.stdout + again.stderr).toBe(0);
     const after = check(target, kitHome);
     expect(after.status, after.stdout + after.stderr).toBe(0);
     expect(routeLines(after.stdout).filter((l) => l.startsWith("  ok") && l.includes(PI_PROMPT_REL)).length, after.stdout).toBe(1);
+  });
+
+  it("variant: install's own template and install's own AGENTS.md, both from an earlier install without the route: --check FAILs for the template, naming Pi and `Re-run install.js`; the re-run makes both ok", () => {
+    const { target, kitHome } = installed();
+    stageOldTemplate(target);
+    stageEarlierFile(target, "AGENTS.md", staleOf(readFileSync(join(target, "AGENTS.md"), "utf8")));
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    const fails = routeLines(c.stdout).filter((l) => l.startsWith("  FAIL") && l.includes(PI_PROMPT_REL));
+    expect(fails.length, c.stdout).toBe(1);
+    expect(fails[0]).toContain("Re-run install.js");
+    expect(fails[0]).toContain(`(it leaves ${piHost().name} without a route to the Orchestrator)`);
+    const again = runInstall(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    const after = check(target, kitHome);
+    expect(after.status, after.stdout + after.stderr).toBe(0);
+    for (const rel of [PI_PROMPT_REL, "AGENTS.md"]) {
+      expect(routeLines(after.stdout).filter((l) => l.startsWith("  ok") && l.slice(17).startsWith(`kit route carried by ${rel} (read by `)).length, after.stdout).toBe(1);
+    }
   });
 
   it("a route that does not resolve: --check FAILs naming the Orchestrator path under kitRoot", () => {
@@ -183,13 +241,25 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     }
   });
 
-  it("an absent template: --check WARNs that Pi has no /grugops template", () => {
+  // Plan 34-33 (D-27 point 2, WR-03): an absent template strands no host while AGENTS.md carries the route, so it is
+  // an uncounted note; the variant keeps the intent (an absent template that leaves Pi without a route WARNs).
+  it("an absent template: an uncounted note; --strict exit 0", () => {
     const { target, kitHome } = installed();
+    rmSync(piFile(target));
+    const c = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(routeLines(c.stdout).filter((l) => /^ {2}(WARN|FAIL)\s/.test(l)), c.stdout).toEqual([]);
+    expect(routeLines(c.stdout).filter((l) => l.startsWith("  note") && l.includes(PI_PROMPT_REL)).length, c.stdout).toBe(1);
+  });
+
+  it("variant: an absent template while the user's own AGENTS.md has no route: --check WARNs that Pi has no /grugops template", () => {
+    const { target, kitHome } = installedWithOwnAgents();
     rmSync(piFile(target));
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const warns = routeLines(c.stdout).filter((l) => l.startsWith("  WARN") && l.includes(PI_PROMPT_REL));
     expect(warns.length, c.stdout).toBe(1);
+    expect(warns[0]).toContain(`(it leaves ${piHost().name} without a route to the Orchestrator)`);
   });
 });
 
@@ -674,6 +744,10 @@ interface Followed {
   readonly ownStale: readonly string[];
   /** host id → whether the host reaches the Orchestrator. */
   readonly reaches: ReadonlyMap<string, boolean>;
+  /** carrier → whether its whole text (a regular file) contains KIT_ROUTE (plan 34-33). */
+  readonly carries: ReadonlyMap<string, boolean>;
+  /** Whether the SKILL.md KIT= line names a directory holding roles/orchestrator.md (plan 34-33). */
+  readonly adapterReaches: boolean;
 }
 
 // THE FOLLOWER'S OWN GEMINI RULE (plan 34-32, D-27 point 1). Gemini CLI reads GEMINI.md by default and AGENTS.md
@@ -751,7 +825,7 @@ function follow(target: string): Followed {
     const viaCarrier = routeResolves && followerCarriers(target, h).some((rel) => carries.get(rel) === true);
     reaches.set(h.id, viaCarrier || (h.adapter === "claude-kit" && adapterReaches));
   }
-  return { routeResolves, ownStale, reaches };
+  return { routeResolves, ownStale, reaches, carries, adapterReaches };
 }
 
 /** Every path the pointer carriers install writes name (ROUTE_POINTERS; a block's own lines) and KIT_ROUTE names. */
@@ -788,6 +862,8 @@ interface Scenario {
   readonly exit: 0 | 1;
   /** Whether every path the carriers name is asserted to exist (after a clean install). */
   readonly pathsExist: boolean;
+  /** The carriers without the route that leave no host without one: one uncounted note each (plan 34-33). */
+  readonly uncounted: readonly string[];
 }
 
 /** Stage every route carrier as an earlier install's copy, without the route (S3). */
@@ -799,7 +875,7 @@ function stageAllEarlier(target: string): void {
 }
 
 const SCENARIOS: readonly Scenario[] = [
-  { name: "S1 a fresh install", build: installed, exit: 0, pathsExist: true },
+  { name: "S1 a fresh install", build: installed, exit: 0, pathsExist: true, uncounted: [] },
   {
     name: "S2 the user's own AGENTS.md without the route",
     build: () => {
@@ -810,6 +886,7 @@ const SCENARIOS: readonly Scenario[] = [
     },
     exit: 0,
     pathsExist: false,
+    uncounted: [],
   },
   {
     name: "S3 every carrier an earlier install's stale copy, before re-install",
@@ -820,6 +897,7 @@ const SCENARIOS: readonly Scenario[] = [
     },
     exit: 1,
     pathsExist: false,
+    uncounted: ["CLAUDE.md"],
   },
   {
     name: "S4 the same after re-install",
@@ -832,6 +910,7 @@ const SCENARIOS: readonly Scenario[] = [
     },
     exit: 0,
     pathsExist: true,
+    uncounted: [],
   },
   {
     name: "S5 the Pi template edited by the user, without the route",
@@ -842,6 +921,7 @@ const SCENARIOS: readonly Scenario[] = [
     },
     exit: 0,
     pathsExist: false,
+    uncounted: [PI_PROMPT_REL],
   },
   {
     name: "S6 the marker's kitRoot changed to an empty scratch directory",
@@ -854,6 +934,7 @@ const SCENARIOS: readonly Scenario[] = [
     },
     exit: 1,
     pathsExist: false,
+    uncounted: [],
   },
   {
     name: "S7 the Pi template deleted",
@@ -864,6 +945,7 @@ const SCENARIOS: readonly Scenario[] = [
     },
     exit: 0,
     pathsExist: false,
+    uncounted: [PI_PROMPT_REL],
   },
 ];
 
@@ -874,7 +956,7 @@ describe("kit route: --check and an independent follower agree, host by host, on
   });
 
   for (const sc of SCENARIOS) {
-    it(`${sc.name}: every host's reach verdict equals the follower's; a stranded host has a counted finding; a route FAIL exactly on own-stale or an unresolved route; exit ${sc.exit}`, () => {
+    it(`${sc.name}: every host's reach verdict equals the follower's; a stranded host has a counted finding; a route FAIL exactly on an own-stale carrier that strands a host, or an unresolved route; uncounted ${sc.uncounted.join(", ") || "none"}; exit ${sc.exit}`, () => {
       const { target, kitHome } = sc.build();
       const followed = follow(target);
       const c = check(target, kitHome);
@@ -890,12 +972,29 @@ describe("kit route: --check and an independent follower agree, host by host, on
           expect(behind.length, `${h.name} cannot reach, and no counted WARN or FAIL is behind it\n${c.stdout}`).toBeGreaterThan(0);
         }
       }
+      // VERDICT-1 (plan 34-33): a counted kit-route finding exists exactly when some host cannot reach.
+      expect(counted.length > 0, `counted kit-route lines vs hosts that cannot reach\n${c.stdout}`).toBe(HOST_TOOLS.some((h) => !followed.reaches.get(h.id)));
+      // D-27 point 2: a FAIL exactly for an own-stale carrier the follower says leaves a host without a route, or an
+      // unresolved route.
       const routeFails = counted.filter((l) => l.startsWith("  FAIL"));
-      const expectFail = followed.ownStale.length > 0 || !followed.routeResolves;
-      expect(routeFails.length > 0, `route FAIL lines vs the follower (own stale: ${followed.ownStale.join(", ") || "none"}; route resolves: ${followed.routeResolves})\n${c.stdout}`).toBe(expectFail);
+      const strandingStale = followed.ownStale.filter((rel) => strandedOf(target, rel).length > 0);
+      const expectFail = strandingStale.length > 0 || !followed.routeResolves;
+      expect(routeFails.length > 0, `route FAIL lines vs the follower (own stale that strands: ${strandingStale.join(", ") || "none"}; route resolves: ${followed.routeResolves})\n${c.stdout}`).toBe(expectFail);
       for (const rel of followed.ownStale) {
-        expect(routeFails.filter((l) => messageOf(l).startsWith(`kit route missing from ${rel} `)).length, `no FAIL for install's own stale ${rel}\n${c.stdout}`).toBe(1);
+        expect(routeFails.filter((l) => messageOf(l).startsWith(`kit route missing from ${rel} `)).length, `FAILs for install's own stale ${rel}\n${c.stdout}`).toBe(strandingStale.includes(rel) ? 1 : 0);
       }
+      // Every carrier without the route: counted exactly when the follower says it strands a host, else one note.
+      const uncounted: string[] = [];
+      for (const rel of new Set(HOST_TOOLS.flatMap(carriersOf))) {
+        if (followed.carries.get(rel) === true) continue;
+        const mine = carrierLines(c.stdout, rel);
+        const stranded = strandedOf(target, rel);
+        expect(mine.filter((l) => /^ {2}(WARN|FAIL)\s/.test(l)).length, `${rel}: counted lines vs the follower's stranded hosts (${stranded.join(", ") || "none"})\n${c.stdout}`).toBe(stranded.length > 0 ? 1 : 0);
+        expect(mine.filter((l) => l.startsWith("  note")).length, `${rel}: note lines\n${c.stdout}`).toBe(stranded.length > 0 ? 0 : 1);
+        if (stranded.length === 0) uncounted.push(rel);
+        else expect(mine.join("\n")).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+      }
+      expect(uncounted, `the scenario's declared uncounted carriers`).toEqual([...sc.uncounted]);
       if (sc.pathsExist) expectNamedPathsExist(target);
     });
   }
@@ -1082,5 +1181,87 @@ describe("kit route: Gemini CLI reads AGENTS.md only when its settings list it (
     expect(GEMINI_ROWS.filter((r) => r.reads).length).toBeGreaterThan(0);
     expect(GEMINI_ROWS.filter((r) => !r.reads && r.reinstall === true).length).toBeGreaterThan(0);
     expect(GEMINI_ROWS.filter((r) => !r.reads && r.reinstall !== true).length).toBeGreaterThan(0);
+  });
+});
+
+// ── ONE DERIVATION OF THE HOSTS A CARRIER STRANDS (plan 34-33, D-27 point 2; WR-02, WR-03; VERDICT-1, AUTH-1) ──
+//
+// A carrier without the route is counted only when it leaves some host without a route: a host that reads it
+// here, reads no other carrier holding the route, and has no adapter route. Otherwise it is an uncounted `note`
+// line. The stranded hosts are the follower's own (strandedOf below), from carriersOf, the follower's Gemini rule,
+// the carriers' text and the SKILL.md KIT= line: no code is shared with host-tools.ts strandedBy.
+
+/** The follower's own answer to "which hosts does `rel` leave without a route here", in registry order. */
+function strandedOf(target: string, rel: string): string[] {
+  const f = follow(target);
+  if (f.carries.get(rel) === true) return [];
+  return HOST_TOOLS.filter((h) => {
+    const mine = followerCarriers(target, h);
+    if (!mine.includes(rel)) return false;
+    return !mine.some((c) => f.carries.get(c) === true) && !(h.adapter === "claude-kit" && f.adapterReaches);
+  }).map((h) => h.name);
+}
+/** The doctor's `note` lines about carrier `rel` (`kit route: <rel> …`). */
+const carrierNotes = (stdout: string, rel: string): string[] =>
+  linesUnder(stdout, "note").filter((l) => messageOf(l).startsWith(`kit route: ${rel} `));
+/** The doctor's lines (any label) about carrier `rel`: its carrier line, whatever its label. */
+const carrierLines = (stdout: string, rel: string): string[] =>
+  routeLines(stdout).filter((l) => messageOf(l).startsWith(`kit route: ${rel} `) || messageOf(l).startsWith(`kit route missing from ${rel} `) || messageOf(l).startsWith(`kit route carried by ${rel} `));
+const strictCheck = (target: string, kitHome: string): Run => spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+
+describe("kit route: one derivation of the hosts a carrier strands (plan 34-33, D-27 point 2)", () => {
+  it("R9: the Copilot pointer and the Pi template deleted after a clean install: two uncounted notes, every host reaches, no counted kit-route line; --strict exit 0", () => {
+    const { target, kitHome } = installed();
+    rmSync(join(target, ...COPILOT_REL.split("/")));
+    rmSync(piFile(target));
+    for (const rel of [COPILOT_REL, PI_PROMPT_REL]) expect(strandedOf(target, rel), `premise: the follower says ${rel} strands nobody`).toEqual([]);
+    const c = strictCheck(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(c.stdout).toContain("ALL CHECKS PASSED");
+    for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(true);
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+    for (const rel of [COPILOT_REL, PI_PROMPT_REL]) {
+      const notes = carrierNotes(c.stdout, rel);
+      expect(notes.length, c.stdout).toBe(1);
+      expect(notes[0]).toContain("is not present");
+      expect(notes[0]).toContain("no host is left without a route by it");
+      // It names how each host that reads it here reaches: through AGENTS.md, which carries the route.
+      for (const h of HOST_TOOLS.filter((x) => carriersOf(x).includes(rel))) expect(notes[0], `${rel}: ${h.name} not named`).toContain(`${h.name} through AGENTS.md`);
+    }
+  });
+
+  it("R10, the doctor half: a user edit drops the route from the CLAUDE.md block: one uncounted note for CLAUDE.md, Claude Code reaches through AGENTS.md and its adapters' KIT= line; --strict exit 0", () => {
+    const { target, kitHome } = installed();
+    const claude = join(target, "CLAUDE.md");
+    writeFileSync(claude, readFileSync(claude, "utf8").replace(` ${KIT_ROUTE}`, ""));
+    expect(readFileSync(claude, "utf8").includes(KIT_ROUTE), "premise: the edit removed the route").toBe(false);
+    expect(strandedOf(target, "CLAUDE.md"), "premise: the follower says CLAUDE.md strands nobody").toEqual([]);
+    const c = strictCheck(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+    const notes = carrierNotes(c.stdout, "CLAUDE.md");
+    expect(notes.length, c.stdout).toBe(1);
+    expect(notes[0]).toContain(KIT_ROUTE);
+    const claudeHost = HOST_TOOLS.filter((h) => h.adapter === "claude-kit");
+    expect(claudeHost.length, "premise: one claude-kit host").toBe(1);
+    const v = reachVerdict(c.stdout, claudeHost[0]);
+    expect(v.reaches, v.line).toBe(true);
+    expect(v.line).toContain("AGENTS.md");
+    expect(v.line).toContain("its adapters' KIT= line");
+  });
+
+  it("the user's own AGENTS.md without the route still gives one counted WARN naming AGENTS.md and exactly the stranded hosts; --strict exit 1", () => {
+    const { target, kitHome } = scratchRow();
+    writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
+    expect(runInstall(target, kitHome).status).toBe(0);
+    const stranded = strandedOf(target, "AGENTS.md");
+    expect(stranded.length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
+    const c = strictCheck(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(1);
+    const counted = countedRouteLines(c.stdout);
+    expect(counted.length, c.stdout).toBe(1);
+    expect(counted[0].startsWith("  WARN"), counted[0]).toBe(true);
+    expect(counted[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+    for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(!stranded.includes(h.name));
   });
 });

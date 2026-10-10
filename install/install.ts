@@ -172,8 +172,11 @@ import {
   carriesKitRoute,
   hostsReading,
   routeCarriers,
+  reachVia,
+  strandedBy,
   type EntryGateKind,
   type HostTool,
+  type RouteFacts,
 } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
@@ -1380,42 +1383,31 @@ const CARRIER_STATE_TEXT: Readonly<Record<CarrierState, string>> = {
   unread: "could not be read, so no verdict was reached on it",
 };
 
-// carrierFinding (plan 34-29, D-26 point 4): read one route carrier through readUserFile (DC-3: a FIFO, a
-// directory, a device or an oversized file is never read; it is `unread`, a WARN with no verdict) and classify
-// it. The whole file is what a host reads, so the route test is carriesKitRoute over the whole text:
-//   carries KIT_ROUTE                                                    → route      (ok line)
+/** What classifyCarrier found for one route carrier: its state, the read it came from, and, for `user`, why it is
+ *  not install's own (null otherwise). */
+interface CarrierClass {
+  readonly state: CarrierState;
+  readonly read: UserFileRead;
+  readonly ownReason: string | null;
+}
+
+// classifyCarrier (plan 34-29's carrierFinding, split by plan 34-33 so the doctor reads every file before it prints):
+// read one route carrier through the run's `readAt` (readUserFile under TARGET; DC-3: a FIFO, a directory, a device
+// or an oversized file is never read, it is `unread`) and classify it. It prints nothing and writes nothing. The
+// whole file is what a host reads, so the route test is carriesKitRoute over the whole text:
+//   carries KIT_ROUTE                                                    → route
 //   present without it, and install's own: for a whole file, owns over
 //   the doctor's ledger read answers owned for its `file` entry; for a
 //   block (ROUTE_BLOCKS), ownBlockSpans keeps exactly one span — the
-//   same rule the refresh writes on, so "re-run install.js" is true      → own-stale  (FAIL)
-//   present without it, not install's own                                → user       (WARN quoting KIT_ROUTE)
-//   absent                                                               → absent     (WARN)
-//   not a readable regular file                                          → unread     (WARN, no verdict)
-// Every message names the file and the hosts that read it here: the HOST_TOOLS hosts for which hostReadsCarrier
-// answers reads (plan 34-32), so a host whose own settings do not load the file is not named. The file is read
-// through the run's `readAt`, the same cached read every other line of the run uses. It writes nothing.
-function carrierFinding(rel: string, ledger: LedgerRead, readAt: ReadAt): CarrierState {
-  const readers = HOST_TOOLS.filter((h) => hostReadsCarrier(h, rel, readAt, ledger).reads).map((h) => h.name);
-  const hosts = readers.length > 0 ? readers.join(", ") : "no registry host here";
+//   same rule the refresh writes on, so "re-run install.js" is true      → own-stale
+//   present without it, not install's own                                → user (ownReason says why)
+//   absent                                                               → absent
+//   not a readable regular file                                          → unread
+function classifyCarrier(rel: string, ledger: LedgerRead, readAt: ReadAt): CarrierClass {
   const read = readAt(rel);
-  if (read.state === "absent") {
-    docWarn(
-      `kit route: ${rel} (read by ${hosts}) is not present, so it gives those hosts no grugops pointer here. ` +
-        `Re-run install.js, which writes it where nothing is`,
-    );
-    return "absent";
-  }
-  if (read.state !== "ok") {
-    docWarn(
-      `kit route: ${rel} (read by ${hosts}) ${unreadState(read)} — it was not read, so NO VERDICT was ` +
-        `reached on whether it carries the kit route`,
-    );
-    return "unread";
-  }
-  if (carriesKitRoute(read.text)) {
-    docReport("ok", `kit route carried by ${rel} (read by ${hosts})`);
-    return "route";
-  }
+  if (read.state === "absent") return { state: "absent", read, ownReason: null };
+  if (read.state !== "ok") return { state: "unread", read, ownReason: null };
+  if (carriesKitRoute(read.text)) return { state: "route", read, ownReason: null };
   const sentinels = ROUTE_BLOCKS.get(rel);
   let ownReason: string | null;
   if (sentinels === undefined) {
@@ -1430,56 +1422,73 @@ function carrierFinding(rel: string, ledger: LedgerRead, readAt: ReadAt): Carrie
           ? "the install ledger has no record of install's block in it"
           : `it holds ${blk.spans.length} unedited copies of install's recorded block, not exactly one`;
   }
-  if (ownReason === null) {
-    docFail(
-      `kit route missing from ${rel} (read by ${hosts}): install wrote it in an earlier install and it ` +
-        `still holds what install wrote, so it names no route to the kit, which a scripted install puts outside ` +
-        `this repository. Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`,
-    );
-    return "own-stale";
-  }
-  docWarn(
-    `kit route missing from ${rel} (read by ${hosts}): it is not install's own (${ownReason}), so ` +
-      `--check reports it and install leaves it as it is. A host reading it gets no route to the kit after a ` +
-      `scripted install. Add this sentence after its start-here sentence: ${KIT_ROUTE}`,
-  );
-  return "user";
+  return ownReason === null ? { state: "own-stale", read, ownReason: null } : { state: "user", read, ownReason };
 }
 
-// kitRouteFindings (D-26, G-34-2; per host, plan 34-29): the doctor follows the kit route the way an agent
-// obeying KIT_ROUTE does, asks every route carrier whether it names the route, and then says, for every
-// registry host, whether that host reaches the Orchestrator. Before plan 34-27, --check asked only about the
-// Claude Code adapters' KIT= agreement and printed ALL CHECKS PASSED while Pi's /grugops named a path that a
-// scripted install never creates (34-UAT.md test 2); before plan 34-29 it asked only about the Pi template.
+/** What a read found, as the doctor words it: `is not present`, or unreadState's text, or `is a readable file`. */
+function readStateText(r: UserFileRead): string {
+  return r.state === "ok" ? "is a readable file" : r.state === "absent" ? "is not present" : unreadState(r);
+}
+
+// adapterKitOnDisk (plan 34-33): the Claude Code adapters' KIT= line as the target holds it now, and the adapter it
+// was read from. The adapter is DERIVED (KIT-02), never named: the first derived target adapter that carries a
+// materialized KIT= line; if none does, the first derived destination, so a FAIL message still names a concrete
+// path. `?? []` is the doctor's fail-closed posture: an unreadable source adapter directory leaves no candidate,
+// the fallback still names a path, and the KIT= read is "". Shared by the doctor's D-03 cross-check and install's
+// route-note pass (noteStrandingCarriers), so both read the adapter route the same way. A function declaration:
+// the doctor runs it above the `--check` early exit.
+function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
+  const candidates = targetAdapterFiles() ?? [];
+  const file = candidates.find((p) => readAdapterKit(p) !== "") ?? candidates[0] ?? join(TARGET, ".claude", "agents");
+  return { file, kit: readAdapterKit(file) };
+}
+
+// kitRouteFindings (D-26, G-34-2; per host, plan 34-29; one derivation of the stranded hosts, plan 34-33): the doctor
+// follows the kit route the way an agent obeying KIT_ROUTE does, asks every route carrier whether it names the route,
+// and then says, for every registry host, whether that host reaches the Orchestrator. Before plan 34-27, --check
+// asked only about the Claude Code adapters' KIT= agreement and printed ALL CHECKS PASSED while Pi's /grugops named
+// a path that a scripted install never creates (34-UAT.md test 2); before plan 34-29 it asked only about the Pi
+// template.
 //
-// 1. THE ROUTE. The marker's `kitRoot`, joined with roles/orchestrator.md, read through readUserFile: a link is
-//    followed, as a host would follow it; a FIFO, a device or an oversized file is never read. A readable
-//    regular file is `ok`; anything else is one
-//    FAIL naming the path and its state: an agent that follows the route does not reach the Orchestrator. This
-//    is asked independently of the kit-root cross-check above: that check compares three records with each
-//    other, this one follows the record an agent reads.
-// 2. EACH CARRIER of routeCarrierSet, through carrierFinding (ok, FAIL or WARN, each counted but `ok`).
-// 3. ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`. Which carriers
-//    a host reads here is hostReadsCarrier's answer (plan 34-32, D-27 point 1), never the registry's entry
-//    files alone: for every carrier the host reads only under a gate (HostTool.entryGates), one gate line comes
-//    first: `ok` when the gate passed; a counted WARN, with the gate's remedy, when it failed and the host then
-//    cannot reach; an uncounted `note` when it failed and the host reaches another way.
-//      the host reaches when one of the carriers it reads here is `route` and the route resolved (step 1), or when its
-//      adapter kind is `claude-kit` and the adapter KIT= value the D-03 cross-check read (`adapterKit`) names
-//      a real kit (kitReal), whatever that cross-check concluded about the other two sources (inside a Claude
-//      Code session the adapter resolves the kit, Phase 7 D-12);
-//      the line names the carriers that gave the route, or, when the host cannot reach, each carrier's state
-//      and the route's.
-//    The counted findings are the carrier and route lines of steps 1 and 2 and the failed-gate WARNs, so a host
-//    that cannot reach always has a counted WARN or FAIL behind it: each carrier it reads is not `route` (a WARN
-//    or a FAIL), a carrier it would read is gated off (a WARN), or the route did not resolve (a FAIL).
-//    The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
-//    host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
+// THE COUNTING RULE (plan 34-33, D-27 point 2; classes VERDICT-1 and AUTH-1): a kit-route finding is counted
+// exactly when some host cannot reach. A carrier without the route is counted only when it leaves a host without a
+// route (strandedBy, host-tools.ts, the one derivation install's route notes ask too); a carrier that leaves no host
+// without one is an uncounted `note`. Before plan 34-33 the WARN for a user's carrier, the absent-carrier arm and
+// install's note each derived the hosts their own way, and `--check --strict` failed a target where every host
+// reached (WR-03) while saying a host had no route beside a `reach` line saying it did (WR-02).
+//
+// It READS EVERYTHING FIRST AND PRINTS AFTERWARDS:
+// (a) THE ROUTE. The marker's `kitRoot`, joined with roles/orchestrator.md, read through readUserFile: a link is
+//     followed, as a host would follow it; a FIFO, a device or an oversized file is never read. A readable regular
+//     file is `ok`; anything else is one FAIL naming the path and its state: an agent that follows the route does
+//     not reach the Orchestrator. This is asked independently of the kit-root cross-check above: that check
+//     compares three records with each other, this one follows the record an agent reads.
+// (b) EACH CARRIER of routeCarrierSet, through classifyCarrier, over one cached read per path for the run.
+// (c) THE FACTS strandedBy and reachVia take: reads is hostReadsCarrier's answer (plan 34-32, D-27 point 1; the
+//     registry row's entryGates decide, never the entry files alone), asked once per host and carrier; holds is
+//     the `route` state; adapterReaches is a `claude-kit` host whose adapter KIT= value (`adapterKit`, the one the
+//     D-03 cross-check read) names a real kit (kitReal), whatever that cross-check concluded about the other two
+//     sources (inside a Claude Code session the adapter resolves the kit, Phase 7 D-12).
+// (d) ONE LINE PER CARRIER: `route` → ok. Otherwise, when strandedBy names hosts, the counted line (FAIL for
+//     install's own stale copy, whose remedy is `Re-run install.js`; WARN for the user's own, absent or unread),
+//     naming the stranded hosts in registry order; when it names none, an uncounted `note` naming each host that
+//     reads the carrier here and how that host has the route.
+// (e) THE GATE LINES: for every carrier a host reads only under a gate (HostTool.entryGates), `ok` when the gate
+//     passed; a counted WARN, with the gate's remedy, when it failed and the host has no other carrier holding the
+//     route and no adapter route; an uncounted `note` when it failed and the host has the route another way.
+// (f) ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`: the host reaches
+//     when the route resolved (a) and reachVia names a carrier, or when its adapter reaches; the line names the
+//     carriers and the adapter that gave the route, or, when the host cannot reach, each carrier's state and the
+//     route's. So a host that cannot reach always has a counted finding behind it: the route FAIL of (a), the
+//     carrier lines of (d) (every carrier it reads lacks the route and nothing else gives it one), or a gate WARN
+//     of (e); and a counted kit-route finding always has a host that cannot reach behind it.
+//     The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
+//     host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
 // It writes nothing. Ownership comes from owns over the ledger the doctor reads, so install, uninstall and
 // --check cannot disagree about whose file a carrier is. Function declarations only, and the doctor's own
 // ledger read: module consts declared below the `--check` early exit are in their temporal dead zone here.
 function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile: string, adapterKit: string): void {
-  // Truthiness, as the kit-root cross-check reads the same field: a recorded path is never compared raw
+  // (a) Truthiness, as the kit-root cross-check reads the same field: a recorded path is never compared raw
   // here (WIN-1, path-spelling census); it is only joined and read.
   const kitRoot = typeof marker.kitRoot === "string" ? marker.kitRoot : "";
   let routeResolves = false;
@@ -1506,7 +1515,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       );
     }
   }
-  // One read per path for the whole run (plan 34-32): every carrier line, gate line and reach line of this run
+  // (b) One read per path for the whole run (plan 34-32): every carrier line, gate line and reach line of this run
   // states what the same read found.
   const cache = new Map<string, UserFileRead>();
   const readAt: ReadAt = (rel) => {
@@ -1517,34 +1526,97 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
     }
     return r;
   };
-  const states = new Map<string, CarrierState>();
-  for (const rel of routeCarrierSet()) states.set(rel, carrierFinding(rel, ledger, readAt));
-  const adapterReaches = kitReal(adapterKit);
+  const rels = routeCarrierSet();
+  const classes = new Map<string, CarrierClass>();
+  for (const rel of rels) classes.set(rel, classifyCarrier(rel, ledger, readAt));
+  // (c) hostReadsCarrier, asked once per host and carrier (a failed gate's remedy reads the settings file).
+  const answers = new Map<string, Map<string, { readonly reads: boolean; readonly gate: EntryGateAnswer | null }>>();
   for (const host of HOST_TOOLS) {
-    const answers = routeCarrierSet()
-      .map((rel) => ({ rel, ...hostReadsCarrier(host, rel, readAt, ledger) }))
-      .filter((a) => a.reads || a.gate !== null);
-    const carriers = answers.filter((a) => a.reads).map((a) => a.rel);
-    const via = routeResolves ? carriers.filter((rel) => states.get(rel) === "route") : [];
-    const viaAdapter = host.adapter === "claude-kit" && adapterReaches;
-    const reaches = via.length > 0 || viaAdapter;
-    for (const a of answers) {
+    const mine = new Map<string, { readonly reads: boolean; readonly gate: EntryGateAnswer | null }>();
+    for (const rel of rels) mine.set(rel, hostReadsCarrier(host, rel, readAt, ledger));
+    answers.set(host.id, mine);
+  }
+  const adapterReal = kitReal(adapterKit);
+  const facts: RouteFacts = {
+    reads: (h, rel) => answers.get(h.id)?.get(rel)?.reads === true,
+    holds: (rel) => classes.get(rel)?.state === "route",
+    adapterReaches: (h) => h.adapter === "claude-kit" && adapterReal,
+  };
+  const adapterText = `its adapters' KIT= line (${adapterKit})`;
+  /** How `h` has the route here: the carriers reachVia names and its adapter, or null when nothing gives it one. */
+  const hasRouteThrough = (h: HostTool): string | null => {
+    const v = reachVia(h, facts);
+    const through = [...v.carriers, ...(v.adapter ? [adapterText] : [])];
+    return through.length > 0 ? through.join(", ") : null;
+  };
+  // (d) One line per carrier.
+  for (const rel of rels) {
+    const cls = classes.get(rel) as CarrierClass;
+    const readers = HOST_TOOLS.filter((h) => facts.reads(h, rel));
+    const readBy = readers.length > 0 ? readers.map((h) => h.name).join(", ") : "no registry host here";
+    if (cls.state === "route") {
+      docReport("ok", `kit route carried by ${rel} (read by ${readBy})`);
+      continue;
+    }
+    const remedy =
+      cls.state === "own-stale"
+        ? `Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`
+        : cls.state === "user"
+          ? `To give it the route, add this sentence after its start-here sentence: ${KIT_ROUTE}`
+          : cls.state === "absent"
+            ? `Re-run install.js, which writes it where nothing is`
+            : `It was not read, so NO VERDICT was reached on whether it carries the kit route`;
+    const stranded = strandedBy(rel, facts);
+    if (stranded.length === 0) {
+      const how = readers.map((h) => `${h.name} through ${hasRouteThrough(h) ?? "nothing"}`);
+      const what = cls.state === "unread" ? readStateText(cls.read) : CARRIER_STATE_TEXT[cls.state];
+      docReport(
+        "note",
+        `kit route: ${rel} ${what}${cls.ownReason === null ? "" : ` (${cls.ownReason})`}; no host is left without a route by it` +
+          `${how.length > 0 ? `: the hosts that read it here have the route another way (${how.join("; ")})` : ""}. ${remedy}`,
+      );
+      continue;
+    }
+    const leaves = `(it leaves ${stranded.map((h) => h.name).join(", ")} without a route to the Orchestrator)`;
+    if (cls.state === "absent") {
+      docWarn(`kit route: ${rel} ${leaves} is not present, so it gives those hosts no grugops pointer here. ${remedy}`);
+    } else if (cls.state === "unread") {
+      docWarn(`kit route: ${rel} ${leaves} ${readStateText(cls.read)} — it was not read, so NO VERDICT was reached on whether it carries the kit route`);
+    } else if (cls.state === "own-stale") {
+      docFail(
+        `kit route missing from ${rel} ${leaves}: install wrote it in an earlier install and it still holds what ` +
+          `install wrote, so it names no route to the kit, which a scripted install puts outside this repository. ${remedy}`,
+      );
+    } else {
+      docWarn(
+        `kit route missing from ${rel} ${leaves}: it is not install's own (${cls.ownReason}), so --check reports it ` +
+          `and install leaves it as it is. Add this sentence after its start-here sentence: ${KIT_ROUTE}`,
+      );
+    }
+  }
+  // (e) and (f): the gate lines and the reach line, per host.
+  for (const host of HOST_TOOLS) {
+    const mine = answers.get(host.id) as Map<string, { readonly reads: boolean; readonly gate: EntryGateAnswer | null }>;
+    const asked = rels.map((rel) => ({ rel, ...(mine.get(rel) as { readonly reads: boolean; readonly gate: EntryGateAnswer | null }) })).filter((a) => a.reads || a.gate !== null);
+    const v = reachVia(host, facts);
+    const through = hasRouteThrough(host);
+    for (const a of asked) {
       if (a.gate === null) continue;
       if (a.gate.reads) {
         docReport("ok", `kit route: ${host.name} reads ${a.rel} here: ${a.gate.why}`);
         continue;
       }
       const head = a.gate.unread ? `kit route: ${host.name} is not counted as reading ${a.rel} here` : `kit route: ${host.name} does not read ${a.rel} here`;
-      if (reaches) docReport("note", `${head}: ${a.gate.why}; it reaches the Orchestrator another way`);
+      if (through !== null) docReport("note", `${head}: ${a.gate.why}; it has the kit route another way (through ${through})`);
       else docWarn(`${head}: ${a.gate.why}. ${a.rel} then gives ${host.name} no route to the Orchestrator. ${a.gate.remedy}`);
     }
-    if (reaches) {
-      const through = [...via, ...(viaAdapter ? [`its adapters' KIT= line (${adapterKit})`] : [])];
-      docReport("reach", `${host.name}: reaches the Orchestrator through ${through.join(", ")}`);
+    const via = routeResolves ? v.carriers : [];
+    if (via.length > 0 || v.adapter) {
+      docReport("reach", `${host.name}: reaches the Orchestrator through ${[...via, ...(v.adapter ? [adapterText] : [])].join(", ")}`);
       continue;
     }
-    const why = answers.map((a) =>
-      a.reads ? `${a.rel} ${CARRIER_STATE_TEXT[states.get(a.rel) ?? "unread"]}` : `${a.rel} is not read by ${host.name} here (${a.gate?.why ?? "it is not one of its files"})`,
+    const why = asked.map((a) =>
+      a.reads ? `${a.rel} ${CARRIER_STATE_TEXT[classes.get(a.rel)?.state ?? "unread"]}` : `${a.rel} is not read by ${host.name} here (${a.gate?.why ?? "it is not one of its files"})`,
     );
     if (!routeResolves) why.push("the kit route does not lead to a readable roles/orchestrator.md");
     if (host.adapter === "claude-kit") why.push("its adapters' KIT= line names no kit");
@@ -1573,11 +1645,9 @@ function doctor(): number {
   // an unreadable source adapter directory leaves no candidate, the fallback below still names a
   // concrete path, and the KIT= cross-check still reads as "" → FAIL. The doctor is a read-only
   // reporter with its own FAIL surface, so it does not also emit the install path's verify finding.
-  const adapterCandidates = targetAdapterFiles() ?? [];
-  const adapterFile =
-    adapterCandidates.find((p) => readAdapterKit(p) !== "") ??
-    adapterCandidates[0] ??
-    join(TARGET, ".claude", "agents");
+  // Plan 34-33: the read is adapterKitOnDisk's, shared with install's route-note pass.
+  const adapterOnDisk = adapterKitOnDisk();
+  const adapterFile = adapterOnDisk.file;
 
   // --- not-installed fold-into-FAIL (RESEARCH Discretion §5) --------------------------------
   // Absent marker = a dev/uninstalled checkout; a marker that is there but unreadable is named as
@@ -1634,7 +1704,7 @@ function doctor(): number {
   // Bias to FAIL when unsure.
   const a = KIT_ROOT;
   const b = marker.kitRoot ? String(marker.kitRoot) : "";
-  const c = readAdapterKit(adapterFile);
+  const c = adapterOnDisk.kit;
   const na = docAbspath(a);
   const nb = b ? docAbspath(b) : "";
   const nc = c ? docAbspath(c) : "";
