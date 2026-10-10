@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 34
 current_phase_name: Model Effort Dial & Pi Support
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34-32-PLAN.md
-last_updated: "2026-10-10T14:44:13.202Z"
-state_head: 10dc7bdb2a29d01abf5801088cf1bb68adecc0fe
+stopped_at: Completed 34-33-PLAN.md
+last_updated: "2026-10-10T15:45:19.106Z"
+state_head: 134d3b9fd152bdbf3d3039e4af57b27d312e190f
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 391
-  completed_plans: 387
+  completed_plans: 388
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34 (Model Effort Dial & Pi Support) — EXECUTING
-Plan: 33 of 36 (gap round 4, last on the cap: 34-32..34-36 executing, D-27)
+Plan: 34 of 36 (gap round 4, last on the cap: 34-32..34-36 executing, D-27)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -648,6 +648,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34 P30 | 39min | 3 tasks | 10 files |
 | Phase 34 P31 | 31 min | 2 tasks | 4 files |
 | Phase 34 P32 | 26min | 2 tasks | 6 files |
+| Phase 34 P33 | 55min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -1778,6 +1779,8 @@ Recent decisions affecting current work:
 - [Phase 34]: 34-31: gap round 3 recorded: ledger open 0 (WR-12, IN-03 fixed with commits; WR-11, IN-13 deferred with Windows; IN-09..IN-12 out of round-3 scope); live Pi re-run is the human's UNKNOWN - verify item; writeMarker created label left for triage
 - [Phase 34]: 34-32: hostReadsCarrier(host, rel, readAt, ledger) is the one owner of 'does host H read carrier X here'; HostTool.entryGates + ENTRY_GATE_CHECKS gate Gemini's AGENTS.md on this repository's .gemini/settings.json context.fileName (CR-01)
 - [Phase 34]: 34-32: the Gemini WARN names Re-run install.js exactly when geminiMergePlan (the pure decision mergeGemini acts on) answers create or merge; otherwise the by-hand edit with install's reason
+- [Phase 34]: 34-33: strandedBy(rel, facts) in host-tools.ts is the one derivation of the hosts a carrier strands; the doctor counts a carrier without the route only when it names a host, else an uncounted note; install's noteStrandingCarriers asks it over the after-run state (PLANNED_BYTES under DRY_RUN)
+- [Phase 34]: 34-33: under DRY_RUN the after-run adapter route reads copyKit's recorded would-copy decision (KIT_HOME_WOULD_COPY) and the kit step's KIT_WRITTEN, never recomputed
 
 ### Pending Todos
 
@@ -1908,8 +1911,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-10T14:44:12.009Z
-Stopped at: Completed 34-32-PLAN.md
+Last session: 2026-10-10T15:45:11.338Z
+Stopped at: Completed 34-33-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
