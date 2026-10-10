@@ -2492,26 +2492,34 @@ function ensureBlock(file: string, open: string, body: string, close: string, la
   report("created", label);
 }
 
-// writePiPromptTemplate (plan 34-04, D-10, D-13, D-16, D-17): create the Pi project prompt template
-// at PI_PROMPT_REL when NOTHING is at that path. Called on every install, whether or not the target has
-// a `.pi` directory (D-17): a write gated on detection would escape the derived installer class tests
-// (34-RESEARCH.md Pitfall 10).
+// writePiPromptTemplate (plan 34-04, D-10, D-13, D-16, D-17; the refresh, plan 34-28, D-26 point 2): create
+// the Pi project prompt template at PI_PROMPT_REL when NOTHING is at that path, and refresh install's own
+// unedited copy from an earlier install. Called on every install, whether or not the target has a `.pi`
+// directory (D-17): a write gated on detection would escape the derived installer class tests
+// (34-RESEARCH.md Pitfall 10). `ledger` is the target's install ledger as this run found it
+// (PREVIOUS_LEDGER), passed in so the doctor can share the rule (a const below the `--check` exit is in
+// its temporal dead zone).
 //
-// WHOLE-FILE EXCLUSIVE CREATE ONLY. The path is asked through readForWrite first (DC-3: a FIFO, a
-// directory, a device or a link there is never read or written through):
+// The path is asked through readForWrite first (DC-3: a FIFO, a directory, a device or a link there is
+// never read or written through):
 //   blocked → a counted verify; nothing is written.
-//   ok      → a file is already there (the user's own template, or the one an earlier install wrote):
-//             it is left untouched, never overwritten or appended to. An earlier install's ledger claim
-//             on it is carried forward by nextLedgerEntries only while the file still holds exactly the
-//             recorded content (recordHolds), so a user edit drops the claim.
-//   DRY_RUN → `would-add`, decided before any write.
+//   ok      → a file is already there. refreshOwnFile decides (brief DC-2: a write only on install's own
+//             record): when the previous ledger's `file` entry for the path still holds (owns), the file
+//             is install's own and unedited, so text that is not PI_PROMPT_TEXT (an earlier install's
+//             template, with no kit route or older) is replaced and the new bytes recorded; text that is
+//             PI_PROMPT_TEXT is current and skipped. Anything else (the user's own template, or install's
+//             edited since) is left untouched, never overwritten or appended to. This replaces the
+//             create-only rule deferred as IN-03. An earlier install's ledger claim on a file left
+//             untouched is carried forward by nextLedgerEntries only while the file still holds exactly
+//             the recorded content (recordHolds), so a user edit drops the claim.
+//   DRY_RUN → `would-add` (nothing there) or `would-refresh`, decided before any write.
 //   create  → writeTargetFile with the exclusive create (flag "wx"); mkdirp records `.pi` and
 //             `.pi/prompts` in CREATED_DIRS only when this run made them, so a user's own `.pi/` is never
 //             claimed. Only a create that succeeded is recorded, as a kit-false `file` entry; uninstall
 //             removes it through the ledger walk (owns(path)) only while it still holds these bytes.
 // grugops writes nothing else under `.pi/` (no SYSTEM.md, APPEND_SYSTEM.md, settings.json, mcp.json,
 // skills/ or extensions/; D-10).
-function writePiPromptTemplate(): void {
+function writePiPromptTemplate(ledger: LedgerRead): void {
   const file = join(TARGET, ...PI_PROMPT_REL.split("/"));
   const cur = readForWrite(TARGET, file);
   if (cur.state === "blocked") {
@@ -2519,6 +2527,7 @@ function writePiPromptTemplate(): void {
     return;
   }
   if (cur.state === "ok") {
+    if (refreshOwnFile(ledger, PI_PROMPT_REL, PI_PROMPT_TEXT, "Pi prompt template") !== "left") return;
     report("skipped", `${PI_PROMPT_REL} (Pi prompt template: a file is already there — left untouched)`);
     return;
   }
@@ -2530,6 +2539,47 @@ function writePiPromptTemplate(): void {
     recordCreatedFile(file, writtenFileRecord(file, PI_PROMPT_TEXT));
     report("created", `${PI_PROMPT_REL} (Pi prompt template)`);
   }
+}
+
+// refreshOwnFile (plan 34-28, D-26 point 2, brief DC-2 and DC-3; closes deferred IN-03): THE ONE RULE for
+// refreshing a whole-file route carrier install wrote in an earlier run (the Pi template, an AGENTS.md copy
+// install created). `rel` is a POSIX path relative to TARGET; `want` is the current text (null when it could
+// not be read, which refreshes nothing); `ledger` is the install ledger as this run found it. It writes only
+// on install's own record:
+//   - owns(ledger, TARGET, rel, "file") answers owned (the entry's record still holds: the bytes and the
+//     mode install recorded, no link followed, no hard link) AND the record is a `sha256:` file record, not
+//     a link record (a --symlink install's link is current by construction);
+//   - the file is asked through readForWrite again (DC-3) and must be a regular file;
+//   - its bytes equal `want` → `current` (skipped, nothing written);
+//   - otherwise, under DRY_RUN → `would-refresh`, nothing written;
+//   - otherwise → writeTargetFile with how `ok`, then recordCreatedFile with writtenFileRecord of the new
+//     bytes (so uninstall still removes exactly what install wrote) → `refreshed`.
+// Every other case answers `left`: nothing is written or recorded, and the caller reports its own skipped
+// line. A function declaration taking the ledger as a parameter, so the doctor can share it.
+type RefreshOutcome = "refreshed" | "would-refresh" | "current" | "left";
+function refreshOwnFile(ledger: LedgerRead, rel: string, want: string | Buffer | null, label: string): RefreshOutcome {
+  if (want === null) return "left";
+  const own = owns(ledger, TARGET, rel, "file");
+  if (!own.owned || !own.entry.content.startsWith("sha256:")) return "left";
+  const file = join(TARGET, ...rel.split("/"));
+  const cur = readForWrite(TARGET, file);
+  if (cur.state !== "ok") return "left";
+  const wantBytes = typeof want === "string" ? Buffer.from(want, "utf8") : want;
+  if (cur.bytes.equals(wantBytes)) {
+    report("skipped", `${rel} (${label}: install's own, already current)`);
+    return "current";
+  }
+  if (DRY_RUN) {
+    report("would-refresh", `${rel} (${label}: install's own copy from an earlier install, unedited, is not the current text)`);
+    return "would-refresh";
+  }
+  if (!writeTargetFile(file, wantBytes, "ok", rel)) return "left";
+  recordCreatedFile(file, writtenFileRecord(file, wantBytes));
+  report(
+    "refreshed",
+    `${rel} (${label}: install's own copy from an earlier install, unedited, held no kit route or was older; replaced with the current text and recorded)`,
+  );
+  return "refreshed";
 }
 
 // recordAppendedBlock (plan 33.1-33): APPENDED_BLOCKS gets the record of the block this run wrote to
@@ -5459,16 +5509,27 @@ for (const rel of SRC_NESTED_ADAPTERS) {
 // red-team fixes of plan 33.1-31 (see buildKitPlan): each leaves the kit source not fully examined,
 // so it refuses the whole kit before the first write.
 
-// AGENTS.md is never written when the target has one. "Has one" is a regular file (readForWrite
-// `ok`) or the link a --symlink install made to the checkout's AGENTS.md. Red-team of plan 33.1-26:
-// it used to be existsSync, so a FIFO or a directory there read as "has one", and a dangling link
+// AGENTS.md is never written when the target has one of the user's. "Has one" is a regular file
+// (readForWrite `ok`) or the link a --symlink install made to the checkout's AGENTS.md. Red-team of plan
+// 33.1-26: it used to be existsSync, so a FIFO or a directory there read as "has one", and a dangling link
 // read as "has none" and reached linkOrCopy. Nothing there → linkOrCopy; anything else → verify.
+//
+// THE REFRESH (plan 34-28, D-26 point 2, brief DC-2): a regular file goes to refreshOwnFile with the kit
+// source's AGENTS.md bytes (read through readUserFile; nothing to refresh to when that read is not ok). It is
+// replaced only when PREVIOUS_LEDGER's `file` entry for it still holds, that is, a copy install created in
+// an earlier run and nobody edited since; a user's own AGENTS.md, or install's edited since, is never
+// written. Install's own link (--symlink) is current by construction and is never refreshed.
 {
   const agentsSrc = join(GRUGOPS_SRC, "AGENTS.md");
   const agentsDest = join(TARGET, "AGENTS.md");
   const agentsRead = isOwnLink(agentsDest, agentsSrc) ? null : readForWrite(TARGET, agentsDest);
-  if (agentsRead === null || agentsRead.state === "ok") {
+  if (agentsRead === null) {
     report("skipped", "AGENTS.md (target already has one — left untouched)");
+  } else if (agentsRead.state === "ok") {
+    const src = readUserFile(agentsSrc);
+    if (refreshOwnFile(PREVIOUS_LEDGER, "AGENTS.md", src.state === "ok" ? src.bytes : null, "AGENTS.md") === "left") {
+      report("skipped", "AGENTS.md (target already has one — left untouched)");
+    }
   } else if (agentsRead.state === "blocked") {
     verify(`AGENTS.md: ${blockedAt(agentsRead, agentsDest)}. It was left untouched and nothing was copied to it.`);
   } else {
@@ -5491,7 +5552,7 @@ ensureBlock(
   COPILOT_CLOSE,
   `${COPILOT_REL} (optional Copilot pointer)`,
 );
-writePiPromptTemplate();
+writePiPromptTemplate(PREVIOUS_LEDGER);
 
 // ── The RETIRED `autonomy` scalar: REPORT, never rewrite (Phase 30, D-05 / T-30-22) ─────────────
 //

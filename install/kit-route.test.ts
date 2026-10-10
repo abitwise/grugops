@@ -18,14 +18,15 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { KIT_ROUTE, PI_PROMPT_REL } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
-import { INSTALL_JS, MARKER_REL, runInstall, spawnBin, type Run } from "./installer-paths.test-support.js";
-import { readMarkerObject, withLedger } from "./ledger.test-support.js";
+import { INSTALL_JS, MARKER_REL, REPO_ROOT, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gkroute-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -182,5 +183,138 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const warns = routeLines(c.stdout).filter((l) => l.startsWith("  WARN") && l.includes(PI_PROMPT_REL));
     expect(warns.length, c.stdout).toBe(1);
+  });
+});
+
+// ── THE REFRESH OF INSTALL'S OWN ROUTE CARRIERS (plan 34-28, D-26 point 2, closes deferred IN-03) ──────
+//
+// Every install made before plan 34-27 holds carriers with no route. A re-install replaces a carrier only
+// when the previous install ledger's record still holds (install's own, unedited) and the text is not the
+// current one; the new bytes are recorded, so uninstall still removes exactly what install wrote.
+//
+// THE STAGING IS THE TEST'S OWN. An earlier install is made by writing the stale bytes (the current text
+// with ` ` + KIT_ROUTE removed) over the installed file and rewriting the marker's record for it with a
+// sha256 this file computes itself (node:crypto), keeping the entry's `;mode=` suffix, so no code under
+// test produces the record the refresh decision reads.
+
+/** `sha256:<hex>` of `bytes`, computed here, independent of install-marker.ts. */
+const sha256Of = (bytes: string | Buffer): string => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+/** The stale text of an earlier install: `text` with its one ` ` + KIT_ROUTE removed. */
+function staleOf(text: string): string {
+  expect(text.includes(` ${KIT_ROUTE}`), "premise: the current text carries the route after a space").toBe(true);
+  return text.replace(` ${KIT_ROUTE}`, "");
+}
+/** Write `marker` back as install does (two-space indent, final newline). */
+const writeMarkerObject = (target: string, marker: Record<string, unknown>): void =>
+  writeFileSync(join(target, ...MARKER_REL.split("/")), JSON.stringify(marker, null, 2) + "\n");
+
+/**
+ * Make `rel` look like an earlier install's copy: `staleBytes` over the installed file, and the ledger's
+ * `file` entry for rel set to the record of those bytes, keeping its `;mode=` suffix.
+ */
+function stageEarlierFile(target: string, rel: string, staleBytes: string): void {
+  writeFileSync(join(target, ...rel.split("/")), staleBytes);
+  writeMarkerObject(
+    target,
+    withLedger(readMarkerObject(target), (entries) => {
+      const e = entries.find((x) => x.kind === "file" && x.path === rel);
+      expect(e, `premise: the ledger records ${rel} as a file install created`).toBeDefined();
+      const content = String((e as Record<string, unknown>).content);
+      const at = content.indexOf(";mode=");
+      (e as Record<string, unknown>).content = sha256Of(staleBytes) + (at === -1 ? "" : content.slice(at));
+    }),
+  );
+}
+
+/** The report lines of `stdout` under `label`: two-space indent, then the label as the first token. */
+const linesUnder = (stdout: string, label: string): string[] =>
+  stdout.split(/\r?\n/).filter((l) => l.startsWith("  ") && l.trim().split(/\s+/)[0] === label);
+/** Whether some line under `label` names `rel` as its subject (the token after the label). */
+const reports = (stdout: string, label: string, rel: string): boolean =>
+  linesUnder(stdout, label).some((l) => l.trim().split(/\s+/)[1] === rel);
+
+describe("kit route: a re-install refreshes install's own unedited route carriers, and nothing else (plan 34-28, D-26 point 2)", () => {
+  it("the Pi template of an earlier install is refreshed: `refreshed`, the current bytes, the new record, and uninstall removes `.pi/`", () => {
+    const { target, kitHome } = installed();
+    const current = readFileSync(piFile(target), "utf8");
+    stageEarlierFile(target, PI_PROMPT_REL, staleOf(current));
+    const again = runInstall(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reports(again.stdout, "refreshed", PI_PROMPT_REL), again.stdout).toBe(true);
+    const now = readFileSync(piFile(target), "utf8");
+    expect(now.includes(KIT_ROUTE), "the refreshed template does not carry the route").toBe(true);
+    expect(now).toBe(current);
+    expect(fileRecords(readMarkerObject(target))[PI_PROMPT_REL]?.split(";")[0]).toBe(sha256Of(current));
+    const u = runUninstall(target, kitHome);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(join(target, ".pi")), u.stdout).toBe(false);
+  });
+
+  it("an AGENTS.md copy install created in an empty target is refreshed the same way, and uninstall removes it", () => {
+    const { target, kitHome } = installed();
+    const agents = join(target, "AGENTS.md");
+    const current = readFileSync(agents, "utf8");
+    expect(current).toBe(readFileSync(join(REPO_ROOT, "AGENTS.md"), "utf8"));
+    stageEarlierFile(target, "AGENTS.md", staleOf(current));
+    const again = runInstall(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reports(again.stdout, "refreshed", "AGENTS.md"), again.stdout).toBe(true);
+    expect(readFileSync(agents, "utf8")).toBe(current);
+    expect(fileRecords(readMarkerObject(target))["AGENTS.md"]?.split(";")[0]).toBe(sha256Of(current));
+    const u = runUninstall(target, kitHome);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(agents), u.stdout).toBe(false);
+  });
+
+  it("a template the user edited since install is never written: the re-install leaves its bytes and reports it skipped", () => {
+    const { target, kitHome } = installed();
+    const edited = staleOf(readFileSync(piFile(target), "utf8")) + "Also: run the gate first.\n";
+    writeFileSync(piFile(target), edited);
+    const again = runInstall(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reports(again.stdout, "skipped", PI_PROMPT_REL), again.stdout).toBe(true);
+    expect(reports(again.stdout, "refreshed", PI_PROMPT_REL), again.stdout).toBe(false);
+    expect(readFileSync(piFile(target), "utf8")).toBe(edited);
+  });
+
+  it("the user's own template, there before the first install, is never written and never claimed", () => {
+    const { target, kitHome } = scratchRow();
+    mkdirSync(join(target, ".pi", "prompts"), { recursive: true });
+    const mine = "---\ndescription: my own grugops prompt\n---\nDo it my way: $ARGUMENTS\n";
+    writeFileSync(piFile(target), mine);
+    for (let i = 0; i < 2; i++) {
+      const r = runInstall(target, kitHome);
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(reports(r.stdout, "refreshed", PI_PROMPT_REL), r.stdout).toBe(false);
+      expect(readFileSync(piFile(target), "utf8")).toBe(mine);
+      expect(fileRecords(readMarkerObject(target))[PI_PROMPT_REL], "the user's template was claimed").toBeUndefined();
+    }
+  });
+
+  it("a DRY_RUN re-install over an earlier install's template says `would-refresh` and writes nothing", () => {
+    const { target, kitHome } = installed();
+    const stale = staleOf(readFileSync(piFile(target), "utf8"));
+    stageEarlierFile(target, PI_PROMPT_REL, stale);
+    const markerBefore = readFileSync(join(target, ...MARKER_REL.split("/")), "utf8");
+    const dry = runInstall(target, kitHome, [], { dryRun: true });
+    expect(dry.status, dry.stdout + dry.stderr).toBe(0);
+    expect(reports(dry.stdout, "would-refresh", PI_PROMPT_REL), dry.stdout).toBe(true);
+    expect(reports(dry.stdout, "refreshed", PI_PROMPT_REL), dry.stdout).toBe(false);
+    expect(readFileSync(piFile(target), "utf8")).toBe(stale);
+    expect(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")).toBe(markerBefore);
+  });
+
+  it("a --symlink install's AGENTS.md link is never refreshed: a link is current by construction", () => {
+    const { target, kitHome } = scratchRow();
+    const first = runInstall(target, kitHome, ["--symlink"]);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const agents = join(target, "AGENTS.md");
+    expect(lstatSync(agents).isSymbolicLink(), "premise: the --symlink install linked AGENTS.md").toBe(true);
+    const linkBefore = readlinkSync(agents);
+    const again = runInstall(target, kitHome, ["--symlink"]);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reports(again.stdout, "refreshed", "AGENTS.md"), again.stdout).toBe(false);
+    expect(lstatSync(agents).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(agents)).toBe(linkBefore);
   });
 });
