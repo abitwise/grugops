@@ -170,7 +170,6 @@ import {
   PI_PROMPT_REL,
   KIT_ROUTE,
   carriesKitRoute,
-  hostsReading,
   routeCarriers,
   reachVia,
   strandedBy,
@@ -647,6 +646,21 @@ const KIT_FILES = new Map<string, string>();
 // field back from that marker and learns nothing from this run (see A RUN THAT WROTE NO KIT FILE in
 // writeMarker's header).
 let KIT_WRITTEN = false;
+// KIT_HOME_WOULD_COPY (plan 34-33): copyKit's own DRY_RUN decision, recorded where it is taken: true when a DRY_RUN
+// reported `would-copy` for the kit home, so the real run would put the kit source at KIT_ROOT. Read only by
+// adapterRouteAfterRun (install's route-note pass), never recomputed there.
+let KIT_HOME_WOULD_COPY = false;
+// PLANNED_BYTES (plan 34-33, D-27 point 2): under DRY_RUN, the bytes the real run would leave at a target-relative
+// path (POSIX spelling, targetRel), recorded by each DRY_RUN branch that reports would-add, would-copy, would-link or
+// would-refresh for a route carrier or for .gemini/settings.json. A real run records nothing here: the files on disk
+// are the state. In memory only; noteStrandingCarriers reads it, and nothing writes it to disk or to a record.
+// Declared above the doctor's early exit so no early branch can reach a setPlanned call in its temporal dead zone;
+// the doctor never reads it.
+const PLANNED_BYTES = new Map<string, Buffer>();
+function setPlanned(path: string, bytes: Buffer | string): void {
+  const rel = targetRel(path);
+  if (rel !== null) PLANNED_BYTES.set(rel, typeof bytes === "string" ? Buffer.from(bytes, "utf8") : bytes);
+}
 // The target's configuration file, and the two legacy locations --migrate carries one forward from
 // (D-04). Declared here, above the doctor's early exit, because the doctor's render asks
 // renderConfigInput (red-team B3 of plan 33.1-31); see THE LEGACY CONFIG CARRY below.
@@ -2898,8 +2912,11 @@ function migratePreSteps(): void {
 //     it created. Reported `refreshed`;
 //   - a block that is already the current lines: skipped, nothing written;
 //   - anything else (no record, a record that no span matches because a line inside was added, edited or
-//     removed, or two matching spans): skipped, nothing written. When the file then carries no kit route,
-//     noteMissingRoute names it and the hosts that read it (D-26 point 3).
+//     removed, or two matching spans): skipped, nothing written. When the file then carries no kit route and
+//     that leaves a host without one, install's route-note pass (noteStrandingCarriers, after every carrier
+//     write) names it and those hosts (D-26 point 3, D-27 point 2).
+// Under DRY_RUN, each would-add and would-refresh records the bytes the real run would leave (setPlanned), so the
+// route-note pass judges the state the real run would leave.
 function ensureBlock(ledger: LedgerRead, file: string, open: string, body: string, close: string, label: string): void {
   const cur = readForWrite(TARGET, file);
   if (cur.state === "blocked") {
@@ -2915,12 +2932,13 @@ function ensureBlock(ledger: LedgerRead, file: string, open: string, body: strin
       const matches = own.spans;
       const newBytes = Buffer.from(newLines, "utf8");
       if (matches.length === 1 && !cur.bytes.subarray(matches[0].start, matches[0].end).equals(newBytes)) {
+        const next = Buffer.concat([cur.bytes.subarray(0, matches[0].start), newBytes, cur.bytes.subarray(matches[0].end)]);
         if (DRY_RUN) {
+          setPlanned(file, next);
           report("would-refresh", `${label} (install's own block from an earlier install, unedited, is not the current text)`);
           return;
         }
         const createdHeld = owns(ledger, TARGET, rel, "file").owned;
-        const next = Buffer.concat([cur.bytes.subarray(0, matches[0].start), newBytes, cur.bytes.subarray(matches[0].end)]);
         if (!writeTargetFile(file, next, "ok", label)) return;
         recordAppendedBlock(file, newLines, own.entry.separator);
         if (createdHeld) recordCreatedFile(file, writtenFileRecord(file, next));
@@ -2932,15 +2950,16 @@ function ensureBlock(ledger: LedgerRead, file: string, open: string, body: strin
       }
     }
     report("skipped", `${label} (sentinel already present)`);
-    if (rel !== null) noteMissingRoute(rel, cur.text);
-    return;
-  }
-  if (DRY_RUN) {
-    report("would-add", label);
     return;
   }
   const lines = `${open}\n${body}\n${close}\n`;
   const block = `\n${lines}`;
+  if (DRY_RUN) {
+    // What the real run leaves: the block alone on a create, else the current bytes with the block appended.
+    setPlanned(file, cur.state === "create" ? block : Buffer.concat([cur.bytes, Buffer.from(block, "utf8")]));
+    report("would-add", label);
+    return;
+  }
   // The separator install writes before the block lines (red-team B1 of plan 33.1-33): into an absent or
   // empty file, or after a final newline, it makes a blank line; after a last line with no newline it
   // ends that line. Recorded, so uninstall can tell which newline is install's.
@@ -2984,12 +3003,14 @@ function ensureBlock(ledger: LedgerRead, file: string, open: string, body: strin
 //             is install's own and unedited, so text that is not PI_PROMPT_TEXT (an earlier install's
 //             template, with no kit route or older) is replaced and the new bytes recorded; text that is
 //             PI_PROMPT_TEXT is current and skipped. Anything else (the user's own template, or install's
-//             edited since) is left untouched, never overwritten or appended to, and noteMissingRoute
-//             names it when it carries no kit route (D-26 point 3). This replaces the
+//             edited since) is left untouched, never overwritten or appended to, and install's route-note
+//             pass (noteStrandingCarriers) names it when it carries no kit route and that leaves Pi without
+//             one (D-26 point 3, D-27 point 2). This replaces the
 //             create-only rule deferred as IN-03. An earlier install's ledger claim on a file left
 //             untouched is carried forward by nextLedgerEntries only while the file still holds exactly
 //             the recorded content (recordHolds), so a user edit drops the claim.
-//   DRY_RUN → `would-add` (nothing there) or `would-refresh`, decided before any write.
+//   DRY_RUN → `would-add` (nothing there) or `would-refresh`, decided before any write; the bytes the real
+//             run would leave are recorded (setPlanned) for the route-note pass.
 //   create  → writeTargetFile with the exclusive create (flag "wx"); mkdirp records `.pi` and
 //             `.pi/prompts` in CREATED_DIRS only when this run made them, so a user's own `.pi/` is never
 //             claimed. Only a create that succeeded is recorded, as a kit-false `file` entry; uninstall
@@ -3006,10 +3027,10 @@ function writePiPromptTemplate(ledger: LedgerRead): void {
   if (cur.state === "ok") {
     if (refreshOwnFile(ledger, PI_PROMPT_REL, PI_PROMPT_TEXT, "Pi prompt template") !== "left") return;
     report("skipped", `${PI_PROMPT_REL} (Pi prompt template: a file is already there — left untouched)`);
-    noteMissingRoute(PI_PROMPT_REL, cur.text);
     return;
   }
   if (DRY_RUN) {
+    setPlanned(file, PI_PROMPT_TEXT);
     report("would-add", `${PI_PROMPT_REL} (Pi prompt template)`);
     return;
   }
@@ -3029,7 +3050,8 @@ function writePiPromptTemplate(ledger: LedgerRead): void {
 //     a link record (a --symlink install's link is current by construction);
 //   - the file is asked through readForWrite again (DC-3) and must be a regular file;
 //   - its bytes equal `want` → `current` (skipped, nothing written);
-//   - otherwise, under DRY_RUN → `would-refresh`, nothing written;
+//   - otherwise, under DRY_RUN → `would-refresh`, nothing written; `want` is recorded as the bytes the real run
+//     would leave (setPlanned, plan 34-33);
 //   - otherwise → writeTargetFile with how `ok`, then recordCreatedFile with writtenFileRecord of the new
 //     bytes (so uninstall still removes exactly what install wrote) → `refreshed`.
 // Every other case answers `left`: nothing is written or recorded, and the caller reports its own skipped
@@ -3048,6 +3070,7 @@ function refreshOwnFile(ledger: LedgerRead, rel: string, want: string | Buffer |
     return "current";
   }
   if (DRY_RUN) {
+    setPlanned(file, wantBytes);
     report("would-refresh", `${rel} (${label}: install's own copy from an earlier install, unedited, is not the current text)`);
     return "would-refresh";
   }
@@ -3060,29 +3083,77 @@ function refreshOwnFile(ledger: LedgerRead, rel: string, want: string | Buffer |
   return "refreshed";
 }
 
-// noteMissingRoute (plan 34-28, D-26 point 3): when install leaves a route carrier untouched because it is
-// not install's to change (the user's own, install's edited since, or a block install has no single record
-// of), and `text` (the whole file as this run read it, which is what a host reads) does not carry the kit
-// route (carriesKitRoute), one `note` names the file, the hosts it leaves without a route to the kit after a
-// scripted install, and KIT_ROUTE as the sentence to add. The hosts are derived from HOST_TOOLS
-// (host-tools.ts routeCarriers / hostsReading, the one derivation install and `--check` share), in registry
-// order: for AGENTS.md, the hosts whose only route carrier is AGENTS.md (the others also read a pointer
-// install writes); for any other file, every host that reads it. Report only: nothing is written.
-function noteMissingRoute(rel: string, text: string): void {
-  if (carriesKitRoute(text)) return;
-  const hosts =
-    rel === "AGENTS.md"
-      ? hostsReading(rel).filter((h) => {
-          const c = routeCarriers(h);
-          return c.length === 1 && c[0] === rel;
-        })
-      : hostsReading(rel);
-  if (hosts.length === 0) return;
-  report(
-    "note",
-    `${rel} (left as it is, with no kit route in it: ${hosts.map((h) => h.name).join(", ")} get no route to the kit ` +
-      `after a scripted install; to give them one, add this sentence to it: "${KIT_ROUTE}")`,
-  );
+// adapterRouteAfterRun (plan 34-33, D-27 point 2): whether the Claude Code adapters give a route to a real kit
+// after this run. Under DRY_RUN with KIT_WRITTEN (the kit step's own decision that the adapters would be written,
+// never recomputed here), the adapters would carry KIT_ROOT; the kit there is the one copyKit's DRY_RUN reported it
+// would copy (KIT_HOME_WOULD_COPY, its own recorded decision: the kit source) or else what KIT_ROOT holds now.
+// Otherwise the adapters on disk are the state: adapterKitOnDisk, the doctor's own read, and kitReal on it.
+function adapterRouteAfterRun(): boolean {
+  if (DRY_RUN && KIT_WRITTEN) return KIT_HOME_WOULD_COPY ? kitReal(KIT_COPY_SOURCE) : kitReal(KIT_ROOT);
+  const kit = adapterKitOnDisk().kit;
+  return kitReal(kit ? docAbspath(kit) : "");
+}
+
+// noteStrandingCarriers (plan 34-33, D-27 point 2; was noteMissingRoute, plan 34-28, D-26 point 3): THE INSTALL
+// ROUTE-NOTE PASS. Called once, right after the last carrier write (writePiPromptTemplate). It asks strandedBy
+// (host-tools.ts), the one derivation of the hosts a carrier leaves without a route, which the doctor asks too, over
+// the state this run leaves: each path is read from PLANNED_BYTES first (under DRY_RUN, what the real run would
+// write there), else through readUserFile under TARGET. Its facts:
+//   reads(h, rel)       = hostReadsCarrier over that after-run read and PREVIOUS_LEDGER (the 34-32 gate included);
+//   holds(rel)          = an ok read whose whole text carriesKitRoute;
+//   adapterReaches(h)   = a `claude-kit` host while adapterRouteAfterRun.
+// For each carrier of routeCarrierSet that does not hold and whose strandedBy names hosts, one `note` names the file
+// and those hosts in registry order. Its sentence makes no grammatical claim about how many hosts it names. A carrier
+// left with text and no route quotes KIT_ROUTE as the sentence to add; an absent or unread carrier says so and points
+// to the line above about it for the remedy. Before plan 34-33 the note named every host reading the file (for
+// AGENTS.md, the hosts whose only carrier it was), including hosts another carrier or Claude Code's adapters gave the
+// route (WR-02).
+// The Gemini gate needs no note here: when this run leaves .gemini/settings.json not listing AGENTS.md, mergeGemini
+// has already printed a counted verify naming it.
+// It READS AND REPORTS ONLY: it writes nothing and records nothing, so an interrupted or concurrent install cannot
+// leave a record derived from a note.
+function noteStrandingCarriers(): void {
+  const cache = new Map<string, UserFileRead>();
+  const afterReadAt: ReadAt = (rel) => {
+    let r = cache.get(rel);
+    if (r === undefined) {
+      const planned = PLANNED_BYTES.get(rel);
+      r = planned !== undefined ? { state: "ok", bytes: planned, text: planned.toString("utf8"), mode: 0o644 } : readUserFile(join(TARGET, ...rel.split("/")));
+      cache.set(rel, r);
+    }
+    return r;
+  };
+  const rels = routeCarrierSet();
+  const reads = new Map<string, boolean>();
+  for (const h of HOST_TOOLS) for (const rel of rels) reads.set(`${h.id}\0${rel}`, hostReadsCarrier(h, rel, afterReadAt, PREVIOUS_LEDGER).reads);
+  const adapterAfter = adapterRouteAfterRun();
+  const facts: RouteFacts = {
+    reads: (h, rel) => reads.get(`${h.id}\0${rel}`) === true,
+    holds: (rel) => {
+      const r = afterReadAt(rel);
+      return r.state === "ok" && carriesKitRoute(r.text);
+    },
+    adapterReaches: (h) => h.adapter === "claude-kit" && adapterAfter,
+  };
+  for (const rel of rels) {
+    const stranded = strandedBy(rel, facts);
+    if (stranded.length === 0) continue;
+    const hosts = stranded.map((h) => h.name).join(", ");
+    const r = afterReadAt(rel);
+    if (r.state === "ok") {
+      report(
+        "note",
+        `${rel} (left as it is, with no kit route in it: it leaves ${hosts} without a route to the kit after a scripted install; ` +
+          `to give them one, add this sentence to it: "${KIT_ROUTE}")`,
+      );
+    } else {
+      report(
+        "note",
+        `${rel} (${r.state === "absent" ? "is not present" : unreadState(r)}: it leaves ${hosts} without a route to the kit after a ` +
+          `scripted install; the line above about ${rel} says why and what to do)`,
+      );
+    }
+  }
 }
 
 // recordAppendedBlock (plan 33.1-33): APPENDED_BLOCKS gets the record of the block this run wrote to
@@ -3135,6 +3206,8 @@ function linkOrCopy(src: string, dest: string, label: string): string | null {
     return null;
   }
   if (DRY_RUN) {
+    // A copy or a link to src: either way a host reads src's bytes at dest after the real run (plan 34-33).
+    setPlanned(dest, srcRead.bytes);
     report(INSTALL_MODE === "copy" ? "would-copy" : "would-link", label);
     return null;
   }
@@ -3228,6 +3301,7 @@ function mergeGemini(): void {
   }
   if (plan.act === "create") {
     if (DRY_RUN) {
+      setPlanned(file, createdGeminiText());
       report("would-add", `${rel} (context.fileName: [AGENTS.md, GEMINI.md])`);
       return;
     }
@@ -3260,6 +3334,7 @@ function mergeGemini(): void {
     return;
   }
   if (DRY_RUN) {
+    setPlanned(file, plan.newText);
     report("would-add", `${rel} (merge AGENTS.md into context.fileName)`);
     return;
   }
@@ -3357,6 +3432,7 @@ function copyKit(retainBackup = false): void {
     if (arm === "backup") report("would-back-up", `${KIT_ROOT} → ${backup} (${why}; recorded in ${KIT_HOME_RECORD_REL})`);
     if (arm === "replace") report("would-replace", `${KIT_ROOT} (the kit install recorded writing there, D-31 item 14)`);
     report("would-copy", `kit → ${KIT_ROOT}`);
+    KIT_HOME_WOULD_COPY = true;
     return;
   }
   if (arm === "backup" && !gone(backup)) {
@@ -5967,8 +6043,8 @@ for (const rel of SRC_NESTED_ADAPTERS) {
 // source's AGENTS.md bytes (read through readUserFile; nothing to refresh to when that read is not ok). It is
 // replaced only when PREVIOUS_LEDGER's `file` entry for it still holds, that is, a copy install created in
 // an earlier run and nobody edited since; a user's own AGENTS.md, or install's edited since, is never
-// written, and noteMissingRoute names it when it carries no kit route, with the hosts whose only route carrier
-// AGENTS.md is (D-26 point 3). Install's own link (--symlink) is current by construction and is never refreshed.
+// written, and install's route-note pass (noteStrandingCarriers, after the last carrier write) names it when it
+// carries no kit route and that leaves a host without one (D-26 point 3, D-27 point 2). Install's own link (--symlink) is current by construction and is never refreshed.
 {
   const agentsSrc = join(GRUGOPS_SRC, "AGENTS.md");
   const agentsDest = join(TARGET, "AGENTS.md");
@@ -5979,7 +6055,6 @@ for (const rel of SRC_NESTED_ADAPTERS) {
     const src = readUserFile(agentsSrc);
     if (refreshOwnFile(PREVIOUS_LEDGER, "AGENTS.md", src.state === "ok" ? src.bytes : null, "AGENTS.md") === "left") {
       report("skipped", "AGENTS.md (target already has one — left untouched)");
-      noteMissingRoute("AGENTS.md", agentsRead.text);
     }
   } else if (agentsRead.state === "blocked") {
     verify(`AGENTS.md: ${blockedAt(agentsRead, agentsDest)}. It was left untouched and nothing was copied to it.`);
@@ -6005,6 +6080,8 @@ ensureBlock(
   `${COPILOT_REL} (optional Copilot pointer)`,
 );
 writePiPromptTemplate(PREVIOUS_LEDGER);
+// The route-note pass, once, after every carrier write (plan 34-33): it only reads and reports.
+noteStrandingCarriers();
 
 // ── The RETIRED `autonomy` scalar: REPORT, never rewrite (Phase 30, D-05 / T-30-22) ─────────────
 //

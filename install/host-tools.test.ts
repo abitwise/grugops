@@ -661,19 +661,18 @@ function allNodes(sf: ts.SourceFile): ts.Node[] {
 
 // THE PINNED CALL SITES. routeCarriers and hostsReading are the static "could read" sets; a verdict asks
 // hostReadsCarrier instead. hostReadsCarrier and routeCarrierSet are the owner functions the plan names.
-// noteMissingRoute is install's route note (not a doctor verdict); plan 34-33 replaces it with the strandedBy
-// post-pass, and moves these pins in the same commit.
+// Plan 34-33 removed noteMissingRoute (install's route note, which called routeCarriers once and hostsReading
+// twice): install's notes now ask strandedBy through noteStrandingCarriers, so those three pins are gone and
+// install.ts calls hostsReading nowhere.
 const OWNER_CALLS: Readonly<Record<string, number>> = {
   "routeCarriers@hostReadsCarrier": 1,
   "routeCarriers@routeCarrierSet": 1,
-  "routeCarriers@noteMissingRoute": 1,
-  "hostsReading@noteMissingRoute": 2,
 };
 
-// The functions that ask hostReadsCarrier, and the functions that ask strandedBy (plan 34-33: the doctor's carrier
-// lines; install's route notes join in Task 2). No other site derives either answer.
-const HOST_READS_CARRIER_CALLERS: readonly string[] = ["kitRouteFindings"];
-const STRANDED_BY_CALLERS: readonly string[] = ["kitRouteFindings"];
+// The functions that ask hostReadsCarrier, and the functions that ask strandedBy (plan 34-33): the doctor's carrier
+// lines (kitRouteFindings) and install's route-note pass (noteStrandingCarriers). No other site derives either answer.
+const HOST_READS_CARRIER_CALLERS: readonly string[] = ["kitRouteFindings", "noteStrandingCarriers"];
+const STRANDED_BY_CALLERS: readonly string[] = ["kitRouteFindings", "noteStrandingCarriers"];
 
 describe("census: install.ts asks the one owner of 'does host H read entry file X here' (plan 34-32, AUTH-1)", () => {
   it("install.ts reads no `entryFiles` itself: no property access, element access or destructuring of it", () => {

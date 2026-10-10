@@ -25,7 +25,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
-import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runUninstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gkroute-"));
@@ -556,64 +556,182 @@ describe("kit route: a re-install refreshes install's own unedited CLAUDE.md and
   });
 });
 
-// ── THE NOTE FOR A USER'S CARRIER WITHOUT THE ROUTE (plan 34-28, D-26 point 3) ──────────────────────
+// ── THE NOTE FOR A CARRIER INSTALL LEAVES WITHOUT THE ROUTE (plan 34-28, D-26 point 3; plan 34-33, D-27 point 2) ──
 //
-// The host names are derived here from HOST_TOOLS and ROUTE_POINTERS (a host's carriers are its entry files
-// and its adapter kind's pointers), never typed and never taken from host-tools.ts routeCarriers, so the
-// note is checked against an independent derivation.
+// Install's route-note pass (noteStrandingCarriers) runs once, after every carrier write, over the state the run
+// leaves (under DRY_RUN, the state the real run would leave), and names a carrier only when it leaves some host
+// without a route: the same strandedBy the doctor asks. The hosts are checked against the follower's own stranded
+// derivation (strandedOf, below), computed from the files the real install left, which shares no code with
+// strandedBy. A host's carriers are derived here from HOST_TOOLS and ROUTE_POINTERS (its entry files and its
+// adapter kind's pointers), never typed and never taken from host-tools.ts routeCarriers.
 const carriersOf = (h: (typeof HOST_TOOLS)[number]): string[] => [...new Set([...h.entryFiles, ...ROUTE_POINTERS[h.adapter]])];
-/** For AGENTS.md, the hosts whose only carrier it is; for any other file, the hosts that read it. */
-const notedHosts = (rel: string): string[] =>
-  HOST_TOOLS.filter((h) => (rel === "AGENTS.md" ? carriersOf(h).length === 1 && carriersOf(h)[0] === rel : carriersOf(h).includes(rel))).map((h) => h.name);
+/** The hosts a note for `rel` must name after an install into `target`: the follower's own stranded hosts. */
+const notedHosts = (target: string, rel: string): string[] => strandedOf(target, rel);
 /** The note lines naming `rel` as their subject. */
 const notesFor = (stdout: string, rel: string): string[] => linesUnder(stdout, "note").filter((l) => l.trim().split(/\s+/)[1] === rel);
-/** The note says the file, exactly `hosts` in registry order, and KIT_ROUTE as the sentence to add. */
-function expectRouteNote(stdout: string, rel: string): void {
-  const hosts = notedHosts(rel);
-  expect(hosts.length, `premise: some host reads ${rel}`).toBeGreaterThan(0);
+/** The install note lines about a route carrier (the subject token is one of the derived carriers). */
+const routeNotes = (stdout: string): string[] => {
+  const rels = new Set(HOST_TOOLS.flatMap(carriersOf));
+  return linesUnder(stdout, "note").filter((l) => rels.has(l.trim().split(/\s+/)[1]));
+};
+/** The note's exact sentence for a carrier left as it is with no route in it (no "get" or "gets"). */
+const noteSentence = (rel: string, hosts: readonly string[]): string =>
+  `${rel} (left as it is, with no kit route in it: it leaves ${hosts.join(", ")} without a route to the kit after a scripted install; ` +
+  `to give them one, add this sentence to it: "${KIT_ROUTE}")`;
+/** The note for `rel` is the one sentence, naming exactly the follower's stranded hosts, in registry order. */
+function expectRouteNote(stdout: string, target: string, rel: string): void {
+  const hosts = notedHosts(target, rel);
+  expect(hosts.length, `premise: ${rel} strands some host after the install`).toBeGreaterThan(0);
   const notes = notesFor(stdout, rel);
   expect(notes.length, stdout).toBe(1);
-  expect(notes[0], "the note does not name exactly the derived hosts, in registry order").toContain(`no kit route in it: ${hosts.join(", ")} get no route`);
-  expect(notes[0]).toContain(`"${KIT_ROUTE}"`);
+  expect(messageOf(notes[0]), "the note is not the one sentence naming exactly the stranded hosts, in registry order").toBe(noteSentence(rel, hosts));
 }
 
-describe("kit route: a user's own carrier without the route gets a note naming the hosts it leaves out (plan 34-28, D-26 point 3)", () => {
-  it(`a target with its own AGENTS.md without the route: one note naming AGENTS.md, ${notedHosts("AGENTS.md").join(", ")}, and KIT_ROUTE`, () => {
-    const { target, kitHome } = scratchRow();
-    const mine = "# My agents\n\nMy own instructions.\n";
-    writeFileSync(join(target, "AGENTS.md"), mine);
-    const r = runInstall(target, kitHome);
-    expect(r.status, r.stdout + r.stderr).toBe(0);
-    expectRouteNote(r.stdout, "AGENTS.md");
-    expect(readFileSync(join(target, "AGENTS.md"), "utf8")).toBe(mine);
+/** A starting state for the note rows: built on a fresh scratch row (it may run a first install itself). */
+interface NoteRow {
+  readonly id: string;
+  readonly what: string;
+  readonly stage: (row: { target: string; kitHome: string }) => void;
+  /** The carriers the install notes, in registry carrier order. */
+  readonly notes: readonly string[];
+  /** Extra checks on the real install's output and target. */
+  readonly also?: (stdout: string, target: string) => void;
+}
+const OWN_AGENTS = "# My agents\n\nMy own instructions.\n";
+const ownAgents = (row: { target: string }): void => writeFileSync(join(row.target, "AGENTS.md"), OWN_AGENTS);
+const ownPiTemplate = (row: { target: string }): void => {
+  mkdirSync(join(row.target, ".pi", "prompts"), { recursive: true });
+  writeFileSync(piFile(row.target), "---\ndescription: my own grugops prompt\n---\nDo it my way: $ARGUMENTS\n");
+};
+/** After a first install, a user edit removes the route from inside the block of `rel` (a block carrier). */
+const dropRouteFromBlock = (row: { target: string; kitHome: string }, rel: string): void => {
+  const first = runInstall(row.target, row.kitHome);
+  expect(first.status, first.stdout + first.stderr).toBe(0);
+  const path = join(row.target, ...rel.split("/"));
+  const text = readFileSync(path, "utf8");
+  expect(text.includes(` ${KIT_ROUTE}`), `premise: ${rel} carries the route`).toBe(true);
+  writeFileSync(path, text.replace(` ${KIT_ROUTE}`, ""));
+};
+const NOTE_ROWS: readonly NoteRow[] = [
+  {
+    id: "n1",
+    what: "the user's own AGENTS.md without the route, before install",
+    stage: ownAgents,
+    notes: ["AGENTS.md"],
+    also: (stdout, target) => expect(readFileSync(join(target, "AGENTS.md"), "utf8"), stdout).toBe(OWN_AGENTS),
+  },
+  {
+    id: "n2",
+    what: "R10, the install half: a user edit removes the route from the CLAUDE.md block, then re-install",
+    stage: (row) => dropRouteFromBlock(row, "CLAUDE.md"),
+    notes: [],
+    also: (stdout) => expect(reports(stdout, "skipped", "CLAUDE.md"), stdout).toBe(true),
+  },
+  {
+    id: "n3",
+    what: "a Copilot block the user edited to drop the route, while AGENTS.md carries it, then re-install",
+    stage: (row) => dropRouteFromBlock(row, COPILOT_REL),
+    notes: [],
+    also: (stdout) => expect(reports(stdout, "skipped", COPILOT_REL), stdout).toBe(true),
+  },
+  {
+    id: "n4",
+    what: "the user's own Pi template without the route and the user's own AGENTS.md without it, before install",
+    stage: (row) => {
+      ownAgents(row);
+      ownPiTemplate(row);
+    },
+    notes: ["AGENTS.md", PI_PROMPT_REL],
+  },
+  {
+    id: "n5",
+    what: "the user's own Pi template without the route while install's AGENTS.md carries it, before install",
+    stage: ownPiTemplate,
+    notes: [],
+  },
+  {
+    id: "n6",
+    what: "the user's own AGENTS.md without the route, and a Copilot block the user edited to drop it, then re-install",
+    stage: (row) => {
+      ownAgents(row);
+      dropRouteFromBlock(row, COPILOT_REL);
+    },
+    notes: ["AGENTS.md", COPILOT_REL],
+  },
+  {
+    id: "n7",
+    what: "every carrier an earlier install's stale copy, then re-install (each is refreshed)",
+    stage: (row) => {
+      const first = runInstall(row.target, row.kitHome);
+      expect(first.status, first.stdout + first.stderr).toBe(0);
+      stageAllEarlier(row.target);
+    },
+    notes: [],
+  },
+  { id: "n8", what: "a fresh install", stage: () => undefined, notes: [] },
+  {
+    id: "n9",
+    what: "R10 with the user's own AGENTS.md without the route: a user edit removes the route from the CLAUDE.md block, then re-install (Claude Code keeps its adapter route)",
+    stage: (row) => {
+      ownAgents(row);
+      dropRouteFromBlock(row, "CLAUDE.md");
+    },
+    notes: ["AGENTS.md"],
+    also: (stdout) => expect(reports(stdout, "skipped", "CLAUDE.md"), stdout).toBe(true),
+  },
+  {
+    id: "n10",
+    what: "(edge: empty, PI-02) a 0-byte Pi template that is not install's own, with the user's own AGENTS.md without the route, before install",
+    stage: (row) => {
+      ownAgents(row);
+      mkdirSync(join(row.target, ".pi", "prompts"), { recursive: true });
+      writeFileSync(piFile(row.target), "");
+    },
+    notes: ["AGENTS.md", PI_PROMPT_REL],
+    also: (stdout, target) => expect(readFileSync(piFile(target)).length, stdout).toBe(0),
+  },
+];
+const NOTE_ROWS_COUNT = 10;
+
+describe("kit route: install notes a carrier exactly when it leaves a host without a route, as the doctor does (plan 34-33, D-27 point 2)", () => {
+  it(`the rows cover ${NOTE_ROWS_COUNT} starting states, with and without a note`, () => {
+    expect(NOTE_ROWS.length).toBe(NOTE_ROWS_COUNT);
+    expect(new Set(NOTE_ROWS.map((r) => r.id)).size).toBe(NOTE_ROWS_COUNT);
+    expect(NOTE_ROWS.filter((r) => r.notes.length > 0).length).toBeGreaterThan(0);
+    expect(NOTE_ROWS.filter((r) => r.notes.length === 0).length).toBeGreaterThan(0);
   });
 
-  it("a fresh install prints no route note", () => {
-    const { target, kitHome } = scratchRow();
-    const r = runInstall(target, kitHome);
-    expect(r.status, r.stdout + r.stderr).toBe(0);
-    expect(linesUnder(r.stdout, "note").filter((l) => l.includes(KIT_ROUTE)), r.stdout).toEqual([]);
-  });
-
-  it("the user's own Pi template without the route, there before install: a note naming the file, the hosts that read it, and KIT_ROUTE", () => {
-    const { target, kitHome } = scratchRow();
-    mkdirSync(join(target, ".pi", "prompts"), { recursive: true });
-    writeFileSync(piFile(target), "---\ndescription: my own grugops prompt\n---\nDo it my way: $ARGUMENTS\n");
-    const r = runInstall(target, kitHome);
-    expect(r.status, r.stdout + r.stderr).toBe(0);
-    expectRouteNote(r.stdout, PI_PROMPT_REL);
-  });
-
-  it("a block the user edited, without the route: a note naming the file and the hosts that read it", () => {
-    const { target, kitHome } = scratchRow();
-    makeFixture(target);
-    expect(runInstall(target, kitHome).status).toBe(0);
-    const staged = stageEarlierBlock(target, "CLAUDE.md", CLAUDE_OPEN, CLAUDE_CLOSE);
-    writeFileSync(join(target, "CLAUDE.md"), staged.replace(`${CLAUDE_OPEN}\n`, `${CLAUDE_OPEN}\nMy own line inside the block.\n`));
-    const r = runInstall(target, kitHome);
-    expect(r.status, r.stdout + r.stderr).toBe(0);
-    expectRouteNote(r.stdout, "CLAUDE.md");
-  });
+  for (const row of NOTE_ROWS) {
+    it(`(${row.id}) ${row.what}: ${row.notes.length > 0 ? `one note each for ${row.notes.join(", ")}` : "no route note"}; the note's hosts are the follower's stranded hosts and the --check CANNOT hosts that read it; a DRY_RUN prints the same notes and writes nothing`, () => {
+      // The same starting state, built twice: one for the real install, one for the DRY_RUN.
+      const real = scratchRow();
+      row.stage(real);
+      const dry = scratchRow();
+      row.stage(dry);
+      const r = runInstall(real.target, real.kitHome);
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      const noted = HOST_TOOLS.flatMap(carriersOf).filter((rel, i, all) => all.indexOf(rel) === i && notesFor(r.stdout, rel).length > 0);
+      expect(noted, r.stdout).toEqual([...row.notes]);
+      for (const rel of row.notes) expectRouteNote(r.stdout, real.target, rel);
+      for (const l of routeNotes(r.stdout)) expect(l, "a note makes a claim about how many hosts it names").not.toMatch(/\bgets? no route\b/);
+      row.also?.(r.stdout, real.target);
+      // AGREEMENT: for every carrier, the hosts its note names are exactly the hosts whose reach line in a --check
+      // right after the install says CANNOT and which read that carrier here.
+      const c = check(real.target, real.kitHome);
+      const cannot = HOST_TOOLS.filter((h) => !reachVerdict(c.stdout, h).reaches);
+      for (const rel of new Set(HOST_TOOLS.flatMap(carriersOf))) {
+        const named = row.notes.includes(rel) ? notedHosts(real.target, rel) : [];
+        const fromCheck = cannot.filter((h) => followerCarriers(real.target, h).includes(rel)).map((h) => h.name);
+        expect(named, `${rel}: the note's hosts vs the --check CANNOT hosts that read it\n${r.stdout}\n${c.stdout}`).toEqual(fromCheck);
+      }
+      // DRY_RUN EQUALITY: the same route-note lines, and the target byte-identical.
+      const before = snapshotTree(dry.target);
+      const d = runInstall(dry.target, dry.kitHome, [], { dryRun: true });
+      expect(d.status, d.stdout + d.stderr).toBe(0);
+      expect(snapshotTree(dry.target), `the DRY_RUN changed the target\n${d.stdout}`).toBe(before);
+      expect([...routeNotes(d.stdout)].sort(), `DRY_RUN route notes vs the real install's\n${d.stdout}`).toEqual([...routeNotes(r.stdout)].sort());
+    });
+  }
 });
 
 // ── --check SAYS, FOR EVERY HOST, WHETHER IT REACHES THE ORCHESTRATOR (plan 34-29, D-26 point 4, G-34-2) ──
@@ -657,14 +775,14 @@ describe("kit route: --check prints, for every registry host, whether it reaches
     expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
   });
 
-  it(`the user's own AGENTS.md without the route: ${notedHosts("AGENTS.md").join(", ")} cannot reach, the others can; one WARN names AGENTS.md and KIT_ROUTE; exit 0, and 1 with --strict`, () => {
+  it("the user's own AGENTS.md without the route: the hosts it strands cannot reach, the others can; one WARN names AGENTS.md and KIT_ROUTE; exit 0, and 1 with --strict", () => {
     const { target, kitHome } = scratchRow();
     writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
     const r = runInstall(target, kitHome);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
-    const stranded = notedHosts("AGENTS.md");
+    const stranded = notedHosts(target, "AGENTS.md");
     expect(stranded.length, "premise: some host's only carrier is AGENTS.md").toBeGreaterThan(0);
     expect(reachLines(c.stdout).length, c.stdout).toBe(HOST_TOOL_COUNT);
     for (const h of HOST_TOOLS) {
@@ -1248,6 +1366,25 @@ describe("kit route: one derivation of the hosts a carrier strands (plan 34-33, 
     expect(v.reaches, v.line).toBe(true);
     expect(v.line).toContain("AGENTS.md");
     expect(v.line).toContain("its adapters' KIT= line");
+  });
+
+  it("R10 with the user's own AGENTS.md without the route: CLAUDE.md is still an uncounted note, because Claude Code's adapters give the route; AGENTS.md is the one counted WARN", () => {
+    const { target, kitHome } = installedWithOwnAgents();
+    const claude = join(target, "CLAUDE.md");
+    writeFileSync(claude, readFileSync(claude, "utf8").replace(` ${KIT_ROUTE}`, ""));
+    expect(readFileSync(claude, "utf8").includes(KIT_ROUTE), "premise: the edit removed the route").toBe(false);
+    expect(strandedOf(target, "CLAUDE.md"), "premise: the follower says CLAUDE.md strands nobody (the adapter route)").toEqual([]);
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(carrierNotes(c.stdout, "CLAUDE.md").length, c.stdout).toBe(1);
+    const counted = countedRouteLines(c.stdout);
+    expect(counted.length, c.stdout).toBe(1);
+    expect(messageOf(counted[0]).startsWith("kit route missing from AGENTS.md "), counted[0]).toBe(true);
+    const claudeHost = HOST_TOOLS.filter((h) => h.adapter === "claude-kit")[0];
+    const v = reachVerdict(c.stdout, claudeHost);
+    expect(v.reaches, v.line).toBe(true);
+    expect(v.line).toContain("its adapters' KIT= line");
+    expect(v.line).not.toContain("AGENTS.md");
   });
 
   it("the user's own AGENTS.md without the route still gives one counted WARN naming AGENTS.md and exactly the stranded hosts; --strict exit 1", () => {
