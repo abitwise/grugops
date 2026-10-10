@@ -1606,3 +1606,442 @@ describe("kit route: one refreshable predicate decides refresh for install and t
     expect(carrierLines(after.stdout, PI_PROMPT_REL).filter((l) => l.startsWith("  ok")).length, after.stdout).toBe(1);
   });
 });
+
+// ── THE CLASS MATRIX (plan 34-35, D-27 points 1, 2 and 3; brief §4; classes VERDICT-1 and AUTH-1) ──
+//
+// Plans 34-32 to 34-34 each fixed one owner (hostReadsCarrier with its entry gates, strandedBy, refreshable) and
+// tested its own rows. In every earlier round the next finding was a member of the class next to the fixed site, so
+// this matrix asks the class question over every state at once. One describe drives `--check` and install over the
+// derived axes below and, in every cell and for every HOST_TOOLS host, holds:
+//   (1)-(4) the doctor to the independent follower: one reach line per host in registry order, every verdict equal to
+//           the follower's, a counted kit-route finding exactly when some host cannot reach, every counted carrier
+//           line about a carrier that leaves some host without a route (naming exactly those hosts), every uncounted
+//           carrier note about one that leaves none, and every counted gate line about a host that cannot reach;
+//   (5)     the doctor's `Re-run install.js` to what the install run on the same state does (a carrier line names it
+//           exactly when the install writes that carrier; the Gemini gate line exactly when the install writes the
+//           settings file, after which Gemini reads AGENTS.md; the route-target FAIL only when the route resolves after);
+//   (6)-(7) a DRY_RUN on the same state to the real install: the same files written (would-* against
+//           created/copied/linked/refreshed) and the same route notes, with the target byte-identical;
+//   (8)     the real install's route notes to the follower's stranded hosts after the run, and every matrix file the
+//           install did not report writing to its bytes before the run;
+//   (9)     `--check` after the install to the follower again, by the rules of (1)-(4).
+//
+// THE FOLLOWER SHARES NO DERIVATION WITH THE PRODUCT. It imports only data from host-tools.js (HOST_TOOLS,
+// ROUTE_POINTERS, KIT_ROUTE, HOST_TOOL_COUNT; the gated carrier of a host is read from the row's entryGates) and
+// computes reads, holds, adapter reach and stranded hosts itself (follow, followerCarriers, strandedOf above). Every
+// staging step writes files only; no product code is called to build a cell.
+//
+// THE AXES ARE DERIVED OR CHECKED AGAINST A DERIVATION, AND THE CELLS ARE GENERATED. CLASS_CARRIERS is carriersOf over
+// HOST_TOOLS, checked against the carriers a clean `--check` prints `kit route carried by` lines for. The cell count is
+// a formula over the axes, asserted against the generated list, and every cell is its own `it`, so the passed count
+// shows how many ran.
+
+/** The seven states a route carrier is put in (plan 34-35). */
+const CARRIER_STATES = ["current", "own-stale", "user-without-route", "user-with-route", "absent", "link-to-stale", "unreadable"] as const;
+type CarrierState = (typeof CARRIER_STATES)[number];
+/** The five states of `.gemini/settings.json`. */
+const GEMINI_STATES = ["lists", "omits", "duplicate-context", "not-strict-json", "absent"] as const;
+type GeminiState = (typeof GEMINI_STATES)[number];
+/** The two states of Claude Code's adapters: as installed, or every materialized KIT= line under `.claude/` pointed at an empty directory. */
+const ADAPTER_STATES = ["reaches", "kit-line-to-empty-dir"] as const;
+type AdapterState = (typeof ADAPTER_STATES)[number];
+/**
+ * The two route-target states: the marker's kitRoot pointed at an empty directory, and roles/orchestrator.md removed from
+ * the row's own kit home. A marker with no kitRoot is not one: the doctor stops before the kit-route section with its
+ * "Fix or remove the marker" FAIL (planner probe, 2026-10-10).
+ */
+const ROUTE_STATES = ["kit-root-to-empty-dir", "orchestrator-removed"] as const;
+type RouteState = (typeof ROUTE_STATES)[number];
+
+/** Every route carrier, derived (carriersOf over HOST_TOOLS, first-seen registry order). */
+const CLASS_CARRIERS: readonly string[] = allCarriers();
+
+interface CellSpec {
+  /** The generating group of the cell, (a) to (e). */
+  readonly group: "a" | "b" | "c" | "d" | "e";
+  /** Every route carrier's state. */
+  readonly carriers: ReadonlyMap<string, CarrierState>;
+  readonly gemini: GeminiState;
+  readonly adapter: AdapterState;
+  readonly route: RouteState | "resolves";
+}
+
+/** A cell's name: its group and every axis that is not the clean value. */
+function cellName(spec: CellSpec): string {
+  const moved = [...spec.carriers].filter(([, s]) => s !== "current").map(([rel, s]) => `${rel} ${s}`);
+  return [
+    `(${spec.group})`,
+    moved.length > 0 ? moved.join(", ") : "every carrier current",
+    `× gemini ${spec.gemini}`,
+    `× adapter ${spec.adapter}`,
+    `× route ${spec.route}`,
+  ].join(" ");
+}
+
+/** The carrier → state map with `over` applied and every other carrier current. */
+const carrierStates = (over: Readonly<Record<string, CarrierState>>): ReadonlyMap<string, CarrierState> => {
+  for (const rel of Object.keys(over)) expect(CLASS_CARRIERS, `premise: ${rel} is a derived route carrier`).toContain(rel);
+  return new Map(CLASS_CARRIERS.map((rel) => [rel, over[rel] ?? "current"]));
+};
+
+/** The link record install writes for a --symlink AGENTS.md, as a function of its link target (read once from a real --symlink install's ledger). */
+let linkRecordOf: ((to: string) => string) | null = null;
+function linkRecordFor(to: string): string {
+  if (linkRecordOf === null) {
+    const { target, kitHome } = scratchRow();
+    const r = runInstall(target, kitHome, ["--symlink"]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const agents = join(target, "AGENTS.md");
+    expect(lstatSync(agents).isSymbolicLink(), "premise: the --symlink install linked AGENTS.md").toBe(true);
+    const old = readlinkSync(agents);
+    const record = fileRecords(readMarkerObject(target))["AGENTS.md"];
+    expect(record !== undefined && record.includes(old), `premise: install's record for its AGENTS.md link names the link's target (${record})`).toBe(true);
+    linkRecordOf = (t) => record.split(old).join(t);
+  }
+  return linkRecordOf(to);
+}
+
+/** Put route carrier `rel` of an installed target into `state`, by writing files only. */
+function stageCarrier(target: string, rel: string, state: CarrierState): void {
+  const path = join(target, ...rel.split("/"));
+  const s = BLOCK_SENTINELS.get(rel);
+  const userLine = (text: string, open: string): string => text.replace(`${open}\n`, `${open}\nMy own line inside the block.\n`);
+  switch (state) {
+    case "current":
+      return;
+    case "own-stale":
+      if (s === undefined) stageEarlierFile(target, rel, staleOf(readFileSync(path, "utf8")));
+      else stageEarlierBlock(target, rel, s.open, s.close);
+      return;
+    case "user-without-route":
+      // A file the user rewrote, so no install record holds it; for a block carrier, a user line inside the block and
+      // KIT_ROUTE removed.
+      writeFileSync(path, s === undefined ? `# My own ${rel}\n\nMy own instructions.\n` : userLine(readFileSync(path, "utf8"), s.open).replace(` ${KIT_ROUTE}`, ""));
+      expect(readFileSync(path, "utf8").includes(KIT_ROUTE), `premise: ${rel} holds no route`).toBe(false);
+      return;
+    case "user-with-route":
+      writeFileSync(path, s === undefined ? `# My own ${rel}\n\n${KIT_ROUTE}\n` : userLine(readFileSync(path, "utf8"), s.open));
+      expect(readFileSync(path, "utf8").includes(KIT_ROUTE), `premise: ${rel} holds the route`).toBe(true);
+      return;
+    case "absent":
+      rmSync(path);
+      return;
+    case "link-to-stale": {
+      // Install's stale copy, moved to a scratch path under ROOT, and a link to it at the carrier's path. For a whole-file
+      // carrier the ledger record becomes the link record install writes, with its target replaced (as plan 34-34 did).
+      if (s === undefined) stageEarlierFile(target, rel, staleOf(readFileSync(path, "utf8")));
+      else stageEarlierBlock(target, rel, s.open, s.close);
+      const out = moveOutAndLink(target, rel);
+      if (s === undefined) {
+        const record = linkRecordFor(out);
+        writeMarkerObject(
+          target,
+          withLedger(readMarkerObject(target), (entries) => {
+            const e = entries.find((x) => x.kind === "file" && x.path === rel);
+            expect(e, `premise: the ledger records ${rel} as a file install created`).toBeDefined();
+            (e as Record<string, unknown>).content = record;
+          }),
+        );
+      }
+      expect(lstatSync(path).isSymbolicLink(), `premise: ${rel} is a link`).toBe(true);
+      return;
+    }
+    case "unreadable":
+      rmSync(path);
+      mkdirSync(path);
+      return;
+  }
+}
+
+/** Put `.gemini/settings.json` of an installed target into `state`. */
+function stageGemini(target: string, state: GeminiState): void {
+  const text: Record<Exclude<GeminiState, "lists" | "absent">, string> = {
+    omits: '{"context":{"fileName":["GEMINI.md"]}}\n',
+    "duplicate-context": '{"context":{"fileName":["GEMINI.md"]},"context":{"fileName":["AGENTS.md"]}}\n',
+    "not-strict-json": '{"context": {"fileName": ["AGENTS.md"]},}\n',
+  };
+  if (state === "lists") expect(geminiListsAgents(target), "premise: the installed settings list AGENTS.md").toBe(true);
+  else if (state === "absent") rmSync(geminiFile(target));
+  else writeFileSync(geminiFile(target), text[state]);
+}
+
+/** Point every materialized KIT= line of every regular file under `.claude/` at an empty scratch directory. */
+function breakAdapters(target: string): void {
+  const empty = join(ROOT, `empty${n++}`);
+  mkdirSync(empty);
+  let changed = 0;
+  const walk = (dir: string): void => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, ent.name);
+      if (ent.isDirectory()) walk(p);
+      else if (ent.isFile()) {
+        let inBlock = false;
+        let mine = 0;
+        const lines = readFileSync(p, "utf8")
+          .split("\n")
+          .map((l) => {
+            if (l === MAT_OPEN) inBlock = true;
+            else if (l === MAT_CLOSE) inBlock = false;
+            else if (inBlock && l.startsWith('KIT="')) {
+              mine += 1;
+              return `KIT="${empty}"`;
+            }
+            return l;
+          });
+        if (mine > 0) writeFileSync(p, lines.join("\n"));
+        changed += mine;
+      }
+    }
+  };
+  walk(join(target, ".claude"));
+  expect(changed, "premise: some materialized KIT= line was rewritten").toBeGreaterThan(0);
+  expect(follow(target).adapterReaches, "premise: the adapters no longer reach a kit").toBe(false);
+}
+
+/** Put the route target into `state`. */
+function stageRoute(target: string, kitHome: string, state: RouteState | "resolves"): void {
+  if (state === "resolves") return;
+  if (state === "kit-root-to-empty-dir") {
+    const empty = join(ROOT, `empty${n++}`);
+    mkdirSync(empty);
+    writeMarkerObject(target, { ...readMarkerObject(target), kitRoot: empty });
+  } else {
+    const { orchestrator } = followRoute(target);
+    expect(relative(kitHome, orchestrator).startsWith(".."), `premise: the Orchestrator is under the row's own kit home (${orchestrator})`).toBe(false);
+    rmSync(orchestrator);
+  }
+  expect(follow(target).routeResolves, "premise: the route no longer resolves").toBe(false);
+}
+
+/** A clean install into a fresh scratch row, then the staging the spec names (files only). */
+function buildCell(spec: CellSpec): { target: string; kitHome: string } {
+  const row = installed();
+  for (const [rel, state] of spec.carriers) stageCarrier(row.target, rel, state);
+  stageGemini(row.target, spec.gemini);
+  if (spec.adapter === "kit-line-to-empty-dir") breakAdapters(row.target);
+  stageRoute(row.target, row.kitHome, spec.route);
+  return row;
+}
+
+/** The follower's whole answer for a target as it is now: kept, because the files change when install runs. */
+interface FollowerView {
+  readonly f: Followed;
+  /** Whether Gemini CLI (or any gated host) reads `rel` here, by the follower's own rule. */
+  readonly reads: (h: (typeof HOST_TOOLS)[number], rel: string) => boolean;
+  /** THE FOLLOWER'S strandedHosts(rel): the hosts that read rel here, read no other carrier holding the route and have no adapter route. */
+  readonly strandedHosts: (rel: string) => readonly string[];
+}
+function followerView(target: string): FollowerView {
+  const f = follow(target);
+  const reads = new Map(HOST_TOOLS.map((h) => [h.id, followerCarriers(target, h)]));
+  const stranded = new Map(CLASS_CARRIERS.map((rel) => [rel, strandedOf(target, rel)]));
+  return {
+    f,
+    reads: (h, rel) => reads.get(h.id)?.includes(rel) === true,
+    strandedHosts: (rel) => stranded.get(rel) ?? [],
+  };
+}
+
+/** What is at `path` (never followed for the kind; a link also records what it points to). */
+function pathState(path: string): string {
+  const lstatOrNull = (p: string) => {
+    try {
+      return lstatSync(p);
+    } catch {
+      return null;
+    }
+  };
+  const st = lstatOrNull(path);
+  if (st === null) return "absent";
+  if (st.isSymbolicLink()) return `link ${readlinkSync(path)} → ${regularText(path) === null ? "no regular file" : sha256Of(readFileSync(path))}`;
+  if (st.isDirectory()) return "directory";
+  return st.isFile() ? `file ${sha256Of(readFileSync(path))}` : "other";
+}
+
+/** The files the matrix is about: every route carrier and the Gemini settings file. */
+const MATRIX_FILES: readonly string[] = [...CLASS_CARRIERS, GEMINI_SETTINGS];
+/** The labels of an install line that wrote its subject, and of a DRY_RUN line that would. */
+const WRITE_LABELS = ["created", "copied", "copied(verify)", "linked", "refreshed"] as const;
+const DRY_WRITE_LABELS = ["would-add", "would-copy", "would-link", "would-refresh"] as const;
+const wroteUnder = (stdout: string, labels: readonly string[], rel: string): boolean => labels.some((label) => reports(stdout, label, rel));
+
+/** The doctor's route-target line: the one kit-route line about the marker's kitRoot. */
+const routeTargetLines = (stdout: string): string[] => routeLines(stdout).filter((l) => messageOf(l).startsWith("kit route: the `kitRoot` field "));
+/** Every (host, carrier) the registry gates (HostTool.entryGates keys), derived. */
+const gatedPairs = (): Array<{ host: (typeof HOST_TOOLS)[number]; rel: string }> =>
+  HOST_TOOLS.flatMap((host) => Object.keys(host.entryGates).map((rel) => ({ host, rel })));
+const isCounted = (line: string): boolean => /^ {2}(FAIL|WARN)\s/.test(line);
+
+/**
+ * Assertions (1)-(4) for one `--check` run against the follower's view of the same files. `what` names the cell and
+ * the run in every message; `exit` asks the exit-status rule too (cells whose other doctor checks do not FAIL).
+ */
+function expectDoctorAgrees(what: string, c: Run, view: FollowerView, exit: boolean): void {
+  const out = `${what}\n${c.stdout}`;
+  // (1) one reach line per registry host, in registry order.
+  expect(reachLines(c.stdout).length, `(1) reach lines: ${out}`).toBe(HOST_TOOL_COUNT);
+  expect(reachLines(c.stdout).map((l) => messageOf(l).split(": ")[0]), `(1) reach-line order: ${out}`).toEqual(HOST_TOOLS.map((h) => h.name));
+  // (2) every host's verdict equals the follower's.
+  for (const h of HOST_TOOLS) {
+    const v = reachVerdict(c.stdout, h);
+    expect(v.reaches, `(2) ${h.name}: the doctor and the follower disagree: ${v.line}\n${out}`).toBe(view.f.reaches.get(h.id));
+  }
+  const cannot = HOST_TOOLS.filter((h) => view.f.reaches.get(h.id) !== true);
+  // (3) a counted kit-route line exists exactly when some host cannot reach.
+  const counted = countedRouteLines(c.stdout);
+  expect(counted.length > 0, `(3) counted kit-route lines vs hosts that cannot reach (${cannot.map((h) => h.name).join(", ") || "none"}): ${out}`).toBe(cannot.length > 0);
+  // (4) every kit-route line is the route-target line, a carrier line or a gate line, and each says what the follower says.
+  const target = routeTargetLines(c.stdout);
+  expect(target.length, `(4) one route-target line: ${out}`).toBe(1);
+  expect(target[0].startsWith(view.f.routeResolves ? "  ok" : "  FAIL"), `(4) the route-target line vs the follower (resolves: ${view.f.routeResolves}): ${target[0]}\n${out}`).toBe(true);
+  let classified = target.length;
+  for (const rel of CLASS_CARRIERS) {
+    const mine = carrierLines(c.stdout, rel);
+    expect(mine.length, `(4) one carrier line for ${rel}: ${out}`).toBe(1);
+    classified += 1;
+    if (view.f.carries.get(rel) === true) {
+      expect(mine[0].startsWith("  ok") && messageOf(mine[0]).startsWith(`kit route carried by ${rel} `), `(4) ${rel} carries the route (follower): ${mine[0]}\n${out}`).toBe(true);
+      continue;
+    }
+    const stranded = view.strandedHosts(rel);
+    expect(isCounted(mine[0]), `(4) ${rel} is counted exactly when it leaves some host without a route (follower: ${stranded.join(", ") || "none"}): ${mine[0]}\n${out}`).toBe(stranded.length > 0);
+    if (stranded.length > 0) expect(mine[0], `(4) ${rel}: the counted line names exactly the follower's stranded hosts\n${out}`).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+    else expect(mine[0].startsWith("  note"), `(4) ${rel} leaves no host without a route: an uncounted note: ${mine[0]}\n${out}`).toBe(true);
+  }
+  for (const { host, rel } of gatedPairs()) {
+    const gates = gateLines(c.stdout, host);
+    expect(gates.length, `(4) one gate line for ${host.name}: ${out}`).toBe(1);
+    classified += 1;
+    const reads = view.reads(host, rel);
+    const reaches = view.f.reaches.get(host.id) === true;
+    const label = reads ? "  ok" : reaches ? "  note" : "  WARN";
+    expect(gates[0].startsWith(label), `(4) ${host.name}'s gate line on ${rel} (follower: reads ${reads}, reaches ${reaches}): ${gates[0]}\n${out}`).toBe(true);
+  }
+  expect(routeLines(c.stdout).length, `(4) every kit-route line is the route-target line, a carrier line or a gate line: ${out}`).toBe(classified);
+  if (exit) {
+    // No counted finding outside the kit route in these cells, so the exit status is the kit-route FAIL's.
+    const all = c.stdout.split(/\r?\n/).filter(isCounted);
+    expect(all, `every counted line is a kit-route line: ${out}`).toEqual(counted);
+    expect(c.status, `the doctor's exit status: ${out}`).toBe(counted.some((l) => l.startsWith("  FAIL")) ? 1 : 0);
+  }
+}
+
+/** The hosts an install route note for `rel` names, from its sentence. */
+function noteHosts(stdout: string, rel: string): string[] {
+  const notes = notesFor(stdout, rel);
+  expect(notes.length, `one route note for ${rel}\n${stdout}`).toBe(1);
+  const m = /it leaves (.+?) without a route to the kit after a scripted install/.exec(messageOf(notes[0]));
+  expect(m, `an unparsable route note: ${notes[0]}`).not.toBeNull();
+  return (m as RegExpExecArray)[1].split(", ");
+}
+
+interface CellResult {
+  readonly row: { target: string; kitHome: string };
+  readonly before: FollowerView;
+  readonly after: FollowerView;
+  readonly doc: Run;
+  readonly dry: Run;
+  readonly real: Run;
+  readonly docAfter: Run;
+}
+
+/**
+ * Build the cell, then: the doctor, a DRY_RUN install on the same state (the target unchanged), the real install, the
+ * doctor again. Each output is collected once and asserts (1)-(9) are made from it, in order.
+ */
+function checkCell(spec: CellSpec): CellResult {
+  const name = cellName(spec);
+  const row = buildCell(spec);
+  const { target, kitHome } = row;
+  const exitAsked = spec.adapter === "reaches" && spec.route === "resolves";
+  const before = followerView(target);
+  const doc = check(target, kitHome);
+  // (1)-(4) the doctor against the follower, before the install.
+  expectDoctorAgrees(`${name}: --check before the install`, doc, before, exitAsked);
+  const states = new Map(MATRIX_FILES.map((rel) => [rel, pathState(join(target, ...rel.split("/")))]));
+  const tree = snapshotTree(target);
+  const dry = runInstall(target, kitHome, [], { dryRun: true });
+  expect([0, 3], `${name}: the DRY_RUN exit status\n${dry.stdout}${dry.stderr}`).toContain(dry.status);
+  expect(snapshotTree(target), `${name}: the DRY_RUN changed the target\n${dry.stdout}`).toBe(tree);
+  const real = runInstall(target, kitHome);
+  expect([0, 3], `${name}: the install exit status\n${real.stdout}${real.stderr}`).toContain(real.status);
+  const after = followerView(target);
+  const docAfter = check(target, kitHome);
+  const both = `\n--check said:\n${doc.stdout}\nthe install said:\n${real.stdout}`;
+  // (5) every `Re-run install.js` is a remedy the install carries out, and every write the install makes was named.
+  for (const rel of CLASS_CARRIERS) {
+    expect(rerunNamed(doc.stdout, rel), `(5) ${name}: the doctor names \`Re-run install.js\` for ${rel} exactly when the install writes it${both}`).toBe(
+      wroteUnder(real.stdout, WRITE_LABELS, rel),
+    );
+  }
+  for (const { host, rel } of gatedPairs()) {
+    const gate = gateLines(doc.stdout, host)[0];
+    const rerun = gate.includes("Re-run install.js");
+    expect(rerun, `(5) ${name}: ${host.name}'s gate line names \`Re-run install.js\` exactly when the install writes ${GEMINI_SETTINGS}${both}`).toBe(
+      wroteUnder(real.stdout, WRITE_LABELS, GEMINI_SETTINGS),
+    );
+    const readsAfter = gate.startsWith("  ok") || rerun;
+    expect(after.reads(host, rel), `(5) ${name}: after the install ${host.name} ${readsAfter ? "reads" : "still does not read"} ${rel} by the follower's rule${both}`).toBe(readsAfter);
+  }
+  const routeLine = routeTargetLines(doc.stdout)[0];
+  if (routeLine.includes("Re-run install.js")) expect(after.f.routeResolves, `(5) ${name}: the route-target line names \`Re-run install.js\`, and the route resolves after the install${both}`).toBe(true);
+  if (!before.f.routeResolves && after.f.routeResolves) expect(routeLine, `(5) ${name}: the install made the route resolve, so the FAIL named the remedy`).toContain("Re-run install.js");
+  // (6) the DRY_RUN reports would-* for exactly the matrix files the real install writes.
+  for (const rel of MATRIX_FILES) {
+    expect(wroteUnder(dry.stdout, DRY_WRITE_LABELS, rel), `(6) ${name}: DRY_RUN would-* vs the real install's write for ${rel}\nDRY_RUN said:\n${dry.stdout}${both}`).toBe(
+      wroteUnder(real.stdout, WRITE_LABELS, rel),
+    );
+  }
+  // (7) the same route notes.
+  expect([...routeNotes(dry.stdout)].sort(), `(7) ${name}: DRY_RUN route notes vs the real install's\n${dry.stdout}${both}`).toEqual([...routeNotes(real.stdout)].sort());
+  // (8) the install's notes name the follower's stranded hosts after the run; a matrix file it did not write is as it was.
+  for (const rel of CLASS_CARRIERS) {
+    const stranded = after.strandedHosts(rel);
+    expect(notesFor(real.stdout, rel).length, `(8) ${name}: a route note for ${rel} exactly when the follower says it strands a host after the run (${stranded.join(", ") || "none"})${both}`).toBe(stranded.length > 0 ? 1 : 0);
+    if (stranded.length > 0) expect(noteHosts(real.stdout, rel), `(8) ${name}: the hosts the note for ${rel} names`).toEqual([...stranded]);
+  }
+  expect(routeNotes(real.stdout).length, `(8) ${name}: every route note is about a derived carrier${both}`).toBe(CLASS_CARRIERS.filter((rel) => after.strandedHosts(rel).length > 0).length);
+  for (const rel of MATRIX_FILES) {
+    if (wroteUnder(real.stdout, WRITE_LABELS, rel)) continue;
+    expect(pathState(join(target, ...rel.split("/"))), `(8) ${name}: the install did not report writing ${rel}, and it changed${both}`).toBe(states.get(rel));
+  }
+  // (9) --check after the install agrees with the follower again.
+  expectDoctorAgrees(`${name}: --check after the install`, docAfter, after, exitAsked);
+  return { row, before, after, doc, dry, real, docAfter };
+}
+
+/** A cell's per-test timeout: about five spawns, each well under a second. */
+const CELL_TIMEOUT_MS = 120_000;
+
+describe("kit route: the class matrix — reach, counted findings and install agreement over every carrier, Gemini and adapter state (plan 34-35, D-27)", () => {
+  it(
+    "tracer: the user's own AGENTS.md without the route × Gemini settings that omit AGENTS.md: all nine assertions, and the follower's stranded hosts before and after the install",
+    () => {
+      const gemini = geminiHost();
+      const spec: CellSpec = { group: "c", carriers: carrierStates({ "AGENTS.md": "user-without-route" }), gemini: "omits", adapter: "reaches", route: "resolves" };
+      const r = checkCell(spec);
+      // The hosts whose only carrier is AGENTS.md, taken from HOST_TOOLS (never typed).
+      const onlyAgents = HOST_TOOLS.filter((h) => carriersOf(h).length === 1 && carriersOf(h)[0] === "AGENTS.md");
+      expect(onlyAgents.map((h) => h.name), "premise: Gemini CLI is one of the hosts whose only carrier is AGENTS.md").toContain(gemini.name);
+      // Before: Gemini reads no carrier here, so AGENTS.md strands the other AGENTS.md-only hosts, and Gemini cannot reach.
+      expect(r.before.strandedHosts("AGENTS.md")).toEqual(onlyAgents.filter((h) => h !== gemini).map((h) => h.name));
+      expect(r.before.f.reaches.get(gemini.id)).toBe(false);
+      for (const h of HOST_TOOLS) expect(r.before.f.reaches.get(h.id), h.name).toBe(!onlyAgents.includes(h));
+      const warn = carrierLines(r.doc.stdout, "AGENTS.md")[0];
+      expect(warn.startsWith("  WARN"), warn).toBe(true);
+      expect(warn).not.toContain("Re-run install.js");
+      const gate = gateLines(r.doc.stdout, gemini)[0];
+      expect(gate.startsWith("  WARN"), gate).toBe(true);
+      expect(gate).toContain("Re-run install.js");
+      // (6) the DRY_RUN would add to the settings file and says nothing about AGENTS.md being written.
+      expect(reports(r.dry.stdout, "would-add", GEMINI_SETTINGS), r.dry.stdout).toBe(true);
+      expect(wroteUnder(r.dry.stdout, DRY_WRITE_LABELS, "AGENTS.md"), r.dry.stdout).toBe(false);
+      // (8) the install merged AGENTS.md into context.fileName and left AGENTS.md alone; its note names the after-run stranded hosts.
+      expect(geminiListsAgents(r.row.target), r.real.stdout).toBe(true);
+      expect(readFileSync(join(r.row.target, "AGENTS.md"), "utf8")).toBe("# My own AGENTS.md\n\nMy own instructions.\n");
+      expect(r.after.strandedHosts("AGENTS.md")).toEqual(onlyAgents.map((h) => h.name));
+      expect(noteHosts(r.real.stdout, "AGENTS.md")).toEqual(onlyAgents.map((h) => h.name));
+    },
+    CELL_TIMEOUT_MS,
+  );
+});
