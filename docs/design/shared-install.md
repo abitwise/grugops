@@ -43,6 +43,7 @@ Chosen over "vendor the kit into every repo" (footprint) and "symlink overlay" (
 - `$GRUGOPS_HOME` — env var, default `~/.grugops`. **Kit reads** resolve under `$GRUGOPS_HOME/agent-factory/…`.
 - **State reads/writes** resolve repo-relative: `plans/…`, the repo's `factory.config.json`, `plans/handoffs/…`, `memory-bank/…`.
 - Adapters (`.claude/skills/*`, `.claude/agents/grugops-orchestrator.md`) point at `$GRUGOPS_HOME/agent-factory/…` for the kit, repo-relative for state.
+- **2026-10-10, phase 34 D-26:** hosts with no Claude Code adapter resolve the kit root from the `kitRoot` field of `.grugops/install.json`, which every install writes. `AGENTS.md` and the installer-written pointers (the `CLAUDE.md` block, the Copilot pointer, the Pi template) name it through one fixed sentence, `KIT_ROUTE` in `install/host-tools.ts`, and `install.js --check` follows that route and prints one `reach` line per host. Whether a live host other than Claude Code follows it is `UNKNOWN - verify` until a run shows it.
 
 ### Blast radius (measured 2026-06-06)
 

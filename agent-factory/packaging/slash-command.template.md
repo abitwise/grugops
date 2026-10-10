@@ -80,9 +80,14 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
 
 ## Notes
 
-- **Body is repo-relative pointer-text.** It names `agent-factory/roles/orchestrator.md`
-  and the workflow file, resolved against the user's repo — never a `../` filesystem path
-  (broken in the plugin cache) and never a copy of the role or workflow body.
+- **Body is pointer text.** It names `AGENTS.md` and kit paths in the kit's `agent-factory/…`
+  notation (`agent-factory/roles/orchestrator.md`, the workflow file) — never a `../`
+  filesystem path (broken in the plugin cache) and never a copy of the role or workflow body.
+  The pointers the installer writes (the `CLAUDE.md` block, the Copilot pointer, the Pi
+  template) add the kit route after their start-here sentence: one fixed sentence, `KIT_ROUTE`
+  in `install/host-tools.ts`, which names the `kitRoot` field of `.grugops/install.json` as the
+  kit root and says each `agent-factory/…` path is read under it. It names the field, never a
+  path, so the text is the same on every machine.
 - **Kit-root resolution is single-sourced.** Every skill body opens with the compressed
   kit-vs-state invariant (above), but the full sole-resolver self-heal/STOP block lives in
   ONLY two adapters — `.claude/skills/grugops/SKILL.md` (the dispatcher) and
@@ -91,9 +96,15 @@ Do not carry the `grugops-` prefix into the plugin directory names, or you get t
   resolution to the Orchestrator. The kit-home env var is named ONLY in those resolver
   adapters/templates — never in an op-skill, a role, a workflow, or `AGENTS.md`. The
   installer materializes the absolute kit path into the resolver adapters' slot [1]; the
-  one-line self-heal is the fallback below it. Pi gets `.pi/prompts/grugops.md`, a plain pointer
-  prompt template written by the installer, not a resolver adapter: it names no kit-home env var
-  and carries no self-heal block, so the two-adapter rule still holds.
+  one-line self-heal is the fallback below it. For a host with no Claude Code adapter, the
+  record the kit root is resolved from is the install marker instead: the `kitRoot` field of
+  `.grugops/install.json`, as the `AGENTS.md` "Kit vs state" rule and the installer-written
+  pointers say (phase 34, D-26).
+  This amends v1.1 Phase 7 D-11 ("the adapter is the sole resolver") for those hosts only;
+  inside a Claude Code session the two adapters above still resolve the kit. Pi gets
+  `.pi/prompts/grugops.md`, a prompt template written by the installer: a pointer that names the
+  kit route, with no kit-home env var and no self-heal block, so the two-adapter rule still
+  holds.
 - **`disable-model-invocation: true` belongs on `grugops-release`** — the destructive,
   deploy-touching command — so the model can never auto-trigger it; only a human invokes it.
   This pairs with the git-host floor and the installer's Claude Code ask rules (see
