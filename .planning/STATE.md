@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 34
 current_phase_name: Model Effort Dial & Pi Support
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34-26-PLAN.md
-last_updated: "2026-10-09T22:44:56.967Z"
-state_head: 67b48a1ae8740e25501640b2d1508272954a27fc
+stopped_at: Completed 34-27-PLAN.md
+last_updated: "2026-10-10T08:50:09.535Z"
+state_head: e00c28f4d77eabd18556fcf8c3621250c7a6e3f0
 progress:
   total_phases: 12
   completed_phases: 33
   total_plans: 386
-  completed_plans: 381
+  completed_plans: 382
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34 (Model Effort Dial & Pi Support) — EXECUTING
-Plan: 3 of 31
+Plan: 4 of 31
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -642,6 +642,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34 P24 | 28min | 2 tasks | 4 files |
 | Phase 34 P25 | 1h 6m | 2 tasks | 5 files |
 | Phase 34 P26 | 42min | 3 tasks | 6 files |
+| Phase 34 P27 | 57 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -1762,6 +1763,8 @@ Recent decisions affecting current work:
 - [Phase 34]: 34-24: the local chain on the final round-2 tree (5be7b891) is green except the local Node v26.11.0 openAsBlobSync census row (passes on Node v24.12.0; CI pins Node 22); recorded as a macOS result, no code changed
 - [Phase 34]: 34-25: writeAskRules returns an AskRulesOutcome on every exit and the install notes print the ask-rules sentence from it only (WR-12, D-25); none-wanted carries users so the git host is named the only floor only when no governed ask rule is present
 - [Phase 34]: 34-26: --update and the already-migrated --migrate choose their closing and exit status from VERIFY_FINDINGS and what the arm did; uninstall's removeMarker returns a MarkerOutcome (kept carries what updateKeptMarker did) and the preserved block's marker line is built from it (D-25, G-34-4 siblings A-C); the argv-derived MODE_TABLE (17) and a 14-row acting-mode matrix with a snapshot oracle hold the class
+- [Phase 34]: D-26 (human, 2026-10-10, plan 34-27 Task 1): the marker route. KIT_ROUTE in install/host-tools.ts names the kitRoot field of .grugops/install.json; the Pi template, the Copilot pointer and the kit AGENTS.md carry it; --check follows it (kitRouteFindings).
+- [Phase 34]: The doctor kit-route FAIL for an install-owned route-less carrier says remove it and re-run install.js, because install leaves an existing template untouched until plan 34-28 adds the refresh.
 
 ### Pending Todos
 
@@ -1892,8 +1895,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-09T22:44:50.882Z
-Stopped at: Completed 34-26-PLAN.md
+Last session: 2026-10-10T08:50:02.496Z
+Stopped at: Completed 34-27-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
