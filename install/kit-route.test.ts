@@ -860,3 +860,67 @@ describe("kit route: --check and an independent follower agree, host by host, on
     });
   }
 });
+
+// ── GEMINI CLI READS AGENTS.md ONLY WHEN ITS SETTINGS LIST IT (plan 34-32, D-27 point 1, CR-01) ──
+//
+// The class this closes (VERDICT-1, root cause AUTH-1): `--check` said Gemini CLI reaches the Orchestrator
+// through AGENTS.md from the registry's static entry files, without asking whether Gemini reads AGENTS.md here.
+// Gemini CLI reads GEMINI.md by default and AGENTS.md only when `.gemini/settings.json` lists it in
+// `context.fileName`. The Gemini host is found by its adapter kind, never by a typed name; the settings path is
+// this file's own spelling.
+const GEMINI_SETTINGS = ".gemini/settings.json";
+function geminiHost(): (typeof HOST_TOOLS)[number] {
+  const g = HOST_TOOLS.filter((h) => h.adapter === "gemini-settings");
+  expect(g.length, "premise: exactly one registry host has the gemini-settings adapter").toBe(1);
+  return g[0];
+}
+const geminiFile = (target: string): string => join(target, ...GEMINI_SETTINGS.split("/"));
+/** The hosts a carrier line's `(read by …)` list names, for the one carrier line about `rel`. */
+function readByOf(stdout: string, rel: string): string[] {
+  const hits = routeLines(stdout).filter((l) => messageOf(l).includes(` ${rel} (read by `));
+  expect(hits.length, `exactly one carrier line about ${rel}:\n${stdout}`).toBe(1);
+  const m = /\(read by ([^)]*)\)/.exec(hits[0]);
+  expect(m, hits[0]).not.toBeNull();
+  return (m as RegExpExecArray)[1].split(", ");
+}
+/** The doctor's gate lines for `host`: `kit route: <host name> …` lines (any label). */
+const gateLines = (stdout: string, host: (typeof HOST_TOOLS)[number]): string[] =>
+  stdout.split(/\r?\n/).filter((l) => /^ {2}\S+\s/.test(l) && messageOf(l).startsWith(`kit route: ${host.name} `));
+
+describe("kit route: Gemini CLI reads AGENTS.md only when its settings list it (plan 34-32, D-27 point 1)", () => {
+  it("a clean install: an ok line says Gemini CLI reads AGENTS.md here, every host reaches, no counted kit-route line", () => {
+    const gemini = geminiHost();
+    const { target, kitHome } = installed();
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const gates = gateLines(c.stdout, gemini);
+    expect(gates.length, c.stdout).toBe(1);
+    expect(gates[0].startsWith("  ok"), gates[0]).toBe(true);
+    expect(messageOf(gates[0])).toContain(`${gemini.name} reads AGENTS.md here`);
+    expect(messageOf(gates[0])).toContain(GEMINI_SETTINGS);
+    for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(true);
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+    expect(readByOf(c.stdout, "AGENTS.md")).toContain(gemini.name);
+  });
+
+  it('fileName ["GEMINI.md"] after a clean install (the verifier\'s R8 case 2): Gemini CANNOT reach naming .gemini/settings.json, one counted WARN naming it, the others reach, AGENTS.md (read by …) omits Gemini; exit 0, 1 with --strict', () => {
+    const gemini = geminiHost();
+    const { target, kitHome } = installed();
+    writeFileSync(geminiFile(target), '{"context":{"fileName":["GEMINI.md"]}}\n');
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const v = reachVerdict(c.stdout, gemini);
+    expect(v.reaches, v.line).toBe(false);
+    expect(v.line).toContain(GEMINI_SETTINGS);
+    for (const h of HOST_TOOLS) if (h !== gemini) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(true);
+    const counted = countedRouteLines(c.stdout);
+    expect(counted.length, c.stdout).toBe(1);
+    expect(counted[0].startsWith("  WARN"), counted[0]).toBe(true);
+    expect(messageOf(counted[0]).startsWith("kit route:"), counted[0]).toBe(true);
+    expect(counted[0]).toContain(GEMINI_SETTINGS);
+    expect(readByOf(c.stdout, "AGENTS.md")).not.toContain(gemini.name);
+    const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
+    expect(strict.stdout).not.toContain("ALL CHECKS PASSED");
+  });
+});

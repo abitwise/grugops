@@ -33,6 +33,16 @@ export const HOST_ADAPTER_KINDS = [
     "pi-prompt-template",
 ];
 /**
+ * ENTRY_GATE_KINDS (plan 34-32, D-27 point 1): the closed set of conditions under which a host reads one of its
+ * entry files only sometimes. Every member is used by at least one row's `entryGates`, and every value of every
+ * row's `entryGates` is a member (asserted by install/host-tools.test.ts). The check each kind names lives in
+ * install.ts (ENTRY_GATE_CHECKS, keyed by this type, so a new kind is a compile error until it has a check), and
+ * hostReadsCarrier there is the one owner of "does host H read entry file X in this target".
+ *   gemini-context-file-name: the host reads the file only when this repository's `.gemini/settings.json` lists it
+ *                             in `context.fileName` (Gemini CLI reads GEMINI.md by default).
+ */
+export const ENTRY_GATE_KINDS = ["gemini-context-file-name"];
+/**
  * The Pi prompt template the installer writes (D-16): Pi turns `.pi/prompts/<name>.md` into the
  * slash command `/<name>`, so this file yields `/grugops`, the one command spelling across hosts.
  * Every later consumer imports this constant rather than spelling the path again.
@@ -72,6 +82,7 @@ export const HOST_TOOLS = [
         shortName: "Claude Code",
         detect: ".claude",
         entryFiles: ["CLAUDE.md", "AGENTS.md"],
+        entryGates: {},
         adapter: "claude-kit",
         dispatch: "spawn",
     },
@@ -81,6 +92,7 @@ export const HOST_TOOLS = [
         shortName: "Codex",
         detect: ".codex",
         entryFiles: ["AGENTS.md"],
+        entryGates: {},
         adapter: "none",
         dispatch: "sequential",
     },
@@ -90,6 +102,9 @@ export const HOST_TOOLS = [
         shortName: "Gemini",
         detect: ".gemini",
         entryFiles: ["AGENTS.md"],
+        // Gemini CLI reads GEMINI.md by default and AGENTS.md only through `context.fileName` in its settings (the
+        // Gemini row of the CLAUDE.md per-tool table); the `gemini-settings` adapter is what adds it there.
+        entryGates: { "AGENTS.md": "gemini-context-file-name" },
         adapter: "gemini-settings",
         dispatch: "sequential",
     },
@@ -99,6 +114,7 @@ export const HOST_TOOLS = [
         shortName: "OpenCode",
         detect: "opencode.json",
         entryFiles: ["AGENTS.md"],
+        entryGates: {},
         adapter: "none",
         dispatch: "sequential",
     },
@@ -108,6 +124,7 @@ export const HOST_TOOLS = [
         shortName: "Copilot",
         detect: ".github",
         entryFiles: ["AGENTS.md", ".github/copilot-instructions.md"],
+        entryGates: {},
         adapter: "copilot-pointer",
         dispatch: "sequential",
     },
@@ -120,6 +137,7 @@ export const HOST_TOOLS = [
         shortName: "Pi",
         detect: ".pi",
         entryFiles: ["AGENTS.md"],
+        entryGates: {},
         adapter: "pi-prompt-template",
         dispatch: "sequential",
     },

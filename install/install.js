@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute, hostsReading, routeCarriers } from "./host-tools.js";
+import { HOST_TOOLS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute, hostsReading, routeCarriers, } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -986,6 +986,89 @@ const ROUTE_BLOCKS = new Map([
     ["CLAUDE.md", { open: CLAUDE_OPEN, close: CLAUDE_CLOSE }],
     [COPILOT_REL, { open: COPILOT_OPEN, close: COPILOT_CLOSE }],
 ]);
+// The entry Gemini CLI must find in context.fileName, compared by exact string equality.
+const GEMINI_WANT = "AGENTS.md";
+// readGeminiContext (plan 34-32, D-27 point 1): THE ONE READER of `.gemini/settings.json`'s context.fileName,
+// used by install (mergeGemini, through geminiMergePlan) and by the doctor's gemini-context-file-name gate, so
+// the two cannot disagree about what the file says. It refuses every shape mergeGemini refuses to merge (not
+// valid UTF-8 or not strict JSON, which leaves GEMINI_SEEN as it is; not a JSON object; two `context` keys or
+// two `context.fileName` keys, because which one Gemini CLI reads is not known; a `context` that is not an
+// object; a context.fileName that is neither a string nor an array of strings), with mergeGemini's own `why`
+// texts. Otherwise it answers `read`, with whether context.fileName lists AGENTS.md and the parts the splice
+// needs. Pure over its argument: no I/O.
+function readGeminiContext(bytes) {
+    const doc = readJsonText(bytes);
+    if (!doc.ok)
+        return { state: "refused", why: doc.why, seen: "keep" };
+    const root = doc.root;
+    if (root.kind !== "object")
+        return { state: "refused", why: "is not a JSON object", seen: { listed: false, fileNameContent: null } };
+    if (keyCount(root, "context") > 1) {
+        return { state: "refused", why: 'has more than one "context" key, so which one Gemini CLI reads is not known', seen: null };
+    }
+    const ctxMember = memberNamed(root, "context");
+    const ctxNode = ctxMember === null ? null : ctxMember.value;
+    if (ctxNode !== null && ctxNode.kind !== "object") {
+        return { state: "refused", why: 'has a "context" value that is not a JSON object', seen: { listed: false, fileNameContent: null } };
+    }
+    if (ctxNode !== null && keyCount(ctxNode, "fileName") > 1) {
+        return { state: "refused", why: 'has more than one "context.fileName" key, so which one Gemini CLI reads is not known', seen: null };
+    }
+    const fnMember = ctxNode === null ? null : memberNamed(ctxNode, "fileName");
+    const hasFileName = fnMember !== null;
+    const fileName = fnMember === null ? undefined : valueOf(doc.text, fnMember.value);
+    const seenContent = jsonValueRecord(fileName);
+    const isStringArray = Array.isArray(fileName) && fileName.every((x) => typeof x === "string");
+    if (hasFileName && typeof fileName !== "string" && !isStringArray) {
+        return {
+            state: "refused",
+            why: 'has a "context.fileName" value that is neither a string nor an array of strings',
+            seen: { listed: false, fileNameContent: seenContent },
+        };
+    }
+    const listed = fileName === GEMINI_WANT || (isStringArray && fileName.includes(GEMINI_WANT));
+    return { state: "read", listed, doc, root, ctxNode, fnMember, fileName, hasFileName, seenContent };
+}
+// ENTRY_GATE_CHECKS (plan 34-32, D-27 point 1): the check for each entry-gate kind (host-tools.ts
+// ENTRY_GATE_KINDS). Keyed by EntryGateKind, so a new kind is a compile error until it has a check here. A
+// check reads only through `readAt` (this run's cached readUserFile under TARGET) and writes nothing. Declared
+// above the doctor because it is a const (the doctor runs at the `--check` early exit, below).
+//   gemini-context-file-name: reads this repository's GEMINI_SETTINGS_REL. A readable file that parses through
+//     readGeminiContext and lists AGENTS.md → reads. Read but not listed, refused by the reader, or absent →
+//     not read. Not a readable regular file → not read, `unread` (no verdict was reached on what Gemini reads).
+const ENTRY_GATE_CHECKS = {
+    "gemini-context-file-name": (readAt) => {
+        const here = `this repository's ${GEMINI_SETTINGS_REL}`;
+        const remedy = `Add "${GEMINI_WANT}" to context.fileName in ${GEMINI_SETTINGS_REL}`;
+        const read = readAt(GEMINI_SETTINGS_REL);
+        if (read.state === "absent") {
+            return { reads: false, unread: false, why: `this repository has no ${GEMINI_SETTINGS_REL}, so Gemini CLI reads its default context file, not ${GEMINI_WANT}`, remedy };
+        }
+        if (read.state !== "ok") {
+            return { reads: false, unread: true, why: `${here} ${unreadState(read)}, so no verdict was reached on what Gemini CLI reads`, remedy };
+        }
+        const ctx = readGeminiContext(read.bytes);
+        if (ctx.state === "refused")
+            return { reads: false, unread: false, why: `${here} ${ctx.why}`, remedy };
+        return ctx.listed
+            ? { reads: true, unread: false, why: `${here} lists ${GEMINI_WANT} in context.fileName`, remedy: "" }
+            : { reads: false, unread: false, why: `${here} does not list ${GEMINI_WANT} in context.fileName`, remedy };
+    },
+};
+// hostReadsCarrier (plan 34-32, D-27 point 1): THE OWNER of "does host H read entry file (or pointer) X in this
+// target". Not one of routeCarriers(host) → no. One of them with no gate in host.entryGates → yes (the host reads
+// it whenever it is there; whether it carries the route is carrierFinding's question). Gated → the registry
+// row's gate kind decides, through ENTRY_GATE_CHECKS, and the answer is returned as `gate`. Every verdict site
+// of the doctor asks this, so the reach lines, the `(read by …)` lists and the gate lines of one run agree.
+function hostReadsCarrier(host, rel, readAt, ledger) {
+    if (!routeCarriers(host).includes(rel))
+        return { reads: false, gate: null };
+    const kind = Object.prototype.hasOwnProperty.call(host.entryGates, rel) ? host.entryGates[rel] : undefined;
+    if (kind === undefined)
+        return { reads: true, gate: null };
+    const gate = ENTRY_GATE_CHECKS[kind](readAt, ledger);
+    return { reads: gate.reads, gate };
+}
 // ownBlockSpans (plan 34-28's block rule, made one function by plan 34-29): THE ONE ANSWER to "which copies of
 // install's own block, unedited, does this file hold". owns(ledger, TARGET, rel, "block") gives the `block`
 // entry; blockLineSpans (install-marker.ts, the one finder uninstall's removal uses too) finds every copy of the
@@ -1024,12 +1107,13 @@ const CARRIER_STATE_TEXT = {
 //   present without it, not install's own                                → user       (WARN quoting KIT_ROUTE)
 //   absent                                                               → absent     (WARN)
 //   not a readable regular file                                          → unread     (WARN, no verdict)
-// Every message names the file and the hosts that read it (hostsReading). It writes nothing.
-function carrierFinding(rel, ledger) {
-    const hosts = hostsReading(rel)
-        .map((h) => h.name)
-        .join(", ");
-    const read = readUserFile(join(TARGET, ...rel.split("/")));
+// Every message names the file and the hosts that read it here: the HOST_TOOLS hosts for which hostReadsCarrier
+// answers reads (plan 34-32), so a host whose own settings do not load the file is not named. The file is read
+// through the run's `readAt`, the same cached read every other line of the run uses. It writes nothing.
+function carrierFinding(rel, ledger, readAt) {
+    const readers = HOST_TOOLS.filter((h) => hostReadsCarrier(h, rel, readAt, ledger).reads).map((h) => h.name);
+    const hosts = readers.length > 0 ? readers.join(", ") : "no registry host here";
+    const read = readAt(rel);
     if (read.state === "absent") {
         docWarn(`kit route: ${rel} (read by ${hosts}) is not present, so it gives those hosts no grugops pointer here. ` +
             `Re-run install.js, which writes it where nothing is`);
@@ -1076,22 +1160,29 @@ function carrierFinding(rel, ledger) {
 // Claude Code adapters' KIT= agreement and printed ALL CHECKS PASSED while Pi's /grugops named a path that a
 // scripted install never creates (34-UAT.md test 2); before plan 34-29 it asked only about the Pi template.
 //
-// 1. THE ROUTE. The marker's `kitRoot`, joined with roles/orchestrator.md, read through readUserFile (DC-3: a
-//    FIFO, a device or a link there is never opened). A readable regular file is `ok`; anything else is one
+// 1. THE ROUTE. The marker's `kitRoot`, joined with roles/orchestrator.md, read through readUserFile: a link is
+//    followed, as a host would follow it; a FIFO, a device or an oversized file is never read. A readable
+//    regular file is `ok`; anything else is one
 //    FAIL naming the path and its state: an agent that follows the route does not reach the Orchestrator. This
 //    is asked independently of the kit-root cross-check above: that check compares three records with each
 //    other, this one follows the record an agent reads.
 // 2. EACH CARRIER of routeCarrierSet, through carrierFinding (ok, FAIL or WARN, each counted but `ok`).
-// 3. ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`:
-//      the host reaches when one of its routeCarriers is `route` and the route resolved (step 1), or when its
+// 3. ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`. Which carriers
+//    a host reads here is hostReadsCarrier's answer (plan 34-32, D-27 point 1), never the registry's entry
+//    files alone: for every carrier the host reads only under a gate (HostTool.entryGates), one gate line comes
+//    first: `ok` when the gate passed; a counted WARN, with the gate's remedy, when it failed and the host then
+//    cannot reach; an uncounted `note` when it failed and the host reaches another way.
+//      the host reaches when one of the carriers it reads here is `route` and the route resolved (step 1), or when its
 //      adapter kind is `claude-kit` and the adapter KIT= value the D-03 cross-check read (`adapterKit`) names
 //      a real kit (kitReal), whatever that cross-check concluded about the other two sources (inside a Claude
 //      Code session the adapter resolves the kit, Phase 7 D-12);
 //      the line names the carriers that gave the route, or, when the host cannot reach, each carrier's state
 //      and the route's.
-//    The counted findings stay the carrier and route lines of steps 1 and 2, so a host that cannot reach always
-//    has a counted WARN or FAIL behind it: each of its carriers is not `route` (a WARN or a FAIL), or the route
-//    did not resolve (a FAIL).
+//    The counted findings are the carrier and route lines of steps 1 and 2 and the failed-gate WARNs, so a host
+//    that cannot reach always has a counted WARN or FAIL behind it: each carrier it reads is not `route` (a WARN
+//    or a FAIL), a carrier it would read is gated off (a WARN), or the route did not resolve (a FAIL).
+//    The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
+//    host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
 // It writes nothing. Ownership comes from owns over the ledger the doctor reads, so install, uninstall and
 // --check cannot disagree about whose file a carrier is. Function declarations only, and the doctor's own
 // ledger read: module consts declared below the `--check` early exit are in their temporal dead zone here.
@@ -1118,24 +1209,54 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
                 `follows the route cannot reach the Orchestrator. Re-run install.js (then install.js --check)`);
         }
     }
+    // One read per path for the whole run (plan 34-32): every carrier line, gate line and reach line of this run
+    // states what the same read found.
+    const cache = new Map();
+    const readAt = (rel) => {
+        let r = cache.get(rel);
+        if (r === undefined) {
+            r = readUserFile(join(TARGET, ...rel.split("/")));
+            cache.set(rel, r);
+        }
+        return r;
+    };
     const states = new Map();
     for (const rel of routeCarrierSet())
-        states.set(rel, carrierFinding(rel, ledger));
+        states.set(rel, carrierFinding(rel, ledger, readAt));
     const adapterReaches = kitReal(adapterKit);
     for (const host of HOST_TOOLS) {
-        const carriers = routeCarriers(host);
+        const answers = routeCarrierSet()
+            .map((rel) => ({ rel, ...hostReadsCarrier(host, rel, readAt, ledger) }))
+            .filter((a) => a.reads || a.gate !== null);
+        const carriers = answers.filter((a) => a.reads).map((a) => a.rel);
         const via = routeResolves ? carriers.filter((rel) => states.get(rel) === "route") : [];
         const viaAdapter = host.adapter === "claude-kit" && adapterReaches;
-        if (via.length > 0 || viaAdapter) {
+        const reaches = via.length > 0 || viaAdapter;
+        for (const a of answers) {
+            if (a.gate === null)
+                continue;
+            if (a.gate.reads) {
+                docReport("ok", `kit route: ${host.name} reads ${a.rel} here: ${a.gate.why}`);
+                continue;
+            }
+            const head = a.gate.unread ? `kit route: ${host.name} is not counted as reading ${a.rel} here` : `kit route: ${host.name} does not read ${a.rel} here`;
+            if (reaches)
+                docReport("note", `${head}: ${a.gate.why}; it reaches the Orchestrator another way`);
+            else
+                docWarn(`${head}: ${a.gate.why}, so ${a.rel} gives ${host.name} no route to the Orchestrator. ${a.gate.remedy}`);
+        }
+        if (reaches) {
             const through = [...via, ...(viaAdapter ? [`its adapters' KIT= line (${adapterKit})`] : [])];
             docReport("reach", `${host.name}: reaches the Orchestrator through ${through.join(", ")}`);
             continue;
         }
-        const why = carriers.map((rel) => `${rel} ${CARRIER_STATE_TEXT[states.get(rel) ?? "unread"]}`);
+        const why = answers.map((a) => a.reads ? `${a.rel} ${CARRIER_STATE_TEXT[states.get(a.rel) ?? "unread"]}` : `${a.rel} is not read by ${host.name} here (${a.gate?.why ?? "it is not one of its files"})`);
         if (!routeResolves)
             why.push("the kit route does not lead to a readable roles/orchestrator.md");
         if (host.adapter === "claude-kit")
             why.push("its adapters' KIT= line names no kit");
+        if (why.length === 0)
+            why.push("no file it reads here carries the kit route");
         docReport("reach", `${host.name}: CANNOT reach the Orchestrator: ${why.join("; ")}`);
     }
 }
@@ -2614,44 +2735,20 @@ function mergeGemini() {
         report("created", `${rel} (context.fileName wiring)`);
         return;
     }
-    const doc = readJsonText(cur.bytes);
-    if (!doc.ok) {
-        verify(`${rel} ${doc.why} — left untouched; ${byHand}.`);
+    // The one reader of the settings' context.fileName (plan 34-32), which the doctor's Gemini gate uses too.
+    const ctx = readGeminiContext(cur.bytes);
+    if (ctx.state === "refused") {
+        verify(`${rel} ${ctx.why} — left untouched; ${byHand}.`);
+        if (ctx.seen !== "keep")
+            GEMINI_SEEN = ctx.seen === null ? null : { ...ctx.seen, refused: true };
         return;
     }
     const refuse = (why, seen) => {
         verify(`${rel} ${why} — left untouched; ${byHand}.`);
         GEMINI_SEEN = seen === null ? null : { ...seen, refused: true };
     };
-    const root = doc.root;
-    if (root.kind !== "object") {
-        refuse("is not a JSON object", { listed: false, fileNameContent: null });
-        return;
-    }
-    if (keyCount(root, "context") > 1) {
-        refuse('has more than one "context" key, so which one Gemini CLI reads is not known', null);
-        return;
-    }
-    const ctxMember = memberNamed(root, "context");
-    const ctxNode = ctxMember === null ? null : ctxMember.value;
-    if (ctxNode !== null && ctxNode.kind !== "object") {
-        refuse('has a "context" value that is not a JSON object', { listed: false, fileNameContent: null });
-        return;
-    }
-    if (ctxNode !== null && keyCount(ctxNode, "fileName") > 1) {
-        refuse('has more than one "context.fileName" key, so which one Gemini CLI reads is not known', null);
-        return;
-    }
-    const fnMember = ctxNode === null ? null : memberNamed(ctxNode, "fileName");
-    const hasFileName = fnMember !== null;
-    const fileName = fnMember === null ? undefined : valueOf(doc.text, fnMember.value);
-    const seenContent = jsonValueRecord(fileName);
-    const isStringArray = Array.isArray(fileName) && fileName.every((x) => typeof x === "string");
-    if (hasFileName && typeof fileName !== "string" && !isStringArray) {
-        refuse('has a "context.fileName" value that is neither a string nor an array of strings', { listed: false, fileNameContent: seenContent });
-        return;
-    }
-    if (fileName === want || (isStringArray && fileName.includes(want))) {
+    const { doc, root, ctxNode, fnMember, fileName, hasFileName, seenContent } = ctx;
+    if (ctx.listed) {
         // Plan 33.1-29: this run changed nothing; what it saw is what writeMarker() needs to decide whether
         // an earlier record still describes the file (the carry needs proof).
         GEMINI_SEEN = { listed: true, fileNameContent: seenContent, refused: false };

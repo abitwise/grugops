@@ -44,6 +44,20 @@ export type HostAdapterKind = (typeof HOST_ADAPTER_KINDS)[number];
  */
 export type HostDispatch = "spawn" | "sequential";
 
+/**
+ * ENTRY_GATE_KINDS (plan 34-32, D-27 point 1): the closed set of conditions under which a host reads one of its
+ * entry files only sometimes. Every member is used by at least one row's `entryGates`, and every value of every
+ * row's `entryGates` is a member (asserted by install/host-tools.test.ts). The check each kind names lives in
+ * install.ts (ENTRY_GATE_CHECKS, keyed by this type, so a new kind is a compile error until it has a check), and
+ * hostReadsCarrier there is the one owner of "does host H read entry file X in this target".
+ *   gemini-context-file-name: the host reads the file only when this repository's `.gemini/settings.json` lists it
+ *                             in `context.fileName` (Gemini CLI reads GEMINI.md by default).
+ */
+export const ENTRY_GATE_KINDS = ["gemini-context-file-name"] as const;
+
+/** One entry-gate kind, derived from the tuple above so the two cannot disagree. */
+export type EntryGateKind = (typeof ENTRY_GATE_KINDS)[number];
+
 export interface HostTool {
   /** The token installer output uses (`tools detected: <id> ...`). */
   readonly id: string;
@@ -55,6 +69,12 @@ export interface HostTool {
   readonly detect: string;
   /** The files this host reads to reach the Orchestrator. */
   readonly entryFiles: readonly string[];
+  /**
+   * The entry files this host reads only when a condition in the target holds, each mapped to the kind of that
+   * condition (plan 34-32, D-27 point 1). install.ts hostReadsCarrier decides the condition; an entry file not
+   * listed here is read whenever it is present. `{}` on a host that reads every entry file unconditionally.
+   */
+  readonly entryGates: Readonly<Record<string, EntryGateKind>>;
   /** What the installer lays down for this host. */
   readonly adapter: HostAdapterKind;
   readonly dispatch: HostDispatch;
@@ -104,6 +124,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     shortName: "Claude Code",
     detect: ".claude",
     entryFiles: ["CLAUDE.md", "AGENTS.md"],
+    entryGates: {},
     adapter: "claude-kit",
     dispatch: "spawn",
   },
@@ -113,6 +134,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     shortName: "Codex",
     detect: ".codex",
     entryFiles: ["AGENTS.md"],
+    entryGates: {},
     adapter: "none",
     dispatch: "sequential",
   },
@@ -122,6 +144,9 @@ export const HOST_TOOLS: readonly HostTool[] = [
     shortName: "Gemini",
     detect: ".gemini",
     entryFiles: ["AGENTS.md"],
+    // Gemini CLI reads GEMINI.md by default and AGENTS.md only through `context.fileName` in its settings (the
+    // Gemini row of the CLAUDE.md per-tool table); the `gemini-settings` adapter is what adds it there.
+    entryGates: { "AGENTS.md": "gemini-context-file-name" },
     adapter: "gemini-settings",
     dispatch: "sequential",
   },
@@ -131,6 +156,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     shortName: "OpenCode",
     detect: "opencode.json",
     entryFiles: ["AGENTS.md"],
+    entryGates: {},
     adapter: "none",
     dispatch: "sequential",
   },
@@ -140,6 +166,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     shortName: "Copilot",
     detect: ".github",
     entryFiles: ["AGENTS.md", ".github/copilot-instructions.md"],
+    entryGates: {},
     adapter: "copilot-pointer",
     dispatch: "sequential",
   },
@@ -152,6 +179,7 @@ export const HOST_TOOLS: readonly HostTool[] = [
     shortName: "Pi",
     detect: ".pi",
     entryFiles: ["AGENTS.md"],
+    entryGates: {},
     adapter: "pi-prompt-template",
     dispatch: "sequential",
   },
