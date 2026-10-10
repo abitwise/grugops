@@ -848,6 +848,33 @@ session either: the PI-02 row above stays `pending`.
 
 ---
 
+### Gap round 4 (D-27)
+
+Gap round 4 (plans 34-32 to 34-36, the last round on the cap) fixes CR-01, WR-01, WR-02 and WR-03 of the
+round-3 review in the doctor class (VERDICT-1, AUTH-1; 34-GAP-PLANNING-BRIEF.md §4), with the riders IN-01
+and IN-06, and records WR-04, WR-05 and IN-02 to IN-05 as deferred (D-27). Windows stays out of scope
+(D-25): no windows-latest run, and HOST-02 stays unchecked. The rows below were seeded at planning. The
+"At execution" column is filled in by each plan's executor, and plan 34-36 adds the mutation proofs and the
+local chain on the final round-4 tree.
+
+| Plan | Task | Type | Requirement(s) | Automated verify (test files or gates) | At execution |
+|------|------|------|----------------|-----------------------------------------|--------------|
+| 34-32 | 1 tracer: Gemini fileName without AGENTS.md → CANNOT reach + counted WARN; hostReadsCarrier owner | tracer | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts`, `install/settings-json-provenance.test.ts` | ⬜ pending |
+| 34-32 | 2 every Gemini settings state, exact remedy (geminiMergePlan), follower's Gemini rule, entryGates and census, m1-m5 | auto | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts`, the Gemini-touching install lane, `install/installer-fs-census.test.ts` (Node v24) | ⬜ pending |
+| 34-33 | 1 tracer: strandedBy; a carrier is counted only when it strands a host (R9, R10 doctor half) | tracer | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts` | ⬜ pending |
+| 34-33 | 2 install route notes from strandedBy over the after-run state; note agreement; DRY_RUN equality; m1-m5 | auto | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts`, `install/install.test.ts`, `install/closing-claims.test.ts`, installer class tests, `install/installer-fs-census.test.ts` (Node v24) | ⬜ pending |
+| 34-34 | 1 tracer: refreshable; the AGENTS.md link reproduction (WR-01) gets a WARN, install agrees | tracer | PI-02, PI-03 | `install/kit-route.test.ts` | ⬜ pending |
+| 34-34 | 2 ensureBlock asks refreshable; the absent arm asks readForWrite; block-link and absent-through-a-link rows; m1-m5 | auto | PI-02, PI-03 | `install/kit-route.test.ts`, DC-2/DC-3 class tests, `install/installer-fs-census.test.ts` (Node v24) | ⬜ pending |
+| 34-35 | 1 tracer: one class cell, all nine assertions | tracer | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts -t "class matrix"` | ⬜ pending |
+| 34-35 | 2 the derived matrix (cell count asserted) and the matrix-level mutation proofs mA-mD | auto | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts`, `install/path-spelling-census.test.ts` | ⬜ pending |
+| 34-36 | 1 tracer: the install guide states the D-27 doctor behaviour; IN-06; doc-truth cases | tracer | HOST-01, PI-02 | `install/host-tools.test.ts`, `install/host-tools-prose.test.ts`, docs gates | ⬜ pending |
+| 34-36 | 2 CHANGELOG and sibling docs checked against the code | auto | HOST-01, PI-02 | docs gates (`check:diff-disposition`, claim anchors, banned claims, lexicon, public docs, nul bytes, audit register, residual citations, kit refs) | ⬜ pending |
+| 34-36 | 3 records and the final local chain | auto | HOST-01, PI-02, PI-03 | full suite (e2e excluded), census on Node v24, freshness gates, guards, validator | ⬜ pending |
+
+All 11 tasks carry an `<automated>` verify.
+
+---
+
 ## Validation Sign-Off
 
 - [ ] All tasks have `<automated>` verify or Wave 0 dependencies (27 of 28; 34-10 Task 3 is manual by design)
