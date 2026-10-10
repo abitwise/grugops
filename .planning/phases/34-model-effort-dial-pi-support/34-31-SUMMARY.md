@@ -167,3 +167,10 @@ None. No product, test or public-document file was edited.
 - Gap round 3 is fully recorded. The next step is phase verification, then `/gsd-verify-work 34`, where the human runs the live Pi re-run (34-UAT.md test 2) from the 34-VALIDATION.md steps.
 - Still open for the human: the writeMarker `created` label triage, WR-11 and IN-13 with Windows support, IN-09 to IN-12 in backlog triage, the per-host live runs (backlog 999.4), and the Windows CI leg removal quick task (D-25).
 - The ROADMAP Phase 34 row must not be flipped to Complete before verification.
+
+## Self-Check: PASSED
+
+- FOUND: the four modified records and this SUMMARY on disk.
+- FOUND commits on HEAD: cf7d02cb, 045b6671 (`git rev-list --count 772d7d98..045b6671` = 2), and every round-3 commit cited in the ledger (baa8d073, 413cddd8, afe94f40, 39ff1558, efe81f3e, 2fe47e93, f25fecb3, 513aced4).
+- STATE.md and ROADMAP.md: the state and roadmap tools rewrote the STATE.md frontmatter and flipped the Phase 34 ROADMAP row to Complete. Both were restored by hand (b5fc83d6): the original frontmatter is kept with only stopped_at, last_updated, state_head and completed_plans changed, and the Phase 34 row reads In Progress, awaiting verification.
+- `requirements.mark-complete` was not run. PI-02 and PI-03 are already `[x]`, and the tool would rewrite the traceability cells this plan appended to.
