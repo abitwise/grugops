@@ -1670,7 +1670,7 @@ Plans:
   4. Pi's project-instruction and agent-file conventions are researched from primary sources and recorded; Pi support ships as installer adapter + AGENTS.md entry-file row + README/docs + validator coverage + tests, following the existing single-source pattern (role text lives once; the adapter is a pointer, never a copy).
   5. The installer's Pi path is idempotent, additive, dry-run-capable and reversible (uninstall removes only what it wrote), proven by tests in the same lane as the other five tools; the tooling stays zero-runtime-dependency.
 
-**Plans:** 27/31 plans executed (34-01..34-18 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20; gap round 2 of 4, 34-19..34-24, planned 2026-10-09 under D-21, D-22, D-23 and D-24, no Windows measurement this round; gap round 3 of 4, 34-25..34-31, planned 2026-10-09 under D-25 and D-26 for UAT gaps G-34-2 and G-34-4, Windows out of scope, D-26 decided by the human at 34-27 Task 1)
+**Plans:** 28/31 plans executed (34-01..34-18 executed; gap round 1 of 4, 34-11..34-18, planned 2026-10-07 under D-19 and D-20; gap round 2 of 4, 34-19..34-24, planned 2026-10-09 under D-21, D-22, D-23 and D-24, no Windows measurement this round; gap round 3 of 4, 34-25..34-31, planned 2026-10-09 under D-25 and D-26 for UAT gaps G-34-2 and G-34-4, Windows out of scope, D-26 decided by the human at 34-27 Task 1)
 
 Plans:
 **Wave 1**
@@ -1729,7 +1729,7 @@ Plans:
 - [x] 34-25-PLAN.md — G-34-4 / WR-12: writeAskRules returns its outcome, the closing notes say what the run did with ask rules; nine-outcome matrix against a settings-file oracle (D-25)
 - [x] 34-26-PLAN.md — G-34-4 siblings: `--update` INCOMPLETE banner and exit 3, already-migrated `--migrate` says what it changed, uninstall's marker line from removeMarker's outcome; mode class derived from the argument parser (D-25)
 - [x] 34-27-PLAN.md — G-34-2: **checkpoint:decision first (D-26, blocking-human)**, then the Pi tracer: KIT_ROUTE, the Pi template and Copilot pointer carry it, AGENTS.md states it, `--check` follows it (D-25, D-26)
-- [ ] 34-28-PLAN.md — G-34-2: install refreshes its own unedited route carriers (Pi template, AGENTS.md copy, CLAUDE.md and Copilot blocks; closes IN-03), CLAUDE_PTR carries the route, notes for a user's carrier without it (D-26)
+- [x] 34-28-PLAN.md — G-34-2: install refreshes its own unedited route carriers (Pi template, AGENTS.md copy, CLAUDE.md and Copilot blocks; closes IN-03), CLAUDE_PTR carries the route, notes for a user's carrier without it (D-26)
 - [ ] 34-29-PLAN.md — G-34-2: `--check` checks every derived carrier and prints a reach line per registry host; seven-scenario two-sided matrix against an independent follower (D-26)
 - [ ] 34-30-PLAN.md — G-34-2 docs: install guide, adapters.md, packaging rule, design note, READMEs, CHANGELOG; backlog 999.4 re-scoped to the live per-host runs (D-26)
 - [ ] 34-31-PLAN.md — round bookkeeping: review dispositions, deferred items, requirement cells, live Pi re-run steps for the human, local chain on the final tree (D-25, D-26)
@@ -1776,7 +1776,7 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 27/31 | In Progress (gap round 2 of 4 verified human_needed 13/16; UAT diagnosed G-34-2 blocker, G-34-4 major; gap round 3 of 4 planned 34-25..34-31) | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 28/31 | In Progress (gap round 2 of 4 verified human_needed 13/16; UAT diagnosed G-34-2 blocker, G-34-4 major; gap round 3 of 4 planned 34-25..34-31) | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
