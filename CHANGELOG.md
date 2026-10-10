@@ -298,14 +298,32 @@ per-role effort setting and Pi support.
 - A re-install replaces install's own unedited copy of the Pi template, of an `AGENTS.md` it
   created, and of the `CLAUDE.md` and Copilot blocks when its text is not the current text, and
   records the new bytes; before, a file already there was left as it was (IN-03). A file you wrote
-  or edited is never written: when it has no kit route, install prints a `note` that names it, the
-  hosts it leaves without a route, and the sentence to add (34 D-26).
+  or edited is never written: when it has no kit route and leaves some host without any route,
+  install prints a `note` that names it, only the hosts it leaves without a route, and the sentence
+  to add (34 D-26, D-27).
 - `install.js --check` follows the kit route. It fails when `<kitRoot>/roles/orchestrator.md` is
-  not a readable file, or when a pointer install wrote in an earlier install has no route (the
-  remedy is to re-run `install.js`); it warns about your own file without the route, quoting the
-  sentence to add; and it prints one `reach` line per supported host, saying whether that host
-  reaches the Orchestrator and through which files. It used to print `ALL CHECKS PASSED` while
-  every host but Claude Code had no route to the Orchestrator (34 D-26, G-34-2).
+  not a readable file, or when a pointer install wrote in an earlier install has no route,
+  re-running `install.js` would replace it, and some host is left without a route (the remedy is to
+  re-run `install.js`); it warns about your own file without the route only when that file leaves a
+  host without a route, quoting the sentence to add; and it prints one `reach` line per supported
+  host, saying whether that host reaches the Orchestrator and through which files. It used to print
+  `ALL CHECKS PASSED` while every host but Claude Code had no route to the Orchestrator (34 D-26,
+  G-34-2).
+- `install.js --check` and install's notes now agree with the same run's `reach` lines (34 D-27):
+  - `--check` said Gemini CLI reaches the Orchestrator through `AGENTS.md`, and printed
+    `ALL CHECKS PASSED`, while `.gemini/settings.json` did not list `AGENTS.md` in
+    `context.fileName`. It now says Gemini CLI cannot reach, with a warning that names re-running
+    `install.js` or the edit to make by hand.
+  - `--check --strict` failed when the optional Copilot pointer or the Pi template was deleted,
+    although every host reached the Orchestrator through `AGENTS.md`. A file without the route that
+    leaves no host without one is now an uncounted `note`, so `--check --strict` no longer fails on
+    it.
+  - Install's notes said Claude Code gets no route to the kit while the same run's `reach` line said
+    Claude Code reaches the Orchestrator through `AGENTS.md` and its adapters. A note now names only
+    the hosts the file leaves without any route.
+  - `--check` told you to re-run `install.js` for a link that install never refreshes. It now names
+    the re-run only when install would refresh or create the file, and otherwise gives the reason
+    and the sentence to add by hand.
 - The install `-- notes --` block now says what the run did with the Claude Code ask rules: added
   them (with the count), added none, would add them under `DRY_RUN`, or refused (see the `verify`
   line). It used to say the installer wrote ask rules in a run that wrote none (WR-12, 34 D-25).
