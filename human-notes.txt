@@ -9,8 +9,21 @@ since other text is not caveman.
 
 3) Read prompts from ponytail project and make software engineer do less over-engineering,
 this speeds up getting to the results and reduces future development time.
+-- Add Tech lead role who adds complexity estimation and pre-plans dev tasks
+-- Add 3 levels for software engineer role, think about task complexity measurements, who will
+   get which task?
+--- junior level - get's simplest tasks, haiku model
+--- mid-level - sonnet model
+--- senior-level - opus
 
 4) Change grugops name? - try to find better name for this solution.
+
+5) Improve main orchestrator
+-- Add "whats in flight" log, which is held clean as well
+-- Add logic that monitors input token count, when it reaches 400k then compact the session
+-- Add logic to use goal or ping orchestrator to monitor the flow - keep at maximum capacity.
+--- Currently often the orchestrator does not spin up new subagents when others stop.
+--- Also sometimes agents complete work, but orchestrator doesn't close them.
 
 5) Investigate issues with memory-bank and plans. It seems the contract on how the agents share state and
   data about epics, tickets and technical info is broken.
