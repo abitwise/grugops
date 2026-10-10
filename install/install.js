@@ -945,35 +945,161 @@ function markerUnreadable(markerFile, read) {
         `re-run install.js (then install.js --check)`);
     console.log("\n1 FAILURE(S)");
 }
-// KIT_ROUTE_CARRIERS (D-26): the files install writes that a host with no Claude Code adapter reads to
-// reach the Orchestrator, each of which must carry KIT_ROUTE. Plan 34-27 lists the Pi prompt template only;
-// plan 34-29 extends the list to every carrier of every registry host.
-const KIT_ROUTE_CARRIERS = [
-    { rel: PI_PROMPT_REL, what: "the Pi prompt template, which Pi expands as /grugops" },
-];
-// kitRouteFindings (D-26, G-34-2): the doctor follows the kit route the way an agent obeying KIT_ROUTE
-// does, then asks each route carrier whether it names the route. Before this, --check asked only about
-// the Claude Code adapters' KIT= agreement and printed ALL CHECKS PASSED while Pi's /grugops named a path
-// that a scripted install never creates (34-UAT.md test 2).
+// CLAUDE.md sentinel block — byte-identical to uninstall.ts (GSD:grugops-start-here).
+const CLAUDE_OPEN = "<!-- GSD:grugops-start-here -->";
+// CLAUDE_PTR (D-26 point 1, plan 34-28): the start-here sentence, one space, then KIT_ROUTE (host-tools.ts, the
+// one authority for the route), still one line, like COPILOT_PTR below. Fixed text: no install-time value.
+const CLAUDE_PTR = "**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator. " + KIT_ROUTE;
+const CLAUDE_CLOSE = "<!-- GSD:grugops-start-here-end -->";
+// WR-05: the Copilot block has its OWN distinct sentinel (not the CLAUDE.md one), so the two
+// blocks are removed independently by uninstall.ts — must match it exactly.
+const COPILOT_REL = ".github/copilot-instructions.md";
+const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
+// COPILOT_PTR (D-26): the start-here sentence, one space, then KIT_ROUTE (host-tools.ts, the one authority
+// for the route), still one line. A scripted install puts the kit in a separate kit home, so the
+// repository-relative `agent-factory/roles/orchestrator.md` alone never resolves for a host with no Claude
+// Code adapter; the route names the marker field that does. Fixed text: no install-time value enters it.
+const COPILOT_PTR = "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator. " + KIT_ROUTE;
+const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
+// PI_PROMPT_TEXT (plan 34-04, D-10, D-16): the whole of the Pi project prompt template install creates
+// at PI_PROMPT_REL (`.pi/prompts/grugops.md`), which Pi users invoke as `/grugops <request>`. It is
+// POINTER TEXT ONLY, never role text (the single-source rule): the start-here sentence is COPILOT_PTR
+// itself, reused rather than retyped, so there is one spelling of it for the Copilot pointer and Pi.
+// Pi reads the `description` and `argument-hint` frontmatter of a project template and expands
+// `$ARGUMENTS` to the text typed after the command (34-RESEARCH.md § B, Pi's prompt-template docs).
+// The template is pointer text that names the kit route (D-26): COPILOT_PTR ends with KIT_ROUTE, which
+// says the kit root is the `kitRoot` field of `.grugops/install.json`. It is not a resolver adapter: it
+// carries no kit-root variable and no resolver slot (check-kit-refs Assertion 3), and no config, argv or
+// environment value ever reaches it (T-34-13 holds; KIT_ROUTE is fixed literal text).
+const PI_PROMPT_TEXT = [
+    "---",
+    "description: Route a software-delivery request through the grugops Orchestrator.",
+    'argument-hint: "<request>"',
+    "---",
+    COPILOT_PTR,
+    "Request: $ARGUMENTS",
+].join("\n") + "\n";
+// ROUTE_BLOCKS (plan 34-29, D-26 point 4): the route carriers install writes as a sentinel block appended to a
+// file (BLOCK_RELS in install-marker.ts: CLAUDE.md and the Copilot pointer), with their sentinels. A carrier not
+// listed here is a whole file install writes (AGENTS.md, the Pi template), owned through its `file` entry.
+const ROUTE_BLOCKS = new Map([
+    ["CLAUDE.md", { open: CLAUDE_OPEN, close: CLAUDE_CLOSE }],
+    [COPILOT_REL, { open: COPILOT_OPEN, close: COPILOT_CLOSE }],
+]);
+// ownBlockSpans (plan 34-28's block rule, made one function by plan 34-29): THE ONE ANSWER to "which copies of
+// install's own block, unedited, does this file hold". owns(ledger, TARGET, rel, "block") gives the `block`
+// entry; blockLineSpans (install-marker.ts, the one finder uninstall's removal uses too) finds every copy of the
+// block lines in `bytes`, and only the spans whose bytes hash to the entry's record are kept. null when the
+// ledger has no usable `block` entry for rel. ensureBlock refreshes a block only when exactly one span is kept,
+// and the doctor calls a carrier install's own on the same answer, so the two cannot disagree. Pure over its
+// arguments: no I/O.
+function ownBlockSpans(ledger, rel, bytes, open, close) {
+    const own = owns(ledger, TARGET, rel, "block");
+    if (!own.owned || own.entry === null)
+        return null;
+    const record = own.entry.block;
+    return { entry: own.entry, spans: blockLineSpans(bytes, open, close).filter((sp) => contentRecord(bytes.subarray(sp.start, sp.end)) === record) };
+}
+// routeCarrierSet (plan 34-29, D-26 point 4): every file through which some registry host can reach the kit
+// route: the union of routeCarriers(host) (host-tools.ts, the one derivation) over HOST_TOOLS, in first-seen
+// registry order. Derived, so a seventh host or a new pointer is asked about with no edit here.
+function routeCarrierSet() {
+    return [...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))];
+}
+const CARRIER_STATE_TEXT = {
+    route: "carries the kit route",
+    "own-stale": "is install's own copy from an earlier install, without the kit route",
+    user: "is not install's own and has no kit route",
+    absent: "is not present",
+    unread: "could not be read, so no verdict was reached on it",
+};
+// carrierFinding (plan 34-29, D-26 point 4): read one route carrier through readUserFile (DC-3: a FIFO, a
+// directory, a device or an oversized file is never read; it is `unread`, a WARN with no verdict) and classify
+// it. The whole file is what a host reads, so the route test is carriesKitRoute over the whole text:
+//   carries KIT_ROUTE                                                    → route      (ok line)
+//   present without it, and install's own: for a whole file, owns over
+//   the doctor's ledger read answers owned for its `file` entry; for a
+//   block (ROUTE_BLOCKS), ownBlockSpans keeps exactly one span — the
+//   same rule the refresh writes on, so "re-run install.js" is true      → own-stale  (FAIL)
+//   present without it, not install's own                                → user       (WARN quoting KIT_ROUTE)
+//   absent                                                               → absent     (WARN)
+//   not a readable regular file                                          → unread     (WARN, no verdict)
+// Every message names the file and the hosts that read it (hostsReading). It writes nothing.
+function carrierFinding(rel, ledger) {
+    const hosts = hostsReading(rel)
+        .map((h) => h.name)
+        .join(", ");
+    const read = readUserFile(join(TARGET, ...rel.split("/")));
+    if (read.state === "absent") {
+        docWarn(`kit route: ${rel} (read by ${hosts}) is not present, so it gives those hosts no grugops pointer here. ` +
+            `Re-run install.js, which writes it where nothing is`);
+        return "absent";
+    }
+    if (read.state !== "ok") {
+        docWarn(`kit route: ${rel} (read by ${hosts}) ${unreadState(read)} — it was not read, so NO VERDICT was ` +
+            `reached on whether it carries the kit route`);
+        return "unread";
+    }
+    if (carriesKitRoute(read.text)) {
+        docReport("ok", `kit route carried by ${rel} (read by ${hosts})`);
+        return "route";
+    }
+    const sentinels = ROUTE_BLOCKS.get(rel);
+    let ownReason;
+    if (sentinels === undefined) {
+        const own = owns(ledger, TARGET, rel, "file");
+        ownReason = own.owned ? null : own.reason;
+    }
+    else {
+        const blk = ownBlockSpans(ledger, rel, read.bytes, sentinels.open, sentinels.close);
+        ownReason =
+            blk !== null && blk.spans.length === 1
+                ? null
+                : blk === null
+                    ? "the install ledger has no record of install's block in it"
+                    : `it holds ${blk.spans.length} unedited copies of install's recorded block, not exactly one`;
+    }
+    if (ownReason === null) {
+        docFail(`kit route missing from ${rel} (read by ${hosts}): install wrote it in an earlier install and it ` +
+            `still holds what install wrote, so it names no route to the kit, which a scripted install puts outside ` +
+            `this repository. Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`);
+        return "own-stale";
+    }
+    docWarn(`kit route missing from ${rel} (read by ${hosts}): it is not install's own (${ownReason}), so ` +
+        `--check reports it and install leaves it as it is. A host reading it gets no route to the kit after a ` +
+        `scripted install. Add this sentence after its start-here sentence: ${KIT_ROUTE}`);
+    return "user";
+}
+// kitRouteFindings (D-26, G-34-2; per host, plan 34-29): the doctor follows the kit route the way an agent
+// obeying KIT_ROUTE does, asks every route carrier whether it names the route, and then says, for every
+// registry host, whether that host reaches the Orchestrator. Before plan 34-27, --check asked only about the
+// Claude Code adapters' KIT= agreement and printed ALL CHECKS PASSED while Pi's /grugops named a path that a
+// scripted install never creates (34-UAT.md test 2); before plan 34-29 it asked only about the Pi template.
 //
-// 1. THE ROUTE. The marker's `kitRoot`, joined with roles/orchestrator.md, read through readUserFile (DC-3:
-//    a FIFO, a device or a link there is never opened). A readable regular file is `ok`; anything else is
-//    one FAIL naming the path and its state: an agent that follows the route does not reach the
-//    Orchestrator. This is asked independently of the kit-root cross-check above: that check compares
-//    three records with each other, this one follows the record an agent reads.
-// 2. EACH CARRIER, read through readUserFile:
-//      carries KIT_ROUTE (carriesKitRoute, the one predicate)           → ok
-//      present without it, and install's own (owns answers owned: the
-//      ledger records it and the file still holds what install wrote)  → FAIL (an earlier install's pointer)
-//      present without it, not install's own                            → WARN quoting KIT_ROUTE to add
-//      absent                                                           → WARN
-//      not a readable regular file                                      → WARN, no verdict reached
-// It writes nothing. The ownership answer comes from owns over the ledger the doctor reads, so install,
-// uninstall and --check cannot disagree about whose file a carrier is.
-function kitRouteFindings(marker, ledger, markerFile) {
+// 1. THE ROUTE. The marker's `kitRoot`, joined with roles/orchestrator.md, read through readUserFile (DC-3: a
+//    FIFO, a device or a link there is never opened). A readable regular file is `ok`; anything else is one
+//    FAIL naming the path and its state: an agent that follows the route does not reach the Orchestrator. This
+//    is asked independently of the kit-root cross-check above: that check compares three records with each
+//    other, this one follows the record an agent reads.
+// 2. EACH CARRIER of routeCarrierSet, through carrierFinding (ok, FAIL or WARN, each counted but `ok`).
+// 3. ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`:
+//      the host reaches when one of its routeCarriers is `route` and the route resolved (step 1), or when its
+//      adapter kind is `claude-kit` and the adapter KIT= value the D-03 cross-check read (`adapterKit`) names
+//      a real kit (kitReal), whatever that cross-check concluded about the other two sources (inside a Claude
+//      Code session the adapter resolves the kit, Phase 7 D-12);
+//      the line names the carriers that gave the route, or, when the host cannot reach, each carrier's state
+//      and the route's.
+//    The counted findings stay the carrier and route lines of steps 1 and 2, so a host that cannot reach always
+//    has a counted WARN or FAIL behind it: each of its carriers is not `route` (a WARN or a FAIL), or the route
+//    did not resolve (a FAIL).
+// It writes nothing. Ownership comes from owns over the ledger the doctor reads, so install, uninstall and
+// --check cannot disagree about whose file a carrier is. Function declarations only, and the doctor's own
+// ledger read: module consts declared below the `--check` early exit are in their temporal dead zone here.
+function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
     // Truthiness, as the kit-root cross-check reads the same field: a recorded path is never compared raw
     // here (WIN-1, path-spelling census); it is only joined and read.
     const kitRoot = typeof marker.kitRoot === "string" ? marker.kitRoot : "";
+    let routeResolves = false;
     if (!kitRoot) {
         docFail(`kit route: ${markerFile} records no \`kitRoot\`, so a host with no Claude Code adapter that follows the ` +
             `kit route cannot reach the Orchestrator. Re-run install.js (then install.js --check)`);
@@ -982,6 +1108,7 @@ function kitRouteFindings(marker, ledger, markerFile) {
         const orchestrator = join(kitRoot, "roles", "orchestrator.md");
         const read = readUserFile(orchestrator);
         if (read.state === "ok") {
+            routeResolves = true;
             docReport("ok", `kit route: the \`kitRoot\` field of .grugops/install.json leads to ${orchestrator}, a readable file — a ` +
                 `host with no Claude Code adapter that follows the route reaches the Orchestrator`);
         }
@@ -991,33 +1118,25 @@ function kitRouteFindings(marker, ledger, markerFile) {
                 `follows the route cannot reach the Orchestrator. Re-run install.js (then install.js --check)`);
         }
     }
-    for (const carrier of KIT_ROUTE_CARRIERS) {
-        const read = readUserFile(join(TARGET, ...carrier.rel.split("/")));
-        if (read.state === "absent") {
-            docWarn(`kit route: ${carrier.rel} (${carrier.what}) is not present, so that host has no grugops pointer here. ` +
-                `Re-run install.js, which writes it where nothing is`);
+    const states = new Map();
+    for (const rel of routeCarrierSet())
+        states.set(rel, carrierFinding(rel, ledger));
+    const adapterReaches = kitReal(adapterKit);
+    for (const host of HOST_TOOLS) {
+        const carriers = routeCarriers(host);
+        const via = routeResolves ? carriers.filter((rel) => states.get(rel) === "route") : [];
+        const viaAdapter = host.adapter === "claude-kit" && adapterReaches;
+        if (via.length > 0 || viaAdapter) {
+            const through = [...via, ...(viaAdapter ? [`its adapters' KIT= line (${adapterKit})`] : [])];
+            docReport("reach", `${host.name}: reaches the Orchestrator through ${through.join(", ")}`);
             continue;
         }
-        if (read.state !== "ok") {
-            docWarn(`kit route: ${carrier.rel} (${carrier.what}) ${unreadState(read)} — it was not read, so NO VERDICT was ` +
-                `reached on whether it carries the kit route`);
-            continue;
-        }
-        if (carriesKitRoute(read.text)) {
-            docReport("ok", `kit route carried by ${carrier.rel} (${carrier.what})`);
-            continue;
-        }
-        const own = owns(ledger, TARGET, carrier.rel, "file");
-        if (own.owned) {
-            docFail(`kit route missing from ${carrier.rel} (${carrier.what}): install wrote it in an earlier install and it ` +
-                `still holds what install wrote, so it names no route to the kit, which a scripted install puts outside ` +
-                `this repository. Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`);
-        }
-        else {
-            docWarn(`kit route missing from ${carrier.rel} (${carrier.what}): it is not install's own file (${own.reason}), so ` +
-                `--check reports it and install leaves it as it is. A host reading it gets no route to the kit after a ` +
-                `scripted install. Add this sentence after its start-here sentence: ${KIT_ROUTE}`);
-        }
+        const why = carriers.map((rel) => `${rel} ${CARRIER_STATE_TEXT[states.get(rel) ?? "unread"]}`);
+        if (!routeResolves)
+            why.push("the kit route does not lead to a readable roles/orchestrator.md");
+        if (host.adapter === "claude-kit")
+            why.push("its adapters' KIT= line names no kit");
+        docReport("reach", `${host.name}: CANNOT reach the Orchestrator: ${why.join("; ")}`);
     }
 }
 // doctor: the INSTALL-05 verifier. Read-only by construction. Returns 0 on pass / WARN-only,
@@ -1167,7 +1286,7 @@ function doctor() {
     // Orchestrator, and do the pointers name it), so a FAIL above does not answer it. The ledger is the one
     // the doctor reads above; an unbound or malformed marker gives no ownership, so a carrier without the
     // route is then a WARN, never a FAIL claimed from a record uninstall would not use.
-    kitRouteFindings(marker, readLedger(markerRead.state === "ok" ? markerRead.marker : null), markerFile);
+    kitRouteFindings(marker, readLedger(markerRead.state === "ok" ? markerRead.marker : null), markerFile, nc);
     // --- WARN tier (D-06, detect-only per D-07): only when the cross-check + stats are clean -----
     if (DOC_FAILS === 0) {
         // kit-version skew: marker kitVersion vs the installed kit's VERSION (read head -n 1 the way
@@ -1601,40 +1720,9 @@ if (!ALLOW_SELF) {
 // live here. Both are deleted — the adapter and skill sets are now derived at run time from
 // $GRUGOPS_SRC by srcSkillNames() / srcAdapterFiles() above, so the installer carries no adapter
 // or skill name literal and needs no edit when the kit grows a new adapter.
-// CLAUDE.md sentinel block — byte-identical to uninstall.ts (GSD:grugops-start-here).
-const CLAUDE_OPEN = "<!-- GSD:grugops-start-here -->";
-// CLAUDE_PTR (D-26 point 1, plan 34-28): the start-here sentence, one space, then KIT_ROUTE (host-tools.ts, the
-// one authority for the route), still one line, like COPILOT_PTR below. Fixed text: no install-time value.
-const CLAUDE_PTR = "**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator. " + KIT_ROUTE;
-const CLAUDE_CLOSE = "<!-- GSD:grugops-start-here-end -->";
-// WR-05: the Copilot block has its OWN distinct sentinel (not the CLAUDE.md one), so the two
-// blocks are removed independently by uninstall.ts — must match it exactly.
-const COPILOT_REL = ".github/copilot-instructions.md";
-const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
-// COPILOT_PTR (D-26): the start-here sentence, one space, then KIT_ROUTE (host-tools.ts, the one authority
-// for the route), still one line. A scripted install puts the kit in a separate kit home, so the
-// repository-relative `agent-factory/roles/orchestrator.md` alone never resolves for a host with no Claude
-// Code adapter; the route names the marker field that does. Fixed text: no install-time value enters it.
-const COPILOT_PTR = "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator. " + KIT_ROUTE;
-const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
-// PI_PROMPT_TEXT (plan 34-04, D-10, D-16): the whole of the Pi project prompt template install creates
-// at PI_PROMPT_REL (`.pi/prompts/grugops.md`), which Pi users invoke as `/grugops <request>`. It is
-// POINTER TEXT ONLY, never role text (the single-source rule): the start-here sentence is COPILOT_PTR
-// itself, reused rather than retyped, so there is one spelling of it for the Copilot pointer and Pi.
-// Pi reads the `description` and `argument-hint` frontmatter of a project template and expands
-// `$ARGUMENTS` to the text typed after the command (34-RESEARCH.md § B, Pi's prompt-template docs).
-// The template is pointer text that names the kit route (D-26): COPILOT_PTR ends with KIT_ROUTE, which
-// says the kit root is the `kitRoot` field of `.grugops/install.json`. It is not a resolver adapter: it
-// carries no kit-root variable and no resolver slot (check-kit-refs Assertion 3), and no config, argv or
-// environment value ever reaches it (T-34-13 holds; KIT_ROUTE is fixed literal text).
-const PI_PROMPT_TEXT = [
-    "---",
-    "description: Route a software-delivery request through the grugops Orchestrator.",
-    'argument-hint: "<request>"',
-    "---",
-    COPILOT_PTR,
-    "Request: $ARGUMENTS",
-].join("\n") + "\n";
+// The CLAUDE.md, Copilot and Pi pointer constants (CLAUDE_OPEN … PI_PROMPT_TEXT) MOVED (plan 34-29) up beside the
+// doctor's kit-route findings, which read the block sentinels: a const declared below the `--check` early exit
+// is in the temporal dead zone when the doctor runs. One authority: there is no copy left at this position.
 // isSymlink MOVED (plan 29.2-04) up into the primitives block beside report / verify / mkdirp /
 // sameContent. It used to be declared here; the doctor now needs adapterDestHazard, which needs it,
 // and a const declared below the `--check` early exit is in the temporal dead zone when the doctor
@@ -2185,8 +2273,8 @@ function migratePreSteps() {
 //
 // THE REFRESH (plan 34-28, D-26 point 2, brief DC-2). When the open sentinel is already there, the block
 // is replaced only on install's own record. `ledger` is the install ledger as this run found it
-// (PREVIOUS_LEDGER, passed in so the doctor can share the rule). owns(ledger, TARGET, rel, "block") gives
-// the `block` entry; the spans of the block lines are found by blockLineSpans (install-marker.ts, the one
+// (PREVIOUS_LEDGER, passed in so the doctor can share the rule). ownBlockSpans (plan 34-29, the one answer the
+// doctor asks too) gives the kept spans: owns(ledger, TARGET, rel, "block") gives the `block` entry; the spans of the block lines are found by blockLineSpans (install-marker.ts, the one
 // finder uninstall's removal uses too) and only the spans whose bytes hash to the entry's record are kept:
 //   - exactly one such span, whose bytes are not the current block lines: that span is replaced by the
 //     current lines and every other byte is written back unchanged (writeTargetFile with how `ok`; under
@@ -2208,10 +2296,10 @@ function ensureBlock(ledger, file, open, body, close, label) {
     if (cur.state === "ok" && cur.text.includes(open)) {
         const newLines = `${open}\n${body}\n${close}\n`;
         const rel = targetRel(file);
-        const own = rel === null ? null : owns(ledger, TARGET, rel, "block");
-        if (rel !== null && own !== null && own.owned && own.entry !== null) {
-            const record = own.entry.block;
-            const matches = blockLineSpans(cur.bytes, open, close).filter((sp) => contentRecord(cur.bytes.subarray(sp.start, sp.end)) === record);
+        // ownBlockSpans: the one answer the doctor's carrier finding asks too (plan 34-29).
+        const own = rel === null ? null : ownBlockSpans(ledger, rel, cur.bytes, open, close);
+        if (rel !== null && own !== null) {
+            const matches = own.spans;
             const newBytes = Buffer.from(newLines, "utf8");
             if (matches.length === 1 && !cur.bytes.subarray(matches[0].start, matches[0].end).equals(newBytes)) {
                 if (DRY_RUN) {

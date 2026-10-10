@@ -23,7 +23,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSy
 import { isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
@@ -543,5 +543,71 @@ describe("kit route: a user's own carrier without the route gets a note naming t
     const r = runInstall(target, kitHome);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expectRouteNote(r.stdout, "CLAUDE.md");
+  });
+});
+
+// ── --check SAYS, FOR EVERY HOST, WHETHER IT REACHES THE ORCHESTRATOR (plan 34-29, D-26 point 4, G-34-2) ──
+//
+// AGENTS.md's STOP rule sends the agent to `install.js --check`, which printed ALL CHECKS PASSED while Pi
+// could not reach the Orchestrator. The doctor now asks every route carrier the registry derives and prints
+// one `reach` line per HOST_TOOLS row, in registry order: `<host name>: reaches the Orchestrator through …`
+// or `<host name>: CANNOT reach the Orchestrator: …`. The host names are read from HOST_TOOLS here, never
+// typed, and the carriers a host reads are this file's own derivation (carriersOf, above).
+
+/** The doctor's `reach` lines, in printed order. */
+const reachLines = (stdout: string): string[] => stdout.split(/\r?\n/).filter((l) => /^ {2}reach\s/.test(l));
+/** The message of a doctor line: the text after the padded label. */
+const messageOf = (line: string): string => line.slice(2 + 14 + 1);
+/** The doctor's verdict for `host`: the one reach line naming it, and whether it says the host reaches. */
+function reachVerdict(stdout: string, host: (typeof HOST_TOOLS)[number]): { line: string; reaches: boolean } {
+  const mine = reachLines(stdout).filter((l) => messageOf(l).startsWith(`${host.name}: `));
+  expect(mine.length, `exactly one reach line for ${host.name}:\n${stdout}`).toBe(1);
+  const rest = messageOf(mine[0]).slice(host.name.length + 2);
+  const reaches = rest.startsWith("reaches the Orchestrator");
+  expect(reaches || rest.startsWith("CANNOT reach the Orchestrator"), `an unparsable reach line: ${mine[0]}`).toBe(true);
+  return { line: mine[0], reaches };
+}
+/** The counted doctor findings (FAIL and WARN lines) whose message is about the kit route. */
+const countedRouteLines = (stdout: string): string[] => routeLines(stdout).filter((l) => /^ {2}(FAIL|WARN)\s/.test(l));
+
+describe("kit route: --check prints, for every registry host, whether it reaches the Orchestrator (plan 34-29, D-26 point 4)", () => {
+  it(`a fresh install with a separate kit home: ${HOST_TOOL_COUNT} reach lines in registry order, every host reaches, each line names its carriers; exit 0`, () => {
+    expect(HOST_TOOLS.length, "premise: the registry pin").toBe(HOST_TOOL_COUNT);
+    const { target, kitHome } = installed();
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const lines = reachLines(c.stdout);
+    expect(lines.length, c.stdout).toBe(HOST_TOOL_COUNT);
+    expect(lines.map((l) => messageOf(l).split(": ")[0])).toEqual(HOST_TOOLS.map((h) => h.name));
+    for (const h of HOST_TOOLS) {
+      const v = reachVerdict(c.stdout, h);
+      expect(v.reaches, v.line).toBe(true);
+      for (const rel of carriersOf(h)) expect(v.line, `the reach line does not name ${rel}`).toContain(rel);
+    }
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+  });
+
+  it(`the user's own AGENTS.md without the route: ${notedHosts("AGENTS.md").join(", ")} cannot reach, the others can; one WARN names AGENTS.md and KIT_ROUTE; exit 0, and 1 with --strict`, () => {
+    const { target, kitHome } = scratchRow();
+    writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const stranded = notedHosts("AGENTS.md");
+    expect(stranded.length, "premise: some host's only carrier is AGENTS.md").toBeGreaterThan(0);
+    expect(reachLines(c.stdout).length, c.stdout).toBe(HOST_TOOL_COUNT);
+    for (const h of HOST_TOOLS) {
+      const v = reachVerdict(c.stdout, h);
+      expect(v.reaches, v.line).toBe(!stranded.includes(h.name));
+      if (!v.reaches) expect(v.line).toContain("AGENTS.md");
+    }
+    const warns = countedRouteLines(c.stdout);
+    expect(warns.length, c.stdout).toBe(1);
+    expect(warns[0].startsWith("  WARN")).toBe(true);
+    expect(warns[0]).toContain("AGENTS.md");
+    expect(warns[0]).toContain(KIT_ROUTE);
+    const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
   });
 });
