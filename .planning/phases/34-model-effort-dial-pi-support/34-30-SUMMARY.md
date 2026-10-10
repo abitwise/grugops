@@ -272,3 +272,9 @@ None. No external service configuration is required.
 ---
 *Phase: 34-model-effort-dial-pi-support*
 *Completed: 2026-10-10*
+
+## Self-Check: PASSED
+
+- Files: docs/audit/29-style-dispositions/34-30.md, install/README.md, install/host-tools.test.ts and this SUMMARY are present.
+- Commits: a6851a0a, ad794d28 and 5520bcaa are ancestors of HEAD.
+- Acceptance re-run: the plan 34-30 doc-truth cases pass; `grep kitRoot` finds lines in both install/README.md and adapters.md; "repo-relative pointer-text" is gone from slash-command.template.md; check-kit-refs prints ALL CHECKS PASSED; the 999.4 grep finds one line, about the live runs; check:diff-disposition reports 0 findings.
