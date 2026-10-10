@@ -3,6 +3,38 @@ phase: 34
 review: 34-REVIEW.md
 titles: json
 findings:
+  - id: WR-13
+    severity: warning
+    disposition: open
+    title: "The doctor says install will not write a block carrier whose install block is gone, but install re-appends the block and the WARN clears (one rule, two derivations)"
+  - id: WR-14
+    severity: warning
+    disposition: open
+    title: "The Gemini gate says \"Gemini CLI does not read AGENTS.md here\" for every settings shape install refuses to merge, including one whose own reason says which `context` Gemini reads is not known"
+  - id: WR-15
+    severity: warning
+    disposition: open
+    title: "A linked `.gemini/settings.json` that lists AGENTS.md: the doctor says Gemini reads it and reaches, while install on the same file exits 3 and says to add AGENTS.md by hand"
+  - id: WR-16
+    severity: warning
+    disposition: open
+    title: "Install's own `--symlink` AGENTS.md link: the doctor says install made it, the re-install's verify says install did not, and the by-hand remedy edits a file outside the target"
+  - id: IN-14
+    severity: info
+    disposition: open
+    title: "`hostsReading` is now a dead product export, and it gives the ungated \"could read\" answer"
+  - id: IN-15
+    severity: info
+    disposition: open
+    title: "The Gemini gate's `why` states what Gemini CLI reads without reading user-level settings"
+  - id: IN-16
+    severity: info
+    disposition: open
+    title: "An absent carrier's uncounted note says \"the hosts that read it here\""
+  - id: IN-17
+    severity: info
+    disposition: open
+    title: "The by-hand remedy says \"after its start-here sentence\" for files that have none"
   - id: CR-01
     severity: critical
     disposition: fixed
@@ -107,27 +139,35 @@ findings:
     severity: warning
     disposition: fixed
     title: "Phase-34 edits re-assert, and widen to Pi, a claim that \"the installer sets `GRUGOPS_PROJECT_DIR`\", which no code does"
-open: 0
-total: 26
-recorded: 2026-10-10T12:03:02.584Z
+open: 8
+total: 34
+recorded: 2026-10-10T17:48:26.699Z
 ---
 
 # Phase 34: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | plan 34-32: the Gemini row's entryGates and one owner, hostReadsCarrier, asking ENTRY_GATE_CHECKS over this repository's .gemini/settings.json through readGeminiContext; the remedy reads geminiMergePlan (D-27) (commits 242a55fb, d8b6b2da) |
-| WR-01 | warning | fixed | plan 34-34: one predicate, refreshable, decides refresh for refreshOwnFile, ensureBlock and the doctor, so a link install made gets a WARN with the by-hand remedy; the absent arm asks readForWrite (D-27) (commits 1b91bc2d, 10bcf91f) |
-| WR-02 | warning | fixed | plan 34-33: one derivation, strandedBy, for the doctor's counted lines and install's route notes over the state the run leaves, so a note names only the hosts left without any route (D-27) (commits 1327ac26, e6a36b9d) |
-| WR-03 | warning | fixed | plan 34-33: a carrier without the route is counted only when strandedBy names a host, otherwise an uncounted note, so --check --strict passes when every host reaches (D-27) (commits 1327ac26, e6a36b9d) |
-| WR-04 | warning | deferred | Deferred by the human (D-27 point 5). The block-carrier sets agree today, and the 34-35 install-and-doctor agreement assertion turns red if install and the doctor classify a carrier differently. Owner: backlog triage. Carried in deferred-items.md |
-| WR-05 | warning | deferred | Deferred (D-27 point 5). The read-gate-write window is shorter than the documented writeTargetFile residual, and plan 34-34 kept refreshOwnFile's read order without widening it. Owner: installer write-path hardening backlog. Carried in deferred-items.md |
-| IN-01 | info | fixed | plan 34-32: the kitRouteFindings header says a link is followed, as a host would follow it (D-27) (commit 242a55fb) |
-| IN-02 | info | deferred | Deferred (D-27 point 5). Both failure modes fail closed into STOP, and whether to commit .grugops/install.json is a human decision about shared state. Owner: human triage. Carried in deferred-items.md |
-| IN-03 | info | deferred | Deferred (D-27 point 5). No false claim is printed, and adding the dropped facts changes user-visible output. Owner: backlog. Carried in deferred-items.md |
-| IN-04 | info | deferred | Deferred (D-27 point 5). Harmless dead call, in uninstall.ts, which this round does not touch. Owner: backlog. Carried in deferred-items.md |
-| IN-05 | info | deferred | Deferred (D-27 point 5). Cosmetic; the marker line under the heading is accurate. Owner: backlog. Carried in deferred-items.md |
-| IN-06 | info | fixed | plan 34-36: the install guide's AGENTS.md bullet says the file is refreshed when it is install's own unedited copy, bound by a doc-truth case (D-27) (commits e7492436, 2305ff21) |
+| WR-13 | warning | open | - |
+| WR-14 | warning | open | - |
+| WR-15 | warning | open | - |
+| WR-16 | warning | open | - |
+| IN-14 | info | open | - |
+| IN-15 | info | open | - |
+| IN-16 | info | open | - |
+| IN-17 | info | open | - |
+| CR-01 | critical | fixed | plan 34-32: the Gemini row's entryGates and one owner, hostReadsCarrier, asking ENTRY_GATE_CHECKS over this repository's .gemini/settings.json through readGeminiContext; the remedy reads geminiMergePlan (D-27) (commits 242a55fb, d8b6b2da) (not in the current review) |
+| WR-01 | warning | fixed | plan 34-34: one predicate, refreshable, decides refresh for refreshOwnFile, ensureBlock and the doctor, so a link install made gets a WARN with the by-hand remedy; the absent arm asks readForWrite (D-27) (commits 1b91bc2d, 10bcf91f) (not in the current review) |
+| WR-02 | warning | fixed | plan 34-33: one derivation, strandedBy, for the doctor's counted lines and install's route notes over the state the run leaves, so a note names only the hosts left without any route (D-27) (commits 1327ac26, e6a36b9d) (not in the current review) |
+| WR-03 | warning | fixed | plan 34-33: a carrier without the route is counted only when strandedBy names a host, otherwise an uncounted note, so --check --strict passes when every host reaches (D-27) (commits 1327ac26, e6a36b9d) (not in the current review) |
+| WR-04 | warning | deferred | Deferred by the human (D-27 point 5). The block-carrier sets agree today, and the 34-35 install-and-doctor agreement assertion turns red if install and the doctor classify a carrier differently. Owner: backlog triage. Carried in deferred-items.md (not in the current review) |
+| WR-05 | warning | deferred | Deferred (D-27 point 5). The read-gate-write window is shorter than the documented writeTargetFile residual, and plan 34-34 kept refreshOwnFile's read order without widening it. Owner: installer write-path hardening backlog. Carried in deferred-items.md (not in the current review) |
+| IN-01 | info | fixed | plan 34-32: the kitRouteFindings header says a link is followed, as a host would follow it (D-27) (commit 242a55fb) (not in the current review) |
+| IN-02 | info | deferred | Deferred (D-27 point 5). Both failure modes fail closed into STOP, and whether to commit .grugops/install.json is a human decision about shared state. Owner: human triage. Carried in deferred-items.md (not in the current review) |
+| IN-03 | info | deferred | Deferred (D-27 point 5). No false claim is printed, and adding the dropped facts changes user-visible output. Owner: backlog. Carried in deferred-items.md (not in the current review) |
+| IN-04 | info | deferred | Deferred (D-27 point 5). Harmless dead call, in uninstall.ts, which this round does not touch. Owner: backlog. Carried in deferred-items.md (not in the current review) |
+| IN-05 | info | deferred | Deferred (D-27 point 5). Cosmetic; the marker line under the heading is accurate. Owner: backlog. Carried in deferred-items.md (not in the current review) |
+| IN-06 | info | fixed | plan 34-36: the install guide's AGENTS.md bullet says the file is refreshed when it is install's own unedited copy, bound by a doc-truth case (D-27) (commits e7492436, 2305ff21) (not in the current review) |
 | WR-11 | warning | deferred | Windows is out of scope during active development (human, 2026-10-09, D-25). On a POSIX checkout, install leaves a Windows-written marker unchanged, writes no ask rules and exits 3 until a hand edit; nothing is deleted (34-REVIEW.md WR-11). Deferred with Windows support. Carried in deferred-items.md (not in the current review) |
 | WR-12 | warning | fixed | plan 34-25: writeAskRules returns an AskRulesOutcome on every exit and the install closing notes print the ask-rules sentence from that outcome only (D-25) (commits baa8d073, 413cddd8); plan 34-26: the --update banner and status come from VERIFY_FINDINGS, and the --migrate and uninstall closing lines say what the run did, siblings A, B and C (D-25) (commits afe94f40, 39ff1558, efe81f3e) (not in the current review) |
 | IN-09 | info | deferred | Outside gap round 3's scope (D-25: G-34-2 and G-34-4 only). The per-adapter zero-config value branch in scripts/adapters-freshness.ts is unreachable while validator rule 8 holds; say so in its comment or drop it. Owner: backlog triage (not in the current review) |
