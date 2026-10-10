@@ -423,6 +423,72 @@ describe("install guide covers Pi (plan 34-08)", () => {
   });
 });
 
+// ── Plan 34-30 (D-26, DOC-1, G-34-2): the guide's Pi section states the kit route the code writes. ────
+//
+// Plan 34-16 added a caveat saying the template names a path inside the repository and that kit discovery
+// after a scripted install is unknown. Plans 34-27 to 34-29 made the template carry KIT_ROUTE, so that
+// caveat is false. The section is found by heading (exactly one) and bounded at the next heading of the
+// same or a higher level, as the 34-06 and 34-08 cases bound theirs. The tokens it must name are taken
+// from KIT_ROUTE itself (its backticked tokens that name one file or field, not a pattern or a
+// placeholder), so a change to the route moves this case with it. The live run stays `UNKNOWN - verify`.
+describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () => {
+  const GUIDE = join(import.meta.dirname, "README.md");
+  const flat = (s: string): string => s.replace(/\s+/g, " ");
+
+  function guideSection(headingText: string): string {
+    const lines = readFileSync(GUIDE, "utf8").split(/\r?\n/);
+    const heads = lines
+      .map((l, i) => ({ i, m: /^(#{1,6})\s+(.*)$/.exec(l) }))
+      .filter((h) => h.m !== null);
+    const hits = heads.filter((h) => h.m![2].trim() === headingText);
+    expect(hits.length, `the guide must carry exactly one "${headingText}" heading`).toBe(1);
+    const level = hits[0].m![1].length;
+    const next = heads.find((h) => h.i > hits[0].i && h.m![1].length <= level);
+    return flat(lines.slice(hits[0].i + 1, next === undefined ? lines.length : next.i).join("\n"));
+  }
+  const piUse = (): string => guideSection("Using grugops on Pi");
+  const ROUTE_SECTION = "How a host finds the kit after a scripted install";
+
+  // KIT_ROUTE's backticked tokens that name one file or one field (a token holding `…` or `<` is a
+  // pattern or a placeholder, not a name).
+  const ROUTE_NAMES = [...KIT_ROUTE.matchAll(/`([^`]+)`/g)].map((m) => m[1]).filter((t) => !t.includes("…") && !t.includes("<"));
+
+  it("KIT_ROUTE names the marker file and its kitRoot field (the cases below read these names)", () => {
+    expect(ROUTE_NAMES).toContain(".grugops/install.json");
+    expect(ROUTE_NAMES).toContain("kitRoot");
+  });
+
+  it("the Pi section names every file and field KIT_ROUTE names, and the --check reach lines", () => {
+    const use = piUse();
+    for (const t of ROUTE_NAMES) expect(use, `the Pi section does not name \`${t}\``).toContain(`\`${t}\``);
+    expect(use).toContain("--check");
+  });
+
+  it("the Pi section keeps the live run `UNKNOWN - verify`, and no longer says the template names a path inside the repository", () => {
+    const use = piUse();
+    const caveat = use.split(/(?<=\.)\s+/).find((s) => s.includes("`UNKNOWN - verify`"));
+    expect(caveat, "the Pi section has no `UNKNOWN - verify` sentence").toBeDefined();
+    expect(caveat!).toMatch(/live run/);
+    expect(caveat!).toContain("34-UAT.md");
+    // The 34-16 sentence (WR-06): true before D-26, false since plan 34-27.
+    expect(use).not.toContain("a path inside the repository");
+    expect(use).not.toContain("No Pi run has shown whether Pi reaches the kit");
+  });
+
+  it("the kit-route section names KIT_ROUTE, the marker field, and every route carrier the registry derives", () => {
+    const sec = guideSection(ROUTE_SECTION);
+    expect(sec).toContain("`KIT_ROUTE`");
+    for (const t of ROUTE_NAMES) expect(sec, `the kit-route section does not name \`${t}\``).toContain(`\`${t}\``);
+    // The files --check asks: the union of routeCarriers over HOST_TOOLS (install.ts routeCarrierSet).
+    const carriers = [...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))];
+    expect(carriers.length).toBeGreaterThan(1);
+    for (const rel of carriers) expect(sec, `the kit-route section does not name \`${rel}\``).toContain(`\`${rel}\``);
+    for (const token of ["--check", "`reach`", "FAIL", "WARN", "`UNKNOWN - verify`"]) {
+      expect(sec, `the kit-route section does not carry ${token}`).toContain(token);
+    }
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // The kit route in the kit's AGENTS.md (plan 34-27, D-26). KIT_ROUTE is the one authority for the route
 // sentence; the "Kit vs state" rule carries it byte for byte, once, and keeps the SC2 invariant sentence

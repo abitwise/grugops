@@ -52,9 +52,12 @@ per session), never a consequence of the depth cap — depth and width are indep
 sequential role-load is still available as the fallback. What changes from tool to tool is the **entry file** the host reads
 to reach `agent-factory/roles/orchestrator.md` (the column above) and — on Claude Code only — the
 dispatch mode. **Same roles, same shared context, same gates — the non-spawning host CLIs stay
-sequential; only Claude Code adds coordinator spawning.** Whether a host other than Claude Code
-reaches the kit through its entry file after a scripted install is `UNKNOWN - verify`; see
-`install/README.md`, section "Using grugops on Pi".
+sequential; only Claude Code adds coordinator spawning.** After a scripted install the kit is not in
+the repository. For a host with no Claude Code adapter, the kit route in its entry file
+(`KIT_ROUTE` in `install/host-tools.ts`) names the kit root as the `kitRoot` field of
+`.grugops/install.json`, and `install.js --check` prints a `reach` line per host. Whether a live
+host other than Claude Code follows the route is `UNKNOWN - verify`; the full statement is in
+`install/README.md`, section "How a host finds the kit after a scripted install".
 
 ### The three entry tiers (Claude Code)
 
@@ -132,13 +135,15 @@ verify against current Pi docs before you rely on one.
 
 **What grugops writes for Pi.** The installer writes one file, `.pi/prompts/grugops.md`. It is a
 pointer prompt template that gives `/grugops` and sends Pi to `AGENTS.md` and then
-`agent-factory/roles/orchestrator.md`. It is not a resolver adapter and holds no role text. grugops never writes `.pi/SYSTEM.md`,
+`agent-factory/roles/orchestrator.md`. It is not a resolver adapter (no kit-home variable, no
+self-heal block) and holds no role text. grugops never writes `.pi/SYSTEM.md`,
 `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, writes no Pi skill or extension, and ships no Pi
 skill package. Start Pi from the repository root to get the command, because Pi looks for project
 templates only in the directory it starts in. Pi still asks for project trust before it loads the
-template. Whether Pi finds the kit after a scripted install, which puts the kit in the shared kit
-root and not in the repository, is `UNKNOWN - verify` (backlog item 999.4 in `.planning/ROADMAP.md`);
-the full statement is in `install/README.md`, section "Using grugops on Pi".
+template. The template also names the kit route: after a scripted install, which puts the kit in
+the shared kit root and not in the repository, the kit root is the `kitRoot` field of
+`.grugops/install.json`. Whether Pi follows the route on a live run is `UNKNOWN - verify`; the full
+statement is in `install/README.md`, section "Using grugops on Pi".
 
 **Safety on Pi.** Pi can read, change and run files with the permissions of the account that started
 it, and it does not ask for approval before every tool call (source:

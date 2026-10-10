@@ -260,8 +260,13 @@ In the **target repo**:
   overwrites one you edited (see "Re-installing" above). A file that was already there, byte for
   byte what install would write, and that no earlier record of install's names, is left and not
   recorded, so uninstall leaves it
+- `AGENTS.md` — copied from the kit (or linked, under `--symlink`) only when the target has none,
+  and recorded in the install ledger in `.grugops/install.json`. Its "Kit vs state" rule names the
+  kit route (see "How a host finds the kit after a scripted install" below). An `AGENTS.md` you
+  wrote, or install's copy that you edited, is never written
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
-  existing content is preserved). When `CLAUDE.md` does not exist, install creates it and records
+  existing content is preserved). After its start-here sentence the line names the kit route, the
+  `kitRoot` field of `.grugops/install.json`. When `CLAUDE.md` does not exist, install creates it and records
   that in the install ledger in `.grugops/install.json`; the block it appended is recorded there
   too. A `CLAUDE.md` that is a symbolic link (the common `CLAUDE.md -> AGENTS.md`
   setup included) or a hard link is not written through: install reports a `verify` line (exit
@@ -286,19 +291,28 @@ In the **target repo**:
   rules are recorded so uninstall removes exactly those)
 - `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
   `tools/grugops/host-protection.js` (§5)
-- an optional `.github/copilot-instructions.md` pointer, by the same rules as `CLAUDE.md`: when the
-  file does not exist, install creates it and records that, and the block, in the install ledger in
-  `.grugops/install.json`
+- an optional `.github/copilot-instructions.md` pointer, by the same rules as `CLAUDE.md` and naming
+  the same kit route: when the file does not exist, install creates it and records that, and the
+  block, in the install ledger in `.grugops/install.json`
 - `.pi/prompts/grugops.md` — a short Pi prompt template, written in every install whether or not
   you use Pi. It is a pointer: it tells Pi to read `AGENTS.md`, then
-  `agent-factory/roles/orchestrator.md`, and act as the Orchestrator, and it passes your request
-  through. It holds no role text. Install records the file in the install ledger in
-  `.grugops/install.json`, and records the `.pi` and `.pi/prompts` directories only when this
-  install created them. A file already at that path is left untouched and never recorded, so the
-  uninstaller leaves it too. `DRY_RUN=1` lists the template as `would-add` and writes nothing. How
-  to use it, and what Pi asks first, is in "Using grugops on Pi" below
+  `agent-factory/roles/orchestrator.md`, and act as the Orchestrator, it names the kit route (the
+  `kitRoot` field of `.grugops/install.json`), and it passes your request through. It holds no role
+  text. Install records the file in the install ledger in `.grugops/install.json`, and records the
+  `.pi` and `.pi/prompts` directories only when this install created them. A file already at that
+  path that is not install's own unedited copy (one you wrote, or install's that you edited) is left
+  untouched and not recorded, so the uninstaller leaves it too. `DRY_RUN=1` lists the template as
+  `would-add` and writes nothing. How to use it, and what Pi asks first, is in "Using grugops on Pi"
+  below
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
+
+On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, the Pi
+template and an `AGENTS.md` it created when the install ledger record for it still holds (nobody
+edited it since) and its text is not the current text, and records the new bytes, so uninstall
+still removes exactly what install wrote; `DRY_RUN=1` lists such a file as `would-refresh`. A file
+you wrote or edited is never written: when it lacks the kit route, install prints a `note` that
+names it, the hosts it leaves without a route to the kit, and the sentence to add.
 
 In the **shared kit root** (`${GRUGOPS_HOME:-$HOME/.grugops}`):
 
@@ -323,6 +337,32 @@ writes that is not what it expects (a FIFO, a directory, a device, a symbolic li
 or a hard link) is skipped and reported as a `verify` line, never read or written through, so the
 installer cannot hang on it (see the exit-code paragraph above).
 
+### How a host finds the kit after a scripted install
+
+The scripted install puts the kit in the shared kit root, not in your repository, so a pointer that
+names `agent-factory/roles/orchestrator.md` does not resolve inside the repository after it. Every
+install writes the kit root into the `kitRoot` field of `.grugops/install.json`. One sentence, the
+kit route (`KIT_ROUTE` in `install/host-tools.ts`), says that the kit root is that directory and
+that each `agent-factory/…` path is read under it. The kit's `AGENTS.md` carries the route in its
+"Kit vs state" rule, for the hosts that read only `AGENTS.md`, and the `CLAUDE.md` block, the
+Copilot pointer and the Pi template carry it after their start-here sentence. The route is the same
+text on every machine: it names the field, never a path. Inside a Claude Code session the adapters
+still name the kit root on their `KIT=` line. With no `.grugops/install.json` (the minimal copy
+install, §1), the kit is the repository's own `agent-factory/`.
+
+`node install/install.js --check --target /path/to/repo` follows the route the way an agent does. It
+reads `kitRoot` and reports a FAIL when `<kitRoot>/roles/orchestrator.md` is not a readable file.
+It then asks each file a host reads for the route (`AGENTS.md`, `CLAUDE.md`,
+`.github/copilot-instructions.md` and `.pi/prompts/grugops.md`): a file install wrote in an earlier
+install that still holds what install wrote and has no route is a FAIL whose remedy is to re-run
+`install.js`; your own file without the route is a WARN that quotes the sentence to add; an absent
+or unreadable file is a WARN. Last, it prints one `reach` line per supported host, saying whether
+that host reaches the Orchestrator and through which of these files (for Claude Code, also through
+the adapters' `KIT=` line). The `reach` lines
+report what the files say. Whether a live host other than Claude Code follows them is
+`UNKNOWN - verify` until a run on that host shows it; those runs are backlog item 999.4 in
+`.planning/ROADMAP.md`.
+
 ### Using grugops on Pi
 
 Install Pi itself from [pi.dev](https://pi.dev); grugops does not install it. Start Pi from the
@@ -330,14 +370,13 @@ repository root and type `/grugops <request>`. Pi turns the template `.pi/prompt
 the `/grugops` command, and the command sends Pi to `AGENTS.md` and then
 `agent-factory/roles/orchestrator.md` with your request.
 
-**Whether Pi finds the kit after a scripted install is `UNKNOWN - verify`.** The template names
-`agent-factory/roles/orchestrator.md`, a path inside the repository. The scripted install (§2) puts
-the kit in the shared kit root, `${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory`, not in the
-repository, and `AGENTS.md` tells an agent to stop, not to search, when the kit is absent. No Pi run
-has shown whether Pi reaches the kit in that layout. This open question is backlog item 999.4 in
-`.planning/ROADMAP.md`, and it holds for every host CLI other than Claude Code. The minimal
-markdown-copy install (§1) puts `agent-factory/` in the repository at the path the template names,
-but no Pi run has confirmed that path either.
+After a scripted install, the template also names where the kit is: the `kitRoot` field of
+`.grugops/install.json`, which every install writes, with `agent-factory/roles/orchestrator.md` read
+as `<kitRoot>/roles/orchestrator.md` (see "How a host finds the kit after a scripted install"
+above). `AGENTS.md` carries the same route. `node install/install.js --check --target /path/to/repo`
+prints a `reach` line for Pi that says whether these files lead to the Orchestrator. Whether Pi
+follows the route on a live run is `UNKNOWN - verify` until the re-run recorded in
+`.planning/phases/34-model-effort-dial-pi-support/34-UAT.md`.
 
 - **Start Pi from the repository root.** Pi looks for the `.pi/prompts` directory only in the
   directory it was started in, so `/grugops` is missing when Pi starts in a subdirectory.
