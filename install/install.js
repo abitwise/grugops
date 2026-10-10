@@ -1223,7 +1223,7 @@ function refreshable(ledger, rel, cur) {
         if (!own.owned)
             return no(own.reason);
         if (!own.entry.content.startsWith("sha256:")) {
-            return no("it is a link install made (a --symlink install), and install never refreshes a link");
+            return no("it is a link a --symlink install made, and install never refreshes a link");
         }
         const now = readNow();
         if (typeof now === "string")
@@ -1406,6 +1406,21 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
         const through = [...v.carriers, ...(v.adapter ? [adapterText] : [])];
         return through.length > 0 ? through.join(", ") : null;
     };
+    // The absent arm's remedy (plan 34-34, D-27 point 3): `Re-run install.js` only when install would write the carrier,
+    // asked the way install asks it: readForWrite answers `create` for the path (no link, non-directory or unreadable
+    // component on the way), and, for a whole file, the kit's current text for it can be read (carrierWant; install's
+    // AGENTS.md step copies or links the kit source only when it reads). Otherwise the reason install will not write it.
+    const absentRemedy = (rel) => {
+        const path = join(TARGET, ...rel.split("/"));
+        const w = readForWrite(TARGET, path);
+        if (w.state === "blocked")
+            return `Install will not write it: ${blockedAt(w, path)}`;
+        if (w.state === "ok")
+            return `Install will not write it: ${path} is there now, so run install.js --check again`;
+        if (!ROUTE_BLOCKS.has(rel) && carrierWant(rel) === null)
+            return `Install will not write it: the kit's current text for it could not be read`;
+        return `Re-run install.js, which writes it where nothing is`;
+    };
     // (d) One line per carrier.
     for (const rel of rels) {
         const cls = classes.get(rel);
@@ -1420,7 +1435,7 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
             : cls.state === "user"
                 ? `Add this sentence after its start-here sentence${cls.link ? " (in the file the link points to)" : ""}: ${KIT_ROUTE}`
                 : cls.state === "absent"
-                    ? `Re-run install.js, which writes it where nothing is`
+                    ? absentRemedy(rel)
                     : `It was not read, so NO VERDICT was reached on whether it carries the kit route`;
         const stranded = strandedBy(rel, facts);
         if (stranded.length === 0) {
@@ -2611,11 +2626,12 @@ function migratePreSteps() {
 // Each is now left untouched and reported. An absent file is created with an exclusive create that
 // already carries the block (the same bytes the old empty-create-then-append produced).
 //
-// THE REFRESH (plan 34-28, D-26 point 2, brief DC-2). When the open sentinel is already there, the block
-// is replaced only on install's own record. `ledger` is the install ledger as this run found it
-// (PREVIOUS_LEDGER, passed in so the doctor can share the rule). ownBlockSpans (plan 34-29, the one answer the
-// doctor asks too) gives the kept spans: owns(ledger, TARGET, rel, "block") gives the `block` entry; the spans of the block lines are found by blockLineSpans (install-marker.ts, the one
-// finder uninstall's removal uses too) and only the spans whose bytes hash to the entry's record are kept:
+// THE REFRESH (plan 34-28, D-26 point 2, brief DC-2; plan 34-34, D-27 point 3). When the open sentinel is already
+// there, the block is replaced only when refreshable answers ok (the one predicate the doctor asks too), over this
+// function's own readForWrite read. `ledger` is the install ledger as this run found it (PREVIOUS_LEDGER).
+// refreshable asks ownBlockSpans (plan 34-29): owns(ledger, TARGET, rel, "block") gives the `block` entry; the spans of
+// the block lines are found by blockLineSpans (install-marker.ts, the one finder uninstall's removal uses too) and only
+// the spans whose bytes hash to the entry's record are kept:
 //   - exactly one such span, whose bytes are not the current block lines: that span is replaced by the
 //     current lines and every other byte is written back unchanged (writeTargetFile with how `ok`; under
 //     DRY_RUN a `would-refresh` line instead, decided before any write). The new lines are recorded through
@@ -2639,13 +2655,13 @@ function ensureBlock(ledger, file, open, body, close, label) {
     if (cur.state === "ok" && cur.text.includes(open)) {
         const newLines = `${open}\n${body}\n${close}\n`;
         const rel = targetRel(file);
-        // ownBlockSpans: the one answer the doctor's carrier finding asks too (plan 34-29).
-        const own = rel === null ? null : ownBlockSpans(ledger, rel, cur.bytes, open, close);
-        if (rel !== null && own !== null) {
-            const matches = own.spans;
+        // refreshable (plan 34-34, D-27 point 3): the one predicate the doctor's carrier classification asks too. It is
+        // handed this function's own read, so the decision and the splice below are made on one read.
+        const r = rel === null ? null : refreshable(ledger, rel, cur);
+        if (rel !== null && r !== null && r.ok && r.kind === "block") {
             const newBytes = Buffer.from(newLines, "utf8");
-            if (matches.length === 1 && !cur.bytes.subarray(matches[0].start, matches[0].end).equals(newBytes)) {
-                const next = Buffer.concat([cur.bytes.subarray(0, matches[0].start), newBytes, cur.bytes.subarray(matches[0].end)]);
+            if (!r.cur.bytes.subarray(r.span.start, r.span.end).equals(newBytes)) {
+                const next = Buffer.concat([r.cur.bytes.subarray(0, r.span.start), newBytes, r.cur.bytes.subarray(r.span.end)]);
                 if (DRY_RUN) {
                     setPlanned(file, next);
                     report("would-refresh", `${label} (install's own block from an earlier install, unedited, is not the current text)`);
@@ -2654,7 +2670,7 @@ function ensureBlock(ledger, file, open, body, close, label) {
                 const createdHeld = owns(ledger, TARGET, rel, "file").owned;
                 if (!writeTargetFile(file, next, "ok", label))
                     return;
-                recordAppendedBlock(file, newLines, own.entry.separator);
+                recordAppendedBlock(file, newLines, r.own.separator);
                 if (createdHeld)
                     recordCreatedFile(file, writtenFileRecord(file, next));
                 report("refreshed", `${label} (install's own block from an earlier install, unedited, held no kit route or was older; replaced with the current text, every other byte kept, and recorded)`);

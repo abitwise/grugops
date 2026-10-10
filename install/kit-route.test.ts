@@ -19,7 +19,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -1423,15 +1423,27 @@ const installWrote = (stdout: string, rel: string): boolean => reports(stdout, "
 /** The doctor named `Re-run install.js` on a line about carrier `rel`. */
 const rerunNamed = (stdout: string, rel: string): boolean => carrierLines(stdout, rel).some((l) => l.includes("Re-run install.js"));
 
-/** Doctor, re-install (with `args`), doctor; asserts the doctor's re-run remedy for `rel` appears exactly when the re-install writes it. */
+/** Every route carrier, derived from HOST_TOOLS and ROUTE_POINTERS (carriersOf), never typed. */
+const allCarriers = (): string[] => [...new Set(HOST_TOOLS.flatMap(carriersOf))];
+
+/**
+ * Doctor, re-install (with `args`), doctor. For every route carrier (derived, count asserted non-zero), the doctor's
+ * `Re-run install.js` on a line about it appears exactly when the re-install reports `refreshed` or `created` for it;
+ * `rel` is the carrier the row is about, which must be among them.
+ */
 function doctorInstallDoctor(row: { target: string; kitHome: string }, rel: string, args: readonly string[] = []): { before: Run; again: Run; after: Run } {
   const before = check(row.target, row.kitHome);
   const again = runInstall(row.target, row.kitHome, [...args]);
   const after = check(row.target, row.kitHome);
-  expect(
-    rerunNamed(before.stdout, rel),
-    `the doctor and install disagree on ${rel}.\n--check said:\n${carrierLines(before.stdout, rel).join("\n")}\nthe re-install said:\n${again.stdout}`,
-  ).toBe(installWrote(again.stdout, rel));
+  const carriers = allCarriers();
+  expect(carriers.length, "premise: the registry derives some route carrier").toBeGreaterThan(0);
+  expect(carriers, `premise: ${rel} is a route carrier`).toContain(rel);
+  for (const c of carriers) {
+    expect(
+      rerunNamed(before.stdout, c),
+      `the doctor and install disagree on ${c}.\n--check said:\n${carrierLines(before.stdout, c).join("\n")}\nthe re-install said:\n${again.stdout}`,
+    ).toBe(installWrote(again.stdout, c));
+  }
   return { before, again, after };
 }
 
@@ -1455,6 +1467,15 @@ function relinkOwn(target: string, rel: string, to: string): void {
       (e as Record<string, unknown>).content = content.split(old).join(to);
     }),
   );
+}
+
+/** Move the file at `rel` out of the target and put a link to it in its place; returns where it now is. */
+function moveOutAndLink(target: string, rel: string): string {
+  const path = join(target, ...rel.split("/"));
+  const out = join(dirname(target), `elsewhere-${rel.replace(/[/.]/g, "_")}`);
+  renameSync(path, out);
+  symlinkSync(out, path);
+  return out;
 }
 
 describe("kit route: one refreshable predicate decides refresh for install and the doctor (plan 34-34, D-27 point 3)", () => {
@@ -1500,5 +1521,88 @@ describe("kit route: one refreshable predicate decides refresh for install and t
     expect(after.status, after.stdout + after.stderr).toBe(0);
     for (const h of HOST_TOOLS) expect(reachVerdict(after.stdout, h).reaches, reachVerdict(after.stdout, h).line).toBe(true);
     expect(countedRouteLines(after.stdout), after.stdout).toEqual([]);
+  });
+
+  it("CLAUDE.md link: install's own earlier block, moved out of the target and linked back: an uncounted note with the link reason and the by-hand remedy, no `Re-run install.js`; the re-install verifies and leaves the file byte-identical", () => {
+    const row = installed();
+    stageEarlierBlock(row.target, "CLAUDE.md", CLAUDE_OPEN, CLAUDE_CLOSE);
+    const out = moveOutAndLink(row.target, "CLAUDE.md");
+    const bytes = readFileSync(out);
+    expect(strandedOf(row.target, "CLAUDE.md"), "premise: Claude Code reaches through AGENTS.md and its adapters").toEqual([]);
+    const { before, again, after } = doctorInstallDoctor(row, "CLAUDE.md");
+    const lines = carrierLines(before.stdout, "CLAUDE.md");
+    expect(lines.length, before.stdout).toBe(1);
+    expect(lines[0].startsWith("  note"), lines[0]).toBe(true);
+    expect(lines[0]).toContain("is a symbolic link");
+    expect(lines[0]).toContain("(in the file the link points to)");
+    expect(lines[0]).toContain(KIT_ROUTE);
+    expect(lines[0]).not.toContain("Re-run install.js");
+    expect(again.status, again.stdout + again.stderr).toBe(3);
+    expect(verifiesFor(again.stdout, "CLAUDE.md").length, again.stdout).toBe(1);
+    expect(reports(again.stdout, "refreshed", "CLAUDE.md"), again.stdout).toBe(false);
+    expect(readlinkSync(join(row.target, "CLAUDE.md"))).toBe(out);
+    expect(readFileSync(out).equals(bytes), "the file the link points to changed").toBe(true);
+    expect(carrierLines(after.stdout, "CLAUDE.md"), after.stdout).toEqual(lines);
+  });
+
+  it("Copilot link, counted: install's own earlier block linked from outside the target, with the user's own AGENTS.md without the route: a counted WARN for the Copilot file (not a FAIL) and one for AGENTS.md; the re-install verifies and refreshes nothing", () => {
+    const row = installedWithOwnAgents();
+    stageEarlierBlock(row.target, COPILOT_REL, COPILOT_OPEN, COPILOT_CLOSE);
+    const out = moveOutAndLink(row.target, COPILOT_REL);
+    const bytes = readFileSync(out);
+    const stranded = strandedOf(row.target, COPILOT_REL);
+    expect(stranded.length, "premise: the Copilot file strands some host").toBeGreaterThan(0);
+    const { before, again, after } = doctorInstallDoctor(row, COPILOT_REL);
+    const lines = carrierLines(before.stdout, COPILOT_REL);
+    expect(lines.length, before.stdout).toBe(1);
+    expect(lines[0].startsWith("  WARN"), lines[0]).toBe(true);
+    expect(lines[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+    expect(lines[0]).toContain("is a symbolic link");
+    expect(lines[0]).toContain("(in the file the link points to)");
+    expect(lines[0]).toContain(KIT_ROUTE);
+    expect(lines[0]).not.toContain("Re-run install.js");
+    const agents = carrierLines(before.stdout, "AGENTS.md");
+    expect(agents.length, before.stdout).toBe(1);
+    expect(agents[0].startsWith("  WARN"), agents[0]).toBe(true);
+    expect(again.status, again.stdout + again.stderr).toBe(3);
+    expect(verifiesFor(again.stdout, COPILOT_REL).length, again.stdout).toBe(1);
+    expect(reports(again.stdout, "refreshed", COPILOT_REL), again.stdout).toBe(false);
+    expect(readFileSync(out).equals(bytes), "the file the link points to changed").toBe(true);
+    expect(carrierLines(after.stdout, COPILOT_REL), after.stdout).toEqual(lines);
+  });
+
+  it("absent through a link: `.github` is a link to an empty directory outside the target: the Copilot line gives readForWrite's reason and no `Re-run install.js`, uncounted (AGENTS.md carries the route); the re-install verifies and creates nothing", () => {
+    const row = installed();
+    const gh = join(row.target, ".github");
+    rmSync(gh, { recursive: true, force: true });
+    const empty = join(dirname(row.target), "elsewhere-github");
+    mkdirSync(empty);
+    symlinkSync(empty, gh);
+    expect(strandedOf(row.target, COPILOT_REL), "premise: AGENTS.md gives Copilot the route").toEqual([]);
+    const { before, again, after } = doctorInstallDoctor(row, COPILOT_REL);
+    const lines = carrierLines(before.stdout, COPILOT_REL);
+    expect(lines.length, before.stdout).toBe(1);
+    expect(lines[0].startsWith("  note"), lines[0]).toBe(true);
+    expect(lines[0]).toContain("is not present");
+    expect(lines[0]).toContain("will not write it");
+    expect(lines[0]).toContain(`${gh} is a symbolic link`);
+    expect(lines[0]).not.toContain("Re-run install.js");
+    expect(again.status, again.stdout + again.stderr).toBe(3);
+    expect(verifiesFor(again.stdout, COPILOT_REL).length, again.stdout).toBe(1);
+    expect(reports(again.stdout, "created", COPILOT_REL), again.stdout).toBe(false);
+    expect(readdirSync(empty), "install created something through the link").toEqual([]);
+    expect(carrierLines(after.stdout, COPILOT_REL), after.stdout).toEqual(lines);
+  });
+
+  it("absent, plain: the Pi template deleted: the line names `Re-run install.js, which writes it where nothing is`, and the re-install reports `created` for it", () => {
+    const row = installed();
+    rmSync(piFile(row.target));
+    const { before, again, after } = doctorInstallDoctor(row, PI_PROMPT_REL);
+    const lines = carrierLines(before.stdout, PI_PROMPT_REL);
+    expect(lines.length, before.stdout).toBe(1);
+    expect(lines[0]).toContain("Re-run install.js, which writes it where nothing is");
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(reports(again.stdout, "created", PI_PROMPT_REL), again.stdout).toBe(true);
+    expect(carrierLines(after.stdout, PI_PROMPT_REL).filter((l) => l.startsWith("  ok")).length, after.stdout).toBe(1);
   });
 });
