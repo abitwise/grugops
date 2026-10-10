@@ -19,7 +19,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -610,4 +610,253 @@ describe("kit route: --check prints, for every registry host, whether it reaches
     const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
     expect(strict.status, strict.stdout + strict.stderr).toBe(1);
   });
+});
+
+// ── THE PER-HOST MATRIX: THE DOCTOR AGAINST AN INDEPENDENT FOLLOWER (plan 34-29, D-26 point 4, D-25, G-34-2) ──
+//
+// The class this closes: a checker that never asks the question its remedy depends on. For every scenario
+// that broke or could break a host's route, and for every HOST_TOOLS host, the doctor's reach verdict must
+// equal the verdict this file works out from the files alone.
+//
+// THE FOLLOWER SHARES NO CODE WITH THE DOCTOR. It reads the marker with readFileSync and JSON.parse, takes
+// `kitRoot`, and asks statSync whether `<kitRoot>/roles/orchestrator.md` is a regular file. A host's carriers
+// are carriersOf (this file's own derivation from HOST_TOOLS and ROUTE_POINTERS); a carrier counts when its
+// whole text contains KIT_ROUTE and the route resolves. A host whose adapter kind is `claude-kit` also reaches
+// when the KIT= line inside the materialized block of `.claude/skills/grugops/SKILL.md` names a directory
+// holding `roles/orchestrator.md`. "Own stale" is the follower's own ledger read: a `file` entry whose sha256
+// equals the file's sha256 (node:crypto), or a `block` record equal to the sha256 of exactly one block span
+// this file finds itself. The sentinels are spelled here (above, and the materialized-kit pair below).
+const MAT_OPEN = "# <!-- grugops:materialized-kit -->";
+const MAT_CLOSE = "# <!-- /grugops:materialized-kit -->";
+const SKILL_REL = ".claude/skills/grugops/SKILL.md";
+/** The carriers install writes as a sentinel block, with their sentinels (the test's own spelling). */
+const BLOCK_SENTINELS: ReadonlyMap<string, { open: string; close: string }> = new Map([
+  ["CLAUDE.md", { open: CLAUDE_OPEN, close: CLAUDE_CLOSE }],
+  [COPILOT_REL, { open: COPILOT_OPEN, close: COPILOT_CLOSE }],
+]);
+
+/** Every block-lines span of `text`: an open line at a line start through the first `\n<close>\n` after it. */
+function allBlockSpans(text: string, open: string, close: string): string[] {
+  const out: string[] = [];
+  for (let i = text.indexOf(`${open}\n`); i !== -1; i = text.indexOf(`${open}\n`, i + 1)) {
+    if (i > 0 && text[i - 1] !== "\n") continue;
+    const at = text.indexOf(`\n${close}\n`, i + open.length);
+    if (at === -1) break;
+    out.push(text.slice(i, at + close.length + 2));
+  }
+  return out;
+}
+
+/** The text of a regular file at `path`, or null when nothing readable as a regular file is there. */
+function regularText(path: string): string | null {
+  try {
+    if (!statSync(path).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return readFileSync(path, "utf8");
+}
+
+const isRegularFile = (path: string): boolean => {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+};
+
+interface Followed {
+  /** Whether `<kitRoot>/roles/orchestrator.md` is a regular file. */
+  readonly routeResolves: boolean;
+  /** The carriers without the route that the ledger still records as install's own, unedited. */
+  readonly ownStale: readonly string[];
+  /** host id → whether the host reaches the Orchestrator. */
+  readonly reaches: ReadonlyMap<string, boolean>;
+}
+
+/** THE INDEPENDENT FOLLOWER: per host, from the files alone. */
+function follow(target: string): Followed {
+  const marker = JSON.parse(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
+  const kitRoot = typeof marker.kitRoot === "string" ? marker.kitRoot : "";
+  const routeResolves = kitRoot !== "" && isRegularFile(join(kitRoot, "roles", "orchestrator.md"));
+  const files = fileRecords(marker);
+  const blocks = blockRecords(marker);
+  const carries = new Map<string, boolean>();
+  const ownStale: string[] = [];
+  for (const rel of new Set(HOST_TOOLS.flatMap(carriersOf))) {
+    const text = regularText(join(target, ...rel.split("/")));
+    carries.set(rel, text !== null && text.includes(KIT_ROUTE));
+    if (text === null || text.includes(KIT_ROUTE)) continue;
+    const s = BLOCK_SENTINELS.get(rel);
+    const own =
+      s === undefined
+        ? files[rel] !== undefined && files[rel].split(";")[0] === sha256Of(readFileSync(join(target, ...rel.split("/"))))
+        : blocks[rel] !== undefined && allBlockSpans(text, s.open, s.close).filter((sp) => sha256Of(sp) === blocks[rel].block).length === 1;
+    if (own) ownStale.push(rel);
+  }
+  // The Claude Code adapters' KIT= line, read from the materialized block of the skill adapter.
+  let kitLine = "";
+  const skill = regularText(join(target, ...SKILL_REL.split("/")));
+  if (skill !== null) {
+    let inBlock = false;
+    for (const l of skill.split("\n")) {
+      if (l === MAT_OPEN) inBlock = true;
+      else if (l === MAT_CLOSE) inBlock = false;
+      else if (inBlock && l.startsWith('KIT="')) kitLine = l.slice('KIT="'.length, l.endsWith('"') ? -1 : undefined);
+    }
+  }
+  const adapterReaches = kitLine !== "" && isRegularFile(join(kitLine, "roles", "orchestrator.md"));
+  const reaches = new Map<string, boolean>();
+  for (const h of HOST_TOOLS) {
+    const viaCarrier = routeResolves && carriersOf(h).some((rel) => carries.get(rel) === true);
+    reaches.set(h.id, viaCarrier || (h.adapter === "claude-kit" && adapterReaches));
+  }
+  return { routeResolves, ownStale, reaches };
+}
+
+/** Every path the pointer carriers install writes name (ROUTE_POINTERS; a block's own lines) and KIT_ROUTE names. */
+function expectNamedPathsExist(target: string): void {
+  const { kitRoot, orchestrator } = followRoute(target);
+  expect(lstatSync(orchestrator).isFile(), `${orchestrator} is not a regular file`).toBe(true);
+  const texts: Array<[string, string]> = [["KIT_ROUTE", KIT_ROUTE]];
+  for (const rel of new Set(Object.values(ROUTE_POINTERS).flat())) {
+    const text = readFileSync(join(target, ...rel.split("/")), "utf8");
+    const s = BLOCK_SENTINELS.get(rel);
+    texts.push([rel, s === undefined ? text : blockLines(text, s.open, s.close).lines]);
+  }
+  let named = 0;
+  for (const [what, text] of texts) {
+    for (const p of backticked(text).filter(isPathToken)) {
+      named += 1;
+      const where = p.startsWith("agent-factory/") ? join(kitRoot, ...p.slice("agent-factory/".length).split("/")) : join(target, ...p.split("/"));
+      expect(existsSync(where), `${what} names \`${p}\`, which does not exist (${where})`).toBe(true);
+    }
+  }
+  // Vacuity floor: the in-repository paths the plan names are among them, in every pointer.
+  expect(named).toBeGreaterThanOrEqual(texts.length * 2);
+  for (const [what, text] of texts.slice(1)) {
+    expect(backticked(text), `${what} names AGENTS.md`).toContain("AGENTS.md");
+    expect(backticked(text), `${what} names the marker`).toContain(".grugops/install.json");
+  }
+}
+
+interface Scenario {
+  readonly name: string;
+  /** Build the scenario; returns the target and kit home `--check` runs against. */
+  readonly build: () => { target: string; kitHome: string };
+  /** The doctor's expected exit status. */
+  readonly exit: 0 | 1;
+  /** Whether every path the carriers name is asserted to exist (after a clean install). */
+  readonly pathsExist: boolean;
+}
+
+/** Stage every route carrier as an earlier install's copy, without the route (S3). */
+function stageAllEarlier(target: string): void {
+  stageEarlierFile(target, "AGENTS.md", staleOf(readFileSync(join(target, "AGENTS.md"), "utf8")));
+  stageEarlierFile(target, PI_PROMPT_REL, staleOf(readFileSync(piFile(target), "utf8")));
+  stageEarlierBlock(target, "CLAUDE.md", CLAUDE_OPEN, CLAUDE_CLOSE);
+  stageEarlierBlock(target, COPILOT_REL, COPILOT_OPEN, COPILOT_CLOSE);
+}
+
+const SCENARIOS: readonly Scenario[] = [
+  { name: "S1 a fresh install", build: installed, exit: 0, pathsExist: true },
+  {
+    name: "S2 the user's own AGENTS.md without the route",
+    build: () => {
+      const row = scratchRow();
+      writeFileSync(join(row.target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
+      expect(runInstall(row.target, row.kitHome).status).toBe(0);
+      return row;
+    },
+    exit: 0,
+    pathsExist: false,
+  },
+  {
+    name: "S3 every carrier an earlier install's stale copy, before re-install",
+    build: () => {
+      const row = installed();
+      stageAllEarlier(row.target);
+      return row;
+    },
+    exit: 1,
+    pathsExist: false,
+  },
+  {
+    name: "S4 the same after re-install",
+    build: () => {
+      const row = installed();
+      stageAllEarlier(row.target);
+      const again = runInstall(row.target, row.kitHome);
+      expect(again.status, again.stdout + again.stderr).toBe(0);
+      return row;
+    },
+    exit: 0,
+    pathsExist: true,
+  },
+  {
+    name: "S5 the Pi template edited by the user, without the route",
+    build: () => {
+      const row = installed();
+      writeFileSync(piFile(row.target), staleOf(readFileSync(piFile(row.target), "utf8")) + "Also: run the gate first.\n");
+      return row;
+    },
+    exit: 0,
+    pathsExist: false,
+  },
+  {
+    name: "S6 the marker's kitRoot changed to an empty scratch directory",
+    build: () => {
+      const row = installed();
+      const empty = join(ROOT, `empty${n++}`);
+      mkdirSync(empty);
+      writeMarkerObject(row.target, { ...readMarkerObject(row.target), kitRoot: empty });
+      return row;
+    },
+    exit: 1,
+    pathsExist: false,
+  },
+  {
+    name: "S7 the Pi template deleted",
+    build: () => {
+      const row = installed();
+      rmSync(piFile(row.target));
+      return row;
+    },
+    exit: 0,
+    pathsExist: false,
+  },
+];
+
+describe("kit route: --check and an independent follower agree, host by host, on who reaches the Orchestrator (plan 34-29, D-26, G-34-2)", () => {
+  it(`the matrix covers 7 scenarios and ${HOST_TOOL_COUNT} registry hosts`, () => {
+    expect(SCENARIOS.length).toBe(7);
+    expect(HOST_TOOLS.length).toBe(HOST_TOOL_COUNT);
+  });
+
+  for (const sc of SCENARIOS) {
+    it(`${sc.name}: every host's reach verdict equals the follower's; a stranded host has a counted finding; a route FAIL exactly on own-stale or an unresolved route; exit ${sc.exit}`, () => {
+      const { target, kitHome } = sc.build();
+      const followed = follow(target);
+      const c = check(target, kitHome);
+      expect(c.status, c.stdout + c.stderr).toBe(sc.exit);
+      expect(reachLines(c.stdout).length, c.stdout).toBe(HOST_TOOL_COUNT);
+      expect(reachLines(c.stdout).map((l) => messageOf(l).split(": ")[0])).toEqual(HOST_TOOLS.map((h) => h.name));
+      const counted = countedRouteLines(c.stdout);
+      for (const h of HOST_TOOLS) {
+        const v = reachVerdict(c.stdout, h);
+        expect(v.reaches, `${h.name}: the doctor and the follower disagree\n${v.line}`).toBe(followed.reaches.get(h.id));
+        if (!followed.reaches.get(h.id)) {
+          const behind = counted.filter((l) => carriersOf(h).some((rel) => messageOf(l).includes(` ${rel} `)) || (!followed.routeResolves && l.startsWith("  FAIL")));
+          expect(behind.length, `${h.name} cannot reach, and no counted WARN or FAIL is behind it\n${c.stdout}`).toBeGreaterThan(0);
+        }
+      }
+      const routeFails = counted.filter((l) => l.startsWith("  FAIL"));
+      const expectFail = followed.ownStale.length > 0 || !followed.routeResolves;
+      expect(routeFails.length > 0, `route FAIL lines vs the follower (own stale: ${followed.ownStale.join(", ") || "none"}; route resolves: ${followed.routeResolves})\n${c.stdout}`).toBe(expectFail);
+      for (const rel of followed.ownStale) {
+        expect(routeFails.filter((l) => messageOf(l).startsWith(`kit route missing from ${rel} `)).length, `no FAIL for install's own stale ${rel}\n${c.stdout}`).toBe(1);
+      }
+      if (sc.pathsExist) expectNamedPathsExist(target);
+    });
+  }
 });
