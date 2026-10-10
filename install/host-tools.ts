@@ -204,7 +204,9 @@ export const ROUTE_POINTERS: Readonly<Record<HostAdapterKind, readonly string[]>
  * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which `host` can reach
  * the kit route: its entryFiles, then ROUTE_POINTERS[host.adapter], without duplicates, in that order.
  * Install's notes for a user's carrier without the route and `--check`'s per-host route findings both
- * derive from it, so the two cannot disagree about which hosts a carrier serves.
+ * derive from it, so the two cannot disagree about which hosts a carrier serves. It is the static set a host
+ * COULD read; whether the host reads a carrier in a given target is install.ts hostReadsCarrier's answer
+ * (plan 34-32), which also applies the row's entryGates. No verdict site reads this set directly.
  */
 export function routeCarriers(host: HostTool): readonly string[] {
   return [...new Set([...host.entryFiles, ...ROUTE_POINTERS[host.adapter]])];
@@ -212,7 +214,8 @@ export function routeCarriers(host: HostTool): readonly string[] {
 
 /**
  * hostsReading (plan 34-28, D-26 point 3): the registry hosts whose route carriers (routeCarriers) include
- * `rel`, in registry order. The one answer install and `--check` use to name the hosts a carrier serves.
+ * `rel`, in registry order: the hosts that COULD read it. `--check`'s `(read by …)` lists ask install.ts
+ * hostReadsCarrier instead (plan 34-32), so a host whose settings do not load the file is not named.
  */
 export function hostsReading(rel: string): readonly HostTool[] {
   return HOST_TOOLS.filter((h) => routeCarriers(h).includes(rel));

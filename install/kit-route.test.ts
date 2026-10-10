@@ -620,7 +620,9 @@ describe("kit route: --check prints, for every registry host, whether it reaches
 //
 // THE FOLLOWER SHARES NO CODE WITH THE DOCTOR. It reads the marker with readFileSync and JSON.parse, takes
 // `kitRoot`, and asks statSync whether `<kitRoot>/roles/orchestrator.md` is a regular file. A host's carriers
-// are carriersOf (this file's own derivation from HOST_TOOLS and ROUTE_POINTERS); a carrier counts when its
+// are carriersOf (this file's own derivation from HOST_TOOLS and ROUTE_POINTERS), less AGENTS.md for the
+// gemini-settings host when the follower's own Gemini rule (below, plan 34-32) says Gemini CLI does not read it
+// here; a carrier counts when its
 // whole text contains KIT_ROUTE and the route resolves. A host whose adapter kind is `claude-kit` also reaches
 // when the KIT= line inside the materialized block of `.claude/skills/grugops/SKILL.md` names a directory
 // holding `roles/orchestrator.md`. "Own stale" is the follower's own ledger read: a `file` entry whose sha256
@@ -674,6 +676,44 @@ interface Followed {
   readonly reaches: ReadonlyMap<string, boolean>;
 }
 
+// THE FOLLOWER'S OWN GEMINI RULE (plan 34-32, D-27 point 1). Gemini CLI reads GEMINI.md by default and AGENTS.md
+// only when `.gemini/settings.json` lists it in `context.fileName`. This file decides that on its own, sharing no
+// code with install.ts's reader: the settings file is a regular file; its bytes are valid UTF-8 (a fatal
+// TextDecoder); its text holds exactly one `"context"` and exactly one `"fileName"` by textual count (two equal
+// keys are refused, because which one Gemini CLI reads is not known); JSON.parse succeeds; the root and `context`
+// are objects; and `context.fileName` is `AGENTS.md`, or an array of strings that includes it (exact string
+// equality). The Gemini host is found by its adapter kind, never by a typed name.
+const GEMINI_SETTINGS = ".gemini/settings.json";
+function geminiHost(): (typeof HOST_TOOLS)[number] {
+  const g = HOST_TOOLS.filter((h) => h.adapter === "gemini-settings");
+  expect(g.length, "premise: exactly one registry host has the gemini-settings adapter").toBe(1);
+  return g[0];
+}
+const geminiFile = (target: string): string => join(target, ...GEMINI_SETTINGS.split("/"));
+function geminiListsAgents(target: string): boolean {
+  if (!isRegularFile(geminiFile(target))) return false;
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(geminiFile(target)));
+  } catch {
+    return false;
+  }
+  if ((text.match(/"context"/g) ?? []).length !== 1 || (text.match(/"fileName"/g) ?? []).length !== 1) return false;
+  let v: unknown;
+  try {
+    v = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  const isObject = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
+  if (!isObject(v) || !isObject(v.context)) return false;
+  const fn = v.context.fileName;
+  return fn === "AGENTS.md" || (Array.isArray(fn) && fn.every((x) => typeof x === "string") && fn.includes("AGENTS.md"));
+}
+/** The carriers `h` reads in `target`, by the follower's own rules (carriersOf, gated by the Gemini rule). */
+const followerCarriers = (target: string, h: (typeof HOST_TOOLS)[number]): string[] =>
+  carriersOf(h).filter((rel) => !(h.adapter === "gemini-settings" && rel === "AGENTS.md") || geminiListsAgents(target));
+
 /** THE INDEPENDENT FOLLOWER: per host, from the files alone. */
 function follow(target: string): Followed {
   const marker = JSON.parse(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
@@ -708,7 +748,7 @@ function follow(target: string): Followed {
   const adapterReaches = kitLine !== "" && isRegularFile(join(kitLine, "roles", "orchestrator.md"));
   const reaches = new Map<string, boolean>();
   for (const h of HOST_TOOLS) {
-    const viaCarrier = routeResolves && carriersOf(h).some((rel) => carries.get(rel) === true);
+    const viaCarrier = routeResolves && followerCarriers(target, h).some((rel) => carries.get(rel) === true);
     reaches.set(h.id, viaCarrier || (h.adapter === "claude-kit" && adapterReaches));
   }
   return { routeResolves, ownStale, reaches };
@@ -868,13 +908,6 @@ describe("kit route: --check and an independent follower agree, host by host, on
 // Gemini CLI reads GEMINI.md by default and AGENTS.md only when `.gemini/settings.json` lists it in
 // `context.fileName`. The Gemini host is found by its adapter kind, never by a typed name; the settings path is
 // this file's own spelling.
-const GEMINI_SETTINGS = ".gemini/settings.json";
-function geminiHost(): (typeof HOST_TOOLS)[number] {
-  const g = HOST_TOOLS.filter((h) => h.adapter === "gemini-settings");
-  expect(g.length, "premise: exactly one registry host has the gemini-settings adapter").toBe(1);
-  return g[0];
-}
-const geminiFile = (target: string): string => join(target, ...GEMINI_SETTINGS.split("/"));
 /** The hosts a carrier line's `(read by …)` list names, for the one carrier line about `rel`. */
 function readByOf(stdout: string, rel: string): string[] {
   const hits = routeLines(stdout).filter((l) => messageOf(l).includes(` ${rel} (read by `));
@@ -886,6 +919,71 @@ function readByOf(stdout: string, rel: string): string[] {
 /** The doctor's gate lines for `host`: `kit route: <host name> …` lines (any label). */
 const gateLines = (stdout: string, host: (typeof HOST_TOOLS)[number]): string[] =>
   stdout.split(/\r?\n/).filter((l) => /^ {2}\S+\s/.test(l) && messageOf(l).startsWith(`kit route: ${host.name} `));
+
+/** What is at the settings path: a file's bytes (hex), a directory, or nothing. */
+function settingsSnapshot(target: string): string {
+  const p = geminiFile(target);
+  if (!existsSync(p)) return "absent";
+  const st = lstatSync(p);
+  return st.isDirectory() ? "directory" : st.isFile() ? `file:${readFileSync(p).toString("hex")}` : "other";
+}
+
+interface GeminiRow {
+  readonly id: string;
+  readonly what: string;
+  /** Change `.gemini/settings.json` after a clean install. */
+  readonly stage: (target: string) => void;
+  /** The row's declared verdict: whether Gemini CLI reads AGENTS.md here (the follower must agree). */
+  readonly reads: boolean;
+  /** For a row where it does not: whether an install run would add AGENTS.md (the remedy names Re-run install.js). */
+  readonly reinstall?: boolean;
+  /** The settings path is not a readable regular file: the gate reaches no verdict. */
+  readonly noVerdict?: boolean;
+}
+const settingsText = (text: string | Buffer) => (target: string): void => writeFileSync(geminiFile(target), text);
+const GEMINI_ROWS: readonly GeminiRow[] = [
+  {
+    id: "a",
+    what: 'a duplicate "context" key whose last copy lists AGENTS.md (the verifier\'s R8 case 1; JSON.parse keeps the last)',
+    stage: settingsText('{"context":{"fileName":["GEMINI.md"]},"context":{"fileName":["AGENTS.md"]}}\n'),
+    reads: false,
+    reinstall: false,
+  },
+  { id: "b", what: 'fileName ["GEMINI.md"] (the verifier\'s R8 case 2)', stage: settingsText('{"context":{"fileName":["GEMINI.md"]}}\n'), reads: false, reinstall: true },
+  { id: "c", what: "an empty object {}", stage: settingsText("{}\n"), reads: false, reinstall: true },
+  { id: "d", what: "fileName []", stage: settingsText('{"context":{"fileName":[]}}\n'), reads: false, reinstall: true },
+  { id: "e", what: 'fileName ""', stage: settingsText('{"context":{"fileName":""}}\n'), reads: false, reinstall: true },
+  { id: "f", what: 'fileName "agents.md" (exact match only)', stage: settingsText('{"context":{"fileName":"agents.md"}}\n'), reads: false, reinstall: true },
+  {
+    id: "g",
+    what: "not strict JSON (a trailing comma)",
+    stage: settingsText('{"context": {"fileName": ["AGENTS.md"]},}\n'),
+    reads: false,
+    reinstall: false,
+  },
+  {
+    id: "h",
+    what: "bytes that are not valid UTF-8 (0xff 0xfe first)",
+    stage: settingsText(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('{"context":{"fileName":["AGENTS.md"]}}\n', "utf8")])),
+    reads: false,
+    reinstall: false,
+  },
+  { id: "i", what: "the settings file deleted", stage: (t) => rmSync(geminiFile(t)), reads: false, reinstall: true },
+  {
+    id: "j",
+    what: "a directory at .gemini/settings.json",
+    stage: (t) => {
+      rmSync(geminiFile(t));
+      mkdirSync(geminiFile(t));
+    },
+    reads: false,
+    reinstall: false,
+    noVerdict: true,
+  },
+  { id: "k", what: 'fileName "AGENTS.md" (the string form)', stage: settingsText('{"context":{"fileName":"AGENTS.md"}}\n'), reads: true },
+  { id: "l", what: 'fileName ["GEMINI.md","AGENTS.md"]', stage: settingsText('{"context":{"fileName":["GEMINI.md","AGENTS.md"]}}\n'), reads: true },
+];
+const GEMINI_ROWS_COUNT = 12;
 
 describe("kit route: Gemini CLI reads AGENTS.md only when its settings list it (plan 34-32, D-27 point 1)", () => {
   it("a clean install: an ok line says Gemini CLI reads AGENTS.md here, every host reaches, no counted kit-route line", () => {
@@ -922,5 +1020,67 @@ describe("kit route: Gemini CLI reads AGENTS.md only when its settings list it (
     const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
     expect(strict.status, strict.stdout + strict.stderr).toBe(1);
     expect(strict.stdout).not.toContain("ALL CHECKS PASSED");
+  });
+
+  // ── every Gemini settings state (plan 34-32 Task 2): rows (a)-(l), each built from a clean install ──
+  for (const row of GEMINI_ROWS) {
+    it(`(${row.id}) ${row.what}: Gemini ${row.reads ? "reaches" : "CANNOT reach"}; the follower agrees; ${row.reads ? "an ok gate line, no counted kit-route line" : `a counted WARN naming ${GEMINI_SETTINGS}, remedy ${row.reinstall ? "Re-run install.js, and an install run then makes Gemini reach" : "by hand, and install exits 3 leaving the file as it is"}`}`, () => {
+      const gemini = geminiHost();
+      const { target, kitHome } = installed();
+      row.stage(target);
+      // Two-sided: the row's declared verdict and the follower's own rule agree.
+      expect(geminiListsAgents(target), `the follower disagrees with row (${row.id})'s declared verdict`).toBe(row.reads);
+      expect(follow(target).reaches.get(gemini.id), `the follower's reach verdict for row (${row.id})`).toBe(row.reads);
+      const c = check(target, kitHome);
+      expect(c.status, c.stdout + c.stderr).toBe(0);
+      const v = reachVerdict(c.stdout, gemini);
+      expect(v.reaches, v.line).toBe(row.reads);
+      for (const h of HOST_TOOLS) if (h !== gemini) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(true);
+      const gates = gateLines(c.stdout, gemini);
+      expect(gates.length, c.stdout).toBe(1);
+      if (row.reads) {
+        expect(gates[0].startsWith("  ok"), gates[0]).toBe(true);
+        expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+        expect(readByOf(c.stdout, "AGENTS.md")).toContain(gemini.name);
+        return;
+      }
+      // CANNOT reach: the line names the settings file and is never an empty list of reasons.
+      expect(v.line).toContain(GEMINI_SETTINGS);
+      expect(messageOf(v.line).split("CANNOT reach the Orchestrator: ")[1]?.trim().length ?? 0, v.line).toBeGreaterThan(0);
+      expect(readByOf(c.stdout, "AGENTS.md")).not.toContain(gemini.name);
+      const counted = countedRouteLines(c.stdout).filter((l) => l.includes(GEMINI_SETTINGS));
+      expect(counted.length, c.stdout).toBeGreaterThan(0);
+      expect(gates[0].startsWith("  WARN"), gates[0]).toBe(true);
+      expect(gates[0]).toContain(GEMINI_SETTINGS);
+      if (row.noVerdict) expect(gates[0]).toContain("no verdict");
+      expect(gates[0].includes("Re-run install.js"), `the remedy of row (${row.id}): ${gates[0]}`).toBe(row.reinstall === true);
+      if (row.reinstall !== true) expect(gates[0]).toContain("by hand");
+      const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+      expect(strict.status, strict.stdout + strict.stderr).toBe(1);
+      expect(strict.stdout).not.toContain("ALL CHECKS PASSED");
+      // INSTALL AND DOCTOR AGREE: the remedy is what an install run on this state does.
+      const before = settingsSnapshot(target);
+      const again = runInstall(target, kitHome);
+      if (row.reinstall === true) {
+        expect(again.status, again.stdout + again.stderr).toBe(0);
+        expect(geminiListsAgents(target), `install did not make ${GEMINI_SETTINGS} list AGENTS.md\n${again.stdout}`).toBe(true);
+        const after = check(target, kitHome);
+        expect(reachVerdict(after.stdout, gemini).reaches, after.stdout).toBe(true);
+      } else {
+        expect(again.status, again.stdout + again.stderr).toBe(3);
+        expect(linesUnder(again.stdout, "verify").some((l) => l.includes(GEMINI_SETTINGS)), again.stdout).toBe(true);
+        expect(settingsSnapshot(target), `install changed ${GEMINI_SETTINGS}`).toEqual(before);
+        const after = check(target, kitHome);
+        expect(reachVerdict(after.stdout, gemini).reaches, after.stdout).toBe(false);
+      }
+    });
+  }
+
+  it(`the rows cover ${GEMINI_ROWS_COUNT} settings states, both verdicts and both remedies`, () => {
+    expect(GEMINI_ROWS.length).toBe(GEMINI_ROWS_COUNT);
+    expect(new Set(GEMINI_ROWS.map((r) => r.id)).size).toBe(GEMINI_ROWS_COUNT);
+    expect(GEMINI_ROWS.filter((r) => r.reads).length).toBeGreaterThan(0);
+    expect(GEMINI_ROWS.filter((r) => !r.reads && r.reinstall === true).length).toBeGreaterThan(0);
+    expect(GEMINI_ROWS.filter((r) => !r.reads && r.reinstall !== true).length).toBeGreaterThan(0);
   });
 });

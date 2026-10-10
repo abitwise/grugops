@@ -1029,6 +1029,76 @@ function readGeminiContext(bytes) {
     const listed = fileName === GEMINI_WANT || (isStringArray && fileName.includes(GEMINI_WANT));
     return { state: "read", listed, doc, root, ctxNode, fnMember, fileName, hasFileName, seenContent };
 }
+// geminiMergePlan (plan 34-32, D-27 point 1, the WR-01 lesson applied to the gate): THE ONE DECISION of what
+// install does to `.gemini/settings.json`, given the install ledger and readForWrite's answer for the file.
+// mergeGemini acts on it, and the doctor's Gemini gate names `Re-run install.js` exactly when it answers
+// `create` or `merge`, so the remedy is one install carries out. Pure: no I/O, no report.
+//   ledger malformed                       → refuse (kind ledger; the change could not be recorded)
+//   readForWrite blocked                   → refuse (kind blocked; blockedAt's wording)
+//   nothing there                          → create
+//   readGeminiContext refuses              → refuse (kind shape; the reader's why and GEMINI_SEEN update)
+//   context.fileName already lists it      → listed
+//   otherwise the splice; the sameJsonValue oracle must hold, else refuse (kind shape) → merge
+// `why` completes mergeGemini's verify line: after "<rel>: " for kind ledger and blocked (ledger: inside its own
+// sentence), after "<rel> " for kind shape.
+function geminiMergePlan(ledger, cur) {
+    if (ledger.state === "malformed")
+        return { act: "refuse", kind: "ledger", why: `${ledger.why}`, seen: "keep" };
+    if (cur.state === "blocked") {
+        return { act: "refuse", kind: "blocked", why: blockedAt(cur, join(TARGET, ...GEMINI_SETTINGS_REL.split("/"))), seen: "keep" };
+    }
+    if (cur.state === "create")
+        return { act: "create" };
+    const ctx = readGeminiContext(cur.bytes);
+    if (ctx.state === "refused")
+        return { act: "refuse", kind: "shape", why: ctx.why, seen: ctx.seen };
+    const { doc, root, ctxNode, fnMember, fileName, hasFileName, seenContent } = ctx;
+    if (ctx.listed)
+        return { act: "listed", seenContent };
+    const want = GEMINI_WANT;
+    const fileNameBefore = !hasFileName ? "absent" : typeof fileName === "string" ? "string" : "array";
+    const next = fileNameBefore === "absent" ? [want] : fileNameBefore === "string" ? [fileName, want] : [...fileName, want];
+    // THE SPLICE (red-team B3): the one change, made to the original text.
+    const newText = ctxNode === null
+        ? addMember(doc.text, root, "context", { fileName: next })
+        : fnMember === null
+            ? addMember(doc.text, ctxNode, "fileName", next)
+            : fileNameBefore === "string"
+                ? wrapInArray(doc.text, ctxNode, fnMember.value, [want])
+                : appendElements(doc.text, fnMember.value, [want]);
+    // THE ORACLE: the spliced text must hold exactly the merged value, and nothing else may differ.
+    const expected = documentValue(doc);
+    if (ctxNode === null)
+        expected.context = { fileName: next };
+    else
+        expected.context.fileName = next;
+    const check = readJsonText(Buffer.from(newText, "utf8"));
+    if (!check.ok || !sameJsonValue(documentValue(check), expected)) {
+        return {
+            act: "refuse",
+            kind: "shape",
+            why: "could not be edited in place without changing anything but context.fileName",
+            seen: { listed: false, fileNameContent: seenContent },
+        };
+    }
+    return { act: "merge", newText, fileNameBefore, createdContext: ctxNode === null, nextContent: jsonValueRecord(next), seenContent };
+}
+// geminiRemedy (plan 34-32): the remedy the doctor prints for a failed Gemini gate, from geminiMergePlan over
+// the doctor's ledger read and readForWrite (which only reads). `Re-run install.js` exactly when install would
+// create or merge; otherwise the by-hand edit, with the reason install leaves the file.
+function geminiRemedy(ledger) {
+    const plan = geminiMergePlan(ledger, readForWrite(TARGET, join(TARGET, ...GEMINI_SETTINGS_REL.split("/"))));
+    if (plan.act === "create" || plan.act === "merge")
+        return `Re-run install.js: it adds ${GEMINI_WANT} to context.fileName`;
+    const reason = plan.act === "listed"
+        ? `install read it listing ${GEMINI_WANT} already`
+        : plan.kind === "ledger"
+            ? `the install ledger in .grugops/install.json is malformed (${plan.why})`
+            : plan.kind === "blocked"
+                ? plan.why
+                : `${GEMINI_SETTINGS_REL} ${plan.why}`;
+    return `Add "${GEMINI_WANT}" to context.fileName in ${GEMINI_SETTINGS_REL} by hand (install leaves it: ${reason})`;
+}
 // ENTRY_GATE_CHECKS (plan 34-32, D-27 point 1): the check for each entry-gate kind (host-tools.ts
 // ENTRY_GATE_KINDS). Keyed by EntryGateKind, so a new kind is a compile error until it has a check here. A
 // check reads only through `readAt` (this run's cached readUserFile under TARGET) and writes nothing. Declared
@@ -1036,23 +1106,31 @@ function readGeminiContext(bytes) {
 //   gemini-context-file-name: reads this repository's GEMINI_SETTINGS_REL. A readable file that parses through
 //     readGeminiContext and lists AGENTS.md → reads. Read but not listed, refused by the reader, or absent →
 //     not read. Not a readable regular file → not read, `unread` (no verdict was reached on what Gemini reads).
+//     The ledger is the check's second argument (plan 34-32 Task 2): the remedy of a failed gate is
+//     geminiRemedy over it, so `Re-run install.js` is named exactly when install would add AGENTS.md.
 const ENTRY_GATE_CHECKS = {
-    "gemini-context-file-name": (readAt) => {
+    "gemini-context-file-name": (readAt, ledger) => {
         const here = `this repository's ${GEMINI_SETTINGS_REL}`;
-        const remedy = `Add "${GEMINI_WANT}" to context.fileName in ${GEMINI_SETTINGS_REL}`;
         const read = readAt(GEMINI_SETTINGS_REL);
+        // The remedy is decided only when the gate fails, from the plan install acts on (geminiMergePlan).
+        const remedy = () => geminiRemedy(ledger);
         if (read.state === "absent") {
-            return { reads: false, unread: false, why: `this repository has no ${GEMINI_SETTINGS_REL}, so Gemini CLI reads its default context file, not ${GEMINI_WANT}`, remedy };
+            return {
+                reads: false,
+                unread: false,
+                why: `this repository has no ${GEMINI_SETTINGS_REL}, so Gemini CLI reads its default context file, not ${GEMINI_WANT}`,
+                remedy: remedy(),
+            };
         }
         if (read.state !== "ok") {
-            return { reads: false, unread: true, why: `${here} ${unreadState(read)}, so no verdict was reached on what Gemini CLI reads`, remedy };
+            return { reads: false, unread: true, why: `${here} ${unreadState(read)}, so no verdict was reached on what Gemini CLI reads`, remedy: remedy() };
         }
         const ctx = readGeminiContext(read.bytes);
         if (ctx.state === "refused")
-            return { reads: false, unread: false, why: `${here} ${ctx.why}`, remedy };
+            return { reads: false, unread: false, why: `${here} ${ctx.why}`, remedy: remedy() };
         return ctx.listed
             ? { reads: true, unread: false, why: `${here} lists ${GEMINI_WANT} in context.fileName`, remedy: "" }
-            : { reads: false, unread: false, why: `${here} does not list ${GEMINI_WANT} in context.fileName`, remedy };
+            : { reads: false, unread: false, why: `${here} does not list ${GEMINI_WANT} in context.fileName`, remedy: remedy() };
     },
 };
 // hostReadsCarrier (plan 34-32, D-27 point 1): THE OWNER of "does host H read entry file (or pointer) X in this
@@ -1243,7 +1321,7 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
             if (reaches)
                 docReport("note", `${head}: ${a.gate.why}; it reaches the Orchestrator another way`);
             else
-                docWarn(`${head}: ${a.gate.why}, so ${a.rel} gives ${host.name} no route to the Orchestrator. ${a.gate.remedy}`);
+                docWarn(`${head}: ${a.gate.why}. ${a.rel} then gives ${host.name} no route to the Orchestrator. ${a.gate.remedy}`);
         }
         if (reaches) {
             const through = [...via, ...(viaAdapter ? [`its adapters' KIT= line (${adapterKit})`] : [])];
@@ -2685,7 +2763,6 @@ let GEMINI_SEEN = null;
 function mergeGemini() {
     const file = join(TARGET, ".gemini", "settings.json");
     const rel = ".gemini/settings.json";
-    const want = "AGENTS.md";
     const byHand = "add AGENTS.md to context.fileName by hand if you want Gemini CLI to read it";
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
@@ -2694,22 +2771,30 @@ function mergeGemini() {
         return;
     }
     const previousLedger = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
-    if (previousLedger.state === "malformed") {
-        verify(`${rel}: the install ledger in .grugops/install.json is malformed (${previousLedger.why}), so it cannot be ` +
-            `updated and is written back unchanged; AGENTS.md was not added — ${byHand}. Fix the ledger field, ` +
-            `then re-run the installer.`);
-        return;
-    }
     // DC-3 / D-18 (plan 33.1-26): read before any write. A settings file that is not a readable
     // regular file within the bound is left untouched and reported. Red-team of plan 33.1-26: asked
     // through readForWrite, so a link at the path (dangling or not) or a non-directory where .gemini/
     // should be is refused the same way, and a new file is made with an exclusive create.
-    const cur = readForWrite(TARGET, file);
-    if (cur.state === "blocked") {
-        verify(`${rel}: ${blockedAt(cur, file)} — left untouched; ${byHand}.`);
+    // Plan 34-32: the decision is geminiMergePlan's (pure), the one the doctor's remedy reads too; this function
+    // acts on it, with every line, record and byte as before.
+    const plan = geminiMergePlan(previousLedger, readForWrite(TARGET, file));
+    if (plan.act === "refuse") {
+        if (plan.kind === "ledger") {
+            verify(`${rel}: the install ledger in .grugops/install.json is malformed (${plan.why}), so it cannot be ` +
+                `updated and is written back unchanged; AGENTS.md was not added — ${byHand}. Fix the ledger field, ` +
+                `then re-run the installer.`);
+        }
+        else if (plan.kind === "blocked") {
+            verify(`${rel}: ${plan.why} — left untouched; ${byHand}.`);
+        }
+        else {
+            verify(`${rel} ${plan.why} — left untouched; ${byHand}.`);
+        }
+        if (plan.seen !== "keep")
+            GEMINI_SEEN = plan.seen === null ? null : { ...plan.seen, refused: true };
         return;
     }
-    if (cur.state === "create") {
+    if (plan.act === "create") {
         if (DRY_RUN) {
             report("would-add", `${rel} (context.fileName: [AGENTS.md, GEMINI.md])`);
             return;
@@ -2735,61 +2820,27 @@ function mergeGemini() {
         report("created", `${rel} (context.fileName wiring)`);
         return;
     }
-    // The one reader of the settings' context.fileName (plan 34-32), which the doctor's Gemini gate uses too.
-    const ctx = readGeminiContext(cur.bytes);
-    if (ctx.state === "refused") {
-        verify(`${rel} ${ctx.why} — left untouched; ${byHand}.`);
-        if (ctx.seen !== "keep")
-            GEMINI_SEEN = ctx.seen === null ? null : { ...ctx.seen, refused: true };
-        return;
-    }
-    const refuse = (why, seen) => {
-        verify(`${rel} ${why} — left untouched; ${byHand}.`);
-        GEMINI_SEEN = seen === null ? null : { ...seen, refused: true };
-    };
-    const { doc, root, ctxNode, fnMember, fileName, hasFileName, seenContent } = ctx;
-    if (ctx.listed) {
+    if (plan.act === "listed") {
         // Plan 33.1-29: this run changed nothing; what it saw is what writeMarker() needs to decide whether
         // an earlier record still describes the file (the carry needs proof).
-        GEMINI_SEEN = { listed: true, fileNameContent: seenContent, refused: false };
+        GEMINI_SEEN = { listed: true, fileNameContent: plan.seenContent, refused: false };
         report("skipped", `${rel} (context.fileName already lists AGENTS.md)`);
-        return;
-    }
-    const fileNameBefore = !hasFileName ? "absent" : typeof fileName === "string" ? "string" : "array";
-    const next = fileNameBefore === "absent" ? [want] : fileNameBefore === "string" ? [fileName, want] : [...fileName, want];
-    // THE SPLICE (red-team B3): the one change, made to the original text.
-    const newText = ctxNode === null
-        ? addMember(doc.text, root, "context", { fileName: next })
-        : fnMember === null
-            ? addMember(doc.text, ctxNode, "fileName", next)
-            : fileNameBefore === "string"
-                ? wrapInArray(doc.text, ctxNode, fnMember.value, [want])
-                : appendElements(doc.text, fnMember.value, [want]);
-    // THE ORACLE: the spliced text must hold exactly the merged value, and nothing else may differ.
-    const expected = documentValue(doc);
-    if (ctxNode === null)
-        expected.context = { fileName: next };
-    else
-        expected.context.fileName = next;
-    const check = readJsonText(Buffer.from(newText, "utf8"));
-    if (!check.ok || !sameJsonValue(documentValue(check), expected)) {
-        refuse("could not be edited in place without changing anything but context.fileName", { listed: false, fileNameContent: seenContent });
         return;
     }
     if (DRY_RUN) {
         report("would-add", `${rel} (merge AGENTS.md into context.fileName)`);
         return;
     }
-    if (!writeTargetFile(file, newText, "ok", rel)) {
-        GEMINI_SEEN = { listed: false, fileNameContent: seenContent, refused: true };
+    if (!writeTargetFile(file, plan.newText, "ok", rel)) {
+        GEMINI_SEEN = { listed: false, fileNameContent: plan.seenContent, refused: true };
         return;
     }
     GEMINI_RECORD = {
         createdFile: false,
         addedEntry: true,
-        createdContext: ctxNode === null,
-        fileNameBefore,
-        fileNameContent: jsonValueRecord(next),
+        createdContext: plan.createdContext,
+        fileNameBefore: plan.fileNameBefore,
+        fileNameContent: plan.nextContent,
     };
     report("created", `${rel} (merged AGENTS.md into context.fileName)`);
 }

@@ -17,7 +17,19 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, readFileSy
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { HOST_TOOLS, HOST_TOOL_COUNT, HOST_ADAPTER_KINDS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute, ROUTE_POINTERS, routeCarriers, hostsReading } from "./host-tools.js";
+import ts from "typescript";
+import {
+  HOST_TOOLS,
+  HOST_TOOL_COUNT,
+  HOST_ADAPTER_KINDS,
+  ENTRY_GATE_KINDS,
+  PI_PROMPT_REL,
+  KIT_ROUTE,
+  carriesKitRoute,
+  ROUTE_POINTERS,
+  routeCarriers,
+  hostsReading,
+} from "./host-tools.js";
 import { runInstall } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-host-tools-")));
@@ -582,5 +594,132 @@ describe("route carriers are derived from the registry (plan 34-28, D-26 point 3
       return c.length === 1 && c[0] === "AGENTS.md";
     }).map((h) => h.name);
     expect(viaModule).toEqual(AGENTS_ONLY);
+  });
+});
+
+// ── ENTRY GATES AND THE ONE OWNER OF "DOES HOST H READ ENTRY FILE X HERE" (plan 34-32, D-27 point 1) ──────────────
+//
+// Gemini CLI reads AGENTS.md only when its settings list it, and `--check` once said it reached the Orchestrator
+// through AGENTS.md from the registry's entry files alone (CR-01). The registry now says which entry files a host
+// reads only under a condition (HostTool.entryGates), and install.ts asks one owner, hostReadsCarrier. The census
+// below holds the owner in place: install.ts reads no `entryFiles` itself, and calls routeCarriers and
+// hostsReading only inside the functions named here, with the counts pinned.
+
+describe("entryGates: the registry says which entry files a host reads only under a condition (plan 34-32)", () => {
+  it("every row has an entryGates object; every key is one of that row's entryFiles; every value is an ENTRY_GATE_KINDS member", () => {
+    const kinds: readonly string[] = ENTRY_GATE_KINDS;
+    for (const t of HOST_TOOLS) {
+      expect(Object.prototype.hasOwnProperty.call(t, "entryGates"), `${t.id} has no entryGates`).toBe(true);
+      expect(t.entryGates !== null && typeof t.entryGates === "object" && !Array.isArray(t.entryGates), `${t.id}'s entryGates is not an object`).toBe(true);
+      for (const [rel, kind] of Object.entries(t.entryGates)) {
+        expect(t.entryFiles, `${t.id} gates ${rel}, which is not one of its entry files`).toContain(rel);
+        expect(kinds, `${t.id}'s gate kind for ${rel}`).toContain(kind);
+      }
+    }
+  });
+
+  it("every ENTRY_GATE_KINDS member is used by at least one row, and the tuple holds no duplicate", () => {
+    const used = new Set(HOST_TOOLS.flatMap((t) => Object.values(t.entryGates)));
+    for (const k of ENTRY_GATE_KINDS) expect(used.has(k), `entry-gate kind ${k} is used by no row`).toBe(true);
+    expect(new Set(ENTRY_GATE_KINDS).size).toBe(ENTRY_GATE_KINDS.length);
+  });
+
+  it("every row whose adapter is gemini-settings gates each of its entry files (Gemini CLI reads them only through context.fileName)", () => {
+    const gemini = HOST_TOOLS.filter((t) => t.adapter === "gemini-settings");
+    expect(gemini.length, "premise: a gemini-settings row exists").toBeGreaterThan(0);
+    for (const t of gemini) {
+      for (const rel of t.entryFiles) expect(Object.keys(t.entryGates), `${t.id} does not gate ${rel}`).toContain(rel);
+    }
+  });
+});
+
+const INSTALL_TS = join(import.meta.dirname, "install.ts");
+const installSource = (): ts.SourceFile => ts.createSourceFile("install.ts", readFileSync(INSTALL_TS, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+/** The name of the function declaration enclosing `node` (an arrow or method inside one belongs to it), or `<module>`. */
+function enclosingFunction(node: ts.Node): string {
+  for (let p: ts.Node | undefined = node.parent; p !== undefined; p = p.parent) {
+    if (ts.isFunctionDeclaration(p) && p.name !== undefined) return p.name.text;
+  }
+  return "<module>";
+}
+
+/** Every node of `sf`, depth first. */
+function allNodes(sf: ts.SourceFile): ts.Node[] {
+  const out: ts.Node[] = [];
+  const visit = (n: ts.Node): void => {
+    out.push(n);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+// THE PINNED CALL SITES. routeCarriers and hostsReading are the static "could read" sets; a verdict asks
+// hostReadsCarrier instead. hostReadsCarrier and routeCarrierSet are the owner functions the plan names.
+// noteMissingRoute is install's route note (not a doctor verdict); plan 34-33 replaces it with the strandedBy
+// post-pass, and moves these pins in the same commit.
+const OWNER_CALLS: Readonly<Record<string, number>> = {
+  "routeCarriers@hostReadsCarrier": 1,
+  "routeCarriers@routeCarrierSet": 1,
+  "routeCarriers@noteMissingRoute": 1,
+  "hostsReading@noteMissingRoute": 2,
+};
+
+describe("census: install.ts asks the one owner of 'does host H read entry file X here' (plan 34-32, AUTH-1)", () => {
+  it("install.ts reads no `entryFiles` itself: no property access, element access or destructuring of it", () => {
+    const hits: string[] = [];
+    for (const n of allNodes(installSource())) {
+      if (ts.isPropertyAccessExpression(n) && n.name.text === "entryFiles") hits.push(`.entryFiles in ${enclosingFunction(n)}`);
+      if (ts.isElementAccessExpression(n) && ts.isStringLiteralLike(n.argumentExpression) && n.argumentExpression.text === "entryFiles") {
+        hits.push(`["entryFiles"] in ${enclosingFunction(n)}`);
+      }
+      if (ts.isBindingElement(n) && ((n.propertyName !== undefined && ts.isIdentifier(n.propertyName) && n.propertyName.text === "entryFiles") || (n.propertyName === undefined && ts.isIdentifier(n.name) && n.name.text === "entryFiles"))) {
+        hits.push(`{ entryFiles } in ${enclosingFunction(n)}`);
+      }
+    }
+    expect(hits).toEqual([]);
+  });
+
+  it(`routeCarriers and hostsReading are called only at the pinned sites: ${Object.entries(OWNER_CALLS).map(([k, v]) => `${k} ×${v}`).join(", ")}`, () => {
+    const found: Record<string, number> = {};
+    const notCalls: string[] = [];
+    for (const n of allNodes(installSource())) {
+      if (!ts.isIdentifier(n) || (n.text !== "routeCarriers" && n.text !== "hostsReading")) continue;
+      // The import specifier is the one reference that is not a use.
+      if (ts.isImportSpecifier(n.parent)) continue;
+      if (ts.isCallExpression(n.parent) && n.parent.expression === n) {
+        const key = `${n.text}@${enclosingFunction(n)}`;
+        found[key] = (found[key] ?? 0) + 1;
+      } else {
+        notCalls.push(`${n.text} used as a value in ${enclosingFunction(n)}`);
+      }
+    }
+    // Printed so the SUMMARY records the measured counts.
+    console.log(`install.ts owner-call census: ${JSON.stringify(found)}`);
+    expect(notCalls, "a reference that is not a direct call escapes the census").toEqual([]);
+    expect(found).toEqual(OWNER_CALLS);
+  });
+
+  it("ENTRY_GATE_CHECKS in install.ts has exactly one check per ENTRY_GATE_KINDS member, and hostReadsCarrier is called by carrierFinding and kitRouteFindings", () => {
+    const sf = installSource();
+    const nodes = allNodes(sf);
+    const decl = nodes.find((n): n is ts.VariableDeclaration => ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "ENTRY_GATE_CHECKS");
+    expect(decl, "ENTRY_GATE_CHECKS is not declared in install.ts").toBeDefined();
+    const init = (decl as ts.VariableDeclaration).initializer;
+    expect(init !== undefined && ts.isObjectLiteralExpression(init), "ENTRY_GATE_CHECKS is not an object literal").toBe(true);
+    const keys = (init as ts.ObjectLiteralExpression).properties.map((p) => (p.name !== undefined && (ts.isStringLiteral(p.name) || ts.isIdentifier(p.name)) ? p.name.text : "?"));
+    expect([...keys].sort()).toEqual([...ENTRY_GATE_KINDS].sort());
+    const callers = new Set(
+      nodes
+        .filter((n): n is ts.Identifier => ts.isIdentifier(n) && n.text === "hostReadsCarrier" && ts.isCallExpression(n.parent) && n.parent.expression === n)
+        .map((n) => enclosingFunction(n)),
+    );
+    expect([...callers].sort()).toEqual(["carrierFinding", "kitRouteFindings"]);
+  });
+
+  it("the reach loop walks routeCarrierSet order; for every host that order, restricted to its carriers, is its routeCarriers order", () => {
+    const set = [...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))];
+    for (const h of HOST_TOOLS) expect(set.filter((rel) => routeCarriers(h).includes(rel)), h.id).toEqual([...routeCarriers(h)]);
   });
 });
