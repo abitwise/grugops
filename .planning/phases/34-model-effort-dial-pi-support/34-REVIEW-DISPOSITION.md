@@ -5,31 +5,31 @@ titles: json
 findings:
   - id: WR-11
     severity: warning
-    disposition: open
+    disposition: deferred
     title: "A Windows-written marker on a POSIX checkout is now \"not install's marker\", so install never replaces it and writes no ask rules (WIN-1, a side effect of the WR-09 fix)"
   - id: WR-12
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The closing banner says ask rules were written even when none were"
   - id: IN-09
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The freshness gate's per-adapter zero-config value check cannot be reached (executor flag confirmed)"
   - id: IN-10
     severity: info
-    disposition: open
+    disposition: deferred
     title: "`AnnouncedAssignment.aliases`, `.effort.levels` and both `overrides` are now read and never used"
   - id: IN-11
     severity: info
-    disposition: open
+    disposition: deferred
     title: "Every install now prints two relay lines of about 717 characters"
   - id: IN-12
     severity: info
-    disposition: open
+    disposition: deferred
     title: "Denylist `p === TARGET` triage (34-21 flag): no evasion today, but by convention only, and one classified reason is inaccurate"
   - id: IN-13
     severity: info
-    disposition: open
+    disposition: deferred
     title: "The `isRecordedAbsolute` docstring and table omit the win32 rooted, drive-less spelling, the row-319 shape"
   - id: WR-08
     severity: warning
@@ -93,7 +93,7 @@ findings:
     title: "The validator's dispatch-map check only warns when the table is unrecognisable"
   - id: IN-03
     severity: info
-    disposition: deferred
+    disposition: fixed
     title: "The Pi template is create-only, so a future change to `PI_PROMPT_TEXT` never reaches an installed repository"
   - id: IN-04
     severity: info
@@ -103,7 +103,7 @@ findings:
     severity: info
     disposition: deferred
     title: "The structure validator does not validate the `models` / `models.effort` block"
-open: 7
+open: 0
 total: 25
 recorded: 2026-10-09T12:32:03.083Z
 ---
@@ -112,13 +112,13 @@ recorded: 2026-10-09T12:32:03.083Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-11 | warning | open | - |
-| WR-12 | warning | open | - |
-| IN-09 | info | open | - |
-| IN-10 | info | open | - |
-| IN-11 | info | open | - |
-| IN-12 | info | open | - |
-| IN-13 | info | open | - |
+| WR-11 | warning | deferred | Windows is out of scope during active development (human, 2026-10-09, D-25). On a POSIX checkout, install leaves a Windows-written marker unchanged, writes no ask rules and exits 3 until a hand edit; nothing is deleted (34-REVIEW.md WR-11). Deferred with Windows support. Carried in deferred-items.md |
+| WR-12 | warning | fixed | plan 34-25: writeAskRules returns an AskRulesOutcome on every exit and the install closing notes print the ask-rules sentence from that outcome only (D-25) (commits baa8d073, 413cddd8); plan 34-26: the --update banner and status come from VERIFY_FINDINGS, and the --migrate and uninstall closing lines say what the run did, siblings A, B and C (D-25) (commits afe94f40, 39ff1558, efe81f3e) |
+| IN-09 | info | deferred | Outside gap round 3's scope (D-25: G-34-2 and G-34-4 only). The per-adapter zero-config value branch in scripts/adapters-freshness.ts is unreachable while validator rule 8 holds; say so in its comment or drop it. Owner: backlog triage |
+| IN-10 | info | deferred | Outside gap round 3's scope (D-25: G-34-2 and G-34-4 only). AnnouncedAssignment.aliases, .effort.levels and both overrides are read and never used, and the announcementShape docstring describes a use that no longer exists; harmless. Owner: backlog triage |
+| IN-11 | info | deferred | Outside gap round 3's scope (D-25: G-34-2 and G-34-4 only). The two relayed announcement lines are about 717 characters each; relay the summary fields or wrap the map, a user-visible output change. Owner: backlog triage |
+| IN-12 | info | deferred | Outside gap round 3's scope (D-25: G-34-2 and G-34-4 only). No evasion today, but both denylist operands share one spelling by convention only, and the install classification reason names TARGET where the kit-home operand comes from GRUGOPS_HOME. Owner: backlog triage |
+| IN-13 | info | deferred | Windows is out of scope during active development (human, 2026-10-09, D-25). The win32 rooted, drive-less spelling fails closed as other-directory today; the docstring sentence and the two table rows are deferred with Windows support |
 | WR-08 | warning | fixed | plan 34-19: the generator announces the per-role map of both dials and the freshness gate reads it (D-24) (commits 37e98a97, 90b044ff); plan 34-20: the installer compares each adapter's rendered and written values with that map, member by member, and the verifier's dropped-line reproduction is a committed refusal row, exit 3, 0 adapters (D-22, D-24) (commits c0fa273c, 92333ee1) (not in the current review) |
 | WR-09 | warning | fixed | plan 34-21: one absoluteness rule for recorded paths (isRecordedAbsolute in install/user-file.ts), the install marker check asks it, isOwnLink compares through the one spelling (sameRecordedPath), and the WIN-1 census derives its comparison and absoluteness sites from the syntax tree with asserted counts (commits 03428cc1, 6d8cdaea) (not in the current review) |
 | WR-10 | warning | fixed | plan 34-22: end-to-end rows for writable chmod-only pointer files (CLAUDE.md and the Copilot file) reach the uninstall pointer-file mode check, capability-gated, Windows skip recorded as WINDOWS.md row 321 (commits adab0500, dda5664e) (not in the current review) |
@@ -134,7 +134,7 @@ recorded: 2026-10-09T12:32:03.083Z
 | WR-07 | warning | fixed | plan 34-17 Task 1: claim corrected; the installer does not set GRUGOPS_PROJECT_DIR, and workflow 16, TRUSTED_ROOT_TIERS and the context-io.ts docstrings now say so (commit 06a8e77b) (not in the current review) |
 | IN-01 | info | deferred | Three per-host row matchers disagree but all fail closed today; unify them in one module together with IN-02. Carried in deferred-items.md (not in the current review) |
 | IN-02 | info | deferred | The validator only warns on an unrecognisable table while the UAT oracle fails red on it; its comment ("never passed silently") overstates, a DOC-1 member left with IN-01. Carried in deferred-items.md (not in the current review) |
-| IN-03 | info | deferred | The Pi template is create-only; this round changes documentation, not `PI_PROMPT_TEXT`, so no installed template is stale. A refresh rule belongs with the next template change. Carried in deferred-items.md (not in the current review) |
+| IN-03 | info | fixed | plan 34-28: re-install refreshes install's own unedited Pi template and AGENTS.md copy, and its own unedited CLAUDE.md and Copilot blocks, through one span finder; a user's own or edited carrier is left with a note (D-26 point 2) (commits 2fe47e93, f25fecb3, 513aced4) (not in the current review) |
 | IN-04 | info | deferred | The effort-rationale floor inside `tieredTableRefusals` couples the model preset to effort rows that are complete today; split it or document the shared floor. Carried in deferred-items.md (not in the current review) |
 | IN-05 | info | deferred | The validator does not ask `readModelsConfig`; pre-existing for the model dial, widened by effort. Carried in deferred-items.md (not in the current review) |
 

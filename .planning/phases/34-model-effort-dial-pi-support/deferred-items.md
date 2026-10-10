@@ -292,3 +292,68 @@ windows-latest measurement in this round, so nothing below is a Windows result (
   20,001-file walk's time bound).
 - **Suggested owner:** the human's deferred windows-latest run (D-21), read against the 34-VALIDATION.md
   prediction; HOST-02 stays unchecked until then.
+
+## From gap round 3 (D-25, D-26)
+
+Recorded by plan 34-31. Gap round 3 (plans 34-25 to 34-30) fixed G-34-4 (WR-12 and its siblings A, B
+and C, D-25) and built the marker route for G-34-2 (D-26). The disposition ledger records WR-12 and IN-03
+as `fixed` with their plans and commits, the other six round-3 rows as `deferred`, and `open: 0`. Under
+D-25 Windows is out of scope during active development, so nothing below is a Windows result (WIN-3), and
+no live host run was made by an agent.
+
+### (1) IN-03: CLOSED by plan 34-28
+
+- **Finding:** the Pi template was create-only, so a later change to `PI_PROMPT_TEXT` never reached a
+  repository that already had it (34-REVIEW-ROUND0.md IN-03).
+- **How it was closed:** plan 34-28 made re-install refresh install's own unedited Pi template and
+  `AGENTS.md` copy (commit `2fe47e93`), and install's own unedited CLAUDE.md and Copilot blocks through one
+  shared span finder (commit `f25fecb3`). A user's carrier that lacks the route gets a note naming the
+  hosts it leaves out (commit `513aced4`). The ledger row reads `fixed`.
+- **Status:** closed; D-26 point 2.
+- **Suggested owner:** none.
+
+### (2) writeMarker reports `created` for `.grugops/install.json` on every write
+
+- **Finding:** `install/install.ts` writeMarker prints `created .grugops/install.json (marker)` after
+  every successful write, including a re-install that replaced an existing marker. The G-34-4 diagnosis
+  found it (.planning/debug/ask-rules-banner-fabrication.md, Evidence 19:40:30Z, "Adjacent, outside the
+  banner scope", scratch scenarios s0-fresh #2, s2, s4, s6 and s7). The `report("created", …)` call is
+  still at install.ts:4868 at the round-3 head.
+- **Why not fixed:** it is a per-action report label, not a closing-banner sentence. D-25 fixed the
+  closing-claim class (WR-12 and siblings A, B and C) and named no per-action label. Changing it changes a
+  user-visible report line, which needs a human decision on the label (for example `updated` or
+  `replaced` when a marker was already there).
+- **Suggested owner:** human backlog triage.
+
+### (3) WR-11: deferred with Windows support
+
+- **Finding:** on a POSIX checkout, a marker written on Windows (`C:/` spelling in `grugopsHome`,
+  `kitRoot` and `target`) fails the shape check, so install leaves it unchanged, writes no ask rules and
+  exits 3 on every run until a hand edit; the printed reason ("not an absolute path") is false on the host
+  that wrote it (34-REVIEW.md WR-11). Nothing is deleted.
+- **Why not fixed:** Windows is out of scope during active development (human, 2026-10-09, D-25; 34-UAT.md
+  test 4 decision). IN-13 (the `isRecordedAbsolute` docstring and table omit the win32 rooted, drive-less
+  spelling) is deferred with it for the same reason.
+- **Suggested owner:** the Windows support work, when the human brings Windows back into scope.
+
+### (4) The live Pi re-run (34-UAT.md test 2): the human's act
+
+- **Finding:** 34-UAT.md test 2 failed before round 3: Pi expanded `/grugops`, then read
+  `agent-factory/roles/orchestrator.md` under the repository and got ENOENT, because the kit lives in the
+  shared home after a scripted install (.planning/debug/pi-grugops-kit-not-found.md).
+- **What round 3 did:** plans 34-27 to 34-29 gave the Pi template, the Copilot and CLAUDE.md pointers and
+  the kit's `AGENTS.md` the route to the kit through the `kitRoot` field of `.grugops/install.json`
+  (`KIT_ROUTE`), made install refresh its own stale carriers, and made `--check` print one reach line per
+  host. An offline follower test reads the same route (34-27, `install/kit-route.test.ts`).
+- **Status:** `UNKNOWN - verify` until the human re-runs test 2 on a real Pi. No agent ran Pi, and no
+  record claims a result. The steps are in 34-VALIDATION.md, "Gap round 3 (D-25, D-26)".
+- **Suggested owner:** the human, at `/gsd-verify-work 34`.
+
+### (5) Live runs on Copilot, Codex, OpenCode and Gemini after a scripted install
+
+- **Finding:** the route is carried by `AGENTS.md` and the installer-written pointers on every host, and
+  `--check` prints a reach line per host, but no live session on any of these four hosts has been run
+  after a scripted install.
+- **Status:** each is `UNKNOWN - verify`: Copilot `UNKNOWN - verify`, Codex `UNKNOWN - verify`, OpenCode
+  `UNKNOWN - verify`, Gemini `UNKNOWN - verify`.
+- **Suggested owner:** backlog 999.4 (ROADMAP.md), re-scoped by plan 34-30 to these live per-host runs.
