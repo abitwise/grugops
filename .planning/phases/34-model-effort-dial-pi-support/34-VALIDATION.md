@@ -154,6 +154,7 @@ probe-derived edge predicates were generated. Edge cases and prohibitions were d
 | Behavior | Requirement | Why Manual | Test Instructions | Result |
 |----------|-------------|------------|-------------------|--------|
 | No test added/changed by this phase is red on windows-latest | HOST-02 (D-09) | The push is the human's act | Human pushes; record `test (windows-latest)` conclusion and any red file against WINDOWS.md rows 274/315 | ❌ NOT MET. Run 37521787426, head `dc2c7581d4710aed1e288bcab01872a71b38d3e6` (equals the pushed `main` HEAD and local HEAD). `test (ubuntu-latest)` success; `test (windows-latest)` failure at step "Vitest (e2e lane excluded)": 13 files / 144 tests red. 5 red tests were added or changed by this phase (class b). See "Windows-latest measurement" below. **Gap round 1 (34-18): ❌ NOT MET.** Run 37733716975, head `9de784e863280e9510a50e122bf0d8ff12f5a833` (equals local HEAD at the push). `test (ubuntu-latest)` success; `test (windows-latest)` failure at "Vitest (e2e lane excluded)", printed `Test Files  4 failed \| 99 passed (103)` and `Tests  7 failed \| 7402 passed \| 28 skipped (7437)`. The five HOST-02 tests of 34-VERIFICATION.md gap 1 are green; two tests 34-13 changed are red (ledger.test.ts link records, a new cause, WINDOWS.md row 319). See "Gap round 1 (D-19): measured result" below. **Gap round 2 (34-23): no run.** No windows-latest run was made in round 2: the Windows measurement is deferred by the human (D-21), and HOST-02 stays unchecked. What the later run should show is in "Gap round 2 (D-21): prediction for the deferred run" below. |
+| After a scripted install, Pi's /grugops reaches the Orchestrator | PI-02 (D-26) | Only a live Pi session shows what Pi reads; no agent runs Pi | The five steps in "Gap round 3 (D-25, D-26)" below, the 34-UAT.md test 2 re-run, run by the human at `/gsd-verify-work 34` | pending: `UNKNOWN - verify` until the human's re-run. Round 3 (plans 34-27 to 34-29) built the marker route this row exercises; no live Pi run has been made since. |
 
 ### Windows-latest measurement (34-10 Task 3, read with `gh run view 37521787426` and `gh run view --job 112468804112 --log`)
 
@@ -780,6 +781,70 @@ imperative lexicon and `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.
 steps before vitest (build, build parity, typecheck, `check-platform-shapes.js`) exited 0. The local test
 total, 7538, equals the total predicted above. `npm test` and the e2e lane were not run. This is a macOS
 result, it says nothing about windows-latest, and HOST-02 stays unchecked (D-21).
+
+### Gap round 3 (D-25, D-26)
+
+Gap round 3 (plans 34-25 to 34-31) fixed G-34-4 (WR-12 and its siblings, D-25) and built the marker route
+for G-34-2 (D-26). Under D-25 Windows is out of scope during active development: this round made no
+windows-latest run and claims no Windows result, and HOST-02 stays unchecked.
+
+#### (a) The live Pi re-run (34-UAT.md test 2): the human's steps
+
+Run by the human; no agent runs Pi, and nothing here claims a result. The UAT repository is the 34-UAT.md
+test 2 target (`cli-chess-example`, .planning/debug/pi-grugops-kit-not-found.md).
+
+1. From the grugops checkout at the round-3 head, run `node install/install.js --target <the UAT repository>`.
+2. Read the `refreshed` or `note` line for `.pi/prompts/grugops.md`, and any note that names `AGENTS.md`.
+3. Run `node install/install.js --check --target <the UAT repository>` and read the `reach` line for Pi
+   (`Pi: reaches the Orchestrator through …` or `Pi: CANNOT reach the Orchestrator: …`).
+4. Start `pi` from the repository root, grant project trust, run `/grugops <request>`, and record whether
+   Pi reads `.grugops/install.json`, then `<kitRoot>/roles/orchestrator.md`, and acts as the Orchestrator.
+5. If the repository's own `AGENTS.md` still carries the old rule, the install note names the sentence to
+   add. Record the outcome either way.
+
+Record the result in 34-UAT.md test 2 and in the PI-02 row of "Manual-Only Verifications" above. Until
+then the row reads `pending` and the result is `UNKNOWN - verify`.
+
+#### (b) Live runs on the other hosts after a scripted install
+
+No live session has been run on these hosts after a scripted install. Each is `UNKNOWN - verify` (backlog
+999.4, re-scoped by plan 34-30):
+
+- Copilot: `UNKNOWN - verify`
+- Codex: `UNKNOWN - verify`
+- OpenCode: `UNKNOWN - verify`
+- Gemini: `UNKNOWN - verify`
+
+#### Local chain on the final round-3 tree (macOS, not a Windows result)
+
+Run by plan 34-31 on 2026-10-10 on local HEAD `cf7d02cb2928b64f1f719d6bd80e5aaaed9d0bef` (plan 34-31's
+first commit). Nothing outside `.planning/` changed after `5520bcaa` (plan 34-30, the last change of gap
+round 3 outside the planning records), so this is the final round-3 product, test and document tree. The
+working tree held only this plan's uncommitted edits to `.planning/REQUIREMENTS.md` and this file, the
+human's uncommitted `human-notes.txt` and three untracked `.planning/research/.cache/*.json` files. Local
+Node v26.11.0. The steps are those of 34-31-PLAN.md Task 2 `<verify>`, in that order:
+
+- `npm run build`, `npm run check:build-parity` (`ALL CHECKS PASSED`), `npm run typecheck` and
+  `node scripts/check-platform-shapes.js` (`ALL CHECKS PASSED`): each exited 0. The build left no change
+  in the tree.
+- `npx vitest run --exclude '**/scripts/e2e/**'` under a short fresh TMPDIR (`/tmp/g34.XXXX`, removed
+  afterwards) exited 1. Vitest printed `Test Files  1 failed | 104 passed (105)` and
+  `Tests  1 failed | 7625 passed | 2 skipped (7628)`, duration 1594.20 s. The one red is the one allowed
+  local red: `install/installer-fs-census.test.ts` "every node:fs export whose name may mark a content
+  read is classified, two-sided, in CONTENT_READER or NOT_CONTENT_READER", `UNCLASSIFIED node:fs export
+  openAsBlobSync`. It comes from the local runtime (Node v26.11.0 exports `openAsBlobSync`), not from the
+  tree (deferred-items.md, "Out of scope, found during 34-19").
+- The same census file run alone under Node v24.12.0 (`PATH=/usr/local/bin:$PATH`) exited 0 and printed
+  `Tests  24 passed (24)`.
+- The seven freshness gates (`freshness`, `:catalog`, `:context`, `:adapters`, `:skill-twins`,
+  `:guarantees`, `:hook-manifest`), `generate:adapters` followed by an empty
+  `git status --porcelain -- .claude/agents/`, foundation guards, kit refs, public-docs vocabulary, audit
+  register, claim anchors, banned claims, imperative lexicon and
+  `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` (`ALL CHECKS PASSED`): each exited 0.
+
+`npm test` and the e2e lane were not run, and no Node 22 run was made here. This is a macOS result. It
+says nothing about windows-latest, and HOST-02 stays unchecked (D-25). It says nothing about a live host
+session either: the PI-02 row above stays `pending`.
 
 ---
 
