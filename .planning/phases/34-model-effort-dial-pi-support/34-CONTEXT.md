@@ -214,6 +214,25 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   install-time value into instruction text (T-34-13). Doing both carries those costs and reaches no
   host the marker route leaves out.
 
+### Gap round 4 decisions (human, 2026-10-10, answering 34-VERIFICATION.md gaps_found 17/20 and the open 34-REVIEW.md rows)
+- **D-27:** Gap round 4 scope, the last round on the cap (human chose "doctor class"). (1) CR-01 is
+  fixed: Gemini CLI counts `AGENTS.md` as a route carrier only when `.gemini/settings.json` parses
+  through the same reader `mergeGemini` uses and its `context.fileName` contains `AGENTS.md`; otherwise
+  `--check` prints `CANNOT reach` for Gemini with a counted WARN or FAIL. The "does this host read entry
+  file X" gate is owned in one place, keyed off the registry, not a Gemini special case in the doctor
+  loop. (2) WR-02 and WR-03 are fixed with it: one derivation of "which hosts does this carrier leave
+  without a route" (from the same inputs as the `reach` loop, including other carriers and Claude Code's
+  adapter route) is used by install's `noteMissingRoute`, the doctor's `carrierFinding` user WARN and its
+  absent-carrier arm; a carrier whose absence or missing route strands no host is reported uncounted.
+  (3) WR-01 is fixed: one `refreshable` predicate owns the refresh conditions and is used by
+  `refreshOwnFile`, `ensureBlock`'s refresh arm and `carrierFinding`; the doctor FAILs with "re-run
+  install.js" only when that predicate says install would refresh, and otherwise WARNs with the manual
+  remedy. (4) IN-01 (kitRouteFindings header comment on links) and IN-06 (install/README.md AGENTS.md
+  bullet) are fixed as riders. (5) WR-04, WR-05, IN-02, IN-03, IN-04 and IN-05 are deferred: each gets a
+  disposition and a reason in `deferred-items.md` and the review disposition ledger; no plan in this
+  round edits for them. D-25 (1) still holds: no Windows work, no windows-latest measurement, HOST-02
+  stays open. The live Pi and other-host runs remain human UAT items; no plan claims them.
+
 ### Claude's Discretion
 - Exact TypeScript module/location of the host-tool registry, and how docs prose is checked against it.
 - Plan order and wave split between the effort half and the Pi half (they are independent).

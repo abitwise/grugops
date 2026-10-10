@@ -74,3 +74,27 @@ fixed inside the checkpoint.
 - No per-plan red-team (retired 2026-10-04). New adversarial findings go to backlog or a known-issue
   row for human triage, not into the next plan's scope.
 - No agent runs `git push`. The windows-latest measurement is the human's act.
+
+## 4. Round 4 addendum (2026-10-10, last round on the cap; scope is 34-CONTEXT.md D-27)
+
+Windows work stays out (D-25 (1)); §2.1 and §2.5 do not apply this round and no plan ends in a
+push checkpoint. Two classes recur on the `--check` and install-note surfaces; a later finding that
+matches one is the same class again.
+
+| ID | Class | Rule that must hold everywhere | Evidence so far |
+|----|-------|--------------------------------|-----------------|
+| VERDICT-1 | A verdict the run did not earn | Every `reach`, `ok`, `ALL CHECKS PASSED`, `note`, WARN or FAIL line states only what this run read from disk. A host counts as reaching only through a carrier that host actually reads in this target (its own settings decide, e.g. Gemini `context.fileName`). A host that cannot reach always comes with a counted finding; a carrier whose state strands no host is never counted | G-34-4 (round 2 closings), CR-01 (Gemini reach from static `entryFiles`), WR-02 ("gets no route" beside a `reach` line), WR-03 (absent optional carrier counted under `--strict`) |
+| AUTH-1 | One rule, two derivations | Each of these has exactly one owner, and every caller asks it: "does host H read entry file X here", "which hosts does carrier X leave stranded", "would install refresh carrier X". The doctor never re-derives what install decides | WR-01 (carrierFinding own-stale vs refreshOwnFile/ensureBlock gates, links), WR-02 (AGENTS.md special case vs every other file in noteMissingRoute) |
+
+Required for these classes, in addition to §2.2-§2.4 where they apply:
+- **Sibling search.** List every site that emits a reach/note/WARN/FAIL about a route carrier, and
+  every site that decides refresh, by search over `install/install.ts` (and any helper it calls), not
+  from the review. For each site, name the plan and test that covers it.
+- **Class test.** One test drives the doctor and install over a matrix of carrier states (present with
+  route, present without route, absent, link, install's own stale, user's own) × hosts (derived from
+  `HOST_TOOLS`, count asserted) × Gemini settings (fileName lists AGENTS.md, omits it, duplicate
+  `context` key, unreadable), and asserts for every host: `reach` says CANNOT exactly when no carrier
+  the host reads holds the route, and a counted finding exists exactly when some host cannot reach.
+  Mutation proof: make one owner answer wrongly (e.g. the Gemini gate always true), watch it go red.
+- **Install and doctor agree.** For every carrier state in the matrix, the doctor's "re-run install.js"
+  FAIL appears only when an install run on that state actually refreshes it (assert by running both).
