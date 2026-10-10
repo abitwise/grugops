@@ -184,9 +184,8 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   non-Claude host cannot reach the Orchestrator) and a test that the path a pointer names exists after
   an install whose kit lives in a separate home. Its design is D-26. (4) The live Pi re-run is a human
   UAT item after execution; no plan claims it. Gap rounds are capped at 4; this is round 3.
-- **D-26:** PENDING. The human answers at plan 34-27 Task 1 (`checkpoint:decision`); the executor
-  replaces this entry with the answer and commits it before any G-34-2 code is written. Planner's
-  recommendation, "the marker route": (1) One route sentence, `KIT_ROUTE` in `install/host-tools.ts`,
+- **D-26:** The marker route (human, 2026-10-10, plan 34-27 Task 1; the human chose "marker" and
+  approved all five points as written). (1) One route sentence, `KIT_ROUTE` in `install/host-tools.ts`,
   says the kit root after a scripted install is the directory in the `kitRoot` field of
   `.grugops/install.json` and that each `agent-factory/…` path is read under it. The Pi template, the
   Copilot pointer and the CLAUDE.md block carry it after their start-here sentence, and the kit's
@@ -307,7 +306,7 @@ WINDOWS.md rows 274 and 315 are not fixed here (D-09).
   (34-RESEARCH.md Q7) — pre-existing, `UNKNOWN - verify`, Pi inherits it; backlog. The Pi template stays a
   plain pointer (no third resolver adapter). **No longer deferred:** the live Pi run in 34-UAT.md test 2
   failed on it (G-34-2, blocker), and the human brought it into gap round 3 (D-25); its design is D-26.
-  The Pi template stays a pointer with no resolver slot under D-26's recommendation.
+  The Pi template stays a pointer with no resolver slot under D-26.
 
 </deferred>
 
