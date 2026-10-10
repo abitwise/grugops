@@ -357,3 +357,106 @@ no live host run was made by an agent.
 - **Status:** each is `UNKNOWN - verify`: Copilot `UNKNOWN - verify`, Codex `UNKNOWN - verify`, OpenCode
   `UNKNOWN - verify`, Gemini `UNKNOWN - verify`.
 - **Suggested owner:** backlog 999.4 (ROADMAP.md), re-scoped by plan 34-30 to these live per-host runs.
+
+## From gap round 4 (D-27)
+
+Recorded by plan 34-36. Gap round 4 (plans 34-32 to 34-36, the last round on the four-round cap) fixed the
+doctor class of the round-3 review (VERDICT-1 and AUTH-1, 34-GAP-PLANNING-BRIEF.md §4): CR-01, WR-01,
+WR-02 and WR-03, with the riders IN-01 and IN-06. The human deferred WR-04, WR-05 and IN-02 to IN-05 (D-27
+point 5). The disposition ledger records the six fixed rows with their plans and commits, the six deferred
+rows with a reason, and `open: 0`; 34-REVIEW-DISPOSITION-ROUND3.md keeps a copy. Under D-25 Windows is out
+of scope during active development, so nothing below is a Windows result, and no live host run was made by
+an agent.
+
+### (1) Closed rows, with plans and commits
+
+- **CR-01** (`--check` said Gemini CLI reaches through AGENTS.md without asking whether Gemini reads it):
+  plan 34-32. The registry row's entryGates and the one owner hostReadsCarrier, with ENTRY_GATE_CHECKS
+  reading this repository's `.gemini/settings.json` through readGeminiContext; the remedy reads
+  geminiMergePlan (commits `242a55fb`, `d8b6b2da`).
+- **IN-01** (the kitRouteFindings header said readUserFile never opens a link): plan 34-32, the header's
+  step-1 sentence now says a link is followed, as a host would follow it (commit `242a55fb`).
+- **WR-02** (a note or WARN said a host gets no route while the same run's reach line said it reaches)
+  and **WR-03** (`--check --strict` failed when the optional Copilot pointer or Pi template was deleted):
+  plan 34-33. One derivation, strandedBy over RouteFacts; the doctor counts a carrier only when it strands
+  a host, and install's route notes ask the same derivation over the state the run leaves, DRY_RUN
+  included (commits `1327ac26`, `e6a36b9d`).
+- **WR-01** (the doctor's own-stale verdict disagreed with install on links, so its FAIL never cleared):
+  plan 34-34. One predicate, refreshable, decides refresh for refreshOwnFile, ensureBlock and the doctor;
+  the absent arm asks readForWrite (commits `1b91bc2d`, `10bcf91f`).
+- **IN-06** (the install guide's AGENTS.md bullet said "only when the target has none"): plan 34-36, the
+  bullet says the file is refreshed when it is install's own unedited copy, bound by a doc-truth case
+  (commits `e7492436`, `2305ff21`).
+- Plan 34-35 added the brief §4 class matrix over the three owners (commits `0c4bb92e`, `d7b4e8ff`); it
+  closes no row by itself.
+
+### (2) WR-04: block-carrier facts typed in several places
+
+- **Finding:** ROUTE_BLOCKS (install.ts), BLOCK_RELS (install-marker.ts), ROUTE_POINTERS (host-tools.ts)
+  and the sentinels in install.ts and uninstall.ts state the block carriers separately, with no test
+  binding them (34-REVIEW.md WR-04).
+- **Why not fixed:** deferred by the human (D-27 point 5). Today the sets agree, and the 34-35
+  install-and-doctor agreement assertion (assertion 5 of the class matrix) turns red if install and the
+  doctor classify a carrier differently.
+- **Suggested owner:** backlog triage.
+
+### (3) WR-05: the read-gate-write window in refreshOwnFile
+
+- **Finding:** refreshOwnFile decides ownership from one read and writes using a second read it does not
+  re-check (34-REVIEW.md WR-05).
+- **Why not fixed:** deferred (D-27 point 5). The window is shorter than the documented writeTargetFile
+  residual, and plan 34-34 kept refreshOwnFile's read order (owns, then readForWrite) without widening it;
+  ensureBlock decides and splices on one read.
+- **Suggested owner:** an installer write-path hardening backlog item.
+
+### (4) IN-02: whether to commit `.grugops/install.json`
+
+- **Finding:** the marker route sends every host to `.grugops/install.json`, which holds a per-machine
+  absolute `kitRoot`, and nothing says whether the file is committed (34-REVIEW.md IN-02).
+- **Why not fixed:** deferred (D-27 point 5). Both failure modes (a committed marker naming another
+  machine's kit, an uncommitted one sending the agent to the repository's own `agent-factory/`) fail
+  closed into STOP, and the policy is a human decision about shared state.
+- **Suggested owner:** human triage.
+
+### (5) IN-03: the INCOMPLETE closings drop facts
+
+- **Finding:** the `--update` INCOMPLETE banner under DRY_RUN omits the DRY_RUN tag, and the
+  already-migrated `--migrate` INCOMPLETE branch omits the backup and leftover-kit advice (34-REVIEW.md
+  IN-03).
+- **Why not fixed:** deferred (D-27 point 5). No false claim is printed, and adding the facts changes
+  user-visible output.
+- **Suggested owner:** backlog.
+
+### (6) IN-04: a dead updateKeptMarker call in uninstall
+
+- **Finding:** the uninstall malformed-ledger arm calls updateKeptMarker, which returns `"unchanged"` at
+  its first line there, and discards the result (34-REVIEW.md IN-04).
+- **Why not fixed:** deferred (D-27 point 5). Harmless, and in uninstall.ts, which this round does not
+  touch.
+- **Suggested owner:** backlog.
+
+### (7) IN-05: the "preserved (never touched)" heading
+
+- **Finding:** the uninstall closing prints `-- preserved (never touched) --` before a line that can say
+  the marker was removed by this run (34-REVIEW.md IN-05).
+- **Why not fixed:** deferred (D-27 point 5). Cosmetic; the marker line under the heading is accurate.
+- **Suggested owner:** backlog.
+
+### (8) Sibling-search findings for human triage, not fixed
+
+- **Fallback context files are not modelled.** Per 34-RESEARCH.md §B, Pi reads `CLAUDE.md` in a directory
+  with no `AGENTS.md`, and OpenCode's fallback is `UNKNOWN - verify`. The registry names only the entry
+  files each host reads first, so the verdict errs toward CANNOT reach with a WARN, never toward a false
+  "reaches".
+- **Gemini's default and user-level context are not read.** `--check` reads only this repository's
+  `.gemini/settings.json`; Gemini's default `GEMINI.md` and any user-level Gemini settings are not read,
+  so the Gemini verdict is about this repository's files.
+- **The no-`kitRoot` FAIL in kitRouteFindings is not reached** by a marker without `kitRoot`: the marker
+  shape check (markerUnreadable) stops such a marker earlier (the planner's probe for 34-36).
+- **Suggested owner:** human triage.
+
+### (9) Live runs: the human's
+
+The live Pi re-run (34-UAT.md test 2) and the live runs on Copilot, Codex, OpenCode and Gemini after a
+scripted install stay the human's. Each is `UNKNOWN - verify`; no agent ran a live host in round 4, and no
+record claims a result (34-VALIDATION.md, "Gap round 3 (D-25, D-26)", steps (a) and (b)).

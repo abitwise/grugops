@@ -859,19 +859,86 @@ local chain on the final round-4 tree.
 
 | Plan | Task | Type | Requirement(s) | Automated verify (test files or gates) | At execution |
 |------|------|------|----------------|-----------------------------------------|--------------|
-| 34-32 | 1 tracer: Gemini fileName without AGENTS.md → CANNOT reach + counted WARN; hostReadsCarrier owner | tracer | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts`, `install/settings-json-provenance.test.ts` | ⬜ pending |
-| 34-32 | 2 every Gemini settings state, exact remedy (geminiMergePlan), follower's Gemini rule, entryGates and census, m1-m5 | auto | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts`, the Gemini-touching install lane, `install/installer-fs-census.test.ts` (Node v24) | ⬜ pending |
-| 34-33 | 1 tracer: strandedBy; a carrier is counted only when it strands a host (R9, R10 doctor half) | tracer | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts` | ⬜ pending |
-| 34-33 | 2 install route notes from strandedBy over the after-run state; note agreement; DRY_RUN equality; m1-m5 | auto | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts`, `install/install.test.ts`, `install/closing-claims.test.ts`, installer class tests, `install/installer-fs-census.test.ts` (Node v24) | ⬜ pending |
-| 34-34 | 1 tracer: refreshable; the AGENTS.md link reproduction (WR-01) gets a WARN, install agrees | tracer | PI-02, PI-03 | `install/kit-route.test.ts` | ⬜ pending |
-| 34-34 | 2 ensureBlock asks refreshable; the absent arm asks readForWrite; block-link and absent-through-a-link rows; m1-m5 | auto | PI-02, PI-03 | `install/kit-route.test.ts`, DC-2/DC-3 class tests, `install/installer-fs-census.test.ts` (Node v24) | ⬜ pending |
-| 34-35 | 1 tracer: one class cell, all nine assertions | tracer | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts -t "class matrix"` | ⬜ pending |
-| 34-35 | 2 the derived matrix (cell count asserted) and the matrix-level mutation proofs mA-mD | auto | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts`, `install/path-spelling-census.test.ts` | ⬜ pending |
-| 34-36 | 1 tracer: the install guide states the D-27 doctor behaviour; IN-06; doc-truth cases | tracer | HOST-01, PI-02 | `install/host-tools.test.ts`, `install/host-tools-prose.test.ts`, docs gates | ⬜ pending |
-| 34-36 | 2 CHANGELOG and sibling docs checked against the code | auto | HOST-01, PI-02 | docs gates (`check:diff-disposition`, claim anchors, banned claims, lexicon, public docs, nul bytes, audit register, residual citations, kit refs) | ⬜ pending |
-| 34-36 | 3 records and the final local chain | auto | HOST-01, PI-02, PI-03 | full suite (e2e excluded), census on Node v24, freshness gates, guards, validator | ⬜ pending |
+| 34-32 | 1 tracer: Gemini fileName without AGENTS.md → CANNOT reach + counted WARN; hostReadsCarrier owner | tracer | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts`, `install/settings-json-provenance.test.ts` | ✅ tracer verify re-run end to end: build, parity, typecheck and the three named files, 137/137 (commit `242a55fb`) |
+| 34-32 | 2 every Gemini settings state, exact remedy (geminiMergePlan), follower's Gemini rule, entryGates and census, m1-m5 | auto | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts`, the Gemini-touching install lane, `install/installer-fs-census.test.ts` (Node v24) | ✅ 10-file targeted lane 905 passed, 1 skipped (the existing D-08 `it.skip`); importers 1062/1062; `scripts/context-io.test.ts` 687/687; census on Node v24.12.0 24/24; m1-m5 each red (commit `d8b6b2da`) |
+| 34-33 | 1 tracer: strandedBy; a carrier is counted only when it strands a host (R9, R10 doctor half) | tracer | HOST-01, PI-02 | `install/kit-route.test.ts`, `install/host-tools.test.ts` | ✅ kit-route and host-tools 116/116; 12 doctor-related install files 1288 passed, 1 skipped (commit `1327ac26`) |
+| 34-33 | 2 install route notes from strandedBy over the after-run state; note agreement; DRY_RUN equality; m1-m5 | auto | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts`, `install/install.test.ts`, `install/closing-claims.test.ts`, installer class tests, `install/installer-fs-census.test.ts` (Node v24) | ✅ 8-file lane 788 passed, 1 skipped; all install/*.test.ts but the census 1813 passed, 1 skipped; scripts importers 1442/1442; census on Node v24.12.0 24/24; m1-m5 each red (commit `e6a36b9d`) |
+| 34-34 | 1 tracer: refreshable; the AGENTS.md link reproduction (WR-01) gets a WARN, install agrees | tracer | PI-02, PI-03 | `install/kit-route.test.ts` | ✅ `install/kit-route.test.ts` 67/67; the 9-file DC-2/DC-3 lane 840 passed, 1 skipped (commit `1b91bc2d`) |
+| 34-34 | 2 ensureBlock asks refreshable; the absent arm asks readForWrite; block-link and absent-through-a-link rows; m1-m5 | auto | PI-02, PI-03 | `install/kit-route.test.ts`, DC-2/DC-3 class tests, `install/installer-fs-census.test.ts` (Node v24) | ✅ 10-file lane 911 passed, 1 skipped; closing-claims and settings-json-provenance 88/88; census on Node v24.12.0 24/24; m1b, m1m2, m2-m5 red, m1 an equivalent mutant (commit `10bcf91f`) |
+| 34-35 | 1 tracer: one class cell, all nine assertions | tracer | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts -t "class matrix"` | ✅ `-t "class matrix"` 1/1; path-spelling census 15/15; typecheck exit 0 (commit `0c4bb92e`) |
+| 34-35 | 2 the derived matrix (cell count asserted) and the matrix-level mutation proofs mA-mD | auto | HOST-01, PI-02, PI-03 | `install/kit-route.test.ts`, `install/path-spelling-census.test.ts` | ✅ 3 files 187 passed, 0 failed; the class-matrix describe 42 tests over 39 cells; mA, mB, mC2, mD red, mC an equivalent mutant (commit `d7b4e8ff`) |
+| 34-36 | 1 tracer: the install guide states the D-27 doctor behaviour; IN-06; doc-truth cases | tracer | HOST-01, PI-02 | `install/host-tools.test.ts`, `install/host-tools-prose.test.ts`, docs gates | ✅ RED first: both new cases failed on the old guide (`RED_EVIDENCE_OK`); then host-tools and host-tools-prose 76/76; public docs, claim anchors, banned claims, lexicon and nul bytes each exit 0 (commits `e7492436`, `2305ff21`) |
+| 34-36 | 2 CHANGELOG and sibling docs checked against the code | auto | HOST-01, PI-02 | docs gates (`check:diff-disposition`, claim anchors, banned claims, lexicon, public docs, nul bytes, audit register, residual citations, kit refs) | ✅ the nine docs gates and kit refs each exit 0 (`check:diff-disposition`: 0 findings, no clause named, so no 29-style disposition file); host-tools and host-tools-prose 76/76 (commit `81d301cf`) |
+| 34-36 | 3 records and the final local chain | auto | HOST-01, PI-02, PI-03 | full suite (e2e excluded), census on Node v24, freshness gates, guards, validator | ✅ full suite: 7714 passed, 1 failed, 2 skipped of 7717 tests (105 files, 1 failed), the one red the allowed local `openAsBlobSync` row; census on Node v24.12.0 24/24; every gate and the validator exit 0 (see the local chain below) |
 
 All 11 tasks carry an `<automated>` verify.
+
+#### Mutation proofs by plan
+
+Each mutation was applied to the product source, rebuilt with tsc (a run counted only when tsc exited 0 and the
+.js changed), run, and restored byte for byte. The first red line is quoted from each plan's SUMMARY.
+
+| Plan | Mutation | Result | First red |
+|------|----------|--------|-----------|
+| 34-32 | m1: the gemini check always answers reads | 12 red | clean-install case: `expected 'kit route: Gemini CLI reads AGENTS.md…' to contain '.gemini/settings.json'` |
+| 34-32 | m2: the check parses with JSON.parse, not readGeminiContext | 1 red, row (a) | `reach          Gemini CLI: reaches the Orchestrator through AGENTS.md: expected true to be false` |
+| 34-32 | m3: carrierFinding's `(read by …)` from hostsReading | 11 red | `expected [ 'Claude Code', 'Codex CLI', …(4) ] to not include 'Gemini CLI'` |
+| 34-32 | m4: the remedy always `Re-run install.js` | 4 red, rows (a), (g), (h), (j) | `the remedy of row (a): … Re-run install.js: it adds AGENTS.md to context.fileName: expected true to be false` |
+| 34-32 | m5: the Gemini row's entryGates set to {} | 2 red (host-tools), 14 red (kit-route) | `entry-gate kind gemini-context-file-name is used by no row` |
+| 34-33 | m1: strandedBy returns every host that reads rel | 19 red | table: `strandedBy(AGENTS.md) holds=[CLAUDE.md] … expected [ 'claude', 'codex', 'opencode', …(2) ] to deeply equal [ Array(4) ]` |
+| 34-33 | m2: strandedBy ignores adapterReaches | 4 red | table: `strandedBy(CLAUDE.md) holds=[] … adapters=[claude]: expected [ 'claude' ] to deeply equal []` |
+| 34-33 | m3: noteStrandingCarriers names every host that reads rel | 4 red, n1, n4, n6, n9 | `AGENTS.md (left as it is, with no kit route in it: it leaves Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI, Pi without a route …` |
+| 34-33 | m4: the note pass ignores PLANNED_BYTES | 5 red | `DRY_RUN route notes vs the real install's` |
+| 34-33 | m5: the doctor counts every carrier without the route | 9 red | R9: `2 WARNING(S) (--strict: promoted to failure)` |
+| 34-34 | m1: refreshable's file arm reads through readUserFile | survived, 71/71 green: an equivalent mutant (owns already reads through readForWrite for a `sha256:` record) | none |
+| 34-34 | m1b: the same in the block arm | 2 red | `the doctor and install disagree on CLAUDE.md.` |
+| 34-34 | m2: the file arm skips the `sha256:` condition | 1 red, WR-01 | `expected '  WARN ... kit route missing fr…' to contain 'install never refreshes a link'` |
+| 34-34 | m1m2: m1 and m2 together | 1 red, WR-01 | `the doctor and install disagree on AGENTS.md.` |
+| 34-34 | m3: the doctor decides own-stale on owns alone | 3 red | `the doctor and install disagree on AGENTS.md.` |
+| 34-34 | m4: the block arm accepts more than one span | 1 red | `refreshed CLAUDE.md start-here pointer (...)`, `expected true to be false` |
+| 34-34 | m5: the absent arm always names `Re-run install.js` | 1 red | `the doctor and install disagree on .github/copilot-instructions.md.` |
+| 34-35 | mA: the gemini check always answers reads | 9 red | (b) omits: `(2) Gemini CLI: the doctor and the follower disagree` |
+| 34-35 | mB: strandedBy returns every host that reads the file | 28 red | (a) CLAUDE.md own-stale: `(3) counted kit-route lines vs hosts that cannot reach (none)` |
+| 34-35 | mC: refreshable's file arm skips readForWrite | survived, 42/42 green: an equivalent mutant, as 34-34's m1 | none |
+| 34-35 | mC2: mC plus the `sha256:` condition skipped | 2 red, the two whole-file link-to-stale cells | `(5) (a) AGENTS.md link-to-stale … the doctor names \`Re-run install.js\` for AGENTS.md exactly when the install writes it` |
+| 34-35 | mD: noteStrandingCarriers ignores PLANNED_BYTES | 6 red, all on (7) | `(7) … DRY_RUN route notes vs the real install's` |
+
+Plan 34-36 changed no product source; its RED is the two doc-truth cases failing on the old guide
+(`RED_EVIDENCE_OK`, target `the AGENTS.md bullet says install refreshes its own unedited copy (plan 34-36, IN-06)`).
+
+#### Local chain on the final round-4 tree (macOS, not a Windows result)
+
+Run by plan 34-36 on 2026-10-10 on local HEAD `81d301cfb01335ba82bc278586f761a75ba4e568` (plan 34-36 Task 2,
+the last change of gap round 4 outside the planning records). The working tree held only this plan's
+uncommitted Task 3 edits to `.planning/REQUIREMENTS.md`, `deferred-items.md`, `34-REVIEW-DISPOSITION.md`,
+the new `34-REVIEW-DISPOSITION-ROUND3.md` and this file, and three untracked
+`.planning/research/.cache/*.json` files. Local Node v26.11.0. The steps are those of 34-36-PLAN.md Task 3,
+in that order:
+
+- `npm run build`, `npm run check:build-parity` (`ALL CHECKS PASSED`), `npm run typecheck` and
+  `npm run check:platform-shapes` (`ALL CHECKS PASSED`): each exited 0. The build left no change in the tree.
+- `npx vitest run --exclude '**/scripts/e2e/**'` under a short fresh TMPDIR (`/tmp/g34.KHV7`, removed
+  afterwards), from 17:02:58Z to 17:33:54Z, exited 1. Vitest printed `Test Files  1 failed | 104 passed (105)`
+  and `Tests  1 failed | 7714 passed | 2 skipped (7717)`, duration 1854.76 s. The one red is the one allowed
+  local red: `install/installer-fs-census.test.ts` "every node:fs export whose name may mark a content read is
+  classified, two-sided, in CONTENT_READER or NOT_CONTENT_READER", `UNCLASSIFIED node:fs export
+  openAsBlobSync`. It comes from the local runtime (Node v26.11.0 exports `openAsBlobSync`), not from the tree
+  (deferred-items.md, "Out of scope, found during 34-19").
+- The same census file run alone under Node v24.12.0 (`PATH=/usr/local/bin:$PATH`) exited 0 and printed
+  `Tests  24 passed (24)`.
+- The seven freshness gates (`freshness`, `:catalog`, `:context`, `:adapters`, `:skill-twins`,
+  `:guarantees`, `:hook-manifest`): each exited 0. `npm run generate:adapters` exited 0, and
+  `git status --porcelain -- .claude/agents/` printed nothing.
+- `node scripts/check-foundation-guards.js` and `node scripts/check-kit-refs.js` (`ALL CHECKS PASSED`), the docs
+  gates (`check:diff-disposition`, `check:claim-anchors`, `check:banned-claims`, `check:imperative-lexicon`,
+  `check:public-docs`, `check:nul-bytes`, `check:audit-register`, `check:residual-citations`, each
+  `ALL CHECKS PASSED`) and `VALIDATE_KIT_ROOT=. node scripts/validate-agent-factory.js` (`ALL CHECKS PASSED`):
+  each exited 0.
+
+`npm test` and the e2e lane were not run, and no Node 22 run was made here. This is a macOS result. It says
+nothing about windows-latest, and HOST-02 stays unchecked (D-25). It says nothing about a live host session
+either: the live Pi re-run and the live runs on the other hosts stay `UNKNOWN - verify` (steps (a) and (b) of
+"Gap round 3 (D-25, D-26)" above).
 
 ---
 
