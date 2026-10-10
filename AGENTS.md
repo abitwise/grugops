@@ -37,7 +37,7 @@ Clear voice — this is a resolution and safety rule, not a joke.
 - `agent-factory/…` = **KIT** — read-only, resolved from the kit root; NEVER written.
 - `plans/`, `memory-bank/`, `.grugops/` = **STATE** — read/write in THIS repo.
 - Roles read and write the shared verified context only via Workflow 16 (`agent-factory/workflows/16-context-read-write.md`) — referenced, never restated.
-- The kit root is resolved by the adapter only. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`node install/install.js` or `node install/install.js --check`).
+- A Claude Code adapter names the kit root on its `KIT=` line. After a scripted install the grugops kit is not in this repository: its root is the directory named by the `kitRoot` field of `.grugops/install.json`, and each `agent-factory/…` path is read under it, so `agent-factory/roles/orchestrator.md` is `<kitRoot>/roles/orchestrator.md`. With no `.grugops/install.json` (the minimal copy install), the kit is this repository's own `agent-factory/`. If the resolved kit dir is absent: **STOP — do not hunt** the repo for `agent-factory/…`. Re-run the installer (`node install/install.js` or `node install/install.js --check`).
 
 <!-- claim: C-28-016 -->
 > **Kit vs state invariant:** `agent-factory/…` = read-only KIT (from the kit root, never written); `plans/`, `memory-bank/`, `.grugops/` = STATE in this repo. Roles pull shared context and publish typed notes per Workflow 16 — referenced, never restated. If the kit dir is absent, STOP — do not hunt.

@@ -17,7 +17,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, readFileSy
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { HOST_TOOLS, HOST_TOOL_COUNT, HOST_ADAPTER_KINDS, PI_PROMPT_REL } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, HOST_ADAPTER_KINDS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute } from "./host-tools.js";
 import { runInstall } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-host-tools-")));
@@ -420,5 +420,44 @@ describe("install guide covers Pi (plan 34-08)", () => {
     // The touch list, the usage section and the Undo sentence each name the path.
     expect(tokens.length).toBeGreaterThanOrEqual(3);
     for (const t of tokens) expect(t).toBe(PI_PROMPT_REL);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The kit route in the kit's AGENTS.md (plan 34-27, D-26). KIT_ROUTE is the one authority for the route
+// sentence; the "Kit vs state" rule carries it byte for byte, once, and keeps the SC2 invariant sentence
+// that scripts/check-kit-refs.ts pins at every marker site.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe("the kit route in AGENTS.md (plan 34-27, D-26)", () => {
+  const AGENTS = readFileSync(join(import.meta.dirname, "..", "AGENTS.md"), "utf8");
+  const SC2 = "If the kit dir is absent, STOP — do not hunt.";
+
+  /** The body of the `## Kit vs state` section: the lines after its heading, up to the next `## ` heading. */
+  const kitVsState = (): string => {
+    const lines = AGENTS.split("\n");
+    const at = lines.findIndex((l) => l === "## Kit vs state");
+    expect(at, "AGENTS.md has no `## Kit vs state` heading").toBeGreaterThan(-1);
+    const next = lines.findIndex((l, i) => i > at && l.startsWith("## "));
+    return lines.slice(at + 1, next === -1 ? lines.length : next).join("\n");
+  };
+
+  /** How many times `needle` occurs in `hay`, without overlap. */
+  const occurrences = (hay: string, needle: string): number => hay.split(needle).length - 1;
+
+  it("KIT_ROUTE is fixed text naming the marker field, and carriesKitRoute is exact containment", () => {
+    expect(KIT_ROUTE).toContain("`kitRoot`");
+    expect(KIT_ROUTE).toContain("`.grugops/install.json`");
+    expect(KIT_ROUTE).not.toContain("GRUGOPS_HOME");
+    expect(carriesKitRoute(`before ${KIT_ROUTE} after`)).toBe(true);
+    expect(carriesKitRoute(KIT_ROUTE.slice(0, -1))).toBe(false);
+  });
+
+  it("AGENTS.md carries KIT_ROUTE exactly once, inside the Kit vs state section", () => {
+    expect(occurrences(AGENTS, KIT_ROUTE), "KIT_ROUTE occurrences in AGENTS.md").toBe(1);
+    expect(occurrences(kitVsState(), KIT_ROUTE), "KIT_ROUTE occurrences in the Kit vs state section").toBe(1);
+  });
+
+  it("AGENTS.md keeps the SC2 invariant sentence", () => {
+    expect(AGENTS).toContain(SC2);
   });
 });

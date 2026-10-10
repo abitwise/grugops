@@ -161,6 +161,20 @@ describe("kit route: Pi's /grugops names a route that resolves after a scripted 
     expect(fails.length, c.stdout).toBe(1);
   });
 
+  it("the AGENTS.md install copies into an empty target carries KIT_ROUTE, and the route it names resolves", () => {
+    const { target } = installed();
+    const agents = readFileSync(join(target, "AGENTS.md"), "utf8");
+    expect(agents.includes(KIT_ROUTE), "the installed AGENTS.md does not carry the kit route").toBe(true);
+    const { kitRoot, orchestrator } = followRoute(target);
+    expect(relative(target, kitRoot).startsWith(".."), `kitRoot is inside the target: ${kitRoot}`).toBe(true);
+    expect(lstatSync(orchestrator).isFile(), `${orchestrator} is not a regular file`).toBe(true);
+    // Every agent-factory/ path the route sentence itself names resolves under kitRoot.
+    for (const p of backticked(KIT_ROUTE).filter(isPathToken).filter((t) => t.startsWith("agent-factory/"))) {
+      const where = join(kitRoot, ...p.slice("agent-factory/".length).split("/"));
+      expect(existsSync(where), `the route names \`${p}\`, which does not resolve (${where})`).toBe(true);
+    }
+  });
+
   it("an absent template: --check WARNs that Pi has no /grugops template", () => {
     const { target, kitHome } = installed();
     rmSync(piFile(target));
