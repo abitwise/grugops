@@ -175,11 +175,11 @@ The plan's search was re-run at task start and again at the end: `git grep -n -e
 
 | Hit (before → after) | Classification |
 |---|---|
-| install/README.md:333-341, the bold `UNKNOWN - verify` paragraph and its 999.4 sentence | **corrected** (Task 1). Replaced at install/README.md:372-378; the 999.4 mention moved to :363, where it describes the live per-host runs |
-| install/README.md :292-301, the Pi touch-list bullet ("left untouched and never recorded") | **corrected** (Task 1), :296-306 |
+| install/README.md:333-340, the bold `UNKNOWN - verify` paragraph and its 999.4 sentence | **corrected** (Task 1). Replaced at install/README.md:373-379; the 999.4 mention moved to :363, where it describes the live per-host runs |
+| install/README.md :292-301, the Pi touch-list bullet ("left untouched and never recorded") | **corrected** (Task 1), :297-306 |
 | agent-factory/packaging/adapters.md:55-57, the dispatch-map caveat | **corrected** (Task 1), :55-60 |
-| agent-factory/packaging/adapters.md:135, 139-141 ("not a resolver adapter", the 999.4 caveat) | **corrected** (Task 1), :138-146. "not a resolver adapter" is kept, with what it means added |
-| agent-factory/packaging/slash-command.template.md:83 ("repo-relative pointer-text"), :94-96 ("a plain pointer") | **corrected** (Task 2), :83-108 |
+| agent-factory/packaging/adapters.md:135, 139-141 ("not a resolver adapter", the 999.4 caveat) | **corrected** (Task 1), :136-146. "not a resolver adapter" is kept, with what it means added |
+| agent-factory/packaging/slash-command.template.md:83 ("repo-relative pointer-text"), :94-96 ("a plain pointer") | **corrected** (Task 2), :83-107 |
 | agent-factory/packaging/slash-command.template.md:103, the quote of D-11 ("the adapter is the sole resolver") | **left**: a citation of the decision it amends |
 | README.md:47 | **corrected** (Task 3) |
 | agent-factory/README.md:39-41 | **corrected** (Task 3), :39-42 |
