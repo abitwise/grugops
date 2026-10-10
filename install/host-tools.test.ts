@@ -34,6 +34,7 @@ import {
   type HostTool,
   type RouteFacts,
 } from "./host-tools.js";
+import { GEMINI_SETTINGS_REL } from "./install-marker.js";
 import { runInstall } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-host-tools-")));
@@ -502,6 +503,44 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
     for (const token of ["--check", "`reach`", "FAIL", "WARN", "`UNKNOWN - verify`"]) {
       expect(sec, `the kit-route section does not carry ${token}`).toContain(token);
     }
+  });
+
+  // Plan 34-36 (D-27, DOC-1 for points 1 and 2): the section states the Gemini entry gate (install.ts
+  // ENTRY_GATE_CHECKS, hostReadsCarrier: Gemini CLI reads AGENTS.md only when this repository's settings file
+  // lists it in context.fileName) and the counting rule (strandedBy: a carrier that leaves no host without a
+  // route is an uncounted `note`). The settings path is read from GEMINI_SETTINGS_REL, the constant install and
+  // the doctor both read, so a move of the file moves this case with it. Every 34-30 token is kept.
+  it("the kit-route section names the Gemini settings file and context.fileName, and the uncounted `note` (plan 34-36, D-27)", () => {
+    const sec = guideSection(ROUTE_SECTION);
+    expect(sec, `the kit-route section does not name \`${GEMINI_SETTINGS_REL}\``).toContain(`\`${GEMINI_SETTINGS_REL}\``);
+    expect(sec, "the kit-route section does not name `context.fileName`").toContain("`context.fileName`");
+    expect(sec, "the kit-route section does not name the uncounted `note`").toContain("uncounted `note`");
+    expect(sec, "the kit-route section does not say --strict passes an uncounted note").toContain("--strict");
+    expect(sec).toContain("`KIT_ROUTE`");
+    for (const t of ROUTE_NAMES) expect(sec, `the kit-route section does not name \`${t}\``).toContain(`\`${t}\``);
+    for (const rel of new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))) {
+      expect(sec, `the kit-route section does not name \`${rel}\``).toContain(`\`${rel}\``);
+    }
+    for (const token of ["--check", "`reach`", "FAIL", "WARN", "`UNKNOWN - verify`"]) {
+      expect(sec, `the kit-route section does not carry ${token}`).toContain(token);
+    }
+  });
+
+  // Plan 34-36 (IN-06, D-27 point 4): the touch list's AGENTS.md bullet says what the AGENTS.md step does: copy
+  // (or link) when the target has none, and refresh install's own unedited copy (refreshOwnFile, asking
+  // refreshable). The bullet is the list item that starts with "- `AGENTS.md`", bounded at the next list item or
+  // blank line.
+  it("the AGENTS.md bullet says install refreshes its own unedited copy (plan 34-36, IN-06)", () => {
+    const lines = readFileSync(GUIDE, "utf8").split(/\r?\n/);
+    const starts = lines.map((l, i) => ({ l, i })).filter((x) => x.l.startsWith("- `AGENTS.md`"));
+    expect(starts.length, "the guide must carry exactly one list item starting with - `AGENTS.md`").toBe(1);
+    const from = starts[0].i;
+    let to = from + 1;
+    while (to < lines.length && lines[to].trim() !== "" && !lines[to].startsWith("- ")) to += 1;
+    const bullet = flat(lines.slice(from, to).join("\n"));
+    expect(bullet, "the AGENTS.md bullet says install copies it only when the target has none").not.toContain("only when the target has none");
+    expect(bullet).toContain("when the target has none");
+    expect(bullet).toContain("refreshed when it is install's own unedited copy");
   });
 });
 
