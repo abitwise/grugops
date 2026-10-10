@@ -2013,6 +2013,40 @@ function checkCell(spec: CellSpec): CellResult {
 /** A cell's per-test timeout: about five spawns, each well under a second. */
 const CELL_TIMEOUT_MS = 120_000;
 
+// THE CELLS, GENERATED FROM THE AXES (never a typed cell list):
+//   (a) every carrier × every carrier state but the current copy; Gemini lists, the adapters reach, the route resolves;
+//   (b) every carrier current × every Gemini state;
+//   (c) AGENTS.md ∈ C_AGENTS × Gemini ∈ C_GEMINI;
+//   (d) the adapters' KIT= lines broken × CLAUDE.md ∈ D_CARRIER × AGENTS.md ∈ D_CARRIER;
+//   (e) each route state, everything else current.
+// AGENTS.md and CLAUDE.md are the carriers the plan names for (c) and (d); carrierStates asserts each is derived.
+const C_AGENTS: readonly CarrierState[] = ["user-without-route", "own-stale"];
+const C_GEMINI: readonly GeminiState[] = ["omits", "duplicate-context"];
+const D_CARRIER: readonly CarrierState[] = ["current", "user-without-route"];
+const D_ADAPTER: readonly AdapterState[] = ADAPTER_STATES.filter((a) => a !== "reaches");
+function generateCells(): CellSpec[] {
+  const clean = { gemini: "lists", adapter: "reaches", route: "resolves" } as const;
+  const cells: CellSpec[] = [];
+  for (const rel of CLASS_CARRIERS) {
+    for (const state of CARRIER_STATES) if (state !== "current") cells.push({ group: "a", carriers: carrierStates({ [rel]: state }), ...clean });
+  }
+  for (const gemini of GEMINI_STATES) cells.push({ ...clean, group: "b", carriers: carrierStates({}), gemini });
+  for (const agents of C_AGENTS) for (const gemini of C_GEMINI) cells.push({ ...clean, group: "c", carriers: carrierStates({ "AGENTS.md": agents }), gemini });
+  for (const adapter of D_ADAPTER) {
+    for (const claude of D_CARRIER) for (const agents of D_CARRIER) cells.push({ ...clean, group: "d", carriers: carrierStates({ "CLAUDE.md": claude, "AGENTS.md": agents }), adapter });
+  }
+  for (const route of ROUTE_STATES) cells.push({ ...clean, group: "e", carriers: carrierStates({}), route });
+  return cells;
+}
+const CELLS: readonly CellSpec[] = generateCells();
+/** The cell count, a formula over the axes: |CARRIERS|×(|CARRIER_STATES|−1) + |GEMINI_STATES| + |C_AGENTS|×|C_GEMINI| + |D_ADAPTER|×|D_CARRIER|² + |ROUTE_STATES|. */
+const CELL_COUNT =
+  CLASS_CARRIERS.length * (CARRIER_STATES.length - 1) +
+  GEMINI_STATES.length +
+  C_AGENTS.length * C_GEMINI.length +
+  D_ADAPTER.length * D_CARRIER.length * D_CARRIER.length +
+  ROUTE_STATES.length;
+
 describe("kit route: the class matrix — reach, counted findings and install agreement over every carrier, Gemini and adapter state (plan 34-35, D-27)", () => {
   it(
     "tracer: the user's own AGENTS.md without the route × Gemini settings that omit AGENTS.md: all nine assertions, and the follower's stranded hosts before and after the install",
@@ -2044,4 +2078,32 @@ describe("kit route: the class matrix — reach, counted findings and install ag
     },
     CELL_TIMEOUT_MS,
   );
+
+  it("the carrier axis: the carriers derived from HOST_TOOLS and ROUTE_POINTERS are exactly those a clean --check prints `kit route carried by` lines for, in its order", () => {
+    const { target, kitHome } = installed();
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const printed = routeLines(c.stdout)
+      .map(messageOf)
+      .filter((m) => m.startsWith("kit route carried by "))
+      .map((m) => m.slice("kit route carried by ".length).split(" (read by ")[0]);
+    expect(printed, c.stdout).toEqual([...CLASS_CARRIERS]);
+    expect(HOST_TOOLS.length, "premise: the registry pin").toBe(HOST_TOOL_COUNT);
+    expect(gatedPairs().length, "premise: the registry gates some carrier (the Gemini settings axis has a host to act on)").toBeGreaterThan(0);
+  });
+
+  it(`the matrix has ${CELL_COUNT} cells, the formula over the axes (${CLASS_CARRIERS.length} carriers × ${CARRIER_STATES.length - 1} states, ${GEMINI_STATES.length} Gemini states, ${C_AGENTS.length * C_GEMINI.length} AGENTS.md × Gemini, ${D_ADAPTER.length * D_CARRIER.length ** 2} adapter, ${ROUTE_STATES.length} route), each named once`, () => {
+    expect(CELLS.length).toBe(CELL_COUNT);
+    expect(new Set(CELLS.map(cellName)).size, "two cells share a name").toBe(CELL_COUNT);
+    // Every state of every axis occurs in some cell.
+    for (const s of CARRIER_STATES) expect(CELLS.some((c) => [...c.carriers.values()].includes(s)), `carrier state ${s}`).toBe(true);
+    for (const g of GEMINI_STATES) expect(CELLS.some((c) => c.gemini === g), `Gemini state ${g}`).toBe(true);
+    for (const a of ADAPTER_STATES) expect(CELLS.some((c) => c.adapter === a), `adapter state ${a}`).toBe(true);
+    for (const r of ROUTE_STATES) expect(CELLS.some((c) => c.route === r), `route state ${r}`).toBe(true);
+    for (const rel of CLASS_CARRIERS) for (const s of CARRIER_STATES) expect(CELLS.some((c) => c.carriers.get(rel) === s), `${rel} × ${s}`).toBe(true);
+  });
+
+  for (const spec of CELLS) {
+    it(`${cellName(spec)}: assertions (1)-(9)`, () => void checkCell(spec), CELL_TIMEOUT_MS);
+  }
 });
