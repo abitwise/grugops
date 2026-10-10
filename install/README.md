@@ -260,8 +260,9 @@ In the **target repo**:
   overwrites one you edited (see "Re-installing" above). A file that was already there, byte for
   byte what install would write, and that no earlier record of install's names, is left and not
   recorded, so uninstall leaves it
-- `AGENTS.md` — copied from the kit (or linked, under `--symlink`) only when the target has none,
-  and recorded in the install ledger in `.grugops/install.json`. Its "Kit vs state" rule names the
+- `AGENTS.md` — copied from the kit (or linked, under `--symlink`) when the target has none, and
+  refreshed when it is install's own unedited copy (see the paragraph on re-installs below), and
+  recorded in the install ledger in `.grugops/install.json`. Its "Kit vs state" rule names the
   kit route (see "How a host finds the kit after a scripted install" below). An `AGENTS.md` you
   wrote, or install's copy that you edited, is never written
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
@@ -285,7 +286,9 @@ In the **target repo**:
   file that is not a valid JSON object, is not strict JSON (a comment, a trailing comma), is not
   valid UTF-8, has more than one `context` or `context.fileName` key, or whose `context` is not an
   object or whose `context.fileName` is neither a string nor an array of strings, is left untouched
-  and reported as a `verify` finding (exit `3`), by the installer and the uninstaller alike
+  and reported as a `verify` finding (exit `3`), by the installer and the uninstaller alike.
+  Gemini CLI reads `AGENTS.md` only through `context.fileName`, and `--check` reports Gemini CLI as
+  unable to reach the Orchestrator when this file does not list it
 - `.claude/settings.json` — the Claude Code ask rules described in §5 are added to
   `permissions.ask` (additive and in place: every other byte of the file is kept, and the added
   rules are recorded so uninstall removes exactly those)
@@ -351,15 +354,41 @@ still name the kit root on their `KIT=` line. With no `.grugops/install.json` (t
 install, §1), the kit is the repository's own `agent-factory/`.
 
 `node install/install.js --check --target /path/to/repo` follows the route the way an agent does. It
-reads `kitRoot` and reports a FAIL when `<kitRoot>/roles/orchestrator.md` is not a readable file.
-It then asks each file a host reads for the route (`AGENTS.md`, `CLAUDE.md`,
-`.github/copilot-instructions.md` and `.pi/prompts/grugops.md`): a file install wrote in an earlier
-install that still holds what install wrote and has no route is a FAIL whose remedy is to re-run
-`install.js`; your own file without the route is a WARN that quotes the sentence to add; an absent
-or unreadable file is a WARN. Last, it prints one `reach` line per supported host, saying whether
-that host reaches the Orchestrator and through which of these files (for Claude Code, also through
-the adapters' `KIT=` line). The `reach` lines
-report what the files say. Whether a live host other than Claude Code follows them is
+reads every file first and reports afterwards, in this order:
+
+- **The route target.** It reads `kitRoot` and reports a FAIL when
+  `<kitRoot>/roles/orchestrator.md` is not a readable file.
+- **The files each host reads here.** The files that can give a host the route are `AGENTS.md`,
+  `CLAUDE.md`, `.github/copilot-instructions.md` and `.pi/prompts/grugops.md`. A host counts a file
+  only when it reads that file in this repository. Gemini CLI reads `AGENTS.md` only when the
+  repository's `.gemini/settings.json` lists it in `context.fileName`, which install adds. When that
+  file is absent, does not list `AGENTS.md`, or cannot be read as a settings file install can merge,
+  Gemini CLI has no file that gives it the route, so its `reach` line says it cannot reach the
+  Orchestrator, with a WARN. The WARN names re-running `install.js` when install would add the entry,
+  and otherwise the edit to make by hand and why install leaves the file. `--check` reads no
+  user-level Gemini settings.
+- **The files without the route.** Such a file is counted only when it leaves some host without a
+  route: a host that reads it reads no other file holding the route and, for Claude Code, has no
+  adapter route. A counted file is reported as follows:
+  - install's own unedited copy from an earlier install, which re-running `install.js` would
+    replace, is a FAIL whose remedy is to re-run `install.js`;
+  - any other file without the route (your own, install's copy that you edited, a link, a file that
+    holds a second copy of install's block) is a WARN that gives the reason install will not refresh
+    it and quotes the sentence to add;
+  - an absent file is a WARN, which names re-running `install.js` only when install would create the
+    file there, and otherwise the reason install will not;
+  - a file that cannot be read (a directory, a FIFO, a device or an oversized file) is a WARN that
+    says no verdict was reached on it.
+- **Files whose hosts have the route another way.** A file without the route whose hosts all reach
+  the Orchestrator through another file, or, for Claude Code, through its adapters, is an uncounted
+  `note` that says how each of those hosts has the route and keeps the remedy. `--check --strict`
+  does not fail on it.
+- **The `reach` lines.** Last, it prints one `reach` line per supported host, saying whether that
+  host reaches the Orchestrator and through which of these files (for Claude Code, also through the
+  adapters' `KIT=` line). A host that cannot reach always has a counted finding behind it, and a
+  counted finding always has a host that cannot reach behind it.
+
+The `reach` lines report what the files say. Whether a live host other than Claude Code follows them is
 `UNKNOWN - verify` until a run on that host shows it; those runs are backlog item 999.4 in
 `.planning/ROADMAP.md`.
 
