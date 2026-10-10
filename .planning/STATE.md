@@ -5,7 +5,7 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: 34
 current_phase_name: Model Effort Dial & Pi Support
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34-36-PLAN.md
+stopped_at: Gap round 4 (last on cap) executed 34-32..34-36 and verified human_needed 23/26 (review WR-13..WR-16 open); next /gsd-verify-work 34
 last_updated: "2026-10-10T17:37:21.046Z"
 state_head: 4679153fdffdf45f68890cdb86609a2c7740017f
 progress:
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34 (Model Effort Dial & Pi Support) — EXECUTING
-Plan: 36 of 36 (gap round 4 executed: 34-32..34-36, D-27; next: phase gates — code review, regression, verifier)
+Plan: 36 of 36 (gap round 4 executed and verified human_needed 23/26; 34-UAT.md has 4 human items incl. the WR-13..WR-16 decision; next: /gsd-verify-work 34)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
