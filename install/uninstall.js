@@ -111,7 +111,7 @@ import { allAskRules, createdSettingsText } from "./checkpoint-ask-rules.js";
 // D-33 (b), plan 33.1-36: the ONE reader of the install marker and of the one install ledger
 // (readLedger), its one serializer (ledgerJson) and the one ownership authority (owns), shared with
 // install.ts (WR-05).
-import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, ASK_RULES_REL, BLOCK_RELS, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue } from "./json-text.js";
@@ -578,21 +578,8 @@ function reverseDir(entry) {
     setOutcome(entry, rmdirIfEmpty(`${TARGET}/${entry.path}`));
 }
 const NO_BLOCK_REMOVED = { removed: false, blankAfter: false, before: null, beforeMode: null };
-/** Every copy of the block lines in `buf`: an open line at a line start through the first `\n<close>\n` after it. */
-function blockLineSpans(buf, open, close) {
-    const head = Buffer.from(`${open}\n`, "utf8");
-    const tail = Buffer.from(`\n${close}\n`, "utf8");
-    const spans = [];
-    for (let i = buf.indexOf(head); i !== -1; i = buf.indexOf(head, i + 1)) {
-        if (i > 0 && buf[i - 1] !== 0x0a)
-            continue; // not on a line of its own
-        const j = buf.indexOf(tail, i + head.length - 1);
-        if (j === -1)
-            break;
-        spans.push({ start: i, end: j + tail.length });
-    }
-    return spans;
-}
+// blockLineSpans (every copy of the block lines in a file) moved into install-marker.ts in plan 34-28, so
+// this removal and install's block refresh (install.ts ensureBlock) find a block's bytes by one function.
 /**
  * The bytes to remove for the one matching copy at `sp` (red-team B1 of plan 33.1-33): the block lines,
  * and the newline before them only when it is install's by the record and the bytes (see THE SEPARATOR).

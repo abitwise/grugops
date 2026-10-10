@@ -594,6 +594,27 @@ export interface AppendedBlock {
   readonly separator: BlockSeparator;
 }
 
+/**
+ * Every copy of the block lines in `buf`: an open line at a line start through the first `\n<close>\n` after it.
+ *
+ * THE ONE FINDER OF SENTINEL BLOCK SPANS (plan 34-28, moved here from uninstall.ts unchanged in behaviour).
+ * Uninstall's removal (removeSentinelBlock) and install's refresh (ensureBlock) both keep only the spans whose
+ * bytes hash to the `block` entry's record, so the bytes the refresh replaces are exactly the bytes the
+ * reversal would remove. Pure: no I/O.
+ */
+export function blockLineSpans(buf: Buffer, open: string, close: string): Array<{ start: number; end: number }> {
+  const head = Buffer.from(`${open}\n`, "utf8");
+  const tail = Buffer.from(`\n${close}\n`, "utf8");
+  const spans: Array<{ start: number; end: number }> = [];
+  for (let i = buf.indexOf(head); i !== -1; i = buf.indexOf(head, i + 1)) {
+    if (i > 0 && buf[i - 1] !== 0x0a) continue; // not on a line of its own
+    const j = buf.indexOf(tail, i + head.length - 1);
+    if (j === -1) break;
+    spans.push({ start: i, end: j + tail.length });
+  }
+  return spans;
+}
+
 export interface DirEntry {
   readonly path: string;
   readonly kind: "dir";

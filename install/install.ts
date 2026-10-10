@@ -132,6 +132,7 @@ import {
   KIT_HOME_RECORD_REL,
   MARKER_REL,
   isLedgerPath,
+  blockLineSpans,
   backupContentRecord,
   outermostBackups,
   carriedBackups,
@@ -1775,8 +1776,10 @@ if (!ALLOW_SELF) {
 
 // CLAUDE.md sentinel block — byte-identical to uninstall.ts (GSD:grugops-start-here).
 const CLAUDE_OPEN = "<!-- GSD:grugops-start-here -->";
+// CLAUDE_PTR (D-26 point 1, plan 34-28): the start-here sentence, one space, then KIT_ROUTE (host-tools.ts, the
+// one authority for the route), still one line, like COPILOT_PTR below. Fixed text: no install-time value.
 const CLAUDE_PTR =
-  "**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
+  "**grugops — start here:** read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator. " + KIT_ROUTE;
 const CLAUDE_CLOSE = "<!-- GSD:grugops-start-here-end -->";
 
 // WR-05: the Copilot block has its OWN distinct sentinel (not the CLAUDE.md one), so the two
@@ -2437,8 +2440,8 @@ function migratePreSteps(): void {
   );
 }
 
-// ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites; skips
-// if the open sentinel is already present; creates the file if absent. Never `>`-truncates.
+// ensure_block: idempotent sentinel-delimited append to a user file. Never overwrites a user byte; creates
+// the file if absent. Never `>`-truncates.
 //
 // DC-3 / D-18 (plan 33.1-26): the file is read before anything is written or appended. A FIFO,
 // directory, socket or device at the path is neither read nor written; the run reports a counted
@@ -2449,13 +2452,53 @@ function migratePreSteps(): void {
 // read as ok and the append went through it; a FIFO where .github/ should be made the create throw.
 // Each is now left untouched and reported. An absent file is created with an exclusive create that
 // already carries the block (the same bytes the old empty-create-then-append produced).
-function ensureBlock(file: string, open: string, body: string, close: string, label: string): void {
+//
+// THE REFRESH (plan 34-28, D-26 point 2, brief DC-2). When the open sentinel is already there, the block
+// is replaced only on install's own record. `ledger` is the install ledger as this run found it
+// (PREVIOUS_LEDGER, passed in so the doctor can share the rule). owns(ledger, TARGET, rel, "block") gives
+// the `block` entry; the spans of the block lines are found by blockLineSpans (install-marker.ts, the one
+// finder uninstall's removal uses too) and only the spans whose bytes hash to the entry's record are kept:
+//   - exactly one such span, whose bytes are not the current block lines: that span is replaced by the
+//     current lines and every other byte is written back unchanged (writeTargetFile with how `ok`; under
+//     DRY_RUN a `would-refresh` line instead, decided before any write). The new lines are recorded through
+//     recordAppendedBlock with the entry's separator (the span did not move, so the newline before it is
+//     what it was). When the ledger's `file` entry for the same path held before this write (install created
+//     the file and nobody edited it), the whole new file is recorded too, so uninstall still deletes the file
+//     it created. Reported `refreshed`;
+//   - a block that is already the current lines: skipped, nothing written;
+//   - anything else (no record, a record that no span matches because a line inside was added, edited or
+//     removed, or two matching spans): skipped, nothing written.
+function ensureBlock(ledger: LedgerRead, file: string, open: string, body: string, close: string, label: string): void {
   const cur = readForWrite(TARGET, file);
   if (cur.state === "blocked") {
     verify(`${label}: ${blockedAt(cur, file)}. It was left untouched and nothing was added to it.`);
     return;
   }
   if (cur.state === "ok" && cur.text.includes(open)) {
+    const newLines = `${open}\n${body}\n${close}\n`;
+    const rel = targetRel(file);
+    const own = rel === null ? null : owns(ledger, TARGET, rel, "block");
+    if (rel !== null && own !== null && own.owned && own.entry !== null) {
+      const record = own.entry.block;
+      const matches = blockLineSpans(cur.bytes, open, close).filter((sp) => contentRecord(cur.bytes.subarray(sp.start, sp.end)) === record);
+      const newBytes = Buffer.from(newLines, "utf8");
+      if (matches.length === 1 && !cur.bytes.subarray(matches[0].start, matches[0].end).equals(newBytes)) {
+        if (DRY_RUN) {
+          report("would-refresh", `${label} (install's own block from an earlier install, unedited, is not the current text)`);
+          return;
+        }
+        const createdHeld = owns(ledger, TARGET, rel, "file").owned;
+        const next = Buffer.concat([cur.bytes.subarray(0, matches[0].start), newBytes, cur.bytes.subarray(matches[0].end)]);
+        if (!writeTargetFile(file, next, "ok", label)) return;
+        recordAppendedBlock(file, newLines, own.entry.separator);
+        if (createdHeld) recordCreatedFile(file, writtenFileRecord(file, next));
+        report(
+          "refreshed",
+          `${label} (install's own block from an earlier install, unedited, held no kit route or was older; replaced with the current text, every other byte kept, and recorded)`,
+        );
+        return;
+      }
+    }
     report("skipped", `${label} (sentinel already present)`);
     return;
   }
@@ -5543,9 +5586,10 @@ for (const rel of SRC_NESTED_ADAPTERS) {
   }
 }
 
-ensureBlock(join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
+ensureBlock(PREVIOUS_LEDGER, join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
 mergeGemini();
 ensureBlock(
+  PREVIOUS_LEDGER,
   join(TARGET, COPILOT_REL),
   COPILOT_OPEN,
   COPILOT_PTR,

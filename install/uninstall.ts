@@ -127,6 +127,7 @@ import {
   createdGeminiText,
   ASK_RULES_REL,
   BLOCK_RELS,
+  blockLineSpans,
   markerUnusableText,
   contentRecord,
   recordMatches,
@@ -711,19 +712,8 @@ interface BlockRemoval {
 const NO_BLOCK_REMOVED: Omit<BlockRemoval, "outcome"> = { removed: false, blankAfter: false, before: null, beforeMode: null };
 
 
-/** Every copy of the block lines in `buf`: an open line at a line start through the first `\n<close>\n` after it. */
-function blockLineSpans(buf: Buffer, open: string, close: string): Array<{ start: number; end: number }> {
-  const head = Buffer.from(`${open}\n`, "utf8");
-  const tail = Buffer.from(`\n${close}\n`, "utf8");
-  const spans: Array<{ start: number; end: number }> = [];
-  for (let i = buf.indexOf(head); i !== -1; i = buf.indexOf(head, i + 1)) {
-    if (i > 0 && buf[i - 1] !== 0x0a) continue; // not on a line of its own
-    const j = buf.indexOf(tail, i + head.length - 1);
-    if (j === -1) break;
-    spans.push({ start: i, end: j + tail.length });
-  }
-  return spans;
-}
+// blockLineSpans (every copy of the block lines in a file) moved into install-marker.ts in plan 34-28, so
+// this removal and install's block refresh (install.ts ensureBlock) find a block's bytes by one function.
 
 /**
  * The bytes to remove for the one matching copy at `sp` (red-team B1 of plan 33.1-33): the block lines,

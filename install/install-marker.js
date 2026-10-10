@@ -473,6 +473,28 @@ export function createdGeminiText() {
 }
 /** The only paths a `block` entry may name: the two pointer files install appends its block to. */
 export const BLOCK_RELS = ["CLAUDE.md", ".github/copilot-instructions.md"];
+/**
+ * Every copy of the block lines in `buf`: an open line at a line start through the first `\n<close>\n` after it.
+ *
+ * THE ONE FINDER OF SENTINEL BLOCK SPANS (plan 34-28, moved here from uninstall.ts unchanged in behaviour).
+ * Uninstall's removal (removeSentinelBlock) and install's refresh (ensureBlock) both keep only the spans whose
+ * bytes hash to the `block` entry's record, so the bytes the refresh replaces are exactly the bytes the
+ * reversal would remove. Pure: no I/O.
+ */
+export function blockLineSpans(buf, open, close) {
+    const head = Buffer.from(`${open}\n`, "utf8");
+    const tail = Buffer.from(`\n${close}\n`, "utf8");
+    const spans = [];
+    for (let i = buf.indexOf(head); i !== -1; i = buf.indexOf(head, i + 1)) {
+        if (i > 0 && buf[i - 1] !== 0x0a)
+            continue; // not on a line of its own
+        const j = buf.indexOf(tail, i + head.length - 1);
+        if (j === -1)
+            break;
+        spans.push({ start: i, end: j + tail.length });
+    }
+    return spans;
+}
 const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 // keyProblem: the reason `o`'s key set is not exactly `want` (missing or extra), or null.
