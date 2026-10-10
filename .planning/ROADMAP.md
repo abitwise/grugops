@@ -1818,7 +1818,7 @@ Plans:
 
 ### Phase 999.4: Kit discovery on non-Claude hosts after a scripted install (BACKLOG)
 
-**Goal:** [Captured for future planning] 34-RESEARCH.md Q7: after a scripted install, whether the non-Claude hosts find the shared kit at `~/.grugops/agent-factory` is `UNKNOWN - verify`. The question is older than Phase 34, and Pi inherits it. The Pi prompt template stays a plain pointer (no third resolver adapter) until this is measured on each host.
+**Goal:** [Captured for future planning; re-scoped 2026-10-10 by plan 34-30] The design question (34-RESEARCH.md Q7: how a host with no Claude Code adapter finds the shared kit after a scripted install) is answered by 34-CONTEXT.md D-26, the marker route, built in plans 34-27 to 34-29: `AGENTS.md` and the installer-written pointers carry `KIT_ROUTE`, which names the `kitRoot` field of `.grugops/install.json`, and `install.js --check` prints one `reach` line per host. What remains is a live run on each non-Claude host after a scripted install, each `UNKNOWN - verify` until run: Pi (the 34-UAT.md test 2 re-run), Copilot, Codex, OpenCode and Gemini. The Pi prompt template stays a pointer with no resolver slot (D-26).
 **Requirements:** TBD
 **Plans:** 0 plans
 

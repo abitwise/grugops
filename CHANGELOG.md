@@ -59,10 +59,11 @@ per-role effort setting and Pi support.
   `effort:` line differs from the level the configuration resolves to (34 D-15).
 - Pi (pi.dev) as a supported host. The installer reports `pi` when the target root has a `.pi`
   entry. Every install writes a `/grugops` prompt template at `.pi/prompts/grugops.md`, which only
-  points Pi at the Orchestrator and holds no role text (34 D-10, D-16, D-17). Whether Pi finds the
-  kit after a scripted install, which puts the kit in the shared kit root and not in the
-  repository, is `UNKNOWN - verify` (backlog 999.4); see `install/README.md`, "Using grugops on
-  Pi". Install records the file in the install ledger in `.grugops/install.json` and never overwrites a file a user already
+  points Pi at the Orchestrator and holds no role text (34 D-10, D-16, D-17). The template also
+  names the kit route: after a scripted install, which puts the kit in the shared kit root and not
+  in the repository, the kit root is the `kitRoot` field of `.grugops/install.json` (34 D-26).
+  Whether Pi follows the route on a live run is `UNKNOWN - verify`; see `install/README.md`, "Using
+  grugops on Pi". Install records the file in the install ledger in `.grugops/install.json` and never overwrites a file a user already
   has at that path. Uninstall removes the template only if install recorded it and it is unchanged
   (34 D-13). `install/README.md`, both READMEs, `docs/faq.md`, `CLAUDE.md` and the per-host tables
   in `agent-factory/packaging/adapters.md` document Pi.
@@ -287,6 +288,33 @@ per-role effort setting and Pi support.
   uninstall now read the marker through one shared reader.
 - Uninstall removes one copy of each ask rule install recorded, so a copy of a grugops rule you
   added yourself stays (IN-02).
+- A host with no Claude Code adapter had no route to the kit after a scripted install: the pointers
+  named `agent-factory/roles/orchestrator.md`, a path the scripted install never creates in the
+  repository (34-UAT.md, G-34-2). The kit's `AGENTS.md`, the `CLAUDE.md` block, the Copilot pointer
+  and the Pi template now carry one fixed sentence, the kit route (`KIT_ROUTE` in
+  `install/host-tools.ts`), which names the kit root as the `kitRoot` field of
+  `.grugops/install.json` and reads each `agent-factory/…` path under it (34 D-26). The sentence is
+  the same on every machine. Whether each live host follows it is `UNKNOWN - verify`.
+- A re-install replaces install's own unedited copy of the Pi template, of an `AGENTS.md` it
+  created, and of the `CLAUDE.md` and Copilot blocks when its text is not the current text, and
+  records the new bytes; before, a file already there was left as it was (IN-03). A file you wrote
+  or edited is never written: when it has no kit route, install prints a `note` that names it, the
+  hosts it leaves without a route, and the sentence to add (34 D-26).
+- `install.js --check` follows the kit route. It fails when `<kitRoot>/roles/orchestrator.md` is
+  not a readable file, or when a pointer install wrote in an earlier install has no route (the
+  remedy is to re-run `install.js`); it warns about your own file without the route, quoting the
+  sentence to add; and it prints one `reach` line per supported host, saying whether that host
+  reaches the Orchestrator and through which files. It used to print `ALL CHECKS PASSED` while
+  every host but Claude Code had no route to the Orchestrator (34 D-26, G-34-2).
+- The install `-- notes --` block now says what the run did with the Claude Code ask rules: added
+  them (with the count), added none, would add them under `DRY_RUN`, or refused (see the `verify`
+  line). It used to say the installer wrote ask rules in a run that wrote none (WR-12, 34 D-25).
+- `--update` with a counted `verify` finding now ends with `== update INCOMPLETE — N item(s) need
+  verification ==` and exits `3`; it used to print `== update complete ==` and exit `0`. A
+  `--migrate` on an already-migrated repository names the `plans/handoffs/` backup it made, and
+  whether it was recorded, instead of saying nothing was changed, and ends INCOMPLETE with exit `3`
+  after a counted `verify`. Uninstall's closing list of what it preserved now says what happened to
+  the install marker (34 D-25).
 
 ### Security
 
