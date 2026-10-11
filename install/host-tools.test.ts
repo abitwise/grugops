@@ -103,12 +103,42 @@ describe("detectTools() is derived from HOST_TOOLS (plan 34-02)", () => {
     expect(detectedLine(dryRunLines(c))).toBe(`tools detected: ${HOST_TOOLS.map((t) => t.id).join(" ")}`);
   });
 
-  // The existing hosts' output must stay byte-identical to the hand-written list detectTools()
-  // replaced. This literal is that list's output, written once here as the regression anchor.
-  it("the all-signals line is byte-identical to the pre-registry order with `pi` appended", () => {
+  // The existing hosts' output must keep the order of the hand-written detection detectTools() replaced. The anchor
+  // is that detection's signal order (with `.pi` appended by phase 34), written once here; the expected ids are read
+  // from the registry by signal, so a renamed row (phase 34.1 D-12 renamed the `.gemini` row) moves no literal here,
+  // and a reordered registry still fails.
+  it("the all-signals line keeps the pre-registry detection order (by signal), with `.pi` appended", () => {
+    const PRE_REGISTRY_SIGNAL_ORDER = [".claude", ".codex", ".gemini", "opencode.json", ".github", ".pi"];
+    expect(PRE_REGISTRY_SIGNAL_ORDER, "the anchor names every registry signal once").toHaveLength(HOST_TOOL_COUNT);
+    const ids = PRE_REGISTRY_SIGNAL_ORDER.map((signal) => {
+      const rows = HOST_TOOLS.filter((t) => t.detect === signal);
+      expect(rows, `one registry row is detected by ${signal}`).toHaveLength(1);
+      return rows[0].id;
+    });
     const c = freshCase("all-literal");
     for (const row of HOST_TOOLS) plantSignal(c.target, row.detect);
-    expect(detectedLine(dryRunLines(c))).toBe("tools detected: claude codex gemini opencode copilot pi");
+    expect(detectedLine(dryRunLines(c))).toBe(`tools detected: ${ids.join(" ")}`);
+  });
+
+  // Phase 34.1 D-12, D-13, D-22: the `.gemini`-detected row is Antigravity CLI, and its registry entry says, beside the
+  // detect value, that the signal is `UNKNOWN - verify` (no project-level `.gemini/` use by Antigravity CLI was found).
+  it("the `.gemini`-detected row is Antigravity CLI, and the registry source marks that detect signal `UNKNOWN - verify` beside it", () => {
+    const rows = HOST_TOOLS.filter((t) => t.detect === ".gemini");
+    expect(rows, "one row is detected by .gemini").toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: "antigravity", name: "Antigravity CLI", shortName: "Antigravity", adapter: "agent-skill", dispatch: "sequential" });
+    expect(rows[0].entryFiles).toEqual(["AGENTS.md"]);
+    // The row's own object literal in install/host-tools.ts: from the `{` that opens it to the `}` that closes it.
+    const src = readFileSync(join(import.meta.dirname, "host-tools.ts"), "utf8");
+    const at = src.indexOf(`id: "${rows[0].id}",`);
+    expect(at, "the row's id line is in host-tools.ts").toBeGreaterThan(0);
+    const open = src.lastIndexOf("\n  {\n", at);
+    const close = src.indexOf("\n  },", at);
+    expect(open, "the row's opening brace").toBeGreaterThan(0);
+    expect(close, "the row's closing brace").toBeGreaterThan(at);
+    const rowText = src.slice(open, close);
+    expect(rowText).toContain('detect: ".gemini",');
+    expect(rowText).toContain("`.gemini` is UNKNOWN - verify");
+    expect(rowText.split("\n  {\n").length, "the slice holds exactly one row").toBe(2);
   });
 });
 
@@ -546,9 +576,21 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
 
   // Plan 34-36 (D-27, DOC-1 for point 2): the section states the counting rule (strandedBy: a carrier that leaves
   // no host without a route is an uncounted `note`). Every 34-30 token is kept. Phase 34.1 D-12 deleted the Gemini
-  // entry gate this case also asked the section to state (the settings path and `context.fileName`), so those two
-  // expectations are gone with it; the section's Gemini sentences are corrected with the registry rename (plan
-  // 34.1-04).
+  // entry gate this case also asked the section to state (the settings path and `context.fileName`); plan 34.1-04
+  // replaced those two expectations with the case below (every route carrier derived from HOST_TOOLS and
+  // ROUTE_POINTERS, and no `context.fileName` instruction).
+  it("the kit-route section names every route carrier HOST_TOOLS and ROUTE_POINTERS derive, and gives no `context.fileName` instruction (plan 34.1-04, D-12)", () => {
+    const sec = guideSection(ROUTE_SECTION);
+    const fromEntries = HOST_TOOLS.flatMap((h) => [...h.entryFiles]);
+    const fromPointers = Object.values(ROUTE_POINTERS).flatMap((rels) => [...rels]);
+    const carriers = [...new Set([...fromEntries, ...fromPointers])];
+    // Two-sided against the one derivation install.ts asks (routeCarriers), so neither list can drift from the other.
+    expect([...carriers].sort()).toEqual([...new Set(HOST_TOOLS.flatMap((h) => [...routeCarriers(h)]))].sort());
+    expect(carriers.length, "premise: more than one route carrier").toBeGreaterThan(1);
+    for (const rel of carriers) expect(sec, `the kit-route section does not name \`${rel}\``).toContain(`\`${rel}\``);
+    expect(sec, "the kit-route section still tells a reader about `context.fileName` (D-12 deleted that route)").not.toContain("context.fileName");
+  });
+
   it("the kit-route section names the uncounted `note` and --strict (plan 34-36, D-27)", () => {
     const sec = guideSection(ROUTE_SECTION);
     expect(sec, "the kit-route section does not name the uncounted `note`").toContain("uncounted `note`");

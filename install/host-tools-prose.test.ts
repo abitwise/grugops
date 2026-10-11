@@ -250,16 +250,10 @@ interface Exemption {
   readonly reason: string;
 }
 
+// Plan 34.1-04 removed two entries that went stale with the Antigravity CLI rename (phase 34.1, D-12): the R2 block
+// and the oracle's SCOPE_SENTENCE pin now name the hosts that accept a per-agent `model` field without Antigravity CLI
+// (whose support is `UNKNOWN - verify`) and without Pi, so neither omits exactly one host and neither is a finding.
 const EXEMPTIONS: readonly Exemption[] = [
-  {
-    file: "agent-factory/packaging/subagent.frontmatter.md",
-    rule: "B",
-    needle: "R2, Copilot CLI's `model` property at run time",
-    reason:
-      "The list names the hosts whose own agent-definition formats accept a per-agent `model` field. " +
-      "The registry host it leaves out ships no sub-agents and so has no such field; the scope " +
-      "sentence states that in its own clause (plan 34-07, D-12).",
-  },
   {
     file: "agent-factory/packaging/subagent.frontmatter.md",
     rule: "B",
@@ -268,18 +262,9 @@ const EXEMPTIONS: readonly Exemption[] = [
       "The list names the hosts grugops could generate agent definitions for. The registry host it " +
       "leaves out has no per-agent definition format, so it is not a candidate (plan 34-07, D-12).",
   },
-  {
-    file: "scripts/model-dial-consistency.test.ts",
-    rule: "B",
-    needle: "each accept a per-agent `model`",
-    reason:
-      "SCOPE_SENTENCE is the oracle's verbatim pin of the packaging doc's per-agent clause, which names " +
-      "the hosts that accept a per-agent `model` field. The host it leaves out is covered by the " +
-      "separate PI_CLAUSE pin on the same doc line; in the markdown the paragraph names every host.",
-  },
 ];
 /** Pinned: moves only in the commit that adds or removes an exemption. */
-const EXEMPTION_COUNT = 3;
+const EXEMPTION_COUNT = 1;
 /** Pinned: Rule A exemptions are allowed only for a phrase that is not about host CLIs; none today. */
 const RULE_A_EXEMPTION_COUNT = 0;
 

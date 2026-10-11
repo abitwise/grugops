@@ -252,8 +252,8 @@ failure lands in CI rather than on a user's machine.
   to spawn nested agents up to the depth cap — so do not rely on a nested allowlist to scope a
   spawned role's further spawns. grugops writes no `.claude/settings.json` agent entry into a
   user's repository, so the flag is the full-capability path this kit documents.
-- **The other host CLIs** — Codex, Gemini, OpenCode, Copilot and Pi have no host spawn mechanism,
-  so the coordinator there is always in the degraded tier: it drains the same queue at
+- **The other host CLIs** — Codex, Antigravity, OpenCode, Copilot and Pi have no host spawn mechanism
+  that this kit uses (it writes agent definitions to `.claude/agents/` alone), so the coordinator there is always in the degraded tier: it drains the same queue at
   concurrency one via `agent-factory/roles/_role-switch-protocol.md`. The grant is a
   Claude-Code-only capability, and the on-disk result is the same either way.
 
@@ -263,14 +263,14 @@ This section is the kit's single authority for the model dial's host-CLI scope. 
 field reference points here rather than restating it, so the two documents cannot come to say
 different things about the same capability.
 
-The model and effort dials reach Claude Code only, and that is a fact about this kit rather than about the other host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so although Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` field in their own agent-definition formats, this kit emits no agent definition for any of them, and neither dial has anywhere to write there. Pi ships no sub-agents, this kit emits no per-agent definition for Pi either, and grugops does not configure Pi's own thinking level.
+The model and effort dials reach Claude Code only, and that is a fact about this kit rather than about the other host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so although Codex CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` field in their own agent-definition formats, this kit emits no agent definition for any of them, and neither dial has anywhere to write there. Pi ships no sub-agents, this kit emits no per-agent definition for Pi either, and grugops does not configure Pi's own thinking level. Whether Antigravity CLI accepts a per-agent `model` field is `UNKNOWN - verify`, and this kit emits no agent definition for it either.
 
-References for each host CLI named above (retrieved 2026-08-20; Pi retrieved 2026-10-06):
+References for each host CLI named above (retrieved 2026-08-20; Pi retrieved 2026-10-06; Antigravity retrieved 2026-10-11):
 Codex CLI — `learn.chatgpt.com/docs/agent-configuration/subagents` (`model` in a `.codex/agents/*.toml` file);
-Gemini CLI — `geminicli.com/docs/core/subagents/` (`model` frontmatter in `.gemini/agents/*.md`, defaults to `inherit`);
 OpenCode — `opencode.ai/docs/agents/` (`model` frontmatter in `.opencode/agents/*.md`, or `agent.<name>.model` in `opencode.json`);
 GitHub Copilot CLI — `docs.github.com/en/copilot/reference/custom-agents-configuration` (`model` property on a `.agent.md` profile);
-Pi — `github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md` line 19 ("Pi ships with powerful defaults but skips features like sub-agents and plan mode.") and `pi.dev` ("No sub-agents").
+Pi — `github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md` line 19 ("Pi ships with powerful defaults but skips features like sub-agents and plan mode.") and `pi.dev` ("No sub-agents");
+Antigravity CLI — `antigravity.google/docs/cli/gcli-migration/` (reads `AGENTS.md` natively and loads workspace skills from `.agents/skills/`; a per-agent `model` field was not researched).
 
 **`UNKNOWN - verify` — the alias vocabulary (assumption A1, recorded confidence low).** The four
 aliases the dial accepts (`inherit`, `opus`, `sonnet`, `haiku`) are sourced from this repository's
@@ -293,10 +293,10 @@ description, prompt, tools and `mcp-servers` and does not list `model`. Whether
 `copilot --agent <name>` honours the property at run time, as distinct from parsing it, was not
 established. Direction of the unknown: the scope sentence above says only that those host CLIs accept a
 per-agent `model` field in their own agent-definition formats, which the reference page states
-directly, and the same point is carried independently by Codex CLI, Gemini CLI and OpenCode.
+directly, and the same point is carried independently by Codex CLI and OpenCode.
 
 **`UNKNOWN - verify` — R3, whether grugops should emit for the other host CLIs.** Whether this kit
-should generate agent definitions for Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI —
+should generate agent definitions for Codex CLI, Antigravity CLI, OpenCode and GitHub Copilot CLI —
 which would give either dial somewhere to write on those hosts — was deliberately not researched. It
 is a scope question for a later phase, not a fact this section establishes. Direction of the
 unknown: the scope sentence above describes what this kit emits today and is not a decision that it

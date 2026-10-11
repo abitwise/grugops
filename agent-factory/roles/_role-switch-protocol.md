@@ -9,7 +9,7 @@ window — the head grug and each specialist grug live in the same window, one a
 another. This is sequential role-load: the Orchestrator loads each role's file into the
 same window in turn, the role does its one job, records its work into the shared verified
 context, and control returns to the Orchestrator. On the non-spawning host CLIs
-(Codex, Gemini, OpenCode, Copilot, Pi) this is the only mode. On Claude Code the coordinator
+(Codex, Antigravity, OpenCode, Copilot, Pi) this is the only mode. On Claude Code the coordinator
 (the orchestrator adapter, which carries `coordinator: true`) may instead spawn role
 agents — same roles, same shared context, same gates; only the dispatch differs. Either
 way the steps below are identical.

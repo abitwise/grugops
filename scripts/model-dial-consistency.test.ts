@@ -297,7 +297,7 @@ const CLAUDE_ROW_KEY = "**`model:` other than `inherit` in role wrappers without
 const SCOPE_SENTENCE =
   "The model and effort dials reach Claude Code only, and that is a fact about this kit rather than " +
   "about the other host CLIs: grugops generates per-agent adapters at `.claude/agents/` alone, so " +
-  "although Codex CLI, Gemini CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` " +
+  "although Codex CLI, OpenCode and GitHub Copilot CLI each accept a per-agent `model` " +
   "field in their own agent-definition formats, this kit emits no agent definition for any of them, " +
   "and neither dial has anywhere to write there.";
 
@@ -317,6 +317,22 @@ const PI_CLAUSE =
 /** The predicate that follows the host name at the start of the no-sub-agents clause. */
 const NO_SUB_AGENTS_PREDICATE = " ships no sub-agents";
 
+/**
+ * THE UNKNOWN CLAUSE (plan 34.1-04, D-12), verbatim, on the same physical line as the scope sentence and the Pi clause.
+ *
+ * Antigravity CLI replaced Gemini CLI in the registry. Whether it accepts a per-agent `model` field was not researched,
+ * so it is in neither the per-agent clause (which says each host it names ACCEPTS the field) nor the Pi clause (which
+ * says the host ships no sub-agents). It gets a clause of its own whose subject is the host it names, read off the
+ * clause's grammar by `namedUnknownClauseHost()` below, never off the registry.
+ */
+const UNKNOWN_CLAUSE =
+  "Whether Antigravity CLI accepts a per-agent `model` field is `UNKNOWN - verify`, and this kit emits no agent " +
+  "definition for it either.";
+
+/** The words that open the unknown clause, before the host name, and the predicate that follows the host name. */
+const UNKNOWN_CLAUSE_OPEN = "Whether ";
+const UNKNOWN_CLAUSE_PREDICATE = " accepts a per-agent";
+
 /** The heading that opens the authority's scope section — the left bound of every section-scoped read. */
 const SCOPE_SECTION_HEADING = "## Host-CLI scope of the model and effort dials";
 
@@ -324,7 +340,7 @@ const SCOPE_SECTION_HEADING = "## Host-CLI scope of the model and effort dials";
 const CITATION_BLOCK_HEADING = "References for each host CLI named above";
 
 /** The retrieval dates the citation block heading states, one per retrieval round. */
-const CITATION_RETRIEVAL_DATES = ["retrieved 2026-08-20", "Pi retrieved 2026-10-06"] as const;
+const CITATION_RETRIEVAL_DATES = ["retrieved 2026-08-20", "Pi retrieved 2026-10-06", "Antigravity retrieved 2026-10-11"] as const;
 
 /**
  * The assumption-A1 block's OWN anchor.
@@ -360,7 +376,7 @@ const RESIDUAL_ANCHORS = [
  *
  * PROMOTE TRIGGER: a new `UNKNOWN - verify` in agent-factory/packaging/subagent.frontmatter.md.
  */
-const UNKNOWN_VERIFY_MARKER_COUNT = 1 + RESIDUAL_ANCHORS.length;
+const UNKNOWN_VERIFY_MARKER_COUNT = 1 + RESIDUAL_ANCHORS.length + occurrences(UNKNOWN_CLAUSE, "UNKNOWN - verify");
 
 /**
  * The host CLIs the scope paragraph names OTHER THAN Claude Code, DERIVED FROM THE DOCUMENT'S OWN
@@ -402,9 +418,20 @@ function namedNoSubAgentHost(): string {
   return PI_CLAUSE.slice(0, at).trim();
 }
 
+function namedUnknownClauseHost(): string {
+  const at = UNKNOWN_CLAUSE.indexOf(UNKNOWN_CLAUSE_PREDICATE);
+  if (!UNKNOWN_CLAUSE.startsWith(UNKNOWN_CLAUSE_OPEN) || at <= UNKNOWN_CLAUSE_OPEN.length) {
+    throw new Error(
+      `model-dial oracle: PREMISE VIOLATED — the unknown clause does not read "${UNKNOWN_CLAUSE_OPEN}<host>${UNKNOWN_CLAUSE_PREDICATE}", ` +
+        "so the host it names cannot be read off it. Refusing to fall back to a hand-list.",
+    );
+  }
+  return UNKNOWN_CLAUSE.slice(UNKNOWN_CLAUSE_OPEN.length, at).trim();
+}
+
 /** The union of the hosts the scope paragraph names, in document order. */
 function namedOtherHostClis(): string[] {
-  return [...namedPerAgentClauseHosts(), namedNoSubAgentHost()];
+  return [...namedPerAgentClauseHosts(), namedNoSubAgentHost(), namedUnknownClauseHost()];
 }
 
 /** The registry's hosts that do not spawn sub-agents: every host the scope paragraph must name. */
@@ -749,6 +776,21 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
     expect(namedPerAgentClauseHosts()).not.toContain(namedNoSubAgentHost());
   });
 
+  it("the unknown clause is PRESENT in the scope section, exactly once, on the scope sentence's line, carries one `UNKNOWN - verify`, and is ABSENT from the config field reference (plan 34.1-04, D-12)", () => {
+    expect(occurrences(readSurface("authority"), UNKNOWN_CLAUSE)).toBe(1);
+    expect(occurrences(scopeSection(), UNKNOWN_CLAUSE)).toBe(1);
+    const line = scopeSection().split("\n").find((l) => l.includes(SCOPE_SENTENCE)) ?? "";
+    expect(line, "the unknown clause must sit in the same paragraph as the scope sentence").toContain(UNKNOWN_CLAUSE);
+    expect(occurrences(UNKNOWN_CLAUSE, "UNKNOWN - verify")).toBe(1);
+    expect(occurrences(readSurface("pointer"), UNKNOWN_CLAUSE)).toBe(0);
+  });
+
+  it("the unknown-clause host is named by neither the per-agent clause nor the Pi clause", () => {
+    const host = namedUnknownClauseHost();
+    expect(namedPerAgentClauseHosts()).not.toContain(host);
+    expect(namedNoSubAgentHost()).not.toBe(host);
+  });
+
   it("the scope sentence is ABSENT from the config field reference — the no-restatement direction", () => {
     // The pointing document is not permitted its own copy of the claim. This is the direction that
     // makes "one authority" mechanical rather than aspirational.
@@ -920,7 +962,9 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
     const lines = citationLines();
     expect(lines).toHaveLength(namedOtherHostClis().length);
     // A citation without a source is a citation in shape only. Each line must name a host.
-    const sourceless = lines.filter((l) => !/[a-z0-9-]+\.(com|ai|dev|org|io)\//.test(l));
+    // A URL-bearing line names a host domain and a path: `<label>.<label>.../`. The top-level label is not a typed set
+    // (plan 34.1-04 added `antigravity.google/`, whose top-level label a hand-typed list did not carry).
+    const sourceless = lines.filter((l) => !/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\/[a-z0-9]/.test(l));
     expect(sourceless).toEqual([]);
     const heading = scopeSection().split("\n").find((l) => l.startsWith(CITATION_BLOCK_HEADING)) ?? "";
     const undated = CITATION_RETRIEVAL_DATES.filter((d) => !heading.includes(d));

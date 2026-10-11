@@ -152,15 +152,22 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
   // WR-01: the broadened ASYM_SPAWN_WORDING catches the CONCEPT, not three exact phrasings. A non-CC
   // row that gains "parallel"/"fan-out" wording (without the literal "coordinator"/"spawns role
   // agents") previously passed both directions; it must now fail naming the row. Plant "parallel
-  // fan-out of role agents" into the Gemini CLI row (keeping its no-spawn wording so the ONLY trip is
-  // the broadened spawn-concept catch).
+  // fan-out of role agents" into the Antigravity CLI row (keeping its no-spawn wording so the ONLY trip is
+  // the broadened spawn-concept catch). The row's name is read from the registry (phase 34.1 D-12 renamed it
+  // from the Gemini CLI row), so a later rename moves no literal here.
   it("wording WR-01: non-CC row gains 'parallel fan-out' wording (no literal coordinator) → nonzero + names the row", () => {
+    const host = HOST_TOOLS.find((t) => t.id === "antigravity");
+    expect(host, "the registry has an `antigravity` row").toBeDefined();
+    expect(host!.dispatch, "premise: the planted row is a non-spawn row").toBe("sequential");
+    const name = host!.name;
+    const rowRe = new RegExp(`^\\|\\s*\\*\\*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\*\\*`);
     const m = mirror();
     const file = join(m, "agent-factory/packaging/adapters.md");
-    const drifted = readFileSync(file, "utf8")
+    const before = readFileSync(file, "utf8");
+    const drifted = before
       .split("\n")
       .map((l) =>
-        /^\|\s*\*\*Gemini CLI\*\*/.test(l)
+        rowRe.test(l)
           ? l.replace(
               "Sequential role-load — no spawn",
               "Sequential role-load — no spawn; now also parallel fan-out of role agents",
@@ -172,7 +179,8 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     const r = runIn(m);
     expect(r.status).not.toBe(0);
     expect(out(r)).toMatch(/asymmetry drift/i);
-    expect(out(r)).toContain("Gemini CLI");
+    expect(drifted, "premise: the mutation changed the row").not.toBe(before);
+    expect(out(r)).toContain(name);
   });
 
   // The CC row losing its coordinator-spawn wording must ALSO fail (the flip must persist).

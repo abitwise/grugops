@@ -56,31 +56,22 @@ the package across the kit and the documentation equals it, so a bump is one edi
 |----------|--------------|
 | Claude Code | `claude mcp add playwright npx @playwright/mcp@0.0.78` |
 | Codex CLI | `codex mcp add playwright npx "@playwright/mcp@0.0.78"`, or the TOML block below |
-| Gemini CLI | an MCP block in Gemini's `settings.json`, shown below |
+| Antigravity CLI | a server entry in the workspace file `.agents/mcp_config.json`; the exact entry for a local command server is `UNKNOWN - verify` |
 | OpenCode | an `mcp` block in `~/.config/opencode/opencode.json`, shown below |
 | GitHub Copilot CLI | `/mcp add`, or an `mcpServers` entry in `~/.copilot/mcp-config.json`, shown below |
 | Pi | `pi mcp add playwright -- npx @playwright/mcp@0.0.78`, which writes `~/.pi/agent/mcp.json`, or `.pi/mcp.json` with `--local` |
 
 The Pi row comes from Pi's CLI documentation, § MCP commands
 (`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/cli.md`, retrieved 2026-10-06).
+The Antigravity CLI row comes from its migration page, which names `.agents/mcp_config.json` as the
+workspace MCP configuration file (`antigravity.google/docs/cli/gcli-migration/`, retrieved 2026-10-11);
+grugops has not read the shape of a local command server entry there, so no block is shown for it.
 
 ```toml
 # ~/.codex/config.toml — the Codex CLI alternative to `codex mcp add`
 [mcp_servers.playwright]
 command = "npx"
 args = ["@playwright/mcp@0.0.78"]
-```
-
-```json
-// Gemini CLI settings.json — the standard MCP server block
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["@playwright/mcp@0.0.78"]
-    }
-  }
-}
 ```
 
 ```json
@@ -503,7 +494,7 @@ Two auth configurations were not reachable when the predicate was written, and b
 
 ### Absence on the hosts other than Claude Code
 
-On Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI and Pi the attended Chrome lane is absent by
+On Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi the attended Chrome lane is absent by
 design. No adapter for those hosts carries the lane's tool name, and no per-host skip line exists
 anywhere in the kit. The absence is stated once, here.
 

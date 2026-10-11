@@ -6118,7 +6118,7 @@ describe("31-14 — CR-08: a note a human already disposed promotes unchanged", 
 // closing paragraph that flags it as compounding CR-08). `trustedRepoRoot()` answered
 // `CLAUDE_PROJECT_DIR`, else the kit this module ships in. `CLAUDE_PROJECT_DIR` is a CLAUDE CODE
 // variable, and under the shipped two-root install the kit is `~/.grugops`, whose only configuration
-// is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode, Copilot CLI and Pi — the hosts
+// is the shipped LEAN default. So on Codex, Antigravity CLI, OpenCode, Copilot CLI and Pi — the hosts
 // where the attended lane is absent by design (D-12 named all of them but Pi, which phase 34 added
 // and which has no attended lane either), which makes this in-script
 // refusal the ONLY tier available — every D-04/D-14 refusal the writers reach was decided against

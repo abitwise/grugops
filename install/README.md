@@ -278,17 +278,13 @@ In the **target repo**:
   line `@AGENTS.md` as the alternative to a `CLAUDE.md -> AGENTS.md` link
   ([code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory)), and install appends
   its block to that file as to any other
-- `.gemini/settings.json` — `context.fileName` gains `"AGENTS.md"`, and what install did is
-  recorded in the install ledger in `.grugops/install.json` so the uninstaller can reverse exactly
-  that. The entry is inserted into the file's text in place: every other byte of the file (numbers
-  as written, key order, spacing, line ends, a byte order mark, the final newline or its absence)
-  stays as it was, and install followed by uninstall gives back the file byte for byte. A settings
-  file that is not a valid JSON object, is not strict JSON (a comment, a trailing comma), is not
-  valid UTF-8, has more than one `context` or `context.fileName` key, or whose `context` is not an
-  object or whose `context.fileName` is neither a string nor an array of strings, is left untouched
-  and reported as a `verify` finding (exit `3`), by the installer and the uninstaller alike.
-  Gemini CLI reads `AGENTS.md` only through `context.fileName`, and `--check` reports Gemini CLI as
-  unable to reach the Orchestrator when this file does not list it
+- `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is
+  discontinued, and its registry row is now Antigravity CLI, which reads `AGENTS.md` with no settings
+  entry). An install made before that change may have added `"AGENTS.md"` to the file's
+  `context.fileName` and recorded what it did in the install ledger in `.grugops/install.json`; a
+  re-install carries that record unchanged, and the uninstaller reverses the recorded change from the
+  ledger, only while the file still holds what install recorded (see the paragraph on the Gemini
+  settings file below)
 - `.claude/settings.json` — the Claude Code ask rules described in §5 are added to
   `permissions.ask` (additive and in place: every other byte of the file is kept, and the added
   rules are recorded so uninstall removes exactly those)
@@ -307,14 +303,17 @@ In the **target repo**:
   untouched and not recorded, so the uninstaller leaves it too. `DRY_RUN=1` lists the template as
   `would-add` and writes nothing. How to use it, and what Pi asks first, is in "Using grugops on Pi"
   below
-- `.agents/skills/grugops/SKILL.md` — a skill Codex CLI reads from `.agents/skills/` (Codex users
-  type `$grugops`, or pick it from `/skills`), and `.opencode/commands/grugops.md` — a command
+- `.agents/skills/grugops/SKILL.md` — a skill Codex CLI and Antigravity CLI both read from
+  `.agents/skills/` (Codex users type `$grugops`, or pick it from `/skills`; Antigravity CLI offers
+  each skill as a slash command, so this one is `/grugops`, per antigravity.google/docs/skills/,
+  retrieved 2026-10-11), and `.opencode/commands/grugops.md` — a command
   OpenCode reads from `.opencode/commands/` (`/grugops <request>`). Both are written in every install,
   by the same rules as the Pi template: each is the same pointer (the start-here sentence and the kit
   route) under the frontmatter that host reads, with no role text; install records the file and only
   the directories this install created; a file already at the path that is not install's own
   unedited copy is left untouched and not recorded; `DRY_RUN=1` lists it as `would-add`. Whether
-  Codex CLI or OpenCode loads it in a live session is `UNKNOWN - verify` until a live run shows it.
+  Codex CLI, Antigravity CLI or OpenCode loads it in a live session is `UNKNOWN - verify` until a
+  live run shows it.
   The Pi template, this skill and this command are copied from committed files in the kit, which
   `scripts/generate-host-entries.ts` renders from one pointer file,
   `agent-factory/packaging/host-entry.pointer.md`
@@ -373,13 +372,13 @@ reads every file first and reports afterwards, in this order:
 - **The files each host reads here.** The files that can give a host the route are `AGENTS.md`,
   `CLAUDE.md`, `.agents/skills/grugops/SKILL.md`, `.opencode/commands/grugops.md`,
   `.github/copilot-instructions.md` and `.pi/prompts/grugops.md`. A host counts a file
-  only when it reads that file in this repository. Gemini CLI reads `AGENTS.md` only when the
-  repository's `.gemini/settings.json` lists it in `context.fileName`, which install adds. When that
-  file is absent, does not list `AGENTS.md`, or cannot be read as a settings file install can merge,
-  Gemini CLI has no file that gives it the route, so its `reach` line says it cannot reach the
-  Orchestrator, with a WARN. The WARN names re-running `install.js` when install would add the entry,
-  and otherwise the edit to make by hand and why install leaves the file. `--check` reads no
-  user-level Gemini settings.
+  only when it reads that file in this repository. Antigravity CLI reads `AGENTS.md` natively, with
+  no settings entry (antigravity.google/docs/rules/ and antigravity.google/docs/cli/gcli-migration/,
+  retrieved 2026-10-11), and the agent skill it shares with Codex CLI. Install detects Antigravity
+  CLI by a `.gemini` entry in the target root, the signal the Gemini CLI row used; whether Antigravity
+  CLI itself uses a project-level `.gemini/` is `UNKNOWN - verify`, and its documented project
+  directory, `.agents/`, is not a detect signal because Codex CLI, GitHub Copilot CLI, OpenCode and Pi
+  read it too and install creates it.
 - **The files without the route.** Such a file is counted only when it leaves some host without a
   route: a host that reads it reads no other file holding the route and, for Claude Code, has no
   adapter route. A counted file is reported as follows:
@@ -462,8 +461,9 @@ grugops version or checkout you run it from. It removes **only** the grugops-own
 added to the target: the skills, the Orchestrator wrapper and the materialized resolver adapters that
 still hold what install wrote to them (see the kit-file record below), the sentinel-delimited
 `CLAUDE.md` and Copilot pointer blocks (the rest of those files stays exactly as it was), the
-`AGENTS.md` entry it added to the Gemini settings (or, in a Gemini settings file it created, the
-`context.fileName` list it wrote), the Claude Code ask rules it added (§5; a rule you had before
+`AGENTS.md` entry an install made before 34.1 D-12 added to the Gemini settings (or, in a Gemini
+settings file such an install created, the `context.fileName` list it wrote), the Claude Code ask
+rules it added (§5; a rule you had before
 install stays), the runnable checks under `tools/grugops/` that still hold what it wrote, and the
 `.grugops/install.json` marker once nothing it records is left. It removes the Pi template
 `.pi/prompts/grugops.md` only while the template still holds what install wrote, and removes
@@ -496,7 +496,7 @@ or replaced since, or whose mode you changed (`chmod`), is left and reported. A 
 the mode was recorded has only the sha256; the uninstaller then compares the bytes alone and its
 `removed` line says so. The same holds for the skill and adapter records in the install ledger in
 `.grugops/install.json` and for a Gemini
-settings file install created. A re-install keeps an earlier entry only while the file still holds what the record says
+settings file an install made before 34.1 D-12 created. A re-install keeps an earlier entry only while the file still holds what the record says
 and the re-install did not have to add its pointer block to it, so a file you deleted and then made
 again yourself is dropped from the record and left by the uninstaller. A file whose bytes are
 exactly the ones install wrote holds nothing of yours, so it is treated as install's. Byte identity is
@@ -549,8 +549,9 @@ A marker with a duplicate key is not read at all, by either side: which of the t
 record is not known.
 
 The Gemini settings file is changed only as install's record in the install ledger in
-`.grugops/install.json` says. Install
-records whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape
+`.grugops/install.json` says. Install no longer writes that file or that record (34.1 D-12); what
+follows is how the uninstaller reverses a record an install made before that change. Such an install
+recorded whether it created the file, or appended `"AGENTS.md"` to `context.fileName` and what shape
 it found there (no `fileName`, a string, or an array; and whether `context` was there), and a sha256
 of `context.fileName` as it left it. The uninstaller acts only while `context.fileName` is still
 exactly that list. In a file install found, it then removes the last `"AGENTS.md"` element from the
@@ -569,13 +570,10 @@ added it. With no record of an added entry, nothing in the file is changed: a re
 ran the installer on (with no marker), an install made before this release (`left`; remove the
 entry by hand if grugops added it), a file that already listed `AGENTS.md` when install found it,
 and a file install could not read or merge when it ran (both reported `skipped`). A re-install
-keeps an earlier record only while `context.fileName` is exactly what install last left there; if
-you changed it, the record claims nothing more, says so, and the uninstaller leaves the file. A
-re-install that cannot read the file at all (a link, a hard link, a special file, no read
-permission, too large, not UTF-8, not strict JSON, a duplicate key) has no evidence either way, so
-it keeps the earlier record as it was and says so. A malformed install ledger is a `verify`
-finding on both sides (exit `3`): install does not merge and writes it back as found, and the
-uninstaller leaves the file.
+carries an earlier record unchanged and never reads the file (34.1 D-12), so what decides is the
+uninstaller's own check that `context.fileName` is still exactly the recorded list. A malformed
+install ledger is a `verify` finding on both sides (exit `3`): install writes it back as found, and
+the uninstaller leaves the file.
 
 A symbolic link at one of those paths is removed only when it is exactly the link install's record
 names: a `--symlink` install records the target of each link it made, and the link is removed while
@@ -599,7 +597,7 @@ non-empty absolute paths, `installMode` `copy` or `symlink`, `kitVersion` a stri
 and its `target` is this directory. A JSON object at `.grugops/install.json` whose fields do not hold
 those values is not install's marker: the uninstaller uses none of the records in it, removes nothing
 on it, leaves it in place, and reports a `verify` finding (exit `3`); the installer leaves it byte for
-byte, writes no marker, adds no Gemini entry and no ask rule, and exits `3` too. Install's marker for
+byte, writes no marker, adds no ask rule, and exits `3` too. Install's marker for
 another directory is not this directory's record either: a `.grugops/` copied from another repository,
 a repository you moved, renamed or copied after installing, a marker written before this release
 (it has no `target`), and a marker with no install ledger. The uninstaller then uses none of its
@@ -1235,9 +1233,10 @@ context, which checks structured tool calls, not shell text.
 
 ### Other tools (documentation only)
 
-grugops generates no approval configuration for Codex CLI, Gemini CLI, OpenCode, GitHub Copilot
-CLI or Pi. Each of them except Pi has its own approval mode, which you configure yourself; Pi has
-none (see its entry below). The notes below come from each tool's documentation and are **not
+grugops generates no approval configuration for Codex CLI, Antigravity CLI, OpenCode, GitHub
+Copilot CLI or Pi. Codex CLI, OpenCode and GitHub Copilot CLI each have their own approval mode,
+which you configure yourself; Pi has none (see its entry below); for Antigravity CLI it is
+`UNKNOWN - verify` (see its entry below). The notes below come from each tool's documentation and are **not
 verified by grugops**; confirm them against the current docs before you rely on them. On every
 tool, the git host is the hard floor.
 
@@ -1247,9 +1246,11 @@ tool, the git host is the hard floor.
 - **GitHub Copilot CLI** — `--deny-tool` denies a tool or a shell command pattern (for example
   `--deny-tool='shell(git push)'`), and deny rules take precedence over allow rules
   (docs.github.com/en/copilot/how-tos/copilot-cli/allowing-tools). Not verified by grugops.
-- **Gemini CLI** — the policy engine reads TOML policies (`~/.gemini/policies/*.toml`) that match a
-  `commandPrefix` and can decide `ask_user`; in non-interactive mode `ask_user` is treated as `deny`
-  (geminicli.com/docs/reference/policy-engine). Not verified by grugops.
+- **Antigravity CLI** — whether it asks for approval before it runs a command, and how a rule
+  for a specific command would be written, is `UNKNOWN - verify`: grugops has not researched it.
+  Its settings file is user-level, `~/.gemini/antigravity-cli/settings.json`
+  (antigravity.google/docs/cli/gcli-migration/, retrieved 2026-10-11). Check the current Antigravity
+  documentation before relying on it.
 - **Codex CLI** — approval policies and sandbox modes decide when Codex asks before it runs a
   command. The syntax for a rule that matches a specific command is `UNKNOWN - verify`; check the
   current Codex documentation before relying on it.
@@ -1301,7 +1302,8 @@ full tier, and it is stated plainly rather than softened — you should know whi
 
 ### Degraded — no `Agent` tool at all
 
-Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI and Pi have no host spawn mechanism, and a
+Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi have no host spawn mechanism that
+this kit uses (it writes agent definitions to `.claude/agents/` alone), and a
 Claude Code sub-agent already at the nesting limit has `Agent` withheld from it rather than
 erroring. In either case the coordinator drains the same queue at concurrency one, activating
 each role in a single window through `agent-factory/roles/_role-switch-protocol.md` — and says
@@ -1344,7 +1346,8 @@ Agent-authored browser UAT has one home in the kit:
 stays short and the detail lives in the file it points at.
 
 The recipe covers the pinned browser-MCP setup for every supported host CLI — Claude Code, Codex
-CLI, Gemini CLI, OpenCode, GitHub Copilot CLI and Pi — and the statement that the attended
+CLI, Antigravity CLI (where the exact entry is `UNKNOWN - verify`), OpenCode, GitHub Copilot CLI and
+Pi — and the statement that the attended
 Claude-in-Chrome lane is optional, human-stamped, and absent by design on every host other than
 Claude Code.
 

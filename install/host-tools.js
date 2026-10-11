@@ -118,14 +118,20 @@ export const HOST_TOOLS = [
         dispatch: "sequential",
     },
     {
-        id: "gemini",
-        name: "Gemini CLI",
-        shortName: "Gemini",
+        // Antigravity CLI (phase 34.1, D-12; it replaces the discontinued Gemini CLI row). It reads AGENTS.md and GEMINI.md
+        // natively (antigravity.google/docs/rules/ and antigravity.google/docs/cli/gcli-migration/, retrieved 2026-10-11)
+        // and loads workspace skills from `.agents/skills/` (antigravity.google/docs/skills/, retrieved 2026-10-11), so it
+        // shares the agent skill at AGENT_SKILL_REL with Codex CLI ("two rows, one entry", D-20). Install never reads or
+        // writes `.gemini/settings.json` and never writes `.gemini/skills/`.
+        // DETECT SIGNAL: `.gemini` is UNKNOWN - verify (D-13, D-22). It is the old Gemini CLI signal; no project-level
+        // `.gemini/` use by Antigravity CLI was found in its docs. `.agents/` is Antigravity's documented project
+        // directory, but it is not a detect signal: Codex CLI, GitHub Copilot CLI, OpenCode and Pi read it too, and
+        // grugops itself creates it.
+        id: "antigravity",
+        name: "Antigravity CLI",
+        shortName: "Antigravity",
         detect: ".gemini",
         entryFiles: ["AGENTS.md"],
-        // Phase 34.1, D-12 and D-20: install no longer reads or writes `.gemini/settings.json` (the `gemini-settings`
-        // adapter kind and its entry gate are deleted). This row shares the agent skill at AGENT_SKILL_REL with Codex
-        // CLI ("two rows, one entry"); `.gemini/skills/` is never written. Plan 34.1-04 renames the row to Antigravity.
         adapter: "agent-skill",
         dispatch: "sequential",
     },

@@ -44,7 +44,7 @@ Whether a live run on a host other than Claude Code follows that route is `UNKNO
 ## Usage across the supported host tools
 
 <!-- claim: C-28-027 -->
-grugops works on Claude Code, Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI, and Pi. The
+grugops works on Claude Code, Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, and Pi. The
 single rule to remember: **only the dispatch differs, never the content.** The roles, the
 workflows, and the gates are identical everywhere. The only difference is whether the host
 tool can *spawn* sub-agents or must *load* role files into context one at a time.
@@ -53,9 +53,9 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 | Tool                  | Entry file it reads                              | Role dispatch                                            |
 | --------------------- | ------------------------------------------------ | -------------------------------------------------------- |
 | **Claude Code**       | `CLAUDE.md` (+ portable `AGENTS.md`)             | Coordinator spawns role agents — the `coordinator: true` adapter holds the grant |
-| **Codex CLI**         | `AGENTS.md` (root + nested, global)              | Sequential role-load — no spawn                          |
-| **Gemini CLI**        | `GEMINI.md` (or `AGENTS.md` via `context.fileName`) | Sequential role-load — no spawn                       |
-| **OpenCode**          | `AGENTS.md` (+ its agent config)                 | Sequential role-load (or its own native agents)          |
+| **Codex CLI**         | `AGENTS.md` (+ `.agents/skills/grugops/SKILL.md` skill) | Sequential role-load — no spawn                   |
+| **Antigravity CLI**   | `AGENTS.md` (+ the same `.agents/skills/grugops/SKILL.md` skill) | Sequential role-load — no spawn          |
+| **OpenCode**          | `AGENTS.md` (+ `.opencode/commands/grugops.md` command) | Sequential role-load (or its own native agents)   |
 | **GitHub Copilot CLI**| `AGENTS.md` (+ `.github/copilot-instructions.md`)| Sequential role-load — no spawn                          |
 | **Pi**                | `AGENTS.md` (+ `.pi/prompts/grugops.md` template) | Sequential role-load — no spawn                          |
 

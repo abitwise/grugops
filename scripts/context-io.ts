@@ -5398,7 +5398,7 @@ export const HOST_DELIVERED_ROOT_ENV = "GRUGOPS_HOST_DELIVERED_ROOT";
  * even one root the tier below refused would be a gate lowering, whatever else it fixed.
  *
  * WHAT IT DOES NOT ESTABLISH, STATED HERE RATHER THAN IMPLIED (see D-29):
- *   - On Codex, Gemini CLI, OpenCode, Copilot CLI and Pi there is no such channel. Those hosts keep the
+ *   - On Codex, Antigravity CLI, OpenCode, Copilot CLI and Pi there is no such channel. Those hosts keep the
  *     walk, and the affected register members are re-scoped `hosts: "non-cc-hook-path"` rather than
  *     deleted.
  *   - An agent invoking `scripts/context-io.js` DIRECTLY from its own Bash tool builds its own
@@ -5496,7 +5496,7 @@ export const TRUSTED_ROOT_TIERS: readonly string[] = Object.freeze([
  *
  * WHY STEPS 2 AND 3 EXIST (WR-15, reproduced by the round-3 verifier as spot-check row 6). Step 1's
  * variable is a CLAUDE CODE variable, and step 4 under the shipped two-root install is `~/.grugops`,
- * whose only configuration is the shipped LEAN default. So on Codex, Gemini CLI, OpenCode,
+ * whose only configuration is the shipped LEAN default. So on Codex, Antigravity CLI, OpenCode,
  * Copilot CLI and Pi — the hosts where the attended lane is absent by design (D-12 named all of them
  * but Pi, which phase 34 added and which has no attended lane either), which makes this in-script refusal the ONLY tier available — every D-04/D-14 refusal the writers
  * reach was evaluated against `human_admission: off` whatever the target repository's dial said.
@@ -5596,7 +5596,7 @@ export interface TrustedRootResidual {
    *
    * `"all"`         — the member stands on every host, whether by design or because nothing closes it.
    * `"non-cc-hook-path"` — CLOSED on the Claude Code hook path by tier 0 (`hostDeliveredRoot`), and
-   *                  still open on Codex, Gemini CLI, OpenCode, Copilot CLI and Pi, where no host builds
+   *                  still open on Codex, Antigravity CLI, OpenCode, Copilot CLI and Pi, where no host builds
    *                  the environment of a grugops decider and the walk remains the answer.
    *
    * Never fake a passing gate: a member re-scoped by host states which host it is closed on AND
@@ -5633,7 +5633,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "per-call admission hook, which reads the human's fresh session grant. FIX (S1, plan 31-27): " +
       "CLOSED on the Claude Code hook path, where tier 0 reads a root the byte-frozen, " +
       "decider-hash-verifying wrapper set on its own spawn environment from a HOST-BUILT value. It " +
-      "is NOT closed on Codex, Gemini CLI, OpenCode, Copilot CLI or Pi — no host there builds the " +
+      "is NOT closed on Codex, Antigravity CLI, OpenCode, Copilot CLI or Pi — no host there builds the " +
       "environment of a grugops decider — and it is NOT closed for an agent invoking " +
       "`scripts/context-io.js` directly from its own Bash tool, which builds its own environment; " +
       "that is this member's own already-accepted capability, not a new one.",
@@ -5671,7 +5671,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "weaker, non-mechanically-un-forgeable signal (D-05) rather than as the authority. " +
       "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path, where tier 0 answers ABOVE this " +
       "loop from a host-built channel, so neither ambient name is consulted at all. It is NOT " +
-      "closed on Codex, Gemini CLI, OpenCode, Copilot CLI or Pi, where these two names remain the " +
+      "closed on Codex, Antigravity CLI, OpenCode, Copilot CLI or Pi, where these two names remain the " +
       "answer and are exactly as ambient as this shape says.",
     what_would_force_it_closed:
       "The same thing that would close R-31-15-01: a governance root delivered outside the agent's " +
@@ -5733,7 +5733,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "adopted by a process that meant nothing by it — not against a process choosing its own root. " +
       "FIX (S1, plan 31-27): CLOSED on the Claude Code hook path, where tier 0 answers before the " +
       "walk runs and `os.homedir()` is therefore never consulted. It is NOT closed on Codex, " +
-      "Gemini CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and this stop is real.",
+      "Antigravity CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and this stop is real.",
     what_would_force_it_closed:
       "The same thing that would close R-31-15-01 and R-31-15-03: a governance root resolved by the " +
       "host from outside the agent's process tree and delivered through a channel the agent cannot " +
@@ -5840,7 +5840,7 @@ export const TRUSTED_ROOT_RESIDUALS: readonly TrustedRootResidual[] = Object.fre
       "lean fallback; the price is therefore stated in both directions rather than as monotonicity " +
       "in one. FIX (S1, plan 31-27): CLOSED on the Claude Code hook path — tier 0 answers before " +
       "the walk, so no write under `$HOME` can reach a decision the walk never makes. It is NOT " +
-      "closed on Codex, Gemini CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and the " +
+      "closed on Codex, Antigravity CLI, OpenCode, Copilot CLI or Pi, where the walk is the answer and the " +
       "prices stated above still stand exactly as written.",
     what_would_force_it_closed:
       "`R-31-15-01`'s own criterion and nothing narrower: a governance root the calling process " +

@@ -210,7 +210,7 @@ There is no fourth value. The roster is closed and lives once, in `scripts/check
 
 Be precise about what this means. Lowering any cell, floor-tier or not, now takes only the configuration edit, so an agent that can write the configuration can lower a prose-tier stop. The merge and deploy stops still meet the git host, which no configuration value can lower.
 
-**On host tools without hook enforcement, a non-blocking disposition is advisory.** On every host CLI other than Claude Code — Codex CLI, Gemini CLI, OpenCode, GitHub Copilot CLI and Pi — grugops installs no equivalent pre-tool hook and generates no approval configuration (see the install guide for each tool's own approval controls), so the whole matrix is a procedural instruction the roles follow. On Claude Code the same holds for every cell except the two the ask rules translate. The `block` dispositions still describe where the factory stops; what differs is that nothing outside the prompt makes it stop. Configure with that in mind.
+**On host tools without hook enforcement, a non-blocking disposition is advisory.** On every host CLI other than Claude Code — Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi — grugops installs no equivalent pre-tool hook and generates no approval configuration (see the install guide for each tool's own approval controls), so the whole matrix is a procedural instruction the roles follow. On Claude Code the same holds for every cell except the two the ask rules translate. The `block` dispositions still describe where the factory stops; what differs is that nothing outside the prompt makes it stop. Configure with that in mind.
 
 #### Translating a retired `autonomy` value
 
