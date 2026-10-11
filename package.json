@@ -36,6 +36,7 @@
     "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js",
     "freshness:adapters": "tsc --outDir .tmp-build && node scripts/adapters-freshness.js",
     "freshness:skill-twins": "tsc --outDir .tmp-build && node scripts/skill-twins-freshness.js",
+    "freshness:host-entries": "tsc --outDir .tmp-build && node scripts/host-entries-freshness.js",
     "freshness:guarantees": "tsc --outDir .tmp-build && node scripts/guarantees-freshness.js",
     "freshness:hook-manifest": "tsc --outDir .tmp-build && node scripts/hook-manifest-freshness.js",
     "freshness:context": "tsc --outDir .tmp-build && node scripts/context-freshness.js",
