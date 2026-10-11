@@ -63,7 +63,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
-import { HOST_TOOLS, agentFlag, hostForFlag } from "./host-tools.js";
+import { HOST_TOOLS, agentFlag, hostForFlag, type HostTool } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -451,6 +451,43 @@ export const VARIANTS: readonly VariantSpec[] = [
 ];
 
 /**
+ * THE SNAPSHOT METHOD both derivations share (deriveWritePaths and deriveAgentWriteSets): a scratch target and HOME
+ * under `base`, `prepare` run on the target, one install with `args` (runInstall, so `--yes` and, when `args` names
+ * no agent, every agent flag), and the target snapshotted before and after. A path is written when it is new or its
+ * snapshot row changed; a directory only when it is new. Paths are normalized (normalizeIso) and sorted.
+ */
+function writeOneVariant(
+  base: string,
+  args: readonly string[],
+  prepare: (target: string) => void,
+): Omit<VariantRun, "name" | "why"> {
+  const target = join(base, "target");
+  const home = join(base, "home");
+  mkdirSync(target, { recursive: true });
+  mkdirSync(home, { recursive: true });
+  prepare(target);
+  const before = treeEntries(snapshotTree(target));
+  const run = runInstall(target, join(home, ".grugops"), args, { home, timeoutMs: 180_000 });
+  const after = treeEntries(snapshotTree(target));
+  const files: string[] = [];
+  const dirs: string[] = [];
+  const kinds = new Map<string, EntryKind>();
+  for (const [rel, e] of after) {
+    const prev = before.get(rel);
+    if (prev !== undefined && prev.row === e.row) continue;
+    const n = normalizeIso(rel);
+    if (e.kind === "dir") {
+      if (prev !== undefined && prev.kind === "dir") continue;
+      dirs.push(n);
+    } else {
+      files.push(n);
+    }
+    kinds.set(n, e.kind);
+  }
+  return { target, grugopsHome: join(home, ".grugops"), run, files: files.sort(), dirs: dirs.sort(), kinds };
+}
+
+/**
  * Run every variant into its own scratch target under `scratchRoot` (which the caller owns and
  * removes) and return the union of the paths written. A variant whose install did not exit 0 is
  * still returned (its `run` says so); the caller asserts on it.
@@ -458,31 +495,8 @@ export const VARIANTS: readonly VariantSpec[] = [
 export function deriveWritePaths(scratchRoot: string): WritePathSet {
   const variants: VariantRun[] = [];
   for (const spec of VARIANTS) {
-    const base = join(scratchRoot, `variant-${spec.name}`);
-    const target = join(base, "target");
-    const home = join(base, "home");
-    mkdirSync(target, { recursive: true });
-    mkdirSync(home, { recursive: true });
-    spec.prepare(target);
-    const before = treeEntries(snapshotTree(target));
-    const run = runInstall(target, join(home, ".grugops"), spec.args, { home, timeoutMs: 180_000 });
-    const after = treeEntries(snapshotTree(target));
-    const files: string[] = [];
-    const dirs: string[] = [];
-    const kinds = new Map<string, EntryKind>();
-    for (const [rel, e] of after) {
-      const prev = before.get(rel);
-      if (prev !== undefined && prev.row === e.row) continue;
-      const n = normalizeIso(rel);
-      if (e.kind === "dir") {
-        if (prev !== undefined && prev.kind === "dir") continue;
-        dirs.push(n);
-      } else {
-        files.push(n);
-      }
-      kinds.set(n, e.kind);
-    }
-    variants.push({ name: spec.name, why: spec.why, target, grugopsHome: join(home, ".grugops"), run, files: files.sort(), dirs: dirs.sort(), kinds });
+    const w = writeOneVariant(join(scratchRoot, `variant-${spec.name}`), spec.args, spec.prepare);
+    variants.push({ name: spec.name, why: spec.why, ...w });
   }
   const byPath = new Map<string, { kinds: Partial<Record<VariantName, EntryKind>>; variants: VariantName[] }>();
   for (const v of variants) {
@@ -508,6 +522,46 @@ export function deriveWritePaths(scratchRoot: string): WritePathSet {
       return v;
     },
   };
+}
+
+// ── one install per agent (plan 34.1-08, D-06; research Pitfall 1, Pitfall 4) ───────────────────────────────────────
+// VARIANTS above stay the all-agent union: the DC-2 and DC-3 class tests ask every path any agent's install writes.
+// AGENT_VARIANTS is derived from HOST_TOOLS, one per registry row, each naming only that row's flag into an empty
+// target, so a per-agent class test asks what each agent's install writes on its own.
+
+/** One install that names a single agent. */
+export interface AgentVariantSpec {
+  /** `agent-<id>`. */
+  readonly name: string;
+  readonly host: HostTool;
+  readonly why: string;
+  /** `[agentFlag(host)]`. */
+  readonly args: readonly string[];
+  readonly prepare: (target: string) => void;
+}
+
+/** One per HOST_TOOLS row, in registry order; derived, never typed. */
+export const AGENT_VARIANTS: readonly AgentVariantSpec[] = HOST_TOOLS.map((host) => ({
+  name: `agent-${host.id}`,
+  host,
+  why: `${agentFlag(host)} alone into an empty target: the shared footprint and ${host.name}'s own entries`,
+  args: [agentFlag(host)],
+  prepare: () => {},
+}));
+
+/** What one AGENT_VARIANTS install wrote. */
+export interface AgentWriteSet extends Omit<VariantRun, "name" | "why"> {
+  readonly name: string;
+  readonly host: HostTool;
+}
+
+/**
+ * Run every AGENT_VARIANTS install into its own scratch target under `scratchRoot` (which the caller owns and
+ * removes), by the same snapshot method as deriveWritePaths (writeOneVariant), and return what each wrote, in
+ * registry order. A run that did not exit 0 is still returned (its `run` says so); the caller asserts on it.
+ */
+export function deriveAgentWriteSets(scratchRoot: string): readonly AgentWriteSet[] {
+  return AGENT_VARIANTS.map((spec) => ({ name: spec.name, host: spec.host, ...writeOneVariant(join(scratchRoot, spec.name), spec.args, spec.prepare) }));
 }
 
 /** One line per path: the path and, per variant, what it wrote there. For a test's printed union. */

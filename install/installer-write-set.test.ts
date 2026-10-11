@@ -56,7 +56,8 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
-import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, lineNamesPath, pathText, runInstall, runUninstall } from "./installer-paths.test-support.js";
+import { ISO_PLACEHOLDER, MARKER_REL, deriveAgentWriteSets, deriveWritePaths, lineNamesPath, pathText, runInstall, runUninstall } from "./installer-paths.test-support.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, entryOwners } from "./host-tools.js";
 import { dirList, fileRecords, plantLegacyGemini } from "./ledger.test-support.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
@@ -341,6 +342,46 @@ describe("the write set is derived from a real baseline install (red-team of pla
     console.log(`write set: ${TIMESTAMPED.length} timestamped --migrate path(s) not asked here: ${TIMESTAMPED.join(", ")}`);
     expect(TIMESTAMPED.length).toBe(9);
     expect(WRITE_FILES).toContain(MARKER_REL);
+  });
+});
+
+// ── EVERY AGENT WRITES ONLY ITS OWN FOOTPRINT AND THE SHARED FILES (plan 34.1-08, D-06, D-10) ──────────────────────
+// One install per registry row (installer-paths.test-support.ts AGENT_VARIANTS, derived from HOST_TOOLS, count
+// asserted), each naming only that row's flag into an empty target. Every path it writes must be owned by that row
+// (host-tools.ts entryOwners, the one owner of "which agents own this path") or by no row (the shared footprint of
+// D-06). Footprints may overlap: the agent skill is written by both of its rows. The union of the per-row sets must be
+// exactly what the all-agent default install writes, so a path only an all-agent run writes, or one no single agent
+// writes, fails too. The DC-2 and DC-3 class tests above and below keep running over the all-agent union.
+const AGENT_SETS = deriveAgentWriteSets(fresh("derive-agents"));
+
+describe("every agent writes only its own footprint and the shared files (D-06)", () => {
+  it(`one install per registry row: ${HOST_TOOL_COUNT} rows, each exits 0`, () => {
+    expect(AGENT_SETS.length).toBe(HOST_TOOL_COUNT);
+    expect(AGENT_SETS.map((a) => a.host.id)).toEqual(HOST_TOOLS.map((h) => h.id));
+    for (const a of AGENT_SETS) expect(a.run.status, `${a.name}\n${a.run.stdout}\n${a.run.stderr}`).toBe(0);
+  });
+
+  for (const a of AGENT_SETS) {
+    it(`${a.name}: every path it writes is owned by ${a.host.id} or shared`, () => {
+      const written = [...a.files.map((path) => ({ path, kind: "file" })), ...a.dirs.map((path) => ({ path, kind: "dir" }))];
+      expect(written.length, `${a.name} wrote nothing`).toBeGreaterThan(0);
+      const foreign = written.filter((e) => {
+        const owners = entryOwners(e);
+        return owners.length > 0 && !owners.includes(a.host.id);
+      });
+      expect(foreign.map((e) => `${e.path} (owned by ${entryOwners(e).join(", ")})`), `${a.name} wrote another agent's path`).toEqual([]);
+      // Its own entries are there: every route pointer of its adapter kind.
+      for (const rel of ROUTE_POINTERS[a.host.adapter]) expect(a.files, `${a.name} did not write ${rel}`).toContain(rel);
+    });
+  }
+
+  it("the union of the per-agent write sets is the all-agent install's write set", () => {
+    const union = new Set(AGENT_SETS.flatMap((a) => [...a.files, ...a.dirs]));
+    const all = [...BASE_VARIANT.files, ...BASE_VARIANT.dirs].sort();
+    expect([...union].sort()).toEqual(all);
+    // Footprints overlap where two rows share an entry (D-20): such a path is written by each of its owners.
+    const shared = AGENT_SETS.filter((a) => a.files.includes(AGENT_SKILL_REL)).map((a) => a.host.id);
+    expect(shared).toEqual(HOST_TOOLS.filter((h) => ROUTE_POINTERS[h.adapter].includes(AGENT_SKILL_REL)).map((h) => h.id));
   });
 });
 

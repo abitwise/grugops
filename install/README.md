@@ -44,12 +44,19 @@ separated:
 - **Per-repo, writable state** → seeded into the target repo (`.grugops/factory.config.json`,
   the install marker, `plans/`, and `memory-bank/`).
 
+The flags name the agents to install for: one flag per supported agent (`--claude`, `--codex`,
+`--antigravity`, `--opencode`, `--copilot`, `--pi`), and there is no all-agents flag. Each run writes
+the shared files and the entries of the agents it is for (see "What the installer touches" below).
+
 ```sh
-# Install into a chosen repo (run from anywhere):
-node install/install.js --target /path/to/repo
+# Install into a chosen repo (run from anywhere) for Claude Code:
+node install/install.js --target /path/to/repo --claude
+
+# For Codex CLI and OpenCode:
+node install/install.js --target /path/to/repo --codex --opencode
 
 # Install into the current repo (prompts to confirm the target first):
-node install/install.js
+node install/install.js --pi
 
 # Unattended / CI (take the default target, no prompt). A first unattended install names its
 # agents; see "Which agents an unattended install is for":
@@ -283,7 +290,33 @@ source checkout, pass **`--allow-self`** (or `--force`) to override it.
 
 ### What the installer touches (per-repo), and only this
 
-In the **target repo**:
+What an install writes in the **target repo** depends on the agents it is for: there is one flag per
+supported agent (`--claude`, `--codex`, `--antigravity`, `--opencode`, `--copilot`, `--pi`) and no
+all-agents flag, and a run with no flag chooses as "Which agents an unattended install is for" says.
+Some files are shared by every agent and written on every install; the rest belong to one agent and
+are written only when that agent is chosen.
+
+**Shared, written on every install** (whatever agents are chosen):
+
+- `AGENTS.md` — copied from the kit (or linked, under `--symlink`) when the target has none, and
+  refreshed when it is install's own unedited copy (see the paragraph on re-installs below), and
+  recorded in the install ledger in `.grugops/install.json`. Its "Kit vs state" rule names the
+  kit route (see "How a host finds the kit after a scripted install" below). An `AGENTS.md` you
+  wrote, or install's copy that you edited, is never written
+- `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
+  `tools/grugops/host-protection.js` (§5)
+- **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
+  the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
+- `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is
+  discontinued, and its registry row is now Antigravity CLI, which reads `AGENTS.md` with no settings
+  entry). An install made before that change may have added `"AGENTS.md"` to the file's
+  `context.fileName` and recorded what it did in the install ledger in `.grugops/install.json`; a
+  re-install carries that record unchanged, and the uninstaller reverses the recorded change from the
+  ledger, only while the file still holds what install recorded (see the paragraph on the Gemini
+  settings file below)
+
+**Claude Code** (`--claude`), only when Claude Code is chosen. An install that does not choose it
+writes no path under `.claude/` and no `CLAUDE.md`:
 
 - `.claude/skills/grugops*/SKILL.md` — the seven standalone skills
 - `.claude/agents/grugops-*.md` — the Orchestrator subagent wrapper and the role adapters (17
@@ -297,11 +330,6 @@ In the **target repo**:
   overwrites one you edited (see "Re-installing" above). A file that was already there, byte for
   byte what install would write, and that no earlier record of install's names, is left and not
   recorded, so uninstall leaves it
-- `AGENTS.md` — copied from the kit (or linked, under `--symlink`) when the target has none, and
-  refreshed when it is install's own unedited copy (see the paragraph on re-installs below), and
-  recorded in the install ledger in `.grugops/install.json`. Its "Kit vs state" rule names the
-  kit route (see "How a host finds the kit after a scripted install" below). An `AGENTS.md` you
-  wrote, or install's copy that you edited, is never written
 - a one-line **start-here** pointer block in `CLAUDE.md` (appended behind a sentinel; your
   existing content is preserved). After its start-here sentence the line names the kit route, the
   `kitRoot` field of `.grugops/install.json`. When `CLAUDE.md` does not exist, install creates it and records
@@ -315,23 +343,37 @@ In the **target repo**:
   line `@AGENTS.md` as the alternative to a `CLAUDE.md -> AGENTS.md` link
   ([code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory)), and install appends
   its block to that file as to any other
-- `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is
-  discontinued, and its registry row is now Antigravity CLI, which reads `AGENTS.md` with no settings
-  entry). An install made before that change may have added `"AGENTS.md"` to the file's
-  `context.fileName` and recorded what it did in the install ledger in `.grugops/install.json`; a
-  re-install carries that record unchanged, and the uninstaller reverses the recorded change from the
-  ledger, only while the file still holds what install recorded (see the paragraph on the Gemini
-  settings file below)
 - `.claude/settings.json` — the Claude Code ask rules described in §5 are added to
   `permissions.ask` (additive and in place: every other byte of the file is kept, and the added
   rules are recorded so uninstall removes exactly those)
-- `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
-  `tools/grugops/host-protection.js` (§5)
-- an optional `.github/copilot-instructions.md` pointer for GitHub Copilot CLI, by the same rules as `CLAUDE.md` and naming
+
+**Codex CLI** (`--codex`) and **Antigravity CLI** (`--antigravity`), only when one of them is chosen:
+
+- `.agents/skills/grugops/SKILL.md` — one skill file, written once when Codex CLI, Antigravity CLI or
+  both are chosen. Both read it from `.agents/skills/`: Codex users type `$grugops`, or pick it from
+  `/skills`; Antigravity CLI offers each skill as a slash command, so this one is `/grugops` (per
+  antigravity.google/docs/skills/, retrieved 2026-10-11). It is written by the same rules as the Pi
+  template: the same pointer (the start-here sentence and the kit route) under the frontmatter the
+  host reads, with no role text; install records the file and only the directories this install
+  created; a file already at the path that is not install's own unedited copy is left untouched and
+  not recorded; `DRY_RUN=1` lists it as `would-add`. Uninstalling one of the two leaves the file while
+  the other is still installed (see "Removing one agent" below)
+
+**OpenCode** (`--opencode`), only when OpenCode is chosen:
+
+- `.opencode/commands/grugops.md` — a command OpenCode reads from `.opencode/commands/`
+  (`/grugops <request>`), written by the same rules as the skill above
+
+**GitHub Copilot CLI** (`--copilot`), only when Copilot is chosen:
+
+- a `.github/copilot-instructions.md` pointer block for GitHub Copilot CLI, by the same rules as `CLAUDE.md` and naming
   the same kit route: when the file does not exist, install creates it and records that, and the
   block, in the install ledger in `.grugops/install.json`
-- `.pi/prompts/grugops.md` — a short Pi prompt template, written in every install whether or not
-  you use Pi. It is a pointer: it tells Pi to read `AGENTS.md`, then
+
+**Pi** (`--pi`), only when Pi is chosen:
+
+- `.pi/prompts/grugops.md` — a short Pi prompt template, written when Pi is chosen. It is a
+  pointer: it tells Pi to read `AGENTS.md`, then
   `agent-factory/roles/orchestrator.md`, and act as the Orchestrator, it names the kit route (the
   `kitRoot` field of `.grugops/install.json`), and it passes your request through. It holds no role
   text. Install records the file in the install ledger in `.grugops/install.json`, and records the
@@ -340,22 +382,19 @@ In the **target repo**:
   untouched and not recorded, so the uninstaller leaves it too. `DRY_RUN=1` lists the template as
   `would-add` and writes nothing. How to use it, and what Pi asks first, is in "Using grugops on Pi"
   below
-- `.agents/skills/grugops/SKILL.md` — a skill Codex CLI and Antigravity CLI both read from
-  `.agents/skills/` (Codex users type `$grugops`, or pick it from `/skills`; Antigravity CLI offers
-  each skill as a slash command, so this one is `/grugops`, per antigravity.google/docs/skills/,
-  retrieved 2026-10-11), and `.opencode/commands/grugops.md` — a command
-  OpenCode reads from `.opencode/commands/` (`/grugops <request>`). Both are written in every install,
-  by the same rules as the Pi template: each is the same pointer (the start-here sentence and the kit
-  route) under the frontmatter that host reads, with no role text; install records the file and only
-  the directories this install created; a file already at the path that is not install's own
-  unedited copy is left untouched and not recorded; `DRY_RUN=1` lists it as `would-add`. Whether
-  Codex CLI, Antigravity CLI or OpenCode loads it in a live session is `UNKNOWN - verify` until a
-  live run shows it.
-  The Pi template, this skill and this command are copied from committed files in the kit, which
-  `scripts/generate-host-entries.ts` renders from one pointer file,
-  `agent-factory/packaging/host-entry.pointer.md`
-- **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
-  the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
+
+Whether Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI or Pi loads its entry in a live
+session is `UNKNOWN - verify` until a live run shows it. The Pi template, the skill and the command are copied from committed files
+in the kit, which `scripts/generate-host-entries.ts` renders from one pointer file,
+`agent-factory/packaging/host-entry.pointer.md`.
+
+**Install only adds.** Naming fewer agents than are installed in a repository keeps every other
+agent's files byte for byte and keeps their records in `.grugops/install.json`; install never removes
+an agent's files because it was not named. The run's closing notes name the agents left installed
+and give the uninstall command that removes one (see "Removing one agent" below). For each agent the
+run was for, the closing notes also name what the install record holds for it and how that host's
+documentation says to start grugops. grugops has not run those invocations on a live host, and the
+notes say `UNKNOWN - verify`.
 
 On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, each
 whole-file host entry above (the Pi template, the agent skill and the OpenCode command) and an
