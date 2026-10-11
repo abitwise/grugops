@@ -102,6 +102,7 @@ Full phase details + milestone summary: `milestones/v2.0-ROADMAP.md` · requirem
 - [x] **Phase 32.1: Board Dashboard Deferred Residuals** (INSERTED) — the 16 residuals Phase 32 deferred at its four-round cap (F-14..F-21 + carried ledger rows) closed by canonical form, plus triage of round-4 review WR-01..WR-04 *(completed 2026-09-18 by human override: verification 16/17 with the row-212 prod-deploy safety item routed to human; UAT 1 pass / 3 skipped, the WINDOWS-anchored tests deferred by the human; rows 211-213 and 222-224 ACCEPTED OPEN)*
 - [x] **Phase 33: Live Capture & Windows Portability** *(CLOSED 2026-09-25 by human override D-33-R4-08; round-4 verification stands at `gaps_found` 0/3, GAP-D1 OPEN, CAP-01/CAP-02/CAP-03 unchecked and NOT met, round-4 review CR-01/CR-02 guard bypasses ACCEPTED OPEN as WINDOWS.md rows 301-302; all open items carried to the next phase)* — the captured live run that proves spawning and discharges GAP-D1, plus a green `windows-latest` leg
 - [x] **Phase 33.1: Phase 33 Leftovers: Guard Retirement First** (INSERTED) — retire the Bash command-parsing guard (D-17, 2026-09-26): git-host protection is the hard floor, installer-written Claude Code ask rules a speed bump; CR-01/CR-02 and the deferred ALLOW forms close as dissolved; then the D-33-R4-04/05 follow-ups, rows 303-305/307/309 and one GAP-D1 capture go without the prod-deploy probe; row 274 and windows reds out (CAP-02 not met here) (completed 2026-10-05)
+- [ ] **Phase 34.1: Per-agent installer** (INSERTED) — install for the coding agent(s) the person names (asked or by parameter), each host's own discoverable entry; carries Phase 34 UAT gaps G-34-R3-2/G-34-R3-4 and absorbs backlog 999.4
 
 **Standing obligations from v2.0, and where each lands:**
 
@@ -1742,6 +1743,51 @@ Plans:
 - [x] 34-35-PLAN.md — the brief §4 class matrix: carriers × states × Gemini × adapter × route target, every host, install-and-doctor agreement, matrix-level mutation proofs (D-27)
 - [x] 34-36-PLAN.md — docs (install guide, IN-06, CHANGELOG, siblings checked), deferred rows WR-04/WR-05/IN-02..IN-05 recorded, ledger and snapshot, validation, final local chain (D-27)
 
+### Phase 34.1: Per-agent installer (INSERTED)
+
+**Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
+**Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
+**Depends on:** Phase 34
+**Plans:** 13 plans
+
+Plans:
+**Wave 1**
+- [ ] 34.1-01-PLAN.md — Codex and OpenCode entries from one generated template; Pi template moves under the generator (D-08, D-09, D-10, D-11, D-20, D-21)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 34.1-02-PLAN.md — byte and set freshness gate for the host entries, wired in CI (D-11, D-20)
+- [ ] 34.1-03-PLAN.md — install-side Gemini merge, gate, kind and hostsReading deleted; legacy gemini entry carried and still reversed (D-12, D-17, D-20)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 34.1-04-PLAN.md — Antigravity CLI replaces Gemini CLI in the registry and every shipped list and table; repo .gemini/settings.json removed (D-12, D-13, D-22, D-25)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 34.1-05-PLAN.md — per-agent flags and the exit-2 combinations; every install.js caller names its agents (D-01, D-25)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 34.1-06-PLAN.md — unattended selection: recorded, legacy, detected or refuse; the `agents` marker field (D-03, D-04, D-23, D-24)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 34.1-07-PLAN.md — per-agent uninstall with the shared-skill rule (D-05, D-20, D-23)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 34.1-08-PLAN.md — install writes only the chosen agents' entries; install only adds; invocation notes (D-04, D-06, D-10, D-21)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 34.1-09-PLAN.md — OpenCode kit-read permission merge, ledger-recorded and reversible (D-14)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 34.1-10-PLAN.md — `--check` narrowed to the installed agents (D-07)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 34.1-11-PLAN.md — review owners: installWouldWrite (WR-13), linkOwnership (WR-16), IN-16/IN-17 (D-15, D-16, D-17)
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 34.1-12-PLAN.md — interactive checkbox list at a terminal (D-02)
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 34.1-13-PLAN.md — per-agent docs, D-21 doc scan, CLI contract, CHANGELOG, closed review dispositions, live per-agent UAT checks (D-18, D-19, D-21, D-25)
+
 ## Progress
 
 **Execution order:** 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34
@@ -1784,7 +1830,8 @@ Plans:
 | 32. Board Projector & CLI Dashboard | v2.1 | 34/34 | Complete    | 2026-09-17 |
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
-| 34. Model Effort Dial & Pi Support | v2.1 | 36/36 | In Progress (gap round 3 of 4 verified gaps_found 17/20, CR-01; gap round 4 of 4 (last on the cap) planned 34-32..34-36 under D-27) | - |
+| 34. Model Effort Dial & Pi Support | v2.1 | 36/36 | Closed by human decision D-28 (verification human_needed 23/26 left standing; UAT 1 pass / 2 issues / 1 deferred; G-34-R3-2, G-34-R3-4 carried to 34.1; HOST-02 to backlog 999.5) | 2026-10-10 |
+| 34.1. Per-agent installer (INSERTED) | v2.1 | 0/13 | Planned | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 
@@ -1824,7 +1871,7 @@ Plans:
 
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
-### Phase 999.4: Kit discovery on non-Claude hosts after a scripted install (BACKLOG)
+### Phase 999.4: Kit discovery on non-Claude hosts after a scripted install (BACKLOG — absorbed into Phase 34.1, 2026-10-10)
 
 **Goal:** [Captured for future planning; re-scoped 2026-10-10 by plan 34-30] The design question (34-RESEARCH.md Q7: how a host with no Claude Code adapter finds the shared kit after a scripted install) is answered by 34-CONTEXT.md D-26, the marker route, built in plans 34-27 to 34-29: `AGENTS.md` and the installer-written pointers carry `KIT_ROUTE`, which names the `kitRoot` field of `.grugops/install.json`, and `install.js --check` prints one `reach` line per host. What remains is a live run on each non-Claude host after a scripted install, each `UNKNOWN - verify` until run: Pi (the 34-UAT.md test 2 re-run), Copilot, Codex, OpenCode and Gemini. The Pi prompt template stays a pointer with no resolver slot (D-26).
 **Requirements:** TBD
