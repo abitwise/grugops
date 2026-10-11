@@ -274,7 +274,7 @@ Antigravity CLI — `antigravity.google/docs/cli/gcli-migration/` (reads `AGENTS
 
 **`UNKNOWN - verify` — the alias vocabulary (assumption A1, recorded confidence low).** The four
 aliases the dial accepts (`inherit`, `opus`, `sonnet`, `haiku`) are sourced from this repository's
-own recorded research at `CLAUDE.md` line 84, and were not re-verified against vendor
+own recorded research at `CLAUDE.md` line 83, and were not re-verified against vendor
 documentation during the phase that shipped the dial. No other source is named here. The
 zero-config path is unaffected either way, because it resolves `inherit` for every role, which is
 the platform's own documented default under that same source.

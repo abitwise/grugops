@@ -924,7 +924,13 @@ describe("model dial — one authority for the Claude-Code-only scope statement 
     expect(occurrences(authority, A1_ANCHOR)).toBe(1);
     const at = authority.indexOf(A1_ANCHOR);
     // The source has to travel WITH the marker, not merely exist somewhere else in the file.
-    expect(authority.slice(at, at + 600)).toContain("`CLAUDE.md` line 84");
+    // The cited line number is read from the block and checked against CLAUDE.md itself, so a line moved by an edit
+    // above it (plan 34.1-04 deleted a stack row and moved it from 84 to 83) is red here, not a stale citation.
+    const cited = /`CLAUDE\.md` line (\d+)/.exec(authority.slice(at, at + 600));
+    expect(cited, "A1's block names a CLAUDE.md line").not.toBeNull();
+    const line = readSurface("hostGuidance").split("\n")[Number(cited![1]) - 1] ?? "";
+    expect(line, `CLAUDE.md line ${cited![1]} is the \`model\` field row the aliases are sourced from`).toContain("**`model`**");
+    for (const alias of MODEL_ALIASES) expect(line, `CLAUDE.md line ${cited![1]} does not carry ${alias}`).toContain(`\`${alias}\``);
   });
 
   it("the authority's `UNKNOWN - verify` markers are pinned at the disclosed count", () => {

@@ -58,7 +58,7 @@
 //
 // UNKNOWN - verify: THE ALIAS VOCABULARY ITSELF (assumption A1, recorded confidence LOW).
 // Claude Code's `model:` frontmatter accepts the bare aliases `opus` / `sonnet` / `haiku` in a
-// sub-agent adapter, with the same meaning as in the CLI. THE ONLY SOURCE FOR THIS IS CLAUDE.md:84
+// sub-agent adapter, with the same meaning as in the CLI. THE ONLY SOURCE FOR THIS IS CLAUDE.md:83
 // (`sonnet | opus | haiku | full model id | inherit (the default)`), which is this repository's own
 // recorded research; it was NOT re-verified against vendor documentation during phase 29.1's
 // research, and no other source is named here.
@@ -71,7 +71,7 @@
 // RATIFIED 2026-08-19 by Olger Oeselg (plan 29.1-02 Task 1, option `ratify-as-specified`). The
 // `models` config key shape and the closed preset-name set ship as D-05 and D-07 wrote them, and A1
 // ships as this recorded note rather than as an unstated fact. The ratifying session cross-checked
-// the vocabulary and agreed with CLAUDE.md:84 — that agreement is a SESSION-LEVEL CROSS-CHECK, NOT a
+// the vocabulary and agreed with CLAUDE.md:83 — that agreement is a SESSION-LEVEL CROSS-CHECK, NOT a
 // fetched vendor-documentation citation, and it does not upgrade this note or add a source to it.
 //
 // SCOPE, AS OF PHASE 29.2. The module is complete: the closed alias vocabulary, the closed preset

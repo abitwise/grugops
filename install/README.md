@@ -667,8 +667,9 @@ of that name itself.
   removed or left without a line naming it, whichever grugops version or checkout runs it. The kit
   source of that checkout never decides what is removed.
 
-- It changes `.gemini/settings.json` only as its record in the install ledger in `.grugops/install.json`
-  says: it removes the entry install added and restores the shape install found, or, in a file
+- It changes `.gemini/settings.json` only as the record an install made before 34.1 D-12 left in the
+  install ledger in `.grugops/install.json` says (install no longer writes that file): it removes the
+  entry install added and restores the shape install found, or, in a file
   install created, removes the `context.fileName` list it wrote (`AGENTS.md` and `GEMINI.md`) and
   the `context` object when nothing else is in it, keeping every other key; or it leaves the file as
   it is when the list was changed. It deletes the file only when install created it and it is

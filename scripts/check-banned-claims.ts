@@ -804,7 +804,6 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 //                                     tsconfig.fixtures.json, the fixture-corpus typecheck target;
 //                                     its header explains a build decision to a maintainer, which
 //                                     is the same standing as its two siblings.)
-//   .gemini/settings.json             TOOL CONFIGURATION. Adapter wiring for one host CLI.
 //   hooks/hooks.json                  TOOL CONFIGURATION. The Claude Code hook wiring.
 //   agent-factory/config/factory.config.json          KIT CONFIGURATION DATA. The dial. Keys and
 //   agent-factory/seed/.grugops/factory.config.json   enum values, not prose a reader meets.
@@ -895,8 +894,8 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS: readonly string[] = [
   "**/docs/",
   "**/.planning/",
   "**/scripts/",
-  // ROOT DIRECTORIES — excluded at the root only, for the reasons above.
-  ".gemini/",
+  // ROOT DIRECTORIES — excluded at the root only, for the reasons above. (Plan 34.1-04, D-25, deleted the `.gemini/`
+  // entry together with this repository's own `.gemini/settings.json`, the one tracked file it covered.)
   "memory-bank/",
   "plans/",
   // EXACT PATHS — the tracked non-markdown surfaces dispositioned by name above.

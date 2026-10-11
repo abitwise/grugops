@@ -46,7 +46,6 @@ It is lean by default and scales to enterprise governance on a single config fla
 | **`${CLAUDE_PROJECT_DIR}`** | CC v2.1.x | Project root, also passed to hook subprocesses | Reference project-local scripts from standalone (non-plugin) hooks. |
 | **`$ARGUMENTS` / `$0` `$1` / `$name`** | CC v2.1.x | Pass the user request into the `/grug` command | `$ARGUMENTS` = full request string; `$ARGUMENTS[N]`/`$N` = indexed (shell-quoted); `$name` = named via `arguments:` frontmatter. |
 | **`jq`** | any | Not used by grugops | grugops ships no Bash hook. Its one hook, the MCP admission gate, reads its stdin JSON in Node (`JSON.parse`), so no `jq` dependency exists. |
-| **Gemini `settings.json` `context.fileName`** | Gemini CLI 2026 | Make Gemini CLI read AGENTS.md directly | `{ "context": { "fileName": ["AGENTS.md", "GEMINI.md"] } }` — cleaner than a `GEMINI.md` pointer. |
 ### Development Tools
 | Tool | Purpose | Notes |
 |------|---------|-------|
@@ -143,7 +142,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 |------|-----------------|-------|
 | Plugin manifest schema as documented | Claude Code v2.1.x (2026) | `displayName` needs v2.1.143+; `defaultEnabled` needs v2.1.154+; `--plugin-dir` zip needs v2.1.128+; hooks-own-session v2.1.139+. grugops uses none of the bleeding-edge fields, so it works on older v2.1.x too. |
 | `Agent` tool name | CC v2.1.63+ | `Task` alias still works on newer versions for backward compat. |
-| AGENTS.md | All supported host CLIs (2026) | Gemini needs `context.fileName` set; others native. |
+| AGENTS.md | All supported host CLIs (2026) | Every supported host reads it natively; Antigravity CLI reads `AGENTS.md` and `GEMINI.md` with no settings entry (antigravity.google/docs/rules/, retrieved 2026-10-11). |
 | Codex AGENTS.md | 32 KiB default `project_doc_max_bytes` | Keep AGENTS.md well under this. |
 | `install.js` (compiled from `install.ts`) | Node **22+ LTS** | Uses `node:fs`/`node:path` + ESM; built with `tsc`, committed `.js` run directly (D-13). |
 | SemVer 2.0.0 / Keep a Changelog 1.1.0 | Stable, no compat concerns | Both are mature, stable specs. |
@@ -161,7 +160,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - code.claude.com/docs/en/permissions — `permissions.ask` rules, evaluation order, what a Bash rule does not match ("isn't a security boundary around the program") (HIGH)
 - agents.md — open standard, plain-markdown/no-schema, 60k+ projects, 20+ tools, Linux Foundation governance, closest-wins nesting (HIGH)
 - developers.openai.com/codex/guides/agents-md — global `~/.codex/AGENTS.md`, root→cwd concatenation, closer-overrides, 32 KiB cap (HIGH)
-- geminicli.com/docs/cli/gemini-md + google-gemini/gemini-cli docs — GEMINI.md default, `context.fileName` to read AGENTS.md, `@file.md` imports (HIGH)
+- antigravity.google/docs/rules/ + /docs/skills/ + /docs/cli/gcli-migration/ (retrieved 2026-10-11) — Antigravity CLI reads `AGENTS.md` and `GEMINI.md` natively, workspace skills from `.agents/skills/` offered as slash commands, workspace MCP in `.agents/mcp_config.json`, user-level settings under `~/.gemini/antigravity-cli/` (HIGH)
 - opencode.ai/docs/rules + /docs/agents — AGENTS.md project + `~/.config/opencode/AGENTS.md` global, opencode.json instructions, markdown agent files (HIGH)
 - docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot + github.blog changelog 2025-08-28 — AGENTS.md (root+nested) + `.github/copilot-instructions.md`, all-combine behavior, `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` (HIGH)
 - keepachangelog.com/en/1.1.0 — changelog sections + Unreleased convention (HIGH)

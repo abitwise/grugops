@@ -28,14 +28,18 @@ GRUGOPS_SRC=<grugops repo> TARGET=<sample dir> INSTALL_MODE=copy sh install/inst
 ```
 
 That laid down the `AGENTS.md` substrate, the standalone `.claude/skills/grugops*` adapters, the
-`grugops-orchestrator` sub-agent wrapper, and the `CLAUDE.md`/Gemini/Copilot pointers. The kit
+`grugops-orchestrator` sub-agent wrapper, and the `CLAUDE.md` and Copilot pointer blocks. The kit
 body the pointers reference (`agent-factory/`, `plans/`, `memory-bank/`) was copied in via the
 documented "just install the markdown" minimal path. The installer **never** set the deploy
 approval env var — only a human may.
 
-This run predates the Pi prompt template, so the list above does not include it. An install today
-also writes the Pi pointer `.pi/prompts/grugops.md` (see `install/README.md`, "Using grugops on
-Pi").
+This run predates the per-agent host entries, so the list above does not include them; the release
+it ran also wired Gemini CLI's settings file, which install no longer touches (Gemini CLI is
+discontinued, and its registry row is now Antigravity CLI). An install today also writes the agent
+entries: the Pi pointer `.pi/prompts/grugops.md` (see `install/README.md`, "Using grugops on Pi"),
+the agent skill `.agents/skills/grugops/SKILL.md` that Codex CLI and Antigravity CLI read, and the
+OpenCode command `.opencode/commands/grugops.md`. GitHub Copilot CLI's entry is the Copilot pointer
+block in the list above.
 
 ## Orchestrator decision
 
