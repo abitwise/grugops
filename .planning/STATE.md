@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-04-PLAN.md
-last_updated: "2026-10-11T20:23:54.704Z"
-state_head: fb901460716ae7176a3a80b5026e056e21464d9e
+stopped_at: Completed 34.1-05-PLAN.md
+last_updated: "2026-10-11T21:12:58.114Z"
+state_head: 62d8a8592f260a193f91ab239fa712c1c5b68421
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 404
-  completed_plans: 395
+  completed_plans: 396
   percent: 98
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34.1 (Per-agent installer) — EXECUTING
-Plan: 5 of 13
+Plan: 6 of 13
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -656,6 +656,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P02 | 39 min | 2 tasks | 7 files |
 | Phase 34.1 P03 | 56min | 3 tasks | 25 files |
 | Phase 34.1 P04 | 39min | 3 tasks | 31 files |
+| Phase 34.1 P05 | 47min | 3 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -1802,6 +1803,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-04: the .gemini-detected row is Antigravity CLI (id antigravity, agent-skill); its .gemini detect signal is UNKNOWN - verify in the registry source and docs, and .agents/ is recorded as its documented directory but not a detect signal (D-12, D-13, D-22)
 - [Phase 34.1]: 34.1-04: Antigravity CLI's per-agent model support, approval behaviour and MCP local-server entry shape are UNKNOWN - verify in shipped prose; the model-dial oracle derives the Antigravity host from its own clause grammar
 - [Phase 34.1]: 34.1-04: the repo's .gemini/settings.json and its banned-claims .gemini/ exclusion are deleted (D-25); prose-scan EXEMPTION_COUNT fell 3 -> 1 because two exemptions went stale with the rename
+- [Phase 34.1]: 34.1-05: agent flags are spelled only by host-tools.ts agentFlag and recognised by hostForFlag; an agent flag with --check, --update or --prune-old-kit exits 2 through the one usage exit (D-01, D-25)
+- [Phase 34.1]: 34.1-05: every install.js spawn names its agents (withAgentFlags / ALL_AGENT_FLAGS / an agent flag), held by install/agent-flag-census.test.ts: floor 64 sites, 3 argued exemptions pinned two-sided
 
 ### Pending Todos
 
@@ -1932,8 +1935,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-11T20:23:47.178Z
-Stopped at: Completed 34.1-04-PLAN.md
+Last session: 2026-10-11T21:12:57.576Z
+Stopped at: Completed 34.1-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
