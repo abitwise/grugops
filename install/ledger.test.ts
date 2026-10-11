@@ -56,12 +56,18 @@ import {
   readInstallMarker,
   readKitHomeRecord,
   readLedger,
+  installedAgents,
+  installMarkerProblems,
+  AGENTS_FIELD,
+  LEGACY_ADAPTER_KINDS,
+  type InstallMarkerRead,
   type BackupEntry,
   type LedgerEntry,
   type LedgerKind,
   type LedgerScope,
 } from "./install-marker.js";
 import { TREE_MAX_ENTRIES, realTargetPath } from "./user-file.js";
+import { HOST_TOOLS } from "./host-tools.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree, storedMode, userModeEdit } from "./installer-paths.test-support.js";
 import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, plantLegacyGemini, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
@@ -863,5 +869,81 @@ describe("a marker in the round-2 six-record shape is read as no record (fail cl
     const i = install(t, ["--yes"]);
     expect(i.status, i.stdout).toBe(3);
     expect(readFileSync(at(t, MARKER_REL)).equals(bytes)).toBe(true);
+  });
+});
+
+// ── the installed set: installedAgents and the `agents` field (plan 34.1-06, D-03, D-23) ─────────────────────────────
+
+describe("installedAgents: the one derivation of the installed set (D-03, D-23)", () => {
+  const BASE: Record<string, unknown> = { grugopsHome: "/x", kitRoot: "/x/agent-factory", installMode: "copy" };
+  const ok = (marker: Record<string, unknown>): InstallMarkerRead => ({ state: "ok", marker, bytes: Buffer.alloc(0) });
+  const ask = (marker: InstallMarkerRead): ReturnType<typeof installedAgents> =>
+    installedAgents(marker, readLedger(marker.state === "ok" ? marker.marker : null));
+  const idsOfKinds = HOST_TOOLS.filter((h) => LEGACY_ADAPTER_KINDS.includes(h.adapter)).map((h) => h.id);
+  const geminiHost = HOST_TOOLS.find((h) => h.detect === ".gemini");
+
+  it("recorded: the known ids in registry order, the unknown ids split out verbatim in their order", () => {
+    const registry = HOST_TOOLS.map((h) => h.id);
+    const [first, second] = [registry[registry.length - 1], registry[0]];
+    const got = ask(ok({ ...BASE, [AGENTS_FIELD]: [first, "zed", second, "a-later-agent"], ledger: [] }));
+    expect(got).toEqual({ source: "recorded", ids: [second, first], unknown: ["zed", "a-later-agent"] });
+    // An empty record is recorded and selects nothing (install then falls to detection).
+    expect(ask(ok({ ...BASE, [AGENTS_FIELD]: [], ledger: [] }))).toEqual({ source: "recorded", ids: [], unknown: [] });
+  });
+
+  it("legacy: an ok marker with a usable ledger and no agents field counts as the hosts of LEGACY_ADAPTER_KINDS", () => {
+    expect(LEGACY_ADAPTER_KINDS).toEqual(["claude-kit", "copilot-pointer", "pi-prompt-template"]);
+    expect(idsOfKinds).toEqual(["claude", "copilot", "pi"]);
+    expect(ask(ok({ ...BASE, ledger: [] }))).toEqual({ source: "legacy", ids: idsOfKinds });
+  });
+
+  it("legacy with a gemini ledger entry: the entry selects nothing, antigravity is not installed", () => {
+    expect(geminiHost?.id, "PREMISE: a registry row is detected by .gemini").toBe("antigravity");
+    const got = ask(ok({ ...BASE, ledger: [VALID.gemini] }));
+    expect(readLedger({ ledger: [VALID.gemini] }).state, "PREMISE: the gemini entry is a usable ledger").toBe("ok");
+    expect(got).toEqual({ source: "legacy", ids: idsOfKinds });
+    expect(got.ids).not.toContain("antigravity");
+  });
+
+  it("none: absent, unreadable, unbound (a v2.1.0-shaped marker with no ledger) and a malformed ledger", () => {
+    expect(ask({ state: "absent", marker: null })).toEqual({ source: "none", ids: [] });
+    expect(ask({ state: "unreadable", marker: null, why: "it is not valid JSON", jsonObject: false })).toEqual({ source: "none", ids: [] });
+    // The unbound read is a real one: install's marker shape for this directory, with no install ledger.
+    const t = fresh("v210");
+    mkdirSync(at(t, ".grugops"), { recursive: true });
+    writeFileSync(at(t, MARKER_REL), JSON.stringify({ kitVersion: "2.1.0", ...BASE, target: realTargetPath(t) }) + "\n");
+    const unbound = readInstallMarker(t);
+    expect(unbound.state === "unbound" ? unbound.unboundBy : unbound.state, "PREMISE: the marker reads unbound by no-ledger").toBe("no-ledger");
+    expect(ask(unbound)).toEqual({ source: "none", ids: [] });
+    const malformed = ok({ ...BASE, ledger: "x" });
+    expect(readLedger((malformed as { marker: Record<string, unknown> }).marker).state, "PREMISE: the ledger is malformed").toBe("malformed");
+    expect(ask(malformed)).toEqual({ source: "none", ids: [] });
+  });
+
+  it("installMarkerProblems refuses an agents field that is not a list of distinct agent ids, and accepts one that is", () => {
+    const BAD: ReadonlyArray<readonly [string, unknown]> = [
+      ["a number", 7],
+      ["a string", "claude"],
+      ["a list holding a number", ["claude", 7]],
+      ["a duplicate id", ["claude", "claude"]],
+      ["an id with a capital letter", ["Claude"]],
+    ];
+    for (const [what, value] of BAD) {
+      expect(installMarkerProblems({ ...BASE, [AGENTS_FIELD]: value }), what).toEqual(["agents is not a list of agent ids"]);
+    }
+    expect(BAD).toHaveLength(5);
+    expect(installMarkerProblems({ ...BASE, [AGENTS_FIELD]: ["claude", "zed", "a-later-agent"] })).toEqual([]);
+    expect(installMarkerProblems({ ...BASE, [AGENTS_FIELD]: [] })).toEqual([]);
+    expect(installMarkerProblems(BASE)).toEqual([]);
+  });
+
+  it("a malformed agents field makes the marker unreadable (fail closed), so installedAgents answers none", () => {
+    const t = fresh("bad-agents");
+    mkdirSync(at(t, ".grugops"), { recursive: true });
+    writeFileSync(at(t, MARKER_REL), JSON.stringify({ ...BASE, target: realTargetPath(t), [AGENTS_FIELD]: "claude", ledger: [] }) + "\n");
+    const read = readInstallMarker(t);
+    expect(read.state).toBe("unreadable");
+    if (read.state === "unreadable") expect(read.why).toContain("agents is not a list of agent ids");
+    expect(ask(read)).toEqual({ source: "none", ids: [] });
   });
 });

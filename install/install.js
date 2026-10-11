@@ -4650,6 +4650,7 @@ const START_HELD_DIRS = (() => {
 // Each chosen agent carries the reason it was chosen; the run banner prints both (research Pitfall 7), so a
 // detection-driven choice is visible.
 const INSTALLED_BEFORE = installedAgents(PREVIOUS_MARKER_READ, PREVIOUS_LEDGER);
+const INSTALLED_IDS_BEFORE = INSTALLED_BEFORE.ids;
 // refuseSelection: THE ONE EXIT for every selection refusal (D-03; the checkbox list of plan 34.1-12 reuses it). One
 // stderr sentence, `why` followed by every per-agent flag, derived from the registry, then exit 1. Nothing has been
 // written when it runs.
@@ -4668,8 +4669,14 @@ const SELECTION_WHY = (() => {
         return why;
     }
     if (INSTALLED_BEFORE.ids.length > 0) {
+        // A legacy install (a marker written before this phase, with a usable ledger and no `agents` field) counts as the
+        // hosts of install-marker.ts LEGACY_ADAPTER_KINDS (D-23); the reason names them from the registry, so the banner
+        // says on every such run that the choice came from that rule.
+        const legacyNames = HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id)).map((h) => h.shortName);
+        const legacyList = legacyNames.length > 1 ? `${legacyNames.slice(0, -1).join(", ")} and ${legacyNames[legacyNames.length - 1]}` : legacyNames.join("");
+        const reason = INSTALLED_BEFORE.source === "legacy" ? `installed before this release (${legacyList}, per D-23)` : `recorded in ${MARKER_REL}`;
         for (const id of INSTALLED_BEFORE.ids)
-            why.set(id, `recorded in ${MARKER_REL}`);
+            why.set(id, reason);
         return why;
     }
     for (const h of detectedHosts())
@@ -4685,7 +4692,6 @@ const SELECTION = HOST_TOOLS.filter((h) => SELECTION_WHY.has(h.id));
 // before this run and the agents chosen in it, followed by the recorded ids the registry does not know, verbatim:
 // install only adds, so naming fewer agents never removes one from the record, and an unknown id is kept, never
 // acted on.
-const INSTALLED_IDS_BEFORE = INSTALLED_BEFORE.ids;
 const AGENTS_AFTER = [
     ...HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) || SELECTION.includes(h)).map((h) => h.id),
     ...(INSTALLED_BEFORE.source === "recorded" ? INSTALLED_BEFORE.unknown : []),
@@ -4803,6 +4809,13 @@ if (DRY_RUN)
     console.log("mode:   DRY_RUN (no filesystem changes)");
 console.log(`tools detected: ${detectTools()}`);
 console.log(`agents: ${SELECTION.map((h) => `${h.name} (${SELECTION_WHY.get(h.id)})`).join(", ")}`);
+// A recorded id the registry does not know (a later build's agent, or a hand edit) is kept in the record and never
+// acted on (T-34.1-10); the run says so.
+if (INSTALLED_BEFORE.source === "recorded" && INSTALLED_BEFORE.unknown.length > 0) {
+    report("note", `${MARKER_REL} records ${INSTALLED_BEFORE.unknown.map((id) => JSON.stringify(id)).join(", ")}, which this build does ` +
+        `not know as an agent: install neither installs nor removes anything for ${INSTALLED_BEFORE.unknown.length > 1 ? "them" : "it"} ` +
+        `and keeps ${INSTALLED_BEFORE.unknown.length > 1 ? "them" : "it"} in the record`);
+}
 // 0. Copy the read-only kit to $GRUGOPS_HOME (atomic) — first so the seed source + VERSION exist.
 // Explicit default (retainBackup=false): the install path never retains a backup; Plans 02/03 pass
 // the mode they need (--update retains).

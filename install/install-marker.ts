@@ -154,7 +154,7 @@
 
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { HOST_TOOLS } from "./host-tools.js";
+import { HOST_TOOLS, type HostAdapterKind } from "./host-tools.js";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
 import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo, type PathFlavor } from "./user-file.js";
 
@@ -1198,7 +1198,20 @@ export function installMarkerProblems(marker: Readonly<Record<string, unknown>>,
   else if (marker.installMode !== "copy" && marker.installMode !== "symlink") out.push("installMode is neither copy nor symlink");
   if (has("kitVersion") && typeof marker.kitVersion !== "string") out.push("kitVersion is not a string");
   if (has("target") && !isAbsolutePathValue(marker.target)) out.push("target is not an absolute path");
+  // `agents` (plan 34.1-06, D-03): install writes a list of distinct registry-shaped ids. Anything else is not install's
+  // value, so the marker is not install's and reads `unreadable` (fail closed, T-34.1-10): a garbled or forged field
+  // never chooses what install writes. An id the registry does not know is well-formed here; installedAgents keeps it
+  // and acts on nothing for it.
+  if (has(AGENTS_FIELD) && !isAgentIdList(marker[AGENTS_FIELD])) out.push("agents is not a list of agent ids");
   return out;
+}
+
+/** The shape of an agent id in the `agents` field: lower-case letters, digits and hyphens, starting with a letter. */
+export const AGENT_ID_SHAPE = /^[a-z][a-z0-9-]*$/;
+
+/** Whether `v` is a list of distinct strings, each of AGENT_ID_SHAPE: the one rule for a well-formed `agents` field. */
+function isAgentIdList(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((id) => typeof id === "string" && AGENT_ID_SHAPE.test(id)) && new Set(v).size === v.length;
 }
 
 // ── THE INSTALLED SET (phase 34.1, D-03, D-04, D-05, D-07) ──────────────────────────────────────────────────────────
@@ -1217,10 +1230,25 @@ export function installMarkerProblems(marker: Readonly<Record<string, unknown>>,
 export const AGENTS_FIELD = "agents";
 
 /**
+ * LEGACY_ADAPTER_KINDS (D-23): the adapter kinds every install before this phase wrote: the Claude Code kit and the
+ * CLAUDE.md start-here block (claude-kit), the Copilot pointer (copilot-pointer) and the Pi prompt template
+ * (pi-prompt-template). A marker with a usable ledger and no `agents` field was written before this phase, so it counts
+ * as the registry hosts of these kinds: Claude Code, Copilot and Pi. Its `gemini` ledger entry (the Gemini settings
+ * merge every earlier install made) selects nothing: Antigravity CLI is not of these kinds. Codex CLI and OpenCode had
+ * no entry before this phase, so they are never legacy-installed.
+ */
+export const LEGACY_ADAPTER_KINDS: readonly HostAdapterKind[] = ["claude-kit", "copilot-pointer", "pi-prompt-template"];
+
+/**
  * The installed set, as one derivation answers it:
  *   recorded  the marker records `agents`: `ids` are its members the registry knows, in registry order, and `unknown`
  *             the others, verbatim, in their order (kept in the record, named in a note, never acted on);
- *   none      nothing usable is recorded; install falls to detection.
+ *   legacy    install's own marker for this target with a usable (`ok`) ledger and no `agents` field, written before
+ *             this phase: `ids` are the registry hosts of LEGACY_ADAPTER_KINDS, in registry order (D-23);
+ *   none      anything else: no marker, an unreadable one, an unbound one (another directory's, one written before
+ *             markers were bound, or a v2.1.0 marker with no install ledger), or a marker without `agents` whose
+ *             ledger is malformed. Install falls to detection (D-03); a v2.1.0 install, which kept no ledger, lands
+ *             here by design (D-23).
  */
 export type InstalledAgents =
   | { readonly source: "recorded"; readonly ids: readonly string[]; readonly unknown: readonly string[] }
@@ -1236,11 +1264,16 @@ const NONE_INSTALLED: InstalledAgents = { source: "none", ids: [] };
  * marker): no I/O here.
  */
 export function installedAgents(marker: InstallMarkerRead, ledger: LedgerRead): InstalledAgents {
-  void ledger;
   if (marker.state !== "ok") return NONE_INSTALLED;
+  if (!Object.prototype.hasOwnProperty.call(marker.marker, AGENTS_FIELD)) {
+    if (ledger.state !== "ok") return NONE_INSTALLED;
+    return { source: "legacy", ids: HOST_TOOLS.filter((h) => LEGACY_ADAPTER_KINDS.includes(h.adapter)).map((h) => h.id) };
+  }
+  // An `ok` marker's `agents` passed installMarkerProblems (a list of distinct agent ids); the guard below is for a
+  // caller that hands in a marker read some other way, and it fails closed.
   const recorded = marker.marker[AGENTS_FIELD];
-  if (!Object.prototype.hasOwnProperty.call(marker.marker, AGENTS_FIELD) || !Array.isArray(recorded)) return NONE_INSTALLED;
-  const members = recorded.filter((v): v is string => typeof v === "string");
+  if (!isAgentIdList(recorded)) return NONE_INSTALLED;
+  const members: readonly string[] = recorded;
   const known = new Set(HOST_TOOLS.map((h) => h.id));
   return {
     source: "recorded",

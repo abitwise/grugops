@@ -135,6 +135,8 @@ import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarke
 import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "../scripts/check-platform-shapes.js";
 // The installer's one spelling of a real path (plan 34-12): canonicalPath below delegates to it.
 import { realTargetPath } from "./user-file.js";
+// Plan 34.1-06 (D-23): the adapter kinds every install before this phase wrote, the one statement of the legacy rule.
+import { LEGACY_ADAPTER_KINDS } from "./install-marker.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
 import { ALL_AGENT_FLAGS, MARKER_REL, lineNamesPath, pathText, spawnBin, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
@@ -151,7 +153,7 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // THE ONE INSTALL LEDGER, TEST SIDE (plan 33.1-36, D-33 (b)): the marker carries one `ledger` list in
 // place of six records. These views read and forge it from the marker JSON itself (no production
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
-import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, type RawEntry } from "./ledger.test-support.js";
+import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, withoutAgentsField, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
 import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentFlag } from "./host-tools.js";
 /** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
@@ -10634,5 +10636,80 @@ describe("agent selection (D-03)", () => {
     expect(second.status, second.stdout + second.stderr).toBe(0);
     expect(agentsLine(second.stdout)).toBe(`agents: ${nameOf("codex")} (named by flag)`);
     expect(recordedAgents(target)).toEqual(["claude", "codex"]);
+  }, 240_000);
+
+  // D-23: a marker written before this phase (a usable ledger, no `agents` field) counts as the hosts of
+  // LEGACY_ADAPTER_KINDS; its gemini ledger entry (and the .gemini/ it planted) selects nothing.
+  it("(d) a legacy marker with a gemini entry: --yes chooses Claude Code, Copilot and Pi, records them, and not Antigravity", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const first = runInstall(target, home);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    withoutAgentsField(target);
+    plantLegacyGemini(target, "merged");
+    expect(existsSync(join(target, ".gemini")), "PREMISE: the legacy Gemini wiring is in the target").toBe(true);
+    const legacy = HOST_TOOLS.filter((h) => LEGACY_ADAPTER_KINDS.includes(h.adapter));
+    expect(legacy.map((h) => h.id)).toEqual(["claude", "copilot", "pi"]);
+    const r = runUnattended(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const reason = `installed before this release (${legacy[0].shortName}, ${legacy[1].shortName} and ${legacy[2].shortName}, per D-23)`;
+    expect(agentsLine(r.stdout)).toBe(`agents: ${legacy.map((h) => `${h.name} (${reason})`).join(", ")}`);
+    expect(recordedAgents(target)).toEqual(legacy.map((h) => h.id));
+    expect(recordedAgents(target)).not.toContain("antigravity");
+  }, 240_000);
+
+  // D-23: a v2.1.0 marker kept no install ledger, so it reads unbound and the selection falls to detection.
+  it("(e) a v2.1.0-shaped marker with no ledger in a target holding .claude and .gemini: claude and antigravity by detection", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    mkdirSync(join(target, ".claude"));
+    mkdirSync(join(target, ".gemini"));
+    mkdirSync(join(target, ".grugops"));
+    const v210 = { kitVersion: "2.1.0", grugopsHome: canonicalPath(home), kitRoot: `${canonicalPath(home)}/agent-factory`, installMode: "copy", target: realTargetPath(target) };
+    writeFileSync(join(target, ...MARKER_REL.split("/")), JSON.stringify(v210, null, 2) + "\n");
+    const r = runUnattended(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const want = HOST_TOOLS.filter((h) => h.detect === ".claude" || h.detect === ".gemini");
+    expect(want.map((h) => h.id)).toEqual(["claude", "antigravity"]);
+    expect(agentsLine(r.stdout)).toBe(`agents: ${want.map((h) => `${h.name} (detected: ${h.detect})`).join(", ")}`);
+    expect(recordedAgents(target)).toEqual(["claude", "antigravity"]);
+  }, 240_000);
+
+  // D-24: a bare .github selects nothing; the Copilot instructions file selects Copilot.
+  it("(f) a target holding only .github/ refuses; holding .github/copilot-instructions.md chooses Copilot", () => {
+    const home = mkTmp();
+    const bare = mkTmp();
+    mkdirSync(join(bare, ".github"));
+    const refused = runUnattended(bare, home);
+    expect(`exit ${refused.status}`, refused.stdout + refused.stderr).toBe("exit 1");
+    expect(readdirSync(bare)).toEqual([".github"]);
+    expect(readdirSync(join(bare, ".github"))).toEqual([]);
+    const copilot = hostOf("copilot");
+    expect(copilot.detect).toBe(".github/copilot-instructions.md");
+    const withFile = mkTmp();
+    mkdirSync(join(withFile, ".github"));
+    writeFileSync(join(withFile, ".github", "copilot-instructions.md"), "# The user's own Copilot instructions\n");
+    const chosen = runUnattended(withFile, home);
+    expect(chosen.status, chosen.stdout + chosen.stderr).toBe(0);
+    expect(agentsLine(chosen.stdout)).toBe(`agents: ${copilot.name} (detected: ${copilot.detect})`);
+    expect(recordedAgents(withFile)).toEqual(["copilot"]);
+  }, 240_000);
+
+  // T-34.1-10: a recorded id the registry does not know is kept in the record, named in a note, and never acted on.
+  it("(g) recorded [claude, zed]: Claude Code is chosen, zed is named in a note and kept in agents", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const first = runInstall(target, home, flagOf("claude"));
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const marker = readMarkerObject(target);
+    marker.agents = ["claude", "zed"];
+    writeFileSync(join(target, ...MARKER_REL.split("/")), JSON.stringify(marker, null, 2) + "\n");
+    const r = runUnattended(target, home);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(agentsLine(r.stdout)).toBe(`agents: ${nameOf("claude")} (recorded in ${MARKER_REL})`);
+    const note = r.stdout.split("\n").filter((l) => /^ {2}note\s/.test(l) && l.includes('"zed"'));
+    expect(note, r.stdout).toHaveLength(1);
+    expect(note[0]).toContain("neither installs nor removes anything");
+    expect(recordedAgents(target)).toEqual(["claude", "zed"]);
   }, 240_000);
 });

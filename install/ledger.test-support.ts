@@ -117,6 +117,19 @@ export function withLedger(marker: MarkerObject, edit: (entries: RawEntry[]) => 
   return { ...marker, ledger: next === undefined ? copy : next };
 }
 
+/**
+ * Make an installed `target`'s marker look like one written before phase 34.1 (D-23): the `agents` field removed,
+ * every other key kept in its order and the ledger untouched, written back as install writes it (two-space JSON and a
+ * newline). Throws when the marker has no `agents` field (the premise is a marker this build wrote).
+ */
+export function withoutAgentsField(target: string): void {
+  const marker = readMarkerObject(target);
+  if (!Object.prototype.hasOwnProperty.call(marker, "agents")) throw new Error("withoutAgentsField: the marker has no agents field");
+  const next: MarkerObject = {};
+  for (const [k, v] of Object.entries(marker)) if (k !== "agents") next[k] = v;
+  writeFileSync(join(target, ".grugops", "install.json"), JSON.stringify(next, null, 2) + "\n");
+}
+
 /** The six records the one ledger replaced, in the order install-marker.ts RETIRED_RECORDS lists them. */
 export const RETIRED_RECORD_NAMES = ["createdDirs", "createdFiles", "geminiSettings", "kitFiles", "claudeAskRules", "appendedBlocks"] as const;
 

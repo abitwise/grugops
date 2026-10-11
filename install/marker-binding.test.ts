@@ -93,6 +93,8 @@ describe("install's marker is bound to its directory, and only install's own mar
     ["empty strings and installMode banana", '{"grugopsHome":"","kitRoot":"","installMode":"banana"}\n'],
     ["relative paths", '{"grugopsHome":"home","kitRoot":"home/agent-factory","installMode":"copy"}\n'],
     ["target not a string", '{"grugopsHome":"/x","kitRoot":"/x/agent-factory","installMode":"copy","target":7}\n'],
+    // Plan 34.1-06 (T-34.1-10): an `agents` field that is not a list of distinct agent ids.
+    ["agents not a list of agent ids", '{"grugopsHome":"/x","kitRoot":"/x/agent-factory","installMode":"copy","agents":"claude"}\n'],
   ];
   for (const dryRun of [false, true]) {
     const mode = dryRun ? "DRY_RUN" : "real";

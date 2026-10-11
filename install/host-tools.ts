@@ -189,7 +189,10 @@ export const HOST_TOOLS: readonly HostTool[] = [
     id: "copilot",
     name: "GitHub Copilot CLI",
     shortName: "Copilot",
-    detect: ".github",
+    // DETECT SIGNAL (phase 34.1, D-24): the Copilot instructions file, not the `.github` directory. A bare `.github`
+    // exists in most GitHub repositories (workflows, issue templates), so it must not select Copilot for an unattended
+    // install or pre-check it in the agent list.
+    detect: ".github/copilot-instructions.md",
     entryFiles: ["AGENTS.md", ".github/copilot-instructions.md"],
     adapter: "copilot-pointer",
     dispatch: "sequential",

@@ -14,7 +14,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import ts from "typescript";
@@ -57,11 +57,18 @@ function freshCase(label: string): { target: string; kitHome: string; home: stri
   return { target, kitHome: join(root, "kit-home"), home };
 }
 
-/** Plant a registry row's detection path in `target`: a file when it ends `.json`, a directory otherwise. */
+/**
+ * Plant a registry row's detection path in `target`: a file when its last segment has an extension after its first
+ * character (`opencode.json`, Copilot's `.github/copilot-instructions.md`, D-24), with its parent directories; a
+ * directory otherwise (`.claude`, `.gemini`, `.pi`).
+ */
 function plantSignal(target: string, detect: string): void {
   const p = join(target, ...detect.split("/"));
-  if (detect.endsWith(".json")) writeFileSync(p, "{}\n");
-  else mkdirSync(p, { recursive: true });
+  const last = detect.split("/").pop() ?? detect;
+  if (/^.+\.[a-z]+$/.test(last)) {
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, last.endsWith(".json") ? "{}\n" : "# the user's own file\n");
+  } else mkdirSync(p, { recursive: true });
 }
 
 /** Run the committed installer under DRY_RUN and return its stdout lines; a failed run fails the case. */
@@ -94,6 +101,13 @@ describe("detectTools() is derived from HOST_TOOLS (plan 34-02)", () => {
     });
   }
 
+  // D-24: a bare `.github` (workflows, issue templates) is in most GitHub repositories and is no Copilot signal.
+  it("a target holding only a bare `.github/` directory is reported as `tools detected: none-detected` (D-24)", () => {
+    const c = freshCase("bare-github");
+    mkdirSync(join(c.target, ".github", "workflows"), { recursive: true });
+    expect(detectedLine(dryRunLines(c))).toBe("tools detected: none-detected");
+  });
+
   it("an empty target is reported as `tools detected: none-detected`", () => {
     const c = freshCase("empty");
     expect(detectedLine(dryRunLines(c))).toBe("tools detected: none-detected");
@@ -110,7 +124,8 @@ describe("detectTools() is derived from HOST_TOOLS (plan 34-02)", () => {
   // from the registry by signal, so a renamed row (phase 34.1 D-12 renamed the `.gemini` row) moves no literal here,
   // and a reordered registry still fails.
   it("the all-signals line keeps the pre-registry detection order (by signal), with `.pi` appended", () => {
-    const PRE_REGISTRY_SIGNAL_ORDER = [".claude", ".codex", ".gemini", "opencode.json", ".github", ".pi"];
+    // Copilot's signal is its instructions file since phase 34.1 (D-24); its position in the order is unchanged.
+    const PRE_REGISTRY_SIGNAL_ORDER = [".claude", ".codex", ".gemini", "opencode.json", ".github/copilot-instructions.md", ".pi"];
     expect(PRE_REGISTRY_SIGNAL_ORDER, "the anchor names every registry signal once").toHaveLength(HOST_TOOL_COUNT);
     const ids = PRE_REGISTRY_SIGNAL_ORDER.map((signal) => {
       const rows = HOST_TOOLS.filter((t) => t.detect === signal);
