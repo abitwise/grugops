@@ -10713,3 +10713,96 @@ describe("agent selection (D-03)", () => {
     expect(recordedAgents(target)).toEqual(["claude", "zed"]);
   }, 240_000);
 });
+
+// ── INSTALL ONLY ADDS (plan 34.1-08, D-04, D-06) ─────────────────────────────────────────────────────────────────────
+// Naming fewer agents than are installed keeps every other agent's files byte for byte and their ledger entries (the
+// ask-rules entry included, carried verbatim when Claude Code is not chosen), and the closing notes name the agents
+// left installed and the uninstall command that removes one. A run that does not choose Claude Code writes the
+// marker's kit fields for the kit home it copied, and a --migrate for another agent writes no Claude Code file.
+describe("install only adds (D-04)", () => {
+  const hostOf = (id: string): (typeof HOST_TOOLS)[number] => {
+    const h = HOST_TOOLS.find((t) => t.id === id);
+    if (h === undefined) throw new Error(`no registry row ${id}`);
+    return h;
+  };
+  const codex = (): string => agentFlag(hostOf("codex"));
+  /** The target's snapshot with the marker's own row removed: everything a run must leave byte for byte. */
+  const withoutMarker = (t: string): string =>
+    snapshot(t)
+      .split("\n")
+      .filter((row) => !row.startsWith(`${MARKER_REL} `))
+      .join("\n");
+  /** The `kit:` banner line's path: the kit root this run copied, in the product's own spelling. */
+  const bannerKit = (stdout: string): string => {
+    const line = stdout.split("\n").find((l) => l.startsWith("kit:    "));
+    if (line === undefined) throw new Error(`no kit: banner line in\n${stdout}`);
+    return line.slice("kit:    ".length);
+  };
+
+  it("(a) every agent installed, then --codex: every other path and the whole ledger (the ask-rules entry included) are kept byte for byte, agents is unchanged, and the notes name the other agents and their uninstall flags", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const all = runInstall(target, home);
+    expect(all.status, all.stdout + all.stderr).toBe(0);
+    const treeBefore = withoutMarker(target);
+    const markerBefore = readMarkerObject(target);
+    const askBefore = markerLedger(target).filter((e) => e.kind === "ask-rules");
+    expect(askBefore, "premise: the all-agent install recorded an ask-rules entry").toHaveLength(1);
+
+    const r = runInstall(target, home, codex());
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(withoutMarker(target), "a file of an agent not named changed").toBe(treeBefore);
+    const markerAfter = readMarkerObject(target);
+    expect(JSON.stringify(markerLedger(target).filter((e) => e.kind === "ask-rules")), "the ask-rules entry").toBe(JSON.stringify(askBefore));
+    expect(JSON.stringify(markerAfter.ledger), "the install ledger").toBe(JSON.stringify(markerBefore.ledger));
+    expect(markerAfter.agents).toEqual(markerBefore.agents);
+    expect(markerAfter.agents).toEqual(HOST_TOOLS.map((h) => h.id));
+
+    const out = r.stdout.split("\n");
+    expect(out, "the notes say why no ask rule was written").toContain("          No ask rule was written in this run: Claude Code is not chosen.");
+    const left = out.filter((l) => l.startsWith("  Left installed, not chosen in this run"));
+    expect(left, r.stdout).toHaveLength(1);
+    const others = HOST_TOOLS.filter((h) => h.id !== "codex");
+    expect(others).toHaveLength(HOST_TOOL_COUNT - 1);
+    for (const h of others) {
+      expect(left[0], `the note does not name ${h.name}`).toContain(h.name);
+      expect(left[0], `the note does not give ${agentFlag(h)}`).toContain(agentFlag(h));
+    }
+    expect(left[0]).toContain("install never removes an agent's files");
+    expect(left[0]).toContain("node install/uninstall.js --target ");
+    expect(left[0], "Codex was chosen, so it is not left").not.toContain(codex());
+  }, 240_000);
+
+  it("(b) --codex with one kit home, then --codex with another: the marker's kit fields name the second kit home and kitVersion is the kit's VERSION", () => {
+    const target = mkTmp();
+    const homeA = mkTmp();
+    const homeB = mkTmp();
+    const first = runInstall(target, homeA, codex());
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const second = runInstall(target, homeB, codex());
+    expect(second.status, second.stdout + second.stderr).toBe(0);
+    const marker = readMarkerObject(target);
+    expect(bannerKit(second.stdout), "premise: the two runs copied different kit homes").not.toBe(bannerKit(first.stdout));
+    expect(marker.kitRoot).toBe(bannerKit(second.stdout));
+    const homeLine = second.stdout.split("\n").find((l) => l.startsWith("home:   "));
+    expect(marker.grugopsHome).toBe(homeLine?.slice("home:   ".length));
+    const version = readFileSync(join(REPO_ROOT, "agent-factory", "VERSION"), "utf8").split(/\r?\n/)[0];
+    expect(version.length, "premise: the kit VERSION has a first line").toBeGreaterThan(0);
+    expect(marker.kitVersion).toBe(version);
+    expect(second.stdout, "no kitVersion-kept note while Claude Code is not installed").not.toContain("kitVersion kept at");
+  }, 240_000);
+
+  it("(c) --migrate --codex over the old layout: no .claude/ file is written or changed, no CLAUDE.md is created, and the in-repo kit is backed up as before", () => {
+    const target = makeOldLayoutFixture();
+    const home = mkTmp();
+    const claudeBefore = snapshot(join(target, ".claude"));
+    expect(claudeBefore, "premise: the old layout has .claude files").not.toBe("");
+    const r = runInstall(target, home, "--migrate", codex());
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(snapshot(join(target, ".claude")), "a .claude/ file was written or changed").toBe(claudeBefore);
+    expect(existsSync(join(target, "CLAUDE.md")), "CLAUDE.md was created").toBe(false);
+    expect(readdirSync(target).filter((n) => n.startsWith("agent-factory.bak.")).length, "the in-repo kit backup").toBe(1);
+    expect(existsSync(join(target, "agent-factory")), "the in-repo kit was not moved aside").toBe(false);
+    expect(readMarkerObject(target).agents).toEqual(["codex"]);
+  }, 240_000);
+});

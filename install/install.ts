@@ -160,12 +160,14 @@ import {
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
 import {
+  ADAPTER_FOOTPRINT,
   HOST_TOOLS,
   KIT_ROUTE,
   POINTER_LINE,
   ROUTE_POINTERS,
   agentFlag,
   carriesKitRoute,
+  entryOwners,
   hostForFlag,
   routeCarriers,
   reachVia,
@@ -4887,10 +4889,13 @@ function materializeRunnable(): void {
 //     install made it; only the outermost entries are kept. An entry whose path is gone is dropped.
 // One path has at most one file entry: what this run wrote is kept over a carried entry.
 //
-// A RUN THAT WROTE NO KIT FILE (red-team B1/B2 of plan 33.1-32, brief DC-1/DC-2). No consent, a
-// pre-flight hazard, a failed backup or a kit-plan refusal: the kit in the target is still the one the
-// previous marker describes, and this run learned nothing about it that the next run cannot learn
-// again. So every kit field is written back from the previous marker, never from this run:
+// A RUN THAT WROTE NO KIT FILE (red-team B1/B2 of plan 33.1-32, brief DC-1/DC-2; plan 34.1-08). Two cases, told
+// apart by whether Claude Code is installed here after this run (AGENTS_AFTER holds the `claude-kit` row's id):
+//
+// CLAUDE CODE IS INSTALLED AFTER THIS RUN. No consent, a pre-flight hazard, a failed backup, a kit-plan refusal, or a
+// run that did not choose Claude Code (D-04): the kit in the target is still the one the previous marker describes,
+// and this run learned nothing about it that the next run cannot learn again. So every kit field is written back
+// from the previous marker, never from this run:
 //   the kit-true file entries: carried VERBATIM, exactly as read (with no previous marker there are
 //     none, because this run is the whole history and it wrote no kit file). Plan 31's rule for a
 //     refused run ("drop only entries proved stale") is replaced: its staleness proof was wrong about a
@@ -4904,6 +4909,12 @@ function materializeRunnable(): void {
 //     name the previous kit root, and were made in the previous mode). With none, this run's values
 //     are written: they are what the next kit write will use, and the doctor's three-source kit-root
 //     cross-check (rule, marker, adapter KIT= line) reports any adapter that disagrees.
+//
+// CLAUDE CODE IS NOT INSTALLED AFTER THIS RUN (plan 34.1-08). No adapter in the target names a kit, so the marker's
+// kitRoot is the only route an agent has to the kit (KIT_ROUTE). The kit fields (grugopsHome, kitRoot, installMode)
+// are this run's values and kitVersion is read from the kit home exactly as in a run that wrote the kit, so the route
+// names the kit home this run copied. The kit-true file entries are still carried verbatim (nextLedgerEntries keys
+// that on KIT_WRITTEN alone): a run that wrote no kit file drops no record of one.
 //
 // A MALFORMED LEDGER IS WRITTEN BACK VERBATIM (WR-05's rule, D-33 (b)). A previous ledger that is
 // present but malformed (readLedger) is one `verify` finding naming why, and it is written back exactly
@@ -4981,8 +4992,14 @@ function writeMarker(): void {
   const prevString = (k: "kitVersion" | "kitRoot" | "grugopsHome" | "installMode"): string | null =>
     previousMarker.state === "ok" && typeof previousMarker.marker[k] === "string" ? (previousMarker.marker[k] as string) : null;
   const prevVer = prevString("kitVersion");
+  // kitFromThisRun (plan 34.1-08): whether the kit fields describe the kit home this run copied. True when this run
+  // wrote the Claude Code kit, and also when Claude Code is not installed here after this run (claudeAfter false): then
+  // no adapter in the target names a kit, and the marker's kitRoot is the route every agent without an adapter follows
+  // (KIT_ROUTE), so it names the kit this run copied, never an earlier run's.
+  const claudeAfter = HOST_TOOLS.some((h) => h.adapter === "claude-kit" && AGENTS_AFTER.includes(h.id));
+  const kitFromThisRun = KIT_WRITTEN || !claudeAfter;
   let ver: string | null = "";
-  if (!KIT_WRITTEN) {
+  if (!kitFromThisRun) {
     ver = prevVer;
     report(
       "note",
@@ -5022,9 +5039,11 @@ function writeMarker(): void {
     verify(`${markerRel}: ${markerDirWhy}. The marker was not written.`);
     return;
   }
-  // The kit fields describe the kit in the target: from this run when it wrote the kit, else from the
-  // previous marker (see A RUN THAT WROTE NO KIT FILE above). Field order is kept stable.
-  const kept = (k: "kitRoot" | "grugopsHome" | "installMode", current: string): string => (KIT_WRITTEN ? current : (prevString(k) ?? current));
+  // The kit fields describe the kit in the target: from this run when it wrote the kit or when Claude Code is not
+  // installed here after it, else from the previous marker (see A RUN THAT WROTE NO KIT FILE above). Field order is
+  // kept stable.
+  const kept = (k: "kitRoot" | "grugopsHome" | "installMode", current: string): string =>
+    kitFromThisRun ? current : (prevString(k) ?? current);
   const marker: InstallMarker = {
     ...(ver === null ? {} : { kitVersion: ver }),
     grugopsHome: kept("grugopsHome", GRUGOPS_HOME),
@@ -5352,11 +5371,17 @@ if (MIGRATE) {
   if (layout.isOldLayout) {
     MIGRATE_CARRY_PENDING = true;
     const carry = planConfigCarry();
-    MIGRATE_KIT_PLAN = buildKitPlan();
-    const refusals = [...carry.refusals, ...(MIGRATE_KIT_PLAN.ok ? [] : MIGRATE_KIT_PLAN.refusals)];
-    if (refusals.length === 0 && MIGRATE_KIT_PLAN.ok) {
-      MIGRATE_KIT_WRITE = kitWriteDecision(MIGRATE_KIT_PLAN);
-      if (MIGRATE_KIT_WRITE.go === "no") refusals.push(...MIGRATE_KIT_WRITE.verifies);
+    // The kit plan and its KIT_WRITE decision only when Claude Code is chosen (plan 34.1-08, D-06): a --migrate for
+    // other agents writes no Claude Code kit file, so it neither builds a kit plan nor asks for kit consent; the
+    // config carry and the in-repo kit backup run as they always did.
+    const refusals = [...carry.refusals];
+    if (SELECTED_KINDS.has("claude-kit")) {
+      MIGRATE_KIT_PLAN = buildKitPlan();
+      if (!MIGRATE_KIT_PLAN.ok) refusals.push(...MIGRATE_KIT_PLAN.refusals);
+      if (refusals.length === 0 && MIGRATE_KIT_PLAN.ok) {
+        MIGRATE_KIT_WRITE = kitWriteDecision(MIGRATE_KIT_PLAN);
+        if (MIGRATE_KIT_WRITE.go === "no") refusals.push(...MIGRATE_KIT_WRITE.verifies);
+      }
     }
     if (refusals.length > 0) {
       console.log("== grugops migrate (old in-repo layout → two-root) ==");
@@ -6452,6 +6477,52 @@ function askRulesNotes(outcome: AskRulesOutcome): string[] {
   }
 }
 
+// agentClosingLines (plan 34.1-08, D-04, D-21): the closing notes about agents, built from this run's SELECTION, the
+// install record this run left, and the registry; it reads and prints only.
+//   - One line per chosen agent, in registry order: its name, the entries of the install record after this run that
+//     it owns (host-tools.ts entryOwners, the one owner of that answer; a footprint prefix such as `.claude/` is shown
+//     once with its count), and its `invoke` text. Under DRY_RUN nothing was recorded, and the line says so. A chosen
+//     agent with nothing recorded (a user's own file at its entry path, a refusal) says that, and points at the lines
+//     above, which name why.
+//   - One line saying the invocation forms come from each host's documentation and were not run on a live host
+//     (UNKNOWN - verify): no line here claims a live host result.
+//   - When agents installed before this run were not chosen in it, one line naming them, saying install never removes
+//     an agent's files (D-04), and giving the uninstall command that removes one, with each one's flag (agentFlag).
+function agentClosingLines(): string[] {
+  const at = "  ";
+  const markerAfter = DRY_RUN ? null : readInstallMarker(TARGET);
+  const ledgerAfter: LedgerRead | null = markerAfter !== null && markerAfter.state === "ok" ? readLedger(markerAfter.marker) : null;
+  const out: string[] = [];
+  for (const h of SELECTION) {
+    let what: string;
+    if (DRY_RUN) {
+      what = "DRY_RUN, nothing written (the would- lines above name what a real run writes)";
+    } else if (ledgerAfter === null || ledgerAfter.state !== "ok") {
+      what = "the install record could not be read after this run (see the lines above)";
+    } else {
+      const prefixes = ADAPTER_FOOTPRINT[h.adapter].filter((p) => p.endsWith("/"));
+      const groups = new Map<string, number>();
+      for (const e of ledgerAfter.entries) {
+        if (e.kind === "dir" || !entryOwners(e).includes(h.id)) continue;
+        const key = prefixes.find((p) => e.path.startsWith(p)) ?? e.path;
+        groups.set(key, (groups.get(key) ?? 0) + 1);
+      }
+      const shown = [...groups].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([key, n]) => (key.endsWith("/") ? `${key} (${n} recorded)` : key));
+      what = shown.length > 0 ? shown.join(", ") : "nothing of install's is recorded for it (the lines above say why)";
+    }
+    out.push(`${at}${h.name}: ${what} — ${h.invoke}`);
+  }
+  out.push(`${at}These invocation forms come from each host's documentation; grugops has not run them on a live host (UNKNOWN - verify).`);
+  const left = HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) && !SELECTION.includes(h));
+  if (left.length > 0) {
+    out.push(
+      `${at}Left installed, not chosen in this run (install never removes an agent's files): ${left.map((h) => h.name).join(", ")}. ` +
+        `To remove one: node install/uninstall.js --target ${TARGET} <its flag> (${left.map(agentFlag).join(", ")}).`,
+    );
+  }
+  return out;
+}
+
 // 7. Seed the per-repo state plane into the target (skip-if-exists) so /grugops works first run.
 console.log("\n-- state seed --");
 seedState();
@@ -6486,12 +6557,10 @@ for (const line of askRulesNotes(askOutcome)) console.log(line);
 console.log("          Claude Code ask rules are a speed bump, not a security boundary: other spellings of the");
 console.log("          same command are not matched. The Claude Code plugin form cannot carry permission");
 console.log("          rules, so a plugin-only install gets none.");
-// Derived from HOST_TOOLS (phase 34, D-11): every host that does not spawn role agents, by name, in
-// registry order, so this line can never carry a stale host count.
-console.log(
-  `          The other host CLIs (${HOST_TOOLS.filter((t) => t.dispatch === "sequential").map((t) => t.name).join(", ")}) get documentation only.`,
-);
 console.log("  Only a human merges to a protected branch or approves a production deploy.");
+// One line per chosen agent, what the install record holds for it and how its documentation says to start grugops,
+// then the agents left installed (plan 34.1-08, D-04, D-21).
+for (const line of agentClosingLines()) console.log(line);
 
 // THE CLOSING CLAIM IS CONDITIONAL (27-13, T-27-59). A run that could not read a source directory,
 // or that refused a nested adapter, has NOT completed — it installed nothing for that class. Saying

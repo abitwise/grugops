@@ -105,6 +105,9 @@ export const HOST_TOOLS = [
         entryFiles: ["CLAUDE.md", "AGENTS.md"],
         adapter: "claude-kit",
         dispatch: "spawn",
+        // The standalone skill `.claude/skills/grugops/SKILL.md` gives the slash command `/grugops`
+        // (code.claude.com/docs/en/skills).
+        invoke: "type `/grugops <request>`",
     },
     {
         id: "codex",
@@ -116,6 +119,9 @@ export const HOST_TOOLS = [
         // from `/skills`): Codex does not turn skills into slash commands (D-21).
         adapter: "agent-skill",
         dispatch: "sequential",
+        // Codex does not turn skills into slash commands: a skill is invoked by its name with `$`, or picked from the
+        // `/skills` list (learn.chatgpt.com/docs/build-skills, retrieved 2026-10-11; D-21).
+        invoke: "type `$grugops <request>`, or pick it from `/skills`",
     },
     {
         // Antigravity CLI (phase 34.1, D-12; it replaces the discontinued Gemini CLI row). It reads AGENTS.md and GEMINI.md
@@ -134,6 +140,9 @@ export const HOST_TOOLS = [
         entryFiles: ["AGENTS.md"],
         adapter: "agent-skill",
         dispatch: "sequential",
+        // A workspace skill is invoked as a slash command by its name (antigravity.google/docs/skills/, retrieved
+        // 2026-10-11).
+        invoke: "type `/grugops <request>`",
     },
     {
         id: "opencode",
@@ -144,6 +153,8 @@ export const HOST_TOOLS = [
         // OpenCode reads the command at OPENCODE_COMMAND_REL (phase 34.1, D-08): `/grugops <request>`.
         adapter: "opencode-command",
         dispatch: "sequential",
+        // "The markdown file name becomes the command name" (opencode.ai/docs/commands/, retrieved 2026-10-11).
+        invoke: "type `/grugops <request>`",
     },
     {
         id: "copilot",
@@ -156,6 +167,10 @@ export const HOST_TOOLS = [
         entryFiles: ["AGENTS.md", ".github/copilot-instructions.md"],
         adapter: "copilot-pointer",
         dispatch: "sequential",
+        // No command is written for this host: it reads `.github/copilot-instructions.md` together with its other
+        // instruction files (docs.github.com, "Adding repository custom instructions for GitHub Copilot"). No live run
+        // was made (D-19), so the text says `UNKNOWN - verify`.
+        invoke: "no command is written; Copilot CLI reads `.github/copilot-instructions.md` with its other instructions, and a live run is `UNKNOWN - verify`",
     },
     // Pi (34-RESEARCH.md §B): reads one context file per directory and prefers AGENTS.md over
     // CLAUDE.md; loads project prompt templates from <cwd>/.pi/prompts/; ships no sub-agents, so it
@@ -168,6 +183,9 @@ export const HOST_TOOLS = [
         entryFiles: ["AGENTS.md"],
         adapter: "pi-prompt-template",
         dispatch: "sequential",
+        // A project prompt template `.pi/prompts/<name>.md` is the slash command `/<name>`, loaded from the directory Pi
+        // starts in (34-RESEARCH.md § B, github.com/earendil-works/pi prompt-templates.md, retrieved 2026-10-06).
+        invoke: "start Pi at the repository root and type `/grugops <request>`",
     },
 ];
 /**

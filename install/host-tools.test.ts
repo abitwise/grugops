@@ -276,19 +276,55 @@ describe("HOST_TOOLS integrity (plan 34-02)", () => {
     expect(PI_PROMPT_REL.endsWith(".md")).toBe(true);
   });
 
-  it("a DRY_RUN install prints one closing line ending `get documentation only.` that names every non-spawn host, in registry order", () => {
-    const lines = dryRunLines(freshCase("closing-line"));
-    const closing = lines.filter((l) => l.endsWith("get documentation only."));
-    expect(closing, "stdout carries exactly one closing host line").toHaveLength(1);
-    const line = closing[0];
-    const nonSpawn = HOST_TOOLS.filter((t) => t.dispatch !== "spawn").map((t) => t.name);
-    expect(nonSpawn.length).toBeGreaterThan(0);
-    const listed = /\(([^()]*)\) get documentation only\.$/.exec(line);
-    expect(listed, `the closing line names no parenthesised host list: ${line}`).not.toBeNull();
-    expect(listed![1]).toBe(nonSpawn.join(", "));
-    for (const t of HOST_TOOLS.filter((x) => x.dispatch === "spawn")) expect(listed![1]).not.toContain(t.name);
-    // No count word: the line is derived, so it can never carry a stale number.
-    expect(line).not.toMatch(/\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b/i);
+  // D-21 (plan 34.1-08): every row carries the invocation its documentation gives, and Codex's is `$grugops`, never a
+  // slash command (Codex does not turn skills into slash commands).
+  it("every row's `invoke` is non-empty; the codex row's names `$grugops` and no `/grugops`", () => {
+    let seen = 0;
+    for (const t of HOST_TOOLS) {
+      expect(t.invoke.trim().length, `${t.id} has no invoke text`).toBeGreaterThan(0);
+      seen++;
+    }
+    expect(seen).toBe(HOST_TOOL_COUNT);
+    const codex = HOST_TOOLS.filter((t) => t.id === "codex");
+    expect(codex, "the registry has one `codex` row").toHaveLength(1);
+    expect(codex[0].invoke).toContain("$grugops");
+    expect(codex[0].invoke).not.toContain("/grugops");
+  });
+
+  // D-21 (plan 34.1-08): the closing notes give one line per chosen agent, naming what the install record holds for
+  // it and its `invoke` text, then one line saying no invocation was run on a live host. Derived from the registry.
+  it("an install for every agent closes with one line per agent ending in its invoke text, and the UNKNOWN - verify line", () => {
+    const c = freshCase("closing-lines");
+    const r = runInstall(c.target, c.kitHome, [], { home: c.home, timeoutMs: 120_000 });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const notes = r.stdout.split(/\r?\n/);
+    let seen = 0;
+    for (const t of HOST_TOOLS) {
+      const mine = notes.filter((l) => l.startsWith(`  ${t.name}: `));
+      expect(mine, `closing lines for ${t.name}\n${r.stdout}`).toHaveLength(1);
+      expect(mine[0].endsWith(` — ${t.invoke}`), mine[0]).toBe(true);
+      for (const rel of ROUTE_POINTERS[t.adapter]) expect(mine[0], `${t.name}'s line names ${rel}`).toContain(rel);
+      seen++;
+    }
+    expect(seen).toBe(HOST_TOOL_COUNT);
+    const unknown = notes.filter((l) => l.includes("grugops has not run them on a live host (UNKNOWN - verify)"));
+    expect(unknown, r.stdout).toHaveLength(1);
+    expect(r.stdout, "the retired documentation-only line is gone").not.toContain("get documentation only.");
+  });
+
+  it("a --codex install closes with Codex CLI's line only, naming the agent skill and `$grugops`", () => {
+    const c = freshCase("closing-codex");
+    const codex = HOST_TOOLS.filter((t) => t.id === "codex")[0];
+    const r = runInstall(c.target, c.kitHome, [agentFlag(codex)], { home: c.home, timeoutMs: 120_000 });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const notes = r.stdout.split(/\r?\n/);
+    for (const t of HOST_TOOLS) {
+      const mine = notes.filter((l) => l.startsWith(`  ${t.name}: `));
+      expect(mine, `closing lines for ${t.name}`).toHaveLength(t === codex ? 1 : 0);
+    }
+    const line = notes.filter((l) => l.startsWith(`  ${codex.name}: `))[0];
+    expect(line).toBe(`  ${codex.name}: ${AGENT_SKILL_REL} — ${codex.invoke}`);
+    expect(line).toContain("$grugops");
   });
 });
 
