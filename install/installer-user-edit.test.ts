@@ -129,8 +129,12 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * `.pi` and `.pi/prompts` entered INSTALLED_DIRS (27 -> 29), because install now writes the Pi prompt
  * template unconditionally (D-17). Derived listing line: "INSTALLED_FILES (59, from default,
  * checkpoints-notify, migrate)".
+ * 61 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md`
+ * entered as files (edited in: default), and `.agents`, `.agents/skills`, `.agents/skills/grugops`, `.opencode` and
+ * `.opencode/commands` entered INSTALLED_DIRS (29 -> 34), because install now writes every whole-file host entry
+ * on every install. 59 -> 61.
  */
-const INSTALLED_FILE_COUNT = 59;
+const INSTALLED_FILE_COUNT = 61;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

@@ -6937,7 +6937,10 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // (2026-10-06, D-17), the Pi prompt template `.pi/prompts/grugops.md`. Pinned count: 7 -> 8, the
     // derived list being [".github/copilot-instructions.md", ".pi/prompts/grugops.md", "AGENTS.md",
     // "CLAUDE.md", and the four tools/grugops runnables]. The plant below takes the template's exact bytes.
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(8);
+    // 8 -> 10 on 2026-10-11 (plan 34.1-01, D-08, D-11): install now writes every whole-file host entry on every
+    // install, so `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md` entered the derived list;
+    // the plant takes their exact bytes too.
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(10);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {

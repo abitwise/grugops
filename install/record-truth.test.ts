@@ -320,8 +320,11 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * and Claude settings files. 33 -> 34 on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered the
  * marker's removable set because install now writes the Pi prompt template unconditionally (D-17);
  * derived listing (the assertion message lists REMOVABLE) named it between the Copilot file and AGENTS.md.
+ * 34 -> 36 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and
+ * `.opencode/commands/grugops.md` entered, because install now writes every whole-file host entry on every
+ * install; the derived listing names them first and beside the Copilot file.
  */
-const REMOVABLE_COUNT = 34;
+const REMOVABLE_COUNT = 36;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a

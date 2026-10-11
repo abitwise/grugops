@@ -32,11 +32,14 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // under tools/grugops/, and the 3 files install creates there with no kit role: CLAUDE.md and
 // .github/copilot-instructions.md (each holding only install's block) and, since plan 34-04 (2026-10-06,
 // D-17), the Pi prompt template `.pi/prompts/grugops.md`. 31 -> 32 on that date; derived line:
-// "empty-source: 32 file entr(ies) recorded, 32 holding". The test DERIVES the set from the ledger and
-// asserts its size equals this pin, so a change to what install records shows here by name.
-const RECORDED_FILE_COUNT = 32;
+// "empty-source: 32 file entr(ies) recorded, 32 holding". 32 -> 34 on 2026-10-11 (plan 34.1-01, D-08, D-11): install
+// now writes every whole-file host entry on every install, so `.agents/skills/grugops/SKILL.md` (Codex CLI's skill)
+// and `.opencode/commands/grugops.md` (OpenCode's command) are recorded too; derived line "empty-source: 34 file
+// entr(ies) recorded, 34 holding". The test DERIVES the set from the ledger and asserts its size equals this pin, so a
+// change to what install records shows here by name.
+const RECORDED_FILE_COUNT = 34;
 const RECORDED_FILE_COUNT_WHY =
-  "17 adapters + 7 skills + AGENTS.md + 4 runnables + the 3 files install created (CLAUDE.md, .github/copilot-instructions.md, the Pi prompt template .pi/prompts/grugops.md)";
+  "17 adapters + 7 skills + AGENTS.md + 4 runnables + the 5 files install created (CLAUDE.md, .github/copilot-instructions.md, and the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md)";
 
 let SCRATCH = "";
 beforeAll(() => {

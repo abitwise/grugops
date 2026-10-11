@@ -86,7 +86,10 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // 61 on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered (59 files and links written, plus the
 // two read-only inputs), because install now writes the Pi prompt template unconditionally (D-17), so a
 // FIFO and a directory are planted at it by derivation. Derived listing line: "READ_PATHS (61):".
-const READ_PATH_COUNT = 61;
+// 63 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md`
+// entered (61 files and links written, plus the two read-only inputs), because install now writes every whole-file
+// host entry on every install, so a FIFO and a directory are planted at each by derivation. 61 -> 63.
+const READ_PATH_COUNT = 63;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

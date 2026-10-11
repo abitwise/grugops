@@ -143,7 +143,7 @@ export const START_HERE_SENTENCE = "grugops: read `AGENTS.md`, then `agent-facto
 /**
  * POINTER_LINE (phase 34.1, D-09, D-11): THE ONE AUTHORITY for the pointer line every non-Claude entry and the Copilot
  * block carry (D-09, T-34-13): START_HERE_SENTENCE, one space, then KIT_ROUTE, on one line. The kit's pointer
- * template (agent-factory/packaging/host-entry.template.md) must equal it byte for byte, which
+ * template (agent-factory/packaging/host-entry.pointer.md) must equal it byte for byte, which
  * scripts/generate-host-entries.ts asserts before it renders anything, and install's Copilot block is this line.
  */
 export const POINTER_LINE = START_HERE_SENTENCE + " " + KIT_ROUTE;

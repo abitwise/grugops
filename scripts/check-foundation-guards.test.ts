@@ -2205,8 +2205,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     Its committed `.js` twin landed in the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 95 with this module tracked.
+ *
+ * 95 -> 96 (plan 34.1-01, task 1, phase 34.1 D-11), ONE GENERATOR MODULE:
+ *   - `scripts/generate-host-entries.ts` — the one renderer of the non-Claude whole-file host entries
+ *     (`.agents/skills/grugops/SKILL.md`, `.opencode/commands/grugops.md`, `.pi/prompts/grugops.md`)
+ *     from the kit's one pointer file, `agent-factory/packaging/host-entry.pointer.md`. It imports
+ *     `../install/host-tools.js` (the allowed scripts-to-registry edge) and `./is-entry.js`.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict (its frontmatter shapes are output data it writes, never a
+ *     parse of an input). Its committed `.js` twin landed in the same commit as the module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 96 with this module tracked (2026-10-11).
  */
-const NON_TEST_MODULE_COUNT = 95;
+const NON_TEST_MODULE_COUNT = 96;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2756,7 +2768,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 62 → 61 (plan 33.1-07, task 1, D-22): the prod-deploy deny matcher module, deleted. It imported
     // none of the three specs compared below, so the agreement loses three empty comparisons and no
     // real one. Re-derived: the scoped walk over `scripts/` minus tests reports 61 with it gone.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(61);
+    // 61 → 62 (plan 34.1-01, task 1, D-11): `scripts/generate-host-entries.ts`, the host-entry
+    // generator. It imports `node:fs`, `node:path`, `./is-entry.js` and `../install/host-tools.js` and
+    // none of the three specs compared below, so it contributes three empty comparisons and cannot
+    // make the agreement above vacuous on its own. Re-derived: the scoped walk over `scripts/` minus
+    // tests reports 62 with the module tracked.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(62);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2786,7 +2803,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 61 → 62 (plan 33-07, task 2): `check-flip-manifest.ts`, three specs per module as ever.
     // 62 → 61 (plan 33.1-07, task 1): the prod-deploy deny matcher module, deleted; three specs per
     // module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(61 * 3);
+    // 61 → 62 (plan 34.1-01, task 1): `generate-host-entries.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(62 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -2994,7 +3012,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // gained, and both pins move in this plan's task-2 commit for the same reason.
       // 62 → 61 (plan 33.1-07, task 1): the prod-deploy deny matcher module, the same module the
       // flat reader lost; both pins move in one commit for the same reason.
-    ).toBe(61);
+      // 61 → 62 (plan 34.1-01, task 1): `generate-host-entries.ts`, the same module the flat reader
+      // gained; both pins move in one commit for the same reason.
+    ).toBe(62);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9689,7 +9709,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // The pin moved because a module landed, not to make a red go away. Re-derived rather than
 // incremented: `ls scripts/*.test.ts | wc -l` reports 71 on this tree, and the bump lands in the
 // SAME commit as the module.
-const TRIPWIRE_MODULES = 71;
+//
+// 71 -> 72 (plan 34.1-01, task 2): ONE test module, `scripts/generate-host-entries.test.ts` — the host-entry
+// generator's drift halts, template refusals and frontmatter shapes, driven in a hermetic mirror. The pin
+// moved because a module landed, not to make a red go away. Re-derived rather than incremented:
+// `ls scripts/*.test.ts | wc -l` reports 72 on this tree.
+const TRIPWIRE_MODULES = 72;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

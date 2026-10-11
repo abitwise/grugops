@@ -2058,11 +2058,16 @@ describe("kit route: the class matrix — reach, counted findings and install ag
       const onlyAgents = HOST_TOOLS.filter((h) => carriersOf(h).length === 1 && carriersOf(h)[0] === "AGENTS.md");
       expect(onlyAgents.map((h) => h.name), "premise: Gemini CLI is one of the hosts whose only carrier is AGENTS.md").toContain(gemini.name);
       // Before: Gemini reads no carrier here, so AGENTS.md strands the other AGENTS.md-only hosts, and Gemini cannot reach.
-      expect(r.before.strandedHosts("AGENTS.md")).toEqual(onlyAgents.filter((h) => h !== gemini).map((h) => h.name));
+      // Plan 34.1-01 (D-08): Codex CLI and OpenCode now have a pointer of their own, so the other AGENTS.md-only hosts
+      // are derived to be none and AGENTS.md strands nobody before the install. Its line is a counted WARN exactly when
+      // it strands a host, and an uncounted `note` otherwise (the counting rule, plan 34-33), so the expected label is
+      // derived from the same set rather than typed.
+      const strandsBefore = onlyAgents.filter((h) => h !== gemini);
+      expect(r.before.strandedHosts("AGENTS.md")).toEqual(strandsBefore.map((h) => h.name));
       expect(r.before.f.reaches.get(gemini.id)).toBe(false);
       for (const h of HOST_TOOLS) expect(r.before.f.reaches.get(h.id), h.name).toBe(!onlyAgents.includes(h));
       const warn = carrierLines(r.doc.stdout, "AGENTS.md")[0];
-      expect(warn.startsWith("  WARN"), warn).toBe(true);
+      expect(warn.startsWith(strandsBefore.length > 0 ? "  WARN" : "  note"), warn).toBe(true);
       expect(warn).not.toContain("Re-run install.js");
       const gate = gateLines(r.doc.stdout, gemini)[0];
       expect(gate.startsWith("  WARN"), gate).toBe(true);

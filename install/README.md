@@ -294,7 +294,7 @@ In the **target repo**:
   rules are recorded so uninstall removes exactly those)
 - `tools/grugops/` — the kit's runnable checks, including the read-only git-host check
   `tools/grugops/host-protection.js` (§5)
-- an optional `.github/copilot-instructions.md` pointer, by the same rules as `CLAUDE.md` and naming
+- an optional `.github/copilot-instructions.md` pointer for GitHub Copilot CLI, by the same rules as `CLAUDE.md` and naming
   the same kit route: when the file does not exist, install creates it and records that, and the
   block, in the install ledger in `.grugops/install.json`
 - `.pi/prompts/grugops.md` — a short Pi prompt template, written in every install whether or not
@@ -307,12 +307,23 @@ In the **target repo**:
   untouched and not recorded, so the uninstaller leaves it too. `DRY_RUN=1` lists the template as
   `would-add` and writes nothing. How to use it, and what Pi asks first, is in "Using grugops on Pi"
   below
+- `.agents/skills/grugops/SKILL.md` — a skill Codex CLI reads from `.agents/skills/` (Codex users
+  type `$grugops`, or pick it from `/skills`), and `.opencode/commands/grugops.md` — a command
+  OpenCode reads from `.opencode/commands/` (`/grugops <request>`). Both are written in every install,
+  by the same rules as the Pi template: each is the same pointer (the start-here sentence and the kit
+  route) under the frontmatter that host reads, with no role text; install records the file and only
+  the directories this install created; a file already at the path that is not install's own
+  unedited copy is left untouched and not recorded; `DRY_RUN=1` lists it as `would-add`. Whether
+  Codex CLI or OpenCode loads it in a live session is `UNKNOWN - verify` until a live run shows it.
+  The Pi template, this skill and this command are copied from committed files in the kit, which
+  `scripts/generate-host-entries.ts` renders from one pointer file,
+  `agent-factory/packaging/host-entry.pointer.md`
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `plans/`, and `memory-bank/`
 
-On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, the Pi
-template and an `AGENTS.md` it created when the install ledger record for it still holds (nobody
-edited it since) and its text is not the current text, and records the new bytes, so uninstall
+On a re-install, install replaces its own copy of the `CLAUDE.md` block, the Copilot block, each
+whole-file host entry above (the Pi template, the agent skill and the OpenCode command) and an
+`AGENTS.md` it created when the install ledger record for it still holds (nobody edited it since) and its text is not the current text, and records the new bytes, so uninstall
 still removes exactly what install wrote; `DRY_RUN=1` lists such a file as `would-refresh`. A file
 you wrote or edited is never written: when it lacks the kit route, install prints a `note` that
 names it, the hosts it leaves without a route to the kit, and the sentence to add.
@@ -348,7 +359,8 @@ install writes the kit root into the `kitRoot` field of `.grugops/install.json`.
 kit route (`KIT_ROUTE` in `install/host-tools.ts`), says that the kit root is that directory and
 that each `agent-factory/…` path is read under it. The kit's `AGENTS.md` carries the route in its
 "Kit vs state" rule, for the hosts that read only `AGENTS.md`, and the `CLAUDE.md` block, the
-Copilot pointer and the Pi template carry it after their start-here sentence. The route is the same
+Copilot pointer and each whole-file host entry (the Pi template, the agent skill and the OpenCode
+command) carry it after their start-here sentence. The route is the same
 text on every machine: it names the field, never a path. Inside a Claude Code session the adapters
 still name the kit root on their `KIT=` line. With no `.grugops/install.json` (the minimal copy
 install, §1), the kit is the repository's own `agent-factory/`.
@@ -359,7 +371,8 @@ reads every file first and reports afterwards, in this order:
 - **The route target.** It reads `kitRoot` and reports a FAIL when
   `<kitRoot>/roles/orchestrator.md` is not a readable file.
 - **The files each host reads here.** The files that can give a host the route are `AGENTS.md`,
-  `CLAUDE.md`, `.github/copilot-instructions.md` and `.pi/prompts/grugops.md`. A host counts a file
+  `CLAUDE.md`, `.agents/skills/grugops/SKILL.md`, `.opencode/commands/grugops.md`,
+  `.github/copilot-instructions.md` and `.pi/prompts/grugops.md`. A host counts a file
   only when it reads that file in this repository. Gemini CLI reads `AGENTS.md` only when the
   repository's `.gemini/settings.json` lists it in `context.fileName`, which install adds. When that
   file is absent, does not list `AGENTS.md`, or cannot be read as a settings file install can merge,

@@ -98,11 +98,15 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
   // .pi/prompts/grugops.md, AGENTS.md, CLAUDE.md, the 4 tools/grugops runnables) and `.pi` and
   // `.pi/prompts` entered REMOVED_DIRS (13 -> 15; derived list: the 10 .claude directories, .gemini,
   // .github, .pi, .pi/prompts, tools/grugops).
-  it("install creates 8 files in an empty target (2 pointer files, the Pi prompt template, AGENTS.md, 4 runnables), and the round trip removes 15 directories", () => {
-    expect(CREATED.length, CREATED.join(", ")).toBe(8);
+  // Re-pinned 2026-10-11 (plan 34.1-01, D-08, D-11): install now writes every whole-file host entry on every install,
+  // so `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md` entered CREATED (8 -> 10; derived list
+  // adds them) and `.agents`, `.agents/skills`, `.agents/skills/grugops`, `.opencode` and `.opencode/commands`
+  // entered REMOVED_DIRS (15 -> 20).
+  it("install creates 10 files in an empty target (2 pointer files, 3 whole-file host entries, AGENTS.md, 4 runnables), and the round trip removes 20 directories", () => {
+    expect(CREATED.length, CREATED.join(", ")).toBe(10);
     expect(CREATED.filter((r) => POINTER.has(r)).length).toBe(2);
     expect(CREATED, "the Pi prompt template is not among the files install created").toContain(PI_PROMPT_REL);
-    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(15);
+    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(20);
     for (const rel of CREATED) expect(existsSync(abs(DERIVE.target, rel)), `${rel} survived the round trip`).toBe(false);
   });
 });

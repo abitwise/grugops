@@ -5,7 +5,7 @@
 // agent skill Codex CLI reads (`.agents/skills/grugops/SKILL.md`), the OpenCode command
 // (`.opencode/commands/grugops.md`) and the Pi prompt template (`.pi/prompts/grugops.md`). Each entry is ONE kit
 // template,
-// `agent-factory/packaging/host-entry.template.md`, under a per-kind frontmatter block. Install never builds
+// `agent-factory/packaging/host-entry.pointer.md`, under a per-kind frontmatter block. Install never builds
 // entry text: it copies these committed files from the kit source (install.ts writeWholeFileEntry), so the
 // entry text exists once, in the kit (the single-source rule, D-11).
 //
@@ -44,8 +44,14 @@ import { HOST_ADAPTER_KINDS, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, type
 
 // ── Fixed literal paths (never argv, env or content derived; ASVS V12) ──────────────────────────────
 const ROOT = join(import.meta.dirname, "..");
-/** The one pointer template in the kit (D-11), relative to the repository root. */
-export const TEMPLATE_REL = "agent-factory/packaging/host-entry.template.md";
+/**
+ * The one pointer template in the kit (D-11), relative to the repository root. Named `.pointer.md`, not
+ * `.template.md`: scripts/kit-model.ts listPackagingTemplates admits every `*.template.md` and `*.frontmatter.md`
+ * under agent-factory/packaging into the ONE spawn-grant scan composition, whose members must carry a frontmatter
+ * block. This file is a single pointer line with no frontmatter, so under that suffix it would be a keyless scan
+ * member (scripts/frontmatter.test.ts refuses that as a silent no-grant). It is not an adapter template.
+ */
+export const TEMPLATE_REL = "agent-factory/packaging/host-entry.pointer.md";
 /** The one flag: it adopts a template or shape change by overwriting the committed entries. */
 export const OVERWRITE_FLAG = "--overwrite-committed-host-entries";
 const REGEN_CMD = `npm run generate:host-entries -- ${OVERWRITE_FLAG}`;

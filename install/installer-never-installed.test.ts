@@ -90,8 +90,12 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * file and `.pi` and `.pi/prompts` as directories, in every variant, because install now writes the Pi
  * prompt template unconditionally (D-17). Derived listing line: "WRITE_PATHS (88: 59 files and links,
  * 29 directories)".
+ * 61 files and links + 34 directories on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md`
+ * and `.opencode/commands/grugops.md` entered as files, and `.agents`, `.agents/skills`, `.agents/skills/grugops`,
+ * `.opencode` and `.opencode/commands` as directories, in every variant, because install now writes every
+ * whole-file host entry (wholeFileEntryRels) on every install. 88 -> 95.
  */
-const WRITE_PATH_COUNT = 88;
+const WRITE_PATH_COUNT = 95;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

@@ -700,6 +700,20 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 //   agent-factory/config/factory.config.json          KIT CONFIGURATION DATA. The dial. Keys and
 //   agent-factory/seed/.grugops/factory.config.json   enum values, not prose a reader meets.
 //   .planning/**, scripts/**          Already covered by the segment classes above.
+//   .agents/skills/grugops/SKILL.md   GENERATED HOST ENTRIES (plan 34.1-01, D-11). Markdown that
+//   .opencode/commands/grugops.md     ships, EXCLUDED BY NAME for now and not admitted, with the
+//   .pi/prompts/grugops.md            cost stated: scripts/generate-host-entries.ts renders each
+//                                     from agent-factory/packaging/host-entry.pointer.md (a `kit`
+//                                     member, so the pointer sentence IS read here) under a
+//                                     frontmatter block typed in the generator. The generator-typed
+//                                     residue (`name: grugops`, the one `description` sentence,
+//                                     `argument-hint: "<request>"`, `Request: $ARGUMENTS`) is NOT
+//                                     read by this gate, which is the same transitive-coverage gap
+//                                     the `.claude/` paragraph refutes. Measured with this gate's own
+//                                     matcher on 2026-10-11 before the exclusion was written: 0
+//                                     occurrences in each of the three files. The remedy is
+//                                     admission as a DERIVED PART (deferred-items.md of phase 34.1
+//                                     records it for human triage), never a widened exclusion.
 //
 // (.claude/settings.local.json is UNTRACKED and therefore outside the denominator entirely; the
 // paragraph at `claudeAdapterMarkdown` explains the ASD-STE100 string a grep finds inside it.)
@@ -779,6 +793,9 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS = [
     // EXACT PATHS — the tracked non-markdown surfaces dispositioned by name above.
     "agent-factory/config/factory.config.json",
     "agent-factory/seed/.grugops/factory.config.json",
+    ".agents/skills/grugops/SKILL.md",
+    ".opencode/commands/grugops.md",
+    ".pi/prompts/grugops.md",
     "hooks/hooks.json",
     "package-lock.json",
     "package.json",
@@ -1301,8 +1318,19 @@ export function bannedClaimScanOverlap(parts = BANNED_CLAIM_SCAN_PARTS) {
  * exactly one. The pin moved AFTER the gate had read the new file, not to silence it: the run that
  * moved this number reported ZERO findings over 120/120 elements, so the entrant costs zero reds on
  * correct text.
+ *
+ * MOVED AGAIN 120 → 121 IN PLAN 34.1-01, AND THE ENTRANT IS NAMED:
+ * `agent-factory/packaging/host-entry.pointer.md`, the one pointer file the non-Claude host entries are
+ * rendered from (D-11). It enters through the `kit` corpus ONLY (75 → 76), so the overlap is unchanged
+ * at 2. Read off this gate's own refusal on the intermediate build, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 121 document(s), expected exactly 120 (kit 76,
+ *         publicDocs 12, installReadme 1, skillSources 7, claudeAdapters 24, pluginManifests 2,
+ *         guarantees 1, overlap 2)
+ *
+ * Measured with this gate's own matcher before the pin moved: 0 occurrences in the entrant.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 120;
+export const BANNED_CLAIM_SCAN_COUNT = 121;
 /**
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is

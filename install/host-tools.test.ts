@@ -24,7 +24,11 @@ import {
   HOST_ADAPTER_KINDS,
   ENTRY_GATE_KINDS,
   PI_PROMPT_REL,
+  AGENT_SKILL_REL,
+  OPENCODE_COMMAND_REL,
   KIT_ROUTE,
+  POINTER_LINE,
+  START_HERE_SENTENCE,
   carriesKitRoute,
   ROUTE_POINTERS,
   routeCarriers,
@@ -34,7 +38,8 @@ import {
   type HostTool,
   type RouteFacts,
 } from "./host-tools.js";
-import { GEMINI_SETTINGS_REL } from "./install-marker.js";
+import { BLOCK_RELS, GEMINI_SETTINGS_REL } from "./install-marker.js";
+import { ENTRY_SHAPES } from "../scripts/generate-host-entries.js";
 import { runInstall } from "./installer-paths.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-host-tools-")));
@@ -150,6 +155,42 @@ describe("HOST_TOOLS integrity (plan 34-02)", () => {
     for (const t of HOST_TOOLS) {
       expect(t.detect, `${t.id}'s detect path`).not.toMatch(/^[/~]|^[A-Za-z]:|\\|(^|\/)\.\.(\/|$)/);
     }
+  });
+
+  // Plan 34.1-01 (D-08, D-11): every pointer path the registry places is either a whole-file entry the generator
+  // renders (its kind has an ENTRY_SHAPES shape) or a sentinel-block carrier install appends to (BLOCK_RELS,
+  // install-marker.ts), never both and never neither; both sets are derived, and their union is every pointer.
+  it("every ROUTE_POINTERS value is a path the generator renders or a block carrier, exactly one of the two", () => {
+    const rendered = new Set(HOST_ADAPTER_KINDS.flatMap((k) => (ENTRY_SHAPES[k] === null ? [] : [...ROUTE_POINTERS[k]])));
+    const all = [...new Set(Object.values(ROUTE_POINTERS).flat())];
+    expect(rendered.size, "premise: the generator renders some pointer").toBeGreaterThan(0);
+    for (const rel of all) {
+      const isBlock = BLOCK_RELS.includes(rel);
+      expect(rendered.has(rel) !== isBlock, `${rel}: rendered ${rendered.has(rel)}, block carrier ${isBlock}`).toBe(true);
+    }
+    for (const rel of BLOCK_RELS) expect(all, `block carrier ${rel} is no ROUTE_POINTERS value`).toContain(rel);
+    for (const k of HOST_ADAPTER_KINDS) {
+      if (ENTRY_SHAPES[k] !== null) expect(ROUTE_POINTERS[k], `${k} has a shape, so exactly one path`).toHaveLength(1);
+    }
+  });
+
+  it("AGENT_SKILL_REL is the pointer of exactly the rows whose adapter is `agent-skill`, and OPENCODE_COMMAND_REL of exactly the `opencode-command` rows", () => {
+    for (const [rel, kind] of [
+      [AGENT_SKILL_REL, "agent-skill"],
+      [OPENCODE_COMMAND_REL, "opencode-command"],
+    ] as const) {
+      const holders = HOST_TOOLS.filter((h) => ROUTE_POINTERS[h.adapter].includes(rel)).map((h) => h.id);
+      const ofKind = HOST_TOOLS.filter((h) => h.adapter === kind).map((h) => h.id);
+      expect(ofKind.length, `premise: some row has adapter ${kind}`).toBeGreaterThan(0);
+      expect(holders, rel).toEqual(ofKind);
+      expect(rel.startsWith(".gemini/"), `${rel} is under .gemini/ (refuted by D-20)`).toBe(false);
+    }
+  });
+
+  it("POINTER_LINE is START_HERE_SENTENCE, one space, then KIT_ROUTE, on one line", () => {
+    expect(POINTER_LINE).toBe(`${START_HERE_SENTENCE} ${KIT_ROUTE}`);
+    expect(carriesKitRoute(POINTER_LINE)).toBe(true);
+    expect(POINTER_LINE.includes("\n")).toBe(false);
   });
 
   it("PI_PROMPT_REL sits under the Pi row's detect path and ends with .md", () => {
@@ -781,7 +822,10 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
 // entryGates (2^m; an ungated pair a host's carriers include is always read), and adapterReaches for each host whose
 // adapter kind is `claude-kit` (2^k). The counts are pinned, so a registry change that moves them fails red here
 // until this table is looked at again.
-const TABLE_CARRIERS = 4;
+// TABLE_CARRIERS 4 -> 6 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` (Codex CLI's
+// agent-skill pointer) and `.opencode/commands/grugops.md` (OpenCode's command) joined the derived carrier set, so the
+// table has 2^(6+1+1) = 256 combinations.
+const TABLE_CARRIERS = 6;
 const TABLE_GATED_PAIRS = 1;
 const TABLE_ADAPTER_HOSTS = 1;
 

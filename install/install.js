@@ -980,7 +980,7 @@ const COPILOT_PTR = POINTER_LINE;
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 // The whole-file entries (the agent skill, the OpenCode command, the Pi prompt template; phase 34.1, plan 34.1-01, D-11)
 // are not built here. Each is a committed generated file in the kit (scripts/generate-host-entries.ts renders it from
-// agent-factory/packaging/host-entry.template.md, whose body is POINTER_LINE), and install copies those bytes from the
+// agent-factory/packaging/host-entry.pointer.md, whose body is POINTER_LINE), and install copies those bytes from the
 // kit source (carrierSource, writeWholeFileEntry). The Pi template's bytes did not move: it is the text install built
 // here before phase 34.1 (PI_PROMPT_TEXT, plan 34-04, D-10, D-16), now rendered by the generator. No entry carries a
 // kit-root variable or a resolver slot (check-kit-refs Assertion 3), and no config, argv or environment value reaches
@@ -2749,7 +2749,7 @@ function ensureBlock(ledger, file, open, body, close, label) {
 // dead zone).
 //
 // THE BYTES ARE THE KIT'S, NEVER BUILT HERE (D-11): carrierSource(rel), the committed generated file under the kit
-// source (scripts/generate-host-entries.ts renders it from agent-factory/packaging/host-entry.template.md), read
+// source (scripts/generate-host-entries.ts renders it from agent-factory/packaging/host-entry.pointer.md), read
 // through readUserFile (DC-3). Fixed kit text: no install-time value reaches it (T-34-13). The source is asked first:
 //   absent  → `skipped`, naming that the kit source has no such file (the AGENTS.md linkOrCopy precedent); nothing is
 //             written.

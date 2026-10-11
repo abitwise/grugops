@@ -3290,7 +3290,10 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     expect(seg).toEqual(["docs", ".planning", "scripts"]);
     expect(root).toEqual([".gemini/", "memory-bank/", "plans/"]);
     // 31-06 added tsconfig.fixtures.json, dispositioned by name in the block above.
-    expect(exact.length).toBe(8);
+    // 8 -> 11 (plan 34.1-01): the three generated host entries (.agents/skills/grugops/SKILL.md,
+    // .opencode/commands/grugops.md, .pi/prompts/grugops.md), dispositioned by name in the block above
+    // with the cost of not admitting them stated there (deferred-items.md DI-01 of phase 34.1).
+    expect(exact.length).toBe(11);
     expect(seg.length + root.length + exact.length).toBe(
       BANNED_CLAIM_EXCLUDED_LOCATIONS.length,
     );
