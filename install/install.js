@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
+import { HOST_TOOLS, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, agentFlag, carriesKitRoute, hostForFlag, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -118,6 +118,11 @@ let BACKUP_EDITED_KIT = false;
 // to leave ARG_TARGET empty, and resolveTarget then fell back to TARGET or the current directory: the
 // run went ahead on a directory the human did not name. Every usage error reaches the one exit below.
 let USAGE_ERROR = null;
+// D-01 (phase 34.1): the agents named by per-agent flags, as registry ids in the order given. Each flag is spelled
+// by host-tools.ts agentFlag and recognised only by hostForFlag, so there is no flag list here. The selection that
+// reads this set is plan 34.1-06; until then install writes what it wrote before.
+const SELECTED_BY_FLAG = new Set();
+let flagHost = null;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -158,10 +163,26 @@ for (let i = 0; i < argv.length; i++) {
     else if (a === "--backup-edited-kit") {
         BACKUP_EDITED_KIT = true;
     }
+    else if ((flagHost = hostForFlag(a)) !== null) {
+        SELECTED_BY_FLAG.add(flagHost.id);
+    }
     else {
         USAGE_ERROR = `unknown argument: ${a}`;
         break;
     }
+}
+// D-25 (phase 34.1): an agent flag chooses what install writes. --check, --update and --prune-old-kit write no agent's
+// files, so combining one of them with an agent flag is bad usage, refused through the one usage exit below before
+// anything is read or written.
+if (USAGE_ERROR === null && SELECTED_BY_FLAG.size > 0 && (CHECK || UPDATE || PRUNE_OLD_KIT)) {
+    const given = HOST_TOOLS.filter((h) => SELECTED_BY_FLAG.has(h.id)).map(agentFlag).join(" ");
+    const modes = [CHECK ? "--check" : "", UPDATE ? "--update" : "", PRUNE_OLD_KIT ? "--prune-old-kit" : ""]
+        .filter((m) => m !== "")
+        .join(" ");
+    USAGE_ERROR =
+        `agent flags (${given}) cannot be combined with ${modes}: agent flags choose what install writes, and ${modes} ` +
+            `writes no agent's files` +
+            (CHECK ? `; --check reads the agents from the install record (${MARKER_REL}), not from flags` : "");
 }
 if (USAGE_ERROR !== null) {
     process.stderr.write(`install.js: ${USAGE_ERROR}\n`);

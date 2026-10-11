@@ -168,6 +168,26 @@ export const HOST_TOOLS = [
     },
 ];
 /**
+ * THE ONE AUTHORITY for the per-agent flag spelling (D-01): a new registry row gets its flag with no installer edit;
+ * there is no all-agents flag. The flag is `--` followed by the row's id, so `--claude`, `--codex` and so on. Both
+ * binaries and the test support read flags through this function and hostForFlag; nothing else spells one.
+ */
+export function agentFlag(host) {
+    return "--" + host.id;
+}
+/**
+ * The registry row an argument names as an agent flag, or null. Exact string equality against agentFlag of each
+ * row: no prefix, no case folding, no `=value` form, so `--all`, `--`, `-codex` and `--Codex` are not agent flags and
+ * stay unknown arguments (exit 2).
+ */
+export function hostForFlag(arg) {
+    for (const host of HOST_TOOLS) {
+        if (agentFlag(host) === arg)
+            return host;
+    }
+    return null;
+}
+/**
  * ROUTE_POINTERS (plan 34-28, D-26 point 3): the pointer files install writes for each adapter kind that
  * carry the start-here sentence and KIT_ROUTE, as POSIX paths relative to the target root. Keyed by
  * HostAdapterKind, so a new kind is a compile error until it is classified here. Two kinds may name the same

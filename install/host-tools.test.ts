@@ -29,6 +29,8 @@ import {
   POINTER_LINE,
   START_HERE_SENTENCE,
   carriesKitRoute,
+  agentFlag,
+  hostForFlag,
   ROUTE_POINTERS,
   routeCarriers,
   reachVia,
@@ -139,6 +141,34 @@ describe("detectTools() is derived from HOST_TOOLS (plan 34-02)", () => {
     expect(rowText).toContain('detect: ".gemini",');
     expect(rowText).toContain("`.gemini` is UNKNOWN - verify");
     expect(rowText.split("\n  {\n").length, "the slice holds exactly one row").toBe(2);
+  });
+});
+
+describe("per-agent flags (phase 34.1, D-01)", () => {
+  // The flag set is derived from the registry, one flag per row, and the count is asserted against the pin so a
+  // short or empty set cannot pass a loop vacuously.
+  it("the agent flag set has HOST_TOOL_COUNT members, each `--` followed by a registry id", () => {
+    const flags = new Set(HOST_TOOLS.map(agentFlag));
+    expect(`agent flags: ${flags.size}`).toBe(`agent flags: ${HOST_TOOL_COUNT}`);
+    for (const host of HOST_TOOLS) expect(agentFlag(host)).toBe(`--${host.id}`);
+  });
+
+  it("hostForFlag round-trips every agent flag to its own row", () => {
+    let seen = 0;
+    for (const host of HOST_TOOLS) {
+      expect(hostForFlag(agentFlag(host))).toBe(host);
+      seen++;
+    }
+    expect(seen).toBe(HOST_TOOL_COUNT);
+  });
+
+  // No all-agents flag (D-01), and no loose matching: a near spelling is an unknown argument, not an agent flag.
+  it("hostForFlag returns null for an all-agents spelling and for near spellings of a flag", () => {
+    const codex = HOST_TOOLS.find((h) => h.id === "codex");
+    expect(codex, "the codex row the near spellings below are built from").toBeDefined();
+    for (const arg of ["--all", "--every", "--", "-codex", "--Codex", "--codex=1", " --codex", "codex", ""]) {
+      expect(`${JSON.stringify(arg)}: ${hostForFlag(arg)?.id ?? null}`).toBe(`${JSON.stringify(arg)}: null`);
+    }
   });
 });
 

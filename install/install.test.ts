@@ -153,7 +153,7 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
 import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
-import { PI_PROMPT_REL } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentFlag } from "./host-tools.js";
 /** The marker key order install writes since plan 33.1-36. */
 const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "ledger"];
 
@@ -3961,6 +3961,51 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const bad = spawnSync("node", [INSTALL_JS, "--yes", "--bad-arg-xyz"], { encoding: "utf8", env: dryEnv });
     expect(bad.status).toBe(2);
   });
+
+  // ── phase 34.1 D-01 / D-25: per-agent flags parse, and combining one with a mode flag is bad usage ──────
+  // An agent flag chooses what install writes; --check, --update and --prune-old-kit write no agent's files. The
+  // combination exits 2 through the one usage exit, names both flags on stderr, and changes zero bytes in the target
+  // and in the kit home. The target and kit home hold a real install first, so "zero bytes changed" is asserted over
+  // a populated tree rather than an empty one. The agent flag is derived from the registry, never typed.
+  it("agent flag combined with --check, --update or --prune-old-kit exits 2, names both flags, writes nothing (D-25)", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const env = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home };
+    const seeded = spawnSync("node", [INSTALL_JS, "--yes", "--target", target, ...HOST_TOOLS.map(agentFlag)], {
+      encoding: "utf8",
+      env,
+    });
+    expect(`seed install: ${seeded.status}`).toBe("seed install: 0");
+    const agent = agentFlag(HOST_TOOLS[0]);
+    let refused = 0;
+    for (const mode of ["--check", "--update", "--prune-old-kit"]) {
+      const targetBefore = snapshot(target);
+      const homeBefore = snapshot(home);
+      const r = spawnSync("node", [INSTALL_JS, "--target", target, agent, mode], { encoding: "utf8", env });
+      expect(`${agent} ${mode}: ${r.status}`).toBe(`${agent} ${mode}: 2`);
+      expect(r.stderr).toContain("install.js: ");
+      expect(r.stderr).toContain(agent);
+      expect(r.stderr).toContain(mode);
+      expect(r.stdout, "a usage refusal prints nothing on stdout").toBe("");
+      expect(snapshot(target), `${agent} ${mode} changed the target`).toBe(targetBefore);
+      expect(snapshot(home), `${agent} ${mode} changed the kit home`).toBe(homeBefore);
+      refused++;
+    }
+    expect(refused).toBe(3);
+  }, 120_000);
+
+  // Every registry flag at once is accepted by the argument loop and the run completes (exit 0) into an empty target.
+  it("agent flag set: install.js --yes with every registry flag installs into an empty target (exit 0)", () => {
+    const target = mkTmp();
+    const flags = HOST_TOOLS.map(agentFlag);
+    expect(flags).toHaveLength(HOST_TOOL_COUNT);
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--target", target, ...flags], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: mkTmp() },
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain("== install complete ==");
+  }, 60_000);
 
   // ── source-presence: the shared backup primitives exist in the committed compiled output ──────
   // The Wave-0 single-source helpers backupIfDiffers() + isoStamp() are the keystone Plans 02/03
