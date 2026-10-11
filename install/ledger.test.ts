@@ -778,7 +778,7 @@ describe("the tracer: install records a runnable in the ledger, uninstall remove
     const t = makeFixture(fresh("keys"));
     expect(install(t, ["--yes"]).status).toBe(0);
     const m = readMarkerObject(t);
-    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "ledger"]);
+    expect(Object.keys(m)).toEqual(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"]);
     for (const name of RETIRED_RECORDS) expect(Object.prototype.hasOwnProperty.call(m, name), name).toBe(false);
     expect(fileRecords(m, false)[RUNNABLE]).toMatch(/^sha256:[0-9a-f]{64};mode=[0-7]{4}$/);
     // The marker install wrote reads `ok`, and its ledger reads `ok` through the one reader.

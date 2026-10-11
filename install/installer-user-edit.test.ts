@@ -319,7 +319,7 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     // The binding.
     expect(typeof m.target === "string" && files.has(MARKER_REL), "the marker's target binding").toBe(true);
     // The marker keys are exactly install's, so a new field is noticed.
-    const known = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "ledger"]);
+    const known = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"]);
     expect(Object.keys(m).filter((k) => !known.has(k)), "a marker key this test does not cover").toEqual([]);
   });
 

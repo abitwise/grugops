@@ -136,7 +136,7 @@ import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "
 // The installer's one spelling of a real path (plan 34-12): canonicalPath below delegates to it.
 import { realTargetPath } from "./user-file.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
-import { ALL_AGENT_FLAGS, lineNamesPath, pathText, withAgentFlags } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, MARKER_REL, lineNamesPath, pathText, spawnBin, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
 const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
@@ -151,11 +151,11 @@ import { allAskRules, askRulesFor, canonicalizeCheckpointDisposition } from "./c
 // THE ONE INSTALL LEDGER, TEST SIDE (plan 33.1-36, D-33 (b)): the marker carries one `ledger` list in
 // place of six records. These views read and forge it from the marker JSON itself (no production
 // reader), and return the shapes the retired records had, so each converted assertion keeps its intent.
-import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, type RawEntry } from "./ledger.test-support.js";
+import { LEGACY_MERGED_BEFORE, askRecord, dirList, fileRecords, geminiRecord, plantLegacyGemini, withLedger, markerLedger, readMarkerObject, type RawEntry } from "./ledger.test-support.js";
 // The one spelling of the Pi prompt template path (plan 34-02 registry module; plan 34-04 cases).
 import { HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentFlag } from "./host-tools.js";
-/** The marker key order install writes since plan 33.1-36. */
-const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "ledger"];
+/** The marker key order install writes since plan 33.1-36; `agents` (the installed set, D-04) since plan 34.1-06. */
+const MARKER_KEY_ORDER = ["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents", "ledger"];
 
 // The repo root (install/ is one level under it) and the committed compiled installer/uninstaller.
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -4341,7 +4341,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
         `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});\n`,
     );
-    const r = spawnSync("node", [wrapper, "--yes", "--migrate", "--backup-edited-kit"], {
+    const r = spawnSync("node", [wrapper, "--yes", ...withAgentFlags(["--migrate", "--backup-edited-kit"])], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -5739,7 +5739,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // THE COUNT IS TAKEN OVER COMMENT-FILTERED LINES, DELIBERATELY. A raw count returns SEVEN, because
   // the residual note's own prose must spell the call once to describe what it is describing. The
   // filtered count is the one that means "call sites", and it is the one asserted.
-  it("the nine MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
+  it("the ten MID-SCRIPT exit sites are NOT swept — the residual is a pinned count, not a rotted line list (D-41)", () => {
     const src = readFileSync(join(import.meta.dirname, "install.ts"), "utf8");
     const codeLines = src.split("\n").filter((l) => !/^\s*\/\//.test(l));
     const callSites = codeLines.filter((l) => l.includes("process.exit(")).length;
@@ -5749,12 +5749,13 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // fixes of plan 33.1-33 (B2): an INSTALL_MODE other than copy or symlink is bad usage, refused with
     // exit 2 while the arguments are read, before anything is written. NINE since plan 33.1-37 (review
     // CR-01): a kit home that overlaps the target is refused with exit 1, after the self-checkout guard
-    // and before anything reaches stdout or anything is written.
-    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 9");
+    // and before anything reaches stdout or anything is written. TEN since plan 34.1-06 (D-03): refuseSelection, the one
+    // exit for every agent-selection refusal, exits 1 before the run banner and before any write.
+    expect(`mid-script exit sites: ${callSites}`).toBe("mid-script exit sites: 10");
     // ...and the raw count is one more, which is the fact that makes the filter necessary rather than
     // cosmetic. Pinned so a future author who deletes the filter sees why it was there.
     const raw = src.split("\n").filter((l) => l.includes("process.exit(")).length;
-    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 10");
+    expect(`raw occurrences including prose: ${raw}`).toBe("raw occurrences including prose: 11");
     // THE ROTTED LIST IS GONE, NOT SOFTENED — and not quoted back as evidence either. A note that
     // reprints the stale numbers to explain why it deleted them still puts numbers in front of a
     // reader who may trust them. The measurement lives in 27-35-SUMMARY.md; this asserts that no
@@ -9827,7 +9828,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
         `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
           `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});\n`,
       );
-      const r = spawnSync("node", [wrapper, "--yes", "--backup-edited-kit"], {
+      const r = spawnSync("node", [wrapper, "--yes", ...withAgentFlags(["--backup-edited-kit"])], {
         encoding: "utf8",
         timeout: 60_000,
         env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
@@ -9946,7 +9947,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
       `Date.prototype.toISOString = function () { return "2026-06-22T12:00:00.000Z"; };\n` +
         `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});\n`,
     );
-    const r = spawnSync("node", [...preload.flatMap((p) => ["--import", pathToFileURL(p).href]), wrapper, "--yes", ...args], {
+    const r = spawnSync("node", [...preload.flatMap((p) => ["--import", pathToFileURL(p).href]), wrapper, "--yes", ...withAgentFlags(args)], {
       encoding: "utf8",
       timeout: 120_000,
       maxBuffer: 64 * 1024 * 1024,
@@ -10575,4 +10576,63 @@ describe("Pi prompt template (plan 34-04)", () => {
     expect(filesUnder(join(target, ".pi"))).toEqual(["settings.json"]);
     expect(readFileSync(join(target, ".pi", "settings.json"), "utf8")).toBe(settings);
   });
+});
+
+// ── agent selection (phase 34.1, D-03, D-04; plan 34.1-06) ─────────────────────────────────────────────────────────
+// With no agent flag, `--yes` (or no terminal) chooses the agents recorded in the target's marker, else the agents
+// detected in it, else refuses with exit 1 before the banner and before any write, naming every per-agent flag. The
+// flags are derived from the registry (HOST_TOOLS.map(agentFlag)), never typed. Every flag-less run goes through
+// runUnattended, the one install.js spawn here that names no agent on purpose.
+describe("agent selection (D-03)", () => {
+  const FLAGS = HOST_TOOLS.map(agentFlag);
+  const hostOf = (id: string): (typeof HOST_TOOLS)[number] => {
+    const h = HOST_TOOLS.find((t) => t.id === id);
+    if (h === undefined) throw new Error(`no registry row ${id}`);
+    return h;
+  };
+  const nameOf = (id: string): string => hostOf(id).name;
+  const flagOf = (id: string): string => agentFlag(hostOf(id));
+  const agentsLine = (stdout: string): string => stdout.split("\n").find((l) => l.startsWith("agents: ")) ?? "(no agents: line)";
+  const recordedAgents = (t: string): unknown => readMarkerObject(t).agents;
+  const runUnattended = (target: string, home: string) =>
+    // agent-flag-census: the D-03 selection cases run install.js with no agent flag on purpose, to drive the unattended chain
+    spawnBin(INSTALL_JS, ["--yes", "--target", target], target, home, { timeoutMs: 120_000 });
+
+  it("(a) --yes with no agent flag into an empty target exits 1, names every agent flag, and writes nothing in the target or the kit home", () => {
+    const target = mkTmp();
+    const home = join(mkTmp(), "kit-home");
+    expect(FLAGS).toHaveLength(HOST_TOOL_COUNT);
+    const r = runUnattended(target, home);
+    expect(`exit ${r.status}`, r.stdout + r.stderr).toBe("exit 1");
+    for (const f of FLAGS) expect(r.stderr, `the refusal does not name ${f}`).toContain(f);
+    expect(r.stderr).toContain(`none is recorded in ${MARKER_REL}`);
+    expect(r.stdout, "the refusal comes before the run banner").toBe("");
+    expect(readdirSync(target), "the empty target was written to").toEqual([]);
+    expect(existsSync(home), "a kit home that did not exist was created").toBe(false);
+  }, 120_000);
+
+  it("(b) an install with --codex, then --yes with no flag: the recorded agent is chosen and stays recorded", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const first = runInstall(target, home, flagOf("codex"));
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    expect(agentsLine(first.stdout)).toBe(`agents: ${nameOf("codex")} (named by flag)`);
+    expect(recordedAgents(target)).toEqual(["codex"]);
+    const again = runUnattended(target, home);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    expect(agentsLine(again.stdout)).toBe(`agents: ${nameOf("codex")} (recorded in ${MARKER_REL})`);
+    expect(recordedAgents(target)).toEqual(["codex"]);
+  }, 240_000);
+
+  it("(c) recorded [claude], then --codex: install only adds, the record is [claude, codex] (D-04)", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const first = runInstall(target, home, flagOf("claude"));
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    expect(recordedAgents(target)).toEqual(["claude"]);
+    const second = runInstall(target, home, flagOf("codex"));
+    expect(second.status, second.stdout + second.stderr).toBe(0);
+    expect(agentsLine(second.stdout)).toBe(`agents: ${nameOf("codex")} (named by flag)`);
+    expect(recordedAgents(target)).toEqual(["claude", "codex"]);
+  }, 240_000);
 });

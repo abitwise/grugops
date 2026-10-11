@@ -120,7 +120,8 @@ function installedCopy(tag: string): string {
 // Since plan 33.1-36 (D-33 (b)) every other key of install's own marker is the one ledger, so the list
 // is taken from the marker and asserted to be exactly `ledger`; the kinds are install-marker.ts
 // KINDS_BY_SCOPE.target but `backup` (the kinds a default install writes), and each is garbled in turn.
-const NOT_LEDGERS = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target"]);
+// `agents` (plan 34.1-06, D-04) is the installed set, a list of registry ids, not a ledger.
+const NOT_LEDGERS = new Set(["kitVersion", "grugopsHome", "kitRoot", "installMode", "target", "agents"]);
 const LEDGERS: readonly string[] = BASE_RUN.status === 0 ? Object.keys(markerOf(BASE)).filter((k) => !NOT_LEDGERS.has(k)) : [];
 const LEDGER_COUNT = 1;
 

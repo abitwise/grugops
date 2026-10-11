@@ -13,6 +13,11 @@
 //      `"node"` literal or `process.execPath`). Its arguments are the array's other elements.
 //   B. a call to a spawning function that passes INSTALL_JS or INSTALLER directly (spawnBin(INSTALL_JS, args, ...)).
 //      Its arguments are the call's next argument.
+// A WRAPPER IS THE INSTALLER TOO (plan 34.1-06). A test that pins the clock writes a small module that imports
+// install.js (`writeFileSync(wrapper, … pathToFileURL(INSTALL_JS) …)`) and spawns that module: install.js then reads
+// the wrapper's own argv. So an identifier passed as the destination of a writeFileSync call whose content names
+// INSTALL_JS or INSTALLER counts, in that module, as naming the installer in shape A. Three such spawns in
+// install/install.test.ts named no agent and were outside the census until D-03's refusal turned one red.
 // A site PASSES when its arguments name the agents: they contain a withAgentFlags call, ALL_AGENT_FLAGS, a reference
 // to agentFlag (the one spelling, install/host-tools.ts), a string literal equal to agentFlag of a registry row, or a
 // MODE_FLAGS literal (a mode that writes no agent's files and takes no agent flag, D-25). A site that deliberately
@@ -51,12 +56,14 @@ const EXEMPT_MARK = "agent-flag-census:";
  */
 const SITE_FLOOR = 64;
 /**
- * The sites that exit at argument parsing and so name no agent, pinned two-sided (plan 34.1-05):
+ * The sites that name no agent on purpose, pinned two-sided. Three exit at argument parsing (plan 34.1-05):
  *   - install/install.test.ts, unknown-arg D-12 contract: `--bad-arg-xyz` exits 2 before any selection
  *   - install/install.test.ts, unknown-arg Phase-17 case: `--yes --bad-arg-xyz` exits 2 the same way
  *   - install/record-truth.test.ts, L4: `--target` with no value exits 2 in both binaries
+ * One more since plan 34.1-06 (D-03): install/install.test.ts runUnattended, the one spawn the "agent selection (D-03)"
+ * cases run with no agent flag, because the flag-less unattended chain (recorded, detected, refuse) is what they test.
  */
-const EXEMPT_COUNT = 3;
+const EXEMPT_COUNT = 4;
 
 /** Every tracked TypeScript module directly under install/ or scripts/ (no declaration files), from git. */
 function modules(): string[] {
@@ -77,7 +84,8 @@ function descendants(node: ts.Node): ts.Node[] {
   return out;
 }
 
-function namesInstaller(e: ts.Node): boolean {
+function namesInstaller(e: ts.Node, wrappers: ReadonlySet<string>): boolean {
+  if (ts.isIdentifier(e) && wrappers.has(e.text)) return true;
   if (descendants(e).some((n) => ts.isIdentifier(n) && INSTALLER_NAMES.has(n.text))) return true;
   const text = e.getText().replace(/[)"'`\s]+$/, "");
   return text.endsWith("install.js") && !text.endsWith("uninstall.js");
@@ -118,6 +126,14 @@ function sitesIn(rel: string, text: string): Site[] {
   const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const lines = text.split("\n");
   const out: Site[] = [];
+  // The wrapper modules this module writes: the destination identifier of a writeFileSync whose content names the
+  // installer (see A WRAPPER IS THE INSTALLER TOO above).
+  const wrappers = new Set<string>();
+  for (const node of descendants(sf)) {
+    if (!ts.isCallExpression(node) || calleeName(node) !== "writeFileSync" || node.arguments.length < 2) continue;
+    const [dest, content] = node.arguments;
+    if (ts.isIdentifier(dest) && descendants(content).some((n) => ts.isIdentifier(n) && INSTALLER_NAMES.has(n.text))) wrappers.add(dest.text);
+  }
   const record = (at: ts.Node, args: readonly ts.Node[]): void => {
     const line = sf.getLineAndCharacterOfPosition(at.getStart(sf)).line; // 0-based
     const above = line > 0 ? lines[line - 1] : "";
@@ -132,7 +148,7 @@ function sitesIn(rel: string, text: string): Site[] {
     // Shape A: an argv array holding the installer path.
     if (ts.isArrayLiteralExpression(node)) {
       const els = node.elements;
-      const at = els.findIndex((e) => !ts.isSpreadElement(e) && namesInstaller(e));
+      const at = els.findIndex((e) => !ts.isSpreadElement(e) && namesInstaller(e, wrappers));
       if (at === -1) continue;
       const parent = node.parent;
       const spawnArg = ts.isCallExpression(parent) && SPAWNERS.has(calleeName(parent)) && parent.arguments.includes(node);
@@ -182,7 +198,7 @@ describe("agent-flag census: every spawn of install.js names its agents (phase 3
 
   // The census's own premise: a site with no agent flag is found and named, a site through withAgentFlags passes, and
   // an argued comment exempts. Without this, a parser change that matched nothing would leave every case above green.
-  it("premise: the census finds an unnamed site, passes a named one, and honours an argued exemption", () => {
+  it("premise: the census finds an unnamed site (directly or through a wrapper module), passes a named one, and honours an argued exemption", () => {
     const probe = [
       'spawnSync("node", [INSTALL_JS, "--yes"], {});',
       'spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {});',
@@ -192,6 +208,9 @@ describe("agent-flag census: every spawn of install.js names its agents (phase 3
       'spawnSync(process.execPath, [INSTALL_JS, "--bad"]);',
       'spawnSync("node", [UNINSTALL_JS, "--yes"]);',
       'const x = ["install.js", INSTALL_JS];',
+      "writeFileSync(wrapper, `await import(${JSON.stringify(pathToFileURL(INSTALL_JS).href)});`);",
+      'spawnSync("node", [wrapper, "--yes"], {});',
+      'spawnSync("node", [wrapper, "--yes", ...withAgentFlags(args)], {});',
     ].join("\n");
     const got = sitesIn("probe.ts", probe).map((s) => `${s.where} ${s.verdict}`);
     expect(got).toEqual([
@@ -200,6 +219,8 @@ describe("agent-flag census: every spawn of install.js names its agents (phase 3
       "probe.ts:3 unnamed",
       "probe.ts:4 names-agents",
       "probe.ts:6 exempt",
+      "probe.ts:10 unnamed",
+      "probe.ts:11 names-agents",
     ]);
   });
 

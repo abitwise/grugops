@@ -4,7 +4,8 @@
 // (ledgerJson); and whether install owns a path is answered here (owns).
 //
 // Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path,
-// ./user-file.ts and ./json-text.ts (no I/O; the strict tokenizer that refuses a duplicate key). A
+// ./user-file.ts, ./json-text.ts (no I/O; the strict tokenizer that refuses a duplicate key) and
+// ./host-tools.ts (pure data, no imports: the agent registry installedAgents maps ids against). A
 // sibling of install.js and uninstall.js inside install/, imported by BOTH binaries, so both still
 // run on a host with nothing installed. This module never writes and imports nothing from node:fs;
 // install/installer-fs-census.test.ts scans it with the rest of install/ and asserts it makes no
@@ -153,6 +154,7 @@
 
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { HOST_TOOLS } from "./host-tools.js";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
 import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo, type PathFlavor } from "./user-file.js";
 
@@ -1197,4 +1199,52 @@ export function installMarkerProblems(marker: Readonly<Record<string, unknown>>,
   if (has("kitVersion") && typeof marker.kitVersion !== "string") out.push("kitVersion is not a string");
   if (has("target") && !isAbsolutePathValue(marker.target)) out.push("target is not an absolute path");
   return out;
+}
+
+// ── THE INSTALLED SET (phase 34.1, D-03, D-04, D-05, D-07) ──────────────────────────────────────────────────────────
+//
+// THE `agents` FIELD. Since plan 34.1-06 every install records, in its marker, the agents installed in this target:
+// `agents`, a list of registry ids (host-tools.ts HOST_TOOLS), in registry order, written by install.ts writeMarker
+// between `target` and `ledger`. It is the agents installed before the run united with the agents chosen in it (D-04:
+// install only adds; naming fewer agents never removes one from the record).
+//
+// WHY A RECORDED FIELD AND NOT A DERIVATION FROM THE LEDGER (34.1-RESEARCH.md Pattern 2). `.agents/skills/grugops/
+// SKILL.md` is the entry of two registry rows (Codex CLI and Antigravity CLI, D-20), so a ledger record of that file
+// cannot say which of the two was chosen. And "installed" is never read from presence on disk (brief DC-2): a file the
+// user made, or a directory another tool made, is not an install.
+
+/** The marker field that records the agents installed in the target (D-03, D-04). */
+export const AGENTS_FIELD = "agents";
+
+/**
+ * The installed set, as one derivation answers it:
+ *   recorded  the marker records `agents`: `ids` are its members the registry knows, in registry order, and `unknown`
+ *             the others, verbatim, in their order (kept in the record, named in a note, never acted on);
+ *   none      nothing usable is recorded; install falls to detection.
+ */
+export type InstalledAgents =
+  | { readonly source: "recorded"; readonly ids: readonly string[]; readonly unknown: readonly string[] }
+  | { readonly source: "legacy"; readonly ids: readonly string[] }
+  | { readonly source: "none"; readonly ids: readonly [] };
+
+const NONE_INSTALLED: InstalledAgents = { source: "none", ids: [] };
+
+/**
+ * installedAgents: THE ONE DERIVATION of the installed set (D-03, D-05, D-07). Install's unattended selection, the
+ * uninstaller's per-agent removal and `--check`'s reach lines all ask it, and none reads the `agents` field or the
+ * ledger for this answer itself. Pure over its two reads (readInstallMarker of the target, and readLedger of that
+ * marker): no I/O here.
+ */
+export function installedAgents(marker: InstallMarkerRead, ledger: LedgerRead): InstalledAgents {
+  void ledger;
+  if (marker.state !== "ok") return NONE_INSTALLED;
+  const recorded = marker.marker[AGENTS_FIELD];
+  if (!Object.prototype.hasOwnProperty.call(marker.marker, AGENTS_FIELD) || !Array.isArray(recorded)) return NONE_INSTALLED;
+  const members = recorded.filter((v): v is string => typeof v === "string");
+  const known = new Set(HOST_TOOLS.map((h) => h.id));
+  return {
+    source: "recorded",
+    ids: HOST_TOOLS.filter((h) => members.includes(h.id)).map((h) => h.id),
+    unknown: members.filter((id) => !known.has(id)),
+  };
 }

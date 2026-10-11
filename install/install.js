@@ -76,7 +76,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, } from "./json-text.js";
@@ -119,8 +119,8 @@ let BACKUP_EDITED_KIT = false;
 // run went ahead on a directory the human did not name. Every usage error reaches the one exit below.
 let USAGE_ERROR = null;
 // D-01 (phase 34.1): the agents named by per-agent flags, as registry ids in the order given. Each flag is spelled
-// by host-tools.ts agentFlag and recognised only by hostForFlag, so there is no flag list here. The selection that
-// reads this set is plan 34.1-06; until then install writes what it wrote before.
+// by host-tools.ts agentFlag and recognised only by hostForFlag, so there is no flag list here. SELECTION (plan
+// 34.1-06, D-03) reads this set first; what install writes per agent follows SELECTION from plan 34.1-08.
 const SELECTED_BY_FLAG = new Set();
 let flagHost = null;
 const argv = process.argv.slice(2);
@@ -2818,11 +2818,18 @@ function linkOrCopy(src, dest, label) {
     report("copied(verify)", label);
     return destRead.state === "create" ? writtenFileRecord(dest, srcRead.bytes) : null;
 }
-// Derived from HOST_TOOLS (phase 34, D-11), in registry order, so the existing hosts' output is
-// byte-identical to the hand-written list this replaced. Presence only, never content (T-34-05), and
-// only target-root paths: no user-level location is consulted.
+// detectedHosts: the registry rows whose `detect` path is present in the target. Derived from HOST_TOOLS (phase 34,
+// D-11), in registry order. Presence only, never content (T-34-05), and only target-root paths: no user-level
+// location is consulted. It answers "which agents appear to be in use here", never "which are installed" (that is
+// install-marker.ts installedAgents, from the record): the unattended selection falls to it only when nothing is
+// recorded (D-03), and the banner says so.
+function detectedHosts() {
+    return HOST_TOOLS.filter((t) => existsSync(join(TARGET, ...t.detect.split("/"))));
+}
+// detectTools: the `tools detected:` banner text, from detectedHosts, so the existing hosts' output is byte-identical
+// to the hand-written list this replaced.
 function detectTools() {
-    const found = HOST_TOOLS.filter((t) => existsSync(join(TARGET, ...t.detect.split("/")))).map((t) => t.id);
+    const found = detectedHosts().map((t) => t.id);
     return found.length ? found.join(" ") : "none-detected";
 }
 // copyKit: install the read-only kit at $GRUGOPS_HOME/agent-factory (INSTALL-04, D-05), always re-copied
@@ -4424,6 +4431,8 @@ function writeMarker() {
         kitRoot: kept("kitRoot", KIT_ROOT),
         installMode: kept("installMode", INSTALL_MODE),
         target: here,
+        // D-04 (plan 34.1-06): the agents installed here after this run (AGENTS_AFTER), between target and ledger.
+        agents: [...AGENTS_AFTER],
     };
     if (previousLedger.state === "malformed") {
         marker.ledger = previousLedger.raw;
@@ -4607,10 +4616,10 @@ const SRC_NESTED_ADAPTERS = SRC_NESTED.files;
 //
 // PREVIOUS_LEDGER (plan 33.1-37 Task 4) is the same read, kept: the target's install ledger as this run found
 // it, before any change. kitDestDecision asks it (carriedKitRecord) whether an identical kit file is a carry.
-const PREVIOUS_LEDGER = (() => {
-    const m = readInstallMarker(TARGET);
-    return readLedger(m.state === "ok" ? m.marker : null);
-})();
+// PREVIOUS_MARKER_READ (plan 34.1-06) is the one read of the marker both come from: the installed set (INSTALLED_BEFORE
+// below) and the ledger are answered from the same bytes.
+const PREVIOUS_MARKER_READ = readInstallMarker(TARGET);
+const PREVIOUS_LEDGER = readLedger(PREVIOUS_MARKER_READ.state === "ok" ? PREVIOUS_MARKER_READ.marker : null);
 const START_HELD_DIRS = (() => {
     const held = new Set();
     const ledger = PREVIOUS_LEDGER;
@@ -4628,6 +4637,59 @@ const START_HELD_DIRS = (() => {
     }
     return held;
 })();
+// --- which agents this run is for (phase 34.1, D-03, D-04) ---------------------------------------------------------
+// THE CHAIN, first match wins:
+//   1. the agents named by flag (SELECTED_BY_FLAG, D-01);
+//   2. the agents installed here before this run, as the one derivation answers it (install-marker.ts
+//      installedAgents over PREVIOUS_MARKER_READ and PREVIOUS_LEDGER: recorded in the marker's `agents` field);
+//   3. the agents detected in the target (detectedHosts: each registry row's `detect` path is present);
+//   4. none of these: refuseSelection, which exits 1 before the run banner and before any write in the target or the
+//      kit home, naming every per-agent flag. An empty repository is never installed for every agent by default.
+// Computed HERE, after the read-only guards and before the --migrate branch, whose pre-steps are this run's first
+// change. Until the checkbox list (plan 34.1-12) a terminal run with no flag follows the same chain as `--yes`.
+// Each chosen agent carries the reason it was chosen; the run banner prints both (research Pitfall 7), so a
+// detection-driven choice is visible.
+const INSTALLED_BEFORE = installedAgents(PREVIOUS_MARKER_READ, PREVIOUS_LEDGER);
+// refuseSelection: THE ONE EXIT for every selection refusal (D-03; the checkbox list of plan 34.1-12 reuses it). One
+// stderr sentence, `why` followed by every per-agent flag, derived from the registry, then exit 1. Nothing has been
+// written when it runs.
+function refuseSelection(why) {
+    const flags = HOST_TOOLS.map(agentFlag);
+    process.stderr.write(`install.js: ${why} Name the agents to install for with one or more of: ${flags.join(", ")}, for example ` +
+        `\`node install/install.js --target <repo> ${flags[0]}\`.\n`);
+    process.exit(1);
+}
+const SELECTION_WHY = (() => {
+    const why = new Map();
+    if (SELECTED_BY_FLAG.size > 0) {
+        for (const h of HOST_TOOLS)
+            if (SELECTED_BY_FLAG.has(h.id))
+                why.set(h.id, "named by flag");
+        return why;
+    }
+    if (INSTALLED_BEFORE.ids.length > 0) {
+        for (const id of INSTALLED_BEFORE.ids)
+            why.set(id, `recorded in ${MARKER_REL}`);
+        return why;
+    }
+    for (const h of detectedHosts())
+        why.set(h.id, `detected: ${h.detect}`);
+    if (why.size > 0)
+        return why;
+    return refuseSelection(`no agent was named, none is recorded in ${MARKER_REL} and none was detected in the target ${TARGET}, so ` +
+        `nothing was installed.`);
+})();
+/** The agents this run installs for, in registry order (D-03). */
+const SELECTION = HOST_TOOLS.filter((h) => SELECTION_WHY.has(h.id));
+// AGENTS_AFTER (D-04): the `agents` field writeMarker records. The registry-ordered union of the agents installed
+// before this run and the agents chosen in it, followed by the recorded ids the registry does not know, verbatim:
+// install only adds, so naming fewer agents never removes one from the record, and an unknown id is kept, never
+// acted on.
+const INSTALLED_IDS_BEFORE = INSTALLED_BEFORE.ids;
+const AGENTS_AFTER = [
+    ...HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) || SELECTION.includes(h)).map((h) => h.id),
+    ...(INSTALLED_BEFORE.source === "recorded" ? INSTALLED_BEFORE.unknown : []),
+];
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
 // install run below executes it instead of building a second one (there is one render per run).
 let MIGRATE_KIT_PLAN = null;
@@ -4740,6 +4802,7 @@ console.log(`target: ${TARGET}`);
 if (DRY_RUN)
     console.log("mode:   DRY_RUN (no filesystem changes)");
 console.log(`tools detected: ${detectTools()}`);
+console.log(`agents: ${SELECTION.map((h) => `${h.name} (${SELECTION_WHY.get(h.id)})`).join(", ")}`);
 // 0. Copy the read-only kit to $GRUGOPS_HOME (atomic) — first so the seed source + VERSION exist.
 // Explicit default (retainBackup=false): the install path never retains a backup; Plans 02/03 pass
 // the mode they need (--update retains).
