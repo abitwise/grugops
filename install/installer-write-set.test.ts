@@ -57,7 +57,7 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { ISO_PLACEHOLDER, MARKER_REL, deriveWritePaths, lineNamesPath, pathText, runInstall, runUninstall } from "./installer-paths.test-support.js";
-import { dirList, fileRecords } from "./ledger.test-support.js";
+import { dirList, fileRecords, plantLegacyGemini } from "./ledger.test-support.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
 
@@ -391,8 +391,8 @@ describe("a hard link at every file path install writes or uninstall edits (red-
     const outside = join(root, "outside");
     const home = join(root, "home");
     for (const d of [target, outside, home]) mkdirSync(d);
-    // A JSON path gets a JSON object install would merge into (.gemini/settings.json,
-    // .claude/settings.json), so the refusal is asked of the merge and not of a parse failure.
+    // A JSON path gets a JSON object install would merge into (.claude/settings.json; phase 34.1 D-12 removed
+    // .gemini/settings.json from the write set), so the refusal is asked of the merge and not of a parse failure.
     for (const rel of WRITE_FILES) hardLink(target, outside, rel, rel.endsWith(".json") ? `{"outside":${JSON.stringify(rel)}}\n` : `OUTSIDE ${rel}\n`);
     const before = outsideBytes(outside);
     expect(before.size).toBe(WRITE_FILES.length);
@@ -433,6 +433,9 @@ describe("a hard link at every file path install writes or uninstall edits (red-
     for (const d of [a, b, home]) mkdirSync(d);
     const i = runInstaller(a, home, 120_000);
     expect(i.status, i.stdout).toBe(0);
+    // Phase 34.1 D-12: install no longer writes .gemini/settings.json or a gemini entry, so A holds the legacy state
+    // an earlier install left (the created file and its entry), planted by the fixture, and B a copy of that file.
+    plantLegacyGemini(a, "created");
     const marker = JSON.parse(readFileSync(join(a, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
     // B holds its own copies of exactly the files A's ledgers govern, and A's marker under a second
     // name. Not the kit skills and adapters (removed by name until plan 33.1-30) and not the two

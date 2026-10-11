@@ -41,7 +41,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MARKER_REL, REPO_ROOT, type Run, printedRel, rebindMarker, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
-import { askRecord, fileRecords, withLedger, type RawEntry } from "./ledger.test-support.js";
+import { askRecord, fileRecords, plantLegacyGemini, withLedger, type RawEntry } from "./ledger.test-support.js";
 import { PI_PROMPT_REL } from "./host-tools.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-provenance-")));
@@ -102,11 +102,15 @@ describe("the derived sets (counts pinned so a derivation that shrinks fails her
   // so `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md` entered CREATED (8 -> 10; derived list
   // adds them) and `.agents`, `.agents/skills`, `.agents/skills/grugops`, `.opencode` and `.opencode/commands`
   // entered REMOVED_DIRS (15 -> 20).
-  it("install creates 10 files in an empty target (2 pointer files, 3 whole-file host entries, AGENTS.md, 4 runnables), and the round trip removes 20 directories", () => {
+  // Re-pinned 2026-10-11 (plan 34.1-03, D-12): install no longer creates `.gemini/` (it made it for the Gemini settings
+  // file it no longer writes), so `.gemini` left REMOVED_DIRS (20 -> 19). CREATED is unchanged: the settings file was
+  // recorded by a gemini entry, never by a kit-false file entry.
+  it("install creates 10 files in an empty target (2 pointer files, 3 whole-file host entries, AGENTS.md, 4 runnables), and the round trip removes 19 directories", () => {
     expect(CREATED.length, CREATED.join(", ")).toBe(10);
     expect(CREATED.filter((r) => POINTER.has(r)).length).toBe(2);
     expect(CREATED, "the Pi prompt template is not among the files install created").toContain(PI_PROMPT_REL);
-    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(20);
+    expect(REMOVED_DIRS.length, REMOVED_DIRS.join(", ")).toBe(19);
+    expect(REMOVED_DIRS, "the round trip removed a .gemini/ install no longer creates (D-12)").not.toContain(".gemini");
     for (const rel of CREATED) expect(existsSync(abs(DERIVE.target, rel)), `${rel} survived the round trip`).toBe(false);
   });
 });
@@ -256,8 +260,10 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
       mkdirSync(abs(target, ".claude/skills/grugops-plan"), { recursive: true });
       writeFileSync(abs(target, KIT_SKILL), readFileSync(join(REPO_ROOT, ...KIT_SKILL.split("/"))));
     }
-    // Plan 33.1-29: the user's own Gemini settings, holding their own AGENTS.md entry.
+    // Plan 33.1-29: the user's own Gemini settings, holding their own AGENTS.md entry. Since phase 34.1 D-12 no
+    // install makes `.gemini/`, so the user makes the directory too.
     if (!existsSync(abs(target, ".gemini/settings.json"))) {
+      mkdirSync(abs(target, ".gemini"), { recursive: true });
       writeFileSync(abs(target, ".gemini/settings.json"), '{"context":{"fileName":["AGENTS.md"]}}\n');
     }
   }
@@ -266,6 +272,8 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
     it(`a malformed ${kind} entry: the run removes and edits nothing, keeps the marker byte for byte, and a second uninstall changes no byte of what the user re-made`, () => {
       const { target, home } = emptyTarget(`stale-${kind.replace(" ", "-")}`);
       ok(runInstall(target, home), "install");
+      // Phase 34.1 D-12: install writes no gemini entry now, so that row garbles the entry an earlier install wrote.
+      if (kind === "gemini") plantLegacyGemini(target, "created");
       let garbled = 0;
       writeMarker(
         target,
@@ -277,7 +285,7 @@ describe("R2 (DC-2): a marker uninstall keeps no longer lists what the run remov
           }
         }),
       );
-      expect(garbled, `PREMISE: the install wrote a ${kind} entry to garble`).toBe(1);
+      expect(garbled, `PREMISE: the install (or the legacy fixture) wrote a ${kind} entry to garble`).toBe(1);
       const markerBytes = readFileSync(abs(target, MARKER_REL));
 
       const preDry = snapshotTree(target);

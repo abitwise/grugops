@@ -49,7 +49,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { KINDS_BY_SCOPE, fileRecord, modeMatches, modeText, readLedger, recordedModeOf, recordMatches } from "./install-marker.js";
 import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
-import { askRecord, blockRecords, fileRecords, withLedger } from "./ledger.test-support.js";
+import { askRecord, blockRecords, fileRecords, plantLegacyGemini, withLedger } from "./ledger.test-support.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -137,15 +137,21 @@ describe("B1: `--check` FAILs on a marker that holds a malformed ledger, naming 
     expect(c.stdout).toContain("ALL CHECKS PASSED");
   });
 
-  // The kinds a default install writes into the target's ledger: the target scope but `backup`, which no
-  // install records in a target yet (plan 33.1-40). `kit` lives only in the kit-home record (plan 33.1-37).
-  const DEFAULT_INSTALL_KINDS = KINDS_BY_SCOPE.target.filter((k) => k !== "backup");
-  it("the kinds garbled below are the target scope but backup (count pinned)", () => {
-    expect([...DEFAULT_INSTALL_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules"]);
+  // The kinds garbled below: the target scope but `backup`, which no install records in a target yet (plan
+  // 33.1-40). `kit` lives only in the kit-home record (plan 33.1-37). A default install writes all of them but
+  // `gemini` (phase 34.1 D-12: install no longer writes a gemini entry); the gemini row is seeded from the legacy
+  // fixture (ledger.test-support.ts plantLegacyGemini), the entry an earlier install wrote, because --check still
+  // reads such a ledger.
+  const GARBLED_KINDS = KINDS_BY_SCOPE.target.filter((k) => k !== "backup");
+  const LEGACY_SEEDED_KINDS: readonly string[] = ["gemini"];
+  it("the kinds garbled below are the target scope but backup (count pinned); gemini is seeded from the legacy fixture", () => {
+    expect([...GARBLED_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules"]);
+    for (const k of LEGACY_SEEDED_KINDS) expect(GARBLED_KINDS, k).toContain(k);
   });
-  for (const kind of DEFAULT_INSTALL_KINDS) {
+  for (const kind of GARBLED_KINDS) {
     it(`a malformed ${kind} entry: --check exits 1 with a FAIL that names the malformed install ledger and the entry, and does not print ALL CHECKS PASSED`, () => {
       const t = installedCopy(`b1-${kind}`);
+      if (LEGACY_SEEDED_KINDS.includes(kind)) plantLegacyGemini(t, "created");
       let garbled = -1;
       writeMarker(
         t,
@@ -154,7 +160,7 @@ describe("B1: `--check` FAILs on a marker that holds a malformed ledger, naming 
           if (garbled >= 0) l[garbled].extra = "x";
         }),
       );
-      expect(garbled, `PREMISE: the base install wrote a ${kind} entry`).toBeGreaterThanOrEqual(0);
+      expect(garbled, `PREMISE: the base install (or the legacy fixture) wrote a ${kind} entry`).toBeGreaterThanOrEqual(0);
       const before = snapshotTree(t);
       const c = check(t);
       expect(c.status, c.stdout).toBe(1);
@@ -316,15 +322,18 @@ function removableFiles(m: Record<string, unknown>): string[] {
 }
 const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(markerOf(BASE)) : [];
 /**
- * 24 kit files, AGENTS.md, CLAUDE.md, the Copilot file, the Pi prompt template, 4 runnables, the Gemini
- * and Claude settings files. 33 -> 34 on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered the
+ * 24 kit files, AGENTS.md, CLAUDE.md, the Copilot file, the Pi prompt template, 4 runnables, the Claude
+ * settings file (and, until phase 34.1 D-12, the Gemini settings file). 33 -> 34 on 2026-10-06 (plan 34-04): `.pi/prompts/grugops.md` entered the
  * marker's removable set because install now writes the Pi prompt template unconditionally (D-17);
  * derived listing (the assertion message lists REMOVABLE) named it between the Copilot file and AGENTS.md.
  * 34 -> 36 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and
  * `.opencode/commands/grugops.md` entered, because install now writes every whole-file host entry on every
  * install; the derived listing names them first and beside the Copilot file.
+ * 36 -> 35 on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` left, because install no longer creates it
+ * (no gemini entry with createdFile true is written); the derived listing no longer names it. A legacy created
+ * settings file is still removed by uninstall (install/uninstall-removal.test.ts, "legacy Gemini entry (D-12)").
  */
-const REMOVABLE_COUNT = 36;
+const REMOVABLE_COUNT = 35;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a
@@ -437,6 +446,8 @@ describe("L1: a mode change or a whitespace edit is a user edit, and the file is
     ] as const) {
       it(`${rel} (created by install): ${name} is a user edit, and the file is left`, () => {
         const t = installedCopy("l1-ws");
+        // Phase 34.1 D-12: the Gemini settings file is one an earlier install created, planted with its entry.
+        if (rel === ".gemini/settings.json") plantLegacyGemini(t, "created");
         const p = at(t, rel);
         writeFileSync(p, change(readFileSync(p, "utf8")));
         const u = uninstall(t);

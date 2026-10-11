@@ -64,7 +64,7 @@ import {
 import { TREE_MAX_ENTRIES, realTargetPath } from "./user-file.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree, storedMode, userModeEdit } from "./installer-paths.test-support.js";
-import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
+import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, plantLegacyGemini, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-ledger-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -826,6 +826,9 @@ describe("a marker in the round-2 six-record shape is read as no record (fail cl
     it(`uninstall${dryRun ? " (DRY_RUN)" : ""} over a bound six-record marker changes zero bytes, exits 3 and names the remedy; a re-install replaces it with the one ledger`, () => {
       const t = makeFixture(fresh(`six-${dryRun ? "dry" : "real"}`));
       expect(install(t, ["--yes"]).status).toBe(0);
+      // Every round-2 build wrote geminiSettings; install writes no gemini entry since phase 34.1 D-12, so the entry
+      // an earlier install wrote is planted first and the six-record shape keeps all six records.
+      plantLegacyGemini(t, "created");
       const six = sixRecordShape(readMarkerObject(t));
       for (const name of RETIRED_RECORDS) expect(Object.prototype.hasOwnProperty.call(six, name), name).toBe(true);
       expect(Object.prototype.hasOwnProperty.call(six, "ledger")).toBe(false);

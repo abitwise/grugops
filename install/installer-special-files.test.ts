@@ -89,7 +89,9 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // 63 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` and `.opencode/commands/grugops.md`
 // entered (61 files and links written, plus the two read-only inputs), because install now writes every whole-file
 // host entry on every install, so a FIFO and a directory are planted at each by derivation. 61 -> 63.
-const READ_PATH_COUNT = 63;
+// 62 on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` left (60 files and links written, plus the two
+// read-only inputs), because install no longer reads, creates or edits it; nothing is planted there now. 63 -> 62.
+const READ_PATH_COUNT = 62;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

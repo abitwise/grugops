@@ -76,10 +76,10 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, GEMINI_CREATED_FILE_NAME, createdGeminiText, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
-import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
+import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
 import { HOST_TOOLS, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
@@ -535,7 +535,7 @@ let KIT_WRITTEN = false;
 let KIT_HOME_WOULD_COPY = false;
 // PLANNED_BYTES (plan 34-33, D-27 point 2): under DRY_RUN, the bytes the real run would leave at a target-relative
 // path (POSIX spelling, targetRel), recorded by each DRY_RUN branch that reports would-add, would-copy, would-link or
-// would-refresh for a route carrier or for .gemini/settings.json. A real run records nothing here: the files on disk
+// would-refresh for a route carrier. A real run records nothing here: the files on disk
 // are the state. In memory only; noteStrandingCarriers reads it, and nothing writes it to disk or to a record.
 // Declared above the doctor's early exit so no early branch can reach a setPlanned call in its temporal dead zone;
 // the doctor never reads it.
@@ -1006,7 +1006,6 @@ function wholeFileEntryRels(hosts) {
 // whole-file entry. entryLabel puts the names of the hosts that read the entry before it ("Pi prompt template").
 const ENTRY_NOUN = {
     "claude-kit": null,
-    "gemini-settings": null,
     "copilot-pointer": null,
     "pi-prompt-template": "prompt template",
     "agent-skill": "skill",
@@ -1020,166 +1019,10 @@ function entryLabel(rel) {
     const noun = rows.length > 0 ? ENTRY_NOUN[rows[0].adapter] : null;
     return `${rows.map((h) => h.name).join(" and ")} ${noun ?? "entry"}`;
 }
-// The entry Gemini CLI must find in context.fileName, compared by exact string equality.
-const GEMINI_WANT = "AGENTS.md";
-// readGeminiContext (plan 34-32, D-27 point 1): THE ONE READER of `.gemini/settings.json`'s context.fileName,
-// used by install (mergeGemini, through geminiMergePlan) and by the doctor's gemini-context-file-name gate, so
-// the two cannot disagree about what the file says. It refuses every shape mergeGemini refuses to merge (not
-// valid UTF-8 or not strict JSON, which leaves GEMINI_SEEN as it is; not a JSON object; two `context` keys or
-// two `context.fileName` keys, because which one Gemini CLI reads is not known; a `context` that is not an
-// object; a context.fileName that is neither a string nor an array of strings), with mergeGemini's own `why`
-// texts. Otherwise it answers `read`, with whether context.fileName lists AGENTS.md and the parts the splice
-// needs. Pure over its argument: no I/O.
-function readGeminiContext(bytes) {
-    const doc = readJsonText(bytes);
-    if (!doc.ok)
-        return { state: "refused", why: doc.why, seen: "keep" };
-    const root = doc.root;
-    if (root.kind !== "object")
-        return { state: "refused", why: "is not a JSON object", seen: { listed: false, fileNameContent: null } };
-    if (keyCount(root, "context") > 1) {
-        return { state: "refused", why: 'has more than one "context" key, so which one Gemini CLI reads is not known', seen: null };
-    }
-    const ctxMember = memberNamed(root, "context");
-    const ctxNode = ctxMember === null ? null : ctxMember.value;
-    if (ctxNode !== null && ctxNode.kind !== "object") {
-        return { state: "refused", why: 'has a "context" value that is not a JSON object', seen: { listed: false, fileNameContent: null } };
-    }
-    if (ctxNode !== null && keyCount(ctxNode, "fileName") > 1) {
-        return { state: "refused", why: 'has more than one "context.fileName" key, so which one Gemini CLI reads is not known', seen: null };
-    }
-    const fnMember = ctxNode === null ? null : memberNamed(ctxNode, "fileName");
-    const hasFileName = fnMember !== null;
-    const fileName = fnMember === null ? undefined : valueOf(doc.text, fnMember.value);
-    const seenContent = jsonValueRecord(fileName);
-    const isStringArray = Array.isArray(fileName) && fileName.every((x) => typeof x === "string");
-    if (hasFileName && typeof fileName !== "string" && !isStringArray) {
-        return {
-            state: "refused",
-            why: 'has a "context.fileName" value that is neither a string nor an array of strings',
-            seen: { listed: false, fileNameContent: seenContent },
-        };
-    }
-    const listed = fileName === GEMINI_WANT || (isStringArray && fileName.includes(GEMINI_WANT));
-    return { state: "read", listed, doc, root, ctxNode, fnMember, fileName, hasFileName, seenContent };
-}
-// geminiMergePlan (plan 34-32, D-27 point 1, the WR-01 lesson applied to the gate): THE ONE DECISION of what
-// install does to `.gemini/settings.json`, given the install ledger and readForWrite's answer for the file.
-// mergeGemini acts on it, and the doctor's Gemini gate names `Re-run install.js` exactly when it answers
-// `create` or `merge`, so the remedy is one install carries out. Pure: no I/O, no report.
-//   ledger malformed                       → refuse (kind ledger; the change could not be recorded)
-//   readForWrite blocked                   → refuse (kind blocked; blockedAt's wording)
-//   nothing there                          → create
-//   readGeminiContext refuses              → refuse (kind shape; the reader's why and GEMINI_SEEN update)
-//   context.fileName already lists it      → listed
-//   otherwise the splice; the sameJsonValue oracle must hold, else refuse (kind shape) → merge
-// `why` completes mergeGemini's verify line: after "<rel>: " for kind ledger and blocked (ledger: inside its own
-// sentence), after "<rel> " for kind shape.
-function geminiMergePlan(ledger, cur) {
-    if (ledger.state === "malformed")
-        return { act: "refuse", kind: "ledger", why: `${ledger.why}`, seen: "keep" };
-    if (cur.state === "blocked") {
-        return { act: "refuse", kind: "blocked", why: blockedAt(cur, join(TARGET, ...GEMINI_SETTINGS_REL.split("/"))), seen: "keep" };
-    }
-    if (cur.state === "create")
-        return { act: "create" };
-    const ctx = readGeminiContext(cur.bytes);
-    if (ctx.state === "refused")
-        return { act: "refuse", kind: "shape", why: ctx.why, seen: ctx.seen };
-    const { doc, root, ctxNode, fnMember, fileName, hasFileName, seenContent } = ctx;
-    if (ctx.listed)
-        return { act: "listed", seenContent };
-    const want = GEMINI_WANT;
-    const fileNameBefore = !hasFileName ? "absent" : typeof fileName === "string" ? "string" : "array";
-    const next = fileNameBefore === "absent" ? [want] : fileNameBefore === "string" ? [fileName, want] : [...fileName, want];
-    // THE SPLICE (red-team B3): the one change, made to the original text.
-    const newText = ctxNode === null
-        ? addMember(doc.text, root, "context", { fileName: next })
-        : fnMember === null
-            ? addMember(doc.text, ctxNode, "fileName", next)
-            : fileNameBefore === "string"
-                ? wrapInArray(doc.text, ctxNode, fnMember.value, [want])
-                : appendElements(doc.text, fnMember.value, [want]);
-    // THE ORACLE: the spliced text must hold exactly the merged value, and nothing else may differ.
-    const expected = documentValue(doc);
-    if (ctxNode === null)
-        expected.context = { fileName: next };
-    else
-        expected.context.fileName = next;
-    const check = readJsonText(Buffer.from(newText, "utf8"));
-    if (!check.ok || !sameJsonValue(documentValue(check), expected)) {
-        return {
-            act: "refuse",
-            kind: "shape",
-            why: "could not be edited in place without changing anything but context.fileName",
-            seen: { listed: false, fileNameContent: seenContent },
-        };
-    }
-    return { act: "merge", newText, fileNameBefore, createdContext: ctxNode === null, nextContent: jsonValueRecord(next), seenContent };
-}
-// geminiRemedy (plan 34-32): the remedy the doctor prints for a failed Gemini gate, from geminiMergePlan over
-// the doctor's ledger read and readForWrite (which only reads). `Re-run install.js` exactly when install would
-// create or merge; otherwise the by-hand edit, with the reason install leaves the file.
-function geminiRemedy(ledger) {
-    const plan = geminiMergePlan(ledger, readForWrite(TARGET, join(TARGET, ...GEMINI_SETTINGS_REL.split("/"))));
-    if (plan.act === "create" || plan.act === "merge")
-        return `Re-run install.js: it adds ${GEMINI_WANT} to context.fileName`;
-    const reason = plan.act === "listed"
-        ? `install read it listing ${GEMINI_WANT} already`
-        : plan.kind === "ledger"
-            ? `the install ledger in .grugops/install.json is malformed (${plan.why})`
-            : plan.kind === "blocked"
-                ? plan.why
-                : `${GEMINI_SETTINGS_REL} ${plan.why}`;
-    return `Add "${GEMINI_WANT}" to context.fileName in ${GEMINI_SETTINGS_REL} by hand (install leaves it: ${reason})`;
-}
-// ENTRY_GATE_CHECKS (plan 34-32, D-27 point 1): the check for each entry-gate kind (host-tools.ts
-// ENTRY_GATE_KINDS). Keyed by EntryGateKind, so a new kind is a compile error until it has a check here. A
-// check reads only through `readAt` (this run's cached readUserFile under TARGET) and writes nothing. Declared
-// above the doctor because it is a const (the doctor runs at the `--check` early exit, below).
-//   gemini-context-file-name: reads this repository's GEMINI_SETTINGS_REL. A readable file that parses through
-//     readGeminiContext and lists AGENTS.md → reads. Read but not listed, refused by the reader, or absent →
-//     not read. Not a readable regular file → not read, `unread` (no verdict was reached on what Gemini reads).
-//     The ledger is the check's second argument (plan 34-32 Task 2): the remedy of a failed gate is
-//     geminiRemedy over it, so `Re-run install.js` is named exactly when install would add AGENTS.md.
-const ENTRY_GATE_CHECKS = {
-    "gemini-context-file-name": (readAt, ledger) => {
-        const here = `this repository's ${GEMINI_SETTINGS_REL}`;
-        const read = readAt(GEMINI_SETTINGS_REL);
-        // The remedy is decided only when the gate fails, from the plan install acts on (geminiMergePlan).
-        const remedy = () => geminiRemedy(ledger);
-        if (read.state === "absent") {
-            return {
-                reads: false,
-                unread: false,
-                why: `this repository has no ${GEMINI_SETTINGS_REL}, so Gemini CLI reads its default context file, not ${GEMINI_WANT}`,
-                remedy: remedy(),
-            };
-        }
-        if (read.state !== "ok") {
-            return { reads: false, unread: true, why: `${here} ${unreadState(read)}, so no verdict was reached on what Gemini CLI reads`, remedy: remedy() };
-        }
-        const ctx = readGeminiContext(read.bytes);
-        if (ctx.state === "refused")
-            return { reads: false, unread: false, why: `${here} ${ctx.why}`, remedy: remedy() };
-        return ctx.listed
-            ? { reads: true, unread: false, why: `${here} lists ${GEMINI_WANT} in context.fileName`, remedy: "" }
-            : { reads: false, unread: false, why: `${here} does not list ${GEMINI_WANT} in context.fileName`, remedy: remedy() };
-    },
-};
-// hostReadsCarrier (plan 34-32, D-27 point 1): THE OWNER of "does host H read entry file (or pointer) X in this
-// target". Not one of routeCarriers(host) → no. One of them with no gate in host.entryGates → yes (the host reads
-// it whenever it is there; whether it carries the route is carrierFinding's question). Gated → the registry
-// row's gate kind decides, through ENTRY_GATE_CHECKS, and the answer is returned as `gate`. Every verdict site
-// of the doctor asks this, so the reach lines, the `(read by …)` lists and the gate lines of one run agree.
-function hostReadsCarrier(host, rel, readAt, ledger) {
-    if (!routeCarriers(host).includes(rel))
-        return { reads: false, gate: null };
-    const kind = Object.prototype.hasOwnProperty.call(host.entryGates, rel) ? host.entryGates[rel] : undefined;
-    if (kind === undefined)
-        return { reads: true, gate: null };
-    const gate = ENTRY_GATE_CHECKS[kind](readAt, ledger);
-    return { reads: gate.reads, gate };
+// hostReadsCarrier (plan 34-32; phase 34.1 D-12, D-17): whether `host` reads route carrier `rel`: `rel` is one of
+// routeCarriers(host).
+function hostReadsCarrier(host, rel) {
+    return routeCarriers(host).includes(rel);
 }
 // ownBlockSpans (plan 34-28's block rule, made one function by plan 34-29): THE ONE ANSWER to "which copies of
 // install's own block, unedited, does this file hold". owns(ledger, TARGET, rel, "block") gives the `block`
@@ -1343,9 +1186,9 @@ function adapterKitOnDisk() {
 //     not reach the Orchestrator. This is asked independently of the kit-root cross-check above: that check
 //     compares three records with each other, this one follows the record an agent reads.
 // (b) EACH CARRIER of routeCarrierSet, through classifyCarrier, over one cached read per path for the run.
-// (c) THE FACTS strandedBy and reachVia take: reads is hostReadsCarrier's answer (plan 34-32, D-27 point 1; the
-//     registry row's entryGates decide, never the entry files alone), asked once per host and carrier; holds is
-//     the `route` state; adapterReaches is a `claude-kit` host whose adapter KIT= value (`adapterKit`, the one the
+// (c) THE FACTS strandedBy and reachVia take: reads is hostReadsCarrier's answer (the one owner: a host reads every
+//     route carrier of its registry row; phase 34.1 D-12 deleted the one entry gate), asked once per host and
+//     carrier; holds is the `route` state; adapterReaches is a `claude-kit` host whose adapter KIT= value (`adapterKit`, the one the
 //     D-03 cross-check read) names a real kit (kitReal), whatever that cross-check concluded about the other two
 //     sources (inside a Claude Code session the adapter resolves the kit, Phase 7 D-12).
 // (d) ONE LINE PER CARRIER: `route` → ok. Otherwise, when strandedBy names hosts, the counted line (FAIL for
@@ -1355,15 +1198,12 @@ function adapterKitOnDisk() {
 //     D-27 point 3, WR-01): `Re-run install.js` is named for a present carrier only when refreshable answers ok, the
 //     predicate install's refresh asks; otherwise the line carries refreshable's reason and the by-hand remedy (add
 //     KIT_ROUTE after the start-here sentence, in the file the link points to when the carrier is a link).
-// (e) THE GATE LINES: for every carrier a host reads only under a gate (HostTool.entryGates), `ok` when the gate
-//     passed; a counted WARN, with the gate's remedy, when it failed and the host has no other carrier holding the
-//     route and no adapter route; an uncounted `note` when it failed and the host has the route another way.
-// (f) ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`: the host reaches
+// (e) ONE `reach` LINE PER HOST_TOOLS ROW, in registry order, under the uncounted label `reach`: the host reaches
 //     when the route resolved (a) and reachVia names a carrier, or when its adapter reaches; the line names the
 //     carriers and the adapter that gave the route, or, when the host cannot reach, each carrier's state and the
-//     route's. So a host that cannot reach always has a counted finding behind it: the route FAIL of (a), the
-//     carrier lines of (d) (every carrier it reads lacks the route and nothing else gives it one), or a gate WARN
-//     of (e); and a counted kit-route finding always has a host that cannot reach behind it.
+//     route's. So a host that cannot reach always has a counted finding behind it: the route FAIL of (a), or the
+//     carrier lines of (d) (every carrier it reads lacks the route and nothing else gives it one); and a counted
+//     kit-route finding always has a host that cannot reach behind it.
 //     The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
 //     host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
 // It writes nothing. Ownership comes from owns over the ledger the doctor reads, and refresh from refreshable over
@@ -1392,7 +1232,7 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
                 `follows the route cannot reach the Orchestrator. Re-run install.js (then install.js --check)`);
         }
     }
-    // (b) One read per path for the whole run (plan 34-32): every carrier line, gate line and reach line of this run
+    // (b) One read per path for the whole run (plan 34-32): every carrier line and reach line of this run
     // states what the same read found.
     const cache = new Map();
     const readAt = (rel) => {
@@ -1407,17 +1247,17 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
     const classes = new Map();
     for (const rel of rels)
         classes.set(rel, classifyCarrier(rel, ledger, readAt));
-    // (c) hostReadsCarrier, asked once per host and carrier (a failed gate's remedy reads the settings file).
+    // (c) hostReadsCarrier, asked once per host and carrier.
     const answers = new Map();
     for (const host of HOST_TOOLS) {
         const mine = new Map();
         for (const rel of rels)
-            mine.set(rel, hostReadsCarrier(host, rel, readAt, ledger));
+            mine.set(rel, hostReadsCarrier(host, rel));
         answers.set(host.id, mine);
     }
     const adapterReal = kitReal(adapterKit);
     const facts = {
-        reads: (h, rel) => answers.get(h.id)?.get(rel)?.reads === true,
+        reads: (h, rel) => answers.get(h.id)?.get(rel) === true,
         holds: (rel) => classes.get(rel)?.state === "route",
         adapterReaches: (h) => h.adapter === "claude-kit" && adapterReal,
     };
@@ -1483,31 +1323,16 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit) {
                 `and install leaves it as it is. ${remedy}`);
         }
     }
-    // (e) and (f): the gate lines and the reach line, per host.
+    // (e): the reach line, per host.
     for (const host of HOST_TOOLS) {
-        const mine = answers.get(host.id);
-        const asked = rels.map((rel) => ({ rel, ...mine.get(rel) })).filter((a) => a.reads || a.gate !== null);
+        const read = rels.filter((rel) => facts.reads(host, rel));
         const v = reachVia(host, facts);
-        const through = hasRouteThrough(host);
-        for (const a of asked) {
-            if (a.gate === null)
-                continue;
-            if (a.gate.reads) {
-                docReport("ok", `kit route: ${host.name} reads ${a.rel} here: ${a.gate.why}`);
-                continue;
-            }
-            const head = a.gate.unread ? `kit route: ${host.name} is not counted as reading ${a.rel} here` : `kit route: ${host.name} does not read ${a.rel} here`;
-            if (through !== null)
-                docReport("note", `${head}: ${a.gate.why}; it has the kit route another way (through ${through})`);
-            else
-                docWarn(`${head}: ${a.gate.why}. ${a.rel} then gives ${host.name} no route to the Orchestrator. ${a.gate.remedy}`);
-        }
         const via = routeResolves ? v.carriers : [];
         if (via.length > 0 || v.adapter) {
             docReport("reach", `${host.name}: reaches the Orchestrator through ${[...via, ...(v.adapter ? [adapterText] : [])].join(", ")}`);
             continue;
         }
-        const why = asked.map((a) => a.reads ? `${a.rel} ${CARRIER_STATE_TEXT[classes.get(a.rel)?.state ?? "unread"]}` : `${a.rel} is not read by ${host.name} here (${a.gate?.why ?? "it is not one of its files"})`);
+        const why = read.map((rel) => `${rel} ${CARRIER_STATE_TEXT[classes.get(rel)?.state ?? "unread"]}`);
         if (!routeResolves)
             why.push("the kit route does not lead to a readable roles/orchestrator.md");
         if (host.adapter === "claude-kit")
@@ -2843,7 +2668,7 @@ function adapterRouteAfterRun() {
 // (host-tools.ts), the one derivation of the hosts a carrier leaves without a route, which the doctor asks too, over
 // the state this run leaves: each path is read from PLANNED_BYTES first (under DRY_RUN, what the real run would
 // write there), else through readUserFile under TARGET. Its facts:
-//   reads(h, rel)       = hostReadsCarrier over that after-run read and PREVIOUS_LEDGER (the 34-32 gate included);
+//   reads(h, rel)       = hostReadsCarrier (the one owner: `rel` is one of the host's routeCarriers);
 //   holds(rel)          = an ok read whose whole text carriesKitRoute;
 //   adapterReaches(h)   = a `claude-kit` host while adapterRouteAfterRun.
 // For each carrier of routeCarrierSet that does not hold and whose strandedBy names hosts, one `note` names the file
@@ -2852,8 +2677,6 @@ function adapterRouteAfterRun() {
 // to the line above about it for the remedy. Before plan 34-33 the note named every host reading the file (for
 // AGENTS.md, the hosts whose only carrier it was), including hosts another carrier or Claude Code's adapters gave the
 // route (WR-02).
-// The Gemini gate needs no note here: when this run leaves .gemini/settings.json not listing AGENTS.md, mergeGemini
-// has already printed a counted verify naming it.
 // It READS AND REPORTS ONLY: it writes nothing and records nothing, so an interrupted or concurrent install cannot
 // leave a record derived from a note.
 function noteStrandingCarriers() {
@@ -2871,7 +2694,7 @@ function noteStrandingCarriers() {
     const reads = new Map();
     for (const h of HOST_TOOLS)
         for (const rel of rels)
-            reads.set(`${h.id}\0${rel}`, hostReadsCarrier(h, rel, afterReadAt, PREVIOUS_LEDGER).reads);
+            reads.set(`${h.id}\0${rel}`, hostReadsCarrier(h, rel));
     const adapterAfter = adapterRouteAfterRun();
     const facts = {
         reads: (h, rel) => reads.get(`${h.id}\0${rel}`) === true,
@@ -2973,123 +2796,6 @@ function linkOrCopy(src, dest, label) {
         return null;
     report("copied(verify)", label);
     return destRead.state === "create" ? writtenFileRecord(dest, srcRead.bytes) : null;
-}
-// GEMINI_RECORD (plan 33.1-29, Gap B / re-review CR-03, D-18): what THIS run did to
-// .gemini/settings.json, as the gemini entry of the install ledger (install-marker.ts states the shape), or null
-// when this run changed nothing there. mergeGemini sets it after a successful create or append, and
-// writeMarker() records it: the most recent change is the one uninstall must reverse.
-let GEMINI_RECORD = null;
-// GEMINI_SEEN (plan 33.1-29; red-team B2): what THIS run learned from the settings file when it
-// changed nothing there. null: it read nothing usable (a blocked path, bytes that are not UTF-8 or not
-// JSON, a duplicate key on the path), or it never reached the file (an unreadable marker, a malformed
-// ledger) — the run has no evidence either way, and writeMarker() writes the earlier record back
-// verbatim. Otherwise the file was read: `listed` says context.fileName already named AGENTS.md,
-// `fileNameContent` is jsonValueRecord(context.fileName) (null when there is none), and `refused` says
-// this run refused to merge (a shape it cannot merge, or a failed write). writeMarker() carries an
-// earlier record forward only when this equals the fileName that record describes (the carry needs
-// proof); otherwise it records a claim of nothing, with the reason.
-let GEMINI_SEEN = null;
-// merge_gemini: additive edit of .gemini/settings.json context.fileName. Never `>`-clobbers a user's
-// file, and never rewrites it either (red-team B3 of plan 33.1-29): json-text.ts splices only the
-// fileName value into the original text, so every other byte of the user's file stays as it was.
-//
-// RECORDED, AND ONLY WHERE IT CAN BE RECORDED (plan 33.1-29, Gap B / re-review CR-03, D-18). What this
-// run does to the file is recorded as GEMINI_RECORD (created it, or appended "AGENTS.md" and the shape
-// it found), so uninstall can reverse exactly that. So the ledger is asked first: an unreadable marker
-// or a malformed install ledger means the change could not be recorded, and nothing is merged
-// (a counted verify says so).
-//
-// ONLY A SHAPE IT CAN MERGE AND REVERSE (CR-03 point 3, install side). A file that is not valid UTF-8,
-// is not strict JSON (comments, a trailing comma), is not a JSON object, has a duplicate `context` key
-// or a duplicate context.fileName key, has a `context` that is not a JSON object, or has a
-// context.fileName that is neither a string nor an array of strings is a COUNTED verify and is left
-// untouched. The spliced text is parsed again and must hold exactly the value the merge intends
-// (sameJsonValue); anything else is refused too, so a defect in the splice cannot write a wrong file.
-function mergeGemini() {
-    const file = join(TARGET, ".gemini", "settings.json");
-    const rel = ".gemini/settings.json";
-    const byHand = "add AGENTS.md to context.fileName by hand if you want Gemini CLI to read it";
-    const previousMarker = readInstallMarker(TARGET);
-    if (previousMarker.state === "unreadable") {
-        verify(`${rel}: .grugops/install.json ${markerUnusableText(previousMarker)}, so the Gemini ` +
-            `settings ledger cannot be updated; AGENTS.md was not added — ${byHand}.`);
-        return;
-    }
-    const previousLedger = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
-    // DC-3 / D-18 (plan 33.1-26): read before any write. A settings file that is not a readable
-    // regular file within the bound is left untouched and reported. Red-team of plan 33.1-26: asked
-    // through readForWrite, so a link at the path (dangling or not) or a non-directory where .gemini/
-    // should be is refused the same way, and a new file is made with an exclusive create.
-    // Plan 34-32: the decision is geminiMergePlan's (pure), the one the doctor's remedy reads too; this function
-    // acts on it, with every line, record and byte as before.
-    const plan = geminiMergePlan(previousLedger, readForWrite(TARGET, file));
-    if (plan.act === "refuse") {
-        if (plan.kind === "ledger") {
-            verify(`${rel}: the install ledger in .grugops/install.json is malformed (${plan.why}), so it cannot be ` +
-                `updated and is written back unchanged; AGENTS.md was not added — ${byHand}. Fix the ledger field, ` +
-                `then re-run the installer.`);
-        }
-        else if (plan.kind === "blocked") {
-            verify(`${rel}: ${plan.why} — left untouched; ${byHand}.`);
-        }
-        else {
-            verify(`${rel} ${plan.why} — left untouched; ${byHand}.`);
-        }
-        if (plan.seen !== "keep")
-            GEMINI_SEEN = plan.seen === null ? null : { ...plan.seen, refused: true };
-        return;
-    }
-    if (plan.act === "create") {
-        if (DRY_RUN) {
-            setPlanned(file, createdGeminiText());
-            report("would-add", `${rel} (context.fileName: [AGENTS.md, GEMINI.md])`);
-            return;
-        }
-        // The one created text (install-marker.ts createdGeminiText), which uninstall compares with.
-        const fileName = [...GEMINI_CREATED_FILE_NAME];
-        const text = createdGeminiText();
-        if (!writeTargetFile(file, text, "create", rel)) {
-            GEMINI_SEEN = { listed: false, fileNameContent: null, refused: true };
-            return;
-        }
-        // Plan 33.1-29: readForWrite said nothing was there and the exclusive create succeeded, so this
-        // run created the file. Uninstall deletes it whole only on this record, and only while it holds
-        // these bytes.
-        GEMINI_RECORD = {
-            createdFile: true,
-            addedEntry: true,
-            createdContext: true,
-            fileNameBefore: "absent",
-            fileNameContent: jsonValueRecord(fileName),
-            fileContent: writtenFileRecord(file, text),
-        };
-        report("created", `${rel} (context.fileName wiring)`);
-        return;
-    }
-    if (plan.act === "listed") {
-        // Plan 33.1-29: this run changed nothing; what it saw is what writeMarker() needs to decide whether
-        // an earlier record still describes the file (the carry needs proof).
-        GEMINI_SEEN = { listed: true, fileNameContent: plan.seenContent, refused: false };
-        report("skipped", `${rel} (context.fileName already lists AGENTS.md)`);
-        return;
-    }
-    if (DRY_RUN) {
-        setPlanned(file, plan.newText);
-        report("would-add", `${rel} (merge AGENTS.md into context.fileName)`);
-        return;
-    }
-    if (!writeTargetFile(file, plan.newText, "ok", rel)) {
-        GEMINI_SEEN = { listed: false, fileNameContent: plan.seenContent, refused: true };
-        return;
-    }
-    GEMINI_RECORD = {
-        createdFile: false,
-        addedEntry: true,
-        createdContext: plan.createdContext,
-        fileNameBefore: plan.fileNameBefore,
-        fileNameContent: plan.nextContent,
-    };
-    report("created", `${rel} (merged AGENTS.md into context.fileName)`);
 }
 // Derived from HOST_TOOLS (phase 34, D-11), in registry order, so the existing hosts' output is
 // byte-identical to the hand-written list this replaced. Presence only, never content (T-34-05), and
@@ -4558,7 +4264,7 @@ function materializeRunnable() {
 //     them (install appends only where no grugops block was, so an earlier entry for the same file
 //     names a block that is gone). Entries are never added or dropped because of what is in a file
 //     now: uninstall checks each record against the file before it removes anything.
-//   gemini (plan 33.1-29): see the rules at the gemini entry below.
+//   gemini (plan 33.1-29; phase 34.1 D-12): an earlier install's entry, carried verbatim; see the gemini entry below.
 //   ask-rules (D-18): ASK_LEDGER, as writeAskRules() computed it.
 //   backup (plan 33.1-40): the backups this run made (BACKUPS), united with the previous ledger's backup
 //     entries whose path still holds something (carriedBackups), each with the content record taken when
@@ -4603,8 +4309,8 @@ function materializeRunnable() {
 //               the user's file);
 //   unreadable  not a readable JSON object, or a JSON object that is not install's marker (a user's
 //               `{"mine":1}`, `{}`, or one that mixes the one ledger with a retired record): it is never
-//               written over. It is left byte for byte, and mergeGemini() and writeAskRules() have each
-//               counted a verify for it (exit 3). It used to be replaced, every key lost, and reported
+//               written over. It is left byte for byte, and writeAskRules() has counted a verify for
+//               it (exit 3). It used to be replaced, every key lost, and reported
 //               `created`.
 function writeMarker() {
     const markerRel = ".grugops/install.json";
@@ -4752,52 +4458,15 @@ function nextLedgerEntries(previous) {
         blocks.set(path, record);
     for (const [path, b] of blocks)
         out.push({ path, kind: "block", block: b.block, separator: b.separator });
-    // gemini (plan 33.1-29, Gap B / re-review CR-03; red-team B2). The entry always describes the most
-    // recent install that changed the file: this run's record when it created the file or appended the
-    // entry. When this run changed nothing:
-    //   - it read nothing usable (GEMINI_SEEN null: a blocked path, not UTF-8, not JSON, a duplicate key
-    //     on the path): it has no evidence either way, so an earlier entry is written back VERBATIM and a
-    //     note says so. That is not a carry by presence: nothing was learned that could prove or disprove
-    //     the record. A fresh install records that it added no entry ("refused");
-    //   - it read the file: an earlier entry is carried forward only while context.fileName is exactly the
-    //     one that entry describes (the carry needs proof); otherwise the entry claims nothing, with the
-    //     reason ("reset" when an earlier claim of an entry no longer holds, "already-listed" when this run
-    //     found AGENTS.md listed, "refused" when it refused to merge).
-    // A previous ledger with no gemini entry gets one only when this run acted, or on a fresh marker.
-    const freshMarker = previous.state === "absent";
-    const claimsNothing = (noEntryReason, fileNameContent) => ({
-        createdFile: false,
-        addedEntry: false,
-        noEntryReason,
-        fileNameContent,
-    });
-    const prevGemini = entryAt(previous, GEMINI_SETTINGS_REL, "gemini") ?? null;
-    let gemini = null;
-    if (GEMINI_RECORD !== null) {
-        gemini = GEMINI_RECORD;
-    }
-    else if (GEMINI_SEEN === null) {
-        if (prevGemini !== null) {
-            gemini = prevGemini;
-            report("note", ".gemini/settings.json: this run could not read the file, so it has no evidence about the earlier " +
-                "install's gemini entry in the install ledger, which was written back as it was");
-        }
-        else if (freshMarker) {
-            gemini = claimsNothing("refused", null);
-        }
-    }
-    else if (prevGemini !== null) {
-        const seen = GEMINI_SEEN;
-        const proven = seen.fileNameContent !== null && seen.fileNameContent === prevGemini.fileNameContent;
-        gemini = proven
-            ? prevGemini
-            : claimsNothing(prevGemini.addedEntry ? "reset" : seen.listed ? "already-listed" : seen.refused ? "refused" : "reset", seen.fileNameContent);
-    }
-    else if (freshMarker) {
-        gemini = claimsNothing(GEMINI_SEEN.listed ? "already-listed" : "refused", GEMINI_SEEN.fileNameContent);
-    }
-    if (gemini !== null)
-        out.push(geminiEntry(gemini));
+    // gemini (plan 33.1-29; phase 34.1 D-12). Install no longer reads or writes .gemini/settings.json, so this run
+    // learned nothing about the file and changed nothing in it. An earlier install's gemini entry (a created file or an
+    // appended AGENTS.md entry) is therefore carried VERBATIM, field for field: that is not a carry by presence, because
+    // no read here could prove or disprove the record, and only uninstall acts on it (it edits or deletes the file only
+    // while the file still holds what the entry records, uninstall.ts unmergeGemini). A ledger with no gemini entry,
+    // and a fresh marker, get none.
+    const prevGemini = entryAt(previous, GEMINI_SETTINGS_REL, "gemini");
+    if (prevGemini !== undefined)
+        out.push(geminiEntry(prevGemini));
     // ask-rules (D-18): what writeAskRules() computed (null: no entry).
     if (ASK_LEDGER !== null)
         out.push(askRulesEntry(ASK_LEDGER));
@@ -5479,7 +5148,8 @@ for (const rel of SRC_NESTED_ADAPTERS) {
     }
 }
 ensureBlock(PREVIOUS_LEDGER, join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
-mergeGemini();
+// Phase 34.1, D-12: install no longer reads, creates or edits .gemini/settings.json (Gemini CLI is discontinued). An
+// earlier install's gemini ledger entry is carried verbatim by nextLedgerEntries, and only uninstall acts on it.
 ensureBlock(PREVIOUS_LEDGER, join(TARGET, COPILOT_REL), COPILOT_OPEN, COPILOT_PTR, COPILOT_CLOSE, `${COPILOT_REL} (optional Copilot pointer)`);
 // Every whole-file entry (phase 34.1, plan 34.1-01): the derived set, in registry order.
 for (const rel of wholeFileEntryRels(HOST_TOOLS))
@@ -5773,8 +5443,8 @@ function writeAskRules() {
     }
     // THE SPLICE (red-team B3): a new file is install's own and written whole; an existing one gets the
     // rules added to its permissions.ask list (or the one member install adds) and nothing else. The splice
-    // and its oracle are decided BEFORE the DRY_RUN return (plan 33.1-39, review IN-02), as mergeGemini and
-    // uninstall's removeAskRules do, so a preview reaches the real run's answer: a splice that fails the oracle
+    // and its oracle are decided BEFORE the DRY_RUN return (plan 33.1-39, review IN-02), as uninstall's
+    // removeAskRules does, so a preview reaches the real run's answer: a splice that fails the oracle
     // is the same verify in both, and the preview still writes nothing.
     let newText;
     if (doc === null || !doc.ok) {

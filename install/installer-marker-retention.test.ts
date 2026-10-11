@@ -29,7 +29,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MARKER_REL, type Run, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
-import { ledgerOf, readMarkerObject, type RawEntry } from "./ledger.test-support.js";
+import { ledgerOf, plantLegacyGemini, readMarkerObject, type RawEntry } from "./ledger.test-support.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-marker-retention-")));
 const CHMOD_DIRS: string[] = [];
@@ -266,9 +266,19 @@ describe("WR-02: an uninstall that could not finish keeps the marker, and a re-r
 // createdFile true; the whole list is install's, not only its AGENTS.md element. While context.fileName is
 // still exactly the recorded list, uninstall removes `fileName`, and `context` when nothing else is in it,
 // keeping every other key and its bytes. A changed list is left byte for byte.
+// Phase 34.1 D-12: install no longer creates the file, so each case below starts from the state an earlier install
+// left (the created file and its gemini entry), planted by ledger.test-support.ts plantLegacyGemini.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 const GEM = ".gemini/settings.json";
+
+/** A fresh install, then the legacy created Gemini settings file and its gemini entry (D-12). */
+function installedWithLegacyGemini(tag: string): World {
+  const w = installed(tag);
+  expect(present(at(w.t, ".gemini")), "PREMISE: install created no .gemini/ (D-12)").toBe(false);
+  plantLegacyGemini(w.t, "created");
+  return w;
+}
 
 /** Insert `member` as the first member of the top-level object of the JSON text at `p` (the user's own spacing kept). */
 function addTopMember(p: string, member: string): void {
@@ -279,7 +289,7 @@ function addTopMember(p: string, member: string): void {
 
 describe("WR-03: a Gemini settings file install created is reversed whole (plan 33.1-39)", () => {
   it("the user adds \"theme\": the file parses to exactly { theme: \"dark\" }, the user's member keeps its bytes, the line names what was removed, and the preview agrees", () => {
-    const w = installed("gem-theme");
+    const w = installedWithLegacyGemini("gem-theme");
     const p = at(w.t, GEM);
     const userMember = '"theme":   "dark"';
     addTopMember(p, userMember);
@@ -303,7 +313,7 @@ describe("WR-03: a Gemini settings file install created is reversed whole (plan 
   }, 300_000);
 
   it("the user adds \"model\" inside context: fileName is removed whole and context is kept with model", () => {
-    const w = installed("gem-model");
+    const w = installedWithLegacyGemini("gem-model");
     const p = at(w.t, GEM);
     const text = readFileSync(p, "utf8");
     const ctx = text.indexOf("{", text.indexOf('"context"'));
@@ -315,7 +325,7 @@ describe("WR-03: a Gemini settings file install created is reversed whole (plan 
   }, 300_000);
 
   it("the user changes the list: the record no longer holds, so the file is left byte for byte, named, and the marker is kept", () => {
-    const w = installed("gem-list");
+    const w = installedWithLegacyGemini("gem-list");
     const p = at(w.t, GEM);
     const o = JSON.parse(readFileSync(p, "utf8")) as { context: { fileName: string[] } };
     o.context.fileName = [...o.context.fileName, "CONTEXT.md"];
@@ -331,7 +341,7 @@ describe("WR-03: a Gemini settings file install created is reversed whole (plan 
   }, 300_000);
 
   it("the file install created, unchanged: it is removed whole (unchanged behaviour)", () => {
-    const w = installed("gem-unchanged");
+    const w = installedWithLegacyGemini("gem-unchanged");
     const r = uninstall(w);
     expect(r.status, r.stdout).toBe(0);
     expect(present(at(w.t, GEM))).toBe(false);
@@ -341,7 +351,7 @@ describe("WR-03: a Gemini settings file install created is reversed whole (plan 
   it.skipIf(CHMOD_SKIP !== null)(
     "the file install created, only chmod'ed by the user: what install wrote is taken out and the file is kept with the user's mode (red-team L1 of plan 33.1-34)",
     () => {
-      const w = installed("gem-chmod");
+      const w = installedWithLegacyGemini("gem-chmod");
       const p = at(w.t, GEM);
       chmodSync(p, 0o600); // mode-census: row-315
       const r = uninstall(w);
@@ -360,7 +370,7 @@ describe("WR-03: a Gemini settings file install created is reversed whole (plan 
   );
 
   it("the file install created, with an extra final newline (a whitespace edit): what install wrote is taken out and the file is kept", () => {
-    const w = installed("gem-ws");
+    const w = installedWithLegacyGemini("gem-ws");
     const p = at(w.t, GEM);
     writeFileSync(p, `${readFileSync(p, "utf8")}\n`);
     const r = uninstall(w);

@@ -254,7 +254,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:writeTargetFile:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707; plan 34-28's block refresh, in the sentinel-present arm, reports would-refresh and returns under `if (DRY_RUN)` before its how-`ok` call, which it reaches only after refreshable (plan 34-34, the one predicate the doctor asks too) answers ok over ensureBlock's own read: a regular file holding the open sentinel and exactly one span matching the previous ledger's block record), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), mergeGemini (:1937, call :1943; :1994, call :1998; plan 33.1-29 asks the gemini entry of the install ledger and the file's shape before either), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512), rewriteLedger (plan 33.1-40: :1861, call :1886; reached from prune and from an already-migrated --migrate), writeWholeFileEntry (plan 34.1-01, which replaced plan 34-04's writePiPromptTemplate and kept its arms, for every whole-file host entry: its `if (DRY_RUN)` reports would-add and returns before its exclusive-create call; an absent or unread kit source, a blocked path or an occupied path returns before that), refreshOwnFile (plan 34-28, D-26 point 2: reached from writeWholeFileEntry's and the AGENTS.md step's occupied-path arms; it writes with how `ok` only after refreshable (plan 34-34, the same gates, now named once) answers ok, that is, owns says the previous ledger's `sha256:` file record still holds, readForWrite says a regular file and the kit's current text could be read, and only when the bytes differ; its `if (DRY_RUN)` reports would-refresh and returns before that call). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26",
+    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707; plan 34-28's block refresh, in the sentinel-present arm, reports would-refresh and returns under `if (DRY_RUN)` before its how-`ok` call, which it reaches only after refreshable (plan 34-34, the one predicate the doctor asks too) answers ok over ensureBlock's own read: a regular file holding the open sentinel and exactly one span matching the previous ledger's block record), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512), rewriteLedger (plan 33.1-40: :1861, call :1886; reached from prune and from an already-migrated --migrate), writeWholeFileEntry (plan 34.1-01, which replaced plan 34-04's writePiPromptTemplate and kept its arms, for every whole-file host entry: its `if (DRY_RUN)` reports would-add and returns before its exclusive-create call; an absent or unread kit source, a blocked path or an occupied path returns before that), refreshOwnFile (plan 34-28, D-26 point 2: reached from writeWholeFileEntry's and the AGENTS.md step's occupied-path arms; it writes with how `ok` only after refreshable (plan 34-34, the same gates, now named once) answers ok, that is, owns says the previous ledger's `sha256:` file record still holds, readForWrite says a regular file and the kit's current text could be read, and only when the bytes differ; its `if (DRY_RUN)` reports would-refresh and returns before that call). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26. Phase 34.1 D-12 (plan 34.1-03) deleted the caller mergeGemini with the Gemini merge; uninstall's unmergeGemini rows below are kept",
   },
   {
     site: "install.ts:rewriteLedger:writeFileSync",
@@ -1592,5 +1592,81 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
       }
       console.log(`installer fs census: known exception, carry ${e.carry}: ${e.where.join(", ")} — ${e.reason}`);
     }
+  });
+});
+
+// ── D-12: THE DELETED INSTALL-SIDE GEMINI WIRING STAYS DELETED (phase 34.1, plan 34.1-03; D-17 IN-14) ──────────────
+//
+// Install no longer reads, creates or edits `.gemini/settings.json`, and the registry no longer has entry gates. Every
+// identifier the deletion removed (34.1-RESEARCH.md Pattern 8's Delete list, plus hostsReading, ENTRY_GATE_KINDS and
+// the HostTool field entryGates) is named here, and none may be declared or referenced in install/install.ts,
+// install/host-tools.ts or their committed .js twins. The scan walks the syntax tree's identifiers (comments are not
+// nodes, so a comment that tells the history is not a hit). The two deleted kind names, `gemini-settings` (the adapter
+// kind) and `gemini-context-file-name` (the entry-gate kind), are held the same way as string literals. The uninstall
+// reversal (unmergeGemini, reverseGemini) and install-marker.ts's gemini grammar are kept and are not on the list.
+const D12_DELETED_IDENTIFIERS: readonly string[] = [
+  "GEMINI_WANT",
+  "readGeminiContext",
+  "GeminiContextRead",
+  "GeminiSeenUpdate",
+  "geminiMergePlan",
+  "GeminiMergePlan",
+  "geminiRemedy",
+  "ENTRY_GATE_CHECKS",
+  "EntryGateAnswer",
+  "mergeGemini",
+  "GEMINI_SEEN",
+  "GEMINI_RECORD",
+  "ENTRY_GATE_KINDS",
+  "EntryGateKind",
+  "entryGates",
+  "hostsReading",
+];
+const D12_DELETED_STRINGS: readonly string[] = ["gemini-settings", "gemini-context-file-name"];
+const D12_SCANNED: readonly string[] = ["install.ts", "install.js", "host-tools.ts", "host-tools.js"];
+
+/** Every identifier and string literal of `text` that names a D-12 deleted name, as `<name> (<kind>)`. */
+function d12Hits(fileName: string, text: string): { readonly hits: string[]; readonly identifiers: number } {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, fileName.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.JS);
+  const names = new Set(D12_DELETED_IDENTIFIERS);
+  const strings = new Set(D12_DELETED_STRINGS);
+  const hits: string[] = [];
+  let identifiers = 0;
+  const visit = (n: ts.Node): void => {
+    if (ts.isIdentifier(n) || ts.isPrivateIdentifier(n)) {
+      identifiers += 1;
+      if (names.has(n.text)) hits.push(`${n.text} (identifier)`);
+    } else if (ts.isStringLiteralLike(n) && strings.has(n.text)) {
+      hits.push(`"${n.text}" (string)`);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return { hits, identifiers };
+}
+
+describe("installer fs census — D-12: the install-side Gemini wiring is deleted and stays deleted (plan 34.1-03)", () => {
+  it(`none of the ${D12_DELETED_IDENTIFIERS.length} deleted identifiers and ${D12_DELETED_STRINGS.length} deleted kind names is declared or referenced in ${D12_SCANNED.join(", ")}`, () => {
+    expect(D12_DELETED_IDENTIFIERS.length).toBe(16);
+    expect(new Set(D12_DELETED_IDENTIFIERS).size, "a name is listed twice").toBe(D12_DELETED_IDENTIFIERS.length);
+    const found: Record<string, string[]> = {};
+    for (const f of D12_SCANNED) {
+      const { hits, identifiers } = d12Hits(f, readFileSync(join(INSTALL_DIR, f), "utf8"));
+      // Vacuity floor: the parse saw the module (every scanned file has far more than a hundred identifiers).
+      expect(identifiers, `${f}: the scan saw almost no identifiers`).toBeGreaterThan(100);
+      if (hits.length > 0) found[f] = hits;
+    }
+    expect(found).toEqual({});
+  });
+
+  it("the scan finds a deleted name when one is there, as a declaration, a reference, a property and a kind string (mutation proof), and ignores it in a comment", () => {
+    const probe = [
+      "// mergeGemini, hostsReading and \"gemini-settings\" in a comment are history, not code",
+      "function mergeGemini(): void {}",
+      "mergeGemini();",
+      "const row = { entryGates: {} };",
+      'const k = "gemini-context-file-name";',
+    ].join("\n");
+    expect(d12Hits("probe.ts", probe).hits.sort()).toEqual(['"gemini-context-file-name" (string)', "entryGates (identifier)", "mergeGemini (identifier)", "mergeGemini (identifier)"].sort());
   });
 });

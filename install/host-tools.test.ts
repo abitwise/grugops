@@ -22,7 +22,6 @@ import {
   HOST_TOOLS,
   HOST_TOOL_COUNT,
   HOST_ADAPTER_KINDS,
-  ENTRY_GATE_KINDS,
   PI_PROMPT_REL,
   AGENT_SKILL_REL,
   OPENCODE_COMMAND_REL,
@@ -32,13 +31,12 @@ import {
   carriesKitRoute,
   ROUTE_POINTERS,
   routeCarriers,
-  hostsReading,
   reachVia,
   strandedBy,
   type HostTool,
   type RouteFacts,
 } from "./host-tools.js";
-import { BLOCK_RELS, GEMINI_SETTINGS_REL } from "./install-marker.js";
+import { BLOCK_RELS } from "./install-marker.js";
 import { ENTRY_SHAPES } from "../scripts/generate-host-entries.js";
 import { runInstall } from "./installer-paths.test-support.js";
 
@@ -546,15 +544,13 @@ describe("the install guide states the kit route for Pi (plan 34-30, D-26)", () 
     }
   });
 
-  // Plan 34-36 (D-27, DOC-1 for points 1 and 2): the section states the Gemini entry gate (install.ts
-  // ENTRY_GATE_CHECKS, hostReadsCarrier: Gemini CLI reads AGENTS.md only when this repository's settings file
-  // lists it in context.fileName) and the counting rule (strandedBy: a carrier that leaves no host without a
-  // route is an uncounted `note`). The settings path is read from GEMINI_SETTINGS_REL, the constant install and
-  // the doctor both read, so a move of the file moves this case with it. Every 34-30 token is kept.
-  it("the kit-route section names the Gemini settings file and context.fileName, and the uncounted `note` (plan 34-36, D-27)", () => {
+  // Plan 34-36 (D-27, DOC-1 for point 2): the section states the counting rule (strandedBy: a carrier that leaves
+  // no host without a route is an uncounted `note`). Every 34-30 token is kept. Phase 34.1 D-12 deleted the Gemini
+  // entry gate this case also asked the section to state (the settings path and `context.fileName`), so those two
+  // expectations are gone with it; the section's Gemini sentences are corrected with the registry rename (plan
+  // 34.1-04).
+  it("the kit-route section names the uncounted `note` and --strict (plan 34-36, D-27)", () => {
     const sec = guideSection(ROUTE_SECTION);
-    expect(sec, `the kit-route section does not name \`${GEMINI_SETTINGS_REL}\``).toContain(`\`${GEMINI_SETTINGS_REL}\``);
-    expect(sec, "the kit-route section does not name `context.fileName`").toContain("`context.fileName`");
     expect(sec, "the kit-route section does not name the uncounted `note`").toContain("uncounted `note`");
     expect(sec, "the kit-route section does not say --strict passes an uncounted note").toContain("--strict");
     expect(sec).toContain("`KIT_ROUTE`");
@@ -626,7 +622,7 @@ describe("the kit route in AGENTS.md (plan 34-27, D-26)", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // The route carriers per host (plan 34-28, D-26 point 3). ROUTE_POINTERS classifies every adapter kind;
-// routeCarriers and hostsReading are the one derivation install's notes and `--check` use. The expected
+// routeCarriers is the one derivation install's notes and `--check` use. The expected
 // values here are computed by this file from HOST_TOOLS and ROUTE_POINTERS, never typed, so a registry
 // change moves them with it.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -636,6 +632,7 @@ const expectedCarriers = (adapter: string, entryFiles: readonly string[]): strin
   for (const f of [...entryFiles, ...(ROUTE_POINTERS as Record<string, readonly string[]>)[adapter]]) if (!out.includes(f)) out.push(f);
   return out;
 };
+const AGENTS_ONLY_COUNT = 0;
 const AGENTS_ONLY = HOST_TOOLS.filter((h) => {
   const c = expectedCarriers(h.adapter, h.entryFiles);
   return c.length === 1 && c[0] === "AGENTS.md";
@@ -661,18 +658,12 @@ describe("route carriers are derived from the registry (plan 34-28, D-26 point 3
     });
   }
 
-  it("hostsReading(rel) is every registry host whose route carriers include rel, in registry order", () => {
-    const rels = [...new Set(HOST_TOOLS.flatMap((h) => expectedCarriers(h.adapter, h.entryFiles)))];
-    expect(rels.length).toBeGreaterThan(1);
-    for (const rel of rels) {
-      const want = HOST_TOOLS.filter((h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel)).map((h) => h.id);
-      expect(hostsReading(rel).map((h) => h.id), rel).toEqual(want);
-    }
-    expect(hostsReading("no/such/carrier.md")).toEqual([]);
-  });
-
-  it(`the hosts whose only route carrier is AGENTS.md, derived: ${AGENTS_ONLY.join(", ")}`, () => {
-    expect(AGENTS_ONLY.length, "no host reaches the route through AGENTS.md alone; the AGENTS.md note would name nobody").toBeGreaterThan(0);
+  // AGENTS_ONLY_COUNT 1 -> 0 on 2026-10-11 (plan 34.1-03, D-12/D-20): the one host whose only route carrier was
+  // AGENTS.md (the `.gemini`-detected row, adapter `gemini-settings`, which wrote no pointer) moved to `agent-skill` and
+  // reads AGENT_SKILL_REL too, so every registry row now has an entry of its own beside AGENTS.md. A user's AGENTS.md
+  // without the route then strands no host by itself (the counting rule makes its line an uncounted `note`).
+  it(`the hosts whose only route carrier is AGENTS.md, derived (${AGENTS_ONLY_COUNT}): ${AGENTS_ONLY.join(", ") || "none"}`, () => {
+    expect(AGENTS_ONLY.length, "the derived count of AGENTS.md-only hosts moved; re-derive and re-pin AGENTS_ONLY_COUNT").toBe(AGENTS_ONLY_COUNT);
     const viaModule = HOST_TOOLS.filter((h) => {
       const c = routeCarriers(h);
       return c.length === 1 && c[0] === "AGENTS.md";
@@ -681,39 +672,32 @@ describe("route carriers are derived from the registry (plan 34-28, D-26 point 3
   });
 });
 
-// ── ENTRY GATES AND THE ONE OWNER OF "DOES HOST H READ ENTRY FILE X HERE" (plan 34-32, D-27 point 1) ──────────────
+// ── THE ONE OWNER OF "DOES HOST H READ ROUTE CARRIER X HERE" (plan 34-32; phase 34.1 D-12, D-17, D-20) ──────────────
 //
-// Gemini CLI reads AGENTS.md only when its settings list it, and `--check` once said it reached the Orchestrator
-// through AGENTS.md from the registry's entry files alone (CR-01). The registry now says which entry files a host
-// reads only under a condition (HostTool.entryGates), and install.ts asks one owner, hostReadsCarrier. The census
-// below holds the owner in place: install.ts reads no `entryFiles` itself, and calls routeCarriers and
-// hostsReading only inside the functions named here, with the counts pinned.
+// Plan 34-32 gave the registry an `entryGates` field (Gemini CLI read AGENTS.md only when its settings listed it)
+// and install.ts one owner of the answer, hostReadsCarrier. Phase 34.1 D-12 deleted the gate, the field and the
+// `gemini-settings` adapter kind with the Gemini merge; hostReadsCarrier stays the one owner and now answers
+// routeCarriers membership. The census below holds the owner in place: install.ts reads no `entryFiles` itself, and
+// calls routeCarriers only inside the functions named here, with the counts pinned. D-17 (IN-14) deleted the dead
+// export hostsReading; the D-12 census in install/installer-fs-census.test.ts holds every deleted name out.
 
-describe("entryGates: the registry says which entry files a host reads only under a condition (plan 34-32)", () => {
-  it("every row has an entryGates object; every key is one of that row's entryFiles; every value is an ENTRY_GATE_KINDS member", () => {
-    const kinds: readonly string[] = ENTRY_GATE_KINDS;
-    for (const t of HOST_TOOLS) {
-      expect(Object.prototype.hasOwnProperty.call(t, "entryGates"), `${t.id} has no entryGates`).toBe(true);
-      expect(t.entryGates !== null && typeof t.entryGates === "object" && !Array.isArray(t.entryGates), `${t.id}'s entryGates is not an object`).toBe(true);
-      for (const [rel, kind] of Object.entries(t.entryGates)) {
-        expect(t.entryFiles, `${t.id} gates ${rel}, which is not one of its entry files`).toContain(rel);
-        expect(kinds, `${t.id}'s gate kind for ${rel}`).toContain(kind);
-      }
-    }
+describe("the registry after D-12: no entry gates; two rows share the agent skill (phase 34.1, D-12, D-20)", () => {
+  it("no HostTool row has an `entryGates` key (the field was deleted with the Gemini entry gate, D-12)", () => {
+    for (const t of HOST_TOOLS) expect(Object.prototype.hasOwnProperty.call(t, "entryGates"), `${t.id} still has entryGates`).toBe(false);
   });
 
-  it("every ENTRY_GATE_KINDS member is used by at least one row, and the tuple holds no duplicate", () => {
-    const used = new Set(HOST_TOOLS.flatMap((t) => Object.values(t.entryGates)));
-    for (const k of ENTRY_GATE_KINDS) expect(used.has(k), `entry-gate kind ${k} is used by no row`).toBe(true);
-    expect(new Set(ENTRY_GATE_KINDS).size).toBe(ENTRY_GATE_KINDS.length);
-  });
-
-  it("every row whose adapter is gemini-settings gates each of its entry files (Gemini CLI reads them only through context.fileName)", () => {
-    const gemini = HOST_TOOLS.filter((t) => t.adapter === "gemini-settings");
-    expect(gemini.length, "premise: a gemini-settings row exists").toBeGreaterThan(0);
-    for (const t of gemini) {
-      for (const rel of t.entryFiles) expect(Object.keys(t.entryGates), `${t.id} does not gate ${rel}`).toContain(rel);
+  it("the Codex CLI row and the `.gemini`-detected row both have adapter `agent-skill` and route through AGENT_SKILL_REL alone (D-20, two rows, one entry)", () => {
+    const codex = HOST_TOOLS.filter((t) => t.id === "codex");
+    const dotGemini = HOST_TOOLS.filter((t) => t.detect === ".gemini");
+    expect(codex.length, "premise: one codex row").toBe(1);
+    expect(dotGemini.length, "premise: one row detected by .gemini").toBe(1);
+    for (const t of [...codex, ...dotGemini]) {
+      expect(t.adapter, `${t.id}'s adapter`).toBe("agent-skill");
+      expect([...ROUTE_POINTERS[t.adapter]], `${t.id}'s pointers`).toEqual([AGENT_SKILL_REL]);
+      expect(routeCarriers(t), `${t.id}'s carriers`).toContain(AGENT_SKILL_REL);
     }
+    expect(HOST_TOOLS.filter((t) => t.adapter === "agent-skill").map((t) => t.id).sort()).toEqual([codex[0].id, dotGemini[0].id].sort());
+    expect(AGENT_SKILL_REL.startsWith(".gemini/"), "the shared entry is under .gemini/ (refuted by D-20)").toBe(false);
   });
 });
 
@@ -739,11 +723,12 @@ function allNodes(sf: ts.SourceFile): ts.Node[] {
   return out;
 }
 
-// THE PINNED CALL SITES. routeCarriers and hostsReading are the static "could read" sets; a verdict asks
-// hostReadsCarrier instead. hostReadsCarrier and routeCarrierSet are the owner functions the plan names.
-// Plan 34-33 removed noteMissingRoute (install's route note, which called routeCarriers once and hostsReading
-// twice): install's notes now ask strandedBy through noteStrandingCarriers, so those three pins are gone and
-// install.ts calls hostsReading nowhere.
+// THE PINNED CALL SITES. routeCarriers is the static carrier set; a verdict asks hostReadsCarrier instead.
+// hostReadsCarrier and routeCarrierSet are the owner functions the plan names. Plan 34-33 removed noteMissingRoute
+// (install's route note): install's notes now ask strandedBy through noteStrandingCarriers. Phase 34.1 D-17 (IN-14)
+// deleted hostsReading, which install.ts already called nowhere; the census below still refuses the name, so it
+// cannot come back as a second "could read" derivation. Re-derived 2026-10-11 (plan 34.1-03) by running this census
+// over the D-12 tree: unchanged, hostReadsCarrier ×1 and routeCarrierSet ×1.
 const OWNER_CALLS: Readonly<Record<string, number>> = {
   "routeCarriers@hostReadsCarrier": 1,
   "routeCarriers@routeCarrierSet": 1,
@@ -769,7 +754,7 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
     expect(hits).toEqual([]);
   });
 
-  it(`routeCarriers and hostsReading are called only at the pinned sites: ${Object.entries(OWNER_CALLS).map(([k, v]) => `${k} ×${v}`).join(", ")}`, () => {
+  it(`routeCarriers is called only at the pinned sites, and hostsReading nowhere: ${Object.entries(OWNER_CALLS).map(([k, v]) => `${k} ×${v}`).join(", ")}`, () => {
     const found: Record<string, number> = {};
     const notCalls: string[] = [];
     for (const n of allNodes(installSource())) {
@@ -789,15 +774,8 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
     expect(found).toEqual(OWNER_CALLS);
   });
 
-  it(`ENTRY_GATE_CHECKS in install.ts has exactly one check per ENTRY_GATE_KINDS member, and hostReadsCarrier is called by ${HOST_READS_CARRIER_CALLERS.join(" and ")}`, () => {
-    const sf = installSource();
-    const nodes = allNodes(sf);
-    const decl = nodes.find((n): n is ts.VariableDeclaration => ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "ENTRY_GATE_CHECKS");
-    expect(decl, "ENTRY_GATE_CHECKS is not declared in install.ts").toBeDefined();
-    const init = (decl as ts.VariableDeclaration).initializer;
-    expect(init !== undefined && ts.isObjectLiteralExpression(init), "ENTRY_GATE_CHECKS is not an object literal").toBe(true);
-    const keys = (init as ts.ObjectLiteralExpression).properties.map((p) => (p.name !== undefined && (ts.isStringLiteral(p.name) || ts.isIdentifier(p.name)) ? p.name.text : "?"));
-    expect([...keys].sort()).toEqual([...ENTRY_GATE_KINDS].sort());
+  it(`hostReadsCarrier is called by ${HOST_READS_CARRIER_CALLERS.join(" and ")} (re-derived after D-12 deleted ENTRY_GATE_CHECKS)`, () => {
+    const nodes = allNodes(installSource());
     const callers = new Set(
       nodes
         .filter((n): n is ts.Identifier => ts.isIdentifier(n) && n.text === "hostReadsCarrier" && ts.isCallExpression(n.parent) && n.parent.expression === n)
@@ -818,52 +796,47 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
 //
 // reachVia and strandedBy (host-tools.ts) are pure over RouteFacts. They are checked here over EVERY combination of
 // the facts against a brute-force oracle written in this file from the registry (expectedCarriers above, never
-// routeCarriers): holds for each carrier of the derived carrier set (2^n), reads for each gated (host, file) pair of
-// entryGates (2^m; an ungated pair a host's carriers include is always read), and adapterReaches for each host whose
-// adapter kind is `claude-kit` (2^k). The counts are pinned, so a registry change that moves them fails red here
-// until this table is looked at again.
+// routeCarriers): holds for each carrier of the derived carrier set (2^n), and adapterReaches for each host whose
+// adapter kind is `claude-kit` (2^k); a host reads every carrier its expectedCarriers include. The counts are pinned,
+// so a registry change that moves them fails red here until this table is looked at again.
 // TABLE_CARRIERS 4 -> 6 on 2026-10-11 (plan 34.1-01, D-08, D-11): `.agents/skills/grugops/SKILL.md` (Codex CLI's
 // agent-skill pointer) and `.opencode/commands/grugops.md` (OpenCode's command) joined the derived carrier set, so the
 // table has 2^(6+1+1) = 256 combinations.
+// TABLE_GATED_PAIRS (1) deleted on 2026-10-11 (plan 34.1-03, D-12): the Gemini entry gate and the registry's
+// entryGates field are gone, so no (host, file) pair is read only sometimes and the gate dimension left the table:
+// 2^(6+1) = 128 combinations. TABLE_CARRIERS stays 6: the `.gemini`-detected row moved to `agent-skill`, whose pointer
+// AGENT_SKILL_REL was already in the set through Codex CLI (D-20).
 const TABLE_CARRIERS = 6;
-const TABLE_GATED_PAIRS = 1;
 const TABLE_ADAPTER_HOSTS = 1;
 
 describe("reachVia and strandedBy over every combination of the facts (plan 34-33, D-27 point 2)", () => {
   const carriers = [...new Set(HOST_TOOLS.flatMap((h) => expectedCarriers(h.adapter, h.entryFiles)))];
-  const gated: Array<{ host: HostTool; rel: string }> = HOST_TOOLS.flatMap((h) => Object.keys(h.entryGates).map((rel) => ({ host: h, rel })));
   const adapterHosts = HOST_TOOLS.filter((h) => h.adapter === "claude-kit");
 
-  it(`the table's dimensions: ${TABLE_CARRIERS} carriers, ${TABLE_GATED_PAIRS} gated pair(s), ${TABLE_ADAPTER_HOSTS} claude-kit host(s), ${2 ** (TABLE_CARRIERS + TABLE_GATED_PAIRS + TABLE_ADAPTER_HOSTS)} combinations`, () => {
+  it(`the table's dimensions: ${TABLE_CARRIERS} carriers, ${TABLE_ADAPTER_HOSTS} claude-kit host(s), ${2 ** (TABLE_CARRIERS + TABLE_ADAPTER_HOSTS)} combinations`, () => {
     expect(carriers.length).toBe(TABLE_CARRIERS);
-    expect(gated.length).toBe(TABLE_GATED_PAIRS);
     expect(adapterHosts.length).toBe(TABLE_ADAPTER_HOSTS);
   });
 
   it("every combination: reachVia equals the oracle's carriers (registry carrier order) and adapter; strandedBy equals the oracle's stranded hosts (registry order), and is empty whenever the carrier holds", () => {
     const n = carriers.length;
-    const m = gated.length;
     const k = adapterHosts.length;
     let combos = 0;
     let strandedSeen = 0;
     let emptySeen = 0;
-    for (let bits = 0; bits < 2 ** (n + m + k); bits++) {
+    for (let bits = 0; bits < 2 ** (n + k); bits++) {
       combos += 1;
       const bit = (i: number): boolean => ((bits >> i) & 1) === 1;
       const holdsSet = new Set(carriers.filter((_, i) => bit(i)));
-      const gateOpen = (h: HostTool, rel: string): boolean => {
-        const at = gated.findIndex((g) => g.host.id === h.id && g.rel === rel);
-        return at === -1 ? true : bit(n + at);
-      };
-      const adapterSet = new Set(adapterHosts.filter((_, i) => bit(n + m + i)).map((h) => h.id));
+      const adapterSet = new Set(adapterHosts.filter((_, i) => bit(n + i)).map((h) => h.id));
       const facts: RouteFacts = {
-        reads: (h, rel) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && gateOpen(h, rel),
+        reads: (h, rel) => expectedCarriers(h.adapter, h.entryFiles).includes(rel),
         holds: (rel) => holdsSet.has(rel),
         adapterReaches: (h) => adapterSet.has(h.id),
       };
       // THE ORACLE: written from the definitions, sharing nothing with host-tools.ts but the registry rows.
-      const oracleVia = (h: HostTool): string[] => expectedCarriers(h.adapter, h.entryFiles).filter((rel) => gateOpen(h, rel) && holdsSet.has(rel));
-      const label = `holds=[${[...holdsSet].join(",")}] gates=[${gated.map((g) => `${g.host.id}:${g.rel}=${gateOpen(g.host, g.rel)}`).join(",")}] adapters=[${[...adapterSet].join(",")}]`;
+      const oracleVia = (h: HostTool): string[] => expectedCarriers(h.adapter, h.entryFiles).filter((rel) => holdsSet.has(rel));
+      const label = `holds=[${[...holdsSet].join(",")}] adapters=[${[...adapterSet].join(",")}]`;
       for (const h of HOST_TOOLS) {
         const v = reachVia(h, facts);
         expect([...v.carriers], `reachVia(${h.id}) ${label}`).toEqual(oracleVia(h));
@@ -873,7 +846,7 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
         const want = holdsSet.has(rel)
           ? []
           : HOST_TOOLS.filter(
-              (h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && gateOpen(h, rel) && oracleVia(h).length === 0 && !adapterSet.has(h.id),
+              (h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && oracleVia(h).length === 0 && !adapterSet.has(h.id),
             ).map((h) => h.id);
         const got = strandedBy(rel, facts).map((h) => h.id);
         expect(got, `strandedBy(${rel}) ${label}`).toEqual(want);
@@ -882,7 +855,7 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
         else emptySeen += 1;
       }
     }
-    expect(combos).toBe(2 ** (TABLE_CARRIERS + TABLE_GATED_PAIRS + TABLE_ADAPTER_HOSTS));
+    expect(combos).toBe(2 ** (TABLE_CARRIERS + TABLE_ADAPTER_HOSTS));
     // Vacuity floors: the table reaches both answers.
     expect(strandedSeen).toBeGreaterThan(0);
     expect(emptySeen).toBeGreaterThan(0);

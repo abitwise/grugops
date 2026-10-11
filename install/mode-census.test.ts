@@ -68,10 +68,13 @@ const INSTALL_TEST_FILE_COUNT = 31;
 const SCRIPTS_TEST_FILE_COUNT = 73;
 const SOURCE_FILE_COUNT = 8;
 
-/** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). */
+/** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
+ * 10 -> 9 and restore 18 -> 16 on 2026-10-11 (plan 34.1-03, D-12): settings-json-provenance.test.ts lost B2 (a mode-000
+ * Gemini settings file and its restore, deleted with the Gemini merge) and its afterAll restore, which only that case
+ * needed; measured per file and kind by this census's own failure message. */
 const TAG_KIND_COUNTS: Readonly<Record<string, number>> = {
-  "access-denial": 10,
-  restore: 18,
+  "access-denial": 9,
+  restore: 16,
   "row-315": 5,
   "posix-bits": 2,
 };

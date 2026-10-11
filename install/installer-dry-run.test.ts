@@ -33,7 +33,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSyn
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { dirList, ledgerOf, type RawEntry } from "./ledger.test-support.js";
+import { dirList, ledgerOf, plantLegacyGemini, type RawEntry } from "./ledger.test-support.js";
 import { PI_PROMPT_REL } from "./host-tools.js";
 import {
   INSTALL_JS,
@@ -104,10 +104,11 @@ function reported(stdout: string, label: string): string[] {
 const subject = (msg: string): string => msg.split(" ")[0];
 
 // The files a fresh install into an EMPTY target creates and a DRY_RUN uninstall must name for
-// removal (flow 10): the pointer files install created (their file and block entries), the Gemini
-// settings file it created (the gemini entry) and, since plan 34-04 (D-17), the Pi prompt template
-// (a kit-false file entry; PI_PROMPT_REL imported from the host-tool registry, never retyped).
-const FLOW10_CREATED = ["CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json", PI_PROMPT_REL] as const;
+// removal (flow 10): the pointer files install created (their file and block entries) and, since plan
+// 34-04 (D-17), the Pi prompt template (a kit-false file entry; PI_PROMPT_REL imported from the
+// host-tool registry, never retyped). `.gemini/settings.json` (the gemini entry) left on 2026-10-11 (plan
+// 34.1-03, D-12): install no longer creates it; the subset case below plants the legacy entry instead.
+const FLOW10_CREATED = ["CLAUDE.md", ".github/copilot-instructions.md", PI_PROMPT_REL] as const;
 
 describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
   it("DRY_RUN uninstall of a never-installed target over empty user directories leaves every directory in place", () => {
@@ -154,7 +155,9 @@ describe("CR-02: a DRY_RUN uninstall changes nothing (rmdirIfEmpty)", () => {
 // Each case snapshots BOTH roots with the directory-aware snapshotTree immediately before the
 // DRY_RUN run and asserts both are identical after it. An absent home stays absent.
 
-// The EMPTY directories a user may already hold where the INSTALLER writes (flow 2 / flow 8).
+// The EMPTY directories a user may already hold where the INSTALLER writes (flow 2 / flow 8). Install no longer
+// writes under `.gemini/` (phase 34.1, D-12); the directory stays in the list, so the DRY_RUN is still held to
+// leaving a user's empty `.gemini/` as it is.
 const INSTALL_EMPTY_DIRS = [".claude", ".claude/skills", ".claude/agents", ".gemini", ".github", "tools"];
 const ISO_A = "2026-06-15T00-00-00.000Z";
 const ISO_B = "2026-06-16T00-00-00.000Z";
@@ -345,7 +348,9 @@ const fileState = (p: string): string => {
     return "absent";
   }
 };
-function expectPreviewSubsetOfRealRun(target: string, home: string): Named {
+// `legacy`: the paths an earlier install wrote that no install variant writes now, planted by the case (phase 34.1
+// D-12: the legacy Gemini settings file and its `.gemini/` directory); the preview may name exactly these too.
+function expectPreviewSubsetOfRealRun(target: string, home: string, legacy: readonly string[] = []): Named {
   const copy = join(mkTmp(), "copy");
   cpSync(target, copy, { recursive: true, verbatimSymlinks: true });
   // The marker is bound to the directory install wrote it in (red-team B2 of plan 33.1-33); the copy is
@@ -382,10 +387,11 @@ function expectPreviewSubsetOfRealRun(target: string, home: string): Named {
     expect(a === "absent" || a !== b, `preview named ${f} for removal or edit; the real run left it byte-identical\n${preview.stdout}`).toBe(true);
   }
   for (const p of would) expect(done.includes(p), `preview named ${p}; the real run did not remove it`).toBe(true);
-  // Every path either half names is one install writes.
+  // Every path either half names is one install writes, or one of the case's declared legacy paths.
   for (const p of [...files, ...would]) {
-    expect(WRITE_PATHS.has(normalizeIso(p)), `the preview named ${p}, which no install variant writes`).toBe(true);
+    expect(WRITE_PATHS.has(normalizeIso(p)) || legacy.includes(p), `the preview named ${p}, which no install variant writes`).toBe(true);
   }
+  for (const p of legacy) expect(WRITE_PATHS.has(p), `the declared legacy path ${p} is in the write set`).toBe(false);
   return { would, done, files, copy };
 }
 
@@ -422,8 +428,11 @@ describe("DRY_RUN preview never over-claims: would-rmdir is a subset of the real
     const target = mkTmp();
     const home = mkTmp();
     expect(runInstall(target, home, false).status).toBe(0);
+    // Phase 34.1 D-12: install writes no gemini entry now; the entry an earlier install wrote (a created settings
+    // file) is planted, so every ledger kind below still has a path the preview must name.
+    plantLegacyGemini(target, "created");
     const m = JSON.parse(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
-    const { would, done, files, copy } = expectPreviewSubsetOfRealRun(target, home);
+    const { would, done, files, copy } = expectPreviewSubsetOfRealRun(target, home, [".gemini/settings.json", ".gemini"]);
     // The files install created are named, and the real run removed each whole (the helper checks only
     // "removed or changed").
     for (const f of FLOW10_CREATED) {

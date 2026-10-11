@@ -27,22 +27,11 @@
  */
 export const HOST_ADAPTER_KINDS = [
     "claude-kit",
-    "gemini-settings",
     "copilot-pointer",
     "pi-prompt-template",
     "agent-skill",
     "opencode-command",
 ];
-/**
- * ENTRY_GATE_KINDS (plan 34-32, D-27 point 1): the closed set of conditions under which a host reads one of its
- * entry files only sometimes. Every member is used by at least one row's `entryGates`, and every value of every
- * row's `entryGates` is a member (asserted by install/host-tools.test.ts). The check each kind names lives in
- * install.ts (ENTRY_GATE_CHECKS, keyed by this type, so a new kind is a compile error until it has a check), and
- * hostReadsCarrier there is the one owner of "does host H read entry file X in this target".
- *   gemini-context-file-name: the host reads the file only when this repository's `.gemini/settings.json` lists it
- *                             in `context.fileName` (Gemini CLI reads GEMINI.md by default).
- */
-export const ENTRY_GATE_KINDS = ["gemini-context-file-name"];
 /**
  * The Pi prompt template the installer writes (D-16): Pi turns `.pi/prompts/<name>.md` into the
  * slash command `/<name>`, so this file yields `/grugops`, the one command spelling across hosts.
@@ -114,7 +103,6 @@ export const HOST_TOOLS = [
         shortName: "Claude Code",
         detect: ".claude",
         entryFiles: ["CLAUDE.md", "AGENTS.md"],
-        entryGates: {},
         adapter: "claude-kit",
         dispatch: "spawn",
     },
@@ -124,7 +112,6 @@ export const HOST_TOOLS = [
         shortName: "Codex",
         detect: ".codex",
         entryFiles: ["AGENTS.md"],
-        entryGates: {},
         // Codex CLI reads the agent skill at AGENT_SKILL_REL (phase 34.1, D-08); users invoke it as `$grugops` (or pick it
         // from `/skills`): Codex does not turn skills into slash commands (D-21).
         adapter: "agent-skill",
@@ -136,10 +123,10 @@ export const HOST_TOOLS = [
         shortName: "Gemini",
         detect: ".gemini",
         entryFiles: ["AGENTS.md"],
-        // Gemini CLI reads GEMINI.md by default and AGENTS.md only through `context.fileName` in its settings (the
-        // Gemini row of the CLAUDE.md per-tool table); the `gemini-settings` adapter is what adds it there.
-        entryGates: { "AGENTS.md": "gemini-context-file-name" },
-        adapter: "gemini-settings",
+        // Phase 34.1, D-12 and D-20: install no longer reads or writes `.gemini/settings.json` (the `gemini-settings`
+        // adapter kind and its entry gate are deleted). This row shares the agent skill at AGENT_SKILL_REL with Codex
+        // CLI ("two rows, one entry"); `.gemini/skills/` is never written. Plan 34.1-04 renames the row to Antigravity.
+        adapter: "agent-skill",
         dispatch: "sequential",
     },
     {
@@ -148,7 +135,6 @@ export const HOST_TOOLS = [
         shortName: "OpenCode",
         detect: "opencode.json",
         entryFiles: ["AGENTS.md"],
-        entryGates: {},
         // OpenCode reads the command at OPENCODE_COMMAND_REL (phase 34.1, D-08): `/grugops <request>`.
         adapter: "opencode-command",
         dispatch: "sequential",
@@ -159,7 +145,6 @@ export const HOST_TOOLS = [
         shortName: "Copilot",
         detect: ".github",
         entryFiles: ["AGENTS.md", ".github/copilot-instructions.md"],
-        entryGates: {},
         adapter: "copilot-pointer",
         dispatch: "sequential",
     },
@@ -172,7 +157,6 @@ export const HOST_TOOLS = [
         shortName: "Pi",
         detect: ".pi",
         entryFiles: ["AGENTS.md"],
-        entryGates: {},
         adapter: "pi-prompt-template",
         dispatch: "sequential",
     },
@@ -180,14 +164,12 @@ export const HOST_TOOLS = [
 /**
  * ROUTE_POINTERS (plan 34-28, D-26 point 3): the pointer files install writes for each adapter kind that
  * carry the start-here sentence and KIT_ROUTE, as POSIX paths relative to the target root. Keyed by
- * HostAdapterKind, so a new kind is a compile error until it is classified here. A kind that writes no
- * pointer (`gemini-settings` only adds AGENTS.md to Gemini's context.fileName) has none: its hosts reach the
- * route through their entry files alone. (Phase 34.1 deleted the kind `none`: no row used it once Codex CLI
- * and OpenCode got entries of their own.)
+ * HostAdapterKind, so a new kind is a compile error until it is classified here. Two kinds may name the same
+ * pointer: two rows on `agent-skill` share AGENT_SKILL_REL (D-20). (Phase 34.1 deleted the kind `none`, once Codex
+ * CLI and OpenCode got entries of their own, and the kind `gemini-settings`, with the Gemini merge, D-12.)
  */
 export const ROUTE_POINTERS = {
     "claude-kit": ["CLAUDE.md"],
-    "gemini-settings": [],
     "copilot-pointer": [".github/copilot-instructions.md"],
     "pi-prompt-template": [PI_PROMPT_REL],
     "agent-skill": [AGENT_SKILL_REL],
@@ -197,20 +179,12 @@ export const ROUTE_POINTERS = {
  * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which `host` can reach
  * the kit route: its entryFiles, then ROUTE_POINTERS[host.adapter], without duplicates, in that order.
  * Install's notes for a user's carrier without the route and `--check`'s per-host route findings both
- * derive from it, so the two cannot disagree about which hosts a carrier serves. It is the static set a host
- * COULD read; whether the host reads a carrier in a given target is install.ts hostReadsCarrier's answer
- * (plan 34-32), which also applies the row's entryGates. No verdict site reads this set directly.
+ * derive from it, so the two cannot disagree about which hosts a carrier serves. A host reads every one of these
+ * carriers that is present (phase 34.1, D-12 deleted the one entry gate); install.ts hostReadsCarrier is the one
+ * owner of that answer, and every verdict site asks it.
  */
 export function routeCarriers(host) {
     return [...new Set([...host.entryFiles, ...ROUTE_POINTERS[host.adapter]])];
-}
-/**
- * hostsReading (plan 34-28, D-26 point 3): the registry hosts whose route carriers (routeCarriers) include
- * `rel`, in registry order: the hosts that COULD read it. `--check`'s `(read by …)` lists ask install.ts
- * hostReadsCarrier instead (plan 34-32), so a host whose settings do not load the file is not named.
- */
-export function hostsReading(rel) {
-    return HOST_TOOLS.filter((h) => routeCarriers(h).includes(rel));
 }
 /**
  * reachVia (plan 34-33, D-27 point 2): how `host` has the kit route here: the routeCarriers(host) entries it reads

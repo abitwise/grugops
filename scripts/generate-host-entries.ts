@@ -73,10 +73,11 @@ export interface EntryShape {
 /**
  * ENTRY_SHAPES: the frontmatter shape of each adapter kind's whole-file entry, keyed by HostAdapterKind, so a
  * new kind is a compile error until it is classified here. null for a kind this generator renders nothing
- * for (Claude Code's kit, the Gemini settings merge, the Copilot block, and a kind with no entry).
+ * for (Claude Code's kit and the Copilot block).
  *   agent-skill:        Codex CLI requires `name` and `description` in SKILL.md (learn.chatgpt.com/docs/build-skills,
  *                       retrieved 2026-10-11). Neither Codex nor Antigravity documents `$ARGUMENTS` for a skill, so
- *                       the entry carries no arguments line (D-21).
+ *                       the entry carries no arguments line (D-21). The `.gemini`-detected row (the Gemini row until plan
+ *                       34.1-04 renames it to Antigravity CLI) shares this one entry with Codex CLI (D-12, D-20).
  *   opencode-command:   OpenCode reads `description` from a command's frontmatter and expands `$ARGUMENTS` in its
  *                       body (opencode.ai/docs/commands/, retrieved 2026-10-11).
  *   pi-prompt-template: Pi reads `description` and `argument-hint` from a project prompt template and expands
@@ -85,7 +86,6 @@ export interface EntryShape {
  */
 export const ENTRY_SHAPES: Readonly<Record<HostAdapterKind, EntryShape | null>> = {
   "claude-kit": null,
-  "gemini-settings": null,
   "copilot-pointer": null,
   "pi-prompt-template": {
     frontmatter: [

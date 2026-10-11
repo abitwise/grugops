@@ -65,7 +65,7 @@ import {
   runUninstall,
   snapshotTree,
 } from "./installer-paths.test-support.js";
-import { RETIRED_RECORD_NAMES, fileRecords, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
+import { RETIRED_RECORD_NAMES, fileRecords, plantLegacyGemini, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
 import { PI_PROMPT_REL } from "./host-tools.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-never-")));
@@ -94,8 +94,10 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * and `.opencode/commands/grugops.md` entered as files, and `.agents`, `.agents/skills`, `.agents/skills/grugops`,
  * `.opencode` and `.opencode/commands` as directories, in every variant, because install now writes every
  * whole-file host entry (wholeFileEntryRels) on every install. 88 -> 95.
+ * 60 files and links + 33 directories on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` and `.gemini` left,
+ * in every variant, because install no longer reads, creates or edits the Gemini settings. 95 -> 93.
  */
-const WRITE_PATH_COUNT = 95;
+const WRITE_PATH_COUNT = 93;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";
@@ -163,13 +165,17 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
     console.log(`WRITE_PATHS (${WRITE_PATHS.length}: ${SET.files.length} files and links, ${SET.dirs.length} directories):\n${describeWritePaths(SET)}`);
     console.log(`WRITE_PATH_COUNT=${WRITE_PATH_COUNT}`);
     expect(WRITE_PATHS.length).toBe(WRITE_PATH_COUNT);
-    // The set covers what every variant contributes, and the marker, the pointer files and the two
-    // settings files uninstall edits are in it.
+    // The set covers what every variant contributes, and the marker, the pointer files and the settings
+    // file uninstall edits are in it.
     for (const v of ["default", "symlink", "migrate", "checkpoints-notify"] as const) {
       expect(SET.paths.some((w) => w.variants.includes(v)), `no path from the ${v} variant`).toBe(true);
     }
     // PI_PROMPT_REL (plan 34-04): the Pi prompt template install creates, imported, never retyped.
-    for (const p of [MARKER_REL, "CLAUDE.md", ".github/copilot-instructions.md", ".gemini/settings.json", ".claude/settings.json", "AGENTS.md", PI_PROMPT_REL]) {
+    // `.gemini/settings.json` left the derived set on 2026-10-11 (plan 34.1-03, D-12): install no longer writes it. A
+    // never-installed target's own settings file there is still held to zero bytes changed, by the planted rows of
+    // install/install.test.ts ("Gemini settings ownership: never-installed target, …").
+    expect(WRITE_PATHS, "the derived set holds .gemini/settings.json, which install no longer writes (D-12)").not.toContain(".gemini/settings.json");
+    for (const p of [MARKER_REL, "CLAUDE.md", ".github/copilot-instructions.md", ".claude/settings.json", "AGENTS.md", PI_PROMPT_REL]) {
       expect(WRITE_PATHS, `${p} is not in the derived set`).toContain(p);
     }
   });
@@ -307,6 +313,8 @@ describe("never-installed target: uninstall changes zero bytes (brief DC-2, plan
       const t = fresh(`fn-${mode}`);
       cpSync(SET.variant("default").target, t, { recursive: true, verbatimSymlinks: true });
       rebindMarker(t);
+      // Every round-2 build wrote geminiSettings; since phase 34.1 D-12 the entry is planted from the legacy fixture.
+      plantLegacyGemini(t, "created");
       const mp = join(t, ...MARKER_REL.split("/"));
       const six = sixRecordShape(JSON.parse(readFileSync(mp, "utf8")) as Record<string, unknown>);
       for (const name of RETIRED_RECORD_NAMES) expect(Object.prototype.hasOwnProperty.call(six, name), name).toBe(true);

@@ -599,6 +599,18 @@ interface NoteRow {
 }
 const OWN_AGENTS = "# My agents\n\nMy own instructions.\n";
 const ownAgents = (row: { target: string }): void => writeFileSync(join(row.target, "AGENTS.md"), OWN_AGENTS);
+/**
+ * The shared agent skill (the one ROUTE_POINTERS pointer of the `agent-skill` kind), read from the registry data.
+ * Since plan 34.1-03 (D-12, D-20) every registry row has an entry of its own beside AGENTS.md, so a user's AGENTS.md
+ * without the route strands no host by itself. The cases that need AGENTS.md to strand a host make the user's own
+ * agent skill without the route too: then the `agent-skill` rows read no carrier holding the route.
+ */
+const SHARED_SKILL_REL = ROUTE_POINTERS["agent-skill"][0];
+const ownSkillWithoutRoute = (row: { target: string }): void => {
+  const p = join(row.target, ...SHARED_SKILL_REL.split("/"));
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, "# My own skill\n\nMy own instructions.\n");
+};
 const ownPiTemplate = (row: { target: string }): void => {
   mkdirSync(join(row.target, ".pi", "prompts"), { recursive: true });
   writeFileSync(piFile(row.target), "---\ndescription: my own grugops prompt\n---\nDo it my way: $ARGUMENTS\n");
@@ -613,11 +625,15 @@ const dropRouteFromBlock = (row: { target: string; kitHome: string }, rel: strin
   writeFileSync(path, text.replace(` ${KIT_ROUTE}`, ""));
 };
 const NOTE_ROWS: readonly NoteRow[] = [
+  // n1 and n9: notes ["AGENTS.md"] -> [] on 2026-10-11 (plan 34.1-03, D-12, D-20): AGENTS.md was the only carrier of
+  // the `.gemini`-detected row; that row now reads the shared agent skill too, so the user's AGENTS.md without the
+  // route strands no host and install prints no note for it (the counting rule). n11 keeps a row whose note is
+  // AGENTS.md's, by making the shared agent skill the user's own without the route as well.
   {
     id: "n1",
     what: "the user's own AGENTS.md without the route, before install",
     stage: ownAgents,
-    notes: ["AGENTS.md"],
+    notes: [],
     also: (stdout, target) => expect(readFileSync(join(target, "AGENTS.md"), "utf8"), stdout).toBe(OWN_AGENTS),
   },
   {
@@ -676,7 +692,7 @@ const NOTE_ROWS: readonly NoteRow[] = [
       ownAgents(row);
       dropRouteFromBlock(row, "CLAUDE.md");
     },
-    notes: ["AGENTS.md"],
+    notes: [],
     also: (stdout) => expect(reports(stdout, "skipped", "CLAUDE.md"), stdout).toBe(true),
   },
   {
@@ -690,8 +706,19 @@ const NOTE_ROWS: readonly NoteRow[] = [
     notes: ["AGENTS.md", PI_PROMPT_REL],
     also: (stdout, target) => expect(readFileSync(piFile(target)).length, stdout).toBe(0),
   },
+  {
+    id: "n11",
+    what: "the user's own AGENTS.md and shared agent skill, both without the route, before install",
+    stage: (row) => {
+      ownAgents(row);
+      ownSkillWithoutRoute(row);
+    },
+    notes: ["AGENTS.md", SHARED_SKILL_REL],
+    also: (stdout, target) => expect(readFileSync(join(target, ...SHARED_SKILL_REL.split("/")), "utf8"), stdout).toBe("# My own skill\n\nMy own instructions.\n"),
+  },
 ];
-const NOTE_ROWS_COUNT = 10;
+// 10 -> 11 on 2026-10-11 (plan 34.1-03): n11, see the note above n1.
+const NOTE_ROWS_COUNT = 11;
 
 describe("kit route: install notes a carrier exactly when it leaves a host without a route, as the doctor does (plan 34-33, D-27 point 2)", () => {
   it(`the rows cover ${NOTE_ROWS_COUNT} starting states, with and without a note`, () => {
@@ -721,7 +748,7 @@ describe("kit route: install notes a carrier exactly when it leaves a host witho
       const cannot = HOST_TOOLS.filter((h) => !reachVerdict(c.stdout, h).reaches);
       for (const rel of new Set(HOST_TOOLS.flatMap(carriersOf))) {
         const named = row.notes.includes(rel) ? notedHosts(real.target, rel) : [];
-        const fromCheck = cannot.filter((h) => followerCarriers(real.target, h).includes(rel)).map((h) => h.name);
+        const fromCheck = cannot.filter((h) => followerCarriers(h).includes(rel)).map((h) => h.name);
         expect(named, `${rel}: the note's hosts vs the --check CANNOT hosts that read it\n${r.stdout}\n${c.stdout}`).toEqual(fromCheck);
       }
       // DRY_RUN EQUALITY: the same route-note lines, and the target byte-identical.
@@ -775,7 +802,10 @@ describe("kit route: --check prints, for every registry host, whether it reaches
     expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
   });
 
-  it("the user's own AGENTS.md without the route: the hosts it strands cannot reach, the others can; one WARN names AGENTS.md and KIT_ROUTE; exit 0, and 1 with --strict", () => {
+  // Re-derived 2026-10-11 (plan 34.1-03, D-12, D-20): the hosts AGENTS.md strands are the follower's, never assumed
+  // non-empty. Every registry row now has an entry of its own beside AGENTS.md, so they are none, and AGENTS.md's line
+  // is an uncounted `note` that still carries the remedy (KIT_ROUTE). The next case keeps the counted arm.
+  it("the user's own AGENTS.md without the route: the hosts it strands (derived) cannot reach, the others can; its line names KIT_ROUTE and is a WARN exactly when it strands a host; --strict exits 1 exactly then", () => {
     const { target, kitHome } = scratchRow();
     writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
     const r = runInstall(target, kitHome);
@@ -783,18 +813,43 @@ describe("kit route: --check prints, for every registry host, whether it reaches
     const c = check(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(0);
     const stranded = notedHosts(target, "AGENTS.md");
-    expect(stranded.length, "premise: some host's only carrier is AGENTS.md").toBeGreaterThan(0);
     expect(reachLines(c.stdout).length, c.stdout).toBe(HOST_TOOL_COUNT);
     for (const h of HOST_TOOLS) {
       const v = reachVerdict(c.stdout, h);
       expect(v.reaches, v.line).toBe(!stranded.includes(h.name));
       if (!v.reaches) expect(v.line).toContain("AGENTS.md");
     }
+    const line = carrierLines(c.stdout, "AGENTS.md");
+    expect(line.length, c.stdout).toBe(1);
+    expect(line[0].startsWith(stranded.length > 0 ? "  WARN" : "  note"), line[0]).toBe(true);
+    expect(line[0]).toContain(KIT_ROUTE);
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual(stranded.length > 0 ? line : []);
+    const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
+    expect(strict.status, strict.stdout + strict.stderr).toBe(stranded.length > 0 ? 1 : 0);
+  });
+
+  it("the user's own AGENTS.md and shared agent skill without the route: the agent-skill rows cannot reach, the others can; AGENTS.md and the skill each give one WARN naming KIT_ROUTE; exit 0, and 1 with --strict", () => {
+    const { target, kitHome } = scratchRow();
+    writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
+    ownSkillWithoutRoute({ target });
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    const stranded = notedHosts(target, "AGENTS.md");
+    const skillRows = HOST_TOOLS.filter((h) => carriersOf(h).includes(SHARED_SKILL_REL)).map((h) => h.name);
+    expect(stranded, "the hosts AGENTS.md strands are the agent-skill rows (derived)").toEqual(skillRows);
+    expect(stranded.length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
+    for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(!stranded.includes(h.name));
     const warns = countedRouteLines(c.stdout);
-    expect(warns.length, c.stdout).toBe(1);
-    expect(warns[0].startsWith("  WARN")).toBe(true);
-    expect(warns[0]).toContain("AGENTS.md");
-    expect(warns[0]).toContain(KIT_ROUTE);
+    expect(warns.length, c.stdout).toBe(2);
+    for (const rel of ["AGENTS.md", SHARED_SKILL_REL]) {
+      const mine = warns.filter((l) => messageOf(l).startsWith(`kit route missing from ${rel} `));
+      expect(mine.length, `${rel}\n${c.stdout}`).toBe(1);
+      expect(mine[0].startsWith("  WARN"), mine[0]).toBe(true);
+      expect(mine[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+      expect(mine[0]).toContain(KIT_ROUTE);
+    }
     const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
     expect(strict.status, strict.stdout + strict.stderr).toBe(1);
   });
@@ -808,9 +863,9 @@ describe("kit route: --check prints, for every registry host, whether it reaches
 //
 // THE FOLLOWER SHARES NO CODE WITH THE DOCTOR. It reads the marker with readFileSync and JSON.parse, takes
 // `kitRoot`, and asks statSync whether `<kitRoot>/roles/orchestrator.md` is a regular file. A host's carriers
-// are carriersOf (this file's own derivation from HOST_TOOLS and ROUTE_POINTERS), less AGENTS.md for the
-// gemini-settings host when the follower's own Gemini rule (below, plan 34-32) says Gemini CLI does not read it
-// here; a carrier counts when its
+// are carriersOf (this file's own derivation from HOST_TOOLS and ROUTE_POINTERS): every host reads every carrier
+// of its row that is present (phase 34.1, D-12 deleted the one entry gate, Gemini CLI's AGENTS.md through
+// `.gemini/settings.json`, and the follower's own Gemini rule with it); a carrier counts when its
 // whole text contains KIT_ROUTE and the route resolves. A host whose adapter kind is `claude-kit` also reaches
 // when the KIT= line inside the materialized block of `.claude/skills/grugops/SKILL.md` names a directory
 // holding `roles/orchestrator.md`. "Own stale" is the follower's own ledger read: a `file` entry whose sha256
@@ -868,43 +923,8 @@ interface Followed {
   readonly adapterReaches: boolean;
 }
 
-// THE FOLLOWER'S OWN GEMINI RULE (plan 34-32, D-27 point 1). Gemini CLI reads GEMINI.md by default and AGENTS.md
-// only when `.gemini/settings.json` lists it in `context.fileName`. This file decides that on its own, sharing no
-// code with install.ts's reader: the settings file is a regular file; its bytes are valid UTF-8 (a fatal
-// TextDecoder); its text holds exactly one `"context"` and exactly one `"fileName"` by textual count (two equal
-// keys are refused, because which one Gemini CLI reads is not known); JSON.parse succeeds; the root and `context`
-// are objects; and `context.fileName` is `AGENTS.md`, or an array of strings that includes it (exact string
-// equality). The Gemini host is found by its adapter kind, never by a typed name.
-const GEMINI_SETTINGS = ".gemini/settings.json";
-function geminiHost(): (typeof HOST_TOOLS)[number] {
-  const g = HOST_TOOLS.filter((h) => h.adapter === "gemini-settings");
-  expect(g.length, "premise: exactly one registry host has the gemini-settings adapter").toBe(1);
-  return g[0];
-}
-const geminiFile = (target: string): string => join(target, ...GEMINI_SETTINGS.split("/"));
-function geminiListsAgents(target: string): boolean {
-  if (!isRegularFile(geminiFile(target))) return false;
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(geminiFile(target)));
-  } catch {
-    return false;
-  }
-  if ((text.match(/"context"/g) ?? []).length !== 1 || (text.match(/"fileName"/g) ?? []).length !== 1) return false;
-  let v: unknown;
-  try {
-    v = JSON.parse(text);
-  } catch {
-    return false;
-  }
-  const isObject = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-  if (!isObject(v) || !isObject(v.context)) return false;
-  const fn = v.context.fileName;
-  return fn === "AGENTS.md" || (Array.isArray(fn) && fn.every((x) => typeof x === "string") && fn.includes("AGENTS.md"));
-}
-/** The carriers `h` reads in `target`, by the follower's own rules (carriersOf, gated by the Gemini rule). */
-const followerCarriers = (target: string, h: (typeof HOST_TOOLS)[number]): string[] =>
-  carriersOf(h).filter((rel) => !(h.adapter === "gemini-settings" && rel === "AGENTS.md") || geminiListsAgents(target));
+/** The carriers `h` reads, by the follower's own rule: every carrier of its row (carriersOf). */
+const followerCarriers = (h: (typeof HOST_TOOLS)[number]): string[] => carriersOf(h);
 
 /** THE INDEPENDENT FOLLOWER: per host, from the files alone. */
 function follow(target: string): Followed {
@@ -940,7 +960,7 @@ function follow(target: string): Followed {
   const adapterReaches = kitLine !== "" && isRegularFile(join(kitLine, "roles", "orchestrator.md"));
   const reaches = new Map<string, boolean>();
   for (const h of HOST_TOOLS) {
-    const viaCarrier = routeResolves && followerCarriers(target, h).some((rel) => carries.get(rel) === true);
+    const viaCarrier = routeResolves && followerCarriers(h).some((rel) => carries.get(rel) === true);
     reaches.set(h.id, viaCarrier || (h.adapter === "claude-kit" && adapterReaches));
   }
   return { routeResolves, ownStale, reaches, carries, adapterReaches };
@@ -1004,7 +1024,9 @@ const SCENARIOS: readonly Scenario[] = [
     },
     exit: 0,
     pathsExist: false,
-    uncounted: [],
+    // [] -> ["AGENTS.md"] on 2026-10-11 (plan 34.1-03, D-12, D-20): every host has an entry of its own beside
+    // AGENTS.md now, so AGENTS.md without the route strands no host and is an uncounted note.
+    uncounted: ["AGENTS.md"],
   },
   {
     name: "S3 every carrier an earlier install's stale copy, before re-install",
@@ -1118,203 +1140,18 @@ describe("kit route: --check and an independent follower agree, host by host, on
   }
 });
 
-// ── GEMINI CLI READS AGENTS.md ONLY WHEN ITS SETTINGS LIST IT (plan 34-32, D-27 point 1, CR-01) ──
-//
-// The class this closes (VERDICT-1, root cause AUTH-1): `--check` said Gemini CLI reaches the Orchestrator
-// through AGENTS.md from the registry's static entry files, without asking whether Gemini reads AGENTS.md here.
-// Gemini CLI reads GEMINI.md by default and AGENTS.md only when `.gemini/settings.json` lists it in
-// `context.fileName`. The Gemini host is found by its adapter kind, never by a typed name; the settings path is
-// this file's own spelling.
-/** The hosts a carrier line's `(read by …)` list names, for the one carrier line about `rel`. */
-function readByOf(stdout: string, rel: string): string[] {
-  const hits = routeLines(stdout).filter((l) => messageOf(l).includes(` ${rel} (read by `));
-  expect(hits.length, `exactly one carrier line about ${rel}:\n${stdout}`).toBe(1);
-  const m = /\(read by ([^)]*)\)/.exec(hits[0]);
-  expect(m, hits[0]).not.toBeNull();
-  return (m as RegExpExecArray)[1].split(", ");
-}
-/** The doctor's gate lines for `host`: `kit route: <host name> …` lines (any label). */
-const gateLines = (stdout: string, host: (typeof HOST_TOOLS)[number]): string[] =>
-  stdout.split(/\r?\n/).filter((l) => /^ {2}\S+\s/.test(l) && messageOf(l).startsWith(`kit route: ${host.name} `));
-
-/** What is at the settings path: a file's bytes (hex), a directory, or nothing. */
-function settingsSnapshot(target: string): string {
-  const p = geminiFile(target);
-  if (!existsSync(p)) return "absent";
-  const st = lstatSync(p);
-  return st.isDirectory() ? "directory" : st.isFile() ? `file:${readFileSync(p).toString("hex")}` : "other";
-}
-
-interface GeminiRow {
-  readonly id: string;
-  readonly what: string;
-  /** Change `.gemini/settings.json` after a clean install. */
-  readonly stage: (target: string) => void;
-  /** The row's declared verdict: whether Gemini CLI reads AGENTS.md here (the follower must agree). */
-  readonly reads: boolean;
-  /** For a row where it does not: whether an install run would add AGENTS.md (the remedy names Re-run install.js). */
-  readonly reinstall?: boolean;
-  /** The settings path is not a readable regular file: the gate reaches no verdict. */
-  readonly noVerdict?: boolean;
-}
-const settingsText = (text: string | Buffer) => (target: string): void => writeFileSync(geminiFile(target), text);
-const GEMINI_ROWS: readonly GeminiRow[] = [
-  {
-    id: "a",
-    what: 'a duplicate "context" key whose last copy lists AGENTS.md (the verifier\'s R8 case 1; JSON.parse keeps the last)',
-    stage: settingsText('{"context":{"fileName":["GEMINI.md"]},"context":{"fileName":["AGENTS.md"]}}\n'),
-    reads: false,
-    reinstall: false,
-  },
-  { id: "b", what: 'fileName ["GEMINI.md"] (the verifier\'s R8 case 2)', stage: settingsText('{"context":{"fileName":["GEMINI.md"]}}\n'), reads: false, reinstall: true },
-  { id: "c", what: "an empty object {}", stage: settingsText("{}\n"), reads: false, reinstall: true },
-  { id: "d", what: "fileName []", stage: settingsText('{"context":{"fileName":[]}}\n'), reads: false, reinstall: true },
-  { id: "e", what: 'fileName ""', stage: settingsText('{"context":{"fileName":""}}\n'), reads: false, reinstall: true },
-  { id: "f", what: 'fileName "agents.md" (exact match only)', stage: settingsText('{"context":{"fileName":"agents.md"}}\n'), reads: false, reinstall: true },
-  {
-    id: "g",
-    what: "not strict JSON (a trailing comma)",
-    stage: settingsText('{"context": {"fileName": ["AGENTS.md"]},}\n'),
-    reads: false,
-    reinstall: false,
-  },
-  {
-    id: "h",
-    what: "bytes that are not valid UTF-8 (0xff 0xfe first)",
-    stage: settingsText(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('{"context":{"fileName":["AGENTS.md"]}}\n', "utf8")])),
-    reads: false,
-    reinstall: false,
-  },
-  { id: "i", what: "the settings file deleted", stage: (t) => rmSync(geminiFile(t)), reads: false, reinstall: true },
-  {
-    id: "j",
-    what: "a directory at .gemini/settings.json",
-    stage: (t) => {
-      rmSync(geminiFile(t));
-      mkdirSync(geminiFile(t));
-    },
-    reads: false,
-    reinstall: false,
-    noVerdict: true,
-  },
-  { id: "k", what: 'fileName "AGENTS.md" (the string form)', stage: settingsText('{"context":{"fileName":"AGENTS.md"}}\n'), reads: true },
-  { id: "l", what: 'fileName ["GEMINI.md","AGENTS.md"]', stage: settingsText('{"context":{"fileName":["GEMINI.md","AGENTS.md"]}}\n'), reads: true },
-];
-const GEMINI_ROWS_COUNT = 12;
-
-describe("kit route: Gemini CLI reads AGENTS.md only when its settings list it (plan 34-32, D-27 point 1)", () => {
-  it("a clean install: an ok line says Gemini CLI reads AGENTS.md here, every host reaches, no counted kit-route line", () => {
-    const gemini = geminiHost();
-    const { target, kitHome } = installed();
-    const c = check(target, kitHome);
-    expect(c.status, c.stdout + c.stderr).toBe(0);
-    const gates = gateLines(c.stdout, gemini);
-    expect(gates.length, c.stdout).toBe(1);
-    expect(gates[0].startsWith("  ok"), gates[0]).toBe(true);
-    expect(messageOf(gates[0])).toContain(`${gemini.name} reads AGENTS.md here`);
-    expect(messageOf(gates[0])).toContain(GEMINI_SETTINGS);
-    for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(true);
-    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
-    expect(readByOf(c.stdout, "AGENTS.md")).toContain(gemini.name);
-  });
-
-  it('fileName ["GEMINI.md"] after a clean install (the verifier\'s R8 case 2): Gemini CANNOT reach naming .gemini/settings.json, one counted WARN naming it, the others reach, AGENTS.md (read by …) omits Gemini; exit 0, 1 with --strict', () => {
-    const gemini = geminiHost();
-    const { target, kitHome } = installed();
-    writeFileSync(geminiFile(target), '{"context":{"fileName":["GEMINI.md"]}}\n');
-    const c = check(target, kitHome);
-    expect(c.status, c.stdout + c.stderr).toBe(0);
-    const v = reachVerdict(c.stdout, gemini);
-    expect(v.reaches, v.line).toBe(false);
-    expect(v.line).toContain(GEMINI_SETTINGS);
-    for (const h of HOST_TOOLS) if (h !== gemini) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(true);
-    const counted = countedRouteLines(c.stdout);
-    expect(counted.length, c.stdout).toBe(1);
-    expect(counted[0].startsWith("  WARN"), counted[0]).toBe(true);
-    expect(messageOf(counted[0]).startsWith("kit route:"), counted[0]).toBe(true);
-    expect(counted[0]).toContain(GEMINI_SETTINGS);
-    expect(readByOf(c.stdout, "AGENTS.md")).not.toContain(gemini.name);
-    const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
-    expect(strict.status, strict.stdout + strict.stderr).toBe(1);
-    expect(strict.stdout).not.toContain("ALL CHECKS PASSED");
-  });
-
-  // ── every Gemini settings state (plan 34-32 Task 2): rows (a)-(l), each built from a clean install ──
-  for (const row of GEMINI_ROWS) {
-    it(`(${row.id}) ${row.what}: Gemini ${row.reads ? "reaches" : "CANNOT reach"}; the follower agrees; ${row.reads ? "an ok gate line, no counted kit-route line" : `a counted WARN naming ${GEMINI_SETTINGS}, remedy ${row.reinstall ? "Re-run install.js, and an install run then makes Gemini reach" : "by hand, and install exits 3 leaving the file as it is"}`}`, () => {
-      const gemini = geminiHost();
-      const { target, kitHome } = installed();
-      row.stage(target);
-      // Two-sided: the row's declared verdict and the follower's own rule agree.
-      expect(geminiListsAgents(target), `the follower disagrees with row (${row.id})'s declared verdict`).toBe(row.reads);
-      expect(follow(target).reaches.get(gemini.id), `the follower's reach verdict for row (${row.id})`).toBe(row.reads);
-      const c = check(target, kitHome);
-      expect(c.status, c.stdout + c.stderr).toBe(0);
-      const v = reachVerdict(c.stdout, gemini);
-      expect(v.reaches, v.line).toBe(row.reads);
-      for (const h of HOST_TOOLS) if (h !== gemini) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(true);
-      const gates = gateLines(c.stdout, gemini);
-      expect(gates.length, c.stdout).toBe(1);
-      if (row.reads) {
-        expect(gates[0].startsWith("  ok"), gates[0]).toBe(true);
-        expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
-        expect(readByOf(c.stdout, "AGENTS.md")).toContain(gemini.name);
-        return;
-      }
-      // CANNOT reach: the line names the settings file and is never an empty list of reasons.
-      expect(v.line).toContain(GEMINI_SETTINGS);
-      expect(messageOf(v.line).split("CANNOT reach the Orchestrator: ")[1]?.trim().length ?? 0, v.line).toBeGreaterThan(0);
-      expect(readByOf(c.stdout, "AGENTS.md")).not.toContain(gemini.name);
-      const counted = countedRouteLines(c.stdout).filter((l) => l.includes(GEMINI_SETTINGS));
-      expect(counted.length, c.stdout).toBeGreaterThan(0);
-      expect(gates[0].startsWith("  WARN"), gates[0]).toBe(true);
-      expect(gates[0]).toContain(GEMINI_SETTINGS);
-      if (row.noVerdict) expect(gates[0]).toContain("no verdict");
-      expect(gates[0].includes("Re-run install.js"), `the remedy of row (${row.id}): ${gates[0]}`).toBe(row.reinstall === true);
-      if (row.reinstall !== true) expect(gates[0]).toContain("by hand");
-      const strict = spawnBin(INSTALL_JS, ["--check", "--strict"], target, kitHome);
-      expect(strict.status, strict.stdout + strict.stderr).toBe(1);
-      expect(strict.stdout).not.toContain("ALL CHECKS PASSED");
-      // INSTALL AND DOCTOR AGREE: the remedy is what an install run on this state does.
-      const before = settingsSnapshot(target);
-      const again = runInstall(target, kitHome);
-      if (row.reinstall === true) {
-        expect(again.status, again.stdout + again.stderr).toBe(0);
-        expect(geminiListsAgents(target), `install did not make ${GEMINI_SETTINGS} list AGENTS.md\n${again.stdout}`).toBe(true);
-        const after = check(target, kitHome);
-        expect(reachVerdict(after.stdout, gemini).reaches, after.stdout).toBe(true);
-      } else {
-        expect(again.status, again.stdout + again.stderr).toBe(3);
-        expect(linesUnder(again.stdout, "verify").some((l) => l.includes(GEMINI_SETTINGS)), again.stdout).toBe(true);
-        expect(settingsSnapshot(target), `install changed ${GEMINI_SETTINGS}`).toEqual(before);
-        const after = check(target, kitHome);
-        expect(reachVerdict(after.stdout, gemini).reaches, after.stdout).toBe(false);
-      }
-    });
-  }
-
-  it(`the rows cover ${GEMINI_ROWS_COUNT} settings states, both verdicts and both remedies`, () => {
-    expect(GEMINI_ROWS.length).toBe(GEMINI_ROWS_COUNT);
-    expect(new Set(GEMINI_ROWS.map((r) => r.id)).size).toBe(GEMINI_ROWS_COUNT);
-    expect(GEMINI_ROWS.filter((r) => r.reads).length).toBeGreaterThan(0);
-    expect(GEMINI_ROWS.filter((r) => !r.reads && r.reinstall === true).length).toBeGreaterThan(0);
-    expect(GEMINI_ROWS.filter((r) => !r.reads && r.reinstall !== true).length).toBeGreaterThan(0);
-  });
-});
-
 // ── ONE DERIVATION OF THE HOSTS A CARRIER STRANDS (plan 34-33, D-27 point 2; WR-02, WR-03; VERDICT-1, AUTH-1) ──
 //
 // A carrier without the route is counted only when it leaves some host without a route: a host that reads it
 // here, reads no other carrier holding the route, and has no adapter route. Otherwise it is an uncounted `note`
-// line. The stranded hosts are the follower's own (strandedOf below), from carriersOf, the follower's Gemini rule,
-// the carriers' text and the SKILL.md KIT= line: no code is shared with host-tools.ts strandedBy.
+// line. The stranded hosts are the follower's own (strandedOf below), from carriersOf, the carriers' text and the SKILL.md KIT= line: no code is shared with host-tools.ts strandedBy.
 
 /** The follower's own answer to "which hosts does `rel` leave without a route here", in registry order. */
 function strandedOf(target: string, rel: string): string[] {
   const f = follow(target);
   if (f.carries.get(rel) === true) return [];
   return HOST_TOOLS.filter((h) => {
-    const mine = followerCarriers(target, h);
+    const mine = followerCarriers(h);
     if (!mine.includes(rel)) return false;
     return !mine.some((c) => f.carries.get(c) === true) && !(h.adapter === "claude-kit" && f.adapterReaches);
   }).map((h) => h.name);
@@ -1368,8 +1205,11 @@ describe("kit route: one derivation of the hosts a carrier strands (plan 34-33, 
     expect(v.line).toContain("its adapters' KIT= line");
   });
 
-  it("R10 with the user's own AGENTS.md without the route: CLAUDE.md is still an uncounted note, because Claude Code's adapters give the route; AGENTS.md is the one counted WARN", () => {
+  // Plan 34.1-03 (D-12, D-20): AGENTS.md strands a host only together with the shared agent skill, so the case makes
+  // the user's own skill without the route too; AGENTS.md and the skill are then the counted lines, CLAUDE.md is not.
+  it("R10 with the user's own AGENTS.md and agent skill without the route: CLAUDE.md is still an uncounted note, because Claude Code's adapters give the route; AGENTS.md and the skill are the counted WARNs", () => {
     const { target, kitHome } = installedWithOwnAgents();
+    ownSkillWithoutRoute({ target });
     const claude = join(target, "CLAUDE.md");
     writeFileSync(claude, readFileSync(claude, "utf8").replace(` ${KIT_ROUTE}`, ""));
     expect(readFileSync(claude, "utf8").includes(KIT_ROUTE), "premise: the edit removed the route").toBe(false);
@@ -1378,8 +1218,9 @@ describe("kit route: one derivation of the hosts a carrier strands (plan 34-33, 
     expect(c.status, c.stdout + c.stderr).toBe(0);
     expect(carrierNotes(c.stdout, "CLAUDE.md").length, c.stdout).toBe(1);
     const counted = countedRouteLines(c.stdout);
-    expect(counted.length, c.stdout).toBe(1);
+    expect(counted.length, c.stdout).toBe(2);
     expect(messageOf(counted[0]).startsWith("kit route missing from AGENTS.md "), counted[0]).toBe(true);
+    expect(messageOf(counted[1]).startsWith(`kit route missing from ${SHARED_SKILL_REL} `), counted[1]).toBe(true);
     const claudeHost = HOST_TOOLS.filter((h) => h.adapter === "claude-kit")[0];
     const v = reachVerdict(c.stdout, claudeHost);
     expect(v.reaches, v.line).toBe(true);
@@ -1387,18 +1228,24 @@ describe("kit route: one derivation of the hosts a carrier strands (plan 34-33, 
     expect(v.line).not.toContain("AGENTS.md");
   });
 
-  it("the user's own AGENTS.md without the route still gives one counted WARN naming AGENTS.md and exactly the stranded hosts; --strict exit 1", () => {
+  // Plan 34.1-03 (D-12, D-20): AGENTS.md strands a host only together with the shared agent skill now; the case makes
+  // the user's own skill without the route too, and asks AGENTS.md's one counted WARN.
+  it("the user's own AGENTS.md (and agent skill) without the route still gives one counted WARN naming AGENTS.md and exactly the stranded hosts; --strict exit 1", () => {
     const { target, kitHome } = scratchRow();
     writeFileSync(join(target, "AGENTS.md"), "# My agents\n\nMy own instructions.\n");
+    ownSkillWithoutRoute({ target });
     expect(runInstall(target, kitHome).status).toBe(0);
     const stranded = strandedOf(target, "AGENTS.md");
     expect(stranded.length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
     const c = strictCheck(target, kitHome);
     expect(c.status, c.stdout + c.stderr).toBe(1);
-    const counted = countedRouteLines(c.stdout);
+    const counted = countedRouteLines(c.stdout).filter((l) => messageOf(l).startsWith("kit route missing from AGENTS.md "));
     expect(counted.length, c.stdout).toBe(1);
     expect(counted[0].startsWith("  WARN"), counted[0]).toBe(true);
     expect(counted[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+    expect(countedRouteLines(c.stdout).length, "every counted line is about a carrier that strands a host").toBe(
+      allCarriers().filter((rel) => strandedOf(target, rel).length > 0).length,
+    );
     for (const h of HOST_TOOLS) expect(reachVerdict(c.stdout, h).reaches, reachVerdict(c.stdout, h).line).toBe(!stranded.includes(h.name));
   });
 });
@@ -1488,6 +1335,8 @@ describe("kit route: one refreshable predicate decides refresh for install and t
     const stale = staleOf(readFileSync(join(REPO_ROOT, "AGENTS.md"), "utf8"));
     writeFileSync(elsewhere, stale);
     relinkOwn(target, "AGENTS.md", elsewhere);
+    // Plan 34.1-03 (D-12, D-20): AGENTS.md strands a host only together with the shared agent skill now.
+    ownSkillWithoutRoute({ target });
     const stranded = strandedOf(target, "AGENTS.md");
     expect(stranded.length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
     const { before, again, after } = doctorInstallDoctor({ target, kitHome }, "AGENTS.md", ["--symlink"]);
@@ -1511,6 +1360,10 @@ describe("kit route: one refreshable predicate decides refresh for install and t
   it("control: install's own regular-file AGENTS.md holding an earlier install's text: the FAIL names `Re-run install.js`, the re-install refreshes it, and --check then says every host reaches", () => {
     const row = installed();
     stageEarlierFile(row.target, "AGENTS.md", staleOf(readFileSync(join(row.target, "AGENTS.md"), "utf8")));
+    // Plan 34.1-03 (D-12, D-20): AGENTS.md strands a host (and so is a FAIL, not a note) only together with the shared
+    // agent skill now; the user's own skill without the route makes the agent-skill rows read AGENTS.md alone for it.
+    ownSkillWithoutRoute(row);
+    expect(strandedOf(row.target, "AGENTS.md").length, "premise: AGENTS.md strands some host").toBeGreaterThan(0);
     const { before, again, after } = doctorInstallDoctor(row, "AGENTS.md");
     expect(before.status, before.stdout + before.stderr).toBe(1);
     const fails = carrierLines(before.stdout, "AGENTS.md").filter((l) => l.startsWith("  FAIL"));
@@ -1609,17 +1462,16 @@ describe("kit route: one refreshable predicate decides refresh for install and t
 
 // ── THE CLASS MATRIX (plan 34-35, D-27 points 1, 2 and 3; brief §4; classes VERDICT-1 and AUTH-1) ──
 //
-// Plans 34-32 to 34-34 each fixed one owner (hostReadsCarrier with its entry gates, strandedBy, refreshable) and
+// Plans 34-32 to 34-34 each fixed one owner (hostReadsCarrier, strandedBy, refreshable) and
 // tested its own rows. In every earlier round the next finding was a member of the class next to the fixed site, so
 // this matrix asks the class question over every state at once. One describe drives `--check` and install over the
 // derived axes below and, in every cell and for every HOST_TOOLS host, holds:
 //   (1)-(4) the doctor to the independent follower: one reach line per host in registry order, every verdict equal to
 //           the follower's, a counted kit-route finding exactly when some host cannot reach, every counted carrier
 //           line about a carrier that leaves some host without a route (naming exactly those hosts), every uncounted
-//           carrier note about one that leaves none, and every counted gate line about a host that cannot reach;
+//           carrier note about one that leaves none;
 //   (5)     the doctor's `Re-run install.js` to what the install run on the same state does (a carrier line names it
-//           exactly when the install writes that carrier; the Gemini gate line exactly when the install writes the
-//           settings file, after which Gemini reads AGENTS.md; the route-target FAIL only when the route resolves after);
+//           exactly when the install writes that carrier; the route-target FAIL only when the route resolves after);
 //   (6)-(7) a DRY_RUN on the same state to the real install: the same files written (would-* against
 //           created/copied/linked/refreshed) and the same route notes, with the target byte-identical;
 //   (8)     the real install's route notes to the follower's stranded hosts after the run, and every matrix file the
@@ -1627,7 +1479,7 @@ describe("kit route: one refreshable predicate decides refresh for install and t
 //   (9)     `--check` after the install to the follower again, by the rules of (1)-(4).
 //
 // THE FOLLOWER SHARES NO DERIVATION WITH THE PRODUCT. It imports only data from host-tools.js (HOST_TOOLS,
-// ROUTE_POINTERS, KIT_ROUTE, HOST_TOOL_COUNT; the gated carrier of a host is read from the row's entryGates) and
+// ROUTE_POINTERS, KIT_ROUTE, HOST_TOOL_COUNT) and
 // computes reads, holds, adapter reach and stranded hosts itself (follow, followerCarriers, strandedOf above). Every
 // staging step writes files only; no product code is called to build a cell.
 //
@@ -1639,9 +1491,6 @@ describe("kit route: one refreshable predicate decides refresh for install and t
 /** The seven states a route carrier is put in (plan 34-35). */
 const CARRIER_STATES = ["current", "own-stale", "user-without-route", "user-with-route", "absent", "link-to-stale", "unreadable"] as const;
 type CarrierState = (typeof CARRIER_STATES)[number];
-/** The five states of `.gemini/settings.json`. */
-const GEMINI_STATES = ["lists", "omits", "duplicate-context", "not-strict-json", "absent"] as const;
-type GeminiState = (typeof GEMINI_STATES)[number];
 /** The two states of Claude Code's adapters: as installed, or every materialized KIT= line under `.claude/` pointed at an empty directory. */
 const ADAPTER_STATES = ["reaches", "kit-line-to-empty-dir"] as const;
 type AdapterState = (typeof ADAPTER_STATES)[number];
@@ -1657,11 +1506,10 @@ type RouteState = (typeof ROUTE_STATES)[number];
 const CLASS_CARRIERS: readonly string[] = allCarriers();
 
 interface CellSpec {
-  /** The generating group of the cell, (a) to (e). */
-  readonly group: "a" | "b" | "c" | "d" | "e";
+  /** The generating group of the cell, (a) to (c). */
+  readonly group: "a" | "b" | "c";
   /** Every route carrier's state. */
   readonly carriers: ReadonlyMap<string, CarrierState>;
-  readonly gemini: GeminiState;
   readonly adapter: AdapterState;
   readonly route: RouteState | "resolves";
 }
@@ -1672,7 +1520,6 @@ function cellName(spec: CellSpec): string {
   return [
     `(${spec.group})`,
     moved.length > 0 ? moved.join(", ") : "every carrier current",
-    `× gemini ${spec.gemini}`,
     `× adapter ${spec.adapter}`,
     `× route ${spec.route}`,
   ].join(" ");
@@ -1753,18 +1600,6 @@ function stageCarrier(target: string, rel: string, state: CarrierState): void {
   }
 }
 
-/** Put `.gemini/settings.json` of an installed target into `state`. */
-function stageGemini(target: string, state: GeminiState): void {
-  const text: Record<Exclude<GeminiState, "lists" | "absent">, string> = {
-    omits: '{"context":{"fileName":["GEMINI.md"]}}\n',
-    "duplicate-context": '{"context":{"fileName":["GEMINI.md"]},"context":{"fileName":["AGENTS.md"]}}\n',
-    "not-strict-json": '{"context": {"fileName": ["AGENTS.md"]},}\n',
-  };
-  if (state === "lists") expect(geminiListsAgents(target), "premise: the installed settings list AGENTS.md").toBe(true);
-  else if (state === "absent") rmSync(geminiFile(target));
-  else writeFileSync(geminiFile(target), text[state]);
-}
-
 /** Point every materialized KIT= line of every regular file under `.claude/` at an empty scratch directory. */
 function breakAdapters(target: string): void {
   const empty = join(ROOT, `empty${n++}`);
@@ -1817,7 +1652,6 @@ function stageRoute(target: string, kitHome: string, state: RouteState | "resolv
 function buildCell(spec: CellSpec): { target: string; kitHome: string } {
   const row = installed();
   for (const [rel, state] of spec.carriers) stageCarrier(row.target, rel, state);
-  stageGemini(row.target, spec.gemini);
   if (spec.adapter === "kit-line-to-empty-dir") breakAdapters(row.target);
   stageRoute(row.target, row.kitHome, spec.route);
   return row;
@@ -1826,14 +1660,14 @@ function buildCell(spec: CellSpec): { target: string; kitHome: string } {
 /** The follower's whole answer for a target as it is now: kept, because the files change when install runs. */
 interface FollowerView {
   readonly f: Followed;
-  /** Whether Gemini CLI (or any gated host) reads `rel` here, by the follower's own rule. */
+  /** Whether host `h` reads `rel`, by the follower's own rule (every carrier of its row). */
   readonly reads: (h: (typeof HOST_TOOLS)[number], rel: string) => boolean;
   /** THE FOLLOWER'S strandedHosts(rel): the hosts that read rel here, read no other carrier holding the route and have no adapter route. */
   readonly strandedHosts: (rel: string) => readonly string[];
 }
 function followerView(target: string): FollowerView {
   const f = follow(target);
-  const reads = new Map(HOST_TOOLS.map((h) => [h.id, followerCarriers(target, h)]));
+  const reads = new Map(HOST_TOOLS.map((h) => [h.id, followerCarriers(h)]));
   const stranded = new Map(CLASS_CARRIERS.map((rel) => [rel, strandedOf(target, rel)]));
   return {
     f,
@@ -1858,7 +1692,15 @@ function pathState(path: string): string {
   return st.isFile() ? `file ${sha256Of(readFileSync(path))}` : "other";
 }
 
-/** The files the matrix is about: every route carrier and the Gemini settings file. */
+/**
+ * `.gemini/settings.json`: install no longer reads, creates or edits it (phase 34.1, D-12). It stays a matrix file so
+ * that (6) and (8) hold, in every cell, that neither the DRY_RUN nor the install names it as written and that it is
+ * as it was before the run (absent, since no install creates it).
+ */
+const GEMINI_SETTINGS = ".gemini/settings.json";
+/** Every report line (any label) that names `rel` anywhere in its message. */
+const linesNaming = (stdout: string, rel: string): string[] => stdout.split(/\r?\n/).filter((l) => /^ {2}\S+\s/.test(l) && l.includes(rel));
+/** The files the matrix is about: every route carrier and the Gemini settings file install must never write. */
 const MATRIX_FILES: readonly string[] = [...CLASS_CARRIERS, GEMINI_SETTINGS];
 /** The labels of an install line that wrote its subject, and of a DRY_RUN line that would. */
 const WRITE_LABELS = ["created", "copied", "copied(verify)", "linked", "refreshed"] as const;
@@ -1867,9 +1709,6 @@ const wroteUnder = (stdout: string, labels: readonly string[], rel: string): boo
 
 /** The doctor's route-target line: the one kit-route line about the marker's kitRoot. */
 const routeTargetLines = (stdout: string): string[] => routeLines(stdout).filter((l) => messageOf(l).startsWith("kit route: the `kitRoot` field "));
-/** Every (host, carrier) the registry gates (HostTool.entryGates keys), derived. */
-const gatedPairs = (): Array<{ host: (typeof HOST_TOOLS)[number]; rel: string }> =>
-  HOST_TOOLS.flatMap((host) => Object.keys(host.entryGates).map((rel) => ({ host, rel })));
 const isCounted = (line: string): boolean => /^ {2}(FAIL|WARN)\s/.test(line);
 
 /**
@@ -1890,7 +1729,7 @@ function expectDoctorAgrees(what: string, c: Run, view: FollowerView, exit: bool
   // (3) a counted kit-route line exists exactly when some host cannot reach.
   const counted = countedRouteLines(c.stdout);
   expect(counted.length > 0, `(3) counted kit-route lines vs hosts that cannot reach (${cannot.map((h) => h.name).join(", ") || "none"}): ${out}`).toBe(cannot.length > 0);
-  // (4) every kit-route line is the route-target line, a carrier line or a gate line, and each says what the follower says.
+  // (4) every kit-route line is the route-target line or a carrier line, and each says what the follower says.
   const target = routeTargetLines(c.stdout);
   expect(target.length, `(4) one route-target line: ${out}`).toBe(1);
   expect(target[0].startsWith(view.f.routeResolves ? "  ok" : "  FAIL"), `(4) the route-target line vs the follower (resolves: ${view.f.routeResolves}): ${target[0]}\n${out}`).toBe(true);
@@ -1908,16 +1747,7 @@ function expectDoctorAgrees(what: string, c: Run, view: FollowerView, exit: bool
     if (stranded.length > 0) expect(mine[0], `(4) ${rel}: the counted line names exactly the follower's stranded hosts\n${out}`).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
     else expect(mine[0].startsWith("  note"), `(4) ${rel} leaves no host without a route: an uncounted note: ${mine[0]}\n${out}`).toBe(true);
   }
-  for (const { host, rel } of gatedPairs()) {
-    const gates = gateLines(c.stdout, host);
-    expect(gates.length, `(4) one gate line for ${host.name}: ${out}`).toBe(1);
-    classified += 1;
-    const reads = view.reads(host, rel);
-    const reaches = view.f.reaches.get(host.id) === true;
-    const label = reads ? "  ok" : reaches ? "  note" : "  WARN";
-    expect(gates[0].startsWith(label), `(4) ${host.name}'s gate line on ${rel} (follower: reads ${reads}, reaches ${reaches}): ${gates[0]}\n${out}`).toBe(true);
-  }
-  expect(routeLines(c.stdout).length, `(4) every kit-route line is the route-target line, a carrier line or a gate line: ${out}`).toBe(classified);
+  expect(routeLines(c.stdout).length, `(4) every kit-route line is the route-target line or a carrier line: ${out}`).toBe(classified);
   if (exit) {
     // No counted finding outside the kit route in these cells, so the exit status is the kit-route FAIL's.
     const all = c.stdout.split(/\r?\n/).filter(isCounted);
@@ -1974,15 +1804,6 @@ function checkCell(spec: CellSpec): CellResult {
       wroteUnder(real.stdout, WRITE_LABELS, rel),
     );
   }
-  for (const { host, rel } of gatedPairs()) {
-    const gate = gateLines(doc.stdout, host)[0];
-    const rerun = gate.includes("Re-run install.js");
-    expect(rerun, `(5) ${name}: ${host.name}'s gate line names \`Re-run install.js\` exactly when the install writes ${GEMINI_SETTINGS}${both}`).toBe(
-      wroteUnder(real.stdout, WRITE_LABELS, GEMINI_SETTINGS),
-    );
-    const readsAfter = gate.startsWith("  ok") || rerun;
-    expect(after.reads(host, rel), `(5) ${name}: after the install ${host.name} ${readsAfter ? "reads" : "still does not read"} ${rel} by the follower's rule${both}`).toBe(readsAfter);
-  }
   const routeLine = routeTargetLines(doc.stdout)[0];
   if (routeLine.includes("Re-run install.js")) expect(after.f.routeResolves, `(5) ${name}: the route-target line names \`Re-run install.js\`, and the route resolves after the install${both}`).toBe(true);
   if (!before.f.routeResolves && after.f.routeResolves) expect(routeLine, `(5) ${name}: the install made the route resolve, so the FAIL named the remedy`).toContain("Re-run install.js");
@@ -2014,72 +1835,61 @@ function checkCell(spec: CellSpec): CellResult {
 const CELL_TIMEOUT_MS = 120_000;
 
 // THE CELLS, GENERATED FROM THE AXES (never a typed cell list):
-//   (a) every carrier × every carrier state but the current copy; Gemini lists, the adapters reach, the route resolves;
-//   (b) every carrier current × every Gemini state;
-//   (c) AGENTS.md ∈ C_AGENTS × Gemini ∈ C_GEMINI;
-//   (d) the adapters' KIT= lines broken × CLAUDE.md ∈ D_CARRIER × AGENTS.md ∈ D_CARRIER;
-//   (e) each route state, everything else current.
-// AGENTS.md and CLAUDE.md are the carriers the plan names for (c) and (d); carrierStates asserts each is derived.
-const C_AGENTS: readonly CarrierState[] = ["user-without-route", "own-stale"];
-const C_GEMINI: readonly GeminiState[] = ["omits", "duplicate-context"];
+//   (a) every carrier × every carrier state but the current copy; the adapters reach, the route resolves;
+//   (b) the adapters' KIT= lines broken × CLAUDE.md ∈ D_CARRIER × AGENTS.md ∈ D_CARRIER;
+//   (c) each route state, everything else current.
+// CLAUDE.md and AGENTS.md are the carriers the plan names for (b); carrierStates asserts each is derived.
+// Phase 34.1 D-12 (plan 34.1-03) deleted the Gemini settings axis with the Gemini merge and its entry gate: the old
+// group (b) (every carrier current × every Gemini state) and the old group (c) (AGENTS.md ∈ C_AGENTS × Gemini ∈
+// C_GEMINI). Without the Gemini axis the old group (c) is AGENTS.md ∈ {user-without-route, own-stale} with everything
+// else clean, which is exactly two cells of group (a), so it was removed rather than run twice; the tracer below keeps
+// the user's own AGENTS.md cell as its own case. The old groups (d) and (e) are now (b) and (c).
 const D_CARRIER: readonly CarrierState[] = ["current", "user-without-route"];
 const D_ADAPTER: readonly AdapterState[] = ADAPTER_STATES.filter((a) => a !== "reaches");
 function generateCells(): CellSpec[] {
-  const clean = { gemini: "lists", adapter: "reaches", route: "resolves" } as const;
+  const clean = { adapter: "reaches", route: "resolves" } as const;
   const cells: CellSpec[] = [];
   for (const rel of CLASS_CARRIERS) {
     for (const state of CARRIER_STATES) if (state !== "current") cells.push({ group: "a", carriers: carrierStates({ [rel]: state }), ...clean });
   }
-  for (const gemini of GEMINI_STATES) cells.push({ ...clean, group: "b", carriers: carrierStates({}), gemini });
-  for (const agents of C_AGENTS) for (const gemini of C_GEMINI) cells.push({ ...clean, group: "c", carriers: carrierStates({ "AGENTS.md": agents }), gemini });
   for (const adapter of D_ADAPTER) {
-    for (const claude of D_CARRIER) for (const agents of D_CARRIER) cells.push({ ...clean, group: "d", carriers: carrierStates({ "CLAUDE.md": claude, "AGENTS.md": agents }), adapter });
+    for (const claude of D_CARRIER) for (const agents of D_CARRIER) cells.push({ ...clean, group: "b", carriers: carrierStates({ "CLAUDE.md": claude, "AGENTS.md": agents }), adapter });
   }
-  for (const route of ROUTE_STATES) cells.push({ ...clean, group: "e", carriers: carrierStates({}), route });
+  for (const route of ROUTE_STATES) cells.push({ ...clean, group: "c", carriers: carrierStates({}), route });
   return cells;
 }
 const CELLS: readonly CellSpec[] = generateCells();
-/** The cell count, a formula over the axes: |CARRIERS|×(|CARRIER_STATES|−1) + |GEMINI_STATES| + |C_AGENTS|×|C_GEMINI| + |D_ADAPTER|×|D_CARRIER|² + |ROUTE_STATES|. */
-const CELL_COUNT =
-  CLASS_CARRIERS.length * (CARRIER_STATES.length - 1) +
-  GEMINI_STATES.length +
-  C_AGENTS.length * C_GEMINI.length +
-  D_ADAPTER.length * D_CARRIER.length * D_CARRIER.length +
-  ROUTE_STATES.length;
+/** The cell count, a formula over the axes: |CARRIERS|×(|CARRIER_STATES|−1) + |D_ADAPTER|×|D_CARRIER|² + |ROUTE_STATES|. */
+const CELL_COUNT = CLASS_CARRIERS.length * (CARRIER_STATES.length - 1) + D_ADAPTER.length * D_CARRIER.length * D_CARRIER.length + ROUTE_STATES.length;
 
-describe("kit route: the class matrix — reach, counted findings and install agreement over every carrier, Gemini and adapter state (plan 34-35, D-27)", () => {
+describe("kit route: the class matrix — reach, counted findings and install agreement over every carrier, adapter and route state (plan 34-35, D-27)", () => {
   it(
-    "tracer: the user's own AGENTS.md without the route × Gemini settings that omit AGENTS.md: all nine assertions, and the follower's stranded hosts before and after the install",
+    "tracer: the user's own AGENTS.md without the route: all nine assertions, and the follower's stranded hosts before and after the install, derived from HOST_TOOLS",
     () => {
-      const gemini = geminiHost();
-      const spec: CellSpec = { group: "c", carriers: carrierStates({ "AGENTS.md": "user-without-route" }), gemini: "omits", adapter: "reaches", route: "resolves" };
+      const spec: CellSpec = { group: "a", carriers: carrierStates({ "AGENTS.md": "user-without-route" }), adapter: "reaches", route: "resolves" };
       const r = checkCell(spec);
-      // The hosts whose only carrier is AGENTS.md, taken from HOST_TOOLS (never typed).
+      // The hosts whose only carrier is AGENTS.md, taken from HOST_TOOLS (never typed; no host is special-cased). Every
+      // host reads every carrier of its row (phase 34.1, D-12), so these are the hosts AGENTS.md strands, before and
+      // after the install, which leaves the user's own AGENTS.md alone. Since plan 34.1-03 (D-20) every row has an entry
+      // of its own beside AGENTS.md, so the set is derived to be empty and AGENTS.md's line is an uncounted `note`; the
+      // expected label and note count are derived from the same set rather than typed (the counting rule, plan 34-33).
       const onlyAgents = HOST_TOOLS.filter((h) => carriersOf(h).length === 1 && carriersOf(h)[0] === "AGENTS.md");
-      expect(onlyAgents.map((h) => h.name), "premise: Gemini CLI is one of the hosts whose only carrier is AGENTS.md").toContain(gemini.name);
-      // Before: Gemini reads no carrier here, so AGENTS.md strands the other AGENTS.md-only hosts, and Gemini cannot reach.
-      // Plan 34.1-01 (D-08): Codex CLI and OpenCode now have a pointer of their own, so the other AGENTS.md-only hosts
-      // are derived to be none and AGENTS.md strands nobody before the install. Its line is a counted WARN exactly when
-      // it strands a host, and an uncounted `note` otherwise (the counting rule, plan 34-33), so the expected label is
-      // derived from the same set rather than typed.
-      const strandsBefore = onlyAgents.filter((h) => h !== gemini);
-      expect(r.before.strandedHosts("AGENTS.md")).toEqual(strandsBefore.map((h) => h.name));
-      expect(r.before.f.reaches.get(gemini.id)).toBe(false);
+      const names = onlyAgents.map((h) => h.name);
+      expect(r.before.strandedHosts("AGENTS.md")).toEqual(names);
       for (const h of HOST_TOOLS) expect(r.before.f.reaches.get(h.id), h.name).toBe(!onlyAgents.includes(h));
-      const warn = carrierLines(r.doc.stdout, "AGENTS.md")[0];
-      expect(warn.startsWith(strandsBefore.length > 0 ? "  WARN" : "  note"), warn).toBe(true);
-      expect(warn).not.toContain("Re-run install.js");
-      const gate = gateLines(r.doc.stdout, gemini)[0];
-      expect(gate.startsWith("  WARN"), gate).toBe(true);
-      expect(gate).toContain("Re-run install.js");
-      // (6) the DRY_RUN would add to the settings file and says nothing about AGENTS.md being written.
-      expect(reports(r.dry.stdout, "would-add", GEMINI_SETTINGS), r.dry.stdout).toBe(true);
+      const line = carrierLines(r.doc.stdout, "AGENTS.md")[0];
+      expect(line.startsWith(onlyAgents.length > 0 ? "  WARN" : "  note"), line).toBe(true);
+      expect(line).not.toContain("Re-run install.js");
+      // (6) the DRY_RUN says nothing about AGENTS.md being written, and nothing about the Gemini settings (D-12).
       expect(wroteUnder(r.dry.stdout, DRY_WRITE_LABELS, "AGENTS.md"), r.dry.stdout).toBe(false);
-      // (8) the install merged AGENTS.md into context.fileName and left AGENTS.md alone; its note names the after-run stranded hosts.
-      expect(geminiListsAgents(r.row.target), r.real.stdout).toBe(true);
+      expect(linesNaming(r.dry.stdout, GEMINI_SETTINGS), r.dry.stdout).toEqual([]);
+      // (8) the install left AGENTS.md alone and created no .gemini/; its note names the after-run stranded hosts.
       expect(readFileSync(join(r.row.target, "AGENTS.md"), "utf8")).toBe("# My own AGENTS.md\n\nMy own instructions.\n");
-      expect(r.after.strandedHosts("AGENTS.md")).toEqual(onlyAgents.map((h) => h.name));
-      expect(noteHosts(r.real.stdout, "AGENTS.md")).toEqual(onlyAgents.map((h) => h.name));
+      expect(existsSync(join(r.row.target, ".gemini")), r.real.stdout).toBe(false);
+      expect(linesNaming(r.real.stdout, GEMINI_SETTINGS), r.real.stdout).toEqual([]);
+      expect(r.after.strandedHosts("AGENTS.md")).toEqual(names);
+      expect(notesFor(r.real.stdout, "AGENTS.md").length, r.real.stdout).toBe(onlyAgents.length > 0 ? 1 : 0);
+      if (onlyAgents.length > 0) expect(noteHosts(r.real.stdout, "AGENTS.md")).toEqual(names);
     },
     CELL_TIMEOUT_MS,
   );
@@ -2094,15 +1904,13 @@ describe("kit route: the class matrix — reach, counted findings and install ag
       .map((m) => m.slice("kit route carried by ".length).split(" (read by ")[0]);
     expect(printed, c.stdout).toEqual([...CLASS_CARRIERS]);
     expect(HOST_TOOLS.length, "premise: the registry pin").toBe(HOST_TOOL_COUNT);
-    expect(gatedPairs().length, "premise: the registry gates some carrier (the Gemini settings axis has a host to act on)").toBeGreaterThan(0);
   });
 
-  it(`the matrix has ${CELL_COUNT} cells, the formula over the axes (${CLASS_CARRIERS.length} carriers × ${CARRIER_STATES.length - 1} states, ${GEMINI_STATES.length} Gemini states, ${C_AGENTS.length * C_GEMINI.length} AGENTS.md × Gemini, ${D_ADAPTER.length * D_CARRIER.length ** 2} adapter, ${ROUTE_STATES.length} route), each named once`, () => {
+  it(`the matrix has ${CELL_COUNT} cells, the formula over the axes (${CLASS_CARRIERS.length} carriers × ${CARRIER_STATES.length - 1} states, ${D_ADAPTER.length * D_CARRIER.length ** 2} adapter, ${ROUTE_STATES.length} route), each named once`, () => {
     expect(CELLS.length).toBe(CELL_COUNT);
     expect(new Set(CELLS.map(cellName)).size, "two cells share a name").toBe(CELL_COUNT);
     // Every state of every axis occurs in some cell.
     for (const s of CARRIER_STATES) expect(CELLS.some((c) => [...c.carriers.values()].includes(s)), `carrier state ${s}`).toBe(true);
-    for (const g of GEMINI_STATES) expect(CELLS.some((c) => c.gemini === g), `Gemini state ${g}`).toBe(true);
     for (const a of ADAPTER_STATES) expect(CELLS.some((c) => c.adapter === a), `adapter state ${a}`).toBe(true);
     for (const r of ROUTE_STATES) expect(CELLS.some((c) => c.route === r), `route state ${r}`).toBe(true);
     for (const rel of CLASS_CARRIERS) for (const s of CARRIER_STATES) expect(CELLS.some((c) => c.carriers.get(rel) === s), `${rel} × ${s}`).toBe(true);

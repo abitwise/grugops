@@ -47,7 +47,7 @@ import {
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
-import { askRecord, dirList, withLedger } from "./ledger.test-support.js";
+import { LEGACY_MERGED_BEFORE, LEGACY_MERGED_TEXT, askRecord, dirList, ledgerOf, plantLegacyGemini, readMarkerObject, withLedger } from "./ledger.test-support.js";
 import { PI_PROMPT_REL } from "./host-tools.js";
 import {
   INSTALL_JS,
@@ -460,11 +460,15 @@ const GEMINI_UNPARSEABLE: ReadonlyArray<{ readonly name: string; readonly body: 
   { name: "JSON null", body: "null\n" },
 ];
 
-describe("B5: an unparseable .gemini/settings.json is a counted verify on both sides (red-team of plan 33.1-27)", () => {
+// Phase 34.1 D-12: install no longer reads or writes the file, so B5's install half (install refuses an unparseable
+// file with a counted verify) was deleted with the merge. The uninstall half is kept: its gemini ledger entry is the
+// one an earlier install wrote when it created the file, planted by plantLegacyGemini.
+describe("B5: an unparseable .gemini/settings.json is a counted verify on uninstall (red-team of plan 33.1-27)", () => {
   for (const g of GEMINI_UNPARSEABLE) {
     it(`uninstall, ${g.name}: exit 3, a verify line, no 'removed' line, the file byte-identical (real and DRY_RUN)`, () => {
       for (const dry of [false, true]) {
         const t = installedTree(`gemini-un-${dry ? "dry" : "real"}`);
+        plantLegacyGemini(t.target, "created");
         const f = join(t.target, ".gemini", "settings.json");
         writeFileSync(f, g.body);
         const r = runUninstall(t.target, t.grugopsHome, { home: t.home, dryRun: dry, timeoutMs: 60_000 });
@@ -480,21 +484,6 @@ describe("B5: an unparseable .gemini/settings.json is a counted verify on both s
         expect(labels, `${what}: previewed as an edit`).not.toContain("would-edit");
         expect(readFileSync(f, "utf8"), `${what}: the file changed`).toBe(g.body);
       }
-    });
-
-    it(`install, ${g.name}: no crash, exit 3, a verify line, the file byte-identical`, () => {
-      const root = fresh("gemini-in");
-      const target = join(root, "target");
-      const home = join(root, "home");
-      mkdirSync(join(target, ".gemini"), { recursive: true });
-      mkdirSync(home);
-      writeFileSync(join(target, ".gemini", "settings.json"), g.body);
-      const r = runInstall(target, join(home, ".grugops"), [], { home, timeoutMs: 120_000 });
-      const what = `install, Gemini ${g.name}`;
-      expectFinished(r, what);
-      expect(r.status, `${what}: exit ${r.status}\n${r.stdout}`).toBe(3);
-      expect(linesFor(r.stdout, GEMINI_REL, target).map((l) => l.label), `${what}\n${r.stdout}`).toContain("verify");
-      expect(readFileSync(join(target, ".gemini", "settings.json"), "utf8")).toBe(g.body);
     });
   }
 });
@@ -606,5 +595,81 @@ describe("the ledger walk: blocks, settings, directories and backups (plan 33.1-
       expect(left.map((l) => l.label), `${what}\n${r.stdout}`).toEqual(["left"]);
       expect(left[0].msg).toMatch(/uninstall never removes a backup/);
     }
+  });
+});
+
+// ── THE LEGACY GEMINI ENTRY (phase 34.1, D-12; brief DC-2) ──────────────────────────────────────────
+// Install no longer reads, creates or edits .gemini/settings.json. A ledger an earlier install wrote can still
+// hold a `gemini` entry: a re-install carries it verbatim (it learned nothing about the file), and uninstall
+// still reverses what it records, only while the file holds it. Install cannot produce that state any more, so
+// it is planted by the hand-built fixture (ledger.test-support.ts plantLegacyGemini).
+describe("legacy Gemini entry (D-12)", () => {
+  const geminiEntryText = (target: string): string | undefined => {
+    const e = ledgerOf(readMarkerObject(target)).find((x) => x.kind === "gemini");
+    return e === undefined ? undefined : JSON.stringify(e);
+  };
+  const reinstall = (t: { target: string; home: string; grugopsHome: string }): Run => {
+    const r = runInstall(t.target, t.grugopsHome, [], { home: t.home, timeoutMs: 120_000 });
+    expectFinished(r, "re-install");
+    expect(r.status, `the re-install failed\n${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(linesFor(r.stdout, GEMINI_REL, t.target), `the re-install printed a line about ${GEMINI_REL}\n${r.stdout}`).toEqual([]);
+    return r;
+  };
+  /** DRY_RUN first (it changes nothing), then the real uninstall, which is returned. */
+  const uninstallBoth = (t: { target: string; home: string; grugopsHome: string }): Run => {
+    const before = snapshotTree(t.target);
+    const dry = runUninstall(t.target, t.grugopsHome, { home: t.home, dryRun: true, timeoutMs: 60_000 });
+    expectFinished(dry, "DRY_RUN uninstall");
+    expect(snapshotTree(t.target), `DRY_RUN uninstall changed the target\n${dry.stdout}`).toBe(before);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 });
+    expectFinished(r, "uninstall");
+    expect(dry.status, `DRY_RUN exit ${dry.status}, real exit ${r.status}\n${dry.stdout}`).toBe(r.status);
+    expect(r.status, `uninstall exit ${r.status}\n${r.stdout}`).toBe(0);
+    return r;
+  };
+
+  it("a fresh install creates no .gemini/, writes no gemini entry and prints no line about the Gemini settings", () => {
+    const root = fresh("gemini-fresh");
+    const target = join(root, "target");
+    const home = join(root, "home");
+    mkdirSync(target);
+    mkdirSync(home);
+    const r = runInstall(target, join(home, ".grugops"), [], { home, timeoutMs: 120_000 });
+    expectFinished(r, "fresh install");
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(existsSync(join(target, ".gemini")), "install created .gemini/").toBe(false);
+    expect(geminiEntryText(target), "a fresh marker holds a gemini entry").toBeUndefined();
+    expect(linesFor(r.stdout, GEMINI_REL, target), r.stdout).toEqual([]);
+  });
+
+  it("created: a re-install leaves the file and the gemini entry byte for byte; uninstall (DRY_RUN then real) deletes the file and .gemini/", () => {
+    const t = installedTree("gemini-legacy-created");
+    const planted = plantLegacyGemini(t.target, "created");
+    const file = join(t.target, ...GEMINI_REL.split("/"));
+    const bytes = readFileSync(file);
+    expect(geminiEntryText(t.target)).toBe(JSON.stringify(planted));
+    reinstall(t);
+    expect(readFileSync(file).equals(bytes), "the re-install changed the settings file").toBe(true);
+    expect(geminiEntryText(t.target), "the re-install did not carry the gemini entry verbatim").toBe(JSON.stringify(planted));
+    expect(dirList(readMarkerObject(t.target)), "the .gemini dir entry was not carried").toContain(".gemini");
+    const r = uninstallBoth(t);
+    expect(existsSync(file), `the created settings file was not removed\n${r.stdout}`).toBe(false);
+    expect(existsSync(join(t.target, ".gemini")), `.gemini/ (recorded as created) was not removed\n${r.stdout}`).toBe(false);
+    expect(linesFor(r.stdout, GEMINI_REL, t.target).map((l) => l.label), r.stdout).toEqual(["removed"]);
+  });
+
+  it("merged: a re-install leaves the file and the entry byte for byte; uninstall (DRY_RUN then real) removes only the appended AGENTS.md entry", () => {
+    const t = installedTree("gemini-legacy-merged");
+    const planted = plantLegacyGemini(t.target, "merged");
+    const file = join(t.target, ...GEMINI_REL.split("/"));
+    reinstall(t);
+    expect(readFileSync(file, "utf8"), "the re-install changed the settings file").toBe(LEGACY_MERGED_TEXT);
+    expect(geminiEntryText(t.target), "the re-install did not carry the gemini entry verbatim").toBe(JSON.stringify(planted));
+    const r = uninstallBoth(t);
+    expect(readFileSync(file, "utf8"), `uninstall did not leave every other byte\n${r.stdout}`).toBe(LEGACY_MERGED_BEFORE);
+    expect(existsSync(join(t.target, ".gemini")), "the user's .gemini/ was removed").toBe(true);
+    const removed = linesFor(r.stdout, GEMINI_REL, t.target).filter((l) => l.label === "removed");
+    expect(removed.length, r.stdout).toBe(1);
+    expect(removed[0].msg).toMatch(/AGENTS\.md entry/);
   });
 });
