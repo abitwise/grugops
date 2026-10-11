@@ -51,8 +51,9 @@ node install/install.js --target /path/to/repo
 # Install into the current repo (prompts to confirm the target first):
 node install/install.js
 
-# Unattended / CI (take the default target, no prompt):
-node install/install.js --yes
+# Unattended / CI (take the default target, no prompt). A first unattended install names its
+# agents; see "Which agents an unattended install is for":
+node install/install.js --yes --claude
 
 # Preview first — prints the plan, changes NOTHING on disk (in either root):
 DRY_RUN=1 node install/install.js
@@ -133,7 +134,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 | Code | Meaning |
 |------|---------|
 | `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the `plans/handoffs/` backup it made, named, and whether it was recorded in `.grugops/install.json`) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
-| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below). `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
+| `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below), and refuses when no agent was named, none is recorded and none was detected (see "Which agents an unattended install is for"); that refusal names every agent flag. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, `--target` with no value, or (`install.js` only) an agent flag (`--claude`, `--codex`, …) combined with `--check`, `--update` or `--prune-old-kit`. Nothing was read or written. |
 | `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
 
@@ -223,6 +224,42 @@ When run interactively without `--target`, the installer asks *"Install grugops 
 repo? [<default>]"* and waits for confirmation. For unattended runs (CI, scripts), pass
 **`--yes`** (or `-y`) to take the default target without prompting; a non-TTY stdin is treated
 the same way, so a piped or redirected invocation never hangs on the prompt.
+
+#### Which agents an unattended install is for
+
+Each agent has its own flag: `--claude` (Claude Code), `--codex` (Codex CLI), `--antigravity`
+(Antigravity CLI), `--opencode` (OpenCode), `--copilot` (GitHub Copilot CLI) and `--pi` (Pi). There is
+no all-agents flag. With one or more of them, the run chooses exactly the agents named. With none,
+`--yes` (or a run with no terminal) chooses, in this order:
+
+1. **The agents recorded in `.grugops/install.json`.** Every install records, in the `agents` field,
+   the agents installed in that repository. Naming fewer agents later never removes one from the
+   record: install only adds.
+2. **An install made before this release** (its `.grugops/install.json` has an install ledger but no
+   `agents` field) counts as Claude Code, Copilot and Pi, the agents those installs wrote files for.
+   Its old Gemini settings record does not choose Antigravity.
+3. **The agents detected in the repository**, when nothing is recorded. This covers a repository
+   never installed into, and a v2.1.0 install, which kept no install ledger. An agent is detected
+   when its signal, a path relative to the repository root, is present:
+
+   | Agent | Detected by |
+   |-------|-------------|
+   | Claude Code | `.claude` |
+   | Codex CLI | `.codex` |
+   | Antigravity CLI | `.gemini` (`UNKNOWN - verify`: it is the old Gemini CLI signal, and no project-level `.gemini/` use by Antigravity CLI was found in its documentation) |
+   | OpenCode | `opencode.json` |
+   | GitHub Copilot CLI | `.github/copilot-instructions.md` only; a bare `.github/` directory, which most GitHub repositories have, chooses nothing |
+   | Pi | `.pi` |
+
+   So a `.gemini` directory (for example one an earlier Gemini CLI setup left) chooses Antigravity
+   CLI, and a `.pi` directory chooses Pi.
+4. **Nothing recorded and nothing detected:** the installer writes nothing, exits `1`, and its
+   stderr message names every agent flag to pass.
+
+The run banner's `agents:` line names each chosen agent and why it was chosen (named by flag,
+recorded, installed before this release, or detected with its signal), so a choice made by detection
+is visible. Until the interactive agent list arrives, a run at a terminal with no agent flag follows
+the same order.
 
 ### Copy by default (symlink is opt-in)
 
