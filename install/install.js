@@ -2689,7 +2689,8 @@ function adapterRouteAfterRun() {
 // (host-tools.ts), the one derivation of the hosts a carrier leaves without a route, which the doctor asks too, over
 // the state this run leaves: each path is read from PLANNED_BYTES first (under DRY_RUN, what the real run would
 // write there), else through readUserFile under TARGET. Its facts:
-//   reads(h, rel)       = hostReadsCarrier (the one owner: `rel` is one of the host's routeCarriers);
+//   reads(h, rel)       = hostReadsCarrier (the one owner: `rel` is one of the host's routeCarriers), for a host installed
+//                         here after this run (AGENTS_AFTER); no host outside it is named (plan 34.1-08);
 //   holds(rel)          = an ok read whose whole text carriesKitRoute;
 //   adapterReaches(h)   = a `claude-kit` host while adapterRouteAfterRun.
 // For each carrier of routeCarrierSet that does not hold and whose strandedBy names hosts, one `note` names the file
@@ -2713,9 +2714,12 @@ function noteStrandingCarriers() {
     };
     const rels = routeCarrierSet();
     const reads = new Map();
+    // Only the agents installed here after this run (AGENTS_AFTER, plan 34.1-08, D-04, D-06) are asked about: an agent
+    // that is neither chosen nor installed needs no route, and the carriers of an agent not chosen were not written by
+    // this run, so naming it would point at a remedy line that does not exist.
     for (const h of HOST_TOOLS)
         for (const rel of rels)
-            reads.set(`${h.id}\0${rel}`, hostReadsCarrier(h, rel));
+            reads.set(`${h.id}\0${rel}`, AGENTS_AFTER.includes(h.id) && hostReadsCarrier(h, rel));
     const adapterAfter = adapterRouteAfterRun();
     const facts = {
         reads: (h, rel) => reads.get(`${h.id}\0${rel}`) === true,

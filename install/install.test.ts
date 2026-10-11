@@ -10805,4 +10805,17 @@ describe("install only adds (D-04)", () => {
     expect(existsSync(join(target, "agent-factory")), "the in-repo kit was not moved aside").toBe(false);
     expect(readMarkerObject(target).agents).toEqual(["codex"]);
   }, 240_000);
+
+  it("(d) --codex over the user's own AGENTS.md without the kit route: no route note names an agent that is not installed", () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    writeFileSync(join(target, "AGENTS.md"), "# My own agents file\n");
+    const r = runInstall(target, home, codex());
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const routeNotes = r.stdout.split("\n").filter((l) => /^ {2}note\s/.test(l) && l.includes("without a route to the kit"));
+    const notInstalled = HOST_TOOLS.filter((h) => h.id !== "codex");
+    expect(notInstalled).toHaveLength(HOST_TOOL_COUNT - 1);
+    for (const l of routeNotes) for (const h of notInstalled) expect(l, `a route note names ${h.name}, which is not installed`).not.toContain(h.name);
+    expect(readFileSync(join(target, "AGENTS.md"), "utf8"), "the user's AGENTS.md").toBe("# My own agents file\n");
+  }, 240_000);
 });
