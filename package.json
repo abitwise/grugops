@@ -30,6 +30,7 @@
     "generate:catalog": "tsc --outDir .tmp-build && node scripts/generate-catalog.js",
     "generate:adapters": "tsc --outDir .tmp-build && node scripts/generate-role-adapters.js",
     "generate:skill-twins": "tsc --outDir .tmp-build && node scripts/generate-skill-twins.js",
+    "generate:host-entries": "tsc --outDir .tmp-build && node scripts/generate-host-entries.js",
     "generate:guarantees": "tsc --outDir .tmp-build && node scripts/generate-guarantees.js",
     "generate:hook-manifest": "tsc --outDir .tmp-build && node scripts/generate-hook-manifest.js && npm run build",
     "freshness:catalog": "tsc --outDir .tmp-build && node scripts/catalog-freshness.js",

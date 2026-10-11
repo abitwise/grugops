@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS, PI_PROMPT_REL, KIT_ROUTE, carriesKitRoute, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
+import { HOST_TOOLS, PI_PROMPT_REL, AGENT_SKILL_REL, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -971,16 +971,17 @@ const CLAUDE_CLOSE = "<!-- GSD:grugops-start-here-end -->";
 // blocks are removed independently by uninstall.ts — must match it exactly.
 const COPILOT_REL = ".github/copilot-instructions.md";
 const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
-// COPILOT_PTR (D-26): the start-here sentence, one space, then KIT_ROUTE (host-tools.ts, the one authority
-// for the route), still one line. A scripted install puts the kit in a separate kit home, so the
-// repository-relative `agent-factory/roles/orchestrator.md` alone never resolves for a host with no Claude
-// Code adapter; the route names the marker field that does. Fixed text: no install-time value enters it.
-const COPILOT_PTR = "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator. " + KIT_ROUTE;
+// COPILOT_PTR (D-26; phase 34.1, D-09): POINTER_LINE (host-tools.ts, the one authority for the start-here sentence,
+// one space, then KIT_ROUTE, on one line), the same line every whole-file entry carries. A scripted install puts the
+// kit in a separate kit home, so the repository-relative `agent-factory/roles/orchestrator.md` alone never resolves
+// for a host with no Claude Code adapter; the route names the marker field that does. Fixed text: no install-time
+// value enters it.
+const COPILOT_PTR = POINTER_LINE;
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
 // PI_PROMPT_TEXT (plan 34-04, D-10, D-16): the whole of the Pi project prompt template install creates
 // at PI_PROMPT_REL (`.pi/prompts/grugops.md`), which Pi users invoke as `/grugops <request>`. It is
 // POINTER TEXT ONLY, never role text (the single-source rule): the start-here sentence is COPILOT_PTR
-// itself, reused rather than retyped, so there is one spelling of it for the Copilot pointer and Pi.
+// itself (POINTER_LINE), reused rather than retyped, so there is one spelling of it for the Copilot pointer and Pi.
 // Pi reads the `description` and `argument-hint` frontmatter of a project template and expands
 // `$ARGUMENTS` to the text typed after the command (34-RESEARCH.md § B, Pi's prompt-template docs).
 // The template is pointer text that names the kit route (D-26): COPILOT_PTR ends with KIT_ROUTE, which
@@ -997,11 +998,39 @@ const PI_PROMPT_TEXT = [
 ].join("\n") + "\n";
 // ROUTE_BLOCKS (plan 34-29, D-26 point 4): the route carriers install writes as a sentinel block appended to a
 // file (BLOCK_RELS in install-marker.ts: CLAUDE.md and the Copilot pointer), with their sentinels. A carrier not
-// listed here is a whole file install writes (AGENTS.md, the Pi template), owned through its `file` entry.
+// listed here is a whole file install writes (AGENTS.md, and every whole-file entry wholeFileEntryRels names),
+// owned through its `file` entry.
 const ROUTE_BLOCKS = new Map([
     ["CLAUDE.md", { open: CLAUDE_OPEN, close: CLAUDE_CLOSE }],
     [COPILOT_REL, { open: COPILOT_OPEN, close: COPILOT_CLOSE }],
 ]);
+// wholeFileEntryRels (phase 34.1, plan 34.1-01, D-08, D-11): THE ONE DERIVATION of the whole-file entries install
+// writes for `hosts`: the ROUTE_POINTERS paths of the hosts' adapter kinds (host-tools.ts) that are not ROUTE_BLOCKS
+// carriers, without duplicates, in registry order. Each is a committed generated file in the kit source
+// (scripts/generate-host-entries.ts renders it from the one pointer template), copied by writeWholeFileEntry. A
+// function declaration over imports and consts declared above the doctor, so the doctor can ask it.
+function wholeFileEntryRels(hosts) {
+    return [...new Set(hosts.flatMap((h) => ROUTE_POINTERS[h.adapter].filter((rel) => !ROUTE_BLOCKS.has(rel))))];
+}
+// ENTRY_NOUN (phase 34.1, plan 34.1-01): what a whole-file entry of each adapter kind is called in install's lines,
+// keyed by HostAdapterKind so a new kind is a compile error until it is named here; null for a kind that writes no
+// whole-file entry. entryLabel puts the names of the hosts that read the entry before it ("Pi prompt template").
+const ENTRY_NOUN = {
+    "claude-kit": null,
+    none: null,
+    "gemini-settings": null,
+    "copilot-pointer": null,
+    "pi-prompt-template": "prompt template",
+    "agent-skill": "skill",
+};
+// entryLabel (phase 34.1, plan 34.1-01): the label install's lines give the whole-file entry `rel`: the names of the
+// HOST_TOOLS rows whose ROUTE_POINTERS include it, in registry order, joined with " and ", then the noun of the first
+// such row's adapter kind (ENTRY_NOUN).
+function entryLabel(rel) {
+    const rows = HOST_TOOLS.filter((h) => ROUTE_POINTERS[h.adapter].includes(rel));
+    const noun = rows.length > 0 ? ENTRY_NOUN[rows[0].adapter] : null;
+    return `${rows.map((h) => h.name).join(" and ")} ${noun ?? "entry"}`;
+}
 // The entry Gemini CLI must find in context.fileName, compared by exact string equality.
 const GEMINI_WANT = "AGENTS.md";
 // readGeminiContext (plan 34-32, D-27 point 1): THE ONE READER of `.gemini/settings.json`'s context.fileName,
@@ -1177,18 +1206,26 @@ function ownBlockSpans(ledger, rel, bytes, open, close) {
     const record = own.entry.block;
     return { entry: own.entry, spans: blockLineSpans(bytes, open, close).filter((sp) => contentRecord(bytes.subarray(sp.start, sp.end)) === record) };
 }
-// carrierWant (plan 34-34, D-27 point 3): THE ONE SPELLING of the kit's current text for a whole-file route carrier
-// install writes: for AGENTS.md, the kit source's AGENTS.md read through readUserFile (DC-3: bounded, never a FIFO or
-// a device), or null when that read is not ok; for the Pi template, PI_PROMPT_TEXT; for anything else, null. A
-// function declaration over consts declared above the doctor (GRUGOPS_SRC, PI_PROMPT_TEXT), so the doctor can ask it.
-function carrierWant(rel) {
-    if (rel === "AGENTS.md") {
-        const src = readUserFile(join(GRUGOPS_SRC, "AGENTS.md"));
-        return src.state === "ok" ? src.bytes : null;
+// carrierSource (phase 34.1, plan 34.1-01): THE ONE READ of the kit's current text for a whole-file route carrier
+// install writes: for AGENTS.md and for the agent skill (AGENT_SKILL_REL), the file at that path under the kit source,
+// read through readUserFile (DC-3: bounded, never a FIFO or a device); for the Pi template, PI_PROMPT_TEXT as an `ok`
+// read; for anything else, null. writeWholeFileEntry asks it for the state of the source (absent: skipped; any other
+// unread state: a counted verify), and carrierWant for its bytes, so the two cannot read different sources.
+function carrierSource(rel) {
+    if (rel === "AGENTS.md" || rel === AGENT_SKILL_REL)
+        return readUserFile(join(GRUGOPS_SRC, ...rel.split("/")));
+    if (rel === PI_PROMPT_REL) {
+        const bytes = Buffer.from(PI_PROMPT_TEXT, "utf8");
+        return { state: "ok", bytes, text: PI_PROMPT_TEXT, mode: 0o644 };
     }
-    if (rel === PI_PROMPT_REL)
-        return Buffer.from(PI_PROMPT_TEXT, "utf8");
     return null;
+}
+// carrierWant (plan 34-34, D-27 point 3): THE ONE SPELLING of the kit's current text for a whole-file route carrier
+// install writes: carrierSource's bytes when that read is ok, else null. A function declaration over consts declared
+// above the doctor (GRUGOPS_SRC, PI_PROMPT_TEXT), so the doctor can ask it.
+function carrierWant(rel) {
+    const src = carrierSource(rel);
+    return src !== null && src.state === "ok" ? src.bytes : null;
 }
 // refreshable (plan 34-34, D-27 point 3, WR-01; classes AUTH-1 and VERDICT-1): THE ONE OWNER of "would install refresh
 // route carrier `rel` here". Install refreshes only when it answers ok (refreshOwnFile for a whole file, ensureBlock's
@@ -2717,58 +2754,73 @@ function ensureBlock(ledger, file, open, body, close, label) {
     }
     report("created", label);
 }
-// writePiPromptTemplate (plan 34-04, D-10, D-13, D-16, D-17; the refresh, plan 34-28, D-26 point 2): create
-// the Pi project prompt template at PI_PROMPT_REL when NOTHING is at that path, and refresh install's own
-// unedited copy from an earlier install. Called on every install, whether or not the target has a `.pi`
-// directory (D-17): a write gated on detection would escape the derived installer class tests
-// (34-RESEARCH.md Pitfall 10). `ledger` is the target's install ledger as this run found it
-// (PREVIOUS_LEDGER), passed in so the doctor can share the rule (a const below the `--check` exit is in
-// its temporal dead zone).
+// writeWholeFileEntry (phase 34.1, plan 34.1-01, D-08, D-09, D-11; it replaces writePiPromptTemplate, plan 34-04,
+// D-10, D-13, D-16, D-17, and keeps its arms; the refresh, plan 34-28, D-26 point 2): create the whole-file entry
+// `rel` (one of wholeFileEntryRels) when NOTHING is at that path, and refresh install's own unedited copy from an
+// earlier install. Called for every whole-file entry on every install, whether or not the target shows the host
+// (Phase 34 D-17; selection by agent is plans 34.1-05 to 34.1-07): a write gated on detection would escape the derived
+// installer class tests (34-RESEARCH.md Pitfall 10). `ledger` is the target's install ledger as this run found it
+// (PREVIOUS_LEDGER), passed in so the doctor can share the rule (a const below the `--check` exit is in its temporal
+// dead zone).
 //
-// The path is asked through readForWrite first (DC-3: a FIFO, a directory, a device or a link there is
+// THE BYTES ARE THE KIT'S, NEVER BUILT HERE (D-11): carrierSource(rel), the committed generated file under the kit
+// source (scripts/generate-host-entries.ts renders it from agent-factory/packaging/host-entry.template.md), read
+// through readUserFile (DC-3). Fixed kit text: no install-time value reaches it (T-34-13). The source is asked first:
+//   absent  → `skipped`, naming that the kit source has no such file (the AGENTS.md linkOrCopy precedent); nothing is
+//             written.
+//   any other unread state → a counted verify; nothing is written.
+// Then the path in the target is asked through readForWrite (DC-3: a FIFO, a directory, a device or a link there is
 // never read or written through):
 //   blocked → a counted verify; nothing is written.
 //   ok      → a file is already there. refreshOwnFile decides, through refreshable (plan 34-34; brief DC-2: a
 //             write only on install's own record): when the previous ledger's `file` entry for the path still
-//             holds (owns) as a `sha256:` record and the path is a regular file, the file
-//             is install's own and unedited, so text that is not PI_PROMPT_TEXT (an earlier install's
-//             template, with no kit route or older) is replaced and the new bytes recorded; text that is
-//             PI_PROMPT_TEXT is current and skipped. Anything else (the user's own template, or install's
-//             edited since) is left untouched, never overwritten or appended to, and install's route-note
-//             pass (noteStrandingCarriers) names it when it carries no kit route and that leaves Pi without
-//             one (D-26 point 3, D-27 point 2). This replaces the
-//             create-only rule deferred as IN-03. An earlier install's ledger claim on a file left
-//             untouched is carried forward by nextLedgerEntries only while the file still holds exactly
-//             the recorded content (recordHolds), so a user edit drops the claim.
-//   DRY_RUN → `would-add` (nothing there) or `would-refresh`, decided before any write; the bytes the real
-//             run would leave are recorded (setPlanned) for the route-note pass.
-//   create  → writeTargetFile with the exclusive create (flag "wx"); mkdirp records `.pi` and
-//             `.pi/prompts` in CREATED_DIRS only when this run made them, so a user's own `.pi/` is never
-//             claimed. Only a create that succeeded is recorded, as a kit-false `file` entry; uninstall
-//             removes it through the ledger walk (owns(path)) only while it still holds these bytes.
-// grugops writes nothing else under `.pi/` (no SYSTEM.md, APPEND_SYSTEM.md, settings.json, mcp.json,
-// skills/ or extensions/; D-10).
-function writePiPromptTemplate(ledger) {
-    const file = join(TARGET, ...PI_PROMPT_REL.split("/"));
+//             holds (owns) as a `sha256:` record and the path is a regular file, the file is install's own and
+//             unedited, so text that is not the kit's current text (an earlier install's entry, with no kit route
+//             or older) is replaced and the new bytes recorded; text that is current is skipped. Anything else (the
+//             user's own file, or install's edited since) is left untouched, never overwritten or appended to, and
+//             install's route-note pass (noteStrandingCarriers) names it when it carries no kit route and that
+//             leaves a host without one (D-26 point 3, D-27 point 2). An earlier install's ledger claim on a file
+//             left untouched is carried forward by nextLedgerEntries only while the file still holds exactly the
+//             recorded content (recordHolds), so a user edit drops the claim.
+//   DRY_RUN → `would-add` (nothing there) or `would-refresh`, decided before any write; the bytes the real run
+//             would leave are recorded (setPlanned) for the route-note pass.
+//   create  → writeTargetFile with the exclusive create (flag "wx"); mkdirp records each directory on the way in
+//             CREATED_DIRS only when this run made it, so a user's own directory is never claimed. Only a create
+//             that succeeded is recorded, as a kit-false `file` entry; uninstall removes it through the ledger walk
+//             (owns(path)) only while it still holds these bytes.
+// grugops writes nothing else under a host's directory for these hosts (no settings, skills other than this one, or
+// extensions; Phase 34 D-10).
+function writeWholeFileEntry(ledger, rel) {
+    const label = entryLabel(rel);
+    const src = carrierSource(rel);
+    if (src === null || src.state === "absent") {
+        report("skipped", `${rel} (${label}: the kit source has no ${rel} — nothing was written)`);
+        return;
+    }
+    if (src.state !== "ok") {
+        verify(`${rel} (${label}): the kit source ${join(GRUGOPS_SRC, ...rel.split("/"))} ${unreadState(src)}. Nothing was written.`);
+        return;
+    }
+    const file = join(TARGET, ...rel.split("/"));
     const cur = readForWrite(TARGET, file);
     if (cur.state === "blocked") {
-        verify(`${PI_PROMPT_REL} (Pi prompt template): ${blockedAt(cur, file)}. It was left untouched and nothing was written.`);
+        verify(`${rel} (${label}): ${blockedAt(cur, file)}. It was left untouched and nothing was written.`);
         return;
     }
     if (cur.state === "ok") {
-        if (refreshOwnFile(ledger, PI_PROMPT_REL, "Pi prompt template") !== "left")
+        if (refreshOwnFile(ledger, rel, label) !== "left")
             return;
-        report("skipped", `${PI_PROMPT_REL} (Pi prompt template: a file is already there — left untouched)`);
+        report("skipped", `${rel} (${label}: a file is already there — left untouched)`);
         return;
     }
     if (DRY_RUN) {
-        setPlanned(file, PI_PROMPT_TEXT);
-        report("would-add", `${PI_PROMPT_REL} (Pi prompt template)`);
+        setPlanned(file, src.bytes);
+        report("would-add", `${rel} (${label})`);
         return;
     }
-    if (writeTargetFile(file, PI_PROMPT_TEXT, "create", PI_PROMPT_REL)) {
-        recordCreatedFile(file, writtenFileRecord(file, PI_PROMPT_TEXT));
-        report("created", `${PI_PROMPT_REL} (Pi prompt template)`);
+    if (writeTargetFile(file, src.bytes, "create", rel)) {
+        recordCreatedFile(file, writtenFileRecord(file, src.bytes));
+        report("created", `${rel} (${label})`);
     }
 }
 function refreshOwnFile(ledger, rel, label) {
@@ -2802,7 +2854,7 @@ function adapterRouteAfterRun() {
     return kitReal(kit ? docAbspath(kit) : "");
 }
 // noteStrandingCarriers (plan 34-33, D-27 point 2; was noteMissingRoute, plan 34-28, D-26 point 3): THE INSTALL
-// ROUTE-NOTE PASS. Called once, right after the last carrier write (writePiPromptTemplate). It asks strandedBy
+// ROUTE-NOTE PASS. Called once, right after the last carrier write (the writeWholeFileEntry loop). It asks strandedBy
 // (host-tools.ts), the one derivation of the hosts a carrier leaves without a route, which the doctor asks too, over
 // the state this run leaves: each path is read from PLANNED_BYTES first (under DRY_RUN, what the real run would
 // write there), else through readUserFile under TARGET. Its facts:
@@ -5444,7 +5496,9 @@ for (const rel of SRC_NESTED_ADAPTERS) {
 ensureBlock(PREVIOUS_LEDGER, join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
 mergeGemini();
 ensureBlock(PREVIOUS_LEDGER, join(TARGET, COPILOT_REL), COPILOT_OPEN, COPILOT_PTR, COPILOT_CLOSE, `${COPILOT_REL} (optional Copilot pointer)`);
-writePiPromptTemplate(PREVIOUS_LEDGER);
+// Every whole-file entry (phase 34.1, plan 34.1-01): the derived set, in registry order.
+for (const rel of wholeFileEntryRels(HOST_TOOLS))
+    writeWholeFileEntry(PREVIOUS_LEDGER, rel);
 // The route-note pass, once, after every carrier write (plan 34-33): it only reads and reports.
 noteStrandingCarriers();
 // ── The RETIRED `autonomy` scalar: REPORT, never rewrite (Phase 30, D-05 / T-30-22) ─────────────

@@ -32,6 +32,7 @@ export const HOST_ADAPTER_KINDS = [
   "gemini-settings",
   "copilot-pointer",
   "pi-prompt-template",
+  "agent-skill",
 ] as const;
 
 /** One adapter kind, derived from the tuple above so the two cannot disagree. */
@@ -88,14 +89,27 @@ export interface HostTool {
 export const PI_PROMPT_REL = ".pi/prompts/grugops.md";
 
 /**
+ * AGENT_SKILL_REL (phase 34.1, D-08 as amended by D-20): the one project-level skill path Codex CLI and Antigravity
+ * CLI both read. Codex CLI loads repository skills from `.agents/skills/` (learn.chatgpt.com/docs/build-skills,
+ * retrieved 2026-10-11) and Antigravity CLI loads workspace skills from `<workspace-root>/.agents/skills/`
+ * (antigravity.google/docs/skills/, retrieved 2026-10-11). Antigravity's migration page moves Gemini CLI's
+ * `.gemini/skills/` to `.agents/skills/` (antigravity.google/docs/cli/gcli-migration/, retrieved 2026-10-11), so
+ * `.gemini/skills/` is refuted as an entry path and is never written. The file is a whole-file entry rendered by
+ * scripts/generate-host-entries.ts and copied by install from the kit source; every consumer imports this constant
+ * rather than spelling the path again.
+ */
+export const AGENT_SKILL_REL = ".agents/skills/grugops/SKILL.md";
+
+/**
  * KIT_ROUTE (phase 34, D-26, the marker route): THE ONE AUTHORITY for the sentence that tells a host
  * with no Claude Code adapter where the grugops kit is after a scripted install. A scripted install
  * puts the kit in a separate kit home, never in the target, and writes the kit root into the
  * `kitRoot` field of `.grugops/install.json` on every install (install.ts writeMarker). The route
  * names that field; it never names the path itself.
  *
- * Carried VERBATIM, after the start-here sentence, by the pointers install writes (the Copilot pointer
- * and the Pi prompt template, which reuses it) and by the kit's AGENTS.md "Kit vs state" rule. It is
+ * Carried VERBATIM, after the start-here sentence, by the pointers install writes (POINTER_LINE below: the
+ * Copilot block and every whole-file entry scripts/generate-host-entries.ts renders) and by the kit's
+ * AGENTS.md "Kit vs state" rule. It is
  * fixed literal text, the same on every machine: no config, argv, environment or other install-time
  * value reaches instruction text through it (T-34-13), and it names no kit-home environment variable
  * (check-kit-refs Assertion 3). A pointer that drops it is found by carriesKitRoute below, which the
@@ -111,6 +125,20 @@ export const KIT_ROUTE =
 export function carriesKitRoute(text: string): boolean {
   return text.includes(KIT_ROUTE);
 }
+
+/**
+ * START_HERE_SENTENCE (phase 34.1, D-09): the start-here sentence every non-Claude entry and the Copilot block open
+ * with. Fixed literal text: no install-time value reaches it (T-34-13).
+ */
+export const START_HERE_SENTENCE = "grugops: read `AGENTS.md`, then `agent-factory/roles/orchestrator.md`, and act as the Orchestrator.";
+
+/**
+ * POINTER_LINE (phase 34.1, D-09, D-11): THE ONE AUTHORITY for the pointer line every non-Claude entry and the Copilot
+ * block carry (D-09, T-34-13): START_HERE_SENTENCE, one space, then KIT_ROUTE, on one line. The kit's pointer
+ * template (agent-factory/packaging/host-entry.template.md) must equal it byte for byte, which
+ * scripts/generate-host-entries.ts asserts before it renders anything, and install's Copilot block is this line.
+ */
+export const POINTER_LINE = START_HERE_SENTENCE + " " + KIT_ROUTE;
 
 /**
  * The supported hosts, in the order installer detection reports them. The order of the existing
@@ -135,7 +163,9 @@ export const HOST_TOOLS: readonly HostTool[] = [
     detect: ".codex",
     entryFiles: ["AGENTS.md"],
     entryGates: {},
-    adapter: "none",
+    // Codex CLI reads the agent skill at AGENT_SKILL_REL (phase 34.1, D-08); users invoke it as `$grugops` (or pick it
+    // from `/skills`): Codex does not turn skills into slash commands (D-21).
+    adapter: "agent-skill",
     dispatch: "sequential",
   },
   {
@@ -198,6 +228,7 @@ export const ROUTE_POINTERS: Readonly<Record<HostAdapterKind, readonly string[]>
   "gemini-settings": [],
   "copilot-pointer": [".github/copilot-instructions.md"],
   "pi-prompt-template": [PI_PROMPT_REL],
+  "agent-skill": [AGENT_SKILL_REL],
 };
 
 /**
