@@ -133,7 +133,7 @@ step, a Makefile), read the exit code. Both `install.js` and `uninstall.js` use 
 
 | Code | Meaning |
 |------|---------|
-| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the `plans/handoffs/` backup it made, named, and whether it was recorded in `.grugops/install.json`) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
+| `0` | **complete** — every class installed (or removed); the run printed `== install complete ==` (or `== uninstall complete ==`). The **non-install modes** exit `0` too, and each prints its **own** closing line rather than the install banner — `--check` on a clean doctor prints `ALL CHECKS PASSED`, `--update` prints `== update complete ==` only when the kit was copied, `--prune-old-kit` prints `== prune complete ==`, and a `--migrate` on an already-migrated repo says what it changed (the `plans/handoffs/` backup it made, named, and whether it was recorded in `.grugops/install.json`) or that nothing was changed. All four are **`install.js` only**. `uninstall.js` also exits `0` when it left a recorded file you edited: it then prints `== uninstall complete — N recorded item(s) left in place; .grugops/install.json kept to record them ==` (see Undo). An uninstall that removes some agents (`--codex`, …) adds which agents it removed and which stay installed to its closing line (see "Removing one agent" under Undo). So do not test for the install banner to decide a run succeeded; test the exit code. |
 | `1` | **refused or aborted** — the run changed nothing. The self-checkout guard (the target looks like the grugops source checkout) is the usual cause, and **both binaries implement it**: each writes a refusal to stderr naming `--allow-self`, and neither writes nor removes anything. `install.js` also refuses a kit home that overlaps the target (see the kit-home paragraph below), and refuses when no agent was named, none is recorded and none was detected (see "Which agents an unattended install is for"); that refusal names every agent flag. `--check` also reports `1` on a doctor FAIL — that half is **`install.js` only**, because `uninstall.js` has no doctor mode. |
 | `2` | **bad usage** — an unknown argument, `--target` with no value, or (`install.js` only) an agent flag (`--claude`, `--codex`, …) combined with `--check`, `--update` or `--prune-old-kit`. Nothing was read or written. |
 | `3` | **incomplete** — the run went ahead but could not finish a whole class, and printed `== install INCOMPLETE — N item(s) need verification ==` (`uninstall.js` prints the same line with `uninstall` in place of `install`, `--update` with `update`, `--migrate` with `migrate`, and `--prune-old-kit` with `prune`). Every `verify` line in the output names what was left undone and the remedy for it. |
@@ -505,6 +505,33 @@ install stays), the runnable checks under `tools/grugops/` that still hold what 
 `.grugops/install.json` marker once nothing it records is left. It removes the Pi template
 `.pi/prompts/grugops.md` only while the template still holds what install wrote, and removes
 `.pi/prompts` and `.pi` only when install created them and they are empty.
+
+#### Removing one agent
+
+```sh
+node install/uninstall.js --target /path/to/repo --codex
+```
+
+`uninstall.js` takes the same per-agent flags as `install.js` (`--claude`, `--codex`, `--antigravity`,
+`--opencode`, `--copilot`, `--pi`, one per agent in the registry). With one or more of them, it removes
+only what the install ledger records for the agents you name, and every removal still checks the
+record first, as described below.
+
+- **A file two agents share stays while either of them is installed.** Codex CLI and Antigravity CLI
+  both read `.agents/skills/grugops/SKILL.md`, so `--codex` leaves it while Antigravity CLI is
+  installed. Removing the last of the two removes it, and the `.agents` directories install created
+  with it.
+- **The shared files go only with a flag-less uninstall, or when you remove the last installed
+  agent.** These are the kit's `AGENTS.md` copy, the runnables under `tools/grugops/`, the install
+  marker, and the Gemini settings change an install made before 34.1 D-12.
+- **The marker is kept and lists the agents that stay.** The entries this run removed leave the
+  install ledger in `.grugops/install.json`, and its `agents` list drops the agents you removed. The
+  closing line names both sets, for example `== uninstall complete — agents removed: Codex CLI; still
+  installed: Claude Code ==`.
+- **A flag for an agent that is not installed here changes nothing.** A `note` line says so, and the
+  run exits `0`. "Installed" means what the marker records: its `agents` list, or, for an install
+  made before 34.1, the agents described in "Which agents an unattended install is for". It never
+  means what is on disk.
 
 **The record decides, not the kit source.** The uninstaller walks every entry of the install ledger
 and reverses each one only while it still holds what install recorded. A recorded file that still
