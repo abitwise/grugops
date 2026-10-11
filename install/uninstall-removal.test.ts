@@ -819,6 +819,28 @@ describe("per-agent uninstall (D-05)", () => {
     expect(snapshotTree(t.target)).toBe(before);
   });
 
+  it("(g) a recorded agent this build does not know stays installed: removing every known agent keeps the shared files and the marker", () => {
+    const t = installedTree("per-agent-unknown", [flag("claude")]);
+    const markerPath = at(t.target, MARKER_REL);
+    const marker = readMarkerObject(t.target);
+    writeFileSync(markerPath, JSON.stringify({ ...marker, agents: ["claude", "zed"] }, null, 2) + "\n");
+    const isShared = (p: string): boolean => p === "AGENTS.md" || p === "tools/grugops" || p.startsWith("tools/grugops/");
+    const sharedBefore = [...rowsOf(t.target)].filter(([p]) => isShared(p));
+    expect(sharedBefore.length, "the install wrote no shared files").toBeGreaterThan(2);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("claude")]);
+    expectFinished(r, "uninstall --claude with an unknown recorded agent");
+    expect(r.status, r.stdout).toBe(0);
+    expect([...rowsOf(t.target)].filter(([p]) => isShared(p)), `a shared file changed while a recorded agent stays\n${r.stdout}`).toEqual(sharedBefore);
+    expect(existsSync(at(t.target, "CLAUDE.md")), `Claude Code's CLAUDE.md was not removed\n${r.stdout}`).toBe(false);
+    expect(readMarkerObject(t.target).agents, r.stdout).toEqual(["zed"]);
+    expect(r.stdout).toMatch(/== uninstall complete — agents removed: Claude Code; still installed: zed ==/);
+    // A flag-less run is still FULL: it removes the shared files and the marker.
+    const full = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 });
+    expectFinished(full, "flag-less uninstall");
+    expect(full.status, full.stdout).toBe(0);
+    for (const rel of ["AGENTS.md", "tools/grugops", MARKER_REL]) expect(existsSync(at(t.target, rel)), `${rel}\n${full.stdout}`).toBe(false);
+  });
+
   // THE CLASS TEST (brief DC-2, §2.1): over every registry row, derived and counted, `uninstall --<id>` on an install of
   // every agent removes only paths in that row's footprint, never a path an agent that stays owns, and leaves every
   // other byte as it was except the marker, whose `agents` loses exactly that id.

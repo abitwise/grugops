@@ -1573,7 +1573,7 @@ function removeMarker(): MarkerOutcome {
     return { kind: "kept-for-agents", rewrite: "unchanged" };
   }
   if (!FULL && markerDischarged()) {
-    report("kept", `${MARKER_REL} (kept for the agents still installed here: ${nameList(REMAINING)})`);
+    report("kept", `${MARKER_REL} (kept for the agents still installed here: ${nameList(STAYING)})`);
     return { kind: "kept-for-agents", rewrite: updateKeptMarker(m, MARKER.marker, MARKER.bytes) };
   }
   if (!markerDischarged()) {
@@ -1687,12 +1687,11 @@ function markerOutcomeLine(o: MarkerOutcome): string {
 // would-rewrite (DRY_RUN) or not-rewritten (a counted verify says why).
 /**
  * agentsAfter (phase 34.1, D-05): the `agents` a kept marker records. A partial run keeps the agents that stay installed
- * (REMAINING, registry order) and any recorded id the registry does not know (verbatim, after them, as install writes
+ * (STAYING: REMAINING in registry order, then any recorded id the registry does not know, verbatim, as install writes
  * them); a FULL run removed every agent, so the list is empty.
  */
 function agentsAfter(): string[] {
-  if (FULL) return [];
-  return [...REMAINING, ...(INSTALLED.source === "recorded" ? INSTALLED.unknown : [])];
+  return FULL ? [] : [...STAYING];
 }
 /**
  * The marker with `agents` and `ledger` replaced and every other field as found, in its order. A marker written before
@@ -2228,16 +2227,21 @@ if (MARKER_READ.state === "unbound") {
 // uses. It is never derived from what is on disk (brief DC-2).
 //   NAMED       the agents the flags name that are installed here;
 //   REMAINING   the installed agents the flags do not name: they stay installed;
-//   FULL        no agent flag, or the flags name the last installed agents: the run removes everything the ledger
-//               records, the shared footprint (D-06) included, exactly as before this phase.
+//   STAYING     REMAINING, then any recorded id this build's registry does not know (an agent of another grugops
+//               version). It is kept in the record and still counts as installed, so removing every known agent while
+//               one is recorded is not FULL: the shared footprint it may read stays;
+//   FULL        no agent flag, or the flags name installed agents and none stays (STAYING is empty): the run removes
+//               everything the ledger records, the shared footprint (D-06) included, exactly as before this phase.
 // A partial run (not FULL) reverses a ledger entry only when inScope answers yes: an agent it removes (one of NAMED)
-// owns the entry and no agent that stays owns it (host-tools.ts entryOwners). So `.agents/skills/grugops/SKILL.md` (Codex CLI and
-// Antigravity CLI) stays while either is installed (D-20), and an entry no agent owns (the kit's AGENTS.md copy,
-// tools/grugops/, the legacy gemini entry, D-23) is reversed only by a FULL run. Every reversal still asks owns first.
+// owns the entry and no agent that stays owns it (host-tools.ts entryOwners). So `.agents/skills/grugops/SKILL.md`
+// (Codex CLI and Antigravity CLI) stays while either is installed (D-20), and an entry no agent owns (the kit's
+// AGENTS.md copy, tools/grugops/, the legacy gemini entry, D-23) is reversed only by a FULL run. Every reversal still
+// asks owns first.
 const INSTALLED = installedAgents(MARKER_READ, LEDGER);
 const NAMED: readonly string[] = INSTALLED.ids.filter((id) => REMOVE.has(id));
 const REMAINING: readonly string[] = INSTALLED.ids.filter((id) => !REMOVE.has(id));
-const FULL = REMOVE.size === 0 || (NAMED.length > 0 && REMAINING.length === 0);
+const STAYING: readonly string[] = [...REMAINING, ...(INSTALLED.source === "recorded" ? INSTALLED.unknown : [])];
+const FULL = REMOVE.size === 0 || (NAMED.length > 0 && STAYING.length === 0);
 /** Whether this run may reverse ledger entry `e` (D-05): every entry on a FULL run; otherwise the rule above. */
 function inScope(e: { readonly path: string; readonly kind: string }): boolean {
   if (FULL) return true;
@@ -2367,8 +2371,8 @@ console.log(`  ${MARKER_REL} (the install marker): ${markerOutcomeLine(markerOut
 const AGENTS_CLAUSE = FULL
   ? ""
   : NAMED.length === 0
-    ? ` — no agent removed (none of the named agents is installed here); still installed: ${nameList(REMAINING)}`
-    : ` — agents removed: ${nameList(NAMED)}; still installed: ${nameList(REMAINING)}`;
+    ? ` — no agent removed (none of the named agents is installed here); still installed: ${nameList(STAYING)}`
+    : ` — agents removed: ${nameList(NAMED)}; still installed: ${nameList(STAYING)}`;
 if (VERIFY_FINDINGS > 0) {
   console.log(
     `\n== uninstall INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification${AGENTS_CLAUSE}` +
