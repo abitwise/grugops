@@ -17,15 +17,15 @@
 // Vitest `globals: false` (the repo default) → the test functions are imported explicitly.
 
 import { describe, it, expect, afterAll } from "vitest";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { HOST_TOOLS, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL } from "./host-tools.js";
 import { ENTRY_SHAPES } from "../scripts/generate-host-entries.js";
 import { contentRecord, fileRecord } from "./install-marker.js";
-import { INSTALL_JS, REPO_ROOT, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
-import { fileRecords, readMarkerObject } from "./ledger.test-support.js";
+import { INSTALL_JS, MARKER_REL, REPO_ROOT, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { fileRecords, markerLedger, readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "ghentries-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -49,8 +49,9 @@ const lines = (out: string): string[] => out.split("\n");
 const ENTRY_RELS: readonly string[] = [
   ...new Set(HOST_TOOLS.flatMap((h) => (ENTRY_SHAPES[h.adapter] === null ? [] : [...ROUTE_POINTERS[h.adapter]]))),
 ];
-/** The pinned count of ENTRY_RELS: it moves only with a reason (task 1 of plan 34.1-01: the agent skill and the Pi template is plan task 2). */
-const ENTRY_COUNT = 1;
+/** The pinned count of ENTRY_RELS: it moves only with a reason. Plan 34.1-01: the agent skill (Codex CLI), the Pi
+ *  prompt template and the OpenCode command. */
+const ENTRY_COUNT = 3;
 
 describe("host entries: a scripted install gives Codex CLI its skill entry (plan 34.1-01, D-08, D-20)", () => {
   it(`the derived entry set has ${ENTRY_COUNT} path(s) and includes AGENT_SKILL_REL`, () => {
@@ -98,5 +99,170 @@ describe("host entries: a scripted install gives Codex CLI its skill entry (plan
     expect(u.status, u.stdout + u.stderr).toBe(0);
     expect(existsSync(file), u.stdout).toBe(false);
     for (const d of [".agents/skills/grugops", ".agents/skills", ".agents"]) expect(existsSync(at(target, d)), `${d} left after uninstall`).toBe(false);
+  });
+});
+
+// ── EVERY WHOLE-FILE ENTRY (plan 34.1-01, task 2; briefs DC-2, DC-3; T-34-13) ─────────────────────────────────────────
+
+/** The report lines of `stdout` under `label`: two-space indent, then the label as the first token. */
+const linesUnder = (stdout: string, label: string): string[] =>
+  stdout.split(/\r?\n/).filter((l) => l.startsWith("  ") && l.trim().split(/\s+/)[0] === label);
+/** Whether `stdout` has a `label` line whose subject is `rel`. */
+const reports = (stdout: string, label: string, rel: string): boolean => linesUnder(stdout, label).some((l) => l.trim().split(/\s+/)[1] === rel);
+/** Write `marker` back as install does (two-space indent, final newline). */
+const writeMarkerObject = (target: string, marker: Record<string, unknown>): void =>
+  writeFileSync(at(target, MARKER_REL), JSON.stringify(marker, null, 2) + "\n");
+/** Every ledger entry (any kind) whose path is `rel`. */
+const ledgerEntriesFor = (target: string, rel: string): unknown[] => markerLedger(target).filter((e) => e.path === rel);
+
+/**
+ * A kit source without the whole-file entries: every tracked file of this repository outside `.planning/`, copied,
+ * except `skip`. Built once (it is the slowest step of this file).
+ */
+let SRC_WITHOUT_ENTRIES: string | null = null;
+function kitSourceWithoutEntries(): string {
+  if (SRC_WITHOUT_ENTRIES !== null) return SRC_WITHOUT_ENTRIES;
+  const src = join(ROOT, "src-without-entries");
+  const ls = spawnSync("git", ["-C", REPO_ROOT, "ls-files", "-z"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  expect(ls.status, ls.stderr).toBe(0);
+  const skip = new Set(ENTRY_RELS);
+  let copied = 0;
+  for (const rel of ls.stdout.split("\0")) {
+    if (rel === "" || rel.startsWith(".planning/") || skip.has(rel)) continue;
+    const from = at(REPO_ROOT, rel);
+    if (!existsSync(from) || !lstatSync(from).isFile()) continue;
+    mkdirSync(dirname(at(src, rel)), { recursive: true });
+    cpSync(from, at(src, rel));
+    copied += 1;
+  }
+  expect(copied, "premise: the kit source copy holds files").toBeGreaterThan(0);
+  for (const rel of ENTRY_RELS) expect(existsSync(at(src, rel)), `premise: the copy has no ${rel}`).toBe(false);
+  SRC_WITHOUT_ENTRIES = src;
+  return src;
+}
+
+describe(`host entries: every whole-file entry, derived (${ENTRY_RELS.length}: ${ENTRY_RELS.join(", ")})`, () => {
+  it("each entry is a committed file in this repository that carries KIT_ROUTE", () => {
+    for (const rel of ENTRY_RELS) {
+      expect(lstatSync(at(REPO_ROOT, rel)).isFile(), rel).toBe(true);
+      expect(readFileSync(at(REPO_ROOT, rel), "utf8"), rel).toContain(KIT_ROUTE);
+    }
+  });
+
+  it("the other ROUTE_POINTERS paths are sentinel-block carriers on disk after an install, so the entry set and the block set partition them", () => {
+    const { target, kitHome } = scratchRow();
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const others = [...new Set(HOST_TOOLS.flatMap((h) => [...ROUTE_POINTERS[h.adapter]]))].filter((rel) => !ENTRY_RELS.includes(rel));
+    expect(others.length, "premise: some ROUTE_POINTERS path is a block carrier").toBeGreaterThan(0);
+    for (const rel of others) expect(readFileSync(at(target, rel), "utf8"), rel).toMatch(/<!-- GSD:grugops-[a-z-]*start-here -->/);
+  });
+
+  it("install writes each entry's committed bytes, as a kit-false file entry; uninstall removes every one", () => {
+    const { target, kitHome } = scratchRow();
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const marker = readMarkerObject(target);
+    for (const rel of ENTRY_RELS) {
+      const committed = readFileSync(at(REPO_ROOT, rel));
+      expect(readFileSync(at(target, rel)).equals(committed), rel).toBe(true);
+      expect(reports(r.stdout, "created", rel), r.stdout).toBe(true);
+      expect(fileRecords(marker, false)[rel], rel).toBe(fileRecord(committed, lstatSync(at(target, rel)).mode));
+    }
+    const u = runUninstall(target, kitHome);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    for (const rel of ENTRY_RELS) expect(existsSync(at(target, rel)), `${rel} left after uninstall`).toBe(false);
+  });
+
+  it("a user's own file at every entry path is left byte for byte, gets no ledger entry, and survives uninstall", () => {
+    const { target, kitHome } = scratchRow();
+    const own = (rel: string): string => `# My own ${rel}\n\nMy own instructions.\n`;
+    for (const rel of ENTRY_RELS) {
+      mkdirSync(dirname(at(target, rel)), { recursive: true });
+      writeFileSync(at(target, rel), own(rel));
+    }
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of ENTRY_RELS) {
+      expect(readFileSync(at(target, rel), "utf8"), rel).toBe(own(rel));
+      expect(ledgerEntriesFor(target, rel), rel).toEqual([]);
+      expect(reports(r.stdout, "skipped", rel), r.stdout).toBe(true);
+    }
+    const u = runUninstall(target, kitHome);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    for (const rel of ENTRY_RELS) expect(readFileSync(at(target, rel), "utf8"), `${rel} after uninstall`).toBe(own(rel));
+  });
+
+  it("install's own unedited copy from an earlier install whose bytes differ is reported `refreshed` and replaced with the committed bytes", () => {
+    const { target, kitHome } = scratchRow();
+    const first = runInstall(target, kitHome);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    // Each entry as an earlier install left it: the text without KIT_ROUTE, and the ledger record of those bytes
+    // (keeping its `;mode=` suffix), as install recorded what it wrote.
+    for (const rel of ENTRY_RELS) {
+      const stale = readFileSync(at(target, rel), "utf8").replace(` ${KIT_ROUTE}`, "");
+      expect(stale.includes(KIT_ROUTE), `premise: ${rel}'s stale text holds no route`).toBe(false);
+      writeFileSync(at(target, rel), stale);
+      writeMarkerObject(
+        target,
+        withLedger(readMarkerObject(target), (entries) => {
+          const e = entries.find((x) => x.kind === "file" && x.path === rel);
+          expect(e, `premise: the ledger records ${rel}`).toBeDefined();
+          const content = String((e as Record<string, unknown>).content);
+          const i = content.indexOf(";mode=");
+          (e as Record<string, unknown>).content = contentRecord(stale) + (i === -1 ? "" : content.slice(i));
+        }),
+      );
+    }
+    const again = runInstall(target, kitHome);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    const marker = readMarkerObject(target);
+    for (const rel of ENTRY_RELS) {
+      expect(reports(again.stdout, "refreshed", rel), again.stdout).toBe(true);
+      const committed = readFileSync(at(REPO_ROOT, rel));
+      expect(readFileSync(at(target, rel)).equals(committed), rel).toBe(true);
+      expect(fileRecords(marker, false)[rel], rel).toBe(fileRecord(committed, lstatSync(at(target, rel)).mode));
+    }
+  });
+
+  it("a DRY_RUN writes no entry and reports `would-add` for every one", () => {
+    const { target, kitHome } = scratchRow();
+    const r = runInstall(target, kitHome, [], { dryRun: true });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of ENTRY_RELS) {
+      expect(reports(r.stdout, "would-add", rel), r.stdout).toBe(true);
+      expect(existsSync(at(target, rel)), rel).toBe(false);
+    }
+  });
+
+  it("a kit source without the entries: each is reported `skipped`, naming the kit source, and nothing is written or recorded", () => {
+    const src = kitSourceWithoutEntries();
+    const { target, kitHome } = scratchRow();
+    const r = runInstall(target, kitHome, [], { src });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const rel of ENTRY_RELS) {
+      const line = linesUnder(r.stdout, "skipped").find((l) => l.trim().split(/\s+/)[1] === rel);
+      expect(line, r.stdout).toBeDefined();
+      expect(line).toContain(`the kit source has no ${rel}`);
+      expect(existsSync(at(target, rel)), rel).toBe(false);
+      expect(ledgerEntriesFor(target, rel), rel).toEqual([]);
+    }
+  }, 120_000);
+
+  it("T-34-13: two installs with different GRUGOPS_HOME and different targets write byte-identical entries holding no absolute path", () => {
+    const a = scratchRow();
+    const b = scratchRow();
+    expect(a.kitHome).not.toBe(b.kitHome);
+    const ra = runInstall(a.target, a.kitHome);
+    const rb = runInstall(b.target, b.kitHome);
+    expect(ra.status, ra.stdout + ra.stderr).toBe(0);
+    expect(rb.status, rb.stdout + rb.stderr).toBe(0);
+    for (const rel of ENTRY_RELS) {
+      const ta = readFileSync(at(a.target, rel), "utf8");
+      const tb = readFileSync(at(b.target, rel), "utf8");
+      expect(ta, rel).toBe(tb);
+      for (const v of [a.kitHome, b.kitHome, a.target, b.target, ROOT, tmpdir()]) expect(ta.includes(v), `${rel} names ${v}`).toBe(false);
+      expect(ta, `${rel} holds a leading-slash path`).not.toMatch(/(^|[\s`"'(=])\/[^\s]/m);
+    }
   });
 });

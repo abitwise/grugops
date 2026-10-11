@@ -27,11 +27,11 @@
  */
 export const HOST_ADAPTER_KINDS = [
     "claude-kit",
-    "none",
     "gemini-settings",
     "copilot-pointer",
     "pi-prompt-template",
     "agent-skill",
+    "opencode-command",
 ];
 /**
  * ENTRY_GATE_KINDS (plan 34-32, D-27 point 1): the closed set of conditions under which a host reads one of its
@@ -60,6 +60,13 @@ export const PI_PROMPT_REL = ".pi/prompts/grugops.md";
  * rather than spelling the path again.
  */
 export const AGENT_SKILL_REL = ".agents/skills/grugops/SKILL.md";
+/**
+ * OPENCODE_COMMAND_REL (phase 34.1, D-08): the project command file OpenCode reads. OpenCode loads project commands
+ * from `.opencode/commands/`, and "the markdown file name becomes the command name" (opencode.ai/docs/commands/,
+ * retrieved 2026-10-11), so this file gives `/grugops`. A whole-file entry rendered by
+ * scripts/generate-host-entries.ts and copied by install from the kit source.
+ */
+export const OPENCODE_COMMAND_REL = ".opencode/commands/grugops.md";
 /**
  * KIT_ROUTE (phase 34, D-26, the marker route): THE ONE AUTHORITY for the sentence that tells a host
  * with no Claude Code adapter where the grugops kit is after a scripted install. A scripted install
@@ -142,7 +149,8 @@ export const HOST_TOOLS = [
         detect: "opencode.json",
         entryFiles: ["AGENTS.md"],
         entryGates: {},
-        adapter: "none",
+        // OpenCode reads the command at OPENCODE_COMMAND_REL (phase 34.1, D-08): `/grugops <request>`.
+        adapter: "opencode-command",
         dispatch: "sequential",
     },
     {
@@ -173,16 +181,17 @@ export const HOST_TOOLS = [
  * ROUTE_POINTERS (plan 34-28, D-26 point 3): the pointer files install writes for each adapter kind that
  * carry the start-here sentence and KIT_ROUTE, as POSIX paths relative to the target root. Keyed by
  * HostAdapterKind, so a new kind is a compile error until it is classified here. A kind that writes no
- * pointer (`gemini-settings` only adds AGENTS.md to Gemini's context.fileName; `none` writes nothing) has
- * none: its hosts reach the route through their entry files alone.
+ * pointer (`gemini-settings` only adds AGENTS.md to Gemini's context.fileName) has none: its hosts reach the
+ * route through their entry files alone. (Phase 34.1 deleted the kind `none`: no row used it once Codex CLI
+ * and OpenCode got entries of their own.)
  */
 export const ROUTE_POINTERS = {
     "claude-kit": ["CLAUDE.md"],
-    none: [],
     "gemini-settings": [],
     "copilot-pointer": [".github/copilot-instructions.md"],
     "pi-prompt-template": [PI_PROMPT_REL],
     "agent-skill": [AGENT_SKILL_REL],
+    "opencode-command": [OPENCODE_COMMAND_REL],
 };
 /**
  * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which `host` can reach

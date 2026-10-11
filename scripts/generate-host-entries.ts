@@ -2,8 +2,9 @@
 // D-08, D-09, D-11, D-20, D-21).
 //
 // WHAT THIS RENDERS. Every whole-file entry install writes for a host with no Claude Code adapter: the
-// agent skill Codex CLI reads (`.agents/skills/grugops/SKILL.md`), and, from task 2 of this plan, the
-// OpenCode command and the Pi prompt template. Each entry is ONE kit template,
+// agent skill Codex CLI reads (`.agents/skills/grugops/SKILL.md`), the OpenCode command
+// (`.opencode/commands/grugops.md`) and the Pi prompt template (`.pi/prompts/grugops.md`). Each entry is ONE kit
+// template,
 // `agent-factory/packaging/host-entry.template.md`, under a per-kind frontmatter block. Install never builds
 // entry text: it copies these committed files from the kit source (install.ts writeWholeFileEntry), so the
 // entry text exists once, in the kit (the single-source rule, D-11).
@@ -12,7 +13,9 @@
 // (install/host-tools.ts, the one authority for the start-here sentence followed by KIT_ROUTE) and must carry
 // KIT_ROUTE (carriesKitRoute). A template edited by hand is refused, nothing is written, exit 1: the entry
 // text is fixed literal text, the same on every machine, and no install-time value reaches it (D-09,
-// T-34-13).
+// T-34-13). A body holding either sequence OpenCode expands inside a command body is refused first, by name:
+// an exclamation mark followed by a backtick (shell-output injection) and an at-sign followed by a non-space
+// character (file inclusion) (opencode.ai/docs/commands/, retrieved 2026-10-11; 34.1-RESEARCH.md Pitfall 8).
 //
 // OUTPUT PATHS COME FROM THE REGISTRY ONLY (ASVS V12). Each kind's output path is the single entry of
 // ROUTE_POINTERS[kind] (install/host-tools.ts); this file types no output path, and it accepts no output
@@ -65,22 +68,36 @@ export interface EntryShape {
  * ENTRY_SHAPES: the frontmatter shape of each adapter kind's whole-file entry, keyed by HostAdapterKind, so a
  * new kind is a compile error until it is classified here. null for a kind this generator renders nothing
  * for (Claude Code's kit, the Gemini settings merge, the Copilot block, and a kind with no entry).
- *   agent-skill: Codex CLI requires `name` and `description` in SKILL.md (learn.chatgpt.com/docs/build-skills,
- *                retrieved 2026-10-11). Neither Codex nor Antigravity documents `$ARGUMENTS` for a skill, so
- *                the entry carries no arguments line (D-21).
+ *   agent-skill:        Codex CLI requires `name` and `description` in SKILL.md (learn.chatgpt.com/docs/build-skills,
+ *                       retrieved 2026-10-11). Neither Codex nor Antigravity documents `$ARGUMENTS` for a skill, so
+ *                       the entry carries no arguments line (D-21).
+ *   opencode-command:   OpenCode reads `description` from a command's frontmatter and expands `$ARGUMENTS` in its
+ *                       body (opencode.ai/docs/commands/, retrieved 2026-10-11).
+ *   pi-prompt-template: Pi reads `description` and `argument-hint` from a project prompt template and expands
+ *                       `$ARGUMENTS` (Phase 34 34-RESEARCH.md § B). The render is byte-identical to the template
+ *                       install wrote before phase 34.1, so an earlier install's unedited copy still reads as current.
  */
 export const ENTRY_SHAPES: Readonly<Record<HostAdapterKind, EntryShape | null>> = {
   "claude-kit": null,
-  none: null,
   "gemini-settings": null,
   "copilot-pointer": null,
-  "pi-prompt-template": null,
+  "pi-prompt-template": {
+    frontmatter: [
+      ["description", ENTRY_DESCRIPTION],
+      ["argument-hint", '"<request>"'],
+    ],
+    argumentsLine: true,
+  },
   "agent-skill": {
     frontmatter: [
       ["name", "grugops"],
       ["description", ENTRY_DESCRIPTION],
     ],
     argumentsLine: false,
+  },
+  "opencode-command": {
+    frontmatter: [["description", ENTRY_DESCRIPTION]],
+    argumentsLine: true,
   },
 };
 
@@ -92,10 +109,16 @@ export function renderEntry(shape: EntryShape, body: string): string {
 }
 
 /**
- * Why a template body is refused, or null when it is accepted. The body must carry KIT_ROUTE and must equal
- * POINTER_LINE byte for byte.
+ * Why a template body is refused, or null when it is accepted. The body must hold neither sequence OpenCode expands
+ * in a command body (Pitfall 8), must carry KIT_ROUTE, and must equal POINTER_LINE byte for byte.
  */
 export function templateProblem(body: string): string | null {
+  if (body.includes("!`")) {
+    return "it holds an exclamation mark followed by a backtick, which OpenCode runs as a shell command inside a command body (Pitfall 8)";
+  }
+  if (/@\S/.test(body)) {
+    return "it holds an at-sign followed by a non-space character, which OpenCode reads as a file inclusion inside a command body (Pitfall 8)";
+  }
   if (!carriesKitRoute(body)) {
     return "it does not carry KIT_ROUTE (install/host-tools.ts) byte for byte, so an entry rendered from it would give no route to the kit after a scripted install";
   }

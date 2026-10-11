@@ -82,7 +82,7 @@ import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, gemi
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, appendElements, addMember, wrapInArray, sameJsonValue, } from "./json-text.js";
 // Phase 34 D-11: the one registry of supported host tools. Pure data, imports nothing, so this edge
 // keeps install/ free of scripts/ imports (33.1 D-18/D-28).
-import { HOST_TOOLS, PI_PROMPT_REL, AGENT_SKILL_REL, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
+import { HOST_TOOLS, KIT_ROUTE, POINTER_LINE, ROUTE_POINTERS, carriesKitRoute, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -978,24 +978,13 @@ const COPILOT_OPEN = "<!-- GSD:grugops-copilot-start-here -->";
 // value enters it.
 const COPILOT_PTR = POINTER_LINE;
 const COPILOT_CLOSE = "<!-- GSD:grugops-copilot-start-here-end -->";
-// PI_PROMPT_TEXT (plan 34-04, D-10, D-16): the whole of the Pi project prompt template install creates
-// at PI_PROMPT_REL (`.pi/prompts/grugops.md`), which Pi users invoke as `/grugops <request>`. It is
-// POINTER TEXT ONLY, never role text (the single-source rule): the start-here sentence is COPILOT_PTR
-// itself (POINTER_LINE), reused rather than retyped, so there is one spelling of it for the Copilot pointer and Pi.
-// Pi reads the `description` and `argument-hint` frontmatter of a project template and expands
-// `$ARGUMENTS` to the text typed after the command (34-RESEARCH.md § B, Pi's prompt-template docs).
-// The template is pointer text that names the kit route (D-26): COPILOT_PTR ends with KIT_ROUTE, which
-// says the kit root is the `kitRoot` field of `.grugops/install.json`. It is not a resolver adapter: it
-// carries no kit-root variable and no resolver slot (check-kit-refs Assertion 3), and no config, argv or
-// environment value ever reaches it (T-34-13 holds; KIT_ROUTE is fixed literal text).
-const PI_PROMPT_TEXT = [
-    "---",
-    "description: Route a software-delivery request through the grugops Orchestrator.",
-    'argument-hint: "<request>"',
-    "---",
-    COPILOT_PTR,
-    "Request: $ARGUMENTS",
-].join("\n") + "\n";
+// The whole-file entries (the agent skill, the OpenCode command, the Pi prompt template; phase 34.1, plan 34.1-01, D-11)
+// are not built here. Each is a committed generated file in the kit (scripts/generate-host-entries.ts renders it from
+// agent-factory/packaging/host-entry.template.md, whose body is POINTER_LINE), and install copies those bytes from the
+// kit source (carrierSource, writeWholeFileEntry). The Pi template's bytes did not move: it is the text install built
+// here before phase 34.1 (PI_PROMPT_TEXT, plan 34-04, D-10, D-16), now rendered by the generator. No entry carries a
+// kit-root variable or a resolver slot (check-kit-refs Assertion 3), and no config, argv or environment value reaches
+// one (T-34-13 holds; POINTER_LINE is fixed literal text).
 // ROUTE_BLOCKS (plan 34-29, D-26 point 4): the route carriers install writes as a sentinel block appended to a
 // file (BLOCK_RELS in install-marker.ts: CLAUDE.md and the Copilot pointer), with their sentinels. A carrier not
 // listed here is a whole file install writes (AGENTS.md, and every whole-file entry wholeFileEntryRels names),
@@ -1017,11 +1006,11 @@ function wholeFileEntryRels(hosts) {
 // whole-file entry. entryLabel puts the names of the hosts that read the entry before it ("Pi prompt template").
 const ENTRY_NOUN = {
     "claude-kit": null,
-    none: null,
     "gemini-settings": null,
     "copilot-pointer": null,
     "pi-prompt-template": "prompt template",
     "agent-skill": "skill",
+    "opencode-command": "command",
 };
 // entryLabel (phase 34.1, plan 34.1-01): the label install's lines give the whole-file entry `rel`: the names of the
 // HOST_TOOLS rows whose ROUTE_POINTERS include it, in registry order, joined with " and ", then the noun of the first
@@ -1207,22 +1196,18 @@ function ownBlockSpans(ledger, rel, bytes, open, close) {
     return { entry: own.entry, spans: blockLineSpans(bytes, open, close).filter((sp) => contentRecord(bytes.subarray(sp.start, sp.end)) === record) };
 }
 // carrierSource (phase 34.1, plan 34.1-01): THE ONE READ of the kit's current text for a whole-file route carrier
-// install writes: for AGENTS.md and for the agent skill (AGENT_SKILL_REL), the file at that path under the kit source,
-// read through readUserFile (DC-3: bounded, never a FIFO or a device); for the Pi template, PI_PROMPT_TEXT as an `ok`
-// read; for anything else, null. writeWholeFileEntry asks it for the state of the source (absent: skipped; any other
-// unread state: a counted verify), and carrierWant for its bytes, so the two cannot read different sources.
+// install writes, one rule with no per-path branch: for AGENTS.md and for every path wholeFileEntryRels(HOST_TOOLS)
+// names, the file at that path under the kit source, read through readUserFile (DC-3: bounded, never a FIFO or a
+// device); for anything else, null. writeWholeFileEntry asks it for the state of the source (absent: skipped; any
+// other unread state: a counted verify), and carrierWant for its bytes, so the two cannot read different sources.
 function carrierSource(rel) {
-    if (rel === "AGENTS.md" || rel === AGENT_SKILL_REL)
-        return readUserFile(join(GRUGOPS_SRC, ...rel.split("/")));
-    if (rel === PI_PROMPT_REL) {
-        const bytes = Buffer.from(PI_PROMPT_TEXT, "utf8");
-        return { state: "ok", bytes, text: PI_PROMPT_TEXT, mode: 0o644 };
-    }
-    return null;
+    if (rel !== "AGENTS.md" && !wholeFileEntryRels(HOST_TOOLS).includes(rel))
+        return null;
+    return readUserFile(join(GRUGOPS_SRC, ...rel.split("/")));
 }
 // carrierWant (plan 34-34, D-27 point 3): THE ONE SPELLING of the kit's current text for a whole-file route carrier
 // install writes: carrierSource's bytes when that read is ok, else null. A function declaration over consts declared
-// above the doctor (GRUGOPS_SRC, PI_PROMPT_TEXT), so the doctor can ask it.
+// above the doctor (GRUGOPS_SRC, ROUTE_BLOCKS), so the doctor can ask it.
 function carrierWant(rel) {
     const src = carrierSource(rel);
     return src !== null && src.state === "ok" ? src.bytes : null;
@@ -1246,7 +1231,7 @@ function carrierWant(rel) {
 // `cur` is the readForWrite answer the caller already holds (ensureBlock passes its own, so the decision and the splice
 // are made on one read); without it the predicate reads through readForWrite itself. It never writes and never reports
 // (DC-2: a write follows only on install's own record, whose content must still match). A function declaration over
-// imports and consts declared above the doctor (ROUTE_BLOCKS, PI_PROMPT_TEXT, GRUGOPS_SRC, blockedAt, isSymlink).
+// imports and consts declared above the doctor (ROUTE_BLOCKS, GRUGOPS_SRC, blockedAt, isSymlink).
 function refreshable(ledger, rel, cur) {
     const file = join(TARGET, ...rel.split("/"));
     const no = (why) => ({ ok: false, why, link: isSymlink(file) });
@@ -2112,7 +2097,7 @@ if (!ALLOW_SELF) {
 // live here. Both are deleted — the adapter and skill sets are now derived at run time from
 // $GRUGOPS_SRC by srcSkillNames() / srcAdapterFiles() above, so the installer carries no adapter
 // or skill name literal and needs no edit when the kit grows a new adapter.
-// The CLAUDE.md, Copilot and Pi pointer constants (CLAUDE_OPEN … PI_PROMPT_TEXT) MOVED (plan 34-29) up beside the
+// The CLAUDE.md and Copilot pointer constants (CLAUDE_OPEN … COPILOT_CLOSE) MOVED (plan 34-29) up beside the
 // doctor's kit-route findings, which read the block sentinels: a const declared below the `--check` early exit
 // is in the temporal dead zone when the doctor runs. One authority: there is no copy left at this position.
 // isSymlink MOVED (plan 29.2-04) up into the primitives block beside report / verify / mkdirp /
