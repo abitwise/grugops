@@ -4497,9 +4497,19 @@ function nextLedgerEntries(previous) {
     const prevGemini = entryAt(previous, GEMINI_SETTINGS_REL, "gemini");
     if (prevGemini !== undefined)
         out.push(geminiEntry(prevGemini));
-    // ask-rules (D-18): what writeAskRules() computed (null: no entry).
-    if (ASK_LEDGER !== null)
-        out.push(askRulesEntry(ASK_LEDGER));
+    // ask-rules (D-18): what writeAskRules() computed (null: no entry). When writeAskRules did not run (Claude Code is not
+    // chosen in this run, plan 34.1-08), this run read and wrote nothing in .claude/settings.json and learned nothing
+    // about it, so an earlier install's ask-rules entry is carried VERBATIM, as the gemini entry above is: an agent not
+    // named keeps its record (D-04), and only uninstall acts on it.
+    if (ASK_RULES_RAN) {
+        if (ASK_LEDGER !== null)
+            out.push(askRulesEntry(ASK_LEDGER));
+    }
+    else {
+        const prevAsk = entryAt(previous, ASK_RULES_REL, "ask-rules");
+        if (prevAsk !== undefined)
+            out.push(askRulesEntry(prevAsk));
+    }
     // backup (plan 33.1-40): the previous ledger's backup entries whose path still holds something
     // (carriedBackups), with this run's BACKUPS over them, outermost only. A carried entry keeps its own
     // content record: prune compares the backup with what install recorded when it made it, never with what
@@ -4696,6 +4706,14 @@ const AGENTS_AFTER = [
     ...HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) || SELECTION.includes(h)).map((h) => h.id),
     ...(INSTALLED_BEFORE.source === "recorded" ? INSTALLED_BEFORE.unknown : []),
 ];
+// SELECTED_KINDS (plan 34.1-08, D-06, D-10): the adapter kinds of the agents this run is for. THE ONE GATE of every
+// per-agent write below: the Claude Code kit (skills and adapters), the CLAUDE.md start-here block and the Claude Code
+// ask rules only for `claude-kit`; the Copilot pointer block only for `copilot-pointer`; each whole-file entry only for
+// the kinds whose ROUTE_POINTERS name it (wholeFileEntryRels(SELECTION)). The shared footprint (the kit home, AGENTS.md
+// by its own rules, the seeded state, tools/grugops/ and the marker) is written whatever is chosen. An agent not chosen
+// in this run is never written to and never removed from (D-04): its files are left as they are, and its ledger
+// entries are carried by nextLedgerEntries' rules.
+const SELECTED_KINDS = new Set(SELECTION.map((h) => h.adapter));
 // MIGRATE_KIT_PLAN: the kit plan a --migrate over an old layout built before any migration step. The
 // install run below executes it instead of building a second one (there is one render per run).
 let MIGRATE_KIT_PLAN = null;
@@ -5167,7 +5185,12 @@ function buildKitPlan() {
         return { ok: false, refusals };
     return { ok: true, skills: plannedSkills, adapters: plannedAdapters, resolution };
 }
-{
+// The Claude Code kit is written only when Claude Code is chosen (plan 34.1-08, D-06, D-10): otherwise no kit plan is
+// built, KIT_WRITTEN stays false, and every file already in .claude/ is left as it is (D-04).
+if (!SELECTED_KINDS.has("claude-kit")) {
+    report("skipped", "Claude Code skills and adapters (Claude Code is not chosen in this run; every file already in .claude/ is left as it is)");
+}
+else {
     const kitPlan = MIGRATE_KIT_PLAN ?? buildKitPlan();
     if (kitPlan.ok) {
         // KIT_WRITE (D-32, plan 33.1-32): the one decision, taken once. A --migrate over an old layout
@@ -5198,8 +5221,9 @@ function buildKitPlan() {
     }
 }
 // The flat-directory contract, refused BY NAME rather than silently skipped (T-27-62). See
-// srcNestedAdapterFiles() for why the install set stays flat while the platform recurses.
-for (const rel of SRC_NESTED_ADAPTERS) {
+// srcNestedAdapterFiles() for why the install set stays flat while the platform recurses. A Claude Code adapter, so it
+// is asked only when Claude Code is chosen (plan 34.1-08): a run that installs no adapter refuses none.
+for (const rel of SELECTED_KINDS.has("claude-kit") ? SRC_NESTED_ADAPTERS : []) {
     verify(`.claude/agents/${rel} — the adapter directory is FLAT BY CONTRACT, so this nested adapter was ` +
         `NOT installed. Claude Code would load it from a nested path, which is exactly why it is ` +
         `refused here by name instead of skipped. Move it to the top level of the adapter directory.`);
@@ -5244,12 +5268,23 @@ for (const rel of SRC_NESTED_ADAPTERS) {
             recordCreatedFile(agentsDest, created);
     }
 }
-ensureBlock(PREVIOUS_LEDGER, join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
+// The block carriers, each only for its own agent (plan 34.1-08, D-06): CLAUDE.md's start-here block for Claude Code,
+// the Copilot pointer block for Copilot. A carrier of an agent not chosen is neither read nor written here (D-04); an
+// earlier install's block entry for it is carried by nextLedgerEntries.
+if (SELECTED_KINDS.has("claude-kit")) {
+    ensureBlock(PREVIOUS_LEDGER, join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
+}
+else {
+    report("skipped", "CLAUDE.md start-here pointer (Claude Code is not chosen in this run; CLAUDE.md is left as it is)");
+}
 // Phase 34.1, D-12: install no longer reads, creates or edits .gemini/settings.json (Gemini CLI is discontinued). An
 // earlier install's gemini ledger entry is carried verbatim by nextLedgerEntries, and only uninstall acts on it.
-ensureBlock(PREVIOUS_LEDGER, join(TARGET, COPILOT_REL), COPILOT_OPEN, COPILOT_PTR, COPILOT_CLOSE, `${COPILOT_REL} (optional Copilot pointer)`);
-// Every whole-file entry (phase 34.1, plan 34.1-01): the derived set, in registry order.
-for (const rel of wholeFileEntryRels(HOST_TOOLS))
+if (SELECTED_KINDS.has("copilot-pointer")) {
+    ensureBlock(PREVIOUS_LEDGER, join(TARGET, COPILOT_REL), COPILOT_OPEN, COPILOT_PTR, COPILOT_CLOSE, `${COPILOT_REL} (optional Copilot pointer)`);
+}
+// Every whole-file entry of the chosen agents (phase 34.1, plans 34.1-01 and 34.1-08): the derived set, in registry
+// order. An entry two chosen agents share is written once.
+for (const rel of wholeFileEntryRels(SELECTION))
     writeWholeFileEntry(PREVIOUS_LEDGER, rel);
 // The route-note pass, once, after every carrier write (plan 34-33): it only reads and reports.
 noteStrandingCarriers();
@@ -5379,6 +5414,9 @@ function readCheckpointConfig() {
 // The ask-rules entry writeMarker() records, or null for none. A malformed install ledger is written
 // back verbatim by writeMarker() itself (WR-05), so no entry of it is computed here.
 let ASK_LEDGER = null;
+// ASK_RULES_RAN (plan 34.1-08, D-06): true once writeAskRules ran in this run, that is, when Claude Code is chosen.
+// nextLedgerEntries records ASK_LEDGER only then; otherwise it carries the previous ask-rules entry verbatim (D-04).
+let ASK_RULES_RAN = false;
 const ASK_REFUSED = { kind: "refused" };
 function writeAskRules() {
     const rel = ".claude/settings.json";
@@ -5590,6 +5628,25 @@ function writeAskRules() {
     report("created", `${rel} (${toAdd.length} ask rule(s) added to permissions.ask${willCreateFile ? "; file created" : ""})`);
     return { kind: "written", added: toAdd.length };
 }
+// askRulesStep (plan 34.1-08, D-06, D-10): the ask rules are Claude Code's, so writeAskRules runs only when Claude Code
+// is chosen (ASK_RULES_RAN). Otherwise .claude/settings.json is neither read nor written, the outcome is `not-chosen`,
+// and nextLedgerEntries carries an earlier install's ask-rules entry verbatim (D-04). One check of writeAskRules is
+// kept on that path: an unreadable marker is a counted verify there, and writeMarker, which leaves such a marker
+// as it is, points at that line ("see the verify line above"), so a run that does not choose Claude Code still
+// reports it and still exits 3.
+function askRulesStep() {
+    if (SELECTED_KINDS.has("claude-kit")) {
+        ASK_RULES_RAN = true;
+        return writeAskRules();
+    }
+    const previousMarker = readInstallMarker(TARGET);
+    if (previousMarker.state === "unreadable") {
+        verify(`.grugops/install.json ${markerUnusableText(previousMarker)}, so the install ledger is unknown — the marker was ` +
+            `left as it was. Fix or remove the marker, then re-run the installer.`);
+    }
+    report("skipped", "Claude Code ask rules (Claude Code is not chosen in this run; .claude/settings.json is left as it is)");
+    return { kind: "not-chosen" };
+}
 // The closing-notes sentence for one writeAskRules outcome (D-25), indented like the surrounding
 // notes. Pure: it reads the outcome and nothing else. Only `written` says this run added rules; the
 // git host is named as the only floor only when no governed ask rule is present at all.
@@ -5629,6 +5686,8 @@ function askRulesNotes(outcome) {
             return [`${at}DRY_RUN: this run would add ${outcome.wouldAdd} ask rule(s) to ${settings} and wrote nothing.`];
         case "refused":
             return [`${at}No ask rule was written in this run (see the verify line above).`];
+        case "not-chosen":
+            return [`${at}No ask rule was written in this run: Claude Code is not chosen.`];
         default: {
             const unhandled = outcome;
             return unhandled;
@@ -5650,7 +5709,7 @@ reportRetiredConfigKeys();
 // first install reads the seeded configuration; before writeMarker().
 console.log("\n-- permission rules --");
 // The one record of what this run did with ask rules; the notes block below reads only this (D-25).
-const askOutcome = writeAskRules();
+const askOutcome = askRulesStep();
 // 8. Write the install marker (grugops-owned; overwritten unconditionally).
 writeMarker();
 console.log("\n-- notes --");

@@ -21,7 +21,7 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rm
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL } from "./host-tools.js";
+import { HOST_TOOLS, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, agentFlag } from "./host-tools.js";
 import { ENTRY_SHAPES } from "../scripts/generate-host-entries.js";
 import { contentRecord, fileRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
@@ -99,6 +99,32 @@ describe("host entries: a scripted install gives Codex CLI its skill entry (plan
     expect(u.status, u.stdout + u.stderr).toBe(0);
     expect(existsSync(file), u.stdout).toBe(false);
     for (const d of [".agents/skills/grugops", ".agents/skills", ".agents"]) expect(existsSync(at(target, d)), `${d} left after uninstall`).toBe(false);
+  });
+});
+
+// ── ONE AGENT, ONE ENTRY (plan 34.1-08, D-06, D-10) ─────────────────────────────────────────────────────────────────
+// `install.js --codex` into an empty repository: the shared footprint (AGENTS.md, tools/grugops/, the marker, the seeded
+// state) and Codex CLI's one entry, and nothing for any other agent. The class test over every registry row is in
+// install/installer-write-set.test.ts ("every agent writes only its own footprint and the shared files").
+describe("host entries: a single-agent install writes the shared files and that agent's entry only (plan 34.1-08, D-06, D-10)", () => {
+  it("tracer: --codex into an empty repository writes AGENTS.md, tools/grugops/, the marker, the seeded state and the agent skill; nothing under .claude/, .github/, .pi/ or .opencode/, no CLAUDE.md; the marker records agents [codex]", () => {
+    const { target, kitHome } = scratchRow();
+    const codex = HOST_TOOLS.find((h) => h.id === "codex");
+    expect(codex, "premise: the registry has a codex row").toBeDefined();
+    const r = runInstall(target, kitHome, [agentFlag(codex!)]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    // The shared footprint (D-06).
+    for (const rel of ["AGENTS.md", MARKER_REL, ".grugops/factory.config.json", "plans/board.md", "memory-bank/00-index.md"]) {
+      expect(lstatSync(at(target, rel)).isFile(), `${rel} was not written`).toBe(true);
+    }
+    expect(lstatSync(at(target, "tools/grugops")).isDirectory(), "tools/grugops/ was not written").toBe(true);
+    // Codex CLI's one entry.
+    expect(readFileSync(at(target, AGENT_SKILL_REL)).equals(readFileSync(at(REPO_ROOT, AGENT_SKILL_REL))), AGENT_SKILL_REL).toBe(true);
+    // Nothing for any other agent (D-10: no .claude/ path at all when Claude Code is not chosen).
+    for (const rel of [".claude", "CLAUDE.md", ".github", ".pi", ".opencode", "opencode.json"]) {
+      expect(existsSync(at(target, rel)), `${rel} was written by an install that chose only Codex CLI`).toBe(false);
+    }
+    expect(readMarkerObject(target).agents).toEqual(["codex"]);
   });
 });
 
