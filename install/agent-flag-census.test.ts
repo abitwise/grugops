@@ -345,6 +345,37 @@ describe("agent-flag census: no registry id collides with a flag either binary a
     expect(HOST_TOOLS.filter((h) => stems.includes(h.id)).map((h) => h.id)).toEqual([HOST_TOOLS[0].id]);
   });
 
+  // Phase 34.1, D-05: uninstall takes the same agent flags as install. Both loops recognise them only by asking
+  // hostForFlag of the loop variable (no flag list in either binary), and in both the arm comes after every parsed flag,
+  // so the collision check above is what keeps an agent flag reachable.
+  for (const rel of ARG_LOOP_MODULES) {
+    it(`${rel}: the argument loop recognises agent flags by asking hostForFlag of the loop variable`, () => {
+      const sf = ts.createSourceFile(rel, readFileSync(join(REPO_ROOT, rel), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const loops = descendants(sf).filter(
+        (n): n is ts.ForStatement =>
+          ts.isForStatement(n) &&
+          descendants(n.statement).some(
+            (d) => ts.isVariableDeclaration(d) && d.initializer !== undefined && ts.isElementAccessExpression(d.initializer) && d.initializer.expression.getText(sf) === "argv",
+          ),
+      );
+      expect(loops, `${rel}: the argument loop`).toHaveLength(1);
+      const decl = descendants(loops[0].statement).find(
+        (d): d is ts.VariableDeclaration => ts.isVariableDeclaration(d) && d.initializer !== undefined && ts.isElementAccessExpression(d.initializer),
+      ) as ts.VariableDeclaration;
+      const loopVar = decl.name.getText(sf);
+      const asks = descendants(loops[0].statement).filter(
+        (n) =>
+          ts.isCallExpression(n) &&
+          ts.isIdentifier(n.expression) &&
+          n.expression.text === "hostForFlag" &&
+          n.arguments.length === 1 &&
+          ts.isIdentifier(n.arguments[0]) &&
+          n.arguments[0].text === loopVar,
+      );
+      expect(asks.length, `${rel}: no hostForFlag(${loopVar}) arm in the argument loop`).toBe(1);
+    });
+  }
+
   it("install.ts's parsed flags include the three modes an agent flag cannot be combined with (D-25)", () => {
     const stems = parsedFlagStems("install/install.ts");
     for (const mode of MODE_FLAGS) expect(stems).toContain(mode.replace(/^-+/, ""));

@@ -32,10 +32,13 @@ import {
   agentFlag,
   hostForFlag,
   ROUTE_POINTERS,
+  ADAPTER_FOOTPRINT,
+  entryOwners,
   routeCarriers,
   reachVia,
   strandedBy,
   type HostTool,
+  type HostAdapterKind,
   type RouteFacts,
 } from "./host-tools.js";
 import { BLOCK_RELS } from "./install-marker.js";
@@ -954,5 +957,89 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
       [...new Set(nodes.filter((n): n is ts.Identifier => ts.isIdentifier(n) && n.text === name && ts.isCallExpression(n.parent) && n.parent.expression === n).map((n) => enclosingFunction(n)))].sort();
     expect(callersOf("strandedBy")).toEqual([...STRANDED_BY_CALLERS].sort());
     for (const c of callersOf("reachVia")) expect(STRANDED_BY_CALLERS, `reachVia called in ${c}`).toContain(c);
+  });
+});
+
+// ── entryOwners: which agents own an install-ledger entry (phase 34.1, D-05, D-06, D-20, D-23) ───────────────────────
+// The expected owners are derived from the registry (the rows of an adapter kind), never typed as ids, so a new row on a
+// kind is owned with no edit here.
+describe("entryOwners: the one answer to which agents own a ledger entry (phase 34.1, D-05)", () => {
+  const rowsOf = (kind: HostAdapterKind): string[] => HOST_TOOLS.filter((h) => h.adapter === kind).map((h) => h.id);
+
+  it("every ROUTE_POINTERS value is inside its kind's footprint, and a file entry there is owned by exactly that kind's rows", () => {
+    let n = 0;
+    for (const kind of HOST_ADAPTER_KINDS) {
+      for (const rel of ROUTE_POINTERS[kind]) {
+        n++;
+        const inFootprint = ADAPTER_FOOTPRINT[kind].some((p) => p === rel || (p.endsWith("/") && rel.startsWith(p)));
+        expect(inFootprint, `${rel} (${kind}) is not in its kind's footprint`).toBe(true);
+        expect(entryOwners({ path: rel, kind: "file" }), rel).toEqual(rowsOf(kind));
+      }
+    }
+    expect(n, "the pointer census matched nothing").toBeGreaterThanOrEqual(HOST_ADAPTER_KINDS.length);
+  });
+
+  it("the shared skill is owned by exactly the agent-skill rows (Codex CLI and Antigravity CLI, D-20)", () => {
+    const owners = entryOwners({ path: AGENT_SKILL_REL, kind: "file" });
+    expect(owners).toEqual(rowsOf("agent-skill"));
+    expect(owners.length, "the shared skill must have two owners").toBe(2);
+  });
+
+  it("Claude Code's prefix covers its skills, adapters and the ask rules; directories on the way belong to the agent", () => {
+    const cases: ReadonlyArray<readonly [string, string, HostAdapterKind]> = [
+      [".claude/settings.json", "ask-rules", "claude-kit"],
+      [".claude/settings.json", "file", "claude-kit"],
+      [".claude/skills/grugops/SKILL.md", "file", "claude-kit"],
+      [".claude/agents/grugops-orchestrator.md", "file", "claude-kit"],
+      [".claude/agents/grugops-orchestrator.md.grugops-edited-2026-01-02T03-04-05.678Z", "backup", "claude-kit"],
+      ["CLAUDE.md", "block", "claude-kit"],
+      [".claude", "dir", "claude-kit"],
+      [".claude/skills/grugops", "dir", "claude-kit"],
+      [".agents", "dir", "agent-skill"],
+      [".agents/skills", "dir", "agent-skill"],
+      [".agents/skills/grugops", "dir", "agent-skill"],
+      [".github", "dir", "copilot-pointer"],
+      [".github/copilot-instructions.md", "block", "copilot-pointer"],
+      [".pi", "dir", "pi-prompt-template"],
+      [".pi/prompts", "dir", "pi-prompt-template"],
+      [".opencode", "dir", "opencode-command"],
+      [".opencode/commands", "dir", "opencode-command"],
+      [OPENCODE_COMMAND_REL, "file", "opencode-command"],
+      ["opencode.json", "file", "opencode-command"],
+      [PI_PROMPT_REL, "file", "pi-prompt-template"],
+    ];
+    for (const [path, kind, owner] of cases) expect(entryOwners({ path, kind }), `${path} (${kind})`).toEqual(rowsOf(owner));
+  });
+
+  it("the shared footprint has no owner: AGENTS.md, tools/grugops/, the marker and the legacy Gemini settings (D-06, D-23)", () => {
+    const shared: ReadonlyArray<readonly [string, string]> = [
+      ["AGENTS.md", "file"],
+      ["tools/grugops/x.js", "file"],
+      ["tools/grugops", "dir"],
+      ["tools", "dir"],
+      [".grugops/install.json", "file"],
+      [".gemini/settings.json", "gemini"],
+      [".gemini", "dir"],
+      ["agent-factory.bak.2026-10-05T10-00-00.000Z", "backup"],
+    ];
+    for (const [path, kind] of shared) expect(entryOwners({ path, kind }), `${path} (${kind})`).toEqual([]);
+  });
+
+  it("only a directory entry is owned by being on the way, and a prefix matches whole segments only", () => {
+    expect(entryOwners({ path: ".agents", kind: "file" }), "a file named like a directory on the way").toEqual([]);
+    expect(entryOwners({ path: ".pi/prompts", kind: "file" })).toEqual([]);
+    expect(entryOwners({ path: ".claudette/x.md", kind: "file" }), "a sibling of .claude/").toEqual([]);
+    expect(entryOwners({ path: ".claude", kind: "file" }), "the bare name of the prefix, not a directory entry").toEqual([]);
+    expect(entryOwners({ path: "CLAUDE.md.bak", kind: "file" })).toEqual([]);
+    expect(entryOwners({ path: ".agents/skills/grugops-other/SKILL.md", kind: "file" }), "another skill under .agents").toEqual([]);
+    expect(entryOwners({ path: ".agents/skills/grug", kind: "dir" }), "a segment prefix is not a directory on the way").toEqual([]);
+  });
+
+  it("every adapter kind has a footprint, and every footprint path is a POSIX relative path", () => {
+    for (const kind of HOST_ADAPTER_KINDS) {
+      expect(ADAPTER_FOOTPRINT[kind].length, kind).toBeGreaterThan(0);
+      for (const p of ADAPTER_FOOTPRINT[kind]) expect(p, `${kind}: ${p}`).toMatch(/^[^/\\][^\\]*$/);
+    }
+    expect(Object.keys(ADAPTER_FOOTPRINT).sort()).toEqual([...HOST_ADAPTER_KINDS].sort());
   });
 });

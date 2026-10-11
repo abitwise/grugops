@@ -31,6 +31,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import {
+  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -48,7 +49,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { LEGACY_MERGED_BEFORE, LEGACY_MERGED_TEXT, askRecord, dirList, ledgerOf, plantLegacyGemini, readMarkerObject, withLedger } from "./ledger.test-support.js";
-import { AGENT_SKILL_REL, HOST_TOOLS, PI_PROMPT_REL, agentFlag } from "./host-tools.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentFlag, entryOwners } from "./host-tools.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -58,6 +59,8 @@ import {
   lineNamesPath,
   makeOldLayoutFixture,
   pathText,
+  printedRel,
+  rebindMarker,
   runInstall,
   runUninstall,
   snapshotTree,
@@ -715,5 +718,145 @@ describe("per-agent uninstall (D-05)", () => {
     expect(agentsOf(t.target), agy.stdout).toEqual(["claude"]);
     const ledger = ledgerOf(readMarkerObject(t.target));
     expect(ledger.filter((e) => e.path === ".agents" || e.path.startsWith(".agents/")), "the removed entries are still in the ledger").toEqual([]);
+  });
+
+  // The tree of `target` as path → snapshot row (a directory row ends in "/ DIR"), from the shared snapshotTree.
+  const rowsOf = (target: string): Map<string, string> => {
+    const m = new Map<string, string>();
+    for (const row of snapshotTree(target).split("\n").filter((r) => r !== "")) {
+      const path = row.endsWith("/ DIR") ? row.slice(0, -"/ DIR".length) : row.slice(0, row.lastIndexOf(" "));
+      m.set(path, row);
+    }
+    return m;
+  };
+
+  it("(a) removing the last installed agent gives the same tree as a flag-less uninstall of the same install; the shared files go", () => {
+    const named = installedTree("per-agent-last", [flag("claude")]);
+    const flagless = installedTree("per-agent-flagless", [flag("claude")]);
+    const last = runUninstall(named.target, named.grugopsHome, { home: named.home, timeoutMs: 60_000 }, [flag("claude")]);
+    const all = runUninstall(flagless.target, flagless.grugopsHome, { home: flagless.home, timeoutMs: 60_000 });
+    expectFinished(last, "uninstall --claude");
+    expectFinished(all, "flag-less uninstall");
+    expect(last.status, last.stdout).toBe(0);
+    expect(all.status, all.stdout).toBe(0);
+    expect(snapshotTree(named.target), `removing the last agent left a different tree\n${last.stdout}`).toBe(snapshotTree(flagless.target));
+    for (const rel of ["AGENTS.md", "tools/grugops", MARKER_REL]) {
+      expect(existsSync(at(named.target, rel)), `${rel} (shared) survived the removal of the last agent\n${last.stdout}`).toBe(false);
+    }
+    expect(last.stdout).toMatch(/== uninstall complete ==/);
+  });
+
+  it("(b) a flag naming an agent that is not installed changes nothing, says so, and exits 0", () => {
+    const t = installedTree("per-agent-absent", [flag("claude"), flag("codex")]);
+    const before = snapshotTree(t.target);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("pi")]);
+    expectFinished(r, "uninstall --pi");
+    expect(r.status, r.stdout).toBe(0);
+    expect(snapshotTree(t.target), `uninstall --pi changed the tree\n${r.stdout}`).toBe(before);
+    expect(r.stdout).toMatch(/note\s+--pi: Pi is not installed here, so nothing is removed for it/);
+    expect(r.stdout).not.toMatch(/^ {2}(removed|rmdir|edited|would-\S+)\s/m);
+  });
+
+  it("(c) the legacy gemini entry is shared: a partial uninstall leaves it byte for byte, a flag-less one reverses it (D-23)", () => {
+    const t = installedTree("per-agent-gemini", [flag("claude"), flag("codex")]);
+    const planted = plantLegacyGemini(t.target, "created");
+    const file = at(t.target, GEMINI_REL);
+    const bytes = readFileSync(file);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("claude")]);
+    expectFinished(r, "uninstall --claude");
+    expect(r.status, r.stdout).toBe(0);
+    expect(readFileSync(file).equals(bytes), `a partial uninstall changed ${GEMINI_REL}\n${r.stdout}`).toBe(true);
+    expect(linesFor(r.stdout, GEMINI_REL, t.target), r.stdout).toEqual([]);
+    const kept = ledgerOf(readMarkerObject(t.target)).find((e) => e.kind === "gemini");
+    expect(JSON.stringify(kept), "the gemini entry was not kept verbatim").toBe(JSON.stringify(planted));
+    expect(readMarkerObject(t.target).agents).toEqual(["codex"]);
+    const full = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 });
+    expectFinished(full, "flag-less uninstall");
+    expect(full.status, full.stdout).toBe(0);
+    expect(existsSync(file), `the flag-less uninstall did not reverse the gemini entry\n${full.stdout}`).toBe(false);
+    expect(existsSync(at(t.target, MARKER_REL)), full.stdout).toBe(false);
+  });
+
+  it("(d) DRY_RUN partial: zero bytes changed, and every would-remove names a path the removed agent owns", () => {
+    const t = installedTree("per-agent-dry", [flag("claude"), flag("codex")]);
+    const before = snapshotTree(t.target);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, dryRun: true, timeoutMs: 60_000 }, [flag("codex")]);
+    expectFinished(r, "DRY_RUN uninstall --codex");
+    expect(r.status, r.stdout).toBe(0);
+    expect(snapshotTree(t.target), `DRY_RUN changed the tree\n${r.stdout}`).toBe(before);
+    const removals = r.stdout
+      .split("\n")
+      .map((l) => /^ {2}would-(remove|rmdir)\s+(\S+)/.exec(l))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => ({ path: m[1] === "rmdir" ? printedRel(t.target, m[2]) : m[2], kind: m[1] === "rmdir" ? "dir" : "file" }));
+    expect(removals.map((x) => x.path), r.stdout).toContain(AGENT_SKILL_REL);
+    for (const x of removals) expect(entryOwners(x), `${x.path}: would be removed but Codex does not own it\n${r.stdout}`).toContain("codex");
+    expect(r.stdout).toMatch(/would-edit\s+\.grugops\/install\.json .*its `agents` list would become \[claude\]/);
+  });
+
+  it("(e) a user-edited Codex entry is left, and its entry stays in the kept marker", () => {
+    const t = installedTree("per-agent-edited", [flag("claude"), flag("codex")]);
+    const skill = at(t.target, AGENT_SKILL_REL);
+    writeFileSync(skill, readFileSync(skill, "utf8") + "\nmy own line\n");
+    const edited = readFileSync(skill);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("codex")]);
+    expectFinished(r, "uninstall --codex over an edited skill");
+    expect(r.status, r.stdout).toBe(0);
+    expect(readFileSync(skill).equals(edited), "the edited skill changed").toBe(true);
+    expect(linesFor(r.stdout, AGENT_SKILL_REL, t.target).map((l) => l.label), r.stdout).toEqual(["left"]);
+    const marker = readMarkerObject(t.target);
+    expect(ledgerOf(marker).some((e) => e.path === AGENT_SKILL_REL && e.kind === "file"), "the edited entry left the ledger").toBe(true);
+    expect(marker.agents).toEqual(["claude"]);
+    expect(r.stdout).toMatch(/== uninstall complete — 1 recorded item\(s\) left in place; .* — agents removed: Codex CLI; still installed: Claude Code ==/);
+  });
+
+  it("(f) an argument that is not an agent flag is bad usage (exit 2), before anything is read", () => {
+    const t = installedTree("per-agent-zed", [flag("claude")]);
+    const before = snapshotTree(t.target);
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, ["--zed"]);
+    expect(r.status, r.stdout + r.stderr).toBe(2);
+    expect(r.stderr).toMatch(/unknown argument: --zed/);
+    expect(snapshotTree(t.target)).toBe(before);
+  });
+
+  // THE CLASS TEST (brief DC-2, §2.1): over every registry row, derived and counted, `uninstall --<id>` on an install of
+  // every agent removes only paths in that row's footprint, never a path an agent that stays owns, and leaves every
+  // other byte as it was except the marker, whose `agents` loses exactly that id.
+  it("class: for every registry row, uninstall --<id> removes only that agent's footprint and never a path a remaining agent owns", () => {
+    const template = installedTree("per-agent-template");
+    const ids = HOST_TOOLS.map((h) => h.id);
+    expect(readMarkerObject(template.target).agents, "the template is not an install of every agent").toEqual(ids);
+    const templateLedger = ledgerOf(readMarkerObject(template.target));
+    let rows = 0;
+    let removedTotal = 0;
+    for (const host of HOST_TOOLS) {
+      rows++;
+      const target = join(fresh(`per-agent-class-${host.id}`), "target");
+      cpSync(template.target, target, { recursive: true });
+      rebindMarker(target);
+      const before = rowsOf(target);
+      const r = runUninstall(target, template.grugopsHome, { home: template.home, timeoutMs: 60_000 }, [agentFlag(host)]);
+      expectFinished(r, `uninstall ${agentFlag(host)}`);
+      expect(r.status, `${agentFlag(host)}: exit ${r.status}\n${r.stdout}`).toBe(0);
+      const after = rowsOf(target);
+      const removed = [...before.keys()].filter((p) => !after.has(p));
+      removedTotal += removed.length;
+      for (const p of removed) {
+        const owners = entryOwners({ path: p, kind: before.get(p)?.endsWith("/ DIR") ? "dir" : "file" });
+        expect(owners, `${agentFlag(host)} removed ${p}, which is not in ${host.name}'s footprint\n${r.stdout}`).toContain(host.id);
+        expect(owners.filter((o) => o !== host.id), `${agentFlag(host)} removed ${p}, which an agent that stays owns`).toEqual([]);
+      }
+      for (const [p, row] of after) {
+        if (p === MARKER_REL) continue;
+        expect(row, `${agentFlag(host)} changed ${p}`).toBe(before.get(p));
+      }
+      // Non-vacuous: an entry the template records that only this agent owns (and that holds content) is gone.
+      const solelyOwned = templateLedger.filter((e) => e.kind === "file" && JSON.stringify(entryOwners(e)) === JSON.stringify([host.id]));
+      for (const e of solelyOwned) expect(after.has(e.path), `${agentFlag(host)} left its own ${e.path}\n${r.stdout}`).toBe(false);
+      expect(readMarkerObject(target).agents, `${agentFlag(host)}: the kept marker's agents`).toEqual(ids.filter((id) => id !== host.id));
+    }
+    console.log(`per-agent class test: ${rows} registry row(s), ${removedTotal} path(s) removed in total`);
+    expect(rows).toBe(HOST_TOOL_COUNT);
+    expect(removedTotal, "no row removed anything: the class test is vacuous").toBeGreaterThan(0);
   });
 });

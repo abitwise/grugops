@@ -54,6 +54,13 @@
 //              seeded per-repo state (.grugops/, plans/, memory-bank/) is never visited for removal.
 // Each reversal records the entry's outcome in OUTCOMES (`<path>#<kind>`), for the marker rule.
 //
+// ONE AGENT AT A TIME (phase 34.1, D-05, D-20, D-23). `uninstall.js --codex` (the same per-agent flags as install.js)
+// walks only the entries inScope answers yes for: an agent it removes owns the entry and no agent that stays installed
+// owns it (host-tools.ts entryOwners, over the registry's ADAPTER_FOOTPRINT). The installed set is the one derivation
+// install-marker.ts installedAgents answers, never what is on disk. The shared footprint (no owner: AGENTS.md,
+// tools/grugops/, a pre-34.1 gemini entry) is reversed only by a flag-less run or by the removal of the last installed
+// agent, and a partial run keeps the marker for the agents that stay, rewritten (updateKeptMarker, `agents`).
+//
 // THE REPORT-ONLY PASSES remove nothing. reportUnrecordedKitPaths, reportUnrecordedAgentsMd,
 // reportUnrecordedRunnables, reportUnrecordedBlock, reportUnrecordedSettings and reportUnrecordedDir
 // name a present grugops-shaped path that has no ledger entry as `left`, with the reason, and call no
@@ -161,8 +168,9 @@ import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItem
 // one "nothing is there any more" check a removal is reported by (red-team of plan 33.1-27).
 import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPathSpelling } from "./user-file.js";
 // Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
-// per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry".
-import { HOST_TOOLS, agentFlag, hostForFlag, entryOwners, type HostTool } from "./host-tools.js";
+// per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry";
+// ADAPTER_FOOTPRINT gives the report pass its directory candidates (reportDirCandidates).
+import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, agentFlag, hostForFlag, entryOwners, type HostTool, type HostAdapterKind } from "./host-tools.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -1951,9 +1959,11 @@ function reportUnrecordedAgentsMd(): void {
 
 // reportUnrecordedSettings: .gemini/settings.json and .claude/settings.json with no gemini or ask-rules
 // entry. Neither is read for removal or rewritten: their text and shape are not a record of what install
-// did (plan 33.1-29, re-review CR-03; D-18). The lines say why, by the ledger's state.
-function reportUnrecordedSettings(): void {
-  if (entryAt(LEDGER, GEMINI_SETTINGS_REL, "gemini") === undefined && !isProtected(`${TARGET}/${GEMINI_SETTINGS_REL}`)) {
+// did (plan 33.1-29, re-review CR-03; D-18). The lines say why, by the ledger's state. `which` says which of the two
+// this run reports (phase 34.1, D-05): a partial run reports the ask rules only when it removes Claude Code, and the
+// Gemini settings, shared by no agent (D-23), only on a FULL run.
+function reportUnrecordedSettings(which: { readonly gemini: boolean; readonly askRules: boolean }): void {
+  if (which.gemini && entryAt(LEDGER, GEMINI_SETTINGS_REL, "gemini") === undefined && !isProtected(`${TARGET}/${GEMINI_SETTINGS_REL}`)) {
     const rel = GEMINI_SETTINGS_REL;
     // DC-3 (plan 33.1-27): readForWrite only asks whether anything is there; nothing is read for an edit.
     const read = readForWrite(TARGET, `${TARGET}/${rel}`);
@@ -1970,7 +1980,7 @@ function reportUnrecordedSettings(): void {
       );
     }
   }
-  if (entryAt(LEDGER, ASK_RULES_REL, "ask-rules") === undefined && !isProtected(`${TARGET}/${ASK_RULES_REL}`)) {
+  if (which.askRules && entryAt(LEDGER, ASK_RULES_REL, "ask-rules") === undefined && !isProtected(`${TARGET}/${ASK_RULES_REL}`)) {
     const rel = ASK_RULES_REL;
     if (MARKER.state === "absent") {
       report("skipped", `${rel} ask rules (no install marker, so no ledger of added rules — nothing removed)`);
@@ -2214,7 +2224,7 @@ if (MARKER_READ.state === "unbound") {
 
 // ── WHICH AGENTS THIS RUN REMOVES (phase 34.1, D-05, D-20, D-23) ─────────────────────────────────────────────────
 // INSTALLED is the one derivation of the installed set (install-marker.ts installedAgents: the marker's recorded
-// `agents`, or a pre-34.1 install's Claude Code, Copilot and Pi, or none), read from the same two reads every pass
+// `agents`, or a pre-34.1 install's legacy set from LEGACY_ADAPTER_KINDS, or none), read from the same two reads every pass
 // uses. It is never derived from what is on disk (brief DC-2).
 //   NAMED       the agents the flags name that are installed here;
 //   REMAINING   the installed agents the flags do not name: they stay installed;
@@ -2245,6 +2255,38 @@ if (REMOVE.size > 0) {
       `${agentFlag(host)}: ${host.name} is not installed here, so nothing is removed for it`,
     );
   }
+}
+
+/**
+ * The directories on the way to a footprint path (host-tools.ts ADAPTER_FOOTPRINT): for `a/b/c.md`, `a/b` and `a`;
+ * for a prefix `a/`, `a`.
+ */
+function footprintDirs(p: string): string[] {
+  const parts = p.split("/").filter((x) => x !== "");
+  const upTo = p.endsWith("/") ? parts.length : parts.length - 1;
+  const out: string[] = [];
+  for (let i = upTo; i >= 1; i--) out.push(parts.slice(0, i).join("/"));
+  return out;
+}
+/**
+ * reportDirCandidates (phase 34.1, D-05): the directories the report pass names when empty and unrecorded, deepest
+ * first. The grugops skill directories and the fixed list this pass has always had (the Claude Code kit's directories,
+ * `.gemini` for a pre-34.1 install, `.github` and `tools/grugops`), joined by the directories on the way to every
+ * ADAPTER_FOOTPRINT path, derived. A partial run keeps only the directories it could reverse were they recorded
+ * (inScope): those of the agents it removes and no agent that stays.
+ */
+function reportDirCandidates(): string[] {
+  const all = [
+    ...grugopsSkillNames().map((s) => `.claude/skills/${s}`),
+    ".claude/skills",
+    ".claude/agents",
+    ".claude",
+    ".gemini",
+    ".github",
+    "tools/grugops",
+    ...HOST_ADAPTER_KINDS.flatMap((k) => ADAPTER_FOOTPRINT[k].flatMap(footprintDirs)),
+  ];
+  return [...new Set(all)].filter((d) => inScope({ path: d, kind: "dir" })).sort((a, b) => depthOf(b) - depthOf(a));
 }
 
 // The kit-shipped RUNNABLES the installer materializes into the user's repository (WR-04, plan 27-13),
@@ -2278,25 +2320,26 @@ console.log("\n-- reversing what the install ledger records (only what install.j
 walkLedger();
 
 // 2. THE REPORTS: every grugops-shaped path the ledger does not record is named, never removed.
+//    A PARTIAL RUN (phase 34.1, D-05) reports only within the footprint of the agents it removes: the Claude Code kit,
+//    its backups, the CLAUDE.md block and the ask rules only when it removes Claude Code; the Copilot block only when it
+//    removes Copilot; AGENTS.md, the runnables and the Gemini settings (the shared footprint, D-06, D-23) only on a
+//    FULL run. adapterRemoved answers by adapter kind, from the registry, so no host is named here.
+const adapterRemoved = (kind: HostAdapterKind): boolean =>
+  FULL ||
+  (HOST_TOOLS.some((h) => h.adapter === kind && NAMED.includes(h.id)) && !HOST_TOOLS.some((h) => h.adapter === kind && REMAINING.includes(h.id)));
 console.log("\n-- grugops-shaped paths the install ledger does not record (reported, never removed) --");
-reportUnrecordedKitPaths();
-// Every backup install made of an edited kit file (D-32, plan 33.1-32) is reported left, never removed.
-reportKitBackups();
-reportUnrecordedAgentsMd();
-reportUnrecordedBlock("CLAUDE.md");
-reportUnrecordedSettings();
-reportUnrecordedBlock(COPILOT_REL);
-reportUnrecordedRunnables();
-// The fixed directory candidates, deepest first, once the walk's removals are done.
-for (const d of [
-  ...grugopsSkillNames().map((s) => `.claude/skills/${s}`),
-  ".claude/skills",
-  ".claude/agents",
-  ".claude",
-  ".gemini",
-  ".github",
-  "tools/grugops",
-]) {
+if (adapterRemoved("claude-kit")) {
+  reportUnrecordedKitPaths();
+  // Every backup install made of an edited kit file (D-32, plan 33.1-32) is reported left, never removed.
+  reportKitBackups();
+}
+if (FULL) reportUnrecordedAgentsMd();
+if (adapterRemoved("claude-kit")) reportUnrecordedBlock("CLAUDE.md");
+reportUnrecordedSettings({ gemini: FULL, askRules: adapterRemoved("claude-kit") });
+if (adapterRemoved("copilot-pointer")) reportUnrecordedBlock(COPILOT_REL);
+if (FULL) reportUnrecordedRunnables();
+// The directory candidates, deepest first, once the walk's removals are done (reportDirCandidates says which).
+for (const d of reportDirCandidates()) {
   reportUnrecordedDir(`${TARGET}/${d}`);
 }
 

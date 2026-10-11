@@ -497,9 +497,17 @@ const MODE_TABLE: Readonly<Record<string, { readonly cls: ModeClass; readonly re
       },
     ]),
   ),
+  // The same per-agent flags on uninstall.ts (phase 34.1, D-05), read through hostForFlag the same way. They narrow the
+  // uninstall (an acting mode with its own rows below) to the agents they name, so they are modifiers of it.
+  ...Object.fromEntries(
+    HOST_TOOLS.map((h) => [
+      `uninstall.ts ${agentFlag(h)}`,
+      { cls: "modifier" as const, reason: "names an agent whose recorded files the uninstall removes; the shared footprint stays unless it is the last (D-05)" },
+    ]),
+  ),
 };
-/** 17 typed rows, plus one derived row per registry agent (phase 34.1, D-01). */
-const MODE_TABLE_COUNT = 17 + HOST_TOOL_COUNT;
+/** 17 typed rows, plus one derived row per registry agent for each binary (phase 34.1, D-01, D-05). */
+const MODE_TABLE_COUNT = 17 + 2 * HOST_TOOL_COUNT;
 
 /**
  * The literals the argv loop of `file` compares its argument with (`a === "..."`, `a.startsWith("...")`),
