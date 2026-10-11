@@ -280,9 +280,12 @@ function runScratchInstall(): Installed {
   }
   const target = makeScratch("target");
   const home = makeScratch("home");
+  // `--claude` (phase 34.1, D-01): this precheck exercises the Claude Code adapters, so it installs for Claude Code
+  // only. The flag is agentFlag of the registry's claude-kit row (install/host-tools.ts); install/agent-flag-census.test.ts
+  // asserts the two agree, so this script keeps its imports and spells the one flag it needs.
   const r = spawnSync(
     "node",
-    [INSTALLER, "--target", target, "--yes"],
+    [INSTALLER, "--target", target, "--yes", "--claude"],
     {
       encoding: "utf8",
       timeout: 120_000,

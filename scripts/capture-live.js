@@ -1339,7 +1339,10 @@ function buildTarget(label) {
     if (init.error !== undefined || init.status !== 0) {
         fail(`\`git init\` did not complete in ${target} (exit ${String(init.status)}) — ${init.error?.message ?? (init.stderr ?? "").trim()}`);
     }
-    const r = spawnSync("node", [INSTALLER, "--target", target, "--yes"], { encoding: "utf8", input: "", timeout: INSTALL_BOUND_MS, env, maxBuffer: 16 * 1024 * 1024 });
+    // `--claude` (phase 34.1, D-01): the live capture exercises the Claude Code adapters, so it installs for Claude Code
+    // only. The flag is agentFlag of the registry's claude-kit row (install/host-tools.ts); install/agent-flag-census.test.ts
+    // asserts the two agree, so this script keeps its imports and spells the one flag it needs.
+    const r = spawnSync("node", [INSTALLER, "--target", target, "--yes", "--claude"], { encoding: "utf8", input: "", timeout: INSTALL_BOUND_MS, env, maxBuffer: 16 * 1024 * 1024 });
     // TWO SIGNALS, EITHER ONE A REFUSAL (the coordinator-resolution precheck's rule): the exit status
     // and the INCOMPLETE banner are checked against the same run, and the message names which fired.
     const detail = refusalText(r.stdout, r.stderr);

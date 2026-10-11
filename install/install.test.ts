@@ -136,7 +136,7 @@ import { stageSymlinkOrSkip, stageShapeOrSkip, skipLine, type SkipEntry } from "
 // The installer's one spelling of a real path (plan 34-12): canonicalPath below delegates to it.
 import { realTargetPath } from "./user-file.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
-import { lineNamesPath, pathText } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, lineNamesPath, pathText, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
 const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
@@ -379,7 +379,7 @@ function snapshot(dir: string): string {
 // runInstall — drive the COMMITTED install.js hermetically into an isolated target + kit-home with
 // INSTALL_MODE=copy (deterministic bytes). Always --yes (unattended). Extra args pass through.
 function runInstall(target: string, home: string, ...args: string[]): { status: number | null; stdout: string; stderr: string } {
-  const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+  const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {
     encoding: "utf8",
     env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
   });
@@ -594,7 +594,7 @@ function restrictAndProbe(dir: string, mode: number): { restricted: boolean; rea
 // runInstallFrom / runUninstallFrom — the runInstall/runUninstall pair with an explicit
 // $GRUGOPS_SRC so a case can drive a synthetic kit instead of this repo.
 function runInstallFrom(src: string, target: string, home: string, ...args: string[]) {
-  const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+  const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {
     encoding: "utf8",
     // spawnSync's default maxBuffer is 1 MB, and exceeding it KILLS the child and reports
     // `status: null` — an outcome indistinguishable from a crash. The D-35 DAG case legitimately
@@ -659,7 +659,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const tPre = snapshot(target);
     const hPre = snapshot(home); // "" — absent
 
-    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -832,7 +832,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const target = makeFixture();
     const home = mkTmp();
     // Intentionally NO INSTALL_MODE override — prove the new default is copy.
-    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -861,7 +861,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     writeFileSync(join(target, "agent-factory", "roles", "orchestrator.md"), "FROZEN CORE\n");
     const home = mkTmp();
     const elsewhere = mkTmp();
-    const r = spawnSync("node", [INSTALL_JS, "--target", target, "--yes"], {
+    const r = spawnSync("node", [INSTALL_JS, "--target", target, "--yes", ...ALL_AGENT_FLAGS], {
       cwd: elsewhere,
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home },
@@ -895,7 +895,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const home = mkTmp();
 
     // (a) refuse by default — installing INTO the clone must exit nonzero and name --allow-self.
-    const refused = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const refused = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, GRUGOPS_SRC: fake, GRUGOPS_HOME: home, TARGET: fake },
     });
@@ -912,7 +912,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(existsSync(join(fake, ".claude", "agents"))).toBe(false);
 
     // (b) --allow-self overrides — the same invocation PROCEEDS PAST THE GUARD.
-    const allowed = spawnSync("node", [INSTALL_JS, "--yes", "--allow-self"], {
+    const allowed = spawnSync("node", [INSTALL_JS, "--yes", "--allow-self", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, GRUGOPS_SRC: fake, GRUGOPS_HOME: mkTmp(), TARGET: fake },
     });
@@ -1065,7 +1065,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     plantSourceMarkers(marked, "marker-only");
     const before = snapshot(marked);
 
-    const inst = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const inst = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: mkTmp(), TARGET: marked },
     });
@@ -1085,7 +1085,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       plantSourceMarkers(halfOnly, "half", only);
       expect(hasSourceMarkers(halfOnly)).toBe(false);
 
-      const i = spawnSync("node", [INSTALL_JS, "--yes"], {
+      const i = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
         encoding: "utf8",
         env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: mkTmp(), TARGET: halfOnly },
       });
@@ -2394,7 +2394,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const tPre = snapshot(target);
     const hPre = snapshot(home);
 
-    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -2442,7 +2442,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     // (b) The SAME direct spawn shape the fresh-target case above uses, so the two previews differ
     // only in the state of the target they are taken over.
-    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -3055,7 +3055,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // have written and BEFORE the state seed and the marker — a half-installed target reported by
     // no banner at all.
     const runWithEnv = (src: string, target: string, home: string, extra: NodeJS.ProcessEnv) => {
-      const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+      const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
         env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target, ...extra },
@@ -3928,6 +3928,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
   // ── unknown-arg exit-2 contract (install.mjs:80 / D-12) ─────────────────────────────────────
   it("unknown-arg: install.js and uninstall.js both exit 2 on an unknown flag (D-12 contract)", () => {
+    // agent-flag-census: an unknown argument exits 2 in the argument loop, before any agent is selected
     const inst = spawnSync("node", [INSTALL_JS, "--bad-arg-xyz"], { encoding: "utf8", env: { ...process.env } });
     expect(inst.status).toBe(2);
     const unin = spawnSync("node", [UNINSTALL_JS, "--bad-arg-xyz"], { encoding: "utf8", env: { ...process.env } });
@@ -3953,11 +3954,12 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       TARGET: target,
     };
     for (const flag of ["--migrate", "--update", "--prune-old-kit"]) {
-      const r = spawnSync("node", [INSTALL_JS, "--yes", flag], { encoding: "utf8", env: dryEnv });
+      const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags([flag])], { encoding: "utf8", env: dryEnv });
       // Recognized: the unknown-arg branch exits 2; a recognized flag must NOT.
       expect(r.status).not.toBe(2);
     }
     // A genuinely unknown arg still exits 2 (the regression guard for T-17-01-AP).
+    // agent-flag-census: an unknown argument exits 2 in the argument loop, before any agent is selected
     const bad = spawnSync("node", [INSTALL_JS, "--yes", "--bad-arg-xyz"], { encoding: "utf8", env: dryEnv });
     expect(bad.status).toBe(2);
   });
@@ -3971,7 +3973,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const target = makeFixture();
     const home = mkTmp();
     const env = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home };
-    const seeded = spawnSync("node", [INSTALL_JS, "--yes", "--target", target, ...HOST_TOOLS.map(agentFlag)], {
+    const seeded = spawnSync("node", [INSTALL_JS, "--yes", "--target", target, ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env,
     });
@@ -3981,7 +3983,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     for (const mode of ["--check", "--update", "--prune-old-kit"]) {
       const targetBefore = snapshot(target);
       const homeBefore = snapshot(home);
-      const r = spawnSync("node", [INSTALL_JS, "--target", target, agent, mode], { encoding: "utf8", env });
+      const r = spawnSync("node", [INSTALL_JS, "--target", target, agentFlag(HOST_TOOLS[0]), mode], { encoding: "utf8", env });
       expect(`${agent} ${mode}: ${r.status}`).toBe(`${agent} ${mode}: 2`);
       expect(r.stderr).toContain("install.js: ");
       expect(r.stderr).toContain(agent);
@@ -3997,9 +3999,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // Every registry flag at once is accepted by the argument loop and the run completes (exit 0) into an empty target.
   it("agent flag set: install.js --yes with every registry flag installs into an empty target (exit 0)", () => {
     const target = mkTmp();
-    const flags = HOST_TOOLS.map(agentFlag);
-    expect(flags).toHaveLength(HOST_TOOL_COUNT);
-    const r = spawnSync("node", [INSTALL_JS, "--yes", "--target", target, ...flags], {
+    expect(ALL_AGENT_FLAGS).toEqual(HOST_TOOLS.map(agentFlag));
+    expect(ALL_AGENT_FLAGS).toHaveLength(HOST_TOOL_COUNT);
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--target", target, ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: mkTmp() },
     });
@@ -4219,7 +4221,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
 
     const target = makeOldLayoutFixture();
     const home = mkTmp();
-    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: src, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -4296,7 +4298,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     mkdirSync(join(target, "plans", "handoffs"), { recursive: true });
     writeFileSync(join(target, "plans", "handoffs", "T-003-uat.md"), "handoff\n");
 
-    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -4399,7 +4401,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     rmSync(home, { recursive: true, force: true }); // start with home ABSENT
     const tPre = snapshot(target);
 
-    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", "--migrate", "--backup-edited-kit", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -6346,7 +6348,7 @@ describe("ask rules: install side (D-18)", () => {
   it("ask rules: DRY_RUN=1 writes no settings file and no marker, and names the rule count", () => {
     const target = makeFixture();
     const home = mkTmp();
-    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });
@@ -7614,7 +7616,7 @@ describe("readUserFile: the one bounded reader of a user path (DC-3, plan 33.1-2
 
 // runInstallBounded — runInstall with a timeout, returning the raw spawnSync fields a hang shows in.
 function runInstallBounded(target: string, home: string, timeoutMs: number, ...args: string[]) {
-  return spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+  return spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {
     encoding: "utf8",
     timeout: timeoutMs,
     env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
@@ -8686,7 +8688,7 @@ describe("kit write all-or-nothing (plan 33.1-31, D-32)", () => {
     args: string[] = [],
     extra: Record<string, string> = {},
   ): { status: number | null; stdout: string; stderr: string } => {
-    const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {
       encoding: "utf8",
       timeout: 120_000,
       maxBuffer: 64 * 1024 * 1024,
@@ -9365,7 +9367,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
   };
   type Run = { status: number | null; stdout: string; stderr: string };
   const run = (src: string, target: string, home: string, args: string[] = [], extra: Record<string, string> = {}): Run => {
-    const r = spawnSync("node", [INSTALL_JS, "--yes", ...args], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {
       encoding: "utf8",
       timeout: 120_000,
       maxBuffer: 64 * 1024 * 1024,
@@ -9568,7 +9570,7 @@ describe("kit re-install (D-32, plan 33.1-32)", () => {
     withTarget = true,
   ): Run => {
     const log = join(mkTmp(), "pty.log");
-    const cmd = ["node", INSTALL_JS, ...(withTarget ? ["--target", target] : []), ...args];
+    const cmd = ["node", INSTALL_JS, ...(withTarget ? ["--target", target] : []), ...withAgentFlags(args)];
     const scriptCmd =
       process.platform === "darwin"
         ? `script -q /dev/null ${cmd.map(shq).join(" ")}`
@@ -10491,7 +10493,7 @@ describe("Pi prompt template (plan 34-04)", () => {
   it("a DRY_RUN install of an empty target names the template `would-add` and creates no `.pi`", () => {
     const target = emptyTarget();
     const home = mkTmp();
-    const r = spawnSync("node", [INSTALL_JS, "--yes"], {
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, DRY_RUN: "1", INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home, TARGET: target },
     });

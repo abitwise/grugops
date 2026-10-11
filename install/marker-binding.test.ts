@@ -37,7 +37,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, makeFixture, nativeRealPath, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, INSTALL_JS, MARKER_REL, REPO_ROOT, type Run, makeFixture, nativeRealPath, runInstall, runUninstall, snapshotTree } from "./installer-paths.test-support.js";
 import { dirList, fileRecords } from "./ledger.test-support.js";
 import { realTargetPath } from "./user-file.js";
 
@@ -196,7 +196,7 @@ describe("install's marker is bound to its directory, and only install's own mar
   it("value validation at the source: INSTALL_MODE other than copy or symlink is refused as bad usage (exit 2), before any write", () => {
     const t = makeFixture(fresh("mode"));
     const before = snapshotTree(t);
-    const r = spawnSync(process.execPath, [INSTALL_JS, "--yes"], {
+    const r = spawnSync(process.execPath, [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
       encoding: "utf8",
       env: { ...process.env, INSTALL_MODE: "banana", GRUGOPS_HOME: KIT_HOME, HOME, TARGET: t, GRUGOPS_SRC: REPO_ROOT },
     });

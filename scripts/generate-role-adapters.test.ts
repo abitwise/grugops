@@ -66,6 +66,8 @@ import {
   admittedGrantValues,
 } from "./canonical-frontmatter.js";
 import { deriveGrant } from "./capture-live.js";
+// Phase 34.1 D-01: the scratch install below names every registry agent, spelled by the registry (agent-flag census).
+import { HOST_TOOLS, agentFlag } from "../install/host-tools.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-role-adapters.js");
@@ -2039,7 +2041,7 @@ describe("33-28 K4/K5/K6 — the `admit` capability token flows from the role th
     const target = mkdtempSync(join(tmpdir(), "grugops-33-28-target-"));
     const home = mkdtempSync(join(tmpdir(), "grugops-33-28-home-"));
     tmpDirs.push(target, home);
-    const r = spawnSync("node", [join(ROOT, "install", "install.js"), "--target", target, "--yes"], {
+    const r = spawnSync("node", [join(ROOT, "install", "install.js"), "--target", target, "--yes", ...HOST_TOOLS.map(agentFlag)], {
       cwd: ROOT,
       encoding: "utf8",
       input: "",

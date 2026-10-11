@@ -63,6 +63,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
+import { HOST_TOOLS, agentFlag, hostForFlag } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -335,8 +336,32 @@ export function spawnBin(bin: string, args: readonly string[], target: string, g
   return { status: r.status, signal: r.signal, error: r.error, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
+// ── naming the agents (phase 34.1, D-01; research Pitfall 2) ──────────────────────────────────────
+// Plan 34.1-06 makes an unattended install with no agent flag into a target with no install record and no detected
+// host refuse (D-03). Every test that runs an install therefore names its agents, through withAgentFlags or with an
+// explicit flag; install/agent-flag-census.test.ts holds that over every spawn of install.js in the tree.
+
+/** Every per-agent flag, one per registry row, spelled by agentFlag: the union of every agent's writes. */
+export const ALL_AGENT_FLAGS: readonly string[] = HOST_TOOLS.map(agentFlag);
+
+/**
+ * The install.js modes that write no agent's files. An agent flag with one of them is bad usage (D-25), so
+ * withAgentFlags adds nothing to arguments that carry one.
+ */
+export const MODE_FLAGS = ["--check", "--update", "--prune-old-kit"] as const;
+
+/**
+ * The arguments an install spawn passes: unchanged when they already name an agent (an agent flag) or a mode that
+ * takes none (MODE_FLAGS), otherwise ALL_AGENT_FLAGS followed by them, so the run installs for every registry agent.
+ */
+export function withAgentFlags(args: readonly string[]): string[] {
+  const modes: readonly string[] = MODE_FLAGS;
+  if (args.some((a) => hostForFlag(a) !== null || modes.includes(a))) return [...args];
+  return [...ALL_AGENT_FLAGS, ...args];
+}
+
 export const runInstall = (target: string, grugopsHome: string, args: readonly string[] = [], opts: RunOptions = {}): Run =>
-  spawnBin(INSTALL_JS, ["--yes", ...args], target, grugopsHome, opts);
+  spawnBin(INSTALL_JS, ["--yes", ...withAgentFlags(args)], target, grugopsHome, opts);
 
 export const runUninstall = (target: string, grugopsHome: string, opts: RunOptions = {}): Run =>
   spawnBin(UNINSTALL_JS, [], target, grugopsHome, opts);

@@ -48,6 +48,8 @@ import ts from "typescript";
 // import closure, never from a hand-listed file set — a mirror that misses a module reproduces "the
 // module is missing" instead of the property under test.
 import { closureTargets } from "./js-import-closure.js";
+// Phase 34.1 D-01: the installer spawn below names every registry agent, spelled by the registry (agent-flag census).
+import { HOST_TOOLS, agentFlag } from "../install/host-tools.js";
 import {
   capabilitySkipEntry,
   isForcedAbsent,
@@ -17143,7 +17145,7 @@ describe("31-41 — the shared-install shape is MEASURED against the widened ref
 
     const installed = spawnSync(
       "node",
-      [join(ROOT, "install", "install.js"), "--yes"],
+      [join(ROOT, "install", "install.js"), "--yes", ...HOST_TOOLS.map(agentFlag)],
       {
         encoding: "utf8",
         maxBuffer: 32 * 1024 * 1024,

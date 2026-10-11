@@ -63,8 +63,10 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * 31 since plan 34.1-01 added host-entries.test.ts, which has no chmod call and no literal expected mode (its expected
  * record takes the mode read back from the installed file, as writtenFileRecord does). SCRIPTS_TEST_FILE_COUNT is 72
  * since plan 34.1-01 added scripts/generate-host-entries.test.ts, which has no chmod call and reads no `.mode`; 73
- * since plan 34.1-02 added scripts/host-entries-freshness.test.ts, which has neither either. */
-const INSTALL_TEST_FILE_COUNT = 31;
+ * since plan 34.1-02 added scripts/host-entries-freshness.test.ts, which has neither either. INSTALL_TEST_FILE_COUNT is
+ * 32 since plan 34.1-05 added agent-flag-census.test.ts, which has no chmod call and no expected mode (it parses
+ * modules and reads no file mode). */
+const INSTALL_TEST_FILE_COUNT = 32;
 const SCRIPTS_TEST_FILE_COUNT = 73;
 const SOURCE_FILE_COUNT = 8;
 

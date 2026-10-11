@@ -48,6 +48,7 @@ import {
   rebindMarker,
   snapshotTree,
   spawnBin,
+  withAgentFlags,
 } from "./installer-paths.test-support.js";
 
 const tmpDirs: string[] = [];
@@ -86,7 +87,7 @@ function plantEmptyDirs(d: string, rels: string[]): void {
 type Run = SharedRun;
 
 const runInstall = (target: string, home: string, dryRun: boolean, ...args: string[]): Run =>
-  spawnBin(INSTALL_JS, ["--yes", ...args], target, home, { dryRun });
+  spawnBin(INSTALL_JS, ["--yes", ...withAgentFlags(args)], target, home, { dryRun });
 const runUninstall = (target: string, home: string, dryRun: boolean): Run => spawnBin(UNINSTALL_JS, [], target, home, { dryRun });
 
 // The paths a run printed under one report label. report() pads the label to 14 columns after two

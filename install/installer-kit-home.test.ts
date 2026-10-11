@@ -47,6 +47,7 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  ALL_AGENT_FLAGS,
   INSTALL_JS,
   KIT_HOME_VARIANTS,
   REFUSAL_VARIANTS,
@@ -55,6 +56,7 @@ import {
   snapshotTree,
   spawnBin,
   userRepo,
+  withAgentFlags,
   type Run,
 } from "./installer-paths.test-support.js";
 import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
@@ -119,7 +121,7 @@ describe("CR-01: install refuses a kit home that overlaps the target, before any
       const link = join(root, "home-link");
       symlinkSync(target, link);
       const before = snapshotTree(root);
-      const r = spawnBin(INSTALL_JS, ["--yes"], target, link, { dryRun, home, timeoutMs: 120_000 });
+      const r = spawnBin(INSTALL_JS, ["--yes", ...ALL_AGENT_FLAGS], target, link, { dryRun, home, timeoutMs: 120_000 });
       expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(1);
       expect(r.stdout).toBe("");
       expect(r.stderr).toMatch(/overlaps the target/);
@@ -133,7 +135,7 @@ describe("CR-01: install refuses a kit home that overlaps the target, before any
     const target = join(home, "code", "repo");
     mkdirSync(target, { recursive: true });
     writeFileSync(join(target, "MYNOTES.md"), "the user's own notes\n");
-    const r = spawnBin(INSTALL_JS, ["--yes"], target, home, { home, timeoutMs: 180_000 });
+    const r = spawnBin(INSTALL_JS, ["--yes", ...ALL_AGENT_FLAGS], target, home, { home, timeoutMs: 180_000 });
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(r.stderr).not.toMatch(/overlaps the target/);
   });
@@ -160,7 +162,7 @@ function kitHomeCase(tag: string): KitHomeCase {
   return { root, home, target, grugopsHome: join(home, ".grugops") };
 }
 const install = (c: KitHomeCase, args: readonly string[] = [], dryRun = false): Run =>
-  spawnBin(INSTALL_JS, ["--yes", ...args], c.target, c.grugopsHome, { dryRun, home: c.home, timeoutMs: 180_000 });
+  spawnBin(INSTALL_JS, ["--yes", ...withAgentFlags(args)], c.target, c.grugopsHome, { dryRun, home: c.home, timeoutMs: 180_000 });
 const update = (c: KitHomeCase, dryRun = false): Run =>
   spawnBin(INSTALL_JS, ["--yes", "--update"], c.target, c.grugopsHome, { dryRun, home: c.home, timeoutMs: 180_000 });
 

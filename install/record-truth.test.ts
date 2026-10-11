@@ -576,6 +576,7 @@ describe("L4: `--target` with no value is bad usage in both binaries (exit 2), n
       const envTarget = fresh("l4-env");
       const env: NodeJS.ProcessEnv = { ...process.env, GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: join(fresh("l4-home"), ".grugops"), HOME: fresh("l4-h"), TARGET: envTarget, DRY_RUN: "1" };
       const before = snapshotTree(cwd) + snapshotTree(envTarget);
+      // agent-flag-census: every CASES row is a `--target` with no value, which exits 2 in the argument loop of both binaries
       const r = spawnSync(process.execPath, [bin === "install.js" ? INSTALL_JS : UNINSTALL_JS, ...args], { cwd, env, encoding: "utf8", timeout: 60_000, input: "" });
       expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(2);
       expect(r.stderr).toMatch(/--target/);
