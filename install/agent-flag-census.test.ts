@@ -213,3 +213,119 @@ describe("agent-flag census: every spawn of install.js names its agents (phase 3
     expect(withAgentFlags([one, "--symlink"])).toEqual([one, "--symlink"]);
   });
 });
+
+// ── the product scripts (D-01) ─────────────────────────────────────────────────────────────────────────────
+// The two product scripts that run a scratch install exercise the Claude Code adapters, so each passes one agent flag.
+// They spell it as a literal and do not import install/host-tools.js; this case binds that literal to the registry:
+// it must equal agentFlag of the one row whose adapter is `claude-kit`. A renamed id turns this red.
+const PRODUCT_SCRIPTS: readonly string[] = ["scripts/coordinator-resolution-precheck.ts", "scripts/capture-live.ts"];
+
+describe("agent-flag census: the product scripts' installer flag is the registry's claude-kit flag (D-01)", () => {
+  const claudeRows = HOST_TOOLS.filter((h) => h.adapter === "claude-kit");
+
+  it("exactly one registry row lays down the claude-kit adapter", () => {
+    expect(claudeRows.map((h) => h.id)).toHaveLength(1);
+  });
+
+  for (const rel of PRODUCT_SCRIPTS) {
+    it(`${rel}: its one installer spawn passes agentFlag of the claude-kit row and no other agent flag`, () => {
+      const text = readFileSync(join(REPO_ROOT, rel), "utf8");
+      const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const spawns = descendants(sf).filter(
+        (n): n is ts.ArrayLiteralExpression =>
+          ts.isArrayLiteralExpression(n) && n.elements.some((e) => ts.isIdentifier(e) && e.text === "INSTALLER"),
+      );
+      expect(spawns, `${rel}: installer spawns`).toHaveLength(1);
+      const literals = spawns[0].elements.filter(ts.isStringLiteral).map((e) => e.text);
+      // Every literal that is not one of the script's two mode-free arguments is an agent flag.
+      const flags = literals.filter((l) => l !== "--target" && l !== "--yes");
+      expect(flags).toEqual([agentFlag(claudeRows[0])]);
+      expect(literals).toContain("--claude");
+    });
+  }
+});
+
+// ── the flag-collision census (research Pitfall 6) ──────────────────────────────────────────────────────────
+// An agent flag is `--` + a registry id. A row whose id equalled a flag either binary already parses (`check`,
+// `update`, `target`, ...) would never reach hostForFlag: the earlier arm would take it, and the agent could not be
+// named. The parsed flags are read from the argument loops by the syntax tree, not typed here: every string literal
+// the loop variable is compared with (`a === "--check"`) or tested as a prefix of (`a.startsWith("--target=")`).
+const ARG_LOOP_MODULES: readonly string[] = ["install/install.ts", "install/uninstall.ts"];
+
+/** The flags one binary's argument loop parses, leading dashes and a trailing `=` stripped. */
+function parsedFlagStems(rel: string, text: string = readFileSync(join(REPO_ROOT, rel), "utf8")): string[] {
+  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  // The loop variable: `const <name> = argv[<index>]` inside a for statement.
+  const loops = descendants(sf).filter(
+    (n): n is ts.ForStatement =>
+      ts.isForStatement(n) &&
+      descendants(n.statement).some(
+        (d) =>
+          ts.isVariableDeclaration(d) &&
+          d.initializer !== undefined &&
+          ts.isElementAccessExpression(d.initializer) &&
+          d.initializer.expression.getText(sf) === "argv",
+      ),
+  );
+  expect(loops, `${rel}: the argument loop`).toHaveLength(1);
+  const decl = descendants(loops[0].statement).find(
+    (d): d is ts.VariableDeclaration =>
+      ts.isVariableDeclaration(d) && d.initializer !== undefined && ts.isElementAccessExpression(d.initializer),
+  ) as ts.VariableDeclaration;
+  const loopVar = decl.name.getText(sf);
+  const stems = new Set<string>();
+  const isLoopVar = (e: ts.Expression): boolean => ts.isIdentifier(e) && e.text === loopVar;
+  for (const n of descendants(loops[0].statement)) {
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken) {
+      const lit = isLoopVar(n.left) ? n.right : isLoopVar(n.right) ? n.left : null;
+      if (lit !== null && ts.isStringLiteral(lit)) stems.add(lit.text);
+    }
+    if (
+      ts.isCallExpression(n) &&
+      ts.isPropertyAccessExpression(n.expression) &&
+      isLoopVar(n.expression.expression) &&
+      n.expression.name.text === "startsWith" &&
+      n.arguments.length === 1 &&
+      ts.isStringLiteral(n.arguments[0])
+    ) {
+      stems.add(n.arguments[0].text);
+    }
+  }
+  return [...new Set([...stems].map((f) => f.replace(/^-+/, "").replace(/=$/, "")))].sort();
+}
+
+describe("agent-flag census: no registry id collides with a flag either binary already parses (Pitfall 6)", () => {
+  for (const rel of ARG_LOOP_MODULES) {
+    it(`${rel}: the parsed flags hold no registry id`, () => {
+      const stems = parsedFlagStems(rel);
+      console.log(`${rel} parses: ${stems.join(" ")}`);
+      // The census's premise: the loop was found and read. Both binaries parse --target and --allow-self.
+      expect(stems).toContain("target");
+      expect(stems).toContain("allow-self");
+      const collisions = HOST_TOOLS.filter((h) => stems.includes(h.id)).map((h) => h.id);
+      expect(collisions, `${rel}: a registry id equals a parsed flag`).toEqual([]);
+    });
+  }
+
+  // The census's own premise: a loop that parses a registry id as an earlier flag is caught. The probe spells the
+  // colliding flag through agentFlag, so it tracks the registry.
+  it("premise: a loop comparing its variable with a registry flag is reported as a collision", () => {
+    const flag = agentFlag(HOST_TOOLS[0]);
+    const probe = [
+      "const argv = process.argv.slice(2);",
+      "for (let i = 0; i < argv.length; i++) {",
+      "  const arg = argv[i];",
+      '  if (arg === "--target" || arg.startsWith("--target=")) {} else if (arg === "--allow-self") {}',
+      `  else if (arg === ${JSON.stringify(flag)}) {}`,
+      "}",
+    ].join("\n");
+    const stems = parsedFlagStems("probe.ts", probe);
+    expect(stems).toEqual(["allow-self", HOST_TOOLS[0].id, "target"].sort());
+    expect(HOST_TOOLS.filter((h) => stems.includes(h.id)).map((h) => h.id)).toEqual([HOST_TOOLS[0].id]);
+  });
+
+  it("install.ts's parsed flags include the three modes an agent flag cannot be combined with (D-25)", () => {
+    const stems = parsedFlagStems("install/install.ts");
+    for (const mode of MODE_FLAGS) expect(stems).toContain(mode.replace(/^-+/, ""));
+  });
+});

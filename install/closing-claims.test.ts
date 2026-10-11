@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { makeFixture, runInstall, runUninstall, snapshotTree, userModeEdit, NOTIFY_CONFIG, MARKER_REL, type Run } from "./installer-paths.test-support.js";
 import { allAskRules } from "./checkpoint-ask-rules.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, agentFlag } from "./host-tools.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gclose-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -485,8 +486,20 @@ const MODE_TABLE: Readonly<Record<string, { readonly cls: ModeClass; readonly re
   "uninstall.ts --target=": { cls: "modifier", reason: "the inline-value spelling of --target" },
   "uninstall.ts --allow-self": { cls: "modifier", reason: "overrides the self-checkout guard" },
   "uninstall.ts --force": { cls: "modifier", reason: "the other spelling of --allow-self" },
+  // The per-agent flags (phase 34.1, D-01), one row per registry row, spelled by agentFlag: install.ts's argv loop
+  // reads them through hostForFlag, which argvLiterals expands to the same derived set.
+  ...Object.fromEntries(
+    HOST_TOOLS.map((h) => [
+      `install.ts ${agentFlag(h)}`,
+      {
+        cls: "modifier" as const,
+        reason: "names an agent the install writes for (D-01); with --check, --update or --prune-old-kit it is bad usage, exit 2 (D-25)",
+      },
+    ]),
+  ),
 };
-const MODE_TABLE_COUNT = 17;
+/** 17 typed rows, plus one derived row per registry agent (phase 34.1, D-01). */
+const MODE_TABLE_COUNT = 17 + HOST_TOOL_COUNT;
 
 /**
  * The literals the argv loop of `file` compares its argument with (`a === "..."`, `a.startsWith("...")`),
@@ -524,6 +537,9 @@ function argvLiterals(file: string): { literals: Set<string>; stray: string[] } 
         else stray.push(`${file}:${line} ${parent.getText(sf)}`);
       } else if (ts.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === "startsWith" && ts.isCallExpression(parent.parent) && parent.parent.arguments.length === 1 && ts.isStringLiteral(parent.parent.arguments[0])) {
         literals.add(parent.parent.arguments[0].text);
+      } else if (ts.isCallExpression(parent) && parent.expression.getText(sf) === "hostForFlag" && parent.arguments.length === 1 && parent.arguments[0] === node) {
+        // the per-agent flags (phase 34.1, D-01): hostForFlag accepts exactly agentFlag of each registry row
+        for (const h of HOST_TOOLS) literals.add(agentFlag(h));
       } else if (ts.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === "slice") {
         // the value of --target=<path>
       } else if (ts.isTemplateSpan(parent)) {
