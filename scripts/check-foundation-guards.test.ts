@@ -2217,8 +2217,21 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     parse of an input). Its committed `.js` twin landed in the same commit as the module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 96 with this module tracked (2026-10-11).
+ *
+ * 96 -> 97 (plan 34.1-02, task 1, phase 34.1 D-11 / D-20), ONE FRESHNESS GATE MODULE:
+ *   - `scripts/host-entries-freshness.ts` — the byte and set freshness gate for the generated host
+ *     entries: it mirrors the committed generator closure into a temp tree, regenerates every entry
+ *     there and compares the judged tree (CHECK_ROOT honoured) against it, refusing a committed
+ *     `.gemini/skills/grugops` entry. It imports `./generate-host-entries.js` (TEMPLATE_REL,
+ *     OVERWRITE_FLAG) and node: builtins only.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED, AND THAT WAS CHECKED RATHER THAN ASSUMED. It declares no
+ *     function named for the frontmatter parser, builds no section bound with `new RegExp`, reads no
+ *     grant and renders no spawn verdict. Its committed `.js` twin landed in the same commit as the
+ *     module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 97 with this module tracked (2026-10-11).
  */
-const NON_TEST_MODULE_COUNT = 96;
+const NON_TEST_MODULE_COUNT = 97;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2773,7 +2786,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // none of the three specs compared below, so it contributes three empty comparisons and cannot
     // make the agreement above vacuous on its own. Re-derived: the scoped walk over `scripts/` minus
     // tests reports 62 with the module tracked.
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(62);
+    // 62 → 63 (plan 34.1-02, task 1, D-11): `scripts/host-entries-freshness.ts`, the host-entry
+    // freshness gate. It imports `node:` builtins and `./generate-host-entries.js` and none of the
+    // three specs compared below, so it contributes three empty comparisons and cannot make the
+    // agreement above vacuous on its own. Re-derived: the scoped walk over `scripts/` minus tests
+    // reports 63 with the module tracked.
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(63);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -2804,7 +2822,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 62 → 61 (plan 33.1-07, task 1): the prod-deploy deny matcher module, deleted; three specs per
     // module as ever.
     // 61 → 62 (plan 34.1-01, task 1): `generate-host-entries.ts`, three specs per module as ever.
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(62 * 3);
+    // 62 → 63 (plan 34.1-02): `host-entries-freshness.ts`, three specs per module as ever.
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(63 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3014,7 +3033,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // flat reader lost; both pins move in one commit for the same reason.
       // 61 → 62 (plan 34.1-01, task 1): `generate-host-entries.ts`, the same module the flat reader
       // gained; both pins move in one commit for the same reason.
-    ).toBe(62);
+      // 62 → 63 (plan 34.1-02): `host-entries-freshness.ts`, the same module the flat reader gained;
+      // both pins move in one commit for the same reason.
+    ).toBe(63);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -9714,7 +9735,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // generator's drift halts, template refusals and frontmatter shapes, driven in a hermetic mirror. The pin
 // moved because a module landed, not to make a red go away. Re-derived rather than incremented:
 // `ls scripts/*.test.ts | wc -l` reports 72 on this tree.
-const TRIPWIRE_MODULES = 72;
+//
+// 72 -> 73 (plan 34.1-02): ONE test module, `scripts/host-entries-freshness.test.ts` — the host-entry
+// freshness gate's green, one-byte drift, extra, missing, refuted-path, broken-regeneration, no-leftover
+// and both-ends wiring cases, every plant in a hermetic mirror. The pin moved because a module landed,
+// not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
+// 73 on this tree.
+const TRIPWIRE_MODULES = 73;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
@@ -11790,7 +11817,10 @@ describe("guard_model_assignment (Phase 29.1, MODEL-03/MODEL-05)", () => {
   // block's step name, so it imports the authority rather than spelling a locator of its own. The
   // gate fired on that file's first draft, naming it as a non-member with its own copy of the name,
   // which is this class working exactly as designed.
-  const UBUNTU_BLOCK_READER_COUNT = 3;
+  // 3 → 4 (plan 34.1-02): `scripts/host-entries-freshness.test.ts` joins the class. Its both-ends
+  // wiring case reads the block's commands to assert `npm run freshness:host-entries` runs there, so
+  // it imports the authority (ciWorkflow, ubuntuBlockCommands) rather than spelling a locator.
+  const UBUNTU_BLOCK_READER_COUNT = 4;
 
   // (Plan 29.1-19, R3-WR-01) THE SYNTHETIC FOLLOWING STEP THE RIGHT BOUND IS PROVEN AGAINST.
   //

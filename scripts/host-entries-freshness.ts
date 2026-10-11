@@ -23,6 +23,13 @@
 // follows the registry with no second list here. A regeneration that wrote nothing is refused, never "nothing
 // to compare, therefore fine".
 //
+// TWO HALVES, the set before the bytes. SET: the committed set is every file under the judged tree in each
+// parent directory of a rendered entry (derived, recursive, links listed and never followed); a committed file
+// the generator does not produce is EXTRA, a rendered entry the tree does not carry is MISSING, and each is named
+// by relative path. Separately, anything under `.gemini/skills/grugops` is refuted (D-20: Antigravity reads the
+// shared `.agents/skills/` entry). BYTES: every rendered entry against the committed file at the same path.
+// There is no exemption list.
+//
 // THE POINTER FILE PATH AND THE OVERWRITE FLAG ARE THE GENERATOR'S OWN EXPORTS (TEMPLATE_REL, OVERWRITE_FLAG),
 // imported here rather than spelled again, so a rename of either moves this gate with it (34.1 DI-02: the file
 // was renamed to host-entry.pointer.md in plan 34.1-01).
@@ -127,16 +134,21 @@ if (r.error !== undefined || r.status !== 0) {
   );
 }
 
+// lstat, or null when nothing is at `path`; any other failure is a named failure, never "absent".
+function lstatOrNull(path: string): Stats | null {
+  try {
+    return lstatSync(path);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    die(`Host-entry freshness check FAILED: cannot inspect ${path} (${(e as NodeJS.ErrnoException).code ?? "error"}).`);
+  }
+}
+
 // Every non-directory entry under `root/rel`, as POSIX paths relative to `root`. Links are listed, never
 // followed. An absent `root/rel` lists nothing; any other unreadable state is a named failure.
 function walk(root: string, rel: string): string[] {
-  let st: Stats;
-  try {
-    st = lstatSync(at(root, rel));
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
-    die(`Host-entry freshness check FAILED: cannot inspect ${at(root, rel)} (${(e as NodeJS.ErrnoException).code ?? "error"}).`);
-  }
+  const st = lstatOrNull(at(root, rel));
+  if (st === null) return [];
   if (!st.isDirectory()) return [rel];
   let names: string[];
   try {
@@ -157,21 +169,47 @@ if (rendered.length === 0) {
   );
 }
 
-// ── Bytes: every rendered entry against the committed file at the same path ───────────────────────────
+// ── Half one: the SET, before any byte is compared ─────────────────────────────────────────────────────
+// The committed set is every non-directory entry under KIT_ROOT in each parent directory of a rendered path
+// (derived from the rendered set, never typed), walked recursively and without following links. A byte
+// comparison alone cannot see an orphan (nothing regenerates over it) or a deleted entry (nothing compares
+// against it), so both are named here by relative path.
+const entryDirs = [...new Set(rendered.map((rel) => dirname(rel).split("\\").join("/")))].sort();
+const committedSet = [...new Set(entryDirs.flatMap((d) => walk(KIT_ROOT, d)))].sort();
+const extra = committedSet.filter((rel) => !rendered.includes(rel));
+const missing = rendered.filter((rel) => !committedSet.includes(rel));
+
+// D-20: Antigravity reads the shared .agents/skills/ entry; .gemini/skills/ is refuted as an entry path
+// (antigravity.google/docs/cli/gcli-migration/, retrieved 2026-10-11; install/host-tools.ts AGENT_SKILL_REL). The
+// generator never writes there, so anything committed under it is a hand-made entry no host is documented to
+// read. Every member is named; an empty directory is named itself.
+const REFUTED_ENTRY_DIR = ".gemini/skills/grugops";
+const REFUTED_SOURCE = "antigravity.google/docs/cli/gcli-migration/";
+const refutedFound = walk(KIT_ROOT, REFUTED_ENTRY_DIR);
+const refuted = refutedFound.length > 0 ? refutedFound : lstatOrNull(at(KIT_ROOT, REFUTED_ENTRY_DIR)) !== null ? [REFUTED_ENTRY_DIR] : [];
+
+if (extra.length > 0 || missing.length > 0 || refuted.length > 0) {
+  const lines: string[] = [];
+  for (const rel of extra) {
+    lines.push(`STALE: ${rel} — EXTRA: committed in an entry directory, but the generator does not produce it`);
+  }
+  for (const rel of missing) {
+    lines.push(`STALE: ${rel} — MISSING: the generator produces this entry but the tree does not carry it`);
+  }
+  for (const rel of refuted) {
+    lines.push(`STALE: ${rel} — refuted by ${REFUTED_SOURCE} (Antigravity reads .agents/skills/); remove it`);
+  }
+  die(
+    `${lines.join("\n")}\nThe committed entry set differs from a fresh regeneration (${committedSet.length} committed, ${rendered.length} regenerated, ${refuted.length} refuted).\nRun: ${REGEN_CMD}`,
+  );
+}
+
+// ── Half two: BYTES, over the (now provably equal) member set ──────────────────────────────────────────
 const stale: string[] = [];
 for (const rel of rendered) {
   const committedPath = at(KIT_ROOT, rel);
-  let st: Stats;
-  try {
-    st = lstatSync(committedPath);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-      stale.push(`STALE: ${rel} — the generator produces this entry but the tree does not carry it`);
-      continue;
-    }
-    die(`Host-entry freshness check FAILED: cannot inspect ${rel} (${(e as NodeJS.ErrnoException).code ?? "error"}) — run \`${REGEN_CMD}\` and commit it.`);
-  }
-  if (!st.isFile()) {
+  const st = lstatOrNull(committedPath);
+  if (st === null || !st.isFile()) {
     stale.push(`STALE: ${rel} — the committed entry is not a regular file (a link, directory or special file is never read through)`);
     continue;
   }

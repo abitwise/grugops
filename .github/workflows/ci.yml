@@ -200,6 +200,13 @@ jobs:
           # scripts/skill-twins-freshness.test.ts, deliberately at both ends — freshness:adapters
           # was un-wired for a whole phase and that was this phase's most expensive omission.
           npm run freshness:skill-twins
+          # D-11 (plan 34.1-02) — the same mechanism for the generated non-Claude host entries (the agent
+          # skill Codex CLI reads, the OpenCode command and the Pi prompt template). The generator halts on
+          # drift only when someone runs it; this gate regenerates every entry in a temp mirror from the
+          # committed generator and fails on any byte difference, an extra or missing entry, or a committed
+          # .gemini/skills/grugops entry (D-20). Wired HERE and in scripts/host-entries-freshness.test.ts,
+          # deliberately at both ends, for the reason this block records for freshness:adapters.
+          npm run freshness:host-entries
           # AUTO-05 (plan 30-07, D-17) — the guarantees render's byte-equality drift gate. Wired
           # HERE and in scripts/generate-guarantees.test.ts, deliberately at both ends, for the
           # reason this block already records twice: freshness:adapters shipped for a whole phase

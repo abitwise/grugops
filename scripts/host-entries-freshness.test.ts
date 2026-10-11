@@ -15,11 +15,13 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { ENTRY_SHAPES, TEMPLATE_REL, outputRel } from "./generate-host-entries.js";
-import { AGENT_SKILL_REL, HOST_ADAPTER_KINDS } from "../install/host-tools.js";
+import { AGENT_SKILL_REL, HOST_ADAPTER_KINDS, OPENCODE_COMMAND_REL, PI_PROMPT_REL } from "../install/host-tools.js";
+// The one authority over "where is the ubuntu gate block and what does it run" (plan 29.1-24).
+import { ciWorkflow, ubuntuBlockCommands } from "./ci-workflow.testkit.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "host-entries-freshness.js");
@@ -121,5 +123,139 @@ describe("host-entries-freshness.js — fail-proofs (the byte gate goes red, and
     const back = runGate(m);
     expect(back.status).toBe(0);
     expect(back.stdout).toContain(FRESH_MARKER);
+  });
+});
+
+// ── THE SET HALF, THE REFUTED PATH, A BROKEN REGENERATION, NO LEFTOVERS, BOTH-ENDS WIRING ───────────────
+describe("host-entries-freshness.js — set half, refuted path, fail-closed, wiring", () => {
+  // Every red below also asserts the gate left no temp mirror behind (a set difference over the gate's
+  // own prefix, so a concurrently running gate cannot influence it).
+  function runRed(kitRoot: string, gateJs?: string) {
+    const before = gateTempEntries();
+    const r = runGate(kitRoot, gateJs);
+    expect(gateTempEntries().filter((n) => !before.includes(n)), "the gate left its temp mirror behind").toEqual([]);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).not.toContain(FRESH_MARKER);
+    return r;
+  }
+
+  it("EXTRA: a file planted in an entry directory the generator does not write into is named", () => {
+    const m = mirror();
+    const orphan = `${dirname(OPENCODE_COMMAND_REL)}/other.md`;
+    writeFileSync(at(m, orphan), "---\ndescription: not generated\n---\nhand-made\n");
+    const r = runRed(m);
+    expect(r.stdout).toContain(`STALE: ${orphan} — EXTRA`);
+  });
+
+  it("EXTRA, nested: a file in a subdirectory of an entry directory is named by its full relative path", () => {
+    const m = mirror();
+    const nested = `${dirname(AGENT_SKILL_REL)}/references/extra.md`;
+    mkdirSync(dirname(at(m, nested)), { recursive: true });
+    writeFileSync(at(m, nested), "hand-made\n");
+    const r = runRed(m);
+    expect(r.stdout).toContain(`STALE: ${nested} — EXTRA`);
+  });
+
+  it("MISSING: a deleted Pi prompt template is named", () => {
+    const m = mirror();
+    unlinkSync(at(m, PI_PROMPT_REL));
+    const r = runRed(m);
+    expect(r.stdout).toContain(`STALE: ${PI_PROMPT_REL} — MISSING`);
+  });
+
+  it("D-20 refuted path: a committed .gemini/skills/grugops/SKILL.md is named and refused", () => {
+    const m = mirror();
+    const refuted = ".gemini/skills/grugops/SKILL.md";
+    mkdirSync(dirname(at(m, refuted)), { recursive: true });
+    // The plant is a byte copy of the shared entry: the refusal is about the path, not the content.
+    cpSync(at(ROOT, AGENT_SKILL_REL), at(m, refuted));
+    const r = runRed(m);
+    expect(r.stdout).toContain(`STALE: ${refuted} — refuted by antigravity.google/docs/cli/gcli-migration/ (Antigravity reads .agents/skills/); remove it`);
+  });
+
+  it("D-20 refuted path, empty directory: an empty .gemini/skills/grugops directory is named itself", () => {
+    const m = mirror();
+    mkdirSync(at(m, ".gemini/skills/grugops"), { recursive: true });
+    const r = runRed(m);
+    expect(r.stdout).toContain("STALE: .gemini/skills/grugops — refuted by");
+  });
+
+  it("a link at an entry path is never read through: named as not a regular file", () => {
+    const m = mirror();
+    const target = at(m, "elsewhere.md");
+    cpSync(at(ROOT, OPENCODE_COMMAND_REL), target);
+    unlinkSync(at(m, OPENCODE_COMMAND_REL));
+    symlinkSync(target, at(m, OPENCODE_COMMAND_REL));
+    const r = runRed(m);
+    expect(r.stdout).toContain(`STALE: ${OPENCODE_COMMAND_REL} — the committed entry is not a regular file`);
+  });
+
+  it("broken regeneration (pointer file edited by hand): the generator's refusal is carried through, never fresh", () => {
+    const m = mirror();
+    writeFileSync(at(m, TEMPLATE_REL), "grugops: a hand-edited pointer line with no kit route.\n");
+    const r = runRed(m);
+    expect(r.stdout).toContain("did not run cleanly");
+    expect(r.stderr).toContain(TEMPLATE_REL);
+  });
+
+  it("broken regeneration (an import the mirror closure omits): the mirrored generator cannot load, the gate goes red", () => {
+    // A script root of its own: the committed gate, the generator closure and a package.json. Its generator is
+    // rewritten to import the registry under a second name the gate's hand-written closure does not mirror. The
+    // gate itself still loads (the second name exists beside it), so the only thing that can fail is the child,
+    // which is the loud failure direction the closure's recorded trade-off relies on.
+    const fake = scratch("grugops-host-entries-fakeroot-");
+    for (const rel of ["scripts/host-entries-freshness.js", "scripts/generate-host-entries.js", "scripts/is-entry.js", "install/host-tools.js"]) {
+      mkdirSync(dirname(at(fake, rel)), { recursive: true });
+      cpSync(at(ROOT, rel), at(fake, rel));
+    }
+    writeFileSync(at(fake, "package.json"), '{ "type": "module" }\n');
+    const fakeGate = at(fake, "scripts/host-entries-freshness.js");
+    const m = mirror();
+
+    // PREMISE: the fake script root, unmutated, is green on the same mirror.
+    const control = runGate(m, fakeGate);
+    expect(control.status, control.stdout + control.stderr).toBe(0);
+    expect(control.stdout).toContain(FRESH_MARKER);
+
+    const gen = at(fake, "scripts/generate-host-entries.js");
+    const src = readFileSync(gen, "utf8");
+    const moved = src.split('"../install/host-tools.js"').join('"../install/host-tools-moved.js"');
+    expect(moved, "PREMISE: the generator's registry import must be present to rewrite").not.toBe(src);
+    writeFileSync(gen, moved);
+    cpSync(at(fake, "install/host-tools.js"), at(fake, "install/host-tools-moved.js"));
+
+    const r = runRed(m, fakeGate);
+    expect(r.stdout).toContain("did not run cleanly");
+    expect(r.stderr).toContain("host-tools-moved.js");
+  });
+
+  it("no leftovers: a run that dies at module top level (no pointer file in the judged tree) still removes its temp mirror", () => {
+    const m = mirror();
+    unlinkSync(at(m, TEMPLATE_REL));
+    runRed(m);
+
+    // Anti-vacuity: the leftover filter must be able to see a directory carrying the gate's prefix.
+    const sentinel = mkdtempSync(join(tmpdir(), GATE_TMP_PREFIX));
+    try {
+      expect(gateTempEntries()).toContain(basename(sentinel));
+    } finally {
+      rmSync(sentinel, { recursive: true, force: true });
+    }
+  });
+
+  it("green on the committed tree: the real tree is fresh", () => {
+    const r = runGate();
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain(`${FRESH_MARKER} ${ENTRY_COUNT} entries compared`);
+  });
+
+  it("wired at both ends: package.json defines freshness:host-entries, and the ubuntu block of the CI workflow runs it", () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { scripts: Record<string, string> };
+    expect(pkg.scripts["freshness:host-entries"]).toBe("tsc --outDir .tmp-build && node scripts/host-entries-freshness.js");
+    const commands = ubuntuBlockCommands(ciWorkflow());
+    expect(commands.length, "the bounded block must carry commands after comment stripping").toBeGreaterThan(0);
+    expect(commands.filter((c) => c === "npm run freshness:host-entries").length).toBe(1);
+    // Beside the sibling it was modelled on, after it.
+    expect(commands.indexOf("npm run freshness:host-entries")).toBeGreaterThan(commands.indexOf("npm run freshness:skill-twins"));
   });
 });

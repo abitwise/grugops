@@ -62,9 +62,10 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * 34-27 added kit-route.test.ts, which has neither either (its ledger edit uses contentRecord, a record with no mode).
  * 31 since plan 34.1-01 added host-entries.test.ts, which has no chmod call and no literal expected mode (its expected
  * record takes the mode read back from the installed file, as writtenFileRecord does). SCRIPTS_TEST_FILE_COUNT is 72
- * since plan 34.1-01 added scripts/generate-host-entries.test.ts, which has no chmod call and reads no `.mode`. */
+ * since plan 34.1-01 added scripts/generate-host-entries.test.ts, which has no chmod call and reads no `.mode`; 73
+ * since plan 34.1-02 added scripts/host-entries-freshness.test.ts, which has neither either. */
 const INSTALL_TEST_FILE_COUNT = 31;
-const SCRIPTS_TEST_FILE_COUNT = 72;
+const SCRIPTS_TEST_FILE_COUNT = 73;
 const SOURCE_FILE_COUNT = 8;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). */
