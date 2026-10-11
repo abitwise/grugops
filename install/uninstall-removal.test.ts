@@ -48,7 +48,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { LEGACY_MERGED_BEFORE, LEGACY_MERGED_TEXT, askRecord, dirList, ledgerOf, plantLegacyGemini, readMarkerObject, withLedger } from "./ledger.test-support.js";
-import { PI_PROMPT_REL } from "./host-tools.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, PI_PROMPT_REL, agentFlag } from "./host-tools.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -671,5 +671,49 @@ describe("legacy Gemini entry (D-12)", () => {
     const removed = linesFor(r.stdout, GEMINI_REL, t.target).filter((l) => l.label === "removed");
     expect(removed.length, r.stdout).toBe(1);
     expect(removed[0].msg).toMatch(/AGENTS\.md entry/);
+  });
+});
+
+// ── PER-AGENT UNINSTALL (phase 34.1, D-05, D-20, D-23; brief DC-2) ──────────────────────────────────
+// `uninstall.js --<id>` reverses only the ledger entries an agent it removes owns and no agent that stays owns
+// (host-tools.ts entryOwners), and keeps the marker, rewritten, for the agents that stay. The shared skill
+// `.agents/skills/grugops/SKILL.md` (Codex CLI and Antigravity CLI) stays while either is installed.
+describe("per-agent uninstall (D-05)", () => {
+  const flag = (id: string): string => {
+    const host = HOST_TOOLS.find((h) => h.id === id);
+    if (host === undefined) throw new Error(`no registry row ${id}`);
+    return agentFlag(host);
+  };
+  const agentsOf = (target: string): unknown => readMarkerObject(target).agents;
+  const at = (target: string, rel: string): string => join(target, ...rel.split("/"));
+
+  it("uninstall Codex while Antigravity stays: the shared skill stays; then uninstall Antigravity: it goes, with the .agents directories install created", () => {
+    const t = installedTree("per-agent-tracer", [flag("claude"), flag("codex"), flag("antigravity")]);
+    expect(agentsOf(t.target), "the install did not record the three agents").toEqual(["claude", "codex", "antigravity"]);
+    const skill = at(t.target, AGENT_SKILL_REL);
+    const skillBytes = readFileSync(skill);
+    const claudeBefore = snapshotTree(at(t.target, ".claude"));
+    const claudeMdBefore = readFileSync(at(t.target, "CLAUDE.md"));
+
+    const codex = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("codex")]);
+    expectFinished(codex, "uninstall --codex");
+    expect(codex.status, `uninstall --codex: exit ${codex.status}\n${codex.stdout}`).toBe(0);
+    expect(readFileSync(skill).equals(skillBytes), `the shared skill changed while Antigravity stays\n${codex.stdout}`).toBe(true);
+    expect(snapshotTree(at(t.target, ".claude")), `a .claude/ file changed\n${codex.stdout}`).toBe(claudeBefore);
+    expect(readFileSync(at(t.target, "CLAUDE.md")).equals(claudeMdBefore), "CLAUDE.md changed").toBe(true);
+    expect(existsSync(at(t.target, MARKER_REL)), "the marker is gone after a partial uninstall").toBe(true);
+    expect(agentsOf(t.target), codex.stdout).toEqual(["claude", "antigravity"]);
+    expect(codex.stdout).toMatch(/== uninstall complete — agents removed: Codex CLI; still installed: Claude Code, Antigravity CLI ==/);
+
+    const agy = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("antigravity")]);
+    expectFinished(agy, "uninstall --antigravity");
+    expect(agy.status, `uninstall --antigravity: exit ${agy.status}\n${agy.stdout}`).toBe(0);
+    for (const rel of [AGENT_SKILL_REL, ".agents/skills/grugops", ".agents/skills", ".agents"]) {
+      expect(existsSync(at(t.target, rel)), `${rel} is still there once no agent that reads it is installed\n${agy.stdout}`).toBe(false);
+    }
+    expect(snapshotTree(at(t.target, ".claude")), `a .claude/ file changed\n${agy.stdout}`).toBe(claudeBefore);
+    expect(agentsOf(t.target), agy.stdout).toEqual(["claude"]);
+    const ledger = ledgerOf(readMarkerObject(t.target));
+    expect(ledger.filter((e) => e.path === ".agents" || e.path.startsWith(".agents/")), "the removed entries are still in the ledger").toEqual([]);
   });
 });

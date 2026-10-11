@@ -248,6 +248,42 @@ export const ROUTE_POINTERS: Readonly<Record<HostAdapterKind, readonly string[]>
 };
 
 /**
+ * ADAPTER_FOOTPRINT (phase 34.1, D-05, D-06, D-20): the target paths each adapter kind writes, as POSIX paths relative
+ * to the target root. A path ending in "/" is a prefix: every path under it belongs to the kind (Claude Code's
+ * `.claude/` covers its skills, its adapters and the ask rules in `.claude/settings.json`). Keyed by HostAdapterKind,
+ * so a new kind is a compile error until its footprint is written here. Every ROUTE_POINTERS value of a kind is in its
+ * footprint (asserted by install/host-tools.test.ts). `opencode.json` is OpenCode's permission merge (D-14).
+ *
+ * A path no kind claims is the SHARED footprint of D-06: the kit's AGENTS.md copy, `tools/grugops/`, the install marker
+ * under `.grugops/`, and an earlier install's `.gemini/settings.json` change (D-23). Per-agent uninstall never removes
+ * a shared path; only a flag-less uninstall, or the removal of the last installed agent, does (D-05).
+ *
+ * This answers which agent a path belongs to, never whether install wrote it or whether it still holds what install
+ * wrote: the install ledger and install-marker.ts owns answer those, and uninstall asks them before every reversal.
+ */
+export const ADAPTER_FOOTPRINT: Readonly<Record<HostAdapterKind, readonly string[]>> = {
+  "claude-kit": [".claude/", "CLAUDE.md"],
+  "copilot-pointer": [".github/copilot-instructions.md"],
+  "pi-prompt-template": [PI_PROMPT_REL],
+  "agent-skill": [AGENT_SKILL_REL],
+  "opencode-command": [OPENCODE_COMMAND_REL, "opencode.json"],
+};
+
+/**
+ * entryOwners (phase 34.1, D-05, D-20): THE ONE ANSWER to "which agents own this install-ledger entry". The ids, in
+ * registry order, of the HOST_TOOLS rows whose adapter kind's ADAPTER_FOOTPRINT holds a path p such that p equals
+ * entry.path, or p ends in "/" and entry.path starts with p, or entry.kind is "dir" and p starts with entry.path + "/"
+ * (a directory on the way to the agent's file). Two rows on one kind both own its paths (Codex CLI and Antigravity CLI
+ * share AGENT_SKILL_REL), so a file two agents share stays while either is installed. `[]` for a shared path.
+ * Pure: it reads the entry's path and kind only, never the disk.
+ */
+export function entryOwners(entry: { readonly path: string; readonly kind: string }): readonly string[] {
+  const owned = (p: string): boolean =>
+    p === entry.path || (p.endsWith("/") && entry.path.startsWith(p)) || (entry.kind === "dir" && p.startsWith(entry.path + "/"));
+  return HOST_TOOLS.filter((h) => ADAPTER_FOOTPRINT[h.adapter].some(owned)).map((h) => h.id);
+}
+
+/**
  * routeCarriers (plan 34-28, D-26 point 3): THE ONE DERIVATION of the files through which `host` can reach
  * the kit route: its entryFiles, then ROUTE_POINTERS[host.adapter], without duplicates, in that order.
  * Install's notes for a user's carrier without the route and `--check`'s per-host route findings both

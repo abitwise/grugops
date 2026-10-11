@@ -95,6 +95,7 @@
 // Usage:
 //   node install/uninstall.js                       # remove grugops adapters from the current repo
 //   node install/uninstall.js --allow-self          # override the self-checkout guard (CR-04)
+//   node install/uninstall.js --codex               # remove one agent: only what the ledger records for it (D-05)
 //   DRY_RUN=1 node install/uninstall.js             # preview only
 //   GRUGOPS_SRC=/path TARGET=/path node install/uninstall.js
 
@@ -147,6 +148,8 @@ import {
   type Ownership,
   type FileEntry,
   type BackupEntry,
+  installedAgents,
+  AGENTS_FIELD,
 } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
@@ -157,6 +160,9 @@ import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItem
 // the one "this link is the link install makes" predicate, shared with install.ts, and gone is the
 // one "nothing is there any more" check a removal is reported by (red-team of plan 33.1-27).
 import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPathSpelling } from "./user-file.js";
+// Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
+// per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry".
+import { HOST_TOOLS, agentFlag, hostForFlag, entryOwners, type HostTool } from "./host-tools.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
@@ -178,6 +184,10 @@ let ALLOW_SELF = false;
 // A VALUE-TAKING FLAG WITH NO VALUE IS BAD USAGE (red-team L4 of plan 33.1-34): the same rule as
 // install.ts's loop. `--target` with no value used to fall back to TARGET or the current directory.
 let USAGE_ERROR: string | null = null;
+// REMOVE (phase 34.1, D-05): the registry ids the agent flags name, so `--codex` removes only what the install ledger
+// records for Codex CLI. Empty when no agent flag is given: the run removes everything, as before this phase.
+const REMOVE = new Set<string>();
+let flagHost: HostTool | null = null;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -192,6 +202,10 @@ for (let i = 0; i < argv.length; i++) {
     ARG_TARGET = value;
   } else if (a === "--allow-self" || a === "--force") {
     ALLOW_SELF = true;
+  } else if ((flagHost = hostForFlag(a)) !== null) {
+    // D-05: the same per-agent flags as install.js (host-tools.ts agentFlag, hostForFlag). Each names an agent whose
+    // recorded files this run removes; what it may remove is decided after the ledger is read (inScope below).
+    REMOVE.add(flagHost.id);
   } else {
     USAGE_ERROR = `unknown argument: ${a}`;
     break;
@@ -280,10 +294,14 @@ function entryClaimsNothing(e: LedgerEntry): boolean {
   if (e.kind === "ask-rules") return e.added.length === 0 && !e.createdFile && !e.createdPermissions && !e.createdAsk;
   return false;
 }
-/** The recorded entries still holding the marker: install wrote content there, and this run did not discharge it. */
+/**
+ * The recorded entries still holding the marker: install wrote content there, and this run did not discharge it. On a
+ * partial run (phase 34.1, D-05) only the entries this run may reverse (inScope) are asked: the others belong to the
+ * agents that stay installed, and the marker is kept for them anyway.
+ */
 function heldEntries(): LedgerEntry[] {
   return LEDGER.entries.filter((e) => {
-    if (!HOLDING_KINDS.has(e.kind) || entryClaimsNothing(e)) return false;
+    if (!HOLDING_KINDS.has(e.kind) || entryClaimsNothing(e) || !inScope(e)) return false;
     const o = OUTCOMES.get(outcomeKey(e));
     return o === undefined || !DISCHARGED.has(o);
   });
@@ -1538,6 +1556,18 @@ function removeMarker(): MarkerOutcome {
   // still in place, or a reversal of one counted a verify, the marker is the record a later run needs to
   // finish, so it is kept and rewritten to list only what is still there. Decided before the DRY_RUN
   // branch, so the preview decides as the real run does.
+  // A PARTIAL RUN (phase 34.1, D-05) KEEPS THE MARKER: it is the record of the agents that stay installed. When
+  // the flags name no installed agent, nothing was removed and the marker is not touched. Otherwise, once this run's
+  // own entries are discharged, it is rewritten (updateKeptMarker): the removed entries leave the ledger and `agents`
+  // loses the removed ids. While one of this run's entries is still held, the arm below keeps it the same way.
+  if (!FULL && NAMED.length === 0) {
+    report("kept", `${MARKER_REL} (none of the named agents is installed here, so nothing in it changes)`);
+    return { kind: "kept-for-agents", rewrite: "unchanged" };
+  }
+  if (!FULL && markerDischarged()) {
+    report("kept", `${MARKER_REL} (kept for the agents still installed here: ${nameList(REMAINING)})`);
+    return { kind: "kept-for-agents", rewrite: updateKeptMarker(m, MARKER.marker, MARKER.bytes) };
+  }
   if (!markerDischarged()) {
     const held = [...new Set(heldEntries().map((e) => e.path))].sort();
     const why =
@@ -1566,6 +1596,7 @@ function removeMarker(): MarkerOutcome {
 //   removed        it was removed;
 //   would-remove   DRY_RUN: it would be removed, and nothing was changed;
 //   kept           it was kept to record what is still in place; `rewrite` is what updateKeptMarker did to it;
+//   kept-for-agents  a partial run (phase 34.1, D-05) kept it for the agents still installed; `rewrite` as above;
 //   left           it was left untouched (the `left` or `verify` line above says why);
 //   absent         there was no marker.
 type KeptRewrite = "rewritten" | "unchanged" | "would-rewrite" | "not-rewritten";
@@ -1573,6 +1604,7 @@ type MarkerOutcome =
   | { readonly kind: "removed" }
   | { readonly kind: "would-remove" }
   | { readonly kind: "kept"; readonly rewrite: KeptRewrite }
+  | { readonly kind: "kept-for-agents"; readonly rewrite: KeptRewrite }
   | { readonly kind: "left" }
   | { readonly kind: "absent" };
 
@@ -1593,6 +1625,21 @@ function markerOutcomeLine(o: MarkerOutcome): string {
           return "kept; DRY_RUN: it would be rewritten (see the would-edit line above), and nothing was changed.";
         case "not-rewritten":
           return "kept, but not rewritten (see the verify line above).";
+        default: {
+          const never: never = o.rewrite;
+          return never;
+        }
+      }
+    case "kept-for-agents":
+      switch (o.rewrite) {
+        case "rewritten":
+          return "kept for the agents still installed here, and rewritten so its install ledger and its `agents` list hold only what is still in place.";
+        case "unchanged":
+          return "kept unchanged for the agents installed here (the `kept` line above says why).";
+        case "would-rewrite":
+          return "kept for the agents still installed here; DRY_RUN: it would be rewritten (see the would-edit line above), and nothing was changed.";
+        case "not-rewritten":
+          return "kept for the agents still installed here, but not rewritten (see the verify line above).";
         default: {
           const never: never = o.rewrite;
           return never;
@@ -1621,7 +1668,8 @@ function markerOutcomeLine(o: MarkerOutcome): string {
 //                        which claims nothing (GEMINI_LEDGER_AFTER, ASK_LEDGER_AFTER);
 //   left, verify         the entry is kept exactly as found, so a later run can finish it;
 //   dir, backup          kept only while the path is still there (and not removed by this run).
-// Every other marker field is written back exactly as found, in its order; a malformed ledger is never
+// Since phase 34.1 (D-05) its `agents` list is rewritten too (agentsAfter: the agents still installed on a partial run,
+// none after a FULL one). Every other marker field is written back exactly as found, in its order; a malformed ledger is never
 // rewritten (nothing in it was used, so nothing in it is changed). The write goes through the one rewrite
 // (rewritePath), only after readForWrite (no link followed at the marker or on the way) shows the same
 // regular file with the same bytes this run read at its start. When it cannot be written, that is a counted
@@ -1629,6 +1677,29 @@ function markerOutcomeLine(o: MarkerOutcome): string {
 // The DRY_RUN preview says what it would take out and writes nothing.
 // It returns what it did (plan 34-26): rewritten, unchanged (nothing to take out, or not install's marker),
 // would-rewrite (DRY_RUN) or not-rewritten (a counted verify says why).
+/**
+ * agentsAfter (phase 34.1, D-05): the `agents` a kept marker records. A partial run keeps the agents that stay installed
+ * (REMAINING, registry order) and any recorded id the registry does not know (verbatim, after them, as install writes
+ * them); a FULL run removed every agent, so the list is empty.
+ */
+function agentsAfter(): string[] {
+  if (FULL) return [];
+  return [...REMAINING, ...(INSTALLED.source === "recorded" ? INSTALLED.unknown : [])];
+}
+/**
+ * The marker with `agents` and `ledger` replaced and every other field as found, in its order. A marker written before
+ * phase 34.1 has no `agents`; it is put right before `ledger`, where install writes it.
+ */
+function withAgentsAndLedger(marker: Readonly<Record<string, unknown>>, agents: readonly string[], ledger: unknown): Record<string, unknown> {
+  const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+  const next: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(marker)) {
+    if (k === "ledger" && !has(next, AGENTS_FIELD)) next[AGENTS_FIELD] = agents;
+    next[k] = k === AGENTS_FIELD ? agents : k === "ledger" ? ledger : v;
+  }
+  if (!has(next, AGENTS_FIELD)) next[AGENTS_FIELD] = agents;
+  return next;
+}
 function updateKeptMarker(m: string, marker: Readonly<Record<string, unknown>>, readBytes: Buffer): KeptRewrite {
   // Only install's own marker, holding a well-formed ledger, is ever rewritten: the one authority answers for
   // the marker (plan 33.1-38).
@@ -1666,12 +1737,31 @@ function updateKeptMarker(m: string, marker: Readonly<Record<string, unknown>>, 
     }
     kept.push(e);
   }
-  const next: Record<string, unknown> = { ...marker, ledger: ledgerJson(kept) };
+  const next = withAgentsAndLedger(marker, agentsAfter(), ledgerJson(kept));
   if (JSON.stringify(next) === JSON.stringify(marker)) return "unchanged";
+  // What changes: the ledger (entries this run removed or reversed), the `agents` list (phase 34.1, D-05), or both.
+  const ledgerChanged = JSON.stringify(next.ledger) !== JSON.stringify(marker.ledger);
+  const agentsChanged = JSON.stringify(next[AGENTS_FIELD]) !== JSON.stringify(marker[AGENTS_FIELD]);
   const what = stale.length > 0 ? stale.join(", ") : "the entries' recorded claims";
-  const remedy = `it still lists what this run removed or reversed (${what}); take those entries out of its install ledger by hand, or a later run may act on them.`;
+  const agentsNow = `[${(next[AGENTS_FIELD] as readonly string[]).join(", ")}]`;
+  const remedies: string[] = [];
+  if (ledgerChanged) remedies.push(`it still lists what this run removed or reversed (${what}); take those entries out of its install ledger by hand, or a later run may act on them`);
+  if (agentsChanged) remedies.push(`its \`agents\` list still names the agents this run removed; set it to ${agentsNow} by hand, or a later install chooses them again`);
+  const remedy = remedies.join("; and ") + ".";
+  const said = (would: boolean): string => {
+    const parts: string[] = [];
+    if (ledgerChanged) {
+      parts.push(
+        would
+          ? `the entries this run would remove or reverse would be taken out of its install ledger: ${what}`
+          : `the entries this run removed or reversed were taken out of its install ledger: ${what}`,
+      );
+    }
+    if (agentsChanged) parts.push(would ? `its \`agents\` list would become ${agentsNow}` : `its \`agents\` list is now ${agentsNow}`);
+    return parts.join("; ");
+  };
   if (DRY_RUN) {
-    report("would-edit", `${MARKER_REL} (kept; the entries this run would remove or reverse would be taken out of its install ledger: ${what})`);
+    report("would-edit", `${MARKER_REL} (kept; ${said(true)})`);
     return "would-rewrite";
   }
   const cur = readForWrite(TARGET, m);
@@ -1680,7 +1770,7 @@ function updateKeptMarker(m: string, marker: Readonly<Record<string, unknown>>, 
     return "not-rewritten";
   }
   if (rewritePath(m, JSON.stringify(next, null, 2) + "\n", MARKER_REL, remedy)) {
-    report("edited", `${MARKER_REL} (kept; the entries this run removed or reversed were taken out of its install ledger: ${what})`);
+    report("edited", `${MARKER_REL} (kept; ${said(false)})`);
     return "rewritten";
   }
   return "not-rewritten";
@@ -1709,10 +1799,13 @@ function walkLedger(): void {
   if (LEDGER.state !== "ok") return;
   // Every verify counted from here to the end of the walk is a reversal's, for a recorded entry (plan 33.1-39).
   const verifiesBefore = VERIFY_FINDINGS;
-  for (const e of entriesOfKind(LEDGER, "ask-rules")) reverseAskRules(e);
-  for (const e of entriesOfKind(LEDGER, "gemini")) reverseGemini(e);
-  for (const e of entriesOfKind(LEDGER, "block")) reverseBlock(e);
-  for (const e of entriesOfKind(LEDGER, "file")) {
+  // D-05: a partial run visits only the entries inScope answers yes for; every other entry gets no outcome, so
+  // updateKeptMarker keeps it verbatim for the agents that stay installed.
+  const inScopeOf = <E extends LedgerEntry>(entries: readonly E[]): E[] => entries.filter(inScope);
+  for (const e of inScopeOf(entriesOfKind(LEDGER, "ask-rules"))) reverseAskRules(e);
+  for (const e of inScopeOf(entriesOfKind(LEDGER, "gemini"))) reverseGemini(e);
+  for (const e of inScopeOf(entriesOfKind(LEDGER, "block"))) reverseBlock(e);
+  for (const e of inScopeOf(entriesOfKind(LEDGER, "file"))) {
     if (BLOCK_RELS.includes(e.path)) {
       // The pointer file install created: reverseBlock decided it with its block; without a block entry it is kept.
       if (entryAt(LEDGER, e.path, "block") === undefined) reversePointerFileWithoutBlock(e);
@@ -1720,8 +1813,8 @@ function walkLedger(): void {
     }
     reverseFile(e);
   }
-  for (const e of entriesOfKind(LEDGER, "backup")) reportBackup(e);
-  const dirs = [...entriesOfKind(LEDGER, "dir")].sort((a, b) => depthOf(b.path) - depthOf(a.path) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  for (const e of inScopeOf(entriesOfKind(LEDGER, "backup"))) reportBackup(e);
+  const dirs = inScopeOf(entriesOfKind(LEDGER, "dir")).sort((a, b) => depthOf(b.path) - depthOf(a.path) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   for (const d of dirs) reverseDir(d);
   RECORDED_VERIFIES = VERIFY_FINDINGS - verifiesBefore;
 }
@@ -2119,6 +2212,41 @@ if (MARKER_READ.state === "unbound") {
   );
 }
 
+// ── WHICH AGENTS THIS RUN REMOVES (phase 34.1, D-05, D-20, D-23) ─────────────────────────────────────────────────
+// INSTALLED is the one derivation of the installed set (install-marker.ts installedAgents: the marker's recorded
+// `agents`, or a pre-34.1 install's Claude Code, Copilot and Pi, or none), read from the same two reads every pass
+// uses. It is never derived from what is on disk (brief DC-2).
+//   NAMED       the agents the flags name that are installed here;
+//   REMAINING   the installed agents the flags do not name: they stay installed;
+//   FULL        no agent flag, or the flags name the last installed agents: the run removes everything the ledger
+//               records, the shared footprint (D-06) included, exactly as before this phase.
+// A partial run (not FULL) reverses a ledger entry only when inScope answers yes: an agent it removes (one of NAMED)
+// owns the entry and no agent that stays owns it (host-tools.ts entryOwners). So `.agents/skills/grugops/SKILL.md` (Codex CLI and
+// Antigravity CLI) stays while either is installed (D-20), and an entry no agent owns (the kit's AGENTS.md copy,
+// tools/grugops/, the legacy gemini entry, D-23) is reversed only by a FULL run. Every reversal still asks owns first.
+const INSTALLED = installedAgents(MARKER_READ, LEDGER);
+const NAMED: readonly string[] = INSTALLED.ids.filter((id) => REMOVE.has(id));
+const REMAINING: readonly string[] = INSTALLED.ids.filter((id) => !REMOVE.has(id));
+const FULL = REMOVE.size === 0 || (NAMED.length > 0 && REMAINING.length === 0);
+/** Whether this run may reverse ledger entry `e` (D-05): every entry on a FULL run; otherwise the rule above. */
+function inScope(e: { readonly path: string; readonly kind: string }): boolean {
+  if (FULL) return true;
+  const owners = entryOwners(e);
+  return owners.some((id) => NAMED.includes(id)) && !owners.some((id) => REMAINING.includes(id));
+}
+const hostName = (id: string): string => HOST_TOOLS.find((h) => h.id === id)?.name ?? id;
+const nameList = (ids: readonly string[]): string => (ids.length === 0 ? "none" : ids.map(hostName).join(", "));
+if (REMOVE.size > 0) {
+  console.log(`agents to remove: ${nameList(NAMED)}`);
+  for (const host of HOST_TOOLS) {
+    if (!REMOVE.has(host.id) || NAMED.includes(host.id)) continue;
+    report(
+      "note",
+      `${agentFlag(host)}: ${host.name} is not installed here, so nothing is removed for it`,
+    );
+  }
+}
+
 // The kit-shipped RUNNABLES the installer materializes into the user's repository (WR-04, plan 27-13),
 // as a source→dest MAPPING kept byte-identical to install.ts's RUNNABLES (install.test.ts asserts the two
 // are the same mapping). Since plan 33.1-38 it decides no removal: a runnable is removed by the ledger
@@ -2191,9 +2319,16 @@ console.log(`  ${MARKER_REL} (the install marker): ${markerOutcomeLine(markerOut
 // THE CLOSING CLAIM IS CONDITIONAL (27-13) — the same rule as install.ts's banner. A run that could
 // not read a source directory has skipped a whole removal class; saying "complete" over that is a
 // claim it did not earn. The `verify` lines above name what was left behind and what to do about it.
+// A PARTIAL RUN SAYS WHICH AGENTS IT REMOVED AND WHICH STAY (phase 34.1, D-05), on each branch below, so the banner
+// never reads as if grugops were gone from the repository.
+const AGENTS_CLAUSE = FULL
+  ? ""
+  : NAMED.length === 0
+    ? ` — no agent removed (none of the named agents is installed here); still installed: ${nameList(REMAINING)}`
+    : ` — agents removed: ${nameList(NAMED)}; still installed: ${nameList(REMAINING)}`;
 if (VERIFY_FINDINGS > 0) {
   console.log(
-    `\n== uninstall INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification` +
+    `\n== uninstall INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification${AGENTS_CLAUSE}` +
       `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
   );
   console.log("  Each `verify` line above names what was NOT removed and the remedy for it.");
@@ -2238,7 +2373,7 @@ if (VERIFY_FINDINGS > 0) {
   // the status stays 0; but the marker was kept to record what is still in place (an edited file), and the
   // banner says so on the same branch, with the two ways forward.
   console.log(
-    `\n== uninstall complete — ${KEPT_FOR} recorded item(s) left in place; ${MARKER_REL} kept to record them` +
+    `\n== uninstall complete — ${KEPT_FOR} recorded item(s) left in place; ${MARKER_REL} kept to record them${AGENTS_CLAUSE}` +
       `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`,
   );
   console.log(
@@ -2246,5 +2381,5 @@ if (VERIFY_FINDINGS > 0) {
       `${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more).`,
   );
 } else {
-  console.log(`\n== uninstall complete${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
+  console.log(`\n== uninstall complete${AGENTS_CLAUSE}${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
 }

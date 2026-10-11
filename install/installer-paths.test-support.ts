@@ -363,8 +363,12 @@ export function withAgentFlags(args: readonly string[]): string[] {
 export const runInstall = (target: string, grugopsHome: string, args: readonly string[] = [], opts: RunOptions = {}): Run =>
   spawnBin(INSTALL_JS, ["--yes", ...withAgentFlags(args)], target, grugopsHome, opts);
 
-export const runUninstall = (target: string, grugopsHome: string, opts: RunOptions = {}): Run =>
-  spawnBin(UNINSTALL_JS, [], target, grugopsHome, opts);
+/**
+ * Run the committed uninstaller. `args` are its arguments: none for a full uninstall, or per-agent flags (spelled by
+ * agentFlag, phase 34.1 D-05) to remove only those agents.
+ */
+export const runUninstall = (target: string, grugopsHome: string, opts: RunOptions = {}, args: readonly string[] = []): Run =>
+  spawnBin(UNINSTALL_JS, args, target, grugopsHome, opts);
 
 // ── the derivation ──────────────────────────────────────────────────────────────────────────────
 
