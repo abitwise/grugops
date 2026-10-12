@@ -6,8 +6,8 @@
 // lives in install/install.ts (pickAgents): it puts the terminal in raw mode, reads standard input with the same
 // synchronous readSync and EAGAIN wait as the installer's line prompts, feeds each chunk through decodeKeys and step,
 // writes each render, and restores the terminal in a finally block through restoreTerminal, which is given the two
-// terminal functions it calls (write and setRawMode) by pickAgents. Keeping the machine pure lets the tests drive every key and
-// every split escape sequence without a terminal (no environment variable or file ever feeds it keys).
+// terminal functions it calls (write and setRawMode) by pickAgents. Keeping the machine pure lets the tests drive every
+// key and every split escape sequence without a terminal (no environment variable or file ever feeds it keys).
 //
 // KEYS. Up: ESC [ A, ESC O A, `k`. Down: ESC [ B, ESC O B, `j`. Toggle: space. Confirm: CR or LF. Abort: byte 0x03
 // (Ctrl-C arrives as a byte in raw mode and raises no SIGINT). Every other byte or escape sequence is `other`, which
