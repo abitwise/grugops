@@ -1748,7 +1748,7 @@ Plans:
 **Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
 **Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
 **Depends on:** Phase 34
-**Plans:** 32/32 plans executed; gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33 (revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
+**Plans:** 32/39 plans executed; gap round 3 of 4, 34.1-33..34.1-39, planned 2026-10-12 under D-34, D-35 and D-36 (gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33; revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
 
 Plans:
 **Wave 1**
@@ -1848,6 +1848,29 @@ Plans:
 
 **Wave 19** *(blocked on Wave 18 completion)*
 - [x] 34.1-32-PLAN.md — round close: deferred items (DI-05 stays deferred, DI-11 recorded), review dispositions, CHANGELOG [Unreleased] Fixed, count re-pins, the one full regression (D-31, D-32, D-33)
+
+**Gap round 3 of 4 (D-34, D-35, D-36)**
+
+**Wave 20** *(gap round; blocked on Wave 19 completion)*
+- [ ] 34.1-33-PLAN.md — CR-04 tracer: markerRemedy, the one owner of "may a remedy offer removing the marker"; the doctor's and install's sites read it; R36 and R37 follow the printed remedy, then uninstall (D-35)
+
+**Wave 21** *(blocked on Wave 20 completion)*
+- [ ] 34.1-34-PLAN.md — CR-04 in the uninstaller: the verify, removeMarker and keepWithoutRecord read the owner; R38; the census rule that every removal offer sits under the owner's yes; README (D-35)
+
+**Wave 22** *(blocked on Wave 21 completion)*
+- [ ] 34.1-35-PLAN.md — WR-21 tracer: commandContextFromRecord; the doctor's context from the record it checks; the WR-21 rows followed as printed; README (D-36)
+
+**Wave 23** *(blocked on Wave 22 completion)*
+- [ ] 34.1-36-PLAN.md — WR-22: uninstall.ts's context from the owner, never from an unbound marker; R39; R25 and R34 reshaped; one constructor, held by a census (D-36)
+
+**Wave 24** *(blocked on Wave 23 completion)*
+- [ ] 34.1-37-PLAN.md — WR-23: CommandContext.src and the GRUGOPS_SRC prefix; the stale-adapter remedy renders from the checkout it compared; R40 (D-36)
+
+**Wave 25** *(blocked on Wave 24 completion)*
+- [ ] 34.1-38-PLAN.md — DOC-1: the CHANGELOG WR-19 line corrected, the sibling sweep, the retired-claims scan (D-34)
+
+**Wave 26** *(blocked on Wave 25 completion)*
+- [ ] 34.1-39-PLAN.md — round close: deferred items after round 3, review dispositions (CR-04, WR-21..WR-23 fixed; IN-28..IN-31 deferred), CHANGELOG [Unreleased] Fixed, count re-pins, the one full regression (D-34, D-35, D-36)
 
 ## Progress
 
