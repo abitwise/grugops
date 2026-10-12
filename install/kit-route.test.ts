@@ -23,7 +23,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runPrintedCommand, runUninstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
@@ -912,9 +912,12 @@ const isRegularFile = (path: string): boolean => {
 
 interface Followed {
   /**
-   * The agents installed in the target, as the follower reads them itself (plan 34.1-10, D-07): the registry rows named
-   * by the marker's `agents` field, read with JSON.parse here (never install-marker.ts installedAgents), in registry
-   * order. Reach, reads and stranded hosts are about these rows only.
+   * The agents the doctor speaks for, as the follower reads them itself (plan 34.1-10, D-07; plan 34.1-15, D-26 IN-21):
+   * the registry rows named by the marker's `agents` field, read with JSON.parse here (never install-marker.ts
+   * installedAgents), in registry order, that have something installed here: an entry of the marker's ledger (read
+   * with JSON.parse) that records content install wrote and that the row owns (host-tools.ts entryOwners), or a
+   * present entry path (an lstat of each ROUTE_POINTERS path of its adapter kind). Reach, reads and stranded hosts are
+   * about these rows only.
    */
   readonly installed: readonly (typeof HOST_TOOLS)[number][];
   /** The route carriers the installed agents read (carriersOf over `installed`, first-seen registry order). */
@@ -934,12 +937,48 @@ interface Followed {
 /** The carriers `h` reads, by the follower's own rule: every carrier of its row (carriersOf). */
 const followerCarriers = (h: (typeof HOST_TOOLS)[number]): string[] => carriersOf(h);
 
+/**
+ * The follower's own rule for "a ledger entry that records content install wrote" (phase 34.1 D-26, IN-21), spelled
+ * here from the entry shapes, never from install-marker.ts entryHolds: a file, block or opencode-permission entry; an
+ * ask-rules entry that added a rule or created the file or one of its objects; a gemini entry that added the entry or
+ * created the file. Directory and backup entries never count.
+ */
+function followerHolds(e: Record<string, unknown>): boolean {
+  if (e.kind === "file" || e.kind === "block" || e.kind === "opencode-permission") return true;
+  if (e.kind === "ask-rules") return (Array.isArray(e.added) && e.added.length > 0) || e.createdFile === true || e.createdPermissions === true || e.createdAsk === true;
+  if (e.kind === "gemini") return e.addedEntry === true || e.createdFile === true;
+  return false;
+}
+/** Whether something is at `path` (an lstat; a link is not followed, a special file counts). */
+const lstatPresent = (path: string): boolean => {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
+/**
+ * Whether the follower counts registry row `h` as having something installed in `target`: it owns (entryOwners) a
+ * ledger entry that followerHolds, or one of its ROUTE_POINTERS entry paths is present. A marker whose `ledger` is not a
+ * list contributes no entry.
+ */
+function hasSomethingInstalled(target: string, marker: Record<string, unknown>, h: (typeof HOST_TOOLS)[number]): boolean {
+  const ledger = Array.isArray(marker.ledger) ? (marker.ledger as unknown[]) : [];
+  const owns = ledger.some(
+    (e) =>
+      e !== null && typeof e === "object" && typeof (e as Record<string, unknown>).path === "string" && typeof (e as Record<string, unknown>).kind === "string" &&
+      followerHolds(e as Record<string, unknown>) && entryOwners(e as { path: string; kind: string }).includes(h.id),
+  );
+  return owns || ROUTE_POINTERS[h.adapter].some((rel) => lstatPresent(join(target, ...rel.split("/"))));
+}
+
 /** THE INDEPENDENT FOLLOWER: per host, from the files alone. */
 function follow(target: string): Followed {
   const marker = JSON.parse(readFileSync(join(target, ...MARKER_REL.split("/")), "utf8")) as Record<string, unknown>;
   const agents = marker.agents;
   expect(Array.isArray(agents) && agents.every((a) => typeof a === "string"), `premise: the marker records the installed agents (${JSON.stringify(agents)})`).toBe(true);
-  const installed = HOST_TOOLS.filter((h) => (agents as string[]).includes(h.id));
+  const installed = HOST_TOOLS.filter((h) => (agents as string[]).includes(h.id) && hasSomethingInstalled(target, marker, h));
   const installedCarriers = [...new Set(installed.flatMap(carriersOf))];
   const kitRoot = typeof marker.kitRoot === "string" ? marker.kitRoot : "";
   const routeResolves = kitRoot !== "" && isRegularFile(join(kitRoot, "roles", "orchestrator.md"));
@@ -2184,5 +2223,67 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
     expect(at, r.stdout).toBeGreaterThan(-1);
     expect(lines[at]).toContain(`the line above about ${PI_PROMPT_REL} says why and what to do`);
     expect(lines.slice(0, at).some((l) => l.includes(PI_PROMPT_REL)), "no earlier line of the run names the Pi template").toBe(true);
+  });
+});
+
+// ── IN-21 (phase 34.1, D-26; brief REC-1): --check AND A RECORDED AGENT WITH NOTHING INSTALLED ───────────────────────
+//
+// The `agents` field records the agents chosen for the target and not yet removed (install-marker.ts THE `agents`
+// FIELD), so a chosen agent whose every write was refused stays recorded (D-04's retry). The doctor gives such an agent
+// no reach line and no counted finding: it owns no holding ledger entry and none of its entry paths is present. One
+// uncounted note names it with the command that writes its entry; the test runs exactly that printed command.
+describe("IN-21: --check and a recorded agent with nothing installed (D-26)", () => {
+  /** The doctor's note lines that name `name` as recorded with nothing installed. */
+  const nothingNotes = (stdout: string, name: string): string[] =>
+    linesUnder(stdout, "note").filter((l) => messageOf(l).startsWith(`${name} is recorded in .grugops/install.json as chosen, but nothing is installed for it here`));
+
+  it("a Pi install whose template write is refused records Pi; --check gives Pi no reach line and no counted finding, and one note with the command; that command, run once the cause is gone, gives Pi a reach line", () => {
+    const row = scratchRow();
+    mkdirSync(join(row.target, ".pi"), { recursive: true });
+    const blocker = join(row.target, ".pi", "prompts");
+    writeFileSync(blocker, "not a directory\n");
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    expect(r.status, r.stdout + r.stderr).toBe(3);
+    const marker = readMarkerObject(row.target);
+    expect(marker.agents, "the chosen agent is recorded (D-04)").toEqual([piHost().id]);
+    const c = check(row.target, row.kitHome);
+    expect(reachLines(c.stdout).filter((l) => messageOf(l).startsWith(`${piHost().name}: `)), c.stdout).toEqual([]);
+    expect(c.stdout.split("\n").filter((l) => /^ {2}(FAIL|WARN)\s/.test(l) && l.includes(PI_PROMPT_REL)), c.stdout).toEqual([]);
+    expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
+    const notes = nothingNotes(c.stdout, piHost().name);
+    expect(notes.length, c.stdout).toBe(1);
+    expect(notes[0]).toContain(`\`${agentCommand("install.js", row.target, [piHost()])}\``);
+    expect(notes[0]).toContain(PI_PROMPT_REL);
+    rmSync(blocker);
+    const ran = runPrintedCommand(notes[0], { grugopsHome: row.kitHome });
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    const after = check(row.target, row.kitHome);
+    expect(reachVerdict(after.stdout, piHost()).reaches, after.stdout).toBe(true);
+    expect(nothingNotes(after.stdout, piHost().name), after.stdout).toEqual([]);
+  });
+
+  it("an installed Pi template deleted: the ledger still holds Pi's entry, so --check prints Pi's reach line (CANNOT reach) and not the note", () => {
+    const row = scratchRow();
+    ownAgents(row);
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    rmSync(piFile(row.target));
+    const c = check(row.target, row.kitHome);
+    const v = reachVerdict(c.stdout, piHost());
+    expect(v.reaches, v.line).toBe(false);
+    expect(nothingNotes(c.stdout, piHost().name), c.stdout).toEqual([]);
+  });
+
+  it("the user's own Pi template at the entry path with nothing of install's for Pi: Pi keeps its reach line", () => {
+    const row = scratchRow();
+    ownAgents(row);
+    ownPiTemplate(row);
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const ledger = readMarkerObject(row.target).ledger as Array<{ path: string; kind: string }>;
+    expect(ledger.some((e) => e.path === PI_PROMPT_REL), "premise: install recorded nothing at the user's own template").toBe(false);
+    const c = check(row.target, row.kitHome);
+    expect(reachVerdict(c.stdout, piHost()).line, c.stdout).toContain(PI_PROMPT_REL);
+    expect(nothingNotes(c.stdout, piHost().name), c.stdout).toEqual([]);
   });
 });

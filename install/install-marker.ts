@@ -1308,17 +1308,24 @@ function isAgentIdList(v: unknown): v is string[] {
 
 // ── THE INSTALLED SET (phase 34.1, D-03, D-04, D-05, D-07) ──────────────────────────────────────────────────────────
 //
-// THE `agents` FIELD. Since plan 34.1-06 every install records, in its marker, the agents installed in this target:
-// `agents`, a list of registry ids (host-tools.ts HOST_TOOLS), in registry order, written by install.ts writeMarker
-// between `target` and `ledger`. It is the agents installed before the run united with the agents chosen in it (D-04:
-// install only adds; naming fewer agents never removes one from the record).
+// THE `agents` FIELD (its meaning is written here once; install/README.md "Which agents an unattended install is for"
+// says the same for users, phase 34.1 D-26, IN-21). Since plan 34.1-06 every install records, in its marker, `agents`:
+// a list of registry ids (host-tools.ts HOST_TOOLS), in registry order, written by install.ts writeMarker between
+// `target` and `ledger`. It records THE AGENTS CHOSEN FOR THIS TARGET AND NOT YET REMOVED: chosen by flag, at the agent
+// list, from the record or by detection, in this install or an earlier one. Install only adds (D-04: naming fewer
+// agents never removes one from the record), so a chosen agent whose every write was refused stays recorded, and a
+// later unattended install chooses it again (D-04's retry). An uninstall drops an agent only once nothing install
+// recorded for it is left in place (agentsToRecord below, D-26, D-29). "Installed", in the sense of "install wrote
+// something here", is never stored: a consumer that needs it derives it from this field and the ledger (the doctor's
+// doctorHosts in install.ts asks agentsToRecord with keep [] for the agents that own a holding ledger entry).
 //
 // WHY A RECORDED FIELD AND NOT A DERIVATION FROM THE LEDGER (34.1-RESEARCH.md Pattern 2). `.agents/skills/grugops/
 // SKILL.md` is the entry of two registry rows (Codex CLI and Antigravity CLI, D-20), so a ledger record of that file
 // cannot say which of the two was chosen. And "installed" is never read from presence on disk (brief DC-2): a file the
 // user made, or a directory another tool made, is not an install.
 
-/** The marker field that records the agents installed in the target (D-03, D-04). */
+/** The marker field that records the agents chosen for the target and not yet removed (D-03, D-04, D-26; THE
+ *  `agents` FIELD above). */
 export const AGENTS_FIELD = "agents";
 
 /**

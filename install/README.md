@@ -264,8 +264,10 @@ no all-agents flag. With one or more of them, the run chooses exactly the agents
 `--yes` (or a run with no terminal) chooses, in this order:
 
 1. **The agents recorded in `.grugops/install.json`.** Every install records, in the `agents` field,
-   the agents installed in that repository. Naming fewer agents later never removes one from the
-   record: install only adds.
+   the agents chosen for that repository and not yet removed. Naming fewer agents later never removes
+   one from the record: install only adds. That includes an agent none of whose files could be
+   written: the next unattended run chooses it again, so a fixed cause is retried. Uninstall drops an
+   agent from the record only once nothing install recorded for it is left in place.
 2. **An install made before this release** (its `.grugops/install.json` has an install ledger but no
    `agents` field) counts as Claude Code, Copilot and Pi, the agents those installs wrote files for.
    Its old Gemini settings record does not choose Antigravity.
@@ -521,7 +523,12 @@ reads every file first and reports afterwards, in this order:
   agents `.grugops/install.json` records, or, for a marker written before that record existed that
   still holds install's ledger, Claude Code, GitHub Copilot CLI and Pi (the agents every earlier
   install wrote for). Only their files are asked about below, only they get a `reach` line, and only
-  their files can give a counted finding; a file that no installed agent reads is not reported. When
+  their files can give a counted finding; a file that no installed agent reads is not reported.
+  A recorded agent with nothing installed here (the install ledger records nothing of install's for
+  it, and its entry file, such as `.pi/prompts/grugops.md` for Pi, is not present) gets no `reach`
+  line and no counted finding; one `note` names it with the command that writes its entry, for
+  example `node install/install.js --target /path/to/repo --pi`. An agent whose entry file is there,
+  even your own file, keeps its `reach` line. When
   nothing is recorded (no marker, a marker install cannot use here, or an older marker with no
   ledger), `--check` reports the agents detected in the target instead and says so in a `note`. An agent id the marker records and this version does not know is named in
   a `note` and gets no `reach` line. The Claude Code checks (the adapters' `KIT=` line in the
@@ -796,9 +803,9 @@ record first, as described below.
   included, to run again once the cause is fixed. It never tells you to run a flag-less uninstall
   after a per-agent one: a flag-less uninstall removes every agent.
 - **A flag for an agent that is not installed here changes nothing.** A `note` line says so, and the
-  run exits `0`. "Installed" means what the marker records: its `agents` list, or, for an install
-  made before 34.1, the agents described in "Which agents an unattended install is for". It never
-  means what is on disk.
+  run exits `0`. "Installed" here means what the marker records: its `agents` list, the agents
+  chosen for the repository and not yet removed, or, for an install made before 34.1, the agents
+  described in "Which agents an unattended install is for". It never means what is on disk.
 
 **The record decides, not the kit source.** The uninstaller walks every entry of the install ledger
 and reverses each one only while it still holds what install recorded. A recorded file that still

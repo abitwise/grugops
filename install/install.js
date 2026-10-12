@@ -1284,20 +1284,41 @@ function routeCarrierSet(hosts) {
 function hostsOf(ids) {
     return HOST_TOOLS.filter((h) => ids.includes(h.id));
 }
-// doctorHosts (phase 34.1, D-07; VERDICT-1): THE AGENTS `--check` REPORTS ON. It never re-derives the installed set:
+// doctorHosts (phase 34.1, D-07; VERDICT-1): THE AGENTS `--check` REPORTS ON. It never re-derives the recorded set:
 // it asks install-marker.ts installedAgents over the doctor's own marker and ledger reads. Recorded or legacy: those
 // ids, mapped through hostsOf (a recorded id the registry does not know is kept in `unknown`, for a note, and gets no
 // reach line). None (no usable marker, or a marker written before the `agents` field with no usable ledger): the
 // agents detected in the target (detectedHosts, the rule install's unattended selection falls back to), and the
-// doctor says so in a note. Reads nothing but `detect` paths; writes nothing. A function declaration: the doctor runs
+// doctor says so in a note.
+// NOTHING INSTALLED HERE (phase 34.1 D-26, IN-21). The `agents` field records the agents CHOSEN for this target and not
+// yet removed (install-marker.ts, THE `agents` FIELD), so it can name an agent none of whose writes landed (D-04's
+// retry). Of the recorded and legacy rows, the doctor speaks (`hosts`) for a row that owns a holding ledger entry
+// (agentsToRecord with keep [], the one ownership derivation, over the ledger read when it is ok) OR whose entry path
+// (ROUTE_POINTERS of its adapter kind) holds something: kindAt, an lstat only, no content read (DC-3). The entry-path
+// clause keeps the reach line and its WARN for an agent whose entry is the user's own file: that file can strand the
+// agent, and the warning is what tells the user so. The other rows go to `nothingInstalled`: the doctor gives each one
+// note with the command that writes its entry, and no reach line. This is NOT a presence-based installed set: it only
+// decides whether the doctor speaks for a recorded agent; nothing is recorded, removed or chosen on it.
+// Reads nothing but `detect` paths and the entry paths' lstat; writes nothing. A function declaration: the doctor runs
 // it above the `--check` early exit, where module consts declared below are in their temporal dead zone.
 function doctorHosts(markerRead, ledgerRead) {
     const installed = installedAgents(markerRead, ledgerRead);
-    if (installed.source === "recorded")
-        return { hosts: hostsOf(installed.ids), source: "recorded", unknown: installed.unknown };
-    if (installed.source === "legacy")
-        return { hosts: hostsOf(installed.ids), source: "legacy", unknown: [] };
-    return { hosts: detectedHosts(), source: "detected", unknown: [] };
+    if (installed.source === "none")
+        return { hosts: detectedHosts(), source: "detected", unknown: [], nothingInstalled: [] };
+    const withEntry = agentsToRecord({
+        known: installed.ids,
+        keep: [],
+        unknown: [],
+        entries: ledgerRead.state === "ok" ? ledgerRead.entries : [],
+    });
+    const speaks = (h) => withEntry.includes(h.id) || ROUTE_POINTERS[h.adapter].some((rel) => kindAt(join(TARGET, ...rel.split("/"))) !== null);
+    const rows = hostsOf(installed.ids);
+    return {
+        hosts: rows.filter(speaks),
+        source: installed.source,
+        unknown: installed.source === "recorded" ? installed.unknown : [],
+        nothingInstalled: rows.filter((h) => !speaks(h)),
+    };
 }
 const CARRIER_STATE_TEXT = {
     route: "carries the kit route",
@@ -1402,12 +1423,14 @@ function adapterKitOnDisk() {
 //     kit-route finding always has a host that cannot reach behind it.
 //     The reach loop walks routeCarrierSet and keeps the carriers hostReadsCarrier names for the host; for every
 //     host that order is its routeCarriers order (install/host-tools.test.ts asserts it).
-// THE INSTALLED SET (phase 34.1, D-07; VERDICT-1): `hosts` is the doctor's doctorHosts answer, the agents installed in
-// this target (recorded, or by the legacy rule; the detected agents, announced in a note, when nothing is recorded).
-// Every step above asks about those agents only: (b) classifies routeCarrierSet(hosts), (c) builds the facts for them,
-// (d) passes them to strandedBy and names only them as readers, and (e) prints one reach line per one of them, in
-// registry order. A carrier no installed agent reads is not reported, and an agent nobody installed here gets no
-// reach line and no counted finding.
+// THE AGENTS IT SPEAKS FOR (phase 34.1, D-07; VERDICT-1; D-26, IN-21): `hosts` is the doctor's doctorHosts answer, the
+// agents recorded in this target as chosen (or by the legacy rule; the detected agents, announced in a note, when
+// nothing is recorded) that have something installed here: a holding ledger entry they own, or a file at their entry
+// path. Every step above asks about those agents only: (b) classifies routeCarrierSet(hosts), (c) builds the facts for
+// them, (d) passes them to strandedBy and names only them as readers, and (e) prints one reach line per one of them, in
+// registry order. A carrier none of them reads is not reported, and an agent nobody chose here, or a recorded agent
+// with nothing installed here (its own note, with the command that writes its entry), gets no reach line and no
+// counted finding.
 // It writes nothing. Ownership comes from owns over the ledger the doctor reads, and what install would write from
 // installWouldWrite over it, so install, uninstall and --check cannot disagree about whose file a carrier is or what
 // install writes into it. Function declarations only, and the doctor's own
@@ -1624,6 +1647,15 @@ function doctor() {
         docReport("note", `.grugops/install.json records ${installed.unknown.map((id) => JSON.stringify(id)).join(", ")}, which this build ` +
             `does not know as an agent, so --check gives ${installed.unknown.length > 1 ? "them" : "it"} no reach line`);
     }
+    // A recorded agent with nothing installed here (doctorHosts' nothingInstalled; D-26, IN-21): one uncounted note each,
+    // with the command that writes its entry, and no reach line.
+    for (const h of installed.nothingInstalled) {
+        const entries = ROUTE_POINTERS[h.adapter];
+        docReport("note", `${h.name} is recorded in .grugops/install.json as chosen, but nothing is installed for it here (the install ` +
+            `ledger records nothing of install's for it, and ${entries.join(", ")} ${entries.length > 1 ? "are" : "is"} not ` +
+            `present), so --check gives it no reach line; \`${agentCommand("install.js", TARGET, [h])}\` writes its entry, ` +
+            `or says why it cannot`);
+    }
     // THE CLAUDE CODE CHECKS (phase 34.1, D-07; VERDICT-1) run only when Claude Code is installed here: the adapters'
     // KIT= source of the kit-root cross-check, the adapter-referenced stat lines, the adapter staleness block and the
     // ask-rule remedy. A target without Claude Code has no adapters to read, so nothing is said about them.
@@ -1640,7 +1672,8 @@ function doctor() {
     // when Claude Code is not installed (D-07).
     const adapterOnDisk = claudeInstalled ? adapterKitOnDisk() : null;
     const adapterFile = adapterOnDisk !== null ? adapterOnDisk.file : null;
-    if (hosts.length === 0) {
+    // A recorded agent with nothing installed here has its own note above and no counted finding (D-26, IN-21).
+    if (hosts.length === 0 && installed.nothingInstalled.length === 0) {
         docWarn(`no agent is ${installed.source === "detected" ? "recorded or detected" : "recorded as installed that this build knows"} ` +
             `in ${TARGET}, so NO VERDICT was reached on any agent's route to the Orchestrator. Re-run install.js with the ` +
             `flag of each agent to install for`);
@@ -5050,8 +5083,8 @@ const SELECTION = HOST_TOOLS.filter((h) => SELECTION_WHY.has(h.id));
 // agents chosen in it, followed by the recorded ids the registry does not know, verbatim: install only adds, so naming
 // fewer agents never removes one from the record, and an unknown id is kept, never acted on. Because install keeps
 // every recorded agent (D-04), a chosen agent whose every write was refused stays recorded and a later `--yes`
-// re-chooses it: the field means "chosen and not yet removed" (plan 34.1-15 writes that meaning into install-marker.ts
-// and the README).
+// re-chooses it: the field means "chosen and not yet removed", as install-marker.ts THE `agents` FIELD and
+// install/README.md "Which agents an unattended install is for" say (D-26).
 const AGENTS_AFTER = [
     ...HOST_TOOLS.filter((h) => INSTALLED_IDS_BEFORE.includes(h.id) || SELECTION.includes(h)).map((h) => h.id),
     ...(INSTALLED_BEFORE.source === "recorded" ? INSTALLED_BEFORE.unknown : []),

@@ -13,7 +13,8 @@
 // WHAT IS HELD HERE.
 //   - the unit tables of agentsToRecord, entryHolds and agentCommand (pure; ids taken from HOST_TOOLS, never typed);
 //   - the arm table, one scratch install and uninstall per row, each asserting the expected `agents` and the invariant
-//     (rows R1-R17; R12-R15 are the MSG-1 remedy rows: each runs the command a line printed);
+//     (rows R1-R17; R12-R15 are the MSG-1 remedy rows: each runs the command a line printed; R18, plan 34.1-15, is
+//     D-04's retry of a refused agent, the converse the chosen meaning deliberately does not hold);
 //   - the marker-writer census, by the TypeScript parser: every call of the target write chokepoints (install.ts
 //     writeTargetFile, uninstall.ts rewritePath and unlinkPath; installer-fs-census.test.ts rows
 //     `install.ts:writeTargetFile:writeFileSync`, `uninstall.ts:rewritePath:writeFileSync` and
@@ -37,6 +38,7 @@ import ts from "typescript";
 import { AGENT_SKILL_REL, HOST_TOOLS, agentCommand, agentFlag, entryOwners, type HostTool } from "./host-tools.js";
 import { ASK_RULES_REL, agentsToRecord, entryHolds, readLedger, type LedgerEntry } from "./install-marker.js";
 import {
+  INSTALL_JS,
   MARKER_REL,
   type Run,
   makeOldLayoutFixture,
@@ -46,6 +48,7 @@ import {
   runUninstall,
   shellWords,
   snapshotTree,
+  spawnBin,
 } from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 
@@ -376,6 +379,31 @@ describe("REC-1: every marker-writing arm leaves `agents` consistent with its le
     expect(holding(w), r.stdout).toBe(holdingBefore);
     expect(nonBackup(w), "an entry that is not a backup changed").toBe(nonBackupBefore);
     expectInvariant(w, ids("claude", "codex"), r.stdout);
+  });
+});
+
+describe("REC-1: the `agents` field means chosen and not yet removed (D-26, IN-21; D-04's retry)", () => {
+  // R18. THE CONVERSE IS DELIBERATELY NOT ASSERTED. The field records the agents chosen for the target and not yet
+  // removed (install-marker.ts THE `agents` FIELD), not "the agents owning a holding entry": a chosen agent whose every
+  // write was refused owns no entry and stays recorded, so a later unattended install chooses it again (D-04). The
+  // invariant (every agent owning a holding entry is recorded) still holds over this row.
+  it("R18: a Pi install whose template write is refused records [pi] with no entry of Pi's; a later `--yes` with no agent flag chooses Pi again, \"recorded in .grugops/install.json\"", () => {
+    const w = world("r18");
+    mkdirSync(at(w.target, ".pi"), { recursive: true });
+    writeFileSync(at(w.target, ".pi/prompts"), "not a directory\n");
+    const first = runInstall(w.target, w.grugopsHome, [flag("pi")], { home: w.home, timeoutMs: 180_000 });
+    finished(first, "install --pi");
+    expect(first.status, first.stdout).toBe(3);
+    expect(agentsOf(w), first.stdout).toEqual(ids("pi"));
+    expect(ledgerEntries(w).filter((e) => entryHolds(e) && entryOwners(e).includes(row("pi").id)), "premise: Pi owns no holding entry").toEqual([]);
+    expectInvariant(w, ids("pi"), first.stdout);
+    // agent-flag-census: R18 runs install.js with no agent flag on purpose, to show the recorded choice is retried (D-04)
+    const again = spawnBin(INSTALL_JS, ["--yes"], w.target, w.grugopsHome, { home: w.home, timeoutMs: 180_000 });
+    finished(again, "install --yes");
+    const banner = again.stdout.split("\n").find((l) => l.startsWith("agents: "));
+    expect(banner, again.stdout).toBe(`agents: ${row("pi").name} (recorded in ${MARKER_REL})`);
+    expect(agentsOf(w), again.stdout).toEqual(ids("pi"));
+    expectInvariant(w, ids("pi"), again.stdout);
   });
 });
 

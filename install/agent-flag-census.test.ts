@@ -65,8 +65,10 @@ const SITE_FLOOR = 64;
  * One more since plan 34.1-12 (D-02): install/install.test.ts runAtTerminal, the one spawn the "agent picker at a
  * terminal (D-02)" cases run inside a pseudo-terminal with no agent flag, because the checkbox list is what they test
  * (an agent flag skips it).
+ * One more since plan 34.1-15 (D-26, IN-21): install/agents-record.test.ts R18, the one spawn that shows a recorded agent
+ * whose every write was refused is chosen again by an unattended install with no agent flag (D-04's retry).
  */
-const EXEMPT_COUNT = 5;
+const EXEMPT_COUNT = 6;
 
 /** Every tracked TypeScript module directly under install/ or scripts/ (no declaration files), from git. */
 function modules(): string[] {
