@@ -35,8 +35,8 @@ ship — never assume a tool fact is permanent.
 | **Claude Code** | `CLAUDE.md` one-line pointer + portable `AGENTS.md` | Coordinator spawns role agents, in three announced tiers — **Full** (started with `claude --agent grugops-orchestrator`: the coordinator adapter is the main thread and its enumerated `Agent(<allowlist>)` grant is runtime-enforced), **Reduced** (a default session, what the `/grugops` skill entry gets: still parallel to the same cap, grant NOT runtime-enforced), **Degraded** (`Agent` unavailable: the single-window sequential role-load). Nesting defaults to 3 layers, tuned by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; width capped by `queue.wip_limit`, a grugops discipline choice inside the platform's 20-concurrent cap | **Both forms.** Standalone `.claude/skills/grugops*` (dash → `/grugops-plan`) **and** the `.claude-plugin/` plugin colon form (`/grugops:plan`) | verify against current tool docs |
 | **Codex CLI** | root `AGENTS.md` (+ global `~/.codex/AGENTS.md`) | Sequential role-load — no spawn; the Orchestrator loads each role file into one context in turn | **Agent skill.** `.agents/skills/grugops/SKILL.md`, the skill it shares with Antigravity CLI. Codex loads repository skills from `.agents/skills/` but does not turn them into slash commands: the user types `$grugops` or picks it from `/skills` (learn.chatgpt.com/docs/build-skills, retrieved 2026-10-11) | verify against current tool docs |
 | **Antigravity CLI** | `AGENTS.md` (and `GEMINI.md`), read natively (antigravity.google/docs/rules/ and /docs/cli/gcli-migration/, retrieved 2026-10-11) | Sequential role-load — no spawn | **Agent skill.** `.agents/skills/grugops/SKILL.md`, the skill it shares with Codex CLI. Antigravity CLI loads workspace skills from `.agents/skills/` and offers each as a slash command, so this one gives `/grugops` (antigravity.google/docs/skills/, retrieved 2026-10-11). Detected by a `.gemini` entry in the target root, a signal that is `UNKNOWN - verify` | verify against current Antigravity docs |
-| **OpenCode** | root `AGENTS.md` (+ global `~/.config/opencode/AGENTS.md`) | Sequential role-load — no spawn (or its own native agents) | **Command file.** `.opencode/commands/grugops.md`; OpenCode names a project command after its file, so this one gives `/grugops` (opencode.ai/docs/commands/, retrieved 2026-10-11) | verify against current tool docs |
-| **GitHub Copilot CLI** | `AGENTS.md` (+ optional `.github/copilot-instructions.md`) | Sequential role-load — no spawn | **Optional pointer.** Ensuring `AGENTS.md` is present is sufficient; the `.github/` pointer is a convenience | verify against current Copilot CLI docs |
+| **OpenCode** | root `AGENTS.md` (+ global `~/.config/opencode/AGENTS.md`) | Sequential role-load — no spawn (or its own native agents) | **Command file.** `.opencode/commands/grugops.md`; OpenCode names a project command after its file, so this one gives `/grugops` (opencode.ai/docs/commands/, retrieved 2026-10-11). The install also merges one kit-read `permission.external_directory` rule into the project `opencode.json` (opencode.ai/docs/permissions/, retrieved 2026-10-11) | verify against current tool docs |
+| **GitHub Copilot CLI** | `AGENTS.md` (+ optional `.github/copilot-instructions.md`) | Sequential role-load — no spawn | **Pointer block.** With `--copilot`, install appends a start-here block that carries the kit route to `.github/copilot-instructions.md`; no command is written. Copilot CLI also reads project skills from `.agents/skills/` (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills, retrieved 2026-10-11), so an install for `--codex` or `--antigravity` gives it the shared skill too. A live run is `UNKNOWN - verify` | verify against current Copilot CLI docs |
 | **Pi** | `AGENTS.md` (one context file per directory, `AGENTS.md` before `CLAUDE.md`, read from the working directory and its ancestors) | Sequential role-load — no spawn; Pi ships no sub-agents | **Prompt template.** `.pi/prompts/grugops.md`, a pointer that gives `/grugops`; Pi loads it after project trust, from the directory Pi starts in | verify against current Pi docs |
 
 The non-spawning host CLIs (Codex, Antigravity, OpenCode, Copilot, Pi) use the single-window sequential
@@ -133,13 +133,16 @@ verify against current Pi docs before you rely on one.
   `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/configuration.md` (retrieved
   2026-10-06).
 
-**What grugops writes for Pi.** The installer writes one file, `.pi/prompts/grugops.md`. It is a
-pointer prompt template that gives `/grugops` and sends Pi to `AGENTS.md` and then
-`agent-factory/roles/orchestrator.md`. It is not a resolver adapter (no kit-home variable, no
+**What grugops writes for Pi.** An install for Pi (`--pi`) writes one Pi file,
+`.pi/prompts/grugops.md`. It is a pointer prompt template that gives `/grugops` and sends Pi to
+`AGENTS.md` and then `agent-factory/roles/orchestrator.md`. It is not a resolver adapter (no kit-home variable, no
 self-heal block) and holds no role text. grugops never writes `.pi/SYSTEM.md`,
-`.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, writes no Pi skill or extension, and ships no Pi
-skill package. Start Pi from the repository root to get the command, because Pi looks for project
-templates only in the directory it starts in. Pi still asks for project trust before it loads the
+`.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, writes no Pi-specific skill or extension, and ships no
+Pi skill package. When the same install also chooses `--codex` or `--antigravity`, the shared
+`.agents/skills/grugops/SKILL.md` is in the repository, and Pi offers it as `/skill:grugops`
+(`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md`, retrieved
+2026-10-11), which does not collide with `/grugops`. Start Pi from the repository root to get the
+command, because Pi looks for project templates only in the directory it starts in. Pi still asks for project trust before it loads the
 template. The template also names the kit route: after a scripted install, which puts the kit in
 the shared kit root and not in the repository, the kit root is the `kitRoot` field of
 `.grugops/install.json`. Whether Pi follows the route on a live run is `UNKNOWN - verify`; the full

@@ -35,7 +35,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS } from "./host-tools.js";
+import { HOST_TOOLS, ROUTE_POINTERS, agentFlag } from "./host-tools.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GUIDE_REL = "install/README.md";
@@ -258,5 +258,90 @@ describe("the Codex invocation scan catches the class, by mutation (phase 34.1, 
   it("an abbreviation does not end a sentence, so `e.g.` cannot hide the slash spelling from the Codex name", () => {
     const body = `# A\n\nOn ${CODEX!.shortName} type a command, e.g. \`/grugops\`.\n`;
     expect(scanMarkdown("a.md", body).map((f) => f.line)).toEqual([3]);
+  });
+});
+
+// ── The per-agent usage sections and the command-line contract (plan 34.1-13, task 2; D-21, D-25) ──────────────────
+//
+// Sections are found by heading text and bounded at the next heading of the same or a higher level, as
+// install/host-tools.test.ts bounds its sections.
+const USAGE_PREFIX = "Using grugops on ";
+const CONTRACT_HEADING = "Command-line contract — choosing agents";
+const SEQUENTIAL_ROWS = HOST_TOOLS.filter((t) => t.dispatch === "sequential");
+
+interface Heading {
+  readonly index: number;
+  readonly level: number;
+  readonly text: string;
+}
+
+function guideHeadings(lines: readonly string[]): Heading[] {
+  const out: Heading[] = [];
+  let fenced = false;
+  lines.forEach((l, index) => {
+    if (FENCE.test(l)) fenced = !fenced;
+    const m = fenced ? null : /^(#{1,6})\s+(.*)$/.exec(l);
+    if (m !== null) out.push({ index, level: m[1].length, text: m[2].trim() });
+  });
+  return out;
+}
+
+function guideSection(headingText: string): string {
+  const lines = readRel(GUIDE_REL).split(/\r?\n/);
+  const heads = guideHeadings(lines);
+  const hits = heads.filter((h) => h.text === headingText);
+  expect(hits.length, `the guide must carry exactly one "${headingText}" heading`).toBe(1);
+  const next = heads.find((h) => h.index > hits[0].index && h.level <= hits[0].level);
+  return lines.slice(hits[0].index + 1, next === undefined ? lines.length : next.index).join("\n").replace(/\s+/g, " ");
+}
+
+describe("the install guide has one usage section per sequential agent (plan 34.1-13, D-21)", () => {
+  it("premise: the registry has sequential rows, and every one has a route pointer and an invoke", () => {
+    expect(SEQUENTIAL_ROWS.length).toBeGreaterThanOrEqual(2);
+    for (const t of SEQUENTIAL_ROWS) {
+      expect(ROUTE_POINTERS[t.adapter].length, `${t.id}: no route pointer`).toBeGreaterThan(0);
+      expect(t.invoke.length, `${t.id}: empty invoke`).toBeGreaterThan(0);
+    }
+  });
+
+  it("the guide's usage headings are exactly one per sequential registry row (count asserted)", () => {
+    const heads = guideHeadings(readRel(GUIDE_REL).split(/\r?\n/)).filter((h) => h.text.startsWith(USAGE_PREFIX));
+    const named = heads.map((h) => h.text.slice(USAGE_PREFIX.length));
+    expect(heads.length, "usage heading count").toBe(SEQUENTIAL_ROWS.length);
+    expect([...named].sort()).toEqual(SEQUENTIAL_ROWS.map((t) => t.name).sort());
+  });
+
+  for (const t of SEQUENTIAL_ROWS) {
+    it(`"${USAGE_PREFIX}${t.name}" names its entry, every backticked token of its invoke, a dated source, and an \`UNKNOWN - verify\``, () => {
+      const sec = guideSection(USAGE_PREFIX + t.name);
+      for (const rel of ROUTE_POINTERS[t.adapter]) expect(sec, `${t.name}: entry \`${rel}\` not named`).toContain(`\`${rel}\``);
+      const tokens = [...t.invoke.matchAll(/`[^`]+`/g)].map((m) => m[0]);
+      expect(tokens.length, `${t.id}: invoke has no backticked token`).toBeGreaterThan(0);
+      for (const tok of tokens) expect(sec, `${t.name}: invoke token ${tok} not named`).toContain(tok);
+      expect(sec, `${t.name}: no dated source`).toMatch(/retrieved 20\d\d-\d\d-\d\d/);
+      expect(sec, `${t.name}: nothing marked unknown`).toContain("`UNKNOWN - verify`");
+    });
+  }
+
+  it("the sections of the agents that share the agent skill name the agents that also read `.agents/skills/`", () => {
+    const shared = SEQUENTIAL_ROWS.filter((t) => t.adapter === "agent-skill");
+    expect(shared.length, "premise: two rows share the agent skill").toBe(2);
+    const route = guideSection("How a host finds the kit after a scripted install");
+    for (const rel of ROUTE_POINTERS["agent-skill"]) expect(route).toContain(`\`${rel}\``);
+    for (const t of SEQUENTIAL_ROWS.filter((r) => r.adapter !== "agent-skill")) {
+      expect(route, `the kit-route section does not name ${t.name} as a reader of the shared skill`).toContain(t.name);
+    }
+    expect(route).toContain("`.claude/skills/grugops/`");
+    expect(route).toContain("`UNKNOWN - verify`");
+  });
+});
+
+describe("the install guide states the command-line contract (plan 34.1-13, D-25)", () => {
+  it("the contract section names every agent flag the registry derives, no all-agents flag, the exit-2 rule and uninstall", () => {
+    const sec = guideSection(CONTRACT_HEADING);
+    for (const t of HOST_TOOLS) expect(sec, `the contract does not name ${agentFlag(t)}`).toContain(`\`${agentFlag(t)}\``);
+    for (const token of ["no all-agents flag", "`--check`", "`--update`", "`--prune-old-kit`", "exit `2`", "exits `1`", "uninstall.js", "`.grugops/install.json`", "checkbox list"]) {
+      expect(sec, `the contract does not carry ${token}`).toContain(token);
+    }
   });
 });

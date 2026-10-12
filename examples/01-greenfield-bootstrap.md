@@ -35,11 +35,11 @@ approval env var — only a human may.
 
 This run predates the per-agent host entries, so the list above does not include them; the release
 it ran also wired Gemini CLI's settings file, which install no longer touches (Gemini CLI is
-discontinued, and its registry row is now Antigravity CLI). An install today also writes the agent
-entries: the Pi pointer `.pi/prompts/grugops.md` (see `install/README.md`, "Using grugops on Pi"),
-the agent skill `.agents/skills/grugops/SKILL.md` that Codex CLI and Antigravity CLI read, and the
-OpenCode command `.opencode/commands/grugops.md`. GitHub Copilot CLI's entry is the Copilot pointer
-block in the list above.
+discontinued, and its registry row is now Antigravity CLI). An install today writes the entry of each
+agent it is for (one flag per agent; see `install/README.md`): the Pi pointer `.pi/prompts/grugops.md`
+(see `install/README.md`, "Using grugops on Pi"), the agent skill `.agents/skills/grugops/SKILL.md`
+that Codex CLI and Antigravity CLI read, and the OpenCode command `.opencode/commands/grugops.md`.
+GitHub Copilot CLI's entry is the Copilot pointer block in the list above.
 
 ## Orchestrator decision
 

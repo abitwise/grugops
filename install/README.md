@@ -133,6 +133,30 @@ writing it. Install leaves such a file as it is, reports it `left`, and records 
 the uninstaller leaves it too. Only a file the install ledger already lists, and that still holds what
 the ledger records, keeps its record on a re-install.
 
+### Command-line contract — choosing agents
+
+The agent flags and the choice they make are a published contract (34.1 D-25); a change to any of
+these is a breaking change.
+
+- **One flag per supported agent.** The flag is `--` followed by the agent's id in the registry
+  (`agentFlag` in `install/host-tools.ts`): `--claude`, `--codex`, `--antigravity`, `--opencode`,
+  `--copilot` and `--pi`. A new agent gets its flag from its registry row. There is **no all-agents
+  flag**: `--all` is an unknown argument (exit `2`).
+- **With agent flags,** the run is for exactly the agents named. Install only adds: naming fewer
+  agents than are installed keeps the others' files and records.
+- **With no agent flag, at a terminal** (standard input and standard output both terminals, and no
+  `--yes`), the installer shows the agent checkbox list ("The agent list at a terminal").
+- **With no agent flag, unattended** (`--yes`, or a standard input or output that is not a
+  terminal), the run is for the agents recorded in `.grugops/install.json`; else, for an install made
+  before that record existed, Claude Code, Copilot and Pi; else the agents detected in the repository.
+  With none of these it writes nothing and exits `1` ("Which agents an unattended install is for").
+- **Agent flags with a mode.** An agent flag combined with `--check`, `--update` or `--prune-old-kit`
+  is bad usage: exit `2`, nothing read or written. `--check` reads the agents from the install record
+  instead.
+- **Uninstall takes the same agent flags.** `node install/uninstall.js --codex` removes only what the
+  install ledger records for the agents named; with no agent flag it removes everything install
+  recorded ("Removing one agent" under Undo).
+
 ### Exit codes — what the installer tells a script
 
 If you chain anything after the installer (`node install/install.js --yes && next-step`, a CI
@@ -551,6 +575,18 @@ reads every file first and reports afterwards, in this order:
   adapters' `KIT=` line). A host that cannot reach always has a counted finding behind it, and a
   counted finding always has a host that cannot reach behind it.
 
+**The shared skill and the agents that were not chosen.** An install for `--codex` or
+`--antigravity` puts `.agents/skills/grugops/SKILL.md` in the repository, and three other agents
+read that directory too: GitHub Copilot CLI
+(docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills), OpenCode
+(opencode.ai/docs/skills/) and Pi (`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md`),
+all retrieved 2026-10-11. So, when Codex CLI or Antigravity CLI is chosen, Copilot CLI, OpenCode
+and Pi can see that skill even when they were not chosen. With Claude Code also installed, OpenCode
+and Copilot CLI read both `.claude/skills/` and `.agents/skills/`, so they see two skills named
+`grugops` (`.claude/skills/grugops/` and `.agents/skills/grugops/`); which one they offer is
+`UNKNOWN - verify`, and the live check that would show it is queued for phase 34.1
+(`.planning/phases/34.1-per-agent-installer/34.1-VALIDATION.md`, "Manual-Only Verifications").
+
 The `reach` lines report what the files say, not a run of the host. Whether a live host other than Claude Code follows them is
 `UNKNOWN - verify` until a run on that host shows it; those runs are backlog item 999.4 in
 `.planning/ROADMAP.md`.
@@ -577,6 +613,79 @@ reads `AGENTS.md` itself, and the kit's `AGENTS.md` carries the same route.
   for either agent writes the one file, and uninstalling one of them keeps it while the other is still
   installed (see "Removing one agent" under Undo).
 - **Safety on Codex CLI** is in §5, "Other tools": the git host is the hard floor there.
+
+### Using grugops on Antigravity CLI
+
+Install Antigravity CLI itself (its binary is `agy`); grugops does not install it. An install that
+chooses Antigravity CLI (`--antigravity`) writes `.agents/skills/grugops/SKILL.md`, the same skill
+file Codex CLI reads. Antigravity CLI loads workspace skills from `<workspace-root>/.agents/skills/`
+and turns each skill into a slash command, so start it at the repository root and type
+`/grugops <request>`. (Source: antigravity.google/docs/skills/, retrieved 2026-10-11.) It also reads
+`AGENTS.md` natively, with no settings entry (antigravity.google/docs/rules/ and
+antigravity.google/docs/cli/gcli-migration/, retrieved 2026-10-11), and install never reads or writes
+`.gemini/settings.json` or `.gemini/skills/`.
+
+The skill is a pointer, with no role text: it sends Antigravity to `AGENTS.md` and then
+`agent-factory/roles/orchestrator.md`, and it names the kit route, the `kitRoot` field of
+`.grugops/install.json`. The kit is outside the repository after a scripted install.
+
+- **What is not known.** Whether Antigravity CLI reads the kit outside the workspace, and whether it
+  asks permission before each such read, is `UNKNOWN - verify`. The detect signal install uses for
+  Antigravity CLI, a `.gemini` entry in the repository root, is `UNKNOWN - verify` (see "Which agents
+  an unattended install is for"). Whether it follows the route to the Orchestrator on a live run is
+  `UNKNOWN - verify` until the live run queued as a human check for phase 34.1 passes
+  (`.planning/phases/34.1-per-agent-installer/34.1-VALIDATION.md`, "Manual-Only Verifications").
+- **Safety on Antigravity CLI** is in §5, "Other tools": its approval behaviour is `UNKNOWN - verify`,
+  and the git host is the hard floor.
+
+### Using grugops on OpenCode
+
+Install OpenCode itself; grugops does not install it. An install that chooses OpenCode (`--opencode`)
+writes the command `.opencode/commands/grugops.md`. OpenCode loads project commands from
+`.opencode/commands/` and names each after its file, so start it at the repository root and type
+`/grugops <request>`. (Source: opencode.ai/docs/commands/, retrieved 2026-10-11.) The command is a
+pointer, with no role text: it sends OpenCode to `AGENTS.md` and then
+`agent-factory/roles/orchestrator.md`, and it names the kit route, the `kitRoot` field of
+`.grugops/install.json`.
+
+- **The kit-read rule.** The kit is outside the repository, and OpenCode asks before a tool call
+  touches a path outside its working directory. So install also adds one rule to the project
+  `opencode.json`, a `permission.external_directory` allow rule for the kit root, written
+  home-relative (opencode.ai/docs/permissions/, retrieved 2026-10-11). Install writes no rule, and
+  prints the rule to add by hand as a `note`, when the kit is not under your home directory, when the
+  kit path holds a glob or control character, when `opencode.json` is JSONC, has a duplicate key or a
+  `permission` or `external_directory` that is not an object, is a link or a special file, or when
+  only `opencode.jsonc` exists. OpenCode then still reaches the kit, asking before each read. The
+  full rule is under "What the installer touches (per-repo), and only this".
+- **What is not known.** How this project rule combines with an `external_directory` rule in your
+  global OpenCode config is `UNKNOWN - verify`. OpenCode also reads skills from `.claude/skills/` and
+  `.agents/skills/` (opencode.ai/docs/skills/, retrieved 2026-10-11); which `grugops` it offers when
+  more than one is present is `UNKNOWN - verify` (see "How a host finds the kit after a scripted
+  install"). Whether OpenCode follows the route to the Orchestrator on a live run is
+  `UNKNOWN - verify` until the live run queued as a human check for phase 34.1 passes
+  (`.planning/phases/34.1-per-agent-installer/34.1-VALIDATION.md`, "Manual-Only Verifications").
+- **Safety on OpenCode** is in §5, "Other tools": the kit-read rule governs no command, and the git
+  host is the hard floor.
+
+### Using grugops on GitHub Copilot CLI
+
+Install GitHub Copilot CLI itself; grugops does not install it. An install that chooses Copilot
+(`--copilot`) writes no command: it appends a start-here pointer block to
+`.github/copilot-instructions.md`, creating the file when there is none. Copilot CLI reads that file
+together with `AGENTS.md` and its other instruction files
+(docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions, retrieved
+2026-10-11), so its instructions point it at `AGENTS.md`, then `agent-factory/roles/orchestrator.md`
+and the kit route, with no command to type. Ask it for the work you want done.
+
+- **A skill when the shared skill is installed.** Copilot CLI also reads project skills from
+  `.agents/skills/`, and a skill is used by its name preceded by a forward slash
+  (docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills, retrieved
+  2026-10-11). So an install for `--codex` or `--antigravity`, which writes
+  `.agents/skills/grugops/SKILL.md`, would give Copilot CLI `/grugops` as well.
+- **What is not known.** grugops has made no live run on Copilot CLI: whether it follows the pointer
+  or the skill to the Orchestrator is `UNKNOWN - verify`, and so is which `grugops` skill it offers
+  when Claude Code's `.claude/skills/grugops/` is also present.
+- **Safety on GitHub Copilot CLI** is in §5, "Other tools": the git host is the hard floor.
 
 ### Using grugops on Pi
 
@@ -606,8 +715,12 @@ follows the route on a live run is `UNKNOWN - verify` until the re-run recorded 
   `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md` and
   `prompt-templates.md`; retrieved 2026-10-06.)
 - **What grugops does not write for Pi.** grugops never writes `.pi/SYSTEM.md`,
-  `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, and writes no Pi skill and no Pi extension. The
-  template is the only file it adds under `.pi/`.
+  `.pi/APPEND_SYSTEM.md` or `.pi/settings.json`, and writes no Pi-specific skill and no Pi
+  extension. The template is the only file it adds under `.pi/`. When the same install also chooses
+  `--codex` or `--antigravity`, the shared `.agents/skills/grugops/SKILL.md` is in the repository,
+  and Pi loads skills from `.agents/skills/` too and offers that one as `/skill:grugops`
+  (`github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md`, retrieved
+  2026-10-11). It does not collide with the template's `/grugops`.
 - **The model and effort dials do not reach Pi.** The scope of both dials is stated once, in
   `agent-factory/packaging/subagent.frontmatter.md`, section "Host-CLI scope of the model and
   effort dials". Read it there.
@@ -641,7 +754,10 @@ rules it added (§5; a rule you had before
 install stays), the runnable checks under `tools/grugops/` that still hold what it wrote, and the
 `.grugops/install.json` marker once nothing it records is left. It removes the Pi template
 `.pi/prompts/grugops.md` only while the template still holds what install wrote, and removes
-`.pi/prompts` and `.pi` only when install created them and they are empty.
+`.pi/prompts` and `.pi` only when install created them and they are empty. The agent skill
+`.agents/skills/grugops/SKILL.md` and the OpenCode command `.opencode/commands/grugops.md` are removed
+by the same rule, and the kit-read rule install added to `opencode.json` is taken out as described
+under "What the installer touches (per-repo), and only this".
 
 #### Removing one agent
 

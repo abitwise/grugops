@@ -14,8 +14,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 ## [Unreleased]
 
 Phase 33 (Live Capture & Windows Portability) was open when 2.1.0 was cut and lands in the next
-release, together with Phase 33.1, which retires the Bash command guard, and Phase 34, which adds a
-per-role effort setting and Pi support.
+release, together with Phase 33.1, which retires the Bash command guard, Phase 34, which adds a
+per-role effort setting and Pi support, and Phase 34.1, which installs per agent and replaces Gemini
+CLI with Antigravity CLI.
 
 ### Removed
 
@@ -29,6 +30,14 @@ per-role effort setting and Pi support.
 - UAT oracle A2, which asserted the guard's deny, and the prod-deploy probe case in the live
   capture runner (33.1 D-22, D-28). The live capture now proves the spawn and dual-path criteria
   only.
+- Gemini CLI support (Gemini CLI is discontinued; its registry row is now Antigravity CLI, 34.1
+  D-12). Install no longer reads, creates or edits `.gemini/settings.json`: the `context.fileName`
+  merge, the Gemini entry gate that `--check` asked, and the `gemini-settings` adapter kind are
+  deleted, and no `.gemini/skills/` path is ever written. A Gemini settings change an earlier install
+  recorded in the install ledger is carried unchanged by a re-install, and uninstall still reverses
+  it from that record. This repository's own `.gemini/settings.json` is deleted too (34.1 D-25).
+- `hostsReading`, an unused export of `install/host-tools.ts` that answered which hosts could read a
+  file without asking the entry gate (34.1 D-17, review IN-14).
 
 ### Added
 
@@ -58,8 +67,9 @@ per-role effort setting and Pi support.
 - A foundation guard, `guard_effort_assignment`, that fails by name when a committed adapter's
   `effort:` line differs from the level the configuration resolves to (34 D-15).
 - Pi (pi.dev) as a supported host. The installer reports `pi` when the target root has a `.pi`
-  entry. Every install writes a `/grugops` prompt template at `.pi/prompts/grugops.md`, which only
-  points Pi at the Orchestrator and holds no role text (34 D-10, D-16, D-17). The template also
+  entry. An install for Pi (`--pi`, 34.1 D-06) writes a `/grugops` prompt template at
+  `.pi/prompts/grugops.md`, which only points Pi at the Orchestrator and holds no role text (34 D-10,
+  D-16, D-17). The template also
   names the kit route: after a scripted install, which puts the kit in the shared kit root and not
   in the repository, the kit root is the `kitRoot` field of `.grugops/install.json` (34 D-26).
   Whether Pi follows the route on a live run is `UNKNOWN - verify`; see `install/README.md`, "Using
@@ -74,6 +84,48 @@ per-role effort setting and Pi support.
   oracle, the structure validator and the per-host documentation tables are checked against it. A
   scan of the tracked tree fails on a host count word, or on a host list that names every
   non-spawning host but one.
+- Per-agent install (34.1 D-01, D-06). `install.js` takes one flag per supported agent, derived from
+  the host registry: `--claude`, `--codex`, `--antigravity`, `--opencode`, `--copilot` and `--pi`.
+  There is no all-agents flag. A run writes the shared files (`AGENTS.md`, `tools/grugops/`, the
+  per-repo state and the install marker) and the entries of the agents it is for, and records the
+  installed agents in a new `agents` field of `.grugops/install.json`. Install only adds: naming fewer
+  agents than are installed keeps the others' files and records, and the closing notes name the
+  agents left installed and the uninstall command that removes one (34.1 D-04). The closing notes
+  also give each chosen agent's invocation as its documentation states it, and say that grugops has
+  not run it on a live host (`UNKNOWN - verify`, 34.1 D-19, D-21). An agent flag combined with
+  `--check`, `--update` or `--prune-old-kit` is bad usage, exit `2` (34.1 D-25). The contract is in
+  `install/README.md`, "Command-line contract — choosing agents".
+- The agent list at a terminal (34.1 D-02). With a terminal on standard input and output, no agent
+  flag and no `--yes`, install shows a checkbox list of every supported agent, with the installed and
+  detected agents checked and labelled. Ctrl-C, or confirming with no agent checked, exits `1` and
+  writes nothing. Any agent flag, `--yes`, or a standard input or output that is not a terminal skips
+  the list. The list turns raw mode off and shows the cursor again however it ends.
+- Entries for Codex CLI, Antigravity CLI and OpenCode (34.1 D-08, D-09, D-20). Codex CLI and
+  Antigravity CLI share one agent skill, `.agents/skills/grugops/SKILL.md`, and OpenCode gets the
+  command `.opencode/commands/grugops.md`. With the Pi template, these entries are rendered by
+  `scripts/generate-host-entries.ts` from one pointer file,
+  `agent-factory/packaging/host-entry.pointer.md`, committed, and held byte for byte by
+  `npm run freshness:host-entries` (34.1 D-11). Each is a pointer that carries the start-here sentence
+  and the kit route and no role text. Codex CLI does not turn skills into slash commands, so Codex users
+  type `$grugops` or pick the skill from `/skills`; Antigravity CLI and OpenCode offer `/grugops`
+  (34.1 D-21). `install/README.md` has a "Using grugops on <agent>" section for each agent other
+  than Claude Code, with the sources. Whether any of these agents reaches the Orchestrator on a live
+  run is `UNKNOWN - verify`.
+- OpenCode's kit-read rule (34.1 D-14). An install for OpenCode adds one
+  `permission.external_directory` allow rule for the kit root, written home-relative, as the last
+  member, to the project `opencode.json` (creating the file when there is none), so OpenCode reads
+  the kit outside the repository without asking before each file. Every other byte of the file is
+  kept; the rule is recorded in the install ledger, and uninstall takes out exactly that rule while
+  `external_directory` is still what install left there. When the kit is not under your home
+  directory, the kit path holds a glob or control character, or the file is JSONC, has a duplicate
+  key, is a link or a special file, or only `opencode.jsonc` exists, install writes nothing there and
+  prints the rule to add by hand as a `note`. How the project rule combines with a global OpenCode
+  rule is `UNKNOWN - verify`.
+- Per-agent uninstall (34.1 D-05, D-20). `uninstall.js` takes the same agent flags and removes only
+  what the install ledger records for the agents named. A file two agents share (the agent skill of
+  Codex CLI and Antigravity CLI) stays while either is installed. The shared files go only with a
+  flag-less uninstall or with the removal of the last installed agent, and the closing line names the
+  agents removed and the agents still installed.
 
 ### Changed
 
@@ -143,8 +195,8 @@ per-role effort setting and Pi support.
   entry, the earlier runnables, the backup) and reports each for removal by hand. Setting `target`
   in the marker by hand instead removes only the skills byte-identical to the kit, and the marker.
   See `install/README.md`, "Undo".
-- `.claude/settings.json` and `.gemini/settings.json` are edited in place: only the entries install
-  adds or removes change, and every other byte (number spelling, key order, spacing, line ends) is
+- `.claude/settings.json`, and a `.gemini/settings.json` whose recorded change uninstall reverses, are
+  edited in place: only the entries install adds or uninstall removes change, and every other byte (number spelling, key order, spacing, line ends) is
   kept, so install followed by uninstall gives the file back byte for byte. A settings file with a
   comment, a trailing comma, bytes that are not UTF-8 or a duplicate key on the edited path is
   refused (`verify`, exit `3`) and left untouched.
@@ -178,6 +230,25 @@ per-role effort setting and Pi support.
   adapter line Phase 34 changes in a repository without an effort setting.
 - Host lists in the documentation now include Pi, and sentences that stated a number of host tools
   no longer state one (34 D-11).
+- **Breaking for unattended installs.** An install with no agent flag and no terminal (`--yes`, CI)
+  is no longer for every host (34.1 D-03, D-23). It is for the agents recorded in the `agents` field
+  of `.grugops/install.json`; else, for a marker with an install ledger and no `agents` field (an
+  install by an earlier build of this release), Claude Code, Copilot and Pi, the agents those
+  installs wrote files for; else the agents detected in the repository. With none of these it writes
+  nothing, exits `1`, and names every agent flag. For existing installs this means: an install with a
+  ledger re-installs Claude Code, Copilot and Pi, and its Gemini settings record does not choose
+  Antigravity CLI; a 2.1.0 install, which kept no ledger, falls to detection; Gemini settings are no
+  longer written; and the Pi template is written only for Pi.
+- `install.js --check` reports only the agents installed in the target: the recorded agents, the
+  legacy set for an older marker, or, with nothing recorded, the detected agents with a `note` that
+  says so. Only those agents get a `reach` line or a counted finding, and the Claude Code checks run
+  only when Claude Code is installed (34.1 D-07).
+- GitHub Copilot CLI is detected only by `.github/copilot-instructions.md`. A bare `.github/`
+  directory, which most GitHub repositories have, no longer selects or pre-checks Copilot (34.1 D-24).
+- Antigravity CLI replaces Gemini CLI in the host registry (34.1 D-12, D-13, D-22): id
+  `antigravity`, flag `--antigravity`. It reads `AGENTS.md` natively and the agent skill it shares
+  with Codex CLI. Install detects it by a `.gemini` entry in the repository root, the old Gemini CLI
+  signal, which is `UNKNOWN - verify` for Antigravity CLI. Every per-host table names it.
 
 ### Fixed
 
@@ -202,8 +273,9 @@ per-role effort setting and Pi support.
   as unrecorded (33.1 review WR-02). The marker is now removed only when no `verify` was counted for a
   recorded path and everything install recorded writing is removed, reversed or already gone;
   otherwise it is kept and rewritten to list only what is left.
-- A Gemini settings file install created is reversed whole after a user edit. Install writes
-  `context.fileName: ["AGENTS.md", "GEMINI.md"]` into the file it creates; after you added a key,
+- A Gemini settings file install created is reversed whole after a user edit. Install wrote
+  `context.fileName: ["AGENTS.md", "GEMINI.md"]` into a file it created (before 34.1 D-12 removed
+  the write); after you added a key,
   uninstall removed only the `AGENTS.md` element and left install's own `["GEMINI.md"]`, with no record
   left to reverse it (33.1 review WR-03). While the list is still the one install wrote, uninstall now
   removes `context.fileName`, and `context` when nothing else is in it, and keeps every key you added
@@ -254,9 +326,6 @@ per-role effort setting and Pi support.
 - Uninstall removes `.grugops/install.json` only when it is install's own marker for this directory
   with well-formed ledgers; install no longer overwrites a JSON object at that path that is not its
   marker.
-- Install reports an unreadable or oddly shaped Gemini settings file (not strict JSON, not UTF-8, a
-  duplicate key on the edited path, a `context` that is not an object) as a counted `verify` finding
-  (exit `3`) and leaves it untouched.
 - Install, uninstall and `--check` no longer read, write or hang on a FIFO or other special file at
   a path they use, including `.grugops/install.json` and the kit `VERSION`; the path is skipped and
   reported (33.1 gap round 2, IN-04).
@@ -310,10 +379,6 @@ per-role effort setting and Pi support.
   `ALL CHECKS PASSED` while every host but Claude Code had no route to the Orchestrator (34 D-26,
   G-34-2).
 - `install.js --check` and install's notes now agree with the same run's `reach` lines (34 D-27):
-  - `--check` said Gemini CLI reaches the Orchestrator through `AGENTS.md`, and printed
-    `ALL CHECKS PASSED`, while `.gemini/settings.json` did not list `AGENTS.md` in
-    `context.fileName`. It now says Gemini CLI cannot reach, with a warning that names re-running
-    `install.js` or the edit to make by hand.
   - `--check --strict` failed when the optional Copilot pointer or the Pi template was deleted,
     although every host reached the Orchestrator through `AGENTS.md`. A file without the route that
     leaves no host without one is now an uncounted `note`, so `--check --strict` no longer fails on
