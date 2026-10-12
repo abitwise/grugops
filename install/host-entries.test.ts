@@ -21,11 +21,11 @@ import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rm
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { HOST_TOOLS, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, agentFlag } from "./host-tools.js";
+import { HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, KIT_ROUTE, AGENT_SKILL_REL, agentFlag } from "./host-tools.js";
 import { ENTRY_SHAPES } from "../scripts/generate-host-entries.js";
-import { contentRecord, fileRecord } from "./install-marker.js";
+import { LEGACY_ADAPTER_KINDS, contentRecord, fileRecord } from "./install-marker.js";
 import { INSTALL_JS, MARKER_REL, REPO_ROOT, runInstall, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
-import { fileRecords, markerLedger, readMarkerObject, withLedger } from "./ledger.test-support.js";
+import { fileRecords, markerLedger, readMarkerObject, withLedger, withoutAgentsField } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "ghentries-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -148,6 +148,78 @@ describe("host entries: a single-agent install writes the shared files and that 
       expect(named, `${rel} is reported by --check after a Codex-only install\n${c.stdout}`).toEqual([]);
     }
   });
+});
+
+// ── --check SPEAKS FOR THE INSTALLED AGENTS ONLY (plan 34.1-10, D-07; VERDICT-1) ────────────────────────────────────
+// Every registry row, derived (count asserted): an install with only that agent's flag, then `--check`. The doctor
+// reaches ALL CHECKS PASSED at exit 0 with exactly one reach line, naming that row; the Claude Code adapter
+// cross-check runs only for the `claude-kit` row. Then the two fallbacks of the installed set: a legacy marker (no
+// `agents` field, a usable ledger) and a v2.1.0-shaped marker (no ledger), which falls to detection with a note.
+const reachOf = (stdout: string): string[] => lines(stdout).filter((l) => /^ {2}reach\s/.test(l));
+/** The host name a reach line is about (the text before its first `: `, after the label column). */
+const reachHost = (line: string): string => line.trim().replace(/^reach\s+/, "").split(": ")[0];
+const ADAPTER_AGREE = /^ {2}ok\s+kit-root sources agree \(\//;
+const MARKER_AGREE = /^ {2}ok\s+kit-root sources agree \(rule and marker: .*\); no Claude Code adapter is installed here, so no adapter KIT= line was read$/;
+
+describe("--check reports only the installed agents: one reach line per installed agent (plan 34.1-10, D-07)", () => {
+  it(`the registry has ${HOST_TOOL_COUNT} rows, one single-agent case each`, () => {
+    expect(HOST_TOOLS.length).toBe(HOST_TOOL_COUNT);
+  });
+
+  for (const h of HOST_TOOLS) {
+    it(`${agentFlag(h)} only, then --check: exit 0, ALL CHECKS PASSED, exactly one reach line, for ${h.name}; the adapter cross-check ${h.adapter === "claude-kit" ? "runs" : "is replaced by the rule-and-marker one"}`, () => {
+      const { target, kitHome } = scratchRow();
+      const r = runInstall(target, kitHome, [agentFlag(h)]);
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(readMarkerObject(target).agents, "premise: the marker records the one agent").toEqual([h.id]);
+      const c = check(target, kitHome);
+      expect(c.status, c.stdout + c.stderr).toBe(0);
+      expect(lines(c.stdout), c.stdout).toContain("ALL CHECKS PASSED");
+      const reach = reachOf(c.stdout);
+      expect(reach.map(reachHost), c.stdout).toEqual([h.name]);
+      expect(reach[0], c.stdout).toContain(`${h.name}: reaches the Orchestrator through`);
+      const claude = h.adapter === "claude-kit";
+      expect(lines(c.stdout).some((l) => ADAPTER_AGREE.test(l) && !l.includes("rule and marker")), `the adapter cross-check's ok line\n${c.stdout}`).toBe(claude);
+      expect(lines(c.stdout).some((l) => MARKER_AGREE.test(l)), `the rule-and-marker cross-check's ok line\n${c.stdout}`).toBe(!claude);
+      if (!claude) {
+        // No line names a Claude Code adapter path, and the install wrote none.
+        expect(lines(c.stdout).filter((l) => l.includes(join(target, ".claude", "agents"))), c.stdout).toEqual([]);
+        expect(existsSync(at(target, ".claude")), "premise: no .claude/ in the target").toBe(false);
+      }
+    }, 120_000);
+  }
+
+  it("a legacy marker (every agent installed, then `agents` deleted): reach lines for exactly the LEGACY_ADAPTER_KINDS rows", () => {
+    const { target, kitHome } = scratchRow();
+    const r = runInstall(target, kitHome);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    withoutAgentsField(target);
+    const legacy = HOST_TOOLS.filter((h) => LEGACY_ADAPTER_KINDS.includes(h.adapter));
+    expect(legacy.map((h) => h.id), "premise: the legacy rule's rows (D-23)").toEqual(["claude", "copilot", "pi"]);
+    const c = check(target, kitHome);
+    expect(c.status, c.stdout + c.stderr).toBe(0);
+    expect(reachOf(c.stdout).map(reachHost), c.stdout).toEqual(legacy.map((h) => h.name));
+    expect(lines(c.stdout).some((l) => l.includes("no installed set is recorded")), c.stdout).toBe(false);
+  }, 120_000);
+
+  it("a v2.1.0-shaped marker with no ledger in a target holding .claude: the detection note and a reach line for Claude Code", () => {
+    const { target, kitHome } = scratchRow();
+    const claude = HOST_TOOLS.find((h) => h.adapter === "claude-kit");
+    expect(claude, "premise: a claude-kit row").toBeDefined();
+    const r = runInstall(target, kitHome, [agentFlag(claude!)]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    // The marker as v2.1.0 wrote it: the kit fields and the target, no `agents` and no `ledger` (D-23).
+    const m = readMarkerObject(target);
+    const v210 = { kitVersion: m.kitVersion, grugopsHome: m.grugopsHome, kitRoot: m.kitRoot, installMode: m.installMode, target: m.target };
+    writeMarkerObject(target, v210);
+    const detected = HOST_TOOLS.filter((h) => existsSync(at(target, h.detect)));
+    expect(detected.map((h) => h.id), "premise: only .claude is detected").toEqual([claude!.id]);
+    const c = check(target, kitHome);
+    const notes = linesUnder(c.stdout, "note").filter((l) => l.includes("no installed set is recorded in .grugops/install.json, so --check reports the agents detected here"));
+    expect(notes.length, c.stdout).toBe(1);
+    expect(notes[0], c.stdout).toContain(`${claude!.name}: ${claude!.detect}`);
+    expect(reachOf(c.stdout).map(reachHost), c.stdout).toEqual([claude!.name]);
+  }, 120_000);
 });
 
 // ── EVERY WHOLE-FILE ENTRY (plan 34.1-01, task 2; briefs DC-2, DC-3; T-34-13) ─────────────────────────────────────────

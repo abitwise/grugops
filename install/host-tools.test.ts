@@ -934,6 +934,16 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
 // AGENT_SKILL_REL was already in the set through Codex CLI (D-20).
 const TABLE_CARRIERS = 6;
 const TABLE_ADAPTER_HOSTS = 1;
+// THE HOST-SET AXIS (plan 34.1-10, D-07): strandedBy takes the installed host set as a required argument, so the table
+// also quantifies over every subset of HOST_TOOLS (2^HOST_TOOL_COUNT, asserted) and the oracle is restricted to it.
+const TABLE_HOST_SUBSETS = 2 ** HOST_TOOL_COUNT;
+
+/** Every subset of HOST_TOOLS, each in registry order (bit i of the index keeps row i). */
+function hostSubsets(): HostTool[][] {
+  const out: HostTool[][] = [];
+  for (let bits = 0; bits < 2 ** HOST_TOOLS.length; bits++) out.push(HOST_TOOLS.filter((_, i) => ((bits >> i) & 1) === 1));
+  return out;
+}
 
 describe("reachVia and strandedBy over every combination of the facts (plan 34-33, D-27 point 2)", () => {
   const carriers = [...new Set(HOST_TOOLS.flatMap((h) => expectedCarriers(h.adapter, h.entryFiles)))];
@@ -944,12 +954,21 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
     expect(adapterHosts.length).toBe(TABLE_ADAPTER_HOSTS);
   });
 
-  it("every combination: reachVia equals the oracle's carriers (registry carrier order) and adapter; strandedBy equals the oracle's stranded hosts (registry order), and is empty whenever the carrier holds", () => {
+  it(`the host-set axis: every subset of the ${HOST_TOOL_COUNT} registry rows, ${TABLE_HOST_SUBSETS} subsets`, () => {
+    expect(HOST_TOOLS.length).toBe(HOST_TOOL_COUNT);
+    expect(hostSubsets().length).toBe(TABLE_HOST_SUBSETS);
+    expect(new Set(hostSubsets().map((sub) => sub.map((h) => h.id).join(","))).size, "two subsets are the same").toBe(TABLE_HOST_SUBSETS);
+  });
+
+  it("every combination and every installed host set: reachVia equals the oracle's carriers (registry carrier order) and adapter; strandedBy equals the oracle's stranded hosts restricted to the set (registry order), and is empty whenever the carrier holds", () => {
     const n = carriers.length;
     const k = adapterHosts.length;
+    const subsets = hostSubsets();
     let combos = 0;
+    let subsetRuns = 0;
     let strandedSeen = 0;
     let emptySeen = 0;
+    let narrowedSeen = 0;
     for (let bits = 0; bits < 2 ** (n + k); bits++) {
       combos += 1;
       const bit = (i: number): boolean => ((bits >> i) & 1) === 1;
@@ -969,19 +988,31 @@ describe("reachVia and strandedBy over every combination of the facts (plan 34-3
         expect(v.adapter, `reachVia(${h.id}).adapter ${label}`).toBe(adapterSet.has(h.id));
       }
       for (const rel of [...carriers, "no/such/carrier.md"]) {
-        const want = holdsSet.has(rel)
+        const all = holdsSet.has(rel)
           ? []
           : HOST_TOOLS.filter(
               (h) => expectedCarriers(h.adapter, h.entryFiles).includes(rel) && oracleVia(h).length === 0 && !adapterSet.has(h.id),
             ).map((h) => h.id);
-        const got = strandedBy(rel, facts, HOST_TOOLS).map((h) => h.id);
-        expect(got, `strandedBy(${rel}) ${label}`).toEqual(want);
-        if (holdsSet.has(rel)) expect(got, `strandedBy(${rel}) while it holds ${label}`).toEqual([]);
-        if (got.length > 0) strandedSeen += 1;
-        else emptySeen += 1;
+        for (const subset of subsets) {
+          subsetRuns += 1;
+          // The oracle restricted to the installed set: the stranded hosts among its members, in registry order. The
+          // subset is handed over in reverse order, so an answer in the caller's order instead of the registry's is red.
+          const ids = new Set(subset.map((h) => h.id));
+          const want = all.filter((id) => ids.has(id));
+          const got = strandedBy(rel, facts, [...subset].reverse()).map((h) => h.id);
+          const sub = `hosts=[${[...ids].join(",")}]`;
+          expect(got, `strandedBy(${rel}) ${label} ${sub}`).toEqual(want);
+          if (holdsSet.has(rel)) expect(got, `strandedBy(${rel}) while it holds ${label} ${sub}`).toEqual([]);
+          if (got.length > 0) strandedSeen += 1;
+          else emptySeen += 1;
+          if (want.length < all.length) narrowedSeen += 1;
+        }
       }
     }
     expect(combos).toBe(2 ** (TABLE_CARRIERS + TABLE_ADAPTER_HOSTS));
+    expect(subsetRuns).toBe(2 ** (TABLE_CARRIERS + TABLE_ADAPTER_HOSTS) * (TABLE_CARRIERS + 1) * TABLE_HOST_SUBSETS);
+    // The set narrows some answer (a stranded host outside the installed set is dropped).
+    expect(narrowedSeen).toBeGreaterThan(0);
     // Vacuity floors: the table reaches both answers.
     expect(strandedSeen).toBeGreaterThan(0);
     expect(emptySeen).toBeGreaterThan(0);

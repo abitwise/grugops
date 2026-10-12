@@ -1621,17 +1621,6 @@ function doctor(): number {
   console.log("");
 
   const markerFile = join(TARGET, ".grugops", "install.json");
-  // The adapter the D-03 cross-check reads source (c) from is DERIVED (KIT-02), never named. Take
-  // the first derived target adapter that actually carries a materialized KIT= line; if none does,
-  // fall back to the first derived destination so the FAIL message still names a concrete path.
-  // Fail-closed is preserved: an absent file or a missing KIT line still reads as "" below.
-  // `?? []` here is the doctor's EXISTING fail-closed posture made explicit, not a swallowed null:
-  // an unreadable source adapter directory leaves no candidate, the fallback below still names a
-  // concrete path, and the KIT= cross-check still reads as "" → FAIL. The doctor is a read-only
-  // reporter with its own FAIL surface, so it does not also emit the install path's verify finding.
-  // Plan 34-33: the read is adapterKitOnDisk's, shared with install's route-note pass.
-  const adapterOnDisk = adapterKitOnDisk();
-  const adapterFile = adapterOnDisk.file;
 
   // --- not-installed fold-into-FAIL (RESEARCH Discretion §5) --------------------------------
   // Absent marker = a dev/uninstalled checkout; a marker that is there but unreadable is named as
@@ -1703,6 +1692,22 @@ function doctor(): number {
         `does not know as an agent, so --check gives ${installed.unknown.length > 1 ? "them" : "it"} no reach line`,
     );
   }
+  // THE CLAUDE CODE CHECKS (phase 34.1, D-07; VERDICT-1) run only when Claude Code is installed here: the adapters'
+  // KIT= source of the kit-root cross-check, the adapter-referenced stat lines, the adapter staleness block and the
+  // ask-rule remedy. A target without Claude Code has no adapters to read, so nothing is said about them.
+  const claudeInstalled = hosts.some((h) => h.adapter === "claude-kit");
+  // The adapter the D-03 cross-check reads source (c) from is DERIVED (KIT-02), never named. Take
+  // the first derived target adapter that actually carries a materialized KIT= line; if none does,
+  // fall back to the first derived destination so the FAIL message still names a concrete path.
+  // Fail-closed is preserved: an absent file or a missing KIT line still reads as "" below.
+  // `?? []` here is the doctor's EXISTING fail-closed posture made explicit, not a swallowed null:
+  // an unreadable source adapter directory leaves no candidate, the fallback below still names a
+  // concrete path, and the KIT= cross-check still reads as "" → FAIL. The doctor is a read-only
+  // reporter with its own FAIL surface, so it does not also emit the install path's verify finding.
+  // Plan 34-33: the read is adapterKitOnDisk's, shared with install's route-note pass. Not read at all
+  // when Claude Code is not installed (D-07).
+  const adapterOnDisk = claudeInstalled ? adapterKitOnDisk() : null;
+  const adapterFile = adapterOnDisk !== null ? adapterOnDisk.file : null;
   if (hosts.length === 0) {
     docWarn(
       `no agent is ${installed.source === "detected" ? "recorded or detected" : "recorded as installed that this build knows"} ` +
@@ -1716,21 +1721,34 @@ function doctor(): number {
   // three via docAbspath (mirrors the sh abspath); all-equal → pass; differ-but-all-real-and-
   // cosmetic → WARN; any unresolvable or genuinely different real kits → FAIL (name all three).
   // Bias to FAIL when unsure.
+  // Without Claude Code (D-07) there is no adapter source: the rule and the marker are compared with the same three
+  // outcomes, and the ok line says no adapter KIT= line was read because no Claude Code adapter is installed here.
   const a = KIT_ROOT;
   const b = marker.kitRoot ? String(marker.kitRoot) : "";
-  const c = adapterOnDisk.kit;
   const na = docAbspath(a);
   const nb = b ? docAbspath(b) : "";
-  const nc = c ? docAbspath(c) : "";
-  if (na === nb && nb === nc) {
-    docReport("ok", `kit-root sources agree (${na})`);
-  } else if (kitReal(na) && kitReal(nb) && kitReal(nc)) {
-    docWarn(`kit-root sources differ cosmetically: rule=${na} marker=${nb} adapter=${nc}`);
+  if (adapterOnDisk !== null) {
+    const c = adapterOnDisk.kit;
+    const nc = c ? docAbspath(c) : "";
+    if (na === nb && nb === nc) {
+      docReport("ok", `kit-root sources agree (${na})`);
+    } else if (kitReal(na) && kitReal(nb) && kitReal(nc)) {
+      docWarn(`kit-root sources differ cosmetically: rule=${na} marker=${nb} adapter=${nc}`);
+    } else {
+      docFail(
+        `kit-root sources DISAGREE (stale/moved install): rule=${na} marker=${nb || "<unset>"} adapter=${nc || "<unset>"}  (referenced by ${markerFile} + ${adapterOnDisk.file})`,
+      );
+    }
+  } else if (na === nb) {
+    docReport("ok", `kit-root sources agree (rule and marker: ${na}); no Claude Code adapter is installed here, so no adapter KIT= line was read`);
+  } else if (kitReal(na) && kitReal(nb)) {
+    docWarn(`kit-root sources differ cosmetically: rule=${na} marker=${nb} (no Claude Code adapter is installed here)`);
   } else {
-    docFail(
-      `kit-root sources DISAGREE (stale/moved install): rule=${na} marker=${nb || "<unset>"} adapter=${nc || "<unset>"}  (referenced by ${markerFile} + ${adapterFile})`,
-    );
+    docFail(`kit-root sources DISAGREE (stale/moved install): rule=${na} marker=${nb || "<unset>"}  (referenced by ${markerFile})`);
   }
+  // The file each stat line below names as its reference: the adapter the cross-check read, or the marker when no
+  // Claude Code adapter is installed here (D-07).
+  const statRef = adapterFile ?? markerFile;
 
   // --- deterministic ordered first-failure stat set (D-02 / D-05) ----------------------------
   // Fixed order, most-load-bearing first. Kit refs resolve under KIT_ROOT; state refs resolve
@@ -1745,11 +1763,11 @@ function doctor(): number {
   // that says no verdict was reached on it; absent stays the FAIL it always was.
   const refs: Array<[string, string, "dir" | "file"]> = [
     [KIT_ROOT, markerFile, "dir"],
-    [join(KIT_ROOT, "roles", "orchestrator.md"), adapterFile, "file"],
-    [join(KIT_ROOT, "roles", "_role-switch-protocol.md"), adapterFile, "file"],
-    [join(KIT_ROOT, "workflows"), adapterFile, "dir"],
-    [join(TARGET, ".grugops", "factory.config.json"), adapterFile, "file"],
-    [join(TARGET, "plans", "board.md"), adapterFile, "file"],
+    [join(KIT_ROOT, "roles", "orchestrator.md"), statRef, "file"],
+    [join(KIT_ROOT, "roles", "_role-switch-protocol.md"), statRef, "file"],
+    [join(KIT_ROOT, "workflows"), statRef, "dir"],
+    [join(TARGET, ".grugops", "factory.config.json"), statRef, "file"],
+    [join(TARGET, "plans", "board.md"), statRef, "file"],
     // MIGR-02 (Phase 24): plans/handoffs/ is no longer seeded (the note-native trace replaced the
     // handoff relay), so the doctor must NOT require it — checking it here would FAIL every clean
     // install. Removed deliberately in lockstep with the seedState mkdir removal.
@@ -1790,7 +1808,7 @@ function doctor(): number {
   // Orchestrator, and do the pointers name it), so a FAIL above does not answer it. The ledger is the one
   // the doctor reads above; an unbound or malformed marker gives no ownership, so a carrier without the
   // route is then a WARN, never a FAIL claimed from a record uninstall would not use.
-  kitRouteFindings(marker, ledgerRead, markerFile, nc, hosts);
+  kitRouteFindings(marker, ledgerRead, markerFile, adapterOnDisk !== null && adapterOnDisk.kit ? docAbspath(adapterOnDisk.kit) : "", hosts);
 
   // --- WARN tier (D-06, detect-only per D-07): only when the cross-check + stats are clean -----
   if (DOC_FAILS === 0) {
@@ -1812,7 +1830,7 @@ function doctor(): number {
       docWarn(
         `kit-version unknown: the install marker ${markerFile} records no kit version ` +
           `(${marker.kitVersion === undefined ? "the field is absent" : `it holds ${JSON.stringify(marker.kitVersion).slice(0, 60)}`}), so the ` +
-          `version of the grugops kit files in ${join(TARGET, ".claude")} is not known and NO VERDICT on kit-version skew was ` +
+          `version of ${claudeInstalled ? `the grugops kit files in ${join(TARGET, ".claude")}` : `the grugops kit this target uses (${nb || "<unset>"})`} is not known and NO VERDICT on kit-version skew was ` +
           `reached. A re-install that writes the kit records it`,
       );
     }
@@ -1868,7 +1886,8 @@ function doctor(): number {
     // that predicate inside the doctor is the duplicate-authority class this repository keeps
     // deleting. What this side adds is the SEVERITY and the sentence that makes the absence of a
     // verdict legible as such — never as a clean one.
-    const docNames = srcAdapterFiles(GRUGOPS_SRC) ?? [];
+    // Only when Claude Code is installed here (D-07): a target without it has no adapters to be stale.
+    const docNames = claudeInstalled ? (srcAdapterFiles(GRUGOPS_SRC) ?? []) : [];
     if (docNames.length > 0) {
       renderAdaptersInMirror((res) => {
         if (!res.ok) {
@@ -2044,9 +2063,13 @@ function doctor(): number {
         "were not checked, and neither the installer nor the uninstaller will change them until the field is fixed",
     );
   } else if (!askLedger) {
+    // The remedy is one install carries out only when Claude Code is chosen (plan 34.1-08: ask rules only for Claude
+    // Code), so without it installed here the line says why no rules are expected instead (D-07).
     docReport(
       "info",
-      "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them",
+      claudeInstalled
+        ? "the install ledger records no ask rules for .claude/settings.json — re-run the installer to write them"
+        : "the install ledger records no ask rules for .claude/settings.json, and none are expected: Claude Code is not installed here",
     );
   } else {
     let presentAsk: string[] | null = null;
