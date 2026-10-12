@@ -264,6 +264,22 @@ export function hostForFlag(arg: string): HostTool | null {
   return null;
 }
 
+/** A target path that is one POSIX shell word as it is: printed bare by agentCommand. */
+const SHELL_SAFE_WORD = /^[A-Za-z0-9_./,:@%+=-]+$/;
+
+/**
+ * agentCommand (phase 34.1 gap round 1, D-26; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names
+ * agents. It returns `node install/<binary> --target <target>` followed by agentFlag(h) for each host in the order
+ * given, so the flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no flag: the
+ * flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what it means.
+ * The target is printed as it is when it is one shell word of safe characters; otherwise it is single-quoted, each `'`
+ * written as `'\''`, so a path with a space or a shell character stays one argument (T-34.1-28). Pure: no I/O.
+ */
+export function agentCommand(binary: "install.js" | "uninstall.js", target: string, hosts: readonly HostTool[]): string {
+  const word = SHELL_SAFE_WORD.test(target) ? target : "'" + target.split("'").join("'\\''") + "'";
+  return ["node", "install/" + binary, "--target", word, ...hosts.map(agentFlag)].join(" ");
+}
+
 /**
  * ROUTE_POINTERS (plan 34-28, D-26 point 3): the pointer files install writes for each adapter kind that
  * carry the start-here sentence and KIT_ROUTE, as POSIX paths relative to the target root. Keyed by

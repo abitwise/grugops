@@ -49,7 +49,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { LEGACY_MERGED_BEFORE, LEGACY_MERGED_TEXT, askRecord, dirList, ledgerOf, plantLegacyGemini, readMarkerObject, withLedger } from "./ledger.test-support.js";
-import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentFlag, entryOwners } from "./host-tools.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, PI_PROMPT_REL, agentCommand, agentFlag, entryOwners } from "./host-tools.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -62,6 +62,7 @@ import {
   printedRel,
   rebindMarker,
   runInstall,
+  runPrintedCommand,
   runUninstall,
   snapshotTree,
   spawnBin,
@@ -794,7 +795,9 @@ describe("per-agent uninstall (D-05)", () => {
     expect(r.stdout).toMatch(/would-edit\s+\.grugops\/install\.json .*its `agents` list would become \[claude\]/);
   });
 
-  it("(e) a user-edited Codex entry is left, and its entry stays in the kept marker", () => {
+  // CR-02 (D-26, D-29): the agent that owns the held entry stays recorded beside it, the banner says the removal is not
+  // finished, and the printed command (agentCommand, built here from the registry row) is the one that finishes it.
+  it("(e) a user-edited Codex entry is left, its entry stays in the kept marker, and Codex CLI stays recorded beside it", () => {
     const t = installedTree("per-agent-edited", [flag("claude"), flag("codex")]);
     const skill = at(t.target, AGENT_SKILL_REL);
     writeFileSync(skill, readFileSync(skill, "utf8") + "\nmy own line\n");
@@ -806,8 +809,39 @@ describe("per-agent uninstall (D-05)", () => {
     expect(linesFor(r.stdout, AGENT_SKILL_REL, t.target).map((l) => l.label), r.stdout).toEqual(["left"]);
     const marker = readMarkerObject(t.target);
     expect(ledgerOf(marker).some((e) => e.path === AGENT_SKILL_REL && e.kind === "file"), "the edited entry left the ledger").toBe(true);
-    expect(marker.agents).toEqual(["claude"]);
-    expect(r.stdout).toMatch(/== uninstall complete — 1 recorded item\(s\) left in place; .* — agents removed: Codex CLI; still installed: Claude Code ==/);
+    expect(marker.agents, r.stdout).toEqual(["claude", "codex"]);
+    expect(r.stdout).toMatch(
+      /== uninstall complete — 1 recorded item\(s\) left in place; .* — agents removed: none; not finished, still recorded: Codex CLI; still installed: Claude Code ==/,
+    );
+    const codexRow = HOST_TOOLS.filter((h) => h.id === "codex");
+    expect(r.stdout, "the command that finishes the reversal is not printed").toContain(`\`${agentCommand("uninstall.js", t.target, codexRow)}\``);
+  });
+
+  it("(h) CR-02: restore the edited file and run the printed command: the agent's files and its record go", () => {
+    const t = installedTree("per-agent-restore", [flag("claude"), flag("codex")]);
+    const rel = ".claude/skills/grugops-gate/SKILL.md";
+    const file = at(t.target, rel);
+    const original = readFileSync(file);
+    writeFileSync(file, Buffer.concat([original, Buffer.from("\nmy own line\n")]));
+    const r = runUninstall(t.target, t.grugopsHome, { home: t.home, timeoutMs: 60_000 }, [flag("claude")]);
+    expectFinished(r, "uninstall --claude over an edited Claude Code skill");
+    expect(r.status, r.stdout).toBe(0);
+    expect(linesFor(r.stdout, rel, t.target).map((l) => l.label), r.stdout).toEqual(["left"]);
+    const kept = readMarkerObject(t.target);
+    expect(kept.agents, `Claude Code left the record while it owns a held entry\n${r.stdout}`).toEqual(["claude", "codex"]);
+    expect(ledgerOf(kept).some((e) => e.path === rel && e.kind === "file"), "the held entry left the ledger").toBe(true);
+    const claudeRow = HOST_TOOLS.filter((h) => h.id === "claude");
+    const expected = agentCommand("uninstall.js", t.target, claudeRow);
+    expect(expected.endsWith(` ${flag("claude")}`), expected).toBe(true);
+    expect(r.stdout, "the finishing command is not printed").toContain(`\`${expected}\``);
+
+    writeFileSync(file, original);
+    const fin = runPrintedCommand(r.stdout, { grugopsHome: t.grugopsHome, home: t.home });
+    expectFinished(fin, "the printed command");
+    expect(fin.status, `${fin.stdout}\n${fin.stderr}`).toBe(0);
+    expect(existsSync(at(t.target, ".claude/skills/grugops-gate")), `the restored skill is still there\n${fin.stdout}`).toBe(false);
+    expect(readMarkerObject(t.target).agents, fin.stdout).toEqual(["codex"]);
+    expect(fin.stdout).toMatch(/== uninstall complete — agents removed: Claude Code; still installed: Codex CLI ==/);
   });
 
   it("(f) an argument that is not an agent flag is bad usage (exit 2), before anything is read", () => {

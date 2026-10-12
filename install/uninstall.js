@@ -119,7 +119,7 @@ import { allAskRules, createdSettingsText } from "./checkpoint-ask-rules.js";
 // D-33 (b), plan 33.1-36: the ONE reader of the install marker and of the one install ledger
 // (readLedger), its one serializer (ledgerJson) and the one ownership authority (owns), shared with
 // install.ts (WR-05).
-import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, } from "./install-marker.js";
+import { MARKER_REL, readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, owns, notRecordedReason, geminiEntry, askRulesEntry, GEMINI_SETTINGS_REL, createdGeminiText, createdOpenCodeText, ASK_RULES_REL, BLOCK_RELS, blockLineSpans, markerUnusableText, contentRecord, recordMatches, NO_MODE_NOTE, modeText, modeMatches, recordedModeOf, checkRecord, jsonValueRecord, installedAgents, AGENTS_FIELD, entryHolds, agentsToRecord, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. A
 // removal deletes exactly the span install's insertion added; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, valueOf, documentValue, removeItems, replaceWithText, sameJsonValue, firstDuplicateKey } from "./json-text.js";
@@ -132,7 +132,7 @@ import { readUserFile, readForWrite, wayTo, kindAt, isOwnLink, gone, canonicalPa
 // Phase 34.1, D-05: the one registry of agents (pure data). agentFlag and hostForFlag are the one spelling of a
 // per-agent flag, shared with install.ts; entryOwners is the one answer to "which agents own this ledger entry";
 // ADAPTER_FOOTPRINT gives the report pass its directory candidates (reportDirCandidates).
-import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners } from "./host-tools.js";
+import { HOST_TOOLS, HOST_ADAPTER_KINDS, ADAPTER_FOOTPRINT, OPENCODE_CONFIG_REL, agentFlag, hostForFlag, entryOwners, agentCommand } from "./host-tools.js";
 // ---------------------------------------------------------------------------
 // Argument parsing (CR-02). Mirrors install.ts's loop so uninstall honors the surface its own
 // README advertises (`node install/uninstall.js --target /path/to/repo`). Without this loop the
@@ -237,17 +237,9 @@ let RECORDED_VERIFIES = 0;
 // THE MARKER RULE (plan 33.1-39, review WR-02, D-33 (b)). The marker is the only record of what install
 // wrote, so it is removed only once that record is discharged: no verify was counted for a recorded entry,
 // and every entry whose content install wrote (file, block, gemini, ask-rules, opencode-permission) was removed, reversed, or
-// found already gone, or claims nothing. Directory and backup entries do not hold it (see the header).
-const HOLDING_KINDS = new Set(["file", "block", "gemini", "ask-rules", "opencode-permission"]);
+// found already gone, or claims nothing. Directory and backup entries do not hold it (see the header). Which entries hold
+// is answered once, by install-marker.ts entryHolds (plan 34.1-14 moved HOLDING_KINDS there), which agentsToRecord asks too.
 const DISCHARGED = new Set(["removed", "gone", "reversed"]);
-/** A gemini or ask-rules entry that records nothing install added or created: there is nothing of install's to reverse. */
-function entryClaimsNothing(e) {
-    if (e.kind === "gemini")
-        return !e.addedEntry && !e.createdFile;
-    if (e.kind === "ask-rules")
-        return e.added.length === 0 && !e.createdFile && !e.createdPermissions && !e.createdAsk;
-    return false;
-}
 /**
  * The recorded entries still holding the marker: install wrote content there, and this run did not discharge it. On a
  * partial run (phase 34.1, D-05) only the entries this run may reverse (inScope) are asked: the others belong to the
@@ -255,7 +247,7 @@ function entryClaimsNothing(e) {
  */
 function heldEntries() {
     return LEDGER.entries.filter((e) => {
-        if (!HOLDING_KINDS.has(e.kind) || entryClaimsNothing(e) || !inScope(e))
+        if (!entryHolds(e) || !inScope(e))
             return false;
         const o = OUTCOMES.get(outcomeKey(e));
         return o === undefined || !DISCHARGED.has(o);
@@ -1403,8 +1395,15 @@ function removeMarker() {
         const why = held.length > 0
             ? `${held.length} recorded item(s) are still in place (${held.join(", ")})`
             : "this run could not finish a recorded reversal (see the verify lines above)";
-        report("left", `${MARKER_REL} (kept: ${why}, so the record a later run needs to finish the reversal is kept; remove or ` +
-            `restore what is named and re-run uninstall, or delete the marker by hand to keep them without a record)`);
+        // MSG-1 (D-26): the remedy is a command this run built (finishCommand), which, run once each named item is removed
+        // or restored, finishes the reversal; the agents that stay recorded until then are named.
+        const recorded = UNFINISHED.length > 0
+            ? `${nameList(UNFINISHED)} ${UNFINISHED.length === 1 ? "stays" : "stay"} recorded in its \`agents\` list until ` +
+                `the reversal is finished; `
+            : "";
+        report("left", `${MARKER_REL} (kept: ${why}, so the record a later run needs to finish the reversal is kept; ${recorded}once ` +
+            `each named item is removed or restored, \`${finishCommand()}\` finishes the reversal; or delete the marker ` +
+            `by hand to keep them without a record)`);
         if (RECORDED_VERIFIES === 0)
             KEPT_FOR = held.length;
         return { kind: "kept", rewrite: updateKeptMarker(m, MARKER.marker, MARKER.bytes) };
@@ -1477,8 +1476,8 @@ function markerOutcomeLine(o) {
 //                        which claims nothing (GEMINI_LEDGER_AFTER, ASK_LEDGER_AFTER);
 //   left, verify         the entry is kept exactly as found, so a later run can finish it;
 //   dir, backup          kept only while the path is still there (and not removed by this run).
-// Since phase 34.1 (D-05) its `agents` list is rewritten too (agentsAfter: the agents still installed on a partial run,
-// none after a FULL one). Every other marker field is written back exactly as found, in its order; a malformed ledger is never
+// Since phase 34.1 (D-05) its `agents` list is rewritten too (agentsAfter: install-marker.ts agentsToRecord over the
+// ledger this rewrite keeps, so an agent stays recorded while it owns a held entry, D-26, D-29). Every other marker field is written back exactly as found, in its order; a malformed ledger is never
 // rewritten (nothing in it was used, so nothing in it is changed). The write goes through the one rewrite
 // (rewritePath), only after readForWrite (no link followed at the marker or on the way) shows the same
 // regular file with the same bytes this run read at its start. When it cannot be written, that is a counted
@@ -1487,34 +1486,12 @@ function markerOutcomeLine(o) {
 // It returns what it did (plan 34-26): rewritten, unchanged (nothing to take out, or not install's marker),
 // would-rewrite (DRY_RUN) or not-rewritten (a counted verify says why).
 /**
- * agentsAfter (phase 34.1, D-05): the `agents` a kept marker records. A partial run keeps the agents that stay installed
- * (STAYING: REMAINING in registry order, then any recorded id the registry does not know, verbatim, as install writes
- * them); a FULL run removed every agent, so the list is empty.
+ * keptLedger (plan 34.1-14): the ledger a kept marker records, from LEDGER and OUTCOMES by the rules above. `kept` is the
+ * entries the rewrite writes back (an after-record in place of a reversed gemini or ask-rules entry); `stale` names each
+ * entry this run took out, for the report and the remedy. updateKeptMarker writes `kept`, and agentsAfter derives the
+ * `agents` value from the same list, so the two fields of the rewritten marker cannot disagree.
  */
-function agentsAfter() {
-    return FULL ? [] : [...STAYING];
-}
-/**
- * The marker with `agents` and `ledger` replaced and every other field as found, in its order. A marker written before
- * phase 34.1 has no `agents`; it is put right before `ledger`, where install writes it.
- */
-function withAgentsAndLedger(marker, agents, ledger) {
-    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-    const next = {};
-    for (const [k, v] of Object.entries(marker)) {
-        if (k === "ledger" && !has(next, AGENTS_FIELD))
-            next[AGENTS_FIELD] = agents;
-        next[k] = k === AGENTS_FIELD ? agents : k === "ledger" ? ledger : v;
-    }
-    if (!has(next, AGENTS_FIELD))
-        next[AGENTS_FIELD] = agents;
-    return next;
-}
-function updateKeptMarker(m, marker, readBytes) {
-    // Only install's own marker, holding a well-formed ledger, is ever rewritten: the one authority answers for
-    // the marker (plan 33.1-38).
-    if (!owns(LEDGER, TARGET, MARKER_REL, "marker").owned)
-        return "unchanged";
+function keptLedger() {
     const stale = [];
     const kept = [];
     const named = (e) => e.kind === "dir"
@@ -1553,6 +1530,46 @@ function updateKeptMarker(m, marker, readBytes) {
         }
         kept.push(e);
     }
+    return { kept, stale };
+}
+/**
+ * agentsAfter (phase 34.1, D-05; gap round 1, D-26, D-29): the `agents` a kept marker records, from the one derivation,
+ * install-marker.ts agentsToRecord, over the ledger this rewrite keeps (keptLedger). A partial run keeps the agents that
+ * stay installed (REMAINING) and the recorded ids the registry does not know, verbatim; a FULL run keeps none. On both,
+ * an installed agent that still owns a held entry (an edited file this run left, a reversal that counted a verify)
+ * stays recorded, so the command that finishes the reversal (finishCommand) still names it and works. A held entry no
+ * agent owns (the D-06 shared footprint) keeps no agent recorded.
+ */
+function agentsAfter() {
+    return agentsToRecord({
+        known: INSTALLED.ids,
+        keep: FULL ? [] : REMAINING,
+        unknown: !FULL && INSTALLED.source === "recorded" ? INSTALLED.unknown : [],
+        entries: keptLedger().kept,
+    });
+}
+/**
+ * The marker with `agents` and `ledger` replaced and every other field as found, in its order. A marker written before
+ * phase 34.1 has no `agents`; it is put right before `ledger`, where install writes it.
+ */
+function withAgentsAndLedger(marker, agents, ledger) {
+    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const next = {};
+    for (const [k, v] of Object.entries(marker)) {
+        if (k === "ledger" && !has(next, AGENTS_FIELD))
+            next[AGENTS_FIELD] = agents;
+        next[k] = k === AGENTS_FIELD ? agents : k === "ledger" ? ledger : v;
+    }
+    if (!has(next, AGENTS_FIELD))
+        next[AGENTS_FIELD] = agents;
+    return next;
+}
+function updateKeptMarker(m, marker, readBytes) {
+    // Only install's own marker, holding a well-formed ledger, is ever rewritten: the one authority answers for
+    // the marker (plan 33.1-38).
+    if (!owns(LEDGER, TARGET, MARKER_REL, "marker").owned)
+        return "unchanged";
+    const { kept, stale } = keptLedger();
     const next = withAgentsAndLedger(marker, agentsAfter(), ledgerJson(kept));
     if (JSON.stringify(next) === JSON.stringify(marker))
         return "unchanged";
@@ -2185,6 +2202,20 @@ function inScope(e) {
 }
 const hostName = (id) => HOST_TOOLS.find((h) => h.id === id)?.name ?? id;
 const nameList = (ids) => (ids.length === 0 ? "none" : ids.map(hostName).join(", "));
+/** The HOST_TOOLS rows of `ids`, in registry order. */
+const hostsOf = (ids) => HOST_TOOLS.filter((h) => ids.includes(h.id));
+/**
+ * finishCommand (plan 34.1-14, D-26; brief MSG-1): the command that finishes the reversal this run could not finish,
+ * built by host-tools.ts agentCommand. A FULL run finishes with the flag-less command. A partial run names the agents
+ * it set out to remove that stay recorded (UNFINISHED), so running it removes their held entries once each is removed
+ * or restored, and never the agents that stay. A partial run never prints the flag-less command, which removes every
+ * agent (D-05): when no named agent stays recorded it names the agents this run's flags named.
+ */
+function finishCommand() {
+    if (FULL)
+        return agentCommand("uninstall.js", TARGET, []);
+    return agentCommand("uninstall.js", TARGET, hostsOf(UNFINISHED.length > 0 ? UNFINISHED : NAMED));
+}
 if (REMOVE.size > 0) {
     console.log(`agents to remove: ${nameList(NAMED)}`);
     for (const host of HOST_TOOLS) {
@@ -2285,6 +2316,10 @@ for (const d of reportDirCandidates()) {
 //    .grugops/ dir is intentionally NOT rmdir'd — the seeded factory.config.json keeps it
 //    populated, and even an empty .grugops/ is the user's state dir, not grugops' to remove.
 //    Never remove $GRUGOPS_HOME — the shared kit is shared across repos; manual rm only.
+// UNFINISHED (plan 34.1-14, D-26): the agents this run set out to remove (NAMED; every installed agent on a FULL run)
+// that the kept marker still records, because each owns an entry this run left in place (agentsAfter). Taken after
+// the walk, whose outcomes decide it, and before removeMarker, whose `left` line names them.
+const UNFINISHED = (FULL ? INSTALLED.ids : NAMED).filter((id) => agentsAfter().includes(id));
 const markerOutcome = removeMarker();
 // THE PRESERVED BLOCK STATES WHAT UNINSTALL LEAVES, AND THE MARKER LINE STATES WHAT THIS RUN DID (plan
 // 34-26, D-25, sibling C). The block used to say, on every run, that only the marker is removed, while
@@ -2300,11 +2335,14 @@ console.log(`  ${MARKER_REL} (the install marker): ${markerOutcomeLine(markerOut
 // claim it did not earn. The `verify` lines above name what was left behind and what to do about it.
 // A PARTIAL RUN SAYS WHICH AGENTS IT REMOVED AND WHICH STAY (phase 34.1, D-05), on each branch below, so the banner
 // never reads as if grugops were gone from the repository.
+// An agent this run set out to remove that stays recorded (UNFINISHED) is not named as removed: it is named as not
+// finished (D-26), and the `left` line and the banner print the command that finishes it.
 const AGENTS_CLAUSE = FULL
     ? ""
     : NAMED.length === 0
         ? ` — no agent removed (none of the named agents is installed here); still installed: ${nameList(STAYING)}`
-        : ` — agents removed: ${nameList(NAMED)}; still installed: ${nameList(STAYING)}`;
+        : ` — agents removed: ${nameList(NAMED.filter((id) => !UNFINISHED.includes(id)))}` +
+            `${UNFINISHED.length > 0 ? `; not finished, still recorded: ${nameList(UNFINISHED)}` : ""}; still installed: ${nameList(STAYING)}`;
 if (VERIFY_FINDINGS > 0) {
     console.log(`\n== uninstall INCOMPLETE — ${VERIFY_FINDINGS} item(s) need verification${AGENTS_CLAUSE}` +
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
@@ -2352,8 +2390,8 @@ else if (KEPT_FOR > 0) {
     // banner says so on the same branch, with the two ways forward.
     console.log(`\n== uninstall complete — ${KEPT_FOR} recorded item(s) left in place; ${MARKER_REL} kept to record them${AGENTS_CLAUSE}` +
         `${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);
-    console.log(`  To finish: remove or restore what the \`left\` lines name and re-run uninstall; or, to keep them, delete ` +
-        `${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more).`);
+    console.log(`  To finish: remove or restore what the \`left\` lines name, then run \`${finishCommand()}\`; or, to keep them, ` +
+        `delete ${MARKER_REL} by hand (uninstall then has no record of them and changes nothing more).`);
 }
 else {
     console.log(`\n== uninstall complete${AGENTS_CLAUSE}${DRY_RUN ? " (DRY_RUN — nothing changed)" : ""} ==`);

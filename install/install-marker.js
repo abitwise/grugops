@@ -5,7 +5,8 @@
 //
 // Cross-platform. ZERO npm dependencies: it imports only node:crypto (a hash, no I/O), node:path,
 // ./user-file.ts, ./json-text.ts (no I/O; the strict tokenizer that refuses a duplicate key) and
-// ./host-tools.ts (pure data, no imports: the agent registry installedAgents maps ids against). A
+// ./host-tools.ts (pure data, no imports: the agent registry installedAgents maps ids against, and entryOwners,
+// which agentsToRecord asks). A
 // sibling of install.js and uninstall.js inside install/, imported by BOTH binaries, so both still
 // run on a host with nothing installed. This module never writes and imports nothing from node:fs;
 // install/installer-fs-census.test.ts scans it with the rest of install/ and asserts it makes no
@@ -157,7 +158,7 @@
 // Clear professional voice: this is a safety surface (installer reversal).
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { HOST_TOOLS, OPENCODE_CONFIG_REL } from "./host-tools.js";
+import { HOST_TOOLS, OPENCODE_CONFIG_REL, entryOwners } from "./host-tools.js";
 import { firstDuplicateKey, readJsonText } from "./json-text.js";
 import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo } from "./user-file.js";
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
@@ -1156,4 +1157,65 @@ export function installedAgents(marker, ledger) {
         ids: HOST_TOOLS.filter((h) => members.includes(h.id)).map((h) => h.id),
         unknown: members.filter((id) => !known.has(id)),
     };
+}
+// ── WHICH AGENTS A MARKER WRITE RECORDS (phase 34.1 gap round 1, D-26, D-29; brief REC-1) ───────────────────────────
+//
+// THE MARKER RULE'S HOLDING SET, MOVED HERE FROM uninstall.ts (plan 34.1-14) so the uninstaller's marker rule and the
+// `agents` derivation below ask one set. An entry whose content install wrote (file, block, gemini, ask-rules,
+// opencode-permission) holds the marker while it is in place; directory and backup entries never do, and neither does a
+// gemini or ask-rules entry that records nothing install added or created (there is nothing of install's to reverse).
+/** The ledger kinds whose entries hold the marker while they are in place (the marker rule, plan 33.1-39). */
+export const HOLDING_KINDS = new Set(["file", "block", "gemini", "ask-rules", "opencode-permission"]);
+/** A gemini or ask-rules entry that records nothing install added or created: there is nothing of install's to reverse. */
+function entryClaimsNothing(e) {
+    if (e.kind === "gemini")
+        return !e.addedEntry && !e.createdFile;
+    if (e.kind === "ask-rules")
+        return e.added.length === 0 && !e.createdFile && !e.createdPermissions && !e.createdAsk;
+    return false;
+}
+/**
+ * entryHolds: whether ledger entry `e` is of a holding kind (HOLDING_KINDS) and records something install wrote. The
+ * one answer to "does this entry hold the marker while it is in place", asked by the uninstaller's marker rule
+ * (heldEntries) and by agentsToRecord. Pure: it reads the entry only, never the disk.
+ */
+export function entryHolds(e) {
+    return HOLDING_KINDS.has(e.kind) && !entryClaimsNothing(e);
+}
+/**
+ * agentsToRecord: THE ONE DERIVATION of the `agents` value every marker write that sets the field records (D-26, brief
+ * REC-1): install.ts writeMarker, and the uninstaller's partial-clean, partial-kept and flag-less-kept rewrites
+ * (uninstall.ts updateKeptMarker, through agentsAfter). install.ts rewriteLedger sets no `agents`: it carries the field
+ * as read beside a change to backup entries only.
+ *
+ * It returns, in HOST_TOOLS order, every id in `known` that is in `keep`, or that owns (host-tools.ts entryOwners) an
+ * entry of `entries` that holds (entryHolds) while no owner of that entry is in `keep`; then `unknown`, in the order
+ * given, without duplicates.
+ *   - An agent stays recorded while the ledger holds install content it owns (D-29), so a per-agent uninstall that
+ *     leaves an edited file keeps that agent, and the same per-agent command can finish the reversal later.
+ *   - A shared entry keeps its owners only when none of them is kept already, so removing Codex CLI while Antigravity
+ *     CLI stays drops Codex: the shared `.agents/skills/grugops/SKILL.md` is still Antigravity's (D-20).
+ *   - An id outside `known` is never added, so a co-owner of a shared file that was never installed is not invented.
+ *   - An entry no agent owns (the D-06 shared footprint: AGENTS.md, tools/grugops/, the legacy gemini entry) keeps no
+ *     agent recorded (D-29).
+ *   - Directory and backup entries, and records that claim nothing, never keep an agent: the same set that holds the
+ *     marker (the marker rule).
+ * Pure: no I/O, and ownership is never read from presence on disk (brief DC-2).
+ */
+export function agentsToRecord(run) {
+    const holders = new Set();
+    for (const e of run.entries) {
+        if (!entryHolds(e))
+            continue;
+        const owners = entryOwners(e);
+        if (owners.some((id) => run.keep.includes(id)))
+            continue;
+        for (const id of owners)
+            holders.add(id);
+    }
+    const ids = HOST_TOOLS.filter((h) => run.known.includes(h.id) && (run.keep.includes(h.id) || holders.has(h.id))).map((h) => h.id);
+    for (const id of run.unknown)
+        if (!ids.includes(id))
+            ids.push(id);
+    return ids;
 }

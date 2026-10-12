@@ -370,6 +370,76 @@ export const runInstall = (target: string, grugopsHome: string, args: readonly s
 export const runUninstall = (target: string, grugopsHome: string, opts: RunOptions = {}, args: readonly string[] = []): Run =>
   spawnBin(UNINSTALL_JS, args, target, grugopsHome, opts);
 
+// ── running a printed command (plan 34.1-14, D-26; brief MSG-1: a remedy is tested by running it) ─────────────────
+
+/**
+ * Split a command line into POSIX shell words, as far as the installers' printed commands need: blanks separate
+ * words, single quotes quote everything up to the next single quote, and a backslash outside quotes takes the next
+ * character as it is (so `'\''` inside a quoted word reads back as one `'`). Throws on an unclosed quote.
+ */
+export function shellWords(line: string): string[] {
+  const words: string[] = [];
+  let cur = "";
+  let inWord = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === "'") {
+      const end = line.indexOf("'", i + 1);
+      if (end === -1) throw new Error(`shellWords: an unclosed quote in ${JSON.stringify(line)}`);
+      cur += line.slice(i + 1, end);
+      inWord = true;
+      i = end;
+    } else if (c === "\\" && i + 1 < line.length) {
+      cur += line[++i];
+      inWord = true;
+    } else if (c === " " || c === "\t") {
+      if (inWord) words.push(cur);
+      cur = "";
+      inWord = false;
+    } else {
+      cur += c;
+      inWord = true;
+    }
+  }
+  if (inWord) words.push(cur);
+  return words;
+}
+
+/**
+ * The first backtick-quoted span in `stdout` that starts with `node install/`: the command a line printed (an
+ * agentCommand-built remedy). Throws when there is none.
+ */
+export function printedCommand(stdout: string): string {
+  const m = /`(node install\/[^`]*)`/.exec(stdout);
+  if (m === null) throw new Error(`no printed \`node install/...\` command in:\n${stdout}`);
+  return m[1];
+}
+
+/**
+ * Run exactly the command a line printed (printedCommand), from this repository's root. The second word must be
+ * `install/install.js` or `install/uninstall.js`; it is run with this Node binary, resolved under REPO_ROOT. The
+ * environment is spawnBin's, but with no TARGET, so the printed `--target` alone names the target, and no DRY_RUN.
+ * GRUGOPS_HOME is always `opts.grugopsHome` (a scratch kit home), and HOME is `opts.home` when given.
+ */
+export function runPrintedCommand(stdout: string, opts: { readonly grugopsHome: string; readonly home?: string; readonly timeoutMs?: number }): Run {
+  const words = shellWords(printedCommand(stdout));
+  if (words[0] !== "node" || (words[1] !== "install/install.js" && words[1] !== "install/uninstall.js")) {
+    throw new Error(`runPrintedCommand: not an installer command: ${JSON.stringify(words)}`);
+  }
+  const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: opts.grugopsHome };
+  delete env.TARGET;
+  delete env.DRY_RUN;
+  if (opts.home !== undefined) env.HOME = opts.home;
+  const r = spawnSync(process.execPath, [resolve(REPO_ROOT, words[1]), ...words.slice(2)], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    env,
+    timeout: opts.timeoutMs ?? 60_000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return { status: r.status, signal: r.signal, error: r.error, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
 // ── the derivation ──────────────────────────────────────────────────────────────────────────────
 
 /** isoStamp()'s shape in install.ts: YYYY-MM-DDTHH-MM-SS.mmmZ (colons replaced by '-'). */
