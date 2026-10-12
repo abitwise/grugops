@@ -1748,7 +1748,7 @@ Plans:
 **Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
 **Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
 **Depends on:** Phase 34
-**Plans:** 25/32 plans executed; gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33 (revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
+**Plans:** 26/32 plans executed; gap round 2 of 4, 34.1-19..34.1-32, planned 2026-10-12 under D-31, D-32 and D-33 (revised at the plan check the same day: split from 7 to 14 plans so each stays inside the 100k context budget)
 
 Plans:
 **Wave 1**
@@ -1829,7 +1829,7 @@ Plans:
 - [x] 34.1-25-PLAN.md — WR-20 tracer: the other-directory remedy names this run's agents and the report pass names the old host entries, followed as printed (D-33)
 
 **Wave 13** *(blocked on Wave 12 completion)*
-- [ ] 34.1-26-PLAN.md — WR-20 class and IN-27: the no-ledger branch, the flag-less form, a --symlink install's remedy, the unknown installed set (D-33, D-31)
+- [x] 34.1-26-PLAN.md — WR-20 class and IN-27: the no-ledger branch, the flag-less form, a --symlink install's remedy, the unknown installed set (D-33, D-31)
 
 **Wave 14** *(blocked on Wave 13 completion)*
 - [ ] 34.1-27-PLAN.md — DI-08 and every doctor remedy through the builder, run as printed (D-33, D-31)
@@ -1892,7 +1892,7 @@ Plans:
 | 32.1. Board Dashboard Deferred Residuals (INSERTED) | v2.1 | 15/15 | Complete    | 2026-09-18 |
 | 33. Live Capture & Windows Portability | v2.1 | 43/43 | Closed by human override D-33-R4-08 (verification gaps_found 0/3; GAP-D1 open; CAP-01..03 not met; review CR-01/CR-02 accepted open, WINDOWS.md rows 301-302) | 2026-09-25 |
 | 34. Model Effort Dial & Pi Support | v2.1 | 36/36 | Closed by human decision D-28 (verification human_needed 23/26 left standing; UAT 1 pass / 2 issues / 1 deferred; G-34-R3-2, G-34-R3-4 carried to 34.1; HOST-02 to backlog 999.5) | 2026-10-10 |
-| 34.1. Per-agent installer (INSERTED) | v2.1 | 25/32 | In Progress | - |
+| 34.1. Per-agent installer (INSERTED) | v2.1 | 26/32 | In Progress | - |
 
 **Totals:** 33 phases · **4 milestones shipped** (v1.0 + v1.1 + v1.2 + v2.0) · **1 active** (v2.1, phases 27–33).
 

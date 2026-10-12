@@ -5,15 +5,15 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-25-PLAN.md
-last_updated: "2026-10-12T16:29:16.296Z"
-state_head: 36a22ec7e96b3fce1171f9a5bf470297063f4068
+stopped_at: Completed 34.1-26-PLAN.md
+last_updated: "2026-10-12T16:50:04.904Z"
+state_head: 1b5369295ff186dad94f5f0fd68792316a78d677
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 423
-  completed_plans: 416
-  percent: 98
+  completed_plans: 417
+  percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
 last_activity_desc: "Phase 33 CLOSED by human override D-33-R4-08 after round-4 verification gaps_found 0/3 (aba4f1d3). The human decided the four 33-R4-DIAGNOSIS section 5 questions as D-33-R4-04..07 (coordinator-as-subagent route allowed; capture pins --permission-mode default after a zero-token check; guard unreadable-word refusal redesigned; D-04 row keyed on the probe). Round-4 review ledgered: WINDOWS.md rows 301-309 appended (CR-01/CR-02 live guard bypasses first), rows 257/269/274/297-299 annotated; open 259 -> 268 of 309. GAP-D1 open; CAP-01/02/03 not met; all carried to the next phase."
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING
-Plan: 25 of 32 (gap round 2 of 4: 34.1-25 done 2026-10-12: the other-directory unusable-marker verify prints reinstallCommand() (the install command with this run's agent flags and the marker's kit home, through COMMAND_CONTEXT), then rerunCommand(), and no longer says any agent flag will do; uninstall's new reportUnrecordedHostEntries names an unrecorded agent skill, OpenCode command or Pi template as left, from install-marker.ts wholeFileEntryRels, now shared with install; row R25 follows the two printed steps after a moved target and finds the old Codex skill reported and kept, with no kit under HOME; the context census pins uninstall.ts 5; next: 34.1-26)
+Plan: 26 of 32 (gap round 2 of 4: 34.1-26 done 2026-10-12: the no-target or no-ledger unusable-marker verify prints reinstallCommand() then rerunCommand() and no longer says any agent flag will do; a flag-less run adds the one NO_FLAG_INSTALL_CLAUSE after the install command in both unusable-marker verifies; over a marker uninstall cannot use, INSTALLED_UNKNOWN makes the agents to remove line, the per-flag note and the closing banner say the installed set is unknown, not none (IN-27); rows R26, R27, R28 and R34 follow the remedies as printed, each with a mutation proof; re-run census 1 -> 0; next: 34.1-27)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -677,6 +677,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P23 | 27 min | 2 tasks | 8 files |
 | Phase 34.1 P24 | 24 min | 2 tasks | 10 files |
 | Phase 34.1 P25 | 26min | 1 tasks | 10 files |
+| Phase 34.1 P26 | 17 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -1865,6 +1866,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-24: uninstall.ts builds COMMAND_CONTEXT once (kit home from GRUGOPS_HOME, else the marker's grugopsHome, else the default; symlink from the marker) and passes it at its 4 agentCommand calls; the kit fields word only printed install commands, never a removal (DC-2). agentCommand's context is required, runPrintedCommandInCheckout is deleted, printedCommand is absolute-only; the command-context census pins install.ts 10 and uninstall.ts 4
 - [Phase 34.1]: 34.1-25 (D-33, WR-20): the other-directory unusable-marker remedy prints reinstallCommand() (agentCommand install.js with this run's agent flags and COMMAND_CONTEXT, so the marker's kit home) then rerunCommand(); R25 followed as printed reports the old Codex skill on a left line, keeps its bytes, and writes no kit under HOME
 - [Phase 34.1]: 34.1-25: wholeFileEntryRels moved to install-marker.ts (filters by BLOCK_RELS); install writes and the new uninstall reportUnrecordedHostEntries reports from the one list; census re-pins: context uninstall.ts 4->5, re-run fragments 2->1, message-references (c) agentCommand 20->21
+- [Phase 34.1]: 34.1-26 (D-31, IN-27): over a marker uninstall cannot use (INSTALLED_UNKNOWN), the agents to remove line, the per-flag note and the closing banner say which agents are installed is unknown, not none; R28 covers four marker shapes
+- [Phase 34.1]: 34.1-26 (D-33, WR-20): the no-target or no-ledger verify prints reinstallCommand() then rerunCommand(); one NO_FLAG_INSTALL_CLAUSE follows the install command in both unusable-marker verifies on a flag-less run; R26, R27, R34 run the remedies as printed; re-run census pinned at 0 with a walk premise
 
 ### Pending Todos
 
@@ -1995,8 +1998,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-12T16:29:00.648Z
-Stopped at: Completed 34.1-25-PLAN.md
+Last session: 2026-10-12T16:49:53.320Z
+Stopped at: Completed 34.1-26-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
