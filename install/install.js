@@ -93,7 +93,7 @@ import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, POINTER_
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, kindAt, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, kindAt, isRecordedAbsolute, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, realTargetPath, realPathThroughExisting, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -5750,10 +5750,11 @@ function kitReadPattern() {
     }
     if (home === "")
         return null;
-    const rel = relative(canonicalPathSpelling(resolve(home)), KIT_ROOT);
-    if (rel === "" || isAbsolute(rel) || rel.startsWith(".."))
+    // The one spelling of a recorded path (user-file.ts canonicalPathSpelling: POSIX separators on Windows, unchanged on
+    // POSIX, where a backslash is a character of a name and is refused below), and the one absoluteness rule.
+    const posix = canonicalPathSpelling(relative(canonicalPathSpelling(resolve(home)), KIT_ROOT));
+    if (posix === "" || isRecordedAbsolute(posix) || posix.startsWith(".."))
         return null;
-    const posix = rel.split(sep).join("/");
     if (/[*?[\]{}\\\u0000-\u001f\u007f]/.test(posix))
         return null;
     return `~/${posix}/**`;

@@ -197,6 +197,7 @@ import {
   readForWrite,
   wayTo,
   kindAt,
+  isRecordedAbsolute,
   directoryComponent,
   unreadState,
   isOwnLink,
@@ -6510,9 +6511,10 @@ function kitReadPattern(): string | null {
     return null;
   }
   if (home === "") return null;
-  const rel = relative(canonicalPathSpelling(resolve(home)), KIT_ROOT);
-  if (rel === "" || isAbsolute(rel) || rel.startsWith("..")) return null;
-  const posix = rel.split(sep).join("/");
+  // The one spelling of a recorded path (user-file.ts canonicalPathSpelling: POSIX separators on Windows, unchanged on
+  // POSIX, where a backslash is a character of a name and is refused below), and the one absoluteness rule.
+  const posix = canonicalPathSpelling(relative(canonicalPathSpelling(resolve(home)), KIT_ROOT));
+  if (posix === "" || isRecordedAbsolute(posix) || posix.startsWith("..")) return null;
   if (/[*?[\]{}\\\u0000-\u001f\u007f]/.test(posix)) return null;
   return `~/${posix}/**`;
 }
