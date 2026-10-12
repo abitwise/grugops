@@ -615,6 +615,32 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     expect(markerGone(w), again.stdout).toBe(true);
     expect(readFileSync(at(w.target, CLAUDE_SKILL)).equals(edited), `the further uninstall changed the edited skill\n${again.stdout}`).toBe(true);
   });
+
+  it("R21 (U4, malformed ledger): a partial uninstall says to fix the ledger field and never offers removing the marker; a flag-less uninstall over the same marker offers fixing or removing it", () => {
+    const w = world("r21");
+    install(w, [flag("claude"), flag("codex")]);
+    const markerPath = at(w.target, MARKER_REL);
+    writeFileSync(markerPath, JSON.stringify(withLedger(readMarkerObject(w.target), (es) => [...es, { kind: "file" }]), null, 2) + "\n");
+    expect(readLedger(readMarkerObject(w.target)).state, "PREMISE: the ledger is malformed").toBe("malformed");
+    // expectInvariant is not asked: the ledger is malformed by design, so there is no typed entry list to check it on.
+    const malformedLine = (stdout: string): string[] =>
+      linesWith(stdout, "left").filter((l) => l.includes(`${MARKER_REL} (its install ledger is malformed`));
+
+    const partial = uninstall(w, [flag("codex")]);
+    const p = malformedLine(partial.stdout);
+    expect(p.length, `no malformed-ledger \`left\` line about the marker\n${partial.stdout}`).toBe(1);
+    expect(p[0], partial.stdout).toContain("fix the ledger field by hand");
+    expect(p[0], partial.stdout).toContain("the marker is still the record of every agent installed here");
+    expect(p[0], "a partial run offers removing the marker").not.toContain("fix or remove it by hand");
+    expect(existsSync(markerPath), partial.stdout).toBe(true);
+
+    const full = uninstall(w, []);
+    const f = malformedLine(full.stdout);
+    expect(f.length, `no malformed-ledger \`left\` line about the marker\n${full.stdout}`).toBe(1);
+    expect(f[0], full.stdout).toContain("fix or remove it by hand");
+    expect(f[0], full.stdout).not.toContain("fix the ledger field by hand");
+    expect(existsSync(markerPath), full.stdout).toBe(true);
+  });
 });
 
 // ── the marker-writer census (TypeScript parser) ─────────────────────────────────────────────────────────────────

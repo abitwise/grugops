@@ -1401,8 +1401,13 @@ function removeMarker() {
     if (MARKER.state !== "ok")
         return { kind: "left" };
     if (!own.owned) {
+        // D-32 (U4, CR-03's rule one arm over): the marker is install's own, with a malformed ledger. On a partial run it is
+        // still the record of every agent installed here, so the by-hand remedy is to fix the field; removing the marker is
+        // offered only on a FULL run, where no agent stays installed.
         report("left", `${MARKER_REL} (its install ledger is malformed, so the record of what install did could not be used; ` +
-            `it was left in place — fix or remove it by hand)`);
+            `it was left in place — ${FULL
+                ? "fix or remove it by hand"
+                : "fix the ledger field by hand: the marker is still the record of every agent installed here, so removing it would leave each of them with no record"})`);
         // updateKeptMarker rewrites only install's own marker holding a well-formed ledger, so it leaves this one.
         updateKeptMarker(m, MARKER.marker, MARKER.bytes);
         return { kind: "left" };
