@@ -80,6 +80,10 @@ installed) names the script by its absolute path, so it runs from any directory.
 when the run made a symlink install (with `--symlink` or `INSTALL_MODE=symlink`).
 `install.js --check` prints its commands in the mode it ran in, so after a `--symlink` install run
 `--check --symlink`, or add `--symlink` to the install command it prints.
+A command the uninstaller prints to finish or repeat a run (on a `left` line, a `verify` line or the
+`uninstall INCOMPLETE` banner) names `uninstall.js` by its absolute path too, so it also runs from
+any directory. It carries no `GRUGOPS_HOME=` and no `--symlink`: the uninstaller removes only what
+the install record in the target names, and needs neither.
 
 ### Re-installing over an existing install (your edits to the kit files, D-32)
 
@@ -806,8 +810,8 @@ record first, as described below.
   installed: Claude Code ==`.
 - **An agent whose recorded file you edited stays in the `agents` list.** The run leaves that file
   byte for byte, names it on a `left` line, and prints the command that finishes the reversal, for
-  example `node install/uninstall.js --target /path/to/repo --claude`. Run it once you have removed
-  or restored the file. Until then the closing line names the agent as not finished, for example
+  example `node /path/to/grugops/install/uninstall.js --target /path/to/repo --claude`. Run it once
+  you have removed or restored the file. Until then the closing line names the agent as not finished, for example
   `== uninstall complete — 1 recorded item(s) left in place; .grugops/install.json kept to record
   them — agents removed: none; not finished, still recorded: Claude Code; still installed: Codex CLI ==`.
   To keep the edited file instead, take its entry out of the `ledger` list in `.grugops/install.json`
@@ -815,8 +819,8 @@ record first, as described below.
 - **A flag-less uninstall that leaves a recorded file prints the flag-less command.** The agents
   that own the file stay recorded; a file no agent owns (the kit's `AGENTS.md` copy, `tools/grugops/`)
   keeps no agent recorded. Run the printed command once the file is removed or restored.
-- **A `verify` line that asks you to fix something first prints the command you ran.** A
-  `.claude/settings.json` that is not a JSON object, or a malformed install ledger, is left
+- **A `verify` line that asks you to fix something first prints the same command, by the script's
+  absolute path.** A `.claude/settings.json` that is not a JSON object, or a malformed install ledger, is left
   untouched; the `verify` line names the cause and the same command, `--target` and agent flags
   included, to run again once the cause is fixed. It never tells you to run a flag-less uninstall
   after a per-agent one: a flag-less uninstall removes every agent.

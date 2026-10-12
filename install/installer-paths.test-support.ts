@@ -430,22 +430,24 @@ function nodeWordAt(words: readonly string[]): number {
 }
 
 /**
- * Whether `script` is an installer script word a printed command may carry: an absolute path ending in
- * `/install/install.js` or `/install/uninstall.js` (in pathText's spelling), or (until plan 34.1-24 moves every
- * site to the builder's context) the relative `install/install.js` or `install/uninstall.js`.
+ * Whether `script` is an installer script word a printed command may carry (plan 34.1-24, D-33): an absolute path
+ * ending in `/install/install.js` or `/install/uninstall.js` (in pathText's spelling). The relative form a printed
+ * command carried before the builder took the invocation context is not one: every agentCommand call passes its
+ * module's COMMAND_CONTEXT, so a relative script word in a printed command is a defect.
  */
 function isInstallerScriptWord(script: string | undefined): boolean {
   if (script === undefined) return false;
-  if (PRINTED_BINARIES.some((b) => script === "install/" + b)) return true;
   return isAbsolute(script) && PRINTED_BINARIES.some((b) => pathText(script).endsWith("/install/" + b));
 }
 
 /**
  * The first backtick-quoted span in `text` whose shell words, after any leading `NAME=value` words, are `node` and an
- * installer script word (isInstallerScriptWord): the command a line printed (an agentCommand-built remedy). Throws
- * when there is none.
+ * installer script word by its absolute path (isInstallerScriptWord): the command a line printed (an agentCommand-built
+ * remedy). A span whose script word is the relative `install/install.js` or `install/uninstall.js` is never returned.
+ * Throws when there is none; the message says so when a relative one was seen.
  */
 export function printedCommand(text: string): string {
+  const relativeSeen: string[] = [];
   for (const m of text.matchAll(/`([^`]*)`/g)) {
     let words: string[];
     try {
@@ -454,9 +456,12 @@ export function printedCommand(text: string): string {
       continue;
     }
     const at = nodeWordAt(words);
-    if (at !== -1 && isInstallerScriptWord(words[at + 1])) return m[1];
+    if (at === -1) continue;
+    if (isInstallerScriptWord(words[at + 1])) return m[1];
+    if (PRINTED_BINARIES.some((b) => words[at + 1] === "install/" + b)) relativeSeen.push(m[1]);
   }
-  throw new Error(`no printed installer command (\`[NAME=value ...] node <.../install/install.js|uninstall.js> ...\`) in:\n${text}`);
+  const why = relativeSeen.length > 0 ? ` (a relative script word was seen, which is not a printed command's form: ${relativeSeen.join(" | ")})` : "";
+  throw new Error(`no printed installer command (\`[NAME=value ...] node </abs/.../install/install.js|uninstall.js> ...\`)${why} in:\n${text}`);
 }
 
 /**
@@ -492,9 +497,9 @@ function insideCheckout(dir: string): boolean {
 /**
  * Run a printed command in the user's environment (plan 34.1-22, D-33; brief §4, WR-19). The printed text alone
  * decides the kit home, and the working directory is not the checkout:
- *   - the span is printedCommand(text), split by shellWords. Its leading assignments may only be GRUGOPS_HOME (any
- *     other name throws); the script word must be the absolute path of install.js or uninstall.js in this checkout
- *     (a relative one throws: that site has not moved to the builder's context yet, see runPrintedCommandInCheckout);
+ *   - the span is printedCommand(text), split by shellWords, so its script word is absolute (printedCommand returns no
+ *     span with a relative one, and says so when it saw one). Its leading assignments may only be GRUGOPS_HOME (any
+ *     other name throws); the script word must be install.js or uninstall.js of this checkout;
  *   - the environment is this process's with GRUGOPS_HOME, GRUGOPS_SRC, INSTALL_MODE, TARGET and DRY_RUN removed, HOME
  *     set to the required scratch `home` (a command with no GRUGOPS_HOME prefix uses `$HOME/.grugops`, so the real HOME
  *     is never inherited), and the printed assignments added;
@@ -516,9 +521,6 @@ export function runPrintedCommand(text: string, opts: { readonly home: string; r
     assigned[name] = w.slice(eq + 1);
   }
   const script = words[at + 1];
-  if (!isAbsolute(script)) {
-    throw new Error(`runPrintedCommand: the script word ${JSON.stringify(script)} is relative (a site not moved to the builder's context): ${span}`);
-  }
   if (![INSTALL_JS, UNINSTALL_JS].some((p) => pathText(p) === pathText(script))) {
     throw new Error(`runPrintedCommand: the script word ${JSON.stringify(script)} is not an installer script of this checkout: ${span}`);
   }
@@ -548,34 +550,6 @@ export function runPrintedCommand(text: string, opts: { readonly home: string; r
   } finally {
     if (made) rmSync(cwd, { recursive: true, force: true });
   }
-}
-
-/**
- * TRANSITIONAL (plan 34.1-22; plan 34.1-24 deletes it): the earlier runner, for a printed command a site has not yet
- * moved to the builder's context (its script word is the relative `install/<binary>`). Run exactly the command a line
- * printed (printedCommand), from this repository's root. The second word must be `install/install.js` or
- * `install/uninstall.js`; it is run with this Node binary, resolved under REPO_ROOT. The environment is spawnBin's, but
- * with no TARGET, so the printed `--target` alone names the target, and no DRY_RUN. GRUGOPS_HOME is always
- * `opts.grugopsHome` (a scratch kit home), and HOME is `opts.home` when given. It supplies the cwd and the kit home
- * itself, so it proves nothing about the user's environment (WR-19); runPrintedCommand does.
- */
-export function runPrintedCommandInCheckout(stdout: string, opts: { readonly grugopsHome: string; readonly home?: string; readonly timeoutMs?: number }): Run {
-  const words = shellWords(printedCommand(stdout));
-  if (words[0] !== "node" || (words[1] !== "install/install.js" && words[1] !== "install/uninstall.js")) {
-    throw new Error(`runPrintedCommand: not an installer command: ${JSON.stringify(words)}`);
-  }
-  const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: opts.grugopsHome };
-  delete env.TARGET;
-  delete env.DRY_RUN;
-  if (opts.home !== undefined) env.HOME = opts.home;
-  const r = spawnSync(process.execPath, [resolve(REPO_ROOT, words[1]), ...words.slice(2)], {
-    cwd: REPO_ROOT,
-    encoding: "utf8",
-    env,
-    timeout: opts.timeoutMs ?? 60_000,
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  return { status: r.status, signal: r.signal, error: r.error, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
 // ── the derivation ──────────────────────────────────────────────────────────────────────────────

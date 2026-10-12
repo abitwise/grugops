@@ -335,10 +335,16 @@ describe("runPrintedCommand: the harness premise (D-33, WR-19)", () => {
       else process.env.GRUGOPS_HOME = saved;
     }
   });
+  it("printedCommand finds no span whose script word is relative: a relative command alone is refused, and beside an absolute one it is skipped", () => {
+    const relativeSpan = "`node install/uninstall.js --target /tmp/a/t`";
+    expect(() => printedCommand(relativeSpan)).toThrow(/relative/);
+    const absolute = agentCommand("uninstall.js", "/tmp/a/t", [], commandContextFor({ grugopsHome: join(SCRATCH, "k"), home: SCRATCH }));
+    expect(printedCommand(`${relativeSpan} then \`${absolute}\``)).toBe(absolute);
+  });
   it("runPrintedCommand refuses a command whose script word is relative, and a working directory inside the checkout", () => {
     const home = join(SCRATCH, `premise-${seq++}`, "home");
     mkdirSync(home, { recursive: true });
-    expect(() => runPrintedCommand("`" + agentCommand("uninstall.js", "/tmp/a/t", []) + "`", { home })).toThrow(/relative/);
+    expect(() => runPrintedCommand("`node install/uninstall.js --target /tmp/a/t`", { home })).toThrow(/relative/);
     const absolute = "`" + agentCommand("uninstall.js", "/tmp/a/t", [], commandContextFor({ grugopsHome: join(home, ".grugops"), home })) + "`";
     expect(() => runPrintedCommand(absolute, { home, cwd: REPO_ROOT })).toThrow(/inside the checkout/);
   });
@@ -682,9 +688,9 @@ describe("MSG-1: every kept arm and every re-run remedy prints a command that, r
 
   // R24 (phase 34.1 gap round 2, D-33, plan 34.1-24): uninstall.ts builds its context once (COMMAND_CONTEXT). An
   // uninstall.js command names the script by its absolute path and carries no kit home and no `--symlink`, because
-  // uninstall.js reads neither; this uninstall run was given no GRUGOPS_HOME, so its context's kit home is the one the
-  // marker records (K), and the printed command still carries none. Run as printed with no kit home from a scratch
-  // directory, it finishes the reversal and writes no kit under <HOME>/.grugops.
+  // uninstall.js removes by the install record and needs neither. This uninstall run was given no GRUGOPS_HOME, so its
+  // context's kit home is the one the marker records (K), and the printed command still carries none. Run as printed
+  // with no kit home from a scratch directory, it finishes the reversal and writes no kit under <HOME>/.grugops.
   it("R24 (D-33): install with another kit home, then uninstall --claude with no GRUGOPS_HOME over an edited skill prints `node <absolute uninstall.js> ...` with no kit home; restored and run as printed with no kit home, it records [codex] and writes no kit under HOME", () => {
     const w = world("r24");
     const K = join(dirname(w.home), "kit-k");
@@ -1328,6 +1334,91 @@ const COMMAND_BUILDERS: ReadonlySet<string> = new Set(["rerunCommand", "finishCo
  * kept `left` line, the malformed-ledger verify, the KEPT_FOR banner) that now print the command instead, and these 2.
  */
 const RERUN_FRAGMENT_COUNT = 2;
+
+// ── the command-context census (phase 34.1 gap round 2, D-33, the class; plan 34.1-24) ─────────────────────────────
+//
+// Every printed command is built by host-tools.ts agentCommand (or its scriptCommand) with the invocation context its
+// module builds once, COMMAND_CONTEXT. The census walks every product module under install/ with the TypeScript
+// parser (never a line regex), finds every call of agentCommand and scriptCommand, and holds that each passes the
+// identifier COMMAND_CONTEXT as its context argument (agentCommand's fourth, scriptCommand's second). The modules that
+// call either are derived and must equal CONTEXT_CALLS both ways, with the per-module counts pinned; each such module
+// declares COMMAND_CONTEXT exactly once. host-tools.ts is the builder: its own scriptCommand call inside agentCommand
+// passes agentCommand's parameter, so it is classed here by name and not counted.
+//   install.ts   10 agentCommand calls (plans 34.1-22 and 34.1-23), 0 scriptCommand calls;
+//   uninstall.ts  4 agentCommand calls (rerunCommand 1, finishCommand 3: FULL, UNFINISHED and NAMED), 0 scriptCommand.
+// A later plan that adds a call re-pins its count here with the reason.
+const CONTEXT_CALLS: Readonly<Record<string, { readonly agentCommand: number; readonly scriptCommand: number }>> = {
+  "install/install.ts": { agentCommand: 10, scriptCommand: 0 },
+  "install/uninstall.ts": { agentCommand: 4, scriptCommand: 0 },
+};
+/** The builder module, whose own scriptCommand call passes agentCommand's context parameter. */
+const BUILDER_MODULE = "install/host-tools.ts";
+/** The argument index of the context in each builder call. */
+const CONTEXT_ARG: Readonly<Record<string, number>> = { agentCommand: 3, scriptCommand: 1 };
+
+describe("the command-context census (D-33): every agentCommand and scriptCommand call passes COMMAND_CONTEXT", () => {
+  const productModules = readdirSync(join(REPO_ROOT, "install"))
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.includes(".test.") && !f.includes(".test-support."))
+    .map((f) => `install/${f}`)
+    .sort();
+  const callsByModule = new Map<string, ts.CallExpression[]>();
+  for (const rel of productModules) {
+    const sf = parse(rel);
+    const calls = nodesOf(sf, ts.isCallExpression).filter((c) => Object.hasOwn(CONTEXT_ARG, calleeName(c) ?? ""));
+    if (calls.length > 0) callsByModule.set(rel, calls);
+  }
+
+  it("the modules that call agentCommand or scriptCommand are CONTEXT_CALLS's (plus the builder), both ways", () => {
+    expect(productModules.length, "premise: the product module walk found modules").toBeGreaterThan(0);
+    expect(productModules, "premise: the walk sees both binaries").toEqual(expect.arrayContaining(Object.keys(CONTEXT_CALLS)));
+    expect([...callsByModule.keys()].filter((m) => m !== BUILDER_MODULE).sort()).toEqual(Object.keys(CONTEXT_CALLS).sort());
+  });
+
+  it("the per-module call counts are pinned", () => {
+    for (const [rel, want] of Object.entries(CONTEXT_CALLS)) {
+      const calls = callsByModule.get(rel) ?? [];
+      expect(calls.filter((c) => calleeName(c) === "agentCommand").length, `${rel}: agentCommand calls`).toBe(want.agentCommand);
+      expect(calls.filter((c) => calleeName(c) === "scriptCommand").length, `${rel}: scriptCommand calls`).toBe(want.scriptCommand);
+    }
+  });
+
+  it("every call passes the identifier COMMAND_CONTEXT as its context argument", () => {
+    const off: string[] = [];
+    let seen = 0;
+    for (const rel of Object.keys(CONTEXT_CALLS)) {
+      const sf = parse(rel);
+      for (const c of callsByModule.get(rel) ?? []) {
+        seen++;
+        const arg = c.arguments[CONTEXT_ARG[calleeName(c) ?? ""]];
+        if (arg === undefined || !ts.isIdentifier(arg) || arg.text !== "COMMAND_CONTEXT") {
+          off.push(`${rel}:${sf.getLineAndCharacterOfPosition(c.getStart(sf)).line + 1} ${c.getText(sf).slice(0, 120)}`);
+        }
+      }
+    }
+    expect(seen, "premise: the census saw calls").toBe(Object.values(CONTEXT_CALLS).reduce((n, v) => n + v.agentCommand + v.scriptCommand, 0));
+    expect(off, "a printed command built without the module's COMMAND_CONTEXT").toEqual([]);
+  });
+
+  it("each module declares COMMAND_CONTEXT exactly once, at module level", () => {
+    for (const rel of Object.keys(CONTEXT_CALLS)) {
+      const sf = parse(rel);
+      const decls = nodesOf(sf, ts.isVariableDeclaration).filter((d) => ts.isIdentifier(d.name) && d.name.text === "COMMAND_CONTEXT");
+      expect(decls.length, `${rel}: COMMAND_CONTEXT declarations`).toBe(1);
+      expect(ts.isSourceFile(decls[0].parent.parent.parent), `${rel}: COMMAND_CONTEXT is not declared at module level`).toBe(true);
+    }
+  });
+
+  it("the builder's own scriptCommand call sits in agentCommand and passes agentCommand's context parameter", () => {
+    const sf = parse(BUILDER_MODULE);
+    const inner = callsByModule.get(BUILDER_MODULE) ?? [];
+    expect(inner.map((c) => `${calleeName(c)} in ${enclosing(c)}`)).toEqual(["scriptCommand in agentCommand"]);
+    const fn = functionNamed(sf, "agentCommand");
+    const ctxParam = fn.parameters[3];
+    expect(ctxParam !== undefined && ts.isIdentifier(ctxParam.name) ? ctxParam.name.text : null).toBe("ctx");
+    const arg = inner[0].arguments[1];
+    expect(arg !== undefined && ts.isIdentifier(arg) && arg.text === "ctx", inner[0].getText(sf)).toBe(true);
+  });
+});
 
 describe("the uninstall re-run census (MSG-1)", () => {
   it("every uninstall.ts fragment that says to run uninstall again sits in a string expression that prints rerunCommand or finishCommand", () => {

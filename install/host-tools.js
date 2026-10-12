@@ -268,21 +268,21 @@ export function scriptCommand(binary, ctx) {
 }
 /**
  * agentCommand (phase 34.1, D-26, D-33; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names agents.
- * With a context it returns scriptCommand(binary, ctx) (so the script is printed by its absolute path and the command
- * runs from any directory), then `--target <target>`, then agentFlag(h) for each host in the order given, then each
- * mode. An install command carries `GRUGOPS_HOME=<dir>` when the run used a kit home other than the default and
- * `--symlink` when the run was a symlink install, so a command run as printed uses the kit and the mode the run used
- * and never writes a second kit into `~/.grugops` (WR-19). An uninstall command carries neither, because uninstall.js
- * reads neither. The flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no flag:
- * the flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what it
- * means. The target is one shell word (shellWord).
+ * It returns scriptCommand(binary, ctx) (so the script is printed by its absolute path and the command runs from any
+ * directory), then `--target <target>`, then agentFlag(h) for each host in the order given, then each mode. An install
+ * command carries `GRUGOPS_HOME=<dir>` when the run used a kit home other than the default and `--symlink` when the
+ * run was a symlink install, so a command run as printed uses the kit and the mode the run used and never writes a
+ * second kit into `~/.grugops` (WR-19). An uninstall command carries neither, because uninstall.js removes by the
+ * install record alone. The flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no
+ * flag: the flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what
+ * it means. The target is one shell word (shellWord).
+ *
+ * The context is required (plan 34.1-24 retired the transitional no-context form): each binary builds its own once,
+ * install.ts and uninstall.ts COMMAND_CONTEXT, and passes it at every call, which the command-context census in
+ * install/agents-record.test.ts holds.
  *
  * It throws an Error naming the combination for a command install.js or uninstall.js would refuse: an agent flag with
- * `--check` or `--prune-old-kit` (exit 2 under D-25), or any mode on an uninstall.js command.
- *
- * TRANSITIONAL (plans 34.1-22 and 34.1-23): with no context it returns the earlier words, `node install/<binary>
- * --target <target> <flags>`, which run only from the checkout root with the default kit home. Plan 34.1-24 makes the
- * context required and removes this form. Pure: no I/O.
+ * `--check` or `--prune-old-kit` (exit 2 under D-25), or any mode on an uninstall.js command. Pure: no I/O.
  */
 export function agentCommand(binary, target, hosts, ctx, modes = []) {
     if (binary === "uninstall.js" && modes.length > 0) {
@@ -292,8 +292,7 @@ export function agentCommand(binary, target, hosts, ctx, modes = []) {
     if (hosts.length > 0 && agentless.length > 0) {
         throw new Error(`agentCommand: agent flags (${hosts.map(agentFlag).join(" ")}) cannot be combined with ${agentless.join(" ")}`);
     }
-    const head = ctx === undefined ? "node install/" + binary : scriptCommand(binary, ctx);
-    return [head, "--target", shellWord(target), ...hosts.map(agentFlag), ...modes].join(" ");
+    return [scriptCommand(binary, ctx), "--target", shellWord(target), ...hosts.map(agentFlag), ...modes].join(" ");
 }
 /**
  * ROUTE_POINTERS (plan 34-28, D-26 point 3): the pointer files install writes for each adapter kind that

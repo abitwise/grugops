@@ -653,8 +653,9 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     expect(note, second.stdout).toBeDefined();
     expectReferences([["install (kit root A)", first], ["install (kit root B)", second]], false);
     // The second run's context (D-33): its kit home is kitB, not the default, so its install command carries it and
-    // its uninstall command carries none (uninstall.js reads no kit home). Both run as printed, in the user's
-    // environment (WR-19): a scratch directory outside the checkout and no GRUGOPS_HOME the printed text does not set.
+    // its uninstall command carries none (uninstall.js removes by the install record and needs no kit home). Both run
+    // as printed, in the user's environment (WR-19): a scratch directory outside the checkout and no GRUGOPS_HOME the
+    // printed text does not set.
     const ctx = commandContextFor({ grugopsHome: kitB, home: w.home });
     const un = printedCommand(note!);
     expect(un).toBe(agentCommand("uninstall.js", w.target, [oc], ctx));
