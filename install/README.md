@@ -441,8 +441,8 @@ writes no path under `.claude/` and no `CLAUDE.md`:
 
 - `.opencode/commands/grugops.md` — a command OpenCode reads from `.opencode/commands/`
   (`/grugops <request>`), written by the same rules as the skill above
-- `opencode.json` — the OpenCode `external_directory` rule, so OpenCode reaches the kit outside the
-  repository without asking before each tool call on the kit path. OpenCode asks before a tool call
+- `opencode.json` — the OpenCode `external_directory` rule, so OpenCode does not ask its
+  `external_directory` question before a tool call on the kit path. OpenCode asks before a tool call
   touches a path outside the working directory unless a `permission.external_directory` rule allows
   it. The rule allows every tool call OpenCode gates by `external_directory` on the kit path, edits
   included; whether OpenCode's separate `edit` permission still asks before an edit there is

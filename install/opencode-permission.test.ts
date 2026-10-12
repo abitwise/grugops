@@ -474,6 +474,15 @@ describe("IN-20: the rule is already gone (D-26)", () => {
 // No printed line and no README sentence may call it one, and wherever the rule is written, found or proposed the scope
 // sentence (host-tools.ts OPENCODE_RULE_SCOPE, the one authority) is printed. Each needle below is the old wording,
 // built from parts so the literal never sits in this file, which the repository-wide row scans too.
+//
+// IN-25 (plan 34.1-31, D-31) adds two needles beside WR-18's four. The old prose said the rule lets OpenCode reach the
+// kit with no question before any tool call on the kit path, while OPENCODE_RULE_SCOPE says whether OpenCode's `edit`
+// permission still asks is `UNKNOWN - verify`; both cannot hold. The rule stops OpenCode's `external_directory`
+// question, and the prose now says only that. The two retired phrasings are the last two needles.
+//
+// A needle is matched in normalised text (oldWordingIn): comment leaders at the start of a line are dropped, a string
+// literal wrapped with `+` is joined, and every run of whitespace is one space. So a retired phrase wrapped across two
+// comment lines, two README lines or two string parts is still found.
 // ---------------------------------------------------------------------------------------------------------------------
 
 const OLD_RULE_WORDING: readonly string[] = [
@@ -481,12 +490,23 @@ const OLD_RULE_WORDING: readonly string[] = [
   ["read", "the", "kit", "without"].join(" "),
   ["before", "each", "read"].join(" "),
   ["allows", "reading", "the", "kit"].join(" "),
+  ["without", "asking", "before", "each", "tool", "call"].join(" "),
+  ["allow", "those", "calls", "without", "asking"].join(" "),
 ];
 
-/** The old-wording needles `text` holds, compared case-insensitively. */
+/** `text` lower-cased, with line-leading comment markers dropped, `+`-wrapped string parts joined and whitespace collapsed. */
+function normalisedProse(text: string): string {
+  return text
+    .replace(/["'`]\s*\+\s*\r?\n\s*["'`]/g, "")
+    .replace(/^[ \t]*(?:\/\/+|\/\*+|\*(?!\/)|>)?[ \t]*/gm, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+/** The old-wording needles `text` holds, compared case-insensitively in normalised text (normalisedProse). */
 function oldWordingIn(text: string): string[] {
-  const lower = text.toLowerCase();
-  return OLD_RULE_WORDING.filter((needle) => lower.includes(needle));
+  const prose = normalisedProse(text);
+  return OLD_RULE_WORDING.filter((needle) => prose.includes(needle));
 }
 
 /** `text` with every run of whitespace collapsed to one space, so a wrapped README sentence compares equal. */
@@ -499,9 +519,20 @@ describe("DOC-1: the OpenCode external_directory rule is described by its scope 
     expect(oldWordingIn(OPENCODE_RULE_SCOPE)).toEqual([]);
   });
 
+  it("the needle match reads a retired phrase wrapped across comment lines, README lines and `+`-joined string parts", () => {
+    const [first, ...rest] = OLD_RULE_WORDING[OLD_RULE_WORDING.length - 2].split(" ");
+    const tail = rest.join(" ");
+    expect(oldWordingIn(`// OpenCode reaches the kit ${first}\n// ${tail} on the kit path.\n`)).toContain(`${first} ${tail}`);
+    expect(oldWordingIn(` * OpenCode reaches the kit ${first}\n * ${tail} on the kit path.\n`)).toContain(`${first} ${tail}`);
+    expect(oldWordingIn(`- \`opencode.json\` — the rule, ${first}\n  ${tail} on the kit path.\n`)).toContain(`${first} ${tail}`);
+    expect(oldWordingIn(`  "OpenCode reaches the kit ${first} " +\n    "${tail} on the kit path."`)).toContain(`${first} ${tail}`);
+    // Control: the sentence that replaced it holds no needle.
+    expect(oldWordingIn("so OpenCode does not ask its `external_directory` question before a tool call on the kit path.")).toEqual([]);
+  });
+
   it("(a) install/README.md holds none of the old wording and carries the scope sentence", () => {
     const readme = readFileSync(join(REPO_ROOT, "install", "README.md"), "utf8");
-    expect(oldWordingIn(readme), "install/README.md still calls the rule a read rule").toEqual([]);
+    expect(oldWordingIn(readme), "install/README.md holds retired wording for the OpenCode rule (WR-18, IN-25)").toEqual([]);
     expect(collapsed(readme).includes(OPENCODE_RULE_SCOPE), "install/README.md does not carry OPENCODE_RULE_SCOPE").toBe(true);
   });
 
@@ -521,11 +552,14 @@ describe("DOC-1: the OpenCode external_directory rule is described by its scope 
     runs.push({ name: "uninstall --opencode", run: uninstall(r, [OPENCODE_FLAG]), scope: false });
     for (const { name, run, scope } of runs) {
       expect(run.status, `${name}\n${run.stdout}${run.stderr}`).toBe(0);
-      expect(oldWordingIn(run.stdout + run.stderr), `${name}: the output calls the rule a read rule\n${run.stdout}`).toEqual([]);
+      expect(oldWordingIn(run.stdout + run.stderr), `${name}: the output holds retired wording for the OpenCode rule (WR-18, IN-25)\n${run.stdout}`).toEqual([]);
       if (scope) expect(run.stdout.includes(OPENCODE_RULE_SCOPE), `${name}: the scope sentence is not printed\n${run.stdout}`).toBe(true);
     }
     // The uninstall run reversed what the first install wrote, so the scan saw the removal line and not an empty run.
     expect(existsSync(fileOf(r.target)), runs[runs.length - 1].run.stdout).toBe(false);
+    // IN-25 (D-31): the no-rule note says what the rule would stop, OpenCode's `external_directory` question.
+    const note = runs.find((x) => x.name === "install, kit outside home (note)")!.run.stdout;
+    expect(collapsed(note).includes("asking its `external_directory` question"), `the no-rule note does not name the question\n${note}`).toBe(true);
   });
 
   // (c) THE REPOSITORY-WIDE ROW. Every tracked file outside `.planning/` (the planning record quotes the old wording as
@@ -572,7 +606,7 @@ describe("DOC-1: the OpenCode external_directory rule is described by its scope 
       const found = oldWordingIn(text);
       if (found.length > 0) hits.push(`${rel}: ${found.join(", ")}`);
     }
-    expect(hits, `tracked files that still call the OpenCode rule a read rule:\n${hits.join("\n")}`).toEqual([]);
+    expect(hits, `tracked files that hold retired wording for the OpenCode rule (WR-18, IN-25):\n${hits.join("\n")}`).toEqual([]);
     expect(scanned.length + notText.length, "every listed file is either scanned or counted as not text").toBe(listed.length);
     expect(scanned.length, `only ${scanned.length} tracked files were scanned (not text: ${notText.length})`).toBeGreaterThanOrEqual(SCANNED_FLOOR);
     for (const rel of [

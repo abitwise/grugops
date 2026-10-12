@@ -6147,11 +6147,12 @@ function askRulesStep() {
     return { kind: "not-chosen" };
 }
 // ---------------------------------------------------------------------------
-// writeOpenCodePermission (phase 34.1, D-14) — the OpenCode external_directory rule for the out-of-repo kit, so
-// OpenCode reaches the kit without asking before each tool call on the kit path. What the rule allows is one sentence,
-// host-tools.ts OPENCODE_RULE_SCOPE (D-27): every tool call OpenCode gates by `external_directory` on the kit path,
-// edits included, with the interaction with OpenCode's `edit` permission `UNKNOWN - verify`. It is printed beside every
-// line that writes, finds or proposes the rule (reportOpenCodeRule, openCodeNote).
+// writeOpenCodePermission (phase 34.1, D-14) — the OpenCode external_directory rule for the out-of-repo kit. The rule
+// stops OpenCode's `external_directory` question before a tool call on the kit path (D-31, IN-25); it says nothing
+// about OpenCode's other permissions. What the rule allows is one sentence, host-tools.ts OPENCODE_RULE_SCOPE (D-27):
+// every tool call OpenCode gates by `external_directory` on the kit path, edits included, with the interaction with
+// OpenCode's `edit` permission `UNKNOWN - verify`. It is printed beside every line that writes, finds or proposes the
+// rule (reportOpenCodeRule, openCodeNote).
 //
 // WHY. A scripted install puts the kit in the kit home, outside the repository, and OpenCode asks before every tool
 // call that touches a path outside the working directory (its `external_directory` permission defaults to "ask",
@@ -6233,8 +6234,8 @@ function openCodeByHand(pattern) {
 /** A refusal: a note naming opencode.json, why, the rule to add by hand and what that rule allows; nothing is written. */
 function openCodeNote(why, pattern) {
     report("note", `${OPENCODE_CONFIG_REL}: no OpenCode external_directory rule was written — ${why}. OpenCode still reaches the kit, ` +
-        `asking before each tool call on the kit path. To allow those calls without asking, add this to ` +
-        `${OPENCODE_CONFIG_REL} by hand: ${openCodeByHand(pattern)}. ${OPENCODE_RULE_SCOPE}`);
+        "asking its `external_directory` question before each tool call on the kit path. To stop that question, add " +
+        `this to ${OPENCODE_CONFIG_REL} by hand: ${openCodeByHand(pattern)}. ${OPENCODE_RULE_SCOPE}`);
     return { kind: "note" };
 }
 /**
