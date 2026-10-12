@@ -62,7 +62,7 @@ import {
   printedCommand,
   rebindMarker,
   runInstall,
-  runPrintedCommand,
+  runPrintedCommandInCheckout,
   runUninstall,
   snapshotTree,
   spawnBin,
@@ -636,7 +636,7 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expect(u.stdout).toContain(`\`${finish}\``);
     expect(printedCommand(u.stdout)).toBe(finish);
     rmSync(at(t, CLAUDE_MD));
-    const f = runPrintedCommand(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
+    const f = runPrintedCommandInCheckout(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
     expect(f.status, f.stdout + f.stderr).toBe(0);
     expect(markerPresent(t), `the marker is still there after the printed command\n${f.stdout}`).toBe(false);
   }, 60_000);
@@ -657,7 +657,7 @@ describe("D-30 (DI-06): a blank pointer file install created, whose block the us
     expect(u.stdout).toContain(`\`${finish}\``);
     expect(printedCommand(u.stdout)).toBe(finish);
     rmSync(at(t, COPILOT_MD));
-    const f = runPrintedCommand(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
+    const f = runPrintedCommandInCheckout(u.stdout, { grugopsHome: KIT_HOME, home: HOME, timeoutMs: 120_000 });
     expect(f.status, f.stdout + f.stderr).toBe(0);
     expect(markerOf(t).agents).toEqual([CLAUDE.id]);
   }, 60_000);

@@ -25,7 +25,21 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { HOST_TOOLS, HOST_TOOL_COUNT, KIT_ROUTE, PI_PROMPT_REL, ROUTE_POINTERS, agentCommand, agentFlag, entryOwners } from "./host-tools.js";
 import { contentRecord } from "./install-marker.js";
-import { INSTALL_JS, MARKER_REL, REPO_ROOT, makeFixture, runInstall, runPrintedCommand, runUninstall, snapshotTree, spawnBin, type Run } from "./installer-paths.test-support.js";
+import {
+  INSTALL_JS,
+  MARKER_REL,
+  REPO_ROOT,
+  commandContextFor,
+  makeFixture,
+  pathText,
+  runInstall,
+  runPrintedCommand,
+  runPrintedCommandInCheckout,
+  runUninstall,
+  snapshotTree,
+  spawnBin,
+  type Run,
+} from "./installer-paths.test-support.js";
 import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gkroute-"));
@@ -50,7 +64,7 @@ function installed(args: readonly string[] = []): { target: string; kitHome: str
   return row;
 }
 
-const check = (target: string, kitHome: string): Run => spawnBin(INSTALL_JS, ["--check"], target, kitHome);
+const check = (target: string, kitHome: string, opts: { readonly home?: string } = {}): Run => spawnBin(INSTALL_JS, ["--check"], target, kitHome, opts);
 const piFile = (target: string): string => join(target, ...PI_PROMPT_REL.split("/"));
 /** Install into a fresh scratch row that already holds the user's own AGENTS.md, with no route in it. */
 function installedWithOwnAgents(): { target: string; kitHome: string } {
@@ -2204,7 +2218,7 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
     for (const l of second.stdout.split("\n")) expect(l, "a line points at a line this run never printed").not.toContain(`the line above about ${PI_PROMPT_REL}`);
     const others = second.stdout.split("\n").filter((l) => l.includes(PI_PROMPT_REL) && !notes.includes(l));
     expect(others, "premise: no other line of this run names the Pi template").toEqual([]);
-    const ran = runPrintedCommand(notes[0], { grugopsHome: row.kitHome, home });
+    const ran = runPrintedCommandInCheckout(notes[0], { grugopsHome: row.kitHome, home });
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
     expect(lstatSync(piFile(row.target)).isFile(), "the printed command did not write the Pi template").toBe(true);
     const third = runInstall(row.target, row.kitHome, [agentFlag(opencodeHost())], { home });
@@ -2232,32 +2246,34 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
 // FIELD), so a chosen agent whose every write was refused stays recorded (D-04's retry). The doctor gives such an agent
 // no reach line and no counted finding: it owns no holding ledger entry and none of its entry paths is present. One
 // uncounted note names it with the command that writes its entry; the test runs exactly that printed command.
-describe("IN-21: --check and a recorded agent with nothing installed (D-26)", () => {
-  /** The doctor's note lines that name `name` as recorded with nothing installed. */
-  const nothingNotes = (stdout: string, name: string): string[] =>
-    linesUnder(stdout, "note").filter((l) => messageOf(l).startsWith(`${name} is recorded in .grugops/install.json as chosen, but nothing is installed for it here`));
+/** The doctor's note lines that name `name` as recorded with nothing installed (doctorHosts' nothingInstalled). */
+const nothingNotes = (stdout: string, name: string): string[] =>
+  linesUnder(stdout, "note").filter((l) => messageOf(l).startsWith(`${name} is recorded in .grugops/install.json as chosen, but nothing is installed for it here`));
 
+describe("IN-21: --check and a recorded agent with nothing installed (D-26)", () => {
   it("a Pi install whose template write is refused records Pi; --check gives Pi no reach line and no counted finding, and one note with the command; that command, run once the cause is gone, gives Pi a reach line", () => {
     const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
     mkdirSync(join(row.target, ".pi"), { recursive: true });
     const blocker = join(row.target, ".pi", "prompts");
     writeFileSync(blocker, "not a directory\n");
-    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())]);
+    const r = runInstall(row.target, row.kitHome, [agentFlag(piHost())], { home });
     expect(r.status, r.stdout + r.stderr).toBe(3);
     const marker = readMarkerObject(row.target);
     expect(marker.agents, "the chosen agent is recorded (D-04)").toEqual([piHost().id]);
-    const c = check(row.target, row.kitHome);
+    const c = check(row.target, row.kitHome, { home });
     expect(reachLines(c.stdout).filter((l) => messageOf(l).startsWith(`${piHost().name}: `)), c.stdout).toEqual([]);
     expect(c.stdout.split("\n").filter((l) => /^ {2}(FAIL|WARN)\s/.test(l) && l.includes(PI_PROMPT_REL)), c.stdout).toEqual([]);
     expect(countedRouteLines(c.stdout), c.stdout).toEqual([]);
     const notes = nothingNotes(c.stdout, piHost().name);
     expect(notes.length, c.stdout).toBe(1);
-    expect(notes[0]).toContain(`\`${agentCommand("install.js", row.target, [piHost()])}\``);
+    expect(notes[0]).toContain(`\`${agentCommand("install.js", row.target, [piHost()], commandContextFor({ grugopsHome: row.kitHome, home }))}\``);
     expect(notes[0]).toContain(PI_PROMPT_REL);
     rmSync(blocker);
-    const ran = runPrintedCommand(notes[0], { grugopsHome: row.kitHome });
+    const ran = runPrintedCommand(notes[0], { home });
     expect(ran.status, ran.stdout + ran.stderr).toBe(0);
-    const after = check(row.target, row.kitHome);
+    const after = check(row.target, row.kitHome, { home });
     expect(reachVerdict(after.stdout, piHost()).reaches, after.stdout).toBe(true);
     expect(nothingNotes(after.stdout, piHost().name), after.stdout).toEqual([]);
   });
@@ -2285,5 +2301,45 @@ describe("IN-21: --check and a recorded agent with nothing installed (D-26)", ()
     const c = check(row.target, row.kitHome);
     expect(reachVerdict(c.stdout, piHost()).line, c.stdout).toContain(PI_PROMPT_REL);
     expect(nothingNotes(c.stdout, piHost().name), c.stdout).toEqual([]);
+  });
+});
+
+// ── WR-19 (phase 34.1 gap round 2, D-33; brief §4): A PRINTED COMMAND CARRIES THE KIT HOME THE RUN USED ──────────────
+//
+// agentCommand takes the run's invocation context (host-tools.ts CommandContext): the absolute script path, and the
+// kit home when it is not the default `~/.grugops`. The row is the verifier's reproduction: a kit home other than the
+// default, Pi refused, `--check`, and the doctor's printed install command run as printed by runPrintedCommand, from a
+// scratch directory outside the checkout with no GRUGOPS_HOME in the inherited environment. Only the printed text can
+// name the kit home, so a command that dropped it would write a second kit into `<HOME>/.grugops`.
+describe("WR-19 (D-33): a printed command carries the kit home the run used and runs from any directory", () => {
+  it("the verifier's reproduction: GRUGOPS_HOME=<K> (not the default), Pi refused, --check; the note's install command, run as printed outside the checkout with no inherited kit home, writes the Pi template, records K and writes no kit under <HOME>/.grugops", () => {
+    const row = scratchRow();
+    const home = join(dirname(row.target), "home");
+    mkdirSync(home, { recursive: true });
+    const kitHome = row.kitHome;
+    const defaultKit = join(home, ".grugops");
+    expect(pathText(kitHome), "premise: the kit home is not the default under HOME").not.toBe(pathText(defaultKit));
+    mkdirSync(join(row.target, ".pi"), { recursive: true });
+    const blocker = join(row.target, ".pi", "prompts");
+    writeFileSync(blocker, "not a directory\n");
+    const r = runInstall(row.target, kitHome, [agentFlag(piHost())], { home });
+    expect(r.status, r.stdout + r.stderr).toBe(3);
+    const c = check(row.target, kitHome, { home });
+    const notes = nothingNotes(c.stdout, piHost().name);
+    expect(notes.length, c.stdout).toBe(1);
+    const expected = agentCommand("install.js", row.target, [piHost()], commandContextFor({ grugopsHome: kitHome, home }));
+    expect(expected.startsWith("GRUGOPS_HOME="), `premise: the kit home is not the default, so the command carries it: ${expected}`).toBe(true);
+    expect(notes[0], "the note does not print the command with the run's kit home").toContain(`\`${expected}\``);
+    rmSync(blocker);
+    const ran = runPrintedCommand(notes[0], { home });
+    expect(relative(REPO_ROOT, ran.premise.cwd).startsWith(".."), `premise: the printed command ran from ${ran.premise.cwd}, inside the checkout`).toBe(true);
+    expect(ran.premise.grugopsHome, "premise: the child's GRUGOPS_HOME came from the printed text").toBeDefined();
+    expect(pathText(ran.premise.grugopsHome ?? ""), "premise: the printed text set the run's kit home").toBe(pathText(kitHome));
+    expect(ran.status, ran.stdout + ran.stderr).toBe(0);
+    expect(lstatSync(piFile(row.target)).isFile(), "the printed command did not write the Pi template").toBe(true);
+    const marker = readMarkerObject(row.target);
+    expect(pathText(String(marker.grugopsHome)), "the marker does not record the run's kit home").toBe(pathText(kitHome));
+    expect(existsSync(join(kitHome, "agent-factory")), "the kit home the run used holds no kit").toBe(true);
+    expect(existsSync(defaultKit), "a second kit was written into the default kit home <HOME>/.grugops").toBe(false);
   });
 });

@@ -228,19 +228,71 @@ export function hostForFlag(arg) {
     }
     return null;
 }
-/** A target path that is one POSIX shell word as it is: printed bare by agentCommand. */
+/** A path or value that is one POSIX shell word as it is: printed bare by shellWord. */
 const SHELL_SAFE_WORD = /^[A-Za-z0-9_./,@%+=-]+$/;
 /**
- * agentCommand (phase 34.1 gap round 1, D-26; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names
- * agents. It returns `node install/<binary> --target <target>` followed by agentFlag(h) for each host in the order
- * given, so the flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no flag: the
- * flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what it means.
- * The target is printed as it is when it is one shell word of safe characters; otherwise it is single-quoted, each `'`
- * written as `'\''`, so a path with a space or a shell character stays one argument (T-34.1-28). Pure: no I/O.
+ * One POSIX shell word for `s` (T-34.1-28, T-34.1-45): `s` as it is when it is made only of SHELL_SAFE_WORD's
+ * characters, otherwise single-quoted with each `'` written as `'\''`, so a path with a space or a shell character
+ * stays one argument. The one quoting rule of a printed command: the target, the script path and the kit home all
+ * pass through it.
  */
-export function agentCommand(binary, target, hosts) {
-    const word = SHELL_SAFE_WORD.test(target) ? target : "'" + target.split("'").join("'\\''") + "'";
-    return ["node", "install/" + binary, "--target", word, ...hosts.map(agentFlag)].join(" ");
+function shellWord(s) {
+    return SHELL_SAFE_WORD.test(s) ? s : "'" + s.split("'").join("'\\''") + "'";
+}
+/**
+ * The CommandContext of a run (D-33): `kitHome` is null when it equals `defaultKitHome`, and the value otherwise.
+ * The callers spell both paths with user-file.ts canonicalPathSpelling, so the comparison is between two values in
+ * the one spelling. Pure: no I/O.
+ */
+export function commandContext(scriptDir, kitHome, defaultKitHome, symlink = false) {
+    return { scriptDir, kitHome: kitHome === defaultKitHome ? null : kitHome, symlink };
+}
+/**
+ * scriptCommand (D-33, WR-19): the invocation words of a printed command, before its arguments. For install.js:
+ * `GRUGOPS_HOME=<kit home>` when the context's kit home is not the default, then `node`, then the absolute path of
+ * install.js, then `--symlink` when the run was a symlink install. For uninstall.js: `node` and the absolute path of
+ * uninstall.js only, whatever the context holds, because uninstall.js reads no kit home and no install mode (its
+ * environment reads are GRUGOPS_SRC, DRY_RUN and TARGET) and refuses `--symlink` as an unknown argument (exit 2).
+ * The script path and the kit home pass through shellWord. Pure: no I/O.
+ */
+export function scriptCommand(binary, ctx) {
+    let dir = ctx.scriptDir;
+    while (dir.length > 1 && dir.endsWith("/"))
+        dir = dir.slice(0, -1);
+    const script = shellWord(dir + "/" + binary);
+    if (binary === "uninstall.js")
+        return ["node", script].join(" ");
+    const env = ctx.kitHome === null ? [] : ["GRUGOPS_HOME=" + shellWord(ctx.kitHome)];
+    return [...env, "node", script, ...(ctx.symlink ? ["--symlink"] : [])].join(" ");
+}
+/**
+ * agentCommand (phase 34.1, D-26, D-33; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names agents.
+ * With a context it returns scriptCommand(binary, ctx) (so the script is printed by its absolute path and the command
+ * runs from any directory), then `--target <target>`, then agentFlag(h) for each host in the order given, then each
+ * mode. An install command carries `GRUGOPS_HOME=<dir>` when the run used a kit home other than the default and
+ * `--symlink` when the run was a symlink install, so a command run as printed uses the kit and the mode the run used
+ * and never writes a second kit into `~/.grugops` (WR-19). An uninstall command carries neither, because uninstall.js
+ * reads neither. The flag spelling is agentFlag's and nothing else spells one into a remedy. No hosts gives no flag:
+ * the flag-less form, which on uninstall removes every agent (D-05), so a caller passes [] only when that is what it
+ * means. The target is one shell word (shellWord).
+ *
+ * It throws an Error naming the combination for a command install.js or uninstall.js would refuse: an agent flag with
+ * `--check` or `--prune-old-kit` (exit 2 under D-25), or any mode on an uninstall.js command.
+ *
+ * TRANSITIONAL (plans 34.1-22 and 34.1-23): with no context it returns the earlier words, `node install/<binary>
+ * --target <target> <flags>`, which run only from the checkout root with the default kit home. Plan 34.1-24 makes the
+ * context required and removes this form. Pure: no I/O.
+ */
+export function agentCommand(binary, target, hosts, ctx, modes = []) {
+    if (binary === "uninstall.js" && modes.length > 0) {
+        throw new Error(`agentCommand: ${binary} takes no mode (${modes.join(" ")})`);
+    }
+    const agentless = modes.filter((m) => m === "--check" || m === "--prune-old-kit");
+    if (hosts.length > 0 && agentless.length > 0) {
+        throw new Error(`agentCommand: agent flags (${hosts.map(agentFlag).join(" ")}) cannot be combined with ${agentless.join(" ")}`);
+    }
+    const head = ctx === undefined ? "node install/" + binary : scriptCommand(binary, ctx);
+    return [head, "--target", shellWord(target), ...hosts.map(agentFlag), ...modes].join(" ");
 }
 /**
  * ROUTE_POINTERS (plan 34-28, D-26 point 3): the pointer files install writes for each adapter kind that

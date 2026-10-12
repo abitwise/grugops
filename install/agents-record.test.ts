@@ -52,7 +52,7 @@ import {
   makeOldLayoutFixture,
   printedCommand,
   runInstall,
-  runPrintedCommand,
+  runPrintedCommandInCheckout,
   runUninstall,
   shellWords,
   snapshotTree,
@@ -107,7 +107,7 @@ function uninstall(w: World, args: readonly string[], dryRun = false): Run {
   return r;
 }
 function runPrinted(w: World, stdout: string): Run {
-  const r = runPrintedCommand(stdout, { grugopsHome: w.grugopsHome, home: w.home, timeoutMs: 120_000 });
+  const r = runPrintedCommandInCheckout(stdout, { grugopsHome: w.grugopsHome, home: w.home, timeoutMs: 120_000 });
   finished(r, `the printed command ${printedCommand(stdout)}`);
   return r;
 }

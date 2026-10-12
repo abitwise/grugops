@@ -176,6 +176,7 @@ import {
   agentCommand,
   agentFlag,
   carriesKitRoute,
+  commandContext,
   entryOwners,
   hostForFlag,
   routeCarriers,
@@ -337,6 +338,21 @@ const GRUGOPS_HOME = canonicalPathSpelling(
     : resolve(homedir(), ".grugops"),
 );
 const KIT_ROOT = canonicalPathSpelling(resolve(GRUGOPS_HOME, "agent-factory"));
+// COMMAND_CONTEXT (phase 34.1 gap round 2, D-33, review WR-19): how this run was invoked, built once, for every
+// command it prints (host-tools.ts agentCommand's fourth argument). The script directory is this script's own, so a
+// printed command names install.js and uninstall.js by their absolute paths and runs from any directory. The kit home
+// is the one this run resolved and used (GRUGOPS_HOME above), null when it is the default `~/.grugops`, so a printed
+// install command carries `GRUGOPS_HOME=<dir>` exactly when this run used another kit home; that holds in every mode
+// (install, --check, --migrate, --update, --prune-old-kit), and a doctor run given a kit home other than the one the
+// marker records prints the kit home it used itself (the kit-root disagreement is reported on its own line). The
+// install mode is this run's INSTALL_MODE (`--symlink` or INSTALL_MODE=symlink), so a `--check` run made without
+// `--symlink` prints copy-mode install commands. Every path is in canonicalPathSpelling's one spelling.
+const COMMAND_CONTEXT = commandContext(
+  canonicalPathSpelling(SCRIPT_DIR),
+  GRUGOPS_HOME,
+  canonicalPathSpelling(resolve(homedir(), ".grugops")),
+  INSTALL_MODE === "symlink",
+);
 // KIT_COPY_SOURCE: the directory copyKit copies to KIT_ROOT (copyKit spells the same join for the fs
 // census). seedRoot reads a DRY_RUN's seed from it (red-team L2 of plan 33.1-34).
 const KIT_COPY_SOURCE = join(GRUGOPS_SRC, "agent-factory");
@@ -1904,7 +1920,7 @@ function doctor(): number {
       "note",
       `${h.name} is recorded in .grugops/install.json as chosen, but nothing is installed for it here (the install ` +
         `ledger records nothing of install's for it, and ${entries.join(", ")} ${entries.length > 1 ? "are" : "is"} not ` +
-        `present), so --check gives it no reach line; \`${agentCommand("install.js", TARGET, [h])}\` writes its entry, ` +
+        `present), so --check gives it no reach line; \`${agentCommand("install.js", TARGET, [h], COMMAND_CONTEXT)}\` writes its entry, ` +
         `or says why it cannot`,
     );
   }

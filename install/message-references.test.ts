@@ -41,7 +41,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { HOST_TOOLS, PI_PROMPT_REL, agentCommand, agentFlag } from "./host-tools.js";
-import { INSTALL_JS, MARKER_REL, printedCommand, runInstall, runPrintedCommand, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
+import { INSTALL_JS, MARKER_REL, printedCommand, runInstall, runPrintedCommandInCheckout, runUninstall, spawnBin, type Run } from "./installer-paths.test-support.js";
 import { readMarkerObject, withLedger } from "./ledger.test-support.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -193,6 +193,10 @@ const REFERENCE_TABLE: readonly Row[] = [
 const COMMAND_TABLE: readonly Row[] = [
   ["host-tools.ts", "install.js", "agentCommand", "the builder itself: the binary's name in agentCommand's signature"],
   ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: the binary's name in agentCommand's signature"],
+  ["host-tools.ts", "install.js", "agentCommand", "the builder itself: the binary's name in scriptCommand's signature (agentCommand's invocation words, plan 34.1-22)"],
+  ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: the binary's name in scriptCommand's signature (agentCommand's invocation words, plan 34.1-22)"],
+  ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: scriptCommand gives an uninstall.js command no kit home and no --symlink (D-33)"],
+  ["host-tools.ts", "uninstall.js", "agentCommand", "the builder itself: agentCommand refuses a mode on an uninstall.js command"],
   ["install.ts", "--target needs a directory (usage: node install/install.js --target <repo>, or --target=<path> for a", "names no agent flag", "the usage of --target; no agent is chosen at argument parsing"],
   ["install.ts", "install.js:", "names no agent flag", "the install.js: prefix of a usage message"],
   ["install.ts", "install.js: INSTALL_MODE must be copy or symlink (it is", "names no agent flag", "the install.js: prefix of a usage message"],
@@ -329,17 +333,20 @@ describe("MSG-1 census over the product modules' string fragments (D-26)", () =>
   it("(c) every fragment that names install.js or uninstall.js is classed (equal both ways, with counts)", () => {
     const found = all.filter((f) => COMMAND.test(f.text));
     expect(compareBothWays(found, COMMAND_TABLE)).toEqual({ unclassified: [], stale: [] });
-    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 2, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 9 });
-    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 16, "file text": 1, "names no agent flag": 29 });
+    expect(countBy(found, (f) => f.module)).toEqual({ "host-tools.ts": 6, "install.ts": 34, "kit-source.ts": 1, "uninstall.ts": 9 });
+    expect(countBy(COMMAND_TABLE, (r) => r[2])).toEqual({ agentCommand: 20, "file text": 1, "names no agent flag": 29 });
   });
 
-  it("(c) an agentCommand row's fragment is an argument of an agentCommand call (or agentCommand's own signature)", () => {
+  // The builder is agentCommand and the invocation words it prints first, scriptCommand (plan 34.1-22, D-33): a
+  // host-tools.ts fragment classed agentCommand lies inside one of those two functions, and nowhere else.
+  it("(c) an agentCommand row's fragment is an argument of an agentCommand call (or inside the builder: agentCommand or scriptCommand)", () => {
     const rows = new Set(COMMAND_TABLE.filter((r) => r[2] === "agentCommand").map((r) => `${r[0]} :: ${norm(r[1])}`));
     const found = all.filter((f) => COMMAND.test(f.text) && rows.has(`${f.module} :: ${norm(f.text)}`));
-    expect(found.length, "premise: the agentCommand rows are found").toBe(16);
+    expect(found.length, "premise: the agentCommand rows are found").toBe(20);
+    const builder = new Set(["agentCommand", "scriptCommand"]);
     for (const f of found) {
       const call = nearestCall(f.node);
-      const ok = (call !== null && call.expression.getText(f.src) === "agentCommand") || (f.module === "host-tools.ts" && enclosingName(f.node) === "agentCommand");
+      const ok = (call !== null && call.expression.getText(f.src) === "agentCommand") || (f.module === "host-tools.ts" && builder.has(enclosingName(f.node) ?? ""));
       expect(ok, `${where(f)} is classed agentCommand but is not an agentCommand argument`).toBe(true);
     }
   });
@@ -613,7 +620,7 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
       expect(banner).toContain(`\`${agentCommand("install.js", w.target, [claude])}\``);
       expectReferences([["install --claude", r]]);
       writeFileSync(at(w, ".claude/settings.json"), "{}\n");
-      const ran = runPrintedCommand(banner, { grugopsHome: w.kitHome, home: w.home, timeoutMs: 180_000 });
+      const ran = runPrintedCommandInCheckout(banner, { grugopsHome: w.kitHome, home: w.home, timeoutMs: 180_000 });
       expect(ran.status, ran.stdout + ran.stderr).toBe(0);
       const ask = (JSON.parse(readFileSync(at(w, ".claude/settings.json"), "utf8")) as { permissions?: { ask?: unknown } }).permissions?.ask;
       expect(Array.isArray(ask) && ask.length > 0, `no ask rule was written: ${JSON.stringify(ask)}`).toBe(true);
@@ -633,11 +640,11 @@ describe("(e) MSG-1 scenario matrix: every reference a run prints points at a li
     expectReferences([["install (kit root A)", first], ["install (kit root B)", second]], false);
     const un = printedCommand(note!);
     expect(un).toBe(agentCommand("uninstall.js", w.target, [oc]));
-    const ranUn = runPrintedCommand(note!, { grugopsHome: w.kitHome, home: w.home, timeoutMs: 180_000 });
+    const ranUn = runPrintedCommandInCheckout(note!, { grugopsHome: w.kitHome, home: w.home, timeoutMs: 180_000 });
     expect(ranUn.status, ranUn.stdout + ranUn.stderr).toBe(0);
     const rest = note!.slice(note!.indexOf(`\`${un}\``) + un.length + 2);
     expect(printedCommand(rest)).toBe(agentCommand("install.js", w.target, [oc]));
-    const ranIn = runPrintedCommand(rest, { grugopsHome: kitB, home: w.home, timeoutMs: 180_000 });
+    const ranIn = runPrintedCommandInCheckout(rest, { grugopsHome: kitB, home: w.home, timeoutMs: 180_000 });
     expect(ranIn.status, ranIn.stdout + ranIn.stderr).toBe(0);
     const json = JSON.parse(readFileSync(at(w, "opencode.json"), "utf8")) as { permission?: { external_directory?: Record<string, unknown> } };
     expect(Object.keys(json.permission?.external_directory ?? {})).toEqual(["~/.grugops-b/agent-factory/**"]);

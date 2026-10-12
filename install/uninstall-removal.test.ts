@@ -62,7 +62,7 @@ import {
   printedRel,
   rebindMarker,
   runInstall,
-  runPrintedCommand,
+  runPrintedCommandInCheckout,
   runUninstall,
   snapshotTree,
   spawnBin,
@@ -836,7 +836,7 @@ describe("per-agent uninstall (D-05)", () => {
     expect(r.stdout, "the finishing command is not printed").toContain(`\`${expected}\``);
 
     writeFileSync(file, original);
-    const fin = runPrintedCommand(r.stdout, { grugopsHome: t.grugopsHome, home: t.home });
+    const fin = runPrintedCommandInCheckout(r.stdout, { grugopsHome: t.grugopsHome, home: t.home });
     expectFinished(fin, "the printed command");
     expect(fin.status, `${fin.stdout}\n${fin.stderr}`).toBe(0);
     expect(existsSync(at(t.target, ".claude/skills/grugops-gate")), `the restored skill is still there\n${fin.stdout}`).toBe(false);

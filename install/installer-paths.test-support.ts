@@ -60,10 +60,11 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, resolve, sep } from "node:path";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { canonicalPathSpelling, realTargetPath, type PathFlavor } from "./user-file.js";
-import { HOST_TOOLS, agentFlag, hostForFlag, type HostTool } from "./host-tools.js";
+import { HOST_TOOLS, agentFlag, commandContext, hostForFlag, type CommandContext, type HostTool } from "./host-tools.js";
 
 export const REPO_ROOT = resolve(import.meta.dirname, "..");
 export const INSTALL_JS = join(import.meta.dirname, "install.js");
@@ -316,6 +317,11 @@ export interface RunOptions {
   readonly home?: string;
   /** The kit source (GRUGOPS_SRC); this repository when omitted (plan 33.1-38). */
   readonly src?: string;
+  /**
+   * Run with no GRUGOPS_HOME in the child's environment (plan 34.1-22, D-33), so the run uses the default kit home
+   * `$HOME/.grugops`. Requires `home`: without a scratch HOME the default kit home would be the real one.
+   */
+  readonly omitKitHome?: boolean;
 }
 
 /**
@@ -324,6 +330,12 @@ export interface RunOptions {
  */
 export function spawnBin(bin: string, args: readonly string[], target: string, grugopsHome: string, opts: RunOptions = {}): Run {
   const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: opts.src ?? REPO_ROOT, GRUGOPS_HOME: grugopsHome, TARGET: target };
+  if (opts.omitKitHome) {
+    if (opts.home === undefined || opts.home === "") {
+      throw new Error("spawnBin: omitKitHome needs a scratch home (the default kit home would be the real ~/.grugops)");
+    }
+    delete env.GRUGOPS_HOME;
+  }
   if (opts.home !== undefined) env.HOME = opts.home;
   if (opts.dryRun) env.DRY_RUN = "1";
   else delete env.DRY_RUN;
@@ -405,23 +417,149 @@ export function shellWords(line: string): string[] {
   return words;
 }
 
-/**
- * The first backtick-quoted span in `stdout` that starts with `node install/`: the command a line printed (an
- * agentCommand-built remedy). Throws when there is none.
- */
-export function printedCommand(stdout: string): string {
-  const m = /`(node install\/[^`]*)`/.exec(stdout);
-  if (m === null) throw new Error(`no printed \`node install/...\` command in:\n${stdout}`);
-  return m[1];
+/** A leading `NAME=value` word of a printed command (an environment assignment before `node`). */
+const ASSIGNMENT_WORD = /^[A-Za-z_][A-Za-z0-9_]*=/;
+/** The two installer binaries a printed command may run. */
+const PRINTED_BINARIES = ["install.js", "uninstall.js"] as const;
+
+/** The index of the `node` word after any leading assignments, or -1 when the words are not `[NAME=value ...] node`. */
+function nodeWordAt(words: readonly string[]): number {
+  let i = 0;
+  while (i < words.length && ASSIGNMENT_WORD.test(words[i])) i++;
+  return words[i] === "node" ? i : -1;
 }
 
 /**
- * Run exactly the command a line printed (printedCommand), from this repository's root. The second word must be
- * `install/install.js` or `install/uninstall.js`; it is run with this Node binary, resolved under REPO_ROOT. The
- * environment is spawnBin's, but with no TARGET, so the printed `--target` alone names the target, and no DRY_RUN.
- * GRUGOPS_HOME is always `opts.grugopsHome` (a scratch kit home), and HOME is `opts.home` when given.
+ * Whether `script` is an installer script word a printed command may carry: an absolute path ending in
+ * `/install/install.js` or `/install/uninstall.js` (in pathText's spelling), or (until plan 34.1-24 moves every
+ * site to the builder's context) the relative `install/install.js` or `install/uninstall.js`.
  */
-export function runPrintedCommand(stdout: string, opts: { readonly grugopsHome: string; readonly home?: string; readonly timeoutMs?: number }): Run {
+function isInstallerScriptWord(script: string | undefined): boolean {
+  if (script === undefined) return false;
+  if (PRINTED_BINARIES.some((b) => script === "install/" + b)) return true;
+  return isAbsolute(script) && PRINTED_BINARIES.some((b) => pathText(script).endsWith("/install/" + b));
+}
+
+/**
+ * The first backtick-quoted span in `text` whose shell words, after any leading `NAME=value` words, are `node` and an
+ * installer script word (isInstallerScriptWord): the command a line printed (an agentCommand-built remedy). Throws
+ * when there is none.
+ */
+export function printedCommand(text: string): string {
+  for (const m of text.matchAll(/`([^`]*)`/g)) {
+    let words: string[];
+    try {
+      words = shellWords(m[1]);
+    } catch {
+      continue;
+    }
+    const at = nodeWordAt(words);
+    if (at !== -1 && isInstallerScriptWord(words[at + 1])) return m[1];
+  }
+  throw new Error(`no printed installer command (\`[NAME=value ...] node <.../install/install.js|uninstall.js> ...\`) in:\n${text}`);
+}
+
+/**
+ * The context a run with these values builds (plan 34.1-22, D-33): this checkout's install directory, the kit home
+ * `grugopsHome`, the default kit home under `home` (the real home directory when omitted), and the install mode, all
+ * in the product's one spelling. A test builds an expected printed command with agentCommand(..., this context).
+ */
+export function commandContextFor(opts: { readonly grugopsHome: string; readonly home?: string; readonly symlink?: boolean }): CommandContext {
+  return commandContext(
+    canonicalPathSpelling(import.meta.dirname),
+    canonicalPathSpelling(resolve(opts.grugopsHome)),
+    canonicalPathSpelling(resolve(opts.home ?? homedir(), ".grugops")),
+    opts.symlink ?? false,
+  );
+}
+
+/** What runPrintedCommand ran: the Run, and the premise it ran under (asserted inside the tests). */
+export interface PrintedRun extends Run {
+  readonly premise: {
+    /** The working directory the command ran from: never the checkout root or a directory inside it. */
+    readonly cwd: string;
+    /** The GRUGOPS_HOME the child's environment held: the printed text's own, or undefined when it set none. */
+    readonly grugopsHome: string | undefined;
+  };
+}
+
+/** Whether `dir` is the checkout root or a directory inside it (both sides through realpath, so a link cannot hide it). */
+function insideCheckout(dir: string): boolean {
+  const rel = relative(realpathSync(REPO_ROOT), realpathSync(dir));
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+/**
+ * Run a printed command in the user's environment (plan 34.1-22, D-33; brief §4, WR-19). The printed text alone
+ * decides the kit home, and the working directory is not the checkout:
+ *   - the span is printedCommand(text), split by shellWords. Its leading assignments may only be GRUGOPS_HOME (any
+ *     other name throws); the script word must be the absolute path of install.js or uninstall.js in this checkout
+ *     (a relative one throws: that site has not moved to the builder's context yet, see runPrintedCommandInCheckout);
+ *   - the environment is this process's with GRUGOPS_HOME, GRUGOPS_SRC, INSTALL_MODE, TARGET and DRY_RUN removed, HOME
+ *     set to the required scratch `home` (a command with no GRUGOPS_HOME prefix uses `$HOME/.grugops`, so the real HOME
+ *     is never inherited), and the printed assignments added;
+ *   - the working directory is `cwd` or a fresh scratch directory under the OS temp directory (removed afterwards);
+ *     it throws when that directory is the checkout root or inside it.
+ * The command is run with this Node binary. The result carries its premise (the cwd, and the GRUGOPS_HOME the child
+ * saw), which the tests assert.
+ */
+export function runPrintedCommand(text: string, opts: { readonly home: string; readonly timeoutMs?: number; readonly cwd?: string }): PrintedRun {
+  if (typeof opts.home !== "string" || opts.home === "") throw new Error("runPrintedCommand: a scratch home is required");
+  const span = printedCommand(text);
+  const words = shellWords(span);
+  const at = nodeWordAt(words);
+  const assigned: Record<string, string> = {};
+  for (const w of words.slice(0, at)) {
+    const eq = w.indexOf("=");
+    const name = w.slice(0, eq);
+    if (name !== "GRUGOPS_HOME") throw new Error(`runPrintedCommand: the printed command sets ${name}, not only GRUGOPS_HOME: ${span}`);
+    assigned[name] = w.slice(eq + 1);
+  }
+  const script = words[at + 1];
+  if (!isAbsolute(script)) {
+    throw new Error(`runPrintedCommand: the script word ${JSON.stringify(script)} is relative (a site not moved to the builder's context): ${span}`);
+  }
+  if (![INSTALL_JS, UNINSTALL_JS].some((p) => pathText(p) === pathText(script))) {
+    throw new Error(`runPrintedCommand: the script word ${JSON.stringify(script)} is not an installer script of this checkout: ${span}`);
+  }
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of ["GRUGOPS_HOME", "GRUGOPS_SRC", "INSTALL_MODE", "TARGET", "DRY_RUN"]) delete env[key];
+  env.HOME = opts.home;
+  Object.assign(env, assigned);
+  const made = opts.cwd === undefined;
+  const cwd = opts.cwd ?? mkdtempSync(join(tmpdir(), "gprinted-"));
+  try {
+    if (insideCheckout(cwd)) throw new Error(`runPrintedCommand: the working directory ${cwd} is inside the checkout ${REPO_ROOT}`);
+    const r = spawnSync(process.execPath, [script, ...words.slice(at + 2)], {
+      cwd,
+      encoding: "utf8",
+      env,
+      timeout: opts.timeoutMs ?? 60_000,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return {
+      status: r.status,
+      signal: r.signal,
+      error: r.error,
+      stdout: r.stdout ?? "",
+      stderr: r.stderr ?? "",
+      premise: { cwd, grugopsHome: env.GRUGOPS_HOME },
+    };
+  } finally {
+    if (made) rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+/**
+ * TRANSITIONAL (plan 34.1-22; plan 34.1-24 deletes it): the earlier runner, for a printed command a site has not yet
+ * moved to the builder's context (its script word is the relative `install/<binary>`). Run exactly the command a line
+ * printed (printedCommand), from this repository's root. The second word must be `install/install.js` or
+ * `install/uninstall.js`; it is run with this Node binary, resolved under REPO_ROOT. The environment is spawnBin's, but
+ * with no TARGET, so the printed `--target` alone names the target, and no DRY_RUN. GRUGOPS_HOME is always
+ * `opts.grugopsHome` (a scratch kit home), and HOME is `opts.home` when given. It supplies the cwd and the kit home
+ * itself, so it proves nothing about the user's environment (WR-19); runPrintedCommand does.
+ */
+export function runPrintedCommandInCheckout(stdout: string, opts: { readonly grugopsHome: string; readonly home?: string; readonly timeoutMs?: number }): Run {
   const words = shellWords(printedCommand(stdout));
   if (words[0] !== "node" || (words[1] !== "install/install.js" && words[1] !== "install/uninstall.js")) {
     throw new Error(`runPrintedCommand: not an installer command: ${JSON.stringify(words)}`);
