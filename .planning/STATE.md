@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-26-PLAN.md
-last_updated: "2026-10-12T16:50:04.904Z"
-state_head: 1b5369295ff186dad94f5f0fd68792316a78d677
+stopped_at: Completed 34.1-27-PLAN.md
+last_updated: "2026-10-12T17:27:31.755Z"
+state_head: 7980cc7f471f3e73e3711caec3224f24c58e57fd
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 423
-  completed_plans: 417
+  completed_plans: 418
   percent: 99
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING
-Plan: 26 of 32 (gap round 2 of 4: 34.1-26 done 2026-10-12: the no-target or no-ledger unusable-marker verify prints reinstallCommand() then rerunCommand() and no longer says any agent flag will do; a flag-less run adds the one NO_FLAG_INSTALL_CLAUSE after the install command in both unusable-marker verifies; over a marker uninstall cannot use, INSTALLED_UNKNOWN makes the agents to remove line, the per-flag note and the closing banner say the installed set is unknown, not none (IN-27); rows R26, R27, R28 and R34 follow the remedies as printed, each with a mutation proof; re-run census 1 -> 0; next: 34.1-27)
+Plan: 27 of 32 (gap round 2 of 4: 34.1-27 done 2026-10-12: DI-08 closed, the doctor's stale-adapter remedy prints doctorInstallCommand() (agentCommand with COMMAND_CONTEXT, no agent flag) instead of the hand-built node install/install.js --target; every other doctor remedy that asks for install.js (D1-D14, D16, D17) keeps its words and adds doctorInstallCommand() or doctorCheckCommand(), with DOCTOR_NO_FLAG_CLAUSE where the marker is absent or unusable; the DI-08 case and M9 run a printed doctor command from a scratch directory, each with a mutation proof; context census install.ts 10 -> 13; DI-12 recorded for triage; next: 34.1-28)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -678,6 +678,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P24 | 24 min | 2 tasks | 10 files |
 | Phase 34.1 P25 | 26min | 1 tasks | 10 files |
 | Phase 34.1 P26 | 17 min | 2 tasks | 7 files |
+| Phase 34.1 P27 | 34min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -1868,6 +1869,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-25: wholeFileEntryRels moved to install-marker.ts (filters by BLOCK_RELS); install writes and the new uninstall reportUnrecordedHostEntries reports from the one list; census re-pins: context uninstall.ts 4->5, re-run fragments 2->1, message-references (c) agentCommand 20->21
 - [Phase 34.1]: 34.1-26 (D-31, IN-27): over a marker uninstall cannot use (INSTALLED_UNKNOWN), the agents to remove line, the per-flag note and the closing banner say which agents are installed is unknown, not none; R28 covers four marker shapes
 - [Phase 34.1]: 34.1-26 (D-33, WR-20): the no-target or no-ledger verify prints reinstallCommand() then rerunCommand(); one NO_FLAG_INSTALL_CLAUSE follows the install command in both unusable-marker verifies on a flag-less run; R26, R27, R34 run the remedies as printed; re-run census pinned at 0 with a walk premise
+- [Phase 34.1]: 34.1-27 (D-33, DI-08): the doctor prints its install and check commands only through doctorInstallCommand() and doctorCheckCommand() (agentCommand with COMMAND_CONTEXT, no agent flag); every doctor remedy that asks for install.js keeps its words and adds the command after the phrase, so the kit-route pins and agreement check (5) hold
+- [Phase 34.1]: 34.1-27 (D-31, D-33): DOCTOR_NO_FLAG_CLAUSE states SELECTION_WHY's chain and follows the install command where the marker is absent, unreadable or unbound (D1, D2, D11, D12); the stale-adapter tail names the checkout its command renders from (the script's parent), not GRUGOPS_SRC
 
 ### Pending Todos
 
@@ -1998,8 +2001,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-12T16:49:53.320Z
-Stopped at: Completed 34.1-26-PLAN.md
+Last session: 2026-10-12T17:27:09.411Z
+Stopped at: Completed 34.1-27-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
