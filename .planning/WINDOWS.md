@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 246
+open_count: 247
 waived_count: 28
 fixed_count: 47
-total_count: 321
-last_updated: 2026-10-09T10:39:08.545Z
+total_count: 322
+last_updated: 2026-10-12T03:22:36.081Z
 ---
 
 # Broken Windows Ledger
@@ -336,6 +336,7 @@ last_updated: 2026-10-09T10:39:08.545Z
 | 319 | 34 | unmet-truth | install/ledger.test.ts | 454 | New cause in CI run 37733716975 (head 9de784e8, gap round 1 of phase 34): windows-latest red in two tests that 34-13 changed - ledger.test.ts 'treeRecord gives a file its file record, a link its link record, ...' (:454) and 'backupContentRecord: a file's bytes and mode, a tree, a link; ...' (:638), printed 'expected link:D:\\some\\where to be link:/some/where'. Each was a WIN-2 red in run 37521787426; 34-13's stored-mode fix let the earlier assertion pass and this masked one now runs. The fixture links to the rooted target /some/where; on Windows, Node's symlink stores a rooted target resolved against the cwd drive (the leg runs on D:), so readlink returns D:\\some\\where. Not in the family rule (WIN-1 recorded/printed, WIN-2, other); the 34-12 masked-assertion audit covered WIN-1 reds only. Whether any product link record (install.ts linkRecord(src) at :2482/:3718 against readlink in user-file.ts :454/:536) is re-spelled the same way on Windows is UNKNOWN - verify: the link cases of uninstall-removal.test.ts skip on win32. Blocks HOST-02. Not fixed in 34-18 (plan prohibition); gap round 2 decides. Gap round 2 (34-23, D-21): the two fixtures (and the treeRecord walk fixture) now link to absolute targets built with join under the test's scratch directory and expect linkRecord of that same value, with no platform branch, and census rule (t6) refuses a rooted drive-less literal link target in any installer test; predicted green on windows-latest, not measured (D-21: the human pushes and measures later). isOwnLink now compares through the one spelling, sameRecordedPath (34-21). The Windows readback of a product link is still UNKNOWN - verify (the product link cases skip on win32). The row stays open until the human's run. | open |  | 2026-10-08T06:40:54.249Z |  |
 | 320 | 34 | skipped-test | install/canonical-path.test.ts | 268 | Plan 34-21 isOwnLink host cases (true for the own link, true under path.win32 in backslash spelling, false for another directory and for a relative target) skip with a printed SKIPPED line where the host cannot make a link (stageSymlinkOrSkip, EPERM/EACCES); the rule stays pinned by the pure sameRecordedPath table under both flavors. Whether these cases run or skip on windows-latest is UNKNOWN - verify (no human-pushed run measured this plan, WIN-3). | open |  | 2026-10-09T10:30:34.211Z |  |
 | 321 | 34 | unrun-verify | install/record-truth.test.ts |  | 34-22 (WR-10, D-23): the two L1 pointer-file writable-mode rows of install/record-truth.test.ts (CLAUDE.md, .github/copilot-instructions.md; the other-read bit toggled, owner write kept) are gated on the measured host capability 'POSIX permission bits beyond read-only' and skip with a printed SKIPPED line where it is absent (windows-latest), so uninstall's pointer-file mode comparison (removeOwnedEmptyFile, recordMatches with the pre-removal mode) is not reached end to end on Windows. The read-only L1 rows still run there, and the direct modeMatches / recordMatches case still runs there. A Windows case needs a writable mode change Windows stores, which is UNKNOWN - verify. No human-pushed run measured this plan (WIN-3). | open |  | 2026-10-09T10:39:08.545Z |  |
+| 322 | 34.1 | skipped-test | install/install.test.ts | 10841 | 34.1-12 (D-02): the six 'agent picker at a terminal' cases need script(1) for a pseudo-terminal (BSD or util-linux form, probed); where neither runs (expected on windows-latest) they skip with the printed reason 'script(1) is not available to give the installer a terminal'. The pure key class (install/agent-picker.test.ts) runs everywhere; raw-mode behaviour on Windows is UNKNOWN - verify. | open |  | 2026-10-12T03:22:36.081Z |  |
 
 ````json
 [
@@ -4333,6 +4334,19 @@ last_updated: 2026-10-09T10:39:08.545Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-10-09T10:39:08.545Z",
+    "resolved_at": null,
+    "milestone": "v2.1"
+  },
+  {
+    "id": 322,
+    "kind": "skipped-test",
+    "phase": "34.1",
+    "file": "install/install.test.ts",
+    "line": 10841,
+    "description": "34.1-12 (D-02): the six 'agent picker at a terminal' cases need script(1) for a pseudo-terminal (BSD or util-linux form, probed); where neither runs (expected on windows-latest) they skip with the printed reason 'script(1) is not available to give the installer a terminal'. The pure key class (install/agent-picker.test.ts) runs everywhere; raw-mode behaviour on Windows is UNKNOWN - verify.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-12T03:22:36.081Z",
     "resolved_at": null,
     "milestone": "v2.1"
   }
