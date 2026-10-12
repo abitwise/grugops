@@ -320,8 +320,10 @@ Choose the coding agents to install grugops for (arrows or j/k move, space toggl
 - **What skips the list:** any agent flag, `--yes`, or a standard input or output that is not a
   terminal (a pipe, a redirect, CI). The run then chooses in the order above.
 
-The list puts the terminal in raw mode while it is on screen, and turns raw mode off and shows the
-cursor again when it ends, whether by Enter, Ctrl-C or an error.
+The list puts the terminal in raw mode and hides the cursor while it is on screen. When it ends,
+whether by Enter, Ctrl-C or an error, it shows the cursor again and turns raw mode off, and it does
+both even if one of those two steps fails. If the installer is killed by a signal while the list is
+open, the cursor can stay hidden; `tput cnorm` (or `reset`) shows it again.
 
 ### Copy by default (symlink is opt-in)
 

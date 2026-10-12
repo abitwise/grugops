@@ -9,10 +9,12 @@
 import { describe, it, expect } from "vitest";
 import {
   PICKER_HEADER,
+  SHOW_CURSOR,
   decodeKeys,
   initialPicker,
   pickerRows,
   render,
+  restoreTerminal,
   screenLines,
   step,
   type PickerKey,
@@ -269,5 +271,55 @@ describe("pickerRows (D-02)", () => {
       }
     }
     expect(cases).toBe(4 ** HOSTS.length);
+  });
+});
+
+// ── IN-18 (phase 34.1 gap round 1, D-26, brief CLEAN-1): the terminal is restored whatever throws ─────────────────────
+// restoreTerminal is what pickAgents' finally block calls. Each row records the calls an io recorder receives: both
+// steps are attempted, the write first, whichever of them throws, and restoreTerminal itself never throws.
+describe("IN-18: restoreTerminal (D-26)", () => {
+  const recorder = (writeThrows: boolean, rawThrows: boolean): { calls: string[]; io: { write(t: string): void; setRawMode(on: boolean): void } } => {
+    const calls: string[] = [];
+    return {
+      calls,
+      io: {
+        write(t: string): void {
+          calls.push(`write:${JSON.stringify(t)}`);
+          if (writeThrows) throw new Error("write failed");
+        },
+        setRawMode(on: boolean): void {
+          calls.push(`setRawMode:${on}`);
+          if (rawThrows) throw new Error("setRawMode failed");
+        },
+      },
+    };
+  };
+  const expectedCalls = [`write:${JSON.stringify(SHOW_CURSOR + "\n")}`, "setRawMode:false"];
+
+  for (const writeThrows of [false, true]) {
+    for (const rawThrows of [false, true]) {
+      it(`write ${writeThrows ? "throws" : "succeeds"}, setRawMode ${rawThrows ? "throws" : "succeeds"}: both steps run, write first, and restoreTerminal does not throw`, () => {
+        const r = recorder(writeThrows, rawThrows);
+        expect(() => restoreTerminal(r.io)).not.toThrow();
+        expect(r.calls).toEqual(expectedCalls);
+      });
+    }
+  }
+
+  it("a restore whose two steps both throw does not mask the error that ended the list", () => {
+    const r = recorder(true, true);
+    const list = (): void => {
+      try {
+        throw new Error("boom");
+      } finally {
+        restoreTerminal(r.io);
+      }
+    };
+    expect(list).toThrow("boom");
+    expect(r.calls).toEqual(expectedCalls);
+  });
+
+  it("SHOW_CURSOR is the ESC [ ? 2 5 h sequence", () => {
+    expect([...SHOW_CURSOR].map((c) => c.charCodeAt(0))).toEqual([0x1b, 0x5b, 0x3f, 0x32, 0x35, 0x68]);
   });
 });

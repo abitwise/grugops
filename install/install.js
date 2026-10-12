@@ -85,7 +85,7 @@ import { readJsonText, keyCount, memberNamed, documentValue, appendElements, add
 import { ADAPTER_FOOTPRINT, HOST_TOOLS, KIT_ROUTE, OPENCODE_CONFIG_REL, POINTER_LINE, ROUTE_POINTERS, agentCommand, agentFlag, carriesKitRoute, entryOwners, hostForFlag, routeCarriers, reachVia, strandedBy, } from "./host-tools.js";
 // Phase 34.1 D-02: the agent checkbox list as a pure state machine (key decoding, steps, frames, rows). It imports
 // nothing and does no I/O; pickAgents below is its raw-mode reader.
-import { decodeKeys, initialPicker, pickerRows, render, step } from "./agent-picker.js";
+import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerminal, step } from "./agent-picker.js";
 // DC-3 (brief 33.1-GAP-PLANNING-BRIEF.md): the ONE reader of a user-controlled path. Every read
 // this file makes of a path in the user's repository goes through it, and so does every copy whose
 // source is such a path (the copy is written from its bytes). It decides the file type before it
@@ -273,9 +273,16 @@ function readlineSync() {
 // is install/agent-picker.ts; this shell only moves bytes. It hides the cursor, puts standard input in raw mode, reads
 // it through readStdin (16 bytes at most per read, one key per read in practice), decodes each chunk, applies each key
 // and repaints. It answers the confirmed checkbox list, or null when the list was cancelled: Ctrl-C (byte 0x03, which
-// raises no SIGINT in raw mode) or the end of input. THE TERMINAL IS ALWAYS RESTORED: raw mode off, cursor shown and
-// a newline, in a finally block, on confirm, cancel, end of input or a thrown error. Nothing in the loop exits the
-// process; the caller refuses through refuseSelection after this returns. Reached only when standard input and
+// raises no SIGINT in raw mode) or the end of input. THE TERMINAL IS ALWAYS RESTORED on every exit this process
+// controls (plan 34.1-16, review IN-18): the cursor is hidden as the first statement inside the try, and the finally
+// block hands process.stdout.write and stdin.setRawMode, bound to their streams, to agent-picker.ts restoreTerminal,
+// which shows the cursor (and a newline), then turns raw mode off, each step in its own try. A failure of one step never
+// skips the other, and the restore never throws, so on confirm, cancel, end of input or a thrown error (setRawMode(true)
+// included) the error that ended the list is the one the caller sees. RESIDUAL: a SIGTERM or SIGHUP while the list is
+// open ends the process inside the synchronous read loop, where no JavaScript runs, so the cursor can stay hidden;
+// whether Node turns raw mode off then is UNKNOWN - verify (review IN-18 says it does; this plan did not run it).
+// install/README.md gives the remedy (`tput cnorm`). Nothing in the loop exits the process; the caller refuses through
+// refuseSelection after this returns. Reached only when standard input and
 // standard output are both terminals (the SELECTION_WHY gate below); no environment variable or file feeds it keys.
 function pickAgents(rows, checked) {
     const stdin = process.stdin;
@@ -291,8 +298,8 @@ function pickAgents(rows, checked) {
         process.stdout.write(frame.text);
         lines = frame.lines;
     };
-    process.stdout.write("\x1b[?25l");
     try {
+        process.stdout.write(HIDE_CURSOR);
         stdin.setRawMode(true);
         paint();
         read: for (;;) {
@@ -314,8 +321,7 @@ function pickAgents(rows, checked) {
         }
     }
     finally {
-        stdin.setRawMode(false);
-        process.stdout.write("\x1b[?25h\n");
+        restoreTerminal({ write: process.stdout.write.bind(process.stdout), setRawMode: stdin.setRawMode.bind(stdin) });
     }
     return answer;
 }

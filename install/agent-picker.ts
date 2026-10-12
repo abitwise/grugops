@@ -2,10 +2,11 @@
 //
 // WHAT THIS OWNS. How the installer's checkbox list turns terminal key bytes into keys (decodeKeys), how a key changes
 // the list (step), what the list looks like on screen (render), and which rows it shows and pre-checks (pickerRows).
-// It owns no I/O: it imports nothing, reads no file, touches no terminal and never exits. The raw-mode reader lives in
-// install/install.ts (pickAgents): it puts the terminal in raw mode, reads standard input with the same synchronous
-// readSync and EAGAIN wait as the installer's line prompts, feeds each chunk through decodeKeys and step, writes each
-// render, and restores the terminal in a finally block. Keeping the machine pure lets the tests drive every key and
+// It owns no I/O: it imports nothing, reads no file, touches no terminal of its own and never exits. The raw-mode reader
+// lives in install/install.ts (pickAgents): it puts the terminal in raw mode, reads standard input with the same
+// synchronous readSync and EAGAIN wait as the installer's line prompts, feeds each chunk through decodeKeys and step,
+// writes each render, and restores the terminal in a finally block through restoreTerminal, which is given the two
+// terminal functions it calls (write and setRawMode) by pickAgents. Keeping the machine pure lets the tests drive every key and
 // every split escape sequence without a terminal (no environment variable or file ever feeds it keys).
 //
 // KEYS. Up: ESC [ A, ESC O A, `k`. Down: ESC [ B, ESC O B, `j`. Toggle: space. Confirm: CR or LF. Abort: byte 0x03
@@ -33,6 +34,36 @@ export interface PickerRow {
 }
 
 const ESC = "\x1b";
+
+/** The terminal sequence that hides the cursor (ESC [ ? 2 5 l), written when the list starts. */
+export const HIDE_CURSOR = `${ESC}[?25l`;
+/** The terminal sequence that shows the cursor again (ESC [ ? 2 5 h), written when the list ends. */
+export const SHOW_CURSOR = `${ESC}[?25h`;
+
+/** The two terminal functions restoreTerminal needs, passed in by the caller (this module does no I/O of its own). */
+export interface TerminalIo {
+  write(text: string): void;
+  setRawMode(on: boolean): void;
+}
+
+/**
+ * Puts the terminal back as the list found it: writes SHOW_CURSOR and a newline, then turns raw mode off (plan
+ * 34.1-16, review IN-18, brief CLEAN-1). Each step runs in its own try and its error is dropped, so a failure in one
+ * never skips the other, and restoreTerminal never throws: called from a finally block, it can never replace the error
+ * that ended the list.
+ */
+export function restoreTerminal(io: TerminalIo): void {
+  try {
+    io.write(SHOW_CURSOR + "\n");
+  } catch {
+    // Dropped on purpose: raw mode must still be turned off, and the error that ended the list must reach the caller.
+  }
+  try {
+    io.setRawMode(false);
+  } catch {
+    // Dropped on purpose, for the same reason.
+  }
+}
 
 /** CSI parameter bytes (0x30-0x3F) and intermediate bytes (0x20-0x2F) come between `ESC [` and the final byte. */
 function isCsiBody(c: string): boolean {
