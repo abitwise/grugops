@@ -68,9 +68,11 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * modules and reads no file mode). 33 since plan 34.1-09 added opencode-permission.test.ts, which has no chmod call (its
  * one user mode edit goes through userModeEdit) and no literal expected mode. 34 since plan 34.1-12 added
  * agent-picker.test.ts, which has no chmod call and no expected mode (it drives a pure key decoder and reads no file).
+ * 35 since plan 34.1-13 added host-entry-docs.test.ts, which has no chmod call and no expected mode (it reads tracked
+ * markdown text only).
  * SOURCE_FILE_COUNT is 9 since plan 34.1-12 added install/agent-picker.ts, which imports nothing, renders no mode and
  * compares none (it is the checkbox list's pure state machine). */
-const INSTALL_TEST_FILE_COUNT = 34;
+const INSTALL_TEST_FILE_COUNT = 35;
 const SCRIPTS_TEST_FILE_COUNT = 73;
 const SOURCE_FILE_COUNT = 9;
 
