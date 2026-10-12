@@ -1748,7 +1748,7 @@ Plans:
 **Goal:** The installer installs grugops for the coding agent(s) the person names — it asks during installation, or takes the agent(s) as a parameter — and writes only that host's discoverable entry, instead of laying down adapters for every supported host. Each named host then reaches the Orchestrator through its own native entry after a scripted install: Codex through a repo-local `.agents/skills/grugops/`; Antigravity CLI (Google's successor to the discontinued Gemini CLI; reads AGENTS.md and GEMINI.md, skills from `.gemini/skills/` or `~/.gemini/antigravity-cli/skills/`); OpenCode through `.opencode/commands/grugops.md` plus a read permission for the out-of-repo kit (`external_directory`); Copilot; Pi; Claude Code. Carries the Phase 34 UAT gaps G-34-R3-2 (live per-host runs: Codex, Antigravity and OpenCode entries missing, Copilot untested) and G-34-R3-4 (round-4 review WR-13..WR-16 and IN-14..IN-17; human notes: WR-14 — Antigravity CLI reads AGENTS.md; WR-15 — correctness unsure, re-check; WR-16 — dissolved into the per-agent choice). Absorbs backlog 999.4. Windows stays out of scope (backlog 999.5).
 **Requirements**: TBD (no requirement IDs; the plans cover CONTEXT decisions D-01..D-25)
 **Depends on:** Phase 34
-**Plans:** 13/17 plans executed
+**Plans:** 13/18 plans executed
 
 Plans:
 **Wave 1**
@@ -1788,19 +1788,22 @@ Plans:
 **Wave 12** *(blocked on Wave 11 completion)*
 - [x] 34.1-13-PLAN.md — per-agent docs, D-21 doc scan, CLI contract, CHANGELOG, closed review dispositions, live per-agent UAT checks (D-18, D-19, D-21, D-25)
 
-**Gap round 1 of 4 (D-26, D-27, D-28)**
+**Gap round 1 of 4 (D-26, D-27, D-28, D-29, D-30)**
 
 **Wave 1** *(gap round)*
-- [ ] 34.1-14-PLAN.md — CR-02 as REC-1: agentsToRecord for every marker write, agentCommand finishing command, restore-and-rerun test (D-26)
+- [ ] 34.1-14-PLAN.md — CR-02 as REC-1: agentsToRecord for every marker write (rewriteLedger in the census), agentCommand finishing and run-again commands, restore-and-rerun tests (D-26, D-29)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 34.1-15-PLAN.md — WR-17, IN-21 (the `agents` field means chosen; doctor note for nothing installed), IN-22 and the MSG-1 census (D-26)
+- [ ] 34.1-15-PLAN.md — WR-17, IN-21 (the `agents` field means chosen; doctor note for nothing installed), IN-22, install-side re-run remedies and the MSG-1 census (D-26)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 34.1-16-PLAN.md — CLEAN-1: IN-20 OpenCode containers removed by record, IN-18 restoreTerminal; DI-05 and DI-06 recorded (D-26)
+- [ ] 34.1-16-PLAN.md — CLEAN-1: IN-20 OpenCode containers removed by record, IN-18 restoreTerminal, DI-06 blank pointer file named (D-26, D-30); DI-05 recorded
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 34.1-17-PLAN.md — WR-18 wording from OPENCODE_RULE_SCOPE (D-27), IN-19, DI-01 decided (D-28), dispositions, CHANGELOG, full regression
+- [ ] 34.1-17-PLAN.md — WR-18 wording from OPENCODE_RULE_SCOPE (D-27), IN-19; targeted tests only
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 34.1-18-PLAN.md — round close: DI-01 decided (D-28), review dispositions, CHANGELOG [Unreleased], remaining count re-pins, the one full regression
 
 ## Progress
 
