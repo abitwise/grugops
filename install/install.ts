@@ -1252,6 +1252,31 @@ function carrierWant(rel: string): Buffer | null {
   return src !== null && src.state === "ok" ? src.bytes : null;
 }
 
+/** What linkOwnership answers: the path is a link a --symlink install made (with the one reason and the one remedy
+ *  install and the doctor give for it), or it is not. */
+type LinkOwnership = { readonly own: true; readonly reason: string; readonly remedy: string } | { readonly own: false };
+
+// linkOwnership (phase 34.1, D-16, WR-16; class AUTH-1): THE ONE ANSWER to "whose link is this" for a route carrier
+// `rel` (a POSIX path under TARGET): install's own exactly when owns(ledger, TARGET, rel, "file") answers owned (the
+// ledger's record still holds: the path is the link it records, checkRecord) and that record is a `link:` content
+// record, the record a --symlink install writes for the link it made. The reason and the remedy are the ones install's
+// verify (the AGENTS.md step's blocked arm, writeWholeFileEntry, ensureBlock), install's route note
+// (noteStrandingCarriers) and the doctor's carrier line all print, so the doctor and install never give two answers
+// about the same link. The remedy is to remove the link in the target and re-run install.js, never to edit the file the
+// link points to: that file is in a grugops checkout outside the target, where a `git pull` reverts the edit and every
+// other target linked to it changes too. Before phase 34.1 the doctor said install made the link while the re-install's
+// verify said "a link it did not create" (WR-16). Reads the ledger and lstat/readlink only; writes nothing. A function
+// declaration over imports declared above the doctor, so the doctor can ask it.
+function linkOwnership(ledger: LedgerRead, rel: string): LinkOwnership {
+  const own = owns(ledger, TARGET, rel, "file");
+  if (!own.owned || !own.entry.content.startsWith("link:")) return { own: false };
+  return {
+    own: true,
+    reason: "it is a link a --symlink install made",
+    remedy: `Remove the link at ${rel} and re-run install.js, which links or copies the current kit ${rel}`,
+  };
+}
+
 /** What refreshable answers: install would refresh the carrier (with the read and the bytes the refresh acts on), or
  *  why it would not, and whether the carrier's path is itself a symbolic link (the by-hand remedy then edits the file
  *  the link points to). */
@@ -1279,8 +1304,10 @@ type Refreshable =
 // when it answers ok (classifyCarrier). Before plan 34-34 the doctor decided on owns alone, so on a link install made it
 // told the user to re-run install.js, install refused to write through the link, and the FAIL never cleared.
 //   A whole file (rel not in ROUTE_BLOCKS), in refreshOwnFile's order of reads:
-//     owns(ledger, TARGET, rel, "file") answers owned          else why = owns' reason
-//     the record is a `sha256:` file record                     else it is a link install made (--symlink): never refreshed
+//     owns(ledger, TARGET, rel, "file") answers owned          else why = owns' reason (asked after linkOwnership)
+//     linkOwnership answers not own                            else its reason (a link install made with --symlink:
+//                                                               never refreshed)
+//     the record is a `sha256:` file record                     else it is not the record of a file install wrote
 //     `cur ?? readForWrite` is ok (a regular file, not a link,
 //     not a hard link; DC-3: never a FIFO or a device)          else why = "is not present" or blockedAt's wording
 //     carrierWant(rel) is not null                              else the kit's current text could not be read
@@ -1302,11 +1329,12 @@ function refreshable(ledger: LedgerRead, rel: string, cur?: UserWriteRead): Refr
   };
   const sentinels = ROUTE_BLOCKS.get(rel);
   if (sentinels === undefined) {
+    // A link a --symlink install made is never refreshed; linkOwnership is the one answer to whose link it is.
+    const link = linkOwnership(ledger, rel);
+    if (link.own) return no(link.reason);
     const own = owns(ledger, TARGET, rel, "file");
     if (!own.owned) return no(own.reason);
-    if (!own.entry.content.startsWith("sha256:")) {
-      return no("it is a link a --symlink install made, and install never refreshes a link");
-    }
+    if (!own.entry.content.startsWith("sha256:")) return no("install's record for it is not the record of a file it wrote");
     const now = readNow();
     if (typeof now === "string") return no(now);
     const want = carrierWant(rel);
@@ -1344,7 +1372,12 @@ type InstallWrite =
 //   readForWrite answers `create` (nothing there, no link or non-directory on the way),
 //   and the carrier is a block, or carrierWant can read the kit's current text for it     → create
 //   `create`, a whole file, and the kit's current text cannot be read                     → none, that reason
-//   anything else                                                                         → none, refreshable's why
+//   readForWrite answers `blocked` (a link, a hard link, a special file, a non-directory
+//   on the way: install never writes through it)                                          → none, linkOwnership's
+//                                                                                            reason for install's own
+//                                                                                            --symlink link, else
+//                                                                                            blockedAt's wording
+//   anything else (a regular file install will not refresh and does not append to)        → none, refreshable's why
 // `cur` is the readForWrite answer the caller already holds (ensureBlock and writeWholeFileEntry pass their own, so
 // the decision and the write are made on one read); without it this reads through readForWrite itself. It never
 // writes and never reports. A function declaration over consts declared above the doctor, so the doctor can ask it.
@@ -1358,7 +1391,21 @@ function installWouldWrite(ledger: LedgerRead, rel: string, cur?: UserWriteRead)
     if (sentinels !== undefined || carrierWant(rel) !== null) return { act: "create" };
     return { act: "none", why: "the kit's current text for it could not be read", link: false };
   }
+  if (now.state === "blocked") {
+    // The reason install's write arm acts on: linkOwnership's for install's own --symlink link, else readForWrite's
+    // refusal in blockedAt's wording, the words install's verify prints for the same path.
+    const link = linkOwnership(ledger, rel);
+    return { act: "none", why: link.own ? link.reason : blockedAt(now, join(TARGET, ...rel.split("/"))), link: r.link };
+  }
   return { act: "none", why: r.why, link: r.link };
+}
+
+// blockedWriteText (phase 34.1, D-16): what install's verify says when installWouldWrite answers none on a blocked
+// path: that answer's reason and, for install's own --symlink link, linkOwnership's remedy, so install's verify and the
+// doctor's carrier line give one reason and one remedy for the same link.
+function blockedWriteText(ledger: LedgerRead, rel: string, why: string): string {
+  const link = linkOwnership(ledger, rel);
+  return link.own ? `${why}, and install never writes through a link. ${link.remedy}` : why;
 }
 
 // routeCarrierSet (plan 34-29, D-26 point 4; the host set, phase 34.1 D-07): every file through which one of `hosts`
@@ -1415,13 +1462,11 @@ const CARRIER_STATE_TEXT: Readonly<Record<CarrierState, string>> = {
 };
 
 /** What classifyCarrier found for one route carrier: its state, the read it came from, and, for `user`,
- *  installWouldWrite's answer: why install will not write the route into it, and whether the carrier's path is a link
- *  (both null/false otherwise). */
+ *  installWouldWrite's reason why install will not write the route into it (null otherwise). */
 interface CarrierClass {
   readonly state: CarrierState;
   readonly read: UserFileRead;
   readonly why: string | null;
-  readonly link: boolean;
 }
 
 // classifyCarrier (plan 34-29's carrierFinding, split by plan 34-33 so the doctor reads every file before it prints;
@@ -1437,22 +1482,21 @@ interface CarrierClass {
 //   carries out (WR-01, WR-13)                                            → own-stale
 //   present without it, and installWouldWrite answers append (a block
 //   carrier without install's block: the re-install appends it)          → appendable
-//   present without it, and installWouldWrite answers none               → user (why = its reason;
-//                                                                            link = the path is a link)
+//   present without it, and installWouldWrite answers none               → user (why = its reason)
 //   absent                                                               → absent
 //   not a readable regular file                                          → unread
 // A `create` answer for a path this read found present means the path changed between the two reads; the carrier is
 // then `user`, with that reason, and no re-run is named.
 function classifyCarrier(rel: string, ledger: LedgerRead, readAt: ReadAt): CarrierClass {
   const read = readAt(rel);
-  if (read.state === "absent") return { state: "absent", read, why: null, link: false };
-  if (read.state !== "ok") return { state: "unread", read, why: null, link: false };
-  if (carriesKitRoute(read.text)) return { state: "route", read, why: null, link: false };
+  if (read.state === "absent") return { state: "absent", read, why: null };
+  if (read.state !== "ok") return { state: "unread", read, why: null };
+  if (carriesKitRoute(read.text)) return { state: "route", read, why: null };
   const w = installWouldWrite(ledger, rel);
-  if (w.act === "refresh") return { state: "own-stale", read, why: null, link: false };
-  if (w.act === "append") return { state: "appendable", read, why: null, link: false };
-  if (w.act === "none") return { state: "user", read, why: w.why, link: w.link };
-  return { state: "user", read, why: "nothing was there when --check asked again, so run install.js --check again", link: false };
+  if (w.act === "refresh") return { state: "own-stale", read, why: null };
+  if (w.act === "append") return { state: "appendable", read, why: null };
+  if (w.act === "none") return { state: "user", read, why: w.why };
+  return { state: "user", read, why: "nothing was there when --check asked again, so run install.js --check again" };
 }
 
 /** What a read found, as the doctor words it: `is not present`, or unreadState's text, or `is a readable file`. */
@@ -1506,7 +1550,9 @@ function adapterKitOnDisk(): { readonly file: string; readonly kit: string } {
 //     carrier here and how that host has the route. THE REMEDY (plan 34-34, D-27 point 3, WR-01; phase 34.1 D-15,
 //     WR-13): `Re-run install.js` is named exactly when installWouldWrite, the one owner install asks, answers that an
 //     install run on this state writes the carrier (refresh, append, or create for an absent one); otherwise the line
-//     carries its reason and the by-hand remedy (add KIT_ROUTE after the start-here sentence).
+//     carries its reason and, for install's own --symlink link, linkOwnership's remedy (remove the link and re-run
+//     install.js, D-16), else the by-hand remedy (add KIT_ROUTE, after the start-here sentence if the file has one,
+//     D-17). The note for an absent or unread carrier speaks of the hosts that would read it (IN-16).
 // (e) ONE `reach` LINE PER INSTALLED HOST (`hosts`, below), in registry order, under the uncounted label `reach`: the host reaches
 //     when the route resolved (a) and reachVia names a carrier, or when its adapter reaches; the line names the
 //     carriers and the adapter that gave the route, or, when the host cannot reach, each carrier's state and the
@@ -1597,6 +1643,13 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
     if (w.act === "none") return `Install will not write it: ${w.why}`;
     return `${join(TARGET, ...rel.split("/"))} is there now, so run install.js --check again`;
   };
+  // The `user` remedy (phase 34.1, D-16, D-17): for install's own --symlink link, linkOwnership's remedy (remove the
+  // link and re-run install.js), never an edit of the file the link points to (WR-16); otherwise the sentence to add
+  // by hand, after the start-here sentence only when the file has one (IN-17).
+  const userRemedy = (rel: string): string => {
+    const link = linkOwnership(ledger, rel);
+    return link.own ? link.remedy : `Add this sentence (after the start-here sentence, if the file has one): ${KIT_ROUTE}`;
+  };
   // (d) One line per carrier.
   for (const rel of rels) {
     const cls = classes.get(rel) as CarrierClass;
@@ -1612,7 +1665,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
         : cls.state === "appendable"
           ? `Re-run install.js: it appends install's start-here block, which carries the route`
           : cls.state === "user"
-            ? `Add this sentence after its start-here sentence${cls.link ? " (in the file the link points to)" : ""}: ${KIT_ROUTE}`
+            ? userRemedy(rel)
             : cls.state === "absent"
               ? absentRemedy(rel)
               : `It was not read, so NO VERDICT was reached on whether it carries the kit route`;
@@ -1623,7 +1676,7 @@ function kitRouteFindings(marker: InstallMarker, ledger: LedgerRead, markerFile:
       docReport(
         "note",
         `kit route: ${rel} ${what}${cls.why === null ? "" : ` (${cls.why})`}; no host is left without a route by it` +
-          `${how.length > 0 ? `: the hosts that read it here have the route another way (${how.join("; ")})` : ""}. ${remedy}`,
+          `${how.length > 0 ? `: the hosts that ${cls.state === "absent" || cls.state === "unread" ? "would read it" : "read it here"} have the route another way (${how.join("; ")})` : ""}. ${remedy}`,
       );
       continue;
     }
@@ -3013,7 +3066,7 @@ function ensureBlock(ledger: LedgerRead, rel: string, body: string, label: strin
   const newLines = `${open}\n${body}\n${close}\n`;
   if (w.act === "none") {
     if (cur.state === "blocked") {
-      verify(`${label}: ${blockedAt(cur, file)}. It was left untouched and nothing was added to it.`);
+      verify(`${label}: ${blockedWriteText(ledger, rel, w.why)}. It was left untouched and nothing was added to it.`);
     } else {
       report("skipped", `${label} (sentinel already present)`);
     }
@@ -3095,9 +3148,11 @@ function ensureBlock(ledger: LedgerRead, rel: string, body: string, label: strin
 //             written.
 //   any other unread state → a counted verify; nothing is written.
 // Then the path in the target is asked through readForWrite (DC-3: a FIFO, a directory, a device or a link there is
-// never read or written through):
-//   blocked → a counted verify; nothing is written.
-//   ok      → a file is already there. refreshOwnFile decides, through refreshable (plan 34-34; brief DC-2: a
+// never read or written through), and what is written is installWouldWrite's answer over that read (phase 34.1, D-15:
+// the one owner the doctor asks too; create on `create`, refresh on refreshable's ok, none otherwise):
+//   blocked → a counted verify (blockedWriteText: for install's own --symlink link, linkOwnership's reason and remedy,
+//             D-16); nothing is written.
+//   ok      → a file is already there. refreshOwnFile acts on a refresh answer (plan 34-34; brief DC-2: a
 //             write only on install's own record): when the previous ledger's `file` entry for the path still
 //             holds (owns) as a `sha256:` record and the path is a regular file, the file is install's own and
 //             unedited, so text that is not the kit's current text (an earlier install's entry, with no kit route
@@ -3128,13 +3183,18 @@ function writeWholeFileEntry(ledger: LedgerRead, rel: string): void {
   }
   const file = join(TARGET, ...rel.split("/"));
   const cur = readForWrite(TARGET, file);
-  if (cur.state === "blocked") {
-    verify(`${rel} (${label}): ${blockedAt(cur, file)}. It was left untouched and nothing was written.`);
+  // installWouldWrite (phase 34.1, D-15): the one owner of what install writes here, asked over this read.
+  const w = installWouldWrite(ledger, rel, cur);
+  if (w.act === "refresh") {
+    if (refreshOwnFile(w, rel, label) === "left") report("skipped", `${rel} (${label}: a file is already there — left untouched)`);
     return;
   }
-  if (cur.state === "ok") {
-    if (refreshOwnFile(ledger, rel, label) !== "left") return;
-    report("skipped", `${rel} (${label}: a file is already there — left untouched)`);
+  if (w.act !== "create") {
+    if (cur.state === "blocked") {
+      verify(`${rel} (${label}): ${blockedWriteText(ledger, rel, w.act === "none" ? w.why : blockedAt(cur, file))}. It was left untouched and nothing was written.`);
+    } else {
+      report("skipped", `${rel} (${label}: ${cur.state === "ok" ? "a file is already there — left untouched" : `${w.act === "none" ? w.why : "nothing to write"} — nothing was written`})`);
+    }
     return;
   }
   if (DRY_RUN) {
@@ -3150,22 +3210,22 @@ function writeWholeFileEntry(ledger: LedgerRead, rel: string): void {
 
 // refreshOwnFile (plan 34-28, D-26 point 2, brief DC-2 and DC-3; closes deferred IN-03; plan 34-34, D-27 point 3):
 // refresh a whole-file route carrier install wrote in an earlier run (the Pi template, an AGENTS.md copy install
-// created). `rel` is a POSIX path relative to TARGET; `ledger` is the install ledger as this run found it. Whether it
-// refreshes is refreshable's answer (the one owner the doctor asks too): install's own `sha256:` file record still
-// holds, the file is a regular file (readForWrite `ok`, DC-3), and the kit's current text (carrierWant) could be read.
-// On ok:
+// created). `rel` is a POSIX path relative to TARGET; `w` is installWouldWrite's answer for it, asked by the caller over
+// its own read (phase 34.1, D-15: the one owner the doctor asks too). It refreshes only on a `refresh` answer, which
+// carries refreshable's: install's own `sha256:` file record still holds, the file is a regular file (readForWrite
+// `ok`, DC-3), and the kit's current text (carrierWant) could be read. On refresh:
 //   - its bytes equal the current text → `current` (skipped, nothing written);
 //   - otherwise, under DRY_RUN → `would-refresh`, nothing written; the current text is recorded as the bytes the real
 //     run would leave (setPlanned, plan 34-33);
 //   - otherwise → writeTargetFile with how `ok`, then recordCreatedFile with writtenFileRecord of the new bytes (so
 //     uninstall still removes exactly what install wrote) → `refreshed`.
 // Every other case answers `left`: nothing is written or recorded, and the caller reports its own skipped line.
-// The reads are in the order they were before plan 34-34 (owns, then readForWrite); the read-gate-write window
-// (WR-05) is deferred by D-27 point 5 and not widened here.
+// The caller's readForWrite read comes first now (phase 34.1), then the ledger checks on it; the read-gate-write window
+// (WR-05) is deferred by D-27 point 5 (not reopened, phase 34.1 D-18) and not widened here.
 type RefreshOutcome = "refreshed" | "would-refresh" | "current" | "left";
-function refreshOwnFile(ledger: LedgerRead, rel: string, label: string): RefreshOutcome {
-  const r = refreshable(ledger, rel);
-  if (!r.ok || r.kind !== "file") return "left";
+function refreshOwnFile(w: InstallWrite, rel: string, label: string): RefreshOutcome {
+  if (w.act !== "refresh" || w.how.kind !== "file") return "left";
+  const r = w.how;
   if (r.cur.bytes.equals(r.want)) {
     report("skipped", `${rel} (${label}: install's own, already current)`);
     return "current";
@@ -3247,10 +3307,13 @@ function noteStrandingCarriers(): void {
     const names = stranded.map((h) => h.name).join(", ");
     const r = afterReadAt(rel);
     if (r.state === "ok") {
+      // Phase 34.1, D-16 (WR-16): for install's own --symlink link, linkOwnership's reason and remedy, never an edit of
+      // the file the link points to.
+      const link = linkOwnership(PREVIOUS_LEDGER, rel);
       report(
         "note",
         `${rel} (left as it is, with no kit route in it: it leaves ${names} without a route to the kit after a scripted install; ` +
-          `to give them one, add this sentence to it: "${KIT_ROUTE}")`,
+          (link.own ? `${link.reason}: ${link.remedy})` : `to give them one, add this sentence to it: "${KIT_ROUTE}")`),
       );
     } else {
       report(
@@ -6144,14 +6207,19 @@ for (const rel of SELECTED_KINDS.has("claude-kit") ? SRC_NESTED_ADAPTERS : []) {
   const agentsSrc = join(GRUGOPS_SRC, "AGENTS.md");
   const agentsDest = join(TARGET, "AGENTS.md");
   const agentsRead = isOwnLink(agentsDest, agentsSrc) ? null : readForWrite(TARGET, agentsDest);
-  if (agentsRead === null) {
+  // installWouldWrite (phase 34.1, D-15) over the step's own read: the one owner the doctor asks too.
+  const agentsWrite = agentsRead === null ? null : installWouldWrite(PREVIOUS_LEDGER, "AGENTS.md", agentsRead);
+  if (agentsRead === null || agentsWrite === null) {
     report("skipped", "AGENTS.md (target already has one — left untouched)");
   } else if (agentsRead.state === "ok") {
-    if (refreshOwnFile(PREVIOUS_LEDGER, "AGENTS.md", "AGENTS.md") === "left") {
+    if (refreshOwnFile(agentsWrite, "AGENTS.md", "AGENTS.md") === "left") {
       report("skipped", "AGENTS.md (target already has one — left untouched)");
     }
   } else if (agentsRead.state === "blocked") {
-    verify(`AGENTS.md: ${blockedAt(agentsRead, agentsDest)}. It was left untouched and nothing was copied to it.`);
+    // Phase 34.1, D-16 (WR-16): a link the ledger records as one a --symlink install made gets linkOwnership's reason
+    // and remedy (remove the link, re-run install.js), the ones the doctor prints, never "a link it did not create".
+    const why = agentsWrite.act === "none" ? agentsWrite.why : blockedAt(agentsRead, agentsDest);
+    verify(`AGENTS.md: ${blockedWriteText(PREVIOUS_LEDGER, "AGENTS.md", why)}. It was left untouched and nothing was copied to it.`);
   } else {
     // Plan 33.1-28 (brief DC-2): install created AGENTS.md, so it is recorded; uninstall removes an
     // AGENTS.md only on this record, never because it matches the kit's bytes (a never-installed

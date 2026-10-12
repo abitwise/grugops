@@ -224,7 +224,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:ensureBlock:appendFileSync",
     count: 1,
     gate: "dry-run-return-above",
-    why: "install.ts:1763-1766 `if (DRY_RUN)` reports would-add and returns before appendFileSync at :1775 (an existing regular file readForWrite read; red-team of plan 33.1-26). The create branch above it (writeTargetFile, then recordCreatedFile for a file entry of the install ledger, plan 33.1-28) is after the same return",
+    why: "install.ts:3102 `if (DRY_RUN)` reports would-add and returns before appendFileSync at :3122 (re-pinned 2026-10-12, plan 34.1-11: the append is reached only on installWouldWrite's `append` answer at :3065, D-15, over an existing regular file readForWrite read; red-team of plan 33.1-26). The create branch beside it (writeTargetFile, then recordCreatedFile for a file entry of the install ledger, plan 33.1-28) is after the same return",
   },
   {
     site: "install.ts:linkOrCopy:symlinkSync",

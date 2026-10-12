@@ -1329,6 +1329,15 @@ function relinkOwn(target: string, rel: string, to: string): void {
   );
 }
 
+/**
+ * The reason and the remedy the doctor and install give for a link a --symlink install made (phase 34.1, D-16, WR-16),
+ * and the by-hand remedy for any other carrier without the route (D-17, IN-17). Spelled here, from the decisions, never
+ * imported from the product.
+ */
+const LINK_OWN_REASON = "it is a link a --symlink install made";
+const linkOwnRemedy = (rel: string): string => `Remove the link at ${rel} and re-run install.js, which links or copies the current kit ${rel}`;
+const BY_HAND_REMEDY = "Add this sentence (after the start-here sentence, if the file has one):";
+
 /** Move the file at `rel` out of the target and put a link to it in its place; returns where it now is. */
 function moveOutAndLink(target: string, rel: string): string {
   const path = join(target, ...rel.split("/"));
@@ -1339,7 +1348,7 @@ function moveOutAndLink(target: string, rel: string): string {
 }
 
 describe("kit route: one refreshable predicate decides refresh for install and the doctor (plan 34-34, D-27 point 3)", () => {
-  it("WR-01: AGENTS.md is a link install made, now to a file holding an earlier install's text with no route, and the link record matches it: a WARN with the by-hand remedy, no `Re-run install.js`; the re-install verifies and refreshes nothing; a second --check prints the same WARN", () => {
+  it("WR-01 (re-pointed by phase 34.1 D-16): AGENTS.md is a link install made, now to a file holding an earlier install's text with no route, and the link record matches it: a WARN with linkOwnership's reason and remedy, no `Re-run install.js`; the re-install verifies with the same reason and remedy and refreshes nothing; a second --check prints the same WARN", () => {
     const { target, kitHome } = scratchRow();
     const first = runInstall(target, kitHome, ["--symlink"]);
     expect(first.status, first.stdout + first.stderr).toBe(0);
@@ -1358,12 +1367,18 @@ describe("kit route: one refreshable predicate decides refresh for install and t
     const warns = lines.filter((l) => l.startsWith("  WARN"));
     expect(warns.length, before.stdout).toBe(1);
     expect(warns[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
-    expect(warns[0]).toContain("install never refreshes a link");
-    expect(warns[0]).toContain("(in the file the link points to)");
-    expect(warns[0]).toContain(KIT_ROUTE);
+    // Phase 34.1, D-16 (WR-16): the reason and the remedy are linkOwnership's, never an edit of the file the link
+    // points to (which is outside the target).
+    expect(warns[0]).toContain(`(${LINK_OWN_REASON})`);
+    expect(warns[0]).toContain(linkOwnRemedy("AGENTS.md"));
+    expect(warns[0]).not.toContain("in the file the link points to");
+    expect(warns[0]).not.toContain(KIT_ROUTE);
     expect(warns[0]).not.toContain("Re-run install.js");
     expect(again.status, again.stdout + again.stderr).toBe(3);
     expect(verifiesFor(again.stdout, "AGENTS.md").length, again.stdout).toBe(1);
+    expect(verifiesFor(again.stdout, "AGENTS.md")[0]).toContain(LINK_OWN_REASON);
+    expect(verifiesFor(again.stdout, "AGENTS.md")[0]).toContain(linkOwnRemedy("AGENTS.md"));
+    expect(verifiesFor(again.stdout, "AGENTS.md")[0]).not.toContain("a link it did not create");
     expect(reports(again.stdout, "refreshed", "AGENTS.md"), again.stdout).toBe(false);
     expect(readlinkSync(agents)).toBe(elsewhere);
     expect(readFileSync(elsewhere, "utf8")).toBe(stale);
@@ -1389,7 +1404,7 @@ describe("kit route: one refreshable predicate decides refresh for install and t
     expect(countedRouteLines(after.stdout), after.stdout).toEqual([]);
   });
 
-  it("CLAUDE.md link: install's own earlier block, moved out of the target and linked back: an uncounted note with the link reason and the by-hand remedy, no `Re-run install.js`; the re-install verifies and leaves the file byte-identical", () => {
+  it("CLAUDE.md link: install's own earlier block, moved out of the target and linked back (a link install did not make): an uncounted note with the link reason and the by-hand remedy, no `Re-run install.js`; the re-install verifies and leaves the file byte-identical", () => {
     const row = installed();
     stageEarlierBlock(row.target, "CLAUDE.md", CLAUDE_OPEN, CLAUDE_CLOSE);
     const out = moveOutAndLink(row.target, "CLAUDE.md");
@@ -1400,8 +1415,7 @@ describe("kit route: one refreshable predicate decides refresh for install and t
     expect(lines.length, before.stdout).toBe(1);
     expect(lines[0].startsWith("  note"), lines[0]).toBe(true);
     expect(lines[0]).toContain("is a symbolic link");
-    expect(lines[0]).toContain("(in the file the link points to)");
-    expect(lines[0]).toContain(KIT_ROUTE);
+    expect(lines[0]).toContain(`${BY_HAND_REMEDY} ${KIT_ROUTE}`);
     expect(lines[0]).not.toContain("Re-run install.js");
     expect(again.status, again.stdout + again.stderr).toBe(3);
     expect(verifiesFor(again.stdout, "CLAUDE.md").length, again.stdout).toBe(1);
@@ -1424,8 +1438,7 @@ describe("kit route: one refreshable predicate decides refresh for install and t
     expect(lines[0].startsWith("  WARN"), lines[0]).toBe(true);
     expect(lines[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
     expect(lines[0]).toContain("is a symbolic link");
-    expect(lines[0]).toContain("(in the file the link points to)");
-    expect(lines[0]).toContain(KIT_ROUTE);
+    expect(lines[0]).toContain(`${BY_HAND_REMEDY} ${KIT_ROUTE}`);
     expect(lines[0]).not.toContain("Re-run install.js");
     const agents = carrierLines(before.stdout, "AGENTS.md");
     expect(agents.length, before.stdout).toBe(1);
@@ -1479,7 +1492,7 @@ describe("kit route: one refreshable predicate decides refresh for install and t
 // removed was reported as one install leaves as it is, with a by-hand remedy, while the re-install appended a fresh
 // block, route included, and the line cleared. installWouldWrite (refresh, append, create, or none) is now the one owner
 // both ask. Each row: doctor, re-install, doctor; doctorInstallDoctor asserts the agreement over every carrier.
-describe("kit route: one owner answers what install would write into a route carrier (phase 34.1, D-15, WR-13)", () => {
+describe("kit route: one owner answers what install would write into a route carrier, and one answers whose link it is (phase 34.1, D-15, D-16, D-17)", () => {
   for (const rel of [...BLOCK_SENTINELS.keys()]) {
     it(`WR-13: a block carrier without install's block (${rel}): the doctor names the append, the re-install appends the block, and the next --check reports the carrier ok`, () => {
       const row = installed();
@@ -1502,6 +1515,87 @@ describe("kit route: one owner answers what install would write into a route car
       expect(carrierLines(after.stdout, rel), after.stdout).toEqual([expect.stringMatching(new RegExp(`^ {2}ok\\s+kit route carried by ${rel.replace(/[.]/g, "\\.")} `))]);
     });
   }
+
+  it("WR-13, counted: the Copilot pointer without install's block while the user's own AGENTS.md has no route: a counted WARN naming the stranded hosts and the append remedy (not the by-hand one); the re-install appends, and every host reaches", () => {
+    const row = installedWithOwnAgents();
+    writeFileSync(join(row.target, ...COPILOT_REL.split("/")), "# Copilot notes\nUse tabs.\n");
+    const stranded = strandedOf(row.target, COPILOT_REL);
+    expect(stranded.length, "premise: the Copilot file strands some host").toBeGreaterThan(0);
+    const { before, again, after } = doctorInstallDoctor(row, COPILOT_REL);
+    const lines = carrierLines(before.stdout, COPILOT_REL);
+    expect(lines.length, before.stdout).toBe(1);
+    expect(lines[0].startsWith("  WARN"), lines[0]).toBe(true);
+    expect(lines[0]).toContain(`(it leaves ${stranded.join(", ")} without a route to the Orchestrator)`);
+    expect(lines[0]).toContain("Re-run install.js: it appends install's start-here block, which carries the route");
+    expect(lines[0]).not.toContain(BY_HAND_REMEDY);
+    expect(reports(again.stdout, "created", COPILOT_REL), again.stdout).toBe(true);
+    expect(carrierLines(after.stdout, COPILOT_REL)[0]?.startsWith("  ok"), after.stdout).toBe(true);
+    for (const name of stranded) {
+      const h = HOST_TOOLS.find((x) => x.name === name) as (typeof HOST_TOOLS)[number];
+      expect(reachVerdict(after.stdout, h).reaches, reachVerdict(after.stdout, h).line).toBe(true);
+    }
+  });
+
+  // Phase 34.1, D-16 (WR-16): "whose link is this" has one answer, from the ledger's link record (linkOwnership), and
+  // the doctor and install give its reason and remedy. The realistic case: a target installed with --symlink from a
+  // checkout that has since moved, so AGENTS.md links to another checkout's AGENTS.md, and the ledger's link record
+  // names that file. Following the remedy (remove the link, re-run install.js) leaves AGENTS.md carrying the route.
+  it("WR-16: install's own --symlink AGENTS.md link, re-pointed at an AGENTS.md outside the target without the route: --check and the re-install give one reason and one remedy (remove the link and re-run), never `a link it did not create`; following the remedy makes AGENTS.md ok", () => {
+    const { target, kitHome } = scratchRow();
+    const first = runInstall(target, kitHome, ["--symlink"]);
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const agents = join(target, "AGENTS.md");
+    const elsewhere = join(dirname(target), "other-checkout-AGENTS.md");
+    writeFileSync(elsewhere, "# Agents of another checkout\n\nNo route here.\n");
+    relinkOwn(target, "AGENTS.md", elsewhere);
+    const { before, again } = doctorInstallDoctor({ target, kitHome }, "AGENTS.md", ["--symlink"]);
+    const lines = carrierLines(before.stdout, "AGENTS.md");
+    expect(lines.length, before.stdout).toBe(1);
+    expect(lines[0]).toContain(`(${LINK_OWN_REASON})`);
+    expect(lines[0]).toContain(linkOwnRemedy("AGENTS.md"));
+    expect(lines[0]).not.toContain("in the file the link points to");
+    expect(lines[0]).not.toContain("Re-run install.js");
+    expect(again.status, again.stdout + again.stderr).toBe(3);
+    const v = verifiesFor(again.stdout, "AGENTS.md");
+    expect(v.length, again.stdout).toBe(1);
+    expect(v[0]).toContain(LINK_OWN_REASON);
+    expect(v[0]).toContain(linkOwnRemedy("AGENTS.md"));
+    expect(v[0]).not.toContain("a link it did not create");
+    // Every line install printed about AGENTS.md gives the same remedy, and none tells the user to edit the linked file.
+    for (const l of linesNaming(again.stdout, "AGENTS.md").filter((x) => x.includes(KIT_ROUTE))) expect(l, again.stdout).toContain(linkOwnRemedy("AGENTS.md"));
+    expect(readlinkSync(agents)).toBe(elsewhere);
+    expect(readFileSync(elsewhere, "utf8")).toBe("# Agents of another checkout\n\nNo route here.\n");
+    // Follow the remedy.
+    rmSync(agents);
+    const fixed = runInstall(target, kitHome, ["--symlink"]);
+    expect(fixed.status, fixed.stdout + fixed.stderr).toBe(0);
+    const after = check(target, kitHome);
+    expect(carrierLines(after.stdout, "AGENTS.md"), after.stdout).toEqual([expect.stringMatching(/^ {2}ok\s+kit route carried by AGENTS\.md /)]);
+    expect(readFileSync(elsewhere, "utf8"), "the other checkout's file was never written").toBe("# Agents of another checkout\n\nNo route here.\n");
+  });
+
+  // Phase 34.1, D-17 (IN-16): no host reads a file that is not there.
+  it("IN-16: the Pi template deleted: its uncounted note speaks of the hosts that would read it, not the hosts that read it here", () => {
+    const row = installed();
+    rmSync(piFile(row.target));
+    const c = check(row.target, row.kitHome);
+    const lines = carrierLines(c.stdout, PI_PROMPT_REL);
+    expect(lines.length, c.stdout).toBe(1);
+    expect(lines[0].startsWith("  note"), lines[0]).toBe(true);
+    expect(lines[0]).toContain("the hosts that would read it have the route another way");
+    expect(lines[0]).not.toContain("the hosts that read it here");
+  });
+
+  // Phase 34.1, D-17 (IN-17): the user's own AGENTS.md has no start-here sentence to put the route after.
+  it("IN-17: the user's own AGENTS.md without the route: the by-hand remedy says after the start-here sentence only if the file has one", () => {
+    const row = installedWithOwnAgents();
+    const c = check(row.target, row.kitHome);
+    const lines = carrierLines(c.stdout, "AGENTS.md");
+    expect(lines.length, c.stdout).toBe(1);
+    expect(lines[0]).toContain(`${BY_HAND_REMEDY} ${KIT_ROUTE}`);
+    expect(lines[0]).not.toContain("after its start-here sentence");
+    expect(lines[0]).not.toContain("Re-run install.js");
+  });
 });
 
 // ── THE CLASS MATRIX (plan 34-35, D-27 points 1, 2 and 3; brief §4; classes VERDICT-1 and AUTH-1) ──
@@ -1520,7 +1614,9 @@ describe("kit route: one owner answers what install would write into a route car
 //           created/copied/linked/refreshed) and the same route notes, with the target byte-identical;
 //   (8)     the real install's route notes to the follower's stranded hosts after the run, and every matrix file the
 //           install did not report writing to its bytes before the run;
-//   (9)     `--check` after the install to the follower again, by the rules of (1)-(4).
+//   (9)     `--check` after the install to the follower again, by the rules of (1)-(4);
+//   (10)    a block carrier in state user-without-block to the decision (phase 34.1, D-15): the install appends its
+//           block and the follower finds the route in it after.
 //
 // THE FOLLOWER SHARES NO DERIVATION WITH THE PRODUCT. It imports only data from host-tools.js (HOST_TOOLS,
 // ROUTE_POINTERS, KIT_ROUTE, HOST_TOOL_COUNT) and
@@ -1532,9 +1628,19 @@ describe("kit route: one owner answers what install would write into a route car
 // a formula over the axes, asserted against the generated list, and every cell is its own `it`, so the passed count
 // shows how many ran.
 
-/** The seven states a route carrier is put in (plan 34-35). */
-const CARRIER_STATES = ["current", "own-stale", "user-without-route", "user-with-route", "absent", "link-to-stale", "unreadable"] as const;
+/**
+ * The states a route carrier is put in: the seven of plan 34-35, and `user-without-block` (phase 34.1, D-15, WR-13): a
+ * block carrier the user rewrote with neither install's open sentinel nor KIT_ROUTE, so a re-install appends the block.
+ * It applies to block carriers only (BLOCK_ONLY_STATES); a whole file has no block to remove.
+ */
+const CARRIER_STATES = ["current", "own-stale", "user-without-route", "user-with-route", "absent", "link-to-stale", "unreadable", "user-without-block"] as const;
 type CarrierState = (typeof CARRIER_STATES)[number];
+/** The text of a block carrier in state user-without-block: the user's own, with no install block and no route. */
+const userWithoutBlockText = (rel: string): string => `# My own notes for ${rel}\n\nUse tabs.\n`;
+/** The states that apply to a block carrier only. */
+const BLOCK_ONLY_STATES: readonly CarrierState[] = ["user-without-block"];
+/** The states route carrier `rel` is put in: every state, less the block-only ones for a whole-file carrier. */
+const statesFor = (rel: string): readonly CarrierState[] => CARRIER_STATES.filter((st) => BLOCK_SENTINELS.has(rel) || !BLOCK_ONLY_STATES.includes(st));
 /** The two states of Claude Code's adapters: as installed, or every materialized KIT= line under `.claude/` pointed at an empty directory. */
 const ADAPTER_STATES = ["reaches", "kit-line-to-empty-dir"] as const;
 type AdapterState = (typeof ADAPTER_STATES)[number];
@@ -1617,6 +1723,14 @@ function stageCarrier(target: string, rel: string, state: CarrierState): void {
       writeFileSync(path, s === undefined ? `# My own ${rel}\n\n${KIT_ROUTE}\n` : userLine(readFileSync(path, "utf8"), s.open));
       expect(readFileSync(path, "utf8").includes(KIT_ROUTE), `premise: ${rel} holds the route`).toBe(true);
       return;
+    case "user-without-block": {
+      // Phase 34.1, D-15 (WR-13): the user replaced the file's text and install's block went with it.
+      expect(s, `premise: ${rel} is a block carrier (user-without-block applies to block carriers only)`).toBeDefined();
+      writeFileSync(path, userWithoutBlockText(rel));
+      const text = readFileSync(path, "utf8");
+      expect(text.includes((s as { open: string }).open) || text.includes(KIT_ROUTE), `premise: ${rel} holds neither the open sentinel nor the route`).toBe(false);
+      return;
+    }
     case "absent":
       rmSync(path);
       return;
@@ -1887,6 +2001,15 @@ function checkCell(spec: CellSpec): CellResult {
   }
   // (9) --check after the install agrees with the follower again.
   expectDoctorAgrees(`${name}: --check after the install`, docAfter, after, exitAsked);
+  // (10) phase 34.1 D-15 (WR-13), an oracle from the decision, not from the product: a block carrier without install's
+  // block gets the block appended. The install reports writing it, the bytes it held before the run are kept as the
+  // head of the file, and the follower finds the route in it after. (5) then holds that the doctor named the re-run.
+  for (const [rel, st] of spec.carriers) {
+    if (st !== "user-without-block") continue;
+    expect(wroteUnder(real.stdout, WRITE_LABELS, rel), `(10) ${name}: the install appends its block to ${rel}${both}`).toBe(true);
+    expect(after.f.carries.get(rel), `(10) ${name}: ${rel} carries the route after the install${both}`).toBe(true);
+    expect(readFileSync(join(target, ...rel.split("/")), "utf8").startsWith(userWithoutBlockText(rel)), `(10) ${name}: the user's bytes of ${rel} are kept as its head`).toBe(true);
+  }
   return { row, before, after, doc, dry, real, docAfter };
 }
 
@@ -1915,7 +2038,7 @@ function generateCells(): CellSpec[] {
   const clean = { adapter: "reaches", route: "resolves" } as const;
   const cells: CellSpec[] = [];
   for (const rel of CLASS_CARRIERS) {
-    for (const state of CARRIER_STATES) if (state !== "current") cells.push({ group: "a", carriers: carrierStates({ [rel]: state }), ...clean });
+    for (const state of statesFor(rel)) if (state !== "current") cells.push({ group: "a", carriers: carrierStates({ [rel]: state }), ...clean });
   }
   for (const adapter of D_ADAPTER) {
     for (const claude of D_CARRIER) for (const agents of D_CARRIER) cells.push({ ...clean, group: "b", carriers: carrierStates({ "CLAUDE.md": claude, "AGENTS.md": agents }), adapter });
@@ -1925,12 +2048,17 @@ function generateCells(): CellSpec[] {
   return cells;
 }
 const CELLS: readonly CellSpec[] = generateCells();
+/** The block carriers among the derived route carriers (the ones BLOCK_SENTINELS spells). */
+const CLASS_BLOCK_CARRIERS: readonly string[] = CLASS_CARRIERS.filter((rel) => BLOCK_SENTINELS.has(rel));
 /**
- * The cell count, a formula over the axes: |CARRIERS|×(|CARRIER_STATES|−1) + |D_ADAPTER|×|D_CARRIER|² + |ROUTE_STATES| +
- * |D_AGENTS_MD_STATES|×HOST_TOOL_COUNT (group (d), the installed-set axis, plan 34.1-10).
+ * The cell count, a formula over the axes: the per-carrier applicable states summed, |CARRIERS|×(|CARRIER_STATES|−1−
+ * |BLOCK_ONLY_STATES|) + |BLOCK_CARRIERS|×|BLOCK_ONLY_STATES| (phase 34.1, D-15: the block-only states join group (a)
+ * for block carriers only); + |D_ADAPTER|×|D_CARRIER|² + |ROUTE_STATES| + |D_AGENTS_MD_STATES|×HOST_TOOL_COUNT (group
+ * (d), the installed-set axis, plan 34.1-10). Written over the axes, not over statesFor, so the generator is checked.
  */
 const CELL_COUNT =
-  CLASS_CARRIERS.length * (CARRIER_STATES.length - 1) +
+  CLASS_CARRIERS.length * (CARRIER_STATES.length - 1 - BLOCK_ONLY_STATES.length) +
+  CLASS_BLOCK_CARRIERS.length * BLOCK_ONLY_STATES.length +
   D_ADAPTER.length * D_CARRIER.length * D_CARRIER.length +
   ROUTE_STATES.length +
   D_AGENTS_MD_STATES.length * HOST_TOOL_COUNT;
@@ -1979,8 +2107,14 @@ describe("kit route: the class matrix — reach, counted findings and install ag
     expect(HOST_TOOLS.length, "premise: the registry pin").toBe(HOST_TOOL_COUNT);
   });
 
-  it(`the matrix has ${CELL_COUNT} cells, the formula over the axes (${CLASS_CARRIERS.length} carriers × ${CARRIER_STATES.length - 1} states, ${D_ADAPTER.length * D_CARRIER.length ** 2} adapter, ${ROUTE_STATES.length} route, ${D_AGENTS_MD_STATES.length} × ${HOST_TOOL_COUNT} installed-set), each named once`, () => {
+  it(`the matrix has ${CELL_COUNT} cells, the formula over the axes (${CLASS_CARRIERS.length} carriers × ${CARRIER_STATES.length - 1 - BLOCK_ONLY_STATES.length} states + ${CLASS_BLOCK_CARRIERS.length} block carriers × ${BLOCK_ONLY_STATES.length} block-only, ${D_ADAPTER.length * D_CARRIER.length ** 2} adapter, ${ROUTE_STATES.length} route, ${D_AGENTS_MD_STATES.length} × ${HOST_TOOL_COUNT} installed-set), each named once`, () => {
     expect(CELLS.length).toBe(CELL_COUNT);
+    // The block carriers the block-only states apply to: derived, every one BLOCK_SENTINELS spells, and some.
+    expect(CLASS_BLOCK_CARRIERS.length, "premise: some derived carrier is a block carrier").toBeGreaterThan(0);
+    expect([...CLASS_BLOCK_CARRIERS].sort(), "every block carrier the test spells is a derived carrier").toEqual([...BLOCK_SENTINELS.keys()].sort());
+    for (const rel of CLASS_BLOCK_CARRIERS) {
+      expect(CELLS.filter((c) => c.group === "a" && c.carriers.get(rel) === "user-without-block").length, `${rel} × user-without-block`).toBe(1);
+    }
     // The installed-set axis (group (d)): 2 × HOST_TOOL_COUNT cells, one pair per registry row, derived.
     expect(HOST_TOOLS.length, "premise: the registry pin").toBe(HOST_TOOL_COUNT);
     const d = CELLS.filter((c) => c.group === "d");
@@ -1991,10 +2125,12 @@ describe("kit route: the class matrix — reach, counted findings and install ag
     for (const s of CARRIER_STATES) expect(CELLS.some((c) => [...c.carriers.values()].includes(s)), `carrier state ${s}`).toBe(true);
     for (const a of ADAPTER_STATES) expect(CELLS.some((c) => c.adapter === a), `adapter state ${a}`).toBe(true);
     for (const r of ROUTE_STATES) expect(CELLS.some((c) => c.route === r), `route state ${r}`).toBe(true);
-    for (const rel of CLASS_CARRIERS) for (const s of CARRIER_STATES) expect(CELLS.some((c) => c.carriers.get(rel) === s), `${rel} × ${s}`).toBe(true);
+    for (const rel of CLASS_CARRIERS) {
+      for (const s of CARRIER_STATES) expect(CELLS.some((c) => c.carriers.get(rel) === s), `${rel} × ${s}`).toBe(statesFor(rel).includes(s));
+    }
   });
 
   for (const spec of CELLS) {
-    it(`${cellName(spec)}: assertions (1)-(9)`, () => void checkCell(spec), CELL_TIMEOUT_MS);
+    it(`${cellName(spec)}: assertions (1)-(10)`, () => void checkCell(spec), CELL_TIMEOUT_MS);
   }
 });

@@ -918,6 +918,58 @@ describe("census: install.ts asks the one owner of 'does host H read entry file 
   });
 });
 
+// ── ONE OWNER OF WHAT INSTALL WOULD WRITE INTO A ROUTE CARRIER, AND ONE OF WHOSE LINK IT IS (phase 34.1, D-15, D-16; AUTH-1) ──
+//
+// installWouldWrite answers refresh, append, create or none for a route carrier; refreshable stays its refresh half and
+// is asked by nothing else, so no caller re-derives "would install refresh X" beside it. linkOwnership answers "is this a
+// link a --symlink install made". The census pins every direct call by enclosing function declaration (`<module>` is
+// the top-level AGENTS.md step) and refuses any reference that is not a direct call, so a second derivation, or a caller
+// that passes the owner around, is a red census line until it is looked at. Measured 2026-10-12 (plan 34.1-11):
+//   refreshable: installWouldWrite only (it moved there from classifyCarrier, ensureBlock and refreshOwnFile).
+//   installWouldWrite: the doctor (classifyCarrier; kitRouteFindings' absent arm) and install (ensureBlock,
+//     writeWholeFileEntry, the AGENTS.md step); refreshOwnFile takes the answer from its caller.
+//   linkOwnership: refreshable's link arm, installWouldWrite's blocked arm, blockedWriteText (install's verifies),
+//     kitRouteFindings' user remedy and noteStrandingCarriers' route note.
+const WRITE_OWNER_CALLS: Readonly<Record<string, number>> = {
+  "refreshable@installWouldWrite": 1,
+  "installWouldWrite@classifyCarrier": 1,
+  "installWouldWrite@kitRouteFindings": 1,
+  "installWouldWrite@ensureBlock": 1,
+  "installWouldWrite@writeWholeFileEntry": 1,
+  "installWouldWrite@<module>": 1,
+  "linkOwnership@refreshable": 1,
+  "linkOwnership@installWouldWrite": 1,
+  "linkOwnership@blockedWriteText": 1,
+  "linkOwnership@kitRouteFindings": 1,
+  "linkOwnership@noteStrandingCarriers": 1,
+};
+
+describe("census: install.ts asks one owner of what install would write into a carrier, and one of whose link it is (phase 34.1, D-15, D-16)", () => {
+  it(`the owners are called only at the pinned sites: ${Object.entries(WRITE_OWNER_CALLS).map(([k, v]) => `${k} ×${v}`).join(", ")}`, () => {
+    const owners = new Set(["refreshable", "installWouldWrite", "linkOwnership"]);
+    const found: Record<string, number> = {};
+    const notCalls: string[] = [];
+    const declared: string[] = [];
+    for (const n of allNodes(installSource())) {
+      if (!ts.isIdentifier(n) || !owners.has(n.text)) continue;
+      if (ts.isFunctionDeclaration(n.parent) && n.parent.name === n) {
+        declared.push(n.text);
+        continue;
+      }
+      if (ts.isCallExpression(n.parent) && n.parent.expression === n) {
+        const key = `${n.text}@${enclosingFunction(n)}`;
+        found[key] = (found[key] ?? 0) + 1;
+      } else {
+        notCalls.push(`${n.text} used as a value in ${enclosingFunction(n)}`);
+      }
+    }
+    console.log(`install.ts write-owner census: ${JSON.stringify(found)}`);
+    expect(declared.sort(), "each owner is one function declaration").toEqual([...owners].sort());
+    expect(notCalls, "a reference that is not a direct call escapes the census").toEqual([]);
+    expect(found).toEqual(WRITE_OWNER_CALLS);
+  });
+});
+
 // ── THE ONE DERIVATION OF THE HOSTS A CARRIER STRANDS (plan 34-33, D-27 point 2; VERDICT-1, AUTH-1) ──────────────
 //
 // reachVia and strandedBy (host-tools.ts) are pure over RouteFacts. They are checked here over EVERY combination of
