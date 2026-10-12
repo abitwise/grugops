@@ -138,12 +138,29 @@ export const PICKER_HEADER =
   "Choose the coding agents to install grugops for (arrows or j/k move, space toggles, Enter confirms, Ctrl-C cancels):";
 
 /**
- * One frame of the list. When `previousLines` is above zero, the frame first moves the cursor up that many lines (to
- * the first line of the previous frame) and clears everything below it, so the new frame paints over the old one.
- * Then the header and one line per row: `>` on the cursor row, `[x]` or `[ ]`, the label, and the hint when there is
- * one. Every line ends with a newline; `lines` is the number of lines the frame wrote.
+ * The screen lines one line of text takes on a terminal `columns` wide: a line longer than the terminal wraps onto the
+ * next screen line. A line exactly as wide as the terminal takes one (the newline after it does not add another). An
+ * unknown or zero width counts every line as one.
  */
-export function render(state: PickerState, rows: readonly PickerRow[], previousLines: number): { text: string; lines: number } {
+export function screenLines(text: string, columns: number | undefined): number {
+  if (columns === undefined || !(columns > 0) || text.length === 0) return 1;
+  return Math.ceil(text.length / columns);
+}
+
+/**
+ * One frame of the list. When `previousLines` is above zero, the frame first moves the cursor up that many screen
+ * lines (to the first line of the previous frame) and clears everything below it, so the new frame paints over the old
+ * one. Then the header and one line per row: `>` on the cursor row, `[x]` or `[ ]`, the label, and the hint when there
+ * is one. Every line ends with a newline. `lines` is the number of SCREEN lines the frame takes on a terminal `columns`
+ * wide (screenLines): the header is longer than an 80-column terminal, and counting it as one line would leave the
+ * next repaint one line short, stranding a copy of the header's first line on every key.
+ */
+export function render(
+  state: PickerState,
+  rows: readonly PickerRow[],
+  previousLines: number,
+  columns?: number,
+): { text: string; lines: number } {
   const out: string[] = [PICKER_HEADER];
   rows.forEach((row, i) => {
     const marker = i === state.cursor ? ">" : " ";
@@ -151,7 +168,7 @@ export function render(state: PickerState, rows: readonly PickerRow[], previousL
     out.push(row.hint === "" ? `${marker} ${box} ${row.label}` : `${marker} ${box} ${row.label}  ${row.hint}`);
   });
   const repaint = previousLines > 0 ? `\r${ESC}[${previousLines}A${ESC}[J` : "";
-  return { text: repaint + out.map((l) => `${l}\n`).join(""), lines: out.length };
+  return { text: repaint + out.map((l) => `${l}\n`).join(""), lines: out.reduce((n, l) => n + screenLines(l, columns), 0) };
 }
 
 /**

@@ -660,6 +660,19 @@ describe("installer fs census (CR-02 sibling arms, statically)", () => {
     expect(FILES).toContain("install.ts");
   });
 
+  it("install/agent-picker.ts is in the scanned set and imports nothing at all, so it makes no fs read or write (plan 34.1-12, D-02)", () => {
+    // The checkbox list's state machine is pure; its raw-mode reader is install.ts pickAgents, whose one stdin read is
+    // the install.ts:readStdin:readSync READ_SITES row. The scanned set is the directory read above, not a list.
+    expect(FILES).toContain("agent-picker.ts");
+    const census = CENSUS.find((c) => c.file === "agent-picker.ts");
+    expect(census?.imports.size, "agent-picker.ts imports a node:fs name").toBe(0);
+    expect(census?.refusals, "agent-picker.ts reaches node:fs another way").toEqual([]);
+    const src = readFileSync(join(INSTALL_DIR, "agent-picker.ts"), "utf8");
+    const sf = ts.createSourceFile("agent-picker.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const imports = sf.statements.filter((n) => ts.isImportDeclaration(n) || ts.isImportEqualsDeclaration(n) || ts.isExportDeclaration(n));
+    expect(imports.map((n) => n.getText(sf)), "agent-picker.ts must stay pure: no import of any kind").toEqual([]);
+  });
+
   it("node:fs is reached only through named imports, and never through require/createRequire/getBuiltinModule/import()", () => {
     const refused = CENSUS.flatMap((c) => c.refusals.filter((r) => !r.includes("used other than as a direct callee")));
     expect(refused, refused.join("\n")).toEqual([]);

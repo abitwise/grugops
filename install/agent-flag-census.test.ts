@@ -62,8 +62,11 @@ const SITE_FLOOR = 64;
  *   - install/record-truth.test.ts, L4: `--target` with no value exits 2 in both binaries
  * One more since plan 34.1-06 (D-03): install/install.test.ts runUnattended, the one spawn the "agent selection (D-03)"
  * cases run with no agent flag, because the flag-less unattended chain (recorded, detected, refuse) is what they test.
+ * One more since plan 34.1-12 (D-02): install/install.test.ts runAtTerminal, the one spawn the "agent picker at a
+ * terminal (D-02)" cases run inside a pseudo-terminal with no agent flag, because the checkbox list is what they test
+ * (an agent flag skips it).
  */
-const EXEMPT_COUNT = 4;
+const EXEMPT_COUNT = 5;
 
 /** Every tracked TypeScript module directly under install/ or scripts/ (no declaration files), from git. */
 function modules(): string[] {

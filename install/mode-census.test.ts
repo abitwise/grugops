@@ -66,10 +66,13 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * since plan 34.1-02 added scripts/host-entries-freshness.test.ts, which has neither either. INSTALL_TEST_FILE_COUNT is
  * 32 since plan 34.1-05 added agent-flag-census.test.ts, which has no chmod call and no expected mode (it parses
  * modules and reads no file mode). 33 since plan 34.1-09 added opencode-permission.test.ts, which has no chmod call (its
- * one user mode edit goes through userModeEdit) and no literal expected mode. */
-const INSTALL_TEST_FILE_COUNT = 33;
+ * one user mode edit goes through userModeEdit) and no literal expected mode. 34 since plan 34.1-12 added
+ * agent-picker.test.ts, which has no chmod call and no expected mode (it drives a pure key decoder and reads no file).
+ * SOURCE_FILE_COUNT is 9 since plan 34.1-12 added install/agent-picker.ts, which imports nothing, renders no mode and
+ * compares none (it is the checkbox list's pure state machine). */
+const INSTALL_TEST_FILE_COUNT = 34;
 const SCRIPTS_TEST_FILE_COUNT = 73;
-const SOURCE_FILE_COUNT = 8;
+const SOURCE_FILE_COUNT = 9;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
  * 10 -> 9 and restore 18 -> 16 on 2026-10-11 (plan 34.1-03, D-12): settings-json-provenance.test.ts lost B2 (a mode-000

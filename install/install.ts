@@ -394,7 +394,7 @@ function pickAgents(rows: readonly PickerRow[], checked: readonly boolean[]): re
   let lines = 0;
   const buf = Buffer.alloc(16);
   const paint = (): void => {
-    const frame = render(state, rows, lines);
+    const frame = render(state, rows, lines, process.stdout.columns);
     process.stdout.write(frame.text);
     lines = frame.lines;
   };

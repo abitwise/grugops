@@ -47,7 +47,7 @@ import {
   readlinkSync,
   linkSync,
 } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { basename, join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -10818,4 +10818,224 @@ describe("install only adds (D-04)", () => {
     for (const l of routeNotes) for (const h of notInstalled) expect(l, `a route note names ${h.name}, which is not installed`).not.toContain(h.name);
     expect(readFileSync(join(target, "AGENTS.md"), "utf8"), "the user's AGENTS.md").toBe("# My own agents file\n");
   }, 240_000);
+});
+
+// ── the agent checkbox list at a real terminal (phase 34.1, D-02; plan 34.1-12) ──────────────────────────────────────
+// With standard input and standard output both terminals, no agent flag and no `--yes`, install asks the checkbox list
+// (install.ts pickAgents over install/agent-picker.ts). These cases give the installer a real pseudo-terminal through
+// script(1) and type into it; the pure key, step and frame cases are install/agent-picker.test.ts. No environment
+// variable or file feeds the list keys (a hidden input channel): the bytes reach it only through the terminal.
+//
+// THE TWO script(1) FORMS. BSD (macOS) takes `script -q /dev/null <command...>`; util-linux takes
+// `script -qec "<command>" /dev/null`. Each is probed on a command that prints a token only when both its standard
+// input and output are terminals, BSD first; the first that prints it is used. When neither does, every case is
+// skipped with the reason printed (no platform conditional). BSD script refuses a socket as its standard input (the
+// pipe a spawn hands it), so the command reads its input through `cat |`, a real pipe, on both forms. The input is
+// kept open until the shell inside the terminal has finished, because closing it makes BSD script type Ctrl-D.
+//
+// TERMINAL RESTORE. Inside the same terminal the shell prints `stty -a` before and after the install. The flags the
+// raw mode changes (libuv's raw mode: brkint icrnl inpck istrip ixon off, echo icanon iexten isig off, cs8 on, onlcr
+// kept) must read the same after as before. A byte-for-byte `stty -g` comparison is not used: macOS sets PENDIN
+// ("retype pending input") whenever a terminal returns to canonical mode, which is the kernel's doing, not a mode the
+// installer left behind (measured 2026-10-12: lflag 5cb before, 200005cb after, under script -q on darwin).
+describe("agent picker at a terminal (D-02)", () => {
+  const q = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
+  const PTY_FORMS: readonly { readonly name: string; readonly wrap: (inner: string) => string }[] = [
+    { name: "BSD script -q /dev/null", wrap: (inner) => `cat | script -q /dev/null sh -c ${q(inner)}` },
+    { name: "util-linux script -qec", wrap: (inner) => `cat | script -qec ${q(inner)} /dev/null` },
+  ];
+  const PTY_TOKEN = "PTY-OK";
+  const PTY = PTY_FORMS.find((form) => {
+    const r = spawnSync("sh", ["-c", form.wrap(`test -t 0 && test -t 1 && echo ${PTY_TOKEN}`)], { input: "", encoding: "utf8", timeout: 15_000 });
+    return (r.stdout ?? "").includes(PTY_TOKEN);
+  });
+  const NO_PTY = "script(1) is not available to give the installer a terminal";
+  if (PTY === undefined) console.log(`agent picker at a terminal (D-02): skipped: ${NO_PTY}`);
+  else console.log(`agent picker at a terminal (D-02): using ${PTY.name}`);
+  const ptyIt = PTY === undefined ? it.skip : it;
+
+  /** The flags libuv's raw mode changes, as stty spells them. */
+  const RAW_FLAGS = ["brkint", "icrnl", "inpck", "istrip", "ixon", "echo", "icanon", "iexten", "isig", "cs8", "onlcr"];
+  const flagStates = (sttyA: string): Map<string, boolean> => {
+    const tokens = new Set(sttyA.split(/[\s;]+/));
+    const out = new Map<string, boolean>();
+    for (const f of RAW_FLAGS) {
+      if (tokens.has(f)) out.set(f, true);
+      else if (tokens.has(`-${f}`)) out.set(f, false);
+    }
+    return out;
+  };
+
+  interface PtyRun {
+    readonly out: string;
+    readonly exit: string;
+    readonly before: Map<string, boolean>;
+    readonly after: Map<string, boolean>;
+    readonly afterPicker: string;
+  }
+
+  const LIST_ON_SCREEN = "Choose the coding agents";
+  /**
+   * Runs install.js inside a pseudo-terminal and reads what happened. `answers` are typed in order: each one's keys once
+   * its text has appeared on screen after the previous answer was typed.
+   */
+  const runAtTerminal = (
+    target: string,
+    home: string,
+    answers: readonly (readonly [string, string])[],
+    timeoutMs = 150_000,
+    columns = 0,
+  ): Promise<PtyRun> =>
+    new Promise((resolveRun, rejectRun) => {
+      if (PTY === undefined) throw new Error(NO_PTY);
+      const env: NodeJS.ProcessEnv = { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: home };
+      delete env.DRY_RUN;
+      delete env.TARGET;
+      const child = spawn(
+        "sh",
+        // agent-flag-census: the D-02 picker cases run install.js at a terminal with no agent flag on purpose, because the list is what they test
+        ["-c", PTY.wrap(`${columns > 0 ? `stty cols ${columns} rows 40; ` : ""}stty -a; echo @@BEFORE; ${q(process.execPath)} ${q(INSTALL_JS)} --target ${q(target)}; echo "@@EXIT=$?"; stty -a; echo @@AFTER`)],
+        { env },
+      );
+      let out = "";
+      let next = 0;
+      let seenUpTo = 0;
+      let ended = false;
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        rejectRun(new Error(`the terminal run did not finish in ${timeoutMs}ms; output so far:\n${out}`));
+      }, timeoutMs);
+      const onData = (d: Buffer): void => {
+        out += d.toString("utf8");
+        while (next < answers.length) {
+          const at = out.indexOf(answers[next][0], seenUpTo);
+          if (at === -1) break;
+          child.stdin.write(answers[next][1]);
+          seenUpTo = at + answers[next][0].length;
+          next += 1;
+        }
+        if (!ended && out.includes("@@AFTER")) {
+          ended = true;
+          child.stdin.end();
+        }
+      };
+      child.stdout.on("data", onData);
+      child.stderr.on("data", onData);
+      child.on("error", (e) => {
+        clearTimeout(timer);
+        rejectRun(e);
+      });
+      child.on("close", () => {
+        clearTimeout(timer);
+        const text = out.replace(/\r/g, "");
+        const exit = /@@EXIT=(\d+)/.exec(text)?.[1] ?? "(no exit status printed)";
+        const beforeText = text.slice(0, text.indexOf("@@BEFORE"));
+        const afterText = text.slice(text.indexOf("@@EXIT="), text.indexOf("@@AFTER"));
+        const hidden = text.lastIndexOf("\x1b[?25l");
+        resolveRun({ out: text, exit, before: flagStates(beforeText), after: flagStates(afterText), afterPicker: hidden === -1 ? "" : text.slice(hidden) });
+      });
+    });
+
+  /** The terminal came back as it was: every raw-mode flag read the same before and after, and the cursor is shown. */
+  const expectRestored = (r: PtyRun): void => {
+    expect([...r.before.keys()].sort(), `stty -a did not show every raw-mode flag before the run:\n${r.out}`).toEqual([...RAW_FLAGS].sort());
+    expect(r.before.get("icanon") && r.before.get("echo"), "PREMISE: the terminal starts in canonical mode with echo").toBe(true);
+    expect(Object.fromEntries(r.after), "the terminal was not restored").toEqual(Object.fromEntries(r.before));
+    expect(r.afterPicker, "the list hid the cursor and never showed it again").toContain("\x1b[?25h");
+  };
+
+  const agentsLine = (out: string): string => out.split("\n").find((l) => l.startsWith("agents: ")) ?? "(no agents: line)";
+
+  ptyIt("down, space, Enter into an empty target installs exactly the second registry agent, chosen at the prompt; the terminal is restored", async () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const second = HOST_TOOLS[1];
+    const r = await runAtTerminal(target, home, [[LIST_ON_SCREEN, "\x1b[B \r"]]);
+    expect(`exit ${r.exit}`, r.out).toBe("exit 0");
+    expect(r.out).toContain("Choose the coding agents to install grugops for");
+    for (const h of HOST_TOOLS) expect(r.out, `the list does not show ${h.name}`).toContain(`[ ] ${h.name}`);
+    expect(agentsLine(r.out)).toBe(`agents: ${second.name} (chosen at the prompt)`);
+    expect(readMarkerObject(target).agents).toEqual([second.id]);
+    expectRestored(r);
+  }, 180_000);
+
+  ptyIt("a detected agent starts checked and labelled; Enter alone installs it", async () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const claude = HOST_TOOLS.find((h) => h.id === "claude");
+    if (claude === undefined) throw new Error("no claude registry row");
+    mkdirSync(join(target, ...claude.detect.split("/")), { recursive: true });
+    const r = await runAtTerminal(target, home, [[LIST_ON_SCREEN, "\r"]]);
+    expect(`exit ${r.exit}`, r.out).toBe("exit 0");
+    expect(r.out).toContain(`[x] ${claude.name}  (detected: ${claude.detect})`);
+    expect(agentsLine(r.out)).toBe(`agents: ${claude.name} (chosen at the prompt)`);
+    expect(readMarkerObject(target).agents).toEqual([claude.id]);
+    expectRestored(r);
+  }, 180_000);
+
+  ptyIt("Ctrl-C at the list exits 1, says the list was cancelled, writes nothing, and restores the terminal", async () => {
+    const target = mkTmp();
+    const home = join(mkTmp(), "kit-home");
+    const r = await runAtTerminal(target, home, [[LIST_ON_SCREEN, "\x1b[B \x03"]]);
+    expect(`exit ${r.exit}`, r.out).toBe("exit 1");
+    expect(r.out).toContain("install.js: the agent list was cancelled, so nothing was installed.");
+    expect(r.out).not.toContain("== grugops install ==");
+    expect(readdirSync(target), "the target was written to").toEqual([]);
+    expect(existsSync(home), "a kit home that did not exist was created").toBe(false);
+    expectRestored(r);
+  }, 180_000);
+
+  ptyIt("Enter with nothing checked exits 1 through the D-03 refusal, naming every agent flag, writes nothing, and restores the terminal", async () => {
+    const target = mkTmp();
+    const home = join(mkTmp(), "kit-home");
+    const r = await runAtTerminal(target, home, [[LIST_ON_SCREEN, "\r"]]);
+    expect(`exit ${r.exit}`, r.out).toBe("exit 1");
+    expect(r.out).toContain("install.js: no agent was checked at the agent list, so nothing was installed. Name the agents to install for with one or more of: ");
+    for (const f of HOST_TOOLS.map(agentFlag)) expect(r.out, `the refusal does not name ${f}`).toContain(f);
+    expect(readdirSync(target), "the target was written to").toEqual([]);
+    expect(existsSync(home), "a kit home that did not exist was created").toBe(false);
+    expectRestored(r);
+  }, 180_000);
+
+  // RAW MODE IS OFF AGAIN WHILE THE RUN GOES ON. Node resets the terminal when the process exits, so the restore at the
+  // end of the run (expectRestored) cannot tell whether pickAgents turned raw mode off; this case can. After the list,
+  // the edited-kit question reads a typed line: "y" then CR. Only a terminal back in canonical mode echoes the "y" and
+  // turns the CR into the newline the line read waits for; left raw, the question never gets its answer.
+  ptyIt("a question after the list reads a typed line: raw mode is off again while the run continues", async () => {
+    const target = mkTmp();
+    const home = mkTmp();
+    const claude = HOST_TOOLS.find((h) => h.id === "claude");
+    if (claude === undefined) throw new Error("no claude registry row");
+    const first = runInstall(target, home, agentFlag(claude));
+    expect(first.status, first.stdout + first.stderr).toBe(0);
+    const kitFile = (readMarkerObject(target).ledger as { path: string; kind: string; kit?: boolean }[]).find((e) => e.kind === "file" && e.kit === true);
+    if (kitFile === undefined) throw new Error("PREMISE: the Claude Code install recorded no kit file");
+    const abs = join(target, ...kitFile.path.split("/"));
+    writeFileSync(abs, readFileSync(abs, "utf8") + "\nThe user's own edit.\n");
+    const question = "Back up these files and overwrite the whole grugops kit? [y/N] ";
+    const r = await runAtTerminal(target, home, [[LIST_ON_SCREEN, "\r"], [question, "y\r"]], 60_000);
+    expect(`exit ${r.exit}`, r.out).toBe("exit 0");
+    expect(r.out, "the installed agent (whose install made its detect path) does not start checked and labelled as both").toContain(`[x] ${claude.name}  (installed; detected: ${claude.detect})`);
+    expect(r.out, "the typed answer was not echoed: the terminal was still raw").toContain(`${question}y\n`);
+    expect(readFileSync(abs, "utf8"), "the answer was not read as yes").not.toContain("The user's own edit.");
+    const backups = readdirSync(dirname(abs)).filter((n) => n !== basename(abs) && n.startsWith(basename(abs)));
+    expect(backups, "the edited kit file was not backed up").toHaveLength(1);
+    expectRestored(r);
+  }, 180_000);
+
+  // THE REPAINT COUNTS WRAPPED LINES. The header is longer than an 80-column terminal, so it takes two screen lines
+  // there; a repaint that moved up one line per text line would strand a copy of the header's first line on every key.
+  // Here the terminal is set to 80 columns, `j` moves the cursor (one repaint), and Ctrl-C ends the list.
+  ptyIt("on an 80-column terminal the repaint moves up every screen line the wrapped header takes", async () => {
+    const target = mkTmp();
+    const home = join(mkTmp(), "kit-home");
+    const columns = 80;
+    const r = await runAtTerminal(target, home, [[LIST_ON_SCREEN, "j"], [`> [ ] ${HOST_TOOLS[1].name}`, "\x03"]], 60_000, columns);
+    expect(`exit ${r.exit}`, r.out).toBe("exit 1");
+    const header = "Choose the coding agents to install grugops for (arrows or j/k move, space toggles, Enter confirms, Ctrl-C cancels):";
+    expect(header.length, "PREMISE: the header is wider than the terminal").toBeGreaterThan(columns);
+    const screenLines = Math.ceil(header.length / columns) + HOST_TOOLS.length;
+    expect(r.out, "the repaint did not move up every screen line of the previous frame").toContain(`\x1b[${screenLines}A\x1b[J`);
+    expectRestored(r);
+  }, 180_000);
 });

@@ -287,7 +287,7 @@ function pickAgents(rows, checked) {
     let lines = 0;
     const buf = Buffer.alloc(16);
     const paint = () => {
-        const frame = render(state, rows, lines);
+        const frame = render(state, rows, lines, process.stdout.columns);
         process.stdout.write(frame.text);
         lines = frame.lines;
     };
