@@ -65,8 +65,9 @@ const SCRIPTS_DIR = join(INSTALL_DIR, "..", "scripts");
  * since plan 34.1-01 added scripts/generate-host-entries.test.ts, which has no chmod call and reads no `.mode`; 73
  * since plan 34.1-02 added scripts/host-entries-freshness.test.ts, which has neither either. INSTALL_TEST_FILE_COUNT is
  * 32 since plan 34.1-05 added agent-flag-census.test.ts, which has no chmod call and no expected mode (it parses
- * modules and reads no file mode). */
-const INSTALL_TEST_FILE_COUNT = 32;
+ * modules and reads no file mode). 33 since plan 34.1-09 added opencode-permission.test.ts, which has no chmod call (its
+ * one user mode edit goes through userModeEdit) and no literal expected mode. */
+const INSTALL_TEST_FILE_COUNT = 33;
 const SCRIPTS_TEST_FILE_COUNT = 73;
 const SOURCE_FILE_COUNT = 8;
 
@@ -411,7 +412,7 @@ describe("WIN-2 mode census (c): the installer has one mode renderer and one rec
     expect(sites.map(where), "modeOctal was the second renderer plan 34-13 removed: use modeText").toEqual([]);
   });
 
-  it("an equality with a mode operand (modeText(…), recordedModeOf(…) or a .mode read) occurs only inside modeMatches, and modeMatches is asked by recordMatches and the two uninstall created-file checks", () => {
+  it("an equality with a mode operand (modeText(…), recordedModeOf(…) or a .mode read) occurs only inside modeMatches, and modeMatches is asked by recordMatches and the three uninstall created-file checks", () => {
     const EQUALITY = new Set([
       ts.SyntaxKind.EqualsEqualsEqualsToken,
       ts.SyntaxKind.ExclamationEqualsEqualsToken,
@@ -432,7 +433,10 @@ describe("WIN-2 mode census (c): the installer has one mode renderer and one rec
     ).toEqual([]);
     expect(compares.map((h) => `${h.file}:${h.scope}`), "modeMatches no longer holds the one comparison").toEqual(["install-marker.ts:modeMatches"]);
     const asks = hitsWhere(INSTALL_DIR, files, (n) => ts.isCallExpression(n) && calleeName(n) === "modeMatches");
-    expect(countBy(asks, (h) => h.file), `modeMatches is asked at: ${asks.map(where).join("; ")}`).toEqual({ "install-marker.ts": 1, "uninstall.ts": 2 });
+    // uninstall.ts: unmergeGemini, removeAskRules, and since plan 34.1-09 (D-14) removeOpenCodePermission, each asking it
+    // before it deletes a settings file install created.
+    expect(countBy(asks, (h) => h.file), `modeMatches is asked at: ${asks.map(where).join("; ")}`).toEqual({ "install-marker.ts": 1, "uninstall.ts": 3 });
+    expect(asks.filter((h) => h.file === "uninstall.ts").map((h) => h.scope).sort()).toEqual(["removeAskRules", "removeOpenCodePermission", "unmergeGemini"]);
     expect(asks.filter((h) => h.file === "install-marker.ts").map((h) => h.scope)).toEqual(["recordMatches"]);
   });
 });

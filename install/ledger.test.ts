@@ -56,6 +56,8 @@ import {
   readInstallMarker,
   readKitHomeRecord,
   readLedger,
+  createdOpenCodeText,
+  opencodePermissionEntry,
   installedAgents,
   installMarkerProblems,
   AGENTS_FIELD,
@@ -300,6 +302,76 @@ describe("the one ledger — the one serializer (ledgerJson)", () => {
     const again = readLedger(holder(ledgerJson(entries)));
     expect(again.state).toBe("ok");
     expect(again.entries).toEqual(entries);
+  });
+});
+
+describe("the opencode-permission entry (plan 34.1-09, D-14)", () => {
+  const OC = VALID["opencode-permission"];
+  const parse = (e: Record<string, unknown>) => readLedger(holder([e]));
+
+  it("accepts the exact shape, with fileMode only beside createdFile true", () => {
+    expect(parse(OC).state).toBe("ok");
+    const created = { ...OC, createdFile: true, createdPermission: true, createdExternalDirectory: true, fileMode: "0644" };
+    expect(parse(created).state, String(parse(created).why)).toBe("ok");
+    expect(parse({ ...created, fileMode: undefined }).state, "a created file without fileMode (a mode that could not be read back)").toBe("malformed");
+    const { fileMode: _drop, ...noMode } = created;
+    expect(parse(noMode).state, String(parse(noMode).why)).toBe("ok");
+  });
+
+  it("refuses another path: the entry names opencode.json only", () => {
+    for (const path of ["opencode.jsonc", ".opencode/opencode.json", "sub/opencode.json", ".claude/settings.json"]) {
+      expect(parse({ ...OC, path }).why, path).toMatch(/opencode-permission entry may name only opencode\.json/);
+    }
+  });
+
+  it("refuses a missing or an extra key", () => {
+    for (const k of ["pattern", "createdFile", "createdPermission", "createdExternalDirectory", "content"]) {
+      const e: Record<string, unknown> = { ...OC };
+      delete e[k];
+      expect(parse(e).why, k).toMatch(/^entry 0: it lacks /);
+    }
+    expect(parse({ ...OC, rule: "allow" }).why).toMatch(/key no entry of its kind has/);
+  });
+
+  it("refuses fileMode without createdFile, non-boolean flags, a bad pattern, a bad content record and impossible flag sets", () => {
+    const bad: Array<[string, Record<string, unknown>]> = [
+      ["fileMode without createdFile", { ...OC, fileMode: "0644" }],
+      ["fileMode not four octal digits", { ...OC, createdFile: true, createdPermission: true, createdExternalDirectory: true, fileMode: "644" }],
+      ["createdFile a string", { ...OC, createdFile: "no" }],
+      ["createdPermission a number", { ...OC, createdPermission: 0 }],
+      ["createdExternalDirectory null", { ...OC, createdExternalDirectory: null }],
+      ["pattern empty", { ...OC, pattern: "" }],
+      ["pattern a number", { ...OC, pattern: 7 }],
+      ["pattern with a control byte", { ...OC, pattern: "~/.grugops/\u0007/**" }],
+      ["content null", { ...OC, content: null }],
+      ["content a file record", { ...OC, content: FILE_REC }],
+      ["createdFile without createdPermission", { ...OC, createdFile: true, createdPermission: false, createdExternalDirectory: true }],
+      ["createdPermission without createdExternalDirectory", { ...OC, createdPermission: true, createdExternalDirectory: false }],
+    ];
+    for (const [name, e] of bad) expect(parse(e).state, name).toBe("malformed");
+  });
+
+  it("owns returns the entry for opencode.json and nothing for another path or kind", () => {
+    const l = parse(OC);
+    const o = owns(l, SCRATCH, "opencode.json", "opencode-permission");
+    expect(o.owned).toBe(true);
+    expect(o.entry).toEqual(l.entries[0]);
+    expect(owns(l, SCRATCH, "opencode.json", "file").owned).toBe(false);
+    expect(owns(readLedger(holder([VALID.dir])), SCRATCH, "opencode.json", "opencode-permission").owned).toBe(false);
+  });
+
+  it("ledgerJson writes the fixed key order, fileMode last, and readLedger gives the entry back", () => {
+    const created = { ...OC, createdFile: true, createdPermission: true, createdExternalDirectory: true, fileMode: "0644" };
+    const out = ledgerJson(parse(created).entries);
+    expect(Object.keys(out[0])).toEqual(["path", "kind", "pattern", "createdFile", "createdPermission", "createdExternalDirectory", "content", "fileMode"]);
+    expect(readLedger(holder(out)).entries).toEqual(parse(created).entries);
+    const made = opencodePermissionEntry({ pattern: "~/k/**", createdFile: false, createdPermission: false, createdExternalDirectory: false, content: SHA });
+    expect([made.path, made.kind]).toEqual(["opencode.json", "opencode-permission"]);
+  });
+
+  it("createdOpenCodeText is the one created text: the rule alone, two-space indented, with a final newline", () => {
+    const t = createdOpenCodeText("~/.grugops/agent-factory/**");
+    expect(t).toBe('{\n  "permission": {\n    "external_directory": {\n      "~/.grugops/agent-factory/**": "allow"\n    }\n  }\n}\n');
   });
 });
 

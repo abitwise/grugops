@@ -254,7 +254,7 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:writeTargetFile:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707; plan 34-28's block refresh, in the sentinel-present arm, reports would-refresh and returns under `if (DRY_RUN)` before its how-`ok` call, which it reaches only after refreshable (plan 34-34, the one predicate the doctor asks too) answers ok over ensureBlock's own read: a regular file holding the open sentinel and exactly one span matching the previous ledger's block record), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512), rewriteLedger (plan 33.1-40: :1861, call :1886; reached from prune and from an already-migrated --migrate), writeWholeFileEntry (plan 34.1-01, which replaced plan 34-04's writePiPromptTemplate and kept its arms, for every whole-file host entry: its `if (DRY_RUN)` reports would-add and returns before its exclusive-create call; an absent or unread kit source, a blocked path or an occupied path returns before that), refreshOwnFile (plan 34-28, D-26 point 2: reached from writeWholeFileEntry's and the AGENTS.md step's occupied-path arms; it writes with how `ok` only after refreshable (plan 34-34, the same gates, now named once) answers ok, that is, owns says the previous ledger's `sha256:` file record still holds, readForWrite says a regular file and the kit's current text could be read, and only when the bytes differ; its `if (DRY_RUN)` reports would-refresh and returns before that call). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26. Phase 34.1 D-12 (plan 34.1-03) deleted the caller mergeGemini with the Gemini merge; uninstall's unmergeGemini rows below are kept",
+    why: "install.ts:509 writeTargetFile is the one writer of a whole file under TARGET (red-team of plan 33.1-26; flag \"wx\" for a create). Every caller returns or continues under DRY_RUN before calling it: migratePreSteps (:1606 continue, call :1611), ensureBlock (:1701, call :1707; plan 34-28's block refresh, in the sentinel-present arm, reports would-refresh and returns under `if (DRY_RUN)` before its how-`ok` call, which it reaches only after refreshable (plan 34-34, the one predicate the doctor asks too) answers ok over ensureBlock's own read: a regular file holding the open sentinel and exactly one span matching the previous ledger's block record), linkOrCopy (:1752, call :1772; since plan 33.1-31 only the AGENTS.md step calls it), materializeAdapter (:2735, call :2740) and copyKitFile (:2768, call :2790), both reached only from executeKitPlan after buildKitPlan refused nothing (plan 33.1-31), seedFile (:2477, call :2481), materializeRunnable (:2582 continue, call :2586), writeMarker (:2643, call :2683), writeAskRules (:3503, call :3512), writeOpenCodePermission (plan 34.1-09, D-14: both its create and its `ok` rewrite of opencode.json sit after an `if (DRY_RUN)` that reports would-add and returns; every refusal arm returns a note before them), rewriteLedger (plan 33.1-40: :1861, call :1886; reached from prune and from an already-migrated --migrate), writeWholeFileEntry (plan 34.1-01, which replaced plan 34-04's writePiPromptTemplate and kept its arms, for every whole-file host entry: its `if (DRY_RUN)` reports would-add and returns before its exclusive-create call; an absent or unread kit source, a blocked path or an occupied path returns before that), refreshOwnFile (plan 34-28, D-26 point 2: reached from writeWholeFileEntry's and the AGENTS.md step's occupied-path arms; it writes with how `ok` only after refreshable (plan 34-34, the same gates, now named once) answers ok, that is, owns says the previous ledger's `sha256:` file record still holds, readForWrite says a regular file and the kit's current text could be read, and only when the bytes differ; its `if (DRY_RUN)` reports would-refresh and returns before that call). It replaced the nine per-site writeFileSync/copyFileSync rows of plans 33.1-18/26. Phase 34.1 D-12 (plan 34.1-03) deleted the caller mergeGemini with the Gemini merge; uninstall's unmergeGemini rows below are kept",
   },
   {
     site: "install.ts:rewriteLedger:writeFileSync",
@@ -314,13 +314,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "uninstall.ts:unlinkPath:unlinkSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the install ledger has a file entry for the file), unmergeGemini (:760, call :766; :801, call :807; plan 33.1-29: reached only when the gemini entry of the install ledger records that install created the file, and either it still holds the bytes install wrote or nothing is left in it once the recorded AGENTS.md entry is removed), removeAskRules (:833, call :841), removeMarker (:910, call :914)",
+    why: "uninstall.ts:281 unlinkPath is the one removal of a file or a link (red-team of plan 33.1-27: it replaced four rmSync and three unlinkSync sites; a throw is a counted verify and `removed` needs gone()). Every caller returns under DRY_RUN before calling it: removeFile (:370, call :374), removeOwnedEmptyFile (:594, call :598; plan 33.1-28 replaced the old whitespace-only remover, and it is reached only when the install ledger has a file entry for the file), unmergeGemini (:760, call :766; :801, call :807; plan 33.1-29: reached only when the gemini entry of the install ledger records that install created the file, and either it still holds the bytes install wrote or nothing is left in it once the recorded AGENTS.md entry is removed), removeAskRules (:833, call :841), removeOpenCodePermission (plan 34.1-09: its DRY_RUN branch returns before the call), removeMarker (:910, call :914)",
   },
   {
     site: "uninstall.ts:rewritePath:writeFileSync",
     count: 1,
     gate: "helper-gated",
-    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (plan 33.1-28 computes the post-removal text before that return; since plan 33.1-33 it removes only the one span the block entry's record names and writes nothing otherwise), updateKeptMarker (it writes nothing under DRY_RUN, plan 33.1-28 R2), unmergeGemini (:810, call :815; plan 33.1-29: only the recorded append is reversed, after the gemini entry of the install ledger and the file's shape were asked), removeAskRules (:833, call :846)",
+    why: "uninstall.ts:301 rewritePath is the one rewrite of an edited file (red-team of plan 33.1-27; a throw is a counted verify). Every caller returns under DRY_RUN before calling it: removeSentinelBlock (plan 33.1-28 computes the post-removal text before that return; since plan 33.1-33 it removes only the one span the block entry's record names and writes nothing otherwise), updateKeptMarker (it writes nothing under DRY_RUN, plan 33.1-28 R2), unmergeGemini (:810, call :815; plan 33.1-29: only the recorded append is reversed, after the gemini entry of the install ledger and the file's shape were asked), removeAskRules (:833, call :846), removeOpenCodePermission (plan 34.1-09: its DRY_RUN branch returns before the call)",
   },
   {
     site: "uninstall.ts:rmdirIfEmpty:rmdirSync",
@@ -1076,6 +1076,13 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     why: "the settings file install created, empty once the ask-rules entry's rules are removed (D-18); the entry comes from owns. Known exception: carry item 12",
   },
   {
+    caller: "uninstall.ts:removeOpenCodePermission→unlinkPath",
+    count: 1,
+    ownership: "ledger",
+    gate: "owns",
+    why: "the opencode.json install created (plan 34.1-09, D-14), deleted only when its permission.external_directory still holds the record of the opencode-permission entry owns returned, what is left once the recorded rule is taken out is byte for byte the emptied created text, and its mode is the recorded one; DRY_RUN returns before the call",
+  },
+  {
     caller: "uninstall.ts:removeMarker→unlinkPath",
     count: 1,
     ownership: "ledger",
@@ -1102,6 +1109,13 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     ownership: "ledger",
     gate: "owns",
     why: "only the entry's rules and the containers install created are removed (D-18). Known exception: carry item 12",
+  },
+  {
+    caller: "uninstall.ts:removeOpenCodePermission→rewritePath",
+    count: 1,
+    ownership: "ledger",
+    gate: "owns",
+    why: "only the recorded kit-read rule, and the `external_directory` and `permission` install created once empty again, are taken out of opencode.json, while external_directory still equals the record of the opencode-permission entry owns returned (plan 34.1-09, D-14, brief DC-2); the spliced text passes the oracle before the write; DRY_RUN returns before the call",
   },
   {
     caller: "uninstall.ts:updateKeptMarker→rewritePath",
@@ -1528,8 +1542,9 @@ describe("installer fs census — the ownership axis (DC-2, plan 33.1-33)", () =
     // DELETE_EDIT_SITE_COUNT (plan 33.1-38): rmdirIfEmpty's rmdirSync (1); removeOwnedEmptyFile → unlinkPath (1);
     // unmergeGemini → unlinkPath (2) and → rewritePath (1); removeAskRules → unlinkPath (1) and → rewritePath (1);
     // removeMarker → unlinkPath (1); removeSentinelBlock → rewritePath (1); updateKeptMarker → rewritePath (1);
-    // reverseFile → removeFile (1). Eleven: the ledger walk's reversals and the marker's two.
-    const DELETE_EDIT_SITE_COUNT = 11;
+    // reverseFile → removeFile (1). Eleven: the ledger walk's reversals and the marker's two. Thirteen since plan
+    // 34.1-09 (D-14): removeOpenCodePermission → unlinkPath (1) and → rewritePath (1), the opencode-permission reversal.
+    const DELETE_EDIT_SITE_COUNT = 13;
     const helperScopes = new Set(HELPERS);
     const readOnly = new Set(OWNERSHIP_SITES.filter((r) => r.ownership === "read-only").map((r) => r.site));
     const sites: { key: string; file: string; scope: string; pos: number }[] = [];

@@ -446,8 +446,8 @@ describe("WIN-1 path-spelling census — product (install/*.ts sources)", () => 
 
 // ── the test side (plan 34-12) ──────────────────────────────────────────────────────────────────────
 
-/** The number of installer test and test-support files counted when the test-side census was written (plan 34-12; 28 since plan 34-14 added mode-census.test.ts; 29 since plan 34-25 added closing-claims.test.ts, which compares no recorded path; 30 since plan 34-27 added kit-route.test.ts, which joins and reads the recorded kitRoot and compares it raw with nothing; 31 since plan 34.1-01 added host-entries.test.ts, which matches printed report lines by the target-relative entry path only and compares no recorded absolute path; 32 since plan 34.1-05 added agent-flag-census.test.ts, which parses module source text and compares no path at all). */
-const TEST_SCANNED_FILE_COUNT = 32;
+/** The number of installer test and test-support files counted when the test-side census was written (plan 34-12; 28 since plan 34-14 added mode-census.test.ts; 29 since plan 34-25 added closing-claims.test.ts, which compares no recorded path; 30 since plan 34-27 added kit-route.test.ts, which joins and reads the recorded kitRoot and compares it raw with nothing; 31 since plan 34.1-01 added host-entries.test.ts, which matches printed report lines by the target-relative entry path only and compares no recorded absolute path; 32 since plan 34.1-05 added agent-flag-census.test.ts, which parses module source text and compares no path at all; 33 since plan 34.1-09 added opencode-permission.test.ts, which compares opencode.json's bytes and the home-relative pattern and asserts only that no absolute scratch path appears in the file, so it compares no recorded absolute path). */
+const TEST_SCANNED_FILE_COUNT = 33;
 
 function scannedTestFiles(): string[] {
   return readdirSync(INSTALL_DIR)

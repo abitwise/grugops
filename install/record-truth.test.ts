@@ -142,11 +142,12 @@ describe("B1: `--check` FAILs on a marker that holds a malformed ledger, naming 
   // 33.1-40). `kit` lives only in the kit-home record (plan 33.1-37). A default install writes all of them but
   // `gemini` (phase 34.1 D-12: install no longer writes a gemini entry); the gemini row is seeded from the legacy
   // fixture (ledger.test-support.ts plantLegacyGemini), the entry an earlier install wrote, because --check still
-  // reads such a ledger.
+  // reads such a ledger. Plan 34.1-09 (D-14) added `opencode-permission`, which a default install writes (OpenCode is
+  // chosen and the kit home is under this file's scratch HOME).
   const GARBLED_KINDS = KINDS_BY_SCOPE.target.filter((k) => k !== "backup");
   const LEGACY_SEEDED_KINDS: readonly string[] = ["gemini"];
   it("the kinds garbled below are the target scope but backup (count pinned); gemini is seeded from the legacy fixture", () => {
-    expect([...GARBLED_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules"]);
+    expect([...GARBLED_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "opencode-permission"]);
     for (const k of LEGACY_SEEDED_KINDS) expect(GARBLED_KINDS, k).toContain(k);
   });
   for (const kind of GARBLED_KINDS) {
@@ -317,7 +318,7 @@ function removableFiles(m: Record<string, unknown>): string[] {
   const out = new Set<string>(Object.keys(fileRecords(m)));
   const ledger = m.ledger as Array<Record<string, unknown>>;
   for (const e of ledger) {
-    if ((e.kind === "gemini" || e.kind === "ask-rules") && e.createdFile === true) out.add(e.path as string);
+    if ((e.kind === "gemini" || e.kind === "ask-rules" || e.kind === "opencode-permission") && e.createdFile === true) out.add(e.path as string);
   }
   return [...out].sort();
 }
@@ -333,8 +334,11 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * 36 -> 35 on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` left, because install no longer creates it
  * (no gemini entry with createdFile true is written); the derived listing no longer names it. A legacy created
  * settings file is still removed by uninstall (install/uninstall-removal.test.ts, "legacy Gemini entry (D-12)").
+ * 35 -> 36 on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered, because a default install chooses OpenCode
+ * and, with the kit home under this file's scratch HOME, creates opencode.json holding the kit-read rule (an
+ * opencode-permission entry with createdFile true); the derived listing names it after CLAUDE.md.
  */
-const REMOVABLE_COUNT = 35;
+const REMOVABLE_COUNT = 36;
 
 /**
  * The pointer files install created (plan 34-22, D-23, WR-10): the paths that hold both a `block` entry and a
@@ -440,7 +444,7 @@ describe("L1: a mode change or a whitespace edit is a user edit, and the file is
     }, 30_000);
   }
 
-  for (const rel of [".claude/settings.json", ".gemini/settings.json"]) {
+  for (const rel of [".claude/settings.json", ".gemini/settings.json", "opencode.json"]) {
     for (const [name, change] of [
       ["an extra final newline", (s: string): string => `${s}\n`],
       ["CRLF line ends", (s: string): string => s.replace(/\n/g, "\r\n")],
@@ -465,7 +469,7 @@ describe("L1: a mode change or a whitespace edit is a user edit, and the file is
       for (const e of l) {
         if (e.kind === "file") e.content = strip(e.content);
         if (e.kind === "gemini" && typeof e.fileContent === "string") e.fileContent = strip(e.fileContent);
-        if (e.kind === "ask-rules") delete e.fileMode;
+        if (e.kind === "ask-rules" || e.kind === "opencode-permission") delete e.fileMode;
       }
     });
     writeMarker(t, m);

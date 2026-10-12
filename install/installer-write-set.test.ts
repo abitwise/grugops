@@ -57,7 +57,7 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { stageShapeOrSkip, stageSymlinkOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { ISO_PLACEHOLDER, MARKER_REL, deriveAgentWriteSets, deriveWritePaths, lineNamesPath, pathText, runInstall, runUninstall } from "./installer-paths.test-support.js";
-import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, ROUTE_POINTERS, entryOwners } from "./host-tools.js";
+import { AGENT_SKILL_REL, HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, ROUTE_POINTERS, entryOwners } from "./host-tools.js";
 import { dirList, fileRecords, plantLegacyGemini } from "./ledger.test-support.js";
 
 const USER_FILE_JS = join(import.meta.dirname, "user-file.js");
@@ -277,17 +277,26 @@ function plantAt(target: string, outside: string, rel: string, shape: FileShape 
   }
 }
 
-// The shared verdict: finished, no stack, exit 3, and a `verify` line naming the path.
+// NOTE_REFUSED (plan 34.1-09, D-14): the write paths whose refusal is a `note`, not a counted `verify`, by design.
+// opencode.json is where install only adds OpenCode's kit-read rule; without the rule OpenCode still reaches the kit
+// and asks before each read, so a link or a special file there is a note quoting the rule to add by hand, and the run
+// is not made incomplete. Every DC-3 check is the same for it (finished, no stack, the planted thing unchanged, a
+// blocked writer still blocked, nothing written outside); only the verdict line and the exit code differ.
+const NOTE_REFUSED: ReadonlySet<string> = new Set([OPENCODE_CONFIG_REL]);
+
+// The shared verdict: finished, no stack, and either exit 3 with a `verify` line naming the path, or, for a
+// NOTE_REFUSED path, exit 0 with a `note` line naming it.
 function expectRefusedAndReported(r: ReturnType<typeof runInstaller>, rel: string, ctx: string): void {
   expect(r.error, `${ctx}: the run did not finish in time`).toBeUndefined();
   expect(r.signal, ctx).toBeNull();
   expect(r.stderr, `${ctx}: uncaught throw\n${r.stderr}`).not.toMatch(NO_STACK);
-  const verifyLines = (r.stdout ?? "").split("\n").filter((l) => /^ {2}verify\s/.test(l));
+  const label = NOTE_REFUSED.has(rel) ? "note" : "verify";
+  const named = (r.stdout ?? "").split("\n").filter((l) => new RegExp(`^ {2}${label}\\s`).test(l));
   expect(
-    verifyLines.some((l) => l.includes(rel)),
-    `${ctx}: no verify line names ${rel}\n${(r.stdout ?? "").slice(-3000)}`,
+    named.some((l) => l.includes(rel)),
+    `${ctx}: no ${label} line names ${rel}\n${(r.stdout ?? "").slice(-3000)}`,
   ).toBe(true);
-  expect(r.status, `${ctx}\n${(r.stdout ?? "").slice(-2000)}\n${r.stderr}`).toBe(3);
+  expect(r.status, `${ctx}\n${(r.stdout ?? "").slice(-2000)}\n${r.stderr}`).toBe(label === "note" ? 0 : 3);
 }
 
 async function runShapeCase(rel: string, shape: FileShape | DirShape): Promise<void> {
@@ -386,6 +395,10 @@ describe("every agent writes only its own footprint and the shared files (D-06)"
 });
 
 describe("a special file or a link at every file path install writes (DC-3, D-18, red-team of plan 33.1-26)", () => {
+  it("NOTE_REFUSED is one path, and the baseline install wrote it (so its note verdict is asked, not skipped)", () => {
+    expect(NOTE_REFUSED.size).toBe(1);
+    for (const rel of NOTE_REFUSED) expect(WRITE_FILES, `${rel} is not in the derived write set`).toContain(rel);
+  });
   for (const rel of WRITE_FILES) {
     for (const shape of FILE_SHAPES) {
       it(`write set: ${shape} at ${rel}`, async () => {

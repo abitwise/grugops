@@ -137,8 +137,12 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * (34 -> 33), because install no longer creates them. A user edit to a settings file an earlier install created is
  * held by the legacy-seeded rows (install/installer-marker-retention.test.ts WR-03, install/install.test.ts "Gemini
  * settings ownership"). 61 -> 60.
+ * 61 on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered as a file (edited in: default), because an install that
+ * chooses OpenCode with the kit home under HOME creates it holding the kit-read rule (an `opencode-permission` entry).
+ * Its edit (a new top-level key) leaves `external_directory` as install left it, so uninstall takes out only the rule
+ * and the containers install created, keeps the user's key, and says every other byte was preserved. 60 -> 61.
  */
-const INSTALLED_FILE_COUNT = 60;
+const INSTALLED_FILE_COUNT = 61;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths
@@ -298,11 +302,12 @@ describe("every edit to every installed file survives uninstall (brief DC-2 user
     // ledger only once install records the target backups it makes (plan 33.1-40; a default install makes
     // none). `gemini` is written by no install since phase 34.1 D-12 (an earlier install's entry is carried
     // verbatim; the legacy-seeded rows named at INSTALLED_FILE_COUNT cover a user edit under it). The three are
-    // named here, so the four the default install writes are the rest.
-    expect(LEDGER_KINDS.length).toBe(7);
+    // named here, so the five the default install writes are the rest (eight kinds, five written, since plan 34.1-09
+    // added `opencode-permission`, D-14, which a default install writes into opencode.json).
+    expect(LEDGER_KINDS.length).toBe(8);
     const notWritten = ["gemini", "backup", "kit"];
     const defaultKinds = KINDS_BY_SCOPE.target.filter((k) => !notWritten.includes(k));
-    expect(defaultKinds.length).toBe(4);
+    expect(defaultKinds.length).toBe(5);
     expect(LEDGER_KINDS.filter((k) => !defaultKinds.includes(k))).toEqual(notWritten);
     for (const kind of defaultKinds) {
       const paths = entries.filter((e) => e.kind === kind).map((e) => e.path);
