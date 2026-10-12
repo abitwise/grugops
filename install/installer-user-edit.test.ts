@@ -138,7 +138,8 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * held by the legacy-seeded rows (install/installer-marker-retention.test.ts WR-03, install/install.test.ts "Gemini
  * settings ownership"). 61 -> 60.
  * 61 on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered as a file (edited in: default), because an install that
- * chooses OpenCode with the kit home under HOME creates it holding the kit-read rule (an `opencode-permission` entry).
+ * chooses OpenCode with the kit home under HOME creates it holding the OpenCode external_directory rule (an
+ * `opencode-permission` entry).
  * Its edit (a new top-level key) leaves `external_directory` as install left it, so uninstall takes out only the rule
  * and the containers install created, keeps the user's key, and says every other byte was preserved. 60 -> 61.
  */

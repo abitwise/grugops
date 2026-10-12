@@ -338,8 +338,8 @@ const REMOVABLE: readonly string[] = BASE_RUN.status === 0 ? removableFiles(mark
  * (no gemini entry with createdFile true is written); the derived listing no longer names it. A legacy created
  * settings file is still removed by uninstall (install/uninstall-removal.test.ts, "legacy Gemini entry (D-12)").
  * 35 -> 36 on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered, because a default install chooses OpenCode
- * and, with the kit home under this file's scratch HOME, creates opencode.json holding the kit-read rule (an
- * opencode-permission entry with createdFile true); the derived listing names it after CLAUDE.md.
+ * and, with the kit home under this file's scratch HOME, creates opencode.json holding the OpenCode external_directory
+ * rule (an opencode-permission entry with createdFile true); the derived listing names it after CLAUDE.md.
  */
 const REMOVABLE_COUNT = 36;
 

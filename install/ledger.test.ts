@@ -115,7 +115,7 @@ const VALID: Record<(typeof LEDGER_KINDS)[number], Record<string, unknown>> = {
     createdAsk: true,
     askContent: SHA,
   },
-  // Plan 34.1-09 (D-14): the OpenCode kit-read rule install added to opencode.json.
+  // Plan 34.1-09 (D-14): the OpenCode external_directory rule install added to opencode.json.
   "opencode-permission": {
     path: "opencode.json",
     kind: "opencode-permission",
@@ -137,8 +137,8 @@ const companionIn = (scope: LedgerScope): Record<string, unknown> =>
   scope === "target" ? VALID.dir : { path: "agent-factory.bak.2026-01-02T03-04-05.678Z", kind: "backup", origin: "kit-home", of: "agent-factory", content: null };
 
 describe("the one ledger — grammar (readLedger)", () => {
-  // Eight since plan 34.1-09 (D-14): `opencode-permission`, the OpenCode kit-read rule install adds to opencode.json, is a
-  // target kind after `ask-rules` (the settings edits sit together in ledgerJson's order).
+  // Eight since plan 34.1-09 (D-14): `opencode-permission`, the OpenCode external_directory rule install adds to
+  // opencode.json, is a target kind after `ask-rules` (the settings edits sit together in ledgerJson's order).
   it("LEDGER_KINDS is the eight kinds, each in at least one scope, and the fixture covers each", () => {
     expect([...LEDGER_KINDS]).toEqual(["dir", "file", "block", "gemini", "ask-rules", "opencode-permission", "backup", "kit"]);
     expect(Object.keys(VALID).sort()).toEqual([...LEDGER_KINDS].sort());

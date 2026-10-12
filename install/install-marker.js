@@ -36,9 +36,9 @@
 //                                        THE gemini ENTRY below;
 //   ask-rules  the ask-rule fields       the Claude Code ask rules install added to .claude/settings.json
 //                                        (that path only, D-18); see AskRuleLedger below;
-//   opencode-permission  the OpenCode fields  the kit-read rule install added to `permission.external_directory`
-//                                        in opencode.json (that path only, phase 34.1 D-14); see
-//                                        OpenCodePermissionLedger below;
+//   opencode-permission  the OpenCode fields  the OpenCode external_directory rule install added to
+//                                        `permission.external_directory` in opencode.json (that path only,
+//                                        phase 34.1 D-14); see OpenCodePermissionLedger below;
 //   backup     origin, of, content       install made this backup (plan 33.1-37): `origin` says what it
 //                                        was made from (BACKUP_ORIGINS), `of` the path it was made of,
 //                                        and `content` its file, link or tree record as install left it
@@ -479,9 +479,9 @@ export function createdGeminiText() {
     return JSON.stringify({ context: { fileName: [...GEMINI_CREATED_FILE_NAME] } }, null, 2) + "\n";
 }
 /**
- * THE ONE TEXT install writes when it creates opencode.json (phase 34.1, D-14): the kit-read rule for `pattern` and
- * nothing else, two-space indented, with a final newline. install.ts writes it and uninstall.ts compares with it (the
- * file it deletes), so the two binaries cannot disagree about what install wrote.
+ * THE ONE TEXT install writes when it creates opencode.json (phase 34.1, D-14): the OpenCode external_directory rule
+ * for `pattern` and nothing else, two-space indented, with a final newline. install.ts writes it and uninstall.ts
+ * compares with it (the file it deletes), so the two binaries cannot disagree about what install wrote.
  */
 export function createdOpenCodeText(pattern) {
     return JSON.stringify({ permission: { external_directory: { [pattern]: "allow" } } }, null, 2) + "\n";

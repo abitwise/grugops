@@ -17,6 +17,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { OPENCODE_CONFIG_REL, OPENCODE_RULE_SCOPE, agentCommand, agentFlag, HOST_TOOLS } from "./host-tools.js";
 import { INSTALL_JS, UNINSTALL_JS, MARKER_REL, REPO_ROOT, snapshotTree, spawnBin, userModeEdit, withAgentFlags, type Run } from "./installer-paths.test-support.js";
@@ -520,5 +521,63 @@ describe("DOC-1: the OpenCode external_directory rule is described by its scope 
     }
     // The uninstall run reversed what the first install wrote, so the scan saw the removal line and not an empty run.
     expect(existsSync(fileOf(r.target)), runs[runs.length - 1].run.stdout).toBe(false);
+  });
+
+  // (c) THE REPOSITORY-WIDE ROW. Every tracked file outside `.planning/` (the planning record quotes the old wording as
+  // history) that reads as UTF-8 text holds none of the old wording. A file is skipped only when it does not decode as
+  // UTF-8 or holds a NUL byte (an image, an archive), and the skip is counted, not silent.
+  //
+  // NO FILE IS EXCLUDED BY NAME. The plan named scripts/validate-agent-factory.ts and .js (their `kitRead` helper) and
+  // scripts/check-public-docs-vocabulary.ts and .js (their `kitReadme` part) for an exact-name exclusion. Neither
+  // identifier holds a needle: the old rule name is matched with its hyphen, and the other three needles are phrases.
+  // So those four files are scanned like every other file, and the row asserts they are in the scanned set.
+  //
+  // THE FLOOR. All 1165 tracked files outside `.planning/` decoded as UTF-8 text with no NUL byte when this row landed
+  // (2026-10-12, plan 34.1-17; the 28 that `file` calls binary are empty `.gitkeep` files, which decode as empty text
+  // and are scanned). The floor sits below that count so adding or removing files does not break the row, while a scan
+  // that matched nothing (an empty listing, a wrong root) cannot pass.
+  it("(c) no tracked file outside .planning/ holds the old wording", () => {
+    const SCANNED_FLOOR = 1000;
+    const listed = execFileSync("git", ["ls-files", "-z"], { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+      .split("\0")
+      .filter((rel) => rel !== "" && !rel.startsWith(".planning/"));
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    const scanned: string[] = [];
+    const notText: string[] = [];
+    const hits: string[] = [];
+    for (const rel of listed) {
+      const abs = join(REPO_ROOT, ...rel.split("/"));
+      if (!lstatSync(abs).isFile()) {
+        notText.push(rel);
+        continue;
+      }
+      const bytes = readFileSync(abs);
+      let text: string;
+      try {
+        text = decoder.decode(bytes);
+      } catch {
+        notText.push(rel);
+        continue;
+      }
+      if (text.includes("\u0000")) {
+        notText.push(rel);
+        continue;
+      }
+      scanned.push(rel);
+      const found = oldWordingIn(text);
+      if (found.length > 0) hits.push(`${rel}: ${found.join(", ")}`);
+    }
+    expect(hits, `tracked files that still call the OpenCode rule a read rule:\n${hits.join("\n")}`).toEqual([]);
+    expect(scanned.length + notText.length, "every listed file is either scanned or counted as not text").toBe(listed.length);
+    expect(scanned.length, `only ${scanned.length} tracked files were scanned (not text: ${notText.length})`).toBeGreaterThanOrEqual(SCANNED_FLOOR);
+    for (const rel of [
+      "scripts/validate-agent-factory.ts",
+      "scripts/validate-agent-factory.js",
+      "scripts/check-public-docs-vocabulary.ts",
+      "scripts/check-public-docs-vocabulary.js",
+    ]) {
+      expect(scanned, `${rel} is not in the scanned set`).toContain(rel);
+    }
+    expect(scanned, "this file is not in the scanned set").toContain("install/opencode-permission.test.ts");
   });
 });

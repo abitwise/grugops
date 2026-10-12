@@ -111,10 +111,12 @@ CLI with Antigravity CLI.
   (34.1 D-21). `install/README.md` has a "Using grugops on <agent>" section for each agent other
   than Claude Code, with the sources. Whether any of these agents reaches the Orchestrator on a live
   run is `UNKNOWN - verify`.
-- OpenCode's kit-read rule (34.1 D-14). An install for OpenCode adds one
+- OpenCode's `external_directory` rule (34.1 D-14). An install for OpenCode adds one
   `permission.external_directory` allow rule for the kit root, written home-relative, as the last
-  member, to the project `opencode.json` (creating the file when there is none), so OpenCode reads
-  the kit outside the repository without asking before each file. Every other byte of the file is
+  member, to the project `opencode.json` (creating the file when there is none). The rule allows
+  every tool call OpenCode gates by `external_directory` on the kit path, edits included; whether
+  OpenCode's separate `edit` permission still asks before an edit there is `UNKNOWN - verify`.
+  Install prints that sentence whenever it writes, finds or proposes the rule. Every other byte of the file is
   kept; the rule is recorded in the install ledger, and uninstall takes out exactly that rule while
   `external_directory` is still what install left there. When the kit is not under your home
   directory, the kit path holds a glob or control character, or the file is JSONC, has a duplicate

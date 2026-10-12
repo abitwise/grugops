@@ -97,9 +97,9 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * 60 files and links + 33 directories on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` and `.gemini` left,
  * in every variant, because install no longer reads, creates or edits the Gemini settings. 95 -> 93.
  * 61 files and links + 33 directories on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered as a file, because an
- * install that chooses OpenCode with the kit home under HOME creates it holding the kit-read rule. Planted as a user's
- * file in a never-installed target, uninstall changes none of its bytes (no marker, so no opencode-permission entry).
- * 93 -> 94.
+ * install that chooses OpenCode with the kit home under HOME creates it holding the OpenCode external_directory rule.
+ * Planted as a user's file in a never-installed target, uninstall changes none of its bytes (no marker, so no
+ * opencode-permission entry). 93 -> 94.
  */
 const WRITE_PATH_COUNT = 94;
 

@@ -2885,11 +2885,11 @@ function ensureBlock(ledger, rel, body, label) {
 // writeWholeFileEntry (phase 34.1, plan 34.1-01, D-08, D-09, D-11; it replaces writePiPromptTemplate, plan 34-04,
 // D-10, D-13, D-16, D-17, and keeps its arms; the refresh, plan 34-28, D-26 point 2): create the whole-file entry
 // `rel` (one of wholeFileEntryRels) when NOTHING is at that path, and refresh install's own unedited copy from an
-// earlier install. Called for every whole-file entry on every install, whether or not the target shows the host
-// (Phase 34 D-17; selection by agent is plans 34.1-05 to 34.1-07): a write gated on detection would escape the derived
-// installer class tests (34-RESEARCH.md Pitfall 10). `ledger` is the target's install ledger as this run found it
-// (PREVIOUS_LEDGER), passed in so the doctor can share the rule (a const below the `--check` exit is in its temporal
-// dead zone).
+// earlier install. Called for each whole-file entry of the chosen agents (wholeFileEntryRels(SELECTION), D-06, which
+// amends Phase 34 D-17). The choice is by agent, never by what the target holds: a write gated on detection would
+// escape the derived installer class tests (34-RESEARCH.md Pitfall 10). `ledger` is the target's install ledger as this
+// run found it (PREVIOUS_LEDGER), passed in so the doctor can share the rule (a const below the `--check` exit is in its
+// temporal dead zone).
 //
 // THE BYTES ARE THE KIT'S, NEVER BUILT HERE (D-11): carrierSource(rel), the committed generated file under the kit
 // source (scripts/generate-host-entries.ts renders it from agent-factory/packaging/host-entry.pointer.md), read
@@ -6058,7 +6058,11 @@ function askRulesStep() {
     return { kind: "not-chosen" };
 }
 // ---------------------------------------------------------------------------
-// writeOpenCodePermission (phase 34.1, D-14) — let OpenCode read the out-of-repo kit without asking on every file.
+// writeOpenCodePermission (phase 34.1, D-14) — the OpenCode external_directory rule for the out-of-repo kit, so
+// OpenCode reaches the kit without asking before each tool call on the kit path. What the rule allows is one sentence,
+// host-tools.ts OPENCODE_RULE_SCOPE (D-27): every tool call OpenCode gates by `external_directory` on the kit path,
+// edits included, with the interaction with OpenCode's `edit` permission `UNKNOWN - verify`. It is printed beside every
+// line that writes, finds or proposes the rule (reportOpenCodeRule, openCodeNote).
 //
 // WHY. A scripted install puts the kit in the kit home, outside the repository, and OpenCode asks before every tool
 // call that touches a path outside the working directory (its `external_directory` permission defaults to "ask",
@@ -6068,7 +6072,7 @@ function askRulesStep() {
 // appended as the LAST member of `external_directory`: a user's broader earlier rule (`"*": "ask"`) does not shadow it,
 // and a later one the user adds still wins.
 //
-// HOME-RELATIVE OR NOTHING (T-34.1-17, T-34.1-18). The pattern is kitReadPattern(): the kit root plus `/**`, never the
+// HOME-RELATIVE OR NOTHING (T-34.1-17, T-34.1-18). The pattern is kitRulePattern(): the kit root plus `/**`, never the
 // home directory itself, and never an absolute per-machine path: opencode.json is a file the user commits. A kit root
 // that is not under the home directory, or whose relative path holds a glob or control character, gets no rule.
 //
@@ -6078,12 +6082,12 @@ function askRulesStep() {
 // `permission` object, whichever is absent) and every other byte of the user's file is kept; the spliced text must
 // parse to exactly the expected value, with the rule last, before anything is written (THE ORACLE).
 //
-// EVERY REFUSAL IS A NOTE, NOT A VERIFY. Without the rule OpenCode still reaches the kit; it asks before each read. So
-// a shape install cannot edit is a `note` that quotes the rule to add by hand, and the run is not made incomplete
-// (exit 0): the kit root is not under home, or its path holds a glob or control character (the note may print the
-// absolute kit root in the terminal; nothing is written into a file); opencode.json is a link, a special file or a hard
-// link (readForWrite); only opencode.jsonc exists; opencode.json is not strict JSON (OpenCode accepts JSONC; install
-// edits strict JSON only); its root is not an object; it has a duplicate key; `permission` or
+// EVERY REFUSAL IS A NOTE, NOT A VERIFY. Without the rule OpenCode still reaches the kit; it asks before each tool call
+// on the kit path. So a shape install cannot edit is a `note` that quotes the rule to add by hand, and the run is not
+// made incomplete (exit 0): the kit root is not under home, or its path holds a glob or control character (the note may
+// print the absolute kit root in the terminal; nothing is written into a file); opencode.json is a link, a special file
+// or a hard link (readForWrite); only opencode.jsonc exists; opencode.json is not strict JSON (OpenCode accepts JSONC;
+// install edits strict JSON only); its root is not an object; it has a duplicate key; `permission` or
 // `permission.external_directory` is there and is not an object (a string such as "ask" is text the user wrote and is
 // left); the splice fails the oracle; an earlier install's recorded rule for another kit root is still there.
 //
@@ -6109,7 +6113,7 @@ const OPENCODE_JSONC_REL = "opencode.jsonc";
  * `/**`, or null when KIT_ROOT is not under the home directory, or the relative path is empty, starts with `..`, or
  * holds `*`, `?`, `[`, `]`, `{`, `}`, a backslash or a control byte (glob metacharacters would widen the rule).
  */
-function kitReadPattern() {
+function kitRulePattern() {
     let home;
     try {
         home = homedir();
@@ -6159,16 +6163,16 @@ function writeOpenCodePermission() {
     // askRulesStep, and the one for a malformed ledger by writeMarker; this pass names them and writes nothing.
     const previousMarker = readInstallMarker(TARGET);
     if (previousMarker.state === "unreadable") {
-        return openCodeNote("the install marker could not be used (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitReadPattern());
+        return openCodeNote("the install marker could not be used (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitRulePattern());
     }
     const previousRead = readLedger(previousMarker.state === "ok" ? previousMarker.marker : null);
     if (previousRead.state === "malformed") {
-        return openCodeNote("the install ledger is malformed (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitReadPattern());
+        return openCodeNote("the install ledger is malformed (see the verify line about .grugops/install.json), so the rule could not be recorded for uninstall", kitRulePattern());
     }
     const previous = entryAt(previousRead, rel, "opencode-permission") ?? null;
     // A RUN THAT READ NOTHING KEEPS THE RECORD: carried verbatim until the file is read below.
     OPENCODE_LEDGER = previous;
-    const pattern = kitReadPattern();
+    const pattern = kitRulePattern();
     if (pattern === null) {
         return openCodeNote(`the kit root ${KIT_ROOT} is not under the home directory, or its path holds a glob or control character, so no ` +
             `home-relative pattern names it (install writes no absolute path into a file)`, null);
@@ -6389,9 +6393,10 @@ reportRetiredConfigKeys();
 console.log("\n-- permission rules --");
 // The one record of what this run did with ask rules; the notes block below reads only this (D-25).
 const askOutcome = askRulesStep();
-// 7d. OpenCode's kit-read permission (phase 34.1, D-14): only when OpenCode is chosen, after the whole-file entries and
-// before writeMarker(), which records OPENCODE_LEDGER. When OpenCode is not chosen, opencode.json is neither read nor
-// written and an earlier install's entry is carried verbatim (D-04).
+// 7d. The OpenCode external_directory rule (phase 34.1, D-14; its scope is OPENCODE_RULE_SCOPE, D-27): only when
+// OpenCode is chosen, after the whole-file entries and before writeMarker(), which records OPENCODE_LEDGER. When
+// OpenCode is not chosen, opencode.json is neither read nor written and an earlier install's entry is carried verbatim
+// (D-04).
 if (SELECTED_KINDS.has("opencode-command")) {
     OPENCODE_RAN = true;
     writeOpenCodePermission();

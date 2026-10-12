@@ -36,9 +36,9 @@
 //                                        THE gemini ENTRY below;
 //   ask-rules  the ask-rule fields       the Claude Code ask rules install added to .claude/settings.json
 //                                        (that path only, D-18); see AskRuleLedger below;
-//   opencode-permission  the OpenCode fields  the kit-read rule install added to `permission.external_directory`
-//                                        in opencode.json (that path only, phase 34.1 D-14); see
-//                                        OpenCodePermissionLedger below;
+//   opencode-permission  the OpenCode fields  the OpenCode external_directory rule install added to
+//                                        `permission.external_directory` in opencode.json (that path only,
+//                                        phase 34.1 D-14); see OpenCodePermissionLedger below;
 //   backup     origin, of, content       install made this backup (plan 33.1-37): `origin` says what it
 //                                        was made from (BACKUP_ORIGINS), `of` the path it was made of,
 //                                        and `content` its file, link or tree record as install left it
@@ -223,10 +223,12 @@ export interface AskRuleLedger {
   fileMode?: string;
 }
 
-// OpenCodePermissionLedger (phase 34.1, D-14): the fields of an `opencode-permission` entry, what install added to the
-// target's opencode.json so OpenCode reads the out-of-repo kit without asking on every file. Install adds one member,
-// `"<pattern>": "allow"`, as the LAST member of `permission.external_directory` (OpenCode uses the last matching rule,
-// opencode.ai/docs/permissions/, retrieved 2026-10-11), and records:
+// OpenCodePermissionLedger (phase 34.1, D-14): the fields of an `opencode-permission` entry, the OpenCode
+// external_directory rule install added to the target's opencode.json for the out-of-repo kit. What the rule allows is
+// host-tools.ts OPENCODE_RULE_SCOPE (D-27): every tool call OpenCode gates by `external_directory` on the kit path,
+// edits included, not only reads. Install adds one member, `"<pattern>": "allow"`, as the LAST member of
+// `permission.external_directory` (OpenCode uses the last matching rule, opencode.ai/docs/permissions/, retrieved
+// 2026-10-11), and records:
 //   pattern                   the exact key it added (`~/<kit root relative to the home directory>/**`);
 //   createdFile               install created opencode.json (with createdOpenCodeText(pattern), nothing else);
 //   createdPermission         install added the `permission` member (it was absent);
@@ -618,9 +620,9 @@ export function createdGeminiText(): string {
   return JSON.stringify({ context: { fileName: [...GEMINI_CREATED_FILE_NAME] } }, null, 2) + "\n";
 }
 /**
- * THE ONE TEXT install writes when it creates opencode.json (phase 34.1, D-14): the kit-read rule for `pattern` and
- * nothing else, two-space indented, with a final newline. install.ts writes it and uninstall.ts compares with it (the
- * file it deletes), so the two binaries cannot disagree about what install wrote.
+ * THE ONE TEXT install writes when it creates opencode.json (phase 34.1, D-14): the OpenCode external_directory rule
+ * for `pattern` and nothing else, two-space indented, with a final newline. install.ts writes it and uninstall.ts
+ * compares with it (the file it deletes), so the two binaries cannot disagree about what install wrote.
  */
 export function createdOpenCodeText(pattern: string): string {
   return JSON.stringify({ permission: { external_directory: { [pattern]: "allow" } } }, null, 2) + "\n";

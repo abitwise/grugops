@@ -278,10 +278,11 @@ function plantAt(target: string, outside: string, rel: string, shape: FileShape 
 }
 
 // NOTE_REFUSED (plan 34.1-09, D-14): the write paths whose refusal is a `note`, not a counted `verify`, by design.
-// opencode.json is where install only adds OpenCode's kit-read rule; without the rule OpenCode still reaches the kit
-// and asks before each read, so a link or a special file there is a note quoting the rule to add by hand, and the run
-// is not made incomplete. Every DC-3 check is the same for it (finished, no stack, the planted thing unchanged, a
-// blocked writer still blocked, nothing written outside); only the verdict line and the exit code differ.
+// opencode.json is where install only adds OpenCode's external_directory rule; without the rule OpenCode still reaches
+// the kit and asks before each tool call on the kit path, so a link or a special file there is a note quoting the rule
+// to add by hand, and the run is not made incomplete. Every DC-3 check is the same for it (finished, no stack, the
+// planted thing unchanged, a blocked writer still blocked, nothing written outside); only the verdict line and the
+// exit code differ.
 const NOTE_REFUSED: ReadonlySet<string> = new Set([OPENCODE_CONFIG_REL]);
 
 // The shared verdict: finished, no stack, and either exit 3 with a `verify` line naming the path, or, for a

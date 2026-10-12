@@ -1128,7 +1128,7 @@ const CALLER_OWNERSHIP: readonly CallerRow[] = [
     count: 1,
     ownership: "ledger",
     gate: "owns",
-    why: "only the recorded kit-read rule, and the `external_directory` and `permission` install created once empty again, are taken out of opencode.json, while external_directory still equals the record of the opencode-permission entry owns returned (plan 34.1-09, D-14, brief DC-2); since plan 34.1-16 (review IN-20) the same call serves the rule-gone arm, which takes out only the empty containers the record says install created; the spliced text passes the oracle before the write; DRY_RUN returns before the call",
+    why: "only the recorded OpenCode external_directory rule, and the `external_directory` and `permission` install created once empty again, are taken out of opencode.json, while external_directory still equals the record of the opencode-permission entry owns returned (plan 34.1-09, D-14, brief DC-2); since plan 34.1-16 (review IN-20) the same call serves the rule-gone arm, which takes out only the empty containers the record says install created; the spliced text passes the oracle before the write; DRY_RUN returns before the call",
   },
   {
     caller: "uninstall.ts:updateKeptMarker→rewritePath",

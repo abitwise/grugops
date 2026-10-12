@@ -58,7 +58,7 @@ export const AGENT_SKILL_REL = ".agents/skills/grugops/SKILL.md";
 export const OPENCODE_COMMAND_REL = ".opencode/commands/grugops.md";
 /**
  * OPENCODE_CONFIG_REL (phase 34.1, D-14): the project config OpenCode reads at the repository root
- * (opencode.ai/docs/config/, retrieved 2026-10-11). Install merges OpenCode's kit-read permission into it (a
+ * (opencode.ai/docs/config/, retrieved 2026-10-11). Install merges the OpenCode external_directory rule into it (a
  * `permission.external_directory` allow rule for the kit root, recorded by the `opencode-permission` ledger kind,
  * install-marker.ts); ADAPTER_FOOTPRINT gives it to the `opencode-command` kind.
  */

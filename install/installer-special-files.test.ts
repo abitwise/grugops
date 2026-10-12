@@ -92,8 +92,9 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // 62 on 2026-10-11 (plan 34.1-03, D-12): `.gemini/settings.json` left (60 files and links written, plus the two
 // read-only inputs), because install no longer reads, creates or edits it; nothing is planted there now. 63 -> 62.
 // 63 on 2026-10-12 (plan 34.1-09, D-14): `opencode.json` entered (61 files and links written, plus the two read-only
-// inputs), because an install that chooses OpenCode with the kit home under HOME creates it holding the kit-read rule,
-// and a re-install reads it (readForWrite) before it splices; a FIFO and a directory are planted at it by derivation.
+// inputs), because an install that chooses OpenCode with the kit home under HOME creates it holding the OpenCode
+// external_directory rule, and a re-install reads it (readForWrite) before it splices; a FIFO and a directory are
+// planted at it by derivation.
 // (`opencode.jsonc` is asked by lstat only, kindAt, never opened, so it is not a read path.) 62 -> 63.
 const READ_PATH_COUNT = 63;
 
