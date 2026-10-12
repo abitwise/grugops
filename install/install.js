@@ -1352,7 +1352,11 @@ function doctorHosts(markerRead, ledgerRead) {
     const installed = installedAgents(markerRead, ledgerRead);
     if (installed.source === "none")
         return { hosts: detectedHosts(), source: "detected", unknown: [], nothingInstalled: [] };
-    const split = installedSplit(hostsOf(installed.ids), ledgerRead.state === "ok" ? ledgerRead.entries : []);
+    // A malformed ledger (phase 34.1 gap round 2, D-31, IN-24): the doctor cannot tell what install wrote, and it already
+    // FAILs on the ledger, so installedSplit is asked with null and no row goes to `nothingInstalled`: every recorded
+    // agent keeps its reach line, and the Claude Code checks run when Claude Code is recorded. Any other state that is
+    // not ok (no ledger) reads as an empty ledger, so only an entry path present counts.
+    const split = installedSplit(hostsOf(installed.ids), ledgerRead.state === "ok" ? ledgerRead.entries : ledgerRead.state === "malformed" ? null : []);
     return {
         hosts: split.installed,
         source: installed.source,
@@ -1707,10 +1711,16 @@ function doctor() {
             `does not know as an agent, so --check gives ${installed.unknown.length > 1 ? "them" : "it"} no reach line`);
     }
     // A recorded agent with nothing installed here (doctorHosts' nothingInstalled; D-26, IN-21): one uncounted note each,
-    // with the command that writes its entry, and no reach line.
+    // with the command that writes its entry, and no reach line. The note says where the agent set came from, and only
+    // what was read (phase 34.1 gap round 2, D-31, IN-24): a `recorded` agent is in the marker's `agents` list as chosen;
+    // a `legacy` one is counted from a marker with no `agents` list (LEGACY_ADAPTER_KINDS), so nothing records it as
+    // chosen. doctorHosts puts no agent here when the ledger is malformed, so "records nothing" is always a read.
     for (const h of installed.nothingInstalled) {
         const entries = ROUTE_POINTERS[h.adapter];
-        docReport("note", `${h.name} is recorded in .grugops/install.json as chosen, but nothing is installed for it here (the install ` +
+        const from = installed.source === "legacy"
+            ? `${h.name} is counted as installed by an install made before this release (its marker has no \`agents\` list)`
+            : `${h.name} is recorded in .grugops/install.json as chosen`;
+        docReport("note", `${from}, but nothing is installed for it here (the install ` +
             `ledger records nothing of install's for it, and ${entries.join(", ")} ${entries.length > 1 ? "are" : "is"} not ` +
             `present), so --check gives it no reach line; \`${agentCommand("install.js", TARGET, [h], COMMAND_CONTEXT)}\` writes its entry, ` +
             `or says why it cannot`);

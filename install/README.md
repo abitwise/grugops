@@ -327,6 +327,8 @@ Choose the coding agents to install grugops for (arrows or j/k move, space toggl
   the prompt`.
 - **Unchecking an installed agent does not remove it.** Install only adds: the agent's files stay,
   and the closing notes name the agents left installed and the uninstall command that removes one.
+  An agent recorded as chosen with nothing installed here is named apart, with the command that
+  installs it and the command that takes it out of the record.
 - **Nothing checked, or Ctrl-C:** confirming with no agent checked, or pressing Ctrl-C at the list,
   exits `1` and writes nothing. The message names every agent flag, as the refusal in step 4 does.
 - **What skips the list:** any agent flag, `--yes`, or a standard input or output that is not a
@@ -484,7 +486,11 @@ in the kit, which `scripts/generate-host-entries.ts` renders from one pointer fi
 **Install only adds.** Naming fewer agents than are installed in a repository keeps every other
 agent's files byte for byte and keeps their records in `.grugops/install.json`; install never removes
 an agent's files because it was not named. The run's closing notes name the agents left installed
-and give the uninstall command that removes one (see "Removing one agent" below). For each agent the
+and give the uninstall command that removes one (see "Removing one agent" below). An agent recorded
+as chosen that has nothing installed here (the install ledger records nothing of install's for it,
+and its entry file is not present, as when an earlier run refused its every write) is never called
+left installed: the closing notes name it on its own line, with the install command that installs it
+and the uninstall command that takes it out of the record. For each agent the
 run was for, the closing notes also name what the install record holds for it and how that host's
 documentation says to start grugops. grugops has not run those invocations on a live host, and the
 notes say `UNKNOWN - verify`.
@@ -544,7 +550,11 @@ reads every file first and reports afterwards, in this order:
   A recorded agent with nothing installed here (the install ledger records nothing of install's for
   it, and its entry file, such as `.pi/prompts/grugops.md` for Pi, is not present) gets no `reach`
   line and no counted finding; one `note` names it with the command that writes its entry, for
-  example `node /path/to/grugops/install/install.js --target /path/to/repo --pi`. An agent whose entry file is there,
+  example `node /path/to/grugops/install/install.js --target /path/to/repo --pi`. The note says where the
+  agent came from: recorded in `.grugops/install.json` as chosen, or, for a marker with no `agents`
+  list, counted as installed by an install made before this release. When the install ledger is
+  malformed, `--check` cannot tell what install wrote: it reports the ledger as a `FAIL`, gives no
+  agent this note, and every recorded agent keeps its `reach` line. An agent whose entry file is there,
   even your own file, keeps its `reach` line. When
   nothing is recorded (no marker, a marker install cannot use here, or an older marker with no
   ledger), `--check` reports the agents detected in the target instead and says so in a `note`. An agent id the marker records and this version does not know is named in

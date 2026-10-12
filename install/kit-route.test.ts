@@ -39,7 +39,7 @@ import {
   spawnBin,
   type Run,
 } from "./installer-paths.test-support.js";
-import { blockRecords, fileRecords, readMarkerObject, withLedger } from "./ledger.test-support.js";
+import { blockRecords, fileRecords, readMarkerObject, withLedger, withoutAgentsField } from "./ledger.test-support.js";
 
 const ROOT = mkdtempSync(join(tmpdir(), "gkroute-"));
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
@@ -2251,6 +2251,16 @@ describe("WR-17: a route note never points at a line the run did not print (D-26
 /** The doctor's note lines that name `name` as recorded with nothing installed (doctorHosts' nothingInstalled). */
 const nothingNotes = (stdout: string, name: string): string[] =>
   linesUnder(stdout, "note").filter((l) => messageOf(l).startsWith(`${name} is recorded in .grugops/install.json as chosen, but nothing is installed for it here`));
+/** The doctor's note lines that name `name` with nothing installed when the agent set is `legacy` (plan 34.1-29, D-31,
+ *  IN-24): a marker with no `agents` field records nothing as chosen, so the note says where the agent came from. */
+const legacyNothingNotes = (stdout: string, name: string): string[] =>
+  linesUnder(stdout, "note").filter((l) => messageOf(l).startsWith(`${name} is counted as installed by an install made before this release`));
+/** The registry host whose adapter kind is `claude-kit`, found by kind, never by a typed name. */
+function claudeHost(): (typeof HOST_TOOLS)[number] {
+  const c = HOST_TOOLS.filter((h) => h.adapter === "claude-kit");
+  expect(c.length, "premise: exactly one registry host has the claude-kit adapter").toBe(1);
+  return c[0];
+}
 
 describe("IN-21: --check and a recorded agent with nothing installed (D-26)", () => {
   it("a Pi install whose template write is refused records Pi; --check gives Pi no reach line and no counted finding, and one note with the command; that command, run once the cause is gone, gives Pi a reach line", () => {
@@ -2303,6 +2313,55 @@ describe("IN-21: --check and a recorded agent with nothing installed (D-26)", ()
     const c = check(row.target, row.kitHome);
     expect(reachVerdict(c.stdout, piHost()).line, c.stdout).toContain(PI_PROMPT_REL);
     expect(nothingNotes(c.stdout, piHost().name), c.stdout).toEqual([]);
+  });
+
+  // IN-24 (phase 34.1 gap round 2, plan 34.1-29, D-31; DOC-1): the note says only what the doctor read. A `legacy`
+  // agent set (a marker with an install ledger and no `agents` field) records nothing as chosen, so the note says the
+  // agent is counted as installed by an install made before this release, never "recorded ... as chosen".
+  it("IN-24 legacy: a marker with an install ledger and no `agents` field, nothing of Pi's in the ledger and no Pi template: Pi's note says it is counted as installed by an earlier install, not recorded as chosen", () => {
+    const row = scratchRow();
+    const r = runInstall(row.target, row.kitHome, [agentFlag(claudeHost())]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    withoutAgentsField(row.target);
+    const marker = readMarkerObject(row.target);
+    expect(Object.prototype.hasOwnProperty.call(marker, "agents"), "premise: the marker has no `agents` field").toBe(false);
+    const ledger = marker.ledger as Array<{ path: string }>;
+    expect(Array.isArray(ledger) && ledger.length > 0, "premise: the marker keeps its install ledger").toBe(true);
+    expect(ledger.some((e) => e.path === PI_PROMPT_REL), "premise: the ledger holds nothing at Pi's entry").toBe(false);
+    expect(existsSync(piFile(row.target)), "premise: no Pi template").toBe(false);
+    const c = check(row.target, row.kitHome);
+    const notes = legacyNothingNotes(c.stdout, piHost().name);
+    expect(notes.length, c.stdout).toBe(1);
+    expect(notes[0]).toContain("(its marker has no `agents` list)");
+    expect(notes[0]).toContain(PI_PROMPT_REL);
+    expect(notes[0]).toContain(`\`${agentCommand("install.js", row.target, [piHost()], commandContextFor({ grugopsHome: row.kitHome }))}\``);
+    expect(nothingNotes(c.stdout, piHost().name), "a legacy agent is not \"recorded ... as chosen\"").toEqual([]);
+    expect(c.stdout).not.toContain(`${piHost().name} is recorded in .grugops/install.json as chosen`);
+  });
+
+  // IN-24, the malformed ledger: the doctor cannot tell what install wrote, and it already FAILs on the ledger, so no
+  // agent is put in the nothing-installed set. Pi's template and CLAUDE.md are deleted, so neither has an entry path
+  // present: only the null answer keeps them on the reach side, and the Claude Code checks still run (the kit-root line
+  // reads the adapter KIT= source).
+  it("IN-24 malformed: install --claude --pi, a malformed install ledger, Pi's template and CLAUDE.md deleted: the malformed FAIL, no nothing-installed note, a reach line for Pi and for Claude Code, and the kit-root line reads the adapter KIT= source", () => {
+    const row = scratchRow();
+    const r = runInstall(row.target, row.kitHome, [agentFlag(claudeHost()), agentFlag(piHost())]);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const markerPath = join(row.target, ...MARKER_REL.split("/"));
+    writeFileSync(markerPath, JSON.stringify(withLedger(readMarkerObject(row.target), (l) => [...l, { kind: "not-a-kind", path: "x" }]), null, 2) + "\n");
+    rmSync(piFile(row.target));
+    rmSync(join(row.target, "CLAUDE.md"));
+    const c = check(row.target, row.kitHome);
+    expect(linesUnder(c.stdout, "FAIL").filter((l) => /malformed install ledger/.test(l)).length, c.stdout).toBe(1);
+    for (const h of HOST_TOOLS) {
+      expect(nothingNotes(c.stdout, h.name), `${h.name}: a nothing-installed note on a ledger the doctor could not read`).toEqual([]);
+      expect(legacyNothingNotes(c.stdout, h.name), `${h.name}: a nothing-installed note on a ledger the doctor could not read`).toEqual([]);
+    }
+    reachVerdict(c.stdout, piHost());
+    reachVerdict(c.stdout, claudeHost());
+    const kitRoot = linesUnder(c.stdout, "ok").filter((l) => messageOf(l).startsWith("kit-root sources agree ("));
+    expect(kitRoot.length, c.stdout).toBe(1);
+    expect(kitRoot[0], "the Claude Code checks did not run: no adapter KIT= line was read").not.toContain("no Claude Code adapter is installed here");
   });
 });
 
