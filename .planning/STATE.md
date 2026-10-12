@@ -5,14 +5,14 @@ milestone_name: Autonomous Factory — Real Spawning, Controlled Language & Live
 current_phase: "34.1"
 current_phase_name: Per-agent installer (INSERTED)
 status: "Phase 33 CLOSED 2026-09-25 by human override D-33-R4-08 (round-4 verification gaps_found 0/3 left standing; GAP-D1 open; CAP-01/02/03 not met; round-4 review CR-01/CR-02 live prod-deploy guard bypasses accepted open, WINDOWS.md rows 301-302, first in the next phase). Next: Phase 33.1 (INSERTED 2026-09-25, owns the Phase 33 carry, CR-01/CR-02 first), then Phase 34. Standing rule: four-round gap-closure cap on every later phase."
-stopped_at: Completed 34.1-19-PLAN.md
-last_updated: "2026-10-12T13:23:25.928Z"
-state_head: 1e67a88362adb426d77603a319e69c69cd6454b5
+stopped_at: Completed 34.1-20-PLAN.md
+last_updated: "2026-10-12T13:38:30.133Z"
+state_head: e63d45b91107bdf5b7b99304570d9b84bfe7e910
 progress:
   total_phases: 13
   completed_phases: 33
   total_plans: 423
-  completed_plans: 410
+  completed_plans: 411
   percent: 97
 last_activity: 2026-09-25
 prior_activity_desc: Phase 27 gap-closure round 8 COMPLETE (27-45, 27-46; D-53). Full narration lives in the Phase 27 artifacts and in docs/audit/; shortened here by plan 31-38 because this single line measured 7995 characters, above the 4000-character ceiling a pathological STATE line has previously crossed to turn a sub-second guard into a multi-minute one.
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-07 — after Phase 29.2)
 ## Current Position
 
 Phase: 34.1 (Per-agent installer (INSERTED)) — EXECUTING
-Plan: 19 of 32 (gap round 2 of 4: 34.1-19 done 2026-10-12, CR-03 closed by keepWithoutRecord; next: 34.1-20)
+Plan: 20 of 32 (gap round 2 of 4: 34.1-20 done 2026-10-12, U4 split by FULL and the by-hand remedy census of 31 sites; next: 34.1-21)
 Round 2 (33-12..33-23): CI run 35579263776 ubuntu `success` / windows `failure` (CAP-02 NOT MET, row 236); capture outcome word `no-go` (go held at 33-21); GAP-D1 HELD (manifest section 7); ledgers closed by 33-23. CAP-01/02/03 Pending.
 Round 3 (33-24..33-34): fix plans 33-24..33-30 done; 33-31 CI run 35760655144 (head `1af7e3f1`) ubuntu `success` / windows `failure` on ONE case (capture-live Test C7, win32 `Edit(//ABS/**)` spelling, row 260; the 35 row-236 cases green) — CAP-02 NOT MET, so 33-33's F38-F42 cannot flip this round. 33-32: no push, live go HELD by the human, outcome word `no-go` (dry run not-ready on the pushed-sha row alone, zero tokens). 33-33: GAP-D1 HELD a third time (manifest section 8, mechanical under D-20). 33-34: ledgers closed (review snapshot; WINDOWS.md rows 255-258 fixed, 261-271 appended; 5 deferred items open with Round 3 notes). CAP-01/02/03 Pending. Round 4 is the last under the cap.
 Round 4 (33-35..33-43) EXECUTED 2026-09-24: CAP-02 NOT MET (run 36035067112); capture OUTCOME: fail; GAP-D1 HELD at the cap (manifest section 9). CAP-01/02/03 Pending. Closure is the human's: override with GAP-D1 open (D-20). Next: /gsd-verify-work 33.
@@ -671,6 +671,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 34.1 P17 | 33min | 2 tasks | 20 files |
 | Phase 34.1 P18 | 30min | 3 tasks | 3 files |
 | Phase 34.1 P19 | 7min | 2 tasks | 5 files |
+| Phase 34.1 P20 | 12min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -1847,6 +1848,8 @@ Recent decisions affecting current work:
 - [Phase 34.1]: 34.1-17: the OpenCode rule is named the OpenCode external_directory rule everywhere; its scope is one sentence, host-tools.ts OPENCODE_RULE_SCOPE, printed by install wherever the rule is written, found or proposed, and carried by install/README.md (D-27); DOC-1 row (c) scans every tracked file outside .planning/
 - [Phase 34.1]: 34.1-18: DI-01 decided by D-28 and recorded in deferred-items.md (by-name banned-claims exclusion kept, gate untouched); the 34.1 review ledger is closed at 8 fixed with commit-traced Source cells; the five 'on every install' test comments go to triage as DI-10; the round's full non-e2e run failed only the five DI-03 Node 26 cases
 - [Phase 34.1]: Plan 34.1-19 (D-32, CR-03): keepWithoutRecord in install/uninstall.ts is the one wording of the alternative to finishing a kept reversal; delete-the-marker only on a FULL run, per-entry ledger edit plus finishCommand on a partial run; the KEPT_FOR banner asks it with where=banner
+- [Phase 34.1]: Plan 34.1-20 (D-32, U4): removeMarker's malformed-ledger left line offers 'fix or remove it by hand' only on a FULL run; on a partial run it says to fix the ledger field, because the marker is still the record of every agent installed here (R21)
+- [Phase 34.1]: Plan 34.1-20 (D-32, brief section 4): the by-hand remedy census in install/agents-record.test.ts holds every printed alternative that touches .grugops/install.json, its ledger or its agents field (31 sites over all 9 product modules, 8 classes each with a rule, counts pinned); the delete-the-marker text is held to keepWithoutRecord's FULL branch by the parser
 
 ### Pending Todos
 
@@ -1977,8 +1980,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-10-12T13:23:19.443Z
-Stopped at: Completed 34.1-19-PLAN.md
+Last session: 2026-10-12T13:38:20.678Z
+Stopped at: Completed 34.1-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
