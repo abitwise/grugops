@@ -265,7 +265,7 @@ export function hostForFlag(arg: string): HostTool | null {
 }
 
 /** A target path that is one POSIX shell word as it is: printed bare by agentCommand. */
-const SHELL_SAFE_WORD = /^[A-Za-z0-9_./,:@%+=-]+$/;
+const SHELL_SAFE_WORD = /^[A-Za-z0-9_./,@%+=-]+$/;
 
 /**
  * agentCommand (phase 34.1 gap round 1, D-26; brief MSG-1, §2.2): THE ONE BUILDER of a printed command that names
