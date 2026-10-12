@@ -65,3 +65,20 @@ found, what was measured, and the remedy proposed. None was fixed in the plan th
 - **DI-03:** still open. The five Node 26 reds are reported by plan 34.1-13's final regression; whether CI on Node 22
   shows them is `UNKNOWN - verify`.
 - **DI-04:** closed by plan 34.1-13 (commit ac790deb): CLAUDE.md's OpenCode row names the `opencode.json` kit-read rule.
+
+## From plan 34.1-14 (2026-10-12)
+
+### DI-07: a partial uninstall kept only for a verify on a directory entry has no per-agent finishing command
+
+- **Found during:** plan 34.1-14, task 1 (writing finishCommand).
+- **What:** a partial run (`uninstall.js --claude`) whose only unfinished record is a verify on a recorded `dir`
+  entry (an `rmdir` that failed) keeps the marker on the `kept` arm with nothing held. Directory entries never hold the
+  marker and never keep an agent recorded (agentsToRecord, entryHolds), so the agents the run set out to remove leave
+  `agents`, and UNFINISHED is empty. finishCommand then prints the command with the flags this run named (it never
+  prints the flag-less command on a partial run, which would remove every agent), and that command finds none of them
+  installed and changes nothing. The directory stays recorded in the ledger while it exists; a later flag-less
+  uninstall, or removing it by hand, finishes it.
+- **Not fixed:** out of scope for plan 34.1-14 (the plan's rows have no recorded `dir` verify on a partial run, and
+  changing what keeps an agent recorded is D-29's rule). Not reproduced by a run; read from the code. Options for
+  triage: count a recorded verify on any entry an agent owns as keeping that agent, or word the `left` line for this
+  case without a per-agent command.
