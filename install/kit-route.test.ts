@@ -1473,6 +1473,37 @@ describe("kit route: one refreshable predicate decides refresh for install and t
   });
 });
 
+// ── ONE OWNER OF WHAT INSTALL WOULD WRITE INTO A ROUTE CARRIER (phase 34.1, D-15, WR-13; AUTH-1, VERDICT-1) ──
+//
+// Before phase 34.1 the doctor asked only "would install refresh X". A block carrier whose install block the user had
+// removed was reported as one install leaves as it is, with a by-hand remedy, while the re-install appended a fresh
+// block, route included, and the line cleared. installWouldWrite (refresh, append, create, or none) is now the one owner
+// both ask. Each row: doctor, re-install, doctor; doctorInstallDoctor asserts the agreement over every carrier.
+describe("kit route: one owner answers what install would write into a route carrier (phase 34.1, D-15, WR-13)", () => {
+  for (const rel of [...BLOCK_SENTINELS.keys()]) {
+    it(`WR-13: a block carrier without install's block (${rel}): the doctor names the append, the re-install appends the block, and the next --check reports the carrier ok`, () => {
+      const row = installed();
+      const s = BLOCK_SENTINELS.get(rel) as { open: string; close: string };
+      const path = join(row.target, ...rel.split("/"));
+      const user = rel === "CLAUDE.md" ? "# Claude notes\nUse tabs.\n" : "# Copilot notes\nUse tabs.\n";
+      writeFileSync(path, user);
+      const { before, again, after } = doctorInstallDoctor(row, rel);
+      const lines = carrierLines(before.stdout, rel);
+      expect(lines.length, before.stdout).toBe(1);
+      expect(lines[0], before.stdout).toContain("Re-run install.js: it appends install's start-here block, which carries the route");
+      expect(lines[0], before.stdout).not.toContain("install will not");
+      expect(again.status, again.stdout + again.stderr).toBe(0);
+      expect(reports(again.stdout, "created", rel), again.stdout).toBe(true);
+      const text = readFileSync(path, "utf8");
+      expect(text.startsWith(user), "the user's bytes were kept, first").toBe(true);
+      const b = blockLines(text, s.open, s.close);
+      expect(b.end, "the file ends with the appended block").toBe(text.length);
+      expect(b.lines).toContain(KIT_ROUTE);
+      expect(carrierLines(after.stdout, rel), after.stdout).toEqual([expect.stringMatching(new RegExp(`^ {2}ok\\s+kit route carried by ${rel.replace(/[.]/g, "\\.")} `))]);
+    });
+  }
+});
+
 // ── THE CLASS MATRIX (plan 34-35, D-27 points 1, 2 and 3; brief §4; classes VERDICT-1 and AUTH-1) ──
 //
 // Plans 34-32 to 34-34 each fixed one owner (hostReadsCarrier, strandedBy, refreshable) and

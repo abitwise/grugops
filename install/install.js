@@ -1131,6 +1131,38 @@ function refreshable(ledger, rel, cur) {
         return no(`it holds ${blk.spans.length} unedited copies of install's recorded block, not exactly one`);
     return { ok: true, kind: "block", file, cur: now, own: blk.entry, span: blk.spans[0] };
 }
+// installWouldWrite (phase 34.1, D-15, WR-13; classes AUTH-1 and VERDICT-1): THE ONE OWNER of what install would write
+// into route carrier X here. Install writes a carrier only on its answer (ensureBlock for a block carrier,
+// writeWholeFileEntry and refreshOwnFile for a whole file), and the doctor states a carrier's state and remedy only from
+// it (classifyCarrier and the absent arm of kitRouteFindings), so the doctor names `Re-run install.js` exactly when an
+// install run on that state writes the carrier. Before phase 34.1 the doctor asked only refreshable ("would install
+// refresh X"), so a block carrier whose install block the user had removed was reported as one install leaves alone,
+// while ensureBlock appended a fresh block, route included (WR-13).
+//   refreshable (the refresh half, the one owner of "would install refresh X") answers ok   → refresh
+//   `cur ?? readForWrite` is ok, the carrier is a ROUTE_BLOCKS carrier, and the text holds
+//   no open sentinel (a regular file: not a link, not a hard link; DC-3)                  → append
+//   readForWrite answers `create` (nothing there, no link or non-directory on the way),
+//   and the carrier is a block, or carrierWant can read the kit's current text for it     → create
+//   `create`, a whole file, and the kit's current text cannot be read                     → none, that reason
+//   anything else                                                                         → none, refreshable's why
+// `cur` is the readForWrite answer the caller already holds (ensureBlock and writeWholeFileEntry pass their own, so
+// the decision and the write are made on one read); without it this reads through readForWrite itself. It never
+// writes and never reports. A function declaration over consts declared above the doctor, so the doctor can ask it.
+function installWouldWrite(ledger, rel, cur) {
+    const now = cur ?? readForWrite(TARGET, join(TARGET, ...rel.split("/")));
+    const r = refreshable(ledger, rel, now);
+    if (r.ok)
+        return { act: "refresh", how: r };
+    const sentinels = ROUTE_BLOCKS.get(rel);
+    if (now.state === "ok" && sentinels !== undefined && !now.text.includes(sentinels.open))
+        return { act: "append" };
+    if (now.state === "create") {
+        if (sentinels !== undefined || carrierWant(rel) !== null)
+            return { act: "create" };
+        return { act: "none", why: "the kit's current text for it could not be read", link: false };
+    }
+    return { act: "none", why: r.why, link: r.link };
+}
 // routeCarrierSet (plan 34-29, D-26 point 4; the host set, phase 34.1 D-07): every file through which one of `hosts`
 // can reach the kit route: the union of routeCarriers(host) (host-tools.ts, the one derivation) over the HOST_TOOLS
 // rows in `hosts`, in first-seen registry order whatever order `hosts` is in. Derived, so a seventh host or a new
@@ -1165,25 +1197,30 @@ function doctorHosts(markerRead, ledgerRead) {
 const CARRIER_STATE_TEXT = {
     route: "carries the kit route",
     "own-stale": "is install's own copy from an earlier install, without the kit route",
-    user: "has no kit route, and install will not refresh it",
+    appendable: "has no install block and no kit route; install appends its block, which carries the route",
+    user: "has no kit route, and install will not write the route into it",
     absent: "is not present",
     unread: "could not be read, so no verdict was reached on it",
 };
 // classifyCarrier (plan 34-29's carrierFinding, split by plan 34-33 so the doctor reads every file before it prints;
-// plan 34-34 makes it ask refreshable): read one route carrier through the run's `readAt` (readUserFile under TARGET;
-// DC-3: a FIFO, a directory, a device or an oversized file is never read, it is `unread`) and classify it. It prints
-// nothing and writes nothing. The whole file is what a host reads, so the route test is carriesKitRoute over the whole
-// text:
+// plan 34-34 makes it ask refreshable; phase 34.1 D-15 makes it ask installWouldWrite): read one route carrier through
+// the run's `readAt` (readUserFile under TARGET; DC-3: a FIFO, a directory, a device or an oversized file is never
+// read, it is `unread`) and classify it. It prints nothing and writes nothing. The whole file is what a host reads, so
+// the route test is carriesKitRoute over the whole text:
 //   carries KIT_ROUTE                                                    → route
-//   present without it, and refreshable (over the doctor's ledger read)
-//   answers ok: install's own, and install would refresh it. INSTALL AND
-//   THE DOCTOR ASK THE SAME PREDICATE (refreshOwnFile and ensureBlock's
-//   refresh arm write only when it answers ok), so the remedy
-//   "Re-run install.js" is one the next install carries out (WR-01)       → own-stale
-//   present without it, and refreshable answers not ok                   → user (why = refreshable's reason;
+//   present without it, and installWouldWrite (over the doctor's ledger
+//   read) answers refresh. INSTALL AND THE DOCTOR ASK THE SAME OWNER
+//   (ensureBlock, writeWholeFileEntry and refreshOwnFile write only on its
+//   answer), so the remedy "Re-run install.js" is one the next install
+//   carries out (WR-01, WR-13)                                            → own-stale
+//   present without it, and installWouldWrite answers append (a block
+//   carrier without install's block: the re-install appends it)          → appendable
+//   present without it, and installWouldWrite answers none               → user (why = its reason;
 //                                                                            link = the path is a link)
 //   absent                                                               → absent
 //   not a readable regular file                                          → unread
+// A `create` answer for a path this read found present means the path changed between the two reads; the carrier is
+// then `user`, with that reason, and no re-run is named.
 function classifyCarrier(rel, ledger, readAt) {
     const read = readAt(rel);
     if (read.state === "absent")
@@ -1192,8 +1229,14 @@ function classifyCarrier(rel, ledger, readAt) {
         return { state: "unread", read, why: null, link: false };
     if (carriesKitRoute(read.text))
         return { state: "route", read, why: null, link: false };
-    const r = refreshable(ledger, rel);
-    return r.ok ? { state: "own-stale", read, why: null, link: false } : { state: "user", read, why: r.why, link: r.link };
+    const w = installWouldWrite(ledger, rel);
+    if (w.act === "refresh")
+        return { state: "own-stale", read, why: null, link: false };
+    if (w.act === "append")
+        return { state: "appendable", read, why: null, link: false };
+    if (w.act === "none")
+        return { state: "user", read, why: w.why, link: w.link };
+    return { state: "user", read, why: "nothing was there when --check asked again, so run install.js --check again", link: false };
 }
 /** What a read found, as the doctor words it: `is not present`, or unreadState's text, or `is a readable file`. */
 function readStateText(r) {
@@ -1238,12 +1281,13 @@ function adapterKitOnDisk() {
 //     D-03 cross-check read) names a real kit (kitReal), whatever that cross-check concluded about the other two
 //     sources (inside a Claude Code session the adapter resolves the kit, Phase 7 D-12).
 // (d) ONE LINE PER CARRIER: `route` → ok. Otherwise, when strandedBy names hosts, the counted line (FAIL for
-//     install's own stale copy, whose remedy is `Re-run install.js`; WARN for a carrier install will not refresh,
-//     an absent or an unread one), naming the stranded hosts in registry order; when it names none, an uncounted
-//     `note` naming each host that reads the carrier here and how that host has the route. THE REMEDY (plan 34-34,
-//     D-27 point 3, WR-01): `Re-run install.js` is named for a present carrier only when refreshable answers ok, the
-//     predicate install's refresh asks; otherwise the line carries refreshable's reason and the by-hand remedy (add
-//     KIT_ROUTE after the start-here sentence, in the file the link points to when the carrier is a link).
+//     install's own stale copy, whose remedy is `Re-run install.js`; WARN for a block carrier install appends its
+//     block to, for a carrier install will not write the route into, and for an absent or an unread one), naming the
+//     stranded hosts in registry order; when it names none, an uncounted `note` naming each host that reads the
+//     carrier here and how that host has the route. THE REMEDY (plan 34-34, D-27 point 3, WR-01; phase 34.1 D-15,
+//     WR-13): `Re-run install.js` is named exactly when installWouldWrite, the one owner install asks, answers that an
+//     install run on this state writes the carrier (refresh, append, or create for an absent one); otherwise the line
+//     carries its reason and the by-hand remedy (add KIT_ROUTE after the start-here sentence).
 // (e) ONE `reach` LINE PER INSTALLED HOST (`hosts`, below), in registry order, under the uncounted label `reach`: the host reaches
 //     when the route resolved (a) and reachVia names a carrier, or when its adapter reaches; the line names the
 //     carriers and the adapter that gave the route, or, when the host cannot reach, each carrier's state and the
@@ -1258,8 +1302,9 @@ function adapterKitOnDisk() {
 // (d) passes them to strandedBy and names only them as readers, and (e) prints one reach line per one of them, in
 // registry order. A carrier no installed agent reads is not reported, and an agent nobody installed here gets no
 // reach line and no counted finding.
-// It writes nothing. Ownership comes from owns over the ledger the doctor reads, and refresh from refreshable over
-// it, so install, uninstall and --check cannot disagree about whose file a carrier is or whether install refreshes it. Function declarations only, and the doctor's own
+// It writes nothing. Ownership comes from owns over the ledger the doctor reads, and what install would write from
+// installWouldWrite over it, so install, uninstall and --check cannot disagree about whose file a carrier is or what
+// install writes into it. Function declarations only, and the doctor's own
 // ledger read: module consts declared below the `--check` early exit are in their temporal dead zone here.
 function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
     // (a) Truthiness, as the kit-root cross-check reads the same field: a recorded path is never compared raw
@@ -1320,20 +1365,17 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
         const through = [...v.carriers, ...(v.adapter ? [adapterText] : [])];
         return through.length > 0 ? through.join(", ") : null;
     };
-    // The absent arm's remedy (plan 34-34, D-27 point 3): `Re-run install.js` only when install would write the carrier,
-    // asked the way install asks it: readForWrite answers `create` for the path (no link, non-directory or unreadable
-    // component on the way), and, for a whole file, the kit's current text for it can be read (carrierWant; install's
-    // AGENTS.md step copies or links the kit source only when it reads). Otherwise the reason install will not write it.
+    // The absent arm's remedy (plan 34-34, D-27 point 3; phase 34.1 D-15): from installWouldWrite, the one owner install
+    // asks. `create` (readForWrite answers create: no link, non-directory or unreadable component on the way; and, for a
+    // whole file, the kit's current text for it can be read) → `Re-run install.js`; none → the reason install will not
+    // write it. A refresh or append answer for a path this read found absent means it changed between the two reads.
     const absentRemedy = (rel) => {
-        const path = join(TARGET, ...rel.split("/"));
-        const w = readForWrite(TARGET, path);
-        if (w.state === "blocked")
-            return `Install will not write it: ${blockedAt(w, path)}`;
-        if (w.state === "ok")
-            return `Install will not write it: ${path} is there now, so run install.js --check again`;
-        if (!ROUTE_BLOCKS.has(rel) && carrierWant(rel) === null)
-            return `Install will not write it: the kit's current text for it could not be read`;
-        return `Re-run install.js, which writes it where nothing is`;
+        const w = installWouldWrite(ledger, rel);
+        if (w.act === "create")
+            return `Re-run install.js, which writes it where nothing is`;
+        if (w.act === "none")
+            return `Install will not write it: ${w.why}`;
+        return `${join(TARGET, ...rel.split("/"))} is there now, so run install.js --check again`;
     };
     // (d) One line per carrier.
     for (const rel of rels) {
@@ -1346,11 +1388,13 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
         }
         const remedy = cls.state === "own-stale"
             ? `Re-run install.js: it replaces install's own unedited copy with the current one (plan 34-28)`
-            : cls.state === "user"
-                ? `Add this sentence after its start-here sentence${cls.link ? " (in the file the link points to)" : ""}: ${KIT_ROUTE}`
-                : cls.state === "absent"
-                    ? absentRemedy(rel)
-                    : `It was not read, so NO VERDICT was reached on whether it carries the kit route`;
+            : cls.state === "appendable"
+                ? `Re-run install.js: it appends install's start-here block, which carries the route`
+                : cls.state === "user"
+                    ? `Add this sentence after its start-here sentence${cls.link ? " (in the file the link points to)" : ""}: ${KIT_ROUTE}`
+                    : cls.state === "absent"
+                        ? absentRemedy(rel)
+                        : `It was not read, so NO VERDICT was reached on whether it carries the kit route`;
         const stranded = strandedBy(rel, facts, hosts);
         if (stranded.length === 0) {
             const how = readers.map((h) => `${h.name} through ${hasRouteThrough(h) ?? "nothing"}`);
@@ -1370,9 +1414,12 @@ function kitRouteFindings(marker, ledger, markerFile, adapterKit, hosts) {
             docFail(`kit route missing from ${rel} ${leaves}: install wrote it in an earlier install and it still holds what ` +
                 `install wrote, so it names no route to the kit, which a scripted install puts outside this repository. ${remedy}`);
         }
+        else if (cls.state === "appendable") {
+            docWarn(`kit route missing from ${rel} ${leaves}: it holds no install block, and a re-install appends install's block, which carries the route. ${remedy}`);
+        }
         else {
-            docWarn(`kit route missing from ${rel} ${leaves}: install will not refresh it (${cls.why}), so --check reports it ` +
-                `and install leaves it as it is. ${remedy}`);
+            docWarn(`kit route missing from ${rel} ${leaves}: install will not write the route into it (${cls.why}), so --check ` +
+                `reports it and install leaves it as it is. ${remedy}`);
         }
     }
     // (e): the reach line, per installed host.
@@ -2572,62 +2619,80 @@ function migratePreSteps() {
 // Each is now left untouched and reported. An absent file is created with an exclusive create that
 // already carries the block (the same bytes the old empty-create-then-append produced).
 //
-// THE REFRESH (plan 34-28, D-26 point 2, brief DC-2; plan 34-34, D-27 point 3). When the open sentinel is already
-// there, the block is replaced only when refreshable answers ok (the one predicate the doctor asks too), over this
-// function's own readForWrite read. `ledger` is the install ledger as this run found it (PREVIOUS_LEDGER).
-// refreshable asks ownBlockSpans (plan 34-29): owns(ledger, TARGET, rel, "block") gives the `block` entry; the spans of
-// the block lines are found by blockLineSpans (install-marker.ts, the one finder uninstall's removal uses too) and only
-// the spans whose bytes hash to the entry's record are kept:
-//   - exactly one such span, whose bytes are not the current block lines: that span is replaced by the
-//     current lines and every other byte is written back unchanged (writeTargetFile with how `ok`; under
-//     DRY_RUN a `would-refresh` line instead, decided before any write). The new lines are recorded through
-//     recordAppendedBlock with the entry's separator (the span did not move, so the newline before it is
-//     what it was). When the ledger's `file` entry for the same path held before this write (install created
-//     the file and nobody edited it), the whole new file is recorded too, so uninstall still deletes the file
-//     it created. Reported `refreshed`;
-//   - a block that is already the current lines: skipped, nothing written;
-//   - anything else (no record, a record that no span matches because a line inside was added, edited or
-//     removed, or two matching spans): skipped, nothing written. When the file then carries no kit route and
-//     that leaves a host without one, install's route-note pass (noteStrandingCarriers, after every carrier
-//     write) names it and those hosts (D-26 point 3, D-27 point 2).
-// Under DRY_RUN, each would-add and would-refresh records the bytes the real run would leave (setPlanned), so the
-// route-note pass judges the state the real run would leave.
-function ensureBlock(ledger, file, open, body, close, label) {
+// WHAT IT WRITES (phase 34.1, D-15, WR-13): installWouldWrite's answer over this function's own readForWrite read,
+// the one owner the doctor's carrier classification asks too, so `--check` names `Re-run install.js` exactly when
+// this function writes the carrier:
+//   append  → a regular file without the open sentinel: the block is appended (the user's bytes kept, a separator
+//             before it), recorded through recordAppendedBlock. Reported `created`;
+//   create  → nothing there: an exclusive create that already carries the block, recorded as a file install created
+//             and a block. Reported `created`;
+//   refresh → THE REFRESH (plan 34-28, D-26 point 2, brief DC-2; plan 34-34, D-27 point 3): refreshable's ok answer,
+//             carried in the act. refreshable asks ownBlockSpans (plan 34-29): owns(ledger, TARGET, rel, "block")
+//             gives the `block` entry; the spans of the block lines are found by blockLineSpans (install-marker.ts,
+//             the one finder uninstall's removal uses too) and only the spans whose bytes hash to the entry's record
+//             are kept. Exactly one such span, whose bytes are not the current block lines: that span is replaced by
+//             the current lines and every other byte is written back unchanged (writeTargetFile with how `ok`; under
+//             DRY_RUN a `would-refresh` line instead, decided before any write). The new lines are recorded through
+//             recordAppendedBlock with the entry's separator (the span did not move, so the newline before it is what
+//             it was). When the ledger's `file` entry for the same path held before this write (install created the
+//             file and nobody edited it), the whole new file is recorded too, so uninstall still deletes the file it
+//             created. Reported `refreshed`. A block that is already the current lines: skipped, nothing written;
+//   none    → a blocked path (a link, a hard link, a special file, a non-directory on the way): a counted verify,
+//             nothing written. A file holding the open sentinel that install will not refresh (no record, a record
+//             that no span matches because a line inside was added, edited or removed, or two matching spans):
+//             skipped, nothing written. When the file then carries no kit route and that leaves a host without one,
+//             install's route-note pass (noteStrandingCarriers, after every carrier write) names it and those hosts
+//             (D-26 point 3, D-27 point 2).
+// `ledger` is the install ledger as this run found it (PREVIOUS_LEDGER); `rel` is a ROUTE_BLOCKS carrier, whose
+// sentinels are ROUTE_BLOCKS' (one source for the writer and the owner). Under DRY_RUN, each would-add and
+// would-refresh records the bytes the real run would leave (setPlanned), so the route-note pass judges the state the
+// real run would leave.
+function ensureBlock(ledger, rel, body, label) {
+    const sentinels = ROUTE_BLOCKS.get(rel);
+    if (sentinels === undefined)
+        throw new Error(`ensureBlock: ${rel} is not a ROUTE_BLOCKS carrier`);
+    const { open, close } = sentinels;
+    const file = join(TARGET, ...rel.split("/"));
     const cur = readForWrite(TARGET, file);
-    if (cur.state === "blocked") {
-        verify(`${label}: ${blockedAt(cur, file)}. It was left untouched and nothing was added to it.`);
-        return;
-    }
-    if (cur.state === "ok" && cur.text.includes(open)) {
-        const newLines = `${open}\n${body}\n${close}\n`;
-        const rel = targetRel(file);
-        // refreshable (plan 34-34, D-27 point 3): the one predicate the doctor's carrier classification asks too. It is
-        // handed this function's own read, so the decision and the splice below are made on one read.
-        const r = rel === null ? null : refreshable(ledger, rel, cur);
-        if (rel !== null && r !== null && r.ok && r.kind === "block") {
-            const newBytes = Buffer.from(newLines, "utf8");
-            if (!r.cur.bytes.subarray(r.span.start, r.span.end).equals(newBytes)) {
-                const next = Buffer.concat([r.cur.bytes.subarray(0, r.span.start), newBytes, r.cur.bytes.subarray(r.span.end)]);
-                if (DRY_RUN) {
-                    setPlanned(file, next);
-                    report("would-refresh", `${label} (install's own block from an earlier install, unedited, is not the current text)`);
-                    return;
-                }
-                const createdHeld = owns(ledger, TARGET, rel, "file").owned;
-                if (!writeTargetFile(file, next, "ok", label))
-                    return;
-                recordAppendedBlock(file, newLines, r.own.separator);
-                if (createdHeld)
-                    recordCreatedFile(file, writtenFileRecord(file, next));
-                report("refreshed", `${label} (install's own block from an earlier install, unedited, held no kit route or was older; replaced with the current text, every other byte kept, and recorded)`);
-                return;
-            }
+    const w = installWouldWrite(ledger, rel, cur);
+    const newLines = `${open}\n${body}\n${close}\n`;
+    if (w.act === "none") {
+        if (cur.state === "blocked") {
+            verify(`${label}: ${blockedAt(cur, file)}. It was left untouched and nothing was added to it.`);
         }
-        report("skipped", `${label} (sentinel already present)`);
+        else {
+            report("skipped", `${label} (sentinel already present)`);
+        }
         return;
     }
-    const lines = `${open}\n${body}\n${close}\n`;
-    const block = `\n${lines}`;
+    if (w.act === "refresh") {
+        const r = w.how;
+        if (r.kind !== "block")
+            throw new Error(`ensureBlock: ${rel} answered a whole-file refresh`);
+        const newBytes = Buffer.from(newLines, "utf8");
+        if (r.cur.bytes.subarray(r.span.start, r.span.end).equals(newBytes)) {
+            report("skipped", `${label} (sentinel already present)`);
+            return;
+        }
+        const next = Buffer.concat([r.cur.bytes.subarray(0, r.span.start), newBytes, r.cur.bytes.subarray(r.span.end)]);
+        if (DRY_RUN) {
+            setPlanned(file, next);
+            report("would-refresh", `${label} (install's own block from an earlier install, unedited, is not the current text)`);
+            return;
+        }
+        const createdHeld = owns(ledger, TARGET, rel, "file").owned;
+        if (!writeTargetFile(file, next, "ok", label))
+            return;
+        recordAppendedBlock(file, newLines, r.own.separator);
+        if (createdHeld)
+            recordCreatedFile(file, writtenFileRecord(file, next));
+        report("refreshed", `${label} (install's own block from an earlier install, unedited, held no kit route or was older; replaced with the current text, every other byte kept, and recorded)`);
+        return;
+    }
+    // append (cur is ok) or create (cur is create).
+    if (cur.state === "blocked")
+        throw new Error(`ensureBlock: ${rel} answered ${w.act} on a blocked read`);
+    const block = `\n${newLines}`;
     if (DRY_RUN) {
         // What the real run leaves: the block alone on a create, else the current bytes with the block appended.
         setPlanned(file, cur.state === "create" ? block : Buffer.concat([cur.bytes, Buffer.from(block, "utf8")]));
@@ -2645,7 +2710,7 @@ function ensureBlock(ledger, file, open, body, close, label) {
         // install created this file. Uninstall deletes it only on this record (its file entry), and only
         // while the file still holds these bytes (red-team R1).
         recordCreatedFile(file, writtenFileRecord(file, block));
-        recordAppendedBlock(file, lines, separator);
+        recordAppendedBlock(file, newLines, separator);
     }
     else {
         try {
@@ -2656,10 +2721,10 @@ function ensureBlock(ledger, file, open, body, close, label) {
             return;
         }
         // Red-team of plan 33.1-28 (R1): the file was there before this run, so it is not install's.
-        const rel = targetRel(file);
-        if (rel !== null)
-            APPENDED_FILES.add(rel);
-        recordAppendedBlock(file, lines, separator);
+        const appendedRel = targetRel(file);
+        if (appendedRel !== null)
+            APPENDED_FILES.add(appendedRel);
+        recordAppendedBlock(file, newLines, separator);
     }
     report("created", label);
 }
@@ -5394,7 +5459,7 @@ for (const rel of SELECTED_KINDS.has("claude-kit") ? SRC_NESTED_ADAPTERS : []) {
 // the Copilot pointer block for Copilot. A carrier of an agent not chosen is neither read nor written here (D-04); an
 // earlier install's block entry for it is carried by nextLedgerEntries.
 if (SELECTED_KINDS.has("claude-kit")) {
-    ensureBlock(PREVIOUS_LEDGER, join(TARGET, "CLAUDE.md"), CLAUDE_OPEN, CLAUDE_PTR, CLAUDE_CLOSE, "CLAUDE.md start-here pointer");
+    ensureBlock(PREVIOUS_LEDGER, "CLAUDE.md", CLAUDE_PTR, "CLAUDE.md start-here pointer");
 }
 else {
     report("skipped", "CLAUDE.md start-here pointer (Claude Code is not chosen in this run; CLAUDE.md is left as it is)");
@@ -5402,7 +5467,7 @@ else {
 // Phase 34.1, D-12: install no longer reads, creates or edits .gemini/settings.json (Gemini CLI is discontinued). An
 // earlier install's gemini ledger entry is carried verbatim by nextLedgerEntries, and only uninstall acts on it.
 if (SELECTED_KINDS.has("copilot-pointer")) {
-    ensureBlock(PREVIOUS_LEDGER, join(TARGET, COPILOT_REL), COPILOT_OPEN, COPILOT_PTR, COPILOT_CLOSE, `${COPILOT_REL} (optional Copilot pointer)`);
+    ensureBlock(PREVIOUS_LEDGER, COPILOT_REL, COPILOT_PTR, `${COPILOT_REL} (optional Copilot pointer)`);
 }
 // Every whole-file entry of the chosen agents (phase 34.1, plans 34.1-01 and 34.1-08): the derived set, in registry
 // order. An entry two chosen agents share is written once.
